@@ -1,43 +1,93 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { users } from "@/db/schema";
 import { clearSessionCookie, setSessionCookie } from "@/lib/auth-cookie";
+import {
+  hashPassword,
+  verifyPassword,
+  PASSWORD_MIN_LENGTH,
+  PASSWORD_MAX_LENGTH,
+} from "@/lib/auth-password";
+import { requireAuth } from "@/lib/auth";
 
-const emailSchema = z.string().email().max(255);
+const signInSchema = z.object({
+  email: z.string().email().max(255),
+  password: z.string().min(1).max(PASSWORD_MAX_LENGTH),
+});
+
+const changePasswordSchema = z
+  .object({
+    currentPassword: z.string().min(1).max(PASSWORD_MAX_LENGTH),
+    newPassword: z
+      .string()
+      .min(PASSWORD_MIN_LENGTH, `At least ${PASSWORD_MIN_LENGTH} characters.`)
+      .max(PASSWORD_MAX_LENGTH),
+    confirmPassword: z.string(),
+  })
+  .refine((d) => d.newPassword === d.confirmPassword, {
+    message: "New passwords don't match.",
+    path: ["confirmPassword"],
+  });
 
 export interface SignInResult {
   ok: boolean;
   error?: string;
 }
 
-/**
- * Look the email up, set the session cookie. No password — PRD trade-off:
- * trusted-team-only access. Anyone whose row exists in `users` can sign in.
- */
+export interface ChangePasswordResult {
+  ok: boolean;
+  error?: string;
+}
+
+/** Verify email + password. No password set on the user → instruct to ask admin. */
 export async function signIn(formData: FormData): Promise<SignInResult> {
-  const rawEmail = formData.get("email");
-  const parsed = emailSchema.safeParse(rawEmail);
+  const parsed = signInSchema.safeParse({
+    email: formData.get("email"),
+    password: formData.get("password"),
+  });
   if (!parsed.success) {
-    return { ok: false, error: "Please enter a valid email address." };
+    const first = parsed.error.issues[0];
+    return {
+      ok: false,
+      error:
+        first?.path[0] === "email"
+          ? "Please enter a valid email address."
+          : "Please enter your password.",
+    };
   }
-  const email = parsed.data.trim().toLowerCase();
+  const email = parsed.data.email.trim().toLowerCase();
+  const password = parsed.data.password;
 
   const [row] = await db
-    .select({ id: users.id })
+    .select({
+      id: users.id,
+      passwordHash: users.passwordHash,
+    })
     .from(users)
     .where(sql`LOWER(${users.email}) = ${email}`)
     .limit(1);
 
+  // Generic message on lookup miss + wrong password so we don't leak which
+  // emails exist.
+  const genericError = "Wrong email or password.";
+
   if (!row) {
+    return { ok: false, error: genericError };
+  }
+  if (!row.passwordHash) {
     return {
       ok: false,
       error:
-        "That email isn't on the team yet. Ask an admin to add you in /admin/users.",
+        "This account has no password set yet. Ask an admin to set one for you.",
     };
+  }
+  const ok = await verifyPassword(password, row.passwordHash);
+  if (!ok) {
+    return { ok: false, error: genericError };
   }
 
   await setSessionCookie(row.id);
@@ -49,9 +99,43 @@ export async function signOut(): Promise<void> {
   redirect("/signin");
 }
 
-/** Server-side helper that performs sign-out + redirect in one go. */
-export async function signOutAndRedirect(): Promise<void> {
-  await clearSessionCookie();
-  redirect("/signin");
-}
+/** Self-service password change for the signed-in user. */
+export async function changePassword(input: unknown): Promise<ChangePasswordResult> {
+  try {
+    const me = await requireAuth();
+    const parsed = changePasswordSchema.safeParse(input);
+    if (!parsed.success) {
+      return {
+        ok: false,
+        error: parsed.error.issues[0]?.message ?? "Invalid input",
+      };
+    }
+    const { currentPassword, newPassword } = parsed.data;
 
+    const [row] = await db
+      .select({ passwordHash: users.passwordHash })
+      .from(users)
+      .where(eq(users.id, me.id))
+      .limit(1);
+    if (!row?.passwordHash) {
+      return {
+        ok: false,
+        error:
+          "No password is set on this account yet. Ask an admin to set one first.",
+      };
+    }
+    const ok = await verifyPassword(currentPassword, row.passwordHash);
+    if (!ok) {
+      return { ok: false, error: "Current password is incorrect." };
+    }
+    const newHash = await hashPassword(newPassword);
+    await db
+      .update(users)
+      .set({ passwordHash: newHash })
+      .where(eq(users.id, me.id));
+
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : "Unknown error" };
+  }
+}

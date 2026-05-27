@@ -4,6 +4,7 @@ import { users } from "@/db/schema";
 import { auth, requireAdmin } from "@/lib/auth";
 import { UserInviteForm } from "@/components/user/user-invite-form";
 import { UserRoleSelect } from "@/components/user/user-role-select";
+import { AdminSetPasswordButton } from "@/components/user/admin-set-password-button";
 import { isoDate } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
@@ -49,6 +50,7 @@ export default async function UsersAdminPage() {
               <th className="font-medium px-3 py-2.5">Email</th>
               <th className="font-medium px-3 py-2.5">Role</th>
               <th className="font-medium px-3 py-2.5">Joined</th>
+              <th className="font-medium px-3 py-2.5 text-right"></th>
             </tr>
           </thead>
           <tbody className="divide-y divide-line">
@@ -64,6 +66,9 @@ export default async function UsersAdminPage() {
                   />
                 </td>
                 <td className="px-3 py-2.5 text-ink-3">{isoDate(u.createdAt)}</td>
+                <td className="px-3 py-2.5 text-right">
+                  <AdminSetPasswordButton userId={u.id} userEmail={u.email} />
+                </td>
               </tr>
             ))}
           </tbody>

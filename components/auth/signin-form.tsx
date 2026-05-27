@@ -10,6 +10,7 @@ import { signIn } from "@/app/actions/session";
 export function SignInForm({ nextPath }: { nextPath: string }) {
   const router = useRouter();
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -18,6 +19,7 @@ export function SignInForm({ nextPath }: { nextPath: string }) {
     setError(null);
     const form = new FormData();
     form.set("email", email.trim());
+    form.set("password", password);
     startTransition(async () => {
       const res = await signIn(form);
       if (!res.ok) {
@@ -61,17 +63,34 @@ export function SignInForm({ nextPath }: { nextPath: string }) {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="you@urjwan.com"
+            autoComplete="email"
             autoFocus
             required
           />
         </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="password">Password</Label>
+          <Input
+            id="password"
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="••••••••"
+            autoComplete="current-password"
+            required
+          />
+        </div>
         {error && <p className="text-[12px] text-neg">{error}</p>}
-        <Button type="submit" className="w-full" disabled={isPending || !email.trim()}>
+        <Button
+          type="submit"
+          className="w-full"
+          disabled={isPending || !email.trim() || !password}
+        >
           {isPending ? "Signing in…" : "Sign in"}
         </Button>
         <p className="text-[11px] text-ink-3 text-center pt-1">
-          No password needed — internal-team tool. Ask an admin to invite you if
-          your email isn&apos;t on the team yet.
+          Internal-team tool. Ask an admin to invite you if your email
+          isn&apos;t on the team yet.
         </p>
       </form>
     </div>

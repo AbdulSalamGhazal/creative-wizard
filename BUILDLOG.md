@@ -1399,3 +1399,80 @@ When a real upload's header isn't recognized, the flow is now:
 2. Open `/admin/platforms`.
 3. Add the actual header from your CSV under the right internal field.
 4. Re-upload — no code change needed.
+
+---
+
+## 2026-05-27 — Email + password auth (bcrypt)
+
+Replaced the email-only sign-in with proper email + password using
+**bcryptjs** at cost 12. The HMAC-cookie session model is unchanged;
+only the gate at `/signin` got stricter.
+
+**Schema migration `0003_user_password_hash.sql`** — adds nullable
+`users.password_hash text`. Nullable so the migration is safe on
+existing rows; sign-in rejects rows without a hash with a clear
+message ("Ask an admin to set one for you").
+
+**`lib/auth-password.ts`** wraps `bcryptjs.hash/compare`. Cost factor
+12. Enforces `PASSWORD_MIN_LENGTH = 8`, `PASSWORD_MAX_LENGTH = 128`.
+
+**Server Actions in `app/actions/session.ts`:**
+- `signIn({ email, password })` — Zod-validate, look the email up
+  case-insensitively, `bcrypt.compare`. Generic "Wrong email or
+  password" on both missing-email and wrong-password cases so we
+  don't leak which emails exist.
+- `changePassword({ currentPassword, newPassword, confirmPassword })`
+  — verifies the current password before writing a new hash, with
+  matching-confirmation enforced via a Zod refinement.
+
+**Server Actions in `app/actions/user.ts`:**
+- `inviteUser({ name, email, role, password })` — admin only. Now
+  requires a starter password (min 8 chars). The admin shares it
+  with the teammate out-of-band and they change it on first sign-in.
+- `adminSetPassword({ userId, password })` — admin only. Resets any
+  user's password.
+
+**UI:**
+- `components/auth/signin-form.tsx` — added password input with
+  `autoComplete="current-password"`.
+- `components/auth/change-password-dialog.tsx` — current / new /
+  confirm fields, success message, opens from the user menu.
+- `components/auth/user-menu.tsx` — "Change password" item above
+  Sign out.
+- `components/user/user-invite-form.tsx` — starter password input
+  next to the role select.
+- `components/user/admin-set-password-button.tsx` — per-row button
+  in `/admin/users` for password reset.
+
+**Seed updated.** The admin row is now created (or repaired) with a
+bcrypt hash of the dev-only password on every `npm run db:seed`.
+Re-running the seed will reset a forgotten admin password without
+dropping the user row.
+
+**Dev credentials:**
+
+```
+email:    salam@urjwan.com
+password: urjwan-dev-2026
+```
+
+Change it from the user menu → Change password the first time you
+sign in. The seed reset behavior also means you can recover by
+re-running `npm run db:seed`.
+
+**Security trade-off (still recorded).** This is plaintext password
+auth — no email verification, no second factor, no rate-limiting.
+Suitable for an internal trusted-team tool on a local network.
+Before exposing the dashboard publicly:
+- Rate-limit `signIn` (lock after N failures).
+- Add password-reset over email.
+- Optional: 2FA for admins.
+
+**Verified:**
+- `bcrypt.compare(right, hash)` → `true`.
+- `bcrypt.compare(wrong, hash)` → `false`.
+- `bcrypt.compare("", hash)` → `false`.
+- `GET /` while unauthenticated → 307 → `/signin`.
+- `/signin` renders both email and password fields.
+- Type-check + build clean (16 routes).
+- All 19 vitest specs still pass.

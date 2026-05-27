@@ -21,6 +21,7 @@ import {
   performanceRecords,
   type platformEnum,
 } from "@/db/schema";
+import { hashPassword } from "@/lib/auth-password";
 import { metaAdapter } from "@/csv/platforms/meta";
 import { tiktokAdapter } from "@/csv/platforms/tiktok";
 import { snapchatAdapter } from "@/csv/platforms/snapchat";
@@ -34,14 +35,27 @@ async function main() {
   console.log("Seeding…");
 
   // ---------- User ----------
+  // Default admin credentials (dev only):
+  //   email:    salam@urjwan.com
+  //   password: urjwan-dev-2026
+  // The password is rehashed on every seed run so re-running can repair a
+  // forgotten password without dropping the user row.
+  const ADMIN_EMAIL = "salam@urjwan.com";
+  const ADMIN_PASSWORD = "urjwan-dev-2026";
+  const adminHash = await hashPassword(ADMIN_PASSWORD);
+
   const [admin] = await db
     .insert(users)
     .values({
-      email: "salam@urjwan.com",
+      email: ADMIN_EMAIL,
       name: "Salam (seed admin)",
       role: "admin",
+      passwordHash: adminHash,
     })
-    .onConflictDoNothing({ target: users.email })
+    .onConflictDoUpdate({
+      target: users.email,
+      set: { passwordHash: adminHash },
+    })
     .returning();
 
   const adminId =
@@ -50,10 +64,10 @@ async function main() {
       await db
         .select({ id: users.id })
         .from(users)
-        .where(sql`${users.email} = 'salam@urjwan.com'`)
+        .where(sql`${users.email} = ${ADMIN_EMAIL}`)
     )[0]!.id;
 
-  console.log("  user:", adminId);
+  console.log("  user:", adminId, `(${ADMIN_EMAIL} / ${ADMIN_PASSWORD})`);
 
   // ---------- Products ----------
   const productRows = [
