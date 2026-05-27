@@ -1,5 +1,459 @@
-// 5-stage validation pipeline. Stages 1-2 fail-fast; stages 3-5 collect errors.
-// Returns { ok: true, rows, warnings } or { ok: false, errors }.
-// See docs/validation-spec.md §3.
-// To be implemented.
-export {};
+/**
+ * 5-stage CSV validation pipeline.
+ *
+ * Per docs/validation-spec.md §3:
+ *   Stage 1 — file integrity   (fail-fast)
+ *   Stage 2 — schema           (fail-fast)
+ *   Stage 3 — row content      (collect errors)
+ *   Stage 4 — intra-file dupes (collect errors)
+ *   Stage 5 — DB dupes         (collect errors)
+ *
+ * `runPipeline()` is platform-agnostic. The platform adapter from
+ * `csv/platforms/` supplies header mapping, required fields, accepted date
+ * formats, and row-skip rules. The DB-dupe lookup is injected so the pipeline
+ * can be tested without a database.
+ */
+import { parseCsv, type ParseInput } from "@/csv/parse";
+import { ADAPTERS } from "@/csv/platforms";
+import type {
+  DateFormat,
+  InternalField,
+  PlatformAdapter,
+} from "@/csv/platforms/types";
+import type { ValidationError } from "@/csv/errors";
+
+type Platform = PlatformAdapter["platform"];
+
+export interface ParsedRow {
+  rowNumber: number;
+  creativeName: string;
+  date: string; // canonical YYYY-MM-DD
+  spend: number;
+  impressions: number;
+  clicks: number;
+  conversions: number | null;
+  conversionValue: number | null;
+  videoViews3s: number | null;
+  videoViews15s: number | null;
+  /** Raw cell values keyed by original header. Stored on the perf record. */
+  rawPayload: Record<string, string>;
+}
+
+export interface PipelineSuccess {
+  ok: true;
+  rows: ParsedRow[];
+  warnings: ValidationError[];
+}
+export interface PipelineFailure {
+  ok: false;
+  errors: ValidationError[];
+  warnings: ValidationError[];
+}
+export type PipelineResult = PipelineSuccess | PipelineFailure;
+
+export interface PipelineInput extends ParseInput {
+  platform: Platform;
+  /** All creative names registered in the library, used for strict matching. */
+  registeredNames: Set<string>;
+  /** Returns the existing batch id for a (name, platform, date) tuple, or null. */
+  findExistingBatch?: (
+    creativeName: string,
+    platform: Platform,
+    date: string,
+  ) => Promise<string | null>;
+}
+
+export async function runPipeline(input: PipelineInput): Promise<PipelineResult> {
+  const adapter = ADAPTERS[input.platform];
+  const warnings: ValidationError[] = [];
+
+  // ---------- Stage 1 ----------
+  const parsed = parseCsv({
+    content: input.content,
+    byteLength: input.byteLength,
+  });
+  if (!parsed.ok) {
+    return { ok: false, errors: [parsed.error], warnings };
+  }
+  warnings.push(...parsed.warnings);
+
+  // ---------- Stage 2 — schema ----------
+  // Case-insensitive header lookup.
+  const headerLookup = new Map<string, number>();
+  const seenLower = new Set<string>();
+  for (let i = 0; i < parsed.header.length; i++) {
+    const h = parsed.header[i]!;
+    const key = h.toLowerCase();
+    if (seenLower.has(key) && h.trim() !== "") {
+      return {
+        ok: false,
+        errors: [
+          {
+            code: "E012",
+            severity: "FATAL",
+            message: `Duplicate header column: \`${h}\`.`,
+          },
+        ],
+        warnings,
+      };
+    }
+    seenLower.add(key);
+    headerLookup.set(key, i);
+  }
+
+  /** Internal field → column index in the parsed body, or undefined if not present. */
+  const fieldIndex: Partial<Record<InternalField, number>> = {};
+  /** Internal field → the actual header string we matched (for raw-payload keys). */
+  const fieldHeader: Partial<Record<InternalField, string>> = {};
+
+  for (const field of Object.keys(adapter.headerMap) as InternalField[]) {
+    const candidates = adapter.headerMap[field];
+    for (const candidate of candidates) {
+      const idx = headerLookup.get(candidate.toLowerCase());
+      if (idx !== undefined) {
+        fieldIndex[field] = idx;
+        fieldHeader[field] = parsed.header[idx];
+        break;
+      }
+    }
+  }
+
+  // Stage 2 fatal: every required field must be present.
+  const missingHeaders: ValidationError[] = [];
+  for (const required of adapter.requiredFields) {
+    if (fieldIndex[required] === undefined) {
+      const firstCandidate = adapter.headerMap[required][0] ?? required;
+      missingHeaders.push({
+        code: "E010",
+        severity: "FATAL",
+        message: `Required column missing: \`${firstCandidate}\`.`,
+        field: required,
+      });
+    }
+  }
+  if (missingHeaders.length > 0) {
+    return { ok: false, errors: missingHeaders, warnings };
+  }
+
+  // W002 — unknown columns (everything in the header that we didn't map).
+  const mappedIndices = new Set(Object.values(fieldIndex));
+  for (let i = 0; i < parsed.header.length; i++) {
+    if (!mappedIndices.has(i) && parsed.header[i]!.trim() !== "") {
+      warnings.push({
+        code: "W002",
+        severity: "WARNING",
+        message: `Unknown column ignored: \`${parsed.header[i]}\`.`,
+      });
+    }
+  }
+
+  // ---------- Stages 3 + 4 ----------
+  const collected: ValidationError[] = [];
+  const accepted: ParsedRow[] = [];
+  /** key = `${creative}${date}` — for intra-file duplicate detection. */
+  const seenKeys = new Map<string, number[]>();
+
+  for (let i = 0; i < parsed.rows.length; i++) {
+    const csvRow = parsed.rows[i]!;
+    const rowNumber = parsed.rowNumbers[i]!;
+
+    // Project to internal-field cells.
+    const cell = (f: InternalField): string => {
+      const idx = fieldIndex[f];
+      if (idx === undefined) return "";
+      return (csvRow[idx] ?? "").trim();
+    };
+    const allCells: Partial<Record<InternalField, string>> = {};
+    for (const f of Object.keys(fieldIndex) as InternalField[]) {
+      allCells[f] = cell(f);
+    }
+
+    // skipRow rule (subtotal / grand-total rows).
+    if (adapter.skipRow?.(allCells)) continue;
+
+    const errorsForRow: ValidationError[] = [];
+
+    // E021 / E020 — creative_name
+    const creativeName = allCells.creative_name ?? "";
+    if (creativeName === "") {
+      errorsForRow.push({
+        code: "E021",
+        severity: "ERROR",
+        message: `Row ${rowNumber}: creative name is empty.`,
+        row: rowNumber,
+      });
+    } else if (!input.registeredNames.has(creativeName)) {
+      errorsForRow.push({
+        code: "E020",
+        severity: "ERROR",
+        message: `Row ${rowNumber}: creative \`'${creativeName}'\` is not registered in the library.`,
+        row: rowNumber,
+        value: creativeName,
+      });
+    }
+
+    // E030 / E031 — date
+    const rawDate = allCells.date ?? "";
+    let canonicalDate: string | null = null;
+    if (rawDate === "") {
+      errorsForRow.push({
+        code: "E042",
+        severity: "ERROR",
+        message: `Row ${rowNumber}: required field \`'date'\` is missing.`,
+        row: rowNumber,
+        field: "date",
+      });
+    } else {
+      canonicalDate = parseDate(rawDate, adapter.acceptedDateFormats);
+      if (canonicalDate === null) {
+        errorsForRow.push({
+          code: "E030",
+          severity: "ERROR",
+          message: `Row ${rowNumber}: invalid date \`'${rawDate}'\`.`,
+          row: rowNumber,
+          value: rawDate,
+          field: "date",
+        });
+      } else if (isMoreThanADayInFuture(canonicalDate)) {
+        errorsForRow.push({
+          code: "E031",
+          severity: "ERROR",
+          message: `Row ${rowNumber}: date \`'${rawDate}'\` is in the future.`,
+          row: rowNumber,
+          value: rawDate,
+          field: "date",
+        });
+      }
+    }
+
+    // Numeric fields
+    const parseRequired = (
+      field: InternalField,
+    ): number | null => {
+      const raw = allCells[field] ?? "";
+      if (raw === "") {
+        errorsForRow.push({
+          code: "E042",
+          severity: "ERROR",
+          message: `Row ${rowNumber}: required field \`'${field}'\` is missing.`,
+          row: rowNumber,
+          field,
+        });
+        return null;
+      }
+      const parsedNumeric = parseNumber(raw);
+      if (parsedNumeric === null) {
+        errorsForRow.push({
+          code: "E040",
+          severity: "ERROR",
+          message: `Row ${rowNumber}: \`'${field}'\` is not a valid number (\`'${raw}'\`).`,
+          row: rowNumber,
+          value: raw,
+          field,
+        });
+        return null;
+      }
+      if (parsedNumeric < 0) {
+        errorsForRow.push({
+          code: "E041",
+          severity: "ERROR",
+          message: `Row ${rowNumber}: \`'${field}'\` must be non-negative (got ${parsedNumeric}).`,
+          row: rowNumber,
+          value: raw,
+          field,
+        });
+        return null;
+      }
+      return parsedNumeric;
+    };
+    const parseOptional = (field: InternalField): number | null => {
+      const raw = allCells[field] ?? "";
+      if (isEmptyMarker(raw)) return 0;
+      const parsedNumeric = parseNumber(raw);
+      if (parsedNumeric === null) {
+        errorsForRow.push({
+          code: "E040",
+          severity: "ERROR",
+          message: `Row ${rowNumber}: \`'${field}'\` is not a valid number (\`'${raw}'\`).`,
+          row: rowNumber,
+          value: raw,
+          field,
+        });
+        return null;
+      }
+      if (parsedNumeric < 0) {
+        errorsForRow.push({
+          code: "E041",
+          severity: "ERROR",
+          message: `Row ${rowNumber}: \`'${field}'\` must be non-negative (got ${parsedNumeric}).`,
+          row: rowNumber,
+          value: raw,
+          field,
+        });
+        return null;
+      }
+      return parsedNumeric;
+    };
+
+    const spend = parseRequired("spend");
+    const impressions = parseRequired("impressions");
+    const clicks = parseRequired("clicks");
+    const conversions = parseOptional("conversions");
+    const conversionValue = parseOptional("conversion_value");
+    const videoViews3s = parseOptional("video_views_3s");
+    const videoViews15s = parseOptional("video_views_15s");
+
+    if (errorsForRow.length > 0) {
+      collected.push(...errorsForRow);
+      continue;
+    }
+    if (canonicalDate === null || spend === null || impressions === null || clicks === null) {
+      continue;
+    }
+
+    // Build the raw payload from the original cells (keyed by header).
+    const rawPayload: Record<string, string> = {};
+    for (let h = 0; h < parsed.header.length; h++) {
+      const key = parsed.header[h] ?? `col_${h}`;
+      rawPayload[key] = csvRow[h] ?? "";
+    }
+
+    accepted.push({
+      rowNumber,
+      creativeName,
+      date: canonicalDate,
+      spend,
+      impressions: Math.floor(impressions),
+      clicks: Math.floor(clicks),
+      conversions,
+      conversionValue,
+      videoViews3s: videoViews3s === null ? null : Math.floor(videoViews3s),
+      videoViews15s: videoViews15s === null ? null : Math.floor(videoViews15s),
+      rawPayload,
+    });
+
+    // Stage 4 — intra-file duplicate index.
+    const key = `${creativeName}${canonicalDate}`;
+    const list = seenKeys.get(key);
+    if (list) list.push(rowNumber);
+    else seenKeys.set(key, [rowNumber]);
+  }
+
+  // Stage 4 emit
+  for (const [key, rowNums] of seenKeys) {
+    if (rowNums.length > 1) {
+      const [creativeName, date] = key.split("");
+      collected.push({
+        code: "E050",
+        severity: "ERROR",
+        message: `Rows ${rowNums.join(", ")}: duplicate within file — same creative \`'${creativeName}'\`, platform \`${input.platform}\`, date \`${date}\`.`,
+        rows: rowNums,
+        value: creativeName,
+      });
+    }
+  }
+
+  // ---------- Stage 5 — DB duplicates ----------
+  if (input.findExistingBatch && accepted.length > 0) {
+    for (const row of accepted) {
+      // Skip if this row is also part of an intra-file dupe — E050 already covers it.
+      const key = `${row.creativeName}${row.date}`;
+      const list = seenKeys.get(key);
+      if (list && list.length > 1) continue;
+
+      const batchId = await input.findExistingBatch(
+        row.creativeName,
+        input.platform,
+        row.date,
+      );
+      if (batchId) {
+        collected.push({
+          code: "E051",
+          severity: "ERROR",
+          message: `Row ${row.rowNumber}: data for \`'${row.creativeName}'\` on \`${input.platform}\` for \`${row.date}\` already exists (upload batch #${batchId}).`,
+          row: row.rowNumber,
+        });
+      }
+    }
+  }
+
+  if (collected.length > 0) {
+    return { ok: false, errors: collected, warnings };
+  }
+  return { ok: true, rows: accepted, warnings };
+}
+
+// ---------- helpers ----------
+
+/** True for the various "empty" representations the spec calls out. */
+function isEmptyMarker(s: string): boolean {
+  if (s === "") return true;
+  const v = s.trim().toLowerCase();
+  return v === "" || v === "-" || v === "—" || v === "n/a" || v === "null";
+}
+
+/** Parse `"1,234.56"` / `"$1,234"` / `"1234 USD"` to 1234.56. Returns null on failure. */
+export function parseNumber(raw: string): number | null {
+  if (isEmptyMarker(raw)) return null;
+  let cleaned = raw.trim();
+  // strip leading currency symbols
+  cleaned = cleaned.replace(/^[$£€¥]+/u, "");
+  // strip thousand-separators
+  cleaned = cleaned.replace(/,/g, "");
+  // strip trailing unit / currency strings ("USD", "EGP", etc.)
+  cleaned = cleaned.replace(/[\sA-Za-z]+$/u, "");
+  if (cleaned === "" || cleaned === "-" || cleaned === ".") return null;
+  const n = Number(cleaned);
+  return Number.isFinite(n) ? n : null;
+}
+
+const MONTHS: Record<string, number> = {
+  jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6,
+  jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12,
+};
+
+/** Try the accepted formats in order; return canonical YYYY-MM-DD or null. */
+export function parseDate(raw: string, formats: DateFormat[]): string | null {
+  const s = raw.trim();
+  for (const fmt of formats) {
+    let m: RegExpMatchArray | null = null;
+    let y: number | undefined;
+    let mo: number | undefined;
+    let d: number | undefined;
+    if (fmt === "YYYY-MM-DD" && (m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/))) {
+      y = +m[1]!; mo = +m[2]!; d = +m[3]!;
+    } else if (fmt === "MM/DD/YYYY" && (m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/))) {
+      mo = +m[1]!; d = +m[2]!; y = +m[3]!;
+    } else if (fmt === "DD/MM/YYYY" && (m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/))) {
+      d = +m[1]!; mo = +m[2]!; y = +m[3]!;
+    } else if (fmt === "D Mon YYYY" && (m = s.match(/^(\d{1,2})\s+([A-Za-z]{3,})\s+(\d{4})$/))) {
+      d = +m[1]!;
+      mo = MONTHS[m[2]!.slice(0, 3).toLowerCase()];
+      y = +m[3]!;
+    }
+    if (y !== undefined && mo !== undefined && d !== undefined) {
+      if (!isValidYmd(y, mo, d)) continue;
+      return `${pad4(y)}-${pad2(mo)}-${pad2(d)}`;
+    }
+  }
+  return null;
+}
+
+function isValidYmd(y: number, m: number, d: number): boolean {
+  if (m < 1 || m > 12) return false;
+  if (d < 1 || d > 31) return false;
+  const probe = new Date(Date.UTC(y, m - 1, d));
+  return (
+    probe.getUTCFullYear() === y &&
+    probe.getUTCMonth() === m - 1 &&
+    probe.getUTCDate() === d
+  );
+}
+const pad2 = (n: number) => String(n).padStart(2, "0");
+const pad4 = (n: number) => String(n).padStart(4, "0");
+
+function isMoreThanADayInFuture(ymd: string): boolean {
+  const parts = ymd.split("-").map(Number);
+  const t = Date.UTC(parts[0]!, (parts[1]! - 1), parts[2]!);
+  return t > Date.now() + 24 * 60 * 60 * 1000;
+}

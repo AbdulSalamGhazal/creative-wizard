@@ -1,4 +1,26 @@
-// snapchat CSV adapter — header map and quirks.
-// To be filled from a real sample CSV; see docs/validation-spec.md §9.
-// Exports: { requiredHeaders, headerMap, parseDate, quirks }.
-export {};
+/**
+ * Snapchat Ads CSV adapter.
+ * **Placeholder schema** — to be tuned from a real export. See validation-spec §9.3.
+ */
+import type { PlatformAdapter } from "@/csv/platforms/types";
+
+export const snapchatAdapter: PlatformAdapter = {
+  platform: "snapchat",
+  headerMap: {
+    creative_name: ["Creative", "Ad name"],
+    date: ["Date", "Day"],
+    spend: ["Spend (USD)", "Spend"],
+    impressions: ["Impressions"],
+    clicks: ["Swipe Ups", "Clicks"],
+    conversions: ["Total Conversions", "Conversions"],
+    conversion_value: ["Total Conversion Value", "Conversion value"],
+    video_views_3s: ["Video Views 3s"],
+    video_views_15s: ["Video Views 15s"],
+  },
+  requiredFields: ["creative_name", "date", "spend", "impressions", "clicks"],
+  acceptedDateFormats: ["YYYY-MM-DD", "MM/DD/YYYY"],
+  skipRow: (row) =>
+    (row.creative_name ?? "").trim() === "" && (row.date ?? "").trim() === "",
+};
+
+export default snapchatAdapter;

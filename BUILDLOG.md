@@ -835,3 +835,99 @@ the Dialog + action client glue).
 
 **Not done.** Real Auth.js v5 (needs Google OAuth creds). Exclusion history
 log. Editable notes panel. `/creatives/new` create form. Upload flow.
+
+---
+
+## 2026-05-27 — CSV upload foundation (parse + 5-stage pipeline + tests)
+
+The validation pipeline from `docs/validation-spec.md` is in. Pure
+data-layer slice — no UI, no route handlers, no DB writes. Sets up the
+contract the upload form and route handlers will sit on top of.
+
+**`csv/parse.ts` — papaparse wrapper.**
+- 10 MB upper bound enforced up front (E001).
+- UTF-8 decoded with `TextDecoder(..., { fatal: true })`. Non-UTF-8 returns
+  E004. The Windows-1256 fallback (W001) is deferred until we add
+  `iconv-lite`.
+- BOM strip.
+- Auto delimiter detection: if the first header line has no commas but
+  contains a semicolon, papaparse is told to use `;`.
+- Empty / whitespace-only inputs short-circuit to E003 (otherwise papaparse
+  emits a confusing "no delimiter" parse error first).
+- Returns `{ header: string[], rows: string[][], rowNumbers: number[], warnings }`
+  on success or a single fatal error.
+
+**`csv/platforms/types.ts` + four platform adapters.**
+- Shared `PlatformAdapter` shape: `headerMap` (internal field → candidate
+  header strings), `requiredFields`, `acceptedDateFormats`, optional
+  `skipRow` rule.
+- All four adapters (`meta`, `tiktok`, `snapchat`, `google`) populated with
+  **plausible-but-placeholder** column names. The validation spec marks
+  §9.1-9.4 as "pending real CSV samples"; these will be re-tuned once we
+  have real exports. Each adapter exports a default + named binding;
+  `csv/platforms/index.ts` exposes `ADAPTERS` keyed by platform.
+
+**`csv/pipeline.ts` — 5-stage runner.**
+- Stages 1-2 fail-fast, stages 3-5 collect.
+- Stage 1: file integrity (delegated to `parseCsv`).
+- Stage 2: schema. Case-insensitive header lookup, picks the first matching
+  candidate per internal field, surfaces `E010` for missing required
+  columns, `E012` for duplicate header columns, and `W002` warnings for
+  unknown extra columns.
+- Stage 3: per-row content. `E020` (unregistered creative — strict byte-equal
+  NFC match per spec §4), `E021` (empty creative), `E030` (invalid date),
+  `E031` (future date > 24h), `E040` (non-numeric), `E041` (negative),
+  `E042` (missing required field). Optional numeric fields treat `""`,
+  `"-"`, `"—"`, `"N/A"`, `"null"` as zero. Numbers tolerate commas,
+  currency symbols, and trailing units (`"$1,234.56"`, `"1234 USD"`).
+- Stage 4: intra-file duplicates by `(creative, date)` — emits a single
+  `E050` per group with all row numbers.
+- Stage 5: DB duplicates via injected `findExistingBatch()` callback —
+  emits `E051` per existing row. Skipped for rows already covered by E050
+  to avoid double-reporting.
+- Subtotal rows (empty creative + empty date) are silently skipped per
+  spec §6.
+- Date parser supports `YYYY-MM-DD`, `MM/DD/YYYY`, `DD/MM/YYYY`, and
+  `D Mon YYYY` (`27 May 2026`). Adapters declare which they accept.
+
+**`vitest.config.ts`** — node environment, css/postcss disabled (Tailwind 4
+config would otherwise blow up the test runner), `@/*` alias mirrored from
+`tsconfig.json`.
+
+**`csv/pipeline.test.ts` — 19 specs, all passing.**
+
+| Stage | Spec                                                  |
+| ----- | ----------------------------------------------------- |
+| 1     | Empty file → E003                                     |
+| 1     | Header-only file → E003                               |
+| 2     | Missing required column → E010                        |
+| 2     | Headers matched case-insensitively + whitespace-trim  |
+| 2     | Unknown column → W002 warning, file still accepted    |
+| 2     | Duplicate header → E012                               |
+| 3     | Unregistered creative → E020                          |
+| 3     | Empty creative name → E021                            |
+| 3     | Invalid date → E030                                   |
+| 3     | ISO + MM/DD/YYYY accepted, normalized to YYYY-MM-DD   |
+| 3     | Far-future date → E031                                |
+| 3     | Non-numeric spend → E040                              |
+| 3     | Negative spend → E041                                 |
+| 3     | `"$1,234.56"` parses to 1234.56                       |
+| 4     | Same (creative, date) twice → E050 with both row #s   |
+| 5     | findExistingBatch returns id → E051 with id           |
+| 5     | E050 takes precedence over E051 on the same tuple     |
+| H     | Two clean rows → ok: true, both parsed                |
+| H     | Subtotal row with empty creative+date silently skipped |
+
+**Quirks worth recording.**
+- The Stage-4 dedup key uses an SOH (`\x01`) delimiter as an internal
+  separator that can't appear inside a creative name or date. Cosmetic but
+  intentional.
+- `papaparse.parse(...).errors` doesn't fail the whole file on column-count
+  mismatches; Stage 2 schema validation catches the real shape issues.
+
+**Not done.** Route handlers (`POST /api/uploads/validate`,
+`POST /api/uploads/commit`), the KV stash for the validate→commit handoff
+(local Docker setup has no Redis — will probably back this with a small
+`upload_validation_sessions` Postgres table when we get there), the
+upload form UI (dropzone, platform select, summary, error report), the
+rollback endpoint, the `/uploads` history page.
