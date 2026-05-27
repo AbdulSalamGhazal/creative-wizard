@@ -105,6 +105,32 @@ export const uploadBatches = pgTable("upload_batches", {
   rolledBackByUserId: uuid("rolled_back_by_user_id").references(() => users.id),
 });
 
+/**
+ * Holds the validated rows between the validate→commit two-step. TTL is
+ * enforced lazily at lookup time; expired rows linger until a sweep runs.
+ *
+ * In production this can move to Vercel KV. The schema column shape stays.
+ */
+export const uploadValidationSessions = pgTable(
+  "upload_validation_sessions",
+  {
+    token: uuid("token").primaryKey().defaultRandom(),
+    platform: varchar("platform", { length: 16, enum: platformEnum }).notNull(),
+    fileName: varchar("file_name", { length: 255 }).notNull(),
+    uploadedByUserId: uuid("uploaded_by_user_id")
+      .notNull()
+      .references(() => users.id),
+    payload: jsonb("payload").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  },
+  (t) => ({
+    expiresIdx: index("uvs_expires_idx").on(t.expiresAt),
+  }),
+);
+
 export const performanceRecords = pgTable(
   "performance_records",
   {

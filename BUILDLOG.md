@@ -931,3 +931,102 @@ config would otherwise blow up the test runner), `@/*` alias mirrored from
 `upload_validation_sessions` Postgres table when we get there), the
 upload form UI (dropzone, platform select, summary, error report), the
 rollback endpoint, the `/uploads` history page.
+
+---
+
+## 2026-05-27 — Validate + commit route handlers (no UI yet)
+
+The validate→commit two-step is fully wired through to the database. A
+real CSV can be uploaded over `curl`, parsed through the pipeline, stashed
+with a 10-minute token, and committed into `performance_records`. UI is
+the next slice; this one stops at the API contract.
+
+**Schema migration `0001_upload_validation_sessions.sql`.** New table:
+
+```sql
+CREATE TABLE upload_validation_sessions (
+  token                uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  platform             varchar(16) NOT NULL,
+  file_name            varchar(255) NOT NULL,
+  uploaded_by_user_id  uuid NOT NULL REFERENCES users(id),
+  payload              jsonb NOT NULL,        -- ParsedRow[] + summary + warnings
+  created_at           timestamptz NOT NULL DEFAULT now(),
+  expires_at           timestamptz NOT NULL
+);
+CREATE INDEX uvs_expires_idx ON upload_validation_sessions (expires_at);
+```
+
+This replaces the Vercel KV stash from tech-spec §7 for now. Same API
+shape (insert a token, look it up, delete it) so swapping to KV later is
+a 20-line change. TTL is enforced lazily — every `commit` does a quick
+`DELETE … WHERE expires_at < now()` before its own lookup.
+
+**`POST /api/uploads/validate`.**
+- `requireEditor()` → 401 on auth failure.
+- Reads `multipart/form-data` with `file` and `platform`. Validates
+  `platform` with Zod against `platformEnum`. Rejects non-File `file` or
+  oversized files (>10 MB) at the route level before the pipeline runs.
+- Snapshots the registered creative-name set in one query.
+- Builds a `findExistingBatch(name, plat, date)` closure that queries
+  `performance_records` joined with `creatives` and `upload_batches`,
+  filtered to `status = 'active'` so rolled-back batches don't trigger
+  false E051 conflicts.
+- Runs the pipeline.
+- **On errors (422):** returns `{ ok: false, errors, warnings }`. No token,
+  no DB write.
+- **On success (200):** computes `summary = { rows, creatives, dateRange }`,
+  inserts a session row with `expires_at = now() + 10 min`, returns
+  `{ ok: true, token, summary, warnings }`.
+
+**`POST /api/uploads/commit`.**
+- `requireEditor()` → 401.
+- Zod-validates `{ token: uuid }`.
+- Lazy expired-sweep, then looks up the session. Absent → 410 with
+  `"Token not found or expired"`. Present-but-expired → delete + 410.
+- Re-resolves creative IDs by name (in case the registry shifted between
+  validate and commit). Any name that vanished → 422 with `missing[]`.
+- **One Postgres transaction** does: insert `upload_batches`, bulk insert
+  `performance_records` in 500-row chunks via `INSERT … RETURNING`,
+  delete the session row.
+- Wraps the post-commit `revalidatePath('/' | '/creatives' | '/uploads')`
+  in try/catch so revalidation failures don't mask a successful commit.
+
+**E2E curl roundtrip** against the running dev server:
+
+```
+3-row CSV (2026-04-15 / 2026-04-16, two creatives)
+  → POST /validate         → 200 { token, summary: { rows:3, creatives:2 } }
+  → /?from=...&to=...      → "—" (no data)
+  → POST /commit { token } → 200 { batchId, rowsImported: 3 }
+  → /?from=...&to=...      → "$425.50"     (= 150 + 200 + 75.50, exact match)
+```
+
+Failure-path matrix:
+
+| Input                              | Expected codes  | Got            |
+| ---------------------------------- | --------------- | -------------- |
+| Unknown creative name              | E020            | E020 ✓         |
+| Missing required column            | E010            | E010 ✓         |
+| Re-upload of the same dates        | E051 × 3        | E051 × 3 ✓     |
+| Random / expired token to /commit  | HTTP 410        | HTTP 410 ✓     |
+
+Reverted via `DELETE FROM performance_records WHERE upload_batch_id = '…'`
+and the matching `upload_batches` row, since the rollback UI doesn't exist
+yet.
+
+**Quirks worth recording.**
+- `findExistingBatch` filters by `upload_batches.status = 'active'`. Once
+  we ship the rollback endpoint, rolling back a batch will set its status
+  to `rolled_back` and re-uploads of those dates will pass E051.
+- The pipeline returns `ParsedRow[]` where `spend` and `conversionValue`
+  are JS numbers, but the schema stores them as `numeric`. The commit
+  handler stringifies them when inserting so postgres-js doesn't lose
+  precision through the float64 boundary.
+- The route uses `request.formData()` — Next 15's native multipart parser.
+  No `formidable` / `multer` needed.
+
+**Not done.** The upload form UI (`/uploads/new`) — dropzone, platform
+select, validation result display, summary + confirm step. The `/uploads`
+batch-history page. The `DELETE /api/uploads/:batchId` rollback endpoint
+(admin-only, within 24h). A periodic sweep for stale validation sessions
+(today's lazy-at-commit cleanup is fine for now).
