@@ -2,12 +2,48 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { kpis, defaultDateRange } from "@/db/queries/performance";
 import { usd, int, pct, ratio } from "@/lib/format";
+import { dashboardFiltersSchema } from "@/validators/filters";
 
-const TRAILING_DAYS = 30;
+const TRAILING_DAYS_DEFAULT = 30;
 
-export default async function OverviewPage() {
-  const range = defaultDateRange(TRAILING_DAYS);
-  const k = await kpis({ from: range.from, to: range.to });
+type SearchParams = Record<string, string | string[] | undefined>;
+
+function pickFirst(value: string | string[] | undefined): string | undefined {
+  if (Array.isArray(value)) return value[0];
+  return value;
+}
+
+export default async function OverviewPage({
+  searchParams,
+}: {
+  searchParams: Promise<SearchParams>;
+}) {
+  const params = await searchParams;
+  const parsed = dashboardFiltersSchema.parse({
+    from: pickFirst(params.from),
+    to: pickFirst(params.to),
+    productIds: pickFirst(params.productIds),
+    platforms: pickFirst(params.platforms),
+    types: pickFirst(params.types),
+    statuses: pickFirst(params.statuses),
+    tags: pickFirst(params.tags),
+    includeExcluded: pickFirst(params.includeExcluded),
+  });
+
+  const defaultRange = defaultDateRange(TRAILING_DAYS_DEFAULT);
+  const from = parsed.from ?? defaultRange.from;
+  const to = parsed.to ?? defaultRange.to;
+
+  const k = await kpis({
+    from,
+    to,
+    productIds: parsed.productIds,
+    platforms: parsed.platforms.length > 0 ? parsed.platforms : undefined,
+    types: parsed.types.length > 0 ? parsed.types : undefined,
+    statuses: parsed.statuses.length > 0 ? parsed.statuses : undefined,
+    tags: parsed.tags.length > 0 ? parsed.tags : undefined,
+    includeExcluded: parsed.includeExcluded,
+  });
 
   const tiles: Array<{ label: string; value: string }> = [
     { label: "Spend", value: usd(k.spend) },
@@ -18,9 +54,12 @@ export default async function OverviewPage() {
     { label: "Blended ROAS", value: ratio(k.roas) },
   ];
 
+  const platformsBadge =
+    parsed.platforms.length > 0 ? parsed.platforms.join(", ") : "all platforms";
+
   return (
     <div className="space-y-6">
-      <div className="flex items-end justify-between">
+      <div className="flex items-end justify-between flex-wrap gap-3">
         <div>
           <h1 className="font-display text-4xl tracking-tight">Overview</h1>
           <p className="text-ink-2 text-sm mt-1">
@@ -28,7 +67,8 @@ export default async function OverviewPage() {
           </p>
         </div>
         <Badge variant="outline" className="text-ink-3">
-          {range.from} → {range.to} · excluded hidden
+          {from} → {to} · {platformsBadge} ·{" "}
+          {parsed.includeExcluded ? "excluded shown" : "excluded hidden"}
         </Badge>
       </div>
 
@@ -45,7 +85,7 @@ export default async function OverviewPage() {
                 {t.value}
               </div>
               <div className="text-[11px] text-ink-3 mt-2">
-                Trailing {TRAILING_DAYS} days
+                {from} → {to}
               </div>
             </CardContent>
           </Card>

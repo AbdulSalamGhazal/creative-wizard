@@ -1,6 +1,13 @@
-import { and, between, eq, sql } from "drizzle-orm";
+import { and, between, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { performanceRecords } from "@/db/schema";
+import {
+  creatives,
+  creativeTags,
+  performanceRecords,
+  platformEnum,
+  creativeStatusEnum,
+  creativeTypeEnum,
+} from "@/db/schema";
 import {
   ctr,
   cpa,
@@ -16,9 +23,18 @@ import {
   sumSpend,
 } from "@/lib/metrics";
 
+type Platform = (typeof platformEnum)[number];
+type CreativeType = (typeof creativeTypeEnum)[number];
+type CreativeStatus = (typeof creativeStatusEnum)[number];
+
 export interface KpiFilters {
   from: string; // ISO date YYYY-MM-DD
   to: string; // ISO date YYYY-MM-DD
+  productIds?: string[];
+  platforms?: Platform[];
+  types?: CreativeType[];
+  statuses?: CreativeStatus[];
+  tags?: string[];
   includeExcluded?: boolean;
 }
 
@@ -40,18 +56,31 @@ export interface Kpis {
 /**
  * KPI aggregates for the Overview tiles.
  *
+ * Honors every dashboard filter via URL searchParams (see tech-spec §8.1).
  * All blended/derived metrics come from `lib/metrics.ts` (weighted via
- * component sums per tech-spec §8.2). Default filter strips rows with
+ * component sums per §8.2). Default filter strips rows with
  * `excluded_from_aggregates = true`; pass `includeExcluded` to drop that
  * filter for diagnostic views.
  */
 export async function kpis(filters: KpiFilters): Promise<Kpis> {
   const conditions = [between(performanceRecords.date, filters.from, filters.to)];
+
   if (!filters.includeExcluded) {
     conditions.push(eq(performanceRecords.excludedFromAggregates, false));
   }
 
-  const [row] = await db
+  if (filters.platforms && filters.platforms.length > 0) {
+    conditions.push(inArray(performanceRecords.platform, filters.platforms));
+  }
+
+  // Filters that live on the `creatives` join: product / type / status / tag.
+  const needsCreativeJoin =
+    (filters.productIds && filters.productIds.length > 0) ||
+    (filters.types && filters.types.length > 0) ||
+    (filters.statuses && filters.statuses.length > 0);
+  const needsTagJoin = filters.tags && filters.tags.length > 0;
+
+  let q = db
     .select({
       spend: sumSpend,
       impressions: sumImpressions,
@@ -67,49 +96,49 @@ export async function kpis(filters: KpiFilters): Promise<Kpis> {
       holdRate,
     })
     .from(performanceRecords)
-    .where(and(...conditions));
+    .$dynamic();
 
-  if (!row) {
-    return {
-      spend: null,
-      impressions: null,
-      clicks: null,
-      conversions: null,
-      conversionValue: null,
-      ctr: null,
-      cpm: null,
-      cpc: null,
-      cpa: null,
-      roas: null,
-      hookRate: null,
-      holdRate: null,
-    };
+  if (needsCreativeJoin || needsTagJoin) {
+    q = q.innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId));
+    if (filters.productIds && filters.productIds.length > 0) {
+      conditions.push(inArray(creatives.productId, filters.productIds));
+    }
+    if (filters.types && filters.types.length > 0) {
+      conditions.push(inArray(creatives.type, filters.types));
+    }
+    if (filters.statuses && filters.statuses.length > 0) {
+      conditions.push(inArray(creatives.status, filters.statuses));
+    }
   }
 
-  // Drizzle returns numeric/bigint columns as strings to preserve precision.
-  // Coerce to JS numbers for the UI layer; NULL stays as null.
+  if (needsTagJoin && filters.tags) {
+    q = q.innerJoin(creativeTags, eq(creativeTags.creativeId, performanceRecords.creativeId));
+    conditions.push(inArray(creativeTags.tag, filters.tags));
+  }
+
+  const rows = await q.where(and(...conditions));
+  const row = rows[0];
+
   const num = (v: unknown): number | null =>
     v === null || v === undefined ? null : Number(v);
 
   return {
-    spend: num(row.spend),
-    impressions: num(row.impressions),
-    clicks: num(row.clicks),
-    conversions: num(row.conversions),
-    conversionValue: num(row.conversionValue),
-    ctr: num(row.ctr),
-    cpm: num(row.cpm),
-    cpc: num(row.cpc),
-    cpa: num(row.cpa),
-    roas: num(row.roas),
-    hookRate: num(row.hookRate),
-    holdRate: num(row.holdRate),
+    spend: num(row?.spend),
+    impressions: num(row?.impressions),
+    clicks: num(row?.clicks),
+    conversions: num(row?.conversions),
+    conversionValue: num(row?.conversionValue),
+    ctr: num(row?.ctr),
+    cpm: num(row?.cpm),
+    cpc: num(row?.cpc),
+    cpa: num(row?.cpa),
+    roas: num(row?.roas),
+    hookRate: num(row?.hookRate),
+    holdRate: num(row?.holdRate),
   };
 }
 
-/**
- * Convenience: returns the inclusive ISO date strings for a trailing window.
- */
+/** Returns inclusive ISO date strings for a trailing window. */
 export function defaultDateRange(days: number): { from: string; to: string } {
   const to = new Date();
   to.setUTCHours(0, 0, 0, 0);
@@ -121,5 +150,4 @@ export function defaultDateRange(days: number): { from: string; to: string } {
   };
 }
 
-// Aliased SQL helper so callers can import without pulling in drizzle-orm.
 export const rawSql = sql;

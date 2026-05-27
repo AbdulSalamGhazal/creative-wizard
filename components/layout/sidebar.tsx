@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
   Images,
@@ -28,7 +31,13 @@ const items: NavItem[] = [
   { href: "/admin/users", label: "Team", icon: Users, group: "admin" },
 ];
 
-export function Sidebar({ active }: { active?: string }) {
+function isActive(pathname: string, href: string): boolean {
+  if (href === "/") return pathname === "/";
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+export function Sidebar() {
+  const pathname = usePathname();
   const primary = items.filter((i) => i.group === "primary");
   const admin = items.filter((i) => i.group === "admin");
 
@@ -36,7 +45,7 @@ export function Sidebar({ active }: { active?: string }) {
     <aside className="hidden lg:flex flex-col w-56 px-4 py-6 border-r border-line min-h-[calc(100vh-3.5rem)]">
       <nav className="space-y-0.5">
         {primary.map((item) => (
-          <NavLink key={item.href} item={item} active={active === item.href} />
+          <NavLink key={item.href} item={item} active={isActive(pathname, item.href)} />
         ))}
       </nav>
       <div className="mt-8 pt-4 border-t border-line space-y-0.5">
@@ -44,7 +53,7 @@ export function Sidebar({ active }: { active?: string }) {
           Admin
         </div>
         {admin.map((item) => (
-          <NavLink key={item.href} item={item} active={active === item.href} />
+          <NavLink key={item.href} item={item} active={isActive(pathname, item.href)} />
         ))}
       </div>
       <div className="mt-auto pt-4 border-t border-line">
@@ -55,7 +64,7 @@ export function Sidebar({ active }: { active?: string }) {
             icon: Settings,
             group: "primary",
           }}
-          active={false}
+          active={isActive(pathname, "/settings")}
         />
       </div>
     </aside>

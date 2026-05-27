@@ -363,3 +363,82 @@ with a hand-calculation from the raw data is met for the Overview KPIs.
 **Not done.** Auth, URL-state filters, the upload flow, charts, the
 Creatives Library, Compare, Per-Platform, exclusion UI. The Overview is the
 only page wired to real data.
+
+---
+
+## 2026-05-27 — URL-state filters wired end-to-end
+
+The dashboard chrome's filter chips now do something. Filters live entirely
+in the URL (tech-spec §8.1) so every dashboard view will be bookmarkable,
+shareable, and reload-safe.
+
+**`db/queries/performance.ts::kpis()` extended.**
+- New filter params: `productIds`, `platforms`, `types`, `statuses`, `tags`,
+  `includeExcluded`. Date range is unchanged.
+- Drizzle conditions composed via a single `and(...)`; the query uses
+  `$dynamic()` so it can conditionally `innerJoin` `creatives` (for product /
+  type / status) and `creative_tags` (for tag filters) only when those
+  filters are present. Date-only or platform-only queries still hit just
+  `performance_records` and its indexes.
+- `inArray` for every multi-select. Default still strips
+  `excluded_from_aggregates = true`.
+
+**`validators/filters.ts` fixed.** The earlier `csv()` helper widened enum
+types to plain `string[]` because of the `as [string, ...string[]]` cast.
+Replaced with a generic `csvEnum<T>` that preserves literal-tuple types, so
+`parsed.platforms` is typed as `("meta" | "tiktok" | "snapchat" | "google")[]`
+and flows into `kpis()` without a coercion.
+
+**`components/filters/filter-strip.tsx` rewritten as a client component.**
+- Reads / writes URL state via `useRouter` + `useSearchParams` +
+  `usePathname` and `router.replace(..., { scroll: false })` inside a
+  `useTransition` so the navigation feels instant.
+- Date chip is a `DropdownMenu` with three presets (7 / 30 / 90 days).
+  Custom-range picker deferred.
+- Platforms chip is a multi-select `DropdownMenuCheckboxItem` list.
+  Active selection shows count (`"2 selected"`) on the chip face.
+- Include-excluded toggle on the right side: warm-amber when excluded rows
+  are shown, neutral when hidden. Defaults to hidden per CLAUDE.md.
+- "Clear" button appears whenever any filter is set; resets every dashboard
+  filter param in one push.
+- Products / Tags chips remain visual-only placeholders — no picker UI yet.
+
+**`app/(dashboard)/page.tsx` reads `searchParams`.** Per Next 15 the prop is
+a `Promise`, so the page is `async` and awaits before parsing through
+`dashboardFiltersSchema`. Missing date range falls back to the trailing-30-day
+default. The header badge now reflects the active filters:
+`2026-04-28 → 2026-05-27 · all platforms · excluded hidden`.
+
+**`components/layout/sidebar.tsx` is pathname-aware.** Converted to a client
+component that reads `usePathname()`. `isActive(href)` matches exactly for
+`/` and as a prefix otherwise, so `/admin/products` correctly lights the
+"Products" link without also matching at the root. The `<Sidebar active />`
+prop is gone; layout call simplified to `<Sidebar />`.
+
+**Suspense boundary for the filter strip.** The first build failed with
+*"useSearchParams() should be wrapped in a suspense boundary"* — Next 15 wants
+client components that read URL state to be wrapped so the rest of the tree
+can still prerender. Fix: wrap `<FilterStrip />` in `<Suspense>` inside
+`app/(dashboard)/layout.tsx`. Fallback is a same-height empty bar, so layout
+doesn't jump on hydration.
+
+**Live URL roundtrip verification** (against the seeded dataset):
+
+| URL                                                      | Spend       | Impressions | CTR     | Conv. |
+| -------------------------------------------------------- | ----------- | ----------- | ------- | ----- |
+| `/`                                                      | `$8,427.55` | `1,338,067` | `2.53%` | 1,430 |
+| `/?platforms=meta`                                       | `$4,529.46` |   `691,998` | `2.59%` |   758 |
+| `/?platforms=tiktok`                                     | `$3,898.09` |   `646,069` | `2.47%` |   672 |
+| `/?from=2026-05-21&to=2026-05-27`                        | `$3,895.83` |   `614,552` | `2.47%` |   574 |
+
+Meta + TikTok spend sum to the default total to the cent. Per-platform values
+hand-checked against raw SQL `GROUP BY platform` — every figure matches.
+
+**Build status.** `next build` clean. Bundle moved slightly: `/` is now
+`ƒ Dynamic` (because of `searchParams`), 43.1 kB / 174 kB first-load JS. The
+shared chunks didn't grow meaningfully.
+
+**Not done.** Custom date picker, product picker, tag picker, charts, all
+non-Overview routes. Auth still untouched. The filter system is now in place,
+so future dashboard pages just need to read the same searchParams and call
+their own queries.
