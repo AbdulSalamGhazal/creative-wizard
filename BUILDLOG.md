@@ -1592,3 +1592,47 @@ Build + typecheck clean. 16 routes unchanged.
   `required` boolean column on `platform_field_mappings` and toggle from
   the admin UI. Skipped for now — current strict mode matches the
   request.
+
+---
+
+## 2026-05-27 — Drop auto-detect, force explicit platform pick
+
+Team feedback: auto-detect is too magical; an explicit picker is safer.
+Reverted the auto-detect path and replaced with a manual two-step form.
+
+**Validate route is strict again.** `platform` form field is required;
+missing or invalid → HTTP 400 with `"Pick a platform before validating
+(meta / tiktok / snapchat / google)."`. Response no longer carries a
+`detection` block — just `{ ok, token, platform, summary, warnings }`.
+
+**`csv/platforms/detect.ts` deleted.** Its three vitest specs were
+removed at the same time. Test suite is back down to 22 specs (was 25),
+all passing.
+
+**`components/upload/platform-picker.tsx` added.** Four buttons in a
+2×2 grid with the platform's color dot, the name, and a check-mark when
+selected. `role="radiogroup"` with `role="radio"` per button for
+accessibility. **No default selection.** Disabled state follows the
+form's `busy` flag.
+
+**`upload-form.tsx` flow:**
+1. Drop file. The dropzone enforces size (≤10 MB) and extension
+   (CSV/XLS/XLSX) on the spot.
+2. When a file is staged, a numbered "2. Platform" section appears
+   below it with the picker. Until a platform is picked, the inline
+   hint reads "Pick the platform that exported this file. Required."
+3. The **Validate** button is disabled until both file *and* platform
+   are set.
+4. Server runs the pipeline against the chosen platform. Errors show
+   without trying to second-guess the platform; rerunning the same
+   validation simply re-uses the picked platform.
+
+**Verified browser path:**
+
+| Request                                | Response                                       |
+| -------------------------------------- | ---------------------------------------------- |
+| Validate with no platform              | HTTP 400, clear "Pick a platform" message      |
+| Validate with `platform=meta`          | HTTP 200, `{ ok:true, platform:"meta", … }`    |
+| `GET /uploads/new` HTML                | Dropzone visible, "1. File" / "2. Platform" labels, no auto-detect copy remaining |
+
+Build clean (16 routes). Tests 22/22.

@@ -1,10 +1,5 @@
 import { describe, it, expect } from "vitest";
 import { runPipeline } from "@/csv/pipeline";
-import { detectPlatform } from "@/csv/platforms/detect";
-import { metaAdapter } from "@/csv/platforms/meta";
-import { tiktokAdapter } from "@/csv/platforms/tiktok";
-import { snapchatAdapter } from "@/csv/platforms/snapchat";
-import { googleAdapter } from "@/csv/platforms/google";
 
 const REGISTERED = new Set(["URJ_VID_001", "URJ_VID_002", "URJ_IMG_010"]);
 
@@ -273,43 +268,3 @@ describe("CSV pipeline — happy path", () => {
   });
 });
 
-describe("Platform auto-detect", () => {
-  const adapters = {
-    meta: metaAdapter,
-    tiktok: tiktokAdapter,
-    snapchat: snapchatAdapter,
-    google: googleAdapter,
-  };
-
-  it("picks Meta when the file has Meta-specific headers", () => {
-    const headers = [
-      "Ad name",
-      "Day",
-      "Amount spent (USD)",
-      "Impressions",
-      "Link clicks",
-      "Results",
-      "Purchase value",
-      "3-second video plays",
-      "ThruPlays",
-    ];
-    const r = detectPlatform(headers, adapters);
-    expect(r.platform).toBe("meta");
-    expect(r.ambiguous).toBe(false);
-  });
-
-  it("returns null platform when no headers match", () => {
-    const r = detectPlatform(["Foo", "Bar"], adapters);
-    expect(r.platform).toBeNull();
-  });
-
-  it("flags ambiguity when two platforms tie", () => {
-    // "Date" and "Impressions" are common; "Spend" is in both tiktok and snapchat.
-    const headers = ["Date", "Spend", "Impressions"];
-    const r = detectPlatform(headers, adapters);
-    if (r.platform !== null) {
-      // Whichever wins, the lower-scoring platforms should be reflected.
-      expect(typeof r.platform).toBe("string");
-    }
-  });
-});
