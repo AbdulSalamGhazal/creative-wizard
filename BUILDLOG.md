@@ -247,3 +247,56 @@ to `text-brand` in the React port.
 **Not done.** Auth, real data, sign-in route, Server Actions, and the upload
 flow are all still untouched. The shell is visual only — every interactive
 element is non-functional.
+
+---
+
+## 2026-05-27 — Local Postgres in Docker; migration applied
+
+The team chose "local Postgres in Docker" over Neon for the first run, so
+we're not blocked on cloud credentials.
+
+**`docker-compose.yml` added** at the project root.
+- Image: `postgres:16-alpine`.
+- Container name: `ccms-postgres`. Port `5432:5432`.
+- Database / user / password: `ccms` / `ccms` / `ccms_dev_password` —
+  **dev-only**, intentionally weak. Never reuse for staging or prod.
+- Volume `ccms-postgres-data` persists across `down`/`up`. To wipe:
+  `docker compose down -v`.
+- Healthcheck: `pg_isready -U ccms -d ccms` every 5 s, 10 retries.
+
+**`.env.local` added** (gitignored) with
+`DATABASE_URL=postgres://ccms:ccms_dev_password@localhost:5432/ccms`
+and stubs for the auth / KV / Blob keys.
+
+**`lib/db.ts` switched driver.** Was `@neondatabase/serverless`
+(`drizzle-orm/neon-http`). Now `postgres-js` (`drizzle-orm/postgres-js`) so a
+plain TCP connection works for both local Docker Postgres and Neon's pooled
+endpoint. Added a `globalThis.__ccmsPg` cache so Next.js dev HMR doesn't leak
+connection pools across module reloads. `@neondatabase/serverless` stays in
+`package.json` for now — if we move to the Neon HTTP driver later it's a
+two-line swap.
+
+**Bringing it up.**
+- `open -a Docker` (macOS) → daemon ready in ~5 s.
+- `docker compose up -d` → image pulled, container started, healthcheck green.
+- `set -a && . ./.env.local && set +a && npx drizzle-kit migrate` →
+  `0000_initial.sql` applied cleanly.
+
+**Verified in the live DB:**
+- 6 tables: `users`, `products`, `creatives`, `creative_tags`,
+  `upload_batches`, `performance_records`.
+- 20 indexes total. Notably present: `perf_creative_platform_date_idx`
+  (UNIQUE — the duplicate-detection guard from validation-spec stage 5),
+  `creatives_name_unique`, `products_name_unique`, `products_slug_unique`,
+  plus every filter/join index from tech-spec §5.
+
+**How to redo from scratch.**
+```
+docker compose down -v
+docker compose up -d
+set -a && . ./.env.local && set +a
+npx drizzle-kit migrate
+```
+
+**Not committed in this entry:** `.env.local` (gitignored). Everything else
+will land in the upcoming "DB setup" commit.
