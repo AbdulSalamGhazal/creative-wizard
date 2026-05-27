@@ -193,7 +193,10 @@ function parseCsvText(text: string): ParseResult {
 function parseXlsx(bytes: Uint8Array): ParseResult {
   let workbook: XLSX.WorkBook;
   try {
-    workbook = XLSX.read(bytes, { type: "array" });
+    // `cellDates: true` makes SheetJS hydrate date-typed cells into JS Date
+    // objects internally so we can re-serialize them in our preferred format
+    // below. Without it, Excel's serial-date numbers leak through.
+    workbook = XLSX.read(bytes, { type: "array", cellDates: true });
   } catch {
     return {
       ok: false,
@@ -219,18 +222,35 @@ function parseXlsx(bytes: Uint8Array): ParseResult {
     };
   }
 
-  // Pull raw 2-D string array. `defval: ""` makes missing cells empty strings
-  // instead of `undefined`, and `raw: false` formats dates/numbers using the
-  // workbook's display format (matches what the user sees in Excel).
+  // 2-D row array with NATIVE values (`raw: true`). We can't use
+  // `raw: false` here — SheetJS would prefer each cell's cached display
+  // string (`w`), and Excel files authored in a US locale cache
+  // `15/02/2026` as `"2/15/26"` regardless of any `dateNF` option. With
+  // `raw: true` plus `cellDates: true` on `XLSX.read`, date cells arrive as
+  // JS Date objects and we format them ourselves to ISO below.
   const aoa: unknown[][] = XLSX.utils.sheet_to_json(sheet, {
     header: 1,
     defval: "",
     blankrows: false,
-    raw: false,
+    raw: true,
   });
 
   const rows: string[][] = aoa.map((r) =>
-    r.map((cell) => (cell === null || cell === undefined ? "" : String(cell))),
+    r.map((cell) => {
+      if (cell === null || cell === undefined) return "";
+      if (cell instanceof Date) {
+        // Use UTC so a date typed in any timezone serializes consistently.
+        const y = cell.getUTCFullYear();
+        const m = String(cell.getUTCMonth() + 1).padStart(2, "0");
+        const d = String(cell.getUTCDate()).padStart(2, "0");
+        return `${y}-${m}-${d}`;
+      }
+      if (typeof cell === "number") {
+        // Integer numbers come out clean; floats keep their precision.
+        return Number.isInteger(cell) ? cell.toString() : String(cell);
+      }
+      return String(cell);
+    }),
   );
 
   return rowsToResult(rows);
