@@ -1030,3 +1030,71 @@ select, validation result display, summary + confirm step. The `/uploads`
 batch-history page. The `DELETE /api/uploads/:batchId` rollback endpoint
 (admin-only, within 24h). A periodic sweep for stale validation sessions
 (today's lazy-at-commit cleanup is fine for now).
+
+---
+
+## 2026-05-27 — Upload UI (`/uploads/new`) + history (`/uploads`)
+
+The team can now upload a CSV without `curl`. The two API endpoints from
+the previous slice power a client-side state-machine form that ends at a
+clean success screen, and a sibling history page lists every committed
+batch.
+
+**Two shadcn primitives added: `Select`, `Alert`.** Native `<select>` on
+the dark theme looked bad; the shadcn version composes with the rest of
+the form chrome.
+
+**`components/upload/` set.**
+- `dropzone.tsx` — `react-dropzone` wrapper (the dep was already
+  installed). CSV-only `accept`, `multiple: false`, `maxSize` mirrors
+  `MAX_FILE_BYTES` from `csv/parse.ts`. Shows the file name + size when
+  selected with a "Remove" button; otherwise an idle drag target that
+  lights up on drag-over. Inline error if the file exceeds the limit or
+  the type is wrong.
+- `error-report.tsx` — clean list of the validation errors and warnings.
+  Each entry shows the stable error code (E020 / E040 / W002 …) in a
+  monospace chip and the spec-templated message. The list itself caps at
+  `max-h-96` with vertical scroll; will swap for a virtualized list
+  (`tanstack/react-virtual`) once we see real files with thousands of
+  errors. Footer points to `docs/validation-spec.md` §7.
+- `summary-card.tsx` — three stats (rows / creatives / date range) when
+  validation succeeds, plus a collapsible warnings strip for non-blocking
+  W001 / W002.
+- `upload-form.tsx` — the state machine that owns the page. States:
+  `idle → validating → invalid | valid → committing → committed | error`.
+  Each transition rendered as its own panel; the dropzone + platform
+  select disable during in-flight requests. After a successful commit,
+  the page replaces itself with a confirmation card (✓ icon, row count,
+  batch UUID, "View on Overview" and "Upload another" CTAs) and calls
+  `router.refresh()` so the Overview / Library / Uploads pages reflect
+  the new data on the next navigation.
+
+**`app/(dashboard)/uploads/new/page.tsx`** — server component that just
+renders `<UploadForm />` inside a 3xl container with the page title and a
+back-link to the history page.
+
+**`app/(dashboard)/uploads/page.tsx`** — server component listing every
+`upload_batches` row joined with the uploader's name, ordered newest
+first, capped at 50. Empty-state pitch when there are no batches yet.
+`export const dynamic = "force-dynamic"` so the list reflects committed
+batches without stale prerender. Sidebar's "Uploads" link no longer 404s.
+
+**Verified E2E in the browser path.**
+- Posted a 1-row CSV to `/api/uploads/validate` via the form's `fetch`
+  call → received summary + token.
+- Confirmed via the "Confirm import" button → received `batchId` +
+  `rowsImported`.
+- `/uploads` rendered the new batch with the right filename (`up.csv`),
+  uploader (Salam), platform (meta), row count (1), and active status.
+- Cleaned up the test batch by deleting from `performance_records` and
+  `upload_batches` (rollback UI is a follow-up).
+
+**Bundle.** `/uploads/new` ships at 36.4 kB / 177 kB (the dropzone +
+state-machine glue). `/uploads` at 309 B / 177 kB (server-rendered table,
+no client bundle of its own).
+
+**Not done.** `DELETE /api/uploads/:batchId` rollback endpoint
+(admin-only, within 24 h) + a per-row rollback action on `/uploads`.
+Real Auth.js v5. `/creatives/new` create form. Compare /
+By-Platform pages. CSV export. Real per-platform header maps from
+actual exports.
