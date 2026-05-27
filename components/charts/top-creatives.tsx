@@ -1,13 +1,12 @@
 import { Badge } from "@/components/ui/badge";
 import { DownloadCsvButton } from "@/components/ui/download-csv-button";
 import { int, pct, ratio, usd } from "@/lib/format";
+import { rowsToCsv, todayStamp, type CsvColumn } from "@/lib/csv-export";
 import type { TopCreativeRow } from "@/db/queries/performance";
 
 interface Props {
   rows: TopCreativeRow[];
 }
-
-import type { CsvColumn } from "@/lib/csv-export";
 
 const CSV_COLUMNS: CsvColumn<TopCreativeRow>[] = [
   { key: "rank", label: "#", value: (_r, i) => i + 1 },
@@ -45,13 +44,14 @@ export function TopCreativesTable({ rows }: Props) {
     );
   }
 
+  const csvContent = rowsToCsv(rows, CSV_COLUMNS);
+
   return (
     <div className="space-y-2">
       <div className="flex justify-end">
         <DownloadCsvButton
-          filenamePrefix="top-creatives"
-          rows={rows}
-          columns={CSV_COLUMNS}
+          csvContent={csvContent}
+          filename={`top-creatives-${todayStamp()}.csv`}
         />
       </div>
       <div className="overflow-x-auto -mx-2">

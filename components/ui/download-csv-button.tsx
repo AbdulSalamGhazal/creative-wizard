@@ -2,32 +2,30 @@
 
 import { Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { downloadCsv, rowsToCsv, todayStamp, type CsvColumn } from "@/lib/csv-export";
+import { downloadCsv } from "@/lib/csv-export";
 
-interface Props<T> {
-  filenamePrefix: string;
-  rows: T[];
-  columns: CsvColumn<T>[];
+interface Props {
+  /** Pre-built CSV string (compute server-side and pass as a plain prop). */
+  csvContent: string;
+  filename: string;
   label?: string;
+  disabled?: boolean;
 }
 
-export function DownloadCsvButton<T>({
-  filenamePrefix,
-  rows,
-  columns,
+export function DownloadCsvButton({
+  csvContent,
+  filename,
   label = "Download CSV",
-}: Props<T>) {
-  const onClick = () => {
-    const content = rowsToCsv(rows, columns);
-    downloadCsv(`${filenamePrefix}-${todayStamp()}.csv`, content);
-  };
+  disabled = false,
+}: Props) {
+  const onClick = () => downloadCsv(filename, csvContent);
   return (
     <Button
       type="button"
       variant="ghost"
       size="xs"
       onClick={onClick}
-      disabled={rows.length === 0}
+      disabled={disabled || !csvContent}
       className="text-ink-3 hover:text-ink"
     >
       <Download className="w-3 h-3" />

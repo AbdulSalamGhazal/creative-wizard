@@ -4,7 +4,7 @@ import { ExcludeRowAction } from "@/components/creative/exclude-row-action";
 import { PLATFORM_COLOR, PLATFORM_LABEL } from "@/lib/palette";
 import { int, isoDate, usd } from "@/lib/format";
 import type { CreativeRecordRow } from "@/db/queries/creatives";
-import type { CsvColumn } from "@/lib/csv-export";
+import { rowsToCsv, todayStamp, type CsvColumn } from "@/lib/csv-export";
 
 const CSV_COLUMNS: CsvColumn<CreativeRecordRow>[] = [
   { key: "date", label: "Date", value: (r) => r.date },
@@ -47,9 +47,8 @@ export function CreativeRecordsTable({ rows }: Props) {
           )}
         </span>
         <DownloadCsvButton
-          filenamePrefix="creative-records"
-          rows={rows}
-          columns={CSV_COLUMNS}
+          csvContent={rowsToCsv(rows, CSV_COLUMNS)}
+          filename={`creative-records-${todayStamp()}.csv`}
         />
       </div>
       <div className="overflow-x-auto rounded-lg border border-line bg-surface">

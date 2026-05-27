@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { DownloadCsvButton } from "@/components/ui/download-csv-button";
 import type { CreativeListRow } from "@/db/queries/creatives";
-import type { CsvColumn } from "@/lib/csv-export";
+import { rowsToCsv, todayStamp, type CsvColumn } from "@/lib/csv-export";
 import { isoDate, usd } from "@/lib/format";
 
 const CSV_COLUMNS: CsvColumn<CreativeListRow>[] = [
@@ -37,13 +37,14 @@ export function CreativeTable({ rows }: { rows: CreativeListRow[] }) {
     );
   }
 
+  const csvContent = rowsToCsv(rows, CSV_COLUMNS);
+
   return (
     <div className="space-y-2">
       <div className="flex justify-end">
         <DownloadCsvButton
-          filenamePrefix="creatives"
-          rows={rows}
-          columns={CSV_COLUMNS}
+          csvContent={csvContent}
+          filename={`creatives-${todayStamp()}.csv`}
         />
       </div>
       <div className="overflow-x-auto rounded-lg border border-line bg-surface">
