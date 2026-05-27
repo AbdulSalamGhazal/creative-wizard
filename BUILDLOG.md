@@ -752,3 +752,86 @@ the Overview.
 auth roles). Editable notes panel. Server Action to edit creative metadata.
 Sparkline cells on the Library's top-creatives. `/creatives/new` (the
 create form). Auth. Upload flow.
+
+---
+
+## 2026-05-27 — Stub auth + exclude/include from the UI
+
+PRD §5.5 (manual anomaly exclusion) is now wired through the UI. Closing the
+loop also required a server-side identity for the audit columns — done with
+a deliberately temporary auth stub.
+
+**Stub auth in `lib/auth.ts`.**
+- `auth()`, `requireAuth()`, `requireAdmin()`, `requireEditor()` — same
+  shape Auth.js v5 will expose, so call sites won't change when we swap.
+- Internally: returns the seeded admin user from a one-shot DB lookup,
+  cached on the module. If no admin exists the helper throws with a
+  pointer to `npm run db:seed`.
+- Every Server Action that writes to the DB calls one of the `require*`
+  helpers so the audit fields (`excluded_by_user_id`) are always populated
+  with a real id, not a placeholder.
+
+**Server Actions in `app/actions/exclusion.ts`.**
+- `excludeRecord(recordId, reason)` — `requireEditor()` →
+  Zod-validate `recordId` and `reason` (200 char max, non-empty) →
+  `UPDATE performance_records SET excluded_from_aggregates=true,
+  excluded_reason=…, excluded_by_user_id=user.id, excluded_at=now()` →
+  revalidate `/`, `/creatives`, `/creatives/[name]` so every KPI updates.
+- `includeRecord(recordId)` — clears the four exclusion columns; same
+  revalidation pattern. v1 keeps no exclusion history.
+- Both return `{ ok, error? }` so the client can render inline error text
+  rather than throw. Revalidate is wrapped in try/catch so a revalidation
+  failure (e.g. a Server Action called outside a request context, like a
+  test harness) doesn't mask a successful DB write.
+
+**Dialog UI in `components/creative/exclude-row-action.tsx`.**
+- Client component, rendered per row in the records table.
+- When the row is not excluded: a ghost "Exclude" button. Click → shadcn
+  Dialog asking for a reason. Live counter shows N / 200; >200 turns red and
+  the submit is disabled along with empty input.
+- When the row is excluded: a "Re-include" ghost button right where Exclude
+  was. Click triggers `includeRecord` immediately (no dialog).
+- `useTransition` for pending state — button text becomes "Excluding…" and
+  the dialog stays open until the action resolves.
+- Dialog header shows the row's date / platform / spend so the user knows
+  what they're acting on (passed as `context` prop).
+
+**shadcn primitives added: `Dialog`, `Textarea`.**
+
+**Records table updated** — new "actions" column at the end of each row hosts
+the `<ExcludeRowAction>`. The Excluded badge keeps its `title` attribute
+carrying the reason text so hover surfaces the rationale.
+
+**Lint fixes that fell out of `next build`:**
+- `library-filter-bar.tsx` had a `(close) => ...` signature on its child
+  prop that never used `close`. Trimmed to `() => ...`.
+- `exclude-row-action.tsx` had an unescaped apostrophe in JSX text;
+  swapped for `&apos;`.
+
+**Verification.**
+
+End-to-end harness via `npx tsx verify_exclusion.tsx` (script deleted after
+verification) called the Server Actions directly:
+
+| Step                                              | Outcome                                                     |
+| ------------------------------------------------- | ----------------------------------------------------------- |
+| `excludeRecord(id=31, "UNIT_TEST: verify path")`  | DB: excluded=true, reason set, excluded_by=admin.id, time set |
+| `includeRecord(31)`                               | DB: excluded=false, all four columns cleared                |
+| `excludeRecord(31, "")` (empty)                   | Rejected by Zod `min(1)` ✓                                  |
+| `excludeRecord(31, "x".repeat(300))` (over)       | Rejected by Zod `max(200)` ✓                                |
+| `includeRecord(999999)`                           | "Record not found"                                          |
+
+Browser-side check via curl + SQL flip:
+
+| Stage                              | Detail Spend | Overview Spend | Δ        | UI elements                              |
+| ---------------------------------- | ------------ | -------------- | -------- | ---------------------------------------- |
+| Clean                              | $2,554.52    | $8,427.55      | —        | 30 Exclude, 0 Re-include, 0 badge        |
+| One $19.26 row excluded            | $2,535.26    | $8,408.29      | −$19.26  | 29 Exclude, 1 Re-include, 1 badge        |
+
+KPI delta on both pages equals the excluded row's spend to the cent.
+
+**Bundle.** `/creatives/[name]` went from 5.71 kB → 9.08 kB (+3.4 kB for
+the Dialog + action client glue).
+
+**Not done.** Real Auth.js v5 (needs Google OAuth creds). Exclusion history
+log. Editable notes panel. `/creatives/new` create form. Upload flow.

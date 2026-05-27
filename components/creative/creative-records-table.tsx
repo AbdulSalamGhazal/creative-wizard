@@ -1,4 +1,5 @@
 import { Badge } from "@/components/ui/badge";
+import { ExcludeRowAction } from "@/components/creative/exclude-row-action";
 import { PLATFORM_COLOR, PLATFORM_LABEL } from "@/lib/palette";
 import { int, isoDate, usd } from "@/lib/format";
 import type { CreativeRecordRow } from "@/db/queries/creatives";
@@ -41,6 +42,7 @@ export function CreativeRecordsTable({ rows }: Props) {
               <th className="font-medium px-3 py-2.5 text-right">Clicks</th>
               <th className="font-medium px-3 py-2.5 text-right">Conv.</th>
               <th className="font-medium px-3 py-2.5"></th>
+              <th className="font-medium px-3 py-2.5 text-right"></th>
             </tr>
           </thead>
           <tbody className="divide-y divide-line">
@@ -85,6 +87,13 @@ export function CreativeRecordsTable({ rows }: Props) {
                       Excluded
                     </Badge>
                   ) : null}
+                </td>
+                <td className="px-3 py-2.5 text-right">
+                  <ExcludeRowAction
+                    recordId={r.id}
+                    excluded={r.excludedFromAggregates}
+                    context={`${isoDate(r.date)} · ${PLATFORM_LABEL[r.platform]} · ${usd(r.spend)}`}
+                  />
                 </td>
               </tr>
             ))}

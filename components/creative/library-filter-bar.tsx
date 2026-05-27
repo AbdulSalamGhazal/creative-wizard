@@ -175,7 +175,7 @@ export function LibraryFilterBar({ products, tags }: Props) {
           value={productLabel}
           active={productIds.length > 0}
         >
-          {(close) => (
+          {() => (
             <DropdownMenuContent align="start" className="w-56">
               <DropdownMenuLabel>Products</DropdownMenuLabel>
               <DropdownMenuSeparator />
@@ -371,7 +371,7 @@ interface PillProps {
   label: string;
   value: string;
   active: boolean;
-  children: (close: () => void) => React.ReactNode;
+  children: () => React.ReactNode;
 }
 
 function FilterPill({ icon: Icon, label, value, active, children }: PillProps) {
@@ -393,7 +393,7 @@ function FilterPill({ icon: Icon, label, value, active, children }: PillProps) {
           <ChevronDown className="w-3 h-3 text-ink-3" />
         </button>
       </DropdownMenuTrigger>
-      {children(() => {})}
+      {children()}
     </DropdownMenu>
   );
 }
