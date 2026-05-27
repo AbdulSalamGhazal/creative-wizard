@@ -1,13 +1,19 @@
-import { Search, Moon } from "lucide-react";
+import { Moon } from "lucide-react";
 import type { SessionUser } from "@/lib/auth";
 import { UserMenu } from "@/components/auth/user-menu";
+import { CommandPalette } from "@/components/layout/command-palette";
 
 function initials(name: string): string {
   const parts = name.trim().split(/\s+/).slice(0, 2);
   return parts.map((p) => p[0]?.toUpperCase() ?? "").join("") || "?";
 }
 
-export function TopBar({ user }: { user: SessionUser }) {
+interface Props {
+  user: SessionUser;
+  creatives: Array<{ id: string; name: string; productName: string }>;
+}
+
+export function TopBar({ user, creatives }: Props) {
   return (
     <header className="border-b border-line relative z-10 bg-bg">
       <div className="flex items-center justify-between px-6 h-14">
@@ -41,13 +47,7 @@ export function TopBar({ user }: { user: SessionUser }) {
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <div className="hidden md:flex items-center gap-2 text-xs text-ink-2 px-3 h-8 rounded-md border border-line bg-surface min-w-[260px]">
-            <Search className="w-3.5 h-3.5 text-ink-3" />
-            <span className="text-ink-3">Search creatives, batches…</span>
-            <span className="ml-auto px-1.5 py-0.5 rounded text-[10px] bg-surface-2 border border-line text-ink-3">
-              ⌘K
-            </span>
-          </div>
+          <CommandPalette creatives={creatives} />
           <button
             className="text-ink-2 hover:text-ink p-1.5 rounded-md hover:bg-surface-2 transition"
             title="Theme"

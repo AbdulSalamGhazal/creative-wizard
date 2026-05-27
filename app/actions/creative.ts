@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { and, eq, ne } from "drizzle-orm";
+import { and, eq, inArray, ne } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireEditor } from "@/lib/auth";
@@ -125,6 +125,48 @@ export async function updateCreativeNotes(
     return { ok: true };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : "Unknown error" };
+  }
+}
+
+/**
+ * Bulk-change status across N creatives. Used by the Library's bulk-action
+ * bar; admin-or-editor only.
+ */
+const bulkStatusSchema = z.object({
+  ids: z.array(z.string().uuid()).min(1),
+  status: z.enum(creativeStatusEnum),
+});
+
+export async function bulkUpdateStatus(input: unknown): Promise<
+  CreativeMutationResult & { updated?: number }
+> {
+  try {
+    await requireEditor();
+    const parsed = bulkStatusSchema.safeParse(input);
+    if (!parsed.success) {
+      return {
+        ok: false,
+        error: parsed.error.issues[0]?.message ?? "Invalid input",
+      };
+    }
+
+    const result = await db
+      .update(creatives)
+      .set({ status: parsed.data.status, updatedAt: new Date() })
+      .where(inArray(creatives.id, parsed.data.ids))
+      .returning({ id: creatives.id });
+
+    try {
+      revalidatePath("/creatives");
+    } catch (err) {
+      console.warn("revalidatePath after bulk update failed:", err);
+    }
+    return { ok: true, updated: result.length };
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : "Unknown error",
+    };
   }
 }
 
