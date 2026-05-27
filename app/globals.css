@@ -1,8 +1,13 @@
 @import "tailwindcss";
 
 /*
- * Urjwan CCMS design tokens
- * Mirrors the variables in docs/mockups/*.html so the build matches the design source.
+ * Urjwan CCMS palette — lifted verbatim from docs/mockups/*.html.
+ *
+ * Naming note: the mockups call the magenta `--accent`, but shadcn uses
+ * `--accent` for its hover-surface semantic. To avoid the clash, the brand
+ * magenta lives on `--brand` here. UI code should use `text-brand` /
+ * `bg-brand` for the magenta and the shadcn semantic tokens (`primary`,
+ * `accent`, `muted`, etc.) for everything else.
  */
 :root {
   --bg: #0a0812;
@@ -14,9 +19,9 @@
   --ink: #f2ebe5;
   --ink-2: #a8a2b5;
   --ink-3: #6b6679;
-  --accent: #d4145a;
-  --accent-2: #ff4d8d;
-  --accent-soft: rgba(212, 20, 90, 0.12);
+  --brand: #d4145a;
+  --brand-2: #ff4d8d;
+  --brand-soft: rgba(212, 20, 90, 0.12);
   --pos: #5ee6a8;
   --neg: #ff6b6b;
   --warn: #f5c97a;
@@ -25,11 +30,31 @@
   --snapchat: #ffd80b;
   --google: #34d399;
 
+  /* shadcn semantic tokens, mapped to the CCMS palette */
   --background: var(--bg);
   --foreground: var(--ink);
+  --card: var(--surface);
+  --card-foreground: var(--ink);
+  --popover: var(--surface-2);
+  --popover-foreground: var(--ink);
+  --primary: var(--brand);
+  --primary-foreground: #ffffff;
+  --secondary: var(--surface-3);
+  --secondary-foreground: var(--ink);
+  --muted: var(--surface-2);
+  --muted-foreground: var(--ink-2);
+  --accent: var(--surface-3);
+  --accent-foreground: var(--ink);
+  --destructive: var(--neg);
+  --destructive-foreground: #ffffff;
+  --border: var(--line);
+  --input: var(--line);
+  --ring: var(--brand);
+  --radius: 0.625rem;
 }
 
 @theme inline {
+  /* CCMS palette → Tailwind utilities (bg-surface, text-ink-2, text-brand, ...) */
   --color-background: var(--bg);
   --color-foreground: var(--ink);
   --color-surface: var(--surface);
@@ -40,8 +65,8 @@
   --color-ink: var(--ink);
   --color-ink-2: var(--ink-2);
   --color-ink-3: var(--ink-3);
-  --color-accent: var(--accent);
-  --color-accent-2: var(--accent-2);
+  --color-brand: var(--brand);
+  --color-brand-2: var(--brand-2);
   --color-pos: var(--pos);
   --color-neg: var(--neg);
   --color-warn: var(--warn);
@@ -49,6 +74,31 @@
   --color-tiktok: var(--tiktok);
   --color-snapchat: var(--snapchat);
   --color-google: var(--google);
+
+  /* shadcn semantic tokens → Tailwind utilities (bg-primary, text-muted-foreground, border-border, ...) */
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
   --font-sans: "Plus Jakarta Sans", system-ui, sans-serif;
   --font-display: "Instrument Serif", serif;
   --font-mono: "IBM Plex Mono", ui-monospace, monospace;

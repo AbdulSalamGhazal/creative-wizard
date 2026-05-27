@@ -165,3 +165,85 @@ these are recorded for explicit resolution, not silently fixed.
 3. **`recharts@2` is EOL.** shadcn charts depend on it. Recharts 3 exists but
    isn't yet what shadcn ships. No action required today; revisit if shadcn
    updates.
+
+---
+
+## 2026-05-27 — Scaffold committed; migration, shadcn, dashboard shell
+
+**Commit `4d4f549`** lands the scaffold from the previous entry as the second
+commit on `main`. 45 files / 10,531 insertions. From here, everything new is
+incremental.
+
+**First Drizzle migration generated.** `npx drizzle-kit generate --name=initial`
+produced `db/migrations/0000_initial.sql` (93 lines, 6 tables) and the
+companion `db/migrations/meta/` snapshot. No DB connection needed for
+generate. The migration includes:
+- All 6 tables (`users`, `products`, `creatives`, `creative_tags`,
+  `upload_batches`, `performance_records`).
+- The duplicate-detection guard: `UNIQUE INDEX perf_creative_platform_date_idx`
+  on `(creative_id, platform, date)`.
+- All filter/join indexes from tech-spec §5: `creatives_product_idx`,
+  `creatives_status_idx`, `creatives_type_idx`, `creative_tags_tag_idx`,
+  `perf_date_idx`, `perf_platform_date_idx`, `perf_upload_batch_idx`,
+  `perf_excluded_idx`, `products_status_idx`.
+
+To apply this against a real database: set `DATABASE_URL` and run
+`npm run db:migrate`. The migration is reversible only by recreating the
+database — to drop and start over use `drizzle-kit drop` then re-`push`.
+
+**shadcn primitives installed.** `npx shadcn@latest add` brought in:
+`button`, `card`, `badge`, `separator`, `dropdown-menu`, `input`, `label`,
+`sheet`. These land under `components/ui/` and pull in `radix-ui` as a
+dependency. We are pinned to shadcn `new-york` style + lucide icons per
+`components.json`. Future primitives: `npx shadcn@latest add <name>`.
+
+**Token rename: `--accent` → `--brand`.** shadcn's semantic system uses
+`--accent` for a hover-surface tint, while the mockups used `--accent` for
+the brand magenta. To run both systems in the same file without a clash, the
+CCMS palette now exposes the magenta as `--brand` / `--brand-2` / `--brand-soft`
+(use `text-brand`, `bg-brand` in components). The shadcn semantic layer is
+mapped to CCMS as:
+
+| shadcn semantic       | CCMS palette       |
+| --------------------- | ------------------ |
+| `--background`        | `--bg`             |
+| `--foreground`        | `--ink`            |
+| `--card`              | `--surface`        |
+| `--popover`           | `--surface-2`      |
+| `--primary`           | `--brand`          |
+| `--secondary`         | `--surface-3`      |
+| `--muted`             | `--muted` → `--surface-2`, fg → `--ink-2` |
+| `--accent`            | `--surface-3` (hover surface, NOT the magenta) |
+| `--destructive`       | `--neg`            |
+| `--border` / `--input` | `--line`           |
+| `--ring`              | `--brand`          |
+
+Note for future-me: if a mockup uses `text-accent` to mean magenta, translate
+to `text-brand` in the React port.
+
+**Dashboard layout shell** (the chrome from `docs/mockups/overview.html`):
+- `app/(dashboard)/layout.tsx` — wraps everything under the dashboard route
+  group with the top bar, sidebar, and global filter strip.
+- `components/layout/top-bar.tsx` — brand mark with magenta gradient, workspace
+  breadcrumb, ⌘K search input placeholder, theme toggle button (non-functional),
+  user avatar initials.
+- `components/layout/sidebar.tsx` — sticky nav with Overview / Creatives /
+  Compare / Platforms / Uploads, then an Admin section (Products, Team),
+  then Settings at the bottom. Active-route accent uses a `--brand` indicator
+  bar. lucide-react icons.
+- `components/filters/filter-strip.tsx` — sticky global filter row with date /
+  product / platform / tag chips and an "excluded records hidden" status
+  marker. All chips are non-functional placeholders.
+- `app/(dashboard)/page.tsx` — Overview placeholder. Six KPI tiles showing
+  em-dashes ("Awaiting first upload"), two chart placeholders, one top-creatives
+  placeholder. Uses shadcn `Card` and `Badge`.
+- `app/page.tsx` was deleted — `(dashboard)` route group claims `/`. The
+  Overview is the default authenticated landing per tech-spec §4.
+
+**Verification:** `tsc --noEmit` clean. `next build` clean.
+`/` renders at 70.7 kB / 173 kB first-load JS, four routes total
+(`/`, `/_not-found`, `/api/uploads/{commit,validate}`).
+
+**Not done.** Auth, real data, sign-in route, Server Actions, and the upload
+flow are all still untouched. The shell is visual only — every interactive
+element is non-functional.
