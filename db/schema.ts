@@ -106,6 +106,34 @@ export const uploadBatches = pgTable("upload_batches", {
 });
 
 /**
+ * Per-platform CSV header → internal-field mappings. Admin-editable from
+ * /admin/platforms so the team can tune the mapping when a real export
+ * shows up without touching the codebase.
+ *
+ * Each row is one candidate header string for one (platform, internal_field).
+ * The validation pipeline iterates the rows in priority order and picks the
+ * first that case-insensitively matches a header in the uploaded CSV.
+ */
+export const platformFieldMappings = pgTable(
+  "platform_field_mappings",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    platform: varchar("platform", { length: 16, enum: platformEnum }).notNull(),
+    internalField: varchar("internal_field", { length: 32 }).notNull(),
+    headerName: varchar("header_name", { length: 255 }).notNull(),
+    priority: integer("priority").notNull().default(0),
+    createdByUserId: uuid("created_by_user_id").references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => ({
+    uniq: uniqueIndex("pfm_unique_idx").on(t.platform, t.internalField, t.headerName),
+    platformIdx: index("pfm_platform_idx").on(t.platform),
+  }),
+);
+
+/**
  * Holds the validated rows between the validate→commit two-step. TTL is
  * enforced lazily at lookup time; expired rows linger until a sweep runs.
  *

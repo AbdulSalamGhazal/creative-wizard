@@ -15,6 +15,13 @@
       "when": 1779904384334,
       "tag": "0001_upload_validation_sessions",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1779910673708,
+      "tag": "0002_platform_field_mappings",
+      "breakpoints": true
     }
   ]
 }

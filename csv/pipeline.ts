@@ -52,7 +52,14 @@ export interface PipelineFailure {
 export type PipelineResult = PipelineSuccess | PipelineFailure;
 
 export interface PipelineInput extends ParseInput {
-  platform: Platform;
+  /**
+   * Either pass a fully-resolved `adapter` (the route handler should
+   * `await resolveAdapter(platform)` to read DB-edited header maps), or pass
+   * a `platform` and let the pipeline fall back to the code-level ADAPTERS
+   * map (handy for tests).
+   */
+  adapter?: PlatformAdapter;
+  platform?: Platform;
   /** All creative names registered in the library, used for strict matching. */
   registeredNames: Set<string>;
   /** Returns the existing batch id for a (name, platform, date) tuple, or null. */
@@ -64,7 +71,13 @@ export interface PipelineInput extends ParseInput {
 }
 
 export async function runPipeline(input: PipelineInput): Promise<PipelineResult> {
-  const adapter = ADAPTERS[input.platform];
+  const adapter =
+    input.adapter ??
+    (input.platform ? ADAPTERS[input.platform] : undefined);
+  if (!adapter) {
+    throw new Error("runPipeline: pass either `adapter` or `platform`.");
+  }
+  const platform: Platform = adapter.platform;
   const warnings: ValidationError[] = [];
 
   // ---------- Stage 1 ----------
@@ -346,7 +359,7 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
       collected.push({
         code: "E050",
         severity: "ERROR",
-        message: `Rows ${rowNums.join(", ")}: duplicate within file — same creative \`'${creativeName}'\`, platform \`${input.platform}\`, date \`${date}\`.`,
+        message: `Rows ${rowNums.join(", ")}: duplicate within file — same creative \`'${creativeName}'\`, platform \`${platform}\`, date \`${date}\`.`,
         rows: rowNums,
         value: creativeName,
       });
@@ -363,14 +376,14 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
 
       const batchId = await input.findExistingBatch(
         row.creativeName,
-        input.platform,
+        platform,
         row.date,
       );
       if (batchId) {
         collected.push({
           code: "E051",
           severity: "ERROR",
-          message: `Row ${row.rowNumber}: data for \`'${row.creativeName}'\` on \`${input.platform}\` for \`${row.date}\` already exists (upload batch #${batchId}).`,
+          message: `Row ${row.rowNumber}: data for \`'${row.creativeName}'\` on \`${platform}\` for \`${row.date}\` already exists (upload batch #${batchId}).`,
           row: row.rowNumber,
         });
       }

@@ -12,6 +12,7 @@ import {
 } from "@/db/schema";
 import { MAX_FILE_BYTES } from "@/csv/parse";
 import { runPipeline, type ParsedRow } from "@/csv/pipeline";
+import { resolveAdapter } from "@/db/queries/platforms";
 
 const VALIDATION_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
@@ -88,10 +89,12 @@ export async function POST(request: NextRequest) {
   const allNames = await db.select({ name: creatives.name }).from(creatives);
   const registeredNames = new Set(allNames.map((r) => r.name));
 
+  const adapter = await resolveAdapter(platform);
+
   const result = await runPipeline({
     content: buffer,
     byteLength: file.size,
-    platform,
+    adapter,
     registeredNames,
     findExistingBatch: async (name, plat, date) => {
       // Lookup performance_records by (creative.name, platform, date).

@@ -27,6 +27,7 @@ const items: NavItem[] = [
   { href: "/compare", label: "Compare", icon: GitCompare, group: "primary" },
   { href: "/platforms", label: "Platforms", icon: Layers3, group: "primary" },
   { href: "/uploads", label: "Uploads", icon: Upload, group: "primary" },
+  { href: "/admin/platforms", label: "CSV mapping", icon: Layers3, group: "admin" },
   { href: "/admin/products", label: "Products", icon: Package, group: "admin" },
   { href: "/admin/users", label: "Team", icon: Users, group: "admin" },
 ];
@@ -36,10 +37,10 @@ function isActive(pathname: string, href: string): boolean {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-export function Sidebar() {
+export function Sidebar({ role }: { role?: "admin" | "editor" | "viewer" }) {
   const pathname = usePathname();
   const primary = items.filter((i) => i.group === "primary");
-  const admin = items.filter((i) => i.group === "admin");
+  const admin = role === "admin" ? items.filter((i) => i.group === "admin") : [];
 
   return (
     <aside className="hidden lg:flex flex-col w-56 px-4 py-6 border-r border-line min-h-[calc(100vh-3.5rem)]">
@@ -48,14 +49,20 @@ export function Sidebar() {
           <NavLink key={item.href} item={item} active={isActive(pathname, item.href)} />
         ))}
       </nav>
-      <div className="mt-8 pt-4 border-t border-line space-y-0.5">
-        <div className="px-3 mb-1 text-[10px] uppercase tracking-[0.18em] text-ink-3">
-          Admin
+      {admin.length > 0 && (
+        <div className="mt-8 pt-4 border-t border-line space-y-0.5">
+          <div className="px-3 mb-1 text-[10px] uppercase tracking-[0.18em] text-ink-3">
+            Admin
+          </div>
+          {admin.map((item) => (
+            <NavLink
+              key={item.href}
+              item={item}
+              active={isActive(pathname, item.href)}
+            />
+          ))}
         </div>
-        {admin.map((item) => (
-          <NavLink key={item.href} item={item} active={isActive(pathname, item.href)} />
-        ))}
-      </div>
+      )}
       <div className="mt-auto pt-4 border-t border-line">
         <NavLink
           item={{

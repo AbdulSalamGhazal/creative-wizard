@@ -1260,3 +1260,142 @@ What's intentionally **deferred** (each marked elsewhere too):
    rejected with E004; W001 path TBD.
 
 Everything else from PRD v1 is shipped.
+
+---
+
+## 2026-05-27 — Open-by-email auth + DB-backed CSV column mapping
+
+Two team requests landed: drop the Google-OAuth gate in favor of "any
+user that's been added gets in", and let admins tune CSV column maps
+from inside the app instead of having to edit `csv/platforms/*.ts`.
+
+### Open-by-email auth
+
+**Security trade-off recorded in code and here.** There is no password
+and no Google verification — anyone who knows a teammate's email can
+impersonate them. PRD §3 says SSO; this is a deliberate v1 simplification
+for an internal trusted-team tool. If the dashboard ever leaves the
+office network, layer HTTP basic auth or restore OAuth on top. The
+public `auth()` / `requireAuth()` shape stays so the swap is internal.
+
+**Pieces:**
+
+- `lib/auth-cookie.ts` — HMAC-SHA256 signed cookie helpers
+  (`setSessionCookie`, `clearSessionCookie`, `readSessionUserId`,
+  `verifySessionToken`). Cookie name `ccms_session`, value
+  `<userId>.<base64url(hmac)>`, 30-day TTL, `httpOnly`, `sameSite=lax`,
+  `secure` in production.
+- `lib/auth.ts` rewritten: `auth()` reads the cookie, looks up the user
+  in the DB, returns `SessionUser | null`. Wrapped in `cache()` so
+  multiple components on the same request share one round-trip.
+  `requireAuth/requireAdmin/requireEditor` throw on unauthenticated /
+  insufficient role — callers (Server Actions, route handlers) catch
+  and return 401/403.
+- `AUTH_SECRET` filled in `.env.local` with a 32-byte random string.
+- `app/actions/session.ts` — `signIn(formData)` looks up the email
+  (case-insensitive), sets the cookie. `signOut()` clears the cookie
+  and redirects. No password check.
+- `app/(auth)/layout.tsx` + `app/(auth)/signin/page.tsx` — sign-in
+  page. If already signed in, redirects to `?next=` or `/`.
+- `components/auth/signin-form.tsx` — email input, Server Action via
+  `useTransition`. Clear "ask an admin to invite you" message on
+  unknown email.
+- `components/auth/user-menu.tsx` — avatar dropdown in the top bar
+  with name / email / role / Sign-out.
+- `(dashboard)/layout.tsx` — calls `await auth()` at the top, redirects
+  to `/signin` if null. This is the auth gate; everything under
+  `(dashboard)/` is protected. **Edge-runtime middleware was tried
+  first and dropped** — `node:crypto` and `next/headers` don't play
+  cleanly on Edge, and a server-component layout gate is simpler and
+  fast enough. API routes (`/api/uploads/*`) call `requireEditor()`
+  internally so they 401 on unauthenticated callers.
+- `components/layout/top-bar.tsx` receives the `SessionUser` and
+  renders the user menu. Sidebar receives the role and hides the
+  Admin section for non-admins.
+
+**Verified end-to-end:**
+
+| Test                                          | Result          |
+| --------------------------------------------- | --------------- |
+| Unauthenticated `GET /`                       | 307 → /signin  |
+| `GET /signin`                                 | 200, form rendered |
+| Signed cookie → `GET /`                       | 200             |
+| Signed cookie → `GET /admin/platforms`        | 200             |
+| Tampered cookie → `GET /`                     | 307 → /signin  |
+| Unauthenticated `POST /api/uploads/validate`  | 401             |
+
+### DB-backed platform CSV column mapping
+
+Replaces the hard-coded `headerMap` blocks in `csv/platforms/*.ts` with
+a `platform_field_mappings` table that admins edit from
+`/admin/platforms`. The hard-coded adapters still ship the
+`requiredFields`, `acceptedDateFormats`, and `skipRow` rule; only the
+header-candidate list moves to the DB.
+
+**Migration `0002_platform_field_mappings.sql`:** new table with a
+unique index on `(platform, internal_field, header_name)` and a
+platform-scoped lookup index.
+
+**Seed extended.** On every `npm run db:seed`, the placeholder values
+currently in `csv/platforms/*.ts` are backfilled into the new table.
+Idempotent via the unique-index `ON CONFLICT DO NOTHING`. Result on a
+fresh seed: 70 mappings inserted across 4 platforms × ~17 fields ×
+candidates.
+
+**`db/queries/platforms.ts`:**
+
+- `listAllMappings()` / `listMappingsForPlatform(platform)` — read.
+- `resolveAdapter(platform)` — merges DB rows over the code-level
+  adapter so missing fields still fall back to the hard-coded
+  defaults. Returns a full `PlatformAdapter` shape.
+
+**Pipeline refactor.** `runPipeline()` now accepts either an `adapter`
+(resolved-on-the-fly with DB data) or a `platform` (uses the static
+`ADAPTERS` map — handy for tests). The validate route calls
+`await resolveAdapter(platform)` before `runPipeline`. All 19
+existing vitest specs still pass without modification.
+
+**`app/actions/platform-mapping.ts`:**
+
+- `addHeaderMapping({ platform, internalField, headerName })` —
+  admin-only, appends at the end of the priority list for the
+  (platform, field). Unique constraint protects against duplicates.
+- `removeHeaderMapping(id)` — admin-only.
+
+**`/admin/platforms` page.** Per platform: quick-add form (field
+dropdown + header text input + Add) then a table with one row per
+internal field, listing every header candidate as a chip with an
+inline ✕ to remove it. Empty rows for required fields show a warning
+that uploads will fail with E010 until a candidate exists.
+
+**Verified end-to-end (authenticated curl roundtrip):**
+
+| Step                                | Result                                              |
+| ----------------------------------- | --------------------------------------------------- |
+| `GET /admin/platforms`              | 200; CSV column mapping page with Meta section      |
+| 1-row Meta CSV → `/validate`        | 200; token, summary `{ rows:1, creatives:1 }`       |
+| `/commit { token }`                 | 200; `batchId` + `rowsImported:1`                   |
+| Pipeline uses DB-resolved adapter   | ✓                                                   |
+
+### Sidebar gets a CSV-mapping link
+
+The admin nav grew a "CSV mapping" entry pointing to `/admin/platforms`.
+Visible only to admins.
+
+### Status
+
+`npm run typecheck` ✓ · `npm run build` ✓ (16 routes) · `npm test` ✓ (19 specs).
+
+**Still deferred** (no external input needed but not done):
+- Full creative edit form (`/creatives/[name]/edit`) for fields other
+  than notes.
+- `pg_trgm` GIN index on `creatives.name` (only matters past ~10k creatives).
+- Periodic sweep of stale `upload_validation_sessions`.
+- Windows-1256 fallback (`iconv-lite`) for the W001 warning path.
+- Production deployment (Vercel + Neon + Vercel Blob).
+
+When a real upload's header isn't recognized, the flow is now:
+1. Upload fails with `E010 Required column missing: <name>`.
+2. Open `/admin/platforms`.
+3. Add the actual header from your CSV under the right internal field.
+4. Re-upload — no code change needed.

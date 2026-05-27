@@ -16,10 +16,16 @@ import {
   products,
   creatives,
   creativeTags,
+  platformFieldMappings,
   uploadBatches,
   performanceRecords,
   type platformEnum,
 } from "@/db/schema";
+import { metaAdapter } from "@/csv/platforms/meta";
+import { tiktokAdapter } from "@/csv/platforms/tiktok";
+import { snapchatAdapter } from "@/csv/platforms/snapchat";
+import { googleAdapter } from "@/csv/platforms/google";
+import type { InternalField } from "@/csv/platforms/types";
 import { sql } from "drizzle-orm";
 
 type Platform = (typeof platformEnum)[number];
@@ -111,6 +117,41 @@ async function main() {
     .from(creatives);
   const creativeByName = new Map(creativeList.map((c) => [c.name, c.id]));
   console.log("  creatives:", creativeList.length);
+
+  // ---------- Platform header mappings (idempotent backfill) ----------
+  // Seeds the placeholder candidate headers we shipped in code into the DB
+  // so the admin UI starts with reasonable defaults. Each (platform, field,
+  // header) is unique; ON CONFLICT DO NOTHING keeps re-runs no-ops.
+  const adapters = [metaAdapter, tiktokAdapter, snapchatAdapter, googleAdapter];
+  let mappingsInserted = 0;
+  for (const a of adapters) {
+    for (const [field, headers] of Object.entries(a.headerMap) as Array<[
+      InternalField,
+      string[],
+    ]>) {
+      for (let i = 0; i < headers.length; i++) {
+        const r = await db
+          .insert(platformFieldMappings)
+          .values({
+            platform: a.platform,
+            internalField: field,
+            headerName: headers[i]!,
+            priority: i,
+            createdByUserId: adminId,
+          })
+          .onConflictDoNothing({
+            target: [
+              platformFieldMappings.platform,
+              platformFieldMappings.internalField,
+              platformFieldMappings.headerName,
+            ],
+          })
+          .returning({ id: platformFieldMappings.id });
+        mappingsInserted += r.length;
+      }
+    }
+  }
+  console.log("  platform field mappings:", mappingsInserted, "inserted");
 
   // ---------- Tags ----------
   const tagAssignments: Array<{ creativeName: string; tag: string }> = [

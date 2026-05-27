@@ -1,6 +1,13 @@
 import { Search, Moon } from "lucide-react";
+import type { SessionUser } from "@/lib/auth";
+import { UserMenu } from "@/components/auth/user-menu";
 
-export function TopBar() {
+function initials(name: string): string {
+  const parts = name.trim().split(/\s+/).slice(0, 2);
+  return parts.map((p) => p[0]?.toUpperCase() ?? "").join("") || "?";
+}
+
+export function TopBar({ user }: { user: SessionUser }) {
   return (
     <header className="border-b border-line relative z-10 bg-bg">
       <div className="flex items-center justify-between px-6 h-14">
@@ -48,9 +55,14 @@ export function TopBar() {
           >
             <Moon className="w-4 h-4" />
           </button>
-          <div className="w-7 h-7 rounded-full bg-surface-2 border border-line flex items-center justify-center text-[11px] font-semibold">
-            SA
-          </div>
+          <UserMenu
+            user={{
+              name: user.name,
+              email: user.email,
+              role: user.role,
+              initials: initials(user.name),
+            }}
+          />
         </div>
       </div>
     </header>
