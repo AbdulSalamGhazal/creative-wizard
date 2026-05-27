@@ -1,6 +1,14 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { kpis, defaultDateRange } from "@/db/queries/performance";
+import {
+  defaultDateRange,
+  kpis,
+  spendByDatePlatform,
+  topCreatives,
+  type KpiFilters,
+} from "@/db/queries/performance";
+import { SpendOverTimeChart } from "@/components/charts/spend-over-time";
+import { TopCreativesTable } from "@/components/charts/top-creatives";
 import { usd, int, pct, ratio } from "@/lib/format";
 import { dashboardFiltersSchema } from "@/validators/filters";
 
@@ -34,7 +42,7 @@ export default async function OverviewPage({
   const from = parsed.from ?? defaultRange.from;
   const to = parsed.to ?? defaultRange.to;
 
-  const k = await kpis({
+  const filters: KpiFilters = {
     from,
     to,
     productIds: parsed.productIds,
@@ -43,7 +51,13 @@ export default async function OverviewPage({
     statuses: parsed.statuses.length > 0 ? parsed.statuses : undefined,
     tags: parsed.tags.length > 0 ? parsed.tags : undefined,
     includeExcluded: parsed.includeExcluded,
-  });
+  };
+
+  const [k, spendRows, topRows] = await Promise.all([
+    kpis(filters),
+    spendByDatePlatform(filters),
+    topCreatives(filters, 10),
+  ]);
 
   const tiles: Array<{ label: string; value: string }> = [
     { label: "Spend", value: usd(k.spend) },
@@ -98,9 +112,7 @@ export default async function OverviewPage({
             <CardTitle className="text-sm">Spend over time</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="h-64 flex items-center justify-center text-ink-3 text-sm border border-dashed border-line rounded-md">
-              Stacked-area chart by platform (Recharts) — pending implementation
-            </div>
+            <SpendOverTimeChart rows={spendRows} />
           </CardContent>
         </Card>
         <Card className="bg-surface border-line">
@@ -120,9 +132,7 @@ export default async function OverviewPage({
           <CardTitle className="text-sm">Top creatives by spend</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="h-48 flex items-center justify-center text-ink-3 text-sm border border-dashed border-line rounded-md">
-            TanStack Table with sparklines — pending implementation
-          </div>
+          <TopCreativesTable rows={topRows} />
         </CardContent>
       </Card>
     </div>

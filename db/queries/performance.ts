@@ -1,9 +1,10 @@
-import { and, between, eq, inArray, sql } from "drizzle-orm";
+import { and, between, desc, eq, inArray, sql, type SQL } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
   creatives,
   creativeTags,
   performanceRecords,
+  products,
   platformEnum,
   creativeStatusEnum,
   creativeTypeEnum,
@@ -53,6 +54,74 @@ export interface Kpis {
   holdRate: number | null;
 }
 
+export interface SpendByDatePlatform {
+  date: string; // YYYY-MM-DD
+  platform: Platform;
+  spend: number;
+}
+
+export interface TopCreativeRow {
+  creativeId: string;
+  name: string;
+  productName: string;
+  type: CreativeType;
+  status: CreativeStatus;
+  spend: number;
+  impressions: number;
+  clicks: number;
+  conversions: number | null;
+  ctr: number | null;
+  roas: number | null;
+}
+
+const num = (v: unknown): number | null =>
+  v === null || v === undefined ? null : Number(v);
+
+/** Build the WHERE/JOIN scaffolding shared by every aggregation query. */
+function buildBaseConditions(filters: KpiFilters): {
+  conditions: SQL[];
+  needsCreativeJoin: boolean;
+  needsTagJoin: boolean;
+} {
+  const conditions: SQL[] = [
+    between(performanceRecords.date, filters.from, filters.to),
+  ];
+
+  if (!filters.includeExcluded) {
+    conditions.push(eq(performanceRecords.excludedFromAggregates, false));
+  }
+  if (filters.platforms && filters.platforms.length > 0) {
+    conditions.push(inArray(performanceRecords.platform, filters.platforms));
+  }
+
+  const needsCreativeJoin =
+    (filters.productIds && filters.productIds.length > 0) ||
+    (filters.types && filters.types.length > 0) ||
+    (filters.statuses && filters.statuses.length > 0);
+  const needsTagJoin = !!(filters.tags && filters.tags.length > 0);
+
+  if (needsCreativeJoin) {
+    if (filters.productIds && filters.productIds.length > 0) {
+      conditions.push(inArray(creatives.productId, filters.productIds));
+    }
+    if (filters.types && filters.types.length > 0) {
+      conditions.push(inArray(creatives.type, filters.types));
+    }
+    if (filters.statuses && filters.statuses.length > 0) {
+      conditions.push(inArray(creatives.status, filters.statuses));
+    }
+  }
+  if (needsTagJoin && filters.tags) {
+    conditions.push(inArray(creativeTags.tag, filters.tags));
+  }
+
+  return {
+    conditions,
+    needsCreativeJoin: needsCreativeJoin ?? false,
+    needsTagJoin,
+  };
+}
+
 /**
  * KPI aggregates for the Overview tiles.
  *
@@ -63,22 +132,8 @@ export interface Kpis {
  * filter for diagnostic views.
  */
 export async function kpis(filters: KpiFilters): Promise<Kpis> {
-  const conditions = [between(performanceRecords.date, filters.from, filters.to)];
-
-  if (!filters.includeExcluded) {
-    conditions.push(eq(performanceRecords.excludedFromAggregates, false));
-  }
-
-  if (filters.platforms && filters.platforms.length > 0) {
-    conditions.push(inArray(performanceRecords.platform, filters.platforms));
-  }
-
-  // Filters that live on the `creatives` join: product / type / status / tag.
-  const needsCreativeJoin =
-    (filters.productIds && filters.productIds.length > 0) ||
-    (filters.types && filters.types.length > 0) ||
-    (filters.statuses && filters.statuses.length > 0);
-  const needsTagJoin = filters.tags && filters.tags.length > 0;
+  const { conditions, needsCreativeJoin, needsTagJoin } =
+    buildBaseConditions(filters);
 
   let q = db
     .select({
@@ -100,27 +155,16 @@ export async function kpis(filters: KpiFilters): Promise<Kpis> {
 
   if (needsCreativeJoin || needsTagJoin) {
     q = q.innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId));
-    if (filters.productIds && filters.productIds.length > 0) {
-      conditions.push(inArray(creatives.productId, filters.productIds));
-    }
-    if (filters.types && filters.types.length > 0) {
-      conditions.push(inArray(creatives.type, filters.types));
-    }
-    if (filters.statuses && filters.statuses.length > 0) {
-      conditions.push(inArray(creatives.status, filters.statuses));
-    }
   }
-
-  if (needsTagJoin && filters.tags) {
-    q = q.innerJoin(creativeTags, eq(creativeTags.creativeId, performanceRecords.creativeId));
-    conditions.push(inArray(creativeTags.tag, filters.tags));
+  if (needsTagJoin) {
+    q = q.innerJoin(
+      creativeTags,
+      eq(creativeTags.creativeId, performanceRecords.creativeId),
+    );
   }
 
   const rows = await q.where(and(...conditions));
   const row = rows[0];
-
-  const num = (v: unknown): number | null =>
-    v === null || v === undefined ? null : Number(v);
 
   return {
     spend: num(row?.spend),
@@ -136,6 +180,108 @@ export async function kpis(filters: KpiFilters): Promise<Kpis> {
     hookRate: num(row?.hookRate),
     holdRate: num(row?.holdRate),
   };
+}
+
+/**
+ * Spend per (date, platform) for the Spend-over-time stacked area chart.
+ * Returns one row per (date, platform) that has at least one performance
+ * record after filtering. JS-side pivot is the caller's responsibility.
+ */
+export async function spendByDatePlatform(
+  filters: KpiFilters,
+): Promise<SpendByDatePlatform[]> {
+  const { conditions, needsCreativeJoin, needsTagJoin } =
+    buildBaseConditions(filters);
+
+  let q = db
+    .select({
+      date: performanceRecords.date,
+      platform: performanceRecords.platform,
+      spend: sumSpend,
+    })
+    .from(performanceRecords)
+    .$dynamic();
+
+  if (needsCreativeJoin || needsTagJoin) {
+    q = q.innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId));
+  }
+  if (needsTagJoin) {
+    q = q.innerJoin(
+      creativeTags,
+      eq(creativeTags.creativeId, performanceRecords.creativeId),
+    );
+  }
+
+  const rows = await q
+    .where(and(...conditions))
+    .groupBy(performanceRecords.date, performanceRecords.platform)
+    .orderBy(performanceRecords.date);
+
+  return rows.map((r) => ({
+    date: r.date,
+    platform: r.platform as Platform,
+    spend: Number(r.spend ?? 0),
+  }));
+}
+
+/**
+ * Top N creatives by spend over the filter window. Joins creatives + products
+ * so the table can render the human-readable product name without a second
+ * round-trip.
+ */
+export async function topCreatives(
+  filters: KpiFilters,
+  limit = 10,
+): Promise<TopCreativeRow[]> {
+  const { conditions, needsTagJoin } = buildBaseConditions(filters);
+
+  // This query always needs the creatives + products join for the name/product
+  // columns, regardless of which filters are active.
+  let q = db
+    .select({
+      creativeId: creatives.id,
+      name: creatives.name,
+      productName: products.name,
+      type: creatives.type,
+      status: creatives.status,
+      spend: sumSpend,
+      impressions: sumImpressions,
+      clicks: sumClicks,
+      conversions: sumConversions,
+      ctr,
+      roas,
+    })
+    .from(performanceRecords)
+    .innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId))
+    .innerJoin(products, eq(products.id, creatives.productId))
+    .$dynamic();
+
+  if (needsTagJoin) {
+    q = q.innerJoin(
+      creativeTags,
+      eq(creativeTags.creativeId, performanceRecords.creativeId),
+    );
+  }
+
+  const rows = await q
+    .where(and(...conditions))
+    .groupBy(creatives.id, creatives.name, products.name, creatives.type, creatives.status)
+    .orderBy(desc(sumSpend))
+    .limit(limit);
+
+  return rows.map((r) => ({
+    creativeId: r.creativeId,
+    name: r.name,
+    productName: r.productName,
+    type: r.type as CreativeType,
+    status: r.status as CreativeStatus,
+    spend: Number(r.spend ?? 0),
+    impressions: Number(r.impressions ?? 0),
+    clicks: Number(r.clicks ?? 0),
+    conversions: num(r.conversions),
+    ctr: num(r.ctr),
+    roas: num(r.roas),
+  }));
 }
 
 /** Returns inclusive ISO date strings for a trailing window. */

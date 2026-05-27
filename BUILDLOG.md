@@ -442,3 +442,74 @@ shared chunks didn't grow meaningfully.
 non-Overview routes. Auth still untouched. The filter system is now in place,
 so future dashboard pages just need to read the same searchParams and call
 their own queries.
+
+---
+
+## 2026-05-27 — Spend-over-time chart + Top-Creatives table
+
+The two largest placeholder boxes on the Overview turned into real visuals.
+This entry establishes the two patterns every future dashboard chart/table
+will follow: SQL aggregation in `db/queries/performance.ts` that imports its
+derived-metric SQL from `lib/metrics.ts`, JS-side reshaping where useful, and
+a focused client/server component that consumes the typed row shape.
+
+**Two new queries in `db/queries/performance.ts`:**
+
+- `spendByDatePlatform(filters)` — `SELECT date, platform, SUM(spend)
+  GROUP BY date, platform ORDER BY date`. Returns one row per
+  date-platform pair. The chart pivots in JS so the SQL stays simple.
+- `topCreatives(filters, limit=10)` — joins `performance_records` →
+  `creatives` → `products`, aggregates per creative, sorts by `SUM(spend)
+  DESC`, limits to N. Returns name / product name / type / status plus
+  spend / impressions / clicks / conversions / blended CTR / blended ROAS
+  (CTR + ROAS come from `lib/metrics.ts` fragments).
+
+Both queries share the same WHERE/JOIN scaffolding as `kpis()`, refactored
+out into a private `buildBaseConditions()` helper so the filter logic exists
+in one place and every aggregation honors the same defaults
+(`excluded_from_aggregates = false` unless `includeExcluded`).
+
+**`lib/palette.ts` added.** Recharts and other DOM-renderers need literal
+color values, not CSS variables. `PLATFORM_COLOR` mirrors `--meta`,
+`--tiktok`, `--snapchat`, `--google` from `app/globals.css`. If a platform
+color changes in the design tokens, also update this file (or future-me will
+ship a hex/CSS mismatch).
+
+**`components/charts/spend-over-time.tsx`** — client component
+(`"use client"` because Recharts measures the DOM). Recharts
+`ResponsiveContainer` → `AreaChart` with one stacked `<Area>` per platform
+that actually has data in the window. Each area uses a `linearGradient` from
+45% → 5% opacity so colors stay light. Custom tooltip renders the date in
+"MMM D" style, lists each platform with a swatch + USD value, and adds a
+"Total" footer line. Y-axis uses compact USD notation (`$1.2K`). On an empty
+result the chart slot becomes a dashed-border "No spend in the selected
+window" placeholder.
+
+**`components/charts/top-creatives.tsx`** — server component, plain
+`<table>` (no TanStack here since the SQL already sorts and caps at 10).
+Status column uses small bordered badges keyed by status with palette
+mapping (`active` → pos green, `paused` → warn amber, `archived`/`draft` →
+muted). Numeric columns use `font-variant-numeric: tabular-nums` via the
+`.num` utility from `globals.css`, formatted through `lib/format.ts`. The
+table is wrapped in `overflow-x-auto` so it survives narrow viewports.
+
+**Overview parallelizes its data fetches.** `app/(dashboard)/page.tsx` now
+issues `kpis()`, `spendByDatePlatform()`, and `topCreatives()` inside one
+`Promise.all`, so the page waits on whichever query is slowest rather than
+the sum. Three round-trips become one critical path.
+
+**Reconciliation (PRD §10.4 again):**
+
+| Check                                               | Result                  |
+| --------------------------------------------------- | ----------------------- |
+| Sum of all chart cells (date × platform spend)      | $8,427.55 — matches KPI |
+| Top-creatives row 1 (URJ_VID_002 / Argan Oil)       | $2,554.52, CTR 2.75%, ROAS 9.42 — matches SQL ground truth |
+| Sum of `topCreatives()` spend column                | $8,427.55 — matches KPI |
+
+**Bundle.** `/` first-load JS went from 174 kB → 286 kB. Recharts is the
+heaviest piece (~85 kB compressed). If we later need to trim, switching the
+chart to a `dynamic()` import (load after first paint) is the obvious lever.
+
+**Not done.** Platform-mix donut, custom date picker, product picker, all
+non-Overview routes. Auth. Upload flow. The data-fetch pattern is now
+established; everything else extends it.
