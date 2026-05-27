@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { Plus } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { createProduct } from "@/app/actions/product";
@@ -18,8 +19,10 @@ export function ProductCreateForm() {
       const res = await createProduct({ name: name.trim() });
       if (!res.ok) {
         setError(res.fieldErrors?.name ?? res.error ?? "Failed");
+        toast.error(res.fieldErrors?.name ?? res.error ?? "Could not add product");
         return;
       }
+      toast.success(`Added "${name.trim()}"`);
       setName("");
     });
   };

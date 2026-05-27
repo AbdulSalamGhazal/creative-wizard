@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { Plus } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -50,8 +51,10 @@ export function MappingAddForm({
       });
       if (!res.ok) {
         setError(res.error ?? "Failed");
+        toast.error(res.error ?? "Could not add mapping");
         return;
       }
+      toast.success(`Added "${trimmed}"`);
       setHeaderName("");
     });
   };

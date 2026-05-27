@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { Ban, RotateCcw } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -46,10 +47,12 @@ export function ExcludeRowAction({ recordId, excluded, context }: Props) {
       const res = await excludeRecord(recordId, trimmed);
       if (!res.ok) {
         setError(res.error ?? "Something went wrong.");
+        toast.error(res.error ?? "Could not exclude record");
         return;
       }
       setOpen(false);
       setReason("");
+      toast.success("Record excluded from totals");
     });
   };
 
@@ -57,10 +60,10 @@ export function ExcludeRowAction({ recordId, excluded, context }: Props) {
     startTransition(async () => {
       const res = await includeRecord(recordId);
       if (!res.ok) {
-        // No dialog open in the include path; surface inline via a no-op
-        // (the row will refresh on success).
-        console.error("includeRecord failed:", res.error);
+        toast.error(res.error ?? "Could not re-include record");
+        return;
       }
+      toast.success("Record back in totals");
     });
   };
 

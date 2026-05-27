@@ -1,7 +1,8 @@
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowLeft, Film, Image as ImageIcon, Layers } from "lucide-react";
+import { ArrowLeft, Edit3, Film, Image as ImageIcon, Layers } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { gradientFor } from "@/lib/palette";
 import { cn } from "@/lib/utils";
 import { isoDate } from "@/lib/format";
@@ -49,13 +50,21 @@ export function CreativeDetailHeader({ creative }: { creative: CreativeDetail })
 
   return (
     <div className="space-y-4">
-      <Link
-        href="/creatives"
-        className="inline-flex items-center gap-1 text-xs text-ink-3 hover:text-ink transition-colors"
-      >
-        <ArrowLeft className="w-3 h-3" />
-        Back to library
-      </Link>
+      <div className="flex items-center justify-between">
+        <Link
+          href="/creatives"
+          className="inline-flex items-center gap-1 text-xs text-ink-3 hover:text-ink transition-colors"
+        >
+          <ArrowLeft className="w-3 h-3" />
+          Back to library
+        </Link>
+        <Button asChild variant="ghost" size="sm" className="text-ink-3 hover:text-ink">
+          <Link href={`/creatives/${encodeURIComponent(creative.name)}/edit`}>
+            <Edit3 className="w-3.5 h-3.5" />
+            Edit creative
+          </Link>
+        </Button>
+      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-[260px_1fr] gap-6">
         {/* Thumbnail */}

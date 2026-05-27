@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { KeyRound } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -35,10 +36,12 @@ export function AdminSetPasswordButton({ userId, userEmail }: Props) {
       const res = await adminSetPassword({ userId, password });
       if (!res.ok) {
         setError(res.error ?? "Failed");
+        toast.error(res.error ?? "Could not set password");
         return;
       }
       setDone(true);
       setPassword("");
+      toast.success(`Password set for ${userEmail}`);
     });
   };
 

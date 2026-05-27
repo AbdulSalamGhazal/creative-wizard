@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { UserPlus } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -34,8 +35,10 @@ export function UserInviteForm() {
       });
       if (!res.ok) {
         setError(res.error ?? "Failed");
+        toast.error(res.error ?? "Invite failed");
         return;
       }
+      toast.success(`Invited ${name.trim()}`);
       setName("");
       setEmail("");
       setRole("editor");

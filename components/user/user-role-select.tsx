@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { toast } from "sonner";
 import {
   Select,
   SelectContent,
@@ -36,9 +37,11 @@ export function UserRoleSelect({
             const res = await updateUserRole(userId, next);
             if (!res.ok) {
               setError(res.error ?? "Failed");
+              toast.error(res.error ?? "Role unchanged");
               setRole(prev);
             } else {
               setError(null);
+              toast.success(`Role updated to ${next}`);
             }
           });
         }}

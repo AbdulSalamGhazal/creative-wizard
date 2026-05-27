@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -70,8 +71,10 @@ export function CreativeCreateForm({ products }: Props) {
       if (!res.ok) {
         setError(res.error ?? "Failed to create");
         setFieldErrors(res.fieldErrors ?? {});
+        toast.error(res.error ?? "Could not create creative");
         return;
       }
+      toast.success(`Created ${res.name}`);
       router.push(`/creatives/${encodeURIComponent(res.name!)}`);
       router.refresh();
     });

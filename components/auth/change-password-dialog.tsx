@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -47,12 +48,14 @@ export function ChangePasswordDialog({ open, onOpenChange }: Props) {
       });
       if (!res.ok) {
         setError(res.error ?? "Failed");
+        toast.error(res.error ?? "Password not changed");
         return;
       }
       setSuccess(true);
       setCurrent("");
       setNewPwd("");
       setConfirm("");
+      toast.success("Password updated");
     });
   };
 

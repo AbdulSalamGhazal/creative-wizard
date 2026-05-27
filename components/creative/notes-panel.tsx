@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { Check, Edit3, X } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { updateCreativeNotes } from "@/app/actions/creative";
@@ -27,10 +28,12 @@ export function NotesPanel({
       const res = await updateCreativeNotes(creativeId, value);
       if (!res.ok) {
         setError(res.error ?? "Failed");
+        toast.error(res.error ?? "Notes not saved");
         return;
       }
       setSaved(value);
       setEditing(false);
+      toast.success("Notes saved");
     });
   };
 

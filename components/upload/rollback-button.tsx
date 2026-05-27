@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { RotateCcw } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -30,9 +31,11 @@ export function RollbackButton({ batchId, fileName, rowCount }: Props) {
       const res = await rollbackBatch(batchId);
       if (!res.ok) {
         setError(res.error ?? "Rollback failed.");
+        toast.error(res.error ?? "Rollback failed");
         return;
       }
       setOpen(false);
+      toast.success(`Batch rolled back · ${rowCount} rows removed`);
     });
   };
 
