@@ -29,13 +29,14 @@ type CreativeType = (typeof creativeTypeEnum)[number];
 type CreativeStatus = (typeof creativeStatusEnum)[number];
 
 export interface KpiFilters {
-  from: string; // ISO date YYYY-MM-DD
-  to: string; // ISO date YYYY-MM-DD
+  from?: string; // ISO date YYYY-MM-DD; omit for all-time
+  to?: string; // ISO date YYYY-MM-DD; omit for all-time
   productIds?: string[];
   platforms?: Platform[];
   types?: CreativeType[];
   statuses?: CreativeStatus[];
   tags?: string[];
+  creativeIds?: string[];
   includeExcluded?: boolean;
 }
 
@@ -64,7 +65,11 @@ export interface PlatformMixRow {
   platform: Platform;
   spend: number;
   impressions: number;
+  clicks: number;
   conversions: number | null;
+  ctr: number | null;
+  cpa: number | null;
+  roas: number | null;
 }
 
 export interface TopCreativeRow {
@@ -90,15 +95,19 @@ function buildBaseConditions(filters: KpiFilters): {
   needsCreativeJoin: boolean;
   needsTagJoin: boolean;
 } {
-  const conditions: SQL[] = [
-    between(performanceRecords.date, filters.from, filters.to),
-  ];
+  const conditions: SQL[] = [];
 
+  if (filters.from && filters.to) {
+    conditions.push(between(performanceRecords.date, filters.from, filters.to));
+  }
   if (!filters.includeExcluded) {
     conditions.push(eq(performanceRecords.excludedFromAggregates, false));
   }
   if (filters.platforms && filters.platforms.length > 0) {
     conditions.push(inArray(performanceRecords.platform, filters.platforms));
+  }
+  if (filters.creativeIds && filters.creativeIds.length > 0) {
+    conditions.push(inArray(performanceRecords.creativeId, filters.creativeIds));
   }
 
   const needsCreativeJoin =
@@ -307,7 +316,11 @@ export async function platformMix(
       platform: performanceRecords.platform,
       spend: sumSpend,
       impressions: sumImpressions,
+      clicks: sumClicks,
       conversions: sumConversions,
+      ctr,
+      cpa,
+      roas,
     })
     .from(performanceRecords)
     .$dynamic();
@@ -331,7 +344,11 @@ export async function platformMix(
     platform: r.platform as Platform,
     spend: Number(r.spend ?? 0),
     impressions: Number(r.impressions ?? 0),
+    clicks: Number(r.clicks ?? 0),
     conversions: num(r.conversions),
+    ctr: num(r.ctr),
+    cpa: num(r.cpa),
+    roas: num(r.roas),
   }));
 }
 

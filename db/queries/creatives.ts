@@ -3,7 +3,6 @@ import {
   asc,
   desc,
   eq,
-  gte,
   ilike,
   inArray,
   or,
@@ -14,6 +13,7 @@ import { db } from "@/lib/db";
 import {
   creatives,
   creativeTags,
+  performanceRecords,
   products,
   type creativeStatusEnum,
   type creativeTypeEnum,
@@ -215,6 +215,124 @@ export async function creativeStats(): Promise<CreativeStats> {
   };
 }
 
+// -----------------------------------------------------------------------------
+// Creative Detail queries
+// -----------------------------------------------------------------------------
+
+export interface CreativeDetail {
+  id: string;
+  name: string;
+  productId: string;
+  productName: string;
+  type: CreativeType;
+  status: CreativeStatus;
+  thumbnailUrl: string | null;
+  launchDate: string | null;
+  notes: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  tags: string[];
+}
+
+export async function getCreativeByName(
+  name: string,
+): Promise<CreativeDetail | null> {
+  const [row] = await db
+    .select({
+      id: creatives.id,
+      name: creatives.name,
+      productId: creatives.productId,
+      productName: products.name,
+      type: creatives.type,
+      status: creatives.status,
+      thumbnailUrl: creatives.thumbnailUrl,
+      launchDate: creatives.launchDate,
+      notes: creatives.notes,
+      createdAt: creatives.createdAt,
+      updatedAt: creatives.updatedAt,
+    })
+    .from(creatives)
+    .innerJoin(products, eq(products.id, creatives.productId))
+    .where(eq(creatives.name, name))
+    .limit(1);
+
+  if (!row) return null;
+
+  const tagRows = await db
+    .select({ tag: creativeTags.tag })
+    .from(creativeTags)
+    .where(eq(creativeTags.creativeId, row.id))
+    .orderBy(asc(creativeTags.tag));
+
+  return {
+    ...row,
+    type: row.type as CreativeType,
+    status: row.status as CreativeStatus,
+    tags: tagRows.map((t) => t.tag),
+  };
+}
+
+export interface CreativeRecordRow {
+  id: number;
+  platform: "meta" | "tiktok" | "snapchat" | "google";
+  date: string;
+  spend: number;
+  impressions: number;
+  clicks: number;
+  conversions: number | null;
+  conversionValue: number | null;
+  videoViews3s: number | null;
+  videoViews15s: number | null;
+  excludedFromAggregates: boolean;
+  excludedReason: string | null;
+  excludedAt: Date | null;
+}
+
+/**
+ * All performance records for a single creative, newest first. Detail views
+ * always show every record regardless of exclusion (PRD §5.4); the caller
+ * uses `excludedFromAggregates` to render an "Excluded" badge.
+ */
+export async function creativeRecords(
+  creativeId: string,
+): Promise<CreativeRecordRow[]> {
+  const rows = await db
+    .select({
+      id: performanceRecords.id,
+      platform: performanceRecords.platform,
+      date: performanceRecords.date,
+      spend: performanceRecords.spend,
+      impressions: performanceRecords.impressions,
+      clicks: performanceRecords.clicks,
+      conversions: performanceRecords.conversions,
+      conversionValue: performanceRecords.conversionValue,
+      videoViews3s: performanceRecords.videoViews3s,
+      videoViews15s: performanceRecords.videoViews15s,
+      excludedFromAggregates: performanceRecords.excludedFromAggregates,
+      excludedReason: performanceRecords.excludedReason,
+      excludedAt: performanceRecords.excludedAt,
+    })
+    .from(performanceRecords)
+    .where(eq(performanceRecords.creativeId, creativeId))
+    .orderBy(desc(performanceRecords.date), asc(performanceRecords.platform));
+
+  return rows.map((r) => ({
+    id: r.id,
+    platform: r.platform as CreativeRecordRow["platform"],
+    date: r.date,
+    spend: Number(r.spend),
+    impressions: r.impressions,
+    clicks: r.clicks,
+    conversions: r.conversions,
+    conversionValue: r.conversionValue === null ? null : Number(r.conversionValue),
+    videoViews3s: r.videoViews3s,
+    videoViews15s: r.videoViews15s,
+    excludedFromAggregates: r.excludedFromAggregates,
+    excludedReason: r.excludedReason,
+    excludedAt: r.excludedAt,
+  }));
+}
+
 /** Distinct tag list for the tag-filter dropdown. */
 export async function listAllTags(): Promise<string[]> {
   const rows = await db
@@ -224,5 +342,3 @@ export async function listAllTags(): Promise<string[]> {
   return rows.map((r) => r.tag);
 }
 
-// Re-exported only because the page builds the count badge from the seed date.
-export { gte };

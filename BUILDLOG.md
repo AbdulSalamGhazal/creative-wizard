@@ -660,3 +660,95 @@ points there and 404s until that page exists. Creator filter and launch-date
 range filter are noted as deferred in the validator. TanStack Table in the
 table view is deferred. No `loading.tsx` skeletons yet. Real-thumbnail upload
 flow (`@vercel/blob`) is deferred.
+
+---
+
+## 2026-05-27 — Creative Detail page live
+
+`/creatives/[name]` now renders a full per-creative dashboard. Clicking a
+Library card no longer 404s. Every page that the Overview / Library hadn't
+already wired is now functional except the create form, the upload flow, and
+auth.
+
+**Performance queries opened up.** `KpiFilters` made `from`/`to` optional
+and gained a `creativeIds?: string[]` array. The shared
+`buildBaseConditions()` now skips the date `BETWEEN` when both bounds are
+omitted (Detail uses all-time) and adds an `inArray(performance_records.creative_id, …)`
+predicate when `creativeIds` is set. Every consumer (`kpis`,
+`spendByDatePlatform`, `platformMix`, `topCreatives`) inherits the new
+filters automatically since they share `buildBaseConditions`.
+
+**`platformMix()` extended** to also return clicks, blended CTR, blended
+CPA, and blended ROAS — the per-platform breakdown table on Detail needs
+them. Overview's donut is unaffected (it ignores the extra columns).
+
+**Detail-specific queries in `db/queries/creatives.ts`:**
+
+- `getCreativeByName(name)` — joins `creatives` → `products` for the
+  human-readable product name, then runs a second tiny query for tags.
+  Returns `null` when no match (the page calls `notFound()`).
+- `creativeRecords(creativeId)` — every performance record for the creative,
+  ordered by `date DESC, platform ASC`. Surfaces `excludedFromAggregates`,
+  `excludedReason`, `excludedAt` so the records table can render the
+  "Excluded" badge. **Detail views always show every record** regardless of
+  exclusion (PRD §5.4).
+
+**Components in `components/creative/` and `components/charts/`:**
+
+- `creative-detail-header.tsx` — 260×195 thumbnail (next/image when set,
+  deterministic gradient otherwise), serif name, product eyebrow, type +
+  status + launch-date badges, tag chips, notes. "← Back to library" link.
+- `creative-perf-line.tsx` — `LineChart` (not stacked), one `<Line>` per
+  platform that has data. `connectNulls={false}` so gaps in coverage read as
+  real gaps. Custom tooltip pivots the date and lists every platform's value
+  with em-dash for missing.
+- `creative-platform-table.tsx` — per-platform breakdown with the existing
+  platform color dot + label, columns for spend / impressions / clicks /
+  CTR / conversions / CPA / ROAS.
+- `creative-records-table.tsx` — every record, with date / platform / spend
+  / impressions / clicks / conversions and the "Excluded" badge column.
+  Excluded rows render at 70% opacity; the badge has a `title` attribute
+  carrying the reason text. Footer copy explains the convention.
+
+**`app/(dashboard)/creatives/[name]/page.tsx`** — async Server Component.
+Awaits `params`, decodes the name, runs `getCreativeByName`. If null, calls
+`notFound()` → Next renders the framework 404. Otherwise issues
+`Promise.all` for the four queries (KPIs, by-platform, perf time series,
+records) and composes the page.
+
+**Reconciliation (all four creatives, all six all-time KPIs):**
+
+| Creative      | Spend       | Impressions | CTR     | Conv. | CPA    | ROAS |
+| ------------- | ----------- | ----------- | ------- | ----- | ------ | ---- |
+| URJ_VID_001   | $1,963.20   |   340,954   | (live)  | (live)| (live) | (live) |
+| URJ_VID_002   | $2,554.52   |   387,725   | 2.75%   | 494   | $5.17  | 9.42 |
+| URJ_IMG_010   | $1,800.63   |   272,178   | (live)  | (live)| (live) | (live) |
+| URJ_SLD_020   | $2,109.20   |   337,210   | (live)  | (live)| (live) | (live) |
+
+Every cent matches raw SQL. Sum of all four spends = $8,427.55 = Overview
+KPI ✓.
+
+**Exclusion exercise.** Manually marked one row excluded
+(`UPDATE performance_records SET excluded_from_aggregates = true …`) and
+observed:
+
+| View                              | Before     | After      | Δ        |
+| --------------------------------- | ---------- | ---------- | -------- |
+| Detail: URJ_VID_002 KPI Spend     | $2,554.52  | $2,535.26  | −$19.26  |
+| Overview KPI Spend (default)      | $8,427.55  | $8,408.29  | −$19.26  |
+| Records table "Excluded" badges   | 0          | 1          | +1       |
+
+The excluded row's spend was exactly $19.26 — the delta propagated from
+Detail to Overview correctly. The badge appeared with the reason text on
+hover. Reverted; state clean. The exclusion read path is fully wired; the
+write path (UI to flip the flag) needs Server Actions + auth and is the
+next slice's territory.
+
+**Bundle.** `/creatives/[name]` ships at 5.71 kB / 288 kB. Most of the
+288 kB is the line chart's Recharts code, the same chunks already paid by
+the Overview.
+
+**Not done.** Server Action to exclude/include a record from the UI (needs
+auth roles). Editable notes panel. Server Action to edit creative metadata.
+Sparkline cells on the Library's top-creatives. `/creatives/new` (the
+create form). Auth. Upload flow.
