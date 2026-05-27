@@ -352,6 +352,159 @@ export async function platformMix(
   }));
 }
 
+export type CompareMetric =
+  | "spend"
+  | "impressions"
+  | "clicks"
+  | "conversions"
+  | "ctr"
+  | "cpm"
+  | "cpc"
+  | "cpa"
+  | "roas"
+  | "hookRate";
+
+export interface CompareSeriesPoint {
+  creativeId: string;
+  date: string;
+  value: number | null;
+}
+
+export interface CompareTotalsRow {
+  creativeId: string;
+  creativeName: string;
+  productName: string;
+  spend: number;
+  impressions: number;
+  clicks: number;
+  conversions: number | null;
+  ctr: number | null;
+  cpm: number | null;
+  cpa: number | null;
+  roas: number | null;
+  hookRate: number | null;
+}
+
+/** Time-series per creative for the chosen metric. */
+export async function compareSeries(
+  filters: KpiFilters & { creativeIds: string[]; metric: CompareMetric },
+): Promise<CompareSeriesPoint[]> {
+  if (filters.creativeIds.length === 0) return [];
+  const { conditions, needsCreativeJoin, needsTagJoin } =
+    buildBaseConditions(filters);
+
+  const metricSql = metricForCompare(filters.metric);
+
+  let q = db
+    .select({
+      creativeId: performanceRecords.creativeId,
+      date: performanceRecords.date,
+      value: metricSql,
+    })
+    .from(performanceRecords)
+    .$dynamic();
+
+  if (needsCreativeJoin || needsTagJoin) {
+    q = q.innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId));
+  }
+  if (needsTagJoin) {
+    q = q.innerJoin(
+      creativeTags,
+      eq(creativeTags.creativeId, performanceRecords.creativeId),
+    );
+  }
+
+  const rows = await q
+    .where(and(...conditions))
+    .groupBy(performanceRecords.creativeId, performanceRecords.date)
+    .orderBy(performanceRecords.date);
+
+  return rows.map((r) => ({
+    creativeId: r.creativeId,
+    date: r.date,
+    value: r.value === null || r.value === undefined ? null : Number(r.value),
+  }));
+}
+
+function metricForCompare(m: CompareMetric): SQL<number> {
+  switch (m) {
+    case "spend":
+      return sumSpend;
+    case "impressions":
+      return sumImpressions;
+    case "clicks":
+      return sumClicks;
+    case "conversions":
+      return sumConversions as SQL<number>;
+    case "ctr":
+      return ctr;
+    case "cpm":
+      return cpm;
+    case "cpc":
+      return cpc;
+    case "cpa":
+      return cpa;
+    case "roas":
+      return roas;
+    case "hookRate":
+      return hookRate;
+  }
+}
+
+/** Per-creative totals for the comparison table. */
+export async function compareTotals(
+  filters: KpiFilters & { creativeIds: string[] },
+): Promise<CompareTotalsRow[]> {
+  if (filters.creativeIds.length === 0) return [];
+  const { conditions, needsTagJoin } = buildBaseConditions(filters);
+
+  let q = db
+    .select({
+      creativeId: creatives.id,
+      creativeName: creatives.name,
+      productName: products.name,
+      spend: sumSpend,
+      impressions: sumImpressions,
+      clicks: sumClicks,
+      conversions: sumConversions,
+      ctr,
+      cpm,
+      cpa,
+      roas,
+      hookRate,
+    })
+    .from(performanceRecords)
+    .innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId))
+    .innerJoin(products, eq(products.id, creatives.productId))
+    .$dynamic();
+
+  if (needsTagJoin) {
+    q = q.innerJoin(
+      creativeTags,
+      eq(creativeTags.creativeId, performanceRecords.creativeId),
+    );
+  }
+
+  const rows = await q
+    .where(and(...conditions))
+    .groupBy(creatives.id, creatives.name, products.name);
+
+  return rows.map((r) => ({
+    creativeId: r.creativeId,
+    creativeName: r.creativeName,
+    productName: r.productName,
+    spend: Number(r.spend ?? 0),
+    impressions: Number(r.impressions ?? 0),
+    clicks: Number(r.clicks ?? 0),
+    conversions: num(r.conversions),
+    ctr: num(r.ctr),
+    cpm: num(r.cpm),
+    cpa: num(r.cpa),
+    roas: num(r.roas),
+    hookRate: num(r.hookRate),
+  }));
+}
+
 /** Returns inclusive ISO date strings for a trailing window. */
 export function defaultDateRange(days: number): { from: string; to: string } {
   const to = new Date();

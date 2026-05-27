@@ -123,9 +123,7 @@ export async function POST(request: NextRequest) {
   }
 
   // Transactional commit.
-  const platform = session.platform as ParsedRow extends infer _R
-    ? "meta" | "tiktok" | "snapchat" | "google"
-    : never;
+  const platform = session.platform as "meta" | "tiktok" | "snapchat" | "google";
 
   const result = await db.transaction(async (tx) => {
     const [batch] = await tx

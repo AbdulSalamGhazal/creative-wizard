@@ -10,6 +10,7 @@ import { CreativeDetailHeader } from "@/components/creative/creative-detail-head
 import { CreativePerfLineChart } from "@/components/charts/creative-perf-line";
 import { CreativePlatformTable } from "@/components/creative/creative-platform-table";
 import { CreativeRecordsTable } from "@/components/creative/creative-records-table";
+import { NotesPanel } from "@/components/creative/notes-panel";
 import { int, pct, ratio, usd } from "@/lib/format";
 
 export default async function CreativeDetailPage({
@@ -80,6 +81,8 @@ export default async function CreativeDetailPage({
         <h2 className="text-sm font-medium text-ink mb-3">By platform</h2>
         <CreativePlatformTable rows={byPlatform} />
       </div>
+
+      <NotesPanel creativeId={creative.id} initialNotes={creative.notes} />
 
       <div>
         <h2 className="text-sm font-medium text-ink mb-3">All records</h2>

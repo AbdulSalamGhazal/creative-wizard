@@ -1,0 +1,74 @@
+import { asc } from "drizzle-orm";
+import { db } from "@/lib/db";
+import { users } from "@/db/schema";
+import { auth, requireAdmin } from "@/lib/auth";
+import { UserInviteForm } from "@/components/user/user-invite-form";
+import { UserRoleSelect } from "@/components/user/user-role-select";
+import { isoDate } from "@/lib/format";
+
+export const dynamic = "force-dynamic";
+
+export default async function UsersAdminPage() {
+  await requireAdmin();
+  const me = await auth();
+
+  const team = await db
+    .select({
+      id: users.id,
+      email: users.email,
+      name: users.name,
+      role: users.role,
+      createdAt: users.createdAt,
+    })
+    .from(users)
+    .orderBy(asc(users.name));
+
+  return (
+    <div className="max-w-3xl mx-auto space-y-6">
+      <div>
+        <div className="text-[10px] uppercase tracking-[0.18em] text-ink-3 mb-1">
+          Admin
+        </div>
+        <h1 className="font-display text-4xl tracking-tight">Team</h1>
+        <p className="text-ink-2 text-sm mt-1">
+          {team.length} member{team.length === 1 ? "" : "s"}. Admins manage
+          users, products, and rollbacks. Editors upload CSVs and manage
+          creatives. Viewers are out of scope for v1 (PRD §3).
+        </p>
+      </div>
+
+      <div className="rounded-lg border border-line bg-surface p-4">
+        <UserInviteForm />
+      </div>
+
+      <div className="overflow-x-auto rounded-lg border border-line bg-surface">
+        <table className="w-full text-sm num">
+          <thead>
+            <tr className="text-left text-[11px] uppercase tracking-[0.14em] text-ink-3 border-b border-line">
+              <th className="font-medium px-3 py-2.5">Name</th>
+              <th className="font-medium px-3 py-2.5">Email</th>
+              <th className="font-medium px-3 py-2.5">Role</th>
+              <th className="font-medium px-3 py-2.5">Joined</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-line">
+            {team.map((u) => (
+              <tr key={u.id} className="hover:bg-surface-2/60 transition-colors">
+                <td className="px-3 py-2.5 text-ink">{u.name}</td>
+                <td className="px-3 py-2.5 font-mono text-ink-2 text-[13px]">{u.email}</td>
+                <td className="px-3 py-2.5">
+                  <UserRoleSelect
+                    userId={u.id}
+                    currentRole={u.role as "admin" | "editor" | "viewer"}
+                    isSelf={u.id === me?.id}
+                  />
+                </td>
+                <td className="px-3 py-2.5 text-ink-3">{isoDate(u.createdAt)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}

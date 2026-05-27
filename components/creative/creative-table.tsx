@@ -1,7 +1,19 @@
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
+import { DownloadCsvButton } from "@/components/ui/download-csv-button";
 import type { CreativeListRow } from "@/db/queries/creatives";
+import type { CsvColumn } from "@/lib/csv-export";
 import { isoDate, usd } from "@/lib/format";
+
+const CSV_COLUMNS: CsvColumn<CreativeListRow>[] = [
+  { key: "name", label: "Creative", value: (r) => r.name },
+  { key: "product", label: "Product", value: (r) => r.productName },
+  { key: "type", label: "Type", value: (r) => r.type },
+  { key: "status", label: "Status", value: (r) => r.status },
+  { key: "launchDate", label: "Launch date", value: (r) => r.launchDate ?? "" },
+  { key: "spend30d", label: "30d spend (USD)", value: (r) => r.spend30d },
+  { key: "tags", label: "Tags", value: (r) => r.tags.join("; ") },
+];
 
 const TYPE_LABEL: Record<CreativeListRow["type"], string> = {
   video: "Video",
@@ -26,7 +38,15 @@ export function CreativeTable({ rows }: { rows: CreativeListRow[] }) {
   }
 
   return (
-    <div className="overflow-x-auto rounded-lg border border-line bg-surface">
+    <div className="space-y-2">
+      <div className="flex justify-end">
+        <DownloadCsvButton
+          filenamePrefix="creatives"
+          rows={rows}
+          columns={CSV_COLUMNS}
+        />
+      </div>
+      <div className="overflow-x-auto rounded-lg border border-line bg-surface">
       <table className="w-full text-sm num">
         <thead>
           <tr className="text-left text-[11px] uppercase tracking-[0.14em] text-ink-3 border-b border-line">
@@ -91,6 +111,7 @@ export function CreativeTable({ rows }: { rows: CreativeListRow[] }) {
           ))}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }

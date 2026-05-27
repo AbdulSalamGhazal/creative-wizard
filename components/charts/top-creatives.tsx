@@ -1,10 +1,27 @@
 import { Badge } from "@/components/ui/badge";
+import { DownloadCsvButton } from "@/components/ui/download-csv-button";
 import { int, pct, ratio, usd } from "@/lib/format";
 import type { TopCreativeRow } from "@/db/queries/performance";
 
 interface Props {
   rows: TopCreativeRow[];
 }
+
+import type { CsvColumn } from "@/lib/csv-export";
+
+const CSV_COLUMNS: CsvColumn<TopCreativeRow>[] = [
+  { key: "rank", label: "#", value: (_r, i) => i + 1 },
+  { key: "name", label: "Creative", value: (r) => r.name },
+  { key: "product", label: "Product", value: (r) => r.productName },
+  { key: "type", label: "Type", value: (r) => r.type },
+  { key: "status", label: "Status", value: (r) => r.status },
+  { key: "spend", label: "Spend (USD)", value: (r) => r.spend },
+  { key: "impressions", label: "Impressions", value: (r) => r.impressions },
+  { key: "clicks", label: "Clicks", value: (r) => r.clicks },
+  { key: "ctr", label: "CTR", value: (r) => r.ctr },
+  { key: "conversions", label: "Conversions", value: (r) => r.conversions },
+  { key: "roas", label: "ROAS", value: (r) => r.roas },
+];
 
 const TYPE_LABEL: Record<TopCreativeRow["type"], string> = {
   video: "Video",
@@ -29,7 +46,15 @@ export function TopCreativesTable({ rows }: Props) {
   }
 
   return (
-    <div className="overflow-x-auto -mx-2">
+    <div className="space-y-2">
+      <div className="flex justify-end">
+        <DownloadCsvButton
+          filenamePrefix="top-creatives"
+          rows={rows}
+          columns={CSV_COLUMNS}
+        />
+      </div>
+      <div className="overflow-x-auto -mx-2">
       <table className="w-full text-sm num">
         <thead>
           <tr className="text-left text-[11px] uppercase tracking-[0.14em] text-ink-3">
@@ -66,6 +91,7 @@ export function TopCreativesTable({ rows }: Props) {
           ))}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }

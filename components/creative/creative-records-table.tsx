@@ -1,8 +1,24 @@
 import { Badge } from "@/components/ui/badge";
+import { DownloadCsvButton } from "@/components/ui/download-csv-button";
 import { ExcludeRowAction } from "@/components/creative/exclude-row-action";
 import { PLATFORM_COLOR, PLATFORM_LABEL } from "@/lib/palette";
 import { int, isoDate, usd } from "@/lib/format";
 import type { CreativeRecordRow } from "@/db/queries/creatives";
+import type { CsvColumn } from "@/lib/csv-export";
+
+const CSV_COLUMNS: CsvColumn<CreativeRecordRow>[] = [
+  { key: "date", label: "Date", value: (r) => r.date },
+  { key: "platform", label: "Platform", value: (r) => r.platform },
+  { key: "spend", label: "Spend (USD)", value: (r) => r.spend },
+  { key: "impressions", label: "Impressions", value: (r) => r.impressions },
+  { key: "clicks", label: "Clicks", value: (r) => r.clicks },
+  { key: "conversions", label: "Conversions", value: (r) => r.conversions },
+  { key: "conversionValue", label: "Conversion value (USD)", value: (r) => r.conversionValue },
+  { key: "videoViews3s", label: "Video views 3s", value: (r) => r.videoViews3s },
+  { key: "videoViews15s", label: "Video views 15s", value: (r) => r.videoViews15s },
+  { key: "excluded", label: "Excluded", value: (r) => (r.excludedFromAggregates ? "yes" : "") },
+  { key: "excludedReason", label: "Excluded reason", value: (r) => r.excludedReason },
+];
 
 interface Props {
   rows: CreativeRecordRow[];
@@ -30,6 +46,11 @@ export function CreativeRecordsTable({ rows }: Props) {
             <span>none excluded</span>
           )}
         </span>
+        <DownloadCsvButton
+          filenamePrefix="creative-records"
+          rows={rows}
+          columns={CSV_COLUMNS}
+        />
       </div>
       <div className="overflow-x-auto rounded-lg border border-line bg-surface">
         <table className="w-full text-sm num">

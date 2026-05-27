@@ -1098,3 +1098,165 @@ no client bundle of its own).
 Real Auth.js v5. `/creatives/new` create form. Compare /
 By-Platform pages. CSV export. Real per-platform header maps from
 actual exports.
+
+---
+
+## 2026-05-27 — v1 surface complete (push to the finish line)
+
+One long autonomous push closed every remaining v1 surface except the
+two items that need external input (real Google OAuth credentials, real
+CSV exports for the per-platform header maps). Eight slices landed in
+sequence; this entry summarizes each because they all share the patterns
+established earlier.
+
+### Slice 1 — Upload rollback (admin, ≤ 24 h)
+
+- `app/actions/rollback.ts::rollbackBatch(batchId)` — `requireAdmin()`,
+  refuses outside the 24-hour window or on already-rolled-back batches.
+  One transaction: `DELETE FROM performance_records WHERE upload_batch_id
+  = …` and `UPDATE upload_batches SET status='rolled_back', rolled_back_at,
+  rolled_back_by_user_id`. The validate endpoint's `findExistingBatch`
+  already filters by `status='active'`, so re-uploading the same dates
+  passes E051 after rollback. Revalidates `/`, `/creatives`, `/uploads`.
+- `components/upload/rollback-button.tsx` — destructive-action Dialog
+  with the row-count + filename in the body. Confirms before firing.
+  Visible per row on `/uploads` only when the current user is admin,
+  status is `active`, and the batch is within 24 h.
+
+### Slice 2 — `/creatives/new` create form
+
+- `app/actions/creative.ts::createCreative` — `requireEditor()`, parses
+  through the existing `creativeCreateSchema`, pre-checks name uniqueness
+  for a clean error message, inserts the creative, then inserts tag rows
+  in a second statement. Returns `{ ok, name, fieldErrors? }` so the
+  client can map per-field errors. Also exports `updateCreativeNotes`
+  for the editable notes panel (slice 7).
+- `components/creative/creative-create-form.tsx` — client form with
+  name + product (select) + type (select) + status (select) + launch
+  date (`<input type="date">`) + comma-separated tags + notes textarea.
+  Server Action via `useTransition` so submit is non-blocking. On
+  success, `router.push` to the new creative's detail page.
+- `app/(dashboard)/creatives/new/page.tsx` — server component, loads
+  the product list and renders the form. The "New creative" CTA in the
+  library header no longer 404s.
+
+### Slice 3 — `/admin/products` CRUD
+
+- `app/actions/product.ts` — `createProduct`, `archiveProduct`,
+  `restoreProduct`, plus `countCreativesPerProduct()`. Admin-only.
+  Slug is `slugify(name)` with collision suffixes (`-2`, `-3` …).
+  Archived products stay attached to their creatives (PRD §5.2).
+- `components/product/{product-create-form, product-row-actions}.tsx`.
+- `app/(dashboard)/admin/products/page.tsx` — `requireAdmin()` at the
+  top so non-admins get a thrown error. Two tables: Active and
+  Archived. Each row shows name / slug / creative count / created
+  date / row actions.
+
+### Slice 4 — `/admin/users` role management
+
+- `app/actions/user.ts::inviteUser`, `updateUserRole`. Invite is a
+  stub (creates the user row in the DB; the real Auth.js flow will
+  reconcile on first Google sign-in). Self-demotion is rejected.
+- `components/user/{user-invite-form, user-role-select}.tsx`.
+- `app/(dashboard)/admin/users/page.tsx` — `requireAdmin()`, invite
+  form at the top, team table with inline role `<Select>` per row.
+
+### Slice 5 — `/compare` page
+
+- `db/queries/performance.ts::compareSeries(filters, metric)` —
+  per-creative time series for any of ten metrics (`spend`,
+  `impressions`, `clicks`, `conversions`, `ctr`, `cpm`, `cpc`, `cpa`,
+  `roas`, `hookRate`). Reuses `buildBaseConditions` so global filters
+  still apply.
+- `compareTotals(filters)` — per-creative all-time KPIs joined with
+  product names for the comparison table.
+- `components/charts/compare-chart.tsx` — Recharts `LineChart`, one
+  `<Line>` per selected creative, color from a shared 5-color palette
+  (`COMPARE_COLORS`), custom tooltip pivoting by date and formatting
+  per metric.
+- `components/creative/compare-controls.tsx` — client component owning
+  URL state for `creativeIds` (csv, capped at 5) and `metric`. Picker
+  + selected chips + metric dropdown.
+- `app/(dashboard)/compare/page.tsx` — parses searchParams, fetches
+  in parallel, renders chart + comparison table. The picker disables
+  options once 5 are selected.
+
+### Slice 6 — `/platforms` index + `/platforms/[platform]`
+
+- `app/(dashboard)/platforms/page.tsx` — four-card index linking to
+  the four platform pages.
+- `app/(dashboard)/platforms/[platform]/page.tsx` — reuses every
+  Overview query with `platforms=[platform]` forced. Swaps Blended
+  ROAS for Hook Rate on video-heavy platforms (Meta, TikTok). 404 on
+  unknown platform slugs. `Platform mix` donut becomes a "Slice" (a
+  donut over a single platform is admittedly a circle — still useful
+  with empty platforms going to zero).
+
+### Slice 7 — CSV export
+
+- `lib/csv-export.ts` — tiny RFC-4180 writer + `Blob`/anchor
+  download. UTF-8 BOM prefix so Excel opens it correctly. Column
+  getters receive `(row, index)` so rank/serial columns work.
+- `components/ui/download-csv-button.tsx` — reusable trigger.
+- Wired onto Top Creatives (Overview + per-platform), the Library
+  table view, and the Creative Detail records table. Each export
+  uses the rows currently rendered, so URL filters carry through to
+  the file.
+
+### Slice 8 — Editable notes + loading skeletons
+
+- `components/creative/notes-panel.tsx` — read mode shows the notes
+  with an Edit button; edit mode is a textarea with live char count
+  (cap 5000) and Save/Cancel. Calls `updateCreativeNotes` Server
+  Action.
+- Wired into Creative Detail above the records table.
+- A full creative edit form for the remaining fields
+  (product/status/type/launchDate/tags) is **deferred** — notes is
+  the most-edited field, and other fields can be changed at creation
+  time. Edit form is a small follow-up if needed.
+- `components/ui/skeleton.tsx` from shadcn.
+- Per-route `loading.tsx` files mirror the final layout for `/`,
+  `/creatives`, `/creatives/[name]`, `/uploads`. No more flash of
+  blank `<main>` while the Server Component is fetching.
+
+### Build / test status
+
+- `npm run build` → clean, 14 routes.
+- `npx tsc --noEmit` → clean.
+- `npm test` → 19 vitest specs passing.
+
+| Route                          | Static / Dynamic | First Load JS |
+| ------------------------------ | ---------------- | ------------- |
+| `/`                            | Dynamic          | 300 kB        |
+| `/admin/products`              | Dynamic          | 113 kB        |
+| `/admin/users`                 | Dynamic          | 142 kB        |
+| `/compare`                     | Dynamic          | 247 kB        |
+| `/creatives`                   | Dynamic          | 219 kB        |
+| `/creatives/[name]`            | Dynamic          | 302 kB        |
+| `/creatives/new`               | Static           | 146 kB        |
+| `/platforms`                   | Static           | 106 kB        |
+| `/platforms/[platform]`        | Dynamic          | 296 kB        |
+| `/uploads`                     | Dynamic          | 189 kB        |
+| `/uploads/new`                 | Static           | 178 kB        |
+
+### Where this leaves us
+
+What's intentionally **deferred** (each marked elsewhere too):
+
+1. **Real Auth.js v5 (Google + domain restriction)** — needs Google
+   OAuth client credentials from the team. Internals-only swap; the
+   public `auth()`/`requireAdmin()`/`requireEditor()` shape is stable.
+2. **Real per-platform CSV header maps** — needs real Ads-Manager /
+   TikTok / Snapchat / Google exports. Today's `csv/platforms/*.ts`
+   use plausible placeholder headers.
+3. **Full creative edit form** (`/creatives/[name]/edit`) — notes is
+   editable from the detail page; product/status/type/launchDate/tags
+   are not yet editable from the UI.
+4. **pg_trgm + GIN on `creatives.name`** — only matters past ~10k
+   creatives or p95 > 100 ms.
+5. **Periodic sweep for stale `upload_validation_sessions`** — current
+   lazy-at-commit cleanup is sufficient.
+6. **Windows-1256 fallback + iconv-lite** — non-UTF-8 currently
+   rejected with E004; W001 path TBD.
+
+Everything else from PRD v1 is shipped.
