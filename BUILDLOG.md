@@ -1476,3 +1476,119 @@ Before exposing the dashboard publicly:
 - `/signin` renders both email and password fields.
 - Type-check + build clean (16 routes).
 - All 19 vitest specs still pass.
+
+---
+
+## 2026-05-27 — Upload UX improvements (4 of them)
+
+Direct response to the team's first-test feedback. Four targeted changes
+to make the upload less brittle and less click-heavy.
+
+### 1. Accept `.xlsx` (and `.xls`) in addition to CSV
+
+SheetJS (the `xlsx` package) reads workbooks. `csv/parse.ts` was renamed
+internally to `parseFile()` (the `parseCsv` export is preserved as an
+alias) and now routes by extension + magic-byte sniffing (`PK\x03\x04`):
+- `.xlsx` / `.xls` / xlsx magic → `XLSX.read` + `sheet_to_json({ header: 1 })`
+  to produce the same `string[][]` shape as the CSV path.
+- Anything else → existing papaparse path.
+
+The Dropzone's `accept` map grew the relevant MIME types; copy and the
+"file too large / wrong type" inline errors say "CSV or XLSX up to 10 MB".
+
+The route handler doesn't care — `parseFile` is the unified entrypoint.
+
+### 2. Auto-detect the platform from the file's headers
+
+The old form required picking a platform up-front; a wrong pick fired
+E010 cascades. Now:
+
+- `csv/platforms/detect.ts::detectPlatform(headers, adapters)` scores
+  each platform by how many of its internal-field candidate headers
+  appear in the file. Returns the best platform plus whether the top
+  score was tied (`ambiguous`).
+- `POST /api/uploads/validate` makes the `platform` form field optional.
+  When omitted, the route auto-detects from the parsed header row. The
+  response now includes a `detection` block:
+  `{ used: "auto" | "explicit", platform, ambiguous, scores }`.
+- The Upload form drops the platform select from the default state.
+  After validate, a small banner shows "Detected platform: Meta · auto"
+  (or "your override" if you set one). Wrong? An expandable "Override"
+  control lets you pick from the four and re-validate.
+
+If no platform scores at all (file's headers don't match any adapter's
+mapping), the response is a clean error pointing at /admin/platforms.
+
+### 3. Permissive date parser
+
+Previously each adapter accepted only `YYYY-MM-DD` and `MM/DD/YYYY` (Meta
+also took `D Mon YYYY`). Real exports from the team use `DD/MM/YYYY`. The
+parser now:
+
+- Accepts `/`, `-`, and `.` as separators for the day/month/year forms.
+- Tries `DD/MM/YYYY` before `MM/DD/YYYY` so day-first wins on ambiguity.
+- ISO `YYYY-MM-DD` (and `YYYY/MM/DD`, `YYYY.MM.DD`) stays unambiguous.
+
+So `28/05/2026`, `28-05-2026`, `28.05.2026`, `2026-05-28`, and
+`28 May 2026` (Meta only) all parse to the canonical `2026-05-28`. For
+truly ambiguous strings (`05/04/2026`), DD/MM/YYYY wins — matches the
+regional convention. The Meta adapter's `D Mon YYYY` is still supported.
+
+### 4. All mapped columns required
+
+The user's feedback was "all of them or the file is not accepted".
+Each adapter's `requiredFields` now lists every internal field
+(creative_name, date, spend, impressions, clicks, conversions,
+conversion_value, video_views_3s, video_views_15s). Files missing any
+of those headers fire E010 per missing column.
+
+**Important caveat in the pipeline.** "All columns required" is enforced
+at the *header* level, not at the *cell* level. A real-world row will
+sometimes have a blank `conversions` cell (zero conversions on the day);
+that's normal data, not an error. The pipeline now:
+
+- Treats every numeric field's blank cell as `0` (the previous
+  `parseRequired` distinction for spend/impressions/clicks is gone).
+- Still surfaces `E040` for non-numeric strings and `E041` for negatives.
+- `creative_name` and `date` cells still must be non-empty (E021/E042),
+  because zero doesn't make sense for those.
+
+This matches what the team actually wants: "your file must have all the
+columns, but a day with no conversions is still a valid day".
+
+### Tests
+
+25 vitest specs now (was 19). New coverage:
+- All-columns-required: dropping `Impressions` or `Purchase value` → E010.
+- Blank cells in optional-looking metrics → parsed as 0, not E042.
+- Dash and dot separators for DD/MM/YYYY.
+- DD/MM/YYYY wins ambiguity over MM/DD/YYYY.
+- `detectPlatform()` picks Meta on a Meta-shaped file, returns null on
+  unrecognized headers, and reports ambiguity when scores tie.
+
+### End-to-end browser-path checks
+
+Authenticated curl roundtrip:
+
+| File                                  | Detection           | Result                                  |
+| ------------------------------------- | ------------------- | --------------------------------------- |
+| Meta-shaped CSV w/ `28/02/2026`       | `meta` (9/9)        | ok; 2 rows; date `2026-02-28`           |
+| TikTok-shaped CSV, no override        | `tiktok` (9/9)      | ok; auto-detected correctly             |
+| 5-column "old-shape" Meta CSV         | `meta`              | 4× E010 (the missing fields)            |
+| Meta-shaped XLSX (built via SheetJS)  | `meta`              | ok; 2 rows; DD/MM dates parsed          |
+
+Build + typecheck clean. 16 routes unchanged.
+
+### Not changed
+
+- `platform` form field is still accepted when explicitly passed —
+  override path is fully functional.
+- `csv/platforms/*.ts` still hold the *fallback* defaults that get
+  seeded into `platform_field_mappings` and merged on read via
+  `resolveAdapter()`. Admin edits in `/admin/platforms` win.
+- `requiredFields` is still hard-coded in the adapter files. If the team
+  wants to make a field truly optional for one platform (e.g. Snapchat
+  rarely exports `video_views_15s`), the next iteration is to add a
+  `required` boolean column on `platform_field_mappings` and toggle from
+  the admin UI. Skipped for now — current strict mode matches the
+  request.

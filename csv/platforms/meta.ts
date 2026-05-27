@@ -29,8 +29,18 @@ export const metaAdapter: PlatformAdapter = {
     video_views_3s: ["3-second video plays", "3-sec video views"],
     video_views_15s: ["ThruPlays", "15-second video plays"],
   },
-  requiredFields: ["creative_name", "date", "spend", "impressions", "clicks"],
-  acceptedDateFormats: ["YYYY-MM-DD", "MM/DD/YYYY", "D Mon YYYY"],
+  requiredFields: [
+    "creative_name",
+    "date",
+    "spend",
+    "impressions",
+    "clicks",
+    "conversions",
+    "conversion_value",
+    "video_views_3s",
+    "video_views_15s",
+  ],
+  acceptedDateFormats: ["YYYY-MM-DD", "DD/MM/YYYY", "MM/DD/YYYY", "D Mon YYYY"],
   skipRow: (row) =>
     (row.creative_name ?? "").trim() === "" &&
     (row.date ?? "").trim() === "",

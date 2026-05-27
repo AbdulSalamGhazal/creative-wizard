@@ -17,8 +17,18 @@ export const tiktokAdapter: PlatformAdapter = {
     video_views_3s: ["3-second video views"],
     video_views_15s: ["6-second video views", "Video plays at 100%"],
   },
-  requiredFields: ["creative_name", "date", "spend", "impressions", "clicks"],
-  acceptedDateFormats: ["YYYY-MM-DD", "MM/DD/YYYY"],
+  requiredFields: [
+    "creative_name",
+    "date",
+    "spend",
+    "impressions",
+    "clicks",
+    "conversions",
+    "conversion_value",
+    "video_views_3s",
+    "video_views_15s",
+  ],
+  acceptedDateFormats: ["YYYY-MM-DD", "DD/MM/YYYY", "MM/DD/YYYY"],
   skipRow: (row) =>
     (row.creative_name ?? "").trim() === "" && (row.date ?? "").trim() === "",
 };

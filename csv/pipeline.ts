@@ -239,47 +239,11 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
       }
     }
 
-    // Numeric fields
-    const parseRequired = (
-      field: InternalField,
-    ): number | null => {
-      const raw = allCells[field] ?? "";
-      if (raw === "") {
-        errorsForRow.push({
-          code: "E042",
-          severity: "ERROR",
-          message: `Row ${rowNumber}: required field \`'${field}'\` is missing.`,
-          row: rowNumber,
-          field,
-        });
-        return null;
-      }
-      const parsedNumeric = parseNumber(raw);
-      if (parsedNumeric === null) {
-        errorsForRow.push({
-          code: "E040",
-          severity: "ERROR",
-          message: `Row ${rowNumber}: \`'${field}'\` is not a valid number (\`'${raw}'\`).`,
-          row: rowNumber,
-          value: raw,
-          field,
-        });
-        return null;
-      }
-      if (parsedNumeric < 0) {
-        errorsForRow.push({
-          code: "E041",
-          severity: "ERROR",
-          message: `Row ${rowNumber}: \`'${field}'\` must be non-negative (got ${parsedNumeric}).`,
-          row: rowNumber,
-          value: raw,
-          field,
-        });
-        return null;
-      }
-      return parsedNumeric;
-    };
-    const parseOptional = (field: InternalField): number | null => {
+    // Numeric fields: all-or-nothing at the column level (the adapter's
+    // requiredFields decides which headers must exist). Within a row, a blank
+    // cell defaults to 0 — a day with no conversions is a real, valid row.
+    // Non-numeric strings or negatives still trigger E040 / E041.
+    const parseNumericCell = (field: InternalField): number | null => {
       const raw = allCells[field] ?? "";
       if (isEmptyMarker(raw)) return 0;
       const parsedNumeric = parseNumber(raw);
@@ -308,13 +272,13 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
       return parsedNumeric;
     };
 
-    const spend = parseRequired("spend");
-    const impressions = parseRequired("impressions");
-    const clicks = parseRequired("clicks");
-    const conversions = parseOptional("conversions");
-    const conversionValue = parseOptional("conversion_value");
-    const videoViews3s = parseOptional("video_views_3s");
-    const videoViews15s = parseOptional("video_views_15s");
+    const spend = parseNumericCell("spend");
+    const impressions = parseNumericCell("impressions");
+    const clicks = parseNumericCell("clicks");
+    const conversions = parseNumericCell("conversions");
+    const conversionValue = parseNumericCell("conversion_value");
+    const videoViews3s = parseNumericCell("video_views_3s");
+    const videoViews15s = parseNumericCell("video_views_15s");
 
     if (errorsForRow.length > 0) {
       collected.push(...errorsForRow);
@@ -425,19 +389,29 @@ const MONTHS: Record<string, number> = {
   jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12,
 };
 
-/** Try the accepted formats in order; return canonical YYYY-MM-DD or null. */
+/**
+ * Try the accepted formats in order; return canonical YYYY-MM-DD or null.
+ *
+ * Slash / dash / dot are all accepted as separators for MM/DD/YYYY and
+ * DD/MM/YYYY (e.g. `28/05/2026`, `28-05-2026`, `28.05.2026` all work).
+ * Ambiguous inputs (`05/04/2026`) resolve to whichever format the adapter
+ * lists first. Inputs where one position exceeds 12 (e.g. `28/05/2026`)
+ * are unambiguous regardless of order — the wrong interpretation simply
+ * fails the calendar-validity check and the next format is tried.
+ */
 export function parseDate(raw: string, formats: DateFormat[]): string | null {
   const s = raw.trim();
+  const slashOrDashOrDot = /^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})$/;
   for (const fmt of formats) {
     let m: RegExpMatchArray | null = null;
     let y: number | undefined;
     let mo: number | undefined;
     let d: number | undefined;
-    if (fmt === "YYYY-MM-DD" && (m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/))) {
+    if (fmt === "YYYY-MM-DD" && (m = s.match(/^(\d{4})[\-\/.](\d{1,2})[\-\/.](\d{1,2})$/))) {
       y = +m[1]!; mo = +m[2]!; d = +m[3]!;
-    } else if (fmt === "MM/DD/YYYY" && (m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/))) {
+    } else if (fmt === "MM/DD/YYYY" && (m = s.match(slashOrDashOrDot))) {
       mo = +m[1]!; d = +m[2]!; y = +m[3]!;
-    } else if (fmt === "DD/MM/YYYY" && (m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/))) {
+    } else if (fmt === "DD/MM/YYYY" && (m = s.match(slashOrDashOrDot))) {
       d = +m[1]!; mo = +m[2]!; y = +m[3]!;
     } else if (fmt === "D Mon YYYY" && (m = s.match(/^(\d{1,2})\s+([A-Za-z]{3,})\s+(\d{4})$/))) {
       d = +m[1]!;

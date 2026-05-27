@@ -37,7 +37,13 @@ export function Dropzone({ file, onFile, disabled }: Props) {
       onDrop,
       multiple: false,
       maxSize: MAX_FILE_BYTES,
-      accept: { "text/csv": [".csv"], "application/vnd.ms-excel": [".csv"] },
+      accept: {
+      "text/csv": [".csv"],
+      "application/vnd.ms-excel": [".csv", ".xls"],
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [
+        ".xlsx",
+      ],
+    },
       disabled,
     });
 
@@ -93,15 +99,17 @@ export function Dropzone({ file, onFile, disabled }: Props) {
           <UploadIcon className="w-5 h-5 text-ink-2" />
         </div>
         <div className="mt-4 text-sm text-ink">
-          {isDragActive ? "Drop the CSV here" : "Drag a CSV here, or click to browse"}
+          {isDragActive
+            ? "Drop the file here"
+            : "Drag a CSV or XLSX here, or click to browse"}
         </div>
-        <div className="mt-1 text-xs text-ink-3">CSV files up to 10 MB</div>
+        <div className="mt-1 text-xs text-ink-3">CSV or XLSX up to 10 MB</div>
       </div>
       {(sizeRejected || typeRejected) && (
         <div className="mt-2 text-xs text-neg">
           {sizeRejected
             ? "File exceeds the 10 MB limit."
-            : "Only .csv files are accepted."}
+            : "Only .csv, .xls, and .xlsx files are accepted."}
         </div>
       )}
     </div>

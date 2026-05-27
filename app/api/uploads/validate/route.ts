@@ -10,28 +10,30 @@ import {
   uploadBatches,
   uploadValidationSessions,
 } from "@/db/schema";
-import { MAX_FILE_BYTES } from "@/csv/parse";
+import { MAX_FILE_BYTES, parseFile } from "@/csv/parse";
 import { runPipeline, type ParsedRow } from "@/csv/pipeline";
 import { resolveAdapter } from "@/db/queries/platforms";
+import { detectPlatform } from "@/csv/platforms/detect";
+import type { PlatformAdapter } from "@/csv/platforms/types";
 
 const VALIDATION_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
 const platformSchema = z.enum(platformEnum);
+type Platform = PlatformAdapter["platform"];
 
 /**
  * POST /api/uploads/validate
  *
- * Accepts: multipart/form-data with `file` (CSV) and `platform`.
- * Runs the 5-stage validation pipeline. On success returns a token whose
- * payload the commit endpoint will read. On failure returns the full error
- * + warning arrays with no token.
+ * Accepts: multipart/form-data with `file` (CSV or XLSX) and an OPTIONAL
+ * `platform`. When `platform` is omitted, the server auto-detects from the
+ * file's header row.
  *
  * Status codes:
- *   200 — valid; token returned
- *   400 — bad form input (missing file / bad platform)
+ *   200 — valid; token returned, plus the detected/selected platform
+ *   400 — bad form input
  *   401 — not signed in
  *   413 — file > 10 MB
- *   422 — validation errors; body has `errors` and `warnings`
+ *   422 — validation errors (or could-not-detect-platform)
  *   500 — unexpected
  */
 export async function POST(request: NextRequest) {
@@ -55,20 +57,9 @@ export async function POST(request: NextRequest) {
   const rawPlatform = form.get("platform");
   const file = form.get("file");
 
-  const platformResult = platformSchema.safeParse(rawPlatform);
-  if (!platformResult.success) {
-    return NextResponse.json(
-      {
-        error: "Invalid platform; expected one of: meta, tiktok, snapchat, google.",
-      },
-      { status: 400 },
-    );
-  }
-  const platform = platformResult.data;
-
   if (!(file instanceof File)) {
     return NextResponse.json(
-      { error: "Expected a `file` field with a CSV upload." },
+      { error: "Expected a `file` field with a CSV or XLSX upload." },
       { status: 400 },
     );
   }
@@ -84,12 +75,93 @@ export async function POST(request: NextRequest) {
 
   const buffer = new Uint8Array(await file.arrayBuffer());
 
-  // Snapshot of registered creative names (strict byte-equal matching per
-  // validation-spec §4).
+  // Parse first so we can auto-detect the platform if one wasn't passed.
+  const parsed = parseFile({
+    content: buffer,
+    byteLength: file.size,
+    fileName: file.name,
+  });
+  if (!parsed.ok) {
+    return NextResponse.json(
+      { ok: false, errors: [parsed.error], warnings: [] },
+      { status: 422 },
+    );
+  }
+
+  // Resolve the four adapters from the DB once — we use them for auto-detect
+  // and again as the pipeline adapter.
+  const [metaAdapter, tiktokAdapter, snapchatAdapter, googleAdapter] =
+    await Promise.all([
+      resolveAdapter("meta"),
+      resolveAdapter("tiktok"),
+      resolveAdapter("snapchat"),
+      resolveAdapter("google"),
+    ]);
+  const adapters: Record<Platform, PlatformAdapter> = {
+    meta: metaAdapter,
+    tiktok: tiktokAdapter,
+    snapchat: snapchatAdapter,
+    google: googleAdapter,
+  };
+
+  let platform: Platform | null = null;
+  let detectionAmbiguous = false;
+  let detectionScores: Record<Platform, number> = {
+    meta: 0,
+    tiktok: 0,
+    snapchat: 0,
+    google: 0,
+  };
+  let detectionUsed: "explicit" | "auto" = "auto";
+
+  if (rawPlatform) {
+    const parsedPlatform = platformSchema.safeParse(rawPlatform);
+    if (!parsedPlatform.success) {
+      return NextResponse.json(
+        {
+          error:
+            "Invalid platform; expected one of: meta, tiktok, snapchat, google.",
+        },
+        { status: 400 },
+      );
+    }
+    platform = parsedPlatform.data;
+    detectionUsed = "explicit";
+  } else {
+    const detect = detectPlatform(parsed.header, adapters);
+    detectionAmbiguous = detect.ambiguous;
+    detectionScores = detect.scores;
+    if (!detect.platform) {
+      return NextResponse.json(
+        {
+          ok: false,
+          detection: {
+            used: "auto",
+            platform: null,
+            ambiguous: false,
+            scores: detect.scores,
+          },
+          errors: [
+            {
+              code: "E010",
+              severity: "FATAL",
+              message:
+                "Could not auto-detect the platform from the file's headers. Pick a platform manually and try again, or update the mapping in /admin/platforms.",
+            },
+          ],
+          warnings: [],
+        },
+        { status: 422 },
+      );
+    }
+    platform = detect.platform;
+  }
+
+  // Snapshot of registered creative names (strict byte-equal matching).
   const allNames = await db.select({ name: creatives.name }).from(creatives);
   const registeredNames = new Set(allNames.map((r) => r.name));
 
-  const adapter = await resolveAdapter(platform);
+  const adapter = adapters[platform];
 
   const result = await runPipeline({
     content: buffer,
@@ -97,7 +169,6 @@ export async function POST(request: NextRequest) {
     adapter,
     registeredNames,
     findExistingBatch: async (name, plat, date) => {
-      // Lookup performance_records by (creative.name, platform, date).
       const [row] = await db
         .select({ batchId: performanceRecords.uploadBatchId })
         .from(performanceRecords)
@@ -119,10 +190,18 @@ export async function POST(request: NextRequest) {
     },
   });
 
+  const detection = {
+    used: detectionUsed,
+    platform,
+    ambiguous: detectionAmbiguous,
+    scores: detectionScores,
+  };
+
   if (!result.ok) {
     return NextResponse.json(
       {
         ok: false,
+        detection,
         errors: result.errors,
         warnings: result.warnings,
       },
@@ -142,7 +221,7 @@ export async function POST(request: NextRequest) {
         : null,
   };
 
-  // Stash payload for commit. TTL is enforced lazily at lookup.
+  // Stash payload for commit.
   const expiresAt = new Date(Date.now() + VALIDATION_TTL_MS);
   const payload = {
     summary,
@@ -171,12 +250,12 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({
     ok: true,
     token: inserted.token,
+    detection,
     summary,
     warnings: result.warnings,
   });
 }
 
-// Reused type narrow for the payload shape we store in JSONB.
 export interface ValidationPayload {
   summary: {
     rows: number;
