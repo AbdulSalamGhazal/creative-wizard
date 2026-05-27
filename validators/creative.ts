@@ -15,3 +15,51 @@ export const creativeCreateSchema = z.object({
 });
 
 export type CreativeCreateInput = z.infer<typeof creativeCreateSchema>;
+
+// -----------------------------------------------------------------------------
+// Library URL filters (creator + launchFrom/launchTo deferred until a user
+// picker and date-range primitive exist; PRD §5.1 lists both as required).
+// -----------------------------------------------------------------------------
+
+function csvEnum<T extends readonly [string, ...string[]]>(values: T) {
+  return z
+    .string()
+    .optional()
+    .transform((s) => (s ? s.split(",").filter(Boolean) : []))
+    .pipe(z.array(z.enum(values)));
+}
+
+function csvString() {
+  return z
+    .string()
+    .optional()
+    .transform((s) => (s ? s.split(",").filter(Boolean) : []));
+}
+
+export const creativeSortValues = [
+  "launched-desc",
+  "launched-asc",
+  "name-asc",
+  "name-desc",
+  "spend-desc",
+  "created-desc",
+] as const;
+export type CreativeSort = (typeof creativeSortValues)[number];
+
+export const creativeViewValues = ["grid", "table"] as const;
+export type CreativeView = (typeof creativeViewValues)[number];
+
+export const creativeListFiltersSchema = z.object({
+  q: z
+    .string()
+    .optional()
+    .transform((s) => (s && s.trim() ? s.trim() : undefined)),
+  productIds: csvString(),
+  types: csvEnum(creativeTypeEnum),
+  statuses: csvEnum(creativeStatusEnum),
+  tags: csvString(),
+  sort: z.enum(creativeSortValues).catch("launched-desc"),
+  view: z.enum(creativeViewValues).catch("grid"),
+});
+
+export type CreativeListFilterInput = z.infer<typeof creativeListFiltersSchema>;

@@ -553,3 +553,110 @@ feature-complete versus the mockup.
 
 **Not done.** All non-Overview routes. Auth. Upload flow. Custom date
 picker, product picker, tag picker. Sparkline cells.
+
+---
+
+## 2026-05-27 — Creatives Library page live
+
+First non-Overview route is in. `/creatives` renders grid and table views over
+seeded data, with working URL-state filters for product / type / status / tag,
+ILIKE search across name/notes/tags, six sort options, and a grid/table toggle.
+
+**Data layer:**
+
+- `db/queries/creatives.ts` — `listCreatives()` uses two Drizzle CTEs
+  (`spend_30d`, `tag_agg`) so per-card 30-day spend and tag list join without
+  fan-out. `COUNT(*) OVER ()` returns the unfiltered total alongside the
+  result rows, so "Showing N of M" needs no second query. Sort goes through a
+  switch that maps the six enum values to ORDER BY fragments; `spend_30d` and
+  `tag_list` are SELECT-side aliased via `sql\`...\`.as("…")` so ORDER BY can
+  reference them by name. Numeric/array coercion at the query edge: nulls →
+  `0` for spend, `null` → `[]` for tags.
+- `creativeStats()` — single query with `COUNT(*) FILTER (WHERE …)` per
+  status plus a "created this month" count. Parallel to `listCreatives()`.
+- `listAllTags()` — `SELECT DISTINCT tag` for the tag-filter dropdown.
+- `db/queries/products.ts::listProducts()` — minimal id + name list for the
+  product-filter dropdown.
+
+**Validation.** `validators/creative.ts` adds `creativeListFiltersSchema` for
+the URL params (`q`, `productIds`, `types`, `statuses`, `tags`, `sort`,
+`view`). `sort` and `view` use `z.enum(...).catch(default)` so an unknown
+value falls back instead of throwing. `csvEnum` and `csvString` helpers
+mirror the pattern in `validators/filters.ts`.
+
+**Components in `components/creative/`:**
+
+- `library-header.tsx` — eyebrow / serif title / stats line with `pos`/`warn`
+  color accents on the active/paused counts. "New creative" CTA links to
+  `/creatives/new` (404 for now; create form is a follow-up slice).
+- `library-filter-bar.tsx` — client component, sticky, owns its own URL
+  roundtrip via `useRouter` + `useSearchParams` + `useTransition`. Search
+  input is debounced 250 ms so typing feels instant without spamming the
+  router. Four `DropdownMenuCheckboxItem` filter pills, a sort dropdown, and
+  a two-button grid/table view toggle. Clear button appears when any filter
+  is active.
+- `creative-card.tsx` — server component. 4:3 thumbnail (next/image when
+  `thumbnailUrl` exists; otherwise a deterministic gradient + 56-px lucide
+  type icon over a subtle dot pattern). Type and status badges with colored
+  status dot. Mono creative name, up to 2 tag chips + "+N more", footer with
+  launch date and `$X.XX / 30d`. Hover: card lifts 0.5 (2 px), thumbnail
+  scales 1.05x, an `ArrowUpRight` chevron fades in bottom-right. Draft →
+  dashed border. Archived → 0.65 opacity.
+- `creative-grid.tsx` — wrapper, `grid-cols-1 sm:2 md:3 xl:4 2xl:5`. Empty
+  state is a designed-out card.
+- `creative-table.tsx` — plain `<table>` mirroring the styling of
+  `components/charts/top-creatives.tsx`. Columns: Name (mono link), Product,
+  Type, Status (badge), Launch date, 30-day spend (right-aligned), Tags
+  (chip row + "+N" overflow). TanStack Table deferred until row selection /
+  column toggles are needed.
+
+**Palette helper.** `lib/palette.ts` gains `gradientFor(name)` — a tiny
+`hash(name) % CARD_GRADIENTS.length` picker over six dark-theme-compatible
+gradient pairs (plum, indigo, violet, amber, emerald, copper). Cards without
+thumbnails read as distinct rather than monochrome.
+
+**Layout refactor.** Per the plan: removed `<FilterStrip />` from
+`app/(dashboard)/layout.tsx` so each route owns its filter chrome. Re-added
+the `FilterStrip` inside `app/(dashboard)/page.tsx` wrapped in `<Suspense>`,
+using `-mx-6 -mt-6 mb-2` so the strip still sits flush at the top of `<main>`
+without changing its sticky behavior. Library uses its own `LibraryFilterBar`
+which is shaped like the global strip but with library-specific controls.
+
+**Seed extended.** `db/seed.ts` now inserts 7 tag assignments across the 4
+creatives (`launch`, `ugc`, `cold-traffic`, `evergreen`, `retargeting`).
+Idempotent via `onConflictDoNothing`. Tag-filter dropdown now has options;
+SQL tag-filter path is exercised by the verification cases.
+
+**URL roundtrip verification:**
+
+| URL                                  | Result                                                          |
+| ------------------------------------ | --------------------------------------------------------------- |
+| `/creatives`                         | 4 cards, stats "4 total · 3 active · 1 paused · 4 this month"   |
+| `/creatives?statuses=active`         | 3 cards                                                         |
+| `/creatives?types=video`             | 2 cards (URJ_VID_001, URJ_VID_002)                              |
+| `/creatives?q=URJ_VID`               | 2 cards                                                         |
+| `/creatives?tags=ugc`                | 2 cards (URJ_VID_001, URJ_VID_002)                              |
+| `/creatives?sort=spend-desc`         | order: VID_002, SLD_020, VID_001, IMG_010 (matches raw SQL)     |
+| `/creatives?sort=name-asc`           | order: IMG_010, SLD_020, VID_001, VID_002                       |
+| `/creatives?view=table`              | table renders, same 4 rows, $1800/2109/1963/2554 reconciled     |
+
+Per-card spend footers (`$1,800.63`, `$2,109.20`, `$1,963.20`, `$2,554.52`)
+match raw SQL aggregates row-by-row.
+
+**Overview regression check.** `/` still renders the filter strip and its
+KPIs ($8,427.55 default, $4,529.46 with `?platforms=meta`) — the strip move
+from layout to page introduced no behavior change.
+
+**Bundle.** `/` first-load JS went 293 → 295 kB (the Suspense wrapper adds
+nothing visible). `/creatives` ships at 31.9 kB / 216 kB.
+
+**A small bug found and fixed during verification:** the first cut of the
+spend-desc sort referenced a SELECT alias that Drizzle wasn't generating, so
+sort silently fell back. Fix: explicitly alias `spend_30d` and `tag_list`
+with `sql\`...\`.as("…")` so ORDER BY can reference them by name.
+
+**Not done.** `/creatives/new` (the create form) — the "New creative" CTA
+points there and 404s until that page exists. Creator filter and launch-date
+range filter are noted as deferred in the validator. TanStack Table in the
+table view is deferred. No `loading.tsx` skeletons yet. Real-thumbnail upload
+flow (`@vercel/blob`) is deferred.

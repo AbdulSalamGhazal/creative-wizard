@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -11,6 +12,7 @@ import {
 import { SpendOverTimeChart } from "@/components/charts/spend-over-time";
 import { TopCreativesTable } from "@/components/charts/top-creatives";
 import { PlatformMixDonut } from "@/components/charts/platform-mix";
+import { FilterStrip } from "@/components/filters/filter-strip";
 import { usd, int, pct, ratio } from "@/lib/format";
 import { dashboardFiltersSchema } from "@/validators/filters";
 
@@ -76,6 +78,15 @@ export default async function OverviewPage({
 
   return (
     <div className="space-y-6">
+      <Suspense
+        fallback={
+          <div className="-mx-6 px-6 h-12 border-b border-line bg-background/95 backdrop-blur" />
+        }
+      >
+        <div className="-mx-6 -mt-6 mb-2">
+          <FilterStrip />
+        </div>
+      </Suspense>
       <div className="flex items-end justify-between flex-wrap gap-3">
         <div>
           <h1 className="font-display text-4xl tracking-tight">Overview</h1>

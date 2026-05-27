@@ -15,6 +15,7 @@ import {
   users,
   products,
   creatives,
+  creativeTags,
   uploadBatches,
   performanceRecords,
   type platformEnum,
@@ -110,6 +111,26 @@ async function main() {
     .from(creatives);
   const creativeByName = new Map(creativeList.map((c) => [c.name, c.id]));
   console.log("  creatives:", creativeList.length);
+
+  // ---------- Tags ----------
+  const tagAssignments: Array<{ creativeName: string; tag: string }> = [
+    { creativeName: "URJ_VID_001", tag: "launch" },
+    { creativeName: "URJ_VID_001", tag: "ugc" },
+    { creativeName: "URJ_VID_002", tag: "ugc" },
+    { creativeName: "URJ_VID_002", tag: "cold-traffic" },
+    { creativeName: "URJ_IMG_010", tag: "evergreen" },
+    { creativeName: "URJ_SLD_020", tag: "evergreen" },
+    { creativeName: "URJ_SLD_020", tag: "retargeting" },
+  ];
+  for (const t of tagAssignments) {
+    const cid = creativeByName.get(t.creativeName);
+    if (!cid) continue;
+    await db
+      .insert(creativeTags)
+      .values({ creativeId: cid, tag: t.tag })
+      .onConflictDoNothing();
+  }
+  console.log("  tag assignments:", tagAssignments.length);
 
   // ---------- Upload batch + performance records ----------
   // One synthetic batch covering both platforms over the last 30 days.
