@@ -3,12 +3,14 @@ import { Badge } from "@/components/ui/badge";
 import {
   defaultDateRange,
   kpis,
+  platformMix,
   spendByDatePlatform,
   topCreatives,
   type KpiFilters,
 } from "@/db/queries/performance";
 import { SpendOverTimeChart } from "@/components/charts/spend-over-time";
 import { TopCreativesTable } from "@/components/charts/top-creatives";
+import { PlatformMixDonut } from "@/components/charts/platform-mix";
 import { usd, int, pct, ratio } from "@/lib/format";
 import { dashboardFiltersSchema } from "@/validators/filters";
 
@@ -53,10 +55,11 @@ export default async function OverviewPage({
     includeExcluded: parsed.includeExcluded,
   };
 
-  const [k, spendRows, topRows] = await Promise.all([
+  const [k, spendRows, topRows, mixRows] = await Promise.all([
     kpis(filters),
     spendByDatePlatform(filters),
     topCreatives(filters, 10),
+    platformMix(filters),
   ]);
 
   const tiles: Array<{ label: string; value: string }> = [
@@ -120,9 +123,7 @@ export default async function OverviewPage({
             <CardTitle className="text-sm">Platform mix</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="h-64 flex items-center justify-center text-ink-3 text-sm border border-dashed border-line rounded-md">
-              Donut — pending implementation
-            </div>
+            <PlatformMixDonut rows={mixRows} />
           </CardContent>
         </Card>
       </div>

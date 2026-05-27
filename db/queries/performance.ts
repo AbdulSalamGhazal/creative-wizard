@@ -60,6 +60,13 @@ export interface SpendByDatePlatform {
   spend: number;
 }
 
+export interface PlatformMixRow {
+  platform: Platform;
+  spend: number;
+  impressions: number;
+  conversions: number | null;
+}
+
 export interface TopCreativeRow {
   creativeId: string;
   name: string;
@@ -281,6 +288,50 @@ export async function topCreatives(
     conversions: num(r.conversions),
     ctr: num(r.ctr),
     roas: num(r.roas),
+  }));
+}
+
+/**
+ * Spend per platform for the platform-mix donut. Always returns one row per
+ * platform that has at least one record after filtering. Ordered by spend
+ * descending so the donut renders biggest-slice-first.
+ */
+export async function platformMix(
+  filters: KpiFilters,
+): Promise<PlatformMixRow[]> {
+  const { conditions, needsCreativeJoin, needsTagJoin } =
+    buildBaseConditions(filters);
+
+  let q = db
+    .select({
+      platform: performanceRecords.platform,
+      spend: sumSpend,
+      impressions: sumImpressions,
+      conversions: sumConversions,
+    })
+    .from(performanceRecords)
+    .$dynamic();
+
+  if (needsCreativeJoin || needsTagJoin) {
+    q = q.innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId));
+  }
+  if (needsTagJoin) {
+    q = q.innerJoin(
+      creativeTags,
+      eq(creativeTags.creativeId, performanceRecords.creativeId),
+    );
+  }
+
+  const rows = await q
+    .where(and(...conditions))
+    .groupBy(performanceRecords.platform)
+    .orderBy(desc(sumSpend));
+
+  return rows.map((r) => ({
+    platform: r.platform as Platform,
+    spend: Number(r.spend ?? 0),
+    impressions: Number(r.impressions ?? 0),
+    conversions: num(r.conversions),
   }));
 }
 

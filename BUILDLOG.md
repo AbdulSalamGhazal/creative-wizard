@@ -513,3 +513,43 @@ chart to a `dynamic()` import (load after first paint) is the obvious lever.
 **Not done.** Platform-mix donut, custom date picker, product picker, all
 non-Overview routes. Auth. Upload flow. The data-fetch pattern is now
 established; everything else extends it.
+
+---
+
+## 2026-05-27 — Platform-mix donut closes the Overview
+
+Final placeholder on the Overview turned into a real visual. Every panel on
+`/` now renders live data; the page matches its mockup intent.
+
+**`platformMix(filters)` added** to `db/queries/performance.ts`. Groups
+`SUM(spend) / SUM(impressions) / SUM(conversions)` per platform via the same
+shared `buildBaseConditions()` helper as the rest. Ordered by spend desc so
+the donut renders biggest-slice-first.
+
+**`components/charts/platform-mix.tsx`** — client component, Recharts
+`PieChart` with a `Pie` set to `innerRadius="62%"` / `outerRadius="92%"` for
+a clean donut. Slice colors come from `PLATFORM_COLOR` in `lib/palette.ts`
+(no new color sources). Center stack shows "Total spend" + the compact USD
+total over the hole; a small legend on the right lists each platform with a
+swatch and its share percentage. Custom tooltip shows the slice's USD spend
+and share to one decimal. Stroke uses `var(--surface)` so the slices read as
+floating against the card.
+
+**Wired into Overview.** Added `platformMix` to the `Promise.all` parallel
+fetch and replaced the placeholder div with `<PlatformMixDonut rows={...} />`.
+
+**Reconciliation:** seeded data shows Meta 53.7% / TikTok 46.3% on the donut.
+Raw SQL confirms `4529.46 / 8427.55 = 53.74%` and `3898.09 / 8427.55 = 46.26%`.
+Shares match to the displayed precision and sum to 100%.
+
+**Bundle.** `/` first-load went from 286 kB → 293 kB (~7 kB more compressed
+Recharts code for the Pie / Cell imports — small because most of Recharts
+was already on the page for the area chart).
+
+**Overview status.** Every section is now live data: 6 KPI tiles, stacked
+spend-over-time area, platform-mix donut, top-10 creatives table.
+Sparklines in the table are still deferred; otherwise the Overview is
+feature-complete versus the mockup.
+
+**Not done.** All non-Overview routes. Auth. Upload flow. Custom date
+picker, product picker, tag picker. Sparkline cells.
