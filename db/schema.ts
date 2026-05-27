@@ -1,0 +1,142 @@
+import {
+  pgTable,
+  uuid,
+  text,
+  varchar,
+  timestamp,
+  date,
+  boolean,
+  integer,
+  bigint,
+  numeric,
+  jsonb,
+  primaryKey,
+  index,
+  uniqueIndex,
+} from "drizzle-orm/pg-core";
+
+export const roleEnum = ["admin", "editor", "viewer"] as const;
+export const platformEnum = ["meta", "tiktok", "snapchat", "google"] as const;
+export const creativeTypeEnum = ["video", "slides", "image"] as const;
+export const creativeStatusEnum = ["draft", "active", "paused", "archived"] as const;
+export const productStatusEnum = ["active", "archived"] as const;
+
+export const users = pgTable("users", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  email: varchar("email", { length: 255 }).notNull().unique(),
+  name: varchar("name", { length: 255 }).notNull(),
+  role: varchar("role", { length: 16, enum: roleEnum }).notNull().default("editor"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const products = pgTable(
+  "products",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    name: varchar("name", { length: 255 }).notNull().unique(),
+    slug: varchar("slug", { length: 255 }).notNull().unique(),
+    status: varchar("status", { length: 16, enum: productStatusEnum })
+      .notNull()
+      .default("active"),
+    createdByUserId: uuid("created_by_user_id")
+      .notNull()
+      .references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    statusIdx: index("products_status_idx").on(t.status),
+  }),
+);
+
+export const creatives = pgTable(
+  "creatives",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    name: varchar("name", { length: 255 }).notNull().unique(),
+    productId: uuid("product_id")
+      .notNull()
+      .references(() => products.id),
+    type: varchar("type", { length: 16, enum: creativeTypeEnum }).notNull(),
+    thumbnailUrl: text("thumbnail_url"),
+    status: varchar("status", { length: 16, enum: creativeStatusEnum })
+      .notNull()
+      .default("draft"),
+    launchDate: date("launch_date"),
+    notes: text("notes"),
+    createdByUserId: uuid("created_by_user_id")
+      .notNull()
+      .references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    productIdx: index("creatives_product_idx").on(t.productId),
+    statusIdx: index("creatives_status_idx").on(t.status),
+    typeIdx: index("creatives_type_idx").on(t.type),
+  }),
+);
+
+export const creativeTags = pgTable(
+  "creative_tags",
+  {
+    creativeId: uuid("creative_id")
+      .notNull()
+      .references(() => creatives.id, { onDelete: "cascade" }),
+    tag: varchar("tag", { length: 64 }).notNull(),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.creativeId, t.tag] }),
+    tagIdx: index("creative_tags_tag_idx").on(t.tag),
+  }),
+);
+
+export const uploadBatches = pgTable("upload_batches", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  platform: varchar("platform", { length: 16, enum: platformEnum }).notNull(),
+  fileName: varchar("file_name", { length: 255 }).notNull(),
+  uploadedByUserId: uuid("uploaded_by_user_id")
+    .notNull()
+    .references(() => users.id),
+  uploadedAt: timestamp("uploaded_at", { withTimezone: true }).notNull().defaultNow(),
+  rowsImported: integer("rows_imported").notNull(),
+  status: varchar("status", { length: 16 }).notNull().default("active"),
+  rolledBackAt: timestamp("rolled_back_at", { withTimezone: true }),
+  rolledBackByUserId: uuid("rolled_back_by_user_id").references(() => users.id),
+});
+
+export const performanceRecords = pgTable(
+  "performance_records",
+  {
+    id: bigint("id", { mode: "number" }).primaryKey().generatedByDefaultAsIdentity(),
+    creativeId: uuid("creative_id")
+      .notNull()
+      .references(() => creatives.id),
+    platform: varchar("platform", { length: 16, enum: platformEnum }).notNull(),
+    date: date("date").notNull(),
+    spend: numeric("spend", { precision: 14, scale: 4 }).notNull(),
+    impressions: integer("impressions").notNull(),
+    clicks: integer("clicks").notNull(),
+    conversions: integer("conversions"),
+    conversionValue: numeric("conversion_value", { precision: 14, scale: 4 }),
+    videoViews3s: integer("video_views_3s"),
+    videoViews15s: integer("video_views_15s"),
+    rawPayload: jsonb("raw_payload").notNull(),
+    uploadBatchId: uuid("upload_batch_id")
+      .notNull()
+      .references(() => uploadBatches.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+
+    excludedFromAggregates: boolean("excluded_from_aggregates").notNull().default(false),
+    excludedReason: text("excluded_reason"),
+    excludedByUserId: uuid("excluded_by_user_id").references(() => users.id),
+    excludedAt: timestamp("excluded_at", { withTimezone: true }),
+  },
+  (t) => ({
+    uniq: uniqueIndex("perf_creative_platform_date_idx").on(t.creativeId, t.platform, t.date),
+    dateIdx: index("perf_date_idx").on(t.date),
+    platformDateIdx: index("perf_platform_date_idx").on(t.platform, t.date),
+    batchIdx: index("perf_upload_batch_idx").on(t.uploadBatchId),
+    excludedIdx: index("perf_excluded_idx").on(t.excludedFromAggregates),
+  }),
+);

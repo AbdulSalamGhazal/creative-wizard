@@ -1,0 +1,60 @@
+{
+  "name": "urjwan-ccms",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --turbopack",
+    "build": "next build --turbopack",
+    "start": "next start",
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:push": "drizzle-kit push",
+    "db:studio": "drizzle-kit studio",
+    "test": "vitest"
+  },
+  "dependencies": {
+    "next": "15.5.18",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "next-auth": "5.0.0-beta.25",
+    "@auth/drizzle-adapter": "^1.7.4",
+    "drizzle-orm": "^0.36.4",
+    "postgres": "^3.4.5",
+    "@neondatabase/serverless": "^0.10.4",
+    "@vercel/blob": "^0.27.0",
+    "@vercel/kv": "^3.0.0",
+    "@tanstack/react-query": "^5.62.7",
+    "@tanstack/react-table": "^8.20.6",
+    "react-hook-form": "^7.54.1",
+    "@hookform/resolvers": "^3.9.1",
+    "zod": "^3.24.1",
+    "papaparse": "^5.4.1",
+    "recharts": "^2.15.0",
+    "framer-motion": "^11.15.0",
+    "react-dropzone": "^14.3.5",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "tailwind-merge": "^2.5.5",
+    "tailwindcss-animate": "^1.0.7",
+    "lucide-react": "^0.468.0"
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "^3",
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/papaparse": "^5.3.15",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "drizzle-kit": "^0.30.1",
+    "eslint": "^9",
+    "eslint-config-next": "15.5.18",
+    "tailwindcss": "^4",
+    "typescript": "^5",
+    "vitest": "^2.1.8"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

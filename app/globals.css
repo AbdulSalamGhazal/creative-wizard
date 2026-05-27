@@ -1,0 +1,68 @@
+@import "tailwindcss";
+
+/*
+ * Urjwan CCMS design tokens
+ * Mirrors the variables in docs/mockups/*.html so the build matches the design source.
+ */
+:root {
+  --bg: #0a0812;
+  --surface: #14111e;
+  --surface-2: #1b1828;
+  --surface-3: #221e2f;
+  --line: #2a2638;
+  --line-2: #3a3548;
+  --ink: #f2ebe5;
+  --ink-2: #a8a2b5;
+  --ink-3: #6b6679;
+  --accent: #d4145a;
+  --accent-2: #ff4d8d;
+  --accent-soft: rgba(212, 20, 90, 0.12);
+  --pos: #5ee6a8;
+  --neg: #ff6b6b;
+  --warn: #f5c97a;
+  --meta: #4f8efb;
+  --tiktok: #ff4d7a;
+  --snapchat: #ffd80b;
+  --google: #34d399;
+
+  --background: var(--bg);
+  --foreground: var(--ink);
+}
+
+@theme inline {
+  --color-background: var(--bg);
+  --color-foreground: var(--ink);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-line: var(--line);
+  --color-line-2: var(--line-2);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-accent: var(--accent);
+  --color-accent-2: var(--accent-2);
+  --color-pos: var(--pos);
+  --color-neg: var(--neg);
+  --color-warn: var(--warn);
+  --color-meta: var(--meta);
+  --color-tiktok: var(--tiktok);
+  --color-snapchat: var(--snapchat);
+  --color-google: var(--google);
+  --font-sans: "Plus Jakarta Sans", system-ui, sans-serif;
+  --font-display: "Instrument Serif", serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+}
+
+html,
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-feature-settings: "cv02", "cv03", "cv11";
+  -webkit-font-smoothing: antialiased;
+}
+
+.num {
+  font-variant-numeric: tabular-nums;
+}
