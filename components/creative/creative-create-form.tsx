@@ -15,9 +15,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { createCreative } from "@/app/actions/creative";
+import { TagInput } from "@/components/creative/tag-input";
 
 interface Props {
   products: Array<{ id: string; name: string }>;
+  allTags: string[];
 }
 
 const TYPES = [
@@ -33,7 +35,7 @@ const STATUSES = [
   { value: "archived", label: "Archived" },
 ] as const;
 
-export function CreativeCreateForm({ products }: Props) {
+export function CreativeCreateForm({ products, allTags }: Props) {
   const router = useRouter();
   const [name, setName] = useState("");
   const [productId, setProductId] = useState<string>(products[0]?.id ?? "");
@@ -161,13 +163,13 @@ export function CreativeCreateForm({ products }: Props) {
 
       <Field
         label="Tags"
-        hint="Comma-separated."
+        hint="Comma-separated. Click a suggestion to append."
         error={fieldErrors.tags}
       >
-        <Input
+        <TagInput
           value={tagsInput}
-          onChange={(e) => setTagsInput(e.target.value)}
-          placeholder="launch, ugc, cold-traffic"
+          onChange={setTagsInput}
+          allTags={allTags}
         />
       </Field>
 

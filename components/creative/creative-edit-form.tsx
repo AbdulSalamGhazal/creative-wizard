@@ -17,6 +17,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { updateCreative } from "@/app/actions/creative";
+import { TagInput } from "@/components/creative/tag-input";
 
 interface Props {
   creative: {
@@ -30,6 +31,7 @@ interface Props {
     tags: string[];
   };
   products: Array<{ id: string; name: string }>;
+  allTags: string[];
 }
 
 const TYPES = [
@@ -45,7 +47,7 @@ const STATUSES = [
   { value: "archived", label: "Archived" },
 ] as const;
 
-export function CreativeEditForm({ creative, products }: Props) {
+export function CreativeEditForm({ creative, products, allTags }: Props) {
   const router = useRouter();
   const [name, setName] = useState(creative.name);
   const [productId, setProductId] = useState(creative.productId);
@@ -186,11 +188,15 @@ export function CreativeEditForm({ creative, products }: Props) {
           </Field>
         </div>
 
-        <Field label="Tags" hint="Comma-separated." error={fieldErrors.tags}>
-          <Input
+        <Field
+          label="Tags"
+          hint="Comma-separated. Click a suggestion to append."
+          error={fieldErrors.tags}
+        >
+          <TagInput
             value={tagsInput}
-            onChange={(e) => setTagsInput(e.target.value)}
-            placeholder="launch, ugc, cold-traffic"
+            onChange={setTagsInput}
+            allTags={allTags}
           />
         </Field>
 

@@ -1,5 +1,6 @@
 import { Badge } from "@/components/ui/badge";
 import { DownloadCsvButton } from "@/components/ui/download-csv-button";
+import { Sparkline } from "@/components/charts/sparkline";
 import { int, pct, ratio, usd } from "@/lib/format";
 import { rowsToCsv, todayStamp, type CsvColumn } from "@/lib/csv-export";
 import type { TopCreativeRow } from "@/db/queries/performance";
@@ -64,6 +65,7 @@ export function TopCreativesTable({ rows }: Props) {
             <th className="font-medium px-2 py-2">Type</th>
             <th className="font-medium px-2 py-2">Status</th>
             <th className="font-medium px-2 py-2 text-right">Spend</th>
+            <th className="font-medium px-2 py-2">Trend</th>
             <th className="font-medium px-2 py-2 text-right">Impressions</th>
             <th className="font-medium px-2 py-2 text-right">CTR</th>
             <th className="font-medium px-2 py-2 text-right">Conv.</th>
@@ -83,6 +85,9 @@ export function TopCreativesTable({ rows }: Props) {
                 </Badge>
               </td>
               <td className="px-2 py-2.5 text-right text-ink">{usd(r.spend)}</td>
+              <td className="px-2 py-2.5">
+                <Sparkline values={r.sparkline} color="var(--brand-2)" />
+              </td>
               <td className="px-2 py-2.5 text-right text-ink-2">{int(r.impressions)}</td>
               <td className="px-2 py-2.5 text-right text-ink-2">{pct(r.ctr)}</td>
               <td className="px-2 py-2.5 text-right text-ink-2">{int(r.conversions)}</td>

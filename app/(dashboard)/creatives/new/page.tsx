@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { listProducts } from "@/db/queries/products";
+import { listAllTags } from "@/db/queries/creatives";
 import { CreativeCreateForm } from "@/components/creative/creative-create-form";
 
 export default async function NewCreativePage() {
-  const products = await listProducts();
+  const [products, allTags] = await Promise.all([listProducts(), listAllTags()]);
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
@@ -29,7 +30,7 @@ export default async function NewCreativePage() {
         </p>
       </div>
 
-      <CreativeCreateForm products={products} />
+      <CreativeCreateForm products={products} allTags={allTags} />
     </div>
   );
 }

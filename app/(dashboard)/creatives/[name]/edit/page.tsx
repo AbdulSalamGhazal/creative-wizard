@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { getCreativeByName } from "@/db/queries/creatives";
+import { getCreativeByName, listAllTags } from "@/db/queries/creatives";
 import { listProducts } from "@/db/queries/products";
 import { CreativeEditForm } from "@/components/creative/creative-edit-form";
 
@@ -10,9 +10,10 @@ export default async function EditCreativePage({
 }) {
   const { name } = await params;
   const decoded = decodeURIComponent(name);
-  const [creative, products] = await Promise.all([
+  const [creative, products, allTags] = await Promise.all([
     getCreativeByName(decoded),
     listProducts(),
+    listAllTags(),
   ]);
   if (!creative) notFound();
 
@@ -29,6 +30,7 @@ export default async function EditCreativePage({
         tags: creative.tags,
       }}
       products={products}
+      allTags={allTags}
     />
   );
 }

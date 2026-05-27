@@ -92,6 +92,8 @@ export interface TopCreativeRow {
   conversions: number | null;
   ctr: number | null;
   roas: number | null;
+  /** Daily-spend series across the filter window, ordered ASC by date. */
+  sparkline: number[];
 }
 
 const num = (v: unknown): number | null =>
@@ -293,6 +295,46 @@ export async function topCreatives(
     .orderBy(desc(sumSpend))
     .limit(limit);
 
+  // Pull daily-spend series for the top creatives in one extra query so the
+  // table can render sparklines without N+1.
+  const topIds = rows.map((r) => r.creativeId);
+  let sparkRows: Array<{ creativeId: string; date: string; spend: number | null }> = [];
+  if (topIds.length > 0) {
+    const sparkConditions: SQL[] = [
+      inArray(performanceRecords.creativeId, topIds),
+    ];
+    if (filters.from && filters.to) {
+      sparkConditions.push(
+        between(performanceRecords.date, filters.from, filters.to),
+      );
+    }
+    if (!filters.includeExcluded) {
+      sparkConditions.push(eq(performanceRecords.excludedFromAggregates, false));
+    }
+    if (filters.platforms && filters.platforms.length > 0) {
+      sparkConditions.push(
+        inArray(performanceRecords.platform, filters.platforms),
+      );
+    }
+    sparkRows = await db
+      .select({
+        creativeId: performanceRecords.creativeId,
+        date: performanceRecords.date,
+        spend: sumSpend,
+      })
+      .from(performanceRecords)
+      .where(and(...sparkConditions))
+      .groupBy(performanceRecords.creativeId, performanceRecords.date)
+      .orderBy(performanceRecords.creativeId, performanceRecords.date);
+  }
+
+  const seriesByCreative = new Map<string, number[]>();
+  for (const r of sparkRows) {
+    const list = seriesByCreative.get(r.creativeId) ?? [];
+    list.push(Number(r.spend ?? 0));
+    seriesByCreative.set(r.creativeId, list);
+  }
+
   return rows.map((r) => ({
     creativeId: r.creativeId,
     name: r.name,
@@ -305,6 +347,7 @@ export async function topCreatives(
     conversions: num(r.conversions),
     ctr: num(r.ctr),
     roas: num(r.roas),
+    sparkline: seriesByCreative.get(r.creativeId) ?? [],
   }));
 }
 
