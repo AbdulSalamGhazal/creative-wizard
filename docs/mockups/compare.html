@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Urjwan CCMS — Compare</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: { extend: { fontFamily: {
+        display: ['"Instrument Serif"', 'serif'],
+        sans: ['"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
+        mono: ['"IBM Plex Mono"', 'monospace'],
+      } } },
+    };
+  </script>
+  <style>
+    :root {
+      --bg: #0A0812;
+      --surface: #14111E;
+      --surface-2: #1B1828;
+      --surface-3: #221E2F;
+      --line: #2A2638;
+      --line-2: #3A3548;
+      --ink: #F2EBE5;
+      --ink-2: #A8A2B5;
+      --ink-3: #6B6679;
+      --accent: #D4145A;
+      --accent-2: #FF4D8D;
+      --accent-soft: rgba(212, 20, 90, 0.12);
+      --pos: #5EE6A8;
+      --neg: #FF6B6B;
+
+      /* Compare creative palette — distinct from platform colors */
+      --c-a: #FF4D8D;
+      --c-b: #5EE6A8;
+      --c-c: #FFD166;
+      --c-d: #6D8FFF;
+    }
+    * { box-sizing: border-box; }
+    body {
+      background: var(--bg);
+      color: var(--ink);
+      font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+      font-feature-settings: 'cv02', 'cv03', 'cv11';
+      -webkit-font-smoothing: antialiased;
+      margin: 0;
+    }
+    .num { font-variant-numeric: tabular-nums; }
+    .mono { font-family: 'IBM Plex Mono', monospace; font-feature-settings: 'tnum'; }
+    .serif { font-family: 'Instrument Serif', serif; letter-spacing: -0.015em; }
+    .border-line { border-color: var(--line); }
+    .text-ink-2 { color: var(--ink-2); }
+    .text-ink-3 { color: var(--ink-3); }
+    .text-accent { color: var(--accent); }
+    .bg-surface { background: var(--surface); }
+    .bg-surface-2 { background: var(--surface-2); }
+    .grain::before {
+      content: '';
+      position: fixed; inset: 0;
+      pointer-events: none; opacity: 0.035;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' /%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' /%3E%3C/svg%3E");
+      z-index: 999;
+      mix-blend-mode: overlay;
+    }
+    .bg-glow {
+      position: absolute; inset: 0; pointer-events: none; z-index: -1;
+      background:
+        radial-gradient(ellipse 600px 300px at 75% -10%, var(--accent-soft), transparent 60%),
+        radial-gradient(ellipse 400px 200px at 0% 100%, rgba(109, 143, 255, 0.07), transparent 60%);
+    }
+    @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    .rise { animation: rise 700ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+    .stagger > * { animation: rise 650ms cubic-bezier(0.22, 1, 0.36, 1) both; animation-delay: calc(var(--i, 0) * 50ms + 100ms); }
+    .stagger > *:nth-child(1) { --i: 0; }
+    .stagger > *:nth-child(2) { --i: 1; }
+    .stagger > *:nth-child(3) { --i: 2; }
+    .stagger > *:nth-child(4) { --i: 3; }
+    .stagger > *:nth-child(5) { --i: 4; }
+    @keyframes draw { to { stroke-dashoffset: 0; } }
+    .chart-stroke { stroke-dasharray: 2000; stroke-dashoffset: 2000; animation: draw 1800ms cubic-bezier(0.22, 1, 0.36, 1) 200ms forwards; }
+    @keyframes barfill { from { transform: scaleX(0); } to { transform: scaleX(var(--w, 1)); } }
+    .bar-fill { transform-origin: left; animation: barfill 800ms cubic-bezier(0.22, 1, 0.36, 1) 300ms both; transform: scaleX(var(--w, 1)); }
+
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--line); border-radius: 4px; }
+
+    .pill {
+      display: inline-flex; align-items: center; gap: 0.4rem;
+      padding: 0.3rem 0.7rem; border-radius: 999px;
+      font-size: 0.74rem; font-weight: 500;
+      background: var(--surface-2);
+      border: 1px solid var(--line);
+      cursor: pointer; transition: all 180ms;
+      color: var(--ink);
+    }
+    .pill:hover { border-color: var(--line-2); background: var(--surface-3); }
+    .pill-accent { background: var(--accent); border-color: var(--accent); color: white; }
+    .pill-accent:hover { background: var(--accent-2); border-color: var(--accent-2); }
+
+    .nav-item {
+      display: flex; align-items: center; gap: 0.7rem;
+      padding: 0.55rem 0.75rem; border-radius: 8px;
+      color: var(--ink-2); font-size: 0.86rem; font-weight: 500;
+      cursor: pointer; position: relative;
+      transition: all 150ms;
+    }
+    .nav-item:hover { background: var(--surface-2); color: var(--ink); }
+    .nav-item.active { background: var(--surface-2); color: var(--ink); }
+    .nav-item.active::before {
+      content: ''; position: absolute; left: -12px; top: 50%;
+      transform: translateY(-50%);
+      width: 2px; height: 18px;
+      background: var(--accent); border-radius: 1px;
+    }
+
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+    }
+
+    /* Scorecard */
+    .scorecard {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 14px;
+      position: relative;
+      overflow: hidden;
+      transition: border-color 200ms;
+    }
+    .scorecard:hover { border-color: var(--line-2); }
+    .scorecard::before {
+      content: '';
+      position: absolute; top: 0; left: 0; right: 0;
+      height: 3px;
+      background: var(--c, var(--ink));
+    }
+    .scorecard-add {
+      background: transparent;
+      border: 1px dashed var(--line-2);
+      border-radius: 14px;
+      padding: 14px;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      color: var(--ink-3);
+      transition: all 200ms;
+      cursor: pointer;
+      min-height: 100%;
+    }
+    .scorecard-add:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+
+    .thumb-mini {
+      width: 36px; height: 28px;
+      border-radius: 5px;
+      background: var(--bg);
+      flex-shrink: 0;
+      position: relative;
+      overflow: hidden;
+    }
+    .thumb-mini::after {
+      content: ''; position: absolute; inset: 0;
+      background-image:
+        radial-gradient(circle at 20% 30%, rgba(255,255,255,0.1), transparent 50%),
+        linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px);
+      background-size: auto, 8px 8px, 8px 8px;
+    }
+
+    /* Metric tabs */
+    .mtab {
+      padding: 6px 12px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--ink-3);
+      cursor: pointer;
+      transition: all 150ms;
+      border: 1px solid transparent;
+      background: transparent;
+    }
+    .mtab:hover { color: var(--ink-2); background: var(--surface-2); }
+    .mtab.active {
+      color: var(--ink);
+      background: var(--surface-2);
+      border-color: var(--line);
+      box-shadow: inset 0 -2px 0 var(--accent);
+    }
+
+    /* Comparison table */
+    .ctable {
+      display: grid;
+      grid-template-columns: 200px repeat(4, 1fr);
+      gap: 0;
+    }
+    .ctable-header,
+    .ctable-row {
+      display: contents;
+    }
+    .ctable-cell {
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--line);
+    }
+    .ctable-cell-label {
+      color: var(--ink-3);
+      font-size: 11px;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      display: flex; flex-direction: column; justify-content: center;
+      border-right: 1px solid var(--line);
+    }
+    .ctable-cell-value {
+      display: flex; flex-direction: column; gap: 6px;
+    }
+    .ctable-cell-value .v {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 17px;
+      font-weight: 500;
+      letter-spacing: -0.01em;
+    }
+    .ctable-cell-value .v.winner {
+      color: var(--ink);
+    }
+    .ctable-cell-value .v:not(.winner) {
+      color: var(--ink-2);
+    }
+    .ctable-cell-value .bar {
+      height: 4px;
+      background: var(--surface-2);
+      border-radius: 2px;
+      overflow: hidden;
+      position: relative;
+    }
+    .ctable-cell-value .bar::after {
+      content: '';
+      position: absolute; left: 0; top: 0; bottom: 0;
+      width: 100%;
+      background: var(--c, var(--ink-3));
+      transform-origin: left;
+      transform: scaleX(var(--w, 0));
+      transition: transform 600ms cubic-bezier(0.22, 1, 0.36, 1);
+      animation: barfill 900ms cubic-bezier(0.22, 1, 0.36, 1) 400ms both;
+    }
+    .ctable-cell-value .delta {
+      font-size: 10px;
+      color: var(--ink-3);
+      font-family: 'IBM Plex Mono', monospace;
+    }
+    .ctable-cell-value .winner-tag {
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--c, var(--ink-3));
+      font-weight: 600;
+    }
+
+    .ctable-header .ctable-cell {
+      background: var(--surface-2);
+      border-bottom: 1px solid var(--line);
+    }
+    .ctable-row:last-of-type .ctable-cell {
+      border-bottom: 0;
+    }
+
+    @media (max-width: 1024px) {
+      .sidebar { display: none; }
+      .ctable { grid-template-columns: 140px repeat(4, 1fr); }
+      .ctable-cell { padding: 10px; }
+      .ctable-cell-value .v { font-size: 14px; }
+    }
+  </style>
+</head>
+<body class="min-h-screen grain">
+  <div class="bg-glow"></div>
+
+  <!-- TOP BAR -->
+  <header class="border-b border-line relative z-10">
+    <div class="flex items-center justify-between px-6 h-14">
+      <div class="flex items-center gap-6">
+        <div class="flex items-center gap-2.5">
+          <div class="w-7 h-7 rounded-md flex items-center justify-center" style="background: linear-gradient(135deg, var(--accent), var(--accent-2)); box-shadow: 0 0 20px rgba(212, 20, 90, 0.3);">
+            <span class="serif text-white text-base leading-none">U</span>
+          </div>
+          <div class="leading-tight">
+            <div class="text-[13px] font-semibold tracking-tight">Urjwan</div>
+            <div class="text-[9.5px] uppercase tracking-[0.18em] text-ink-3 mt-0.5">Creative System</div>
+          </div>
+        </div>
+        <div class="hidden md:flex items-center gap-1.5 text-[12px] text-ink-3">
+          <span>Workspace</span>
+          <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+          <span class="text-ink-2">Production</span>
+        </div>
+      </div>
+      <div class="flex items-center gap-3">
+        <div class="hidden md:flex items-center gap-2 text-[12px] text-ink-2 px-3 h-8 rounded-md border border-line bg-surface min-w-[260px]">
+          <svg class="w-3.5 h-3.5 text-ink-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+          <span class="text-ink-3">Search creatives, batches…</span>
+          <span class="ml-auto px-1.5 py-0.5 rounded text-[10px] bg-surface-2 border border-line text-ink-3">⌘K</span>
+        </div>
+        <button class="text-ink-2 hover:text-ink p-1.5 rounded-md hover:bg-surface-2 transition" title="Theme">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+        </button>
+        <div class="w-7 h-7 rounded-full bg-surface-2 border border-line flex items-center justify-center text-[11px] font-semibold" title="Salam">SA</div>
+      </div>
+    </div>
+  </header>
+
+  <div class="flex">
+    <!-- SIDEBAR -->
+    <aside class="sidebar w-56 px-4 py-6 border-r border-line min-h-[calc(100vh-56px)] relative">
+      <div class="space-y-0.5">
+        <div class="nav-item">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0h6"/></svg>
+          <span>Overview</span>
+        </div>
+        <div class="nav-item">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h12a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM4 14a2 2 0 012-2h12a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2v-4z"/></svg>
+          <span>Creatives</span>
+          <span class="ml-auto text-[10px] text-ink-3 mono">147</span>
+        </div>
+        <div class="nav-item active">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2z"/></svg>
+          <span>Compare</span>
+        </div>
+        <div class="nav-item">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2"/></svg>
+          <span>Platforms</span>
+        </div>
+        <div class="nav-item">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+          <span>Uploads</span>
+        </div>
+      </div>
+
+      <div class="mt-7 pt-5 border-t border-line">
+        <div class="text-[9.5px] uppercase tracking-[0.18em] text-ink-3 mb-2 px-3">Admin</div>
+        <div class="space-y-0.5">
+          <div class="nav-item">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+            <span>Team</span>
+          </div>
+          <div class="nav-item">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+            <span>Settings</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="absolute bottom-6 left-4 right-4">
+        <div class="panel p-3 text-xs">
+          <div class="flex items-center gap-2 mb-1.5">
+            <div class="w-1.5 h-1.5 rounded-full" style="background: var(--pos); box-shadow: 0 0 8px var(--pos);"></div>
+            <span class="text-ink-2 font-medium">Last sync</span>
+          </div>
+          <div class="text-ink-3 text-[11px] leading-relaxed">Meta · TikTok · Snap<br/>2 hours ago by Salam</div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- MAIN -->
+    <main class="flex-1 p-6 lg:p-8 max-w-[1500px] relative">
+      <!-- HEADER -->
+      <div class="rise">
+        <div class="flex items-end justify-between flex-wrap gap-4 mb-1">
+          <div>
+            <div class="text-[10.5px] uppercase tracking-[0.22em] text-ink-3 mb-2">Compare</div>
+            <h1 class="serif text-[44px] leading-[1.05] tracking-tight">
+              Head to head, <em class="text-accent">last 30 days.</em>
+            </h1>
+          </div>
+          <div class="flex items-center gap-2 pb-1">
+            <button class="pill">
+              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+              Last 30 days
+              <svg class="w-3 h-3 text-ink-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+            </button>
+            <button class="pill">
+              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"/></svg>
+              Save report
+            </button>
+            <button class="pill">
+              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+              Export
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- SCORECARDS / SELECTED CREATIVES -->
+      <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 mt-7 stagger" id="scorecards"></div>
+
+      <!-- CHART PANEL -->
+      <div class="panel mt-5 p-5 rise" style="animation-delay: 400ms;">
+        <div class="flex items-baseline justify-between flex-wrap gap-3 mb-1">
+          <div>
+            <div class="text-[10.5px] uppercase tracking-[0.18em] text-ink-3">Trend</div>
+            <h2 id="chart-title" class="serif text-2xl leading-tight mt-1">Spend, daily</h2>
+          </div>
+          <div class="flex items-center gap-1 flex-wrap" id="mtabs">
+            <!-- metric tabs filled by JS -->
+          </div>
+        </div>
+
+        <!-- Chart legend (current values) -->
+        <div id="chart-legend" class="flex flex-wrap gap-x-5 gap-y-1 text-[11.5px] mt-4 mb-1"></div>
+
+        <!-- Chart -->
+        <div class="relative">
+          <svg id="cmp-chart" viewBox="0 0 800 280" class="w-full h-[280px]" preserveAspectRatio="none">
+            <g stroke="var(--line)" stroke-dasharray="2 4" stroke-width="0.5">
+              <line x1="0" y1="0" x2="800" y2="0"/>
+              <line x1="0" y1="70" x2="800" y2="70"/>
+              <line x1="0" y1="140" x2="800" y2="140"/>
+              <line x1="0" y1="210" x2="800" y2="210"/>
+              <line x1="0" y1="280" x2="800" y2="280"/>
+            </g>
+            <g id="cmp-paint"></g>
+          </svg>
+          <div class="flex justify-between text-[10px] text-ink-3 mono mt-2 px-1">
+            <span>Apr 27</span><span>May 4</span><span>May 11</span><span>May 18</span><span>May 26</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- COMPARISON TABLE -->
+      <div class="panel mt-5 rise overflow-hidden" style="animation-delay: 550ms;">
+        <div class="p-5 pb-3">
+          <div class="text-[10.5px] uppercase tracking-[0.18em] text-ink-3">Breakdown</div>
+          <h2 class="serif text-2xl leading-tight mt-1">All metrics, side by side</h2>
+        </div>
+
+        <div class="ctable border-t border-line" id="ctable">
+          <!-- Header row -->
+          <div class="ctable-header" id="ctable-header"></div>
+          <!-- Metric rows filled by JS -->
+          <div id="ctable-body"></div>
+        </div>
+      </div>
+
+      <div class="text-center text-[11px] text-ink-3 mt-10 mb-4">
+        Mockup · Urjwan Creative Management System · Compare surface
+      </div>
+    </main>
+  </div>
+
+<script>
+const creatives = [
+  { key: 'A', name: 'URJ_VID_023',    type: 'Video',  color: 'var(--c-a)', grad: ['#FF4D8D', '#7A1745'] },
+  { key: 'B', name: 'URJ_CAR_012_B',  type: 'Slides', color: 'var(--c-b)', grad: ['#5EE6A8', '#0E5C3E'] },
+  { key: 'C', name: 'URJ_VID_021_EN', type: 'Video',  color: 'var(--c-c)', grad: ['#FFD166', '#7A5C00'] },
+  { key: 'D', name: 'URJ_VID_017_AR', type: 'Video',  color: 'var(--c-d)', grad: ['#6D8FFF', '#1F388C'] },
+];
+
+const metrics = [
+  { id: 'spend',     label: 'Spend',          format: v => `$${v.toLocaleString()}`,                  values: [6840, 4920, 3210, 5210] },
+  { id: 'impr',      label: 'Impressions',    format: v => `${(v/1000).toFixed(0)}K`,                 values: [512000, 341000, 244000, 388000] },
+  { id: 'clicks',    label: 'Clicks',         format: v => `${(v/1000).toFixed(1)}K`,                 values: [12300, 8100, 5400, 9200] },
+  { id: 'ctr',       label: 'CTR',            format: v => `${v.toFixed(2)}%`,                       values: [2.40, 2.38, 2.21, 2.37] },
+  { id: 'cpm',       label: 'CPM',            format: v => `$${v.toFixed(2)}`,                       values: [13.36, 14.43, 13.16, 13.43], lowerIsBetter: true },
+  { id: 'cpc',       label: 'CPC',            format: v => `$${v.toFixed(2)}`,                       values: [0.56, 0.61, 0.59, 0.57],     lowerIsBetter: true },
+  { id: 'conv',      label: 'Conversions',    format: v => v.toLocaleString(),                       values: [187, 124, 78, 138] },
+  { id: 'roas',      label: 'ROAS',           format: v => `${v.toFixed(2)}×`,                       values: [5.21, 3.95, 3.42, 4.82] },
+  { id: 'hook',      label: 'Hook rate',      format: v => `${v.toFixed(1)}%`,                       values: [28.4, 24.2, 21.8, 26.5] },
+  { id: 'hold',      label: 'Hold rate',      format: v => `${v.toFixed(1)}%`,                       values: [42.1, 38.5, 35.8, 41.2] },
+];
+
+// ---- Scorecards ----
+const scorecards = document.getElementById('scorecards');
+creatives.forEach((c, i) => {
+  const spend = metrics.find(m => m.id === 'spend').values[i];
+  const roas = metrics.find(m => m.id === 'roas').values[i];
+  const ctr = metrics.find(m => m.id === 'ctr').values[i];
+  scorecards.innerHTML += `
+    <div class="scorecard" style="--c: ${c.color}">
+      <div class="flex items-start gap-2.5 mb-3">
+        <div class="thumb-mini" style="background: linear-gradient(135deg, ${c.grad[0]}, ${c.grad[1]});"></div>
+        <div class="min-w-0 flex-1">
+          <div class="font-medium text-[12.5px] tracking-tight truncate">${c.name}</div>
+          <div class="text-[10.5px] text-ink-3 mt-0.5">${c.type}</div>
+        </div>
+        <button class="text-ink-3 hover:text-ink p-0.5 -mt-0.5 -mr-0.5 transition">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="grid grid-cols-3 gap-2 text-[10.5px]">
+        <div>
+          <div class="text-ink-3 uppercase tracking-[0.12em] text-[9px] mb-1">Spend</div>
+          <div class="mono font-medium text-[13px]">$${(spend/1000).toFixed(1)}K</div>
+        </div>
+        <div>
+          <div class="text-ink-3 uppercase tracking-[0.12em] text-[9px] mb-1">ROAS</div>
+          <div class="mono font-medium text-[13px]">${roas.toFixed(2)}×</div>
+        </div>
+        <div>
+          <div class="text-ink-3 uppercase tracking-[0.12em] text-[9px] mb-1">CTR</div>
+          <div class="mono font-medium text-[13px]">${ctr.toFixed(2)}%</div>
+        </div>
+      </div>
+    </div>
+  `;
+});
+scorecards.innerHTML += `
+  <button class="scorecard-add">
+    <svg class="w-5 h-5 mb-2" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+    <span class="text-[11.5px] font-medium">Add creative</span>
+    <span class="text-[10px] mt-0.5">up to 5</span>
+  </button>
+`;
+
+// ---- Metric tabs ----
+const mtabs = document.getElementById('mtabs');
+let activeMetric = 'spend';
+function renderTabs() {
+  mtabs.innerHTML = metrics.slice(0, 7).map(m =>
+    `<button class="mtab ${m.id === activeMetric ? 'active' : ''}" data-id="${m.id}">${m.label}</button>`
+  ).join('');
+  mtabs.querySelectorAll('.mtab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      activeMetric = btn.dataset.id;
+      renderTabs();
+      renderChart();
+    });
+  });
+}
+renderTabs();
+
+// ---- Chart ----
+const days = 30;
+const seed = s => { let x = Math.sin(s) * 10000; return x - Math.floor(x); };
+function buildSeries(base, vol, trend, idx) {
+  const a = [];
+  for (let i = 0; i < days; i++) {
+    const t = i / (days - 1);
+    const noise = (seed(idx*100 + i*7) - 0.5) * vol;
+    a.push(Math.max(20, base + trend * t * base + noise));
+  }
+  return a;
+}
+// Spend per creative per day (around the totals: 6840, 4920, 3210, 5210)
+const spendSeries = {
+  A: buildSeries(160, 60, 0.35, 1),
+  B: buildSeries(170, 55, -0.05, 2),
+  C: buildSeries(140, 70, -0.30, 3),
+  D: buildSeries(150, 80, 0.10, 4),
+};
+// For other metrics we'll scale spend series differently as a stand-in
+function getSeries(metricId) {
+  if (metricId === 'spend') return spendSeries;
+  const out = {};
+  creatives.forEach((c, i) => {
+    const total = metrics.find(m => m.id === metricId).values[i];
+    const baseTotal = metrics.find(m => m.id === 'spend').values[i];
+    const ratio = total / baseTotal;
+    out[c.key] = spendSeries[c.key].map(v => v * ratio);
+  });
+  return out;
+}
+
+function buildLine(arr, maxY, W, H) {
+  const x = i => (i / (days - 1)) * W;
+  const y = v => H - (v / maxY) * H * 0.92 - 8;
+  let d = '';
+  for (let i = 0; i < days; i++) {
+    d += (i === 0 ? 'M' : 'L') + x(i).toFixed(1) + ',' + y(arr[i]).toFixed(1) + ' ';
+  }
+  return d;
+}
+
+function renderChart() {
+  const series = getSeries(activeMetric);
+  const allValues = Object.values(series).flat();
+  const maxY = Math.max(...allValues) * 1.05;
+  const W = 800, H = 280;
+
+  const paint = document.getElementById('cmp-paint');
+  paint.innerHTML = creatives.map((c, i) => {
+    const path = buildLine(series[c.key], maxY, W, H);
+    return `<path d="${path}" fill="none" stroke="${c.color.includes('var') ? `var(${c.color.match(/--[a-z\-]+/)[0]})` : c.color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="chart-stroke" style="animation-delay: ${200 + i * 120}ms;"/>`;
+  }).join('');
+
+  // End-of-line dots
+  paint.innerHTML += creatives.map(c => {
+    const lastV = series[c.key][days - 1];
+    const x = ((days - 1) / (days - 1)) * W;
+    const y = H - (lastV / maxY) * H * 0.92 - 8;
+    return `<circle cx="${x}" cy="${y}" r="3.5" fill="${c.color.includes('var') ? `var(${c.color.match(/--[a-z\-]+/)[0]})` : c.color}" opacity="0" style="animation: rise 400ms cubic-bezier(0.22, 1, 0.36, 1) 1400ms forwards;"/>`;
+  }).join('');
+
+  // Legend with current totals
+  const m = metrics.find(x => x.id === activeMetric);
+  document.getElementById('chart-title').textContent = `${m.label}, daily`;
+  document.getElementById('chart-legend').innerHTML = creatives.map((c, i) =>
+    `<span class="flex items-center gap-1.5">
+      <span style="width:8px;height:8px;border-radius:50%;background:${c.color.includes('var') ? `var(${c.color.match(/--[a-z\-]+/)[0]})` : c.color};display:inline-block;"></span>
+      <span class="text-ink-2">${c.name}</span>
+      <span class="mono text-ink-3 ml-1">${m.format(m.values[i])}</span>
+    </span>`
+  ).join('');
+}
+renderChart();
+
+// ---- Comparison table ----
+const header = document.getElementById('ctable-header');
+header.innerHTML = `
+  <div class="ctable-cell ctable-cell-label">Metric</div>
+  ${creatives.map(c => `
+    <div class="ctable-cell" style="border-right: 1px solid var(--line);">
+      <div class="flex items-center gap-2">
+        <span style="width:8px;height:8px;border-radius:50%;background:${c.color};display:inline-block;"></span>
+        <span class="font-medium text-[12px] tracking-tight">${c.name}</span>
+      </div>
+      <div class="text-[10.5px] text-ink-3 mt-1">${c.type}</div>
+    </div>
+  `).join('')}
+`;
+// Remove final border-right
+header.lastElementChild.style.borderRight = '0';
+
+const body = document.getElementById('ctable-body');
+body.innerHTML = metrics.map(m => {
+  const max = Math.max(...m.values);
+  const min = Math.min(...m.values);
+  const winnerIdx = m.lowerIsBetter ? m.values.indexOf(min) : m.values.indexOf(max);
+  const denom = m.lowerIsBetter ? max : max; // we bar-fill relative to max value regardless
+  return `
+    <div class="ctable-row">
+      <div class="ctable-cell ctable-cell-label">${m.label}${m.lowerIsBetter ? ' <span class="text-[9px] text-ink-3 normal-case tracking-normal ml-1">(lower=better)</span>' : ''}</div>
+      ${creatives.map((c, i) => `
+        <div class="ctable-cell ctable-cell-value" style="--c: ${c.color}; border-right: 1px solid var(--line);">
+          <span class="v ${i === winnerIdx ? 'winner' : ''}">${m.format(m.values[i])}</span>
+          <div class="bar" style="--w: ${(m.values[i] / denom).toFixed(3)}"></div>
+          ${i === winnerIdx ? `<span class="winner-tag">Best</span>` : ''}
+        </div>
+      `).join('')}
+    </div>
+  `;
+}).join('');
+// Remove final border-right per row
+body.querySelectorAll('.ctable-row').forEach(row => {
+  const cells = row.querySelectorAll('.ctable-cell');
+  if (cells.length) cells[cells.length - 1].style.borderRight = '0';
+});
+</script>
+</body>
+</html>

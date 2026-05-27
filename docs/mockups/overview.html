@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Urjwan CCMS — Overview</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            display: ['"Instrument Serif"', 'serif'],
+            sans: ['"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
+            mono: ['"IBM Plex Mono"', 'monospace'],
+          },
+        },
+      },
+    };
+  </script>
+  <style>
+    :root {
+      --bg: #0A0812;
+      --surface: #14111E;
+      --surface-2: #1B1828;
+      --surface-3: #221E2F;
+      --line: #2A2638;
+      --line-2: #3A3548;
+      --ink: #F2EBE5;
+      --ink-2: #A8A2B5;
+      --ink-3: #6B6679;
+      --accent: #D4145A;
+      --accent-2: #FF4D8D;
+      --accent-soft: rgba(212, 20, 90, 0.12);
+      --meta: #4F8EFB;
+      --tiktok: #FF4D7A;
+      --snapchat: #FFD80B;
+      --google: #34D399;
+      --pos: #5EE6A8;
+      --neg: #FF6B6B;
+    }
+    * { box-sizing: border-box; }
+    body {
+      background: var(--bg);
+      color: var(--ink);
+      font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+      font-feature-settings: 'cv02', 'cv03', 'cv11';
+      -webkit-font-smoothing: antialiased;
+      margin: 0;
+    }
+    .num { font-variant-numeric: tabular-nums; }
+    .mono { font-family: 'IBM Plex Mono', monospace; font-feature-settings: 'tnum'; }
+    .serif { font-family: 'Instrument Serif', serif; letter-spacing: -0.015em; }
+    .border-line { border-color: var(--line); }
+    .text-ink-2 { color: var(--ink-2); }
+    .text-ink-3 { color: var(--ink-3); }
+    .text-accent { color: var(--accent); }
+    .bg-surface { background: var(--surface); }
+    .bg-surface-2 { background: var(--surface-2); }
+    .bg-accent { background: var(--accent); }
+    .grain::before {
+      content: '';
+      position: fixed; inset: 0;
+      pointer-events: none; opacity: 0.035;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' /%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' /%3E%3C/svg%3E");
+      z-index: 999;
+      mix-blend-mode: overlay;
+    }
+    .bg-glow {
+      position: absolute; inset: 0; pointer-events: none; z-index: -1;
+      background:
+        radial-gradient(ellipse 600px 300px at 75% -10%, var(--accent-soft), transparent 60%),
+        radial-gradient(ellipse 400px 200px at 0% 100%, rgba(79, 142, 251, 0.08), transparent 60%);
+    }
+    @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    .rise { animation: rise 700ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+    .stagger > * { animation: rise 700ms cubic-bezier(0.22, 1, 0.36, 1) both; animation-delay: calc(var(--i, 0) * 60ms + 100ms); }
+    .stagger > *:nth-child(1) { --i: 0; }
+    .stagger > *:nth-child(2) { --i: 1; }
+    .stagger > *:nth-child(3) { --i: 2; }
+    .stagger > *:nth-child(4) { --i: 3; }
+    .stagger > *:nth-child(5) { --i: 4; }
+    .stagger > *:nth-child(6) { --i: 5; }
+    .stagger > *:nth-child(7) { --i: 6; }
+    .stagger > *:nth-child(8) { --i: 7; }
+    .stagger > *:nth-child(9) { --i: 8; }
+    .stagger > *:nth-child(10) { --i: 9; }
+    @keyframes draw { to { stroke-dashoffset: 0; } }
+    .chart-stroke { stroke-dasharray: 2000; stroke-dashoffset: 2000; animation: draw 1800ms cubic-bezier(0.22, 1, 0.36, 1) 200ms forwards; }
+    @keyframes ring-draw { to { stroke-dashoffset: 0; } }
+    .ring-seg { animation: ring-draw 1200ms cubic-bezier(0.22, 1, 0.36, 1) 300ms forwards; }
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--line); border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--ink-3); }
+
+    .pill {
+      display: inline-flex; align-items: center; gap: 0.4rem;
+      padding: 0.3rem 0.7rem; border-radius: 999px;
+      font-size: 0.74rem; font-weight: 500;
+      letter-spacing: 0.005em;
+      background: var(--surface-2);
+      border: 1px solid var(--line);
+      cursor: pointer; transition: all 180ms;
+    }
+    .pill:hover { border-color: var(--line-2); background: var(--surface-3); }
+    .pill-accent { background: var(--accent); border-color: var(--accent); color: white; }
+    .pill-accent:hover { background: var(--accent-2); border-color: var(--accent-2); }
+
+    .nav-item {
+      display: flex; align-items: center; gap: 0.7rem;
+      padding: 0.55rem 0.75rem; border-radius: 8px;
+      color: var(--ink-2); font-size: 0.86rem; font-weight: 500;
+      cursor: pointer; position: relative;
+      transition: all 150ms;
+    }
+    .nav-item:hover { background: var(--surface-2); color: var(--ink); }
+    .nav-item.active { background: var(--surface-2); color: var(--ink); }
+    .nav-item.active::before {
+      content: ''; position: absolute; left: -12px; top: 50%;
+      transform: translateY(-50%);
+      width: 2px; height: 18px;
+      background: var(--accent); border-radius: 1px;
+    }
+
+    .kpi {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 1.05rem 1.15rem 1.2rem;
+      transition: border-color 220ms, transform 220ms;
+      position: relative; overflow: hidden;
+    }
+    .kpi::after {
+      content: ''; position: absolute; inset: 0;
+      background: linear-gradient(135deg, transparent 60%, var(--accent-soft));
+      opacity: 0; transition: opacity 250ms; pointer-events: none;
+    }
+    .kpi:hover { border-color: var(--line-2); }
+    .kpi:hover::after { opacity: 1; }
+
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+    }
+    .delta-pos { color: var(--pos); }
+    .delta-neg { color: var(--neg); }
+
+    .row-hover { transition: background 150ms; }
+    .row-hover:hover { background: var(--surface-2); }
+
+    .legend-dot {
+      display: inline-block; width: 8px; height: 8px;
+      border-radius: 50%; margin-right: 6px;
+      vertical-align: 1px;
+    }
+
+    @media (max-width: 1024px) { .sidebar { display: none; } }
+  </style>
+</head>
+<body class="min-h-screen grain">
+  <div class="bg-glow"></div>
+
+  <!-- TOP BAR -->
+  <header class="border-b border-line relative z-10">
+    <div class="flex items-center justify-between px-6 h-14">
+      <div class="flex items-center gap-6">
+        <div class="flex items-center gap-2.5">
+          <div class="w-7 h-7 rounded-md flex items-center justify-center" style="background: linear-gradient(135deg, var(--accent), var(--accent-2)); box-shadow: 0 0 20px rgba(212, 20, 90, 0.3);">
+            <span class="serif text-white text-base leading-none">U</span>
+          </div>
+          <div class="leading-tight">
+            <div class="text-[13px] font-semibold tracking-tight">Urjwan</div>
+            <div class="text-[9.5px] uppercase tracking-[0.18em] text-ink-3 mt-0.5">Creative System</div>
+          </div>
+        </div>
+        <div class="hidden md:flex items-center gap-1.5 text-[12px] text-ink-3">
+          <span>Workspace</span>
+          <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+          <span class="text-ink-2">Production</span>
+        </div>
+      </div>
+      <div class="flex items-center gap-3">
+        <div class="hidden md:flex items-center gap-2 text-[12px] text-ink-2 px-3 h-8 rounded-md border border-line bg-surface min-w-[260px]">
+          <svg class="w-3.5 h-3.5 text-ink-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+          <span class="text-ink-3">Search creatives, batches…</span>
+          <span class="ml-auto px-1.5 py-0.5 rounded text-[10px] bg-surface-2 border border-line text-ink-3">⌘K</span>
+        </div>
+        <button class="text-ink-2 hover:text-ink p-1.5 rounded-md hover:bg-surface-2 transition" title="Theme">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+        </button>
+        <div class="w-7 h-7 rounded-full bg-surface-2 border border-line flex items-center justify-center text-[11px] font-semibold" title="Salam">SA</div>
+      </div>
+    </div>
+  </header>
+
+  <div class="flex">
+    <!-- SIDEBAR -->
+    <aside class="sidebar w-56 px-4 py-6 border-r border-line min-h-[calc(100vh-56px)] relative">
+      <div class="space-y-0.5">
+        <div class="nav-item active">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0h6"/></svg>
+          <span>Overview</span>
+        </div>
+        <div class="nav-item">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h12a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM4 14a2 2 0 012-2h12a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2v-4z"/></svg>
+          <span>Creatives</span>
+          <span class="ml-auto text-[10px] text-ink-3 mono">147</span>
+        </div>
+        <div class="nav-item">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2z"/></svg>
+          <span>Compare</span>
+        </div>
+        <div class="nav-item">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2"/></svg>
+          <span>Platforms</span>
+        </div>
+        <div class="nav-item">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+          <span>Uploads</span>
+        </div>
+      </div>
+
+      <div class="mt-7 pt-5 border-t border-line">
+        <div class="text-[9.5px] uppercase tracking-[0.18em] text-ink-3 mb-2 px-3">Admin</div>
+        <div class="space-y-0.5">
+          <div class="nav-item">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+            <span>Team</span>
+          </div>
+          <div class="nav-item">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+            <span>Settings</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="absolute bottom-6 left-4 right-4">
+        <div class="panel p-3 text-xs">
+          <div class="flex items-center gap-2 mb-1.5">
+            <div class="w-1.5 h-1.5 rounded-full" style="background: var(--pos); box-shadow: 0 0 8px var(--pos);"></div>
+            <span class="text-ink-2 font-medium">Last sync</span>
+          </div>
+          <div class="text-ink-3 text-[11px] leading-relaxed">Meta · TikTok · Snap<br/>2 hours ago by Salam</div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- MAIN -->
+    <main class="flex-1 p-6 lg:p-8 max-w-[1500px] relative">
+      <!-- HEADER -->
+      <div class="rise">
+        <div class="flex items-end justify-between flex-wrap gap-4 mb-1">
+          <div>
+            <div class="text-[10.5px] uppercase tracking-[0.22em] text-ink-3 mb-2">Overview</div>
+            <h1 class="serif text-[44px] leading-[1.05] tracking-tight">
+              Last 30 days,<br/>
+              <em class="text-accent">across every platform.</em>
+            </h1>
+          </div>
+          <div class="flex items-center gap-2 pb-1">
+            <button class="pill">
+              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+              Export
+            </button>
+            <button class="pill pill-accent">
+              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/></svg>
+              New upload
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- FILTER BAR -->
+      <div class="rise flex flex-wrap items-center gap-2 mt-7 mb-6">
+        <button class="pill">
+          <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+          Last 30 days
+          <svg class="w-3 h-3 text-ink-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+        </button>
+        <button class="pill">
+          <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+          All products
+          <svg class="w-3 h-3 text-ink-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+        </button>
+        <button class="pill">
+          <span class="flex">
+            <span class="legend-dot" style="background: var(--meta); margin-right: -4px;"></span>
+            <span class="legend-dot" style="background: var(--tiktok); margin-right: -4px;"></span>
+            <span class="legend-dot" style="background: var(--snapchat); margin-right: -4px;"></span>
+            <span class="legend-dot" style="background: var(--google);"></span>
+          </span>
+          All 4 platforms
+          <svg class="w-3 h-3 text-ink-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+        </button>
+        <button class="pill">
+          All types
+          <svg class="w-3 h-3 text-ink-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+        </button>
+        <button class="pill">
+          Any tags
+          <svg class="w-3 h-3 text-ink-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+        </button>
+        <button class="pill text-ink-3" style="border-style: dashed;">
+          <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+          Filter
+        </button>
+        <div class="ml-auto text-[11px] text-ink-3 mono">Apr 27 → May 26 · 30 days</div>
+      </div>
+
+      <!-- KPI GRID -->
+      <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 stagger">
+        <div class="kpi">
+          <div class="text-[10px] uppercase tracking-[0.18em] text-ink-3">Spend</div>
+          <div class="serif text-[40px] leading-none mt-3">$48,720</div>
+          <div class="flex items-center gap-1.5 mt-3 text-[11px]">
+            <span class="delta-pos flex items-center gap-0.5 font-medium">
+              <svg class="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 12 12"><path d="M6 2l4 5H2l4-5z"/></svg>
+              12.4%
+            </span>
+            <span class="text-ink-3">vs prev 30d</span>
+          </div>
+        </div>
+        <div class="kpi">
+          <div class="text-[10px] uppercase tracking-[0.18em] text-ink-3">Impressions</div>
+          <div class="serif text-[40px] leading-none mt-3">4.21<span class="text-ink-2 text-[28px]">M</span></div>
+          <div class="flex items-center gap-1.5 mt-3 text-[11px]">
+            <span class="delta-pos flex items-center gap-0.5 font-medium">
+              <svg class="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 12 12"><path d="M6 2l4 5H2l4-5z"/></svg>
+              8.1%
+            </span>
+            <span class="text-ink-3">vs prev 30d</span>
+          </div>
+        </div>
+        <div class="kpi">
+          <div class="text-[10px] uppercase tracking-[0.18em] text-ink-3">Blended CTR</div>
+          <div class="serif text-[40px] leading-none mt-3">2.14<span class="text-ink-2 text-[28px]">%</span></div>
+          <div class="flex items-center gap-1.5 mt-3 text-[11px]">
+            <span class="delta-neg flex items-center gap-0.5 font-medium">
+              <svg class="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 12 12"><path d="M6 10l4-5H2l4 5z"/></svg>
+              3.2%
+            </span>
+            <span class="text-ink-3">vs prev 30d</span>
+          </div>
+        </div>
+        <div class="kpi">
+          <div class="text-[10px] uppercase tracking-[0.18em] text-ink-3">Conversions</div>
+          <div class="serif text-[40px] leading-none mt-3">1,386</div>
+          <div class="flex items-center gap-1.5 mt-3 text-[11px]">
+            <span class="delta-pos flex items-center gap-0.5 font-medium">
+              <svg class="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 12 12"><path d="M6 2l4 5H2l4-5z"/></svg>
+              18.7%
+            </span>
+            <span class="text-ink-3">vs prev 30d</span>
+          </div>
+        </div>
+        <div class="kpi">
+          <div class="text-[10px] uppercase tracking-[0.18em] text-ink-3">Blended CPA</div>
+          <div class="serif text-[40px] leading-none mt-3">$35.15</div>
+          <div class="flex items-center gap-1.5 mt-3 text-[11px]">
+            <span class="delta-pos flex items-center gap-0.5 font-medium">
+              <svg class="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 12 12"><path d="M6 10l4-5H2l4 5z"/></svg>
+              5.6%
+            </span>
+            <span class="text-ink-3">cheaper</span>
+          </div>
+        </div>
+        <div class="kpi">
+          <div class="text-[10px] uppercase tracking-[0.18em] text-ink-3">Blended ROAS</div>
+          <div class="serif text-[40px] leading-none mt-3">3.84<span class="text-ink-2 text-[28px]">×</span></div>
+          <div class="flex items-center gap-1.5 mt-3 text-[11px]">
+            <span class="delta-pos flex items-center gap-0.5 font-medium">
+              <svg class="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 12 12"><path d="M6 2l4 5H2l4-5z"/></svg>
+              22.3%
+            </span>
+            <span class="text-ink-3">vs prev 30d</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- CHART + SIDE PANEL -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mt-6">
+        <!-- Spend Chart -->
+        <div class="panel p-5 lg:col-span-2 rise" style="animation-delay: 500ms;">
+          <div class="flex items-baseline justify-between mb-1">
+            <div>
+              <div class="text-[10.5px] uppercase tracking-[0.18em] text-ink-3">Daily Spend</div>
+              <h2 class="serif text-2xl leading-tight mt-1">Stacked by platform</h2>
+            </div>
+            <div class="flex gap-1">
+              <button class="pill text-[11px] py-1">Daily</button>
+              <button class="pill text-[11px] py-1 text-ink-3" style="background: transparent;">Weekly</button>
+            </div>
+          </div>
+
+          <div class="flex items-center gap-4 text-[11px] text-ink-2 mt-3 mb-2">
+            <span><span class="legend-dot" style="background: var(--meta);"></span>Meta</span>
+            <span><span class="legend-dot" style="background: var(--tiktok);"></span>TikTok</span>
+            <span><span class="legend-dot" style="background: var(--snapchat);"></span>Snapchat</span>
+            <span><span class="legend-dot" style="background: var(--google);"></span>Google</span>
+          </div>
+
+          <!-- Chart -->
+          <svg id="spend-chart" viewBox="0 0 800 260" class="w-full h-[260px]" preserveAspectRatio="none">
+            <defs>
+              <linearGradient id="g-meta" x1="0" x2="0" y1="0" y2="1">
+                <stop offset="0%" stop-color="#4F8EFB" stop-opacity="0.35"/>
+                <stop offset="100%" stop-color="#4F8EFB" stop-opacity="0.02"/>
+              </linearGradient>
+              <linearGradient id="g-tiktok" x1="0" x2="0" y1="0" y2="1">
+                <stop offset="0%" stop-color="#FF4D7A" stop-opacity="0.32"/>
+                <stop offset="100%" stop-color="#FF4D7A" stop-opacity="0.02"/>
+              </linearGradient>
+              <linearGradient id="g-snapchat" x1="0" x2="0" y1="0" y2="1">
+                <stop offset="0%" stop-color="#FFD80B" stop-opacity="0.3"/>
+                <stop offset="100%" stop-color="#FFD80B" stop-opacity="0.02"/>
+              </linearGradient>
+              <linearGradient id="g-google" x1="0" x2="0" y1="0" y2="1">
+                <stop offset="0%" stop-color="#34D399" stop-opacity="0.3"/>
+                <stop offset="100%" stop-color="#34D399" stop-opacity="0.02"/>
+              </linearGradient>
+            </defs>
+            <!-- Y gridlines -->
+            <g stroke="var(--line)" stroke-dasharray="2 4" stroke-width="0.5">
+              <line x1="0" y1="0" x2="800" y2="0"/>
+              <line x1="0" y1="65" x2="800" y2="65"/>
+              <line x1="0" y1="130" x2="800" y2="130"/>
+              <line x1="0" y1="195" x2="800" y2="195"/>
+              <line x1="0" y1="260" x2="800" y2="260"/>
+            </g>
+            <g id="chart-paint"></g>
+          </svg>
+
+          <div class="flex justify-between text-[10px] text-ink-3 mono mt-2 px-1">
+            <span>Apr 27</span><span>May 4</span><span>May 11</span><span>May 18</span><span>May 26</span>
+          </div>
+        </div>
+
+        <!-- Right column: Platform mix + Recent uploads -->
+        <div class="space-y-4">
+          <!-- Platform mix -->
+          <div class="panel p-5 rise" style="animation-delay: 580ms;">
+            <div class="text-[10.5px] uppercase tracking-[0.18em] text-ink-3">Platform mix</div>
+            <h3 class="serif text-2xl leading-tight mt-1">By spend</h3>
+
+            <div class="flex items-center gap-5 mt-4">
+              <svg viewBox="0 0 100 100" class="w-[120px] h-[120px] -rotate-90">
+                <circle cx="50" cy="50" r="40" fill="none" stroke="var(--surface-2)" stroke-width="14"/>
+                <!-- segments. Total circumference ≈ 251.3. Meta 42% → 105.5, TikTok 28% → 70.4, Snap 12% → 30.2, Google 18% → 45.2 -->
+                <circle cx="50" cy="50" r="40" fill="none" stroke="var(--meta)" stroke-width="14" stroke-dasharray="105.5 251.3" stroke-dashoffset="0" stroke-linecap="butt"/>
+                <circle cx="50" cy="50" r="40" fill="none" stroke="var(--tiktok)" stroke-width="14" stroke-dasharray="70.4 251.3" stroke-dashoffset="-105.5" stroke-linecap="butt"/>
+                <circle cx="50" cy="50" r="40" fill="none" stroke="var(--snapchat)" stroke-width="14" stroke-dasharray="30.2 251.3" stroke-dashoffset="-175.9" stroke-linecap="butt"/>
+                <circle cx="50" cy="50" r="40" fill="none" stroke="var(--google)" stroke-width="14" stroke-dasharray="45.2 251.3" stroke-dashoffset="-206.1" stroke-linecap="butt"/>
+                <g transform="rotate(90 50 50)">
+                  <text x="50" y="48" text-anchor="middle" font-family="Instrument Serif" font-size="16" fill="var(--ink)">$48.7K</text>
+                  <text x="50" y="60" text-anchor="middle" font-family="Plus Jakarta Sans" font-size="6" fill="var(--ink-3)" letter-spacing="0.5">TOTAL SPEND</text>
+                </g>
+              </svg>
+              <div class="flex-1 space-y-2 text-[12px]">
+                <div class="flex items-center gap-2"><span class="legend-dot" style="background: var(--meta);"></span><span>Meta</span><span class="ml-auto mono text-ink-2">42%</span></div>
+                <div class="flex items-center gap-2"><span class="legend-dot" style="background: var(--tiktok);"></span><span>TikTok</span><span class="ml-auto mono text-ink-2">28%</span></div>
+                <div class="flex items-center gap-2"><span class="legend-dot" style="background: var(--google);"></span><span>Google</span><span class="ml-auto mono text-ink-2">18%</span></div>
+                <div class="flex items-center gap-2"><span class="legend-dot" style="background: var(--snapchat);"></span><span>Snapchat</span><span class="ml-auto mono text-ink-2">12%</span></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Recent uploads -->
+          <div class="panel p-5 rise" style="animation-delay: 660ms;">
+            <div class="flex items-center justify-between mb-1">
+              <div>
+                <div class="text-[10.5px] uppercase tracking-[0.18em] text-ink-3">Recent uploads</div>
+                <h3 class="serif text-xl leading-tight mt-1">Last 4 batches</h3>
+              </div>
+              <button class="text-[11px] text-ink-2 hover:text-ink transition">View all →</button>
+            </div>
+            <div class="mt-3 space-y-3">
+              <div class="flex items-center gap-3 text-[12px]">
+                <div class="w-1.5 h-1.5 rounded-full" style="background: var(--meta);"></div>
+                <div class="flex-1 min-w-0">
+                  <div class="truncate">Meta · May 26</div>
+                  <div class="text-ink-3 text-[10.5px] mono">312 rows · by Salam</div>
+                </div>
+                <div class="text-[10px] text-ink-3 mono">2h</div>
+              </div>
+              <div class="flex items-center gap-3 text-[12px]">
+                <div class="w-1.5 h-1.5 rounded-full" style="background: var(--tiktok);"></div>
+                <div class="flex-1 min-w-0">
+                  <div class="truncate">TikTok · May 26</div>
+                  <div class="text-ink-3 text-[10.5px] mono">198 rows · by Lina</div>
+                </div>
+                <div class="text-[10px] text-ink-3 mono">3h</div>
+              </div>
+              <div class="flex items-center gap-3 text-[12px]">
+                <div class="w-1.5 h-1.5 rounded-full" style="background: var(--snapchat);"></div>
+                <div class="flex-1 min-w-0">
+                  <div class="truncate">Snapchat · May 25</div>
+                  <div class="text-ink-3 text-[10.5px] mono">147 rows · by Salam</div>
+                </div>
+                <div class="text-[10px] text-ink-3 mono">1d</div>
+              </div>
+              <div class="flex items-center gap-3 text-[12px]">
+                <div class="w-1.5 h-1.5 rounded-full" style="background: var(--google);"></div>
+                <div class="flex-1 min-w-0">
+                  <div class="truncate">Google · May 25</div>
+                  <div class="text-ink-3 text-[10.5px] mono">88 rows · by Yara</div>
+                </div>
+                <div class="text-[10px] text-ink-3 mono">1d</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TOP CREATIVES TABLE -->
+      <div class="panel mt-4 rise overflow-hidden" style="animation-delay: 720ms;">
+        <div class="flex items-baseline justify-between p-5 pb-3">
+          <div>
+            <div class="text-[10.5px] uppercase tracking-[0.18em] text-ink-3">Top creatives</div>
+            <h2 class="serif text-2xl leading-tight mt-1">By spend, last 30 days</h2>
+          </div>
+          <div class="flex items-center gap-2">
+            <button class="pill text-[11px]">Spend</button>
+            <button class="pill text-[11px] text-ink-3" style="background: transparent;">ROAS</button>
+            <button class="pill text-[11px] text-ink-3" style="background: transparent;">CTR</button>
+          </div>
+        </div>
+
+        <table class="w-full text-[12.5px]">
+          <thead>
+            <tr class="text-[10px] uppercase tracking-[0.15em] text-ink-3 border-y border-line">
+              <th class="text-left font-medium py-2 pl-5 w-10">#</th>
+              <th class="text-left font-medium py-2">Creative</th>
+              <th class="text-left font-medium py-2">Type</th>
+              <th class="text-left font-medium py-2 hidden md:table-cell">Platforms</th>
+              <th class="text-right font-medium py-2 mono">Spend</th>
+              <th class="text-right font-medium py-2 mono hidden md:table-cell">Impr.</th>
+              <th class="text-right font-medium py-2 mono">ROAS</th>
+              <th class="text-right font-medium py-2 hidden lg:table-cell">Trend</th>
+              <th class="w-5 pr-5"></th>
+            </tr>
+          </thead>
+          <tbody id="creatives-tbody">
+            <!-- filled by JS -->
+          </tbody>
+        </table>
+      </div>
+
+      <div class="text-center text-[11px] text-ink-3 mt-8 mb-4">
+        Mockup · Urjwan Creative Management System · Overview surface
+      </div>
+    </main>
+  </div>
+
+<script>
+// ===== Spend chart =====
+(function(){
+  // 30 days of data per platform (mock)
+  const days = 30;
+  const seed = (s) => { let x = Math.sin(s) * 10000; return x - Math.floor(x); };
+  function series(base, vol, trend, idx) {
+    const arr = [];
+    for (let i = 0; i < days; i++) {
+      const t = i / (days - 1);
+      const noise = (seed(idx*100 + i*7) - 0.5) * vol;
+      const v = base + trend * t * base + noise;
+      arr.push(Math.max(40, v));
+    }
+    return arr;
+  }
+  const meta = series(620, 280, 0.25, 1);
+  const tiktok = series(420, 250, 0.10, 2);
+  const snap = series(180, 100, -0.05, 3);
+  const google = series(280, 120, 0.18, 4);
+
+  // Stack
+  const stack = [];
+  for (let i = 0; i < days; i++) {
+    stack.push({
+      meta: meta[i],
+      tiktok: meta[i] + tiktok[i],
+      snap: meta[i] + tiktok[i] + snap[i],
+      google: meta[i] + tiktok[i] + snap[i] + google[i],
+    });
+  }
+  const maxY = Math.max(...stack.map(s => s.google)) * 1.05;
+
+  const W = 800, H = 260;
+  const x = (i) => (i / (days - 1)) * W;
+  const y = (v) => H - (v / maxY) * H;
+
+  function buildArea(top, bottom) {
+    let d = '';
+    for (let i = 0; i < days; i++) {
+      d += (i === 0 ? 'M' : 'L') + x(i).toFixed(1) + ',' + y(top[i]).toFixed(1) + ' ';
+    }
+    for (let i = days - 1; i >= 0; i--) {
+      d += 'L' + x(i).toFixed(1) + ',' + (bottom ? y(bottom[i]) : H).toFixed(1) + ' ';
+    }
+    d += 'Z';
+    return d;
+  }
+  function buildLine(top) {
+    let d = '';
+    for (let i = 0; i < days; i++) {
+      d += (i === 0 ? 'M' : 'L') + x(i).toFixed(1) + ',' + y(top[i]).toFixed(1) + ' ';
+    }
+    return d;
+  }
+  const metaTop = stack.map(s => s.meta);
+  const tiktokTop = stack.map(s => s.tiktok);
+  const snapTop = stack.map(s => s.snap);
+  const googleTop = stack.map(s => s.google);
+
+  const paint = document.getElementById('chart-paint');
+  paint.innerHTML =
+    `<path d="${buildArea(googleTop, snapTop)}" fill="url(#g-google)"/>` +
+    `<path d="${buildArea(snapTop, tiktokTop)}" fill="url(#g-snapchat)"/>` +
+    `<path d="${buildArea(tiktokTop, metaTop)}" fill="url(#g-tiktok)"/>` +
+    `<path d="${buildArea(metaTop, null)}" fill="url(#g-meta)"/>` +
+    `<path d="${buildLine(metaTop)}" fill="none" stroke="#4F8EFB" stroke-width="1.5" class="chart-stroke" style="animation-delay: 200ms;"/>` +
+    `<path d="${buildLine(tiktokTop)}" fill="none" stroke="#FF4D7A" stroke-width="1.5" class="chart-stroke" style="animation-delay: 320ms;"/>` +
+    `<path d="${buildLine(snapTop)}" fill="none" stroke="#FFD80B" stroke-width="1.5" class="chart-stroke" style="animation-delay: 440ms;"/>` +
+    `<path d="${buildLine(googleTop)}" fill="none" stroke="#34D399" stroke-width="1.5" class="chart-stroke" style="animation-delay: 560ms;"/>`;
+})();
+
+// ===== Creatives table =====
+(function(){
+  const types = {
+    video: { label: 'Video', icon: '<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>' },
+    image: { label: 'Image', icon: '<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>' },
+    slides: { label: 'Slides', icon: '<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2"/></svg>' },
+  };
+  const platforms = {
+    meta: '#4F8EFB',
+    tiktok: '#FF4D7A',
+    snapchat: '#FFD80B',
+    google: '#34D399',
+  };
+
+  const rows = [
+    { name: 'URJ_VID_023', thumb: '#5E4AE3', type: 'video', plats: ['meta','tiktok','snapchat'], spend: 6840, impr: '512K', roas: 5.21, trend: 'up' },
+    { name: 'URJ_VID_017_AR', thumb: '#D4145A', type: 'video', plats: ['meta','tiktok'], spend: 5210, impr: '388K', roas: 4.82, trend: 'up' },
+    { name: 'URJ_CAR_012_B', thumb: '#34A0E0', type: 'slides', plats: ['meta','google'], spend: 4920, impr: '341K', roas: 3.95, trend: 'flat' },
+    { name: 'URJ_IMG_007_AR', thumb: '#F59E0B', type: 'image', plats: ['meta','snapchat'], spend: 4480, impr: '402K', roas: 4.18, trend: 'up' },
+    { name: 'URJ_VID_021_EN', thumb: '#10B981', type: 'video', plats: ['tiktok','google'], spend: 3950, impr: '276K', roas: 3.42, trend: 'down' },
+    { name: 'URJ_VID_019', thumb: '#EC4899', type: 'video', plats: ['meta','tiktok','snapchat','google'], spend: 3210, impr: '244K', roas: 3.88, trend: 'up' },
+    { name: 'URJ_CAR_010', thumb: '#8B5CF6', type: 'slides', plats: ['meta'], spend: 2940, impr: '198K', roas: 2.91, trend: 'flat' },
+    { name: 'URJ_VID_015_AR', thumb: '#06B6D4', type: 'video', plats: ['tiktok','snapchat'], spend: 2510, impr: '186K', roas: 3.05, trend: 'up' },
+    { name: 'URJ_IMG_009', thumb: '#F43F5E', type: 'image', plats: ['google','meta'], spend: 2240, impr: '171K', roas: 2.74, trend: 'down' },
+    { name: 'URJ_VID_014', thumb: '#22C55E', type: 'video', plats: ['meta'], spend: 1980, impr: '142K', roas: 2.55, trend: 'flat' },
+  ];
+
+  // Sparkline generator
+  function sparkline(trend, color) {
+    const pts = 12;
+    const base = 20;
+    let d = '';
+    for (let i = 0; i < pts; i++) {
+      let y = base;
+      if (trend === 'up') y = base - i * 1.1 + (Math.sin(i*1.7)*2);
+      else if (trend === 'down') y = base + i * 0.9 + (Math.sin(i*1.5)*2) - 5;
+      else y = base + Math.sin(i*1.4) * 2.5;
+      d += (i === 0 ? 'M' : 'L') + (i * 6).toFixed(1) + ',' + y.toFixed(1) + ' ';
+    }
+    return `<svg width="72" height="28" viewBox="0 0 66 32" class="inline-block"><path d="${d}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linecap="round"/></svg>`;
+  }
+
+  const tbody = document.getElementById('creatives-tbody');
+  tbody.innerHTML = rows.map((r, i) => {
+    const t = types[r.type];
+    const trendColor = r.trend === 'up' ? 'var(--pos)' : r.trend === 'down' ? 'var(--neg)' : 'var(--ink-3)';
+    const plats = r.plats.map(p =>
+      `<span class="inline-block w-1.5 h-1.5 rounded-full" style="background:${platforms[p]};margin-right:3px;" title="${p}"></span>`
+    ).join('');
+    return `
+      <tr class="row-hover border-b border-line last:border-b-0">
+        <td class="py-2.5 pl-5 text-ink-3 mono text-[11px]">${String(i+1).padStart(2,'0')}</td>
+        <td class="py-2.5">
+          <div class="flex items-center gap-3">
+            <div class="w-8 h-8 rounded-md flex items-center justify-center text-white" style="background:${r.thumb}; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08);">
+              ${t.icon}
+            </div>
+            <div>
+              <div class="font-medium tracking-tight">${r.name}</div>
+              <div class="text-[10.5px] text-ink-3 mono">creative</div>
+            </div>
+          </div>
+        </td>
+        <td class="py-2.5 text-ink-2">${t.label}</td>
+        <td class="py-2.5 hidden md:table-cell">${plats}</td>
+        <td class="py-2.5 text-right mono">$${r.spend.toLocaleString()}</td>
+        <td class="py-2.5 text-right mono text-ink-2 hidden md:table-cell">${r.impr}</td>
+        <td class="py-2.5 text-right mono"><span class="${r.roas >= 4 ? 'delta-pos' : r.roas >= 3 ? 'text-ink' : 'text-ink-2'}">${r.roas.toFixed(2)}×</span></td>
+        <td class="py-2.5 text-right hidden lg:table-cell">${sparkline(r.trend, trendColor)}</td>
+        <td class="pr-5 text-ink-3">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+        </td>
+      </tr>
+    `;
+  }).join('');
+})();
+</script>
+</body>
+</html>
