@@ -300,3 +300,66 @@ npx drizzle-kit migrate
 
 **Not committed in this entry:** `.env.local` (gitignored). Everything else
 will land in the upcoming "DB setup" commit.
+
+---
+
+## 2026-05-27 — First end-to-end vertical slice (seed → KPI query → Overview)
+
+The Overview tiles render real numbers from the database. This is the first
+slice that touches every layer (schema → seed → query → Server Component →
+UI formatter), and it proves `lib/metrics.ts` works against live Postgres.
+
+**`db/seed.ts` written and run** (npm script: `db:seed`).
+- Idempotent. Every insert uses `ON CONFLICT DO NOTHING` on its unique
+  constraint; `performance_records` is keyed by the `(creative_id, platform,
+  date)` unique index. Re-running the seed is a safe no-op.
+- Adds dev devDeps `tsx` and `dotenv`. Script invoked via
+  `tsx --env-file=.env.local db/seed.ts` so `.env.local` loads automatically.
+- Seeded fixture:
+  - 1 admin user (`salam@urjwan.com`).
+  - 3 products (Argan Oil, Rose Toner, Saffron Cream).
+  - 4 creatives across the three products and all three creative types.
+  - 1 synthetic upload batch on `meta`.
+  - 120 `performance_records` (4 creatives × 2 platforms × 15 days).
+  - Numbers come from a deterministic LCG seeded with `1`, so the dataset is
+    reproducible bit-for-bit across machines.
+
+**`db/queries/performance.ts::kpis()`** — first real query. Imports every
+derived-metric SQL fragment from `lib/metrics.ts` (no open-coded formulas).
+Default `WHERE excluded_from_aggregates = false`; flips off with
+`includeExcluded`. Returns `null` (→ em-dash in UI) wherever a denominator is
+zero. Numeric/bigint columns are coerced to JS `number` at the query
+boundary.
+
+**`app/(dashboard)/page.tsx`** is now an `async` Server Component that calls
+`kpis()` with a 30-day trailing window. Six tiles render formatted values
+through `lib/format.ts` (USD, integer, percent, ratio). The "Trailing N days"
+hint replaces the old "Awaiting first upload" placeholder. The header badge
+shows the active date range.
+
+**Hand-verification (PRD §10.4):** ran the same aggregation as raw SQL
+against the seeded data and compared each tile.
+
+| Tile          | Raw SQL    | Rendered    |
+| ------------- | ---------- | ----------- |
+| Spend         | 8427.55    | `$8,427.55` |
+| Impressions   | 1,338,067  | `1,338,067` |
+| Blended CTR   | 0.025334   | `2.53%`     |
+| Conversions   | 1,430      | `1,430`     |
+| Blended CPA   | 5.8934     | `$5.89`     |
+| Blended ROAS  | 8.342304   | `8.34`      |
+
+All match. The PRD success criterion that every blended metric reconciles
+with a hand-calculation from the raw data is met for the Overview KPIs.
+
+**Notes for future-me.**
+- The query relies on Drizzle returning numeric columns as strings; the
+  `num()` coercion in `db/queries/performance.ts` converts to `number` at the
+  query edge. If we later move to BigInt-mode integers (for impressions/clicks
+  beyond 2^31), revisit the formatter signatures.
+- The default 30-day window is hard-coded in the Overview for now. URL-state
+  filter parsing (tech-spec §8.1) is the next step before adding more pages.
+
+**Not done.** Auth, URL-state filters, the upload flow, charts, the
+Creatives Library, Compare, Per-Platform, exclusion UI. The Overview is the
+only page wired to real data.

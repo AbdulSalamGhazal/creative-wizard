@@ -1,16 +1,23 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { kpis, defaultDateRange } from "@/db/queries/performance";
+import { usd, int, pct, ratio } from "@/lib/format";
 
-const kpis = [
-  { label: "Spend", value: "—", hint: "Awaiting first upload" },
-  { label: "Impressions", value: "—", hint: "Awaiting first upload" },
-  { label: "Blended CTR", value: "—", hint: "Awaiting first upload" },
-  { label: "Conversions", value: "—", hint: "Awaiting first upload" },
-  { label: "Blended CPA", value: "—", hint: "Awaiting first upload" },
-  { label: "Blended ROAS", value: "—", hint: "Awaiting first upload" },
-];
+const TRAILING_DAYS = 30;
 
-export default function OverviewPage() {
+export default async function OverviewPage() {
+  const range = defaultDateRange(TRAILING_DAYS);
+  const k = await kpis({ from: range.from, to: range.to });
+
+  const tiles: Array<{ label: string; value: string }> = [
+    { label: "Spend", value: usd(k.spend) },
+    { label: "Impressions", value: int(k.impressions) },
+    { label: "Blended CTR", value: pct(k.ctr) },
+    { label: "Conversions", value: int(k.conversions) },
+    { label: "Blended CPA", value: usd(k.cpa) },
+    { label: "Blended ROAS", value: ratio(k.roas) },
+  ];
+
   return (
     <div className="space-y-6">
       <div className="flex items-end justify-between">
@@ -21,23 +28,25 @@ export default function OverviewPage() {
           </p>
         </div>
         <Badge variant="outline" className="text-ink-3">
-          Scaffold preview — data layer not wired yet
+          {range.from} → {range.to} · excluded hidden
         </Badge>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-        {kpis.map((k) => (
-          <Card key={k.label} className="bg-surface border-line">
+        {tiles.map((t) => (
+          <Card key={t.label} className="bg-surface border-line">
             <CardHeader className="pb-2">
               <CardTitle className="text-xs uppercase tracking-[0.14em] text-ink-3 font-medium">
-                {k.label}
+                {t.label}
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="font-display text-4xl num text-ink leading-none">
-                {k.value}
+                {t.value}
               </div>
-              <div className="text-[11px] text-ink-3 mt-2">{k.hint}</div>
+              <div className="text-[11px] text-ink-3 mt-2">
+                Trailing {TRAILING_DAYS} days
+              </div>
             </CardContent>
           </Card>
         ))}
@@ -50,7 +59,7 @@ export default function OverviewPage() {
           </CardHeader>
           <CardContent>
             <div className="h-64 flex items-center justify-center text-ink-3 text-sm border border-dashed border-line rounded-md">
-              Stacked-area chart by platform (Recharts) — pending data
+              Stacked-area chart by platform (Recharts) — pending implementation
             </div>
           </CardContent>
         </Card>
@@ -60,7 +69,7 @@ export default function OverviewPage() {
           </CardHeader>
           <CardContent>
             <div className="h-64 flex items-center justify-center text-ink-3 text-sm border border-dashed border-line rounded-md">
-              Donut — pending data
+              Donut — pending implementation
             </div>
           </CardContent>
         </Card>
@@ -72,7 +81,7 @@ export default function OverviewPage() {
         </CardHeader>
         <CardContent>
           <div className="h-48 flex items-center justify-center text-ink-3 text-sm border border-dashed border-line rounded-md">
-            TanStack Table with sparklines — pending data
+            TanStack Table with sparklines — pending implementation
           </div>
         </CardContent>
       </Card>

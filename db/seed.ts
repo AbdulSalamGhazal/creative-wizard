@@ -1,0 +1,214 @@
+/**
+ * Idempotent dev seed.
+ *
+ * Inserts one admin user, three products, four creatives, one upload batch,
+ * and ~60 performance records spanning the last 30 days across two platforms.
+ *
+ * Re-running is safe: every insert uses ON CONFLICT DO NOTHING on the
+ * relevant unique constraint, and performance_records is keyed by
+ * (creative_id, platform, date) so identical rows are skipped.
+ *
+ * Run with: npm run db:seed
+ */
+import { db } from "@/lib/db";
+import {
+  users,
+  products,
+  creatives,
+  uploadBatches,
+  performanceRecords,
+  type platformEnum,
+} from "@/db/schema";
+import { sql } from "drizzle-orm";
+
+type Platform = (typeof platformEnum)[number];
+
+async function main() {
+  console.log("Seeding…");
+
+  // ---------- User ----------
+  const [admin] = await db
+    .insert(users)
+    .values({
+      email: "salam@urjwan.com",
+      name: "Salam (seed admin)",
+      role: "admin",
+    })
+    .onConflictDoNothing({ target: users.email })
+    .returning();
+
+  const adminId =
+    admin?.id ??
+    (
+      await db
+        .select({ id: users.id })
+        .from(users)
+        .where(sql`${users.email} = 'salam@urjwan.com'`)
+    )[0]!.id;
+
+  console.log("  user:", adminId);
+
+  // ---------- Products ----------
+  const productRows = [
+    { name: "Argan Oil", slug: "argan-oil" },
+    { name: "Rose Toner", slug: "rose-toner" },
+    { name: "Saffron Cream", slug: "saffron-cream" },
+  ];
+  for (const p of productRows) {
+    await db
+      .insert(products)
+      .values({ ...p, createdByUserId: adminId })
+      .onConflictDoNothing({ target: products.slug });
+  }
+  const productList = await db
+    .select({ id: products.id, slug: products.slug })
+    .from(products);
+  const productBySlug = new Map(productList.map((p) => [p.slug, p.id]));
+  console.log("  products:", productList.length);
+
+  // ---------- Creatives ----------
+  const creativeRows = [
+    {
+      name: "URJ_VID_001",
+      productSlug: "argan-oil",
+      type: "video" as const,
+      status: "active" as const,
+    },
+    {
+      name: "URJ_VID_002",
+      productSlug: "argan-oil",
+      type: "video" as const,
+      status: "active" as const,
+    },
+    {
+      name: "URJ_IMG_010",
+      productSlug: "rose-toner",
+      type: "image" as const,
+      status: "active" as const,
+    },
+    {
+      name: "URJ_SLD_020",
+      productSlug: "saffron-cream",
+      type: "slides" as const,
+      status: "paused" as const,
+    },
+  ];
+  for (const c of creativeRows) {
+    await db
+      .insert(creatives)
+      .values({
+        name: c.name,
+        productId: productBySlug.get(c.productSlug)!,
+        type: c.type,
+        status: c.status,
+        createdByUserId: adminId,
+      })
+      .onConflictDoNothing({ target: creatives.name });
+  }
+  const creativeList = await db
+    .select({ id: creatives.id, name: creatives.name })
+    .from(creatives);
+  const creativeByName = new Map(creativeList.map((c) => [c.name, c.id]));
+  console.log("  creatives:", creativeList.length);
+
+  // ---------- Upload batch + performance records ----------
+  // One synthetic batch covering both platforms over the last 30 days.
+  const [batch] = await db
+    .insert(uploadBatches)
+    .values({
+      platform: "meta",
+      fileName: "seed_synthetic.csv",
+      uploadedByUserId: adminId,
+      rowsImported: 0,
+    })
+    .returning();
+  const batchId = batch!.id;
+
+  const today = new Date();
+  today.setUTCHours(0, 0, 0, 0);
+
+  type PerfRow = typeof performanceRecords.$inferInsert;
+  const rows: PerfRow[] = [];
+  const platforms: Platform[] = ["meta", "tiktok"];
+
+  // Each creative gets ~15 daily rows on each of two platforms.
+  let seedRng = 1;
+  const rand = () => {
+    // Tiny deterministic LCG so re-runs produce identical numbers and the
+    // ON CONFLICT path skips them cleanly.
+    seedRng = (seedRng * 1103515245 + 12345) & 0x7fffffff;
+    return seedRng / 0x7fffffff;
+  };
+
+  for (const c of creativeList) {
+    for (const platform of platforms) {
+      for (let d = 0; d < 15; d++) {
+        const date = new Date(today);
+        date.setUTCDate(date.getUTCDate() - d);
+        const dateStr = date.toISOString().slice(0, 10);
+
+        const impressions = Math.floor(2_000 + rand() * 18_000);
+        const ctrPct = 0.005 + rand() * 0.04; // 0.5% – 4.5%
+        const clicks = Math.max(1, Math.floor(impressions * ctrPct));
+        const cpmDollars = 2 + rand() * 8;
+        const spend = +((impressions / 1000) * cpmDollars).toFixed(2);
+        const conversions = Math.max(0, Math.floor(clicks * (0.01 + rand() * 0.08)));
+        const conversionValue = +(conversions * (15 + rand() * 60)).toFixed(2);
+        const videoViews3s = Math.floor(impressions * (0.2 + rand() * 0.3));
+        const videoViews15s = Math.floor(videoViews3s * (0.15 + rand() * 0.4));
+
+        rows.push({
+          creativeId: c.id,
+          platform,
+          date: dateStr,
+          spend: spend.toString(),
+          impressions,
+          clicks,
+          conversions,
+          conversionValue: conversionValue.toString(),
+          videoViews3s,
+          videoViews15s,
+          rawPayload: { source: "seed", note: "synthetic" },
+          uploadBatchId: batchId,
+        });
+      }
+    }
+  }
+
+  // Bulk insert in chunks. ON CONFLICT on the unique (creative_id, platform,
+  // date) index means re-runs are no-ops.
+  let inserted = 0;
+  const chunkSize = 100;
+  for (let i = 0; i < rows.length; i += chunkSize) {
+    const chunk = rows.slice(i, i + chunkSize);
+    const result = await db
+      .insert(performanceRecords)
+      .values(chunk)
+      .onConflictDoNothing({
+        target: [
+          performanceRecords.creativeId,
+          performanceRecords.platform,
+          performanceRecords.date,
+        ],
+      })
+      .returning({ id: performanceRecords.id });
+    inserted += result.length;
+  }
+
+  await db
+    .update(uploadBatches)
+    .set({ rowsImported: inserted })
+    .where(sql`${uploadBatches.id} = ${batchId}`);
+
+  console.log(
+    `  performance_records: ${inserted} inserted (of ${rows.length} candidates)`,
+  );
+  console.log("Done.");
+}
+
+main()
+  .then(() => process.exit(0))
+  .catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
