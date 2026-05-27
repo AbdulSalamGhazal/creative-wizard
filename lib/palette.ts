@@ -51,3 +51,23 @@ export function gradientFor(name: string): { from: string; to: string } {
   const idx = hashString(name) % CARD_GRADIENTS.length;
   return CARD_GRADIENTS[idx]!;
 }
+
+/**
+ * Distinct palette for product slices in the product-mix donut. Same hash
+ * trick as gradients, but flat colors that legibly contrast with the
+ * platform palette (no blue/pink) so the two donuts read differently.
+ */
+const PRODUCT_COLORS = [
+  "#A78BFA", // violet
+  "#F472B6", // pink
+  "#FBBF24", // amber
+  "#34D399", // emerald
+  "#60A5FA", // sky
+  "#F87171", // rose
+  "#22D3EE", // cyan
+  "#C084FC", // lilac
+];
+
+export function productColor(name: string): string {
+  return PRODUCT_COLORS[hashString(name) % PRODUCT_COLORS.length]!;
+}

@@ -2,7 +2,8 @@
 
 import { CalendarDays, Check, Eye, EyeOff, Layers, Package, Tag } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useMemo, useTransition } from "react";
+import { useCallback, useMemo, useState, useTransition } from "react";
+import type { DateRange } from "react-day-picker";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -12,6 +13,13 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 interface DatePreset {
@@ -102,6 +110,13 @@ export function FilterStrip() {
     });
   };
 
+  const setCustomRange = (fromDate: Date, toDate: Date) => {
+    update((next) => {
+      next.set("from", isoDate(fromDate));
+      next.set("to", isoDate(toDate));
+    });
+  };
+
   const togglePlatform = (value: string) => {
     const set = new Set(selectedPlatforms);
     if (set.has(value)) set.delete(value);
@@ -138,26 +153,13 @@ export function FilterStrip() {
     <div className="sticky top-0 z-10 border-b border-line bg-background/95 backdrop-blur">
       <div className="flex items-center gap-2 px-6 h-12 overflow-x-auto">
         {/* Date range */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button type="button">
-              <Chip icon={CalendarDays} label="Date" value={dateLabel} active />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-56">
-            <DropdownMenuLabel>Date range</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            {DATE_PRESETS.map((p) => {
-              const active = activePresetKey(from, to) === p.key;
-              return (
-                <DropdownMenuItem key={p.key} onSelect={() => setPreset(p.days)}>
-                  <span className="flex-1">{p.label}</span>
-                  {active && <Check className="w-3.5 h-3.5 text-brand" />}
-                </DropdownMenuItem>
-              );
-            })}
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <DateRangeFilter
+          from={from}
+          to={to}
+          setPreset={setPreset}
+          setCustomRange={setCustomRange}
+          dateLabel={dateLabel}
+        />
 
         {/* Platforms */}
         <DropdownMenu>
@@ -257,5 +259,129 @@ function Chip({ icon: Icon, label, value, active }: ChipProps) {
       <span className="text-ink-3">{label}</span>
       {value && <span className="text-ink">{value}</span>}
     </span>
+  );
+}
+
+interface DateRangeFilterProps {
+  from: string | null;
+  to: string | null;
+  setPreset: (days: number) => void;
+  setCustomRange: (from: Date, to: Date) => void;
+  dateLabel: string;
+}
+
+function DateRangeFilter({
+  from,
+  to,
+  setPreset,
+  setCustomRange,
+  dateLabel,
+}: DateRangeFilterProps) {
+  const [open, setOpen] = useState(false);
+  const [mode, setMode] = useState<"presets" | "custom">("presets");
+
+  // Seed the calendar with the current URL range so the user picks up where
+  // they left off.
+  const initialRange: DateRange | undefined = useMemo(() => {
+    if (from && to) {
+      return { from: new Date(`${from}T00:00:00Z`), to: new Date(`${to}T00:00:00Z`) };
+    }
+    return undefined;
+  }, [from, to]);
+  const [pending, setPending] = useState<DateRange | undefined>(initialRange);
+
+  const applyPending = () => {
+    if (pending?.from && pending.to) {
+      setCustomRange(pending.from, pending.to);
+      setOpen(false);
+      setMode("presets");
+    }
+  };
+
+  const presetActive = activePresetKey(from, to);
+
+  return (
+    <Popover
+      open={open}
+      onOpenChange={(o) => {
+        setOpen(o);
+        if (!o) {
+          setMode("presets");
+          setPending(initialRange);
+        }
+      }}
+    >
+      <PopoverTrigger asChild>
+        <button type="button">
+          <Chip icon={CalendarDays} label="Date" value={dateLabel} active />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="p-0 w-auto">
+        {mode === "presets" ? (
+          <div className="w-56 p-1">
+            <div className="px-2 py-1.5 text-[11px] uppercase tracking-[0.14em] text-ink-3">
+              Date range
+            </div>
+            <div className="space-y-0.5">
+              {DATE_PRESETS.map((p) => {
+                const isActive = presetActive === p.key;
+                return (
+                  <button
+                    key={p.key}
+                    type="button"
+                    onClick={() => {
+                      setPreset(p.days);
+                      setOpen(false);
+                    }}
+                    className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm text-ink-2 hover:bg-surface-2 hover:text-ink"
+                  >
+                    <span className="flex-1 text-left">{p.label}</span>
+                    {isActive && <Check className="w-3.5 h-3.5 text-brand" />}
+                  </button>
+                );
+              })}
+              <button
+                type="button"
+                onClick={() => setMode("custom")}
+                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm text-ink-2 hover:bg-surface-2 hover:text-ink border-t border-line mt-1"
+              >
+                <span className="flex-1 text-left">Custom range…</span>
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="p-3 space-y-3">
+            <div className="text-[11px] uppercase tracking-[0.14em] text-ink-3 px-1">
+              Pick a custom range
+            </div>
+            <Calendar
+              mode="range"
+              numberOfMonths={2}
+              defaultMonth={pending?.from ?? new Date()}
+              selected={pending}
+              onSelect={setPending}
+            />
+            <div className="flex items-center justify-between gap-2 px-1">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setMode("presets")}
+              >
+                Back
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                onClick={applyPending}
+                disabled={!pending?.from || !pending?.to}
+              >
+                Apply
+              </Button>
+            </div>
+          </div>
+        )}
+      </PopoverContent>
+    </Popover>
   );
 }

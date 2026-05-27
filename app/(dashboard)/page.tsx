@@ -5,6 +5,7 @@ import {
   defaultDateRange,
   kpis,
   platformMix,
+  productMix,
   spendByDatePlatform,
   topCreatives,
   type KpiFilters,
@@ -12,6 +13,7 @@ import {
 import { SpendOverTimeChart } from "@/components/charts/spend-over-time";
 import { TopCreativesTable } from "@/components/charts/top-creatives";
 import { PlatformMixDonut } from "@/components/charts/platform-mix";
+import { ProductMixDonut } from "@/components/charts/product-mix";
 import { FilterStrip } from "@/components/filters/filter-strip";
 import { usd, int, pct, ratio } from "@/lib/format";
 import { dashboardFiltersSchema } from "@/validators/filters";
@@ -57,11 +59,12 @@ export default async function OverviewPage({
     includeExcluded: parsed.includeExcluded,
   };
 
-  const [k, spendRows, topRows, mixRows] = await Promise.all([
+  const [k, spendRows, topRows, mixRows, productMixRows] = await Promise.all([
     kpis(filters),
     spendByDatePlatform(filters),
     topCreatives(filters, 10),
     platformMix(filters),
+    productMix(filters),
   ]);
 
   const tiles: Array<{ label: string; value: string }> = [
@@ -120,21 +123,30 @@ export default async function OverviewPage({
         ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <Card className="lg:col-span-2 bg-surface border-line">
-          <CardHeader>
-            <CardTitle className="text-sm">Spend over time</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <SpendOverTimeChart rows={spendRows} />
-          </CardContent>
-        </Card>
+      <Card className="bg-surface border-line">
+        <CardHeader>
+          <CardTitle className="text-sm">Spend over time</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <SpendOverTimeChart rows={spendRows} />
+        </CardContent>
+      </Card>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card className="bg-surface border-line">
           <CardHeader>
             <CardTitle className="text-sm">Platform mix</CardTitle>
           </CardHeader>
           <CardContent>
             <PlatformMixDonut rows={mixRows} />
+          </CardContent>
+        </Card>
+        <Card className="bg-surface border-line">
+          <CardHeader>
+            <CardTitle className="text-sm">Product mix</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ProductMixDonut rows={productMixRows} />
           </CardContent>
         </Card>
       </div>

@@ -72,6 +72,14 @@ export interface PlatformMixRow {
   roas: number | null;
 }
 
+export interface ProductMixRow {
+  productId: string;
+  productName: string;
+  spend: number;
+  impressions: number;
+  conversions: number | null;
+}
+
 export interface TopCreativeRow {
   creativeId: string;
   name: string;
@@ -349,6 +357,50 @@ export async function platformMix(
     ctr: num(r.ctr),
     cpa: num(r.cpa),
     roas: num(r.roas),
+  }));
+}
+
+/**
+ * Spend per product for the Overview product-mix donut. Always joins
+ * creatives → products. Filters from `buildBaseConditions` apply; we just
+ * always need the products join here.
+ */
+export async function productMix(
+  filters: KpiFilters,
+): Promise<ProductMixRow[]> {
+  const { conditions, needsTagJoin } = buildBaseConditions(filters);
+
+  let q = db
+    .select({
+      productId: products.id,
+      productName: products.name,
+      spend: sumSpend,
+      impressions: sumImpressions,
+      conversions: sumConversions,
+    })
+    .from(performanceRecords)
+    .innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId))
+    .innerJoin(products, eq(products.id, creatives.productId))
+    .$dynamic();
+
+  if (needsTagJoin) {
+    q = q.innerJoin(
+      creativeTags,
+      eq(creativeTags.creativeId, performanceRecords.creativeId),
+    );
+  }
+
+  const rows = await q
+    .where(and(...conditions))
+    .groupBy(products.id, products.name)
+    .orderBy(desc(sumSpend));
+
+  return rows.map((r) => ({
+    productId: r.productId,
+    productName: r.productName,
+    spend: Number(r.spend ?? 0),
+    impressions: Number(r.impressions ?? 0),
+    conversions: num(r.conversions),
   }));
 }
 
