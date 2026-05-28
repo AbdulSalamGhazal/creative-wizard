@@ -14,6 +14,7 @@ import {
   index,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 
 export const roleEnum = ["admin", "editor", "viewer"] as const;
 export const platformEnum = ["meta", "tiktok", "snapchat", "google"] as const;
@@ -179,6 +180,9 @@ export const summaryViews = pgTable(
     page: varchar("page", { length: 32 }).notNull().default("summary"),
     name: varchar("name", { length: 120 }).notNull(),
     query: text("query").notNull(),
+    /** At most one default per page (team-wide landing config). Enforced by
+     *  the partial unique index below. */
+    isDefault: boolean("is_default").notNull().default(false),
     ownerUserId: uuid("owner_user_id")
       .notNull()
       .references(() => users.id),
@@ -194,6 +198,10 @@ export const summaryViews = pgTable(
       t.page,
       t.name,
     ),
+    // One default per page — partial unique index over rows where is_default.
+    oneDefaultPerPage: uniqueIndex("summary_views_default_idx")
+      .on(t.page)
+      .where(sql`${t.isDefault}`),
   }),
 );
 

@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { requireAuth } from "@/lib/auth";
 import { summaryViews } from "@/db/schema";
@@ -106,6 +106,66 @@ export async function deleteSummaryView(
       entityLabel: view.name,
       actorUserId: user.id,
       meta: { page: view.page },
+    });
+    return { ok: true };
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : "Unknown error",
+    };
+  }
+}
+
+/**
+ * Toggle a view as the team default for its page. Setting one clears any
+ * existing default (one default per page, also enforced by a partial unique
+ * index). Calling on the current default clears it (no default).
+ *
+ * Any signed-in user can change the team default; it's audit-logged.
+ */
+export async function setDefaultView(id: string): Promise<ViewMutationResult> {
+  try {
+    const user = await requireAuth();
+    if (!z_uuid(id)) return { ok: false, error: "Invalid id." };
+
+    const view = await getSummaryView(id);
+    if (!view) return { ok: false, error: "View not found." };
+
+    const makeDefault = !view.isDefault;
+
+    await db.transaction(async (tx) => {
+      // Clear the current default for this page first to satisfy the
+      // one-default-per-page partial unique index.
+      await tx
+        .update(summaryViews)
+        .set({ isDefault: false })
+        .where(
+          and(
+            eq(summaryViews.page, view.page),
+            eq(summaryViews.isDefault, true),
+          ),
+        );
+      if (makeDefault) {
+        await tx
+          .update(summaryViews)
+          .set({ isDefault: true })
+          .where(eq(summaryViews.id, id));
+      }
+    });
+
+    try {
+      revalidatePath("/summary");
+    } catch (err) {
+      console.warn("revalidatePath after set-default failed:", err);
+    }
+
+    await logAudit({
+      action: AUDIT_ACTIONS.VIEW_SET_DEFAULT,
+      entityType: "view",
+      entityId: id,
+      entityLabel: view.name,
+      actorUserId: user.id,
+      meta: { page: view.page, default: makeDefault },
     });
     return { ok: true };
   } catch (err) {

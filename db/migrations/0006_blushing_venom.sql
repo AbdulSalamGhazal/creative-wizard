@@ -1,0 +1,2 @@
+ALTER TABLE "summary_views" ADD COLUMN "is_default" boolean DEFAULT false NOT NULL;--> statement-breakpoint
+CREATE UNIQUE INDEX "summary_views_default_idx" ON "summary_views" USING btree ("page") WHERE "summary_views"."is_default";

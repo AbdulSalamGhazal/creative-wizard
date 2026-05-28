@@ -3,7 +3,7 @@
 import { useCallback, useState, useTransition } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { Bookmark, Check, Plus, Trash2, X } from "lucide-react";
+import { Bookmark, Check, Plus, Star, Trash2, X } from "lucide-react";
 import {
   Popover,
   PopoverContent,
@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 import {
   createSummaryView,
   deleteSummaryView,
+  setDefaultView,
 } from "@/app/actions/summary-view";
 import type { SummaryViewRow } from "@/db/queries/summary-views";
 
@@ -22,16 +23,28 @@ interface Props {
   isAdmin: boolean;
 }
 
-/** Order-independent comparison of two query strings. */
+/** Non-filter params that shouldn't be saved into or compared against a view. */
+const TRANSIENT_PARAMS = new Set(["view"]);
+
+/** Order-independent comparison of two query strings, ignoring transient params. */
 function sameQuery(a: string, b: string): boolean {
   const norm = (s: string) => {
     const p = new URLSearchParams(s);
-    const entries = [...p.entries()].sort(([ak, av], [bk, bv]) =>
-      ak === bk ? av.localeCompare(bv) : ak.localeCompare(bk),
-    );
+    const entries = [...p.entries()]
+      .filter(([k]) => !TRANSIENT_PARAMS.has(k))
+      .sort(([ak, av], [bk, bv]) =>
+        ak === bk ? av.localeCompare(bv) : ak.localeCompare(bk),
+      );
     return entries.map(([k, v]) => `${k}=${v}`).join("&");
   };
   return norm(a) === norm(b);
+}
+
+/** Strip transient params (e.g. the `view=none` escape) from a query string. */
+function cleanQuery(s: string): string {
+  const p = new URLSearchParams(s);
+  for (const k of TRANSIENT_PARAMS) p.delete(k);
+  return p.toString();
 }
 
 /**
@@ -50,7 +63,10 @@ export function ViewsControl({ views, currentUserId, isAdmin }: Props) {
   const [isPending, startTransition] = useTransition();
 
   const currentQuery = searchParams.toString();
+  const savableQuery = cleanQuery(currentQuery);
   const activeView = views.find((v) => sameQuery(v.query, currentQuery));
+  const inNoViewMode = searchParams.get("view") === "none";
+  const hasDefault = views.some((v) => v.isDefault);
 
   const applyView = useCallback(
     (query: string) => {
@@ -66,7 +82,7 @@ export function ViewsControl({ views, currentUserId, isAdmin }: Props) {
     startTransition(async () => {
       const res = await createSummaryView({
         name: trimmed,
-        query: currentQuery,
+        query: savableQuery,
         page: "summary",
       });
       if (!res.ok) {
@@ -87,6 +103,22 @@ export function ViewsControl({ views, currentUserId, isAdmin }: Props) {
         return;
       }
       toast.success(`Deleted “${viewName}”`);
+      router.refresh();
+    });
+  };
+
+  const toggleDefault = (id: string, viewName: string, currentlyDefault: boolean) => {
+    startTransition(async () => {
+      const res = await setDefaultView(id);
+      if (!res.ok) {
+        toast.error(res.error ?? "Could not change default");
+        return;
+      }
+      toast.success(
+        currentlyDefault
+          ? `“${viewName}” is no longer the default`
+          : `“${viewName}” is now the default view`,
+      );
       router.refresh();
     });
   };
@@ -146,13 +178,45 @@ export function ViewsControl({ views, currentUserId, isAdmin }: Props) {
                       <Bookmark className="w-3.5 h-3.5 text-ink-3 shrink-0" />
                     )}
                     <span className="flex flex-col min-w-0">
-                      <span className="truncate text-ink">{v.name}</span>
+                      <span className="flex items-center gap-1.5 min-w-0">
+                        <span className="truncate text-ink">{v.name}</span>
+                        {v.isDefault && (
+                          <span className="shrink-0 inline-flex items-center h-4 px-1 rounded text-[9px] uppercase tracking-wide border border-brand/40 bg-brand/10 text-brand">
+                            Default
+                          </span>
+                        )}
+                      </span>
                       {v.ownerName && (
                         <span className="truncate text-[10px] text-ink-3">
                           {v.ownerName}
                         </span>
                       )}
                     </span>
+                  </button>
+                  {/* Make / unset default — star toggle */}
+                  <button
+                    type="button"
+                    onClick={() => toggleDefault(v.id, v.name, v.isDefault)}
+                    disabled={isPending}
+                    className={cn(
+                      "shrink-0 transition-colors",
+                      v.isDefault
+                        ? "text-brand"
+                        : "text-ink-3 hover:text-ink opacity-0 group-hover:opacity-100",
+                    )}
+                    title={
+                      v.isDefault
+                        ? "Default view — click to unset"
+                        : "Set as default view"
+                    }
+                    aria-label={
+                      v.isDefault ? `Unset ${v.name} as default` : `Set ${v.name} as default`
+                    }
+                  >
+                    <Star
+                      className="w-3.5 h-3.5"
+                      fill={v.isDefault ? "currentColor" : "none"}
+                    />
                   </button>
                   {canDelete && (
                     <button
@@ -201,14 +265,25 @@ export function ViewsControl({ views, currentUserId, isAdmin }: Props) {
               Save
             </button>
           </div>
-          {activeView && (
+          {currentQuery.length > 0 && !(inNoViewMode && savableQuery === "") && (
             <button
               type="button"
-              onClick={() => applyView("")}
+              onClick={() => {
+                setOpen(false);
+                // If a team default is set, a bare /summary would redirect
+                // straight back to it — so route through ?view=none to reach
+                // the unfiltered table.
+                router.push(
+                  hasDefault ? `${pathname}?view=none` : pathname,
+                  { scroll: false },
+                );
+              }}
               className="inline-flex items-center gap-1 text-[11px] text-ink-3 hover:text-ink transition-colors px-1"
             >
               <X className="w-3 h-3" />
-              Clear view (reset to default)
+              {hasDefault
+                ? "Show all creatives (ignore default)"
+                : "Clear view"}
             </button>
           )}
         </div>

@@ -6,6 +6,7 @@ export interface SummaryViewRow {
   id: string;
   name: string;
   query: string;
+  isDefault: boolean;
   ownerUserId: string;
   ownerName: string | null;
   createdAt: Date;
@@ -23,6 +24,7 @@ export async function listSummaryViews(
       id: summaryViews.id,
       name: summaryViews.name,
       query: summaryViews.query,
+      isDefault: summaryViews.isDefault,
       ownerUserId: summaryViews.ownerUserId,
       ownerName: users.name,
       createdAt: summaryViews.createdAt,
@@ -35,13 +37,26 @@ export async function listSummaryViews(
     id: r.id,
     name: r.name,
     query: r.query,
+    isDefault: r.isDefault,
     ownerUserId: r.ownerUserId,
     ownerName: r.ownerName ?? null,
     createdAt: r.createdAt,
   }));
 }
 
-/** Single view by id — used by the delete action to authorize + label. */
+/** The team default view for a page, if one is set and non-empty. */
+export async function getDefaultSummaryView(
+  page = "summary",
+): Promise<{ id: string; query: string } | null> {
+  const [row] = await db
+    .select({ id: summaryViews.id, query: summaryViews.query })
+    .from(summaryViews)
+    .where(and(eq(summaryViews.page, page), eq(summaryViews.isDefault, true)))
+    .limit(1);
+  return row ?? null;
+}
+
+/** Single view by id — used by the delete/default actions to authorize + label. */
 export async function getSummaryView(id: string) {
   const [row] = await db
     .select({
@@ -49,6 +64,7 @@ export async function getSummaryView(id: string) {
       name: summaryViews.name,
       ownerUserId: summaryViews.ownerUserId,
       page: summaryViews.page,
+      isDefault: summaryViews.isDefault,
     })
     .from(summaryViews)
     .where(and(eq(summaryViews.id, id)))

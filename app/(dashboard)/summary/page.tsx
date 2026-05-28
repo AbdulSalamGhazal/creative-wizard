@@ -1,8 +1,12 @@
+import { redirect } from "next/navigation";
 import { listAllTags } from "@/db/queries/creatives";
 import { listProducts } from "@/db/queries/products";
 import { listCreators } from "@/db/queries/users";
 import { listCreativeSummary } from "@/db/queries/summary";
-import { listSummaryViews } from "@/db/queries/summary-views";
+import {
+  getDefaultSummaryView,
+  listSummaryViews,
+} from "@/db/queries/summary-views";
 import { summaryFiltersSchema } from "@/validators/summary";
 import { requireAuth } from "@/lib/auth";
 import { SummaryFilterBar } from "@/components/summary/summary-filter-bar";
@@ -23,6 +27,18 @@ export default async function SummaryPage({
   searchParams: Promise<SearchParams>;
 }) {
   const params = await searchParams;
+
+  // Default-view redirect: a bare /summary (no params at all) lands on the
+  // team default view, if one is set with a non-empty config. The explicit
+  // `?view=none` escape hatch (from "Show all" in the Views control) skips
+  // this so the unfiltered table stays reachable.
+  if (Object.keys(params).length === 0) {
+    const def = await getDefaultSummaryView("summary");
+    if (def && def.query.trim().length > 0) {
+      redirect(`/summary?${def.query}`);
+    }
+  }
+
   const parsed = summaryFiltersSchema.parse({
     from: pickFirst(params.from),
     to: pickFirst(params.to),
