@@ -36,6 +36,7 @@ export default async function SummaryPage({
     dir: pickFirst(params.dir),
     hideIdentity: pickFirst(params.hideIdentity),
     hideMetrics: pickFirst(params.hideMetrics),
+    metricFilters: pickFirst(params.metricFilters),
   });
 
   // Filter dropdowns + the query run in parallel.
@@ -54,6 +55,8 @@ export default async function SummaryPage({
         includeExcluded: parsed.includeExcluded,
         sort: parsed.sort,
         dir: parsed.dir,
+        metricFilters:
+          parsed.metricFilters.length > 0 ? parsed.metricFilters : undefined,
       }),
       listProducts(),
       listAllTags(),

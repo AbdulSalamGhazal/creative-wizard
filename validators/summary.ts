@@ -65,6 +65,81 @@ export const METRIC_COLUMN_KEYS = [
 ] as const;
 export type MetricColumnKey = (typeof METRIC_COLUMN_KEYS)[number];
 
+/**
+ * Display metadata for each metric — drives the unit hint in the filter UI
+ * and tells the query which metrics are stored as ratios (and so need
+ * ×100 before comparing against a user-entered percentage).
+ */
+export type MetricUnit = "usd" | "int" | "pct" | "x";
+export const METRIC_META: Record<
+  MetricColumnKey,
+  { label: string; unit: MetricUnit }
+> = {
+  spend: { label: "Spend", unit: "usd" },
+  impressions: { label: "Impressions", unit: "int" },
+  clicks: { label: "Clicks", unit: "int" },
+  conversions: { label: "Conversions", unit: "int" },
+  ctr: { label: "CTR", unit: "pct" },
+  cpm: { label: "CPM", unit: "usd" },
+  cpc: { label: "CPC", unit: "usd" },
+  cpa: { label: "CPA", unit: "usd" },
+  roas: { label: "ROAS", unit: "x" },
+  hook_rate: { label: "Hook rate", unit: "pct" },
+  hold_rate: { label: "Hold rate", unit: "pct" },
+};
+
+/** Numeric comparison operators for metric filters. */
+export const METRIC_FILTER_OPS = ["gte", "lte", "eq"] as const;
+export type MetricFilterOp = (typeof METRIC_FILTER_OPS)[number];
+
+export interface MetricFilterCondition {
+  metric: MetricColumnKey;
+  op: MetricFilterOp;
+  /** Value in *display units* (e.g. 2 for "CTR ≥ 2%", 1.5 for "ROAS ≥ 1.5×"). */
+  value: number;
+}
+
+/**
+ * Parse the `metricFilters` URL param. Format: `metric:op:value` items
+ * joined by commas, e.g. `roas:gte:2,spend:gte:500`.
+ *
+ * Invalid items are dropped silently (a shared/edited URL shouldn't 500).
+ * Dedup is by metric+op so "spend:gte:100" + "spend:lte:500" coexist (a
+ * range) but a duplicate metric+op keeps only the first.
+ *
+ * Shared by the Zod schema (server) and the filter control (client) so the
+ * encoding has exactly one definition.
+ */
+export function parseMetricFilters(
+  raw: string | null | undefined,
+): MetricFilterCondition[] {
+  if (!raw) return [];
+  const out: MetricFilterCondition[] = [];
+  const seen = new Set<string>();
+  for (const part of raw.split(",")) {
+    const seg = part.split(":");
+    if (seg.length !== 3) continue;
+    const [metric, op, rawValue] = seg;
+    if (!(METRIC_COLUMN_KEYS as readonly string[]).includes(metric!)) continue;
+    if (!(METRIC_FILTER_OPS as readonly string[]).includes(op!)) continue;
+    const value = Number(rawValue);
+    if (!Number.isFinite(value)) continue;
+    const key = `${metric}:${op}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({
+      metric: metric as MetricColumnKey,
+      op: op as MetricFilterOp,
+      value,
+    });
+  }
+  return out;
+}
+
+export function serializeMetricFilters(arr: MetricFilterCondition[]): string {
+  return arr.map((f) => `${f.metric}:${f.op}:${f.value}`).join(",");
+}
+
 /** Identity columns + per-platform metric keys. Validated against the
  *  selected platforms in the page; an invalid combination falls back to
  *  the default sort. */
@@ -107,6 +182,11 @@ export const summaryFiltersSchema = z.object({
   // default ("show everything") needs no URL params.
   hideIdentity: csvEnum(IDENTITY_COLUMN_KEYS),
   hideMetrics: csvEnum(METRIC_COLUMN_KEYS),
+  // Numeric metric filters applied to the blended total.
+  metricFilters: z
+    .string()
+    .optional()
+    .transform((s) => parseMetricFilters(s)),
 });
 
 export type SummaryFilters = z.infer<typeof summaryFiltersSchema>;

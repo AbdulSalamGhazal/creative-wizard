@@ -38,6 +38,7 @@ import {
   type IdentityColumnKey,
   type MetricColumnKey,
 } from "@/validators/summary";
+import { MetricFilterControl } from "@/components/summary/metric-filter";
 import type { DateRange } from "react-day-picker";
 
 interface Props {
@@ -256,7 +257,8 @@ export function SummaryFilterBar({ products, tags, creators }: Props) {
     platforms.length > 0 ||
     !!from ||
     !!to ||
-    includeExcluded;
+    includeExcluded ||
+    !!searchParams.get("metricFilters");
 
   const clearAll = () =>
     update((next) => {
@@ -275,6 +277,7 @@ export function SummaryFilterBar({ products, tags, creators }: Props) {
         "dir",
         "hideIdentity",
         "hideMetrics",
+        "metricFilters",
       ].forEach((k) => next.delete(k));
     });
 
@@ -542,6 +545,9 @@ export function SummaryFilterBar({ products, tags, creators }: Props) {
             </DropdownMenuContent>
           )}
         </FilterPill>
+
+        {/* Numeric metric filters (ROAS ≥ 2, Spend ≥ 500, …) */}
+        <MetricFilterControl />
 
         <div className="ml-auto flex items-center gap-2">
           {/* Columns visibility — opt-out (URL only lists hidden columns) */}

@@ -36,7 +36,12 @@ import {
   sumImpressions,
   sumSpend,
 } from "@/lib/metrics";
-import type { SortDir } from "@/validators/summary";
+import {
+  METRIC_META,
+  type MetricColumnKey,
+  type MetricFilterCondition,
+  type SortDir,
+} from "@/validators/summary";
 
 type Platform = (typeof platformEnum)[number];
 type CreativeType = (typeof creativeTypeEnum)[number];
@@ -56,6 +61,8 @@ export interface SummaryFilterInput {
   includeExcluded?: boolean;
   sort?: string;
   dir?: SortDir;
+  /** Numeric predicates applied to each creative's blended total (ANDed). */
+  metricFilters?: MetricFilterCondition[];
 }
 
 export interface PlatformMetricBlock {
@@ -236,6 +243,77 @@ function orderBySql(
 const num = (v: unknown): number => (v === null || v === undefined ? 0 : Number(v));
 const numOrNull = (v: unknown): number | null =>
   v === null || v === undefined ? null : Number(v);
+
+/**
+ * Read a metric off a creative's blended total in the SAME units the user
+ * sees and filters in. Percentage metrics are stored as ratios (0.0275)
+ * but displayed as percentage points (2.75), so we ×100 before comparing —
+ * that way "CTR ≥ 2" means 2%, matching the table.
+ */
+function comparableTotal(
+  total: PlatformMetricBlock,
+  metric: MetricColumnKey,
+): number | null {
+  let raw: number | null;
+  switch (metric) {
+    case "spend":
+      raw = total.spend;
+      break;
+    case "impressions":
+      raw = total.impressions;
+      break;
+    case "clicks":
+      raw = total.clicks;
+      break;
+    case "conversions":
+      raw = total.conversions;
+      break;
+    case "ctr":
+      raw = total.ctr;
+      break;
+    case "cpm":
+      raw = total.cpm;
+      break;
+    case "cpc":
+      raw = total.cpc;
+      break;
+    case "cpa":
+      raw = total.cpa;
+      break;
+    case "roas":
+      raw = total.roas;
+      break;
+    case "hook_rate":
+      raw = total.hookRate;
+      break;
+    case "hold_rate":
+      raw = total.holdRate;
+      break;
+    default:
+      raw = null;
+  }
+  if (raw === null || raw === undefined) return null;
+  return METRIC_META[metric].unit === "pct" ? raw * 100 : raw;
+}
+
+/** Does a creative's total satisfy every metric filter? Null totals never pass. */
+function passesMetricFilters(
+  total: PlatformMetricBlock,
+  filters: MetricFilterCondition[],
+): boolean {
+  return filters.every((f) => {
+    const v = comparableTotal(total, f.metric);
+    if (v === null) return false;
+    switch (f.op) {
+      case "gte":
+        return v >= f.value;
+      case "lte":
+        return v <= f.value;
+      case "eq":
+        return v === f.value;
+    }
+  });
+}
 
 const ALL_PLATFORMS: Platform[] = ["meta", "tiktok", "snapchat", "google"];
 
@@ -464,5 +542,19 @@ export async function listCreativeSummary(
     };
   });
 
-  return { rows, platforms: selectedPlatforms, effectiveSort: resolved };
+  // Numeric metric filters — applied in-memory against each creative's
+  // blended total. There's no LIMIT on this query, so post-aggregation
+  // filtering is exactly equivalent to a HAVING clause but far simpler to
+  // express against the dynamic per-selection total expressions. Sort order
+  // from SQL is preserved because we only drop rows.
+  const filteredRows =
+    filters.metricFilters && filters.metricFilters.length > 0
+      ? rows.filter((r) => passesMetricFilters(r.total, filters.metricFilters!))
+      : rows;
+
+  return {
+    rows: filteredRows,
+    platforms: selectedPlatforms,
+    effectiveSort: resolved,
+  };
 }
