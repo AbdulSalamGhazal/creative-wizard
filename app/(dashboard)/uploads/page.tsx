@@ -24,6 +24,9 @@ const PLATFORM_LABEL: Record<string, string> = {
 export default async function UploadsPage() {
   const currentUser = await auth();
   const isAdmin = currentUser?.role === "admin";
+  // Rollback stays admin-only; record cleanup is open to editors too.
+  const canCleanup =
+    currentUser?.role === "admin" || currentUser?.role === "editor";
 
   const rows = await db
     .select({
@@ -40,8 +43,8 @@ export default async function UploadsPage() {
     .orderBy(desc(uploadBatches.uploadedAt))
     .limit(50);
 
-  // Filter options for the admin cleanup tool (only fetched for admins).
-  const [cleanupProducts, cleanupCreatives] = isAdmin
+  // Filter options for the cleanup tool (fetched for editors + admins).
+  const [cleanupProducts, cleanupCreatives] = canCleanup
     ? await Promise.all([
         db
           .select({ id: products.id, name: products.name })
@@ -153,7 +156,7 @@ export default async function UploadsPage() {
         window, use the cleanup tool below or contact an operator.
       </p>
 
-      {isAdmin && (
+      {canCleanup && (
         <CleanupTool products={cleanupProducts} creatives={cleanupCreatives} />
       )}
     </div>

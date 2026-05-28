@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireAdmin } from "@/lib/auth";
+import { requireEditor } from "@/lib/auth";
 import {
   deleteRecords,
   previewCleanup,
@@ -24,13 +24,13 @@ export interface CleanupResult {
 
 /**
  * Count + summarize what a cleanup selection would remove. Read-only,
- * admin-only. The UI calls this before showing the destructive confirm.
+ * editor-or-admin. The UI calls this before showing the destructive confirm.
  */
 export async function previewCleanupAction(
   input: unknown,
 ): Promise<PreviewResult> {
   try {
-    await requireAdmin();
+    await requireEditor();
     const parsed = cleanupFiltersSchema.safeParse(input);
     if (!parsed.success) {
       return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid filters" };
@@ -46,12 +46,12 @@ export async function previewCleanupAction(
  * Permanently delete the performance_records matching the selection.
  *
  * This is a sanctioned exit path for performance_records (alongside batch
- * rollback): admin-only, requires at least one filter, and writes an audit
- * entry recording the exact selection and the row count removed.
+ * rollback): editor-or-admin, requires at least one filter, and writes an
+ * audit entry recording the exact selection and the row count removed.
  */
 export async function runCleanup(input: unknown): Promise<CleanupResult> {
   try {
-    const user = await requireAdmin();
+    const user = await requireEditor();
     const parsed = cleanupFiltersSchema.safeParse(input);
     if (!parsed.success) {
       return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid filters" };

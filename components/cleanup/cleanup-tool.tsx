@@ -143,7 +143,7 @@ export function CleanupTool({ products, creatives }: Props) {
         <AlertTriangle className="w-4 h-4 text-neg" />
         <h2 className="text-sm font-medium text-ink">Clean up records</h2>
         <span className="text-[11px] text-ink-3">
-          Admin · permanent · audit-logged
+          Editors & admins · permanent · audit-logged
         </span>
       </div>
       <p className="text-[12px] text-ink-2">
