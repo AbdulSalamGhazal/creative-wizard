@@ -1,22 +1,16 @@
 import { Suspense } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
   defaultDateRange,
-  kpis,
   platformMix,
-  productMix,
-  spendByDatePlatform,
-  topCreatives,
   type KpiFilters,
 } from "@/db/queries/performance";
-import { SpendOverTimeChart } from "@/components/charts/spend-over-time";
-import { TopCreativesTable } from "@/components/charts/top-creatives";
-import { PlatformMixDonut } from "@/components/charts/platform-mix";
-import { ProductMixDonut } from "@/components/charts/product-mix";
+import { OverviewSection } from "@/components/overview/overview-section";
 import { FilterStrip } from "@/components/filters/filter-strip";
-import { usd, int, pct, ratio } from "@/lib/format";
 import { dashboardFiltersSchema } from "@/validators/filters";
+import { PLATFORM_LABEL } from "@/lib/palette";
+
+type Platform = "meta" | "tiktok" | "snapchat" | "google";
 
 const TRAILING_DAYS_DEFAULT = 30;
 
@@ -59,25 +53,18 @@ export default async function OverviewPage({
     includeExcluded: parsed.includeExcluded,
   };
 
-  const [k, spendRows, topRows, mixRows, productMixRows] = await Promise.all([
-    kpis(filters),
-    spendByDatePlatform(filters),
-    topCreatives(filters, 10),
-    platformMix(filters),
-    productMix(filters),
-  ]);
-
-  const tiles: Array<{ label: string; value: string }> = [
-    { label: "Spend", value: usd(k.spend) },
-    { label: "Impressions", value: int(k.impressions) },
-    { label: "Blended CTR", value: pct(k.ctr) },
-    { label: "Conversions", value: int(k.conversions) },
-    { label: "Blended CPA", value: usd(k.cpa) },
-    { label: "Blended ROAS", value: ratio(k.roas) },
-  ];
-
   const platformsBadge =
     parsed.platforms.length > 0 ? parsed.platforms.join(", ") : "all platforms";
+  const rangeLabel = `${from} → ${to}`;
+
+  // Which platforms to break out: those with spend in the window (already
+  // narrowed by any platform filter), ordered by spend desc. We only show
+  // the per-platform sections when 2+ platforms are in scope — with one,
+  // the breakout would just duplicate the blended section above.
+  const presentPlatforms = (await platformMix(filters)).map(
+    (r) => r.platform as Platform,
+  );
+  const showBreakouts = presentPlatforms.length >= 2;
 
   return (
     <div className="space-y-6">
@@ -90,6 +77,7 @@ export default async function OverviewPage({
           <FilterStrip />
         </div>
       </Suspense>
+
       <div className="flex items-end justify-between flex-wrap gap-3">
         <div>
           <h1 className="font-display text-4xl tracking-tight">Overview</h1>
@@ -103,62 +91,32 @@ export default async function OverviewPage({
         </Badge>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-        {tiles.map((t) => (
-          <Card key={t.label} className="bg-surface border-line">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-xs uppercase tracking-[0.14em] text-ink-3 font-medium">
-                {t.label}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="font-display text-4xl num text-ink leading-none">
-                {t.value}
-              </div>
-              <div className="text-[11px] text-ink-3 mt-2">
-                {from} → {to}
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+      <OverviewSection
+        title="All platforms"
+        filters={filters}
+        rangeLabel={rangeLabel}
+      />
 
-      <Card className="bg-surface border-line">
-        <CardHeader>
-          <CardTitle className="text-sm">Spend over time</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <SpendOverTimeChart rows={spendRows} />
-        </CardContent>
-      </Card>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <Card className="bg-surface border-line">
-          <CardHeader>
-            <CardTitle className="text-sm">Platform mix</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <PlatformMixDonut rows={mixRows} />
-          </CardContent>
-        </Card>
-        <Card className="bg-surface border-line">
-          <CardHeader>
-            <CardTitle className="text-sm">Product mix</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ProductMixDonut rows={productMixRows} />
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card className="bg-surface border-line">
-        <CardHeader>
-          <CardTitle className="text-sm">Top creatives by spend</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <TopCreativesTable rows={topRows} />
-        </CardContent>
-      </Card>
+      {showBreakouts && (
+        <>
+          <div className="flex items-center gap-3 pt-4">
+            <span className="text-[11px] uppercase tracking-[0.18em] text-ink-3">
+              By platform
+            </span>
+            <div className="h-px flex-1 bg-line" />
+          </div>
+          {presentPlatforms.map((p) => (
+            <div key={p} className="border-t border-line pt-2">
+              <OverviewSection
+                title={PLATFORM_LABEL[p]}
+                filters={filters}
+                platform={p}
+                rangeLabel={rangeLabel}
+              />
+            </div>
+          ))}
+        </>
+      )}
     </div>
   );
 }

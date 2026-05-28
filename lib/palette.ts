@@ -71,3 +71,20 @@ const PRODUCT_COLORS = [
 export function productColor(name: string): string {
   return PRODUCT_COLORS[hashString(name) % PRODUCT_COLORS.length]!;
 }
+
+/** Deterministic flat color for an arbitrary label (e.g. tags). */
+export function swatchColor(name: string): string {
+  return PRODUCT_COLORS[hashString(name) % PRODUCT_COLORS.length]!;
+}
+
+/** Fixed colors + labels for the three creative types. */
+export const TYPE_COLOR: Record<"video" | "image" | "slides", string> = {
+  video: "#60A5FA", // sky
+  image: "#FBBF24", // amber
+  slides: "#A78BFA", // violet
+};
+export const TYPE_LABEL: Record<"video" | "image" | "slides", string> = {
+  video: "Video",
+  image: "Image",
+  slides: "Slides",
+};

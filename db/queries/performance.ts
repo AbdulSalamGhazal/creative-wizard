@@ -87,6 +87,20 @@ export interface ProductMixRow {
   conversions: number | null;
 }
 
+export interface TypeMixRow {
+  type: CreativeType;
+  spend: number;
+  impressions: number;
+  conversions: number | null;
+}
+
+export interface TagMixRow {
+  tag: string;
+  spend: number;
+  impressions: number;
+  conversions: number | null;
+}
+
 export interface TopCreativeRow {
   creativeId: string;
   name: string;
@@ -448,6 +462,100 @@ export async function productMix(
   return rows.map((r) => ({
     productId: r.productId,
     productName: r.productName,
+    spend: Number(r.spend ?? 0),
+    impressions: Number(r.impressions ?? 0),
+    conversions: num(r.conversions),
+  }));
+}
+
+/**
+ * Spend per creative type (video / image / slides) for the Overview
+ * type-mix donut. Always joins creatives for the `type` column.
+ */
+export async function typeMix(filters: KpiFilters): Promise<TypeMixRow[]> {
+  const { conditions, needsTagJoin } = buildBaseConditions(filters);
+
+  let q = db
+    .select({
+      type: creatives.type,
+      spend: sumSpend,
+      impressions: sumImpressions,
+      conversions: sumConversions,
+    })
+    .from(performanceRecords)
+    .innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId))
+    .$dynamic();
+
+  if (needsTagJoin) {
+    q = q.innerJoin(
+      creativeTags,
+      eq(creativeTags.creativeId, performanceRecords.creativeId),
+    );
+  }
+
+  const rows = await q
+    .where(and(...conditions))
+    .groupBy(creatives.type)
+    .orderBy(desc(sumSpend));
+
+  return rows.map((r) => ({
+    type: r.type as CreativeType,
+    spend: Number(r.spend ?? 0),
+    impressions: Number(r.impressions ?? 0),
+    conversions: num(r.conversions),
+  }));
+}
+
+/**
+ * Spend per tag for the Overview tag-mix donut. Joins creative_tags, so a
+ * creative's spend counts toward each tag it carries (intentional fan-out
+ * — the same semantics as the Trends "By tag" rollup).
+ */
+export async function tagMix(filters: KpiFilters): Promise<TagMixRow[]> {
+  const conditions: SQL[] = [];
+  if (filters.from && filters.to) {
+    conditions.push(between(performanceRecords.date, filters.from, filters.to));
+  }
+  if (!filters.includeExcluded) {
+    conditions.push(eq(performanceRecords.excludedFromAggregates, false));
+  }
+  if (filters.platforms && filters.platforms.length > 0) {
+    conditions.push(inArray(performanceRecords.platform, filters.platforms));
+  }
+  if (filters.creativeIds && filters.creativeIds.length > 0) {
+    conditions.push(inArray(performanceRecords.creativeId, filters.creativeIds));
+  }
+  if (filters.productIds && filters.productIds.length > 0) {
+    conditions.push(inArray(creatives.productId, filters.productIds));
+  }
+  if (filters.types && filters.types.length > 0) {
+    conditions.push(inArray(creatives.type, filters.types));
+  }
+  if (filters.statuses && filters.statuses.length > 0) {
+    conditions.push(inArray(creatives.status, filters.statuses));
+  }
+  // When a tag filter is set we still group by tag; the filter narrows which
+  // tags appear.
+  if (filters.tags && filters.tags.length > 0) {
+    conditions.push(inArray(creativeTags.tag, filters.tags));
+  }
+
+  const rows = await db
+    .select({
+      tag: creativeTags.tag,
+      spend: sumSpend,
+      impressions: sumImpressions,
+      conversions: sumConversions,
+    })
+    .from(performanceRecords)
+    .innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId))
+    .innerJoin(creativeTags, eq(creativeTags.creativeId, creatives.id))
+    .where(and(...conditions))
+    .groupBy(creativeTags.tag)
+    .orderBy(desc(sumSpend));
+
+  return rows.map((r) => ({
+    tag: r.tag,
     spend: Number(r.spend ?? 0),
     impressions: Number(r.impressions ?? 0),
     conversions: num(r.conversions),
