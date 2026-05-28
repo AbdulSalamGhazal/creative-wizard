@@ -163,6 +163,41 @@ export const uploadValidationSessions = pgTable(
 );
 
 /**
+ * Saved "Views" — named snapshots of a page's full filter/column/sort
+ * configuration, stored as the raw URL query string. Team-visible (this is
+ * an internal tool, so a teammate's "High-ROAS" view is useful to everyone);
+ * deletable by the owner or an admin.
+ *
+ * `page` lets the table be reused beyond Summary later (Trends, Library…).
+ * `query` is the searchParams string sans leading "?", e.g.
+ * "platforms=meta,tiktok&metricFilters=total:roas:gte:2".
+ */
+export const summaryViews = pgTable(
+  "summary_views",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    page: varchar("page", { length: 32 }).notNull().default("summary"),
+    name: varchar("name", { length: 120 }).notNull(),
+    query: text("query").notNull(),
+    ownerUserId: uuid("owner_user_id")
+      .notNull()
+      .references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => ({
+    pageIdx: index("summary_views_page_idx").on(t.page),
+    ownerIdx: index("summary_views_owner_idx").on(t.ownerUserId),
+    uniqOwnerName: uniqueIndex("summary_views_owner_name_idx").on(
+      t.ownerUserId,
+      t.page,
+      t.name,
+    ),
+  }),
+);
+
+/**
  * Append-only audit trail. Every mutation in the system writes one row.
  *
  * Design notes:

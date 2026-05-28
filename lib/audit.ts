@@ -48,6 +48,10 @@ export const AUDIT_ACTIONS = {
   AUTH_SIGNIN_FAILED: "auth.signin_failed",
   AUTH_SIGNOUT: "auth.signout",
   AUTH_PASSWORD_CHANGE: "auth.password_change",
+
+  // Saved views
+  VIEW_CREATE: "view.create",
+  VIEW_DELETE: "view.delete",
 } as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[keyof typeof AUDIT_ACTIONS];
@@ -59,7 +63,8 @@ export type AuditEntityType =
   | "upload"
   | "exclusion"
   | "mapping"
-  | "auth";
+  | "auth"
+  | "view";
 
 export interface AuditEventInput {
   action: AuditAction;
@@ -122,6 +127,8 @@ export const AUDIT_LABELS: Record<AuditAction, string> = {
   "auth.signin_failed": "Failed sign-in",
   "auth.signout": "Signed out",
   "auth.password_change": "Changed password",
+  "view.create": "Saved a view",
+  "view.delete": "Deleted a view",
 };
 
 /** Coarse grouping for filter chips. */
@@ -146,4 +153,6 @@ export const AUDIT_CATEGORIES: Record<AuditAction, AuditEntityType> = {
   "auth.signin_failed": "auth",
   "auth.signout": "auth",
   "auth.password_change": "auth",
+  "view.create": "view",
+  "view.delete": "view",
 };

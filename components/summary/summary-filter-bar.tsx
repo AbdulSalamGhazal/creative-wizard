@@ -39,6 +39,8 @@ import {
   type MetricColumnKey,
 } from "@/validators/summary";
 import { MetricFilterControl } from "@/components/summary/metric-filter";
+import { ViewsControl } from "@/components/summary/views-control";
+import type { SummaryViewRow } from "@/db/queries/summary-views";
 import type { DateRange } from "react-day-picker";
 
 interface Props {
@@ -47,6 +49,10 @@ interface Props {
   creators: Array<{ id: string; name: string; email: string }>;
   /** Effective platforms shown in the table — feeds the metric-filter scope picker. */
   effectivePlatforms: string[];
+  /** Saved views for the Views control. */
+  views: SummaryViewRow[];
+  currentUserId: string;
+  isAdmin: boolean;
 }
 
 const PLATFORMS = [
@@ -125,6 +131,9 @@ export function SummaryFilterBar({
   tags,
   creators,
   effectivePlatforms,
+  views,
+  currentUserId,
+  isAdmin,
 }: Props) {
   const router = useRouter();
   const pathname = usePathname();
@@ -316,6 +325,15 @@ export function SummaryFilterBar({
   return (
     <div className="sticky top-0 z-20 -mx-6 px-6 py-3 border-b border-line bg-background/95 backdrop-blur">
       <div className="flex items-center gap-2 flex-wrap">
+        {/* Saved views */}
+        <ViewsControl
+          views={views}
+          currentUserId={currentUserId}
+          isAdmin={isAdmin}
+        />
+
+        <span className="w-px h-5 bg-line" aria-hidden />
+
         {/* Search */}
         <div className="relative">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-ink-3 pointer-events-none" />

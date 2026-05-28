@@ -2,7 +2,9 @@ import { listAllTags } from "@/db/queries/creatives";
 import { listProducts } from "@/db/queries/products";
 import { listCreators } from "@/db/queries/users";
 import { listCreativeSummary } from "@/db/queries/summary";
+import { listSummaryViews } from "@/db/queries/summary-views";
 import { summaryFiltersSchema } from "@/validators/summary";
+import { requireAuth } from "@/lib/auth";
 import { SummaryFilterBar } from "@/components/summary/summary-filter-bar";
 import { SummaryTable } from "@/components/summary/summary-table";
 
@@ -39,29 +41,37 @@ export default async function SummaryPage({
     metricFilters: pickFirst(params.metricFilters),
   });
 
+  const user = await requireAuth();
+
   // Filter dropdowns + the query run in parallel.
-  const [{ rows, platforms: selectedPlatforms, effectiveSort }, products, tags, creators] =
-    await Promise.all([
-      listCreativeSummary({
-        from: parsed.from,
-        to: parsed.to,
-        q: parsed.q,
-        productIds: parsed.productIds.length > 0 ? parsed.productIds : undefined,
-        platforms: parsed.platforms.length > 0 ? parsed.platforms : undefined,
-        types: parsed.types.length > 0 ? parsed.types : undefined,
-        statuses: parsed.statuses.length > 0 ? parsed.statuses : undefined,
-        tags: parsed.tags.length > 0 ? parsed.tags : undefined,
-        creatorIds: parsed.creatorIds.length > 0 ? parsed.creatorIds : undefined,
-        includeExcluded: parsed.includeExcluded,
-        sort: parsed.sort,
-        dir: parsed.dir,
-        metricFilters:
-          parsed.metricFilters.length > 0 ? parsed.metricFilters : undefined,
-      }),
-      listProducts(),
-      listAllTags(),
-      listCreators(),
-    ]);
+  const [
+    { rows, platforms: selectedPlatforms, effectiveSort },
+    products,
+    tags,
+    creators,
+    views,
+  ] = await Promise.all([
+    listCreativeSummary({
+      from: parsed.from,
+      to: parsed.to,
+      q: parsed.q,
+      productIds: parsed.productIds.length > 0 ? parsed.productIds : undefined,
+      platforms: parsed.platforms.length > 0 ? parsed.platforms : undefined,
+      types: parsed.types.length > 0 ? parsed.types : undefined,
+      statuses: parsed.statuses.length > 0 ? parsed.statuses : undefined,
+      tags: parsed.tags.length > 0 ? parsed.tags : undefined,
+      creatorIds: parsed.creatorIds.length > 0 ? parsed.creatorIds : undefined,
+      includeExcluded: parsed.includeExcluded,
+      sort: parsed.sort,
+      dir: parsed.dir,
+      metricFilters:
+        parsed.metricFilters.length > 0 ? parsed.metricFilters : undefined,
+    }),
+    listProducts(),
+    listAllTags(),
+    listCreators(),
+    listSummaryViews("summary"),
+  ]);
 
   // Reconstruct the base URLSearchParams for sort-link href computation.
   const baseParams = new URLSearchParams();
@@ -85,6 +95,9 @@ export default async function SummaryPage({
         tags={tags}
         creators={creators}
         effectivePlatforms={selectedPlatforms}
+        views={views}
+        currentUserId={user.id}
+        isAdmin={user.role === "admin"}
       />
 
       <div className="flex items-end justify-between flex-wrap gap-2">
