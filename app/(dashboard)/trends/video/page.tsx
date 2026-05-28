@@ -4,6 +4,8 @@ import { ArrowLeft } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { defaultDateRange } from "@/db/queries/performance";
 import { videoDiagnostics } from "@/db/queries/trends";
+import { listProducts } from "@/db/queries/products";
+import { listAllTags } from "@/db/queries/creatives";
 import { FilterStrip } from "@/components/filters/filter-strip";
 import { VideoDiagnosticsTable } from "@/components/trends/video-diagnostics-table";
 import { dashboardFiltersSchema } from "@/validators/filters";
@@ -36,13 +38,18 @@ export default async function TrendsVideoPage({
   const from = parsed.from ?? range.from;
   const to = parsed.to ?? range.to;
 
-  const { rows, medianHookRate, medianHoldRate } = await videoDiagnostics({
-    from,
-    to,
-    platforms: parsed.platforms.length > 0 ? parsed.platforms : undefined,
-    productIds: parsed.productIds.length > 0 ? parsed.productIds : undefined,
-    includeExcluded: parsed.includeExcluded,
-  });
+  const [{ rows, medianHookRate, medianHoldRate }, products, tags] =
+    await Promise.all([
+      videoDiagnostics({
+        from,
+        to,
+        platforms: parsed.platforms.length > 0 ? parsed.platforms : undefined,
+        productIds: parsed.productIds.length > 0 ? parsed.productIds : undefined,
+        includeExcluded: parsed.includeExcluded,
+      }),
+      listProducts(),
+      listAllTags(),
+    ]);
 
   return (
     <div className="space-y-6">
@@ -50,7 +57,7 @@ export default async function TrendsVideoPage({
         fallback={<div className="-mx-6 px-6 h-12 border-b border-line bg-background/95" />}
       >
         <div className="-mx-6 -mt-6 mb-2">
-          <FilterStrip />
+          <FilterStrip products={products} tags={tags} />
         </div>
       </Suspense>
 

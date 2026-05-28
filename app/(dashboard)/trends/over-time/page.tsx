@@ -10,6 +10,8 @@ import {
   topMovers,
   type KpiFilters,
 } from "@/db/queries/performance";
+import { listProducts } from "@/db/queries/products";
+import { listAllTags } from "@/db/queries/creatives";
 import { FilterStrip } from "@/components/filters/filter-strip";
 import { KpiTile } from "@/components/kpi/kpi-tile";
 import { SpendComparisonChart } from "@/components/charts/spend-comparison";
@@ -59,10 +61,12 @@ export default async function TrendsOverTimePage({
     includeExcluded: parsed.includeExcluded,
   };
 
-  const [k, compareRows, movers] = await Promise.all([
+  const [k, compareRows, movers, products, tags] = await Promise.all([
     kpisWithDelta(filters),
     spendByDateComparison(filters),
     topMovers(filters, 10),
+    listProducts(),
+    listAllTags(),
   ]);
 
   const caption = periodCaption(from, to);
@@ -93,7 +97,7 @@ export default async function TrendsOverTimePage({
         }
       >
         <div className="-mx-6 -mt-6 mb-2">
-          <FilterStrip />
+          <FilterStrip products={products} tags={tags} />
         </div>
       </Suspense>
 

@@ -4,6 +4,8 @@ import { ArrowLeft } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { defaultDateRange } from "@/db/queries/performance";
 import { tagRollup } from "@/db/queries/trends";
+import { listProducts } from "@/db/queries/products";
+import { listAllTags } from "@/db/queries/creatives";
 import { FilterStrip } from "@/components/filters/filter-strip";
 import { TagRollupTable } from "@/components/trends/tag-rollup-table";
 import { dashboardFiltersSchema } from "@/validators/filters";
@@ -36,13 +38,17 @@ export default async function TrendsByTagPage({
   const from = parsed.from ?? range.from;
   const to = parsed.to ?? range.to;
 
-  const rows = await tagRollup({
-    from,
-    to,
-    platforms: parsed.platforms.length > 0 ? parsed.platforms : undefined,
-    productIds: parsed.productIds.length > 0 ? parsed.productIds : undefined,
-    includeExcluded: parsed.includeExcluded,
-  });
+  const [rows, products, tags] = await Promise.all([
+    tagRollup({
+      from,
+      to,
+      platforms: parsed.platforms.length > 0 ? parsed.platforms : undefined,
+      productIds: parsed.productIds.length > 0 ? parsed.productIds : undefined,
+      includeExcluded: parsed.includeExcluded,
+    }),
+    listProducts(),
+    listAllTags(),
+  ]);
 
   return (
     <div className="space-y-6">
@@ -50,7 +56,7 @@ export default async function TrendsByTagPage({
         fallback={<div className="-mx-6 px-6 h-12 border-b border-line bg-background/95" />}
       >
         <div className="-mx-6 -mt-6 mb-2">
-          <FilterStrip />
+          <FilterStrip products={products} tags={tags} />
         </div>
       </Suspense>
 

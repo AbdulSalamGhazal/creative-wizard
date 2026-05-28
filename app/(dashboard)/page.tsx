@@ -5,6 +5,8 @@ import {
   platformMix,
   type KpiFilters,
 } from "@/db/queries/performance";
+import { listProducts } from "@/db/queries/products";
+import { listAllTags } from "@/db/queries/creatives";
 import { OverviewSection } from "@/components/overview/overview-section";
 import { FilterStrip } from "@/components/filters/filter-strip";
 import { dashboardFiltersSchema } from "@/validators/filters";
@@ -61,9 +63,12 @@ export default async function OverviewPage({
   // narrowed by any platform filter), ordered by spend desc. We only show
   // the per-platform sections when 2+ platforms are in scope — with one,
   // the breakout would just duplicate the blended section above.
-  const presentPlatforms = (await platformMix(filters)).map(
-    (r) => r.platform as Platform,
-  );
+  const [present, products, tags] = await Promise.all([
+    platformMix(filters),
+    listProducts(),
+    listAllTags(),
+  ]);
+  const presentPlatforms = present.map((r) => r.platform as Platform);
   const showBreakouts = presentPlatforms.length >= 2;
 
   return (
@@ -74,7 +79,7 @@ export default async function OverviewPage({
         }
       >
         <div className="-mx-6 -mt-6 mb-2">
-          <FilterStrip />
+          <FilterStrip products={products} tags={tags} />
         </div>
       </Suspense>
 

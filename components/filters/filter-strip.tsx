@@ -1,6 +1,15 @@
 "use client";
 
-import { CalendarDays, Check, Eye, EyeOff, Layers, Package, Tag } from "lucide-react";
+import {
+  CalendarDays,
+  Check,
+  Eye,
+  EyeOff,
+  Layers,
+  Package,
+  Shapes,
+  Tag,
+} from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useMemo, useState, useTransition } from "react";
 import type { DateRange } from "react-day-picker";
@@ -8,7 +17,6 @@ import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
-  DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
@@ -41,6 +49,23 @@ const PLATFORMS = [
   { value: "google", label: "Google" },
 ] as const;
 
+const TYPES = [
+  { value: "video", label: "Video" },
+  { value: "image", label: "Image" },
+  { value: "slides", label: "Slides" },
+] as const;
+
+interface FilterStripProps {
+  /** Product options for the Products filter. Empty → dropdown shows a hint. */
+  products?: Array<{ id: string; name: string }>;
+  /** Tag options for the Tags filter. */
+  tags?: string[];
+}
+
+function csv(v: string | null): string[] {
+  return v ? v.split(",").filter(Boolean) : [];
+}
+
 function isoDate(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
@@ -62,7 +87,7 @@ function activePresetKey(from: string | null, to: string | null): string | null 
   return null;
 }
 
-export function FilterStrip() {
+export function FilterStrip({ products = [], tags = [] }: FilterStripProps = {}) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -72,6 +97,9 @@ export function FilterStrip() {
   const to = searchParams.get("to");
   const platformsParam = searchParams.get("platforms");
   const includeExcluded = searchParams.get("includeExcluded") === "1";
+  const productIds = csv(searchParams.get("productIds"));
+  const types = csv(searchParams.get("types"));
+  const selectedTags = csv(searchParams.get("tags"));
 
   const selectedPlatforms = useMemo(
     () => (platformsParam ? platformsParam.split(",").filter(Boolean) : []),
@@ -127,6 +155,35 @@ export function FilterStrip() {
     });
   };
 
+  const toggleMulti = (key: string, value: string, current: string[]) => {
+    const set = new Set(current);
+    if (set.has(value)) set.delete(value);
+    else set.add(value);
+    update((next) => {
+      if (set.size === 0) next.delete(key);
+      else next.set(key, [...set].join(","));
+    });
+  };
+
+  const productLabel =
+    productIds.length === 0
+      ? "All"
+      : productIds.length === 1
+        ? (products.find((p) => p.id === productIds[0])?.name ?? "1 selected")
+        : `${productIds.length} selected`;
+  const typeLabel =
+    types.length === 0
+      ? "All"
+      : types.length === 1
+        ? (TYPES.find((t) => t.value === types[0])?.label ?? "1")
+        : `${types.length} selected`;
+  const tagLabel =
+    selectedTags.length === 0
+      ? "Any"
+      : selectedTags.length === 1
+        ? selectedTags[0]!
+        : `${selectedTags.length} selected`;
+
   const toggleExcluded = () => {
     update((next) => {
       if (includeExcluded) next.delete("includeExcluded");
@@ -147,7 +204,15 @@ export function FilterStrip() {
     });
   };
 
-  const filtersActive = !!(from || to || platformsParam || includeExcluded);
+  const filtersActive = !!(
+    from ||
+    to ||
+    platformsParam ||
+    includeExcluded ||
+    productIds.length > 0 ||
+    types.length > 0 ||
+    selectedTags.length > 0
+  );
 
   return (
     <div className="sticky top-0 z-10 border-b border-line bg-background/95 backdrop-blur">
@@ -187,6 +252,7 @@ export function FilterStrip() {
                 key={p.value}
                 checked={selectedPlatforms.includes(p.value)}
                 onCheckedChange={() => togglePlatform(p.value)}
+                onSelect={(e) => e.preventDefault()}
               >
                 {p.label}
               </DropdownMenuCheckboxItem>
@@ -194,9 +260,95 @@ export function FilterStrip() {
           </DropdownMenuContent>
         </DropdownMenu>
 
-        {/* Products / Tags — placeholders until pickers exist */}
-        <Chip icon={Package} label="Products" value="All" />
-        <Chip icon={Tag} label="Tags" value="Any" />
+        {/* Products */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button type="button">
+              <Chip
+                icon={Package}
+                label="Products"
+                value={productLabel}
+                active={productIds.length > 0}
+              />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="w-56 max-h-72 overflow-y-auto">
+            <DropdownMenuLabel>Products</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            {products.length === 0 && (
+              <div className="px-2 py-1.5 text-xs text-ink-3">No products yet</div>
+            )}
+            {products.map((p) => (
+              <DropdownMenuCheckboxItem
+                key={p.id}
+                checked={productIds.includes(p.id)}
+                onCheckedChange={() => toggleMulti("productIds", p.id, productIds)}
+                onSelect={(e) => e.preventDefault()}
+              >
+                {p.name}
+              </DropdownMenuCheckboxItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        {/* Type */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button type="button">
+              <Chip
+                icon={Shapes}
+                label="Type"
+                value={typeLabel}
+                active={types.length > 0}
+              />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="w-44">
+            <DropdownMenuLabel>Type</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            {TYPES.map((t) => (
+              <DropdownMenuCheckboxItem
+                key={t.value}
+                checked={types.includes(t.value)}
+                onCheckedChange={() => toggleMulti("types", t.value, types)}
+                onSelect={(e) => e.preventDefault()}
+              >
+                {t.label}
+              </DropdownMenuCheckboxItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        {/* Tags */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button type="button">
+              <Chip
+                icon={Tag}
+                label="Tags"
+                value={tagLabel}
+                active={selectedTags.length > 0}
+              />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="w-56 max-h-72 overflow-y-auto">
+            <DropdownMenuLabel>Tags</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            {tags.length === 0 && (
+              <div className="px-2 py-1.5 text-xs text-ink-3">No tags yet</div>
+            )}
+            {tags.map((t) => (
+              <DropdownMenuCheckboxItem
+                key={t}
+                checked={selectedTags.includes(t)}
+                onCheckedChange={() => toggleMulti("tags", t, selectedTags)}
+                onSelect={(e) => e.preventDefault()}
+              >
+                {t}
+              </DropdownMenuCheckboxItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
 
         <div className="ml-auto flex items-center gap-2">
           <button
