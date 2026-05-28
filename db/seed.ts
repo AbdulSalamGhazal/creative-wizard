@@ -16,6 +16,7 @@ import {
   products,
   creatives,
   creativeTags,
+  tags,
   platformFieldMappings,
   uploadBatches,
   performanceRecords,
@@ -205,6 +206,18 @@ async function main() {
       .onConflictDoNothing();
   }
   console.log("  tag assignments:", tagAssignments.length);
+
+  // ---------- Tag vocabulary (backfill from assignments) ----------
+  // Seed the managed vocabulary from whatever tags are in use so the
+  // Catalog → Tags admin starts populated. Idempotent.
+  const distinctTags = [...new Set(tagAssignments.map((t) => t.tag))];
+  for (const name of distinctTags) {
+    await db
+      .insert(tags)
+      .values({ name, createdByUserId: adminId })
+      .onConflictDoNothing({ target: tags.name });
+  }
+  console.log("  tag vocabulary:", distinctTags.length);
 
   // ---------- Upload batch + performance records ----------
   // One synthetic batch covering both platforms over the last 30 days.

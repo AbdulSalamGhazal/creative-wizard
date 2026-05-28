@@ -32,8 +32,7 @@ const items: NavItem[] = [
   { href: "/compare", label: "Compare", icon: GitCompare, group: "primary" },
   { href: "/platforms", label: "Platforms", icon: Layers3, group: "primary" },
   { href: "/uploads", label: "Uploads", icon: Upload, group: "primary" },
-  { href: "/admin/platforms", label: "CSV mapping", icon: Layers3, group: "admin" },
-  { href: "/admin/products", label: "Products", icon: Package, group: "admin" },
+  { href: "/admin/catalog", label: "Catalog", icon: Package, group: "admin" },
   { href: "/admin/users", label: "Team", icon: Users, group: "admin" },
   { href: "/admin/audit", label: "Audit log", icon: ScrollText, group: "admin" },
 ];

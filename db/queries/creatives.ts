@@ -15,6 +15,7 @@ import {
   creativeTags,
   performanceRecords,
   products,
+  tags,
   type creativeStatusEnum,
   type creativeTypeEnum,
 } from "@/db/schema";
@@ -333,12 +334,25 @@ export async function creativeRecords(
   }));
 }
 
-/** Distinct tag list for the tag-filter dropdown. */
+/**
+ * Tag list for filter dropdowns + creative-form suggestions. Union of the
+ * managed vocabulary (`tags`) and any tags currently in use on creatives —
+ * so a freshly-added vocabulary tag is selectable immediately, and any
+ * legacy ad-hoc assignment still appears until it's curated.
+ */
 export async function listAllTags(): Promise<string[]> {
   const rows = await db
-    .selectDistinct({ tag: creativeTags.tag })
-    .from(creativeTags)
-    .orderBy(asc(creativeTags.tag));
+    .select({
+      tag: sql<string>`t`,
+    })
+    .from(
+      sql`(
+        SELECT ${tags.name} AS t FROM ${tags}
+        UNION
+        SELECT ${creativeTags.tag} AS t FROM ${creativeTags}
+      ) AS u`,
+    )
+    .orderBy(sql`t`);
   return rows.map((r) => r.tag);
 }
 

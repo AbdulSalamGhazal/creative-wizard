@@ -56,9 +56,10 @@ const PAGES = [
   { href: "/platforms", label: "By platform", icon: Layers3 },
   { href: "/uploads", label: "Upload history", icon: Upload },
   { href: "/uploads/new", label: "New upload", icon: Upload },
-  { href: "/admin/products", label: "Products", icon: Package },
+  { href: "/admin/catalog?tab=products", label: "Catalog · Products", icon: Package },
+  { href: "/admin/catalog?tab=tags", label: "Catalog · Tags", icon: Hash },
+  { href: "/admin/catalog?tab=mapping", label: "Catalog · CSV mapping", icon: Settings },
   { href: "/admin/users", label: "Team", icon: Users },
-  { href: "/admin/platforms", label: "CSV mapping", icon: Settings },
   { href: "/admin/audit", label: "Audit log", icon: ScrollText },
 ] as const;
 

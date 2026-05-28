@@ -95,6 +95,21 @@ export const creativeTags = pgTable(
   }),
 );
 
+/**
+ * Tag vocabulary — the managed set of tags, like products. Creatives still
+ * store their assignments in `creative_tags` (by string); this table is the
+ * canonical list admins curate. Renaming a tag here cascades to
+ * `creative_tags`; deleting removes the assignments too.
+ */
+export const tags = pgTable("tags", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: varchar("name", { length: 64 }).notNull().unique(),
+  createdByUserId: uuid("created_by_user_id").references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
 export const uploadBatches = pgTable("upload_batches", {
   id: uuid("id").primaryKey().defaultRandom(),
   platform: varchar("platform", { length: 16, enum: platformEnum }).notNull(),

@@ -53,6 +53,11 @@ export const AUDIT_ACTIONS = {
   VIEW_CREATE: "view.create",
   VIEW_DELETE: "view.delete",
   VIEW_SET_DEFAULT: "view.set_default",
+
+  // Tags (vocabulary)
+  TAG_CREATE: "tag.create",
+  TAG_RENAME: "tag.rename",
+  TAG_DELETE: "tag.delete",
 } as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[keyof typeof AUDIT_ACTIONS];
@@ -65,7 +70,8 @@ export type AuditEntityType =
   | "exclusion"
   | "mapping"
   | "auth"
-  | "view";
+  | "view"
+  | "tag";
 
 export interface AuditEventInput {
   action: AuditAction;
@@ -131,6 +137,9 @@ export const AUDIT_LABELS: Record<AuditAction, string> = {
   "view.create": "Saved a view",
   "view.delete": "Deleted a view",
   "view.set_default": "Changed default view",
+  "tag.create": "Created tag",
+  "tag.rename": "Renamed tag",
+  "tag.delete": "Deleted tag",
 };
 
 /** Coarse grouping for filter chips. */
@@ -158,4 +167,7 @@ export const AUDIT_CATEGORIES: Record<AuditAction, AuditEntityType> = {
   "view.create": "view",
   "view.delete": "view",
   "view.set_default": "view",
+  "tag.create": "tag",
+  "tag.rename": "tag",
+  "tag.delete": "tag",
 };

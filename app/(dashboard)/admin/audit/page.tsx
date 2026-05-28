@@ -13,6 +13,7 @@ const CATEGORY_OPTIONS: Array<{ value: AuditEntityType | "all"; label: string }>
   { value: "exclusion", label: "Exclusions" },
   { value: "user", label: "Users" },
   { value: "product", label: "Products" },
+  { value: "tag", label: "Tags" },
   { value: "mapping", label: "CSV mapping" },
   { value: "auth", label: "Auth" },
   { value: "view", label: "Views" },
