@@ -8,6 +8,7 @@ import {
   GitCompare,
   Layers3,
   LineChart,
+  Table2,
   Upload,
   Package,
   Users,
@@ -26,6 +27,7 @@ interface NavItem {
 const items: NavItem[] = [
   { href: "/", label: "Overview", icon: LayoutDashboard, group: "primary" },
   { href: "/creatives", label: "Creatives", icon: Images, group: "primary" },
+  { href: "/summary", label: "Summary", icon: Table2, group: "primary" },
   { href: "/trends", label: "Trends", icon: LineChart, group: "primary" },
   { href: "/compare", label: "Compare", icon: GitCompare, group: "primary" },
   { href: "/platforms", label: "Platforms", icon: Layers3, group: "primary" },

@@ -1,0 +1,468 @@
+import {
+  and,
+  asc,
+  between,
+  desc,
+  eq,
+  ilike,
+  inArray,
+  sql,
+  type SQL,
+} from "drizzle-orm";
+import type { PgColumn } from "drizzle-orm/pg-core";
+import { db } from "@/lib/db";
+import {
+  creatives,
+  creativeStatusEnum,
+  creativeTags,
+  creativeTypeEnum,
+  performanceRecords,
+  platformEnum,
+  products,
+  users,
+} from "@/db/schema";
+import {
+  ctr,
+  cpa,
+  cpc,
+  cpm,
+  hookRate,
+  holdRate,
+  platformMetrics,
+  roas,
+  sumClicks,
+  sumConversionValue,
+  sumConversions,
+  sumImpressions,
+  sumSpend,
+} from "@/lib/metrics";
+import type { SortDir } from "@/validators/summary";
+
+type Platform = (typeof platformEnum)[number];
+type CreativeType = (typeof creativeTypeEnum)[number];
+type CreativeStatus = (typeof creativeStatusEnum)[number];
+
+export interface SummaryFilterInput {
+  from?: string;
+  to?: string;
+  q?: string;
+  productIds?: string[];
+  /** Platforms to render columns for. Capped to ≤3 by the validator. */
+  platforms?: Platform[];
+  types?: CreativeType[];
+  statuses?: CreativeStatus[];
+  tags?: string[];
+  creatorIds?: string[];
+  includeExcluded?: boolean;
+  sort?: string;
+  dir?: SortDir;
+}
+
+export interface PlatformMetricBlock {
+  spend: number;
+  impressions: number;
+  clicks: number;
+  conversions: number | null;
+  conversionValue: number | null;
+  ctr: number | null;
+  cpm: number | null;
+  cpc: number | null;
+  cpa: number | null;
+  roas: number | null;
+  hookRate: number | null;
+  holdRate: number | null;
+}
+
+export interface SummaryRow {
+  creativeId: string;
+  name: string;
+  productName: string;
+  productId: string;
+  type: CreativeType;
+  status: CreativeStatus;
+  creatorName: string | null;
+  creatorEmail: string | null;
+  tags: string[];
+  /** One entry per selected platform; key is the platform string. */
+  perPlatform: Partial<Record<Platform, PlatformMetricBlock>>;
+  /**
+   * Cross-platform blended total. Same shape as a platform block but each
+   * value is the weighted aggregate across all SELECTED platforms (not
+   * across all platforms in the database).
+   */
+  total: PlatformMetricBlock;
+}
+
+export interface SummaryResult {
+  rows: SummaryRow[];
+  /** The platforms actually used to build the columns (post-validation). */
+  platforms: Platform[];
+  /** Echo of the effective sort applied (after validation + fallback). */
+  effectiveSort: { key: string; dir: SortDir };
+}
+
+/** All sort keys that are always valid (identity columns). */
+const IDENTITY_SORT_KEYS = new Set([
+  "name",
+  "product",
+  "type",
+  "status",
+  "creator",
+]);
+
+/** Per-platform metric keys (one suffix per metric). */
+const METRIC_KEYS = [
+  "spend",
+  "impressions",
+  "clicks",
+  "conversions",
+  "ctr",
+  "cpm",
+  "cpc",
+  "cpa",
+  "roas",
+  "hook_rate",
+  "hold_rate",
+] as const;
+type MetricKey = (typeof METRIC_KEYS)[number];
+
+const DEFAULT_SORT = { key: "total.spend", dir: "desc" as SortDir };
+
+/**
+ * Resolve a user-supplied sort key against the selected platforms. Unknown
+ * or hidden-platform keys collapse to the default ("total.spend" desc).
+ */
+function resolveSort(
+  sort: string | undefined,
+  dir: SortDir | undefined,
+  selectedPlatforms: Platform[],
+): { key: string; dir: SortDir } {
+  const direction: SortDir = dir ?? "desc";
+  if (!sort) return DEFAULT_SORT;
+  if (IDENTITY_SORT_KEYS.has(sort)) return { key: sort, dir: direction };
+  // Per-platform / total metric keys: "<platform | total>.<metric>"
+  const [scope, metric] = sort.split(".");
+  if (!scope || !metric) return DEFAULT_SORT;
+  if (!METRIC_KEYS.includes(metric as MetricKey)) return DEFAULT_SORT;
+  if (scope === "total") return { key: sort, dir: direction };
+  if (selectedPlatforms.includes(scope as Platform)) {
+    return { key: sort, dir: direction };
+  }
+  return DEFAULT_SORT;
+}
+
+/**
+ * Produce the SQL expression to order by given a resolved sort key. The
+ * caller has already validated the key against the selected platforms.
+ *
+ * NB: sorting on a derived metric (ctr, cpa, etc.) of an empty platform
+ * column returns NULL, which Postgres puts last by default for ORDER BY DESC
+ * and first for ASC — fine for our purposes.
+ */
+function orderBySql(
+  key: string,
+  selectedPlatforms: Platform[],
+  metricsByPlatform: Map<Platform, ReturnType<typeof platformMetrics>>,
+): PgColumn | SQL<unknown> {
+  if (IDENTITY_SORT_KEYS.has(key)) {
+    switch (key) {
+      case "name":
+        return creatives.name;
+      case "product":
+        return products.name;
+      case "type":
+        return creatives.type;
+      case "status":
+        return creatives.status;
+      case "creator":
+        return users.name;
+    }
+  }
+  const [scope, metric] = key.split(".") as [string, MetricKey];
+  if (scope === "total") {
+    switch (metric) {
+      case "spend":
+        return sumSpend;
+      case "impressions":
+        return sumImpressions;
+      case "clicks":
+        return sumClicks;
+      case "conversions":
+        return sumConversions;
+      case "ctr":
+        return ctr;
+      case "cpm":
+        return cpm;
+      case "cpc":
+        return cpc;
+      case "cpa":
+        return cpa;
+      case "roas":
+        return roas;
+      case "hook_rate":
+        return hookRate;
+      case "hold_rate":
+        return holdRate;
+    }
+  }
+  const platformMeta = metricsByPlatform.get(scope as Platform);
+  if (!platformMeta) return sumSpend;
+  switch (metric) {
+    case "spend":
+      return platformMeta.spend;
+    case "impressions":
+      return platformMeta.impressions;
+    case "clicks":
+      return platformMeta.clicks;
+    case "conversions":
+      return platformMeta.conversions;
+    case "ctr":
+      return platformMeta.ctr;
+    case "cpm":
+      return platformMeta.cpm;
+    case "cpc":
+      return platformMeta.cpc;
+    case "cpa":
+      return platformMeta.cpa;
+    case "roas":
+      return platformMeta.roas;
+    case "hook_rate":
+      return platformMeta.hookRate;
+    case "hold_rate":
+      return platformMeta.holdRate;
+  }
+}
+
+const num = (v: unknown): number => (v === null || v === undefined ? 0 : Number(v));
+const numOrNull = (v: unknown): number | null =>
+  v === null || v === undefined ? null : Number(v);
+
+const ALL_PLATFORMS: Platform[] = ["meta", "tiktok", "snapchat", "google"];
+
+/**
+ * The Summary view's single query. Returns one row per creative with every
+ * selected platform's metric block pivoted into columns plus a blended
+ * total across the selected platforms.
+ *
+ * Aggregation rules (all enforced by lib/metrics.ts fragments):
+ *   - Per-platform sums use `SUM(col) FILTER (WHERE platform = X)`.
+ *   - Per-platform ratios divide that platform's own sums (NOT averages
+ *     of per-row ratios).
+ *   - The blended `total` block uses the canonical `lib/metrics.ts`
+ *     fragments which apply the same weighted formula across all the rows
+ *     that survived the JOIN — and the JOIN restricts to the selected
+ *     platforms, so the totals are correctly scoped.
+ *
+ * Filtering:
+ *   - `from`/`to` date range and platform filter are applied to
+ *     performance_records via the LEFT JOIN's ON clause. This preserves
+ *     creatives that have NO matching records in the window (they render
+ *     with zero/null metrics rather than disappearing).
+ *   - `excluded_from_aggregates = false` (default) likewise lives on the
+ *     JOIN so excluded rows fall out of the sums without dropping the
+ *     creative entirely.
+ *   - Creative-side filters (product, type, status, creator, tags,
+ *     search-q) go in the WHERE clause where they should.
+ *
+ * Tags are loaded in a separate small query and merged in JS to avoid the
+ * row-explosion from joining `creative_tags` (which would multiply rows
+ * by the number of tags per creative and inflate every SUM).
+ */
+export async function listCreativeSummary(
+  filters: SummaryFilterInput,
+): Promise<SummaryResult> {
+  const selectedPlatforms: Platform[] =
+    filters.platforms && filters.platforms.length > 0
+      ? filters.platforms.slice(0, 3)
+      : (ALL_PLATFORMS.slice(0, 3) as Platform[]);
+
+  const resolved = resolveSort(filters.sort, filters.dir, selectedPlatforms);
+
+  // Pre-build per-platform metric fragments once so the SELECT and the
+  // ORDER BY share the same expressions.
+  const metricsByPlatform = new Map<Platform, ReturnType<typeof platformMetrics>>();
+  for (const pf of selectedPlatforms) {
+    metricsByPlatform.set(pf, platformMetrics(pf));
+  }
+
+  // -------- JOIN clauses on performance_records --------
+  const joinConds: SQL[] = [eq(performanceRecords.creativeId, creatives.id)];
+  if (filters.from && filters.to) {
+    joinConds.push(between(performanceRecords.date, filters.from, filters.to));
+  }
+  joinConds.push(inArray(performanceRecords.platform, selectedPlatforms));
+  if (!filters.includeExcluded) {
+    joinConds.push(eq(performanceRecords.excludedFromAggregates, false));
+  }
+
+  // -------- WHERE clauses on creatives --------
+  const whereConds: SQL[] = [];
+  if (filters.q) {
+    whereConds.push(ilike(creatives.name, `%${filters.q}%`));
+  }
+  if (filters.productIds && filters.productIds.length > 0) {
+    whereConds.push(inArray(creatives.productId, filters.productIds));
+  }
+  if (filters.types && filters.types.length > 0) {
+    whereConds.push(inArray(creatives.type, filters.types));
+  }
+  if (filters.statuses && filters.statuses.length > 0) {
+    whereConds.push(inArray(creatives.status, filters.statuses));
+  }
+  if (filters.creatorIds && filters.creatorIds.length > 0) {
+    whereConds.push(inArray(creatives.createdByUserId, filters.creatorIds));
+  }
+  if (filters.tags && filters.tags.length > 0) {
+    // Restrict to creatives that have at least one of the named tags.
+    // EXISTS keeps it as a row-level predicate so we don't fan-out on the
+    // join (which would inflate aggregates).
+    whereConds.push(
+      sql`EXISTS (
+        SELECT 1 FROM ${creativeTags}
+        WHERE ${creativeTags.creativeId} = ${creatives.id}
+          AND ${creativeTags.tag} = ANY(${filters.tags})
+      )`,
+    );
+  }
+
+  // -------- Build the SELECT projection dynamically --------
+  // Identity + total (blended) columns are constant. Per-platform columns
+  // are emitted only for the selected platforms.
+  const select: Record<string, PgColumn | SQL<unknown>> = {
+    creativeId: creatives.id,
+    name: creatives.name,
+    productId: products.id,
+    productName: products.name,
+    type: creatives.type,
+    status: creatives.status,
+    creatorName: users.name,
+    creatorEmail: users.email,
+    // Blended totals — uses the canonical lib/metrics fragments. The JOIN
+    // already restricted rows to the selected platforms + date range, so
+    // these sum the correct universe.
+    totalSpend: sumSpend,
+    totalImpressions: sumImpressions,
+    totalClicks: sumClicks,
+    totalConversions: sumConversions,
+    totalConversionValue: sumConversionValue,
+    totalCtr: ctr,
+    totalCpm: cpm,
+    totalCpc: cpc,
+    totalCpa: cpa,
+    totalRoas: roas,
+    totalHookRate: hookRate,
+    totalHoldRate: holdRate,
+  };
+  for (const pf of selectedPlatforms) {
+    const m = metricsByPlatform.get(pf)!;
+    select[`${pf}_spend`] = m.spend;
+    select[`${pf}_impressions`] = m.impressions;
+    select[`${pf}_clicks`] = m.clicks;
+    select[`${pf}_conversions`] = m.conversions;
+    select[`${pf}_conversionValue`] = m.conversionValue;
+    select[`${pf}_ctr`] = m.ctr;
+    select[`${pf}_cpm`] = m.cpm;
+    select[`${pf}_cpc`] = m.cpc;
+    select[`${pf}_cpa`] = m.cpa;
+    select[`${pf}_roas`] = m.roas;
+    select[`${pf}_hookRate`] = m.hookRate;
+    select[`${pf}_holdRate`] = m.holdRate;
+  }
+
+  const orderExpr = orderBySql(resolved.key, selectedPlatforms, metricsByPlatform);
+
+  const rawRows = await db
+    .select(select)
+    .from(creatives)
+    .innerJoin(products, eq(products.id, creatives.productId))
+    .leftJoin(users, eq(users.id, creatives.createdByUserId))
+    .leftJoin(performanceRecords, and(...joinConds))
+    .where(whereConds.length > 0 ? and(...whereConds) : undefined)
+    .groupBy(
+      creatives.id,
+      creatives.name,
+      products.id,
+      products.name,
+      creatives.type,
+      creatives.status,
+      users.name,
+      users.email,
+    )
+    .orderBy(
+      resolved.dir === "asc" ? asc(orderExpr) : desc(orderExpr),
+      // Stable secondary sort so equal-spend rows don't shuffle between
+      // requests.
+      asc(creatives.name),
+    );
+
+  if (rawRows.length === 0) {
+    return { rows: [], platforms: selectedPlatforms, effectiveSort: resolved };
+  }
+
+  // Tags — second query, merged in JS.
+  const ids = rawRows.map((r) => (r as unknown as { creativeId: string }).creativeId);
+  const tagRows = await db
+    .select({
+      creativeId: creativeTags.creativeId,
+      tag: creativeTags.tag,
+    })
+    .from(creativeTags)
+    .where(inArray(creativeTags.creativeId, ids))
+    .orderBy(asc(creativeTags.tag));
+  const tagsByCreative = new Map<string, string[]>();
+  for (const t of tagRows) {
+    const list = tagsByCreative.get(t.creativeId) ?? [];
+    list.push(t.tag);
+    tagsByCreative.set(t.creativeId, list);
+  }
+
+  // Reshape — pull each row's per-platform fields into a nested block.
+  const rows: SummaryRow[] = rawRows.map((row) => {
+    const r = row as unknown as Record<string, unknown>;
+    const perPlatform: Partial<Record<Platform, PlatformMetricBlock>> = {};
+    for (const pf of selectedPlatforms) {
+      perPlatform[pf] = {
+        spend: num(r[`${pf}_spend`]),
+        impressions: num(r[`${pf}_impressions`]),
+        clicks: num(r[`${pf}_clicks`]),
+        conversions: numOrNull(r[`${pf}_conversions`]),
+        conversionValue: numOrNull(r[`${pf}_conversionValue`]),
+        ctr: numOrNull(r[`${pf}_ctr`]),
+        cpm: numOrNull(r[`${pf}_cpm`]),
+        cpc: numOrNull(r[`${pf}_cpc`]),
+        cpa: numOrNull(r[`${pf}_cpa`]),
+        roas: numOrNull(r[`${pf}_roas`]),
+        hookRate: numOrNull(r[`${pf}_hookRate`]),
+        holdRate: numOrNull(r[`${pf}_holdRate`]),
+      };
+    }
+    return {
+      creativeId: r.creativeId as string,
+      name: r.name as string,
+      productId: r.productId as string,
+      productName: r.productName as string,
+      type: r.type as CreativeType,
+      status: r.status as CreativeStatus,
+      creatorName: (r.creatorName as string | null) ?? null,
+      creatorEmail: (r.creatorEmail as string | null) ?? null,
+      tags: tagsByCreative.get(r.creativeId as string) ?? [],
+      perPlatform,
+      total: {
+        spend: num(r.totalSpend),
+        impressions: num(r.totalImpressions),
+        clicks: num(r.totalClicks),
+        conversions: numOrNull(r.totalConversions),
+        conversionValue: numOrNull(r.totalConversionValue),
+        ctr: numOrNull(r.totalCtr),
+        cpm: numOrNull(r.totalCpm),
+        cpc: numOrNull(r.totalCpc),
+        cpa: numOrNull(r.totalCpa),
+        roas: numOrNull(r.totalRoas),
+        hookRate: numOrNull(r.totalHookRate),
+        holdRate: numOrNull(r.totalHoldRate),
+      },
+    };
+  });
+
+  return { rows, platforms: selectedPlatforms, effectiveSort: resolved };
+}
