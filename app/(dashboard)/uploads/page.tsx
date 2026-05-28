@@ -1,12 +1,13 @@
 import Link from "next/link";
 import { Plus, Upload as UploadIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { desc, eq } from "drizzle-orm";
+import { asc, desc, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { uploadBatches, users } from "@/db/schema";
+import { creatives, products, uploadBatches, users } from "@/db/schema";
 import { isoDate, int } from "@/lib/format";
 import { auth } from "@/lib/auth";
 import { RollbackButton } from "@/components/upload/rollback-button";
+import { CleanupTool } from "@/components/cleanup/cleanup-tool";
 
 const ROLLBACK_WINDOW_MS = 24 * 60 * 60 * 1000;
 
@@ -38,6 +39,25 @@ export default async function UploadsPage() {
     .innerJoin(users, eq(users.id, uploadBatches.uploadedByUserId))
     .orderBy(desc(uploadBatches.uploadedAt))
     .limit(50);
+
+  // Filter options for the admin cleanup tool (only fetched for admins).
+  const [cleanupProducts, cleanupCreatives] = isAdmin
+    ? await Promise.all([
+        db
+          .select({ id: products.id, name: products.name })
+          .from(products)
+          .orderBy(asc(products.name)),
+        db
+          .select({
+            id: creatives.id,
+            name: creatives.name,
+            productName: products.name,
+          })
+          .from(creatives)
+          .innerJoin(products, eq(products.id, creatives.productId))
+          .orderBy(asc(creatives.name)),
+      ])
+    : [[], []];
 
   return (
     <div className="space-y-6">
@@ -130,8 +150,12 @@ export default async function UploadsPage() {
 
       <p className="text-[11px] text-ink-3">
         Admins can roll back any batch within 24 h of upload. Beyond that
-        window, contact an operator to revert at the database level.
+        window, use the cleanup tool below or contact an operator.
       </p>
+
+      {isAdmin && (
+        <CleanupTool products={cleanupProducts} creatives={cleanupCreatives} />
+      )}
     </div>
   );
 }

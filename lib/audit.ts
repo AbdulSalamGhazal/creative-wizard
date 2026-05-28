@@ -28,6 +28,7 @@ export const AUDIT_ACTIONS = {
   // Uploads
   UPLOAD_COMMIT: "upload.commit",
   UPLOAD_ROLLBACK: "upload.rollback",
+  RECORDS_BULK_DELETE: "upload.bulk_delete",
 
   // Products
   PRODUCT_CREATE: "product.create",
@@ -122,6 +123,7 @@ export const AUDIT_LABELS: Record<AuditAction, string> = {
   "exclusion.include": "Re-included record",
   "upload.commit": "Committed upload",
   "upload.rollback": "Rolled back upload",
+  "upload.bulk_delete": "Bulk-deleted records",
   "product.create": "Created product",
   "product.archive": "Archived product",
   "product.restore": "Restored product",
@@ -152,6 +154,7 @@ export const AUDIT_CATEGORIES: Record<AuditAction, AuditEntityType> = {
   "exclusion.include": "exclusion",
   "upload.commit": "upload",
   "upload.rollback": "upload",
+  "upload.bulk_delete": "upload",
   "product.create": "product",
   "product.archive": "product",
   "product.restore": "product",

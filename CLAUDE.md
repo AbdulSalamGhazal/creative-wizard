@@ -38,8 +38,8 @@ Do not introduce a new dependency without a one-line justification in the PR des
 - Schema changes go through Drizzle migrations. Never edit a generated migration; create a new one.
 - Every column used in a filter, join, or sort needs an index. Declare it in the schema file alongside the column.
 - When adding a new dashboard query, check whether existing indexes cover it; add one if not.
-- `performance_records` has a unique constraint on `(creative_id, platform, date)`. Never bypass it. Validation is the only entry path; rollback is the only exit path.
-- Every creative has a required `product_id`. Products live in their own table and are managed in `/admin/products`. Never let a creative be saved without one.
+- `performance_records` has a unique constraint on `(creative_id, platform, date)`. Never bypass it. Validation is the only **entry** path. There are two sanctioned **exit** paths: (1) batch rollback within 24 h, and (2) the admin record-cleanup tool on `/uploads` (filtered hard-delete, admin-only, preview-then-confirm, audit-logged via `upload.bulk_delete`). No other code should delete from `performance_records`.
+- Every creative has a required `product_id`. Products live in their own table and are managed in `/admin/catalog?tab=products`. Never let a creative be saved without one.
 
 ## Aggregation rules (CRITICAL)
 
@@ -85,4 +85,8 @@ Do not introduce a new dependency without a one-line justification in the PR des
 
 ## Learned
 
-(empty for now — add corrections here as they happen)
+- The admin record-cleanup tool (`/uploads`, `app/actions/cleanup.ts`) is a
+  sanctioned hard-delete exit path for `performance_records`, added at the
+  user's request. It overrides the original "rollback is the only exit path"
+  rule. Guardrails: admin-only, ≥1 filter required, preview-then-confirm,
+  audit-logged. Keep these whenever touching cleanup.
