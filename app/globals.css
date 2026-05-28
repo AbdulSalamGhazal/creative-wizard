@@ -1,41 +1,66 @@
 @import "tailwindcss";
 
 /*
- * Urjwan CCMS palette — lifted verbatim from docs/mockups/*.html.
+ * Class-based dark mode. next-themes toggles `class="light|dark"` on <html>,
+ * so `dark:` utilities must key off that class, not `prefers-color-scheme`.
+ */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+ * Urjwan CCMS palette.
+ *
+ * The DARK palette is lifted verbatim from docs/mockups/*.html and lives under
+ * `.dark`. The LIGHT palette (default, in `:root`) is a warm-paper counterpart
+ * tuned for the same brand world. Every component consumes the *semantic*
+ * tokens below (which point at the base palette vars), so switching the
+ * `.dark` class re-themes the whole app without touching component code.
  *
  * Naming note: the mockups call the magenta `--accent`, but shadcn uses
  * `--accent` for its hover-surface semantic. To avoid the clash, the brand
  * magenta lives on `--brand` here. UI code should use `text-brand` /
  * `bg-brand` for the magenta and the shadcn semantic tokens (`primary`,
  * `accent`, `muted`, etc.) for everything else.
+ *
+ * Platform + brand colors are intentionally shared across themes (declared
+ * once in `:root`, not overridden in `.dark`) so they stay in lockstep with
+ * the literal hex mirrors in lib/palette.ts that Recharts needs. Only the
+ * surface/ink/line scale and the status colors (pos/neg/warn) flip.
  */
 :root {
-  --bg: #0a0812;
-  --surface: #14111e;
-  --surface-2: #1b1828;
-  --surface-3: #221e2f;
-  --line: #2a2638;
-  --line-2: #3a3548;
-  --ink: #f2ebe5;
-  --ink-2: #a8a2b5;
-  --ink-3: #6b6679;
+  /* Light palette — warm paper, white cards */
+  --bg: #f7f5f1;
+  --surface: #ffffff;
+  --surface-2: #f1ece4;
+  --surface-3: #e7e1d6;
+  --line: #e4ded3;
+  --line-2: #d3ccbd;
+  --ink: #1c1825;
+  --ink-2: #595365;
+  --ink-3: #8b8597;
+
+  /* Brand (overridable per accent below) + platform colors */
   --brand: #d4145a;
   --brand-2: #ff4d8d;
-  --brand-soft: rgba(212, 20, 90, 0.12);
-  --pos: #5ee6a8;
-  --neg: #ff6b6b;
-  --warn: #f5c97a;
   --meta: #4f8efb;
   --tiktok: #ff4d7a;
   --snapchat: #ffd80b;
   --google: #34d399;
+
+  /* Derived from --brand so they track the active accent automatically. */
+  --brand-soft: color-mix(in srgb, var(--brand) 12%, transparent);
+  --brand-glow: color-mix(in srgb, var(--brand) 32%, transparent);
+
+  /* Light-tuned variants */
+  --pos: #15935f;
+  --neg: #d83a3a;
+  --warn: #b07a16;
 
   /* shadcn semantic tokens, mapped to the CCMS palette */
   --background: var(--bg);
   --foreground: var(--ink);
   --card: var(--surface);
   --card-foreground: var(--ink);
-  --popover: var(--surface-2);
+  --popover: var(--surface);
   --popover-foreground: var(--ink);
   --primary: var(--brand);
   --primary-foreground: #ffffff;
@@ -51,6 +76,54 @@
   --input: var(--line);
   --ring: var(--brand);
   --radius: 0.625rem;
+}
+
+.dark {
+  /* Dark palette — verbatim from the mockups */
+  --bg: #0a0812;
+  --surface: #14111e;
+  --surface-2: #1b1828;
+  --surface-3: #221e2f;
+  --line: #2a2638;
+  --line-2: #3a3548;
+  --ink: #f2ebe5;
+  --ink-2: #a8a2b5;
+  --ink-3: #6b6679;
+
+  /* Dark-tuned variants */
+  --pos: #5ee6a8;
+  --neg: #ff6b6b;
+  --warn: #f5c97a;
+
+  /* Dark popover sits a touch above the card surface */
+  --popover: var(--surface-2);
+}
+
+/*
+ * Accent palettes — orthogonal to light/dark. Only the brand hue changes;
+ * --brand-soft / --brand-glow derive from it via color-mix in :root. These
+ * sit after :root so they win on equal specificity. Magenta is also the
+ * :root default, so an unset (or "magenta") accent renders identically.
+ */
+[data-accent="magenta"] {
+  --brand: #d4145a;
+  --brand-2: #ff4d8d;
+}
+[data-accent="violet"] {
+  --brand: #7c3aed;
+  --brand-2: #a78bfa;
+}
+[data-accent="blue"] {
+  --brand: #2563eb;
+  --brand-2: #60a5fa;
+}
+[data-accent="emerald"] {
+  --brand: #059669;
+  --brand-2: #34d399;
+}
+[data-accent="amber"] {
+  --brand: #d97706;
+  --brand-2: #fbbf24;
 }
 
 @theme inline {

@@ -38,7 +38,7 @@ export function SignInForm({ nextPath }: { nextPath: string }) {
           className="w-12 h-12 rounded-md mx-auto flex items-center justify-center"
           style={{
             background: "linear-gradient(135deg, var(--brand), var(--brand-2))",
-            boxShadow: "0 0 20px rgba(212, 20, 90, 0.3)",
+            boxShadow: "0 0 20px var(--brand-glow)",
           }}
         >
           <span className="font-display text-white text-2xl leading-none">U</span>

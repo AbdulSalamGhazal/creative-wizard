@@ -1,7 +1,7 @@
-import { Moon } from "lucide-react";
 import type { SessionUser } from "@/lib/auth";
 import { UserMenu } from "@/components/auth/user-menu";
 import { CommandPalette } from "@/components/layout/command-palette";
+import { ThemeToggle } from "@/components/theme/theme-toggle";
 
 function initials(name: string): string {
   const parts = name.trim().split(/\s+/).slice(0, 2);
@@ -24,7 +24,7 @@ export function TopBar({ user, creatives }: Props) {
               style={{
                 background:
                   "linear-gradient(135deg, var(--brand), var(--brand-2))",
-                boxShadow: "0 0 20px rgba(212, 20, 90, 0.3)",
+                boxShadow: "0 0 20px var(--brand-glow)",
               }}
             >
               <span className="font-display text-white text-base leading-none">
@@ -48,13 +48,7 @@ export function TopBar({ user, creatives }: Props) {
         </div>
         <div className="flex items-center gap-3">
           <CommandPalette creatives={creatives} />
-          <button
-            className="text-ink-2 hover:text-ink p-1.5 rounded-md hover:bg-surface-2 transition"
-            title="Theme"
-            type="button"
-          >
-            <Moon className="w-4 h-4" />
-          </button>
+          <ThemeToggle />
           <UserMenu
             user={{
               name: user.name,
