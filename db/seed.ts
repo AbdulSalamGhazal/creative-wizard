@@ -207,7 +207,11 @@ async function main() {
   const rows: PerfRow[] = [];
   const platforms: Platform[] = ["meta", "tiktok"];
 
-  // Each creative gets ~15 daily rows on each of two platforms.
+  // Each creative gets ~60 daily rows on each of two platforms so both the
+  // current-30d window and the prior-30d window have data — required for
+  // Trends / Over-time period-over-period deltas to render meaningfully.
+  // A gentle multiplier ramps spend up over time so the deltas trend
+  // positive in the demo (CTR/CPA wobble a little around their base).
   let seedRng = 1;
   const rand = () => {
     // Tiny deterministic LCG so re-runs produce identical numbers and the
@@ -216,14 +220,21 @@ async function main() {
     return seedRng / 0x7fffffff;
   };
 
+  const SEED_DAYS = 60;
+
   for (const c of creativeList) {
     for (const platform of platforms) {
-      for (let d = 0; d < 15; d++) {
+      for (let d = 0; d < SEED_DAYS; d++) {
         const date = new Date(today);
         date.setUTCDate(date.getUTCDate() - d);
         const dateStr = date.toISOString().slice(0, 10);
 
-        const impressions = Math.floor(2_000 + rand() * 18_000);
+        // Ramp: most-recent day is 1.0x, oldest day is ~0.72x. Gives a
+        // positive delta on spend/impressions/conversions between the
+        // current and prior 30d windows.
+        const ramp = 1 - (d / SEED_DAYS) * 0.28;
+
+        const impressions = Math.floor((2_000 + rand() * 18_000) * ramp);
         const ctrPct = 0.005 + rand() * 0.04; // 0.5% – 4.5%
         const clicks = Math.max(1, Math.floor(impressions * ctrPct));
         const cpmDollars = 2 + rand() * 8;

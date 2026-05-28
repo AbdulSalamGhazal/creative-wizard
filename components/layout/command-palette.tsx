@@ -4,16 +4,20 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   GitCompare,
+  Hash,
   Images,
   Layers3,
   LayoutDashboard,
+  LineChart,
   Package,
   Plus,
+  Rocket,
   ScrollText,
   Search,
   Settings,
   Upload,
   Users,
+  Video,
 } from "lucide-react";
 import {
   CommandDialog,
@@ -41,6 +45,11 @@ const PAGES = [
   { href: "/", label: "Overview", icon: LayoutDashboard },
   { href: "/creatives", label: "Creatives library", icon: Images },
   { href: "/creatives/new", label: "New creative", icon: Plus },
+  { href: "/trends", label: "Trends", icon: LineChart },
+  { href: "/trends/over-time", label: "Trends · Over time", icon: LineChart },
+  { href: "/trends/by-tag", label: "Trends · By tag", icon: Hash },
+  { href: "/trends/launches", label: "Trends · Launches", icon: Rocket },
+  { href: "/trends/video", label: "Trends · Video diagnostics", icon: Video },
   { href: "/compare", label: "Compare creatives", icon: GitCompare },
   { href: "/platforms", label: "By platform", icon: Layers3 },
   { href: "/uploads", label: "Upload history", icon: Upload },

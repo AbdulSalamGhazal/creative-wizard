@@ -23,6 +23,13 @@ import {
   sumImpressions,
   sumSpend,
 } from "@/lib/metrics";
+import {
+  addDays,
+  computeDelta,
+  dayCount,
+  prevPeriod,
+  type Delta,
+} from "@/lib/period";
 
 type Platform = (typeof platformEnum)[number];
 type CreativeType = (typeof creativeTypeEnum)[number];
@@ -610,6 +617,299 @@ export function defaultDateRange(days: number): { from: string; to: string } {
     from: from.toISOString().slice(0, 10),
     to: to.toISOString().slice(0, 10),
   };
+}
+
+// =====================================================================
+// Period-over-period (Trends / Over time)
+// =====================================================================
+
+export interface KpisWithDelta {
+  current: Kpis;
+  previous: Kpis;
+  delta: {
+    spend: Delta;
+    impressions: Delta;
+    clicks: Delta;
+    conversions: Delta;
+    ctr: Delta;
+    cpm: Delta;
+    cpc: Delta;
+    cpa: Delta;
+    roas: Delta;
+    hookRate: Delta;
+    holdRate: Delta;
+  };
+  /** ISO range of the prior window we compared against. */
+  prevRange: { from: string; to: string };
+}
+
+/**
+ * Run kpis() twice in parallel — once for the current window, once for the
+ * immediately preceding window of equal length — and return both plus
+ * per-metric deltas. Used by every Trends KPI tile.
+ *
+ * Requires `filters.from` and `filters.to` to be set (Trends views always
+ * compare bounded windows; an all-time delta is meaningless).
+ */
+export async function kpisWithDelta(
+  filters: KpiFilters & { from: string; to: string },
+): Promise<KpisWithDelta> {
+  const prev = prevPeriod(filters.from, filters.to);
+
+  const [current, previous] = await Promise.all([
+    kpis(filters),
+    kpis({ ...filters, from: prev.from, to: prev.to }),
+  ]);
+
+  return {
+    current,
+    previous,
+    prevRange: prev,
+    delta: {
+      spend: computeDelta(current.spend, previous.spend),
+      impressions: computeDelta(current.impressions, previous.impressions),
+      clicks: computeDelta(current.clicks, previous.clicks),
+      conversions: computeDelta(current.conversions, previous.conversions),
+      ctr: computeDelta(current.ctr, previous.ctr),
+      cpm: computeDelta(current.cpm, previous.cpm),
+      cpc: computeDelta(current.cpc, previous.cpc),
+      cpa: computeDelta(current.cpa, previous.cpa),
+      roas: computeDelta(current.roas, previous.roas),
+      hookRate: computeDelta(current.hookRate, previous.hookRate),
+      holdRate: computeDelta(current.holdRate, previous.holdRate),
+    },
+  };
+}
+
+export interface SpendComparePoint {
+  /**
+   * Day offset from the start of the window (0-indexed). Both series use
+   * the same offset so they line up on the X axis even though they
+   * correspond to different calendar dates.
+   */
+  dayOffset: number;
+  current: number | null;
+  previous: number | null;
+  /** Calendar date of the current series at this offset (YYYY-MM-DD). */
+  currentDate: string;
+  /** Calendar date of the prior series at this offset (YYYY-MM-DD). */
+  previousDate: string;
+}
+
+/**
+ * Two daily spend series (current + previous) zipped by day offset for the
+ * Over-time comparison chart. We aggregate spend per date, then stitch the
+ * two windows together client-side so the renderer doesn't have to.
+ */
+export async function spendByDateComparison(
+  filters: KpiFilters & { from: string; to: string },
+): Promise<SpendComparePoint[]> {
+  const prev = prevPeriod(filters.from, filters.to);
+
+  const [currRows, prevRows] = await Promise.all([
+    spendByDate(filters),
+    spendByDate({ ...filters, from: prev.from, to: prev.to }),
+  ]);
+
+  const currMap = new Map(currRows.map((r) => [r.date, r.spend]));
+  const prevMap = new Map(prevRows.map((r) => [r.date, r.spend]));
+
+  const length = dayCount(filters.from, filters.to);
+  const out: SpendComparePoint[] = [];
+  for (let i = 0; i < length; i++) {
+    const currentDate = addDays(filters.from, i);
+    const previousDate = addDays(prev.from, i);
+    out.push({
+      dayOffset: i,
+      currentDate,
+      previousDate,
+      current: currMap.get(currentDate) ?? 0,
+      previous: prevMap.get(previousDate) ?? 0,
+    });
+  }
+  return out;
+}
+
+/** Single-series daily spend total (no platform breakdown). */
+async function spendByDate(
+  filters: KpiFilters,
+): Promise<Array<{ date: string; spend: number }>> {
+  const { conditions, needsCreativeJoin, needsTagJoin } =
+    buildBaseConditions(filters);
+
+  let q = db
+    .select({
+      date: performanceRecords.date,
+      spend: sumSpend,
+    })
+    .from(performanceRecords)
+    .$dynamic();
+
+  if (needsCreativeJoin || needsTagJoin) {
+    q = q.innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId));
+  }
+  if (needsTagJoin) {
+    q = q.innerJoin(
+      creativeTags,
+      eq(creativeTags.creativeId, performanceRecords.creativeId),
+    );
+  }
+
+  const rows = await q
+    .where(and(...conditions))
+    .groupBy(performanceRecords.date)
+    .orderBy(performanceRecords.date);
+  return rows.map((r) => ({ date: r.date, spend: Number(r.spend ?? 0) }));
+}
+
+export interface TopMoverRow {
+  creativeId: string;
+  name: string;
+  productName: string;
+  type: CreativeType;
+  status: CreativeStatus;
+  currentSpend: number;
+  previousSpend: number;
+  delta: Delta;
+}
+
+/**
+ * Creatives sorted by absolute spend movement between the current and prior
+ * windows. Used by the Over-time top-movers table — the question "what's
+ * the biggest change?", not "what's biggest in absolute terms?".
+ */
+export async function topMovers(
+  filters: KpiFilters & { from: string; to: string },
+  limit = 10,
+): Promise<TopMoverRow[]> {
+  const prev = prevPeriod(filters.from, filters.to);
+
+  const [currRows, prevRows] = await Promise.all([
+    spendPerCreative(filters),
+    spendPerCreative({ ...filters, from: prev.from, to: prev.to }),
+  ]);
+
+  const prevMap = new Map(prevRows.map((r) => [r.creativeId, r.spend]));
+  const allIds = new Set<string>([
+    ...currRows.map((r) => r.creativeId),
+    ...prevRows.map((r) => r.creativeId),
+  ]);
+  const currMap = new Map(
+    currRows.map((r) => [
+      r.creativeId,
+      { spend: r.spend, name: r.name, productName: r.productName, type: r.type, status: r.status },
+    ]),
+  );
+
+  // For prior-only IDs we need the name/product too. Pull them in one batch.
+  const priorOnlyIds = prevRows
+    .filter((r) => !currMap.has(r.creativeId))
+    .map((r) => r.creativeId);
+  const priorOnlyMeta = new Map<
+    string,
+    { name: string; productName: string; type: CreativeType; status: CreativeStatus }
+  >();
+  if (priorOnlyIds.length > 0) {
+    const metaRows = await db
+      .select({
+        id: creatives.id,
+        name: creatives.name,
+        productName: products.name,
+        type: creatives.type,
+        status: creatives.status,
+      })
+      .from(creatives)
+      .innerJoin(products, eq(products.id, creatives.productId))
+      .where(inArray(creatives.id, priorOnlyIds));
+    for (const r of metaRows) {
+      priorOnlyMeta.set(r.id, {
+        name: r.name,
+        productName: r.productName,
+        type: r.type as CreativeType,
+        status: r.status as CreativeStatus,
+      });
+    }
+  }
+
+  const rows: TopMoverRow[] = [];
+  for (const id of allIds) {
+    const cur = currMap.get(id);
+    const previousSpend = prevMap.get(id) ?? 0;
+    const currentSpend = cur?.spend ?? 0;
+    if (currentSpend === 0 && previousSpend === 0) continue;
+    const meta = cur ?? priorOnlyMeta.get(id);
+    if (!meta) continue;
+    rows.push({
+      creativeId: id,
+      name: meta.name,
+      productName: meta.productName,
+      type: meta.type,
+      status: meta.status,
+      currentSpend,
+      previousSpend,
+      delta: computeDelta(currentSpend, previousSpend),
+    });
+  }
+
+  // Sort by absolute spend delta (USD), descending. We use the dollar swing
+  // rather than the percentage so a $5k → $10k move ranks above a $20 → $80
+  // move (which would otherwise dominate by percent).
+  rows.sort((a, b) => {
+    const aMove = Math.abs(a.currentSpend - a.previousSpend);
+    const bMove = Math.abs(b.currentSpend - b.previousSpend);
+    return bMove - aMove;
+  });
+
+  return rows.slice(0, limit);
+}
+
+interface SpendPerCreativeRow {
+  creativeId: string;
+  name: string;
+  productName: string;
+  type: CreativeType;
+  status: CreativeStatus;
+  spend: number;
+}
+
+async function spendPerCreative(
+  filters: KpiFilters,
+): Promise<SpendPerCreativeRow[]> {
+  const { conditions, needsTagJoin } = buildBaseConditions(filters);
+
+  let q = db
+    .select({
+      creativeId: creatives.id,
+      name: creatives.name,
+      productName: products.name,
+      type: creatives.type,
+      status: creatives.status,
+      spend: sumSpend,
+    })
+    .from(performanceRecords)
+    .innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId))
+    .innerJoin(products, eq(products.id, creatives.productId))
+    .$dynamic();
+
+  if (needsTagJoin) {
+    q = q.innerJoin(
+      creativeTags,
+      eq(creativeTags.creativeId, performanceRecords.creativeId),
+    );
+  }
+
+  const rows = await q
+    .where(and(...conditions))
+    .groupBy(creatives.id, creatives.name, products.name, creatives.type, creatives.status);
+
+  return rows.map((r) => ({
+    creativeId: r.creativeId,
+    name: r.name,
+    productName: r.productName,
+    type: r.type as CreativeType,
+    status: r.status as CreativeStatus,
+    spend: Number(r.spend ?? 0),
+  }));
 }
 
 export const rawSql = sql;
