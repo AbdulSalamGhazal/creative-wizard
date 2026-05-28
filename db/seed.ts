@@ -88,30 +88,43 @@ async function main() {
   console.log("  products:", productList.length);
 
   // ---------- Creatives ----------
+  // Launch dates are spread across the trailing seed window so the Trends
+  // "Launches" cohort view has data in each creative's first-7 / first-30
+  // day windows.
+  const isoDaysAgo = (n: number): string => {
+    const d = new Date();
+    d.setUTCHours(0, 0, 0, 0);
+    d.setUTCDate(d.getUTCDate() - n);
+    return d.toISOString().slice(0, 10);
+  };
   const creativeRows = [
     {
       name: "URJ_VID_001",
       productSlug: "argan-oil",
       type: "video" as const,
       status: "active" as const,
+      launchDate: isoDaysAgo(45),
     },
     {
       name: "URJ_VID_002",
       productSlug: "argan-oil",
       type: "video" as const,
       status: "active" as const,
+      launchDate: isoDaysAgo(38),
     },
     {
       name: "URJ_IMG_010",
       productSlug: "rose-toner",
       type: "image" as const,
       status: "active" as const,
+      launchDate: isoDaysAgo(20),
     },
     {
       name: "URJ_SLD_020",
       productSlug: "saffron-cream",
       type: "slides" as const,
       status: "paused" as const,
+      launchDate: isoDaysAgo(10),
     },
   ];
   for (const c of creativeRows) {
@@ -122,9 +135,15 @@ async function main() {
         productId: productBySlug.get(c.productSlug)!,
         type: c.type,
         status: c.status,
+        launchDate: c.launchDate,
         createdByUserId: adminId,
       })
-      .onConflictDoNothing({ target: creatives.name });
+      // Re-runs refresh the launch date (the column was added after the
+      // initial seed) without disturbing other fields.
+      .onConflictDoUpdate({
+        target: creatives.name,
+        set: { launchDate: c.launchDate },
+      });
   }
   const creativeList = await db
     .select({ id: creatives.id, name: creatives.name })

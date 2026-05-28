@@ -65,18 +65,21 @@ export default async function TrendsLandingPage() {
           icon={Hash}
           title="By tag"
           description="Roll up spend, CTR, CPA, and ROAS by tag. Which creative themes are doing the work?"
+          available
         />
         <LensCard
           href="/trends/launches"
           icon={Rocket}
           title="Launches"
           description="Cohort view: first-7-day and first-30-day performance of every launched creative."
+          available
         />
         <LensCard
           href="/trends/video"
           icon={Video}
           title="Video diagnostics"
           description="Hook rate (3s) and hold rate (15s) — the early signals that decide whether a video lives or dies."
+          available
         />
       </div>
     </div>

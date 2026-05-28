@@ -48,7 +48,7 @@ export const holdRate: SQL<number> = sql<number>`SUM(${p.videoViews15s})::numeri
  * clause already restricts the joined rows; the unfiltered `ctr`, `cpa`,
  * `roas`, etc. fragments above handle those correctly.
  */
-export function platformMetrics(platform: Platform): {
+export interface MetricBlockSql {
   spend: SQL<number>;
   impressions: SQL<number>;
   clicks: SQL<number>;
@@ -63,9 +63,19 @@ export function platformMetrics(platform: Platform): {
   roas: SQL<number>;
   hookRate: SQL<number>;
   holdRate: SQL<number>;
-} {
-  const w = sql`${p.platform} = ${platform}`;
-  // Component sums, restricted to this platform's rows.
+}
+
+/**
+ * Build the full metric block restricted to the rows matching `predicate`
+ * via Postgres FILTER aggregates. Component sums are filtered; derived
+ * metrics are the canonical weighted ratios over those filtered sums —
+ * never AVG of per-row ratios.
+ *
+ * Used for any "columns side-by-side" pivot: per-platform (Summary),
+ * launch-window cohorts (first-7 / first-30 days from launch), etc.
+ */
+export function scopedMetrics(predicate: SQL): MetricBlockSql {
+  const w = predicate;
   const spend = sql<number>`SUM(${p.spend}) FILTER (WHERE ${w})`;
   const impressions = sql<number>`SUM(${p.impressions}) FILTER (WHERE ${w})`;
   const clicks = sql<number>`SUM(${p.clicks}) FILTER (WHERE ${w})`;
@@ -81,7 +91,6 @@ export function platformMetrics(platform: Platform): {
     conversionValue,
     videoViews3s,
     videoViews15s,
-    // Derived metrics — weighted ratios of this platform's own sums.
     ctr: sql<number>`${clicks}::numeric / NULLIF(${impressions}, 0)`,
     cpm: sql<number>`${spend} / NULLIF(${impressions}, 0) * 1000`,
     cpc: sql<number>`${spend} / NULLIF(${clicks}, 0)`,
@@ -90,4 +99,9 @@ export function platformMetrics(platform: Platform): {
     hookRate: sql<number>`${videoViews3s}::numeric / NULLIF(${impressions}, 0)`,
     holdRate: sql<number>`${videoViews15s}::numeric / NULLIF(${videoViews3s}, 0)`,
   };
+}
+
+/** Per-platform metric block — a `scopedMetrics` over `platform = X`. */
+export function platformMetrics(platform: Platform): MetricBlockSql {
+  return scopedMetrics(sql`${p.platform} = ${platform}`);
 }
