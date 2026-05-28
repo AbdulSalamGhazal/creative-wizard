@@ -36,7 +36,12 @@ export default async function DashboardLayout({
       <TopBar user={user} creatives={creativeOptions} />
       <div className="flex flex-1">
         <Sidebar role={user.role} />
-        <div className="flex-1 flex flex-col">
+        {/* `min-w-0` lets this column shrink to the available width instead
+         *  of being forced to its content's intrinsic width — so wide
+         *  children (e.g. the Summary table) scroll within their own
+         *  overflow-x container rather than pushing the whole page to
+         *  scroll horizontally. */}
+        <div className="flex-1 min-w-0 flex flex-col">
           <main className="flex-1 px-6 py-6">{children}</main>
         </div>
       </div>

@@ -359,6 +359,7 @@ export function SummaryFilterBar({ products, tags, creators }: Props) {
                     checked={checked}
                     disabled={disabled}
                     onCheckedChange={() => togglePlatform(p.value)}
+                    onSelect={(e) => e.preventDefault()}
                   >
                     <span className={cn(disabled && "text-ink-3")}>
                       {p.label}
@@ -398,6 +399,7 @@ export function SummaryFilterBar({ products, tags, creators }: Props) {
                   onCheckedChange={() =>
                     toggleMulti("productIds", p.id, productIds)
                   }
+                  onSelect={(e) => e.preventDefault()}
                 >
                   {p.name}
                 </DropdownMenuCheckboxItem>
@@ -428,6 +430,7 @@ export function SummaryFilterBar({ products, tags, creators }: Props) {
                   key={t.value}
                   checked={types.includes(t.value)}
                   onCheckedChange={() => toggleMulti("types", t.value, types)}
+                  onSelect={(e) => e.preventDefault()}
                 >
                   {t.label}
                 </DropdownMenuCheckboxItem>
@@ -460,6 +463,7 @@ export function SummaryFilterBar({ products, tags, creators }: Props) {
                   onCheckedChange={() =>
                     toggleMulti("statuses", s.value, statuses)
                   }
+                  onSelect={(e) => e.preventDefault()}
                 >
                   {s.label}
                 </DropdownMenuCheckboxItem>
@@ -493,6 +497,7 @@ export function SummaryFilterBar({ products, tags, creators }: Props) {
                   key={t}
                   checked={selectedTags.includes(t)}
                   onCheckedChange={() => toggleMulti("tags", t, selectedTags)}
+                  onSelect={(e) => e.preventDefault()}
                 >
                   {t}
                 </DropdownMenuCheckboxItem>
@@ -524,6 +529,7 @@ export function SummaryFilterBar({ products, tags, creators }: Props) {
                   onCheckedChange={() =>
                     toggleMulti("creatorIds", c.id, creatorIds)
                   }
+                  onSelect={(e) => e.preventDefault()}
                 >
                   <div className="flex flex-col">
                     <span>{c.name}</span>
@@ -566,6 +572,7 @@ export function SummaryFilterBar({ products, tags, creators }: Props) {
                     onCheckedChange={() =>
                       toggleColumn("hideIdentity", k, hiddenIdentity)
                     }
+                    onSelect={(e) => e.preventDefault()}
                   >
                     {IDENTITY_LABELS[k]}
                   </DropdownMenuCheckboxItem>
@@ -584,6 +591,7 @@ export function SummaryFilterBar({ products, tags, creators }: Props) {
                     onCheckedChange={() =>
                       toggleColumn("hideMetrics", k, hiddenMetrics)
                     }
+                    onSelect={(e) => e.preventDefault()}
                   >
                     {METRIC_LABELS[k]}
                   </DropdownMenuCheckboxItem>
