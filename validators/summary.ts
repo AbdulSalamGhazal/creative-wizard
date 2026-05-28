@@ -32,6 +32,39 @@ function csv() {
 
 export const MAX_PLATFORMS = 3;
 
+/**
+ * Hideable identity columns (the Creative-name column is mandatory — it's
+ * the row identity, hiding it would leave anonymous rows of numbers).
+ */
+export const IDENTITY_COLUMN_KEYS = [
+  "product",
+  "type",
+  "status",
+  "creator",
+] as const;
+export type IdentityColumnKey = (typeof IDENTITY_COLUMN_KEYS)[number];
+
+/**
+ * Hideable metric columns. Toggling a metric hides it across every
+ * platform group and the Blended Total group — per-platform granularity
+ * isn't useful (you wouldn't want CTR for Meta but not for TikTok), and
+ * 33 individual toggles would be unusable.
+ */
+export const METRIC_COLUMN_KEYS = [
+  "spend",
+  "impressions",
+  "clicks",
+  "conversions",
+  "ctr",
+  "cpm",
+  "cpc",
+  "cpa",
+  "roas",
+  "hook_rate",
+  "hold_rate",
+] as const;
+export type MetricColumnKey = (typeof METRIC_COLUMN_KEYS)[number];
+
 /** Identity columns + per-platform metric keys. Validated against the
  *  selected platforms in the page; an invalid combination falls back to
  *  the default sort. */
@@ -70,6 +103,10 @@ export const summaryFiltersSchema = z.object({
     .transform((s) => s === "1" || s === "true"),
   sort: sortKeySchema.optional(),
   dir: z.enum(SORT_DIRS).optional(),
+  // Opt-out column visibility — URL only carries hidden columns, so the
+  // default ("show everything") needs no URL params.
+  hideIdentity: csvEnum(IDENTITY_COLUMN_KEYS),
+  hideMetrics: csvEnum(METRIC_COLUMN_KEYS),
 });
 
 export type SummaryFilters = z.infer<typeof summaryFiltersSchema>;

@@ -34,6 +34,8 @@ export default async function SummaryPage({
     includeExcluded: pickFirst(params.includeExcluded),
     sort: pickFirst(params.sort),
     dir: pickFirst(params.dir),
+    hideIdentity: pickFirst(params.hideIdentity),
+    hideMetrics: pickFirst(params.hideMetrics),
   });
 
   // Filter dropdowns + the query run in parallel.
@@ -102,6 +104,8 @@ export default async function SummaryPage({
         sort={effectiveSort}
         pathname="/summary"
         baseParams={baseParams}
+        hiddenIdentity={new Set(parsed.hideIdentity)}
+        hiddenMetrics={new Set(parsed.hideMetrics)}
       />
     </div>
   );

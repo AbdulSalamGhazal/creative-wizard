@@ -7,7 +7,11 @@ import type {
   PlatformMetricBlock,
   SummaryRow,
 } from "@/db/queries/summary";
-import { type SortDir } from "@/validators/summary";
+import {
+  type IdentityColumnKey,
+  type MetricColumnKey,
+  type SortDir,
+} from "@/validators/summary";
 
 interface Props {
   rows: SummaryRow[];
@@ -18,6 +22,10 @@ interface Props {
   pathname: string;
   /** Other URL params we want to preserve when toggling sort. */
   baseParams: URLSearchParams;
+  /** Identity columns to suppress (Creative name is always shown). */
+  hiddenIdentity?: Set<IdentityColumnKey>;
+  /** Metric columns to suppress — applies to every platform + total group. */
+  hiddenMetrics?: Set<MetricColumnKey>;
 }
 
 const STATUS_CLASS: Record<SummaryRow["status"], string> = {
@@ -94,8 +102,14 @@ export function SummaryTable({
   sort,
   pathname,
   baseParams,
+  hiddenIdentity,
+  hiddenMetrics,
 }: Props) {
   const showTotal = platforms.length >= 2;
+  const visibleMetrics = METRIC_COLUMNS.filter(
+    (m) => !hiddenMetrics?.has(m.key as MetricColumnKey),
+  );
+  const visibleMetricCount = visibleMetrics.length;
 
   const sortHref = (key: string): string => {
     const next = new URLSearchParams(baseParams);
@@ -142,13 +156,24 @@ export function SummaryTable({
   // ordinary cells (not sticky CSS) because mixing position:sticky with
   // sortable headers across horizontal scroll can flicker — the table is
   // wide enough that the user scrolls horizontally anyway.
-  const identityCols: Array<{ key: string; label: string }> = [
+  //
+  // The Creative name column is mandatory — it's the row identity. Every
+  // other identity column can be hidden via the URL.
+  const ALL_IDENTITY_COLS: Array<{
+    key: string;
+    label: string;
+    /** When set, hiding controlled by hiddenIdentity. */
+    hideKey?: IdentityColumnKey;
+  }> = [
     { key: "name", label: "Creative" },
-    { key: "product", label: "Product" },
-    { key: "type", label: "Type" },
-    { key: "status", label: "Status" },
-    { key: "creator", label: "Creator" },
+    { key: "product", label: "Product", hideKey: "product" },
+    { key: "type", label: "Type", hideKey: "type" },
+    { key: "status", label: "Status", hideKey: "status" },
+    { key: "creator", label: "Creator", hideKey: "creator" },
   ];
+  const identityCols = ALL_IDENTITY_COLS.filter(
+    (c) => !c.hideKey || !hiddenIdentity?.has(c.hideKey),
+  );
 
   return (
     <div className="overflow-x-auto rounded-lg border border-line bg-surface">
@@ -163,19 +188,22 @@ export function SummaryTable({
             >
               Creative
             </th>
-            {platforms.map((pf) => (
+            {visibleMetricCount > 0 &&
+              platforms.map((pf) => (
+                <th
+                  key={pf}
+                  colSpan={visibleMetricCount}
+                  className="px-3 py-1.5 text-[10px] uppercase tracking-[0.14em] border-l border-line text-left"
+                  style={{
+                    color: PLATFORM_COLOR[pf as keyof typeof PLATFORM_COLOR],
+                  }}
+                >
+                  {PLATFORM_LABEL[pf as keyof typeof PLATFORM_LABEL]}
+                </th>
+              ))}
+            {showTotal && visibleMetricCount > 0 && (
               <th
-                key={pf}
-                colSpan={METRIC_COLUMNS.length}
-                className="px-3 py-1.5 text-[10px] uppercase tracking-[0.14em] border-l border-line text-left"
-                style={{ color: PLATFORM_COLOR[pf as keyof typeof PLATFORM_COLOR] }}
-              >
-                {PLATFORM_LABEL[pf as keyof typeof PLATFORM_LABEL]}
-              </th>
-            ))}
-            {showTotal && (
-              <th
-                colSpan={METRIC_COLUMNS.length}
+                colSpan={visibleMetricCount}
                 className="px-3 py-1.5 text-[10px] uppercase tracking-[0.14em] text-ink-2 border-l border-line text-left"
                 title="Weighted aggregate across the selected platforms."
               >
@@ -195,7 +223,7 @@ export function SummaryTable({
               />
             ))}
             {platforms.map((pf) =>
-              METRIC_COLUMNS.map((m) => (
+              visibleMetrics.map((m, i) => (
                 <SortableTh
                   key={`${pf}.${m.key}`}
                   label={m.label}
@@ -204,13 +232,13 @@ export function SummaryTable({
                   dir={sort.dir}
                   href={sortHref(`${pf}.${m.key}`)}
                   icon={SortIcon}
-                  groupBorder
-                  groupIndex={METRIC_COLUMNS.indexOf(m)}
+                  groupBorder={i === 0}
+                  groupIndex={i}
                 />
               )),
             )}
             {showTotal &&
-              METRIC_COLUMNS.map((m, i) => (
+              visibleMetrics.map((m, i) => (
                 <SortableTh
                   key={`total.${m.key}`}
                   label={m.label}
@@ -231,34 +259,67 @@ export function SummaryTable({
               key={r.creativeId}
               className="hover:bg-surface-2/40 transition-colors"
             >
-              {/* Identity */}
-              <td className="px-3 py-2 whitespace-nowrap">
-                <Link
-                  href={`/creatives/${encodeURIComponent(r.name)}`}
-                  className="font-mono text-ink text-[12px] hover:text-brand transition-colors"
-                >
-                  {r.name}
-                </Link>
-              </td>
-              <td className="px-3 py-2 text-ink-2 whitespace-nowrap">
-                {r.productName}
-              </td>
-              <td className="px-3 py-2 text-ink-2 whitespace-nowrap capitalize">
-                {r.type}
-              </td>
-              <td className="px-3 py-2 whitespace-nowrap">
-                <Badge variant="outline" className={STATUS_CLASS[r.status]}>
-                  {r.status}
-                </Badge>
-              </td>
-              <td className="px-3 py-2 text-ink-3 whitespace-nowrap">
-                {r.creatorName ?? "—"}
-              </td>
+              {/* Identity — render only the visible columns */}
+              {identityCols.map((c) => {
+                switch (c.key) {
+                  case "name":
+                    return (
+                      <td key="name" className="px-3 py-2 whitespace-nowrap">
+                        <Link
+                          href={`/creatives/${encodeURIComponent(r.name)}`}
+                          className="font-mono text-ink text-[12px] hover:text-brand transition-colors"
+                        >
+                          {r.name}
+                        </Link>
+                      </td>
+                    );
+                  case "product":
+                    return (
+                      <td
+                        key="product"
+                        className="px-3 py-2 text-ink-2 whitespace-nowrap"
+                      >
+                        {r.productName}
+                      </td>
+                    );
+                  case "type":
+                    return (
+                      <td
+                        key="type"
+                        className="px-3 py-2 text-ink-2 whitespace-nowrap capitalize"
+                      >
+                        {r.type}
+                      </td>
+                    );
+                  case "status":
+                    return (
+                      <td key="status" className="px-3 py-2 whitespace-nowrap">
+                        <Badge
+                          variant="outline"
+                          className={STATUS_CLASS[r.status]}
+                        >
+                          {r.status}
+                        </Badge>
+                      </td>
+                    );
+                  case "creator":
+                    return (
+                      <td
+                        key="creator"
+                        className="px-3 py-2 text-ink-3 whitespace-nowrap"
+                      >
+                        {r.creatorName ?? "—"}
+                      </td>
+                    );
+                  default:
+                    return null;
+                }
+              })}
 
               {/* Per platform */}
               {platforms.map((pf) => {
                 const block = r.perPlatform[pf as keyof typeof r.perPlatform];
-                return METRIC_COLUMNS.map((m, mi) => {
+                return visibleMetrics.map((m, mi) => {
                   const v = block ? pickMetric(block, m.key) : null;
                   return (
                     <td
@@ -276,7 +337,7 @@ export function SummaryTable({
 
               {/* Blended total */}
               {showTotal &&
-                METRIC_COLUMNS.map((m, mi) => {
+                visibleMetrics.map((m, mi) => {
                   const v = pickMetric(r.total, m.key);
                   return (
                     <td

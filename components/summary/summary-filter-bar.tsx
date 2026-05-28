@@ -4,6 +4,7 @@ import {
   CalendarDays,
   CircleDot,
   ChevronDown,
+  Columns3,
   Layers,
   Package,
   Search,
@@ -30,7 +31,13 @@ import {
 import { Calendar } from "@/components/ui/calendar";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { MAX_PLATFORMS } from "@/validators/summary";
+import {
+  IDENTITY_COLUMN_KEYS,
+  MAX_PLATFORMS,
+  METRIC_COLUMN_KEYS,
+  type IdentityColumnKey,
+  type MetricColumnKey,
+} from "@/validators/summary";
 import type { DateRange } from "react-day-picker";
 
 interface Props {
@@ -58,6 +65,27 @@ const STATUSES = [
   { value: "draft", label: "Draft" },
   { value: "archived", label: "Archived" },
 ] as const;
+
+/** Human labels for the Columns dropdown — must match the keys in validators/summary. */
+const IDENTITY_LABELS: Record<IdentityColumnKey, string> = {
+  product: "Product",
+  type: "Type",
+  status: "Status",
+  creator: "Creator",
+};
+const METRIC_LABELS: Record<MetricColumnKey, string> = {
+  spend: "Spend",
+  impressions: "Impressions",
+  clicks: "Clicks",
+  conversions: "Conversions",
+  ctr: "CTR",
+  cpm: "CPM",
+  cpc: "CPC",
+  cpa: "CPA",
+  roas: "ROAS",
+  hook_rate: "Hook rate",
+  hold_rate: "Hold rate",
+};
 
 const DATE_PRESETS = [
   { key: "7", label: "Last 7 days", days: 7 },
@@ -104,6 +132,14 @@ export function SummaryFilterBar({ products, tags, creators }: Props) {
   const selectedTags = csv(searchParams.get("tags"));
   const creatorIds = csv(searchParams.get("creatorIds"));
   const includeExcluded = searchParams.get("includeExcluded") === "1";
+  const hiddenIdentity = csv(searchParams.get("hideIdentity")).filter(
+    (k): k is IdentityColumnKey =>
+      (IDENTITY_COLUMN_KEYS as readonly string[]).includes(k),
+  );
+  const hiddenMetrics = csv(searchParams.get("hideMetrics")).filter(
+    (k): k is MetricColumnKey =>
+      (METRIC_COLUMN_KEYS as readonly string[]).includes(k),
+  );
 
   const urlQ = searchParams.get("q") ?? "";
   const [qInput, setQInput] = useState(urlQ);
@@ -164,6 +200,31 @@ export function SummaryFilterBar({ products, tags, creators }: Props) {
     });
   };
 
+  /**
+   * Column visibility uses an opt-out URL pattern: the param holds *hidden*
+   * columns, so the default "show all" needs no URL state. Visible = checked;
+   * unchecking adds the key to the hidden list.
+   */
+  const toggleColumn = (
+    paramKey: "hideIdentity" | "hideMetrics",
+    columnKey: string,
+    currentHidden: string[],
+  ) => {
+    const set = new Set(currentHidden);
+    if (set.has(columnKey)) set.delete(columnKey);
+    else set.add(columnKey);
+    update((next) => {
+      if (set.size === 0) next.delete(paramKey);
+      else next.set(paramKey, [...set].join(","));
+    });
+  };
+
+  const showAllColumns = () =>
+    update((next) => {
+      next.delete("hideIdentity");
+      next.delete("hideMetrics");
+    });
+
   const setPreset = (days: number) => {
     const r = presetRange(days);
     update((next) => {
@@ -212,8 +273,12 @@ export function SummaryFilterBar({ products, tags, creators }: Props) {
         "includeExcluded",
         "sort",
         "dir",
+        "hideIdentity",
+        "hideMetrics",
       ].forEach((k) => next.delete(k));
     });
+
+  const hiddenColumnsCount = hiddenIdentity.length + hiddenMetrics.length;
 
   const productLabel = useMemo(() => {
     if (productIds.length === 0) return "All";
@@ -473,6 +538,73 @@ export function SummaryFilterBar({ products, tags, creators }: Props) {
         </FilterPill>
 
         <div className="ml-auto flex items-center gap-2">
+          {/* Columns visibility — opt-out (URL only lists hidden columns) */}
+          <FilterPill
+            icon={Columns3}
+            label="Columns"
+            value={
+              hiddenColumnsCount === 0
+                ? "All shown"
+                : `${hiddenColumnsCount} hidden`
+            }
+            active={hiddenColumnsCount > 0}
+          >
+            {() => (
+              <DropdownMenuContent
+                align="end"
+                className="w-64 max-h-[28rem] overflow-y-auto"
+              >
+                <DropdownMenuLabel>Identity columns</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <div className="px-2 py-1.5 text-[10px] text-ink-3">
+                  Creative name is always shown.
+                </div>
+                {IDENTITY_COLUMN_KEYS.map((k) => (
+                  <DropdownMenuCheckboxItem
+                    key={k}
+                    checked={!hiddenIdentity.includes(k)}
+                    onCheckedChange={() =>
+                      toggleColumn("hideIdentity", k, hiddenIdentity)
+                    }
+                  >
+                    {IDENTITY_LABELS[k]}
+                  </DropdownMenuCheckboxItem>
+                ))}
+
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel>Metric columns</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <div className="px-2 py-1.5 text-[10px] text-ink-3">
+                  Applies to every platform group and the Blended total.
+                </div>
+                {METRIC_COLUMN_KEYS.map((k) => (
+                  <DropdownMenuCheckboxItem
+                    key={k}
+                    checked={!hiddenMetrics.includes(k)}
+                    onCheckedChange={() =>
+                      toggleColumn("hideMetrics", k, hiddenMetrics)
+                    }
+                  >
+                    {METRIC_LABELS[k]}
+                  </DropdownMenuCheckboxItem>
+                ))}
+
+                {hiddenColumnsCount > 0 && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <button
+                      type="button"
+                      onClick={showAllColumns}
+                      className="w-full text-left px-2 py-1.5 text-xs text-ink-2 hover:text-ink hover:bg-surface-2 transition-colors"
+                    >
+                      Show all columns
+                    </button>
+                  </>
+                )}
+              </DropdownMenuContent>
+            )}
+          </FilterPill>
+
           <button
             type="button"
             onClick={toggleExcluded}
