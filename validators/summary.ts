@@ -92,7 +92,23 @@ export const METRIC_META: Record<
 export const METRIC_FILTER_OPS = ["gte", "lte", "eq"] as const;
 export type MetricFilterOp = (typeof METRIC_FILTER_OPS)[number];
 
+/**
+ * Which column a numeric filter targets: the blended total across the
+ * selected platforms, or one specific platform's column. `total` answers
+ * "this creative's overall ROAS ≥ 2"; a platform scope answers "this
+ * creative's Meta ROAS ≥ 2" — matching whichever column you're reading.
+ */
+export const METRIC_FILTER_SCOPES = [
+  "total",
+  "meta",
+  "tiktok",
+  "snapchat",
+  "google",
+] as const;
+export type MetricFilterScope = (typeof METRIC_FILTER_SCOPES)[number];
+
 export interface MetricFilterCondition {
+  scope: MetricFilterScope;
   metric: MetricColumnKey;
   op: MetricFilterOp;
   /** Value in *display units* (e.g. 2 for "CTR ≥ 2%", 1.5 for "ROAS ≥ 1.5×"). */
@@ -100,12 +116,15 @@ export interface MetricFilterCondition {
 }
 
 /**
- * Parse the `metricFilters` URL param. Format: `metric:op:value` items
- * joined by commas, e.g. `roas:gte:2,spend:gte:500`.
+ * Parse the `metricFilters` URL param. Format: `scope:metric:op:value` items
+ * joined by commas, e.g. `total:roas:gte:2,meta:spend:gte:500`.
+ *
+ * A 3-segment item (`metric:op:value`) is accepted for backward-compat and
+ * defaults the scope to `total`.
  *
  * Invalid items are dropped silently (a shared/edited URL shouldn't 500).
- * Dedup is by metric+op so "spend:gte:100" + "spend:lte:500" coexist (a
- * range) but a duplicate metric+op keeps only the first.
+ * Dedup is by scope+metric+op so "meta:spend:gte:100" + "meta:spend:lte:500"
+ * coexist (a range) but a duplicate keeps only the first.
  *
  * Shared by the Zod schema (server) and the filter control (client) so the
  * encoding has exactly one definition.
@@ -118,16 +137,28 @@ export function parseMetricFilters(
   const seen = new Set<string>();
   for (const part of raw.split(",")) {
     const seg = part.split(":");
-    if (seg.length !== 3) continue;
-    const [metric, op, rawValue] = seg;
+    let scope: string;
+    let metric: string | undefined;
+    let op: string | undefined;
+    let rawValue: string | undefined;
+    if (seg.length === 4) {
+      [scope, metric, op, rawValue] = seg as [string, string, string, string];
+    } else if (seg.length === 3) {
+      scope = "total";
+      [metric, op, rawValue] = seg as [string, string, string];
+    } else {
+      continue;
+    }
+    if (!(METRIC_FILTER_SCOPES as readonly string[]).includes(scope)) continue;
     if (!(METRIC_COLUMN_KEYS as readonly string[]).includes(metric!)) continue;
     if (!(METRIC_FILTER_OPS as readonly string[]).includes(op!)) continue;
     const value = Number(rawValue);
     if (!Number.isFinite(value)) continue;
-    const key = `${metric}:${op}`;
+    const key = `${scope}:${metric}:${op}`;
     if (seen.has(key)) continue;
     seen.add(key);
     out.push({
+      scope: scope as MetricFilterScope,
       metric: metric as MetricColumnKey,
       op: op as MetricFilterOp,
       value,
@@ -137,7 +168,7 @@ export function parseMetricFilters(
 }
 
 export function serializeMetricFilters(arr: MetricFilterCondition[]): string {
-  return arr.map((f) => `${f.metric}:${f.op}:${f.value}`).join(",");
+  return arr.map((f) => `${f.scope}:${f.metric}:${f.op}:${f.value}`).join(",");
 }
 
 /** Identity columns + per-platform metric keys. Validated against the

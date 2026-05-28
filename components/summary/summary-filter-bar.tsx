@@ -45,6 +45,8 @@ interface Props {
   products: Array<{ id: string; name: string }>;
   tags: string[];
   creators: Array<{ id: string; name: string; email: string }>;
+  /** Effective platforms shown in the table — feeds the metric-filter scope picker. */
+  effectivePlatforms: string[];
 }
 
 const PLATFORMS = [
@@ -118,7 +120,12 @@ function csv(v: string | null): string[] {
   return v.split(",").filter(Boolean);
 }
 
-export function SummaryFilterBar({ products, tags, creators }: Props) {
+export function SummaryFilterBar({
+  products,
+  tags,
+  creators,
+  effectivePlatforms,
+}: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -547,7 +554,7 @@ export function SummaryFilterBar({ products, tags, creators }: Props) {
         </FilterPill>
 
         {/* Numeric metric filters (ROAS ≥ 2, Spend ≥ 500, …) */}
-        <MetricFilterControl />
+        <MetricFilterControl platforms={effectivePlatforms} />
 
         <div className="ml-auto flex items-center gap-2">
           {/* Columns visibility — opt-out (URL only lists hidden columns) */}

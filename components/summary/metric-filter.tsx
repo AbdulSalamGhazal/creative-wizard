@@ -19,8 +19,15 @@ import {
   type MetricColumnKey,
   type MetricFilterCondition,
   type MetricFilterOp,
+  type MetricFilterScope,
   type MetricUnit,
 } from "@/validators/summary";
+import { PLATFORM_LABEL } from "@/lib/palette";
+
+interface Props {
+  /** Effective platforms shown in the table — the scope options besides Total. */
+  platforms: string[];
+}
 
 const OP_SYMBOL: Record<MetricFilterOp, string> = {
   gte: "≥",
@@ -32,6 +39,11 @@ const OP_LABEL: Record<MetricFilterOp, string> = {
   lte: "≤  at most",
   eq: "=  equals",
 };
+
+function scopeLabel(scope: MetricFilterScope): string {
+  if (scope === "total") return "Total";
+  return PLATFORM_LABEL[scope as keyof typeof PLATFORM_LABEL] ?? scope;
+}
 
 function unitPrefix(unit: MetricUnit): string {
   return unit === "usd" ? "$" : "";
@@ -55,7 +67,7 @@ function formatValue(metric: MetricColumnKey, value: number): string {
  * param so it can be dropped anywhere in the filter bar without prop
  * threading. Each rule is `metric op value` applied to the blended total.
  */
-export function MetricFilterControl() {
+export function MetricFilterControl({ platforms }: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -64,6 +76,13 @@ export function MetricFilterControl() {
 
   const conditions = parseMetricFilters(searchParams.get("metricFilters"));
 
+  // Scope options: Total + whichever platforms the table is showing.
+  const scopeOptions: MetricFilterScope[] = [
+    "total",
+    ...(platforms as MetricFilterScope[]),
+  ];
+
+  const [draftScope, setDraftScope] = useState<MetricFilterScope>("total");
   const [draftMetric, setDraftMetric] = useState<MetricColumnKey>("roas");
   const [draftOp, setDraftOp] = useState<MetricFilterOp>("gte");
   const [draftValue, setDraftValue] = useState("");
@@ -85,12 +104,20 @@ export function MetricFilterControl() {
   const addCondition = () => {
     const value = Number(draftValue);
     if (!Number.isFinite(value) || draftValue.trim() === "") return;
-    // Replace any existing rule with the same metric+op (so re-adding edits
-    // rather than duplicates); different ops on the same metric coexist.
+    // Guard: if the platform set changed and the draft scope is no longer
+    // available, fall back to Total.
+    const scope: MetricFilterScope = scopeOptions.includes(draftScope)
+      ? draftScope
+      : "total";
+    // Replace any existing rule with the same scope+metric+op (so re-adding
+    // edits rather than duplicates); different ops/scopes coexist.
     const kept = conditions.filter(
-      (c) => !(c.metric === draftMetric && c.op === draftOp),
+      (c) => !(c.scope === scope && c.metric === draftMetric && c.op === draftOp),
     );
-    writeConditions([...kept, { metric: draftMetric, op: draftOp, value }]);
+    writeConditions([
+      ...kept,
+      { scope, metric: draftMetric, op: draftOp, value },
+    ]);
     setDraftValue("");
   };
 
@@ -133,9 +160,12 @@ export function MetricFilterControl() {
           <div className="space-y-1.5">
             {conditions.map((c, i) => (
               <div
-                key={`${c.metric}:${c.op}:${i}`}
+                key={`${c.scope}:${c.metric}:${c.op}:${i}`}
                 className="flex items-center gap-2 px-2 py-1.5 rounded-md border border-line bg-surface-2/50 text-xs"
               >
+                <span className="text-ink-3 text-[10px] uppercase tracking-wide shrink-0">
+                  {scopeLabel(c.scope)}
+                </span>
                 <span className="text-ink font-medium">
                   {METRIC_META[c.metric].label}
                 </span>
@@ -163,13 +193,26 @@ export function MetricFilterControl() {
           </div>
         ) : (
           <p className="text-[11px] text-ink-3">
-            No rules yet. Add one below — rules apply to each creative&apos;s
-            blended total across the selected platforms.
+            No rules yet. Add one below. Each rule targets a scope — the
+            blended <strong className="text-ink-2">Total</strong> or a single
+            platform&apos;s column.
           </p>
         )}
 
         {/* Add-rule builder */}
         <div className="space-y-2 pt-2 border-t border-line">
+          {/* Scope: Total or a specific platform column */}
+          <select
+            value={draftScope}
+            onChange={(e) => setDraftScope(e.target.value as MetricFilterScope)}
+            className="h-8 w-full rounded-md border border-line bg-surface px-2 text-xs text-ink outline-none focus:border-line-2"
+          >
+            {scopeOptions.map((s) => (
+              <option key={s} value={s}>
+                {s === "total" ? "Total (blended)" : scopeLabel(s)}
+              </option>
+            ))}
+          </select>
           <div className="flex items-center gap-1.5">
             <select
               value={draftMetric}

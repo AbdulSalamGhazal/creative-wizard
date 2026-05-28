@@ -80,7 +80,12 @@ export default async function SummaryPage({
 
   return (
     <div className="space-y-4">
-      <SummaryFilterBar products={products} tags={tags} creators={creators} />
+      <SummaryFilterBar
+        products={products}
+        tags={tags}
+        creators={creators}
+        effectivePlatforms={selectedPlatforms}
+      />
 
       <div className="flex items-end justify-between flex-wrap gap-2">
         <div>

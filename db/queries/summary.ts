@@ -245,49 +245,49 @@ const numOrNull = (v: unknown): number | null =>
   v === null || v === undefined ? null : Number(v);
 
 /**
- * Read a metric off a creative's blended total in the SAME units the user
- * sees and filters in. Percentage metrics are stored as ratios (0.0275)
- * but displayed as percentage points (2.75), so we ×100 before comparing —
+ * Read a metric off a metric block in the SAME units the user sees and
+ * filters in. Percentage metrics are stored as ratios (0.0275) but
+ * displayed as percentage points (2.75), so we ×100 before comparing —
  * that way "CTR ≥ 2" means 2%, matching the table.
  */
-function comparableTotal(
-  total: PlatformMetricBlock,
+function comparable(
+  block: PlatformMetricBlock,
   metric: MetricColumnKey,
 ): number | null {
   let raw: number | null;
   switch (metric) {
     case "spend":
-      raw = total.spend;
+      raw = block.spend;
       break;
     case "impressions":
-      raw = total.impressions;
+      raw = block.impressions;
       break;
     case "clicks":
-      raw = total.clicks;
+      raw = block.clicks;
       break;
     case "conversions":
-      raw = total.conversions;
+      raw = block.conversions;
       break;
     case "ctr":
-      raw = total.ctr;
+      raw = block.ctr;
       break;
     case "cpm":
-      raw = total.cpm;
+      raw = block.cpm;
       break;
     case "cpc":
-      raw = total.cpc;
+      raw = block.cpc;
       break;
     case "cpa":
-      raw = total.cpa;
+      raw = block.cpa;
       break;
     case "roas":
-      raw = total.roas;
+      raw = block.roas;
       break;
     case "hook_rate":
-      raw = total.hookRate;
+      raw = block.hookRate;
       break;
     case "hold_rate":
-      raw = total.holdRate;
+      raw = block.holdRate;
       break;
     default:
       raw = null;
@@ -296,13 +296,23 @@ function comparableTotal(
   return METRIC_META[metric].unit === "pct" ? raw * 100 : raw;
 }
 
-/** Does a creative's total satisfy every metric filter? Null totals never pass. */
+/**
+ * Does a creative satisfy every metric filter? Each filter targets either
+ * the blended total or one platform's block (per the rule's scope). A null
+ * value — or a scope referencing a platform that isn't in this result —
+ * never passes a numeric comparison.
+ */
 function passesMetricFilters(
-  total: PlatformMetricBlock,
+  row: SummaryRow,
   filters: MetricFilterCondition[],
 ): boolean {
   return filters.every((f) => {
-    const v = comparableTotal(total, f.metric);
+    const block =
+      f.scope === "total"
+        ? row.total
+        : row.perPlatform[f.scope as Platform];
+    if (!block) return false;
+    const v = comparable(block, f.metric);
     if (v === null) return false;
     switch (f.op) {
       case "gte":
@@ -549,7 +559,7 @@ export async function listCreativeSummary(
   // from SQL is preserved because we only drop rows.
   const filteredRows =
     filters.metricFilters && filters.metricFilters.length > 0
-      ? rows.filter((r) => passesMetricFilters(r.total, filters.metricFilters!))
+      ? rows.filter((r) => passesMetricFilters(r, filters.metricFilters!))
       : rows;
 
   return {
