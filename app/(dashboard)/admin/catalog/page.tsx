@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requireAdmin } from "@/lib/auth";
 import { listTags } from "@/db/queries/tags";
 import { ProductsAdmin } from "@/components/product/products-admin";
+import { PlatformsAdmin } from "@/components/platform/platforms-admin";
 import { MappingsAdmin } from "@/components/platform/mappings-admin";
 import { TagsTable } from "@/components/tag/tags-table";
 
@@ -10,6 +11,7 @@ export const dynamic = "force-dynamic";
 const TABS = [
   { key: "products", label: "Products" },
   { key: "tags", label: "Tags" },
+  { key: "platforms", label: "Platforms" },
   { key: "mapping", label: "CSV mapping" },
 ] as const;
 type TabKey = (typeof TABS)[number]["key"];
@@ -65,6 +67,7 @@ export default async function CatalogAdminPage({ searchParams }: Props) {
 
       {active === "products" && <ProductsAdmin />}
       {active === "tags" && <TagsTable rows={await listTags()} />}
+      {active === "platforms" && <PlatformsAdmin />}
       {active === "mapping" && <MappingsAdmin />}
     </div>
   );

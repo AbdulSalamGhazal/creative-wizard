@@ -1,6 +1,6 @@
-import { asc, eq } from "drizzle-orm";
+import { asc, count, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { platformFieldMappings } from "@/db/schema";
+import { performanceRecords, platformFieldMappings } from "@/db/schema";
 import type {
   InternalField,
   PlatformAdapter,
@@ -8,6 +8,20 @@ import type {
 import { ADAPTERS } from "@/csv/platforms";
 
 export type Platform = PlatformAdapter["platform"];
+
+/**
+ * Imported performance-record count per platform — the real signal of which
+ * channels actually have data. Feeds the Catalog → Platforms overview.
+ */
+export async function platformRecordCounts(): Promise<Record<string, number>> {
+  const rows = await db
+    .select({ platform: performanceRecords.platform, n: count() })
+    .from(performanceRecords)
+    .groupBy(performanceRecords.platform);
+  const out: Record<string, number> = {};
+  for (const r of rows) out[r.platform] = Number(r.n);
+  return out;
+}
 
 export interface MappingRow {
   id: string;
