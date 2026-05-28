@@ -1,35 +1,23 @@
-import { asc } from "drizzle-orm";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { asc, eq } from "drizzle-orm";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { db } from "@/lib/db";
-import { creatives } from "@/db/schema";
+import { creatives, products } from "@/db/schema";
+import { compareSeries, compareTotals } from "@/db/queries/performance";
+import { CompareControls } from "@/components/compare/compare-controls";
 import {
-  compareSeries,
-  compareTotals,
-  type CompareMetric,
-} from "@/db/queries/performance";
-import { CompareControls } from "@/components/creative/compare-controls";
+  AddMetricBlock,
+  MetricBlockHeader,
+} from "@/components/compare/metric-blocks";
 import { CompareChart, COMPARE_COLORS } from "@/components/charts/compare-chart";
+import { compareFiltersSchema } from "@/validators/compare";
 import { int, pct, ratio, usd } from "@/lib/format";
 
+export const dynamic = "force-dynamic";
+
 type SearchParams = Record<string, string | string[] | undefined>;
-
 function pickFirst(v: string | string[] | undefined): string | undefined {
-  if (Array.isArray(v)) return v[0];
-  return v;
+  return Array.isArray(v) ? v[0] : v;
 }
-
-const VALID_METRICS: CompareMetric[] = [
-  "spend",
-  "impressions",
-  "clicks",
-  "conversions",
-  "ctr",
-  "cpm",
-  "cpc",
-  "cpa",
-  "roas",
-  "hookRate",
-];
 
 export default async function ComparePage({
   searchParams,
@@ -37,39 +25,49 @@ export default async function ComparePage({
   searchParams: Promise<SearchParams>;
 }) {
   const params = await searchParams;
-  const creativeIdsRaw = pickFirst(params.creativeIds);
-  const selected = creativeIdsRaw
-    ? creativeIdsRaw.split(",").filter(Boolean).slice(0, 5)
-    : [];
-  const metricRaw = pickFirst(params.metric);
-  const metric: CompareMetric = VALID_METRICS.includes(metricRaw as CompareMetric)
-    ? (metricRaw as CompareMetric)
-    : "spend";
+  const parsed = compareFiltersSchema.parse({
+    creativeIds: pickFirst(params.creativeIds),
+    metrics: pickFirst(params.metrics),
+    from: pickFirst(params.from),
+    to: pickFirst(params.to),
+  });
 
   const allCreatives = await db
-    .select({ id: creatives.id, name: creatives.name })
+    .select({
+      id: creatives.id,
+      name: creatives.name,
+      productName: products.name,
+    })
     .from(creatives)
+    .innerJoin(products, eq(products.id, creatives.productId))
     .orderBy(asc(creatives.name));
 
-  const validSelected = selected.filter((id) =>
+  const validIds = parsed.creativeIds.filter((id) =>
     allCreatives.some((c) => c.id === id),
   );
+  const orderedCreatives = validIds
+    .map((id) => allCreatives.find((c) => c.id === id))
+    .filter((c): c is (typeof allCreatives)[number] => !!c);
 
-  const [series, totals] = await Promise.all([
-    validSelected.length >= 1
-      ? compareSeries({ creativeIds: validSelected, metric })
-      : Promise.resolve([]),
-    validSelected.length >= 1
-      ? compareTotals({ creativeIds: validSelected })
+  const dateFilter =
+    parsed.from && parsed.to ? { from: parsed.from, to: parsed.to } : {};
+
+  // One daily series per metric block + the totals, all in parallel.
+  const [seriesByMetric, totals] = await Promise.all([
+    Promise.all(
+      parsed.metrics.map((m) =>
+        validIds.length >= 1
+          ? compareSeries({ creativeIds: validIds, metric: m, ...dateFilter })
+          : Promise.resolve([]),
+      ),
+    ),
+    validIds.length >= 1
+      ? compareTotals({ creativeIds: validIds, ...dateFilter })
       : Promise.resolve([]),
   ]);
 
-  const orderedCreatives = validSelected
-    .map((id) => allCreatives.find((c) => c.id === id))
-    .filter((c): c is { id: string; name: string } => !!c);
-
-  // Sort totals to match the picked order
-  const totalsByName = new Map(totals.map((t) => [t.creativeId, t]));
+  const totalsById = new Map(totals.map((t) => [t.creativeId, t]));
+  const hasPicks = orderedCreatives.length > 0;
 
   return (
     <div className="space-y-6">
@@ -81,114 +79,120 @@ export default async function ComparePage({
           Side-by-side comparison
         </h1>
         <p className="text-ink-2 text-sm mt-1">
-          Select up to five creatives and a metric. All blended figures are
-          weighted via component sums (tech-spec §8.2).
+          Pick up to five creatives, then stack a comparison block per metric.
+          All blended figures are weighted via component sums (tech-spec §8.2).
         </p>
       </div>
 
       <CompareControls
         allCreatives={allCreatives}
-        selected={validSelected}
-        metric={metric}
+        selected={validIds}
+        from={parsed.from ?? null}
+        to={parsed.to ?? null}
       />
 
-      <Card className="bg-surface border-line">
-        <CardHeader>
-          <CardTitle className="text-sm">
-            Daily trend ·{" "}
-            <span className="text-ink-3 font-normal">
-              {metricLabel(metric)}
-            </span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <CompareChart
-            rows={series}
-            creatives={orderedCreatives}
-            metric={metric}
-          />
-        </CardContent>
-      </Card>
+      {!hasPicks ? (
+        <div className="rounded-lg border border-dashed border-line bg-surface px-6 py-16 text-center">
+          <p className="text-ink-2 text-sm">
+            Pick at least one creative to start comparing.
+          </p>
+          <p className="text-ink-3 text-xs mt-1">
+            Use “Add creative” above — search by name or product.
+          </p>
+        </div>
+      ) : (
+        <>
+          {/* One block per metric */}
+          {parsed.metrics.map((metric, i) => (
+            <Card key={metric} className="bg-surface border-line">
+              <CardHeader>
+                <MetricBlockHeader metric={metric} metrics={parsed.metrics} />
+              </CardHeader>
+              <CardContent>
+                <CompareChart
+                  rows={seriesByMetric[i] ?? []}
+                  creatives={orderedCreatives}
+                  metric={metric}
+                />
+              </CardContent>
+            </Card>
+          ))}
 
-      {orderedCreatives.length > 0 && (
-        <Card className="bg-surface border-line">
-          <CardHeader>
-            <CardTitle className="text-sm">All-time comparison</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm num">
-                <thead>
-                  <tr className="text-left text-[11px] uppercase tracking-[0.14em] text-ink-3">
-                    <th className="font-medium px-2 py-2">Creative</th>
-                    <th className="font-medium px-2 py-2">Product</th>
-                    <th className="font-medium px-2 py-2 text-right">Spend</th>
-                    <th className="font-medium px-2 py-2 text-right">Impressions</th>
-                    <th className="font-medium px-2 py-2 text-right">CTR</th>
-                    <th className="font-medium px-2 py-2 text-right">CPA</th>
-                    <th className="font-medium px-2 py-2 text-right">ROAS</th>
-                    <th className="font-medium px-2 py-2 text-right">Hook rate</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-line">
-                  {orderedCreatives.map((c, i) => {
-                    const t = totalsByName.get(c.id);
-                    return (
-                      <tr key={c.id} className="hover:bg-surface-2/60 transition-colors">
-                        <td className="px-2 py-2.5">
-                          <span className="inline-flex items-center gap-2 font-mono text-ink text-[13px]">
-                            <span
-                              className="w-2 h-2 rounded-sm shrink-0"
-                              style={{ background: COMPARE_COLORS[i % COMPARE_COLORS.length] }}
-                            />
-                            {c.name}
-                          </span>
-                        </td>
-                        <td className="px-2 py-2.5 text-ink-2">
-                          {t?.productName ?? "—"}
-                        </td>
-                        <td className="px-2 py-2.5 text-right text-ink">
-                          {usd(t?.spend)}
-                        </td>
-                        <td className="px-2 py-2.5 text-right text-ink-2">
-                          {int(t?.impressions)}
-                        </td>
-                        <td className="px-2 py-2.5 text-right text-ink-2">
-                          {pct(t?.ctr)}
-                        </td>
-                        <td className="px-2 py-2.5 text-right text-ink-2">
-                          {usd(t?.cpa)}
-                        </td>
-                        <td className="px-2 py-2.5 text-right text-ink">
-                          {ratio(t?.roas)}
-                        </td>
-                        <td className="px-2 py-2.5 text-right text-ink-2">
-                          {pct(t?.hookRate)}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
+          <AddMetricBlock metrics={parsed.metrics} />
+
+          {/* Totals across the picked creatives */}
+          <Card className="bg-surface border-line">
+            <CardHeader>
+              <h2 className="text-sm font-medium text-ink">
+                {parsed.from && parsed.to ? "Totals in window" : "All-time totals"}
+              </h2>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm num">
+                  <thead>
+                    <tr className="text-left text-[11px] uppercase tracking-[0.14em] text-ink-3">
+                      <th className="font-medium px-2 py-2">Creative</th>
+                      <th className="font-medium px-2 py-2">Product</th>
+                      <th className="font-medium px-2 py-2 text-right">Spend</th>
+                      <th className="font-medium px-2 py-2 text-right">Impressions</th>
+                      <th className="font-medium px-2 py-2 text-right">CTR</th>
+                      <th className="font-medium px-2 py-2 text-right">CPA</th>
+                      <th className="font-medium px-2 py-2 text-right">ROAS</th>
+                      <th className="font-medium px-2 py-2 text-right">Hook rate</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-line">
+                    {orderedCreatives.map((c, i) => {
+                      const t = totalsById.get(c.id);
+                      return (
+                        <tr
+                          key={c.id}
+                          className="hover:bg-surface-2/60 transition-colors"
+                        >
+                          <td className="px-2 py-2.5">
+                            <span className="inline-flex items-center gap-2 font-mono text-ink text-[13px]">
+                              <span
+                                className="w-2 h-2 rounded-sm shrink-0"
+                                style={{
+                                  background:
+                                    COMPARE_COLORS[i % COMPARE_COLORS.length],
+                                }}
+                              />
+                              {c.name}
+                            </span>
+                          </td>
+                          <td className="px-2 py-2.5 text-ink-2">
+                            {t?.productName ?? c.productName}
+                          </td>
+                          <td className="px-2 py-2.5 text-right text-ink">
+                            {usd(t?.spend)}
+                          </td>
+                          <td className="px-2 py-2.5 text-right text-ink-2">
+                            {int(t?.impressions)}
+                          </td>
+                          <td className="px-2 py-2.5 text-right text-ink-2">
+                            {pct(t?.ctr)}
+                          </td>
+                          <td className="px-2 py-2.5 text-right text-ink-2">
+                            {usd(t?.cpa)}
+                          </td>
+                          <td className="px-2 py-2.5 text-right text-ink">
+                            {ratio(t?.roas)}
+                          </td>
+                          <td className="px-2 py-2.5 text-right text-ink-2">
+                            {pct(t?.hookRate)}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+        </>
       )}
     </div>
   );
-}
-
-function metricLabel(m: CompareMetric): string {
-  return {
-    spend: "Spend",
-    impressions: "Impressions",
-    clicks: "Clicks",
-    conversions: "Conversions",
-    ctr: "Click-through rate",
-    cpm: "CPM",
-    cpc: "CPC",
-    cpa: "CPA",
-    roas: "ROAS",
-    hookRate: "Hook rate",
-  }[m];
 }
