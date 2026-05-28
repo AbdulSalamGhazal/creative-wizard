@@ -6,6 +6,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth";
 import { creatives, products } from "@/db/schema";
+import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
 
 export interface ProductMutationResult {
   ok: boolean;
@@ -72,17 +73,30 @@ export async function createProduct(input: unknown): Promise<ProductMutationResu
       };
     }
 
-    await db.insert(products).values({
-      name,
-      slug,
-      createdByUserId: user.id,
-    });
+    const [inserted] = await db
+      .insert(products)
+      .values({
+        name,
+        slug,
+        createdByUserId: user.id,
+      })
+      .returning({ id: products.id });
 
     try {
       revalidatePath("/admin/products");
       revalidatePath("/creatives");
     } catch (err) {
       console.warn("revalidatePath after product create failed:", err);
+    }
+    if (inserted) {
+      await logAudit({
+        action: AUDIT_ACTIONS.PRODUCT_CREATE,
+        entityType: "product",
+        entityId: inserted.id,
+        entityLabel: name,
+        actorUserId: user.id,
+        meta: { slug },
+      });
     }
     return { ok: true };
   } catch (err) {
@@ -92,9 +106,9 @@ export async function createProduct(input: unknown): Promise<ProductMutationResu
 
 export async function archiveProduct(productId: string): Promise<ProductMutationResult> {
   try {
-    await requireAdmin();
+    const me = await requireAdmin();
     const [existing] = await db
-      .select({ id: products.id, status: products.status })
+      .select({ id: products.id, status: products.status, name: products.name })
       .from(products)
       .where(eq(products.id, productId))
       .limit(1);
@@ -112,6 +126,13 @@ export async function archiveProduct(productId: string): Promise<ProductMutation
     } catch (err) {
       console.warn("revalidatePath after archive failed:", err);
     }
+    await logAudit({
+      action: AUDIT_ACTIONS.PRODUCT_ARCHIVE,
+      entityType: "product",
+      entityId: productId,
+      entityLabel: existing.name,
+      actorUserId: me.id,
+    });
     return { ok: true };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : "Unknown error" };
@@ -120,7 +141,12 @@ export async function archiveProduct(productId: string): Promise<ProductMutation
 
 export async function restoreProduct(productId: string): Promise<ProductMutationResult> {
   try {
-    await requireAdmin();
+    const me = await requireAdmin();
+    const [existing] = await db
+      .select({ name: products.name })
+      .from(products)
+      .where(eq(products.id, productId))
+      .limit(1);
     await db
       .update(products)
       .set({ status: "active", updatedAt: new Date() })
@@ -131,6 +157,13 @@ export async function restoreProduct(productId: string): Promise<ProductMutation
     } catch (err) {
       console.warn("revalidatePath after restore failed:", err);
     }
+    await logAudit({
+      action: AUDIT_ACTIONS.PRODUCT_RESTORE,
+      entityType: "product",
+      entityId: productId,
+      entityLabel: existing?.name ?? null,
+      actorUserId: me.id,
+    });
     return { ok: true };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : "Unknown error" };

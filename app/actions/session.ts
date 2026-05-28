@@ -12,7 +12,8 @@ import {
   PASSWORD_MIN_LENGTH,
   PASSWORD_MAX_LENGTH,
 } from "@/lib/auth-password";
-import { requireAuth } from "@/lib/auth";
+import { auth, requireAuth } from "@/lib/auth";
+import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
 
 const signInSchema = z.object({
   email: z.string().email().max(255),
@@ -76,9 +77,25 @@ export async function signIn(formData: FormData): Promise<SignInResult> {
   const genericError = "Wrong email or password.";
 
   if (!row) {
+    await logAudit({
+      action: AUDIT_ACTIONS.AUTH_SIGNIN_FAILED,
+      entityType: "auth",
+      entityId: null,
+      entityLabel: email,
+      actorUserId: null,
+      meta: { email, reason: "user_not_found" },
+    });
     return { ok: false, error: genericError };
   }
   if (!row.passwordHash) {
+    await logAudit({
+      action: AUDIT_ACTIONS.AUTH_SIGNIN_FAILED,
+      entityType: "auth",
+      entityId: row.id,
+      entityLabel: email,
+      actorUserId: null,
+      meta: { email, reason: "no_password_set" },
+    });
     return {
       ok: false,
       error:
@@ -87,14 +104,41 @@ export async function signIn(formData: FormData): Promise<SignInResult> {
   }
   const ok = await verifyPassword(password, row.passwordHash);
   if (!ok) {
+    await logAudit({
+      action: AUDIT_ACTIONS.AUTH_SIGNIN_FAILED,
+      entityType: "auth",
+      entityId: row.id,
+      entityLabel: email,
+      actorUserId: null,
+      meta: { email, reason: "bad_password" },
+    });
     return { ok: false, error: genericError };
   }
 
   await setSessionCookie(row.id);
+  await logAudit({
+    action: AUDIT_ACTIONS.AUTH_SIGNIN,
+    entityType: "auth",
+    entityId: row.id,
+    entityLabel: email,
+    actorUserId: row.id,
+    meta: { email },
+  });
   return { ok: true };
 }
 
 export async function signOut(): Promise<void> {
+  // Capture identity before clearing the cookie so the audit row has an actor.
+  const me = await auth();
+  if (me) {
+    await logAudit({
+      action: AUDIT_ACTIONS.AUTH_SIGNOUT,
+      entityType: "auth",
+      entityId: me.id,
+      entityLabel: me.email,
+      actorUserId: me.id,
+    });
+  }
   await clearSessionCookie();
   redirect("/signin");
 }
@@ -133,6 +177,14 @@ export async function changePassword(input: unknown): Promise<ChangePasswordResu
       .update(users)
       .set({ passwordHash: newHash })
       .where(eq(users.id, me.id));
+
+    await logAudit({
+      action: AUDIT_ACTIONS.AUTH_PASSWORD_CHANGE,
+      entityType: "user",
+      entityId: me.id,
+      entityLabel: me.email,
+      actorUserId: me.id,
+    });
 
     return { ok: true };
   } catch (err) {

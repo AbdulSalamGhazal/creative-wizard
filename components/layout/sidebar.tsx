@@ -11,6 +11,7 @@ import {
   Package,
   Users,
   Settings,
+  ScrollText,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -30,6 +31,7 @@ const items: NavItem[] = [
   { href: "/admin/platforms", label: "CSV mapping", icon: Layers3, group: "admin" },
   { href: "/admin/products", label: "Products", icon: Package, group: "admin" },
   { href: "/admin/users", label: "Team", icon: Users, group: "admin" },
+  { href: "/admin/audit", label: "Audit log", icon: ScrollText, group: "admin" },
 ];
 
 function isActive(pathname: string, href: string): boolean {

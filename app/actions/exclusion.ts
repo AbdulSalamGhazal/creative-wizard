@@ -7,6 +7,7 @@ import { db } from "@/lib/db";
 import { requireEditor } from "@/lib/auth";
 import { creatives, performanceRecords } from "@/db/schema";
 import { excludeSchema } from "@/validators/exclusion";
+import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
 
 const idSchema = z.coerce.number().int().positive();
 
@@ -37,13 +38,30 @@ export async function excludeRecord(
         excludedAt: new Date(),
       })
       .where(eq(performanceRecords.id, id))
-      .returning({ creativeId: performanceRecords.creativeId });
+      .returning({
+        creativeId: performanceRecords.creativeId,
+        date: performanceRecords.date,
+        platform: performanceRecords.platform,
+      });
 
     if (!updated) {
       return { ok: false, error: "Record not found" };
     }
 
-    await revalidateAffectedPaths(updated.creativeId);
+    const creativeName = await revalidateAffectedPaths(updated.creativeId);
+    await logAudit({
+      action: AUDIT_ACTIONS.EXCLUSION_EXCLUDE,
+      entityType: "exclusion",
+      entityId: String(id),
+      entityLabel: creativeName ?? null,
+      actorUserId: user.id,
+      meta: {
+        creativeId: updated.creativeId,
+        date: updated.date,
+        platform: updated.platform,
+        reason: parsed.reason,
+      },
+    });
     return { ok: true };
   } catch (err) {
     return { ok: false, error: errMsg(err) };
@@ -53,7 +71,7 @@ export async function excludeRecord(
 /** Clear the exclusion flag on a record. Preserves no history in v1. */
 export async function includeRecord(recordId: number): Promise<ActionResult> {
   try {
-    await requireEditor();
+    const user = await requireEditor();
     const id = idSchema.parse(recordId);
 
     const [updated] = await db
@@ -65,23 +83,40 @@ export async function includeRecord(recordId: number): Promise<ActionResult> {
         excludedAt: null,
       })
       .where(eq(performanceRecords.id, id))
-      .returning({ creativeId: performanceRecords.creativeId });
+      .returning({
+        creativeId: performanceRecords.creativeId,
+        date: performanceRecords.date,
+        platform: performanceRecords.platform,
+      });
 
     if (!updated) {
       return { ok: false, error: "Record not found" };
     }
 
-    await revalidateAffectedPaths(updated.creativeId);
+    const creativeName = await revalidateAffectedPaths(updated.creativeId);
+    await logAudit({
+      action: AUDIT_ACTIONS.EXCLUSION_INCLUDE,
+      entityType: "exclusion",
+      entityId: String(id),
+      entityLabel: creativeName ?? null,
+      actorUserId: user.id,
+      meta: {
+        creativeId: updated.creativeId,
+        date: updated.date,
+        platform: updated.platform,
+      },
+    });
     return { ok: true };
   } catch (err) {
     return { ok: false, error: errMsg(err) };
   }
 }
 
-async function revalidateAffectedPaths(creativeId: string) {
+async function revalidateAffectedPaths(creativeId: string): Promise<string | null> {
   // Bump every page whose KPIs include this record. Swallow errors so a
   // revalidate failure (e.g. test harness without a request context) doesn't
-  // mask a successful DB write.
+  // mask a successful DB write. Returns the creative name so the caller can
+  // use it as the audit entity label without re-querying.
   try {
     revalidatePath("/");
     revalidatePath("/creatives");
@@ -92,9 +127,12 @@ async function revalidateAffectedPaths(creativeId: string) {
       .limit(1);
     if (c) {
       revalidatePath(`/creatives/${encodeURIComponent(c.name)}`);
+      return c.name;
     }
+    return null;
   } catch (err) {
     console.warn("revalidatePath failed; DB write already succeeded:", err);
+    return null;
   }
 }
 

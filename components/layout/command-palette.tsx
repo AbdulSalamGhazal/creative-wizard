@@ -9,6 +9,7 @@ import {
   LayoutDashboard,
   Package,
   Plus,
+  ScrollText,
   Search,
   Settings,
   Upload,
@@ -47,6 +48,7 @@ const PAGES = [
   { href: "/admin/products", label: "Products", icon: Package },
   { href: "/admin/users", label: "Team", icon: Users },
   { href: "/admin/platforms", label: "CSV mapping", icon: Settings },
+  { href: "/admin/audit", label: "Audit log", icon: ScrollText },
 ] as const;
 
 export function CommandPalette({ creatives, showTrigger = true }: Props) {

@@ -12,6 +12,7 @@ import {
   creativeTypeEnum,
 } from "@/db/schema";
 import { creativeCreateSchema } from "@/validators/creative";
+import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
 
 const creativeUpdateSchema = z.object({
   id: z.string().uuid(),
@@ -98,6 +99,20 @@ export async function createCreative(
       console.warn("revalidatePath after create failed:", err);
     }
 
+    await logAudit({
+      action: AUDIT_ACTIONS.CREATIVE_CREATE,
+      entityType: "creative",
+      entityId: inserted.id,
+      entityLabel: inserted.name,
+      actorUserId: user.id,
+      meta: {
+        productId: data.productId,
+        type: data.type,
+        status: data.status,
+        tags: data.tags,
+      },
+    });
+
     return { ok: true, name: inserted.name };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : "Unknown error" };
@@ -109,18 +124,29 @@ export async function updateCreativeNotes(
   notes: string,
 ): Promise<{ ok: boolean; error?: string }> {
   try {
-    await requireEditor();
+    const user = await requireEditor();
     if (notes.length > 5000) {
       return { ok: false, error: "Notes too long (5000 char max)." };
     }
-    await db
+    const [updated] = await db
       .update(creatives)
       .set({ notes: notes || null, updatedAt: new Date() })
-      .where(eq(creatives.id, creativeId));
+      .where(eq(creatives.id, creativeId))
+      .returning({ id: creatives.id, name: creatives.name });
     try {
       revalidatePath("/creatives");
     } catch (err) {
       console.warn("revalidatePath after notes update failed:", err);
+    }
+    if (updated) {
+      await logAudit({
+        action: AUDIT_ACTIONS.CREATIVE_NOTES_UPDATE,
+        entityType: "creative",
+        entityId: updated.id,
+        entityLabel: updated.name,
+        actorUserId: user.id,
+        meta: { length: notes.length },
+      });
     }
     return { ok: true };
   } catch (err) {
@@ -141,7 +167,7 @@ export async function bulkUpdateStatus(input: unknown): Promise<
   CreativeMutationResult & { updated?: number }
 > {
   try {
-    await requireEditor();
+    const user = await requireEditor();
     const parsed = bulkStatusSchema.safeParse(input);
     if (!parsed.success) {
       return {
@@ -154,13 +180,27 @@ export async function bulkUpdateStatus(input: unknown): Promise<
       .update(creatives)
       .set({ status: parsed.data.status, updatedAt: new Date() })
       .where(inArray(creatives.id, parsed.data.ids))
-      .returning({ id: creatives.id });
+      .returning({ id: creatives.id, name: creatives.name });
 
     try {
       revalidatePath("/creatives");
     } catch (err) {
       console.warn("revalidatePath after bulk update failed:", err);
     }
+
+    await logAudit({
+      action: AUDIT_ACTIONS.CREATIVE_STATUS_BULK,
+      entityType: "creative",
+      entityId: null,
+      entityLabel: `${result.length} creative${result.length === 1 ? "" : "s"}`,
+      actorUserId: user.id,
+      meta: {
+        status: parsed.data.status,
+        count: result.length,
+        names: result.map((r) => r.name).slice(0, 25),
+      },
+    });
+
     return { ok: true, updated: result.length };
   } catch (err) {
     return {
@@ -180,7 +220,7 @@ export async function updateCreative(
   input: unknown,
 ): Promise<CreativeMutationResult> {
   try {
-    await requireEditor();
+    const user = await requireEditor();
     const parsed = creativeUpdateSchema.safeParse(input);
     if (!parsed.success) {
       const fieldErrors: Record<string, string> = {};
@@ -207,7 +247,12 @@ export async function updateCreative(
     }
 
     const [oldRow] = await db
-      .select({ name: creatives.name })
+      .select({
+        name: creatives.name,
+        status: creatives.status,
+        productId: creatives.productId,
+        type: creatives.type,
+      })
       .from(creatives)
       .where(eq(creatives.id, data.id))
       .limit(1);
@@ -245,6 +290,26 @@ export async function updateCreative(
     } catch (err) {
       console.warn("revalidatePath after update failed:", err);
     }
+
+    // Capture only the fields that actually changed so the audit feed reads
+    // tightly. `tags` is reported as a count delta — the new set is the
+    // ground truth and lives on the creative.
+    const changes: Record<string, { from: unknown; to: unknown }> = {};
+    if (oldRow.name !== data.name) changes.name = { from: oldRow.name, to: data.name };
+    if (oldRow.status !== data.status) changes.status = { from: oldRow.status, to: data.status };
+    if (oldRow.type !== data.type) changes.type = { from: oldRow.type, to: data.type };
+    if (oldRow.productId !== data.productId) {
+      changes.productId = { from: oldRow.productId, to: data.productId };
+    }
+
+    await logAudit({
+      action: AUDIT_ACTIONS.CREATIVE_UPDATE,
+      entityType: "creative",
+      entityId: data.id,
+      entityLabel: data.name,
+      actorUserId: user.id,
+      meta: { changes, tagsCount: data.tags.length },
+    });
 
     return { ok: true, name: data.name };
   } catch (err) {

@@ -46,3 +46,23 @@ export function isoDate(value: Date | string | null | undefined): string {
   if (Number.isNaN(d.getTime())) return EM_DASH;
   return d.toISOString().slice(0, 10);
 }
+
+/**
+ * Compact relative time ("just now", "3m ago", "2h ago", "5d ago"). Falls
+ * back to an ISO date past 30 days so the feed stays readable on older items.
+ */
+export function relativeTime(value: Date | string | null | undefined): string {
+  if (!value) return EM_DASH;
+  const d = typeof value === "string" ? new Date(value) : value;
+  if (Number.isNaN(d.getTime())) return EM_DASH;
+  const diffMs = Date.now() - d.getTime();
+  const s = Math.round(diffMs / 1000);
+  if (s < 45) return "just now";
+  const m = Math.round(s / 60);
+  if (m < 60) return `${m}m ago`;
+  const h = Math.round(m / 60);
+  if (h < 24) return `${h}h ago`;
+  const days = Math.round(h / 24);
+  if (days < 30) return `${days}d ago`;
+  return isoDate(d);
+}

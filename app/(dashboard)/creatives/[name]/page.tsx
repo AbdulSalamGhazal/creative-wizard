@@ -6,11 +6,13 @@ import {
   spendByDatePlatform,
 } from "@/db/queries/performance";
 import { creativeRecords, getCreativeByName } from "@/db/queries/creatives";
+import { listAuditEvents } from "@/db/queries/audit";
 import { CreativeDetailHeader } from "@/components/creative/creative-detail-header";
 import { CreativePerfLineChart } from "@/components/charts/creative-perf-line";
 import { CreativePlatformTable } from "@/components/creative/creative-platform-table";
 import { CreativeRecordsTable } from "@/components/creative/creative-records-table";
 import { NotesPanel } from "@/components/creative/notes-panel";
+import { AuditFeed } from "@/components/audit/audit-feed";
 import { int, pct, ratio, usd } from "@/lib/format";
 
 export default async function CreativeDetailPage({
@@ -26,11 +28,16 @@ export default async function CreativeDetailPage({
     notFound();
   }
 
-  const [k, byPlatform, perfRows, records] = await Promise.all([
+  const [k, byPlatform, perfRows, records, activity] = await Promise.all([
     kpis({ creativeIds: [creative.id] }),
     platformMix({ creativeIds: [creative.id] }),
     spendByDatePlatform({ creativeIds: [creative.id] }),
     creativeRecords(creative.id),
+    listAuditEvents({
+      entityType: "creative",
+      entityId: creative.id,
+      limit: 25,
+    }),
   ]);
 
   const tiles = [
@@ -87,6 +94,18 @@ export default async function CreativeDetailPage({
       <div>
         <h2 className="text-sm font-medium text-ink mb-3">All records</h2>
         <CreativeRecordsTable rows={records} />
+      </div>
+
+      <div>
+        <div className="flex items-baseline justify-between mb-3">
+          <h2 className="text-sm font-medium text-ink">Activity</h2>
+          <span className="text-[11px] text-ink-3">
+            {activity.length === 0
+              ? "No activity recorded yet."
+              : `Last ${activity.length} event${activity.length === 1 ? "" : "s"} for this creative.`}
+          </span>
+        </div>
+        <AuditFeed rows={activity} />
       </div>
     </div>
   );

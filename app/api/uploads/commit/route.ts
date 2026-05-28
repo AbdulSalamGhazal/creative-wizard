@@ -11,6 +11,7 @@ import {
   uploadValidationSessions,
 } from "@/db/schema";
 import type { ParsedRow } from "@/csv/pipeline";
+import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
 
 const bodySchema = z.object({
   token: z.string().uuid(),
@@ -180,6 +181,20 @@ export async function POST(request: NextRequest) {
   } catch (err) {
     console.warn("revalidatePath after commit failed:", err);
   }
+
+  await logAudit({
+    action: AUDIT_ACTIONS.UPLOAD_COMMIT,
+    entityType: "upload",
+    entityId: result.batchId,
+    entityLabel: session.fileName,
+    actorUserId: user.id,
+    meta: {
+      platform,
+      rowsImported: result.rowsImported,
+      dateRange: payload.summary?.dateRange ?? null,
+      creatives: payload.summary?.creatives ?? null,
+    },
+  });
 
   return NextResponse.json(result);
 }

@@ -6,6 +6,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth";
 import { platformFieldMappings, platformEnum } from "@/db/schema";
+import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
 
 const FIELDS = [
   "creative_name",
@@ -50,7 +51,7 @@ export async function addHeaderMapping(input: unknown): Promise<MutationResult> 
       .from(platformFieldMappings)
       .where(eq(platformFieldMappings.platform, platform));
 
-    await db
+    const [inserted] = await db
       .insert(platformFieldMappings)
       .values({
         platform,
@@ -65,12 +66,23 @@ export async function addHeaderMapping(input: unknown): Promise<MutationResult> 
           platformFieldMappings.internalField,
           platformFieldMappings.headerName,
         ],
-      });
+      })
+      .returning({ id: platformFieldMappings.id });
 
     try {
       revalidatePath("/admin/platforms");
     } catch (err) {
       console.warn("revalidatePath failed:", err);
+    }
+    if (inserted) {
+      await logAudit({
+        action: AUDIT_ACTIONS.MAPPING_ADD,
+        entityType: "mapping",
+        entityId: inserted.id,
+        entityLabel: `${platform} · ${internalField} ← ${trimmed}`,
+        actorUserId: user.id,
+        meta: { platform, internalField, headerName: trimmed },
+      });
     }
     return { ok: true };
   } catch (err) {
@@ -80,10 +92,19 @@ export async function addHeaderMapping(input: unknown): Promise<MutationResult> 
 
 export async function removeHeaderMapping(id: string): Promise<MutationResult> {
   try {
-    await requireAdmin();
+    const me = await requireAdmin();
     if (!z.string().uuid().safeParse(id).success) {
       return { ok: false, error: "Invalid id." };
     }
+    const [existing] = await db
+      .select({
+        platform: platformFieldMappings.platform,
+        internalField: platformFieldMappings.internalField,
+        headerName: platformFieldMappings.headerName,
+      })
+      .from(platformFieldMappings)
+      .where(eq(platformFieldMappings.id, id))
+      .limit(1);
     await db
       .delete(platformFieldMappings)
       .where(eq(platformFieldMappings.id, id));
@@ -91,6 +112,16 @@ export async function removeHeaderMapping(id: string): Promise<MutationResult> {
       revalidatePath("/admin/platforms");
     } catch (err) {
       console.warn("revalidatePath failed:", err);
+    }
+    if (existing) {
+      await logAudit({
+        action: AUDIT_ACTIONS.MAPPING_REMOVE,
+        entityType: "mapping",
+        entityId: id,
+        entityLabel: `${existing.platform} · ${existing.internalField} ← ${existing.headerName}`,
+        actorUserId: me.id,
+        meta: existing,
+      });
     }
     return { ok: true };
   } catch (err) {

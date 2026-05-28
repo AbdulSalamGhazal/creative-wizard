@@ -11,6 +11,7 @@ import {
   PASSWORD_MIN_LENGTH,
   PASSWORD_MAX_LENGTH,
 } from "@/lib/auth-password";
+import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
 
 export interface UserMutationResult {
   ok: boolean;
@@ -42,7 +43,7 @@ const setPasswordSchema = z.object({
  */
 export async function inviteUser(input: unknown): Promise<UserMutationResult> {
   try {
-    await requireAdmin();
+    const me = await requireAdmin();
     const parsed = inviteSchema.safeParse(input);
     if (!parsed.success) {
       return {
@@ -63,14 +64,25 @@ export async function inviteUser(input: unknown): Promise<UserMutationResult> {
     }
 
     const hash = await hashPassword(password);
-    await db
+    const [inserted] = await db
       .insert(users)
-      .values({ email: normalizedEmail, name, role, passwordHash: hash });
+      .values({ email: normalizedEmail, name, role, passwordHash: hash })
+      .returning({ id: users.id });
 
     try {
       revalidatePath("/admin/users");
     } catch (err) {
       console.warn("revalidatePath after invite failed:", err);
+    }
+    if (inserted) {
+      await logAudit({
+        action: AUDIT_ACTIONS.USER_INVITE,
+        entityType: "user",
+        entityId: inserted.id,
+        entityLabel: normalizedEmail,
+        actorUserId: me.id,
+        meta: { email: normalizedEmail, name, role },
+      });
     }
     return { ok: true };
   } catch (err) {
@@ -94,6 +106,12 @@ export async function updateUserRole(
       return { ok: false, error: "You can't change your own role." };
     }
 
+    const [before] = await db
+      .select({ email: users.email, role: users.role })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+
     await db.update(users).set({ role: parsed.data }).where(eq(users.id, userId));
 
     try {
@@ -101,6 +119,14 @@ export async function updateUserRole(
     } catch (err) {
       console.warn("revalidatePath after role change failed:", err);
     }
+    await logAudit({
+      action: AUDIT_ACTIONS.USER_ROLE_CHANGE,
+      entityType: "user",
+      entityId: userId,
+      entityLabel: before?.email ?? null,
+      actorUserId: me.id,
+      meta: { from: before?.role ?? null, to: parsed.data },
+    });
     return { ok: true };
   } catch (err) {
     return {
@@ -116,7 +142,7 @@ export async function updateUserRole(
  */
 export async function adminSetPassword(input: unknown): Promise<UserMutationResult> {
   try {
-    await requireAdmin();
+    const me = await requireAdmin();
     const parsed = setPasswordSchema.safeParse(input);
     if (!parsed.success) {
       return {
@@ -125,6 +151,11 @@ export async function adminSetPassword(input: unknown): Promise<UserMutationResu
       };
     }
     const hash = await hashPassword(parsed.data.password);
+    const [target] = await db
+      .select({ email: users.email })
+      .from(users)
+      .where(eq(users.id, parsed.data.userId))
+      .limit(1);
     await db
       .update(users)
       .set({ passwordHash: hash })
@@ -135,6 +166,13 @@ export async function adminSetPassword(input: unknown): Promise<UserMutationResu
     } catch (err) {
       console.warn("revalidatePath after admin set-password failed:", err);
     }
+    await logAudit({
+      action: AUDIT_ACTIONS.USER_PASSWORD_RESET,
+      entityType: "user",
+      entityId: parsed.data.userId,
+      entityLabel: target?.email ?? null,
+      actorUserId: me.id,
+    });
     return { ok: true };
   } catch (err) {
     return {

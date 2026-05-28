@@ -162,6 +162,40 @@ export const uploadValidationSessions = pgTable(
   }),
 );
 
+/**
+ * Append-only audit trail. Every mutation in the system writes one row.
+ *
+ * Design notes:
+ * - `actor_user_id` is nullable: a few events (failed sign-ins, system tasks)
+ *   have no authenticated actor. We capture the attempted email in `meta`.
+ * - `entity_id` is nullable + untyped (text rather than uuid) because audit
+ *   targets aren't always uuids — e.g. upload batches use uuid but a sign-in
+ *   event references a user by email string before we know who they are.
+ * - `entity_label` is denormalized at write time so the feed renders even
+ *   after the entity is deleted (e.g. a rolled-back batch, a renamed creative).
+ * - `meta` jsonb holds action-specific extras (from/to status, row counts,
+ *   reasons, etc.). Shape is per-action — see lib/audit.ts AUDIT_ACTIONS.
+ */
+export const auditEvents = pgTable(
+  "audit_events",
+  {
+    id: bigint("id", { mode: "number" }).primaryKey().generatedByDefaultAsIdentity(),
+    at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
+    actorUserId: uuid("actor_user_id").references(() => users.id),
+    action: varchar("action", { length: 64 }).notNull(),
+    entityType: varchar("entity_type", { length: 32 }).notNull(),
+    entityId: text("entity_id"),
+    entityLabel: varchar("entity_label", { length: 255 }),
+    meta: jsonb("meta"),
+  },
+  (t) => ({
+    atIdx: index("audit_at_idx").on(t.at),
+    actorIdx: index("audit_actor_idx").on(t.actorUserId),
+    entityIdx: index("audit_entity_idx").on(t.entityType, t.entityId),
+    actionIdx: index("audit_action_idx").on(t.action),
+  }),
+);
+
 export const performanceRecords = pgTable(
   "performance_records",
   {

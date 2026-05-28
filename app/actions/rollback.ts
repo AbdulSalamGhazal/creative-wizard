@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth";
 import { performanceRecords, uploadBatches } from "@/db/schema";
+import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
 
 const ROLLBACK_WINDOW_MS = 24 * 60 * 60 * 1000;
 
@@ -30,6 +31,9 @@ export async function rollbackBatch(batchId: string): Promise<RollbackResult> {
         id: uploadBatches.id,
         uploadedAt: uploadBatches.uploadedAt,
         status: uploadBatches.status,
+        platform: uploadBatches.platform,
+        fileName: uploadBatches.fileName,
+        rowsImported: uploadBatches.rowsImported,
       })
       .from(uploadBatches)
       .where(eq(uploadBatches.id, batchId))
@@ -68,6 +72,19 @@ export async function rollbackBatch(batchId: string): Promise<RollbackResult> {
     } catch (err) {
       console.warn("revalidatePath after rollback failed:", err);
     }
+
+    await logAudit({
+      action: AUDIT_ACTIONS.UPLOAD_ROLLBACK,
+      entityType: "upload",
+      entityId: batchId,
+      entityLabel: batch.fileName,
+      actorUserId: user.id,
+      meta: {
+        platform: batch.platform,
+        rowsDeleted: batch.rowsImported,
+        uploadedAt: batch.uploadedAt,
+      },
+    });
 
     return { ok: true };
   } catch (err) {
