@@ -145,7 +145,6 @@ function buildBaseConditions(filters: KpiFilters): {
     (filters.productIds && filters.productIds.length > 0) ||
     (filters.types && filters.types.length > 0) ||
     (filters.statuses && filters.statuses.length > 0);
-  const needsTagJoin = !!(filters.tags && filters.tags.length > 0);
 
   if (needsCreativeJoin) {
     if (filters.productIds && filters.productIds.length > 0) {
@@ -158,14 +157,23 @@ function buildBaseConditions(filters: KpiFilters): {
       conditions.push(inArray(creatives.status, filters.statuses));
     }
   }
-  if (needsTagJoin && filters.tags) {
-    conditions.push(inArray(creativeTags.tag, filters.tags));
+
+  // Tag filter via a correlated EXISTS, NOT a JOIN. A creative can carry several
+  // tags, so JOINing creative_tags fans out its performance rows (one copy per
+  // matching tag) and inflates every SUM — e.g. a 2-tag creative filtered by
+  // both tags would double its spend. EXISTS matches each row at most once.
+  if (filters.tags && filters.tags.length > 0) {
+    conditions.push(
+      sql`EXISTS (SELECT 1 FROM ${creativeTags} WHERE ${creativeTags.creativeId} = ${performanceRecords.creativeId} AND ${inArray(creativeTags.tag, filters.tags)})`,
+    );
   }
 
   return {
     conditions,
     needsCreativeJoin: needsCreativeJoin ?? false,
-    needsTagJoin,
+    // Tags are handled via EXISTS above (no join → no fan-out). Always false now;
+    // the callers' `if (needsTagJoin) innerJoin(creativeTags)` blocks never fire.
+    needsTagJoin: false,
   };
 }
 
