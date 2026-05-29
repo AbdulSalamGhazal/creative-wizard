@@ -174,13 +174,13 @@ export function UploadForm() {
         <div className="w-12 h-12 rounded-full bg-pos/15 border border-pos/30 mx-auto flex items-center justify-center">
           <Check className="w-5 h-5 text-pos" />
         </div>
-        <h2 className="mt-4 font-display text-3xl tracking-tight">Upload committed</h2>
+        <h2 className="mt-4 font-display text-3xl tracking-tight">Upload complete</h2>
         <p className="mt-2 text-ink-2 text-sm num">
           {stage.rowsImported} performance records imported for{" "}
           <span className="text-ink">{PLATFORM_LABEL[stage.platform]}</span>.
         </p>
-        <p className="mt-1 text-ink-3 text-[11px] font-mono">
-          Batch {stage.batchId}
+        <p className="mt-1 text-ink-3 text-[11px]">
+          An admin can undo this from Upload history within 24 hours.
         </p>
         <div className="mt-6 flex items-center justify-center gap-2">
           <Button asChild>
@@ -233,7 +233,7 @@ export function UploadForm() {
       {stage.kind === "validating" && (
         <div className="rounded-lg border border-line bg-surface px-4 py-3 flex items-center gap-3">
           <Loader2 className="w-4 h-4 animate-spin text-brand" />
-          <span className="text-sm text-ink-2">Running validation pipeline…</span>
+          <span className="text-sm text-ink-2">Validating your file…</span>
         </div>
       )}
 

@@ -14,6 +14,7 @@ import {
   ScrollText,
   Search,
   Settings,
+  Star,
   Table2,
   Upload,
   Users,
@@ -54,9 +55,10 @@ const PAGES = [
   { href: "/compare", label: "Compare creatives", icon: GitCompare },
   { href: "/uploads", label: "Upload history", icon: Upload },
   { href: "/uploads/new", label: "New upload", icon: Upload },
-  { href: "/admin/catalog?tab=products", label: "Catalog · Products", icon: Package },
-  { href: "/admin/catalog?tab=tags", label: "Catalog · Tags", icon: Hash },
-  { href: "/admin/catalog?tab=mapping", label: "Catalog · CSV mapping", icon: Settings },
+  { href: "/admin/catalog?tab=products", label: "Configuration · Products", icon: Package },
+  { href: "/admin/catalog?tab=tags", label: "Configuration · Tags", icon: Hash },
+  { href: "/admin/catalog?tab=mapping", label: "Configuration · CSV mapping", icon: Settings },
+  { href: "/admin/catalog?tab=rating", label: "Configuration · Rate rules", icon: Star },
   { href: "/admin/users", label: "Team", icon: Users },
   { href: "/admin/audit", label: "Audit log", icon: ScrollText },
 ] as const;
@@ -64,6 +66,11 @@ const PAGES = [
 export function CommandPalette({ creatives, showTrigger = true }: Props) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  // The Radix dialog generates useId-based ids; rendering it during SSR causes
+  // a hydration mismatch. It's only ever opened via ⌘K / the trigger (client
+  // interactions), so mount it after hydration.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -97,6 +104,7 @@ export function CommandPalette({ creatives, showTrigger = true }: Props) {
           </span>
         </button>
       )}
+      {mounted && (
       <CommandDialog open={open} onOpenChange={setOpen}>
         <CommandInput placeholder="Type a creative name or jump to a page…" />
         <CommandList>
@@ -140,6 +148,7 @@ export function CommandPalette({ creatives, showTrigger = true }: Props) {
           )}
         </CommandList>
       </CommandDialog>
+      )}
     </>
   );
 }

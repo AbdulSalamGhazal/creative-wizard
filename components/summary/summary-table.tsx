@@ -1,8 +1,12 @@
+"use client";
+
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { PLATFORM_COLOR, PLATFORM_LABEL } from "@/lib/palette";
 import { int, pct, ratio, usd } from "@/lib/format";
+import { RATING_META, rateBlock, type RatingRules } from "@/lib/rating";
 import type {
   PlatformMetricBlock,
   SummaryRow,
@@ -20,12 +24,37 @@ interface Props {
   sort: { key: string; dir: SortDir };
   /** Path the column headers should link to with updated sort params. */
   pathname: string;
-  /** Other URL params we want to preserve when toggling sort. */
-  baseParams: URLSearchParams;
+  /** Current query string (minus nothing) to preserve when toggling sort. */
+  baseParams: string;
   /** Identity columns to suppress (Creative name is always shown). */
   hiddenIdentity?: Set<IdentityColumnKey>;
   /** Metric columns to suppress — applies to every platform + total group. */
   hiddenMetrics?: Set<MetricColumnKey>;
+  /** Rating cutoffs driving the Rate column. */
+  rules: RatingRules;
+  /** Whether to render the Rate column (first in each group). Default true. */
+  showRate?: boolean;
+}
+
+/** Text identity columns the user can drag to resize. Numeric columns stay auto-sized. */
+const RESIZABLE_IDENTITY = new Set(["name", "product", "creator"]);
+const COL_WIDTHS_KEY = "summary-col-widths";
+const MIN_COL_WIDTH = 80;
+
+/** A small colored pill for a creative's rating, centered in the cell. */
+function RateBadge({ block, rules }: { block: PlatformMetricBlock | undefined; rules: RatingRules }) {
+  const rating = rateBlock(block, rules);
+  const meta = RATING_META[rating];
+  return (
+    <span
+      className={
+        "inline-flex items-center justify-center h-5 px-1.5 rounded text-[10px] border whitespace-nowrap " +
+        meta.badgeClass
+      }
+    >
+      {meta.label}
+    </span>
+  );
 }
 
 const STATUS_CLASS: Record<SummaryRow["status"], string> = {
@@ -88,13 +117,14 @@ function pickMetric(block: PlatformMetricBlock, key: string): number | null {
 }
 
 /**
- * The dense Summary table. Sticky first column (creative name), platform
- * group headers, every metric repeated per platform side-by-side, plus a
- * blended total block when 2+ platforms are selected.
+ * The dense Summary table. Identity columns on the left, platform group
+ * headers, every metric repeated per platform side-by-side, plus a blended
+ * total block when 2+ platforms are selected.
  *
- * Every metric column header is a Link that toggles the URL sort param —
- * one click = sort by this column descending, click again = ascending,
- * third click = restore default.
+ * Metric column headers are sort Links (cycle desc → asc → reset). The text
+ * identity columns (Creative / Product / Creator) are drag-resizable via a
+ * handle on the right edge of each header; widths persist to localStorage.
+ * Numeric columns stay content-sized.
  */
 export function SummaryTable({
   rows,
@@ -104,12 +134,71 @@ export function SummaryTable({
   baseParams,
   hiddenIdentity,
   hiddenMetrics,
+  rules,
+  showRate = true,
 }: Props) {
   const showTotal = platforms.length >= 2;
   const visibleMetrics = METRIC_COLUMNS.filter(
     (m) => !hiddenMetrics?.has(m.key as MetricColumnKey),
   );
   const visibleMetricCount = visibleMetrics.length;
+  // Each platform/total group leads with the Rate column (when shown), then
+  // its visible metric columns.
+  const rateCols = showRate ? 1 : 0;
+  const groupColSpan = visibleMetricCount + rateCols;
+
+  // ---- Resizable text columns -------------------------------------------
+  const [widths, setWidths] = useState<Record<string, number>>({});
+  const thRefs = useRef<Record<string, HTMLTableCellElement | null>>({});
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(COL_WIDTHS_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw) as Record<string, number>;
+        if (parsed && typeof parsed === "object") setWidths(parsed);
+      }
+    } catch {
+      /* ignore malformed storage */
+    }
+  }, []);
+
+  const startResize = useCallback(
+    (key: string, e: React.MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const startX = e.clientX;
+      const measured = thRefs.current[key]?.getBoundingClientRect().width ?? 160;
+      const startW = widths[key] ?? measured;
+
+      const onMove = (ev: MouseEvent) => {
+        const w = Math.max(MIN_COL_WIDTH, Math.round(startW + (ev.clientX - startX)));
+        setWidths((prev) => ({ ...prev, [key]: w }));
+      };
+      const onUp = () => {
+        window.removeEventListener("mousemove", onMove);
+        window.removeEventListener("mouseup", onUp);
+        document.body.style.userSelect = "";
+        setWidths((prev) => {
+          try {
+            localStorage.setItem(COL_WIDTHS_KEY, JSON.stringify(prev));
+          } catch {
+            /* ignore */
+          }
+          return prev;
+        });
+      };
+      window.addEventListener("mousemove", onMove);
+      window.addEventListener("mouseup", onUp);
+      document.body.style.userSelect = "none";
+    },
+    [widths],
+  );
+
+  const widthStyle = (key: string): React.CSSProperties | undefined => {
+    const w = widths[key];
+    return w ? { width: w, minWidth: w, maxWidth: w } : undefined;
+  };
 
   const sortHref = (key: string): string => {
     const next = new URLSearchParams(baseParams);
@@ -152,17 +241,11 @@ export function SummaryTable({
     );
   }
 
-  // Identity columns shown as the sticky-ish left pane. We render them as
-  // ordinary cells (not sticky CSS) because mixing position:sticky with
-  // sortable headers across horizontal scroll can flicker — the table is
-  // wide enough that the user scrolls horizontally anyway.
-  //
   // The Creative name column is mandatory — it's the row identity. Every
   // other identity column can be hidden via the URL.
   const ALL_IDENTITY_COLS: Array<{
     key: string;
     label: string;
-    /** When set, hiding controlled by hiddenIdentity. */
     hideKey?: IdentityColumnKey;
   }> = [
     { key: "name", label: "Creative" },
@@ -181,18 +264,17 @@ export function SummaryTable({
         {/* Two-row header: top row = group banners; bottom = column labels */}
         <thead>
           <tr className="border-b border-line bg-surface-2/40">
-            {/* Identity group spans 5 cols + has no group label */}
             <th
               colSpan={identityCols.length}
               className="px-3 py-1.5 text-[10px] uppercase tracking-[0.14em] text-ink-3 text-left"
             >
               Creative
             </th>
-            {visibleMetricCount > 0 &&
+            {groupColSpan > 0 &&
               platforms.map((pf) => (
                 <th
                   key={pf}
-                  colSpan={visibleMetricCount}
+                  colSpan={groupColSpan}
                   className="px-3 py-1.5 text-[10px] uppercase tracking-[0.14em] border-l border-line text-left"
                   style={{
                     color: PLATFORM_COLOR[pf as keyof typeof PLATFORM_COLOR],
@@ -201,9 +283,9 @@ export function SummaryTable({
                   {PLATFORM_LABEL[pf as keyof typeof PLATFORM_LABEL]}
                 </th>
               ))}
-            {showTotal && visibleMetricCount > 0 && (
+            {showTotal && groupColSpan > 0 && (
               <th
-                colSpan={visibleMetricCount}
+                colSpan={groupColSpan}
                 className="px-3 py-1.5 text-[10px] uppercase tracking-[0.14em] text-ink-2 border-l border-line text-left"
                 title="Weighted aggregate across the selected platforms."
               >
@@ -212,45 +294,47 @@ export function SummaryTable({
             )}
           </tr>
           <tr className="border-b border-line text-left text-[11px] uppercase tracking-[0.14em] text-ink-3">
-            {identityCols.map((c) => (
-              <SortableTh
-                key={c.key}
-                label={c.label}
-                active={sort.key === c.key}
-                dir={sort.dir}
-                href={sortHref(c.key)}
-                icon={SortIcon}
+            {identityCols.map((c) => {
+              const resizable = RESIZABLE_IDENTITY.has(c.key);
+              return (
+                <IdentityTh
+                  key={c.key}
+                  label={c.label}
+                  active={sort.key === c.key}
+                  dir={sort.dir}
+                  href={sortHref(c.key)}
+                  icon={SortIcon}
+                  width={widths[c.key]}
+                  style={widthStyle(c.key)}
+                  resizable={resizable}
+                  onResizeStart={(e) => startResize(c.key, e)}
+                  thRef={(el) => {
+                    thRefs.current[c.key] = el;
+                  }}
+                />
+              );
+            })}
+            {platforms.map((pf) => (
+              <RateAndMetricsHead
+                key={`head-${pf}`}
+                scope={pf}
+                showRate={showRate}
+                visibleMetrics={visibleMetrics}
+                sort={sort}
+                sortHref={sortHref}
+                SortIcon={SortIcon}
               />
             ))}
-            {platforms.map((pf) =>
-              visibleMetrics.map((m, i) => (
-                <SortableTh
-                  key={`${pf}.${m.key}`}
-                  label={m.label}
-                  numeric
-                  active={sort.key === `${pf}.${m.key}`}
-                  dir={sort.dir}
-                  href={sortHref(`${pf}.${m.key}`)}
-                  icon={SortIcon}
-                  groupBorder={i === 0}
-                  groupIndex={i}
-                />
-              )),
+            {showTotal && (
+              <RateAndMetricsHead
+                scope="total"
+                showRate={showRate}
+                visibleMetrics={visibleMetrics}
+                sort={sort}
+                sortHref={sortHref}
+                SortIcon={SortIcon}
+              />
             )}
-            {showTotal &&
-              visibleMetrics.map((m, i) => (
-                <SortableTh
-                  key={`total.${m.key}`}
-                  label={m.label}
-                  numeric
-                  active={sort.key === `total.${m.key}`}
-                  dir={sort.dir}
-                  href={sortHref(`total.${m.key}`)}
-                  icon={SortIcon}
-                  groupBorder={i === 0}
-                  groupIndex={i}
-                />
-              ))}
           </tr>
         </thead>
         <tbody className="divide-y divide-line">
@@ -261,13 +345,20 @@ export function SummaryTable({
             >
               {/* Identity — render only the visible columns */}
               {identityCols.map((c) => {
+                const w = RESIZABLE_IDENTITY.has(c.key) ? widths[c.key] : undefined;
+                const style = w ? { width: w, minWidth: w, maxWidth: w } : undefined;
+                const nowrap = w ? "" : "whitespace-nowrap";
                 switch (c.key) {
                   case "name":
                     return (
-                      <td key="name" className="px-3 py-2 whitespace-nowrap">
+                      <td key="name" style={style} className={`px-3 py-2 ${nowrap}`}>
                         <Link
                           href={`/creatives/${encodeURIComponent(r.name)}`}
-                          className="font-mono text-ink text-[12px] hover:text-brand transition-colors"
+                          title={r.name}
+                          className={
+                            "font-mono text-ink text-[12px] hover:text-brand transition-colors " +
+                            (w ? "block truncate" : "")
+                          }
                         >
                           {r.name}
                         </Link>
@@ -277,7 +368,9 @@ export function SummaryTable({
                     return (
                       <td
                         key="product"
-                        className="px-3 py-2 text-ink-2 whitespace-nowrap"
+                        style={style}
+                        title={w ? r.productName : undefined}
+                        className={`px-3 py-2 text-ink-2 ${w ? "truncate" : "whitespace-nowrap"}`}
                       >
                         {r.productName}
                       </td>
@@ -306,7 +399,9 @@ export function SummaryTable({
                     return (
                       <td
                         key="creator"
-                        className="px-3 py-2 text-ink-3 whitespace-nowrap"
+                        style={style}
+                        title={w ? (r.creatorName ?? "—") : undefined}
+                        className={`px-3 py-2 text-ink-3 ${w ? "truncate" : "whitespace-nowrap"}`}
                       >
                         {r.creatorName ?? "—"}
                       </td>
@@ -317,40 +412,28 @@ export function SummaryTable({
               })}
 
               {/* Per platform */}
-              {platforms.map((pf) => {
-                const block = r.perPlatform[pf as keyof typeof r.perPlatform];
-                return visibleMetrics.map((m, mi) => {
-                  const v = block ? pickMetric(block, m.key) : null;
-                  return (
-                    <td
-                      key={`${pf}.${m.key}`}
-                      className={
-                        "px-3 py-2 text-right text-ink whitespace-nowrap tabular-nums " +
-                        (mi === 0 ? "border-l border-line" : "")
-                      }
-                    >
-                      {m.format(v)}
-                    </td>
-                  );
-                });
-              })}
+              {platforms.map((pf) => (
+                <RateAndMetricsCells
+                  key={`${r.creativeId}.${pf}`}
+                  scope={pf}
+                  block={r.perPlatform[pf as keyof typeof r.perPlatform]}
+                  showRate={showRate}
+                  rules={rules}
+                  visibleMetrics={visibleMetrics}
+                />
+              ))}
 
               {/* Blended total */}
-              {showTotal &&
-                visibleMetrics.map((m, mi) => {
-                  const v = pickMetric(r.total, m.key);
-                  return (
-                    <td
-                      key={`total.${m.key}`}
-                      className={
-                        "px-3 py-2 text-right text-ink-2 whitespace-nowrap tabular-nums " +
-                        (mi === 0 ? "border-l border-line" : "")
-                      }
-                    >
-                      {m.format(v)}
-                    </td>
-                  );
-                })}
+              {showTotal && (
+                <RateAndMetricsCells
+                  scope="total"
+                  block={r.total}
+                  showRate={showRate}
+                  rules={rules}
+                  visibleMetrics={visibleMetrics}
+                  muted
+                />
+              )}
             </tr>
           ))}
         </tbody>
@@ -359,31 +442,143 @@ export function SummaryTable({
   );
 }
 
+/**
+ * A sortable identity-column header with an optional drag-to-resize handle.
+ * When a width is pinned, the label truncates within it.
+ */
+function IdentityTh({
+  label,
+  active,
+  dir,
+  href,
+  icon: SortIcon,
+  width,
+  style,
+  resizable,
+  onResizeStart,
+  thRef,
+}: {
+  label: string;
+  active: boolean;
+  dir: SortDir;
+  href: string;
+  icon: (props: { active: boolean; dir: SortDir }) => React.ReactElement;
+  width?: number;
+  style?: React.CSSProperties;
+  resizable: boolean;
+  onResizeStart: (e: React.MouseEvent) => void;
+  thRef: (el: HTMLTableCellElement | null) => void;
+}) {
+  return (
+    <th
+      ref={thRef}
+      style={style}
+      className={
+        "relative font-medium px-3 py-2 text-left " + (width ? "" : "whitespace-nowrap")
+      }
+    >
+      <Link
+        href={href}
+        scroll={false}
+        className={
+          "inline-flex items-center gap-1 max-w-full hover:text-ink transition-colors " +
+          (active ? "text-brand" : "")
+        }
+      >
+        <span className={width ? "truncate" : ""}>{label}</span>
+        <SortIcon active={active} dir={dir} />
+      </Link>
+      {resizable && (
+        <span
+          role="separator"
+          aria-orientation="vertical"
+          aria-label={`Resize ${label} column`}
+          onMouseDown={onResizeStart}
+          className="absolute top-0 right-0 h-full w-1.5 cursor-col-resize select-none hover:bg-brand/40 active:bg-brand/60"
+        />
+      )}
+    </th>
+  );
+}
+
+type MetricColumn = (typeof METRIC_COLUMNS)[number];
+
+/**
+ * One group's header cells: a non-sortable "Rate" column (when shown) leading
+ * the group, then its sortable metric headers. The leading column owns the
+ * group's left border so the divider lands between platform groups.
+ */
+function RateAndMetricsHead({
+  scope,
+  showRate,
+  visibleMetrics,
+  sort,
+  sortHref,
+  SortIcon,
+}: {
+  scope: string;
+  showRate: boolean;
+  visibleMetrics: MetricColumn[];
+  sort: { key: string; dir: SortDir };
+  sortHref: (key: string) => string;
+  SortIcon: (props: { active: boolean; dir: SortDir }) => React.ReactElement;
+}) {
+  return (
+    <>
+      {showRate && (
+        <th
+          className="font-medium px-3 py-2 whitespace-nowrap text-center border-l border-line"
+          title="Derived from ROAS and the spend gate in Configuration → Rate rules."
+        >
+          <Link
+            href={sortHref(`${scope}.rate`)}
+            scroll={false}
+            className={
+              "inline-flex items-center gap-1 hover:text-ink transition-colors " +
+              (sort.key === `${scope}.rate` ? "text-brand" : "")
+            }
+          >
+            Rate
+            <SortIcon active={sort.key === `${scope}.rate`} dir={sort.dir} />
+          </Link>
+        </th>
+      )}
+      {visibleMetrics.map((m, i) => (
+        <SortableTh
+          key={`${scope}.${m.key}`}
+          label={m.label}
+          active={sort.key === `${scope}.${m.key}`}
+          dir={sort.dir}
+          href={sortHref(`${scope}.${m.key}`)}
+          icon={SortIcon}
+          groupBorder={i === 0 && !showRate}
+        />
+      ))}
+    </>
+  );
+}
+
+/** A right-aligned, sortable numeric metric header. */
 function SortableTh({
   label,
-  numeric = false,
   active,
   dir,
   href,
   icon: SortIcon,
   groupBorder = false,
-  groupIndex = 0,
 }: {
   label: string;
-  numeric?: boolean;
   active: boolean;
   dir: SortDir;
   href: string;
   icon: (props: { active: boolean; dir: SortDir }) => React.ReactElement;
   groupBorder?: boolean;
-  groupIndex?: number;
 }) {
   return (
     <th
       className={
-        "font-medium px-3 py-2 whitespace-nowrap " +
-        (numeric ? "text-right " : "text-left ") +
-        (groupBorder && groupIndex === 0 ? "border-l border-line " : "")
+        "font-medium px-3 py-2 whitespace-nowrap text-right " +
+        (groupBorder ? "border-l border-line " : "")
       }
     >
       <Link
@@ -398,5 +593,50 @@ function SortableTh({
         <SortIcon active={active} dir={dir} />
       </Link>
     </th>
+  );
+}
+
+/**
+ * One group's body cells for a single creative: the Rate badge (when shown)
+ * then the metric values. `muted` dims the blended-total group.
+ */
+function RateAndMetricsCells({
+  scope,
+  block,
+  showRate,
+  rules,
+  visibleMetrics,
+  muted = false,
+}: {
+  scope: string;
+  block: PlatformMetricBlock | undefined;
+  showRate: boolean;
+  rules: RatingRules;
+  visibleMetrics: MetricColumn[];
+  muted?: boolean;
+}) {
+  return (
+    <>
+      {showRate && (
+        <td className="px-3 py-2 text-center whitespace-nowrap border-l border-line">
+          <RateBadge block={block} rules={rules} />
+        </td>
+      )}
+      {visibleMetrics.map((m, mi) => {
+        const v = block ? pickMetric(block, m.key) : null;
+        return (
+          <td
+            key={`${scope}.${m.key}`}
+            className={
+              "px-3 py-2 text-right whitespace-nowrap tabular-nums " +
+              (muted ? "text-ink-2 " : "text-ink ") +
+              (mi === 0 && !showRate ? "border-l border-line" : "")
+            }
+          >
+            {m.format(v)}
+          </td>
+        );
+      })}
+    </>
   );
 }

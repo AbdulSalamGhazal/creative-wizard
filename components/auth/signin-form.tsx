@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
+import { Wand2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -41,13 +42,13 @@ export function SignInForm({ nextPath }: { nextPath: string }) {
             boxShadow: "0 0 20px var(--brand-glow)",
           }}
         >
-          <span className="font-display text-white text-2xl leading-none">U</span>
+          <Wand2 className="w-6 h-6 text-white" />
         </div>
         <div>
-          <div className="text-[10px] uppercase tracking-[0.18em] text-ink-3">
-            Urjwan
+          <h1 className="font-display text-3xl tracking-tight">Creative Wizard</h1>
+          <div className="text-[11px] uppercase tracking-[0.18em] text-ink-3 mt-1">
+            Sign in to continue
           </div>
-          <h1 className="font-display text-3xl tracking-tight">Creative system</h1>
         </div>
       </div>
 

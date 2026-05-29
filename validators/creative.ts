@@ -26,7 +26,8 @@ function csvEnum<T extends readonly [string, ...string[]]>(values: T) {
     .string()
     .optional()
     .transform((s) => (s ? s.split(",").filter(Boolean) : []))
-    .pipe(z.array(z.enum(values)));
+    .pipe(z.array(z.enum(values)))
+    .catch([]);
 }
 
 function csvString() {
@@ -41,7 +42,18 @@ export const creativeSortValues = [
   "launched-asc",
   "name-asc",
   "name-desc",
+  "product-asc",
+  "product-desc",
+  "type-asc",
+  "type-desc",
+  "status-asc",
+  "status-desc",
+  "tag-asc",
+  "tag-desc",
+  "spend7-desc",
+  "spend7-asc",
   "spend-desc",
+  "spend-asc",
   "created-desc",
 ] as const;
 export type CreativeSort = (typeof creativeSortValues)[number];
@@ -59,7 +71,8 @@ export const creativeListFiltersSchema = z.object({
   statuses: csvEnum(creativeStatusEnum),
   tags: csvString(),
   sort: z.enum(creativeSortValues).catch("launched-desc"),
-  view: z.enum(creativeViewValues).catch("grid"),
+  // Table is the default view; "grid" is the opt-in (carried as ?view=grid).
+  view: z.enum(creativeViewValues).catch("table"),
 });
 
 export type CreativeListFilterInput = z.infer<typeof creativeListFiltersSchema>;

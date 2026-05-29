@@ -32,9 +32,9 @@ export default async function UsersAdminPage() {
         </div>
         <h1 className="font-display text-4xl tracking-tight">Team</h1>
         <p className="text-ink-2 text-sm mt-1">
-          {team.length} member{team.length === 1 ? "" : "s"}. Admins manage
-          users, products, and rollbacks. Editors upload CSVs and manage
-          creatives. Viewers are out of scope for v1 (PRD §3).
+          {team.length} member{team.length === 1 ? "" : "s"}. Admins manage the
+          team, the catalog, and rollbacks; editors upload data and manage
+          creatives.
         </p>
       </div>
 

@@ -17,6 +17,7 @@ import {
   creatives,
   creativeTags,
   tags,
+  ratingRules,
   platformFieldMappings,
   uploadBatches,
   performanceRecords,
@@ -322,6 +323,17 @@ async function main() {
   console.log(
     `  performance_records: ${inserted} inserted (of ${rows.length} candidates)`,
   );
+
+  // Rating rules — singleton config (id = 1) driving the /summary Rate column.
+  // Tuned to the synthetic data (ROAS ~6–10×) so the demo shows a real spread
+  // of Good / Decent / Bad; Snapchat has no seeded data so it renders N/A.
+  // (The schema column defaults stay at the generic 4× / 2× for real use.)
+  await db
+    .insert(ratingRules)
+    .values({ id: 1, minSpend: "500", goodRoas: "9", decentRoas: "7" })
+    .onConflictDoNothing({ target: ratingRules.id });
+  console.log("  rating rules: singleton ensured (id=1)");
+
   console.log("Done.");
 }
 

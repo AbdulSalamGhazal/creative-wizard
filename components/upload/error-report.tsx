@@ -51,10 +51,8 @@ export function ErrorReport({ errors, warnings }: Props) {
         ))}
       </ul>
 
-      <div className="px-4 py-2 border-t border-neg/20 text-[11px] text-ink-3 num">
-        Codes match{" "}
-        <code className="font-mono text-ink-2">docs/validation-spec.md</code>{" "}
-        §7. Fix the source CSV and try again.
+      <div className="px-4 py-2 border-t border-neg/20 text-[11px] text-ink-3">
+        Fix the highlighted issues in your file, then upload it again.
       </div>
     </div>
   );
@@ -71,14 +69,13 @@ function Row({ entry }: { entry: ValidationError }) {
     >
       <span
         className={cn(
-          "inline-flex items-center justify-center px-1.5 h-5 rounded text-[10px] font-mono shrink-0 mt-0.5",
+          "inline-flex items-center justify-center px-1.5 h-5 rounded text-[10px] uppercase tracking-wide shrink-0 mt-0.5",
           isWarn
             ? "bg-warn/15 text-warn border border-warn/30"
             : "bg-neg/15 text-neg border border-neg/30",
         )}
-        title={SEVERITY_LABEL[entry.severity]}
       >
-        {entry.code}
+        {SEVERITY_LABEL[entry.severity]}
       </span>
       <span className="text-ink-2 leading-relaxed">
         {entry.message}

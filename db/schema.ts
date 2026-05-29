@@ -110,6 +110,28 @@ export const tags = pgTable("tags", {
     .defaultNow(),
 });
 
+/**
+ * Singleton config for the creative rating shown on /summary. One global row
+ * (id = 1). A creative's rating is derived live from its ROAS, gated by a
+ * minimum spend:
+ *   spend < minSpend            → N/A   (not enough spend to judge)
+ *   ROAS >= goodRoas            → Good
+ *   ROAS >= decentRoas          → Decent
+ *   otherwise (has spend)       → Bad
+ * Applied identically to each platform's own values and the blended total.
+ * Edited from /admin/catalog?tab=rating (admin only).
+ */
+export const ratingRules = pgTable("rating_rules", {
+  id: integer("id").primaryKey().default(1),
+  minSpend: numeric("min_spend", { precision: 14, scale: 2 }).notNull().default("500"),
+  goodRoas: numeric("good_roas", { precision: 10, scale: 2 }).notNull().default("4"),
+  decentRoas: numeric("decent_roas", { precision: 10, scale: 2 }).notNull().default("2"),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedByUserId: uuid("updated_by_user_id").references(() => users.id),
+});
+
 export const uploadBatches = pgTable("upload_batches", {
   id: uuid("id").primaryKey().defaultRandom(),
   platform: varchar("platform", { length: 16, enum: platformEnum }).notNull(),

@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState, useTransition } from "react";
+import { usePathname, useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -16,6 +18,7 @@ import {
 } from "@/components/ui/select";
 import { bulkUpdateStatus } from "@/app/actions/creative";
 import type { CreativeListRow } from "@/db/queries/creatives";
+import type { CreativeSort } from "@/validators/creative";
 import { rowsToCsv, todayStamp, type CsvColumn } from "@/lib/csv-export";
 import { isoDate, usd } from "@/lib/format";
 
@@ -25,6 +28,7 @@ const CSV_COLUMNS: CsvColumn<CreativeListRow>[] = [
   { key: "type", label: "Type", value: (r) => r.type },
   { key: "status", label: "Status", value: (r) => r.status },
   { key: "launchDate", label: "Launch date", value: (r) => r.launchDate ?? "" },
+  { key: "spend7d", label: "7d spend (USD)", value: (r) => r.spend7d },
   { key: "spend30d", label: "30d spend (USD)", value: (r) => r.spend30d },
   { key: "tags", label: "Tags", value: (r) => r.tags.join("; ") },
 ];
@@ -49,10 +53,96 @@ const BULK_STATUSES: Array<{ value: CreativeListRow["status"]; label: string }> 
   { value: "archived", label: "Archive" },
 ];
 
+// Sortable columns → their asc/desc URL sort values (validated in
+// validators/creative.ts). Clicking a header cycles desc → asc → default.
+const DEFAULT_SORT: CreativeSort = "launched-desc";
+const SORTS = {
+  name: { asc: "name-asc", desc: "name-desc" },
+  product: { asc: "product-asc", desc: "product-desc" },
+  type: { asc: "type-asc", desc: "type-desc" },
+  status: { asc: "status-asc", desc: "status-desc" },
+  tag: { asc: "tag-asc", desc: "tag-desc" },
+  launched: { asc: "launched-asc", desc: "launched-desc" },
+  spend7: { asc: "spend7-asc", desc: "spend7-desc" },
+  spend30: { asc: "spend-asc", desc: "spend-desc" },
+} satisfies Record<string, { asc: CreativeSort; desc: CreativeSort }>;
+
+const COL_WIDTHS_KEY = "creatives-col-widths";
+const MIN_COL_WIDTH = 90;
+
 export function CreativeTable({ rows }: { rows: CreativeListRow[] }) {
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const currentSort = (searchParams.get("sort") as CreativeSort) ?? DEFAULT_SORT;
+
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkStatus, setBulkStatus] = useState<CreativeListRow["status"] | "">("");
   const [isPending, startTransition] = useTransition();
+
+  // ---- Resizable text columns (Creative, Product) ----
+  const [widths, setWidths] = useState<Record<string, number>>({});
+  const thRefs = useRef<Record<string, HTMLTableCellElement | null>>({});
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(COL_WIDTHS_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw) as Record<string, number>;
+        if (parsed && typeof parsed === "object") setWidths(parsed);
+      }
+    } catch {
+      /* ignore */
+    }
+  }, []);
+  const startResize = useCallback(
+    (key: string, e: React.MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const startX = e.clientX;
+      const measured = thRefs.current[key]?.getBoundingClientRect().width ?? 160;
+      const startW = widths[key] ?? measured;
+      const onMove = (ev: MouseEvent) => {
+        const w = Math.max(MIN_COL_WIDTH, Math.round(startW + (ev.clientX - startX)));
+        setWidths((prev) => ({ ...prev, [key]: w }));
+      };
+      const onUp = () => {
+        window.removeEventListener("mousemove", onMove);
+        window.removeEventListener("mouseup", onUp);
+        document.body.style.userSelect = "";
+        setWidths((prev) => {
+          try {
+            localStorage.setItem(COL_WIDTHS_KEY, JSON.stringify(prev));
+          } catch {
+            /* ignore */
+          }
+          return prev;
+        });
+      };
+      window.addEventListener("mousemove", onMove);
+      window.addEventListener("mouseup", onUp);
+      document.body.style.userSelect = "none";
+    },
+    [widths],
+  );
+  const widthStyle = (key: string): React.CSSProperties | undefined => {
+    const w = widths[key];
+    return w ? { width: w, minWidth: w, maxWidth: w } : undefined;
+  };
+
+  // ---- Sort link helper ----
+  const sortState = (col: keyof typeof SORTS) => {
+    const { asc, desc } = SORTS[col];
+    const active = currentSort === asc || currentSort === desc;
+    const dir: "asc" | "desc" = currentSort === asc ? "asc" : "desc";
+    let next: CreativeSort | null;
+    if (currentSort === desc) next = asc;
+    else if (currentSort === asc) next = null; // reset to default
+    else next = desc;
+    const params = new URLSearchParams(searchParams.toString());
+    if (next === null || next === DEFAULT_SORT) params.delete("sort");
+    else params.set("sort", next);
+    const qs = params.toString();
+    return { active, dir, href: qs ? `${pathname}?${qs}` : pathname };
+  };
 
   const allIds = useMemo(() => rows.map((r) => r.id), [rows]);
   const allSelected = selected.size > 0 && selected.size === allIds.length;
@@ -81,9 +171,7 @@ export function CreativeTable({ rows }: { rows: CreativeListRow[] }) {
         toast.error(res.error ?? "Bulk update failed");
         return;
       }
-      toast.success(
-        `${res.updated ?? ids.length} creatives → ${targetStatus}`,
-      );
+      toast.success(`${res.updated ?? ids.length} creatives → ${targetStatus}`);
       setSelected(new Set());
       setBulkStatus("");
     });
@@ -120,13 +208,32 @@ export function CreativeTable({ rows }: { rows: CreativeListRow[] }) {
                   aria-label="Select all"
                 />
               </th>
-              <th className="font-medium px-3 py-2.5">Creative</th>
-              <th className="font-medium px-3 py-2.5">Product</th>
-              <th className="font-medium px-3 py-2.5">Type</th>
-              <th className="font-medium px-3 py-2.5">Status</th>
-              <th className="font-medium px-3 py-2.5">Launch date</th>
-              <th className="font-medium px-3 py-2.5 text-right">30d spend</th>
-              <th className="font-medium px-3 py-2.5">Tags</th>
+              <SortableTextTh
+                label="Creative"
+                state={sortState("name")}
+                width={widths.name}
+                style={widthStyle("name")}
+                onResizeStart={(e) => startResize("name", e)}
+                thRef={(el) => {
+                  thRefs.current.name = el;
+                }}
+              />
+              <SortableTextTh
+                label="Product"
+                state={sortState("product")}
+                width={widths.product}
+                style={widthStyle("product")}
+                onResizeStart={(e) => startResize("product", e)}
+                thRef={(el) => {
+                  thRefs.current.product = el;
+                }}
+              />
+              <SortableTh label="Type" state={sortState("type")} />
+              <SortableTh label="Status" state={sortState("status")} />
+              <SortableTh label="Launch date" state={sortState("launched")} />
+              <SortableTh label="7d spend" state={sortState("spend7")} numeric />
+              <SortableTh label="30d spend" state={sortState("spend30")} numeric />
+              <SortableTh label="Tags" state={sortState("tag")} />
             </tr>
           </thead>
           <tbody className="divide-y divide-line">
@@ -146,15 +253,28 @@ export function CreativeTable({ rows }: { rows: CreativeListRow[] }) {
                     aria-label={`Select ${r.name}`}
                   />
                 </td>
-                <td className="px-3 py-2.5">
+                <td
+                  style={widthStyle("name")}
+                  className={`px-3 py-2.5 ${widths.name ? "" : "whitespace-nowrap"}`}
+                >
                   <Link
                     href={`/creatives/${encodeURIComponent(r.name)}`}
-                    className="font-mono text-ink text-[13px] hover:text-brand transition-colors"
+                    title={r.name}
+                    className={
+                      "font-mono text-ink text-[13px] hover:text-brand transition-colors " +
+                      (widths.name ? "block truncate" : "")
+                    }
                   >
                     {r.name}
                   </Link>
                 </td>
-                <td className="px-3 py-2.5 text-ink-2">{r.productName}</td>
+                <td
+                  style={widthStyle("product")}
+                  title={widths.product ? r.productName : undefined}
+                  className={`px-3 py-2.5 text-ink-2 ${widths.product ? "truncate" : ""}`}
+                >
+                  {r.productName}
+                </td>
                 <td className="px-3 py-2.5 text-ink-2">{TYPE_LABEL[r.type]}</td>
                 <td className="px-3 py-2.5">
                   <Badge variant="outline" className={statusClass[r.status]}>
@@ -164,7 +284,10 @@ export function CreativeTable({ rows }: { rows: CreativeListRow[] }) {
                 <td className="px-3 py-2.5 text-ink-2">
                   {r.launchDate ? isoDate(r.launchDate) : "—"}
                 </td>
-                <td className="px-3 py-2.5 text-right text-ink">
+                <td className="px-3 py-2.5 text-right text-ink tabular-nums">
+                  {r.spend7d > 0 ? usd(r.spend7d) : "—"}
+                </td>
+                <td className="px-3 py-2.5 text-right text-ink tabular-nums">
                   {r.spend30d > 0 ? usd(r.spend30d) : "—"}
                 </td>
                 <td className="px-3 py-2.5 text-ink-2">
@@ -236,5 +359,101 @@ export function CreativeTable({ rows }: { rows: CreativeListRow[] }) {
         </div>
       )}
     </div>
+  );
+}
+
+interface SortState {
+  active: boolean;
+  dir: "asc" | "desc";
+  href: string;
+}
+
+function SortIcon({ active, dir }: { active: boolean; dir: "asc" | "desc" }) {
+  if (!active)
+    return <ArrowUpDown className="w-3 h-3 text-ink-3 opacity-60" aria-hidden />;
+  return dir === "asc" ? (
+    <ArrowUp className="w-3 h-3 text-brand" aria-hidden />
+  ) : (
+    <ArrowDown className="w-3 h-3 text-brand" aria-hidden />
+  );
+}
+
+/** Plain sortable header (numeric or text), no resize handle. */
+function SortableTh({
+  label,
+  state,
+  numeric = false,
+}: {
+  label: string;
+  state: SortState;
+  numeric?: boolean;
+}) {
+  return (
+    <th
+      className={
+        "font-medium px-3 py-2.5 whitespace-nowrap " +
+        (numeric ? "text-right" : "text-left")
+      }
+    >
+      <Link
+        href={state.href}
+        scroll={false}
+        className={
+          "inline-flex items-center gap-1 hover:text-ink transition-colors " +
+          (numeric ? "justify-end " : "") +
+          (state.active ? "text-brand" : "")
+        }
+      >
+        {label}
+        <SortIcon active={state.active} dir={state.dir} />
+      </Link>
+    </th>
+  );
+}
+
+/** Sortable text header with a drag-to-resize handle on the right edge. */
+function SortableTextTh({
+  label,
+  state,
+  width,
+  style,
+  onResizeStart,
+  thRef,
+}: {
+  label: string;
+  state: SortState;
+  width?: number;
+  style?: React.CSSProperties;
+  onResizeStart: (e: React.MouseEvent) => void;
+  thRef: (el: HTMLTableCellElement | null) => void;
+}) {
+  return (
+    <th
+      ref={thRef}
+      style={style}
+      className={
+        "relative font-medium px-3 py-2.5 text-left " +
+        (width ? "" : "whitespace-nowrap")
+      }
+    >
+      <Link
+        href={state.href}
+        scroll={false}
+        className={
+          "inline-flex items-center gap-1 max-w-full hover:text-ink transition-colors " +
+          (state.active ? "text-brand" : "")
+        }
+      >
+        <span className={width ? "truncate" : ""}>{label}</span>
+        <SortIcon active={state.active} dir={state.dir} />
+      </Link>
+      <span
+        role="separator"
+        aria-orientation="vertical"
+        aria-label={`Resize ${label} column`}
+        onMouseDown={onResizeStart}
+        className="absolute top-0 right-0 h-full w-1.5 cursor-col-resize select-none hover:bg-brand/40 active:bg-brand/60"
+      />
+    </th>
   );
 }

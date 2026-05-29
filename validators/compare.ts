@@ -56,8 +56,8 @@ export const compareFiltersSchema = z.object({
       const deduped = uniq(valid).slice(0, MAX_COMPARE_BLOCKS);
       return deduped.length > 0 ? deduped : ["spend"];
     }),
-  from: z.string().date().optional(),
-  to: z.string().date().optional(),
+  from: z.string().date().optional().catch(undefined),
+  to: z.string().date().optional().catch(undefined),
 });
 
 export type CompareFilters = z.infer<typeof compareFiltersSchema>;

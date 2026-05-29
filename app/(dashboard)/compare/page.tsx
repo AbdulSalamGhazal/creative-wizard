@@ -80,7 +80,7 @@ export default async function ComparePage({
         </h1>
         <p className="text-ink-2 text-sm mt-1">
           Pick up to five creatives, then stack a comparison block per metric.
-          All blended figures are weighted via component sums (tech-spec §8.2).
+          Blended figures are true weighted averages, not averages of ratios.
         </p>
       </div>
 

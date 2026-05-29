@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { requireAdmin } from "@/lib/auth";
 import { listTags } from "@/db/queries/tags";
+import { getRatingRules } from "@/db/queries/rating";
 import { ProductsAdmin } from "@/components/product/products-admin";
 import { PlatformsAdmin } from "@/components/platform/platforms-admin";
 import { MappingsAdmin } from "@/components/platform/mappings-admin";
 import { TagsTable } from "@/components/tag/tags-table";
+import { RatingRulesAdmin } from "@/components/rating/rating-rules-admin";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +15,7 @@ const TABS = [
   { key: "tags", label: "Tags" },
   { key: "platforms", label: "Platforms" },
   { key: "mapping", label: "CSV mapping" },
+  { key: "rating", label: "Rate rules" },
 ] as const;
 type TabKey = (typeof TABS)[number]["key"];
 
@@ -21,8 +24,9 @@ interface Props {
 }
 
 /**
- * Merged catalog admin — Products, Tags, and CSV mapping under one tab,
- * switched via the `?tab=` query param so each section stays server-rendered.
+ * Configuration admin — Products, Tags, Platforms, CSV mapping, and the
+ * Summary Rate rules under one page, switched via the `?tab=` query param so
+ * each section stays server-rendered.
  */
 export default async function CatalogAdminPage({ searchParams }: Props) {
   await requireAdmin();
@@ -36,10 +40,10 @@ export default async function CatalogAdminPage({ searchParams }: Props) {
         <div className="text-[10px] uppercase tracking-[0.18em] text-ink-3 mb-1">
           Admin
         </div>
-        <h1 className="font-display text-4xl tracking-tight">Catalog</h1>
+        <h1 className="font-display text-4xl tracking-tight">Configuration</h1>
         <p className="text-ink-2 text-sm mt-1">
-          Manage the building blocks creatives reference: products, tags, and
-          the per-platform CSV column mappings.
+          Manage the building blocks creatives reference — products, tags, and
+          per-platform CSV column mappings — plus the Summary rating rules.
         </p>
       </div>
 
@@ -69,6 +73,7 @@ export default async function CatalogAdminPage({ searchParams }: Props) {
       {active === "tags" && <TagsTable rows={await listTags()} />}
       {active === "platforms" && <PlatformsAdmin />}
       {active === "mapping" && <MappingsAdmin />}
+      {active === "rating" && <RatingRulesAdmin rules={await getRatingRules()} />}
     </div>
   );
 }

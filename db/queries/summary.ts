@@ -40,8 +40,15 @@ import {
   METRIC_META,
   type MetricColumnKey,
   type MetricFilterCondition,
+  type RateFilterCondition,
   type SortDir,
 } from "@/validators/summary";
+import {
+  DEFAULT_RATING_RULES,
+  RATING_RANK,
+  rateBlock,
+  type RatingRules,
+} from "@/lib/rating";
 
 type Platform = (typeof platformEnum)[number];
 type CreativeType = (typeof creativeTypeEnum)[number];
@@ -63,6 +70,10 @@ export interface SummaryFilterInput {
   dir?: SortDir;
   /** Numeric predicates applied to each creative's blended total (ANDed). */
   metricFilters?: MetricFilterCondition[];
+  /** Categorical rating filter (scope + selected ratings). */
+  rateFilter?: RateFilterCondition | null;
+  /** Rules driving the rating — needed for rate sort + rate filter. */
+  ratingRules?: RatingRules;
 }
 
 export interface PlatformMetricBlock {
@@ -150,7 +161,10 @@ function resolveSort(
   // Per-platform / total metric keys: "<platform | total>.<metric>"
   const [scope, metric] = sort.split(".");
   if (!scope || !metric) return DEFAULT_SORT;
-  if (!METRIC_KEYS.includes(metric as MetricKey)) return DEFAULT_SORT;
+  // "rate" is a derived categorical column sortable per scope (handled in JS).
+  if (metric !== "rate" && !METRIC_KEYS.includes(metric as MetricKey)) {
+    return DEFAULT_SORT;
+  }
   if (scope === "total") return { key: sort, dir: direction };
   if (selectedPlatforms.includes(scope as Platform)) {
     return { key: sort, dir: direction };
@@ -457,7 +471,13 @@ export async function listCreativeSummary(
     select[`${pf}_holdRate`] = m.holdRate;
   }
 
-  const orderExpr = orderBySql(resolved.key, selectedPlatforms, metricsByPlatform);
+  // Rating is derived in JS (not SQL), so a rate sort can't be expressed in
+  // ORDER BY. Detect it, give SQL a neutral stable order, and re-sort the
+  // materialized rows below.
+  const isRateSort = resolved.key.endsWith(".rate");
+  const orderExpr = isRateSort
+    ? sumSpend
+    : orderBySql(resolved.key, selectedPlatforms, metricsByPlatform);
 
   const rawRows = await db
     .select(select)
@@ -477,7 +497,9 @@ export async function listCreativeSummary(
       users.email,
     )
     .orderBy(
-      resolved.dir === "asc" ? asc(orderExpr) : desc(orderExpr),
+      // For a rate sort, SQL just provides a stable base order (spend desc);
+      // the JS re-sort below applies the real rating order.
+      isRateSort || resolved.dir === "desc" ? desc(orderExpr) : asc(orderExpr),
       // Stable secondary sort so equal-spend rows don't shuffle between
       // requests.
       asc(creatives.name),
@@ -557,10 +579,36 @@ export async function listCreativeSummary(
   // filtering is exactly equivalent to a HAVING clause but far simpler to
   // express against the dynamic per-selection total expressions. Sort order
   // from SQL is preserved because we only drop rows.
-  const filteredRows =
+  let filteredRows =
     filters.metricFilters && filters.metricFilters.length > 0
       ? rows.filter((r) => passesMetricFilters(r, filters.metricFilters!))
       : rows;
+
+  // Rating-based filter + sort (both derived from spend/ROAS in JS).
+  const rules = filters.ratingRules ?? DEFAULT_RATING_RULES;
+  const blockFor = (row: SummaryRow, scope: string) =>
+    scope === "total" ? row.total : row.perPlatform[scope as Platform];
+
+  const rate = filters.rateFilter;
+  if (rate && rate.ratings.length > 0) {
+    const want = new Set(rate.ratings);
+    filteredRows = filteredRows.filter((r) =>
+      want.has(rateBlock(blockFor(r, rate.scope), rules)),
+    );
+  }
+
+  if (isRateSort) {
+    const [scope] = resolved.key.split(".");
+    const factor = resolved.dir === "asc" ? 1 : -1;
+    // Copy before sorting so the SQL-ordered `rows` isn't mutated in place
+    // when no row-dropping filter ran (filteredRows may alias rows).
+    filteredRows = [...filteredRows].sort((a, b) => {
+      const ra = RATING_RANK[rateBlock(blockFor(a, scope!), rules)];
+      const rb = RATING_RANK[rateBlock(blockFor(b, scope!), rules)];
+      if (ra !== rb) return (ra - rb) * factor;
+      return a.name.localeCompare(b.name);
+    });
+  }
 
   return {
     rows: filteredRows,

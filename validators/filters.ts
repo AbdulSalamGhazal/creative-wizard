@@ -9,12 +9,15 @@ function csvEnum<T extends readonly [string, ...string[]]>(values: T) {
     .string()
     .optional()
     .transform((s) => (s ? s.split(",").filter(Boolean) : []))
-    .pipe(z.array(z.enum(values)));
+    .pipe(z.array(z.enum(values)))
+    // A bad value in the CSV (e.g. a hand-edited URL) drops the filter rather
+    // than throwing — the page renders unfiltered instead of erroring.
+    .catch([]);
 }
 
 export const dashboardFiltersSchema = z.object({
-  from: z.string().date().optional(),
-  to: z.string().date().optional(),
+  from: z.string().date().optional().catch(undefined),
+  to: z.string().date().optional().catch(undefined),
   productIds: z
     .string()
     .optional()

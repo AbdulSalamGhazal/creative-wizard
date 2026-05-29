@@ -54,9 +54,31 @@ const SORT_LABEL: Record<CreativeSort, string> = {
   "launched-asc": "Earliest launched",
   "name-asc": "Name A→Z",
   "name-desc": "Name Z→A",
-  "spend-desc": "30-day spend",
+  "product-asc": "Product A→Z",
+  "product-desc": "Product Z→A",
+  "type-asc": "Type A→Z",
+  "type-desc": "Type Z→A",
+  "status-asc": "Status A→Z",
+  "status-desc": "Status Z→A",
+  "tag-asc": "First tag A→Z",
+  "tag-desc": "First tag Z→A",
+  "spend7-desc": "7-day spend (high→low)",
+  "spend7-asc": "7-day spend (low→high)",
+  "spend-desc": "30-day spend (high→low)",
+  "spend-asc": "30-day spend (low→high)",
   "created-desc": "Recently added",
 };
+
+/** Curated subset shown in the Sort dropdown; column headers cover the rest. */
+const DROPDOWN_SORTS: CreativeSort[] = [
+  "launched-desc",
+  "launched-asc",
+  "name-asc",
+  "name-desc",
+  "spend7-desc",
+  "spend-desc",
+  "created-desc",
+];
 
 export function LibraryFilterBar({ products, tags }: Props) {
   const router = useRouter();
@@ -70,8 +92,8 @@ export function LibraryFilterBar({ products, tags }: Props) {
   const selectedTags = csvParam(searchParams.get("tags"));
   const sortParam = (searchParams.get("sort") ?? "launched-desc") as CreativeSort;
   const sort = creativeSortValues.includes(sortParam) ? sortParam : "launched-desc";
-  const viewParam = (searchParams.get("view") ?? "grid") as CreativeView;
-  const view = creativeViewValues.includes(viewParam) ? viewParam : "grid";
+  const viewParam = (searchParams.get("view") ?? "table") as CreativeView;
+  const view = creativeViewValues.includes(viewParam) ? viewParam : "table";
 
   // Local search input state so typing feels instant; we push to URL on debounce.
   const urlQ = searchParams.get("q") ?? "";
@@ -121,7 +143,8 @@ export function LibraryFilterBar({ products, tags }: Props) {
     });
   const setView = (v: CreativeView) =>
     update((next) => {
-      if (v === "grid") next.delete("view");
+      // Table is the default, so it carries no param; grid is the opt-in.
+      if (v === "table") next.delete("view");
       else next.set("view", v);
     });
 
@@ -317,7 +340,7 @@ export function LibraryFilterBar({ products, tags }: Props) {
             <DropdownMenuContent align="end" className="w-52">
               <DropdownMenuLabel>Sort by</DropdownMenuLabel>
               <DropdownMenuSeparator />
-              {creativeSortValues.map((s) => (
+              {DROPDOWN_SORTS.map((s) => (
                 <DropdownMenuItem key={s} onSelect={() => setSort(s)}>
                   <span className="flex-1">{SORT_LABEL[s]}</span>
                   {sort === s && <Check className="w-3.5 h-3.5 text-brand" />}

@@ -49,8 +49,8 @@ export function SummaryCard({
           <ul className="max-h-32 overflow-y-auto divide-y divide-warn/10 text-xs">
             {warnings.map((w, i) => (
               <li key={i} className="px-4 py-2 flex items-start gap-2">
-                <span className="inline-flex items-center justify-center px-1.5 h-5 rounded text-[10px] font-mono bg-warn/15 text-warn border border-warn/30 shrink-0 mt-0.5">
-                  {w.code}
+                <span className="inline-flex items-center justify-center px-1.5 h-5 rounded text-[10px] uppercase tracking-wide bg-warn/15 text-warn border border-warn/30 shrink-0 mt-0.5">
+                  Warning
                 </span>
                 <span className="text-ink-2">{w.message}</span>
               </li>

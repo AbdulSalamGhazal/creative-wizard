@@ -9,8 +9,8 @@ import {
   Package,
   Search,
   Shapes,
+  Star,
   Tag,
-  Users,
   X,
 } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -35,9 +35,14 @@ import {
   IDENTITY_COLUMN_KEYS,
   MAX_PLATFORMS,
   METRIC_COLUMN_KEYS,
+  parseRateFilter,
+  serializeRateFilter,
   type IdentityColumnKey,
   type MetricColumnKey,
+  type MetricFilterScope,
 } from "@/validators/summary";
+import { RATING_META, RATING_VALUES, type Rating } from "@/lib/rating";
+import { PLATFORM_LABEL } from "@/lib/palette";
 import { MetricFilterControl } from "@/components/summary/metric-filter";
 import { ViewsControl } from "@/components/summary/views-control";
 import type { SummaryViewRow } from "@/db/queries/summary-views";
@@ -46,8 +51,7 @@ import type { DateRange } from "react-day-picker";
 interface Props {
   products: Array<{ id: string; name: string }>;
   tags: string[];
-  creators: Array<{ id: string; name: string; email: string }>;
-  /** Effective platforms shown in the table — feeds the metric-filter scope picker. */
+  /** Effective platforms shown in the table — feeds the metric-filter + rate scope pickers. */
   effectivePlatforms: string[];
   /** Saved views for the Views control. */
   views: SummaryViewRow[];
@@ -129,7 +133,6 @@ function csv(v: string | null): string[] {
 export function SummaryFilterBar({
   products,
   tags,
-  creators,
   effectivePlatforms,
   views,
   currentUserId,
@@ -147,7 +150,6 @@ export function SummaryFilterBar({
   const types = csv(searchParams.get("types"));
   const statuses = csv(searchParams.get("statuses"));
   const selectedTags = csv(searchParams.get("tags"));
-  const creatorIds = csv(searchParams.get("creatorIds"));
   const includeExcluded = searchParams.get("includeExcluded") === "1";
   const hiddenIdentity = csv(searchParams.get("hideIdentity")).filter(
     (k): k is IdentityColumnKey =>
@@ -157,6 +159,20 @@ export function SummaryFilterBar({
     (k): k is MetricColumnKey =>
       (METRIC_COLUMN_KEYS as readonly string[]).includes(k),
   );
+  const rateHidden = searchParams.get("hideRate") === "1";
+
+  // Rate filter — scope is kept in local state so the user can pick a scope
+  // before any ratings are checked (the URL only carries it once a rating is
+  // selected). Re-sync if the URL scope changes (e.g. a view is applied).
+  const rateParam = searchParams.get("rate");
+  const parsedRate = useMemo(() => parseRateFilter(rateParam), [rateParam]);
+  const rateRatings = parsedRate?.ratings ?? [];
+  const [rateScope, setRateScope] = useState<MetricFilterScope>(
+    parsedRate?.scope ?? "total",
+  );
+  useEffect(() => {
+    if (parsedRate?.scope) setRateScope(parsedRate.scope);
+  }, [parsedRate?.scope]);
 
   const urlQ = searchParams.get("q") ?? "";
   const [qInput, setQInput] = useState(urlQ);
@@ -236,10 +252,19 @@ export function SummaryFilterBar({
     });
   };
 
+  // The Rate column is a single boolean (shown by default). Unchecking sets
+  // hideRate=1; checking removes the param.
+  const toggleRate = () =>
+    update((next) => {
+      if (rateHidden) next.delete("hideRate");
+      else next.set("hideRate", "1");
+    });
+
   const showAllColumns = () =>
     update((next) => {
       next.delete("hideIdentity");
       next.delete("hideMetrics");
+      next.delete("hideRate");
     });
 
   const setPreset = (days: number) => {
@@ -263,17 +288,35 @@ export function SummaryFilterBar({
     });
   };
 
+  // Rate filter: toggle a rating in/out of the active set (URL param
+  // `rate=<scope>:<ratings>`); change scope while keeping selected ratings.
+  const writeRate = (scope: MetricFilterScope, ratings: Rating[]) =>
+    update((next) => {
+      if (ratings.length === 0) next.delete("rate");
+      else next.set("rate", serializeRateFilter({ scope, ratings }));
+    });
+  const toggleRating = (r: Rating) => {
+    const set = new Set(rateRatings);
+    if (set.has(r)) set.delete(r);
+    else set.add(r);
+    writeRate(rateScope, [...set]);
+  };
+  const changeRateScope = (scope: MetricFilterScope) => {
+    setRateScope(scope);
+    if (rateRatings.length > 0) writeRate(scope, rateRatings);
+  };
+
   const filtersActive =
     urlQ.length > 0 ||
     productIds.length > 0 ||
     types.length > 0 ||
     statuses.length > 0 ||
     selectedTags.length > 0 ||
-    creatorIds.length > 0 ||
     platforms.length > 0 ||
     !!from ||
     !!to ||
     includeExcluded ||
+    rateRatings.length > 0 ||
     !!searchParams.get("metricFilters");
 
   const clearAll = () =>
@@ -293,11 +336,14 @@ export function SummaryFilterBar({
         "dir",
         "hideIdentity",
         "hideMetrics",
+        "hideRate",
         "metricFilters",
+        "rate",
       ].forEach((k) => next.delete(k));
     });
 
-  const hiddenColumnsCount = hiddenIdentity.length + hiddenMetrics.length;
+  const hiddenColumnsCount =
+    hiddenIdentity.length + hiddenMetrics.length + (rateHidden ? 1 : 0);
 
   const productLabel = useMemo(() => {
     if (productIds.length === 0) return "All";
@@ -307,13 +353,18 @@ export function SummaryFilterBar({
     return `${productIds.length} selected`;
   }, [productIds, products]);
 
-  const creatorLabel = useMemo(() => {
-    if (creatorIds.length === 0) return "Any";
-    if (creatorIds.length === 1) {
-      return creators.find((c) => c.id === creatorIds[0])?.name ?? "1 selected";
-    }
-    return `${creatorIds.length} selected`;
-  }, [creatorIds, creators]);
+  // Scopes the Rate filter can target: the blended total + each shown platform.
+  const rateScopeOptions: Array<{ value: MetricFilterScope; label: string }> = [
+    { value: "total", label: "Total" },
+    ...effectivePlatforms.map((p) => ({
+      value: p as MetricFilterScope,
+      label: PLATFORM_LABEL[p as keyof typeof PLATFORM_LABEL] ?? p,
+    })),
+  ];
+  const rateLabel =
+    rateRatings.length === 0
+      ? "Any"
+      : `${rateScope === "total" ? "Total" : PLATFORM_LABEL[rateScope as keyof typeof PLATFORM_LABEL] ?? rateScope} · ${rateRatings.length}`;
 
   const dateLabel = useMemo(() => {
     const key = activePresetKey(from, to);
@@ -534,39 +585,65 @@ export function SummaryFilterBar({
           )}
         </FilterPill>
 
-        {/* Creator */}
+        {/* Rate filter — keep only creatives at a given rating, on a chosen scope */}
         <FilterPill
-          icon={Users}
-          label="Creator"
-          value={creatorLabel}
-          active={creatorIds.length > 0}
+          icon={Star}
+          label="Rate"
+          value={rateLabel}
+          active={rateRatings.length > 0}
         >
           {() => (
-            <DropdownMenuContent align="start" className="w-56 max-h-72 overflow-y-auto">
-              <DropdownMenuLabel>Creator</DropdownMenuLabel>
+            <DropdownMenuContent align="start" className="w-56">
+              <DropdownMenuLabel>Scope</DropdownMenuLabel>
+              <div className="px-2 pb-2 flex flex-wrap gap-1">
+                {rateScopeOptions.map((s) => (
+                  <button
+                    key={s.value}
+                    type="button"
+                    onClick={() => changeRateScope(s.value)}
+                    className={cn(
+                      "px-2 h-6 rounded text-[11px] border transition-colors",
+                      rateScope === s.value
+                        ? "border-brand/50 text-ink bg-[var(--brand-soft)]"
+                        : "border-line text-ink-2 hover:text-ink hover:bg-surface-2",
+                    )}
+                  >
+                    {s.label}
+                  </button>
+                ))}
+              </div>
               <DropdownMenuSeparator />
-              {creators.length === 0 && (
-                <div className="px-2 py-1.5 text-xs text-ink-3">
-                  No creators yet
-                </div>
-              )}
-              {creators.map((c) => (
+              <DropdownMenuLabel>Rating</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {RATING_VALUES.map((r) => (
                 <DropdownMenuCheckboxItem
-                  key={c.id}
-                  checked={creatorIds.includes(c.id)}
-                  onCheckedChange={() =>
-                    toggleMulti("creatorIds", c.id, creatorIds)
-                  }
+                  key={r}
+                  checked={rateRatings.includes(r as Rating)}
+                  onCheckedChange={() => toggleRating(r as Rating)}
                   onSelect={(e) => e.preventDefault()}
                 >
-                  <div className="flex flex-col">
-                    <span>{c.name}</span>
-                    <span className="text-[10px] font-mono text-ink-3">
-                      {c.email}
-                    </span>
-                  </div>
+                  <span
+                    className={cn(
+                      "inline-flex items-center justify-center h-5 px-1.5 rounded text-[10px] border whitespace-nowrap",
+                      RATING_META[r as Rating].badgeClass,
+                    )}
+                  >
+                    {RATING_META[r as Rating].label}
+                  </span>
                 </DropdownMenuCheckboxItem>
               ))}
+              {rateRatings.length > 0 && (
+                <>
+                  <DropdownMenuSeparator />
+                  <button
+                    type="button"
+                    onClick={() => writeRate(rateScope, [])}
+                    className="w-full text-left px-2 py-1.5 text-xs text-ink-2 hover:text-ink hover:bg-surface-2 transition-colors"
+                  >
+                    Clear rating filter
+                  </button>
+                </>
+              )}
             </DropdownMenuContent>
           )}
         </FilterPill>
@@ -627,6 +704,20 @@ export function SummaryFilterBar({
                     {METRIC_LABELS[k]}
                   </DropdownMenuCheckboxItem>
                 ))}
+
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel>Rating</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <div className="px-2 py-1.5 text-[10px] text-ink-3">
+                  Leads each platform group and the Blended total.
+                </div>
+                <DropdownMenuCheckboxItem
+                  checked={!rateHidden}
+                  onCheckedChange={toggleRate}
+                  onSelect={(e) => e.preventDefault()}
+                >
+                  Rate
+                </DropdownMenuCheckboxItem>
 
                 {hiddenColumnsCount > 0 && (
                   <>

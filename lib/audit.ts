@@ -17,6 +17,7 @@ import { auditEvents } from "@/db/schema";
 export const AUDIT_ACTIONS = {
   // Creatives
   CREATIVE_CREATE: "creative.create",
+  CREATIVE_BULK_CREATE: "creative.bulk_create",
   CREATIVE_UPDATE: "creative.update",
   CREATIVE_NOTES_UPDATE: "creative.notes_update",
   CREATIVE_STATUS_BULK: "creative.bulk_status",
@@ -59,6 +60,9 @@ export const AUDIT_ACTIONS = {
   TAG_CREATE: "tag.create",
   TAG_RENAME: "tag.rename",
   TAG_DELETE: "tag.delete",
+
+  // Rating rules (Summary rate config)
+  RATING_UPDATE: "rating.update",
 } as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[keyof typeof AUDIT_ACTIONS];
@@ -72,7 +76,8 @@ export type AuditEntityType =
   | "mapping"
   | "auth"
   | "view"
-  | "tag";
+  | "tag"
+  | "rating";
 
 export interface AuditEventInput {
   action: AuditAction;
@@ -116,6 +121,7 @@ export async function logAudit(input: AuditEventInput): Promise<number | null> {
 /** Pretty labels for the feed UI. Keep in sync with AUDIT_ACTIONS. */
 export const AUDIT_LABELS: Record<AuditAction, string> = {
   "creative.create": "Created creative",
+  "creative.bulk_create": "Bulk-created creatives",
   "creative.update": "Updated creative",
   "creative.notes_update": "Edited notes",
   "creative.bulk_status": "Bulk status change",
@@ -142,11 +148,13 @@ export const AUDIT_LABELS: Record<AuditAction, string> = {
   "tag.create": "Created tag",
   "tag.rename": "Renamed tag",
   "tag.delete": "Deleted tag",
+  "rating.update": "Updated rating rules",
 };
 
 /** Coarse grouping for filter chips. */
 export const AUDIT_CATEGORIES: Record<AuditAction, AuditEntityType> = {
   "creative.create": "creative",
+  "creative.bulk_create": "creative",
   "creative.update": "creative",
   "creative.notes_update": "creative",
   "creative.bulk_status": "creative",
@@ -173,4 +181,5 @@ export const AUDIT_CATEGORIES: Record<AuditAction, AuditEntityType> = {
   "tag.create": "tag",
   "tag.rename": "tag",
   "tag.delete": "tag",
+  "rating.update": "rating",
 };

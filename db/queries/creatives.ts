@@ -44,6 +44,7 @@ export interface CreativeListRow {
   thumbnailUrl: string | null;
   launchDate: string | null;
   tags: string[];
+  spend7d: number;
   spend30d: number;
 }
 
@@ -83,6 +84,20 @@ export async function listCreatives(
       .from(
         sql`(SELECT creative_id, spend FROM performance_records
              WHERE date >= CURRENT_DATE - INTERVAL '30 days'
+               AND excluded_from_aggregates = false) AS pr`,
+      )
+      .groupBy(sql`creative_id`),
+  );
+
+  const spend7d = db.$with("spend_7d").as(
+    db
+      .select({
+        creativeId: sql<string>`creative_id`.as("creative_id"),
+        spend: sql<string>`SUM(spend)`.as("spend"),
+      })
+      .from(
+        sql`(SELECT creative_id, spend FROM performance_records
+             WHERE date >= CURRENT_DATE - INTERVAL '7 days'
                AND excluded_from_aggregates = false) AS pr`,
       )
       .groupBy(sql`creative_id`),
@@ -135,11 +150,14 @@ export async function listCreatives(
   // because we never interpolate user input here.
   const orderBy = orderByForSort(filters.sort);
 
-  const spendAlias = sql<string | null>`${spend30d.spend}`.as("spend_30d");
+  // Qualify CTE columns explicitly — both spend CTEs expose `creative_id` and
+  // `spend`, so unqualified refs are ambiguous once both are joined.
+  const spendAlias = sql<string | null>`spend_30d.spend`.as("spend_30d");
+  const spend7Alias = sql<string | null>`spend_7d.spend`.as("spend_7d");
   const tagsAlias = sql<string[] | null>`${tagAgg.tags}`.as("tag_list");
 
   const rows = await db
-    .with(spend30d, tagAgg)
+    .with(spend30d, spend7d, tagAgg)
     .select({
       id: creatives.id,
       name: creatives.name,
@@ -150,12 +168,14 @@ export async function listCreatives(
       thumbnailUrl: creatives.thumbnailUrl,
       launchDate: creatives.launchDate,
       tags: tagsAlias,
+      spend7d: spend7Alias,
       spend30d: spendAlias,
       totalMatching: sql<string>`COUNT(*) OVER ()`,
     })
     .from(creatives)
     .innerJoin(products, eq(products.id, creatives.productId))
-    .leftJoin(spend30d, sql`${spend30d.creativeId} = ${creatives.id}`)
+    .leftJoin(spend30d, sql`spend_30d.creative_id = ${creatives.id}`)
+    .leftJoin(spend7d, sql`spend_7d.creative_id = ${creatives.id}`)
     .leftJoin(tagAgg, eq(tagAgg.creativeId, creatives.id))
     .where(conditions.length > 0 ? and(...conditions) : undefined)
     .orderBy(...orderBy)
@@ -174,6 +194,7 @@ export async function listCreatives(
       thumbnailUrl: r.thumbnailUrl,
       launchDate: r.launchDate,
       tags: r.tags ?? [],
+      spend7d: r.spend7d === null ? 0 : Number(r.spend7d),
       spend30d: r.spend30d === null ? 0 : Number(r.spend30d),
     })),
     totalMatching,
@@ -190,8 +211,40 @@ function orderByForSort(sort: CreativeSort): SQL[] {
       return [asc(creatives.name)];
     case "name-desc":
       return [desc(creatives.name)];
+    case "product-asc":
+      return [asc(products.name), asc(creatives.name)];
+    case "product-desc":
+      return [desc(products.name), asc(creatives.name)];
+    case "type-asc":
+      return [asc(creatives.type), asc(creatives.name)];
+    case "type-desc":
+      return [desc(creatives.type), asc(creatives.name)];
+    case "status-asc":
+      return [asc(creatives.status), asc(creatives.name)];
+    case "status-desc":
+      return [desc(creatives.status), asc(creatives.name)];
+    case "tag-asc":
+      // First tag alphabetically (MIN over the creative's tags); untagged
+      // creatives sort last.
+      return [
+        sql`(SELECT MIN(${creativeTags.tag}) FROM ${creativeTags}
+             WHERE ${creativeTags.creativeId} = ${creatives.id}) ASC NULLS LAST`,
+        asc(creatives.name),
+      ];
+    case "tag-desc":
+      return [
+        sql`(SELECT MIN(${creativeTags.tag}) FROM ${creativeTags}
+             WHERE ${creativeTags.creativeId} = ${creatives.id}) DESC NULLS LAST`,
+        asc(creatives.name),
+      ];
+    case "spend7-desc":
+      return [sql`spend_7d DESC NULLS LAST`, asc(creatives.name)];
+    case "spend7-asc":
+      return [sql`spend_7d ASC NULLS LAST`, asc(creatives.name)];
     case "spend-desc":
       return [sql`spend_30d DESC NULLS LAST`, asc(creatives.name)];
+    case "spend-asc":
+      return [sql`spend_30d ASC NULLS LAST`, asc(creatives.name)];
     case "created-desc":
       return [desc(creatives.createdAt)];
   }

@@ -26,10 +26,10 @@ export async function MappingsAdmin() {
   return (
     <div className="space-y-8">
       <p className="text-ink-2 text-sm max-w-2xl">
-        For each platform, list the header strings your CSV export uses for
-        each internal field. The validation pipeline matches headers
-        case-insensitively and picks the first one that hits. Add a candidate
-        when an export uses a header that isn&apos;t recognized yet.
+        For each platform, list the column headers your export uses for each
+        field. On upload, headers are matched case-insensitively and the first
+        match wins. Add one when an export uses a header that isn&apos;t
+        recognized yet.
       </p>
 
       {ALL_PLATFORMS.map((platform) => {
@@ -84,8 +84,10 @@ export async function MappingsAdmin() {
                             ))
                           ) : (
                             <span className="text-[11px] text-ink-3 italic">
-                              No candidates yet — uploads will hit E010 for{" "}
-                              <code className="font-mono">{f.label}</code>.
+                              No header names mapped yet — uploads won&apos;t
+                              recognize the{" "}
+                              <code className="font-mono">{f.label}</code> column
+                              until you add one.
                             </span>
                           )}
                         </div>

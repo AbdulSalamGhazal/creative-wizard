@@ -347,7 +347,7 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
         collected.push({
           code: "E051",
           severity: "ERROR",
-          message: `Row ${row.rowNumber}: data for \`'${row.creativeName}'\` on \`${platform}\` for \`${row.date}\` already exists (upload batch #${batchId}).`,
+          message: `Row ${row.rowNumber}: data for \`'${row.creativeName}'\` on \`${platform}\` for \`${row.date}\` was already imported in an earlier upload.`,
           row: row.rowNumber,
         });
       }

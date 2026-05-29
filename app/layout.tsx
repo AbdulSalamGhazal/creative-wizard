@@ -32,8 +32,8 @@ const plexMono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Urjwan CCMS",
-  description: "Urjwan Creative Management System",
+  title: "Creative Wizard",
+  description: "Creative Wizard — creative performance management",
 };
 
 export default function RootLayout({

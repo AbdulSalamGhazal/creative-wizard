@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { platformEnum, creativeTypeEnum, creativeStatusEnum } from "@/db/schema";
+import { RATING_VALUES, type Rating } from "@/lib/rating";
 
 /**
  * URL-state validator for the Summary view.
@@ -20,7 +21,8 @@ function csvEnum<T extends readonly [string, ...string[]]>(values: T) {
     .string()
     .optional()
     .transform((s) => (s ? s.split(",").filter(Boolean) : []))
-    .pipe(z.array(z.enum(values)));
+    .pipe(z.array(z.enum(values)))
+    .catch([]);
 }
 
 function csv() {
@@ -171,6 +173,45 @@ export function serializeMetricFilters(arr: MetricFilterCondition[]): string {
   return arr.map((f) => `${f.scope}:${f.metric}:${f.op}:${f.value}`).join(",");
 }
 
+/**
+ * The Rate filter: keep only creatives whose computed rating — on a chosen
+ * scope (blended total or one platform) — is in the selected set. Encoded in
+ * the URL as `rate=<scope>:<rating,rating>` e.g. `rate=total:good,decent`.
+ * `ratings` empty means the filter is inactive (the scope is still remembered
+ * so the picker keeps the user's choice).
+ */
+export interface RateFilterCondition {
+  scope: MetricFilterScope;
+  ratings: Rating[];
+}
+
+export function parseRateFilter(
+  raw: string | null | undefined,
+): RateFilterCondition | null {
+  if (!raw) return null;
+  const [scopeRaw, ratingsRaw] = raw.split(":");
+  const scope: MetricFilterScope = (METRIC_FILTER_SCOPES as readonly string[]).includes(
+    scopeRaw ?? "",
+  )
+    ? (scopeRaw as MetricFilterScope)
+    : "total";
+  const ratings = [
+    ...new Set(
+      (ratingsRaw ?? "")
+        .split(",")
+        .filter(Boolean)
+        .filter((r): r is Rating =>
+          (RATING_VALUES as readonly string[]).includes(r),
+        ),
+    ),
+  ];
+  return { scope, ratings };
+}
+
+export function serializeRateFilter(c: RateFilterCondition): string {
+  return `${c.scope}:${c.ratings.join(",")}`;
+}
+
 /** Identity columns + per-platform metric keys. Validated against the
  *  selected platforms in the page; an invalid combination falls back to
  *  the default sort. */
@@ -186,8 +227,8 @@ const sortKeySchema = z
   .max(48);
 
 export const summaryFiltersSchema = z.object({
-  from: z.string().date().optional(),
-  to: z.string().date().optional(),
+  from: z.string().date().optional().catch(undefined),
+  to: z.string().date().optional().catch(undefined),
   q: z
     .string()
     .max(255)
@@ -213,11 +254,22 @@ export const summaryFiltersSchema = z.object({
   // default ("show everything") needs no URL params.
   hideIdentity: csvEnum(IDENTITY_COLUMN_KEYS),
   hideMetrics: csvEnum(METRIC_COLUMN_KEYS),
+  // The Rate column is shown by default; `hideRate=1` opts out (boolean, so
+  // it stays out of the per-metric hide list which is numeric-only).
+  hideRate: z
+    .string()
+    .optional()
+    .transform((s) => s === "1" || s === "true"),
   // Numeric metric filters applied to the blended total.
   metricFilters: z
     .string()
     .optional()
     .transform((s) => parseMetricFilters(s)),
+  // Categorical Rate filter (scope + selected ratings).
+  rate: z
+    .string()
+    .optional()
+    .transform((s) => parseRateFilter(s)),
 });
 
 export type SummaryFilters = z.infer<typeof summaryFiltersSchema>;

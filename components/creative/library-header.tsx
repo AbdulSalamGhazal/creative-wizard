@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Plus } from "lucide-react";
+import { Plus, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { CreativeStats } from "@/db/queries/creatives";
 
@@ -23,12 +23,20 @@ export function LibraryHeader({ stats }: { stats: CreativeStats }) {
           <span>{stats.addedThisMonth} this month</span>
         </div>
       </div>
-      <Button asChild>
-        <Link href="/creatives/new">
-          <Plus className="w-4 h-4" />
-          New creative
-        </Link>
-      </Button>
+      <div className="flex items-center gap-2">
+        <Button asChild variant="outline">
+          <Link href="/creatives/bulk">
+            <Upload className="w-4 h-4" />
+            Bulk import
+          </Link>
+        </Button>
+        <Button asChild>
+          <Link href="/creatives/new">
+            <Plus className="w-4 h-4" />
+            New creative
+          </Link>
+        </Button>
+      </div>
     </div>
   );
 }

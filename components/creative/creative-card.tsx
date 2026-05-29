@@ -88,13 +88,13 @@ export function CreativeCard({ row }: { row: CreativeListRow }) {
         )}
 
         {/* Type badge */}
-        <span className="absolute top-2 left-2 inline-flex items-center gap-1 h-6 px-2 rounded-md bg-bg/80 backdrop-blur border border-line text-[10px] uppercase tracking-[0.14em] text-ink-2">
+        <span className="absolute top-2 left-2 inline-flex items-center gap-1 h-6 px-2 rounded-md bg-background/80 backdrop-blur border border-line text-[10px] uppercase tracking-[0.14em] text-ink-2">
           <TypeIcon className="w-3 h-3" />
           {TYPE_LABEL[row.type]}
         </span>
 
         {/* Status badge */}
-        <span className="absolute top-2 right-2 inline-flex items-center gap-1.5 h-6 px-2 rounded-md bg-bg/80 backdrop-blur border border-line text-[10px] text-ink-2">
+        <span className="absolute top-2 right-2 inline-flex items-center gap-1.5 h-6 px-2 rounded-md bg-background/80 backdrop-blur border border-line text-[10px] text-ink-2">
           <span
             className="w-1.5 h-1.5 rounded-full"
             style={{ background: STATUS_DOT[row.status] }}
@@ -103,7 +103,7 @@ export function CreativeCard({ row }: { row: CreativeListRow }) {
         </span>
 
         {/* Hover action chevron */}
-        <span className="absolute bottom-2 right-2 inline-flex items-center justify-center w-7 h-7 rounded-md bg-bg/80 backdrop-blur border border-line text-ink-2 opacity-0 group-hover:opacity-100 transition-opacity">
+        <span className="absolute bottom-2 right-2 inline-flex items-center justify-center w-7 h-7 rounded-md bg-background/80 backdrop-blur border border-line text-ink-2 opacity-0 group-hover:opacity-100 transition-opacity">
           <ArrowUpRight className="w-3.5 h-3.5" />
         </span>
       </div>

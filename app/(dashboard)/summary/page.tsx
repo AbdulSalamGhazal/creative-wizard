@@ -1,8 +1,8 @@
 import { redirect } from "next/navigation";
 import { listAllTags } from "@/db/queries/creatives";
 import { listProducts } from "@/db/queries/products";
-import { listCreators } from "@/db/queries/users";
 import { listCreativeSummary } from "@/db/queries/summary";
+import { getRatingRules } from "@/db/queries/rating";
 import {
   getDefaultSummaryView,
   listSummaryViews,
@@ -54,17 +54,22 @@ export default async function SummaryPage({
     dir: pickFirst(params.dir),
     hideIdentity: pickFirst(params.hideIdentity),
     hideMetrics: pickFirst(params.hideMetrics),
+    hideRate: pickFirst(params.hideRate),
     metricFilters: pickFirst(params.metricFilters),
+    rate: pickFirst(params.rate),
   });
 
   const user = await requireAuth();
+
+  // Rating rules feed both the Rate column and the rate sort/filter, so fetch
+  // them first (one tiny singleton read) and hand them to the summary query.
+  const ratingRulesConfig = await getRatingRules();
 
   // Filter dropdowns + the query run in parallel.
   const [
     { rows, platforms: selectedPlatforms, effectiveSort },
     products,
     tags,
-    creators,
     views,
   ] = await Promise.all([
     listCreativeSummary({
@@ -82,10 +87,11 @@ export default async function SummaryPage({
       dir: parsed.dir,
       metricFilters:
         parsed.metricFilters.length > 0 ? parsed.metricFilters : undefined,
+      rateFilter: parsed.rate,
+      ratingRules: ratingRulesConfig,
     }),
     listProducts(),
     listAllTags(),
-    listCreators(),
     listSummaryViews("summary"),
   ]);
 
@@ -109,7 +115,6 @@ export default async function SummaryPage({
       <SummaryFilterBar
         products={products}
         tags={tags}
-        creators={creators}
         effectivePlatforms={selectedPlatforms}
         views={views}
         currentUserId={user.id}
@@ -140,9 +145,11 @@ export default async function SummaryPage({
         platforms={selectedPlatforms}
         sort={effectiveSort}
         pathname="/summary"
-        baseParams={baseParams}
+        baseParams={baseParams.toString()}
         hiddenIdentity={new Set(parsed.hideIdentity)}
         hiddenMetrics={new Set(parsed.hideMetrics)}
+        rules={ratingRulesConfig}
+        showRate={!parsed.hideRate}
       />
     </div>
   );

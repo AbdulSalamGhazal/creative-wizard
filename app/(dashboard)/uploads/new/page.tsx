@@ -17,13 +17,9 @@ export default function NewUploadPage() {
           New upload
         </h1>
         <p className="text-ink-2 text-sm mt-1">
-          Pick a platform, drop a CSV, and confirm the import. The full
-          5-stage validation pipeline runs before anything writes to the
-          database — see{" "}
-          <code className="font-mono text-brand-2">
-            docs/validation-spec.md
-          </code>
-          .
+          Pick a platform, drop your CSV or XLSX, and confirm. Every file is
+          fully validated first — nothing is imported unless all rows check
+          out.
         </p>
       </div>
 

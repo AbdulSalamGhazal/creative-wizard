@@ -223,7 +223,7 @@ describe("CSV pipeline — Stage 5 (DB duplicates)", () => {
     if (!res.ok) {
       const e051 = res.errors.find((e) => e.code === "E051");
       expect(e051).toBeDefined();
-      expect(e051?.message).toContain("batch-abc");
+      expect(e051?.message).toContain("already imported");
     }
   });
 
