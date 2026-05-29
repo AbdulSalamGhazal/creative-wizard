@@ -63,6 +63,7 @@ export async function POST(request: NextRequest) {
   }
   const { token } = parsed.data;
 
+  try {
   // Lazy cleanup of expired sessions (small sweep, cheap with the expires_at index).
   await db
     .delete(uploadValidationSessions)
@@ -197,4 +198,11 @@ export async function POST(request: NextRequest) {
   });
 
   return NextResponse.json(result);
+  } catch (err) {
+    console.error("upload commit failed:", err);
+    return NextResponse.json(
+      { error: "Something went wrong while importing. No data was committed." },
+      { status: 500 },
+    );
+  }
 }

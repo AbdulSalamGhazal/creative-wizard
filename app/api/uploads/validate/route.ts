@@ -82,6 +82,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  try {
   const buffer = new Uint8Array(await file.arrayBuffer());
 
   // Snapshot of registered creative names (strict byte-equal matching).
@@ -173,6 +174,13 @@ export async function POST(request: NextRequest) {
     summary,
     warnings: result.warnings,
   });
+  } catch (err) {
+    console.error("upload validate failed:", err);
+    return NextResponse.json(
+      { error: "Something went wrong while validating the file. Please try again." },
+      { status: 500 },
+    );
+  }
 }
 
 export interface ValidationPayload {
