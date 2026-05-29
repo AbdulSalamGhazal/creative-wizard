@@ -16,11 +16,11 @@ If a rule here conflicts with one of those documents, the documents win — flag
 
 - Next.js (App Router) + TypeScript strict
 - Drizzle ORM + Postgres (Neon)
-- Auth.js v5 (Google provider, domain-restricted)
+- Auth: custom HMAC-signed cookie sessions (`lib/auth-cookie.ts`) + bcrypt passwords (`lib/auth-password.ts`). Users created via `/admin/users`; first admin via `db/create-admin.ts`. NOT Auth.js/Google — those were never wired up.
 - Tailwind + shadcn/ui + shadcn charts (Recharts under the hood)
 - TanStack Query (client data), TanStack Table (tables)
 - papaparse (CSV), Zod (validation), framer-motion (motion)
-- Vercel hosting, Vercel Blob (thumbnails), Vercel KV (upload session cache)
+- Vercel hosting. (Vercel Blob/KV are NOT used — removed; upload-validation sessions live in Postgres. Thumbnails are URL fields, no blob storage yet.)
 
 Do not introduce a new dependency without a one-line justification in the PR description.
 
@@ -82,6 +82,28 @@ Do not introduce a new dependency without a one-line justification in the PR des
 - Add a test alongside any non-trivial logic, especially in `csv/` and `db/queries/`.
 - When a change touches one of the documents in `docs/`, update the document in the same change.
 - When the user corrects a mistake that could repeat, append a line to the "Learned" section below.
+
+## Deployment (production) — LIVE
+
+This app is deployed and in production use. Treat `main` as shippable.
+
+- **Host:** Vercel, GitHub-integrated. Remote `origin` = `git@github.com:AbdulSalamGhazal/creative-wizard.git`. **Pushing to `main` auto-deploys** (`next build`); a failed build keeps the previous version serving (zero downtime).
+- **URL:** https://creative.urjwan.com (custom domain, Let's Encrypt TLS, auto-renew). The `*.vercel.app` URL also resolves but Google Safe Browsing false-flags the shared domain — always use the custom domain.
+- **Database:** Neon Postgres (eu-central-1). Two connection strings:
+  - **Pooled** (host contains `-pooler`) → this is `DATABASE_URL` in Vercel. Required because `lib/db.ts` uses `max: 1` per serverless instance.
+  - **Direct** (no `-pooler`) → used ONLY to run migrations.
+- **Vercel env vars:** `DATABASE_URL` (pooled) + `AUTH_SECRET`. Nothing else (no Google/KV/Blob). Local copies of all prod secrets live in gitignored `.env.production.local` — never commit it, never paste it into committed files.
+- **Migrations do NOT run on deploy.** When a change adds a Drizzle migration, run it manually (before/with the deploy) against the **direct** url:
+  ```
+  DATABASE_URL='<direct-neon-url>' npx drizzle-kit migrate
+  ```
+  Source the direct url from the user or `.env.production.local`. **Never run `npm run db:seed` against prod** (demo data only). Add admins with:
+  ```
+  DATABASE_URL='<url>' ADMIN_EMAIL=... ADMIN_PASSWORD=... npx tsx db/create-admin.ts
+  ```
+- **Prod admin:** salam@urjwan.com (seeded via create-admin). Password is user-managed — never hardcode or assume it.
+- **Changing the session cookie format invalidates every login** (forces re-login). Current format: `<userId>.<issuedAtMs>.<hmac>`, 30-day server-enforced TTL.
+- **Most changes need no migration.** Schema/structure changes are rare; day-to-day data (creatives, uploads, users) flows through the app UI. Only flag the migration step when a change actually touches `db/schema.ts`.
 
 ## Learned
 
