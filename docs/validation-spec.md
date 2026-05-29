@@ -24,7 +24,7 @@ The validation layer obeys these rules without exception:
 1. **All-or-nothing.** A single error rejects the entire file. No partial imports, no "import what you can."
 2. **Collect all errors.** Validation does not stop at the first row-level error. Every problem in the file is surfaced in one report.
 3. **Deterministic.** The same input file produces the same result every time.
-4. **Idempotent.** Re-uploading the same accepted file twice produces an obvious duplicate-batch error, not silent double-counting.
+4. **Re-upload aware.** The same `(creative_name, platform, date)` may legitimately recur across campaigns, so a match against already-imported data does **not** block the upload — it raises a non-blocking warning (W003) so an accidental re-upload of the same file is caught before it silently double-counts. A campaign-name field (planned) will later make duplicates fully distinguishable.
 5. **Read-only until success.** Nothing is written to the database until validation passes end-to-end and the user confirms import.
 6. **Never modifies the input.** The original CSV file is preserved as uploaded; transformations happen on parsed in-memory data.
 
@@ -41,8 +41,8 @@ Validation runs as a five-stage pipeline. The first two stages are **fail-fast**
 | 1     | File integrity   | Fail-fast       | Return single error; cannot proceed.                   |
 | 2     | Schema           | Fail-fast       | Return schema errors; cannot proceed to row checks.    |
 | 3     | Row content      | Collect errors  | Continue collecting from stages 4 and 5; report at end. |
-| 4     | Intra-file dupes | Collect errors  | Continue collecting from stage 5; report at end.        |
-| 5     | Database dupes   | Collect errors  | Report at end.                                          |
+| 4     | Intra-file index | (no rejection)   | Duplicates within a file are allowed; rows are indexed only to de-dupe the Stage-5 advisory. |
+| 5     | Database overlap | Collect warnings | Rows matching already-imported data raise W003 (non-blocking); report at end. |
 
 ### 3.1 Stage 1 — File integrity
 
@@ -68,18 +68,16 @@ For each row, the following are checked **independently** (one row can produce m
 - Creative-name field is non-empty (E021)
 - Creative-name field matches a registered name in the library (E020)
 
-### 3.4 Stage 4 — Intra-file duplicates
+### 3.4 Stage 4 — Intra-file index
 
-After all rows have been individually validated, the system checks for duplicates **within the file itself**:
+The same creative can run in multiple campaigns on the same platform and date, so several rows may share `(creative_name, platform, date)`. **These are allowed** — their metrics sum during aggregation. Stage 4 no longer rejects them; it indexes rows by `(creative_name, date)` so Stage 5 can emit its advisory once per distinct key instead of once per row.
 
-- For every group of rows with the same `(creative_name, platform, date)`, report E050.
-- Each duplicate group is reported once, listing all the row numbers involved.
+### 3.5 Stage 5 — Database overlap (advisory)
 
-### 3.5 Stage 5 — Database duplicates
+Finally, the system checks each distinct `(creative_name, platform, date)` from the file against existing data in the database:
 
-Finally, the system checks each unique `(creative_name, platform, date)` from the file against existing data in the database:
-
-- If a record already exists for that combination → E051, naming the existing batch ID so the user can roll it back if desired.
+- If a record already exists for that combination → **W003, a non-blocking warning**. The upload still proceeds, because the new rows may belong to a different campaign. The warning lets the user catch an accidental re-upload (which would add to existing totals) before confirming.
+- There is **no** unique constraint on `(creative_id, platform, date)`; multiple rows for the same combination coexist and their metrics sum during aggregation.
 
 ---
 
@@ -164,10 +162,9 @@ Every error carries a stable code, a severity, a template, and an example. Codes
 | E040  | ERROR    | Row {n}: `'{field}'` is not a valid number (`'{value}'`).                                                 | "Row 88: `'Spend'` is not a valid number (`'twelve'`)."                                                       |
 | E041  | ERROR    | Row {n}: `'{field}'` must be non-negative (got `{value}`).                                                | "Row 88: `'Spend'` must be non-negative (got `-12.45`)."                                                      |
 | E042  | ERROR    | Row {n}: required field `'{field}'` is missing.                                                           | "Row 88: required field `'Impressions'` is missing."                                                          |
-| E050  | ERROR    | Rows {n1}, {n2}: duplicate within file — same creative `'{name}'`, platform `{platform}`, date `{date}`. | "Rows 12, 47: duplicate within file — same creative `'URJ_VID_011'`, platform `TikTok`, date `2026-05-22`." |
-| E051  | ERROR    | Row {n}: data for `'{name}'` on `{platform}` for `{date}` already exists (upload batch #{batch_id}).     | "Row 12: data for `'URJ_VID_011'` on `TikTok` for `2026-05-22` already exists (upload batch #87)."            |
 | W001  | WARNING  | File was decoded as Windows-1256 (not UTF-8). Future uploads should be UTF-8.                            | —                                                                                                             |
 | W002  | WARNING  | Unknown column ignored: `{column}`.                                                                       | "Unknown column ignored: `Custom note`."                                                                      |
+| W003  | WARNING  | Row(s) {rows}: `'{name}'` on `{platform}` for `{date}` was already imported in an earlier upload. | "Row(s) 12: `'URJ_VID_011'` on `TikTok` for `2026-05-22` was already imported in an earlier upload." |
 
 The error report rendered to the user is a virtualized list (scrollable, copy-pasteable, exportable as CSV) so that files with hundreds of errors remain reviewable.
 
@@ -177,7 +174,9 @@ The error report rendered to the user is a virtualized list (scrollable, copy-pa
 
 - An admin can roll back any upload batch within 24 hours of its creation.
 - Rollback deletes all `PerformanceRecord` rows attached to that batch.
-- After rollback, the same file can be re-uploaded without triggering E051 conflicts.
+- Re-uploading a file that overlaps existing data is allowed at any time; it
+  raises the W003 advisory rather than blocking. Rollback remains available to
+  remove a batch uploaded by mistake.
 - Rollback is logged on the `UploadBatch` row with the reverting user and timestamp.
 - Beyond 24 hours, batches cannot be rolled back via the UI — an admin must operate on the database directly. This trade-off favors data safety over convenience.
 

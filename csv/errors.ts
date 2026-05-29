@@ -19,10 +19,12 @@ export const errorCodes = {
   E040: "ERROR",
   E041: "ERROR",
   E042: "ERROR",
-  E050: "ERROR",
-  E051: "ERROR",
   W001: "WARNING",
   W002: "WARNING",
+  // W003: a row matches (creative, platform, date) already imported in an
+  // earlier upload. Non-blocking — the same creative can recur across
+  // campaigns; we warn so an accidental re-upload doesn't silently double-count.
+  W003: "WARNING",
 } as const;
 
 export type ErrorCode = keyof typeof errorCodes;

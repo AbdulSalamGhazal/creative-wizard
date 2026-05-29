@@ -200,44 +200,41 @@ describe("CSV pipeline — Stage 3 (row content)", () => {
   });
 });
 
-describe("CSV pipeline — Stage 4 (intra-file duplicates)", () => {
-  it("reports E050 when the same (creative, date) appears twice", async () => {
+describe("CSV pipeline — Stage 4 (intra-file duplicates allowed)", () => {
+  it("accepts two rows with the same (creative, date) — multi-campaign", async () => {
     const res = await run(
       `${META_HEADER}\n${row({})}\n${row({ spend: "11" })}\n`,
     );
-    expect(res.ok).toBe(false);
-    if (!res.ok) {
-      const e050 = res.errors.find((e) => e.code === "E050");
-      expect(e050).toBeDefined();
-      expect(e050?.rows).toEqual([2, 3]);
+    expect(res.ok).toBe(true);
+    if (res.ok) {
+      expect(res.rows.length).toBe(2);
+      // Within-file duplicates are neither an error nor (on their own) a warning.
+      expect(res.warnings.some((w) => w.code === "W003")).toBe(false);
     }
   });
 });
 
-describe("CSV pipeline — Stage 5 (DB duplicates)", () => {
-  it("reports E051 when findExistingBatch returns a batch id", async () => {
+describe("CSV pipeline — Stage 5 (already-imported advisory)", () => {
+  it("warns W003 (non-blocking) when findExistingBatch returns a batch id", async () => {
     const res = await run(`${META_HEADER}\n${row({})}\n`, {
       findExistingBatch: async () => "batch-abc",
     });
-    expect(res.ok).toBe(false);
-    if (!res.ok) {
-      const e051 = res.errors.find((e) => e.code === "E051");
-      expect(e051).toBeDefined();
-      expect(e051?.message).toContain("already imported");
-    }
+    expect(res.ok).toBe(true);
+    const w003 = res.warnings.find((w) => w.code === "W003");
+    expect(w003).toBeDefined();
+    expect(w003?.message).toContain("already imported");
   });
 
-  it("does not double-report when an intra-file dupe already covers the row", async () => {
+  it("emits the advisory once per distinct (creative, date), not per row", async () => {
     const res = await run(
       `${META_HEADER}\n${row({})}\n${row({ spend: "11" })}\n`,
       { findExistingBatch: async () => "batch-xyz" },
     );
-    expect(res.ok).toBe(false);
-    if (!res.ok) {
-      expect(res.errors.map((e) => e.code)).toContain("E050");
-      const e051 = res.errors.filter((e) => e.code === "E051");
-      expect(e051.length).toBe(0);
-    }
+    expect(res.ok).toBe(true);
+    if (res.ok) expect(res.rows.length).toBe(2);
+    const w003 = res.warnings.filter((w) => w.code === "W003");
+    expect(w003.length).toBe(1);
+    expect(w003[0]?.rows).toEqual([2, 3]);
   });
 });
 

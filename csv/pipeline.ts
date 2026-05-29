@@ -163,7 +163,7 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
   // ---------- Stages 3 + 4 ----------
   const collected: ValidationError[] = [];
   const accepted: ParsedRow[] = [];
-  /** key = `${creative}${date}` — for intra-file duplicate detection. */
+  /** key = `${creative}${date}` — grouped by (creative, date) — used only to de-duplicate the Stage-5 "already imported" advisory below. Within-file duplicates are allowed. */
   const seenKeys = new Map<string, number[]>();
 
   for (let i = 0; i < parsed.rows.length; i++) {
@@ -309,46 +309,35 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
       rawPayload,
     });
 
-    // Stage 4 — intra-file duplicate index.
+    // Stage 4 — index this row by (creative, date). Duplicates WITHIN the
+    // file are allowed (different campaigns); the index only feeds the
+    // Stage-5 already-imported advisory below.
     const key = `${creativeName}${canonicalDate}`;
     const list = seenKeys.get(key);
     if (list) list.push(rowNumber);
     else seenKeys.set(key, [rowNumber]);
   }
 
-  // Stage 4 emit
-  for (const [key, rowNums] of seenKeys) {
-    if (rowNums.length > 1) {
-      const [creativeName, date] = key.split("");
-      collected.push({
-        code: "E050",
-        severity: "ERROR",
-        message: `Rows ${rowNums.join(", ")}: duplicate within file — same creative \`'${creativeName}'\`, platform \`${platform}\`, date \`${date}\`.`,
-        rows: rowNums,
-        value: creativeName,
-      });
-    }
-  }
-
-  // ---------- Stage 5 — DB duplicates ----------
+  // ---------- Stage 5 — already-imported advisory (non-blocking) ----------
+  // We no longer reject a row that matches data from an earlier upload: the
+  // same (creative, platform, date) can legitimately recur across campaigns
+  // (e.g. one creative used in two campaigns on the same day). But an
+  // accidental re-upload of the same file would silently double-count, so we
+  // surface a WARNING once per distinct creative+date and let the user decide.
   if (input.findExistingBatch && accepted.length > 0) {
-    for (const row of accepted) {
-      // Skip if this row is also part of an intra-file dupe — E050 already covers it.
-      const key = `${row.creativeName}${row.date}`;
-      const list = seenKeys.get(key);
-      if (list && list.length > 1) continue;
+    for (const [key, rowNums] of seenKeys) {
+      const sep = key.indexOf("");
+      const creativeName = key.slice(0, sep);
+      const date = key.slice(sep + 1);
 
-      const batchId = await input.findExistingBatch(
-        row.creativeName,
-        platform,
-        row.date,
-      );
+      const batchId = await input.findExistingBatch(creativeName, platform, date);
       if (batchId) {
-        collected.push({
-          code: "E051",
-          severity: "ERROR",
-          message: `Row ${row.rowNumber}: data for \`'${row.creativeName}'\` on \`${platform}\` for \`${row.date}\` was already imported in an earlier upload.`,
-          row: row.rowNumber,
+        warnings.push({
+          code: "W003",
+          severity: "WARNING",
+          message: `Row(s) ${rowNums.join(", ")}: \`'${creativeName}'\` on \`${platform}\` for \`${date}\` was already imported in an earlier upload. Importing again adds to the existing totals — proceed only if this is genuinely new data (e.g. a different campaign).`,
+          rows: rowNums,
+          value: creativeName,
         });
       }
     }

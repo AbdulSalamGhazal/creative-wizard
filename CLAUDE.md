@@ -38,7 +38,7 @@ Do not introduce a new dependency without a one-line justification in the PR des
 - Schema changes go through Drizzle migrations. Never edit a generated migration; create a new one.
 - Every column used in a filter, join, or sort needs an index. Declare it in the schema file alongside the column.
 - When adding a new dashboard query, check whether existing indexes cover it; add one if not.
-- `performance_records` has a unique constraint on `(creative_id, platform, date)`. Never bypass it. Validation is the only **entry** path. There are two sanctioned **exit** paths: (1) batch rollback within 24 h (admin-only), and (2) the record-cleanup tool on `/uploads` (filtered hard-delete, editor-or-admin, preview-then-confirm, audit-logged via `upload.bulk_delete`). No other code should delete from `performance_records`.
+- `performance_records` has a **non-unique** index on `(creative_id, platform, date)` (NOT a unique constraint — see Learned: the same creative can run in multiple campaigns on the same day, so duplicates are allowed and sum in aggregation). Validation is still the only **entry** path. There are two sanctioned **exit** paths: (1) batch rollback within 24 h (admin-only), and (2) the record-cleanup tool on `/uploads` (filtered hard-delete, editor-or-admin, preview-then-confirm, audit-logged via `upload.bulk_delete`). No other code should delete from `performance_records`.
 - Every creative has a required `product_id`. Products live in their own table and are managed in `/admin/catalog?tab=products`. Never let a creative be saved without one.
 
 ## Aggregation rules (CRITICAL)
@@ -107,6 +107,15 @@ This app is deployed and in production use. Treat `main` as shippable.
 
 ## Learned
 
+- **Duplicates on `(creative_id, platform, date)` are ALLOWED** (user decision,
+  reversing the original spec). The same creative can run in multiple campaigns
+  on the same platform/date, so several rows may legitimately share that tuple;
+  their metrics sum in aggregation. Changes made: dropped the unique index
+  (migration `0009`, now a plain btree index); removed validation `E050`
+  (intra-file dup) and `E051` (DB dup) errors; the DB-overlap check is now a
+  **non-blocking warning `W003`** (advisory, so an accidental re-upload doesn't
+  silently double-count). A `campaign_name` field is planned to make duplicates
+  fully distinguishable — when added, it should become part of the dedup key.
 - The admin record-cleanup tool (`/uploads`, `app/actions/cleanup.ts`) is a
   sanctioned hard-delete exit path for `performance_records`, added at the
   user's request. It overrides the original "rollback is the only exit path"

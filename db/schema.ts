@@ -304,7 +304,15 @@ export const performanceRecords = pgTable(
     excludedAt: timestamp("excluded_at", { withTimezone: true }),
   },
   (t) => ({
-    uniq: uniqueIndex("perf_creative_platform_date_idx").on(t.creativeId, t.platform, t.date),
+    // NOTE: intentionally NOT unique. The same creative can run on the same
+    // platform on the same date across multiple campaigns, so several rows may
+    // legitimately share (creative_id, platform, date). Kept as a plain index
+    // for the lookup/aggregation paths. Campaign name will later disambiguate.
+    creativePlatformDateIdx: index("perf_creative_platform_date_idx").on(
+      t.creativeId,
+      t.platform,
+      t.date,
+    ),
     dateIdx: index("perf_date_idx").on(t.date),
     platformDateIdx: index("perf_platform_date_idx").on(t.platform, t.date),
     batchIdx: index("perf_upload_batch_idx").on(t.uploadBatchId),
