@@ -55,6 +55,7 @@ export default async function SummaryPage({
     hideIdentity: pickFirst(params.hideIdentity),
     hideMetrics: pickFirst(params.hideMetrics),
     hideRate: pickFirst(params.hideRate),
+    hideBlended: pickFirst(params.hideBlended),
     metricFilters: pickFirst(params.metricFilters),
     rate: pickFirst(params.rate),
   });

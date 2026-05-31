@@ -276,7 +276,6 @@ export function SummaryFilterBar({
       next.delete("hideIdentity");
       next.delete("hideMetrics");
       next.delete("hideRate");
-      next.delete("hideBlended");
     });
 
   const setPreset = (days: number) => {
@@ -356,10 +355,7 @@ export function SummaryFilterBar({
     });
 
   const hiddenColumnsCount =
-    hiddenIdentity.length +
-    hiddenMetrics.length +
-    (rateHidden ? 1 : 0) +
-    (blendedHidden ? 1 : 0);
+    hiddenIdentity.length + hiddenMetrics.length + (rateHidden ? 1 : 0);
 
   const productLabel = useMemo(() => {
     if (productIds.length === 0) return "All";
@@ -462,6 +458,14 @@ export function SummaryFilterBar({
                   </DropdownMenuCheckboxItem>
                 );
               })}
+              <DropdownMenuSeparator />
+              <DropdownMenuCheckboxItem
+                checked={!blendedHidden}
+                onCheckedChange={toggleBlended}
+                onSelect={(e) => e.preventDefault()}
+              >
+                Blended total (weighted)
+              </DropdownMenuCheckboxItem>
               {platforms.length >= MAX_PLATFORMS && (
                 <div className="px-2 py-1.5 text-[10px] text-ink-3">
                   Deselect a platform to add another.
@@ -733,20 +737,6 @@ export function SummaryFilterBar({
                   onSelect={(e) => e.preventDefault()}
                 >
                   Rate
-                </DropdownMenuCheckboxItem>
-
-                <DropdownMenuSeparator />
-                <DropdownMenuLabel>Blended total</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <div className="px-2 py-1.5 text-[10px] text-ink-3">
-                  Weighted aggregate column across the selected platforms.
-                </div>
-                <DropdownMenuCheckboxItem
-                  checked={!blendedHidden}
-                  onCheckedChange={toggleBlended}
-                  onSelect={(e) => e.preventDefault()}
-                >
-                  Blended total
                 </DropdownMenuCheckboxItem>
 
                 {hiddenColumnsCount > 0 && (

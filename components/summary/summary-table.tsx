@@ -286,13 +286,17 @@ export function SummaryTable({
     }
   }, []);
 
-  const orderedPlatforms: string[] = [
-    ...platformOrder.filter((p) => (platforms as string[]).includes(p)),
-    ...(platforms as string[]).filter((p) => !platformOrder.includes(p)),
+  // Reorderable column groups: each selected platform PLUS (when shown) the
+  // blended "total" group. The ◀▶ controls move any of them — total included.
+  const allGroups: string[] = [...(platforms as string[])];
+  if (showTotal) allGroups.push("total");
+  const orderedGroups: string[] = [
+    ...platformOrder.filter((g) => allGroups.includes(g)),
+    ...allGroups.filter((g) => !platformOrder.includes(g)),
   ];
-  const movePlatform = (pf: string, dir: -1 | 1) => {
-    const cur = [...orderedPlatforms];
-    const i = cur.indexOf(pf);
+  const moveGroup = (g: string, dir: -1 | 1) => {
+    const cur = [...orderedGroups];
+    const i = cur.indexOf(g);
     const a = cur[i];
     const b = cur[i + dir];
     if (a === undefined || b === undefined) return;
@@ -330,47 +334,54 @@ export function SummaryTable({
               Creative
             </th>
             {groupColSpan > 0 &&
-              orderedPlatforms.map((pf, idx) => (
-                <th
-                  key={pf}
-                  colSpan={groupColSpan}
-                  className="px-3 py-1.5 text-[10px] uppercase tracking-[0.14em] border-l border-line text-left"
-                  style={{
-                    color: PLATFORM_COLOR[pf as keyof typeof PLATFORM_COLOR],
-                  }}
-                >
-                  <span className="inline-flex items-center gap-1">
-                    <button
-                      type="button"
-                      onClick={() => movePlatform(pf, -1)}
-                      disabled={idx === 0}
-                      aria-label={`Move ${PLATFORM_LABEL[pf as keyof typeof PLATFORM_LABEL]} left`}
-                      className="text-ink-3 hover:text-ink disabled:opacity-20 disabled:cursor-default leading-none"
-                    >
-                      ◀
-                    </button>
-                    {PLATFORM_LABEL[pf as keyof typeof PLATFORM_LABEL]}
-                    <button
-                      type="button"
-                      onClick={() => movePlatform(pf, 1)}
-                      disabled={idx === orderedPlatforms.length - 1}
-                      aria-label={`Move ${PLATFORM_LABEL[pf as keyof typeof PLATFORM_LABEL]} right`}
-                      className="text-ink-3 hover:text-ink disabled:opacity-20 disabled:cursor-default leading-none"
-                    >
-                      ▶
-                    </button>
-                  </span>
-                </th>
-              ))}
-            {showTotal && groupColSpan > 0 && (
-              <th
-                colSpan={groupColSpan}
-                className="px-3 py-1.5 text-[10px] uppercase tracking-[0.14em] text-ink-2 border-l border-line text-left"
-                title="Weighted aggregate across the selected platforms."
-              >
-                Blended total
-              </th>
-            )}
+              orderedGroups.map((g, idx) => {
+                const isTotal = g === "total";
+                const groupLabel = isTotal
+                  ? "Blended total"
+                  : PLATFORM_LABEL[g as keyof typeof PLATFORM_LABEL];
+                return (
+                  <th
+                    key={g}
+                    colSpan={groupColSpan}
+                    className={
+                      "px-3 py-1.5 text-[10px] uppercase tracking-[0.14em] border-l border-line text-left " +
+                      (isTotal ? "text-ink-2" : "")
+                    }
+                    style={
+                      isTotal
+                        ? undefined
+                        : { color: PLATFORM_COLOR[g as keyof typeof PLATFORM_COLOR] }
+                    }
+                    title={
+                      isTotal
+                        ? "Weighted aggregate across the selected platforms."
+                        : undefined
+                    }
+                  >
+                    <span className="inline-flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => moveGroup(g, -1)}
+                        disabled={idx === 0}
+                        aria-label={`Move ${groupLabel} left`}
+                        className="text-ink-3 hover:text-ink disabled:opacity-20 disabled:cursor-default leading-none"
+                      >
+                        ◀
+                      </button>
+                      {groupLabel}
+                      <button
+                        type="button"
+                        onClick={() => moveGroup(g, 1)}
+                        disabled={idx === orderedGroups.length - 1}
+                        aria-label={`Move ${groupLabel} right`}
+                        className="text-ink-3 hover:text-ink disabled:opacity-20 disabled:cursor-default leading-none"
+                      >
+                        ▶
+                      </button>
+                    </span>
+                  </th>
+                );
+              })}
           </tr>
           <tr className="border-b border-line text-left text-[11px] uppercase tracking-[0.14em] text-ink-3">
             {identityCols.map((c) => {
@@ -393,10 +404,10 @@ export function SummaryTable({
                 />
               );
             })}
-            {orderedPlatforms.map((pf) => (
+            {orderedGroups.map((g) => (
               <RateAndMetricsHead
-                key={`head-${pf}`}
-                scope={pf}
+                key={`head-${g}`}
+                scope={g}
                 showRate={showRate}
                 visibleMetrics={visibleMetrics}
                 sort={sort}
@@ -404,16 +415,6 @@ export function SummaryTable({
                 SortIcon={SortIcon}
               />
             ))}
-            {showTotal && (
-              <RateAndMetricsHead
-                scope="total"
-                showRate={showRate}
-                visibleMetrics={visibleMetrics}
-                sort={sort}
-                sortHref={sortHref}
-                SortIcon={SortIcon}
-              />
-            )}
           </tr>
         </thead>
         <tbody className="divide-y divide-line">
@@ -491,28 +492,21 @@ export function SummaryTable({
               })}
 
               {/* Per platform */}
-              {orderedPlatforms.map((pf) => (
+              {orderedGroups.map((g) => (
                 <RateAndMetricsCells
-                  key={`${r.creativeId}.${pf}`}
-                  scope={pf}
-                  block={r.perPlatform[pf as keyof typeof r.perPlatform]}
+                  key={`${r.creativeId}.${g}`}
+                  scope={g}
+                  block={
+                    g === "total"
+                      ? r.total
+                      : r.perPlatform[g as keyof typeof r.perPlatform]
+                  }
                   showRate={showRate}
                   rules={rules}
                   visibleMetrics={visibleMetrics}
+                  muted={g === "total"}
                 />
               ))}
-
-              {/* Blended total */}
-              {showTotal && (
-                <RateAndMetricsCells
-                  scope="total"
-                  block={r.total}
-                  showRate={showRate}
-                  rules={rules}
-                  visibleMetrics={visibleMetrics}
-                  muted
-                />
-              )}
             </tr>
           ))}
         </tbody>
@@ -527,24 +521,16 @@ export function SummaryTable({
                   {i === 0 ? "Totals" : ""}
                 </td>
               ))}
-              {orderedPlatforms.map((pf) => (
+              {orderedGroups.map((g) => (
                 <FooterCells
-                  key={`foot-${pf}`}
-                  scope={pf}
-                  block={footerByPlatform[pf]}
+                  key={`foot-${g}`}
+                  scope={g}
+                  block={g === "total" ? footerTotal : footerByPlatform[g]}
                   showRate={showRate}
                   visibleMetrics={visibleMetrics}
+                  muted={g === "total"}
                 />
               ))}
-              {showTotal && (
-                <FooterCells
-                  scope="total"
-                  block={footerTotal}
-                  showRate={showRate}
-                  visibleMetrics={visibleMetrics}
-                  muted
-                />
-              )}
             </tr>
           </tfoot>
         )}
