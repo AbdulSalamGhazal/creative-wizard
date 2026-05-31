@@ -2,7 +2,7 @@
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useTransition } from "react";
-import { Check, ChevronDown } from "lucide-react";
+import { Check, ChevronDown, X } from "lucide-react";
 import {
   Popover,
   PopoverContent,
@@ -183,20 +183,29 @@ function MultiSelect({
   selected: string[];
   onToggle: (v: string) => void;
 }) {
-  const summary = selected.length === 0 ? "All" : `${selected.length} selected`;
+  const labelFor = (v: string) => options.find((o) => o.value === v)?.label ?? v;
+  const summary =
+    selected.length === 0 ? "All" : selected.map(labelFor).join(", ");
   return (
-    <div className="flex items-center gap-2">
-      <span className="text-[10px] uppercase tracking-[0.14em] text-ink-3 w-16 shrink-0">
+    <div className="flex items-start gap-2">
+      <span className="text-[10px] uppercase tracking-[0.14em] text-ink-3 w-16 shrink-0 pt-2">
         {label}
       </span>
-      <Popover>
-        <PopoverTrigger className="flex-1 flex items-center justify-between gap-2 rounded-md border border-line bg-surface-2 px-2.5 py-1.5 text-xs hover:border-line-2 transition-colors">
-          <span className={selected.length ? "text-ink" : "text-ink-3"}>
-            {summary}
-          </span>
-          <ChevronDown className="w-3.5 h-3.5 text-ink-3 shrink-0" />
-        </PopoverTrigger>
-        <PopoverContent align="start" className="w-[22rem] p-0">
+      <div className="flex-1 min-w-0 space-y-1.5">
+        <Popover>
+          <PopoverTrigger className="w-full min-w-0 flex items-center justify-between gap-2 rounded-md border border-line bg-surface-2 px-2.5 py-1.5 text-xs hover:border-line-2 transition-colors">
+            <span
+              className={
+                "min-w-0 truncate text-left " +
+                (selected.length ? "text-ink" : "text-ink-3")
+              }
+              title={selected.length ? summary : undefined}
+            >
+              {summary}
+            </span>
+            <ChevronDown className="w-3.5 h-3.5 text-ink-3 shrink-0" />
+          </PopoverTrigger>
+          <PopoverContent align="start" className="w-[22rem] p-0">
           <Command>
             <CommandInput placeholder={`Search ${label.toLowerCase()}…`} />
             <CommandList className="max-h-72">
@@ -235,8 +244,25 @@ function MultiSelect({
               </CommandGroup>
             </CommandList>
           </Command>
-        </PopoverContent>
-      </Popover>
+          </PopoverContent>
+        </Popover>
+        {selected.length > 0 && (
+          <div className="flex flex-wrap gap-1">
+            {selected.map((v) => (
+              <button
+                key={v}
+                type="button"
+                onClick={() => onToggle(v)}
+                title={`Remove ${labelFor(v)}`}
+                className="group inline-flex max-w-full items-center gap-1 rounded border border-line bg-surface px-1.5 py-0.5 text-[10px] text-ink-2 hover:border-line-2 hover:text-ink transition-colors"
+              >
+                <span className="truncate">{labelFor(v)}</span>
+                <X className="h-2.5 w-2.5 shrink-0 text-ink-3 group-hover:text-neg" />
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
