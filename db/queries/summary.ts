@@ -34,7 +34,9 @@ import {
   sumConversionValue,
   sumConversions,
   sumImpressions,
+  sumLandingPageViews,
   sumSpend,
+  voc,
 } from "@/lib/metrics";
 import {
   METRIC_META,
@@ -89,6 +91,8 @@ export interface PlatformMetricBlock {
   roas: number | null;
   hookRate: number | null;
   holdRate: number | null;
+  landingPageViews: number;
+  voc: number | null;
 }
 
 export interface SummaryRow {
@@ -141,6 +145,8 @@ const METRIC_KEYS = [
   "roas",
   "hook_rate",
   "hold_rate",
+  "landing_page_views",
+  "voc",
 ] as const;
 type MetricKey = (typeof METRIC_KEYS)[number];
 
@@ -224,6 +230,10 @@ function orderBySql(
         return hookRate;
       case "hold_rate":
         return holdRate;
+      case "landing_page_views":
+        return sumLandingPageViews;
+      case "voc":
+        return voc;
     }
   }
   const platformMeta = metricsByPlatform.get(scope as Platform);
@@ -251,6 +261,10 @@ function orderBySql(
       return platformMeta.hookRate;
     case "hold_rate":
       return platformMeta.holdRate;
+    case "landing_page_views":
+      return platformMeta.landingPageViews;
+    case "voc":
+      return platformMeta.voc;
   }
 }
 
@@ -302,6 +316,12 @@ function comparable(
       break;
     case "hold_rate":
       raw = block.holdRate;
+      break;
+    case "landing_page_views":
+      raw = block.landingPageViews;
+      break;
+    case "voc":
+      raw = block.voc;
       break;
     default:
       raw = null;
@@ -454,6 +474,8 @@ export async function listCreativeSummary(
     totalRoas: roas,
     totalHookRate: hookRate,
     totalHoldRate: holdRate,
+    totalLandingPageViews: sumLandingPageViews,
+    totalVoc: voc,
   };
   for (const pf of selectedPlatforms) {
     const m = metricsByPlatform.get(pf)!;
@@ -469,6 +491,8 @@ export async function listCreativeSummary(
     select[`${pf}_roas`] = m.roas;
     select[`${pf}_hookRate`] = m.hookRate;
     select[`${pf}_holdRate`] = m.holdRate;
+    select[`${pf}_landingPageViews`] = m.landingPageViews;
+    select[`${pf}_voc`] = m.voc;
   }
 
   // Rating is derived in JS (not SQL), so a rate sort can't be expressed in
@@ -544,6 +568,8 @@ export async function listCreativeSummary(
         roas: numOrNull(r[`${pf}_roas`]),
         hookRate: numOrNull(r[`${pf}_hookRate`]),
         holdRate: numOrNull(r[`${pf}_holdRate`]),
+        landingPageViews: num(r[`${pf}_landingPageViews`]),
+        voc: numOrNull(r[`${pf}_voc`]),
       };
     }
     return {
@@ -570,6 +596,8 @@ export async function listCreativeSummary(
         roas: numOrNull(r.totalRoas),
         hookRate: numOrNull(r.totalHookRate),
         holdRate: numOrNull(r.totalHoldRate),
+        landingPageViews: num(r.totalLandingPageViews),
+        voc: numOrNull(r.totalVoc),
       },
     };
   });

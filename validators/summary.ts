@@ -64,6 +64,8 @@ export const METRIC_COLUMN_KEYS = [
   "roas",
   "hook_rate",
   "hold_rate",
+  "landing_page_views",
+  "voc",
 ] as const;
 export type MetricColumnKey = (typeof METRIC_COLUMN_KEYS)[number];
 
@@ -88,6 +90,8 @@ export const METRIC_META: Record<
   roas: { label: "ROAS", unit: "x" },
   hook_rate: { label: "Hook rate", unit: "pct" },
   hold_rate: { label: "Hold rate", unit: "pct" },
+  landing_page_views: { label: "Landing page views", unit: "int" },
+  voc: { label: "VOC", unit: "pct" },
 };
 
 /** Numeric comparison operators for metric filters. */
