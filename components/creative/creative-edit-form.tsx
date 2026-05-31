@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/select";
 import { updateCreative } from "@/app/actions/creative";
 import { TagInput } from "@/components/creative/tag-input";
+import { ThumbnailUpload } from "@/components/creative/thumbnail-upload";
 
 interface Props {
   creative: {
@@ -28,6 +29,7 @@ interface Props {
     status: "draft" | "active" | "paused" | "archived";
     launchDate: string | null;
     notes: string | null;
+    thumbnailUrl: string | null;
     tags: string[];
   };
   products: Array<{ id: string; name: string }>;
@@ -56,6 +58,9 @@ export function CreativeEditForm({ creative, products, allTags }: Props) {
   const [launchDate, setLaunchDate] = useState(creative.launchDate ?? "");
   const [tagsInput, setTagsInput] = useState(creative.tags.join(", "));
   const [notes, setNotes] = useState(creative.notes ?? "");
+  const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(
+    creative.thumbnailUrl,
+  );
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -79,6 +84,7 @@ export function CreativeEditForm({ creative, products, allTags }: Props) {
         status,
         launchDate: launchDate || null,
         notes: notes.trim() || null,
+        thumbnailUrl: thumbnailUrl || null,
         tags,
       });
       if (!res.ok) {
@@ -187,6 +193,18 @@ export function CreativeEditForm({ creative, products, allTags }: Props) {
             />
           </Field>
         </div>
+
+        <Field
+          label="Thumbnail"
+          hint="Optional. Shown on the board and detail page — auto-resized & optimized."
+          error={fieldErrors.thumbnailUrl}
+        >
+          <ThumbnailUpload
+            value={thumbnailUrl}
+            onChange={setThumbnailUrl}
+            disabled={isPending}
+          />
+        </Field>
 
         <Field
           label="Tags"

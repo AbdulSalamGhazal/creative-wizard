@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/select";
 import { createCreative } from "@/app/actions/creative";
 import { TagInput } from "@/components/creative/tag-input";
+import { ThumbnailUpload } from "@/components/creative/thumbnail-upload";
 
 interface Props {
   products: Array<{ id: string; name: string }>;
@@ -46,6 +47,7 @@ export function CreativeCreateForm({ products, allTags }: Props) {
   const [launchDate, setLaunchDate] = useState("");
   const [tagsInput, setTagsInput] = useState("");
   const [notes, setNotes] = useState("");
+  const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -68,6 +70,7 @@ export function CreativeCreateForm({ products, allTags }: Props) {
         status,
         launchDate: launchDate || undefined,
         notes: notes.trim() || undefined,
+        thumbnailUrl: thumbnailUrl || undefined,
         tags,
       });
       if (!res.ok) {
@@ -160,6 +163,18 @@ export function CreativeCreateForm({ products, allTags }: Props) {
           />
         </Field>
       </div>
+
+      <Field
+        label="Thumbnail"
+        hint="Optional. Shown on the board and detail page — auto-resized & optimized."
+        error={fieldErrors.thumbnailUrl}
+      >
+        <ThumbnailUpload
+          value={thumbnailUrl}
+          onChange={setThumbnailUrl}
+          disabled={isPending}
+        />
+      </Field>
 
       <Field
         label="Tags"

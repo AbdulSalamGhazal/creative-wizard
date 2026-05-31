@@ -20,7 +20,7 @@ If a rule here conflicts with one of those documents, the documents win — flag
 - Tailwind + shadcn/ui + shadcn charts (Recharts under the hood)
 - TanStack Query (client data), TanStack Table (tables)
 - papaparse (CSV), Zod (validation), framer-motion (motion)
-- Vercel hosting. (Vercel Blob/KV are NOT used — removed; upload-validation sessions live in Postgres. Thumbnails are URL fields, no blob storage yet.)
+- Vercel hosting. Vercel KV is NOT used (upload-validation sessions live in Postgres). **Vercel Blob IS used** for creative thumbnails: uploaded via `POST /api/uploads/thumbnail` (editor-only; client downscales→WebP first), stored public, and the returned URL is saved to `creatives.thumbnail_url`. Requires `BLOB_READ_WRITE_TOKEN` (auto-added when a Blob store is connected to the project); the blob host is allow-listed in `next.config.ts` `images.remotePatterns`.
 
 Do not introduce a new dependency without a one-line justification in the PR description.
 

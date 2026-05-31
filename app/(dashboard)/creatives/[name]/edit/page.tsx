@@ -27,6 +27,7 @@ export default async function EditCreativePage({
         status: creative.status,
         launchDate: creative.launchDate,
         notes: creative.notes,
+        thumbnailUrl: creative.thumbnailUrl,
         tags: creative.tags,
       }}
       products={products}
