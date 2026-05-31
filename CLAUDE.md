@@ -134,3 +134,16 @@ This app is deployed and in production use. Treat `main` as shippable.
   config (no filters) must apply via `?view=none`, never a bare `/summary` —
   otherwise the default-view `redirect()` bounces it back. `applyView()` in
   `views-control.tsx` handles this.
+- **Prevent enum drift — DERIVE, don't re-list.** A validator/option list that
+  mirrors the platform set or CSV field set must derive from the canonical
+  source (`platformEnum`, `INTERNAL_FIELDS`) via spread, not hand-copied
+  literals. Two drift bugs shipped in v2 from copied lists: `platform-mapping.ts`
+  FIELDS (rejected `campaign_name`) and `validators/summary.ts`
+  `METRIC_FILTER_SCOPES` (kept dead `meta`, dropped IG/FB filters). Both now use
+  `[...platformEnum]` / `INTERNAL_FIELDS`.
+- **csv/pipeline.ts dedup key uses an INVISIBLE U+0001 (SOH) separator.** It does
+  NOT render in the Read tool, grep output, or most diffs, so the key-build and
+  `k.split(...)` lines LOOK like they have no delimiter — they DO. A review pass
+  false-flagged this as a `split("")` bug; it is correct. Confirm with
+  `python3 -c '...repr(line)'` before "fixing", and use Python (not the Edit
+  tool) to modify those lines — Edit can't match the control char.
