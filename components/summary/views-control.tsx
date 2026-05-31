@@ -71,9 +71,22 @@ export function ViewsControl({ views, currentUserId, isAdmin }: Props) {
   const applyView = useCallback(
     (query: string) => {
       setOpen(false);
-      router.push(query ? `${pathname}?${query}` : pathname, { scroll: false });
+      const clean = cleanQuery(query);
+      if (clean === "") {
+        // An "all creatives" view (no filters/columns/sort) resolves to a bare
+        // /summary. When a team default exists the server redirects a bare
+        // /summary straight back to that default — so the view would appear to
+        // "bounce back" and never apply. Route through ?view=none (the same
+        // escape the "Show all" button uses) so the unfiltered table is
+        // actually reachable by clicking the view.
+        router.push(hasDefault ? `${pathname}?view=none` : pathname, {
+          scroll: false,
+        });
+        return;
+      }
+      router.push(`${pathname}?${clean}`, { scroll: false });
     },
-    [pathname, router],
+    [pathname, router, hasDefault],
   );
 
   const save = () => {
