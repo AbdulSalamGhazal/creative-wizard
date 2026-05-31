@@ -52,6 +52,7 @@ async function run(
     findExistingBatch?: (
       n: string,
       p: string,
+      campaign: string,
       d: string,
     ) => Promise<string | null>;
   } = {},
@@ -212,41 +213,51 @@ describe("CSV pipeline — Stage 3 (row content)", () => {
   });
 });
 
-describe("CSV pipeline — Stage 4 (intra-file duplicates allowed)", () => {
-  it("accepts two rows with the same (creative, date) — multi-campaign", async () => {
+describe("CSV pipeline — Stage 4 (intra-file duplicates)", () => {
+  it("rejects two rows with the same (creative, campaign, date) — E050", async () => {
     const res = await run(
       `${META_HEADER}\n${row({})}\n${row({ spend: "11" })}\n`,
     );
-    expect(res.ok).toBe(true);
-    if (res.ok) {
-      expect(res.rows.length).toBe(2);
-      // Within-file duplicates are neither an error nor (on their own) a warning.
-      expect(res.warnings.some((w) => w.code === "W003")).toBe(false);
+    expect(res.ok).toBe(false);
+    if (!res.ok) {
+      const e050 = res.errors.find((e) => e.code === "E050");
+      expect(e050).toBeDefined();
+      expect(e050?.rows).toEqual([2, 3]);
     }
   });
-});
 
-describe("CSV pipeline — Stage 5 (already-imported advisory)", () => {
-  it("warns W003 (non-blocking) when findExistingBatch returns a batch id", async () => {
-    const res = await run(`${META_HEADER}\n${row({})}\n`, {
-      findExistingBatch: async () => "batch-abc",
-    });
-    expect(res.ok).toBe(true);
-    const w003 = res.warnings.find((w) => w.code === "W003");
-    expect(w003).toBeDefined();
-    expect(w003?.message).toContain("already imported");
-  });
-
-  it("emits the advisory once per distinct (creative, date), not per row", async () => {
+  it("allows the same creative + date across DIFFERENT campaigns", async () => {
     const res = await run(
-      `${META_HEADER}\n${row({})}\n${row({ spend: "11" })}\n`,
-      { findExistingBatch: async () => "batch-xyz" },
+      `${META_HEADER}\n${row({ campaign: "Spring" })}\n${row({ campaign: "Summer", spend: "11" })}\n`,
     );
     expect(res.ok).toBe(true);
     if (res.ok) expect(res.rows.length).toBe(2);
-    const w003 = res.warnings.filter((w) => w.code === "W003");
-    expect(w003.length).toBe(1);
-    expect(w003[0]?.rows).toEqual([2, 3]);
+  });
+});
+
+describe("CSV pipeline — Stage 5 (database duplicates)", () => {
+  it("rejects E051 when findExistingBatch returns a batch id", async () => {
+    const res = await run(`${META_HEADER}\n${row({})}\n`, {
+      findExistingBatch: async () => "batch-abc",
+    });
+    expect(res.ok).toBe(false);
+    if (!res.ok) {
+      const e051 = res.errors.find((e) => e.code === "E051");
+      expect(e051).toBeDefined();
+      expect(e051?.message).toContain("already imported");
+    }
+  });
+
+  it("passes the combined campaign name to the existing-batch lookup", async () => {
+    let seenCampaign: string | null = null;
+    const res = await run(`${META_HEADER}\n${row({ campaign: "Holiday" })}\n`, {
+      findExistingBatch: async (_n, _p, campaign) => {
+        seenCampaign = campaign;
+        return null;
+      },
+    });
+    expect(res.ok).toBe(true);
+    expect(seenCampaign).toBe("Holiday ➤ Broad");
   });
 });
 
