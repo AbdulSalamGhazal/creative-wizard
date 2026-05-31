@@ -258,8 +258,19 @@ export function SummaryTable({
     (c) => !c.hideKey || !hiddenIdentity?.has(c.hideKey),
   );
 
+  // Totals / weighted-average footer over the currently visible (filtered)
+  // rows. Additive metrics sum; ratio metrics recombine via component sums.
+  // Hook/Hold need video-view component sums not carried in the block → "—".
+  const footerByPlatform: Partial<Record<string, PlatformMetricBlock>> = {};
+  for (const pf of platforms) {
+    footerByPlatform[pf] = aggregateBlocks(
+      rows.map((r) => r.perPlatform[pf as keyof typeof r.perPlatform]),
+    );
+  }
+  const footerTotal = aggregateBlocks(rows.map((r) => r.total));
+
   return (
-    <div className="overflow-x-auto rounded-lg border border-line bg-surface">
+    <div className="max-h-[70vh] overflow-auto rounded-lg border border-line bg-surface">
       <table className="text-[12px] num min-w-max">
         {/* Two-row header: top row = group banners; bottom = column labels */}
         <thead>
@@ -437,6 +448,38 @@ export function SummaryTable({
             </tr>
           ))}
         </tbody>
+        {rows.length > 0 && (
+          <tfoot>
+            <tr className="border-t-2 border-line">
+              {identityCols.map((c, i) => (
+                <td
+                  key={`foot-${c.key}`}
+                  className="sticky bottom-0 z-10 bg-surface-2 px-3 py-2 text-ink font-semibold whitespace-nowrap"
+                >
+                  {i === 0 ? "Totals" : ""}
+                </td>
+              ))}
+              {platforms.map((pf) => (
+                <FooterCells
+                  key={`foot-${pf}`}
+                  scope={pf}
+                  block={footerByPlatform[pf]}
+                  showRate={showRate}
+                  visibleMetrics={visibleMetrics}
+                />
+              ))}
+              {showTotal && (
+                <FooterCells
+                  scope="total"
+                  block={footerTotal}
+                  showRate={showRate}
+                  visibleMetrics={visibleMetrics}
+                  muted
+                />
+              )}
+            </tr>
+          </tfoot>
+        )}
       </table>
     </div>
   );
@@ -629,6 +672,92 @@ function RateAndMetricsCells({
             key={`${scope}.${m.key}`}
             className={
               "px-3 py-2 text-right whitespace-nowrap tabular-nums " +
+              (muted ? "text-ink-2 " : "text-ink ") +
+              (mi === 0 && !showRate ? "border-l border-line" : "")
+            }
+          >
+            {m.format(v)}
+          </td>
+        );
+      })}
+    </>
+  );
+}
+
+/**
+ * Sum component metrics across a set of blocks and recompute the weighted
+ * ratios (per the aggregation rules — never an average of per-row ratios).
+ * Hook/Hold rates need video-view component sums that the block doesn't carry,
+ * so they're returned null (render as "—").
+ */
+function aggregateBlocks(
+  blocks: Array<PlatformMetricBlock | undefined>,
+): PlatformMetricBlock {
+  let spend = 0;
+  let impressions = 0;
+  let clicks = 0;
+  let conversions = 0;
+  let hasConv = false;
+  let conversionValue = 0;
+  let hasConvVal = false;
+  for (const b of blocks) {
+    if (!b) continue;
+    spend += b.spend ?? 0;
+    impressions += b.impressions ?? 0;
+    clicks += b.clicks ?? 0;
+    if (b.conversions !== null && b.conversions !== undefined) {
+      conversions += b.conversions;
+      hasConv = true;
+    }
+    if (b.conversionValue !== null && b.conversionValue !== undefined) {
+      conversionValue += b.conversionValue;
+      hasConvVal = true;
+    }
+  }
+  return {
+    spend,
+    impressions,
+    clicks,
+    conversions: hasConv ? conversions : null,
+    conversionValue: hasConvVal ? conversionValue : null,
+    ctr: impressions > 0 ? clicks / impressions : null,
+    cpm: impressions > 0 ? (spend / impressions) * 1000 : null,
+    cpc: clicks > 0 ? spend / clicks : null,
+    cpa: hasConv && conversions > 0 ? spend / conversions : null,
+    roas: hasConvVal && spend > 0 ? conversionValue / spend : null,
+    hookRate: null,
+    holdRate: null,
+  };
+}
+
+/** Footer (totals) cells for one group — mirrors RateAndMetricsCells column-for-column. */
+function FooterCells({
+  scope,
+  block,
+  showRate,
+  visibleMetrics,
+  muted = false,
+}: {
+  scope: string;
+  block: PlatformMetricBlock | undefined;
+  showRate: boolean;
+  visibleMetrics: MetricColumn[];
+  muted?: boolean;
+}) {
+  return (
+    <>
+      {showRate && (
+        <td className="sticky bottom-0 z-10 bg-surface-2 px-3 py-2 text-center whitespace-nowrap border-l border-line text-ink-3">
+          —
+        </td>
+      )}
+      {visibleMetrics.map((m, mi) => {
+        const v = block ? pickMetric(block, m.key) : null;
+        return (
+          <td
+            key={`foot.${scope}.${m.key}`}
+            className={
+              "sticky bottom-0 z-10 bg-surface-2 px-3 py-2 text-right whitespace-nowrap tabular-nums font-semibold " +
               (muted ? "text-ink-2 " : "text-ink ") +
               (mi === 0 && !showRate ? "border-l border-line" : "")
             }
