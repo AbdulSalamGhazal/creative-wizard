@@ -74,8 +74,6 @@ export interface CreativeStats {
 export async function listCreatives(
   filters: CreativeListFilters,
 ): Promise<CreativeListResult> {
-  const limit = filters.limit ?? 50;
-
   const spend30d = db.$with("spend_30d").as(
     db
       .select({
@@ -157,7 +155,7 @@ export async function listCreatives(
   const spend7Alias = sql<string | null>`spend_7d.spend`.as("spend_7d");
   const tagsAlias = sql<string[] | null>`${tagAgg.tags}`.as("tag_list");
 
-  const rows = await db
+  const baseQuery = db
     .with(spend30d, spend7d, tagAgg)
     .select({
       id: creatives.id,
@@ -179,8 +177,16 @@ export async function listCreatives(
     .leftJoin(spend7d, sql`spend_7d.creative_id = ${creatives.id}`)
     .leftJoin(tagAgg, eq(tagAgg.creativeId, creatives.id))
     .where(conditions.length > 0 ? and(...conditions) : undefined)
-    .orderBy(...orderBy)
-    .limit(limit);
+    .orderBy(...orderBy);
+
+  // The Library board shows EVERY matching creative (the page wraps the grid /
+  // table in an internal vertical scroll, like Summary). Previously this capped
+  // at 50, which silently hid creatives — with all-NULL launch dates the cap
+  // sliced by name and dropped whole types (image/slides) past row 50. Callers
+  // that want a smaller page can still pass an explicit `limit`.
+  const rows = await (filters.limit
+    ? baseQuery.limit(filters.limit)
+    : baseQuery);
 
   const totalMatching = rows[0] ? Number(rows[0].totalMatching) : 0;
 

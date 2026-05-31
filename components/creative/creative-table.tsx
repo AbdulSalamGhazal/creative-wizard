@@ -195,10 +195,10 @@ export function CreativeTable({ rows }: { rows: CreativeListRow[] }) {
           filename={`creatives-${todayStamp()}.csv`}
         />
       </div>
-      <div className="overflow-x-auto rounded-lg border border-line bg-surface">
+      <div className="max-h-[70vh] overflow-auto rounded-lg border border-line bg-surface">
         <table className="w-full text-sm num">
           <thead>
-            <tr className="text-left text-[11px] uppercase tracking-[0.14em] text-ink-3 border-b border-line">
+            <tr className="text-left text-[11px] uppercase tracking-[0.14em] text-ink-3 [&>th]:sticky [&>th]:top-0 [&>th]:z-10 [&>th]:bg-surface [&>th]:border-b [&>th]:border-line">
               <th className="font-medium pl-3 pr-2 py-2.5 w-8">
                 <Checkbox
                   checked={
