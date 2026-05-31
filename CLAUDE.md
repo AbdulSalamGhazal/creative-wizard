@@ -119,3 +119,18 @@ This app is deployed and in production use. Treat `main` as shippable.
   rule. Available to editors + admins (via `requireEditor`). Guardrails: ≥1
   filter required, preview-then-confirm, audit-logged. Keep these whenever
   touching cleanup.
+- **`platform`/`type`/`status` columns are `varchar`, NOT Postgres enums.** The
+  Drizzle `pgEnum` helpers map to plain `varchar` columns (no DB-level enum
+  type exists). So changing the allowed value set — e.g. the v2 `meta` →
+  `instagram` + `facebook` split — needs only a code change, NO DB migration.
+- **Adding a `NOT NULL` column to `performance_records` requires the table to
+  be empty** (or a default/backfill). The v2 cutover added `campaign_name
+  NOT NULL` (migration 0010), so prod performance data was cleared first
+  (performance_records + upload_batches), keeping creatives/products/users.
+- **The direct (non-pooler) Neon URL is derived, not stored.** `.env.production.local`
+  holds only the pooled `DATABASE_URL`; for `drizzle-kit migrate` derive the
+  direct URL by replacing `-pooler.` with `.` in the host.
+- **Saved Summary Views + default-view redirect:** a saved view with an empty
+  config (no filters) must apply via `?view=none`, never a bare `/summary` —
+  otherwise the default-view `redirect()` bounces it back. `applyView()` in
+  `views-control.tsx` handles this.
