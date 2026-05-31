@@ -12,7 +12,7 @@ type PlatformKey = "instagram" | "facebook" | "tiktok" | "snapchat" | "google";
 export const PLATFORM_COLOR: Record<PlatformKey, string> = {
   instagram: "#c13584", // IG purple/magenta
   facebook: "#4f8efb", // FB blue
-  tiktok: "#ff4d7a", // pink
+  tiktok: "#d4d4d8", // light grey (distinct from IG pink)
   snapchat: "#ffd80b", // yellow
   google: "#34d399", // emerald
 };
