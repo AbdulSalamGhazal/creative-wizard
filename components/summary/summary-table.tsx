@@ -41,6 +41,7 @@ interface Props {
 /** Text identity columns the user can drag to resize. Numeric columns stay auto-sized. */
 const RESIZABLE_IDENTITY = new Set(["name", "product", "creator"]);
 const COL_WIDTHS_KEY = "summary-col-widths";
+const PLATFORM_ORDER_KEY = "summary-platform-order";
 const MIN_COL_WIDTH = 80;
 
 /** A small colored pill for a creative's rating, centered in the cell. */
@@ -153,6 +154,7 @@ export function SummaryTable({
 
   // ---- Resizable text columns -------------------------------------------
   const [widths, setWidths] = useState<Record<string, number>>({});
+  const [platformOrder, setPlatformOrder] = useState<string[]>([]);
   const thRefs = useRef<Record<string, HTMLTableCellElement | null>>({});
 
   useEffect(() => {
@@ -262,6 +264,42 @@ export function SummaryTable({
     (c) => !c.hideKey || !hiddenIdentity?.has(c.hideKey),
   );
 
+  // User-defined platform column order (persisted to localStorage). Platforms
+  // not yet in the saved order (new selections) append at the end.
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(PLATFORM_ORDER_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw) as unknown;
+        if (Array.isArray(parsed)) {
+          setPlatformOrder(parsed.filter((x): x is string => typeof x === "string"));
+        }
+      }
+    } catch {
+      /* ignore malformed value */
+    }
+  }, []);
+
+  const orderedPlatforms: string[] = [
+    ...platformOrder.filter((p) => (platforms as string[]).includes(p)),
+    ...(platforms as string[]).filter((p) => !platformOrder.includes(p)),
+  ];
+  const movePlatform = (pf: string, dir: -1 | 1) => {
+    const cur = [...orderedPlatforms];
+    const i = cur.indexOf(pf);
+    const a = cur[i];
+    const b = cur[i + dir];
+    if (a === undefined || b === undefined) return;
+    cur[i] = b;
+    cur[i + dir] = a;
+    setPlatformOrder(cur);
+    try {
+      localStorage.setItem(PLATFORM_ORDER_KEY, JSON.stringify(cur));
+    } catch {
+      /* ignore */
+    }
+  };
+
   // Totals / weighted-average footer over the currently visible (filtered)
   // rows. Additive metrics sum; ratio metrics recombine via component sums.
   // Hook/Hold need video-view component sums not carried in the block → "—".
@@ -286,7 +324,7 @@ export function SummaryTable({
               Creative
             </th>
             {groupColSpan > 0 &&
-              platforms.map((pf) => (
+              orderedPlatforms.map((pf, idx) => (
                 <th
                   key={pf}
                   colSpan={groupColSpan}
@@ -295,7 +333,27 @@ export function SummaryTable({
                     color: PLATFORM_COLOR[pf as keyof typeof PLATFORM_COLOR],
                   }}
                 >
-                  {PLATFORM_LABEL[pf as keyof typeof PLATFORM_LABEL]}
+                  <span className="inline-flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => movePlatform(pf, -1)}
+                      disabled={idx === 0}
+                      aria-label={`Move ${PLATFORM_LABEL[pf as keyof typeof PLATFORM_LABEL]} left`}
+                      className="text-ink-3 hover:text-ink disabled:opacity-20 disabled:cursor-default leading-none"
+                    >
+                      ◀
+                    </button>
+                    {PLATFORM_LABEL[pf as keyof typeof PLATFORM_LABEL]}
+                    <button
+                      type="button"
+                      onClick={() => movePlatform(pf, 1)}
+                      disabled={idx === orderedPlatforms.length - 1}
+                      aria-label={`Move ${PLATFORM_LABEL[pf as keyof typeof PLATFORM_LABEL]} right`}
+                      className="text-ink-3 hover:text-ink disabled:opacity-20 disabled:cursor-default leading-none"
+                    >
+                      ▶
+                    </button>
+                  </span>
                 </th>
               ))}
             {showTotal && groupColSpan > 0 && (
@@ -329,7 +387,7 @@ export function SummaryTable({
                 />
               );
             })}
-            {platforms.map((pf) => (
+            {orderedPlatforms.map((pf) => (
               <RateAndMetricsHead
                 key={`head-${pf}`}
                 scope={pf}
@@ -427,7 +485,7 @@ export function SummaryTable({
               })}
 
               {/* Per platform */}
-              {platforms.map((pf) => (
+              {orderedPlatforms.map((pf) => (
                 <RateAndMetricsCells
                   key={`${r.creativeId}.${pf}`}
                   scope={pf}
@@ -463,7 +521,7 @@ export function SummaryTable({
                   {i === 0 ? "Totals" : ""}
                 </td>
               ))}
-              {platforms.map((pf) => (
+              {orderedPlatforms.map((pf) => (
                 <FooterCells
                   key={`foot-${pf}`}
                   scope={pf}
