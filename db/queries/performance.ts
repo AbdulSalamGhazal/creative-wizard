@@ -1044,6 +1044,7 @@ export interface CompareDimensionRow {
   campaign: string;
   creativeId: string;
   creativeName: string;
+  productName: string;
 }
 
 /**
@@ -1057,9 +1058,11 @@ export async function compareDimensions(): Promise<CompareDimensionRow[]> {
       campaign: performanceRecords.campaignName,
       creativeId: creatives.id,
       creativeName: creatives.name,
+      productName: products.name,
     })
     .from(performanceRecords)
     .innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId))
+    .innerJoin(products, eq(products.id, creatives.productId))
     .where(eq(performanceRecords.excludedFromAggregates, false))
     .orderBy(
       asc(performanceRecords.platform),
@@ -1071,6 +1074,7 @@ export async function compareDimensions(): Promise<CompareDimensionRow[]> {
     campaign: r.campaign,
     creativeId: r.creativeId,
     creativeName: r.creativeName,
+    productName: r.productName,
   }));
 }
 

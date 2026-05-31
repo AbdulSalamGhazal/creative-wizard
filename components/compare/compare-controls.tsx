@@ -2,16 +2,22 @@
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useTransition } from "react";
-import { ChevronDown } from "lucide-react";
+import { Check, ChevronDown } from "lucide-react";
 import {
-  DropdownMenu,
-  DropdownMenuCheckboxItem,
-  DropdownMenuContent,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
 import { DateRangePicker } from "@/components/filters/date-range-picker";
+import { COMPARE_COLORS } from "@/components/charts/compare-chart";
 import { PLATFORM_LABEL } from "@/lib/palette";
 import type { CompareDimensionRow } from "@/db/queries/performance";
 import type { CompareSide } from "@/validators/compare";
@@ -66,7 +72,7 @@ export function CompareControls({ dimensions, sideA, sideB, from, to }: Props) {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
         <SideCard
           label="Side A"
-          accent="var(--brand)"
+          accent={COMPARE_COLORS[0] ?? "#FF4D8D"}
           side={sideA}
           prefix="a"
           dimensions={dimensions}
@@ -74,7 +80,7 @@ export function CompareControls({ dimensions, sideA, sideB, from, to }: Props) {
         />
         <SideCard
           label="Side B"
-          accent="var(--brand-2)"
+          accent={COMPARE_COLORS[1] ?? "#5EE6A8"}
           side={sideB}
           prefix="b"
           dimensions={dimensions}
@@ -83,6 +89,12 @@ export function CompareControls({ dimensions, sideA, sideB, from, to }: Props) {
       </div>
     </div>
   );
+}
+
+interface Option {
+  value: string;
+  label: string;
+  sub?: string;
 }
 
 function SideCard({
@@ -113,11 +125,15 @@ function SideCard({
     (d) => side.campaigns.length === 0 || side.campaigns.includes(d.campaign),
   );
   const seen = new Set<string>();
-  const creativeOpts: { value: string; label: string }[] = [];
+  const creativeOpts: Option[] = [];
   for (const d of creativePool) {
     if (seen.has(d.creativeId)) continue;
     seen.add(d.creativeId);
-    creativeOpts.push({ value: d.creativeId, label: d.creativeName });
+    creativeOpts.push({
+      value: d.creativeId,
+      label: d.creativeName,
+      sub: d.productName,
+    });
   }
 
   return (
@@ -163,7 +179,7 @@ function MultiSelect({
   onToggle,
 }: {
   label: string;
-  options: { value: string; label: string }[];
+  options: Option[];
   selected: string[];
   onToggle: (v: string) => void;
 }) {
@@ -173,39 +189,54 @@ function MultiSelect({
       <span className="text-[10px] uppercase tracking-[0.14em] text-ink-3 w-16 shrink-0">
         {label}
       </span>
-      <DropdownMenu>
-        <DropdownMenuTrigger className="flex-1 flex items-center justify-between gap-2 rounded-md border border-line bg-surface-2 px-2.5 py-1.5 text-xs hover:border-line-2 transition-colors">
+      <Popover>
+        <PopoverTrigger className="flex-1 flex items-center justify-between gap-2 rounded-md border border-line bg-surface-2 px-2.5 py-1.5 text-xs hover:border-line-2 transition-colors">
           <span className={selected.length ? "text-ink" : "text-ink-3"}>
             {summary}
           </span>
           <ChevronDown className="w-3.5 h-3.5 text-ink-3 shrink-0" />
-        </DropdownMenuTrigger>
-        <DropdownMenuContent
-          align="start"
-          className="w-72 max-h-72 overflow-y-auto"
-        >
-          <DropdownMenuLabel>
-            {label} · {options.length}
-          </DropdownMenuLabel>
-          <DropdownMenuSeparator />
-          {options.length === 0 ? (
-            <div className="px-2 py-1.5 text-[11px] text-ink-3">
-              None available for the current selection.
-            </div>
-          ) : (
-            options.map((o) => (
-              <DropdownMenuCheckboxItem
-                key={o.value}
-                checked={selected.includes(o.value)}
-                onCheckedChange={() => onToggle(o.value)}
-                onSelect={(e) => e.preventDefault()}
-              >
-                <span className="truncate">{o.label}</span>
-              </DropdownMenuCheckboxItem>
-            ))
-          )}
-        </DropdownMenuContent>
-      </DropdownMenu>
+        </PopoverTrigger>
+        <PopoverContent align="start" className="w-[22rem] p-0">
+          <Command>
+            <CommandInput placeholder={`Search ${label.toLowerCase()}…`} />
+            <CommandList className="max-h-72">
+              <CommandEmpty>No matches.</CommandEmpty>
+              <CommandGroup>
+                {options.map((o) => {
+                  const isSel = selected.includes(o.value);
+                  return (
+                    <CommandItem
+                      key={o.value}
+                      value={`${o.value} ${o.label} ${o.sub ?? ""}`}
+                      onSelect={() => onToggle(o.value)}
+                      className="flex items-center gap-2"
+                    >
+                      <span
+                        className={
+                          "w-3.5 h-3.5 rounded-sm border flex items-center justify-center shrink-0 " +
+                          (isSel
+                            ? "bg-brand border-brand text-white"
+                            : "border-line-2")
+                        }
+                      >
+                        {isSel && <Check className="w-3 h-3" />}
+                      </span>
+                      <span className="flex-1 min-w-0">
+                        <span className="block truncate">{o.label}</span>
+                        {o.sub && (
+                          <span className="block truncate text-[10px] text-ink-3">
+                            {o.sub}
+                          </span>
+                        )}
+                      </span>
+                    </CommandItem>
+                  );
+                })}
+              </CommandGroup>
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
     </div>
   );
 }
