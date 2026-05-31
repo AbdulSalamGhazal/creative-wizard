@@ -410,23 +410,23 @@ export function SummaryFilterBar({
           dateLabel={dateLabel}
         />
 
-        {/* Platforms — max 3 */}
+        {/* Platforms — select any number */}
         <FilterPill
           icon={Layers}
-          label={`Platforms (max ${MAX_PLATFORMS})`}
+          label="Platforms"
           value={
             platforms.length === 0
               ? "All"
               : platforms.length === 1
                 ? (PLATFORMS.find((p) => p.value === platforms[0])?.label ?? "1")
-                : `${platforms.length} of ${MAX_PLATFORMS}`
+                : `${platforms.length} selected`
           }
           active={platforms.length > 0}
         >
           {() => (
             <DropdownMenuContent align="start" className="w-56">
               <DropdownMenuLabel>
-                Platforms · pick up to {MAX_PLATFORMS}
+                Platforms · show any
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
               {PLATFORMS.map((p) => {

@@ -10,10 +10,9 @@ import { RATING_VALUES, type Rating } from "@/lib/rating";
  *  - `creatorIds` — narrow to creatives authored by specific team members
  *  - `sort` / `dir` — column + direction
  *
- * The platform filter is **hard-capped to 3 server-side** — the table
- * renders three platform groups max, and a 4th would either get silently
- * dropped or break the layout. We clamp with `.slice(0, 3)` rather than
- * rejecting because URLs get shared and an invalid one shouldn't 500.
+ * The platform filter accepts any number of platforms (there are 5). The
+ * table renders one group per selected platform plus the optional Blended
+ * Total; horizontal scroll handles the width.
  */
 
 function csvEnum<T extends readonly [string, ...string[]]>(values: T) {
@@ -32,7 +31,8 @@ function csv() {
     .transform((s) => (s ? s.split(",").filter(Boolean) : []));
 }
 
-export const MAX_PLATFORMS = 3;
+// All five platforms may be selected (no cap; there are only 5).
+export const MAX_PLATFORMS = 5;
 
 /**
  * Hideable identity columns (the Creative-name column is mandatory — it's

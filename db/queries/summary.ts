@@ -375,7 +375,7 @@ export async function listCreativeSummary(
 ): Promise<SummaryResult> {
   const selectedPlatforms: Platform[] =
     filters.platforms && filters.platforms.length > 0
-      ? filters.platforms.slice(0, 3)
+      ? filters.platforms.slice(0, 5)
       : (ALL_PLATFORMS.slice(0, 3) as Platform[]);
 
   const resolved = resolveSort(filters.sort, filters.dir, selectedPlatforms);
