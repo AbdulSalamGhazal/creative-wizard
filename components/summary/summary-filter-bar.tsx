@@ -160,6 +160,7 @@ export function SummaryFilterBar({
       (METRIC_COLUMN_KEYS as readonly string[]).includes(k),
   );
   const rateHidden = searchParams.get("hideRate") === "1";
+  const blendedHidden = searchParams.get("hideBlended") === "1";
 
   // Rate filter — scope is kept in local state so the user can pick a scope
   // before any ratings are checked (the URL only carries it once a rating is
@@ -260,11 +261,19 @@ export function SummaryFilterBar({
       else next.set("hideRate", "1");
     });
 
+  // Blended Total is a single boolean (shown by default), toggled like Rate.
+  const toggleBlended = () =>
+    update((next) => {
+      if (blendedHidden) next.delete("hideBlended");
+      else next.set("hideBlended", "1");
+    });
+
   const showAllColumns = () =>
     update((next) => {
       next.delete("hideIdentity");
       next.delete("hideMetrics");
       next.delete("hideRate");
+      next.delete("hideBlended");
     });
 
   const setPreset = (days: number) => {
@@ -337,13 +346,17 @@ export function SummaryFilterBar({
         "hideIdentity",
         "hideMetrics",
         "hideRate",
+        "hideBlended",
         "metricFilters",
         "rate",
       ].forEach((k) => next.delete(k));
     });
 
   const hiddenColumnsCount =
-    hiddenIdentity.length + hiddenMetrics.length + (rateHidden ? 1 : 0);
+    hiddenIdentity.length +
+    hiddenMetrics.length +
+    (rateHidden ? 1 : 0) +
+    (blendedHidden ? 1 : 0);
 
   const productLabel = useMemo(() => {
     if (productIds.length === 0) return "All";
@@ -717,6 +730,20 @@ export function SummaryFilterBar({
                   onSelect={(e) => e.preventDefault()}
                 >
                   Rate
+                </DropdownMenuCheckboxItem>
+
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel>Blended total</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <div className="px-2 py-1.5 text-[10px] text-ink-3">
+                  Weighted aggregate column across the selected platforms.
+                </div>
+                <DropdownMenuCheckboxItem
+                  checked={!blendedHidden}
+                  onCheckedChange={toggleBlended}
+                  onSelect={(e) => e.preventDefault()}
+                >
+                  Blended total
                 </DropdownMenuCheckboxItem>
 
                 {hiddenColumnsCount > 0 && (

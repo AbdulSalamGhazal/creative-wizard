@@ -260,6 +260,11 @@ export const summaryFiltersSchema = z.object({
     .string()
     .optional()
     .transform((s) => s === "1" || s === "true"),
+  // Blended Total column group is shown by default; `hideBlended=1` opts out.
+  hideBlended: z
+    .string()
+    .optional()
+    .transform((s) => s === "1" || s === "true"),
   // Numeric metric filters applied to the blended total.
   metricFilters: z
     .string()

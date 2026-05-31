@@ -34,6 +34,8 @@ interface Props {
   rules: RatingRules;
   /** Whether to render the Rate column (first in each group). Default true. */
   showRate?: boolean;
+  /** Show the Blended Total column group. Defaults to "2+ platforms" when undefined. */
+  showBlended?: boolean;
 }
 
 /** Text identity columns the user can drag to resize. Numeric columns stay auto-sized. */
@@ -136,8 +138,10 @@ export function SummaryTable({
   hiddenMetrics,
   rules,
   showRate = true,
+  showBlended,
 }: Props) {
-  const showTotal = platforms.length >= 2;
+  const showTotal =
+    showBlended === undefined ? platforms.length >= 2 : showBlended;
   const visibleMetrics = METRIC_COLUMNS.filter(
     (m) => !hiddenMetrics?.has(m.key as MetricColumnKey),
   );

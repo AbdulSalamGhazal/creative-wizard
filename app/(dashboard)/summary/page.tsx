@@ -150,6 +150,7 @@ export default async function SummaryPage({
         hiddenMetrics={new Set(parsed.hideMetrics)}
         rules={ratingRulesConfig}
         showRate={!parsed.hideRate}
+        showBlended={!parsed.hideBlended}
       />
     </div>
   );
