@@ -88,6 +88,7 @@ const METRIC_COLUMNS: Array<{
   { key: "roas", label: "ROAS", format: (v) => (v === null ? "—" : `${ratio(v)}×`) },
   { key: "hook_rate", label: "Hook", format: (v) => pct(v) },
   { key: "hold_rate", label: "Hold", format: (v) => pct(v) },
+  { key: "complete_rate", label: "Complete", format: (v) => pct(v) },
   { key: "landing_page_views", label: "LP views", format: (v) => (v && v > 0 ? int(v) : "—") },
   { key: "voc", label: "VOC", format: (v) => pct(v) },
 ];
@@ -117,6 +118,8 @@ function pickMetric(block: PlatformMetricBlock, key: string): number | null {
       return block.hookRate;
     case "hold_rate":
       return block.holdRate;
+    case "complete_rate":
+      return block.completeRate;
     case "landing_page_views":
       return block.landingPageViews;
     case "voc":
@@ -783,6 +786,7 @@ function aggregateBlocks(
     roas: hasConvVal && spend > 0 ? conversionValue / spend : null,
     hookRate: null,
     holdRate: null,
+    completeRate: null,
     landingPageViews,
     voc: clicks > 0 ? landingPageViews / clicks : null,
   };

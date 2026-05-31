@@ -26,6 +26,7 @@ import {
   cpa,
   cpc,
   cpm,
+  completeRate,
   hookRate,
   holdRate,
   platformMetrics,
@@ -91,6 +92,7 @@ export interface PlatformMetricBlock {
   roas: number | null;
   hookRate: number | null;
   holdRate: number | null;
+  completeRate: number | null;
   landingPageViews: number;
   voc: number | null;
 }
@@ -145,6 +147,7 @@ const METRIC_KEYS = [
   "roas",
   "hook_rate",
   "hold_rate",
+  "complete_rate",
   "landing_page_views",
   "voc",
 ] as const;
@@ -230,6 +233,8 @@ function orderBySql(
         return hookRate;
       case "hold_rate":
         return holdRate;
+      case "complete_rate":
+        return completeRate;
       case "landing_page_views":
         return sumLandingPageViews;
       case "voc":
@@ -261,6 +266,8 @@ function orderBySql(
       return platformMeta.hookRate;
     case "hold_rate":
       return platformMeta.holdRate;
+    case "complete_rate":
+      return platformMeta.completeRate;
     case "landing_page_views":
       return platformMeta.landingPageViews;
     case "voc":
@@ -316,6 +323,9 @@ function comparable(
       break;
     case "hold_rate":
       raw = block.holdRate;
+      break;
+    case "complete_rate":
+      raw = block.completeRate;
       break;
     case "landing_page_views":
       raw = block.landingPageViews;
@@ -474,6 +484,7 @@ export async function listCreativeSummary(
     totalRoas: roas,
     totalHookRate: hookRate,
     totalHoldRate: holdRate,
+    totalCompleteRate: completeRate,
     totalLandingPageViews: sumLandingPageViews,
     totalVoc: voc,
   };
@@ -491,6 +502,7 @@ export async function listCreativeSummary(
     select[`${pf}_roas`] = m.roas;
     select[`${pf}_hookRate`] = m.hookRate;
     select[`${pf}_holdRate`] = m.holdRate;
+    select[`${pf}_completeRate`] = m.completeRate;
     select[`${pf}_landingPageViews`] = m.landingPageViews;
     select[`${pf}_voc`] = m.voc;
   }
@@ -568,6 +580,7 @@ export async function listCreativeSummary(
         roas: numOrNull(r[`${pf}_roas`]),
         hookRate: numOrNull(r[`${pf}_hookRate`]),
         holdRate: numOrNull(r[`${pf}_holdRate`]),
+        completeRate: numOrNull(r[`${pf}_completeRate`]),
         landingPageViews: num(r[`${pf}_landingPageViews`]),
         voc: numOrNull(r[`${pf}_voc`]),
       };
@@ -596,6 +609,7 @@ export async function listCreativeSummary(
         roas: numOrNull(r.totalRoas),
         hookRate: numOrNull(r.totalHookRate),
         holdRate: numOrNull(r.totalHoldRate),
+        completeRate: numOrNull(r.totalCompleteRate),
         landingPageViews: num(r.totalLandingPageViews),
         voc: numOrNull(r.totalVoc),
       },

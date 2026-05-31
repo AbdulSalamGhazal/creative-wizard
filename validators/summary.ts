@@ -64,6 +64,7 @@ export const METRIC_COLUMN_KEYS = [
   "roas",
   "hook_rate",
   "hold_rate",
+  "complete_rate",
   "landing_page_views",
   "voc",
 ] as const;
@@ -90,6 +91,7 @@ export const METRIC_META: Record<
   roas: { label: "ROAS", unit: "x" },
   hook_rate: { label: "Hook rate", unit: "pct" },
   hold_rate: { label: "Hold rate", unit: "pct" },
+  complete_rate: { label: "Complete rate", unit: "pct" },
   landing_page_views: { label: "Landing page views", unit: "int" },
   voc: { label: "VOC", unit: "pct" },
 };

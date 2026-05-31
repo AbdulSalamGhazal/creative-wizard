@@ -99,6 +99,7 @@ const METRIC_LABELS: Record<MetricColumnKey, string> = {
   roas: "ROAS",
   hook_rate: "Hook rate",
   hold_rate: "Hold rate",
+  complete_rate: "Complete rate",
   landing_page_views: "Landing page views",
   voc: "VOC",
 };
