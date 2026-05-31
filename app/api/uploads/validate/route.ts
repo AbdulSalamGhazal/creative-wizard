@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         error:
-          "Pick a platform before validating (meta / tiktok / snapchat / google).",
+          "Pick a platform before validating (instagram / facebook / tiktok / snapchat / google).",
       },
       { status: 400 },
     );

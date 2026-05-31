@@ -43,7 +43,8 @@ const DATE_PRESETS: DatePreset[] = [
 ];
 
 const PLATFORMS = [
-  { value: "meta", label: "Meta" },
+  { value: "instagram", label: "Instagram" },
+  { value: "facebook", label: "Facebook" },
   { value: "tiktok", label: "TikTok" },
   { value: "snapchat", label: "Snapchat" },
   { value: "google", label: "Google" },
