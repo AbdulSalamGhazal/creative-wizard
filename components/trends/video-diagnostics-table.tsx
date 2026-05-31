@@ -11,7 +11,7 @@ const STATUS_CLASS: Record<VideoDiagnosticRow["status"], string> = {
 };
 
 /**
- * Per-video hook rate (3s views / impressions) and hold rate (15s / 3s).
+ * Per-video hook rate (2s views / impressions) and hold rate (50% / 2s).
  * A value below the portfolio median is tinted amber as a soft "watch this"
  * signal — these early-funnel rates are what decide whether a video lives.
  */

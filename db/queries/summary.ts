@@ -186,8 +186,9 @@ function resolveSort(
  * caller has already validated the key against the selected platforms.
  *
  * NB: sorting on a derived metric (ctr, cpa, etc.) of an empty platform
- * column returns NULL, which Postgres puts last by default for ORDER BY DESC
- * and first for ASC — fine for our purposes.
+ * column returns NULL. The caller wraps the returned metric expression in
+ * COALESCE(expr, 0) so NULLs sort at the 0 position (the "null sorts as 0"
+ * rule); this function just returns the raw expression.
  */
 function orderBySql(
   key: string,
@@ -511,9 +512,18 @@ export async function listCreativeSummary(
   // ORDER BY. Detect it, give SQL a neutral stable order, and re-sort the
   // materialized rows below.
   const isRateSort = resolved.key.endsWith(".rate");
-  const orderExpr = isRateSort
+  const isIdentitySort = IDENTITY_SORT_KEYS.has(resolved.key);
+  const baseOrderExpr = isRateSort
     ? sumSpend
     : orderBySql(resolved.key, selectedPlatforms, metricsByPlatform);
+  // Null metrics must sort as 0 globally (a creative with no clicks has cpc =
+  // "—"; it should sort at the 0 position, not jump to the very top/bottom that
+  // Postgres' default NULLS FIRST/LAST would give). Identity (text) columns and
+  // the rate-sort base order are left untouched.
+  const orderExpr =
+    isRateSort || isIdentitySort
+      ? baseOrderExpr
+      : sql`coalesce(${baseOrderExpr}, 0)`;
 
   const rawRows = await db
     .select(select)

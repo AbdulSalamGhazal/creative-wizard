@@ -104,15 +104,14 @@ export type MetricFilterOp = (typeof METRIC_FILTER_OPS)[number];
  * Which column a numeric filter targets: the blended total across the
  * selected platforms, or one specific platform's column. `total` answers
  * "this creative's overall ROAS ≥ 2"; a platform scope answers "this
- * creative's Meta ROAS ≥ 2" — matching whichever column you're reading.
+ * creative's Instagram ROAS ≥ 2" — matching whichever column you're reading.
+ *
+ * Derived from platformEnum so it can never drift from the live platform set.
+ * (The v2 meta→instagram/facebook split previously left this list stale with a
+ * dead "meta" scope and no instagram/facebook, which silently dropped
+ * per-platform metric/rate filters on those two platforms.)
  */
-export const METRIC_FILTER_SCOPES = [
-  "total",
-  "meta",
-  "tiktok",
-  "snapchat",
-  "google",
-] as const;
+export const METRIC_FILTER_SCOPES = ["total", ...platformEnum] as const;
 export type MetricFilterScope = (typeof METRIC_FILTER_SCOPES)[number];
 
 export interface MetricFilterCondition {

@@ -78,7 +78,7 @@ export default async function TrendsLandingPage() {
           href="/trends/video"
           icon={Video}
           title="Video diagnostics"
-          description="Hook rate (3s) and hold rate (15s) — the early signals that decide whether a video lives or dies."
+          description="Hook rate (2s) and hold rate (50% view) — the early signals that decide whether a video lives or dies."
           available
         />
       </div>

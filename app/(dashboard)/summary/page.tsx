@@ -126,7 +126,7 @@ export default async function SummaryPage({
         <div>
           <h1 className="font-display text-4xl tracking-tight">Summary</h1>
           <p className="text-ink-2 text-sm mt-1">
-            Every creative, every metric, side-by-side across up to 3 platforms.{" "}
+            Every creative, every metric, side-by-side across platforms.{" "}
             <span className="text-ink-3">
               {rows.length.toLocaleString()} creative{rows.length === 1 ? "" : "s"}
               {" · "}

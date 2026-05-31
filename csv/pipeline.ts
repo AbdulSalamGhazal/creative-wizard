@@ -170,7 +170,15 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
   // ---------- Stages 3 + 4 ----------
   const collected: ValidationError[] = [];
   const accepted: ParsedRow[] = [];
-  /** key = `${creative}${date}` — grouped by (creative, date) — used only to de-duplicate the Stage-5 "already imported" advisory below. Within-file duplicates are allowed. */
+  /**
+   * Dedup index keyed on (creative, campaign, date) — platform is constant
+   * per file. Drives Stage 4 (intra-file duplicate -> E050) and Stage 5
+   * (already imported in DB -> E051). The key joins the three fields with a
+   * U+0001 (SOH) control char that cannot appear in a CSV cell; the loops below
+   * split("\u0001") to recover them. NOTE: that separator is an INVISIBLE
+   * control character in the key/split lines below (it will not render in most
+   * editors or diff/read tools) - do not "fix" an apparent missing delimiter.
+   */
   const seenKeys = new Map<string, number[]>();
 
   for (let i = 0; i < parsed.rows.length; i++) {
@@ -242,6 +250,21 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
           row: rowNumber,
           value: rawDate,
           field: "date",
+        });
+      }
+    }
+
+    // E042 - campaign_name and adset_name are required (both feed the combined
+    // "Campaign ➤ Adset" value, the dedup key, and the unique index). A blank
+    // on either side must fail the row, not silently store a half/empty value.
+    for (const reqField of ["campaign_name", "adset_name"] as const) {
+      if ((allCells[reqField] ?? "") === "") {
+        errorsForRow.push({
+          code: "E042",
+          severity: "ERROR",
+          message: `Row ${rowNumber}: required field \`'${reqField}'\` is missing.`,
+          row: rowNumber,
+          field: reqField,
         });
       }
     }

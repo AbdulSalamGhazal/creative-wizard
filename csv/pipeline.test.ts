@@ -280,8 +280,12 @@ describe("CSV pipeline — happy path", () => {
   });
 
   it("skips a subtotal row with empty creative and date", async () => {
+    // A real Meta-export grand-total/subtotal row leaves the label columns
+    // (Ad name, Campaign, Ad set, Day) blank and only fills the metric totals.
+    // metaSkipRow drops it on empty creative + date, so it never reaches the
+    // required-field checks. (15 columns: 4 blank labels + 11 metrics.)
     const res = await run(
-      `${META_HEADER}\n${row({})}\n,,500,5000,250,0,0,0,0\n`,
+      `${META_HEADER}\n${row({})}\n,,,,500,5000,250,0,0,0,0,0,0,0,0\n`,
     );
     expect(res.ok).toBe(true);
     if (res.ok) expect(res.rows).toHaveLength(1);

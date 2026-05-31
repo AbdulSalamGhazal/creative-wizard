@@ -72,7 +72,7 @@ export default async function TrendsVideoPage({
           </Link>
           <h1 className="font-display text-4xl tracking-tight">Video diagnostics</h1>
           <p className="text-ink-2 text-sm mt-1">
-            Hook rate (3s views ÷ impressions) and hold rate (15s ÷ 3s) — the
+            Hook rate (2s views ÷ impressions) and hold rate (50% ÷ 2s) — the
             early signals that decide whether a video lives. Rates below the
             portfolio median are flagged amber.
           </p>
