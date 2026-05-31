@@ -109,10 +109,11 @@ export async function POST(request: NextRequest) {
   // validate and commit. Names that vanished → 422 with a clear pointer.
   const names = [...new Set(payload.rows.map((r) => r.creativeName))];
   const found = await db
-    .select({ id: creatives.id, name: creatives.name })
+    .select({ id: creatives.id, name: creatives.name, type: creatives.type })
     .from(creatives)
     .where(inArray(creatives.name, names));
   const idByName = new Map(found.map((c) => [c.name, c.id]));
+  const typeByName = new Map(found.map((c) => [c.name, c.type]));
   const missing = names.filter((n) => !idByName.has(n));
   if (missing.length > 0) {
     return NextResponse.json(
@@ -145,26 +146,32 @@ export async function POST(request: NextRequest) {
 
     if (!batch) throw new Error("Failed to create upload batch");
 
-    const inserts = payload.rows.map((r) => ({
-      creativeId: idByName.get(r.creativeName)!,
-      platform,
-      campaignName: r.campaignName,
-      date: r.date,
-      spend: r.spend.toString(),
-      impressions: r.impressions,
-      clicks: r.clicks,
-      conversions: r.conversions,
-      conversionValue:
-        r.conversionValue === null ? null : r.conversionValue.toString(),
-      landingPageViews: r.landingPageViews,
-      videoViews2s: r.videoViews2s,
-      videoViews25: r.videoViews25,
-      videoViews50: r.videoViews50,
-      videoViews75: r.videoViews75,
-      videoViews100: r.videoViews100,
-      rawPayload: r.rawPayload,
-      uploadBatchId: batch.id,
-    }));
+    const inserts = payload.rows.map((r) => {
+      // Video-funnel metrics only apply to video creatives. Store NULL for
+      // image/slides so they're excluded from hook/hold/complete rates (the
+      // metrics filter on `video_views_2s IS NOT NULL`).
+      const isVideo = typeByName.get(r.creativeName) === "video";
+      return {
+        creativeId: idByName.get(r.creativeName)!,
+        platform,
+        campaignName: r.campaignName,
+        date: r.date,
+        spend: r.spend.toString(),
+        impressions: r.impressions,
+        clicks: r.clicks,
+        conversions: r.conversions,
+        conversionValue:
+          r.conversionValue === null ? null : r.conversionValue.toString(),
+        landingPageViews: r.landingPageViews,
+        videoViews2s: isVideo ? r.videoViews2s : null,
+        videoViews25: isVideo ? r.videoViews25 : null,
+        videoViews50: isVideo ? r.videoViews50 : null,
+        videoViews75: isVideo ? r.videoViews75 : null,
+        videoViews100: isVideo ? r.videoViews100 : null,
+        rawPayload: r.rawPayload,
+        uploadBatchId: batch.id,
+      };
+    });
 
     let inserted = 0;
     for (let i = 0; i < inserts.length; i += CHUNK_SIZE) {
