@@ -178,6 +178,23 @@ export function SummaryTable({
     }
   }, []);
 
+  // User-defined platform column order (persisted to localStorage). Platforms
+  // not yet in the saved order (new selections) append at the end. Kept above
+  // any early return so the Rules of Hooks hold (hooks run every render).
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(PLATFORM_ORDER_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw) as unknown;
+        if (Array.isArray(parsed)) {
+          setPlatformOrder(parsed.filter((x): x is string => typeof x === "string"));
+        }
+      }
+    } catch {
+      /* ignore malformed value */
+    }
+  }, []);
+
   const startResize = useCallback(
     (key: string, e: React.MouseEvent) => {
       e.preventDefault();
@@ -272,22 +289,6 @@ export function SummaryTable({
   const identityCols = ALL_IDENTITY_COLS.filter(
     (c) => !c.hideKey || !hiddenIdentity?.has(c.hideKey),
   );
-
-  // User-defined platform column order (persisted to localStorage). Platforms
-  // not yet in the saved order (new selections) append at the end.
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(PLATFORM_ORDER_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw) as unknown;
-        if (Array.isArray(parsed)) {
-          setPlatformOrder(parsed.filter((x): x is string => typeof x === "string"));
-        }
-      }
-    } catch {
-      /* ignore malformed value */
-    }
-  }, []);
 
   // Reorderable column groups: each selected platform PLUS (when shown) the
   // blended "total" group. The ◀▶ controls move any of them — total included.
