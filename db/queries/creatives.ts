@@ -17,6 +17,7 @@ import {
   performanceRecords,
   products,
   tags,
+  platformEnum,
   type creativeStatusEnum,
   type creativeTypeEnum,
 } from "@/db/schema";
@@ -24,12 +25,15 @@ import type { CreativeSort } from "@/validators/creative";
 
 type CreativeType = (typeof creativeTypeEnum)[number];
 type CreativeStatus = (typeof creativeStatusEnum)[number];
+type Platform = (typeof platformEnum)[number];
 
 export interface CreativeListFilters {
   q?: string;
   productIds?: string[];
   types?: CreativeType[];
   statuses?: CreativeStatus[];
+  /** Keep only creatives with ≥1 performance record on these platforms. */
+  platforms?: Platform[];
   tags?: string[];
   sort: CreativeSort;
   limit?: number;
@@ -142,6 +146,15 @@ export async function listCreatives(
       sql`EXISTS (SELECT 1 FROM ${creativeTags} ct
                   WHERE ct.creative_id = ${creatives.id}
                     AND ct.tag IN ${filters.tags})`,
+    );
+  }
+  if (filters.platforms && filters.platforms.length > 0) {
+    // Creatives that ran on any of the selected platforms. EXISTS (not a JOIN)
+    // so a creative with rows on two platforms isn't counted twice / fanned out.
+    conditions.push(
+      sql`EXISTS (SELECT 1 FROM ${performanceRecords} pr
+                  WHERE pr.creative_id = ${creatives.id}
+                    AND pr.platform IN ${filters.platforms})`,
     );
   }
 

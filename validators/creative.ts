@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { creativeStatusEnum, creativeTypeEnum } from "@/db/schema";
+import { creativeStatusEnum, creativeTypeEnum, platformEnum } from "@/db/schema";
 
 // Initial sketch; see docs/prd.md §5.1.
 // The creative attribute set is expected to evolve during development.
@@ -69,6 +69,8 @@ export const creativeListFiltersSchema = z.object({
   productIds: csvString(),
   types: csvEnum(creativeTypeEnum),
   statuses: csvEnum(creativeStatusEnum),
+  // Keep only creatives with performance data on the selected platform(s).
+  platforms: csvEnum(platformEnum),
   tags: csvString(),
   sort: z.enum(creativeSortValues).catch("launched-desc"),
   // Table is the default view; "grid" is the opt-in (carried as ?view=grid).

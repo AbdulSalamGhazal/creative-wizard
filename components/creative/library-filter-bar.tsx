@@ -5,6 +5,7 @@ import {
   ChevronDown,
   CircleDot,
   LayoutGrid,
+  MonitorSmartphone,
   Package,
   Search,
   Shapes,
@@ -12,6 +13,7 @@ import {
   Tag,
   X,
 } from "lucide-react";
+import { ALL_PLATFORMS, PLATFORM_LABEL } from "@/lib/palette";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import {
@@ -48,6 +50,11 @@ const STATUSES = [
   { value: "draft", label: "Draft" },
   { value: "archived", label: "Archived" },
 ] as const;
+
+const PLATFORMS = ALL_PLATFORMS.map((p) => ({
+  value: p,
+  label: PLATFORM_LABEL[p],
+}));
 
 const SORT_LABEL: Record<CreativeSort, string> = {
   "launched-desc": "Recently launched",
@@ -89,6 +96,7 @@ export function LibraryFilterBar({ products, tags }: Props) {
   const productIds = csvParam(searchParams.get("productIds"));
   const types = csvParam(searchParams.get("types"));
   const statuses = csvParam(searchParams.get("statuses"));
+  const platforms = csvParam(searchParams.get("platforms"));
   const selectedTags = csvParam(searchParams.get("tags"));
   const sortParam = (searchParams.get("sort") ?? "launched-desc") as CreativeSort;
   const sort = creativeSortValues.includes(sortParam) ? sortParam : "launched-desc";
@@ -153,6 +161,7 @@ export function LibraryFilterBar({ products, tags }: Props) {
     productIds.length > 0 ||
     types.length > 0 ||
     statuses.length > 0 ||
+    platforms.length > 0 ||
     selectedTags.length > 0;
 
   const clearAll = () =>
@@ -161,6 +170,7 @@ export function LibraryFilterBar({ products, tags }: Props) {
       next.delete("productIds");
       next.delete("types");
       next.delete("statuses");
+      next.delete("platforms");
       next.delete("tags");
     });
 
@@ -274,6 +284,38 @@ export function LibraryFilterBar({ products, tags }: Props) {
                   onCheckedChange={() => toggleMulti("statuses", s.value, statuses)}
                 >
                   {s.label}
+                </DropdownMenuCheckboxItem>
+              ))}
+            </DropdownMenuContent>
+          )}
+        </FilterPill>
+
+        {/* Platform */}
+        <FilterPill
+          icon={MonitorSmartphone}
+          label="Platforms"
+          value={
+            platforms.length === 0
+              ? "All"
+              : platforms.length === 1
+                ? (PLATFORMS.find((p) => p.value === platforms[0])?.label ?? "1")
+                : `${platforms.length} selected`
+          }
+          active={platforms.length > 0}
+        >
+          {() => (
+            <DropdownMenuContent align="start" className="w-44">
+              <DropdownMenuLabel>Platform</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {PLATFORMS.map((p) => (
+                <DropdownMenuCheckboxItem
+                  key={p.value}
+                  checked={platforms.includes(p.value)}
+                  onCheckedChange={() =>
+                    toggleMulti("platforms", p.value, platforms)
+                  }
+                >
+                  {p.label}
                 </DropdownMenuCheckboxItem>
               ))}
             </DropdownMenuContent>
