@@ -1,33 +1,47 @@
 /**
  * TikTok Ads CSV adapter.
- * **Placeholder schema** — to be tuned from a real export. See validation-spec §9.2.
+ * **Placeholder headers** — admins can re-map them in Configuration → CSV mapping.
  */
-import type { PlatformAdapter } from "@/csv/platforms/types";
+import type { InternalField, PlatformAdapter } from "@/csv/platforms/types";
+
+const REQUIRED: InternalField[] = [
+  "creative_name",
+  "campaign_name",
+  "adset_name",
+  "date",
+  "spend",
+  "impressions",
+  "clicks",
+  "conversions",
+  "conversion_value",
+  "landing_page_views",
+  "video_views_2s",
+  "video_views_25",
+  "video_views_50",
+  "video_views_75",
+  "video_views_100",
+];
 
 export const tiktokAdapter: PlatformAdapter = {
   platform: "tiktok",
   headerMap: {
     creative_name: ["Ad name", "Creative name", "Ad"],
+    campaign_name: ["Campaign name", "Campaign"],
+    adset_name: ["Ad group name", "Adgroup name", "Ad Group"],
     date: ["Date", "By day"],
     spend: ["Cost (USD)", "Spend", "Cost"],
     impressions: ["Impressions", "Impression"],
-    clicks: ["Clicks", "CTR (link click)"],
+    clicks: ["Clicks", "Clicks (destination)"],
     conversions: ["Conversions", "Total complete payment"],
     conversion_value: ["Total complete payment value", "Conversion value"],
-    video_views_3s: ["3-second video views"],
-    video_views_15s: ["6-second video views", "Video plays at 100%"],
+    landing_page_views: ["Landing page views", "Page views"],
+    video_views_2s: ["2-second video views", "Video views at 2s"],
+    video_views_25: ["Video views at 25%", "25% video views"],
+    video_views_50: ["Video views at 50%", "50% video views"],
+    video_views_75: ["Video views at 75%", "75% video views"],
+    video_views_100: ["Video views at 100%", "100% video views"],
   },
-  requiredFields: [
-    "creative_name",
-    "date",
-    "spend",
-    "impressions",
-    "clicks",
-    "conversions",
-    "conversion_value",
-    "video_views_3s",
-    "video_views_15s",
-  ],
+  requiredFields: REQUIRED,
   acceptedDateFormats: ["YYYY-MM-DD", "DD/MM/YYYY", "MM/DD/YYYY"],
   skipRow: (row) =>
     (row.creative_name ?? "").trim() === "" && (row.date ?? "").trim() === "",

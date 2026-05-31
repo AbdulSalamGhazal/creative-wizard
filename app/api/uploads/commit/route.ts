@@ -125,7 +125,12 @@ export async function POST(request: NextRequest) {
   }
 
   // Transactional commit.
-  const platform = session.platform as "meta" | "tiktok" | "snapchat" | "google";
+  const platform = session.platform as
+    | "instagram"
+    | "facebook"
+    | "tiktok"
+    | "snapchat"
+    | "google";
 
   const result = await db.transaction(async (tx) => {
     const [batch] = await tx
@@ -143,6 +148,7 @@ export async function POST(request: NextRequest) {
     const inserts = payload.rows.map((r) => ({
       creativeId: idByName.get(r.creativeName)!,
       platform,
+      campaignName: r.campaignName,
       date: r.date,
       spend: r.spend.toString(),
       impressions: r.impressions,
@@ -150,8 +156,12 @@ export async function POST(request: NextRequest) {
       conversions: r.conversions,
       conversionValue:
         r.conversionValue === null ? null : r.conversionValue.toString(),
-      videoViews3s: r.videoViews3s,
-      videoViews15s: r.videoViews15s,
+      landingPageViews: r.landingPageViews,
+      videoViews2s: r.videoViews2s,
+      videoViews25: r.videoViews25,
+      videoViews50: r.videoViews50,
+      videoViews75: r.videoViews75,
+      videoViews100: r.videoViews100,
       rawPayload: r.rawPayload,
       uploadBatchId: batch.id,
     }));

@@ -8,19 +8,25 @@ import { ALL_PLATFORMS, PLATFORM_COLOR, PLATFORM_LABEL } from "@/lib/palette";
 import { int } from "@/lib/format";
 import type { InternalField } from "@/csv/platforms/types";
 
+// Every mapped column is required now (no optional fields).
 const REQUIRED_FIELDS: InternalField[] = [
   "creative_name",
+  "campaign_name",
+  "adset_name",
   "date",
   "spend",
   "impressions",
   "clicks",
-];
-const OPTIONAL_FIELDS: InternalField[] = [
   "conversions",
   "conversion_value",
-  "video_views_3s",
-  "video_views_15s",
+  "landing_page_views",
+  "video_views_2s",
+  "video_views_25",
+  "video_views_50",
+  "video_views_75",
+  "video_views_100",
 ];
+const OPTIONAL_FIELDS: InternalField[] = [];
 const ALL_FIELDS = [...REQUIRED_FIELDS, ...OPTIONAL_FIELDS];
 
 /**

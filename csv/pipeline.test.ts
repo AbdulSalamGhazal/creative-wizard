@@ -4,34 +4,46 @@ import { runPipeline } from "@/csv/pipeline";
 const REGISTERED = new Set(["URJ_VID_001", "URJ_VID_002", "URJ_IMG_010"]);
 
 /**
- * Every adapter requires its full nine-column header set. The test header
- * mirrors the meta adapter's defaults. Rows below it must therefore also
- * have nine values (use 0 for "nothing to report on this day").
+ * Every adapter requires its full column set. The test header mirrors the
+ * Instagram/Meta adapter's defaults; rows below must have the same number of
+ * values in the same order (use 0 for "nothing to report on this day").
  */
 const META_HEADER =
-  "Ad name,Day,Amount spent (USD),Impressions,Link clicks,Results,Purchase value,3-second video plays,ThruPlays";
+  "Ad name,Campaign name,Ad set name,Day,Amount spent (USD),Impressions,Link clicks,Results,Purchase value,Landing page views,2-second continuous video plays,Video plays at 25%,Video plays at 50%,Video plays at 75%,Video plays at 100%";
 
 const row = (fields: {
   name?: string;
+  campaign?: string;
+  adset?: string;
   date?: string;
   spend?: string;
   imps?: string;
   clicks?: string;
   conv?: string;
   convVal?: string;
-  v3s?: string;
-  v15s?: string;
+  lpv?: string;
+  v2s?: string;
+  v25?: string;
+  v50?: string;
+  v75?: string;
+  v100?: string;
 }) =>
   [
     fields.name ?? "URJ_VID_001",
+    fields.campaign ?? "Spring Launch",
+    fields.adset ?? "Broad",
     fields.date ?? "2026-05-01",
     fields.spend ?? "10",
     fields.imps ?? "100",
     fields.clicks ?? "5",
     fields.conv ?? "0",
     fields.convVal ?? "0",
-    fields.v3s ?? "0",
-    fields.v15s ?? "0",
+    fields.lpv ?? "0",
+    fields.v2s ?? "0",
+    fields.v25 ?? "0",
+    fields.v50 ?? "0",
+    fields.v75 ?? "0",
+    fields.v100 ?? "0",
   ].join(",");
 
 async function run(
@@ -46,7 +58,7 @@ async function run(
 ) {
   return runPipeline({
     content: csv,
-    platform: "meta",
+    platform: "instagram",
     registeredNames: REGISTERED,
     findExistingBatch: opts.findExistingBatch,
   });
@@ -191,11 +203,11 @@ describe("CSV pipeline — Stage 3 (row content)", () => {
   });
 
   it("treats blank numeric cells as 0 (column required, cell tolerant)", async () => {
-    const res = await run(`${META_HEADER}\n${row({ conv: "", v15s: "" })}\n`);
+    const res = await run(`${META_HEADER}\n${row({ conv: "", v100: "" })}\n`);
     expect(res.ok).toBe(true);
     if (res.ok) {
       expect(res.rows[0]?.conversions).toBe(0);
-      expect(res.rows[0]?.videoViews15s).toBe(0);
+      expect(res.rows[0]?.videoViews100).toBe(0);
     }
   });
 });

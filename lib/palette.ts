@@ -1,29 +1,37 @@
 /**
  * Hex mirrors of the platform colors defined in app/globals.css.
  * Recharts and other DOM-renderers need literal color values, not CSS vars.
- * Keep these in sync with `--meta`, `--tiktok`, `--snapchat`, `--google`.
+ * Keep these in sync with `--instagram`, `--facebook`, `--tiktok`,
+ * `--snapchat`, `--google`.
+ *
+ * Meta was split into Instagram + Facebook — they are now two distinct
+ * platforms everywhere in the system.
  */
-export const PLATFORM_COLOR: Record<
-  "meta" | "tiktok" | "snapchat" | "google",
-  string
-> = {
-  meta: "#4f8efb",
-  tiktok: "#ff4d7a",
-  snapchat: "#ffd80b",
-  google: "#34d399",
+type PlatformKey = "instagram" | "facebook" | "tiktok" | "snapchat" | "google";
+
+export const PLATFORM_COLOR: Record<PlatformKey, string> = {
+  instagram: "#c13584", // IG purple/magenta
+  facebook: "#4f8efb", // FB blue
+  tiktok: "#ff4d7a", // pink
+  snapchat: "#ffd80b", // yellow
+  google: "#34d399", // emerald
 };
 
-export const PLATFORM_LABEL: Record<
-  "meta" | "tiktok" | "snapchat" | "google",
-  string
-> = {
-  meta: "Meta",
+export const PLATFORM_LABEL: Record<PlatformKey, string> = {
+  instagram: "Instagram",
+  facebook: "Facebook",
   tiktok: "TikTok",
   snapchat: "Snapchat",
   google: "Google",
 };
 
-export const ALL_PLATFORMS = ["meta", "tiktok", "snapchat", "google"] as const;
+export const ALL_PLATFORMS = [
+  "instagram",
+  "facebook",
+  "tiktok",
+  "snapchat",
+  "google",
+] as const;
 
 /**
  * Deterministic gradient picker for creative thumbnails without an uploaded

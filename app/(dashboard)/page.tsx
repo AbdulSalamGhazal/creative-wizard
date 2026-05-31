@@ -12,7 +12,7 @@ import { FilterStrip } from "@/components/filters/filter-strip";
 import { dashboardFiltersSchema } from "@/validators/filters";
 import { PLATFORM_LABEL } from "@/lib/palette";
 
-type Platform = "meta" | "tiktok" | "snapchat" | "google";
+type Platform = "instagram" | "facebook" | "tiktok" | "snapchat" | "google";
 
 const TRAILING_DAYS_DEFAULT = 30;
 

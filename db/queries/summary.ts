@@ -339,7 +339,7 @@ function passesMetricFilters(
   });
 }
 
-const ALL_PLATFORMS: Platform[] = ["meta", "tiktok", "snapchat", "google"];
+const ALL_PLATFORMS: Platform[] = ["instagram", "facebook", "tiktok", "snapchat", "google"];
 
 /**
  * The Summary view's single query. Returns one row per creative with every

@@ -5,7 +5,8 @@ import { PLATFORM_COLOR, PLATFORM_LABEL } from "@/lib/palette";
 import { cn } from "@/lib/utils";
 
 export const PLATFORMS = [
-  { value: "meta", label: PLATFORM_LABEL.meta },
+  { value: "instagram", label: PLATFORM_LABEL.instagram },
+  { value: "facebook", label: PLATFORM_LABEL.facebook },
   { value: "tiktok", label: PLATFORM_LABEL.tiktok },
   { value: "snapchat", label: PLATFORM_LABEL.snapchat },
   { value: "google", label: PLATFORM_LABEL.google },

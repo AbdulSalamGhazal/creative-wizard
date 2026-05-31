@@ -33,8 +33,14 @@ export interface ParsedRow {
   clicks: number;
   conversions: number | null;
   conversionValue: number | null;
-  videoViews3s: number | null;
-  videoViews15s: number | null;
+  /** Combined "Campaign Name ➤ Adset Name". */
+  campaignName: string;
+  landingPageViews: number | null;
+  videoViews2s: number | null;
+  videoViews25: number | null;
+  videoViews50: number | null;
+  videoViews75: number | null;
+  videoViews100: number | null;
   /** Raw cell values keyed by original header. Stored on the perf record. */
   rawPayload: Record<string, string>;
 }
@@ -277,8 +283,12 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
     const clicks = parseNumericCell("clicks");
     const conversions = parseNumericCell("conversions");
     const conversionValue = parseNumericCell("conversion_value");
-    const videoViews3s = parseNumericCell("video_views_3s");
-    const videoViews15s = parseNumericCell("video_views_15s");
+    const landingPageViews = parseNumericCell("landing_page_views");
+    const videoViews2s = parseNumericCell("video_views_2s");
+    const videoViews25 = parseNumericCell("video_views_25");
+    const videoViews50 = parseNumericCell("video_views_50");
+    const videoViews75 = parseNumericCell("video_views_75");
+    const videoViews100 = parseNumericCell("video_views_100");
 
     if (errorsForRow.length > 0) {
       collected.push(...errorsForRow);
@@ -295,17 +305,30 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
       rawPayload[key] = csvRow[h] ?? "";
     }
 
+    // Combine the two campaign columns into the single stored value. The UI
+    // only ever shows this as "Campaign Name".
+    const campaignName = [allCells.campaign_name, allCells.adset_name]
+      .map((s) => (s ?? "").trim())
+      .filter((s) => s.length > 0)
+      .join(" ➤ ");
+
     accepted.push({
       rowNumber,
       creativeName,
+      campaignName,
       date: canonicalDate,
       spend,
       impressions: Math.floor(impressions),
       clicks: Math.floor(clicks),
       conversions,
       conversionValue,
-      videoViews3s: videoViews3s === null ? null : Math.floor(videoViews3s),
-      videoViews15s: videoViews15s === null ? null : Math.floor(videoViews15s),
+      landingPageViews:
+        landingPageViews === null ? null : Math.floor(landingPageViews),
+      videoViews2s: videoViews2s === null ? null : Math.floor(videoViews2s),
+      videoViews25: videoViews25 === null ? null : Math.floor(videoViews25),
+      videoViews50: videoViews50 === null ? null : Math.floor(videoViews50),
+      videoViews75: videoViews75 === null ? null : Math.floor(videoViews75),
+      videoViews100: videoViews100 === null ? null : Math.floor(videoViews100),
       rawPayload,
     });
 

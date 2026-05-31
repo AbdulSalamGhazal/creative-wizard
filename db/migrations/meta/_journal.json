@@ -71,6 +71,20 @@
       "when": 1780064884198,
       "tag": "0009_clear_proemial_gods",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1780228528193,
+      "tag": "0010_zippy_morgan_stark",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1780228547208,
+      "tag": "0011_minor_guardsmen",
+      "breakpoints": true
     }
   ]
 }

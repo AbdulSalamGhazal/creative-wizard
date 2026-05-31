@@ -5,19 +5,25 @@
 
 export type InternalField =
   | "creative_name"
+  | "campaign_name"
+  | "adset_name"
   | "date"
   | "spend"
   | "impressions"
   | "clicks"
   | "conversions"
   | "conversion_value"
-  | "video_views_3s"
-  | "video_views_15s";
+  | "landing_page_views"
+  | "video_views_2s"
+  | "video_views_25"
+  | "video_views_50"
+  | "video_views_75"
+  | "video_views_100";
 
 export type DateFormat = "YYYY-MM-DD" | "MM/DD/YYYY" | "D Mon YYYY" | "DD/MM/YYYY";
 
 export interface PlatformAdapter {
-  platform: "meta" | "tiktok" | "snapchat" | "google";
+  platform: "instagram" | "facebook" | "tiktok" | "snapchat" | "google";
   /**
    * Map internal field names → candidate header strings (case-insensitive,
    * whitespace-trimmed match). The pipeline picks the first candidate that
