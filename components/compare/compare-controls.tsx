@@ -1,202 +1,211 @@
 "use client";
 
-import { useCallback, useState, useTransition } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Check, Plus, X } from "lucide-react";
+import { useTransition } from "react";
+import { ChevronDown } from "lucide-react";
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import {
-  Command,
-  CommandEmpty,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/components/ui/command";
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { DateRangePicker } from "@/components/filters/date-range-picker";
-import { COMPARE_COLORS } from "@/components/charts/compare-chart";
-import { MAX_COMPARE_CREATIVES } from "@/validators/compare";
-import { cn } from "@/lib/utils";
+import { PLATFORM_LABEL } from "@/lib/palette";
+import type { CompareDimensionRow } from "@/db/queries/performance";
+import type { CompareSide } from "@/validators/compare";
 
-interface CreativeOption {
-  id: string;
-  name: string;
-  productName: string;
-}
+type Platform = CompareDimensionRow["platform"];
 
 interface Props {
-  allCreatives: CreativeOption[];
-  selected: string[];
+  dimensions: CompareDimensionRow[];
+  sideA: CompareSide;
+  sideB: CompareSide;
   from: string | null;
   to: string | null;
 }
 
-/**
- * Compare toolbar: a searchable creative picker (type to filter by name or
- * product, click to add/remove, up to 5) with color-coded removable chips,
- * plus a date-range filter. All state lives in the URL.
- */
-export function CompareControls({ allCreatives, selected, from, to }: Props) {
+function uniq<T>(xs: T[]): T[] {
+  return [...new Set(xs)];
+}
+function toggle(arr: string[], v: string): string[] {
+  return arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v];
+}
+
+export function CompareControls({ dimensions, sideA, sideB, from, to }: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [, startTransition] = useTransition();
-  const [pickerOpen, setPickerOpen] = useState(false);
 
-  const update = useCallback(
-    (mutate: (n: URLSearchParams) => void) => {
-      const next = new URLSearchParams(searchParams.toString());
-      mutate(next);
-      for (const [k, v] of [...next.entries()]) {
-        if (!v) next.delete(k);
-      }
-      const qs = next.toString();
-      startTransition(() =>
-        router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false }),
-      );
-    },
-    [pathname, router, searchParams],
-  );
-
-  const toggleCreative = (id: string) => {
-    const set = new Set(selected);
-    if (set.has(id)) set.delete(id);
-    else if (set.size < MAX_COMPARE_CREATIVES) set.add(id);
-    else return;
-    update((n) => {
-      if (set.size === 0) n.delete("creativeIds");
-      else n.set("creativeIds", [...set].join(","));
-    });
+  const update = (mut: (p: URLSearchParams) => void) => {
+    const p = new URLSearchParams(searchParams.toString());
+    mut(p);
+    const qs = p.toString();
+    startTransition(() =>
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false }),
+    );
   };
-
-  const setRange = (f: string | null, t: string | null) => {
-    update((n) => {
-      if (f && t) {
-        n.set("from", f);
-        n.set("to", t);
-      } else {
-        n.delete("from");
-        n.delete("to");
-      }
+  const setParam = (key: string, values: string[]) =>
+    update((p) => {
+      if (values.length) p.set(key, values.join(","));
+      else p.delete(key);
     });
-  };
-
-  const atMax = selected.length >= MAX_COMPARE_CREATIVES;
-  const byId = new Map(allCreatives.map((c) => [c.id, c]));
+  const setRange = (f: string | null, t: string | null) =>
+    update((p) => {
+      if (f) p.set("from", f);
+      else p.delete("from");
+      if (t) p.set("to", t);
+      else p.delete("to");
+    });
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-center gap-2">
-        {/* Searchable creative picker */}
-        <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
-          <PopoverTrigger asChild>
-            <button
-              type="button"
-              className="inline-flex items-center gap-2 h-8 px-3 rounded-md border border-brand/50 bg-[var(--brand-soft)] text-xs text-ink hover:bg-brand/15 transition-colors"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              Add creative
-              <span className="text-ink-3">
-                {selected.length}/{MAX_COMPARE_CREATIVES}
-              </span>
-            </button>
-          </PopoverTrigger>
-          <PopoverContent align="start" className="p-0 w-80">
-            <Command
-              filter={(value, search) =>
-                value.toLowerCase().includes(search.toLowerCase()) ? 1 : 0
-              }
-            >
-              <CommandInput placeholder="Search by name or product…" />
-              <CommandList className="max-h-72">
-                <CommandEmpty>No creatives found.</CommandEmpty>
-                {allCreatives.map((c) => {
-                  const idx = selected.indexOf(c.id);
-                  const checked = idx >= 0;
-                  const disabled = atMax && !checked;
-                  return (
-                    <CommandItem
-                      key={c.id}
-                      value={`${c.name} ${c.productName}`}
-                      disabled={disabled}
-                      onSelect={() => toggleCreative(c.id)}
-                      className={cn(disabled && "opacity-40")}
-                    >
-                      <Check
-                        className={cn(
-                          "w-3.5 h-3.5 shrink-0 text-brand",
-                          checked ? "opacity-100" : "opacity-0",
-                        )}
-                      />
-                      <span className="font-mono text-[12px] truncate">
-                        {c.name}
-                      </span>
-                      <span className="ml-auto text-[11px] text-ink-3 truncate">
-                        {c.productName}
-                      </span>
-                      {checked && (
-                        <span
-                          className="w-2 h-2 rounded-sm shrink-0"
-                          style={{
-                            background: COMPARE_COLORS[idx % COMPARE_COLORS.length],
-                          }}
-                        />
-                      )}
-                    </CommandItem>
-                  );
-                })}
-              </CommandList>
-            </Command>
-          </PopoverContent>
-        </Popover>
-
-        {/* Date range */}
-        <DateRangePicker from={from} to={to} onChange={setRange} />
-
-        {selected.length > 0 && (
-          <button
-            type="button"
-            onClick={() => update((n) => n.delete("creativeIds"))}
-            className="inline-flex items-center gap-1 h-8 px-3 rounded-md border border-line text-xs text-ink-3 hover:text-ink hover:bg-surface-2 transition-colors"
-          >
-            <X className="w-3 h-3" />
-            Clear creatives
-          </button>
-        )}
+      <DateRangePicker from={from} to={to} onChange={setRange} />
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+        <SideCard
+          label="Side A"
+          accent="var(--brand)"
+          side={sideA}
+          prefix="a"
+          dimensions={dimensions}
+          setParam={setParam}
+        />
+        <SideCard
+          label="Side B"
+          accent="var(--brand-2)"
+          side={sideB}
+          prefix="b"
+          dimensions={dimensions}
+          setParam={setParam}
+        />
       </div>
+    </div>
+  );
+}
 
-      {/* Selected chips */}
-      {selected.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2">
-          {selected.map((id, i) => {
-            const c = byId.get(id);
-            if (!c) return null;
-            return (
-              <span
-                key={id}
-                className="inline-flex items-center gap-1.5 h-8 pl-2.5 pr-1.5 rounded-md border border-line bg-surface text-xs text-ink"
+function SideCard({
+  label,
+  accent,
+  side,
+  prefix,
+  dimensions,
+  setParam,
+}: {
+  label: string;
+  accent: string;
+  side: CompareSide;
+  prefix: "a" | "b";
+  dimensions: CompareDimensionRow[];
+  setParam: (key: string, values: string[]) => void;
+}) {
+  const platformOpts = uniq(dimensions.map((d) => d.platform)) as Platform[];
+
+  // Cascading: campaign options reflect the selected platforms; creative
+  // options reflect selected platforms + campaigns. Empty level = "all".
+  const campaignPool = dimensions.filter(
+    (d) => side.platforms.length === 0 || side.platforms.includes(d.platform),
+  );
+  const campaignOpts = uniq(campaignPool.map((d) => d.campaign));
+
+  const creativePool = campaignPool.filter(
+    (d) => side.campaigns.length === 0 || side.campaigns.includes(d.campaign),
+  );
+  const seen = new Set<string>();
+  const creativeOpts: { value: string; label: string }[] = [];
+  for (const d of creativePool) {
+    if (seen.has(d.creativeId)) continue;
+    seen.add(d.creativeId);
+    creativeOpts.push({ value: d.creativeId, label: d.creativeName });
+  }
+
+  return (
+    <div className="rounded-lg border border-line bg-surface p-3 space-y-2.5">
+      <div className="flex items-center gap-2">
+        <span
+          className="w-2.5 h-2.5 rounded-sm shrink-0"
+          style={{ background: accent }}
+        />
+        <h3 className="text-sm font-medium text-ink">{label}</h3>
+      </div>
+      <MultiSelect
+        label="Platform"
+        options={platformOpts.map((p) => ({
+          value: p,
+          label: PLATFORM_LABEL[p],
+        }))}
+        selected={side.platforms}
+        onToggle={(v) => setParam(`${prefix}Platforms`, toggle(side.platforms, v))}
+      />
+      <MultiSelect
+        label="Campaign"
+        options={campaignOpts.map((c) => ({ value: c, label: c }))}
+        selected={side.campaigns}
+        onToggle={(v) => setParam(`${prefix}Campaigns`, toggle(side.campaigns, v))}
+      />
+      <MultiSelect
+        label="Creative"
+        options={creativeOpts}
+        selected={side.creatives}
+        onToggle={(v) =>
+          setParam(`${prefix}Creatives`, toggle(side.creatives, v))
+        }
+      />
+    </div>
+  );
+}
+
+function MultiSelect({
+  label,
+  options,
+  selected,
+  onToggle,
+}: {
+  label: string;
+  options: { value: string; label: string }[];
+  selected: string[];
+  onToggle: (v: string) => void;
+}) {
+  const summary = selected.length === 0 ? "All" : `${selected.length} selected`;
+  return (
+    <div className="flex items-center gap-2">
+      <span className="text-[10px] uppercase tracking-[0.14em] text-ink-3 w-16 shrink-0">
+        {label}
+      </span>
+      <DropdownMenu>
+        <DropdownMenuTrigger className="flex-1 flex items-center justify-between gap-2 rounded-md border border-line bg-surface-2 px-2.5 py-1.5 text-xs hover:border-line-2 transition-colors">
+          <span className={selected.length ? "text-ink" : "text-ink-3"}>
+            {summary}
+          </span>
+          <ChevronDown className="w-3.5 h-3.5 text-ink-3 shrink-0" />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent
+          align="start"
+          className="w-72 max-h-72 overflow-y-auto"
+        >
+          <DropdownMenuLabel>
+            {label} · {options.length}
+          </DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          {options.length === 0 ? (
+            <div className="px-2 py-1.5 text-[11px] text-ink-3">
+              None available for the current selection.
+            </div>
+          ) : (
+            options.map((o) => (
+              <DropdownMenuCheckboxItem
+                key={o.value}
+                checked={selected.includes(o.value)}
+                onCheckedChange={() => onToggle(o.value)}
+                onSelect={(e) => e.preventDefault()}
               >
-                <span
-                  className="w-2 h-2 rounded-sm shrink-0"
-                  style={{ background: COMPARE_COLORS[i % COMPARE_COLORS.length] }}
-                />
-                <span className="font-mono text-[12px]">{c.name}</span>
-                <span className="text-ink-3 text-[11px]">{c.productName}</span>
-                <button
-                  type="button"
-                  onClick={() => toggleCreative(id)}
-                  className="ml-1 w-5 h-5 rounded inline-flex items-center justify-center text-ink-3 hover:bg-surface-2 hover:text-ink"
-                  aria-label={`Remove ${c.name}`}
-                >
-                  <X className="w-3 h-3" />
-                </button>
-              </span>
-            );
-          })}
-        </div>
-      )}
+                <span className="truncate">{o.label}</span>
+              </DropdownMenuCheckboxItem>
+            ))
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
   );
 }

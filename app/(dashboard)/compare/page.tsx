@@ -1,15 +1,22 @@
-import { asc, eq } from "drizzle-orm";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { db } from "@/lib/db";
-import { creatives, products } from "@/db/schema";
-import { compareSeries, compareTotals } from "@/db/queries/performance";
+import {
+  kpis,
+  compareDimensions,
+  compareSideSeries,
+  type CompareMetric,
+  type KpiFilters,
+} from "@/db/queries/performance";
 import { CompareControls } from "@/components/compare/compare-controls";
 import {
   AddMetricBlock,
   MetricBlockHeader,
 } from "@/components/compare/metric-blocks";
 import { CompareChart, COMPARE_COLORS } from "@/components/charts/compare-chart";
-import { compareFiltersSchema } from "@/validators/compare";
+import {
+  compareFiltersSchema,
+  sideIsEmpty,
+  type CompareSide,
+} from "@/validators/compare";
 import { int, pct, ratio, usd } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
@@ -19,6 +26,28 @@ function pickFirst(v: string | string[] | undefined): string | undefined {
   return Array.isArray(v) ? v[0] : v;
 }
 
+/** Map a Compare side's selections onto the shared KpiFilters shape. */
+function sideFilter(
+  side: CompareSide,
+  range: { from?: string; to?: string },
+): KpiFilters {
+  return {
+    platforms: side.platforms.length ? side.platforms : undefined,
+    campaignNames: side.campaigns.length ? side.campaigns : undefined,
+    creativeIds: side.creatives.length ? side.creatives : undefined,
+    ...range,
+  };
+}
+
+function sideSummary(side: CompareSide): string {
+  if (sideIsEmpty(side)) return "All data";
+  const parts: string[] = [];
+  if (side.platforms.length) parts.push(`${side.platforms.length} platform(s)`);
+  if (side.campaigns.length) parts.push(`${side.campaigns.length} campaign(s)`);
+  if (side.creatives.length) parts.push(`${side.creatives.length} creative(s)`);
+  return parts.join(" · ");
+}
+
 export default async function ComparePage({
   searchParams,
 }: {
@@ -26,48 +55,44 @@ export default async function ComparePage({
 }) {
   const params = await searchParams;
   const parsed = compareFiltersSchema.parse({
-    creativeIds: pickFirst(params.creativeIds),
+    aPlatforms: pickFirst(params.aPlatforms),
+    aCampaigns: pickFirst(params.aCampaigns),
+    aCreatives: pickFirst(params.aCreatives),
+    bPlatforms: pickFirst(params.bPlatforms),
+    bCampaigns: pickFirst(params.bCampaigns),
+    bCreatives: pickFirst(params.bCreatives),
     metrics: pickFirst(params.metrics),
     from: pickFirst(params.from),
     to: pickFirst(params.to),
   });
 
-  const allCreatives = await db
-    .select({
-      id: creatives.id,
-      name: creatives.name,
-      productName: products.name,
-    })
-    .from(creatives)
-    .innerJoin(products, eq(products.id, creatives.productId))
-    .orderBy(asc(creatives.name));
-
-  const validIds = parsed.creativeIds.filter((id) =>
-    allCreatives.some((c) => c.id === id),
-  );
-  const orderedCreatives = validIds
-    .map((id) => allCreatives.find((c) => c.id === id))
-    .filter((c): c is (typeof allCreatives)[number] => !!c);
-
-  const dateFilter =
+  const dimensions = await compareDimensions();
+  const range =
     parsed.from && parsed.to ? { from: parsed.from, to: parsed.to } : {};
+  const fa = sideFilter(parsed.sideA, range);
+  const fb = sideFilter(parsed.sideB, range);
 
-  // One daily series per metric block + the totals, all in parallel.
-  const [seriesByMetric, totals] = await Promise.all([
-    Promise.all(
-      parsed.metrics.map((m) =>
-        validIds.length >= 1
-          ? compareSeries({ creativeIds: validIds, metric: m, ...dateFilter })
-          : Promise.resolve([]),
-      ),
-    ),
-    validIds.length >= 1
-      ? compareTotals({ creativeIds: validIds, ...dateFilter })
-      : Promise.resolve([]),
-  ]);
+  const [aTotals, bTotals] = await Promise.all([kpis(fa), kpis(fb)]);
 
-  const totalsById = new Map(totals.map((t) => [t.creativeId, t]));
-  const hasPicks = orderedCreatives.length > 0;
+  // Per metric block, A's and B's daily series, tagged so the chart draws two
+  // lines ("A" / "B").
+  const seriesByMetric = await Promise.all(
+    parsed.metrics.map(async (m: CompareMetric) => {
+      const [a, b] = await Promise.all([
+        compareSideSeries({ ...fa, metric: m }),
+        compareSideSeries({ ...fb, metric: m }),
+      ]);
+      return [
+        ...a.map((p) => ({ creativeId: "A", date: p.date, value: p.value })),
+        ...b.map((p) => ({ creativeId: "B", date: p.date, value: p.value })),
+      ];
+    }),
+  );
+
+  const sides = [
+    { id: "A", name: "Side A" },
+    { id: "B", name: "Side B" },
+  ];
 
   return (
     <div className="space-y-6">
@@ -75,124 +100,93 @@ export default async function ComparePage({
         <div className="text-[10px] uppercase tracking-[0.18em] text-ink-3 mb-1">
           Compare
         </div>
-        <h1 className="font-display text-4xl tracking-tight">
-          Side-by-side comparison
-        </h1>
+        <h1 className="font-display text-4xl tracking-tight">A vs B comparison</h1>
         <p className="text-ink-2 text-sm mt-1">
-          Pick up to five creatives, then stack a comparison block per metric.
-          Blended figures are true weighted averages, not averages of ratios.
+          Define two sides by Platform → Campaign → Creative (each level
+          optional = “all”), then stack a chart per metric. Blended figures are
+          true weighted averages.
         </p>
       </div>
 
       <CompareControls
-        allCreatives={allCreatives}
-        selected={validIds}
+        dimensions={dimensions}
+        sideA={parsed.sideA}
+        sideB={parsed.sideB}
         from={parsed.from ?? null}
         to={parsed.to ?? null}
       />
 
-      {!hasPicks ? (
-        <div className="rounded-lg border border-dashed border-line bg-surface px-6 py-16 text-center">
-          <p className="text-ink-2 text-sm">
-            Pick at least one creative to start comparing.
-          </p>
-          <p className="text-ink-3 text-xs mt-1">
-            Use “Add creative” above — search by name or product.
-          </p>
-        </div>
-      ) : (
-        <>
-          {/* One block per metric */}
-          {parsed.metrics.map((metric, i) => (
-            <Card key={metric} className="bg-surface border-line">
-              <CardHeader>
-                <MetricBlockHeader metric={metric} metrics={parsed.metrics} />
-              </CardHeader>
-              <CardContent>
-                <CompareChart
-                  rows={seriesByMetric[i] ?? []}
-                  creatives={orderedCreatives}
-                  metric={metric}
-                />
-              </CardContent>
-            </Card>
-          ))}
+      {/* One chart block per metric */}
+      {parsed.metrics.map((metric, i) => (
+        <Card key={metric} className="bg-surface border-line">
+          <CardHeader>
+            <MetricBlockHeader metric={metric} metrics={parsed.metrics} />
+          </CardHeader>
+          <CardContent>
+            <CompareChart
+              rows={seriesByMetric[i] ?? []}
+              creatives={sides}
+              metric={metric}
+            />
+          </CardContent>
+        </Card>
+      ))}
 
-          <AddMetricBlock metrics={parsed.metrics} />
+      <AddMetricBlock metrics={parsed.metrics} />
 
-          {/* Totals across the picked creatives */}
-          <Card className="bg-surface border-line">
-            <CardHeader>
-              <h2 className="text-sm font-medium text-ink">
-                {parsed.from && parsed.to ? "Totals in window" : "All-time totals"}
-              </h2>
-            </CardHeader>
-            <CardContent>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm num">
-                  <thead>
-                    <tr className="text-left text-[11px] uppercase tracking-[0.14em] text-ink-3">
-                      <th className="font-medium px-2 py-2">Creative</th>
-                      <th className="font-medium px-2 py-2">Product</th>
-                      <th className="font-medium px-2 py-2 text-right">Spend</th>
-                      <th className="font-medium px-2 py-2 text-right">Impressions</th>
-                      <th className="font-medium px-2 py-2 text-right">CTR</th>
-                      <th className="font-medium px-2 py-2 text-right">CPA</th>
-                      <th className="font-medium px-2 py-2 text-right">ROAS</th>
-                      <th className="font-medium px-2 py-2 text-right">Hook rate</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-line">
-                    {orderedCreatives.map((c, i) => {
-                      const t = totalsById.get(c.id);
-                      return (
-                        <tr
-                          key={c.id}
-                          className="hover:bg-surface-2/60 transition-colors"
-                        >
-                          <td className="px-2 py-2.5">
-                            <span className="inline-flex items-center gap-2 font-mono text-ink text-[13px]">
-                              <span
-                                className="w-2 h-2 rounded-sm shrink-0"
-                                style={{
-                                  background:
-                                    COMPARE_COLORS[i % COMPARE_COLORS.length],
-                                }}
-                              />
-                              {c.name}
-                            </span>
-                          </td>
-                          <td className="px-2 py-2.5 text-ink-2">
-                            {t?.productName ?? c.productName}
-                          </td>
-                          <td className="px-2 py-2.5 text-right text-ink">
-                            {usd(t?.spend)}
-                          </td>
-                          <td className="px-2 py-2.5 text-right text-ink-2">
-                            {int(t?.impressions)}
-                          </td>
-                          <td className="px-2 py-2.5 text-right text-ink-2">
-                            {pct(t?.ctr)}
-                          </td>
-                          <td className="px-2 py-2.5 text-right text-ink-2">
-                            {usd(t?.cpa)}
-                          </td>
-                          <td className="px-2 py-2.5 text-right text-ink">
-                            {ratio(t?.roas)}
-                          </td>
-                          <td className="px-2 py-2.5 text-right text-ink-2">
-                            {pct(t?.hookRate)}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </CardContent>
-          </Card>
-        </>
-      )}
+      {/* A vs B totals */}
+      <Card className="bg-surface border-line">
+        <CardHeader>
+          <h2 className="text-sm font-medium text-ink">
+            {parsed.from && parsed.to ? "Totals in window" : "All-time totals"}
+          </h2>
+        </CardHeader>
+        <CardContent>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm num">
+              <thead>
+                <tr className="text-left text-[11px] uppercase tracking-[0.14em] text-ink-3">
+                  <th className="font-medium px-2 py-2">Side</th>
+                  <th className="font-medium px-2 py-2">Selection</th>
+                  <th className="font-medium px-2 py-2 text-right">Spend</th>
+                  <th className="font-medium px-2 py-2 text-right">Impressions</th>
+                  <th className="font-medium px-2 py-2 text-right">CTR</th>
+                  <th className="font-medium px-2 py-2 text-right">CPA</th>
+                  <th className="font-medium px-2 py-2 text-right">ROAS</th>
+                  <th className="font-medium px-2 py-2 text-right">Hook rate</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-line">
+                {[
+                  { label: "Side A", side: parsed.sideA, t: aTotals, i: 0 },
+                  { label: "Side B", side: parsed.sideB, t: bTotals, i: 1 },
+                ].map(({ label, side, t, i }) => (
+                  <tr key={label} className="hover:bg-surface-2/60 transition-colors">
+                    <td className="px-2 py-2.5">
+                      <span className="inline-flex items-center gap-2 text-ink font-medium">
+                        <span
+                          className="w-2 h-2 rounded-sm shrink-0"
+                          style={{ background: COMPARE_COLORS[i % COMPARE_COLORS.length] }}
+                        />
+                        {label}
+                      </span>
+                    </td>
+                    <td className="px-2 py-2.5 text-ink-3 text-xs">
+                      {sideSummary(side)}
+                    </td>
+                    <td className="px-2 py-2.5 text-right text-ink">{usd(t.spend)}</td>
+                    <td className="px-2 py-2.5 text-right text-ink-2">{int(t.impressions)}</td>
+                    <td className="px-2 py-2.5 text-right text-ink-2">{pct(t.ctr)}</td>
+                    <td className="px-2 py-2.5 text-right text-ink-2">{usd(t.cpa)}</td>
+                    <td className="px-2 py-2.5 text-right text-ink">{ratio(t.roas)}</td>
+                    <td className="px-2 py-2.5 text-right text-ink-2">{pct(t.hookRate)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
