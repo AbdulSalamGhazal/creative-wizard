@@ -1,6 +1,7 @@
 import {
   and,
   asc,
+  between,
   desc,
   eq,
   ilike,
@@ -354,6 +355,7 @@ export interface CreativeRecordRow {
  */
 export async function creativeRecords(
   creativeId: string,
+  range?: { from?: string; to?: string },
 ): Promise<CreativeRecordRow[]> {
   const rows = await db
     .select({
@@ -377,7 +379,14 @@ export async function creativeRecords(
       excludedAt: performanceRecords.excludedAt,
     })
     .from(performanceRecords)
-    .where(eq(performanceRecords.creativeId, creativeId))
+    .where(
+      and(
+        eq(performanceRecords.creativeId, creativeId),
+        range?.from && range?.to
+          ? between(performanceRecords.date, range.from, range.to)
+          : undefined,
+      ),
+    )
     .orderBy(desc(performanceRecords.date), asc(performanceRecords.platform));
 
   return rows.map((r) => ({
