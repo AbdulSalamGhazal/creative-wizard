@@ -26,6 +26,7 @@ import {
   cpa,
   cpc,
   cpm,
+  completeRate,
   hookRate,
   holdRate,
   platformMetrics,
@@ -34,7 +35,9 @@ import {
   sumConversionValue,
   sumConversions,
   sumImpressions,
+  sumLandingPageViews,
   sumSpend,
+  voc,
 } from "@/lib/metrics";
 import {
   METRIC_META,
@@ -89,6 +92,9 @@ export interface PlatformMetricBlock {
   roas: number | null;
   hookRate: number | null;
   holdRate: number | null;
+  completeRate: number | null;
+  landingPageViews: number;
+  voc: number | null;
 }
 
 export interface SummaryRow {
@@ -141,6 +147,9 @@ const METRIC_KEYS = [
   "roas",
   "hook_rate",
   "hold_rate",
+  "complete_rate",
+  "landing_page_views",
+  "voc",
 ] as const;
 type MetricKey = (typeof METRIC_KEYS)[number];
 
@@ -224,6 +233,12 @@ function orderBySql(
         return hookRate;
       case "hold_rate":
         return holdRate;
+      case "complete_rate":
+        return completeRate;
+      case "landing_page_views":
+        return sumLandingPageViews;
+      case "voc":
+        return voc;
     }
   }
   const platformMeta = metricsByPlatform.get(scope as Platform);
@@ -251,6 +266,12 @@ function orderBySql(
       return platformMeta.hookRate;
     case "hold_rate":
       return platformMeta.holdRate;
+    case "complete_rate":
+      return platformMeta.completeRate;
+    case "landing_page_views":
+      return platformMeta.landingPageViews;
+    case "voc":
+      return platformMeta.voc;
   }
 }
 
@@ -303,6 +324,15 @@ function comparable(
     case "hold_rate":
       raw = block.holdRate;
       break;
+    case "complete_rate":
+      raw = block.completeRate;
+      break;
+    case "landing_page_views":
+      raw = block.landingPageViews;
+      break;
+    case "voc":
+      raw = block.voc;
+      break;
     default:
       raw = null;
   }
@@ -339,7 +369,7 @@ function passesMetricFilters(
   });
 }
 
-const ALL_PLATFORMS: Platform[] = ["meta", "tiktok", "snapchat", "google"];
+const ALL_PLATFORMS: Platform[] = ["instagram", "facebook", "tiktok", "snapchat", "google"];
 
 /**
  * The Summary view's single query. Returns one row per creative with every
@@ -375,7 +405,7 @@ export async function listCreativeSummary(
 ): Promise<SummaryResult> {
   const selectedPlatforms: Platform[] =
     filters.platforms && filters.platforms.length > 0
-      ? filters.platforms.slice(0, 3)
+      ? filters.platforms.slice(0, 5)
       : (ALL_PLATFORMS.slice(0, 3) as Platform[]);
 
   const resolved = resolveSort(filters.sort, filters.dir, selectedPlatforms);
@@ -454,6 +484,9 @@ export async function listCreativeSummary(
     totalRoas: roas,
     totalHookRate: hookRate,
     totalHoldRate: holdRate,
+    totalCompleteRate: completeRate,
+    totalLandingPageViews: sumLandingPageViews,
+    totalVoc: voc,
   };
   for (const pf of selectedPlatforms) {
     const m = metricsByPlatform.get(pf)!;
@@ -469,6 +502,9 @@ export async function listCreativeSummary(
     select[`${pf}_roas`] = m.roas;
     select[`${pf}_hookRate`] = m.hookRate;
     select[`${pf}_holdRate`] = m.holdRate;
+    select[`${pf}_completeRate`] = m.completeRate;
+    select[`${pf}_landingPageViews`] = m.landingPageViews;
+    select[`${pf}_voc`] = m.voc;
   }
 
   // Rating is derived in JS (not SQL), so a rate sort can't be expressed in
@@ -544,6 +580,9 @@ export async function listCreativeSummary(
         roas: numOrNull(r[`${pf}_roas`]),
         hookRate: numOrNull(r[`${pf}_hookRate`]),
         holdRate: numOrNull(r[`${pf}_holdRate`]),
+        completeRate: numOrNull(r[`${pf}_completeRate`]),
+        landingPageViews: num(r[`${pf}_landingPageViews`]),
+        voc: numOrNull(r[`${pf}_voc`]),
       };
     }
     return {
@@ -570,6 +609,9 @@ export async function listCreativeSummary(
         roas: numOrNull(r.totalRoas),
         hookRate: numOrNull(r.totalHookRate),
         holdRate: numOrNull(r.totalHoldRate),
+        completeRate: numOrNull(r.totalCompleteRate),
+        landingPageViews: num(r.totalLandingPageViews),
+        voc: numOrNull(r.totalVoc),
       },
     };
   });

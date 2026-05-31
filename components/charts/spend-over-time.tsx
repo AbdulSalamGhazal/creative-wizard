@@ -20,7 +20,8 @@ interface Props {
 
 interface PivotRow {
   date: string;
-  meta: number | null;
+  instagram: number | null;
+  facebook: number | null;
   tiktok: number | null;
   snapchat: number | null;
   google: number | null;
@@ -58,7 +59,8 @@ export function SpendOverTimeChart({ rows }: Props) {
       if (!existing) {
         existing = {
           date: r.date,
-          meta: null,
+          instagram: null,
+          facebook: null,
           tiktok: null,
           snapchat: null,
           google: null,

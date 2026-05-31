@@ -1,6 +1,7 @@
 import {
   and,
   asc,
+  between,
   desc,
   eq,
   ilike,
@@ -328,15 +329,20 @@ export async function getCreativeByName(
 
 export interface CreativeRecordRow {
   id: number;
-  platform: "meta" | "tiktok" | "snapchat" | "google";
+  platform: "instagram" | "facebook" | "tiktok" | "snapchat" | "google";
+  campaignName: string;
   date: string;
   spend: number;
   impressions: number;
   clicks: number;
   conversions: number | null;
   conversionValue: number | null;
-  videoViews3s: number | null;
-  videoViews15s: number | null;
+  landingPageViews: number | null;
+  videoViews2s: number | null;
+  videoViews25: number | null;
+  videoViews50: number | null;
+  videoViews75: number | null;
+  videoViews100: number | null;
   excludedFromAggregates: boolean;
   excludedReason: string | null;
   excludedAt: Date | null;
@@ -349,6 +355,7 @@ export interface CreativeRecordRow {
  */
 export async function creativeRecords(
   creativeId: string,
+  range?: { from?: string; to?: string },
 ): Promise<CreativeRecordRow[]> {
   const rows = await db
     .select({
@@ -360,14 +367,26 @@ export async function creativeRecords(
       clicks: performanceRecords.clicks,
       conversions: performanceRecords.conversions,
       conversionValue: performanceRecords.conversionValue,
-      videoViews3s: performanceRecords.videoViews3s,
-      videoViews15s: performanceRecords.videoViews15s,
+      campaignName: performanceRecords.campaignName,
+      landingPageViews: performanceRecords.landingPageViews,
+      videoViews2s: performanceRecords.videoViews2s,
+      videoViews25: performanceRecords.videoViews25,
+      videoViews50: performanceRecords.videoViews50,
+      videoViews75: performanceRecords.videoViews75,
+      videoViews100: performanceRecords.videoViews100,
       excludedFromAggregates: performanceRecords.excludedFromAggregates,
       excludedReason: performanceRecords.excludedReason,
       excludedAt: performanceRecords.excludedAt,
     })
     .from(performanceRecords)
-    .where(eq(performanceRecords.creativeId, creativeId))
+    .where(
+      and(
+        eq(performanceRecords.creativeId, creativeId),
+        range?.from && range?.to
+          ? between(performanceRecords.date, range.from, range.to)
+          : undefined,
+      ),
+    )
     .orderBy(desc(performanceRecords.date), asc(performanceRecords.platform));
 
   return rows.map((r) => ({
@@ -379,8 +398,13 @@ export async function creativeRecords(
     clicks: r.clicks,
     conversions: r.conversions,
     conversionValue: r.conversionValue === null ? null : Number(r.conversionValue),
-    videoViews3s: r.videoViews3s,
-    videoViews15s: r.videoViews15s,
+    campaignName: r.campaignName,
+    landingPageViews: r.landingPageViews,
+    videoViews2s: r.videoViews2s,
+    videoViews25: r.videoViews25,
+    videoViews50: r.videoViews50,
+    videoViews75: r.videoViews75,
+    videoViews100: r.videoViews100,
     excludedFromAggregates: r.excludedFromAggregates,
     excludedReason: r.excludedReason,
     excludedAt: r.excludedAt,

@@ -31,10 +31,11 @@ import type { CleanupPreview } from "@/db/queries/cleanup";
 import { usd, int } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
-type Platform = "meta" | "tiktok" | "snapchat" | "google";
+type Platform = "instagram" | "facebook" | "tiktok" | "snapchat" | "google";
 
 const PLATFORMS: Array<{ value: Platform; label: string }> = [
-  { value: "meta", label: "Meta" },
+  { value: "instagram", label: "Instagram" },
+  { value: "facebook", label: "Facebook" },
   { value: "tiktok", label: "TikTok" },
   { value: "snapchat", label: "Snapchat" },
   { value: "google", label: "Google" },

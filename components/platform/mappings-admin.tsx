@@ -6,14 +6,20 @@ import type { InternalField } from "@/csv/platforms/types";
 
 const FIELDS: Array<{ value: InternalField; label: string; required: boolean }> = [
   { value: "creative_name", label: "Creative name", required: true },
+  { value: "campaign_name", label: "Campaign name", required: true },
+  { value: "adset_name", label: "Ad set name", required: true },
   { value: "date", label: "Date", required: true },
   { value: "spend", label: "Spend", required: true },
   { value: "impressions", label: "Impressions", required: true },
   { value: "clicks", label: "Clicks", required: true },
-  { value: "conversions", label: "Conversions", required: false },
-  { value: "conversion_value", label: "Conversion value", required: false },
-  { value: "video_views_3s", label: "Video views 3s", required: false },
-  { value: "video_views_15s", label: "Video views 15s", required: false },
+  { value: "conversions", label: "Conversions", required: true },
+  { value: "conversion_value", label: "Conversion value", required: true },
+  { value: "landing_page_views", label: "Landing page views", required: true },
+  { value: "video_views_2s", label: "Video views 2s", required: true },
+  { value: "video_views_25", label: "Video views 25%", required: true },
+  { value: "video_views_50", label: "Video views 50%", required: true },
+  { value: "video_views_75", label: "Video views 75%", required: true },
+  { value: "video_views_100", label: "Video views 100%", required: true },
 ];
 
 /**

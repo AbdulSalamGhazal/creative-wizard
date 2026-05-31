@@ -60,7 +60,8 @@ interface Props {
 }
 
 const PLATFORMS = [
-  { value: "meta", label: "Meta" },
+  { value: "instagram", label: "Instagram" },
+  { value: "facebook", label: "Facebook" },
   { value: "tiktok", label: "TikTok" },
   { value: "snapchat", label: "Snapchat" },
   { value: "google", label: "Google" },
@@ -98,6 +99,9 @@ const METRIC_LABELS: Record<MetricColumnKey, string> = {
   roas: "ROAS",
   hook_rate: "Hook rate",
   hold_rate: "Hold rate",
+  complete_rate: "Complete rate",
+  landing_page_views: "Landing page views",
+  voc: "VOC",
 };
 
 const DATE_PRESETS = [
@@ -160,6 +164,7 @@ export function SummaryFilterBar({
       (METRIC_COLUMN_KEYS as readonly string[]).includes(k),
   );
   const rateHidden = searchParams.get("hideRate") === "1";
+  const blendedHidden = searchParams.get("hideBlended") === "1";
 
   // Rate filter — scope is kept in local state so the user can pick a scope
   // before any ratings are checked (the URL only carries it once a rating is
@@ -260,6 +265,13 @@ export function SummaryFilterBar({
       else next.set("hideRate", "1");
     });
 
+  // Blended Total is a single boolean (shown by default), toggled like Rate.
+  const toggleBlended = () =>
+    update((next) => {
+      if (blendedHidden) next.delete("hideBlended");
+      else next.set("hideBlended", "1");
+    });
+
   const showAllColumns = () =>
     update((next) => {
       next.delete("hideIdentity");
@@ -337,6 +349,7 @@ export function SummaryFilterBar({
         "hideIdentity",
         "hideMetrics",
         "hideRate",
+        "hideBlended",
         "metricFilters",
         "rate",
       ].forEach((k) => next.delete(k));
@@ -410,23 +423,23 @@ export function SummaryFilterBar({
           dateLabel={dateLabel}
         />
 
-        {/* Platforms — max 3 */}
+        {/* Platforms — select any number */}
         <FilterPill
           icon={Layers}
-          label={`Platforms (max ${MAX_PLATFORMS})`}
+          label="Platforms"
           value={
             platforms.length === 0
               ? "All"
               : platforms.length === 1
                 ? (PLATFORMS.find((p) => p.value === platforms[0])?.label ?? "1")
-                : `${platforms.length} of ${MAX_PLATFORMS}`
+                : `${platforms.length} selected`
           }
           active={platforms.length > 0}
         >
           {() => (
             <DropdownMenuContent align="start" className="w-56">
               <DropdownMenuLabel>
-                Platforms · pick up to {MAX_PLATFORMS}
+                Platforms · show any
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
               {PLATFORMS.map((p) => {
@@ -446,6 +459,14 @@ export function SummaryFilterBar({
                   </DropdownMenuCheckboxItem>
                 );
               })}
+              <DropdownMenuSeparator />
+              <DropdownMenuCheckboxItem
+                checked={!blendedHidden}
+                onCheckedChange={toggleBlended}
+                onSelect={(e) => e.preventDefault()}
+              >
+                Blended total (weighted)
+              </DropdownMenuCheckboxItem>
               {platforms.length >= MAX_PLATFORMS && (
                 <div className="px-2 py-1.5 text-[10px] text-ink-3">
                   Deselect a platform to add another.

@@ -34,11 +34,14 @@ interface Props {
   rules: RatingRules;
   /** Whether to render the Rate column (first in each group). Default true. */
   showRate?: boolean;
+  /** Show the Blended Total column group. Defaults to "2+ platforms" when undefined. */
+  showBlended?: boolean;
 }
 
 /** Text identity columns the user can drag to resize. Numeric columns stay auto-sized. */
 const RESIZABLE_IDENTITY = new Set(["name", "product", "creator"]);
 const COL_WIDTHS_KEY = "summary-col-widths";
+const PLATFORM_ORDER_KEY = "summary-platform-order";
 const MIN_COL_WIDTH = 80;
 
 /** A small colored pill for a creative's rating, centered in the cell. */
@@ -85,6 +88,9 @@ const METRIC_COLUMNS: Array<{
   { key: "roas", label: "ROAS", format: (v) => (v === null ? "—" : `${ratio(v)}×`) },
   { key: "hook_rate", label: "Hook", format: (v) => pct(v) },
   { key: "hold_rate", label: "Hold", format: (v) => pct(v) },
+  { key: "complete_rate", label: "Complete", format: (v) => pct(v) },
+  { key: "landing_page_views", label: "LP views", format: (v) => (v && v > 0 ? int(v) : "—") },
+  { key: "voc", label: "VOC", format: (v) => pct(v) },
 ];
 
 /** Picks the right field from a metric block given the column key. */
@@ -112,6 +118,12 @@ function pickMetric(block: PlatformMetricBlock, key: string): number | null {
       return block.hookRate;
     case "hold_rate":
       return block.holdRate;
+    case "complete_rate":
+      return block.completeRate;
+    case "landing_page_views":
+      return block.landingPageViews;
+    case "voc":
+      return block.voc;
   }
   return null;
 }
@@ -136,8 +148,10 @@ export function SummaryTable({
   hiddenMetrics,
   rules,
   showRate = true,
+  showBlended,
 }: Props) {
-  const showTotal = platforms.length >= 2;
+  const showTotal =
+    showBlended === undefined ? platforms.length >= 2 : showBlended;
   const visibleMetrics = METRIC_COLUMNS.filter(
     (m) => !hiddenMetrics?.has(m.key as MetricColumnKey),
   );
@@ -149,6 +163,7 @@ export function SummaryTable({
 
   // ---- Resizable text columns -------------------------------------------
   const [widths, setWidths] = useState<Record<string, number>>({});
+  const [platformOrder, setPlatformOrder] = useState<string[]>([]);
   const thRefs = useRef<Record<string, HTMLTableCellElement | null>>({});
 
   useEffect(() => {
@@ -160,6 +175,23 @@ export function SummaryTable({
       }
     } catch {
       /* ignore malformed storage */
+    }
+  }, []);
+
+  // User-defined platform column order (persisted to localStorage). Platforms
+  // not yet in the saved order (new selections) append at the end. Kept above
+  // any early return so the Rules of Hooks hold (hooks run every render).
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(PLATFORM_ORDER_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw) as unknown;
+        if (Array.isArray(parsed)) {
+          setPlatformOrder(parsed.filter((x): x is string => typeof x === "string"));
+        }
+      }
+    } catch {
+      /* ignore malformed value */
     }
   }, []);
 
@@ -258,8 +290,43 @@ export function SummaryTable({
     (c) => !c.hideKey || !hiddenIdentity?.has(c.hideKey),
   );
 
+  // Reorderable column groups: each selected platform PLUS (when shown) the
+  // blended "total" group. The ◀▶ controls move any of them — total included.
+  const allGroups: string[] = [...(platforms as string[])];
+  if (showTotal) allGroups.push("total");
+  const orderedGroups: string[] = [
+    ...platformOrder.filter((g) => allGroups.includes(g)),
+    ...allGroups.filter((g) => !platformOrder.includes(g)),
+  ];
+  const moveGroup = (g: string, dir: -1 | 1) => {
+    const cur = [...orderedGroups];
+    const i = cur.indexOf(g);
+    const a = cur[i];
+    const b = cur[i + dir];
+    if (a === undefined || b === undefined) return;
+    cur[i] = b;
+    cur[i + dir] = a;
+    setPlatformOrder(cur);
+    try {
+      localStorage.setItem(PLATFORM_ORDER_KEY, JSON.stringify(cur));
+    } catch {
+      /* ignore */
+    }
+  };
+
+  // Totals / weighted-average footer over the currently visible (filtered)
+  // rows. Additive metrics sum; ratio metrics recombine via component sums.
+  // Hook/Hold need video-view component sums not carried in the block → "—".
+  const footerByPlatform: Partial<Record<string, PlatformMetricBlock>> = {};
+  for (const pf of platforms) {
+    footerByPlatform[pf] = aggregateBlocks(
+      rows.map((r) => r.perPlatform[pf as keyof typeof r.perPlatform]),
+    );
+  }
+  const footerTotal = aggregateBlocks(rows.map((r) => r.total));
+
   return (
-    <div className="overflow-x-auto rounded-lg border border-line bg-surface">
+    <div className="max-h-[70vh] overflow-auto rounded-lg border border-line bg-surface">
       <table className="text-[12px] num min-w-max">
         {/* Two-row header: top row = group banners; bottom = column labels */}
         <thead>
@@ -271,27 +338,54 @@ export function SummaryTable({
               Creative
             </th>
             {groupColSpan > 0 &&
-              platforms.map((pf) => (
-                <th
-                  key={pf}
-                  colSpan={groupColSpan}
-                  className="px-3 py-1.5 text-[10px] uppercase tracking-[0.14em] border-l border-line text-left"
-                  style={{
-                    color: PLATFORM_COLOR[pf as keyof typeof PLATFORM_COLOR],
-                  }}
-                >
-                  {PLATFORM_LABEL[pf as keyof typeof PLATFORM_LABEL]}
-                </th>
-              ))}
-            {showTotal && groupColSpan > 0 && (
-              <th
-                colSpan={groupColSpan}
-                className="px-3 py-1.5 text-[10px] uppercase tracking-[0.14em] text-ink-2 border-l border-line text-left"
-                title="Weighted aggregate across the selected platforms."
-              >
-                Blended total
-              </th>
-            )}
+              orderedGroups.map((g, idx) => {
+                const isTotal = g === "total";
+                const groupLabel = isTotal
+                  ? "Blended total"
+                  : PLATFORM_LABEL[g as keyof typeof PLATFORM_LABEL];
+                return (
+                  <th
+                    key={g}
+                    colSpan={groupColSpan}
+                    className={
+                      "px-3 py-1.5 text-[10px] uppercase tracking-[0.14em] border-l border-line text-left " +
+                      (isTotal ? "text-ink-2" : "")
+                    }
+                    style={
+                      isTotal
+                        ? undefined
+                        : { color: PLATFORM_COLOR[g as keyof typeof PLATFORM_COLOR] }
+                    }
+                    title={
+                      isTotal
+                        ? "Weighted aggregate across the selected platforms."
+                        : undefined
+                    }
+                  >
+                    <span className="inline-flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => moveGroup(g, -1)}
+                        disabled={idx === 0}
+                        aria-label={`Move ${groupLabel} left`}
+                        className="text-ink-3 hover:text-ink disabled:opacity-20 disabled:cursor-default leading-none"
+                      >
+                        ◀
+                      </button>
+                      {groupLabel}
+                      <button
+                        type="button"
+                        onClick={() => moveGroup(g, 1)}
+                        disabled={idx === orderedGroups.length - 1}
+                        aria-label={`Move ${groupLabel} right`}
+                        className="text-ink-3 hover:text-ink disabled:opacity-20 disabled:cursor-default leading-none"
+                      >
+                        ▶
+                      </button>
+                    </span>
+                  </th>
+                );
+              })}
           </tr>
           <tr className="border-b border-line text-left text-[11px] uppercase tracking-[0.14em] text-ink-3">
             {identityCols.map((c) => {
@@ -314,10 +408,10 @@ export function SummaryTable({
                 />
               );
             })}
-            {platforms.map((pf) => (
+            {orderedGroups.map((g) => (
               <RateAndMetricsHead
-                key={`head-${pf}`}
-                scope={pf}
+                key={`head-${g}`}
+                scope={g}
                 showRate={showRate}
                 visibleMetrics={visibleMetrics}
                 sort={sort}
@@ -325,16 +419,6 @@ export function SummaryTable({
                 SortIcon={SortIcon}
               />
             ))}
-            {showTotal && (
-              <RateAndMetricsHead
-                scope="total"
-                showRate={showRate}
-                visibleMetrics={visibleMetrics}
-                sort={sort}
-                sortHref={sortHref}
-                SortIcon={SortIcon}
-              />
-            )}
           </tr>
         </thead>
         <tbody className="divide-y divide-line">
@@ -412,31 +496,48 @@ export function SummaryTable({
               })}
 
               {/* Per platform */}
-              {platforms.map((pf) => (
+              {orderedGroups.map((g) => (
                 <RateAndMetricsCells
-                  key={`${r.creativeId}.${pf}`}
-                  scope={pf}
-                  block={r.perPlatform[pf as keyof typeof r.perPlatform]}
+                  key={`${r.creativeId}.${g}`}
+                  scope={g}
+                  block={
+                    g === "total"
+                      ? r.total
+                      : r.perPlatform[g as keyof typeof r.perPlatform]
+                  }
                   showRate={showRate}
                   rules={rules}
                   visibleMetrics={visibleMetrics}
+                  muted={g === "total"}
                 />
               ))}
-
-              {/* Blended total */}
-              {showTotal && (
-                <RateAndMetricsCells
-                  scope="total"
-                  block={r.total}
-                  showRate={showRate}
-                  rules={rules}
-                  visibleMetrics={visibleMetrics}
-                  muted
-                />
-              )}
             </tr>
           ))}
         </tbody>
+        {rows.length > 0 && (
+          <tfoot>
+            <tr className="border-t-2 border-line">
+              {identityCols.map((c, i) => (
+                <td
+                  key={`foot-${c.key}`}
+                  className="sticky bottom-0 z-10 bg-surface-2 px-3 py-2 text-ink font-semibold whitespace-nowrap"
+                >
+                  {i === 0 ? "Totals" : ""}
+                </td>
+              ))}
+              {orderedGroups.map((g) => (
+                <FooterCells
+                  key={`foot-${g}`}
+                  scope={g}
+                  block={g === "total" ? footerTotal : footerByPlatform[g]}
+                  showRate={showRate}
+                  visibleMetrics={visibleMetrics}
+                  muted={g === "total"}
+                />
+              ))}
+            </tr>
+          </tfoot>
+        )}
       </table>
     </div>
   );
@@ -629,6 +730,97 @@ function RateAndMetricsCells({
             key={`${scope}.${m.key}`}
             className={
               "px-3 py-2 text-right whitespace-nowrap tabular-nums " +
+              (muted ? "text-ink-2 " : "text-ink ") +
+              (mi === 0 && !showRate ? "border-l border-line" : "")
+            }
+          >
+            {m.format(v)}
+          </td>
+        );
+      })}
+    </>
+  );
+}
+
+/**
+ * Sum component metrics across a set of blocks and recompute the weighted
+ * ratios (per the aggregation rules — never an average of per-row ratios).
+ * Hook/Hold rates need video-view component sums that the block doesn't carry,
+ * so they're returned null (render as "—").
+ */
+function aggregateBlocks(
+  blocks: Array<PlatformMetricBlock | undefined>,
+): PlatformMetricBlock {
+  let spend = 0;
+  let impressions = 0;
+  let clicks = 0;
+  let conversions = 0;
+  let hasConv = false;
+  let conversionValue = 0;
+  let hasConvVal = false;
+  let landingPageViews = 0;
+  for (const b of blocks) {
+    if (!b) continue;
+    spend += b.spend ?? 0;
+    impressions += b.impressions ?? 0;
+    clicks += b.clicks ?? 0;
+    landingPageViews += b.landingPageViews ?? 0;
+    if (b.conversions !== null && b.conversions !== undefined) {
+      conversions += b.conversions;
+      hasConv = true;
+    }
+    if (b.conversionValue !== null && b.conversionValue !== undefined) {
+      conversionValue += b.conversionValue;
+      hasConvVal = true;
+    }
+  }
+  return {
+    spend,
+    impressions,
+    clicks,
+    conversions: hasConv ? conversions : null,
+    conversionValue: hasConvVal ? conversionValue : null,
+    ctr: impressions > 0 ? clicks / impressions : null,
+    cpm: impressions > 0 ? (spend / impressions) * 1000 : null,
+    cpc: clicks > 0 ? spend / clicks : null,
+    cpa: hasConv && conversions > 0 ? spend / conversions : null,
+    roas: hasConvVal && spend > 0 ? conversionValue / spend : null,
+    hookRate: null,
+    holdRate: null,
+    completeRate: null,
+    landingPageViews,
+    voc: clicks > 0 ? landingPageViews / clicks : null,
+  };
+}
+
+/** Footer (totals) cells for one group — mirrors RateAndMetricsCells column-for-column. */
+function FooterCells({
+  scope,
+  block,
+  showRate,
+  visibleMetrics,
+  muted = false,
+}: {
+  scope: string;
+  block: PlatformMetricBlock | undefined;
+  showRate: boolean;
+  visibleMetrics: MetricColumn[];
+  muted?: boolean;
+}) {
+  return (
+    <>
+      {showRate && (
+        <td className="sticky bottom-0 z-10 bg-surface-2 px-3 py-2 text-center whitespace-nowrap border-l border-line text-ink-3">
+          —
+        </td>
+      )}
+      {visibleMetrics.map((m, mi) => {
+        const v = block ? pickMetric(block, m.key) : null;
+        return (
+          <td
+            key={`foot.${scope}.${m.key}`}
+            className={
+              "sticky bottom-0 z-10 bg-surface-2 px-3 py-2 text-right whitespace-nowrap tabular-nums font-semibold " +
               (muted ? "text-ink-2 " : "text-ink ") +
               (mi === 0 && !showRate ? "border-l border-line" : "")
             }

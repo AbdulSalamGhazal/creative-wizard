@@ -19,12 +19,14 @@ export const errorCodes = {
   E040: "ERROR",
   E041: "ERROR",
   E042: "ERROR",
+  // E050: duplicate within the uploaded file (same creative + campaign + date).
+  // E051: row matches (creative, platform, campaign, date) already imported.
+  // Campaign name is part of the key, so legitimate multi-campaign rows are
+  // distinct and allowed; only true duplicates are rejected.
+  E050: "ERROR",
+  E051: "ERROR",
   W001: "WARNING",
   W002: "WARNING",
-  // W003: a row matches (creative, platform, date) already imported in an
-  // earlier upload. Non-blocking — the same creative can recur across
-  // campaigns; we warn so an accidental re-upload doesn't silently double-count.
-  W003: "WARNING",
 } as const;
 
 export type ErrorCode = keyof typeof errorCodes;

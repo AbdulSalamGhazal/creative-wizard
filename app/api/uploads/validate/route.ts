@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         error:
-          "Pick a platform before validating (meta / tiktok / snapchat / google).",
+          "Pick a platform before validating (instagram / facebook / tiktok / snapchat / google).",
       },
       { status: 400 },
     );
@@ -96,7 +96,7 @@ export async function POST(request: NextRequest) {
     byteLength: file.size,
     adapter,
     registeredNames,
-    findExistingBatch: async (name, plat, date) => {
+    findExistingBatch: async (name, plat, campaignName, date) => {
       const [row] = await db
         .select({ batchId: performanceRecords.uploadBatchId })
         .from(performanceRecords)
@@ -109,6 +109,7 @@ export async function POST(request: NextRequest) {
           and(
             eq(creatives.name, name),
             eq(performanceRecords.platform, plat),
+            eq(performanceRecords.campaignName, campaignName),
             eq(performanceRecords.date, date),
             eq(uploadBatches.status, "active"),
           ),

@@ -16,14 +16,20 @@ import { addHeaderMapping } from "@/app/actions/platform-mapping";
 
 const FIELDS = [
   { value: "creative_name", label: "Creative name" },
+  { value: "campaign_name", label: "Campaign name" },
+  { value: "adset_name", label: "Ad set name" },
   { value: "date", label: "Date" },
   { value: "spend", label: "Spend" },
   { value: "impressions", label: "Impressions" },
   { value: "clicks", label: "Clicks" },
   { value: "conversions", label: "Conversions" },
   { value: "conversion_value", label: "Conversion value" },
-  { value: "video_views_3s", label: "Video views 3s" },
-  { value: "video_views_15s", label: "Video views 15s" },
+  { value: "landing_page_views", label: "Landing page views" },
+  { value: "video_views_2s", label: "Video views 2s" },
+  { value: "video_views_25", label: "Video views 25%" },
+  { value: "video_views_50", label: "Video views 50%" },
+  { value: "video_views_75", label: "Video views 75%" },
+  { value: "video_views_100", label: "Video views 100%" },
 ] as const;
 
 type Field = (typeof FIELDS)[number]["value"];
@@ -31,7 +37,7 @@ type Field = (typeof FIELDS)[number]["value"];
 export function MappingAddForm({
   platform,
 }: {
-  platform: "meta" | "tiktok" | "snapchat" | "google";
+  platform: "instagram" | "facebook" | "tiktok" | "snapchat" | "google";
 }) {
   const [field, setField] = useState<Field>("creative_name");
   const [headerName, setHeaderName] = useState("");

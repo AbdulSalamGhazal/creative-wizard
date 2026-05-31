@@ -23,7 +23,7 @@ import {
 } from "@/lib/palette";
 import { usd, int, pct, ratio } from "@/lib/format";
 
-type Platform = "meta" | "tiktok" | "snapchat" | "google";
+type Platform = "instagram" | "facebook" | "tiktok" | "snapchat" | "google";
 
 interface Props {
   title: string;

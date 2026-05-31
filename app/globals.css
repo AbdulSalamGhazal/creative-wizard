@@ -41,8 +41,9 @@
   /* Brand (overridable per accent below) + platform colors */
   --brand: #d4145a;
   --brand-2: #ff4d8d;
-  --meta: #4f8efb;
-  --tiktok: #ff4d7a;
+  --instagram: #c13584;
+  --facebook: #4f8efb;
+  --tiktok: #d4d4d8;
   --snapchat: #ffd80b;
   --google: #34d399;
 
@@ -143,7 +144,8 @@
   --color-pos: var(--pos);
   --color-neg: var(--neg);
   --color-warn: var(--warn);
-  --color-meta: var(--meta);
+  --color-instagram: var(--instagram);
+  --color-facebook: var(--facebook);
   --color-tiktok: var(--tiktok);
   --color-snapchat: var(--snapchat);
   --color-google: var(--google);

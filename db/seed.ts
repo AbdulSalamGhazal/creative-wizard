@@ -24,7 +24,8 @@ import {
   type platformEnum,
 } from "@/db/schema";
 import { hashPassword } from "@/lib/auth-password";
-import { metaAdapter } from "@/csv/platforms/meta";
+import { instagramAdapter } from "@/csv/platforms/instagram";
+import { facebookAdapter } from "@/csv/platforms/facebook";
 import { tiktokAdapter } from "@/csv/platforms/tiktok";
 import { snapchatAdapter } from "@/csv/platforms/snapchat";
 import { googleAdapter } from "@/csv/platforms/google";
@@ -157,7 +158,7 @@ async function main() {
   // Seeds the placeholder candidate headers we shipped in code into the DB
   // so the admin UI starts with reasonable defaults. Each (platform, field,
   // header) is unique; ON CONFLICT DO NOTHING keeps re-runs no-ops.
-  const adapters = [metaAdapter, tiktokAdapter, snapchatAdapter, googleAdapter];
+  const adapters = [instagramAdapter, facebookAdapter, tiktokAdapter, snapchatAdapter, googleAdapter];
   let mappingsInserted = 0;
   for (const a of adapters) {
     for (const [field, headers] of Object.entries(a.headerMap) as Array<[
@@ -225,7 +226,7 @@ async function main() {
   const [batch] = await db
     .insert(uploadBatches)
     .values({
-      platform: "meta",
+      platform: "instagram",
       fileName: "seed_synthetic.csv",
       uploadedByUserId: adminId,
       rowsImported: 0,
@@ -238,7 +239,7 @@ async function main() {
 
   type PerfRow = typeof performanceRecords.$inferInsert;
   const rows: PerfRow[] = [];
-  const platforms: Platform[] = ["meta", "tiktok"];
+  const platforms: Platform[] = ["instagram", "facebook"];
 
   // Each creative gets ~60 daily rows on each of two platforms so both the
   // current-30d window and the prior-30d window have data — required for
@@ -274,20 +275,29 @@ async function main() {
         const spend = +((impressions / 1000) * cpmDollars).toFixed(2);
         const conversions = Math.max(0, Math.floor(clicks * (0.01 + rand() * 0.08)));
         const conversionValue = +(conversions * (15 + rand() * 60)).toFixed(2);
-        const videoViews3s = Math.floor(impressions * (0.2 + rand() * 0.3));
-        const videoViews15s = Math.floor(videoViews3s * (0.15 + rand() * 0.4));
+        const vv2s = Math.floor(impressions * (0.2 + rand() * 0.3));
+        const vv25 = Math.floor(vv2s * (0.6 + rand() * 0.3));
+        const vv50 = Math.floor(vv2s * (0.4 + rand() * 0.3));
+        const vv75 = Math.floor(vv2s * (0.2 + rand() * 0.3));
+        const vv100 = Math.floor(vv2s * (0.1 + rand() * 0.2));
+        const lpv = Math.floor(clicks * (0.6 + rand() * 0.4));
 
         rows.push({
           creativeId: c.id,
           platform,
+          campaignName: `Always-On ➤ ${platform}`,
           date: dateStr,
           spend: spend.toString(),
           impressions,
           clicks,
           conversions,
           conversionValue: conversionValue.toString(),
-          videoViews3s,
-          videoViews15s,
+          landingPageViews: lpv,
+          videoViews2s: vv2s,
+          videoViews25: vv25,
+          videoViews50: vv50,
+          videoViews75: vv75,
+          videoViews100: vv100,
           rawPayload: { source: "seed", note: "synthetic" },
           uploadBatchId: batchId,
         });
@@ -308,6 +318,7 @@ async function main() {
         target: [
           performanceRecords.creativeId,
           performanceRecords.platform,
+          performanceRecords.campaignName,
           performanceRecords.date,
         ],
       })

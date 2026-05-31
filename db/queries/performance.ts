@@ -1,4 +1,4 @@
-import { and, between, desc, eq, inArray, sql, type SQL } from "drizzle-orm";
+import { and, asc, between, desc, eq, inArray, sql, type SQL } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
   creatives,
@@ -44,6 +44,8 @@ export interface KpiFilters {
   statuses?: CreativeStatus[];
   tags?: string[];
   creativeIds?: string[];
+  /** Combined "Campaign ➤ Adset" values to include (used by Compare sides). */
+  campaignNames?: string[];
   includeExcluded?: boolean;
 }
 
@@ -139,6 +141,11 @@ function buildBaseConditions(filters: KpiFilters): {
   }
   if (filters.creativeIds && filters.creativeIds.length > 0) {
     conditions.push(inArray(performanceRecords.creativeId, filters.creativeIds));
+  }
+  if (filters.campaignNames && filters.campaignNames.length > 0) {
+    conditions.push(
+      inArray(performanceRecords.campaignName, filters.campaignNames),
+    );
   }
 
   const needsCreativeJoin =
@@ -1025,6 +1032,76 @@ async function spendPerCreative(
     type: r.type as CreativeType,
     status: r.status as CreativeStatus,
     spend: Number(r.spend ?? 0),
+  }));
+}
+
+// =====================================================================
+// Compare (two-sided A vs B)
+// =====================================================================
+
+export interface CompareDimensionRow {
+  platform: Platform;
+  campaign: string;
+  creativeId: string;
+  creativeName: string;
+  productName: string;
+}
+
+/**
+ * Distinct (platform, campaign, creative) combinations present in the data —
+ * powers the cascading Platform → Campaign → Creative selectors on Compare.
+ */
+export async function compareDimensions(): Promise<CompareDimensionRow[]> {
+  const rows = await db
+    .selectDistinct({
+      platform: performanceRecords.platform,
+      campaign: performanceRecords.campaignName,
+      creativeId: creatives.id,
+      creativeName: creatives.name,
+      productName: products.name,
+    })
+    .from(performanceRecords)
+    .innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId))
+    .innerJoin(products, eq(products.id, creatives.productId))
+    .where(eq(performanceRecords.excludedFromAggregates, false))
+    .orderBy(
+      asc(performanceRecords.platform),
+      asc(performanceRecords.campaignName),
+      asc(creatives.name),
+    );
+  return rows.map((r) => ({
+    platform: r.platform as Platform,
+    campaign: r.campaign,
+    creativeId: r.creativeId,
+    creativeName: r.creativeName,
+    productName: r.productName,
+  }));
+}
+
+/**
+ * One daily series for a Compare side, aggregated across the side's filter
+ * (platforms / campaigns / creatives). `value` is the chosen metric per day,
+ * weighted via component sums.
+ */
+export async function compareSideSeries(
+  filters: KpiFilters & { metric: CompareMetric },
+): Promise<Array<{ date: string; value: number | null }>> {
+  const { conditions, needsCreativeJoin } = buildBaseConditions(filters);
+  const metricSql = metricForCompare(filters.metric);
+  let q = db
+    .select({ date: performanceRecords.date, value: metricSql })
+    .from(performanceRecords)
+    .$dynamic();
+  if (needsCreativeJoin) {
+    q = q.innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId));
+  }
+  const rows = await q
+    .where(and(...conditions))
+    .groupBy(performanceRecords.date)
+    .orderBy(performanceRecords.date);
+  return rows.map((r) => ({
+    date: r.date,
+    value: r.value === null || r.value === undefined ? null : Number(r.value),
   }));
 }
 

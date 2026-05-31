@@ -17,7 +17,7 @@ import {
 import { sql } from "drizzle-orm";
 
 export const roleEnum = ["admin", "editor", "viewer"] as const;
-export const platformEnum = ["meta", "tiktok", "snapchat", "google"] as const;
+export const platformEnum = ["instagram", "facebook", "tiktok", "snapchat", "google"] as const;
 export const creativeTypeEnum = ["video", "slides", "image"] as const;
 export const creativeStatusEnum = ["draft", "active", "paused", "archived"] as const;
 export const productStatusEnum = ["active", "archived"] as const;
@@ -285,13 +285,25 @@ export const performanceRecords = pgTable(
       .references(() => creatives.id),
     platform: varchar("platform", { length: 16, enum: platformEnum }).notNull(),
     date: date("date").notNull(),
+    /**
+     * Combined "Campaign Name ➤ Adset Name" sourced from the upload's two
+     * columns. The UI only ever labels and shows this as "Campaign Name".
+     * Part of the dedup key.
+     */
+    campaignName: text("campaign_name").notNull(),
     spend: numeric("spend", { precision: 14, scale: 4 }).notNull(),
     impressions: integer("impressions").notNull(),
     clicks: integer("clicks").notNull(),
     conversions: integer("conversions"),
     conversionValue: numeric("conversion_value", { precision: 14, scale: 4 }),
-    videoViews3s: integer("video_views_3s"),
-    videoViews15s: integer("video_views_15s"),
+    landingPageViews: integer("landing_page_views"),
+    // Video view funnel — populated for video creatives only; null for
+    // image/slides so they're excluded from video-rate math.
+    videoViews2s: integer("video_views_2s"),
+    videoViews25: integer("video_views_25"),
+    videoViews50: integer("video_views_50"),
+    videoViews75: integer("video_views_75"),
+    videoViews100: integer("video_views_100"),
     rawPayload: jsonb("raw_payload").notNull(),
     uploadBatchId: uuid("upload_batch_id")
       .notNull()
@@ -304,15 +316,12 @@ export const performanceRecords = pgTable(
     excludedAt: timestamp("excluded_at", { withTimezone: true }),
   },
   (t) => ({
-    // NOTE: intentionally NOT unique. The same creative can run on the same
-    // platform on the same date across multiple campaigns, so several rows may
-    // legitimately share (creative_id, platform, date). Kept as a plain index
-    // for the lookup/aggregation paths. Campaign name will later disambiguate.
-    creativePlatformDateIdx: index("perf_creative_platform_date_idx").on(
-      t.creativeId,
-      t.platform,
-      t.date,
-    ),
+    // Unique on the FULL dedup key. The same creative can run on the same
+    // platform/date across different campaigns (allowed), but not the same
+    // campaign twice — campaign_name disambiguates.
+    creativePlatformCampaignDateIdx: uniqueIndex(
+      "perf_creative_platform_campaign_date_idx",
+    ).on(t.creativeId, t.platform, t.campaignName, t.date),
     dateIdx: index("perf_date_idx").on(t.date),
     platformDateIdx: index("perf_platform_date_idx").on(t.platform, t.date),
     batchIdx: index("perf_upload_batch_idx").on(t.uploadBatchId),

@@ -33,8 +33,14 @@ export interface ParsedRow {
   clicks: number;
   conversions: number | null;
   conversionValue: number | null;
-  videoViews3s: number | null;
-  videoViews15s: number | null;
+  /** Combined "Campaign Name ➤ Adset Name". */
+  campaignName: string;
+  landingPageViews: number | null;
+  videoViews2s: number | null;
+  videoViews25: number | null;
+  videoViews50: number | null;
+  videoViews75: number | null;
+  videoViews100: number | null;
   /** Raw cell values keyed by original header. Stored on the perf record. */
   rawPayload: Record<string, string>;
 }
@@ -62,10 +68,11 @@ export interface PipelineInput extends ParseInput {
   platform?: Platform;
   /** All creative names registered in the library, used for strict matching. */
   registeredNames: Set<string>;
-  /** Returns the existing batch id for a (name, platform, date) tuple, or null. */
+  /** Returns the existing batch id for a (name, platform, campaign, date) tuple, or null. */
   findExistingBatch?: (
     creativeName: string,
     platform: Platform,
+    campaignName: string,
     date: string,
   ) => Promise<string | null>;
 }
@@ -277,8 +284,12 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
     const clicks = parseNumericCell("clicks");
     const conversions = parseNumericCell("conversions");
     const conversionValue = parseNumericCell("conversion_value");
-    const videoViews3s = parseNumericCell("video_views_3s");
-    const videoViews15s = parseNumericCell("video_views_15s");
+    const landingPageViews = parseNumericCell("landing_page_views");
+    const videoViews2s = parseNumericCell("video_views_2s");
+    const videoViews25 = parseNumericCell("video_views_25");
+    const videoViews50 = parseNumericCell("video_views_50");
+    const videoViews75 = parseNumericCell("video_views_75");
+    const videoViews100 = parseNumericCell("video_views_100");
 
     if (errorsForRow.length > 0) {
       collected.push(...errorsForRow);
@@ -295,49 +306,72 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
       rawPayload[key] = csvRow[h] ?? "";
     }
 
+    // Combine the two campaign columns into the single stored value. The UI
+    // only ever shows this as "Campaign Name".
+    const campaignName = [allCells.campaign_name, allCells.adset_name]
+      .map((s) => (s ?? "").trim())
+      .filter((s) => s.length > 0)
+      .join(" ➤ ");
+
     accepted.push({
       rowNumber,
       creativeName,
+      campaignName,
       date: canonicalDate,
       spend,
       impressions: Math.floor(impressions),
       clicks: Math.floor(clicks),
       conversions,
       conversionValue,
-      videoViews3s: videoViews3s === null ? null : Math.floor(videoViews3s),
-      videoViews15s: videoViews15s === null ? null : Math.floor(videoViews15s),
+      landingPageViews:
+        landingPageViews === null ? null : Math.floor(landingPageViews),
+      videoViews2s: videoViews2s === null ? null : Math.floor(videoViews2s),
+      videoViews25: videoViews25 === null ? null : Math.floor(videoViews25),
+      videoViews50: videoViews50 === null ? null : Math.floor(videoViews50),
+      videoViews75: videoViews75 === null ? null : Math.floor(videoViews75),
+      videoViews100: videoViews100 === null ? null : Math.floor(videoViews100),
       rawPayload,
     });
 
-    // Stage 4 — index this row by (creative, date). Duplicates WITHIN the
-    // file are allowed (different campaigns); the index only feeds the
-    // Stage-5 already-imported advisory below.
-    const key = `${creativeName}${canonicalDate}`;
+    // Stage 4 — index this row by the full dedup key (creative, campaign,
+    // date; platform is constant per file).
+    const key = `${creativeName}${campaignName}${canonicalDate}`;
     const list = seenKeys.get(key);
     if (list) list.push(rowNumber);
     else seenKeys.set(key, [rowNumber]);
   }
 
-  // ---------- Stage 5 — already-imported advisory (non-blocking) ----------
-  // We no longer reject a row that matches data from an earlier upload: the
-  // same (creative, platform, date) can legitimately recur across campaigns
-  // (e.g. one creative used in two campaigns on the same day). But an
-  // accidental re-upload of the same file would silently double-count, so we
-  // surface a WARNING once per distinct creative+date and let the user decide.
-  if (input.findExistingBatch && accepted.length > 0) {
-    for (const [key, rowNums] of seenKeys) {
-      const sep = key.indexOf("");
-      const creativeName = key.slice(0, sep);
-      const date = key.slice(sep + 1);
+  // Stage 4 emit — reject intra-file duplicates on (creative, campaign, date).
+  // Different campaigns are distinct keys, so legitimate multi-campaign rows
+  // are allowed.
+  for (const [k, rowNums] of seenKeys) {
+    if (rowNums.length > 1) {
+      const parts = k.split("");
+      collected.push({
+        code: "E050",
+        severity: "ERROR",
+        message: `Rows ${rowNums.join(", ")}: duplicate within file — same creative \`'${parts[0]}'\`, campaign \`'${parts[1]}'\`, platform \`${platform}\`, date \`${parts[2]}\`.`,
+        rows: rowNums,
+        value: parts[0],
+      });
+    }
+  }
 
-      const batchId = await input.findExistingBatch(creativeName, platform, date);
+  // ---------- Stage 5 — already imported (blocking) ----------
+  // A row matching (creative, platform, campaign, date) already in the DB is a
+  // true duplicate now that campaign disambiguates multi-campaign rows.
+  if (input.findExistingBatch && accepted.length > 0) {
+    for (const [k, rowNums] of seenKeys) {
+      if (rowNums.length > 1) continue; // already reported as E050
+      const parts = k.split("");
+      const batchId = await input.findExistingBatch(parts[0]!, platform, parts[1]!, parts[2]!);
       if (batchId) {
-        warnings.push({
-          code: "W003",
-          severity: "WARNING",
-          message: `Row(s) ${rowNums.join(", ")}: \`'${creativeName}'\` on \`${platform}\` for \`${date}\` was already imported in an earlier upload. Importing again adds to the existing totals — proceed only if this is genuinely new data (e.g. a different campaign).`,
+        collected.push({
+          code: "E051",
+          severity: "ERROR",
+          message: `Row(s) ${rowNums.join(", ")}: \`'${parts[0]}'\` / campaign \`'${parts[1]}'\` on \`${platform}\` for \`${parts[2]}\` was already imported (batch ${batchId}). Roll back that batch to re-import.`,
           rows: rowNums,
-          value: creativeName,
+          value: parts[0],
         });
       }
     }

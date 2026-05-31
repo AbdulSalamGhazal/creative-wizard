@@ -15,7 +15,8 @@ const ROLLBACK_WINDOW_MS = 24 * 60 * 60 * 1000;
 export const dynamic = "force-dynamic";
 
 const PLATFORM_LABEL: Record<string, string> = {
-  meta: "Meta",
+  instagram: "Instagram",
+  facebook: "Facebook",
   tiktok: "TikTok",
   snapchat: "Snapchat",
   google: "Google",
@@ -89,7 +90,7 @@ export default async function UploadsPage() {
           </div>
           <p className="mt-4 text-ink-2 text-sm">No uploads yet.</p>
           <p className="mt-1 text-ink-3 text-xs">
-            Start with a Meta export or any of the four supported platforms.
+            Start with an Instagram or Facebook export, or any of the five supported platforms.
           </p>
           <div className="mt-4">
             <Button asChild>

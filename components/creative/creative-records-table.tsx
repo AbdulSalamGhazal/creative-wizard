@@ -14,8 +14,11 @@ const CSV_COLUMNS: CsvColumn<CreativeRecordRow>[] = [
   { key: "clicks", label: "Clicks", value: (r) => r.clicks },
   { key: "conversions", label: "Conversions", value: (r) => r.conversions },
   { key: "conversionValue", label: "Conversion value (USD)", value: (r) => r.conversionValue },
-  { key: "videoViews3s", label: "Video views 3s", value: (r) => r.videoViews3s },
-  { key: "videoViews15s", label: "Video views 15s", value: (r) => r.videoViews15s },
+  { key: "campaignName", label: "Campaign Name", value: (r) => r.campaignName },
+  { key: "landingPageViews", label: "Landing page views", value: (r) => r.landingPageViews },
+  { key: "videoViews2s", label: "Video views 2s", value: (r) => r.videoViews2s },
+  { key: "videoViews50", label: "Video views 50%", value: (r) => r.videoViews50 },
+  { key: "videoViews100", label: "Video views 100%", value: (r) => r.videoViews100 },
   { key: "excluded", label: "Excluded", value: (r) => (r.excludedFromAggregates ? "yes" : "") },
   { key: "excludedReason", label: "Excluded reason", value: (r) => r.excludedReason },
 ];
