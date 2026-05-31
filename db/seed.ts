@@ -318,6 +318,7 @@ async function main() {
         target: [
           performanceRecords.creativeId,
           performanceRecords.platform,
+          performanceRecords.campaignName,
           performanceRecords.date,
         ],
       })
