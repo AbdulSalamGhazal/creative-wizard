@@ -3,22 +3,31 @@
  * `PlatformAdapter` so the pipeline can be platform-agnostic.
  */
 
-export type InternalField =
-  | "creative_name"
-  | "campaign_name"
-  | "adset_name"
-  | "date"
-  | "spend"
-  | "impressions"
-  | "clicks"
-  | "conversions"
-  | "conversion_value"
-  | "landing_page_views"
-  | "video_views_2s"
-  | "video_views_25"
-  | "video_views_50"
-  | "video_views_75"
-  | "video_views_100";
+/**
+ * Every internal field the CSV pipeline understands — the single source of
+ * truth. The `InternalField` type and all runtime validation (Zod enums in
+ * server actions, UI field pickers) derive from this array, so adding or
+ * removing a field is a one-line change here that can never drift out of sync.
+ */
+export const INTERNAL_FIELDS = [
+  "creative_name",
+  "campaign_name",
+  "adset_name",
+  "date",
+  "spend",
+  "impressions",
+  "clicks",
+  "conversions",
+  "conversion_value",
+  "landing_page_views",
+  "video_views_2s",
+  "video_views_25",
+  "video_views_50",
+  "video_views_75",
+  "video_views_100",
+] as const;
+
+export type InternalField = (typeof INTERNAL_FIELDS)[number];
 
 export type DateFormat = "YYYY-MM-DD" | "MM/DD/YYYY" | "D Mon YYYY" | "DD/MM/YYYY";
 

@@ -6,23 +6,12 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth";
 import { platformFieldMappings, platformEnum } from "@/db/schema";
+import { INTERNAL_FIELDS } from "@/csv/platforms/types";
 import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
-
-const FIELDS = [
-  "creative_name",
-  "date",
-  "spend",
-  "impressions",
-  "clicks",
-  "conversions",
-  "conversion_value",
-  "video_views_3s",
-  "video_views_15s",
-] as const;
 
 const inputSchema = z.object({
   platform: z.enum(platformEnum),
-  internalField: z.enum(FIELDS),
+  internalField: z.enum(INTERNAL_FIELDS),
   headerName: z.string().min(1).max(255),
 });
 
