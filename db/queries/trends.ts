@@ -10,6 +10,7 @@ import {
 import {
   ctr,
   cpa,
+  cpc,
   hookRate,
   holdRate,
   roas,
@@ -136,6 +137,97 @@ export async function tagRollup(f: TrendsFilters): Promise<TagRollupRow[]> {
   }
   rows.sort((a, b) => b.spend - a.spend);
   return rows;
+}
+
+// =====================================================================
+// By type (video / image / slides), optionally split by platform
+// =====================================================================
+
+export interface TypeRollupRow {
+  type: "video" | "image" | "slides";
+  /** null = blended across all platforms; otherwise the platform for this row. */
+  platform: Platform | null;
+  creatives: number;
+  spend: number;
+  impressions: number;
+  clicks: number;
+  ctr: number | null;
+  cpc: number | null;
+  cpa: number | null;
+  roas: number | null;
+}
+
+const TYPE_ORDER: Record<TypeRollupRow["type"], number> = {
+  video: 0,
+  image: 1,
+  slides: 2,
+};
+
+/**
+ * Performance rolled up by creative type (video/image/slides). With
+ * `byPlatform`, it additionally splits each type by platform — every
+ * performance row belongs to exactly one creative (one type), so there's no
+ * fan-out and the weighted metrics are exact. Sorted type-first, then by spend.
+ */
+export async function typeRollup(
+  f: TrendsFilters,
+  opts: { byPlatform?: boolean } = {},
+): Promise<TypeRollupRow[]> {
+  const byPlatform = opts.byPlatform === true;
+
+  const conds: SQL[] = [];
+  if (f.from && f.to) conds.push(between(performanceRecords.date, f.from, f.to));
+  if (!f.includeExcluded) {
+    conds.push(eq(performanceRecords.excludedFromAggregates, false));
+  }
+  if (f.platforms && f.platforms.length > 0) {
+    conds.push(inArray(performanceRecords.platform, f.platforms));
+  }
+  if (f.productIds && f.productIds.length > 0) {
+    conds.push(inArray(creatives.productId, f.productIds));
+  }
+
+  const rows = await db
+    .select({
+      type: creatives.type,
+      platform: byPlatform
+        ? sql<string | null>`${performanceRecords.platform}`
+        : sql<string | null>`NULL`,
+      creatives: sql<number>`COUNT(DISTINCT ${creatives.id})`,
+      spend: sumSpend,
+      impressions: sumImpressions,
+      clicks: sumClicks,
+      ctr,
+      cpc,
+      cpa,
+      roas,
+    })
+    .from(performanceRecords)
+    .innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId))
+    .where(conds.length > 0 ? and(...conds) : undefined)
+    .groupBy(
+      ...(byPlatform
+        ? [creatives.type, performanceRecords.platform]
+        : [creatives.type]),
+    );
+
+  const out: TypeRollupRow[] = rows.map((r) => ({
+    type: r.type as TypeRollupRow["type"],
+    platform: (r.platform as Platform | null) ?? null,
+    creatives: num(r.creatives),
+    spend: num(r.spend),
+    impressions: num(r.impressions),
+    clicks: num(r.clicks),
+    ctr: numOrNull(r.ctr),
+    cpc: numOrNull(r.cpc),
+    cpa: numOrNull(r.cpa),
+    roas: numOrNull(r.roas),
+  }));
+
+  out.sort((a, b) =>
+    a.type !== b.type ? TYPE_ORDER[a.type] - TYPE_ORDER[b.type] : b.spend - a.spend,
+  );
+  return out;
 }
 
 // =====================================================================

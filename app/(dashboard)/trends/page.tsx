@@ -4,6 +4,7 @@ import {
   Hash,
   LineChart as LineChartIcon,
   Rocket,
+  Shapes,
   Video,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
@@ -65,6 +66,13 @@ export default async function TrendsLandingPage() {
           icon={Hash}
           title="By tag"
           description="Roll up spend, CTR, CPA, and ROAS by tag. Which creative themes are doing the work?"
+          available
+        />
+        <LensCard
+          href="/trends/by-type"
+          icon={Shapes}
+          title="By type"
+          description="Spend, CTR, CPC, CPA, and ROAS by creative format — video, image, slides — and split each by platform."
           available
         />
         <LensCard
