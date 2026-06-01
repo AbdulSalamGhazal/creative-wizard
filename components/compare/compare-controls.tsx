@@ -205,7 +205,10 @@ function MultiSelect({
             </span>
             <ChevronDown className="w-3.5 h-3.5 text-ink-3 shrink-0" />
           </PopoverTrigger>
-          <PopoverContent align="start" className="w-[22rem] p-0">
+          <PopoverContent
+            align="start"
+            className="w-[34rem] max-w-[90vw] p-0"
+          >
           <Command>
             <CommandInput placeholder={`Search ${label.toLowerCase()}…`} />
             <CommandList className="max-h-72">
