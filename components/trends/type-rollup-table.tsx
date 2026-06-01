@@ -2,6 +2,7 @@ import { Fragment } from "react";
 import Link from "next/link";
 import { int, pct, ratio, usd } from "@/lib/format";
 import {
+  ALL_PLATFORMS,
   PLATFORM_COLOR,
   PLATFORM_LABEL,
   TYPE_COLOR,
@@ -9,9 +10,10 @@ import {
 } from "@/lib/palette";
 import type { TypeRollupRow } from "@/db/queries/trends";
 
+type Platform = (typeof ALL_PLATFORMS)[number];
 const TYPE_ORDER: Array<TypeRollupRow["type"]> = ["video", "image", "slides"];
 
-/** The numeric cells, shared by the blended and per-platform rows. */
+/** Numeric cells shared by both layouts. */
 function MetricCells({ r }: { r: TypeRollupRow }) {
   return (
     <>
@@ -29,9 +31,9 @@ function MetricCells({ r }: { r: TypeRollupRow }) {
 }
 
 /**
- * Performance rolled up by creative type. In blended mode one row per type;
- * with `byPlatform`, each type is a group of per-platform rows. Each row links
- * to the matching filtered Library view.
+ * Performance by creative type. Blended mode = one row per type. With
+ * `byPlatform`, the table is grouped by PLATFORM (parent) with one type row
+ * (child) under each. Rows link into the matching filtered Library view.
  */
 export function TypeRollupTable({
   rows,
@@ -48,13 +50,21 @@ export function TypeRollupTable({
     );
   }
 
-  const byType = new Map<TypeRollupRow["type"], TypeRollupRow[]>();
+  // Group by platform for the per-platform layout, preserving the canonical
+  // platform order and the canonical type order within each.
+  const byPlatformMap = new Map<Platform, TypeRollupRow[]>();
   for (const r of rows) {
-    const list = byType.get(r.type) ?? [];
+    if (!r.platform) continue;
+    const list = byPlatformMap.get(r.platform) ?? [];
     list.push(r);
-    byType.set(r.type, list);
+    byPlatformMap.set(r.platform, list);
   }
-  const orderedTypes = TYPE_ORDER.filter((t) => byType.has(t));
+  const orderedPlatforms = ALL_PLATFORMS.filter((p) => byPlatformMap.has(p));
+  for (const p of orderedPlatforms) {
+    byPlatformMap
+      .get(p)!
+      .sort((a, b) => TYPE_ORDER.indexOf(a.type) - TYPE_ORDER.indexOf(b.type));
+  }
 
   return (
     <div className="overflow-x-auto rounded-lg border border-line bg-surface">
@@ -62,7 +72,7 @@ export function TypeRollupTable({
         <thead>
           <tr className="text-left text-[11px] uppercase tracking-[0.14em] text-ink-3 border-b border-line">
             <th className="font-medium px-3 py-2.5">
-              {byPlatform ? "Type · Platform" : "Type"}
+              {byPlatform ? "Platform · Type" : "Type"}
             </th>
             <th className="font-medium px-3 py-2.5 text-right">Creatives</th>
             <th className="font-medium px-3 py-2.5 text-right">Spend</th>
@@ -75,38 +85,34 @@ export function TypeRollupTable({
         </thead>
         <tbody className="divide-y divide-line">
           {byPlatform
-            ? orderedTypes.map((type) => (
-                <Fragment key={type}>
+            ? orderedPlatforms.map((platform) => (
+                <Fragment key={platform}>
                   <tr className="bg-surface-2/40">
                     <td colSpan={8} className="px-3 py-1.5">
                       <span className="inline-flex items-center gap-2 text-[11px] uppercase tracking-[0.14em] text-ink-2">
                         <span
-                          className="w-2 h-2 rounded-sm"
-                          style={{ background: TYPE_COLOR[type] }}
+                          className="w-2 h-2 rounded-full"
+                          style={{ background: PLATFORM_COLOR[platform] }}
                         />
-                        {TYPE_LABEL[type]}
+                        {PLATFORM_LABEL[platform]}
                       </span>
                     </td>
                   </tr>
-                  {byType.get(type)!.map((r) => (
+                  {byPlatformMap.get(platform)!.map((r) => (
                     <tr
-                      key={`${type}-${r.platform ?? "all"}`}
+                      key={`${platform}-${r.type}`}
                       className="hover:bg-surface-2/60 transition-colors"
                     >
                       <td className="px-3 py-2.5 pl-6">
                         <Link
-                          href={`/creatives?types=${type}${r.platform ? `&platforms=${r.platform}` : ""}`}
+                          href={`/creatives?types=${r.type}&platforms=${platform}`}
                           className="inline-flex items-center gap-1.5 text-ink hover:text-brand transition-colors"
                         >
                           <span
-                            className="w-1.5 h-1.5 rounded-full"
-                            style={{
-                              background: r.platform
-                                ? PLATFORM_COLOR[r.platform]
-                                : "var(--ink-3)",
-                            }}
+                            className="w-2 h-2 rounded-sm"
+                            style={{ background: TYPE_COLOR[r.type] }}
                           />
-                          {r.platform ? PLATFORM_LABEL[r.platform] : "All"}
+                          {TYPE_LABEL[r.type]}
                         </Link>
                       </td>
                       <MetricCells r={r} />

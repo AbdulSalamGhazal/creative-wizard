@@ -1,0 +1,194 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+import { ALL_PLATFORMS, PLATFORM_LABEL, TYPE_COLOR, TYPE_LABEL } from "@/lib/palette";
+import { int, pct, ratio, usd } from "@/lib/format";
+import { cn } from "@/lib/utils";
+import type { TypeRollupRow } from "@/db/queries/trends";
+
+type Metric = "spend" | "impressions" | "roas" | "ctr" | "cpc" | "cpa";
+type CreativeType = TypeRollupRow["type"];
+const TYPES: CreativeType[] = ["video", "image", "slides"];
+
+const compactUsd = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
+  notation: "compact",
+  maximumFractionDigits: 1,
+});
+const compactNum = new Intl.NumberFormat("en-US", {
+  notation: "compact",
+  maximumFractionDigits: 1,
+});
+
+const METRICS: Record<
+  Metric,
+  { label: string; cell: (v: number | null) => string; axis: (v: number) => string }
+> = {
+  spend: { label: "Spend", cell: usd, axis: (v) => compactUsd.format(v) },
+  impressions: { label: "Impressions", cell: int, axis: (v) => compactNum.format(v) },
+  roas: {
+    label: "ROAS",
+    cell: (v) => (v === null ? "—" : `${ratio(v)}×`),
+    axis: (v) => `${ratio(v)}×`,
+  },
+  ctr: { label: "CTR", cell: pct, axis: (v) => pct(v) },
+  cpc: { label: "CPC", cell: usd, axis: (v) => compactUsd.format(v) },
+  cpa: { label: "CPA", cell: usd, axis: (v) => compactUsd.format(v) },
+};
+const METRIC_ORDER: Metric[] = ["spend", "impressions", "roas", "ctr", "cpc", "cpa"];
+
+type ChartRow = { platform: string } & Partial<Record<CreativeType, number | null>>;
+
+/**
+ * Performance by platform (x-axis), with one bar per creative type. The metric
+ * switcher re-bases the bars. Platform is the parent grouping, type the child.
+ */
+export function TypePlatformChart({ rows }: { rows: TypeRollupRow[] }) {
+  const [metric, setMetric] = useState<Metric>("spend");
+
+  const data = useMemo<ChartRow[]>(() => {
+    const byPlatform = new Map<string, ChartRow>();
+    for (const r of rows) {
+      const p = r.platform ?? "all";
+      const entry = byPlatform.get(p) ?? { platform: p };
+      entry[r.type] = r[metric];
+      byPlatform.set(p, entry);
+    }
+    // Stable platform order.
+    return ALL_PLATFORMS.filter((p) => byPlatform.has(p)).map(
+      (p) => byPlatform.get(p)!,
+    );
+  }, [rows, metric]);
+
+  if (data.length === 0) {
+    return (
+      <div className="h-72 flex items-center justify-center text-ink-3 text-sm border border-dashed border-line rounded-lg">
+        No performance in this window.
+      </div>
+    );
+  }
+
+  const m = METRICS[metric];
+
+  return (
+    <div className="rounded-lg border border-line bg-surface p-4">
+      <div className="flex items-center justify-between flex-wrap gap-3 mb-3">
+        <div className="flex items-center gap-3">
+          {TYPES.map((t) => (
+            <span key={t} className="inline-flex items-center gap-1.5 text-[11px] text-ink-2">
+              <span className="w-2.5 h-2.5 rounded-sm" style={{ background: TYPE_COLOR[t] }} />
+              {TYPE_LABEL[t]}
+            </span>
+          ))}
+        </div>
+        <div className="inline-flex items-center rounded-md border border-line bg-surface-2 p-0.5 text-xs">
+          {METRIC_ORDER.map((key) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setMetric(key)}
+              className={cn(
+                "px-2.5 h-7 rounded transition-colors",
+                metric === key ? "bg-surface-3 text-ink" : "text-ink-3 hover:text-ink",
+              )}
+            >
+              {METRICS[key].label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="h-72">
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+            <CartesianGrid stroke="var(--line)" strokeDasharray="3 3" vertical={false} />
+            <XAxis
+              dataKey="platform"
+              tickFormatter={(p: string) =>
+                PLATFORM_LABEL[p as keyof typeof PLATFORM_LABEL] ?? p
+              }
+              tick={{ fill: "var(--ink-2)", fontSize: 11 }}
+              stroke="var(--line-2)"
+              tickMargin={8}
+            />
+            <YAxis
+              tickFormatter={(v: number) => m.axis(v)}
+              tick={{ fill: "var(--ink-3)", fontSize: 11 }}
+              stroke="var(--line-2)"
+              width={56}
+            />
+            <Tooltip
+              cursor={{ fill: "var(--surface-2)", opacity: 0.4 }}
+              content={<TypeTooltip metric={metric} />}
+            />
+            {TYPES.map((t) => (
+              <Bar
+                key={t}
+                dataKey={t}
+                name={TYPE_LABEL[t]}
+                fill={TYPE_COLOR[t]}
+                radius={[3, 3, 0, 0]}
+                maxBarSize={46}
+                isAnimationActive
+                animationDuration={650}
+              />
+            ))}
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+}
+
+interface TipEntry {
+  dataKey: CreativeType;
+  value: number | null;
+  payload: ChartRow;
+}
+
+function TypeTooltip({
+  active,
+  payload,
+  metric,
+}: {
+  active?: boolean;
+  payload?: TipEntry[];
+  metric: Metric;
+}) {
+  if (!active || !payload || payload.length === 0) return null;
+  const platform = payload[0]?.payload.platform ?? "";
+  const m = METRICS[metric];
+  return (
+    <div className="rounded-md border border-line bg-surface px-3 py-2 shadow-lg shadow-black/30 text-xs">
+      <div className="text-ink font-medium mb-1.5">
+        {PLATFORM_LABEL[platform as keyof typeof PLATFORM_LABEL] ?? platform}
+      </div>
+      <div className="space-y-1">
+        {TYPES.map((t) => {
+          const entry = payload.find((p) => p.dataKey === t);
+          return (
+            <div key={t} className="flex items-center justify-between gap-4">
+              <span className="inline-flex items-center gap-1.5 text-ink-2">
+                <span className="w-2 h-2 rounded-sm" style={{ background: TYPE_COLOR[t] }} />
+                {TYPE_LABEL[t]}
+              </span>
+              <span className="text-ink tabular-nums">
+                {m.cell(entry?.value ?? null)}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
