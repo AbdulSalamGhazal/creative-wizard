@@ -23,6 +23,11 @@ const client =
     prepare: false,
     max: process.env.NODE_ENV === "production" ? 1 : 10,
     idle_timeout: 20,
+    // Fail a stuck connection fast instead of letting the request hang until the
+    // serverless function times out. 10s still comfortably covers a normal Neon
+    // cold-wake from scale-to-zero; a real outage surfaces the error boundary
+    // (and a logged error) in seconds rather than ~25s+.
+    connect_timeout: 10,
   });
 globalForPg.__ccmsPg = client;
 
