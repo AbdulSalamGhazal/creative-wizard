@@ -108,7 +108,11 @@ This app is deployed and in production use. Treat `main` as shippable.
 ## Learned
 
 - **Campaign name + duplicate detection (v2).** `performance_records.campaign_name`
-  stores the combined `Campaign ➤ Adset` value. Duplicates are keyed on
+  stores the combined `Campaign ➤ Adset` value — and for **instagram/facebook**
+  the platform is appended (e.g. `Holiday ➤ Broad (Instagram)`) so the same Meta
+  campaign split across the two stays distinct in storage, filters, and pickers.
+  The format is built ONLY through `lib/campaign.ts` `buildCampaignName()` (used
+  by the CSV pipeline and the seed) — don't open-code it. Duplicates are keyed on
   `(creative, platform, campaign, date)` and rejected via E050 (intra-file) /
   E051 (already-imported) plus a unique index (migrations 0010+0011). The same
   creative across *different* campaigns on the same day is allowed. (This

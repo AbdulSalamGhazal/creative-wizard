@@ -31,6 +31,7 @@ import { snapchatAdapter } from "@/csv/platforms/snapchat";
 import { googleAdapter } from "@/csv/platforms/google";
 import type { InternalField } from "@/csv/platforms/types";
 import { sql } from "drizzle-orm";
+import { buildCampaignName } from "@/lib/campaign";
 
 type Platform = (typeof platformEnum)[number];
 
@@ -285,7 +286,7 @@ async function main() {
         rows.push({
           creativeId: c.id,
           platform,
-          campaignName: `Always-On ➤ ${platform}`,
+          campaignName: buildCampaignName("Always-On", "Broad", platform),
           date: dateStr,
           spend: spend.toString(),
           impressions,

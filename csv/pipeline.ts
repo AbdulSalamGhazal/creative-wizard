@@ -21,6 +21,7 @@ import type {
   PlatformAdapter,
 } from "@/csv/platforms/types";
 import type { ValidationError } from "@/csv/errors";
+import { buildCampaignName } from "@/lib/campaign";
 
 type Platform = PlatformAdapter["platform"];
 
@@ -33,7 +34,7 @@ export interface ParsedRow {
   clicks: number;
   conversions: number | null;
   conversionValue: number | null;
-  /** Combined "Campaign Name ➤ Adset Name". */
+  /** Combined "Campaign ➤ Adset", with " (Instagram)"/" (Facebook)" appended for those two platforms (see lib/campaign.ts). */
   campaignName: string;
   landingPageViews: number | null;
   videoViews2s: number | null;
@@ -331,10 +332,11 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
 
     // Combine the two campaign columns into the single stored value. The UI
     // only ever shows this as "Campaign Name".
-    const campaignName = [allCells.campaign_name, allCells.adset_name]
-      .map((s) => (s ?? "").trim())
-      .filter((s) => s.length > 0)
-      .join(" ➤ ");
+    const campaignName = buildCampaignName(
+      allCells.campaign_name ?? "",
+      allCells.adset_name ?? "",
+      platform,
+    );
 
     accepted.push({
       rowNumber,

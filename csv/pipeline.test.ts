@@ -257,7 +257,7 @@ describe("CSV pipeline — Stage 5 (database duplicates)", () => {
       },
     });
     expect(res.ok).toBe(true);
-    expect(seenCampaign).toBe("Holiday ➤ Broad");
+    expect(seenCampaign).toBe("Holiday ➤ Broad (Instagram)");
   });
 });
 
