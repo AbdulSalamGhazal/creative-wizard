@@ -22,15 +22,27 @@ const STAGES: Array<{
 ];
 
 export function FunnelStages({ totals }: { totals: FunnelTotals }) {
-  const top = Math.max(totals.impressions, 1);
+  // Stages drop by orders of magnitude (impressions ≫ conversions), so a linear
+  // bar would make every stage after impressions invisible. Scale the bar
+  // *lengths* on a log10 axis — still monotonically narrowing — while the exact
+  // counts and step rates stay labeled so nothing is misread.
+  const top = Math.max(totals.impressions, 10);
+  const logTop = Math.log10(top);
 
   return (
     <div className="rounded-lg border border-line bg-surface p-4">
-      <h3 className="text-sm text-ink-2 mb-3">Funnel</h3>
+      <h3 className="text-sm text-ink-2">Funnel</h3>
+      <p className="text-[10px] text-ink-3 mb-3">
+        Bar length is log-scaled so every stage stays visible — exact counts are
+        labeled.
+      </p>
       <div className="space-y-1">
         {STAGES.map((s) => {
           const vol = totals[s.volKey];
-          const widthPct = Math.max((vol / top) * 100, 1.5);
+          const widthPct =
+            vol > 0
+              ? Math.min(100, Math.max((Math.log10(vol) / logTop) * 100, 6))
+              : 4;
           const rate = s.rateKey ? totals[s.rateKey] : null;
           return (
             <div key={s.volKey}>
