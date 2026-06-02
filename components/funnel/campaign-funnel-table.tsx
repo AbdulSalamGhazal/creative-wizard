@@ -1,14 +1,128 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 import { DeltaBadge } from "@/components/kpi/delta-badge";
 import { int, pct, usd } from "@/lib/format";
+import { cn } from "@/lib/utils";
 import type { CampaignFunnelRow } from "@/db/queries/funnel";
+
+const COL_WIDTHS_KEY = "funnel-col-widths";
+const MIN_COL_WIDTH = 140;
+
+type SortKey =
+  | "campaign"
+  | "spend"
+  | "cpm"
+  | "ctr"
+  | "voc"
+  | "cvr"
+  | "conversions"
+  | "impressions";
+type Dir = "asc" | "desc";
+
+const COLUMNS: Array<{ key: SortKey; label: string; numeric: boolean }> = [
+  { key: "campaign", label: "Campaign", numeric: false },
+  { key: "spend", label: "Spend", numeric: true },
+  { key: "cpm", label: "CPM", numeric: true },
+  { key: "ctr", label: "CTR", numeric: true },
+  { key: "voc", label: "VOC", numeric: true },
+  { key: "cvr", label: "CvR", numeric: true },
+  { key: "conversions", label: "Conv.", numeric: true },
+  { key: "impressions", label: "Impr.", numeric: true },
+];
 
 /**
  * Per-campaign funnel table. One row per stored campaign_name (the full
- * "Campaign ➤ Adset" value), sorted by spend. CPM/CTR/VOC/CvR read the funnel;
- * the spend Δ flags movers vs the prior equal-length window. Sticky header +
- * internal scroll for long lists.
+ * "Campaign ➤ Adset" value). Every column sorts (click to cycle); the Campaign
+ * column is drag-resizable with the width persisted to localStorage — same
+ * behaviour as the Summary table. Sticky header + internal scroll.
  */
 export function CampaignFunnelTable({ rows }: { rows: CampaignFunnelRow[] }) {
+  const [sortKey, setSortKey] = useState<SortKey>("spend");
+  const [dir, setDir] = useState<Dir>("desc");
+
+  // ---- Resizable Campaign column ----
+  const [widths, setWidths] = useState<Record<string, number>>({});
+  const thRefs = useRef<Record<string, HTMLTableCellElement | null>>({});
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(COL_WIDTHS_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw) as Record<string, number>;
+        if (parsed && typeof parsed === "object") setWidths(parsed);
+      }
+    } catch {
+      /* ignore malformed storage */
+    }
+  }, []);
+  const startResize = useCallback(
+    (key: string, e: React.MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const startX = e.clientX;
+      const measured = thRefs.current[key]?.getBoundingClientRect().width ?? 280;
+      const startW = widths[key] ?? measured;
+      const onMove = (ev: MouseEvent) => {
+        const w = Math.max(MIN_COL_WIDTH, Math.round(startW + (ev.clientX - startX)));
+        setWidths((prev) => ({ ...prev, [key]: w }));
+      };
+      const onUp = () => {
+        window.removeEventListener("mousemove", onMove);
+        window.removeEventListener("mouseup", onUp);
+        document.body.style.userSelect = "";
+        setWidths((prev) => {
+          try {
+            localStorage.setItem(COL_WIDTHS_KEY, JSON.stringify(prev));
+          } catch {
+            /* ignore */
+          }
+          return prev;
+        });
+      };
+      window.addEventListener("mousemove", onMove);
+      window.addEventListener("mouseup", onUp);
+      document.body.style.userSelect = "none";
+    },
+    [widths],
+  );
+  const widthStyle = (key: string): React.CSSProperties | undefined => {
+    const w = widths[key];
+    return w ? { width: w, minWidth: w, maxWidth: w } : undefined;
+  };
+
+  // ---- Sorting (client-side; all rows are loaded) ----
+  const sorted = useMemo(() => {
+    const arr = [...rows];
+    arr.sort((a, b) => {
+      let cmp: number;
+      if (sortKey === "campaign") {
+        cmp = a.campaign.localeCompare(b.campaign);
+      } else {
+        // Null rates sort as 0 (consistent with the Summary table).
+        const av = a[sortKey] ?? 0;
+        const bv = b[sortKey] ?? 0;
+        cmp = av - bv;
+      }
+      return dir === "asc" ? cmp : -cmp;
+    });
+    return arr;
+  }, [rows, sortKey, dir]);
+
+  const onSort = (key: SortKey) => {
+    if (sortKey === key) {
+      // desc → asc → reset to default (spend desc)
+      if (dir === "desc") setDir("asc");
+      else {
+        setSortKey("spend");
+        setDir("desc");
+      }
+    } else {
+      setSortKey(key);
+      setDir(key === "campaign" ? "asc" : "desc");
+    }
+  };
+
   if (rows.length === 0) {
     return (
       <div className="rounded-lg border border-dashed border-line bg-surface px-6 py-12 text-center">
@@ -21,21 +135,62 @@ export function CampaignFunnelTable({ rows }: { rows: CampaignFunnelRow[] }) {
     <div className="max-h-[60vh] overflow-auto rounded-lg border border-line bg-surface">
       <table className="w-full text-sm num">
         <thead>
-          <tr className="text-left text-[11px] uppercase tracking-[0.14em] text-ink-3 [&>th]:sticky [&>th]:top-0 [&>th]:z-10 [&>th]:bg-surface [&>th]:border-b [&>th]:border-line">
-            <th className="font-medium px-3 py-2.5">Campaign</th>
-            <th className="font-medium px-3 py-2.5 text-right">Spend</th>
-            <th className="font-medium px-3 py-2.5 text-right">CPM</th>
-            <th className="font-medium px-3 py-2.5 text-right">CTR</th>
-            <th className="font-medium px-3 py-2.5 text-right">VOC</th>
-            <th className="font-medium px-3 py-2.5 text-right">CvR</th>
-            <th className="font-medium px-3 py-2.5 text-right">Conv.</th>
-            <th className="font-medium px-3 py-2.5 text-right">Impr.</th>
+          <tr className="text-left text-[11px] uppercase tracking-[0.14em] text-ink-3">
+            {COLUMNS.map((col) => {
+              const active = sortKey === col.key;
+              const resizable = col.key === "campaign";
+              return (
+                <th
+                  key={col.key}
+                  ref={
+                    resizable
+                      ? (el) => {
+                          thRefs.current[col.key] = el;
+                        }
+                      : undefined
+                  }
+                  style={resizable ? widthStyle(col.key) : undefined}
+                  className={cn(
+                    "relative font-medium px-3 py-2.5 sticky top-0 z-10 bg-surface border-b border-line",
+                    col.numeric ? "text-right" : "text-left",
+                    resizable && widths[col.key] ? "" : "whitespace-nowrap",
+                  )}
+                >
+                  <button
+                    type="button"
+                    onClick={() => onSort(col.key)}
+                    className={cn(
+                      "inline-flex items-center gap-1 hover:text-ink transition-colors max-w-full",
+                      col.numeric && "justify-end w-full",
+                      active && "text-brand",
+                    )}
+                  >
+                    <span className={resizable && widths[col.key] ? "truncate" : ""}>
+                      {col.label}
+                    </span>
+                    <SortIcon active={active} dir={dir} />
+                  </button>
+                  {resizable && (
+                    <span
+                      role="separator"
+                      aria-orientation="vertical"
+                      aria-label="Resize Campaign column"
+                      onMouseDown={(e) => startResize(col.key, e)}
+                      className="absolute top-0 right-0 h-full w-1.5 cursor-col-resize select-none hover:bg-brand/40 active:bg-brand/60"
+                    />
+                  )}
+                </th>
+              );
+            })}
           </tr>
         </thead>
         <tbody className="divide-y divide-line">
-          {rows.map((r) => (
+          {sorted.map((r) => (
             <tr key={r.campaign} className="hover:bg-surface-2/60 transition-colors">
-              <td className="px-3 py-2.5 max-w-[22rem]">
+              <td
+                style={widthStyle("campaign")}
+                className={cn("px-3 py-2.5", widths.campaign ? "" : "max-w-[22rem]")}
+              >
                 <span className="block truncate text-ink" title={r.campaign}>
                   {r.campaign}
                 </span>
@@ -57,5 +212,16 @@ export function CampaignFunnelTable({ rows }: { rows: CampaignFunnelRow[] }) {
         </tbody>
       </table>
     </div>
+  );
+}
+
+function SortIcon({ active, dir }: { active: boolean; dir: Dir }) {
+  if (!active) {
+    return <ArrowUpDown className="w-3 h-3 text-ink-3 opacity-60" aria-hidden />;
+  }
+  return dir === "asc" ? (
+    <ArrowUp className="w-3 h-3 text-brand" aria-hidden />
+  ) : (
+    <ArrowDown className="w-3 h-3 text-brand" aria-hidden />
   );
 }
