@@ -2,6 +2,7 @@ import { Wand2 } from "lucide-react";
 import type { SessionUser } from "@/lib/auth";
 import { UserMenu } from "@/components/auth/user-menu";
 import { CommandPalette } from "@/components/layout/command-palette";
+import { ScreenshotButton } from "@/components/layout/screenshot-button";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 
 function initials(name: string): string {
@@ -35,6 +36,7 @@ export function TopBar({ user, creatives }: Props) {
         </div>
         <div className="flex items-center gap-3">
           <CommandPalette creatives={creatives} />
+          <ScreenshotButton />
           <ThemeToggle />
           <UserMenu
             user={{

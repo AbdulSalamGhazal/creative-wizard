@@ -163,6 +163,17 @@ This app is deployed and in production use. Treat `main` as shippable.
   their own inline editor (`updateCreativeNotes` via NotesPanel); `patchCreative`
   never touches notes. Tag editing uses `tag-multi-select.tsx` (a Popover
   dropdown), and the publish date uses a Calendar popover.
+- **Screenshot-to-clipboard** lives in the top bar (`components/layout/
+  screenshot-button.tsx`). It renders the live page DOM to a PNG via
+  `modern-screenshot` (dynamically imported, so it's not in the initial
+  bundle; chosen over html2canvas because the SVG-foreignObject path renders
+  this app's CSS variables / `color-mix()` correctly) and writes it to the
+  clipboard with the async Clipboard API (HTTPS + a user gesture, both
+  satisfied), falling back to a file download otherwise. It captures the whole
+  page (`document.body`); nodes with `data-screenshot-exclude` (the button
+  itself) and the sonner toaster are filtered out. A browser web app CANNOT
+  silently capture the OS desktop — that needs `getDisplayMedia`, which always
+  shows a picker; this DOM-render path is the no-prompt option.
 - **Deleting a creative is a hard delete** (`deleteCreative`). It removes the
   creative's `performance_records` first (no cascade on that FK), then the
   creative (tags cascade). The confirm dialog
