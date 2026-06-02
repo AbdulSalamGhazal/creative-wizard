@@ -11,8 +11,10 @@ import {
   getCreativeByName,
   listAllTags,
 } from "@/db/queries/creatives";
+import { listProducts } from "@/db/queries/products";
 import { listAuditEvents } from "@/db/queries/audit";
 import { CreativeDetailHeader } from "@/components/creative/creative-detail-header";
+import { DeleteCreativeDialog } from "@/components/creative/delete-creative-dialog";
 import { CreativePerfLineChart } from "@/components/charts/creative-perf-line";
 import { CreativePlatformTable } from "@/components/creative/creative-platform-table";
 import { CreativeRecordsTable } from "@/components/creative/creative-records-table";
@@ -45,20 +47,29 @@ export default async function CreativeDetailPage({
     notFound();
   }
 
-  const [k, byPlatform, perfRows, records, activity, deletionSummary, allTags] =
-    await Promise.all([
-      kpis({ creativeIds: [creative.id], ...range }),
-      platformMix({ creativeIds: [creative.id], ...range }),
-      spendByDatePlatform({ creativeIds: [creative.id], ...range }),
-      creativeRecords(creative.id, range),
-      listAuditEvents({
-        entityType: "creative",
-        entityId: creative.id,
-        limit: 25,
-      }),
-      creativeDeletionSummary(creative.id),
-      listAllTags(),
-    ]);
+  const [
+    k,
+    byPlatform,
+    perfRows,
+    records,
+    activity,
+    deletionSummary,
+    allTags,
+    products,
+  ] = await Promise.all([
+    kpis({ creativeIds: [creative.id], ...range }),
+    platformMix({ creativeIds: [creative.id], ...range }),
+    spendByDatePlatform({ creativeIds: [creative.id], ...range }),
+    creativeRecords(creative.id, range),
+    listAuditEvents({
+      entityType: "creative",
+      entityId: creative.id,
+      limit: 25,
+    }),
+    creativeDeletionSummary(creative.id),
+    listAllTags(),
+    listProducts(),
+  ]);
 
   const tiles = [
     { label: "Spend", value: usd(k.spend) },
@@ -76,7 +87,7 @@ export default async function CreativeDetailPage({
         <CreativeDetailHeader
           creative={creative}
           allTags={allTags}
-          deletionSummary={deletionSummary}
+          products={products}
         />
         <NotesPanel creativeId={creative.id} initialNotes={creative.notes} />
       </section>
@@ -143,6 +154,25 @@ export default async function CreativeDetailPage({
           </span>
         </div>
         <AuditFeed rows={activity} />
+      </div>
+
+      {/* ─────────── Danger zone ─────────── */}
+      <div className="rounded-xl border border-neg/30 bg-neg/5 p-4 md:p-5">
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <div>
+            <h2 className="text-sm font-medium text-ink">Delete this creative</h2>
+            <p className="text-xs text-ink-3 mt-0.5 max-w-xl">
+              Permanently removes the creative, its tags, and all{" "}
+              {deletionSummary.records.toLocaleString()} of its performance
+              records. This can&apos;t be undone and affects no other creative.
+            </p>
+          </div>
+          <DeleteCreativeDialog
+            creativeId={creative.id}
+            creativeName={creative.name}
+            summary={deletionSummary}
+          />
+        </div>
       </div>
     </div>
   );

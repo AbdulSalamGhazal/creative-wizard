@@ -15,25 +15,6 @@ import {
 import { creativeCreateSchema } from "@/validators/creative";
 import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
 
-const creativeUpdateSchema = z.object({
-  id: z.string().uuid(),
-  name: z.string().min(1).max(255),
-  productId: z.string().uuid(),
-  type: z.enum(creativeTypeEnum),
-  status: z.enum(creativeStatusEnum),
-  thumbnailUrl: z.string().url().optional().nullable(),
-  launchDate: z
-    .string()
-    .date()
-    .optional()
-    .nullable()
-    .transform((v) => (v ? v : null)),
-  notes: z.string().max(5000).optional().nullable(),
-  tags: z.array(z.string().min(1).max(64)).default([]),
-});
-
-export type CreativeUpdateInput = z.infer<typeof creativeUpdateSchema>;
-
 export interface CreativeMutationResult {
   ok: boolean;
   error?: string;
@@ -212,128 +193,23 @@ export async function bulkUpdateStatus(input: unknown): Promise<
 }
 
 /**
- * Full creative edit. Supports renaming (with uniqueness check), changing
- * product / type / status / launchDate / notes, and replacing the tag set.
- * Tag replacement is destructive — we wipe + reinsert in one transaction so
- * the new tag set is exactly what the form submitted.
- */
-export async function updateCreative(
-  input: unknown,
-): Promise<CreativeMutationResult> {
-  try {
-    const user = await requireEditor();
-    const parsed = creativeUpdateSchema.safeParse(input);
-    if (!parsed.success) {
-      const fieldErrors: Record<string, string> = {};
-      for (const issue of parsed.error.issues) {
-        const key = issue.path[0]?.toString() ?? "_";
-        if (!fieldErrors[key]) fieldErrors[key] = issue.message;
-      }
-      return { ok: false, error: "Invalid input", fieldErrors };
-    }
-    const data = parsed.data;
-
-    // Name uniqueness — only check when the name changed (or someone else owns it).
-    const [collision] = await db
-      .select({ id: creatives.id })
-      .from(creatives)
-      .where(and(eq(creatives.name, data.name), ne(creatives.id, data.id)))
-      .limit(1);
-    if (collision) {
-      return {
-        ok: false,
-        error: "A creative with that name already exists.",
-        fieldErrors: { name: "Already in use" },
-      };
-    }
-
-    const [oldRow] = await db
-      .select({
-        name: creatives.name,
-        status: creatives.status,
-        productId: creatives.productId,
-        type: creatives.type,
-      })
-      .from(creatives)
-      .where(eq(creatives.id, data.id))
-      .limit(1);
-    if (!oldRow) return { ok: false, error: "Creative not found." };
-
-    await db.transaction(async (tx) => {
-      await tx
-        .update(creatives)
-        .set({
-          name: data.name,
-          productId: data.productId,
-          type: data.type,
-          status: data.status,
-          thumbnailUrl: data.thumbnailUrl ?? null,
-          launchDate: data.launchDate,
-          notes: data.notes || null,
-          updatedAt: new Date(),
-        })
-        .where(eq(creatives.id, data.id));
-
-      // Replace tag set.
-      await tx.delete(creativeTags).where(eq(creativeTags.creativeId, data.id));
-      if (data.tags.length > 0) {
-        await tx
-          .insert(creativeTags)
-          .values(data.tags.map((tag) => ({ creativeId: data.id, tag })))
-          .onConflictDoNothing();
-      }
-    });
-
-    try {
-      revalidatePath("/creatives");
-      revalidatePath(`/creatives/${encodeURIComponent(oldRow.name)}`);
-      revalidatePath(`/creatives/${encodeURIComponent(data.name)}`);
-    } catch (err) {
-      console.warn("revalidatePath after update failed:", err);
-    }
-
-    // Capture only the fields that actually changed so the audit feed reads
-    // tightly. `tags` is reported as a count delta — the new set is the
-    // ground truth and lives on the creative.
-    const changes: Record<string, { from: unknown; to: unknown }> = {};
-    if (oldRow.name !== data.name) changes.name = { from: oldRow.name, to: data.name };
-    if (oldRow.status !== data.status) changes.status = { from: oldRow.status, to: data.status };
-    if (oldRow.type !== data.type) changes.type = { from: oldRow.type, to: data.type };
-    if (oldRow.productId !== data.productId) {
-      changes.productId = { from: oldRow.productId, to: data.productId };
-    }
-
-    await logAudit({
-      action: AUDIT_ACTIONS.CREATIVE_UPDATE,
-      entityType: "creative",
-      entityId: data.id,
-      entityLabel: data.name,
-      actorUserId: user.id,
-      meta: { changes, tagsCount: data.tags.length },
-    });
-
-    return { ok: true, name: data.name };
-  } catch (err) {
-    return {
-      ok: false,
-      error: err instanceof Error ? err.message : "Unknown error",
-    };
-  }
-}
-
-/**
- * Partial inline edit from the creative detail page — used by the auto-saving
- * status / thumbnail / launch-date / tags controls. Every field is optional;
- * only the fields actually present in the payload are written. Tags, when
- * provided, replace the whole set (wipe + reinsert in one transaction).
+ * Inline edit from the creative detail page — the single save path for every
+ * editable field (name / product / type / status / thumbnail / launch date /
+ * tags). Every field is optional; only the fields actually present in the
+ * payload are written. Tags, when provided, replace the whole set (wipe +
+ * reinsert in one transaction). Renaming is validated for uniqueness, exactly
+ * like the old full-edit form — the detail page now edits everything in place,
+ * so there is no separate `/edit` route.
  *
- * Distinct from `updateCreative` (the full edit form): this never touches the
- * name, product, or type — the sensitive, CSV-matching-relevant fields — so it
- * needs no name-uniqueness check.
+ * Notes are NOT handled here — they have their own inline editor
+ * (`updateCreativeNotes` via NotesPanel), so this never clobbers them.
  */
 const creativePatchSchema = z
   .object({
     id: z.string().uuid(),
+    name: z.string().min(1).max(255).optional(),
+    productId: z.string().uuid().optional(),
+    type: z.enum(creativeTypeEnum).optional(),
     status: z.enum(creativeStatusEnum).optional(),
     thumbnailUrl: z.string().url().nullable().optional(),
     launchDate: z
@@ -346,6 +222,9 @@ const creativePatchSchema = z
   })
   .refine(
     (d) =>
+      d.name !== undefined ||
+      d.productId !== undefined ||
+      d.type !== undefined ||
       d.status !== undefined ||
       d.thumbnailUrl !== undefined ||
       d.launchDate !== undefined ||
@@ -360,13 +239,24 @@ export async function patchCreative(
     const user = await requireEditor();
     const parsed = creativePatchSchema.safeParse(input);
     if (!parsed.success) {
-      return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
+      const fieldErrors: Record<string, string> = {};
+      for (const issue of parsed.error.issues) {
+        const key = issue.path[0]?.toString() ?? "_";
+        if (!fieldErrors[key]) fieldErrors[key] = issue.message;
+      }
+      return {
+        ok: false,
+        error: parsed.error.issues[0]?.message ?? "Invalid input",
+        fieldErrors,
+      };
     }
     const data = parsed.data;
 
     const [oldRow] = await db
       .select({
         name: creatives.name,
+        productId: creatives.productId,
+        type: creatives.type,
         status: creatives.status,
         thumbnailUrl: creatives.thumbnailUrl,
         launchDate: creatives.launchDate,
@@ -376,8 +266,27 @@ export async function patchCreative(
       .limit(1);
     if (!oldRow) return { ok: false, error: "Creative not found." };
 
+    // Name uniqueness — only when actually renaming.
+    if (data.name !== undefined && data.name !== oldRow.name) {
+      const [collision] = await db
+        .select({ id: creatives.id })
+        .from(creatives)
+        .where(and(eq(creatives.name, data.name), ne(creatives.id, data.id)))
+        .limit(1);
+      if (collision) {
+        return {
+          ok: false,
+          error: "A creative with that name already exists.",
+          fieldErrors: { name: "Already in use" },
+        };
+      }
+    }
+
     // Build a set clause from only the provided scalar fields.
     const set: Partial<typeof creatives.$inferInsert> = { updatedAt: new Date() };
+    if (data.name !== undefined) set.name = data.name;
+    if (data.productId !== undefined) set.productId = data.productId;
+    if (data.type !== undefined) set.type = data.type;
     if (data.status !== undefined) set.status = data.status;
     if (data.thumbnailUrl !== undefined) set.thumbnailUrl = data.thumbnailUrl;
     if (data.launchDate !== undefined) set.launchDate = data.launchDate;
@@ -398,19 +307,35 @@ export async function patchCreative(
       }
     });
 
+    const newName = data.name ?? oldRow.name;
     try {
       revalidatePath("/creatives");
       revalidatePath(`/creatives/${encodeURIComponent(oldRow.name)}`);
+      if (newName !== oldRow.name) {
+        revalidatePath(`/creatives/${encodeURIComponent(newName)}`);
+      }
     } catch (err) {
       console.warn("revalidatePath after patch failed:", err);
     }
 
     const changes: Record<string, { from: unknown; to: unknown }> = {};
+    if (data.name !== undefined && oldRow.name !== data.name) {
+      changes.name = { from: oldRow.name, to: data.name };
+    }
+    if (data.productId !== undefined && oldRow.productId !== data.productId) {
+      changes.productId = { from: oldRow.productId, to: data.productId };
+    }
+    if (data.type !== undefined && oldRow.type !== data.type) {
+      changes.type = { from: oldRow.type, to: data.type };
+    }
     if (data.status !== undefined && oldRow.status !== data.status) {
       changes.status = { from: oldRow.status, to: data.status };
     }
     if (data.thumbnailUrl !== undefined && oldRow.thumbnailUrl !== data.thumbnailUrl) {
-      changes.thumbnailUrl = { from: Boolean(oldRow.thumbnailUrl), to: Boolean(data.thumbnailUrl) };
+      changes.thumbnailUrl = {
+        from: Boolean(oldRow.thumbnailUrl),
+        to: Boolean(data.thumbnailUrl),
+      };
     }
     if (data.launchDate !== undefined && oldRow.launchDate !== data.launchDate) {
       changes.launchDate = { from: oldRow.launchDate, to: data.launchDate };
@@ -420,7 +345,7 @@ export async function patchCreative(
       action: AUDIT_ACTIONS.CREATIVE_UPDATE,
       entityType: "creative",
       entityId: data.id,
-      entityLabel: oldRow.name,
+      entityLabel: newName,
       actorUserId: user.id,
       meta: {
         changes,
@@ -429,7 +354,7 @@ export async function patchCreative(
       },
     });
 
-    return { ok: true, name: oldRow.name };
+    return { ok: true, name: newName };
   } catch (err) {
     return {
       ok: false,

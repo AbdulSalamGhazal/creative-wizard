@@ -152,13 +152,17 @@ This app is deployed and in production use. Treat `main` as shippable.
   false-flagged this as a `split("")` bug; it is correct. Confirm with
   `python3 -c '...repr(line)'` before "fixing", and use Python (not the Edit
   tool) to modify those lines — Edit can't match the control char.
-- **Creative detail page edits inline; no detour to `/edit`.** The detail
-  header (`components/creative/creative-detail-header.tsx`, now a client
-  component) auto-saves status / thumbnail / publish-date / tags via the
-  partial `patchCreative` action (optimistic + revert-on-failure + toast). The
-  full `/creatives/[name]/edit` page is kept ONLY for the sensitive fields
-  (name / product / type) — renaming changes CSV creative-name matching, so it
-  stays a deliberate, separate flow. `patchCreative` never touches those.
+- **Creative detail page edits EVERYTHING inline; there is no `/edit` route.**
+  The detail header (`components/creative/creative-detail-header.tsx`, a client
+  component) is a full editor for name / product / type / status / thumbnail /
+  publish-date / tags, with draft state + a dirty check + an explicit **Save
+  changes** button (not auto-save). Save calls `patchCreative` (partial — only
+  changed fields; renaming is uniqueness-checked and the client follows the new
+  URL). The old `/creatives/[name]/edit` page, `creative-edit-form.tsx`, and the
+  `updateCreative` action were DELETED — don't reintroduce them. Notes stay on
+  their own inline editor (`updateCreativeNotes` via NotesPanel); `patchCreative`
+  never touches notes. Tag editing uses `tag-multi-select.tsx` (a Popover
+  dropdown), and the publish date uses a Calendar popover.
 - **Deleting a creative is a hard delete** (`deleteCreative`). It removes the
   creative's `performance_records` first (no cascade on that FK), then the
   creative (tags cascade). The confirm dialog
