@@ -346,6 +346,61 @@ export async function getCreativeByName(
   };
 }
 
+export interface CreativeDeletionSummary {
+  /** Total performance_records that would be hard-deleted with the creative. */
+  records: number;
+  /** Per-platform record counts, busiest first. */
+  platforms: { platform: Platform; records: number }[];
+  /** Distinct campaign_name values across all of this creative's records. */
+  campaigns: number;
+  /** Earliest / latest record date (YYYY-MM-DD), or null when no records. */
+  firstDate: string | null;
+  lastDate: string | null;
+}
+
+/**
+ * Everything hard-deleted alongside a creative. `performance_records` is FK'd
+ * to exactly one creative and has NO `ON DELETE CASCADE`, so the delete action
+ * removes these rows explicitly inside a transaction — they belong to this
+ * creative alone and cannot be attached to any other. Powers the delete
+ * confirmation dialog so the user sees exactly what disappears. (Tags DO
+ * cascade and aren't counted here.)
+ */
+export async function creativeDeletionSummary(
+  creativeId: string,
+): Promise<CreativeDeletionSummary> {
+  const rows = await db
+    .select({
+      platform: performanceRecords.platform,
+      records: sql<number>`COUNT(*)::int`,
+      firstDate: sql<string | null>`MIN(${performanceRecords.date})`,
+      lastDate: sql<string | null>`MAX(${performanceRecords.date})`,
+    })
+    .from(performanceRecords)
+    .where(eq(performanceRecords.creativeId, creativeId))
+    .groupBy(performanceRecords.platform);
+
+  let records = 0;
+  let firstDate: string | null = null;
+  let lastDate: string | null = null;
+  const platforms = rows.map((r) => {
+    records += r.records;
+    if (r.firstDate && (!firstDate || r.firstDate < firstDate)) firstDate = r.firstDate;
+    if (r.lastDate && (!lastDate || r.lastDate > lastDate)) lastDate = r.lastDate;
+    return { platform: r.platform as Platform, records: r.records };
+  });
+  platforms.sort((a, b) => b.records - a.records);
+
+  const [agg] = await db
+    .select({
+      campaigns: sql<number>`COUNT(DISTINCT ${performanceRecords.campaignName})::int`,
+    })
+    .from(performanceRecords)
+    .where(eq(performanceRecords.creativeId, creativeId));
+
+  return { records, platforms, campaigns: agg?.campaigns ?? 0, firstDate, lastDate };
+}
+
 export interface CreativeRecordRow {
   id: number;
   platform: "instagram" | "facebook" | "tiktok" | "snapchat" | "google";

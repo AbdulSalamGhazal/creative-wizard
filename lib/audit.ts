@@ -21,6 +21,7 @@ export const AUDIT_ACTIONS = {
   CREATIVE_UPDATE: "creative.update",
   CREATIVE_NOTES_UPDATE: "creative.notes_update",
   CREATIVE_STATUS_BULK: "creative.bulk_status",
+  CREATIVE_DELETE: "creative.delete",
 
   // Exclusions
   EXCLUSION_EXCLUDE: "exclusion.exclude",
@@ -125,6 +126,7 @@ export const AUDIT_LABELS: Record<AuditAction, string> = {
   "creative.update": "Updated creative",
   "creative.notes_update": "Edited notes",
   "creative.bulk_status": "Bulk status change",
+  "creative.delete": "Deleted creative",
   "exclusion.exclude": "Excluded record",
   "exclusion.include": "Re-included record",
   "upload.commit": "Committed upload",
@@ -158,6 +160,7 @@ export const AUDIT_CATEGORIES: Record<AuditAction, AuditEntityType> = {
   "creative.update": "creative",
   "creative.notes_update": "creative",
   "creative.bulk_status": "creative",
+  "creative.delete": "creative",
   "exclusion.exclude": "exclusion",
   "exclusion.include": "exclusion",
   "upload.commit": "upload",

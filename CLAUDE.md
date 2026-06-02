@@ -38,7 +38,7 @@ Do not introduce a new dependency without a one-line justification in the PR des
 - Schema changes go through Drizzle migrations. Never edit a generated migration; create a new one.
 - Every column used in a filter, join, or sort needs an index. Declare it in the schema file alongside the column.
 - When adding a new dashboard query, check whether existing indexes cover it; add one if not.
-- `performance_records` is **unique** on `(creative_id, platform, campaign_name, date)` — the same creative can run on the same platform/date across different campaigns (distinct rows), but not the same campaign twice. Validation is still the only **entry** path. There are two sanctioned **exit** paths: (1) batch rollback within 24 h (admin-only), and (2) the record-cleanup tool on `/uploads` (filtered hard-delete, editor-or-admin, preview-then-confirm, audit-logged via `upload.bulk_delete`). No other code should delete from `performance_records`.
+- `performance_records` is **unique** on `(creative_id, platform, campaign_name, date)` — the same creative can run on the same platform/date across different campaigns (distinct rows), but not the same campaign twice. Validation is still the only **entry** path. There are three sanctioned **exit** paths: (1) batch rollback within 24 h (admin-only), (2) the record-cleanup tool on `/uploads` (filtered hard-delete, editor-or-admin, preview-then-confirm, audit-logged via `upload.bulk_delete`), and (3) deleting a creative (`deleteCreative` in `app/actions/creative.ts`) — which removes that creative's records inside a transaction because `performance_records.creative_id` has NO `ON DELETE CASCADE`, then deletes the creative (its `creative_tags` cascade). Editor-or-admin, confirm-with-record-summary, audit-logged via `creative.delete`. No other code should delete from `performance_records`.
 - Every creative has a required `product_id`. Products live in their own table and are managed in `/admin/catalog?tab=products`. Never let a creative be saved without one.
 
 ## Aggregation rules (CRITICAL)
@@ -152,3 +152,17 @@ This app is deployed and in production use. Treat `main` as shippable.
   false-flagged this as a `split("")` bug; it is correct. Confirm with
   `python3 -c '...repr(line)'` before "fixing", and use Python (not the Edit
   tool) to modify those lines — Edit can't match the control char.
+- **Creative detail page edits inline; no detour to `/edit`.** The detail
+  header (`components/creative/creative-detail-header.tsx`, now a client
+  component) auto-saves status / thumbnail / publish-date / tags via the
+  partial `patchCreative` action (optimistic + revert-on-failure + toast). The
+  full `/creatives/[name]/edit` page is kept ONLY for the sensitive fields
+  (name / product / type) — renaming changes CSV creative-name matching, so it
+  stays a deliberate, separate flow. `patchCreative` never touches those.
+- **Deleting a creative is a hard delete** (`deleteCreative`). It removes the
+  creative's `performance_records` first (no cascade on that FK), then the
+  creative (tags cascade). The confirm dialog
+  (`components/creative/delete-creative-dialog.tsx`) shows the exact record
+  count + per-platform breakdown + date range from `creativeDeletionSummary`,
+  and an acknowledgement checkbox gates the destructive button. The audit row
+  (`creative.delete`) survives because it stores a label, not an FK.

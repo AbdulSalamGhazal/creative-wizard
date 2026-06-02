@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { and, eq, inArray, ne } from "drizzle-orm";
+import { and, count, eq, inArray, ne } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireEditor } from "@/lib/auth";
@@ -10,6 +10,7 @@ import {
   creativeStatusEnum,
   creativeTags,
   creativeTypeEnum,
+  performanceRecords,
 } from "@/db/schema";
 import { creativeCreateSchema } from "@/validators/creative";
 import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
@@ -312,6 +313,190 @@ export async function updateCreative(
     });
 
     return { ok: true, name: data.name };
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : "Unknown error",
+    };
+  }
+}
+
+/**
+ * Partial inline edit from the creative detail page — used by the auto-saving
+ * status / thumbnail / launch-date / tags controls. Every field is optional;
+ * only the fields actually present in the payload are written. Tags, when
+ * provided, replace the whole set (wipe + reinsert in one transaction).
+ *
+ * Distinct from `updateCreative` (the full edit form): this never touches the
+ * name, product, or type — the sensitive, CSV-matching-relevant fields — so it
+ * needs no name-uniqueness check.
+ */
+const creativePatchSchema = z
+  .object({
+    id: z.string().uuid(),
+    status: z.enum(creativeStatusEnum).optional(),
+    thumbnailUrl: z.string().url().nullable().optional(),
+    launchDate: z
+      .string()
+      .date()
+      .nullable()
+      .optional()
+      .transform((v) => (v ? v : v === null ? null : undefined)),
+    tags: z.array(z.string().min(1).max(64)).max(50).optional(),
+  })
+  .refine(
+    (d) =>
+      d.status !== undefined ||
+      d.thumbnailUrl !== undefined ||
+      d.launchDate !== undefined ||
+      d.tags !== undefined,
+    { message: "No fields to update." },
+  );
+
+export async function patchCreative(
+  input: unknown,
+): Promise<CreativeMutationResult> {
+  try {
+    const user = await requireEditor();
+    const parsed = creativePatchSchema.safeParse(input);
+    if (!parsed.success) {
+      return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
+    }
+    const data = parsed.data;
+
+    const [oldRow] = await db
+      .select({
+        name: creatives.name,
+        status: creatives.status,
+        thumbnailUrl: creatives.thumbnailUrl,
+        launchDate: creatives.launchDate,
+      })
+      .from(creatives)
+      .where(eq(creatives.id, data.id))
+      .limit(1);
+    if (!oldRow) return { ok: false, error: "Creative not found." };
+
+    // Build a set clause from only the provided scalar fields.
+    const set: Partial<typeof creatives.$inferInsert> = { updatedAt: new Date() };
+    if (data.status !== undefined) set.status = data.status;
+    if (data.thumbnailUrl !== undefined) set.thumbnailUrl = data.thumbnailUrl;
+    if (data.launchDate !== undefined) set.launchDate = data.launchDate;
+    const hasScalarChange = Object.keys(set).length > 1; // more than updatedAt
+
+    await db.transaction(async (tx) => {
+      if (hasScalarChange) {
+        await tx.update(creatives).set(set).where(eq(creatives.id, data.id));
+      }
+      if (data.tags !== undefined) {
+        await tx.delete(creativeTags).where(eq(creativeTags.creativeId, data.id));
+        if (data.tags.length > 0) {
+          await tx
+            .insert(creativeTags)
+            .values(data.tags.map((tag) => ({ creativeId: data.id, tag })))
+            .onConflictDoNothing();
+        }
+      }
+    });
+
+    try {
+      revalidatePath("/creatives");
+      revalidatePath(`/creatives/${encodeURIComponent(oldRow.name)}`);
+    } catch (err) {
+      console.warn("revalidatePath after patch failed:", err);
+    }
+
+    const changes: Record<string, { from: unknown; to: unknown }> = {};
+    if (data.status !== undefined && oldRow.status !== data.status) {
+      changes.status = { from: oldRow.status, to: data.status };
+    }
+    if (data.thumbnailUrl !== undefined && oldRow.thumbnailUrl !== data.thumbnailUrl) {
+      changes.thumbnailUrl = { from: Boolean(oldRow.thumbnailUrl), to: Boolean(data.thumbnailUrl) };
+    }
+    if (data.launchDate !== undefined && oldRow.launchDate !== data.launchDate) {
+      changes.launchDate = { from: oldRow.launchDate, to: data.launchDate };
+    }
+
+    await logAudit({
+      action: AUDIT_ACTIONS.CREATIVE_UPDATE,
+      entityType: "creative",
+      entityId: data.id,
+      entityLabel: oldRow.name,
+      actorUserId: user.id,
+      meta: {
+        changes,
+        ...(data.tags !== undefined ? { tagsCount: data.tags.length } : {}),
+        inline: true,
+      },
+    });
+
+    return { ok: true, name: oldRow.name };
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : "Unknown error",
+    };
+  }
+}
+
+/**
+ * Hard-delete a creative and everything attached to it. `performance_records`
+ * is FK'd to exactly one creative with NO `ON DELETE CASCADE`, so those rows
+ * are removed explicitly first (inside the transaction); `creative_tags`
+ * cascades. The audit row survives (it stores a label, not an FK), so the
+ * deletion stays visible in the activity feed.
+ *
+ * This is a sanctioned hard-delete exit path for `performance_records` (added
+ * at the user's request), alongside batch-rollback and the cleanup tool. The
+ * records belong solely to this creative, so removing it cannot affect any
+ * other creative's data. Editor-or-admin only.
+ */
+export async function deleteCreative(
+  creativeId: string,
+): Promise<{ ok: boolean; error?: string; recordsDeleted?: number }> {
+  try {
+    const user = await requireEditor();
+    if (!z.string().uuid().safeParse(creativeId).success) {
+      return { ok: false, error: "Invalid creative id." };
+    }
+
+    const [target] = await db
+      .select({ id: creatives.id, name: creatives.name })
+      .from(creatives)
+      .where(eq(creatives.id, creativeId))
+      .limit(1);
+    if (!target) return { ok: false, error: "Creative not found." };
+
+    const recordsDeleted = await db.transaction(async (tx) => {
+      const countRows = await tx
+        .select({ value: count() })
+        .from(performanceRecords)
+        .where(eq(performanceRecords.creativeId, creativeId));
+      const n = countRows[0]?.value ?? 0;
+      await tx
+        .delete(performanceRecords)
+        .where(eq(performanceRecords.creativeId, creativeId));
+      // creative_tags cascade on this delete.
+      await tx.delete(creatives).where(eq(creatives.id, creativeId));
+      return n;
+    });
+
+    try {
+      revalidatePath("/creatives");
+      revalidatePath(`/creatives/${encodeURIComponent(target.name)}`);
+    } catch (err) {
+      console.warn("revalidatePath after delete failed:", err);
+    }
+
+    await logAudit({
+      action: AUDIT_ACTIONS.CREATIVE_DELETE,
+      entityType: "creative",
+      entityId: target.id,
+      entityLabel: target.name,
+      actorUserId: user.id,
+      meta: { recordsDeleted },
+    });
+
+    return { ok: true, recordsDeleted };
   } catch (err) {
     return {
       ok: false,

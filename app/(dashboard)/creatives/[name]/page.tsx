@@ -5,7 +5,12 @@ import {
   platformMix,
   spendByDatePlatform,
 } from "@/db/queries/performance";
-import { creativeRecords, getCreativeByName } from "@/db/queries/creatives";
+import {
+  creativeDeletionSummary,
+  creativeRecords,
+  getCreativeByName,
+  listAllTags,
+} from "@/db/queries/creatives";
 import { listAuditEvents } from "@/db/queries/audit";
 import { CreativeDetailHeader } from "@/components/creative/creative-detail-header";
 import { CreativePerfLineChart } from "@/components/charts/creative-perf-line";
@@ -40,17 +45,20 @@ export default async function CreativeDetailPage({
     notFound();
   }
 
-  const [k, byPlatform, perfRows, records, activity] = await Promise.all([
-    kpis({ creativeIds: [creative.id], ...range }),
-    platformMix({ creativeIds: [creative.id], ...range }),
-    spendByDatePlatform({ creativeIds: [creative.id], ...range }),
-    creativeRecords(creative.id, range),
-    listAuditEvents({
-      entityType: "creative",
-      entityId: creative.id,
-      limit: 25,
-    }),
-  ]);
+  const [k, byPlatform, perfRows, records, activity, deletionSummary, allTags] =
+    await Promise.all([
+      kpis({ creativeIds: [creative.id], ...range }),
+      platformMix({ creativeIds: [creative.id], ...range }),
+      spendByDatePlatform({ creativeIds: [creative.id], ...range }),
+      creativeRecords(creative.id, range),
+      listAuditEvents({
+        entityType: "creative",
+        entityId: creative.id,
+        limit: 25,
+      }),
+      creativeDeletionSummary(creative.id),
+      listAllTags(),
+    ]);
 
   const tiles = [
     { label: "Spend", value: usd(k.spend) },
@@ -65,7 +73,11 @@ export default async function CreativeDetailPage({
     <div className="space-y-10">
       {/* ─────────── Information ─────────── */}
       <section className="space-y-6">
-        <CreativeDetailHeader creative={creative} />
+        <CreativeDetailHeader
+          creative={creative}
+          allTags={allTags}
+          deletionSummary={deletionSummary}
+        />
         <NotesPanel creativeId={creative.id} initialNotes={creative.notes} />
       </section>
 
