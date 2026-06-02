@@ -1,7 +1,13 @@
 import { CreativeCard } from "@/components/creative/creative-card";
 import type { CreativeListRow } from "@/db/queries/creatives";
 
-export function CreativeGrid({ rows }: { rows: CreativeListRow[] }) {
+export function CreativeGrid({
+  rows,
+  listCtx,
+}: {
+  rows: CreativeListRow[];
+  listCtx?: string;
+}) {
   if (rows.length === 0) {
     return (
       <div className="rounded-lg border border-dashed border-line bg-surface px-6 py-16 text-center">
@@ -19,7 +25,7 @@ export function CreativeGrid({ rows }: { rows: CreativeListRow[] }) {
     <div className="max-h-[70vh] overflow-y-auto overflow-x-hidden px-1 -mx-1 pt-1">
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
         {rows.map((row) => (
-          <CreativeCard key={row.id} row={row} />
+          <CreativeCard key={row.id} row={row} listCtx={listCtx} />
         ))}
       </div>
     </div>

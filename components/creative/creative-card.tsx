@@ -35,7 +35,13 @@ const STATUS_DOT: Record<CreativeListRow["status"], string> = {
   archived: "var(--ink-3)",
 };
 
-export function CreativeCard({ row }: { row: CreativeListRow }) {
+export function CreativeCard({
+  row,
+  listCtx,
+}: {
+  row: CreativeListRow;
+  listCtx?: string;
+}) {
   const TypeIcon = TYPE_ICON[row.type];
   const grad = gradientFor(row.name);
   const isDraft = row.status === "draft";
@@ -45,7 +51,7 @@ export function CreativeCard({ row }: { row: CreativeListRow }) {
 
   return (
     <Link
-      href={`/creatives/${encodeURIComponent(row.name)}`}
+      href={`/creatives/${encodeURIComponent(row.name)}${listCtx ? `?${listCtx}` : ""}`}
       className={cn(
         "group block rounded-lg border bg-surface text-left transition-all duration-200",
         "hover:-translate-y-0.5 hover:border-line-2",

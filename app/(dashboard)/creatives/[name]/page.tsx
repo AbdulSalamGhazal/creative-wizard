@@ -10,10 +10,13 @@ import {
   creativeRecords,
   getCreativeByName,
   listAllTags,
+  listCreatives,
 } from "@/db/queries/creatives";
 import { listProducts } from "@/db/queries/products";
 import { listAuditEvents } from "@/db/queries/audit";
+import { creativeListFiltersSchema } from "@/validators/creative";
 import { CreativeDetailHeader } from "@/components/creative/creative-detail-header";
+import { CreativeDetailNav } from "@/components/creative/creative-detail-nav";
 import { DeleteCreativeDialog } from "@/components/creative/delete-creative-dialog";
 import { CreativePerfLineChart } from "@/components/charts/creative-perf-line";
 import { CreativePlatformTable } from "@/components/creative/creative-platform-table";
@@ -25,22 +28,73 @@ import { int, pct, ratio, usd } from "@/lib/format";
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
+// Library filter/sort keys carried into the detail URL so the prev/next pager
+// walks the same sequence the user was browsing.
+const FILTER_KEYS = [
+  "q",
+  "productIds",
+  "types",
+  "statuses",
+  "platforms",
+  "tags",
+  "sort",
+  "view",
+] as const;
+
+type SearchParams = Record<string, string | string[] | undefined>;
+
+function pickFirst(v: string | string[] | undefined): string | undefined {
+  return Array.isArray(v) ? v[0] : v;
+}
+
+function buildQuery(sp: SearchParams, keys: readonly string[]): string {
+  const qs = new URLSearchParams();
+  for (const k of keys) {
+    const first = pickFirst(sp[k]);
+    if (first) qs.set(k, first);
+  }
+  return qs.toString();
+}
+
 export default async function CreativeDetailPage({
   params,
   searchParams,
 }: {
   params: Promise<{ name: string }>;
-  searchParams: Promise<{ from?: string; to?: string }>;
+  searchParams: Promise<SearchParams>;
 }) {
   const { name } = await params;
   const sp = await searchParams;
   const decoded = decodeURIComponent(name);
 
-  const from = ISO_DATE.test(sp.from ?? "") ? sp.from : undefined;
-  const to = ISO_DATE.test(sp.to ?? "") ? sp.to : undefined;
+  const fromRaw = pickFirst(sp.from);
+  const toRaw = pickFirst(sp.to);
+  const from = fromRaw && ISO_DATE.test(fromRaw) ? fromRaw : undefined;
+  const to = toRaw && ISO_DATE.test(toRaw) ? toRaw : undefined;
   // Only treat as a bounded range when BOTH ends are present.
   const range = from && to ? { from, to } : {};
   const rangeLabel = from && to ? `${from} → ${to}` : "All-time";
+
+  // Rebuild the Library's filtered/sorted sequence so the pager matches it.
+  const navParsed = creativeListFiltersSchema.parse({
+    q: pickFirst(sp.q),
+    productIds: pickFirst(sp.productIds),
+    types: pickFirst(sp.types),
+    statuses: pickFirst(sp.statuses),
+    platforms: pickFirst(sp.platforms),
+    tags: pickFirst(sp.tags),
+    sort: pickFirst(sp.sort),
+    view: pickFirst(sp.view),
+  });
+  const navFilters = {
+    q: navParsed.q,
+    productIds: navParsed.productIds.length > 0 ? navParsed.productIds : undefined,
+    types: navParsed.types.length > 0 ? navParsed.types : undefined,
+    statuses: navParsed.statuses.length > 0 ? navParsed.statuses : undefined,
+    platforms: navParsed.platforms.length > 0 ? navParsed.platforms : undefined,
+    tags: navParsed.tags.length > 0 ? navParsed.tags : undefined,
+    sort: navParsed.sort,
+  };
 
   const creative = await getCreativeByName(decoded);
   if (!creative) {
@@ -56,6 +110,7 @@ export default async function CreativeDetailPage({
     deletionSummary,
     allTags,
     products,
+    navList,
   ] = await Promise.all([
     kpis({ creativeIds: [creative.id], ...range }),
     platformMix({ creativeIds: [creative.id], ...range }),
@@ -69,7 +124,26 @@ export default async function CreativeDetailPage({
     creativeDeletionSummary(creative.id),
     listAllTags(),
     listProducts(),
+    // Reuse listCreatives so the pager order is byte-for-byte the Library's.
+    // (Returns names + a little extra; fine at this scale — revisit with a
+    // name-only query if the catalog grows into the thousands.)
+    listCreatives(navFilters),
   ]);
+
+  // ── Prev / next pager over the rebuilt sequence ──
+  const seqNames = navList.rows.map((r) => r.name);
+  const idx = seqNames.indexOf(decoded);
+  const total = seqNames.length;
+  const position = idx >= 0 ? idx + 1 : null;
+  const prevName = idx > 0 ? seqNames[idx - 1] ?? null : null;
+  const nextName =
+    idx >= 0 && idx < seqNames.length - 1 ? seqNames[idx + 1] ?? null : null;
+
+  const filterCtx = buildQuery(sp, FILTER_KEYS);
+  const navQuery = buildQuery(sp, [...FILTER_KEYS, "from", "to"]);
+  const backHref = filterCtx ? `/creatives?${filterCtx}` : "/creatives";
+  const detailHref = (nm: string) =>
+    `/creatives/${encodeURIComponent(nm)}${navQuery ? `?${navQuery}` : ""}`;
 
   const tiles = [
     { label: "Spend", value: usd(k.spend) },
@@ -82,6 +156,15 @@ export default async function CreativeDetailPage({
 
   return (
     <div className="space-y-10">
+      {/* ─────────── Pager ─────────── */}
+      <CreativeDetailNav
+        position={position}
+        total={total}
+        prevHref={prevName ? detailHref(prevName) : null}
+        nextHref={nextName ? detailHref(nextName) : null}
+        backHref={backHref}
+      />
+
       {/* ─────────── Information ─────────── */}
       <section className="space-y-6">
         <CreativeDetailHeader

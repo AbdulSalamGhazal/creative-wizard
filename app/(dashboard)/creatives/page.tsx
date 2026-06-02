@@ -49,6 +49,24 @@ export default async function CreativesPage({
     listAllTags(),
   ]);
 
+  // Carry the active filter/sort into each detail link so the detail page's
+  // prev/next pager walks this exact same sequence (and "back" returns here).
+  const ctxParams = new URLSearchParams();
+  const ctxEntries: Array<[string, string]> = [
+    ["q", parsed.q ?? ""],
+    ["productIds", parsed.productIds.join(",")],
+    ["types", parsed.types.join(",")],
+    ["statuses", parsed.statuses.join(",")],
+    ["platforms", parsed.platforms.join(",")],
+    ["tags", parsed.tags.join(",")],
+    ["sort", parsed.sort],
+    ["view", parsed.view],
+  ];
+  for (const [key, val] of ctxEntries) {
+    if (val) ctxParams.set(key, val);
+  }
+  const listCtx = ctxParams.toString();
+
   return (
     <div className="space-y-6">
       <LibraryHeader stats={stats} />
@@ -61,9 +79,9 @@ export default async function CreativesPage({
       </div>
 
       {parsed.view === "table" ? (
-        <CreativeTable rows={listResult.rows} />
+        <CreativeTable rows={listResult.rows} listCtx={listCtx} />
       ) : (
-        <CreativeGrid rows={listResult.rows} />
+        <CreativeGrid rows={listResult.rows} listCtx={listCtx} />
       )}
     </div>
   );

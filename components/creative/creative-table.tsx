@@ -70,7 +70,13 @@ const SORTS = {
 const COL_WIDTHS_KEY = "creatives-col-widths";
 const MIN_COL_WIDTH = 90;
 
-export function CreativeTable({ rows }: { rows: CreativeListRow[] }) {
+export function CreativeTable({
+  rows,
+  listCtx,
+}: {
+  rows: CreativeListRow[];
+  listCtx?: string;
+}) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const currentSort = (searchParams.get("sort") as CreativeSort) ?? DEFAULT_SORT;
@@ -258,7 +264,7 @@ export function CreativeTable({ rows }: { rows: CreativeListRow[] }) {
                   className={`px-3 py-2.5 ${widths.name ? "" : "whitespace-nowrap"}`}
                 >
                   <Link
-                    href={`/creatives/${encodeURIComponent(r.name)}`}
+                    href={`/creatives/${encodeURIComponent(r.name)}${listCtx ? `?${listCtx}` : ""}`}
                     title={r.name}
                     className={
                       "font-mono text-ink text-[13px] hover:text-brand transition-colors " +

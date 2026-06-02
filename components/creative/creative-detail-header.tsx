@@ -2,9 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import {
-  ArrowLeft,
   CalendarDays,
   Film,
   Image as ImageIcon,
@@ -183,17 +181,8 @@ export function CreativeDetailHeader({
 
   return (
     <div className="space-y-4">
-      {/* Top action row */}
-      <div className="flex items-center justify-between gap-3">
-        <Link
-          href="/creatives"
-          className="inline-flex items-center gap-1 text-xs text-ink-3 hover:text-ink transition-colors"
-        >
-          <ArrowLeft className="w-3 h-3" />
-          Back to library
-        </Link>
-
-        <div className="flex items-center gap-2">
+      {/* Save bar */}
+      <div className="flex items-center justify-end gap-2">
           {dirty ? (
             <span className="inline-flex items-center gap-1.5 text-[11px] text-warn">
               <span className="w-1.5 h-1.5 rounded-full bg-warn" />
@@ -221,7 +210,6 @@ export function CreativeDetailHeader({
             )}
             Save changes
           </Button>
-        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-[260px_1fr] gap-6">
