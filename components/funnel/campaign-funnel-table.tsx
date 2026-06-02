@@ -109,6 +109,32 @@ export function CampaignFunnelTable({ rows }: { rows: CampaignFunnelRow[] }) {
     return arr;
   }, [rows, sortKey, dir]);
 
+  // Pinned footer: additive columns sum; rate columns are weighted averages
+  // recomputed from component sums (never an average of ratios).
+  const totals = useMemo(() => {
+    let spend = 0;
+    let impressions = 0;
+    let clicks = 0;
+    let lpv = 0;
+    let conversions = 0;
+    for (const r of rows) {
+      spend += r.spend;
+      impressions += r.impressions;
+      clicks += r.clicks;
+      lpv += r.landingPageViews;
+      conversions += r.conversions;
+    }
+    return {
+      spend,
+      impressions,
+      conversions,
+      cpm: impressions > 0 ? (spend / impressions) * 1000 : null,
+      ctr: impressions > 0 ? clicks / impressions : null,
+      voc: clicks > 0 ? lpv / clicks : null,
+      cvr: lpv > 0 ? conversions / lpv : null,
+    };
+  }, [rows]);
+
   const onSort = (key: SortKey) => {
     if (sortKey === key) {
       // desc → asc → reset to default (spend desc)
@@ -210,6 +236,23 @@ export function CampaignFunnelTable({ rows }: { rows: CampaignFunnelRow[] }) {
             </tr>
           ))}
         </tbody>
+        <tfoot>
+          <tr className="font-semibold [&>td]:sticky [&>td]:bottom-0 [&>td]:z-10 [&>td]:bg-surface-2 [&>td]:border-t [&>td]:border-line">
+            <td
+              style={widthStyle("campaign")}
+              className={cn("px-3 py-2 text-ink", widths.campaign ? "truncate" : "")}
+            >
+              Total · {rows.length}
+            </td>
+            <td className="px-3 py-2 text-right text-ink tabular-nums">{usd(totals.spend)}</td>
+            <td className="px-3 py-2 text-right text-ink tabular-nums">{usd(totals.cpm)}</td>
+            <td className="px-3 py-2 text-right text-ink tabular-nums">{pct(totals.ctr)}</td>
+            <td className="px-3 py-2 text-right text-ink tabular-nums">{pct(totals.voc)}</td>
+            <td className="px-3 py-2 text-right text-ink tabular-nums">{pct(totals.cvr)}</td>
+            <td className="px-3 py-2 text-right text-ink tabular-nums">{int(totals.conversions)}</td>
+            <td className="px-3 py-2 text-right text-ink tabular-nums">{int(totals.impressions)}</td>
+          </tr>
+        </tfoot>
       </table>
     </div>
   );
