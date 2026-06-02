@@ -3,9 +3,10 @@ import { int, pct, usd } from "@/lib/format";
 import type { CampaignFunnelRow } from "@/db/queries/funnel";
 
 /**
- * Per-campaign funnel table. One row per campaign (adsets/placements rolled up),
- * sorted by spend. CPM/CTR/VOC/CvR read the funnel; the spend Δ flags movers vs
- * the prior equal-length window. Sticky header + internal scroll for long lists.
+ * Per-campaign funnel table. One row per stored campaign_name (the full
+ * "Campaign ➤ Adset" value), sorted by spend. CPM/CTR/VOC/CvR read the funnel;
+ * the spend Δ flags movers vs the prior equal-length window. Sticky header +
+ * internal scroll for long lists.
  */
 export function CampaignFunnelTable({ rows }: { rows: CampaignFunnelRow[] }) {
   if (rows.length === 0) {

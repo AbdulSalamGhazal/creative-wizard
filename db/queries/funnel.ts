@@ -1,4 +1,4 @@
-import { and, asc, between, desc, eq, inArray, sql, type SQL } from "drizzle-orm";
+import { and, asc, between, desc, eq, inArray, type SQL } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { creatives, performanceRecords, platformEnum } from "@/db/schema";
 import {
@@ -17,9 +17,10 @@ import { computeDelta, prevPeriod, type Delta } from "@/lib/period";
 /**
  * The "Funnel" lens: campaign-level funnel metrics — CPM, CTR, VOC, CvR — and
  * the volumes behind them (impressions → clicks → LP views → conversions).
- * Campaign‑centric, not creative‑centric: rows roll up by the campaign root
- * (the part before " ➤ adset"), so adsets and placements of one campaign
- * combine. All weighted via component sums from lib/metrics.
+ * Campaign‑centric, not creative‑centric: rows are keyed on the stored
+ * campaign_name (the full "Campaign ➤ Adset" value, plus the platform suffix
+ * for IG/FB) — same identity used everywhere else. All weighted via component
+ * sums from lib/metrics.
  */
 
 type Platform = (typeof platformEnum)[number];
@@ -130,8 +131,6 @@ export async function funnelOverview(f: FunnelFilters): Promise<FunnelOverview> 
 // Per-campaign funnel
 // =====================================================================
 
-/** Campaign root = the part before " ➤ adset" (so adsets/placements combine). */
-const campaignRoot = sql<string>`split_part(${performanceRecords.campaignName}, ' ➤ ', 1)`;
 
 export interface CampaignFunnelRow {
   campaign: string;
@@ -149,11 +148,11 @@ export interface CampaignFunnelRow {
 
 async function campaignSpend(f: FunnelFilters): Promise<Map<string, number>> {
   const rows = await db
-    .select({ campaign: campaignRoot, spend: sumSpend })
+    .select({ campaign: performanceRecords.campaignName, spend: sumSpend })
     .from(performanceRecords)
     .innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId))
     .where(whereFor(f))
-    .groupBy(campaignRoot);
+    .groupBy(performanceRecords.campaignName);
   const m = new Map<string, number>();
   for (const r of rows) m.set(r.campaign, num(r.spend));
   return m;
@@ -166,7 +165,7 @@ export async function campaignFunnel(
   const [rows, priorSpend] = await Promise.all([
     db
       .select({
-        campaign: campaignRoot,
+        campaign: performanceRecords.campaignName,
         spend: sumSpend,
         impressions: sumImpressions,
         clicks: sumClicks,
@@ -180,7 +179,7 @@ export async function campaignFunnel(
       .from(performanceRecords)
       .innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId))
       .where(whereFor(f))
-      .groupBy(campaignRoot)
+      .groupBy(performanceRecords.campaignName)
       .orderBy(desc(sumSpend)),
     campaignSpend({ ...f, from: prev.from, to: prev.to }),
   ]);
