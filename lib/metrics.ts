@@ -49,6 +49,12 @@ export const cpa: SQL<number> = sql<number>`SUM(${p.spend}) / NULLIF(SUM(${p.con
 export const roas: SQL<number> = sql<number>`SUM(${p.conversionValue}) / NULLIF(SUM(${p.spend}), 0)`;
 /** Views Over Clicks = landing page views / clicks (shown ×100 as %). */
 export const voc: SQL<number> = sql<number>`SUM(${p.landingPageViews})::numeric / NULLIF(SUM(${p.clicks}), 0)`;
+/**
+ * Conversion rate = conversions / landing page views (shown ×100 as %). The
+ * last funnel step after VOC: impressions →(CTR)→ clicks →(VOC)→ LP views
+ * →(CvR)→ conversions.
+ */
+export const cvr: SQL<number> = sql<number>`SUM(${p.conversions})::numeric / NULLIF(SUM(${p.landingPageViews}), 0)`;
 
 // Video-funnel rates — non-video rows carry NULL video views and so are
 // skipped; hookRate's denominator is restricted to rows with video data.

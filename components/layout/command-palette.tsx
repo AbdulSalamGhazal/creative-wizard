@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
+  Filter,
   GitCompare,
   Hash,
   Images,
@@ -48,6 +49,7 @@ const PAGES = [
   { href: "/creatives", label: "Creatives library", icon: Images },
   { href: "/creatives/new", label: "New creative", icon: Plus },
   { href: "/summary", label: "Summary — per-platform grid", icon: Table2 },
+  { href: "/funnel", label: "Funnel — CPM / CTR / VOC / CvR by campaign", icon: Filter },
   { href: "/trends", label: "Trends", icon: LineChart },
   { href: "/trends/over-time", label: "Trends · Over time", icon: LineChart },
   { href: "/trends/by-tag", label: "Trends · By tag", icon: Hash },
