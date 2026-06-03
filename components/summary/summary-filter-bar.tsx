@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  CalendarDays,
   CircleDot,
   ChevronDown,
   Columns3,
@@ -23,13 +22,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import { Calendar } from "@/components/ui/calendar";
-import { Button } from "@/components/ui/button";
+import { DateRangePicker } from "@/components/filters/date-range-picker";
 import { cn } from "@/lib/utils";
 import {
   IDENTITY_COLUMN_KEYS,
@@ -46,7 +39,6 @@ import { PLATFORM_LABEL } from "@/lib/palette";
 import { MetricFilterControl } from "@/components/summary/metric-filter";
 import { ViewsControl } from "@/components/summary/views-control";
 import type { SummaryViewRow } from "@/db/queries/summary-views";
-import type { DateRange } from "react-day-picker";
 
 interface Props {
   products: Array<{ id: string; name: string }>;
@@ -104,31 +96,6 @@ const METRIC_LABELS: Record<MetricColumnKey, string> = {
   voc: "VOC",
   cvr: "CvR",
 };
-
-const DATE_PRESETS = [
-  { key: "7", label: "Last 7 days", days: 7 },
-  { key: "30", label: "Last 30 days", days: 30 },
-  { key: "90", label: "Last 90 days", days: 90 },
-];
-
-function isoDate(d: Date): string {
-  return d.toISOString().slice(0, 10);
-}
-function presetRange(days: number) {
-  const to = new Date();
-  to.setUTCHours(0, 0, 0, 0);
-  const from = new Date(to);
-  from.setUTCDate(from.getUTCDate() - (days - 1));
-  return { from: isoDate(from), to: isoDate(to) };
-}
-function activePresetKey(from: string | null, to: string | null): string | null {
-  if (!from || !to) return null;
-  for (const p of DATE_PRESETS) {
-    const r = presetRange(p.days);
-    if (r.from === from && r.to === to) return p.key;
-  }
-  return null;
-}
 
 function csv(v: string | null): string[] {
   if (!v) return [];
@@ -280,17 +247,12 @@ export function SummaryFilterBar({
       next.delete("hideRate");
     });
 
-  const setPreset = (days: number) => {
-    const r = presetRange(days);
+  const applyRange = (nextFrom: string | null, nextTo: string | null) => {
     update((next) => {
-      next.set("from", r.from);
-      next.set("to", r.to);
-    });
-  };
-  const setCustomRange = (f: Date, t: Date) => {
-    update((next) => {
-      next.set("from", isoDate(f));
-      next.set("to", isoDate(t));
+      if (nextFrom) next.set("from", nextFrom);
+      else next.delete("from");
+      if (nextTo) next.set("to", nextTo);
+      else next.delete("to");
     });
   };
 
@@ -380,13 +342,6 @@ export function SummaryFilterBar({
       ? "Any"
       : `${rateScope === "total" ? "Total" : PLATFORM_LABEL[rateScope as keyof typeof PLATFORM_LABEL] ?? rateScope} · ${rateRatings.length}`;
 
-  const dateLabel = useMemo(() => {
-    const key = activePresetKey(from, to);
-    if (key) return DATE_PRESETS.find((p) => p.key === key)!.label;
-    if (from && to) return `${from} → ${to}`;
-    return "All time";
-  }, [from, to]);
-
   return (
     <div className="sticky top-0 z-20 -mx-6 px-6 py-3 border-b border-line bg-background/95 backdrop-blur">
       <div className="flex items-center gap-2 flex-wrap">
@@ -416,13 +371,7 @@ export function SummaryFilterBar({
         </div>
 
         {/* Date range */}
-        <DateRangeFilter
-          from={from}
-          to={to}
-          setPreset={setPreset}
-          setCustomRange={setCustomRange}
-          dateLabel={dateLabel}
-        />
+        <DateRangePicker from={from} to={to} onChange={applyRange} />
 
         {/* Platforms — select any number */}
         <FilterPill
@@ -819,136 +768,5 @@ function FilterPill({ icon: Icon, label, value, active, children }: PillProps) {
       </DropdownMenuTrigger>
       {children()}
     </DropdownMenu>
-  );
-}
-
-interface DateRangeFilterProps {
-  from: string | null;
-  to: string | null;
-  setPreset: (days: number) => void;
-  setCustomRange: (from: Date, to: Date) => void;
-  dateLabel: string;
-}
-
-function DateRangeFilter({
-  from,
-  to,
-  setPreset,
-  setCustomRange,
-  dateLabel,
-}: DateRangeFilterProps) {
-  const [open, setOpen] = useState(false);
-  const [mode, setMode] = useState<"presets" | "custom">("presets");
-  const initialRange: DateRange | undefined = useMemo(() => {
-    if (from && to) {
-      return {
-        from: new Date(`${from}T00:00:00Z`),
-        to: new Date(`${to}T00:00:00Z`),
-      };
-    }
-    return undefined;
-  }, [from, to]);
-  const [pending, setPending] = useState<DateRange | undefined>(initialRange);
-  const apply = () => {
-    if (pending?.from && pending.to) {
-      setCustomRange(pending.from, pending.to);
-      setOpen(false);
-      setMode("presets");
-    }
-  };
-  const presetActive = activePresetKey(from, to);
-  return (
-    <Popover
-      open={open}
-      onOpenChange={(o) => {
-        setOpen(o);
-        if (!o) {
-          setMode("presets");
-          setPending(initialRange);
-        }
-      }}
-    >
-      <PopoverTrigger asChild>
-        <button
-          type="button"
-          className={cn(
-            "inline-flex items-center gap-2 h-8 px-3 rounded-md border text-xs transition-colors",
-            from || to
-              ? "border-brand/50 text-ink bg-[var(--brand-soft)]"
-              : "border-line text-ink-2 bg-surface hover:bg-surface-2 hover:text-ink",
-          )}
-        >
-          <CalendarDays className="w-3.5 h-3.5" />
-          <span className="text-ink-3">Date</span>
-          <span className="text-ink">{dateLabel}</span>
-          <ChevronDown className="w-3 h-3 text-ink-3" />
-        </button>
-      </PopoverTrigger>
-      <PopoverContent align="start" className="p-0 w-auto">
-        {mode === "presets" ? (
-          <div className="w-56 p-1">
-            <div className="px-2 py-1.5 text-[11px] uppercase tracking-[0.14em] text-ink-3">
-              Date range
-            </div>
-            <div className="space-y-0.5">
-              {DATE_PRESETS.map((p) => {
-                const isActive = presetActive === p.key;
-                return (
-                  <button
-                    key={p.key}
-                    type="button"
-                    onClick={() => {
-                      setPreset(p.days);
-                      setOpen(false);
-                    }}
-                    className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm text-ink-2 hover:bg-surface-2 hover:text-ink"
-                  >
-                    <span className="flex-1 text-left">{p.label}</span>
-                    {isActive && (
-                      <span className="text-brand text-xs">✓</span>
-                    )}
-                  </button>
-                );
-              })}
-              <button
-                type="button"
-                onClick={() => setMode("custom")}
-                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm text-ink-2 hover:bg-surface-2 hover:text-ink border-t border-line mt-1"
-              >
-                <span className="flex-1 text-left">Custom range…</span>
-              </button>
-            </div>
-          </div>
-        ) : (
-          <div className="p-3 space-y-3">
-            <Calendar
-              mode="range"
-              numberOfMonths={2}
-              defaultMonth={pending?.from ?? new Date()}
-              selected={pending}
-              onSelect={setPending}
-            />
-            <div className="flex items-center justify-between gap-2">
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => setMode("presets")}
-              >
-                Back
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                onClick={apply}
-                disabled={!pending?.from || !pending?.to}
-              >
-                Apply
-              </Button>
-            </div>
-          </div>
-        )}
-      </PopoverContent>
-    </Popover>
   );
 }

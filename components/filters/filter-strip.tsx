@@ -1,8 +1,6 @@
 "use client";
 
 import {
-  CalendarDays,
-  Check,
   Eye,
   EyeOff,
   Layers,
@@ -11,8 +9,7 @@ import {
   Tag,
 } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useMemo, useState, useTransition } from "react";
-import type { DateRange } from "react-day-picker";
+import { useCallback, useMemo, useTransition } from "react";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -21,26 +18,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import { Calendar } from "@/components/ui/calendar";
-import { Button } from "@/components/ui/button";
+import { DateRangePicker } from "@/components/filters/date-range-picker";
 import { cn } from "@/lib/utils";
-
-interface DatePreset {
-  key: string;
-  label: string;
-  days: number;
-}
-
-const DATE_PRESETS: DatePreset[] = [
-  { key: "7", label: "Last 7 days", days: 7 },
-  { key: "30", label: "Last 30 days", days: 30 },
-  { key: "90", label: "Last 90 days", days: 90 },
-];
 
 const PLATFORMS = [
   { value: "instagram", label: "Instagram" },
@@ -67,27 +46,6 @@ function csv(v: string | null): string[] {
   return v ? v.split(",").filter(Boolean) : [];
 }
 
-function isoDate(d: Date): string {
-  return d.toISOString().slice(0, 10);
-}
-
-function presetRange(days: number): { from: string; to: string } {
-  const to = new Date();
-  to.setUTCHours(0, 0, 0, 0);
-  const from = new Date(to);
-  from.setUTCDate(from.getUTCDate() - (days - 1));
-  return { from: isoDate(from), to: isoDate(to) };
-}
-
-function activePresetKey(from: string | null, to: string | null): string | null {
-  if (!from || !to) return null;
-  for (const preset of DATE_PRESETS) {
-    const r = presetRange(preset.days);
-    if (r.from === from && r.to === to) return preset.key;
-  }
-  return null;
-}
-
 export function FilterStrip({ products = [], tags = [] }: FilterStripProps = {}) {
   const router = useRouter();
   const pathname = usePathname();
@@ -107,15 +65,6 @@ export function FilterStrip({ products = [], tags = [] }: FilterStripProps = {})
     [platformsParam],
   );
 
-  const dateLabel = useMemo(() => {
-    const presetKey = activePresetKey(from, to);
-    if (presetKey) {
-      return DATE_PRESETS.find((p) => p.key === presetKey)!.label;
-    }
-    if (from && to) return `${from} → ${to}`;
-    return "Last 30 days";
-  }, [from, to]);
-
   const update = useCallback(
     (mutate: (next: URLSearchParams) => void) => {
       const next = new URLSearchParams(searchParams.toString());
@@ -131,18 +80,12 @@ export function FilterStrip({ products = [], tags = [] }: FilterStripProps = {})
     [pathname, router, searchParams],
   );
 
-  const setPreset = (days: number) => {
-    const range = presetRange(days);
+  const applyRange = (nextFrom: string | null, nextTo: string | null) => {
     update((next) => {
-      next.set("from", range.from);
-      next.set("to", range.to);
-    });
-  };
-
-  const setCustomRange = (fromDate: Date, toDate: Date) => {
-    update((next) => {
-      next.set("from", isoDate(fromDate));
-      next.set("to", isoDate(toDate));
+      if (nextFrom) next.set("from", nextFrom);
+      else next.delete("from");
+      if (nextTo) next.set("to", nextTo);
+      else next.delete("to");
     });
   };
 
@@ -219,13 +162,7 @@ export function FilterStrip({ products = [], tags = [] }: FilterStripProps = {})
     <div className="sticky top-0 z-10 border-b border-line bg-background/95 backdrop-blur">
       <div className="flex items-center gap-2 px-6 h-12 overflow-x-auto">
         {/* Date range */}
-        <DateRangeFilter
-          from={from}
-          to={to}
-          setPreset={setPreset}
-          setCustomRange={setCustomRange}
-          dateLabel={dateLabel}
-        />
+        <DateRangePicker from={from} to={to} onChange={applyRange} />
 
         {/* Platforms */}
         <DropdownMenu>
@@ -415,126 +352,3 @@ function Chip({ icon: Icon, label, value, active }: ChipProps) {
   );
 }
 
-interface DateRangeFilterProps {
-  from: string | null;
-  to: string | null;
-  setPreset: (days: number) => void;
-  setCustomRange: (from: Date, to: Date) => void;
-  dateLabel: string;
-}
-
-function DateRangeFilter({
-  from,
-  to,
-  setPreset,
-  setCustomRange,
-  dateLabel,
-}: DateRangeFilterProps) {
-  const [open, setOpen] = useState(false);
-  const [mode, setMode] = useState<"presets" | "custom">("presets");
-
-  // Seed the calendar with the current URL range so the user picks up where
-  // they left off.
-  const initialRange: DateRange | undefined = useMemo(() => {
-    if (from && to) {
-      return { from: new Date(`${from}T00:00:00Z`), to: new Date(`${to}T00:00:00Z`) };
-    }
-    return undefined;
-  }, [from, to]);
-  const [pending, setPending] = useState<DateRange | undefined>(initialRange);
-
-  const applyPending = () => {
-    if (pending?.from && pending.to) {
-      setCustomRange(pending.from, pending.to);
-      setOpen(false);
-      setMode("presets");
-    }
-  };
-
-  const presetActive = activePresetKey(from, to);
-
-  return (
-    <Popover
-      open={open}
-      onOpenChange={(o) => {
-        setOpen(o);
-        if (!o) {
-          setMode("presets");
-          setPending(initialRange);
-        }
-      }}
-    >
-      <PopoverTrigger asChild>
-        <button type="button">
-          <Chip icon={CalendarDays} label="Date" value={dateLabel} active />
-        </button>
-      </PopoverTrigger>
-      <PopoverContent align="start" className="p-0 w-auto">
-        {mode === "presets" ? (
-          <div className="w-56 p-1">
-            <div className="px-2 py-1.5 text-[11px] uppercase tracking-[0.14em] text-ink-3">
-              Date range
-            </div>
-            <div className="space-y-0.5">
-              {DATE_PRESETS.map((p) => {
-                const isActive = presetActive === p.key;
-                return (
-                  <button
-                    key={p.key}
-                    type="button"
-                    onClick={() => {
-                      setPreset(p.days);
-                      setOpen(false);
-                    }}
-                    className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm text-ink-2 hover:bg-surface-2 hover:text-ink"
-                  >
-                    <span className="flex-1 text-left">{p.label}</span>
-                    {isActive && <Check className="w-3.5 h-3.5 text-brand" />}
-                  </button>
-                );
-              })}
-              <button
-                type="button"
-                onClick={() => setMode("custom")}
-                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm text-ink-2 hover:bg-surface-2 hover:text-ink border-t border-line mt-1"
-              >
-                <span className="flex-1 text-left">Custom range…</span>
-              </button>
-            </div>
-          </div>
-        ) : (
-          <div className="p-3 space-y-3">
-            <div className="text-[11px] uppercase tracking-[0.14em] text-ink-3 px-1">
-              Pick a custom range
-            </div>
-            <Calendar
-              mode="range"
-              numberOfMonths={2}
-              defaultMonth={pending?.from ?? new Date()}
-              selected={pending}
-              onSelect={setPending}
-            />
-            <div className="flex items-center justify-between gap-2 px-1">
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => setMode("presets")}
-              >
-                Back
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                onClick={applyPending}
-                disabled={!pending?.from || !pending?.to}
-              >
-                Apply
-              </Button>
-            </div>
-          </div>
-        )}
-      </PopoverContent>
-    </Popover>
-  );
-}

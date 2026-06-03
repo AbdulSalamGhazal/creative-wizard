@@ -11,37 +11,22 @@ import {
 import { Calendar } from "@/components/ui/calendar";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-
-const PRESETS = [
-  { key: "7", label: "Last 7 days", days: 7 },
-  { key: "30", label: "Last 30 days", days: 30 },
-  { key: "90", label: "Last 90 days", days: 90 },
-];
-
-function isoDate(d: Date): string {
-  return d.toISOString().slice(0, 10);
-}
-function presetRange(days: number): { from: string; to: string } {
-  const to = new Date();
-  to.setUTCHours(0, 0, 0, 0);
-  const from = new Date(to);
-  from.setUTCDate(from.getUTCDate() - (days - 1));
-  return { from: isoDate(from), to: isoDate(to) };
-}
-function activePresetKey(from: string | null, to: string | null): string | null {
-  if (!from || !to) return null;
-  for (const p of PRESETS) {
-    const r = presetRange(p.days);
-    if (r.from === from && r.to === to) return p.key;
-  }
-  return null;
-}
+import {
+  activePresetKey,
+  DATE_PRESETS,
+  isoToLocalDate,
+  localDateToIso,
+  presetLabel,
+  todayIso,
+} from "@/lib/date-presets";
 
 /**
- * Reusable date-range control: presets + a custom two-month calendar, plus
- * an "All time" reset. Presentational — the parent owns where the range
- * goes (URL params, state, …) via `onChange`. Passing `null, null` means
- * all-time / cleared.
+ * Reusable date-range control: the full preset list + a custom two-month
+ * calendar. Presentational — the parent owns where the range goes (URL params,
+ * state, …) via `onChange`. Passing `null, null` means Lifetime / all-time.
+ *
+ * Conversions go through lib/date-presets so the picked day never shifts
+ * across the UTC boundary.
  */
 export function DateRangePicker({
   from,
@@ -57,27 +42,18 @@ export function DateRangePicker({
 
   const initial: DateRange | undefined = useMemo(() => {
     if (from && to) {
-      return {
-        from: new Date(`${from}T00:00:00Z`),
-        to: new Date(`${to}T00:00:00Z`),
-      };
+      return { from: isoToLocalDate(from), to: isoToLocalDate(to) };
     }
     return undefined;
   }, [from, to]);
   const [pending, setPending] = useState<DateRange | undefined>(initial);
 
-  const label = useMemo(() => {
-    const key = activePresetKey(from, to);
-    if (key) return PRESETS.find((p) => p.key === key)!.label;
-    if (from && to) return `${from} → ${to}`;
-    return "All time";
-  }, [from, to]);
-
+  const label = useMemo(() => presetLabel(from, to), [from, to]);
   const presetActive = activePresetKey(from, to);
 
   const applyCustom = () => {
     if (pending?.from && pending.to) {
-      onChange(isoDate(pending.from), isoDate(pending.to));
+      onChange(localDateToIso(pending.from), localDateToIso(pending.to));
       setOpen(false);
       setMode("presets");
     }
@@ -112,18 +88,19 @@ export function DateRangePicker({
       </PopoverTrigger>
       <PopoverContent align="start" className="p-0 w-auto">
         {mode === "presets" ? (
-          <div className="w-56 p-1">
+          <div className="w-52 p-1">
             <div className="px-2 py-1.5 text-[11px] uppercase tracking-[0.14em] text-ink-3">
               Date range
             </div>
-            <div className="space-y-0.5">
-              {PRESETS.map((p) => (
+            <div className="space-y-0.5 max-h-80 overflow-y-auto">
+              {DATE_PRESETS.map((p) => (
                 <button
                   key={p.key}
                   type="button"
                   onClick={() => {
-                    const r = presetRange(p.days);
-                    onChange(r.from, r.to);
+                    const res = p.range(todayIso());
+                    if (res) onChange(res.from, res.to);
+                    else onChange(null, null);
                     setOpen(false);
                   }}
                   className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm text-ink-2 hover:bg-surface-2 hover:text-ink"
@@ -141,18 +118,6 @@ export function DateRangePicker({
               >
                 <span className="flex-1 text-left">Custom range…</span>
               </button>
-              {(from || to) && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    onChange(null, null);
-                    setOpen(false);
-                  }}
-                  className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm text-ink-3 hover:bg-surface-2 hover:text-ink"
-                >
-                  <span className="flex-1 text-left">All time</span>
-                </button>
-              )}
             </div>
           </div>
         ) : (
