@@ -4,6 +4,7 @@ import {
   between,
   desc,
   eq,
+  gt,
   inArray,
   sql,
   type SQL,
@@ -146,6 +147,120 @@ export async function listCampaigns(
     roas: numOrNull(r.roas),
     firstDate: r.firstDate,
     lastDate: r.lastDate,
+  }));
+}
+
+// =====================================================================
+// Portfolio: blended totals across all campaigns (for the index header)
+// =====================================================================
+
+export interface CampaignPortfolio {
+  campaigns: number;
+  platforms: number;
+  creatives: number;
+  spend: number;
+  impressions: number;
+  clicks: number;
+  conversions: number;
+  conversionValue: number;
+  ctr: number | null;
+  cvr: number | null;
+  cpa: number | null;
+  roas: number | null;
+}
+
+export async function campaignPortfolio(
+  f: CampaignFilters,
+): Promise<CampaignPortfolio> {
+  const conds = listConds(f);
+  const [r] = await db
+    .select({
+      campaigns: sql<number>`COUNT(DISTINCT ${performanceRecords.campaignName})::int`,
+      platforms: sql<number>`COUNT(DISTINCT ${performanceRecords.platform})::int`,
+      creatives: sql<number>`COUNT(DISTINCT ${performanceRecords.creativeId})::int`,
+      spend: sumSpend,
+      impressions: sumImpressions,
+      clicks: sumClicks,
+      conversions: sumConversions,
+      conversionValue: sumConversionValue,
+      ctr,
+      cvr,
+      cpa,
+      roas,
+    })
+    .from(performanceRecords)
+    .innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId))
+    .where(conds.length > 0 ? and(...conds) : undefined);
+  return {
+    campaigns: num(r?.campaigns),
+    platforms: num(r?.platforms),
+    creatives: num(r?.creatives),
+    spend: num(r?.spend),
+    impressions: num(r?.impressions),
+    clicks: num(r?.clicks),
+    conversions: num(r?.conversions),
+    conversionValue: num(r?.conversionValue),
+    ctr: numOrNull(r?.ctr),
+    cvr: numOrNull(r?.cvr),
+    cpa: numOrNull(r?.cpa),
+    roas: numOrNull(r?.roas),
+  };
+}
+
+// =====================================================================
+// Per (platform, campaign) grain — powers the comparison graphs + winners
+// =====================================================================
+
+export interface CampaignPlatformGrainRow {
+  platform: Platform;
+  campaign: string;
+  spend: number;
+  impressions: number;
+  clicks: number;
+  conversions: number;
+  conversionValue: number;
+  ctr: number | null;
+  cvr: number | null;
+  cpa: number | null;
+  roas: number | null;
+}
+
+export async function campaignByPlatform(
+  f: CampaignFilters,
+): Promise<CampaignPlatformGrainRow[]> {
+  const conds = listConds(f);
+  const rows = await db
+    .select({
+      platform: performanceRecords.platform,
+      campaign: performanceRecords.campaignName,
+      spend: sumSpend,
+      impressions: sumImpressions,
+      clicks: sumClicks,
+      conversions: sumConversions,
+      conversionValue: sumConversionValue,
+      ctr,
+      cvr,
+      cpa,
+      roas,
+    })
+    .from(performanceRecords)
+    .innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId))
+    .where(conds.length > 0 ? and(...conds) : undefined)
+    .groupBy(performanceRecords.platform, performanceRecords.campaignName)
+    .having(gt(sumSpend, 0))
+    .orderBy(desc(sumSpend));
+  return rows.map((r) => ({
+    platform: r.platform as Platform,
+    campaign: r.campaign,
+    spend: num(r.spend),
+    impressions: num(r.impressions),
+    clicks: num(r.clicks),
+    conversions: num(r.conversions),
+    conversionValue: num(r.conversionValue),
+    ctr: numOrNull(r.ctr),
+    cvr: numOrNull(r.cvr),
+    cpa: numOrNull(r.cpa),
+    roas: numOrNull(r.roas),
   }));
 }
 
