@@ -105,12 +105,7 @@ export async function OverviewSection({
       {/* KPI tiles */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-4">
         {tiles.map((t) => (
-          <KpiTile
-            key={t.label}
-            label={t.label}
-            value={t.value}
-            caption={rangeLabel}
-          />
+          <KpiTile key={t.label} label={t.label} value={t.value} />
         ))}
       </div>
 
