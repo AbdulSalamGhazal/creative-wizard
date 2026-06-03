@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 import { DeltaBadge } from "@/components/kpi/delta-badge";
-import { int, pct, usd } from "@/lib/format";
+import { int, pct, ratio, usd } from "@/lib/format";
+import { PLATFORM_COLOR, PLATFORM_LABEL } from "@/lib/palette";
 import { cn } from "@/lib/utils";
 import type { CampaignFunnelRow } from "@/db/queries/funnel";
 
@@ -12,31 +13,37 @@ const MIN_COL_WIDTH = 140;
 
 type SortKey =
   | "campaign"
+  | "platform"
   | "spend"
   | "cpm"
   | "ctr"
   | "voc"
   | "cvr"
   | "conversions"
+  | "roas"
   | "impressions";
 type Dir = "asc" | "desc";
 
+const TEXT_KEYS = new Set<SortKey>(["campaign", "platform"]);
+
 const COLUMNS: Array<{ key: SortKey; label: string; numeric: boolean }> = [
   { key: "campaign", label: "Campaign", numeric: false },
+  { key: "platform", label: "Platform", numeric: false },
   { key: "spend", label: "Spend", numeric: true },
   { key: "cpm", label: "CPM", numeric: true },
   { key: "ctr", label: "CTR", numeric: true },
   { key: "voc", label: "VOC", numeric: true },
   { key: "cvr", label: "CvR", numeric: true },
   { key: "conversions", label: "Conv.", numeric: true },
+  { key: "roas", label: "ROAS", numeric: true },
   { key: "impressions", label: "Impr.", numeric: true },
 ];
 
 /**
- * Per-campaign funnel table. One row per stored campaign_name (the full
- * "Campaign ➤ Adset" value). Every column sorts (click to cycle); the Campaign
- * column is drag-resizable with the width persisted to localStorage — same
- * behaviour as the Summary table. Sticky header + internal scroll.
+ * Per-campaign funnel table. One row per (platform, campaign_name). Every
+ * column sorts (click to cycle); the Campaign column is drag-resizable with the
+ * width persisted to localStorage — same behaviour as the Summary table. Sticky
+ * header + footer, internal scroll.
  */
 export function CampaignFunnelTable({ rows }: { rows: CampaignFunnelRow[] }) {
   const [sortKey, setSortKey] = useState<SortKey>("spend");
@@ -98,6 +105,10 @@ export function CampaignFunnelTable({ rows }: { rows: CampaignFunnelRow[] }) {
       let cmp: number;
       if (sortKey === "campaign") {
         cmp = a.campaign.localeCompare(b.campaign);
+      } else if (sortKey === "platform") {
+        cmp =
+          PLATFORM_LABEL[a.platform].localeCompare(PLATFORM_LABEL[b.platform]) ||
+          a.campaign.localeCompare(b.campaign);
       } else {
         // Null rates sort as 0 (consistent with the Summary table).
         const av = a[sortKey] ?? 0;
@@ -117,12 +128,14 @@ export function CampaignFunnelTable({ rows }: { rows: CampaignFunnelRow[] }) {
     let clicks = 0;
     let lpv = 0;
     let conversions = 0;
+    let conversionValue = 0;
     for (const r of rows) {
       spend += r.spend;
       impressions += r.impressions;
       clicks += r.clicks;
       lpv += r.landingPageViews;
       conversions += r.conversions;
+      conversionValue += r.conversionValue;
     }
     return {
       spend,
@@ -132,6 +145,7 @@ export function CampaignFunnelTable({ rows }: { rows: CampaignFunnelRow[] }) {
       ctr: impressions > 0 ? clicks / impressions : null,
       voc: clicks > 0 ? lpv / clicks : null,
       cvr: lpv > 0 ? conversions / lpv : null,
+      roas: spend > 0 ? conversionValue / spend : null,
     };
   }, [rows]);
 
@@ -145,7 +159,7 @@ export function CampaignFunnelTable({ rows }: { rows: CampaignFunnelRow[] }) {
       }
     } else {
       setSortKey(key);
-      setDir(key === "campaign" ? "asc" : "desc");
+      setDir(TEXT_KEYS.has(key) ? "asc" : "desc");
     }
   };
 
@@ -212,13 +226,25 @@ export function CampaignFunnelTable({ rows }: { rows: CampaignFunnelRow[] }) {
         </thead>
         <tbody className="divide-y divide-line">
           {sorted.map((r) => (
-            <tr key={r.campaign} className="hover:bg-surface-2/60 transition-colors">
+            <tr
+              key={`${r.platform}::${r.campaign}`}
+              className="hover:bg-surface-2/60 transition-colors"
+            >
               <td
                 style={widthStyle("campaign")}
                 className={cn("px-3 py-2.5", widths.campaign ? "" : "max-w-[22rem]")}
               >
                 <span className="block truncate text-ink" title={r.campaign}>
                   {r.campaign}
+                </span>
+              </td>
+              <td className="px-3 py-2.5 whitespace-nowrap">
+                <span className="inline-flex items-center gap-1.5 text-ink-2">
+                  <span
+                    className="w-2 h-2 rounded-sm shrink-0"
+                    style={{ background: PLATFORM_COLOR[r.platform] }}
+                  />
+                  {PLATFORM_LABEL[r.platform]}
                 </span>
               </td>
               <td className="px-3 py-2.5 text-right text-ink tabular-nums">
@@ -232,6 +258,9 @@ export function CampaignFunnelTable({ rows }: { rows: CampaignFunnelRow[] }) {
               <td className="px-3 py-2.5 text-right text-ink tabular-nums">{pct(r.voc)}</td>
               <td className="px-3 py-2.5 text-right text-ink tabular-nums">{pct(r.cvr)}</td>
               <td className="px-3 py-2.5 text-right text-ink-2 tabular-nums">{int(r.conversions)}</td>
+              <td className="px-3 py-2.5 text-right text-ink tabular-nums">
+                {r.roas === null ? "—" : `${ratio(r.roas)}×`}
+              </td>
               <td className="px-3 py-2.5 text-right text-ink-2 tabular-nums">{int(r.impressions)}</td>
             </tr>
           ))}
@@ -244,12 +273,16 @@ export function CampaignFunnelTable({ rows }: { rows: CampaignFunnelRow[] }) {
             >
               Total · {rows.length}
             </td>
+            <td className="px-3 py-2 text-ink-3" />
             <td className="px-3 py-2 text-right text-ink tabular-nums">{usd(totals.spend)}</td>
             <td className="px-3 py-2 text-right text-ink tabular-nums">{usd(totals.cpm)}</td>
             <td className="px-3 py-2 text-right text-ink tabular-nums">{pct(totals.ctr)}</td>
             <td className="px-3 py-2 text-right text-ink tabular-nums">{pct(totals.voc)}</td>
             <td className="px-3 py-2 text-right text-ink tabular-nums">{pct(totals.cvr)}</td>
             <td className="px-3 py-2 text-right text-ink tabular-nums">{int(totals.conversions)}</td>
+            <td className="px-3 py-2 text-right text-ink tabular-nums">
+              {totals.roas === null ? "—" : `${ratio(totals.roas)}×`}
+            </td>
             <td className="px-3 py-2 text-right text-ink tabular-nums">{int(totals.impressions)}</td>
           </tr>
         </tfoot>
