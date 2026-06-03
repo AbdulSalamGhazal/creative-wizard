@@ -331,8 +331,10 @@ export function SummaryTable({
   return (
     <div className="max-h-[70vh] overflow-auto rounded-lg border border-line bg-surface">
       <table className="text-[12px] num min-w-max">
-        {/* Two-row header: top row = group banners; bottom = column labels */}
-        <thead>
+        {/* Two-row header: top row = group banners; bottom = column labels.
+            The whole <thead> is sticky so it stays frozen while the body
+            scrolls; an opaque background keeps rows from showing through. */}
+        <thead className="sticky top-0 z-20 bg-surface">
           <tr className="border-b border-line bg-surface-2/40">
             <th
               colSpan={identityCols.length}

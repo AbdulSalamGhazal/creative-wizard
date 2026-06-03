@@ -200,6 +200,64 @@ export async function campaignFunnel(
 }
 
 // =====================================================================
+// Per-platform funnel (one row per platform — for the platform comparison)
+// =====================================================================
+
+export interface PlatformFunnelRow {
+  platform: Platform;
+  spend: number;
+  impressions: number;
+  clicks: number;
+  landingPageViews: number;
+  conversions: number;
+  cpm: number | null;
+  ctr: number | null;
+  voc: number | null;
+  cvr: number | null;
+}
+
+/**
+ * The same funnel metrics as `campaignFunnel`, but grouped by platform so the
+ * channels can be read side-by-side. Each platform's rates are weighted over
+ * its own component sums (never an average of ratios). Ordered by spend desc.
+ */
+export async function platformFunnel(
+  f: FunnelFilters,
+): Promise<PlatformFunnelRow[]> {
+  const rows = await db
+    .select({
+      platform: performanceRecords.platform,
+      spend: sumSpend,
+      impressions: sumImpressions,
+      clicks: sumClicks,
+      landingPageViews: sumLandingPageViews,
+      conversions: sumConversions,
+      cpm,
+      ctr,
+      voc,
+      cvr,
+    })
+    .from(performanceRecords)
+    .innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId))
+    .where(whereFor(f))
+    .groupBy(performanceRecords.platform)
+    .orderBy(desc(sumSpend));
+
+  return rows.map((r) => ({
+    platform: r.platform as Platform,
+    spend: num(r.spend),
+    impressions: num(r.impressions),
+    clicks: num(r.clicks),
+    landingPageViews: num(r.landingPageViews),
+    conversions: num(r.conversions),
+    cpm: numOrNull(r.cpm),
+    ctr: numOrNull(r.ctr),
+    voc: numOrNull(r.voc),
+    cvr: numOrNull(r.cvr),
+  }));
+}
+
+// =====================================================================
 // Daily series (blended rates over the window) for the trend chart
 // =====================================================================
 

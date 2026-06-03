@@ -5,6 +5,7 @@ import {
   campaignFunnel,
   funnelDaily,
   funnelOverview,
+  platformFunnel,
 } from "@/db/queries/funnel";
 import { listProducts } from "@/db/queries/products";
 import { listAllTags } from "@/db/queries/creatives";
@@ -12,6 +13,7 @@ import { FilterStrip } from "@/components/filters/filter-strip";
 import { KpiTile } from "@/components/kpi/kpi-tile";
 import { FunnelStages } from "@/components/funnel/funnel-stages";
 import { FunnelTrendChart } from "@/components/funnel/funnel-trend-chart";
+import { PlatformFunnelComparison } from "@/components/funnel/platform-funnel-comparison";
 import { CampaignFunnelTable } from "@/components/funnel/campaign-funnel-table";
 import { dashboardFiltersSchema } from "@/validators/filters";
 import { periodCaption } from "@/lib/period";
@@ -51,13 +53,15 @@ export default async function FunnelPage({
     includeExcluded: parsed.includeExcluded,
   };
 
-  const [overview, campaigns, daily, products, tags] = await Promise.all([
-    funnelOverview(filters),
-    campaignFunnel(filters),
-    funnelDaily(filters),
-    listProducts(),
-    listAllTags(),
-  ]);
+  const [overview, campaigns, daily, byPlatform, products, tags] =
+    await Promise.all([
+      funnelOverview(filters),
+      campaignFunnel(filters),
+      funnelDaily(filters),
+      platformFunnel(filters),
+      listProducts(),
+      listAllTags(),
+    ]);
 
   const caption = periodCaption(from, to);
   const c = overview.current;
@@ -121,6 +125,22 @@ export default async function FunnelPage({
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <FunnelStages totals={c} />
         <FunnelTrendChart points={daily} />
+      </div>
+
+      {/* Platform-vs-platform comparison */}
+      <div className="space-y-2">
+        <div>
+          <h2 className="text-[11px] uppercase tracking-[0.14em] text-ink-3">
+            Platform comparison · {byPlatform.length} platform
+            {byPlatform.length === 1 ? "" : "s"}
+          </h2>
+          <p className="text-[11px] text-ink-3">
+            Channels side-by-side across the funnel. Green marks the leader per
+            metric — lowest CPM, highest CTR / VOC / CvR — and the bars scale to
+            the strongest platform.
+          </p>
+        </div>
+        <PlatformFunnelComparison rows={byPlatform} />
       </div>
 
       <div className="space-y-2">
