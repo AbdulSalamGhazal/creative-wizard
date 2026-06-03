@@ -8,6 +8,9 @@ interface Summary {
   rows: number;
   creatives: number;
   dateRange: { from: string; to: string } | null;
+  upsert?: true;
+  newRows?: number;
+  updatedRows?: number;
 }
 
 export function SummaryCard({
@@ -17,6 +20,7 @@ export function SummaryCard({
   summary: Summary;
   warnings: ValidationError[];
 }) {
+  const isUpsert = summary.upsert === true;
   return (
     <div className="rounded-lg border border-pos/30 bg-pos/5 overflow-hidden">
       <div className="px-4 py-3 border-b border-pos/20 flex items-center gap-2">
@@ -25,6 +29,26 @@ export function SummaryCard({
           File validated. Review the summary, then confirm to import.
         </div>
       </div>
+
+      {isUpsert && (
+        <div className="px-4 pt-4 -mb-1 flex flex-wrap items-center gap-2 text-[12px]">
+          <span className="inline-flex items-center gap-1.5 rounded-md border border-pos/30 bg-pos/10 px-2 py-1 text-pos num">
+            <span className="font-display text-sm leading-none">
+              {int(summary.newRows ?? 0)}
+            </span>
+            new
+          </span>
+          <span className="inline-flex items-center gap-1.5 rounded-md border border-brand/30 bg-brand/10 px-2 py-1 text-brand num">
+            <span className="font-display text-sm leading-none">
+              {int(summary.updatedRows ?? 0)}
+            </span>
+            updated
+          </span>
+          <span className="text-ink-3">
+            Upsert: existing rows are overwritten in place, new rows inserted.
+          </span>
+        </div>
+      )}
 
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4 px-4 py-4">
         <Stat label="Rows" value={int(summary.rows)} />

@@ -18,6 +18,9 @@ interface Summary {
   rows: number;
   creatives: number;
   dateRange: { from: string; to: string } | null;
+  upsert?: true;
+  newRows?: number;
+  updatedRows?: number;
 }
 
 type Stage =
@@ -37,18 +40,27 @@ type Stage =
       platform: Platform;
     }
   | { kind: "committing"; token: string; platform: Platform }
-  | { kind: "committed"; batchId: string; rowsImported: number; platform: Platform }
+  | {
+      kind: "committed";
+      batchId: string | null;
+      rowsImported: number;
+      rowsUpdated: number;
+      upsert: boolean;
+      platform: Platform;
+    }
   | { kind: "error"; message: string };
 
 export function UploadForm() {
   const router = useRouter();
   const [file, setFile] = useState<File | null>(null);
   const [platform, setPlatform] = useState<Platform | null>(null);
+  const [upsert, setUpsert] = useState(false);
   const [stage, setStage] = useState<Stage>({ kind: "idle" });
 
   const reset = () => {
     setFile(null);
     setPlatform(null);
+    setUpsert(false);
     setStage({ kind: "idle" });
   };
 
@@ -59,6 +71,7 @@ export function UploadForm() {
     const form = new FormData();
     form.set("platform", platform);
     form.set("file", file);
+    form.set("upsert", upsert ? "true" : "false");
 
     let res: Response;
     try {
@@ -157,11 +170,18 @@ export function UploadForm() {
       return;
     }
 
-    const ok = data as { batchId: string; rowsImported: number };
+    const ok = data as {
+      batchId: string | null;
+      rowsImported: number;
+      rowsUpdated?: number;
+      upsert?: boolean;
+    };
     setStage({
       kind: "committed",
       batchId: ok.batchId,
       rowsImported: ok.rowsImported,
+      rowsUpdated: ok.rowsUpdated ?? 0,
+      upsert: ok.upsert ?? false,
       platform: committedPlatform,
     });
     router.refresh();
@@ -176,11 +196,22 @@ export function UploadForm() {
         </div>
         <h2 className="mt-4 font-display text-3xl tracking-tight">Upload complete</h2>
         <p className="mt-2 text-ink-2 text-sm num">
-          {stage.rowsImported} performance records imported for{" "}
-          <span className="text-ink">{PLATFORM_LABEL[stage.platform]}</span>.
+          {stage.upsert ? (
+            <>
+              {stage.rowsImported} imported · {stage.rowsUpdated} updated for{" "}
+              <span className="text-ink">{PLATFORM_LABEL[stage.platform]}</span>.
+            </>
+          ) : (
+            <>
+              {stage.rowsImported} performance records imported for{" "}
+              <span className="text-ink">{PLATFORM_LABEL[stage.platform]}</span>.
+            </>
+          )}
         </p>
         <p className="mt-1 text-ink-3 text-[11px]">
-          An admin can undo this from Upload history within 24 hours.
+          {stage.upsert && stage.rowsUpdated > 0
+            ? "Updated rows were overwritten in place — only the newly-inserted rows can be rolled back."
+            : "An admin can undo this from Upload history within 24 hours."}
         </p>
         <div className="mt-6 flex items-center justify-center gap-2">
           <Button asChild>
@@ -219,6 +250,47 @@ export function UploadForm() {
               Pick the platform that exported this file. Required.
             </p>
           )}
+        </div>
+      )}
+
+      {/* Upsert toggle — appears once a file is present. Default off: a plain
+          import rejects rows that already exist. On: existing rows are updated
+          in place and only new rows are inserted (e.g. attribution backfill). */}
+      {file && (
+        <div className="space-y-2">
+          <div className="text-sm text-ink">3. Mode</div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={upsert}
+            disabled={busy || stage.kind === "valid"}
+            onClick={() => setUpsert((v) => !v)}
+            className="w-full flex items-start gap-3 rounded-lg border border-line bg-surface px-3.5 py-3 text-left transition-colors hover:bg-surface-2/60 disabled:opacity-60 disabled:cursor-not-allowed"
+          >
+            <span
+              className={`mt-0.5 inline-flex h-5 w-9 shrink-0 items-center rounded-full border transition-colors ${
+                upsert
+                  ? "bg-brand/80 border-brand"
+                  : "bg-surface-2 border-line-2"
+              }`}
+            >
+              <span
+                className={`h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${
+                  upsert ? "translate-x-4" : "translate-x-0.5"
+                }`}
+              />
+            </span>
+            <span className="space-y-0.5">
+              <span className="block text-sm text-ink">
+                Update rows that already exist (upsert)
+              </span>
+              <span className="block text-[11px] text-ink-3 leading-relaxed">
+                {upsert
+                  ? "Matching rows (same creative · platform · campaign ➤ adset · date) are overwritten in place; new rows are inserted. Use for re-uploading a window after attribution lands."
+                  : "Off — a strict import. Rows already in the database are rejected as duplicates."}
+              </span>
+            </span>
+          </button>
         </div>
       )}
 

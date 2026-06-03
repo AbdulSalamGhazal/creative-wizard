@@ -188,22 +188,22 @@ This app is deployed and in production use. Treat `main` as shippable.
   `var(--font-ui)`; headings keep the Instrument Serif display
   (`--font-display` → `--ff-serif`). Both axes live in the one ThemeToggle
   dropdown.
-- **Bulk-UPDATE of performance_records** (`/uploads/bulk-update`,
-  `csv/update-pipeline.ts` + `app/api/uploads/bulk-update/{validate,commit}`).
-  A CSV/XLSX that MODIFIES existing records instead of creating them — the
-  inverse of the import pipeline's Stage 5. Rows match on the table's unique
-  identity `(creative, platform, campaign ➤ adset, date)` (built via
-  `buildCampaignName`); a row that matches nothing is an E060 error.
-  Per the user's choices: all-or-nothing (any unmatched row blocks the file),
-  a blank cell in an INCLUDED value column is an error (E062, never a silent
-  0), only the value columns present in the file are written (identity columns
-  identify only), excluded records are still updated, and video columns are
-  skipped for non-video creatives. Preview-then-confirm + audit
-  (`upload.bulk_update`); no auto-undo. This is a NEW mutation path for
-  performance_records alongside the validated insert (entry) and the
-  rollback / cleanup / delete-creative exits — it neither inserts nor deletes,
-  it overwrites matched values. New error codes E060/E061/E062;
-  runUpdatePipeline is unit-tested in `csv/update-pipeline.test.ts`.
+- **Upload UPSERT mode** (the New-upload `upsert` toggle). The normal
+  import (`runPipeline`) still defaults to strict insert: a row already in the
+  DB → E051 reject (guards against re-uploading the wrong file). With the
+  toggle ON, the validate route runs the SAME full validation but skips the
+  E051 check, then partitions the validated rows against the table's unique
+  identity `(creative, platform, campaign ➤ adset, date)` into **inserts**
+  (new) and **updates** (existing, by record id). The commit inserts the new
+  rows under one batch and UPDATEs the existing rows in place (full-row,
+  last-value-wins; video columns null for non-video). Built for TikTok-style
+  attribution backfill — re-upload the rolling window each day, existing days
+  get their back-attributed conversions, the newest day is inserted. Because
+  upsert reuses the import validation, the file must carry ALL mapped columns
+  (a full export), not a partial one. Updates overwrite in place, so they're
+  NOT rollback-able like an insert batch (the batch-rollback only undoes the
+  inserted rows). Audit: `upload.commit` with meta `{rowsImported, rowsUpdated,
+  upsert:true}`.
 - **Screenshot-to-clipboard** lives in the top bar (`components/layout/
   screenshot-button.tsx`). It renders the live page DOM to a PNG via
   `modern-screenshot` (dynamically imported, so it's not in the initial

@@ -25,15 +25,6 @@ export const errorCodes = {
   // distinct and allowed; only true duplicates are rejected.
   E050: "ERROR",
   E051: "ERROR",
-  // Bulk-update only:
-  // E060: a row's identity (creative, platform, campaign, date) matches no
-  //       existing record — bulk update can only touch records that exist.
-  // E061: the file includes no value column to update (schema-level).
-  // E062: a value column you included has a blank cell — bulk update requires
-  //       a real value so it can't accidentally wipe a metric.
-  E060: "ERROR",
-  E061: "FATAL",
-  E062: "ERROR",
   W001: "WARNING",
   W002: "WARNING",
 } as const;

@@ -18,9 +18,22 @@ const bodySchema = z.object({
 });
 
 interface StoredPayload {
-  summary: { rows: number; creatives: number; dateRange: { from: string; to: string } | null };
+  summary: {
+    rows: number;
+    creatives: number;
+    dateRange: { from: string; to: string } | null;
+    upsert?: true;
+    newRows?: number;
+    updatedRows?: number;
+  };
   rows: ParsedRow[];
   warnings: unknown[];
+  /**
+   * Upsert only: aligned 1:1 with `rows`. Each entry is the existing
+   * performance_records id to UPDATE in place, or null when the row is new
+   * (insert). Absent for a plain strict-insert import.
+   */
+  existingIds?: (number | null)[];
 }
 
 const CHUNK_SIZE = 500;
@@ -30,7 +43,11 @@ const CHUNK_SIZE = 500;
  *
  * Body: { token }. Looks up the validation session, opens a transaction,
  * inserts an upload_batches row + bulk inserts performance_records, deletes
- * the session, commits. Returns { batchId, rowsImported }.
+ * the session, commits. Returns { batchId, rowsImported, rowsUpdated, upsert }.
+ *
+ * In upsert mode (the session carries `existingIds`) rows that already exist
+ * are UPDATEd in place and only the new rows are inserted under a fresh batch
+ * — a pure-update upsert creates no batch (batchId null).
  *
  * Status codes:
  *   200 — committed
@@ -133,61 +150,103 @@ export async function POST(request: NextRequest) {
     | "snapchat"
     | "google";
 
+  // Column values for one performance_records row. Identity columns
+  // (creative/platform/campaign/date) are added separately for inserts;
+  // updates only overwrite these metric columns. Video-funnel metrics apply
+  // to video creatives only — NULL for image/slides so they're excluded from
+  // hook/hold/complete rates (the metrics filter on `video_views_2s IS NOT NULL`).
+  const metricValues = (r: ParsedRow) => {
+    const isVideo = typeByName.get(r.creativeName) === "video";
+    return {
+      spend: r.spend.toString(),
+      impressions: r.impressions,
+      clicks: r.clicks,
+      conversions: r.conversions,
+      conversionValue:
+        r.conversionValue === null ? null : r.conversionValue.toString(),
+      landingPageViews: r.landingPageViews,
+      videoViews2s: isVideo ? r.videoViews2s : null,
+      videoViews25: isVideo ? r.videoViews25 : null,
+      videoViews50: isVideo ? r.videoViews50 : null,
+      videoViews75: isVideo ? r.videoViews75 : null,
+      videoViews100: isVideo ? r.videoViews100 : null,
+      rawPayload: r.rawPayload,
+    };
+  };
+
+  // Partition rows into inserts (new) and updates (overwrite existing by id).
+  // For a plain import `existingIds` is absent → every row is an insert.
+  const existingIds = payload.existingIds;
+  const upsert = Array.isArray(existingIds);
+  const insertRows: ParsedRow[] = [];
+  const updateRows: { id: number; row: ParsedRow }[] = [];
+  if (upsert) {
+    payload.rows.forEach((r, i) => {
+      const recordId = existingIds![i] ?? null;
+      if (recordId === null) insertRows.push(r);
+      else updateRows.push({ id: recordId, row: r });
+    });
+  } else {
+    insertRows.push(...payload.rows);
+  }
+
   const result = await db.transaction(async (tx) => {
-    const [batch] = await tx
-      .insert(uploadBatches)
-      .values({
-        platform,
-        fileName: session.fileName,
-        uploadedByUserId: user.id,
-        rowsImported: payload.rows.length,
-      })
-      .returning({ id: uploadBatches.id });
+    // Only open a batch when there are new rows to insert. A pure-update
+    // upsert (every row already exists) creates no batch.
+    let batchId: string | null = null;
+    let inserted = 0;
 
-    if (!batch) throw new Error("Failed to create upload batch");
+    if (insertRows.length > 0) {
+      const [batch] = await tx
+        .insert(uploadBatches)
+        .values({
+          platform,
+          fileName: session.fileName,
+          uploadedByUserId: user.id,
+          rowsImported: insertRows.length,
+        })
+        .returning({ id: uploadBatches.id });
 
-    const inserts = payload.rows.map((r) => {
-      // Video-funnel metrics only apply to video creatives. Store NULL for
-      // image/slides so they're excluded from hook/hold/complete rates (the
-      // metrics filter on `video_views_2s IS NOT NULL`).
-      const isVideo = typeByName.get(r.creativeName) === "video";
-      return {
+      if (!batch) throw new Error("Failed to create upload batch");
+      batchId = batch.id;
+
+      const inserts = insertRows.map((r) => ({
         creativeId: idByName.get(r.creativeName)!,
         platform,
         campaignName: r.campaignName,
         date: r.date,
-        spend: r.spend.toString(),
-        impressions: r.impressions,
-        clicks: r.clicks,
-        conversions: r.conversions,
-        conversionValue:
-          r.conversionValue === null ? null : r.conversionValue.toString(),
-        landingPageViews: r.landingPageViews,
-        videoViews2s: isVideo ? r.videoViews2s : null,
-        videoViews25: isVideo ? r.videoViews25 : null,
-        videoViews50: isVideo ? r.videoViews50 : null,
-        videoViews75: isVideo ? r.videoViews75 : null,
-        videoViews100: isVideo ? r.videoViews100 : null,
-        rawPayload: r.rawPayload,
+        ...metricValues(r),
         uploadBatchId: batch.id,
-      };
-    });
+      }));
 
-    let inserted = 0;
-    for (let i = 0; i < inserts.length; i += CHUNK_SIZE) {
-      const chunk = inserts.slice(i, i + CHUNK_SIZE);
+      for (let i = 0; i < inserts.length; i += CHUNK_SIZE) {
+        const chunk = inserts.slice(i, i + CHUNK_SIZE);
+        const ret = await tx
+          .insert(performanceRecords)
+          .values(chunk)
+          .returning({ id: performanceRecords.id });
+        inserted += ret.length;
+      }
+    }
+
+    // Per-row in-place update of existing records (full last-value-wins
+    // overwrite of the metric columns). Identity, batch ownership and
+    // exclusion flags are left untouched.
+    let updated = 0;
+    for (const { id, row } of updateRows) {
       const ret = await tx
-        .insert(performanceRecords)
-        .values(chunk)
+        .update(performanceRecords)
+        .set(metricValues(row))
+        .where(eq(performanceRecords.id, id))
         .returning({ id: performanceRecords.id });
-      inserted += ret.length;
+      updated += ret.length;
     }
 
     await tx
       .delete(uploadValidationSessions)
       .where(eq(uploadValidationSessions.token, token));
 
-    return { batchId: batch.id, rowsImported: inserted };
+    return { batchId, rowsImported: inserted, rowsUpdated: updated, upsert };
   });
 
   // Refresh dashboard caches. Wrapped in try/catch so a revalidate failure
@@ -209,6 +268,8 @@ export async function POST(request: NextRequest) {
     meta: {
       platform,
       rowsImported: result.rowsImported,
+      rowsUpdated: result.rowsUpdated,
+      upsert: result.upsert,
       dateRange: payload.summary?.dateRange ?? null,
       creatives: payload.summary?.creatives ?? null,
     },
