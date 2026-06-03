@@ -1,13 +1,13 @@
 @import "tailwindcss";
 
 /*
- * The app ships eight THEMES. Seven are dark (Midnight / Slate / Carbon /
- * Contrast / Forest / Sepia / Ocean) and one is light (Sand). next-themes
- * toggles `class="<theme>"` on <html>. `dark:` utilities key off the seven
- * dark theme classes — Sand is intentionally excluded so shadcn renders its
- * light base styles there.
+ * The app ships eight THEMES. Five are dark (Midnight / Slate / Carbon /
+ * Contrast / Ocean) and three are light (Sand / Frost / Rose). next-themes
+ * toggles `class="<theme>"` on <html>. `dark:` utilities key off the dark
+ * theme classes — the light themes are intentionally excluded so shadcn
+ * renders its light base styles there.
  */
-@custom-variant dark (&:where(.midnight, .slate, .carbon, .contrast, .forest, .sepia, .ocean, .midnight *, .slate *, .carbon *, .contrast *, .forest *, .sepia *, .ocean *));
+@custom-variant dark (&:where(.midnight, .slate, .carbon, .contrast, .ocean, .midnight *, .slate *, .carbon *, .contrast *, .ocean *));
 
 /*
  * Urjwan CCMS palette — three dark THEMES on one axis.
@@ -148,39 +148,7 @@
   --primary-foreground: #1a1205;
 }
 
-/* Theme 5 · FOREST — green chrome + leaf accent. */
-.forest {
-  --bg: #08140c;
-  --surface: #0f2116;
-  --surface-2: #16301f;
-  --surface-3: #1d3f29;
-  --line: #265235;
-  --line-2: #356b47;
-  --ink: #e7f5ec;
-  --ink-2: #9cc1a8;
-  --ink-3: #5f846c;
-  --brand: #22c55e;
-  --brand-2: #4ade80;
-  --primary-foreground: #052e16;
-}
-
-/* Theme 6 · SEPIA — warm espresso chrome + burnt-orange accent. */
-.sepia {
-  --bg: #150d06;
-  --surface: #21160d;
-  --surface-2: #2d1f13;
-  --surface-3: #3a291a;
-  --line: #47331f;
-  --line-2: #5e442b;
-  --ink: #f6ece0;
-  --ink-2: #c3aa8f;
-  --ink-3: #88725b;
-  --brand: #f97316;
-  --brand-2: #fdba74;
-  --primary-foreground: #2a1206;
-}
-
-/* Theme 7 · OCEAN — teal chrome + aqua accent. */
+/* Theme · OCEAN — teal chrome + aqua accent. */
 .ocean {
   --bg: #06141a;
   --surface: #0c2128;
@@ -196,8 +164,11 @@
   --primary-foreground: #042f2a;
 }
 
-/* Theme 8 · SAND — warm paper LIGHT theme + clay accent. Excluded from the
-   `dark:` variant above; re-tunes pos/neg/warn + popover for a light bg. */
+/* LIGHT themes — all excluded from the `dark:` variant above; each re-tunes
+   pos/neg/warn + popover so status colors stay legible on a light bg, and sets
+   its own dark-on-light accent. */
+
+/* SAND — warm paper + clay accent. */
 .sand {
   --bg: #f5f1e8;
   --surface: #fffdf8;
@@ -213,6 +184,46 @@
   --warn: #a8730f;
   --brand: #c2410c;
   --brand-2: #ea580c;
+  --primary-foreground: #ffffff;
+  --popover: var(--surface);
+}
+
+/* FROST — cool blue-white + azure accent. Crisp / clean. */
+.frost {
+  --bg: #f3f6fb;
+  --surface: #ffffff;
+  --surface-2: #e9eff7;
+  --surface-3: #dce6f2;
+  --line: #d6e1ee;
+  --line-2: #bfd0e4;
+  --ink: #16202e;
+  --ink-2: #475467;
+  --ink-3: #7a8699;
+  --pos: #15935f;
+  --neg: #d83a3a;
+  --warn: #a8730f;
+  --brand: #2563eb;
+  --brand-2: #60a5fa;
+  --primary-foreground: #ffffff;
+  --popover: var(--surface);
+}
+
+/* ROSE — soft warm blush + rose accent. */
+.rose {
+  --bg: #fbf3f4;
+  --surface: #fffafb;
+  --surface-2: #f7e8ec;
+  --surface-3: #f0dae0;
+  --line: #efdade;
+  --line-2: #e0c2cb;
+  --ink: #2a1c22;
+  --ink-2: #5e4a52;
+  --ink-3: #8c747e;
+  --pos: #15935f;
+  --neg: #d83a3a;
+  --warn: #a8730f;
+  --brand: #e11d48;
+  --brand-2: #fb7185;
   --primary-foreground: #ffffff;
   --popover: var(--surface);
 }

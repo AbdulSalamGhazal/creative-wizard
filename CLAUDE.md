@@ -163,8 +163,11 @@ This app is deployed and in production use. Treat `main` as shippable.
   their own inline editor (`updateCreativeNotes` via NotesPanel); `patchCreative`
   never touches notes. Tag editing uses `tag-multi-select.tsx` (a Popover
   dropdown), and the publish date uses a Calendar popover.
-- **Theming = one axis, eight THEMES** — seven dark (Midnight / Slate /
-  Carbon / Contrast / Forest / Sepia / Ocean) + one light (Sand). Managed by
+- **Theming = one axis, eight THEMES** — five dark (Midnight / Slate /
+  Carbon / Contrast / Ocean) + three light (Sand / Frost / Rose). Each theme
+  also sets its own accent (`--brand` / `--brand-2` + matching
+  `--primary-foreground`), so the dominant UI color changes per theme; only the
+  platform + pos/neg/warn chart colors stay shared. Managed by
   next-themes (`attribute="class"`, `storageKey="cw-theme"`,
   `defaultTheme="midnight"`, `enableSystem={false}`) → `class="<theme>"` on
   `<html>`. Midnight is the base palette in `:root`; every other theme is a

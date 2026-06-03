@@ -25,13 +25,13 @@ const DARK_THEMES = [
   { value: "slate", label: "Slate", swatches: ["#0a1322", "#e8f0fc", "#2f7bf6"] },
   { value: "carbon", label: "Carbon", swatches: ["#0a0a0b", "#f4f4f5", "#06b6d4"] },
   { value: "contrast", label: "Contrast", swatches: ["#000000", "#ffffff", "#f59e0b"] },
-  { value: "forest", label: "Forest", swatches: ["#08140c", "#e7f5ec", "#22c55e"] },
-  { value: "sepia", label: "Sepia", swatches: ["#150d06", "#f6ece0", "#f97316"] },
   { value: "ocean", label: "Ocean", swatches: ["#06141a", "#e3f4f6", "#14b8a6"] },
 ] as const;
 
 const LIGHT_THEMES = [
   { value: "sand", label: "Sand", swatches: ["#f5f1e8", "#2a2420", "#c2410c"] },
+  { value: "frost", label: "Frost", swatches: ["#f3f6fb", "#16202e", "#2563eb"] },
+  { value: "rose", label: "Rose", swatches: ["#fbf3f4", "#2a1c22", "#e11d48"] },
 ] as const;
 
 function Swatches({ colors }: { colors: readonly string[] }) {

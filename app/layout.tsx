@@ -11,10 +11,10 @@ const THEMES = [
   "slate",
   "carbon",
   "contrast",
-  "forest",
-  "sepia",
   "ocean",
   "sand",
+  "frost",
+  "rose",
 ];
 
 const jakarta = Plus_Jakarta_Sans({
