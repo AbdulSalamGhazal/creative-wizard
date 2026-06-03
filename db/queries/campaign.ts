@@ -1,0 +1,562 @@
+import {
+  and,
+  asc,
+  between,
+  desc,
+  eq,
+  inArray,
+  sql,
+  type SQL,
+} from "drizzle-orm";
+import { db } from "@/lib/db";
+import {
+  creatives,
+  creativeStatusEnum,
+  creativeTags,
+  creativeTypeEnum,
+  performanceRecords,
+  platformEnum,
+  products,
+} from "@/db/schema";
+import {
+  completeRate,
+  cpa,
+  cpc,
+  cpm,
+  ctr,
+  cvr,
+  hookRate,
+  holdRate,
+  roas,
+  sumClicks,
+  sumConversionValue,
+  sumConversions,
+  sumImpressions,
+  sumLandingPageViews,
+  sumSpend,
+  sumVideoViews2s,
+  voc,
+} from "@/lib/metrics";
+import { computeDelta, prevPeriod, type Delta } from "@/lib/period";
+
+type Platform = (typeof platformEnum)[number];
+type CreativeType = (typeof creativeTypeEnum)[number];
+type CreativeStatus = (typeof creativeStatusEnum)[number];
+
+const num = (v: unknown): number => (v === null || v === undefined ? 0 : Number(v));
+const numOrNull = (v: unknown): number | null =>
+  v === null || v === undefined ? null : Number(v);
+
+export interface Range {
+  from?: string;
+  to?: string;
+}
+
+// =====================================================================
+// Index: one row per campaign_name
+// =====================================================================
+
+export interface CampaignFilters extends Range {
+  platforms?: Platform[];
+  productIds?: string[];
+  types?: CreativeType[];
+  statuses?: CreativeStatus[];
+  tags?: string[];
+  includeExcluded?: boolean;
+}
+
+export interface CampaignListRow {
+  campaign: string;
+  platforms: Platform[];
+  creatives: number;
+  spend: number;
+  impressions: number;
+  conversions: number;
+  ctr: number | null;
+  cvr: number | null;
+  cpa: number | null;
+  roas: number | null;
+  firstDate: string | null;
+  lastDate: string | null;
+}
+
+function listConds(f: CampaignFilters): SQL[] {
+  const c: SQL[] = [];
+  if (f.from && f.to) c.push(between(performanceRecords.date, f.from, f.to));
+  if (!f.includeExcluded) {
+    c.push(eq(performanceRecords.excludedFromAggregates, false));
+  }
+  if (f.platforms && f.platforms.length > 0) {
+    c.push(inArray(performanceRecords.platform, f.platforms));
+  }
+  if (f.productIds && f.productIds.length > 0) {
+    c.push(inArray(creatives.productId, f.productIds));
+  }
+  if (f.types && f.types.length > 0) {
+    c.push(inArray(creatives.type, f.types));
+  }
+  if (f.statuses && f.statuses.length > 0) {
+    c.push(inArray(creatives.status, f.statuses));
+  }
+  if (f.tags && f.tags.length > 0) {
+    c.push(
+      sql`EXISTS (SELECT 1 FROM ${creativeTags} ct
+                  WHERE ct.creative_id = ${creatives.id}
+                    AND ct.tag IN ${f.tags})`,
+    );
+  }
+  return c;
+}
+
+export async function listCampaigns(
+  f: CampaignFilters,
+): Promise<CampaignListRow[]> {
+  const conds = listConds(f);
+  const rows = await db
+    .select({
+      campaign: performanceRecords.campaignName,
+      platforms: sql<Platform[]>`array_agg(DISTINCT ${performanceRecords.platform})`,
+      creatives: sql<number>`COUNT(DISTINCT ${performanceRecords.creativeId})::int`,
+      spend: sumSpend,
+      impressions: sumImpressions,
+      conversions: sumConversions,
+      ctr,
+      cvr,
+      cpa,
+      roas,
+      firstDate: sql<string | null>`MIN(${performanceRecords.date})`,
+      lastDate: sql<string | null>`MAX(${performanceRecords.date})`,
+    })
+    .from(performanceRecords)
+    .innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId))
+    .where(conds.length > 0 ? and(...conds) : undefined)
+    .groupBy(performanceRecords.campaignName)
+    .orderBy(desc(sumSpend));
+
+  return rows.map((r) => ({
+    campaign: r.campaign,
+    platforms: r.platforms ?? [],
+    creatives: num(r.creatives),
+    spend: num(r.spend),
+    impressions: num(r.impressions),
+    conversions: num(r.conversions),
+    ctr: numOrNull(r.ctr),
+    cvr: numOrNull(r.cvr),
+    cpa: numOrNull(r.cpa),
+    roas: numOrNull(r.roas),
+    firstDate: r.firstDate,
+    lastDate: r.lastDate,
+  }));
+}
+
+// =====================================================================
+// Detail: meta (all-time) + analytics (range) for one campaign
+// =====================================================================
+
+export interface CampaignMeta {
+  campaign: string;
+  platforms: Platform[];
+  productNames: string[];
+  creativeCount: number;
+  firstDate: string | null;
+  lastDate: string | null;
+}
+
+/** All-time facts for one campaign. Null when the campaign has no records. */
+export async function campaignMeta(name: string): Promise<CampaignMeta | null> {
+  const [r] = await db
+    .select({
+      platforms: sql<Platform[]>`array_agg(DISTINCT ${performanceRecords.platform})`,
+      productNames: sql<string[]>`array_agg(DISTINCT ${products.name})`,
+      creativeCount: sql<number>`COUNT(DISTINCT ${performanceRecords.creativeId})::int`,
+      firstDate: sql<string | null>`MIN(${performanceRecords.date})`,
+      lastDate: sql<string | null>`MAX(${performanceRecords.date})`,
+      rows: sql<number>`COUNT(*)::int`,
+    })
+    .from(performanceRecords)
+    .innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId))
+    .innerJoin(products, eq(products.id, creatives.productId))
+    .where(eq(performanceRecords.campaignName, name));
+
+  if (!r || num(r.rows) === 0) return null;
+  return {
+    campaign: name,
+    platforms: r.platforms ?? [],
+    productNames: r.productNames ?? [],
+    creativeCount: num(r.creativeCount),
+    firstDate: r.firstDate,
+    lastDate: r.lastDate,
+  };
+}
+
+export interface CampaignTotals {
+  spend: number;
+  impressions: number;
+  clicks: number;
+  landingPageViews: number;
+  conversions: number;
+  conversionValue: number;
+  videoViews2s: number;
+  cpm: number | null;
+  cpc: number | null;
+  cpa: number | null;
+  ctr: number | null;
+  voc: number | null;
+  cvr: number | null;
+  roas: number | null;
+  hookRate: number | null;
+  holdRate: number | null;
+  completeRate: number | null;
+}
+
+export type CampaignDeltaKey =
+  | "spend"
+  | "impressions"
+  | "clicks"
+  | "conversions"
+  | "conversionValue"
+  | "cpm"
+  | "cpc"
+  | "cpa"
+  | "ctr"
+  | "voc"
+  | "cvr"
+  | "roas";
+
+export interface CampaignAnalytics {
+  totals: CampaignTotals;
+  /** Period-over-period deltas vs the immediately-prior equal window. Null
+   *  when no bounded range is set (all-time view has nothing to compare to). */
+  deltas: Record<CampaignDeltaKey, Delta> | null;
+}
+
+function detailCond(name: string, range: Range, includeExcluded?: boolean): SQL {
+  const c: SQL[] = [eq(performanceRecords.campaignName, name)];
+  if (range.from && range.to) {
+    c.push(between(performanceRecords.date, range.from, range.to));
+  }
+  if (!includeExcluded) {
+    c.push(eq(performanceRecords.excludedFromAggregates, false));
+  }
+  return and(...c)!;
+}
+
+async function totalsFor(cond: SQL): Promise<CampaignTotals> {
+  const [r] = await db
+    .select({
+      spend: sumSpend,
+      impressions: sumImpressions,
+      clicks: sumClicks,
+      landingPageViews: sumLandingPageViews,
+      conversions: sumConversions,
+      conversionValue: sumConversionValue,
+      videoViews2s: sumVideoViews2s,
+      cpm,
+      cpc,
+      cpa,
+      ctr,
+      voc,
+      cvr,
+      roas,
+      hookRate,
+      holdRate,
+      completeRate,
+    })
+    .from(performanceRecords)
+    .innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId))
+    .where(cond);
+  return {
+    spend: num(r?.spend),
+    impressions: num(r?.impressions),
+    clicks: num(r?.clicks),
+    landingPageViews: num(r?.landingPageViews),
+    conversions: num(r?.conversions),
+    conversionValue: num(r?.conversionValue),
+    videoViews2s: num(r?.videoViews2s),
+    cpm: numOrNull(r?.cpm),
+    cpc: numOrNull(r?.cpc),
+    cpa: numOrNull(r?.cpa),
+    ctr: numOrNull(r?.ctr),
+    voc: numOrNull(r?.voc),
+    cvr: numOrNull(r?.cvr),
+    roas: numOrNull(r?.roas),
+    hookRate: numOrNull(r?.hookRate),
+    holdRate: numOrNull(r?.holdRate),
+    completeRate: numOrNull(r?.completeRate),
+  };
+}
+
+export async function campaignAnalytics(
+  name: string,
+  range: Range,
+  includeExcluded?: boolean,
+): Promise<CampaignAnalytics> {
+  const bounded = Boolean(range.from && range.to);
+  if (!bounded) {
+    const totals = await totalsFor(detailCond(name, range, includeExcluded));
+    return { totals, deltas: null };
+  }
+  const prev = prevPeriod(range.from!, range.to!);
+  const [totals, prior] = await Promise.all([
+    totalsFor(detailCond(name, range, includeExcluded)),
+    totalsFor(
+      detailCond(name, { from: prev.from, to: prev.to }, includeExcluded),
+    ),
+  ]);
+  const d = (k: CampaignDeltaKey): Delta =>
+    computeDelta(totals[k], prior[k]);
+  return {
+    totals,
+    deltas: {
+      spend: d("spend"),
+      impressions: d("impressions"),
+      clicks: d("clicks"),
+      conversions: d("conversions"),
+      conversionValue: d("conversionValue"),
+      cpm: d("cpm"),
+      cpc: d("cpc"),
+      cpa: d("cpa"),
+      ctr: d("ctr"),
+      voc: d("voc"),
+      cvr: d("cvr"),
+      roas: d("roas"),
+    },
+  };
+}
+
+// =====================================================================
+// Detail: daily series
+// =====================================================================
+
+export interface CampaignDailyPoint {
+  date: string;
+  spend: number;
+  impressions: number;
+  clicks: number;
+  conversions: number;
+  conversionValue: number;
+  cpm: number | null;
+  ctr: number | null;
+  voc: number | null;
+  cvr: number | null;
+  roas: number | null;
+}
+
+export async function campaignDaily(
+  name: string,
+  range: Range,
+  includeExcluded?: boolean,
+): Promise<CampaignDailyPoint[]> {
+  const rows = await db
+    .select({
+      date: performanceRecords.date,
+      spend: sumSpend,
+      impressions: sumImpressions,
+      clicks: sumClicks,
+      conversions: sumConversions,
+      conversionValue: sumConversionValue,
+      cpm,
+      ctr,
+      voc,
+      cvr,
+      roas,
+    })
+    .from(performanceRecords)
+    .innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId))
+    .where(detailCond(name, range, includeExcluded))
+    .groupBy(performanceRecords.date)
+    .orderBy(asc(performanceRecords.date));
+  return rows.map((r) => ({
+    date: r.date,
+    spend: num(r.spend),
+    impressions: num(r.impressions),
+    clicks: num(r.clicks),
+    conversions: num(r.conversions),
+    conversionValue: num(r.conversionValue),
+    cpm: numOrNull(r.cpm),
+    ctr: numOrNull(r.ctr),
+    voc: numOrNull(r.voc),
+    cvr: numOrNull(r.cvr),
+    roas: numOrNull(r.roas),
+  }));
+}
+
+// =====================================================================
+// Detail: per-platform split
+// =====================================================================
+
+export interface CampaignPlatformRow {
+  platform: Platform;
+  spend: number;
+  impressions: number;
+  clicks: number;
+  conversions: number;
+  ctr: number | null;
+  voc: number | null;
+  cvr: number | null;
+  cpa: number | null;
+  roas: number | null;
+}
+
+export async function campaignPlatforms(
+  name: string,
+  range: Range,
+  includeExcluded?: boolean,
+): Promise<CampaignPlatformRow[]> {
+  const rows = await db
+    .select({
+      platform: performanceRecords.platform,
+      spend: sumSpend,
+      impressions: sumImpressions,
+      clicks: sumClicks,
+      conversions: sumConversions,
+      ctr,
+      voc,
+      cvr,
+      cpa,
+      roas,
+    })
+    .from(performanceRecords)
+    .innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId))
+    .where(detailCond(name, range, includeExcluded))
+    .groupBy(performanceRecords.platform)
+    .orderBy(desc(sumSpend));
+  return rows.map((r) => ({
+    platform: r.platform as Platform,
+    spend: num(r.spend),
+    impressions: num(r.impressions),
+    clicks: num(r.clicks),
+    conversions: num(r.conversions),
+    ctr: numOrNull(r.ctr),
+    voc: numOrNull(r.voc),
+    cvr: numOrNull(r.cvr),
+    cpa: numOrNull(r.cpa),
+    roas: numOrNull(r.roas),
+  }));
+}
+
+// =====================================================================
+// Detail: creatives running in this campaign
+// =====================================================================
+
+export interface CampaignCreativeRow {
+  creativeId: string;
+  name: string;
+  type: CreativeType;
+  status: CreativeStatus;
+  thumbnailUrl: string | null;
+  spend: number;
+  impressions: number;
+  clicks: number;
+  conversions: number;
+  ctr: number | null;
+  cvr: number | null;
+  roas: number | null;
+  lastDate: string | null;
+}
+
+export async function campaignCreatives(
+  name: string,
+  range: Range,
+  includeExcluded?: boolean,
+): Promise<CampaignCreativeRow[]> {
+  const rows = await db
+    .select({
+      creativeId: creatives.id,
+      name: creatives.name,
+      type: creatives.type,
+      status: creatives.status,
+      thumbnailUrl: creatives.thumbnailUrl,
+      spend: sumSpend,
+      impressions: sumImpressions,
+      clicks: sumClicks,
+      conversions: sumConversions,
+      ctr,
+      cvr,
+      roas,
+      lastDate: sql<string | null>`MAX(${performanceRecords.date})`,
+    })
+    .from(performanceRecords)
+    .innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId))
+    .where(detailCond(name, range, includeExcluded))
+    .groupBy(
+      creatives.id,
+      creatives.name,
+      creatives.type,
+      creatives.status,
+      creatives.thumbnailUrl,
+    )
+    .orderBy(desc(sumSpend));
+  return rows.map((r) => ({
+    creativeId: r.creativeId,
+    name: r.name,
+    type: r.type as CreativeType,
+    status: r.status as CreativeStatus,
+    thumbnailUrl: r.thumbnailUrl,
+    spend: num(r.spend),
+    impressions: num(r.impressions),
+    clicks: num(r.clicks),
+    conversions: num(r.conversions),
+    ctr: numOrNull(r.ctr),
+    cvr: numOrNull(r.cvr),
+    roas: numOrNull(r.roas),
+    lastDate: r.lastDate,
+  }));
+}
+
+// =====================================================================
+// Detail: day-level records
+// =====================================================================
+
+export interface CampaignRecordRow {
+  id: number;
+  date: string;
+  creativeName: string;
+  platform: Platform;
+  spend: number;
+  impressions: number;
+  clicks: number;
+  conversions: number | null;
+  conversionValue: number | null;
+  landingPageViews: number | null;
+  excludedFromAggregates: boolean;
+}
+
+export async function campaignRecords(
+  name: string,
+  range: Range,
+  includeExcluded?: boolean,
+): Promise<CampaignRecordRow[]> {
+  const rows = await db
+    .select({
+      id: performanceRecords.id,
+      date: performanceRecords.date,
+      creativeName: creatives.name,
+      platform: performanceRecords.platform,
+      spend: performanceRecords.spend,
+      impressions: performanceRecords.impressions,
+      clicks: performanceRecords.clicks,
+      conversions: performanceRecords.conversions,
+      conversionValue: performanceRecords.conversionValue,
+      landingPageViews: performanceRecords.landingPageViews,
+      excludedFromAggregates: performanceRecords.excludedFromAggregates,
+    })
+    .from(performanceRecords)
+    .innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId))
+    .where(detailCond(name, range, includeExcluded))
+    .orderBy(desc(performanceRecords.date), desc(performanceRecords.spend))
+    .limit(500);
+  return rows.map((r) => ({
+    id: r.id,
+    date: r.date,
+    creativeName: r.creativeName,
+    platform: r.platform as Platform,
+    spend: num(r.spend),
+    impressions: num(r.impressions),
+    clicks: num(r.clicks),
+    conversions: numOrNull(r.conversions),
+    conversionValue: numOrNull(r.conversionValue),
+    landingPageViews: numOrNull(r.landingPageViews),
+    excludedFromAggregates: r.excludedFromAggregates,
+  }));
+}
