@@ -1,4 +1,4 @@
-import { and, asc, between, desc, eq, inArray, type SQL } from "drizzle-orm";
+import { and, asc, between, desc, eq, gt, inArray, type SQL } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { creatives, performanceRecords, platformEnum } from "@/db/schema";
 import {
@@ -301,6 +301,9 @@ export async function platformCampaignFunnel(
     .innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId))
     .where(whereFor(f))
     .groupBy(performanceRecords.platform, performanceRecords.campaignName)
+    // Drop campaigns with no spend in the window — they're just noise in the
+    // breakdown (and would inflate the per-platform campaign count).
+    .having(gt(sumSpend, 0))
     .orderBy(desc(sumSpend));
 
   return rows.map((r) => ({
