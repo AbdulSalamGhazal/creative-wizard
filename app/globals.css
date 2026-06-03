@@ -275,18 +275,38 @@
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
 
-  --font-sans: "Plus Jakarta Sans", system-ui, sans-serif;
-  --font-display: "Instrument Serif", serif;
-  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+  /* `--font-ui` is the active UI font (driven by data-font; see below). */
+  --font-sans: var(--font-ui);
+  --font-display: var(--ff-serif);
+  --font-mono: var(--ff-mono);
 }
 
 html,
 body {
   background: var(--bg);
   color: var(--ink);
-  font-family: var(--font-sans);
+  font-family: var(--font-ui);
   font-feature-settings: "cv02", "cv03", "cv11";
   -webkit-font-smoothing: antialiased;
+}
+
+/*
+ * UI font axis — orthogonal to the theme. `data-font` on <html> (persisted in
+ * localStorage as `cw-font`, applied before paint by the inline script in the
+ * layout) selects which loaded family `--font-ui` points at. Default = Jakarta.
+ * Headings keep the Instrument Serif display font (`--font-display`).
+ */
+:root {
+  --font-ui: var(--ff-jakarta);
+}
+[data-font="jakarta"] {
+  --font-ui: var(--ff-jakarta);
+}
+[data-font="inter"] {
+  --font-ui: var(--ff-inter);
+}
+[data-font="grotesk"] {
+  --font-ui: var(--ff-grotesk);
 }
 
 .num {

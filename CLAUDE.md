@@ -181,7 +181,13 @@ This app is deployed and in production use. Treat `main` as shippable.
   accent hue swaps were cosmetically pointless. To add a theme: add a `.<name>`
   palette override (+ pos/neg/warn if light), add the name to `THEMES` in
   layout.tsx, add it to `@custom-variant dark` if dark, and add an entry in
-  theme-toggle.tsx.
+  theme-toggle.tsx. A second, orthogonal axis is the **UI font**: `data-font`
+  on `<html>` (`cw-font` in localStorage, applied pre-paint by the inline
+  script in layout.tsx) picks `--font-ui` among three next/font families
+  (`--ff-jakarta` default / `--ff-inter` / `--ff-grotesk`). Body uses
+  `var(--font-ui)`; headings keep the Instrument Serif display
+  (`--font-display` → `--ff-serif`). Both axes live in the one ThemeToggle
+  dropdown.
 - **Screenshot-to-clipboard** lives in the top bar (`components/layout/
   screenshot-button.tsx`). It renders the live page DOM to a PNG via
   `modern-screenshot` (dynamically imported, so it's not in the initial

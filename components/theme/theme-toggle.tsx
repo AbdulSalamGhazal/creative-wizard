@@ -14,12 +14,12 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 /**
- * Theme picker in the top bar. One axis, eight tones (seven dark + one light).
- * Each option previews its background / surface / ink so the choice is
- * obvious. Brand + chart colors are shared, so only the chrome re-tones.
+ * Appearance picker in the top bar. Two independent axes, one window:
+ *  - Theme (8 tones: 5 dark + 3 light), persisted by next-themes.
+ *  - UI font (3 families), persisted under `cw-font` → `data-font` on <html>.
+ * Theme swatches preview [background · ink · accent]; font options render their
+ * own name in their own typeface. Brand + chart colors stay shared.
  */
-// Swatches preview each theme as [background · ink · accent] so the per-theme
-// accent (the big differentiator) is visible right in the picker.
 const DARK_THEMES = [
   { value: "midnight", label: "Midnight", swatches: ["#0a0812", "#f2ebe5", "#d4145a"] },
   { value: "slate", label: "Slate", swatches: ["#0a1322", "#e8f0fc", "#2f7bf6"] },
@@ -33,6 +33,15 @@ const LIGHT_THEMES = [
   { value: "frost", label: "Frost", swatches: ["#f3f6fb", "#16202e", "#2563eb"] },
   { value: "rose", label: "Rose", swatches: ["#fbf3f4", "#2a1c22", "#e11d48"] },
 ] as const;
+
+const FONTS = [
+  { value: "jakarta", label: "Jakarta", varName: "--ff-jakarta" },
+  { value: "inter", label: "Inter", varName: "--ff-inter" },
+  { value: "grotesk", label: "Space Grotesk", varName: "--ff-grotesk" },
+] as const;
+
+const FONT_STORAGE_KEY = "cw-font";
+const DEFAULT_FONT = "jakarta";
 
 function Swatches({ colors }: { colors: readonly string[] }) {
   return (
@@ -51,24 +60,42 @@ function Swatches({ colors }: { colors: readonly string[] }) {
 export function ThemeToggle() {
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
+  const [font, setFontState] = useState<string>(DEFAULT_FONT);
 
-  // Theme is only known on the client; leave the radio group uncontrolled
-  // until mounted to avoid a hydration mismatch.
-  useEffect(() => setMounted(true), []);
+  // Client-only state; leave the radio groups uncontrolled until mounted to
+  // avoid a hydration mismatch.
+  useEffect(() => {
+    setMounted(true);
+    try {
+      setFontState(localStorage.getItem(FONT_STORAGE_KEY) || DEFAULT_FONT);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  const setFont = (next: string) => {
+    setFontState(next);
+    try {
+      localStorage.setItem(FONT_STORAGE_KEY, next);
+    } catch {
+      /* ignore */
+    }
+    document.documentElement.setAttribute("data-font", next);
+  };
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button
           type="button"
-          title="Theme"
-          aria-label="Change theme"
+          title="Appearance"
+          aria-label="Change theme & font"
           className="text-ink-2 hover:text-ink p-1.5 rounded-md hover:bg-surface-2 transition"
         >
           <Palette className="w-4 h-4" />
         </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-48 max-h-[70vh] overflow-y-auto">
+      <DropdownMenuContent align="end" className="w-52 max-h-[75vh] overflow-y-auto">
         <DropdownMenuLabel>Theme · Dark</DropdownMenuLabel>
         <DropdownMenuRadioGroup
           value={mounted ? (theme ?? "midnight") : undefined}
@@ -87,6 +114,19 @@ export function ThemeToggle() {
             <DropdownMenuRadioItem key={t.value} value={t.value} className="gap-2">
               <Swatches colors={t.swatches} />
               {t.label}
+            </DropdownMenuRadioItem>
+          ))}
+        </DropdownMenuRadioGroup>
+
+        <DropdownMenuSeparator />
+        <DropdownMenuLabel>Font</DropdownMenuLabel>
+        <DropdownMenuRadioGroup
+          value={mounted ? font : undefined}
+          onValueChange={setFont}
+        >
+          {FONTS.map((f) => (
+            <DropdownMenuRadioItem key={f.value} value={f.value}>
+              <span style={{ fontFamily: `var(${f.varName})` }}>{f.label}</span>
             </DropdownMenuRadioItem>
           ))}
         </DropdownMenuRadioGroup>
