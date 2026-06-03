@@ -1,21 +1,30 @@
 import { Suspense } from "react";
 import { Badge } from "@/components/ui/badge";
+import { db } from "@/lib/db";
+import { ratingRules } from "@/db/schema";
 import {
-  campaignByPlatform,
-  campaignPortfolio,
-  listCampaigns,
-  type CampaignFilters,
-} from "@/db/queries/campaign";
-import { listProducts } from "@/db/queries/products";
-import { listAllTags } from "@/db/queries/creatives";
-import { FilterStrip } from "@/components/filters/filter-strip";
-import { KpiTile } from "@/components/kpi/kpi-tile";
-import { CampaignWinners } from "@/components/campaign/campaign-winners";
-import { CampaignScatter } from "@/components/campaign/campaign-scatter";
-import { CampaignLeaderboards } from "@/components/campaign/campaign-leaderboards";
-import { CampaignTable } from "@/components/campaign/campaign-table";
-import { dashboardFiltersSchema } from "@/validators/filters";
-import { int, pct, ratio, usd } from "@/lib/format";
+  comparisonWindow,
+  COMPARE_LABEL,
+  portfolioAllocation,
+  portfolioCampaigns,
+  portfolioKpis,
+  portfolioLaunches,
+  portfolioMovers,
+  portfolioTrend,
+  type CompareMode,
+  type PortfolioFilters,
+} from "@/db/queries/portfolio";
+import { portfolioFiltersSchema } from "@/validators/portfolio";
+import { addDays } from "@/lib/period";
+import { ksaCalendarEvents, KSA_EVENT_COLOR } from "@/lib/ksa-calendar";
+import { PortfolioFilterBar } from "@/components/portfolio/portfolio-filter-bar";
+import { PortfolioScorecard } from "@/components/portfolio/portfolio-scorecard";
+import { PortfolioTrend, type TrendAnnotation } from "@/components/portfolio/portfolio-trend";
+import { PortfolioAllocation } from "@/components/portfolio/portfolio-allocation";
+import { PortfolioEfficiencyScatter } from "@/components/portfolio/portfolio-efficiency-scatter";
+import { PortfolioPareto } from "@/components/portfolio/portfolio-pareto";
+import { PortfolioMovers } from "@/components/portfolio/portfolio-movers";
+import { PortfolioTable } from "@/components/portfolio/portfolio-table";
 
 export const dynamic = "force-dynamic";
 
@@ -24,121 +33,133 @@ function pickFirst(v: string | string[] | undefined): string | undefined {
   return Array.isArray(v) ? v[0] : v;
 }
 
+function defaultRange(): { from: string; to: string } {
+  const today = new Date();
+  today.setUTCHours(0, 0, 0, 0);
+  const to = today.toISOString().slice(0, 10);
+  return { from: addDays(to, -29), to };
+}
+
 export default async function CampaignsPage({
   searchParams,
 }: {
   searchParams: Promise<SearchParams>;
 }) {
   const params = await searchParams;
-  const parsed = dashboardFiltersSchema.parse({
+  const parsed = portfolioFiltersSchema.parse({
     from: pickFirst(params.from),
     to: pickFirst(params.to),
-    productIds: pickFirst(params.productIds),
     platforms: pickFirst(params.platforms),
-    types: pickFirst(params.types),
-    statuses: pickFirst(params.statuses),
-    tags: pickFirst(params.tags),
+    q: pickFirst(params.q),
+    compare: pickFirst(params.compare),
     includeExcluded: pickFirst(params.includeExcluded),
   });
 
-  const filters: CampaignFilters = {
-    from: parsed.from,
-    to: parsed.to,
+  // The page is always range-bounded so comparisons + rolling averages work.
+  const def = defaultRange();
+  const from = parsed.from ?? def.from;
+  const to = parsed.to ?? def.to;
+  const compare = parsed.compare as CompareMode;
+
+  const filters: PortfolioFilters = {
+    from,
+    to,
     platforms: parsed.platforms.length > 0 ? parsed.platforms : undefined,
-    productIds: parsed.productIds.length > 0 ? parsed.productIds : undefined,
-    types: parsed.types.length > 0 ? parsed.types : undefined,
-    statuses: parsed.statuses.length > 0 ? parsed.statuses : undefined,
-    tags: parsed.tags.length > 0 ? parsed.tags : undefined,
+    q: parsed.q,
     includeExcluded: parsed.includeExcluded,
   };
 
-  const [portfolio, grain, campaigns, products, tags] = await Promise.all([
-    campaignPortfolio(filters),
-    campaignByPlatform(filters),
-    listCampaigns(filters),
-    listProducts(),
-    listAllTags(),
-  ]);
+  const [kpis, trend, allocation, campaigns, launches, rating] =
+    await Promise.all([
+      portfolioKpis(filters, compare),
+      portfolioTrend(filters),
+      portfolioAllocation(filters),
+      portfolioCampaigns(filters),
+      portfolioLaunches(filters),
+      db.select().from(ratingRules).limit(1),
+    ]);
 
-  const rangeLabel =
-    parsed.from && parsed.to ? `${parsed.from} → ${parsed.to}` : "All-time";
+  // Target CPA is derived from the good-ROAS threshold × current AOV.
+  const goodRoas = rating[0] ? Number(rating[0].goodRoas) : 4;
+  const targetRoas = goodRoas > 0 ? goodRoas : null;
+  const targetCpa =
+    kpis.current.aov !== null && goodRoas > 0 ? kpis.current.aov / goodRoas : null;
 
-  const tiles = [
-    { label: "Campaigns", value: int(portfolio.campaigns) },
-    { label: "Spend", value: usd(portfolio.spend) },
-    { label: "Conversions", value: int(portfolio.conversions) },
-    { label: "Blended ROAS", value: ratio(portfolio.roas) },
-    { label: "Blended CvR", value: pct(portfolio.cvr) },
-    { label: "Blended CTR", value: pct(portfolio.ctr) },
+  const movers = await portfolioMovers(filters, compare, targetCpa);
+
+  // Data-driven timeline annotations: creative launches + KSA calendar.
+  const annotations: TrendAnnotation[] = [
+    ...launches.map((l) => ({
+      date: l.date,
+      label: `${l.count} launch${l.count === 1 ? "" : "es"}`,
+      color: "var(--brand)",
+    })),
+    ...ksaCalendarEvents(from, to).map((e) => ({
+      date: e.date,
+      label: e.label,
+      color: KSA_EVENT_COLOR[e.type],
+      minor: e.type === "payday",
+    })),
   ];
 
-  return (
-    <div className="space-y-8">
-      <Suspense
-        fallback={<div className="-mx-6 px-6 h-12 border-b border-line bg-background/95" />}
-      >
-        <div className="-mx-6 -mt-6 mb-2">
-          <FilterStrip products={products} tags={tags} />
-        </div>
-      </Suspense>
+  const cmp = comparisonWindow(from, to, compare);
+  const compareCaption = `${COMPARE_LABEL[compare]} (${cmp.from} → ${cmp.to})`;
 
-      <div className="flex items-end justify-between flex-wrap gap-3">
+  return (
+    <div className="space-y-6">
+      {/* Header + filters */}
+      <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
           <div className="text-[10px] uppercase tracking-[0.18em] text-ink-3 mb-1">
             Campaigns
           </div>
-          <h1 className="font-display text-4xl tracking-tight">Campaign analysis</h1>
-          <p className="text-ink-2 text-sm mt-1">
-            Compare every campaign across the portfolio — who wins on each
-            platform, where the money returns, and the full ranked list.
+          <h1 className="font-display text-4xl tracking-tight">All campaigns</h1>
+          <p className="text-ink-2 text-sm mt-1 max-w-2xl">
+            Portfolio command center — where the budget goes, what&apos;s working,
+            what&apos;s wasting, and what changed. Drill into Funnel or a creative
+            from here.
           </p>
         </div>
-        <Badge variant="outline" className="text-ink-3">
-          {rangeLabel} · {portfolio.campaigns} campaign{portfolio.campaigns === 1 ? "" : "s"} ·{" "}
-          {portfolio.platforms} platform{portfolio.platforms === 1 ? "" : "s"}
+        <Badge variant="outline" className="text-ink-3 shrink-0">
+          {from} → {to}
         </Badge>
       </div>
 
-      {/* Portfolio KPIs */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-        {tiles.map((t) => (
-          <KpiTile key={t.label} label={t.label} value={t.value} />
-        ))}
+      <Suspense fallback={null}>
+        <PortfolioFilterBar />
+      </Suspense>
+
+      {/* 1. Scorecard */}
+      <PortfolioScorecard kpis={kpis} caption={compareCaption} />
+
+      {/* 2. Trend */}
+      <PortfolioTrend data={trend} annotations={annotations} targetCpa={targetCpa} />
+
+      {/* 3 + 4. Allocation + efficiency scatter */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <PortfolioAllocation rows={allocation} />
+        <PortfolioEfficiencyScatter
+          rows={campaigns}
+          targetCpa={targetCpa}
+          targetRoas={targetRoas}
+        />
       </div>
 
-      {/* Winners within platform */}
-      <section className="space-y-3">
-        <div>
-          <h2 className="text-sm font-medium text-ink">Winners by platform</h2>
-          <p className="text-[11px] text-ink-3">
-            The strongest campaigns on each channel — ranked by ROAS (real
-            performers with conversions), else by spend.
-          </p>
+      {/* 5 + 6. Concentration + triage */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <PortfolioPareto rows={campaigns} />
+        <PortfolioMovers items={movers} />
+      </div>
+
+      {/* 7. Full table */}
+      <section className="space-y-2">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-medium text-ink">All campaigns</h2>
+          <span className="text-[11px] text-ink-3">
+            {campaigns.length} campaign{campaigns.length === 1 ? "" : "s"} · sortable · scroll for more
+          </span>
         </div>
-        <CampaignWinners rows={grain} />
-      </section>
-
-      {/* Compare — efficiency scatter */}
-      <section className="space-y-3">
-        <h2 className="text-sm font-medium text-ink">Compare</h2>
-        <CampaignScatter rows={grain} />
-      </section>
-
-      {/* Leaderboards — top 3 per metric */}
-      <section className="space-y-3">
-        <div>
-          <h2 className="text-sm font-medium text-ink">Leaderboards</h2>
-          <p className="text-[11px] text-ink-3">
-            Top 3 campaigns for each metric (CPA &amp; CPM ranked lowest-first).
-          </p>
-        </div>
-        <CampaignLeaderboards rows={grain} />
-      </section>
-
-      {/* Full table at the end */}
-      <section className="space-y-3">
-        <h2 className="text-sm font-medium text-ink">All campaigns</h2>
-        <CampaignTable rows={campaigns} />
+        <PortfolioTable rows={campaigns} />
       </section>
     </div>
   );

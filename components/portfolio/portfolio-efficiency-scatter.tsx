@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   CartesianGrid,
   ReferenceLine,
@@ -12,23 +13,10 @@ import {
   YAxis,
   ZAxis,
 } from "recharts";
-import { int, pct, ratio, usd } from "@/lib/format";
+import { int, ratio, usd } from "@/lib/format";
 import { ALL_PLATFORMS, PLATFORM_COLOR, PLATFORM_LABEL } from "@/lib/palette";
 import { cn } from "@/lib/utils";
-import type { CampaignPlatformGrainRow } from "@/db/queries/campaign";
-
-type YMetric = "roas" | "cvr" | "ctr" | "cpa";
-
-const Y: Record<
-  YMetric,
-  { label: string; fmt: (v: number | null) => string; tick: (v: number) => string; refOne?: boolean }
-> = {
-  roas: { label: "ROAS", fmt: (v) => (v === null ? "—" : `${ratio(v)}×`), tick: (v) => `${ratio(v)}×`, refOne: true },
-  cvr: { label: "CvR", fmt: pct, tick: (v) => pct(v) },
-  ctr: { label: "CTR", fmt: pct, tick: (v) => pct(v) },
-  cpa: { label: "CPA", fmt: usd, tick: (v) => compactUsd.format(v) },
-};
-const ORDER: YMetric[] = ["roas", "cvr", "ctr", "cpa"];
+import type { PortfolioCampaignRow } from "@/db/queries/portfolio";
 
 const compactUsd = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -37,58 +25,73 @@ const compactUsd = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 1,
 });
 
+type YMetric = "cpa" | "roas";
+
 /**
- * Each dot is a campaign (on one platform): X = spend, Y = the chosen
- * efficiency metric, bubble size = conversions, colour = platform. Lets you
- * spot the efficient performers vs. the big-but-mediocre spend at a glance.
+ * Every campaign as a dot: X = spend, Y = CPA (toggle ROAS), bubble = orders,
+ * colour = platform. A reference line marks the target so above/below is
+ * instant. Click a dot to open that campaign.
  */
-export function CampaignScatter({ rows }: { rows: CampaignPlatformGrainRow[] }) {
-  const [metric, setMetric] = useState<YMetric>("roas");
+export function PortfolioEfficiencyScatter({
+  rows,
+  targetCpa,
+  targetRoas,
+}: {
+  rows: PortfolioCampaignRow[];
+  targetCpa: number | null;
+  targetRoas: number | null;
+}) {
+  const router = useRouter();
+  const [metric, setMetric] = useState<YMetric>("cpa");
 
   const series = useMemo(() => {
-    const m = new Map<string, CampaignPlatformGrainRow[]>();
+    const m = new Map<string, PortfolioCampaignRow[]>();
     for (const r of rows) {
-      if (r[metric] === null) continue;
-      const list = m.get(r.platform) ?? [];
+      if (r[metric] === null || r.spend <= 0) continue;
+      const platform = r.platforms[0] ?? "instagram";
+      const list = m.get(platform) ?? [];
       list.push(r);
-      m.set(r.platform, list);
+      m.set(platform, list);
     }
     return ALL_PLATFORMS.filter((p) => m.has(p)).map((p) => ({
       platform: p,
       data: m.get(p)!.map((r) => ({
         x: r.spend,
         y: r[metric] as number,
-        z: Math.max(r.conversions, 1),
+        z: Math.max(r.orders, 1),
         campaign: r.campaign,
-        conversions: r.conversions,
+        orders: r.orders,
+        cpa: r.cpa,
+        roas: r.roas,
       })),
     }));
   }, [rows, metric]);
 
-  const y = Y[metric];
   const hasData = series.some((s) => s.data.length > 0);
+  const isCpa = metric === "cpa";
+  const refY = isCpa ? targetCpa : targetRoas;
 
   return (
     <div className="rounded-lg border border-line bg-surface p-4">
       <div className="flex items-center justify-between flex-wrap gap-3 mb-3">
         <div>
-          <h3 className="text-sm text-ink-2">Spend vs {y.label}</h3>
+          <h3 className="text-sm text-ink-2">Efficiency — spend vs {isCpa ? "CPA" : "ROAS"}</h3>
           <p className="text-[10px] text-ink-3">
-            Each dot is a campaign · bubble = conversions · colour = platform
+            Each dot is a campaign · bubble = orders · click to open
           </p>
         </div>
         <div className="inline-flex items-center rounded-md border border-line bg-surface-2 p-0.5 text-xs">
-          {ORDER.map((k) => (
+          {(["cpa", "roas"] as YMetric[]).map((k) => (
             <button
               key={k}
               type="button"
               onClick={() => setMetric(k)}
               className={cn(
-                "px-2.5 py-1 rounded transition-colors",
+                "px-2.5 py-1 rounded transition-colors uppercase",
                 metric === k ? "bg-surface text-ink shadow-sm" : "text-ink-3 hover:text-ink",
               )}
             >
-              {Y[k].label}
+              {k}
             </button>
           ))}
         </div>
@@ -115,19 +118,24 @@ export function CampaignScatter({ rows }: { rows: CampaignPlatformGrainRow[] }) 
                 <YAxis
                   type="number"
                   dataKey="y"
-                  name={y.label}
-                  tickFormatter={y.tick}
+                  name={isCpa ? "CPA" : "ROAS"}
+                  tickFormatter={(v: number) => (isCpa ? compactUsd.format(v) : `${ratio(v)}×`)}
                   tick={{ fill: "var(--ink-3)", fontSize: 11 }}
                   stroke="var(--line-2)"
                   width={56}
                 />
                 <ZAxis type="number" dataKey="z" range={[40, 420]} />
-                {y.refOne && (
+                {refY !== null && (
                   <ReferenceLine
-                    y={1}
+                    y={refY}
                     stroke="var(--ink-3)"
                     strokeDasharray="4 4"
-                    label={{ value: "break-even", fill: "var(--ink-3)", fontSize: 10, position: "insideTopRight" }}
+                    label={{
+                      value: isCpa ? "target CPA" : "target ROAS",
+                      fill: "var(--ink-3)",
+                      fontSize: 10,
+                      position: "insideTopRight",
+                    }}
                   />
                 )}
                 <Tooltip
@@ -137,24 +145,18 @@ export function CampaignScatter({ rows }: { rows: CampaignPlatformGrainRow[] }) 
                     const p = payload[0]?.payload as {
                       campaign: string;
                       x: number;
-                      y: number;
-                      conversions: number;
+                      orders: number;
+                      cpa: number | null;
+                      roas: number | null;
                     };
                     return (
                       <div className="rounded-md border border-line bg-surface px-3 py-2 shadow-lg shadow-black/30 text-xs max-w-xs">
                         <div className="text-ink font-medium mb-1 truncate">{p.campaign}</div>
-                        <div className="flex items-center justify-between gap-4 text-ink-2">
-                          <span>Spend</span>
-                          <span className="tabular-nums">{usd(p.x)}</span>
-                        </div>
-                        <div className="flex items-center justify-between gap-4 text-ink-2">
-                          <span>{y.label}</span>
-                          <span className="tabular-nums">{y.fmt(p.y)}</span>
-                        </div>
-                        <div className="flex items-center justify-between gap-4 text-ink-2">
-                          <span>Conversions</span>
-                          <span className="tabular-nums">{int(p.conversions)}</span>
-                        </div>
+                        <TipRow label="Spend" value={usd(p.x)} />
+                        <TipRow label="Orders" value={int(p.orders)} />
+                        <TipRow label="CPA" value={p.cpa === null ? "—" : usd(p.cpa)} />
+                        <TipRow label="ROAS" value={p.roas === null ? "—" : `${ratio(p.roas)}×`} />
+                        <div className="mt-1 text-[10px] text-ink-3">Click to open campaign</div>
                       </div>
                     );
                   }}
@@ -166,6 +168,12 @@ export function CampaignScatter({ rows }: { rows: CampaignPlatformGrainRow[] }) 
                     data={s.data}
                     fill={PLATFORM_COLOR[s.platform]}
                     fillOpacity={0.7}
+                    onClick={(d: { campaign?: string }) => {
+                      if (d?.campaign) {
+                        router.push(`/campaigns/${encodeURIComponent(d.campaign)}`);
+                      }
+                    }}
+                    className="cursor-pointer"
                   />
                 ))}
               </ScatterChart>
@@ -181,6 +189,15 @@ export function CampaignScatter({ rows }: { rows: CampaignPlatformGrainRow[] }) 
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+function TipRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between gap-4 text-ink-2">
+      <span>{label}</span>
+      <span className="tabular-nums text-ink">{value}</span>
     </div>
   );
 }
