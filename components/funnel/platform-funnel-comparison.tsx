@@ -1,6 +1,14 @@
+"use client";
+
+import { Fragment, useMemo, useState } from "react";
+import { ChevronRight } from "lucide-react";
 import { PLATFORM_COLOR, PLATFORM_LABEL } from "@/lib/palette";
 import { int, pct, usd } from "@/lib/format";
-import type { PlatformFunnelRow } from "@/db/queries/funnel";
+import { cn } from "@/lib/utils";
+import type {
+  PlatformFunnelRow,
+  PlatformCampaignRow,
+} from "@/db/queries/funnel";
 
 type RateKey = "cpm" | "ctr" | "voc" | "cvr";
 
@@ -19,17 +27,56 @@ const RATES: Array<{
 ];
 
 /**
- * Platforms side-by-side across the funnel. Volumes (spend → impressions →
- * clicks → LP views → conversions) as plain numbers; the four funnel rates get
- * a magnitude bar (scaled to the highest platform) plus a leader highlight
- * (green = best for that metric — lowest CPM, highest CTR/VOC/CvR).
+ * Platforms side-by-side across the funnel. Each platform row has a toggle
+ * (chevron) before its name that expands a per-campaign breakdown for that
+ * platform; collapsed by default. Volumes (spend → impressions → clicks → LP
+ * views → conversions) are plain numbers; the four funnel rates get a
+ * magnitude bar (scaled to the strongest platform) plus a leader highlight
+ * (green = best — lowest CPM, highest CTR/VOC/CvR).
  */
 export function PlatformFunnelComparison({
-  rows,
+  platforms,
+  campaigns,
 }: {
-  rows: PlatformFunnelRow[];
+  platforms: PlatformFunnelRow[];
+  campaigns: PlatformCampaignRow[];
 }) {
-  if (rows.length === 0) {
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+
+  const campaignsByPlatform = useMemo(() => {
+    const m = new Map<string, PlatformCampaignRow[]>();
+    for (const c of campaigns) {
+      const list = m.get(c.platform) ?? [];
+      list.push(c);
+      m.set(c.platform, list);
+    }
+    return m;
+  }, [campaigns]);
+
+  // Per rate: which platform leads, and the max magnitude (for bar scaling).
+  const { best, maxAbs } = useMemo(() => {
+    const best: Partial<Record<RateKey, string>> = {};
+    const maxAbs: Record<RateKey, number> = { cpm: 0, ctr: 0, voc: 0, cvr: 0 };
+    for (const r of RATES) {
+      let bestPlat: string | null = null;
+      let bestVal: number | null = null;
+      let max = 0;
+      for (const row of platforms) {
+        const v = row[r.key];
+        if (v === null) continue;
+        if (v > max) max = v;
+        if (bestVal === null || (r.lowerBetter ? v < bestVal : v > bestVal)) {
+          bestVal = v;
+          bestPlat = row.platform;
+        }
+      }
+      if (bestPlat) best[r.key] = bestPlat;
+      maxAbs[r.key] = max;
+    }
+    return { best, maxAbs };
+  }, [platforms]);
+
+  if (platforms.length === 0) {
     return (
       <div className="rounded-lg border border-dashed border-line bg-surface px-6 py-12 text-center">
         <p className="text-ink-2 text-sm">No platform activity in this window.</p>
@@ -37,28 +84,13 @@ export function PlatformFunnelComparison({
     );
   }
 
-  // Per rate: which platform leads, and the max magnitude (for bar scaling).
-  const best: Partial<Record<RateKey, string>> = {};
-  const maxAbs: Record<RateKey, number> = { cpm: 0, ctr: 0, voc: 0, cvr: 0 };
-  for (const r of RATES) {
-    let bestPlat: string | null = null;
-    let bestVal: number | null = null;
-    let max = 0;
-    for (const row of rows) {
-      const v = row[r.key];
-      if (v === null) continue;
-      if (v > max) max = v;
-      if (
-        bestVal === null ||
-        (r.lowerBetter ? v < bestVal : v > bestVal)
-      ) {
-        bestVal = v;
-        bestPlat = row.platform;
-      }
-    }
-    if (bestPlat) best[r.key] = bestPlat;
-    maxAbs[r.key] = max;
-  }
+  const toggle = (platform: string) =>
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(platform)) next.delete(platform);
+      else next.add(platform);
+      return next;
+    });
 
   return (
     <div className="overflow-x-auto rounded-lg border border-line bg-surface">
@@ -83,57 +115,114 @@ export function PlatformFunnelComparison({
           </tr>
         </thead>
         <tbody className="divide-y divide-line">
-          {rows.map((row) => (
-            <tr key={row.platform} className="hover:bg-surface-2/40 transition-colors">
-              <td className="px-3 py-2.5">
-                <span className="inline-flex items-center gap-2 text-ink whitespace-nowrap">
-                  <span
-                    className="w-2.5 h-2.5 rounded-sm"
-                    style={{ background: PLATFORM_COLOR[row.platform] }}
-                  />
-                  {PLATFORM_LABEL[row.platform]}
-                </span>
-              </td>
-              <td className="px-3 py-2.5 text-right text-ink tabular-nums">{usd(row.spend)}</td>
-              <td className="px-3 py-2.5 text-right text-ink-2 tabular-nums">{int(row.impressions)}</td>
-              <td className="px-3 py-2.5 text-right text-ink-2 tabular-nums">{int(row.clicks)}</td>
-              <td className="px-3 py-2.5 text-right text-ink-2 tabular-nums">{int(row.landingPageViews)}</td>
-              <td className="px-3 py-2.5 text-right text-ink-2 tabular-nums">{int(row.conversions)}</td>
-              {RATES.map((r) => {
-                const v = row[r.key];
-                const isBest = best[r.key] === row.platform;
-                const widthPct =
-                  v !== null && maxAbs[r.key] > 0
-                    ? Math.max((v / maxAbs[r.key]) * 100, 4)
-                    : 0;
-                return (
-                  <td key={r.key} className="px-3 py-2 align-middle">
-                    <div className="flex flex-col items-end gap-1">
+          {platforms.map((row) => {
+            const isOpen = expanded.has(row.platform);
+            const camps = campaignsByPlatform.get(row.platform) ?? [];
+            return (
+              <Fragment key={row.platform}>
+                <tr className="hover:bg-surface-2/40 transition-colors">
+                  <td className="px-3 py-2.5">
+                    <button
+                      type="button"
+                      onClick={() => toggle(row.platform)}
+                      aria-expanded={isOpen}
+                      aria-label={`${isOpen ? "Collapse" : "Expand"} ${PLATFORM_LABEL[row.platform]} campaigns`}
+                      className="inline-flex items-center gap-2 text-ink hover:text-brand transition-colors"
+                    >
+                      <ChevronRight
+                        className={cn(
+                          "w-3.5 h-3.5 text-ink-3 transition-transform",
+                          isOpen && "rotate-90",
+                        )}
+                      />
                       <span
-                        className={
-                          "tabular-nums " +
-                          (isBest ? "text-pos font-semibold" : "text-ink")
-                        }
-                        title={isBest ? `Best ${r.label} across platforms` : undefined}
-                      >
-                        {r.fmt(v)}
+                        className="w-2.5 h-2.5 rounded-sm shrink-0"
+                        style={{ background: PLATFORM_COLOR[row.platform] }}
+                      />
+                      <span className="whitespace-nowrap">
+                        {PLATFORM_LABEL[row.platform]}
                       </span>
-                      <span className="block h-1 w-14 rounded bg-surface-2 overflow-hidden">
-                        <span
-                          className="block h-full rounded"
-                          style={{
-                            width: `${widthPct}%`,
-                            background: PLATFORM_COLOR[row.platform],
-                            opacity: isBest ? 1 : 0.5,
-                          }}
-                        />
+                      <span className="text-[10px] text-ink-3">
+                        {camps.length} campaign{camps.length === 1 ? "" : "s"}
                       </span>
-                    </div>
+                    </button>
                   </td>
-                );
-              })}
-            </tr>
-          ))}
+                  <td className="px-3 py-2.5 text-right text-ink tabular-nums">{usd(row.spend)}</td>
+                  <td className="px-3 py-2.5 text-right text-ink-2 tabular-nums">{int(row.impressions)}</td>
+                  <td className="px-3 py-2.5 text-right text-ink-2 tabular-nums">{int(row.clicks)}</td>
+                  <td className="px-3 py-2.5 text-right text-ink-2 tabular-nums">{int(row.landingPageViews)}</td>
+                  <td className="px-3 py-2.5 text-right text-ink-2 tabular-nums">{int(row.conversions)}</td>
+                  {RATES.map((r) => {
+                    const v = row[r.key];
+                    const isBest = best[r.key] === row.platform;
+                    const widthPct =
+                      v !== null && maxAbs[r.key] > 0
+                        ? Math.max((v / maxAbs[r.key]) * 100, 4)
+                        : 0;
+                    return (
+                      <td key={r.key} className="px-3 py-2 align-middle">
+                        <div className="flex flex-col items-end gap-1">
+                          <span
+                            className={cn(
+                              "tabular-nums",
+                              isBest ? "text-pos font-semibold" : "text-ink",
+                            )}
+                            title={isBest ? `Best ${r.label} across platforms` : undefined}
+                          >
+                            {r.fmt(v)}
+                          </span>
+                          <span className="block h-1 w-14 rounded bg-surface-2 overflow-hidden">
+                            <span
+                              className="block h-full rounded"
+                              style={{
+                                width: `${widthPct}%`,
+                                background: PLATFORM_COLOR[row.platform],
+                                opacity: isBest ? 1 : 0.5,
+                              }}
+                            />
+                          </span>
+                        </div>
+                      </td>
+                    );
+                  })}
+                </tr>
+
+                {/* Per-campaign breakdown (collapsed by default) */}
+                {isOpen &&
+                  camps.map((c) => (
+                    <tr
+                      key={`${row.platform}::${c.campaign}`}
+                      className="bg-surface-2/25 text-[12px]"
+                    >
+                      <td className="py-1.5 pl-10 pr-3">
+                        <span
+                          className="block max-w-[22rem] truncate text-ink-2"
+                          title={c.campaign}
+                        >
+                          {c.campaign}
+                        </span>
+                      </td>
+                      <td className="px-3 py-1.5 text-right text-ink-2 tabular-nums">{usd(c.spend)}</td>
+                      <td className="px-3 py-1.5 text-right text-ink-3 tabular-nums">{int(c.impressions)}</td>
+                      <td className="px-3 py-1.5 text-right text-ink-3 tabular-nums">{int(c.clicks)}</td>
+                      <td className="px-3 py-1.5 text-right text-ink-3 tabular-nums">{int(c.landingPageViews)}</td>
+                      <td className="px-3 py-1.5 text-right text-ink-3 tabular-nums">{int(c.conversions)}</td>
+                      <td className="px-3 py-1.5 text-right text-ink-2 tabular-nums">{usd(c.cpm)}</td>
+                      <td className="px-3 py-1.5 text-right text-ink-2 tabular-nums">{pct(c.ctr)}</td>
+                      <td className="px-3 py-1.5 text-right text-ink-2 tabular-nums">{pct(c.voc)}</td>
+                      <td className="px-3 py-1.5 text-right text-ink-2 tabular-nums">{pct(c.cvr)}</td>
+                    </tr>
+                  ))}
+                {isOpen && camps.length === 0 && (
+                  <tr className="bg-surface-2/25">
+                    <td colSpan={10} className="py-2 pl-10 pr-3 text-[11px] text-ink-3">
+                      No campaigns in this window.
+                    </td>
+                  </tr>
+                )}
+              </Fragment>
+            );
+          })}
         </tbody>
       </table>
     </div>

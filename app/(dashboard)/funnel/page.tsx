@@ -6,6 +6,7 @@ import {
   funnelDaily,
   funnelOverview,
   platformFunnel,
+  platformCampaignFunnel,
 } from "@/db/queries/funnel";
 import { listProducts } from "@/db/queries/products";
 import { listAllTags } from "@/db/queries/creatives";
@@ -53,15 +54,23 @@ export default async function FunnelPage({
     includeExcluded: parsed.includeExcluded,
   };
 
-  const [overview, campaigns, daily, byPlatform, products, tags] =
-    await Promise.all([
-      funnelOverview(filters),
-      campaignFunnel(filters),
-      funnelDaily(filters),
-      platformFunnel(filters),
-      listProducts(),
-      listAllTags(),
-    ]);
+  const [
+    overview,
+    campaigns,
+    daily,
+    byPlatform,
+    byPlatformCampaign,
+    products,
+    tags,
+  ] = await Promise.all([
+    funnelOverview(filters),
+    campaignFunnel(filters),
+    funnelDaily(filters),
+    platformFunnel(filters),
+    platformCampaignFunnel(filters),
+    listProducts(),
+    listAllTags(),
+  ]);
 
   const caption = periodCaption(from, to);
   const c = overview.current;
@@ -136,11 +145,14 @@ export default async function FunnelPage({
           </h2>
           <p className="text-[11px] text-ink-3">
             Channels side-by-side across the funnel. Green marks the leader per
-            metric — lowest CPM, highest CTR / VOC / CvR — and the bars scale to
-            the strongest platform.
+            metric — lowest CPM, highest CTR / VOC / CvR. Click a platform to
+            expand its campaign breakdown.
           </p>
         </div>
-        <PlatformFunnelComparison rows={byPlatform} />
+        <PlatformFunnelComparison
+          platforms={byPlatform}
+          campaigns={byPlatformCampaign}
+        />
       </div>
 
       <div className="space-y-2">
