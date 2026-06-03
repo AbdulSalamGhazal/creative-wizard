@@ -217,9 +217,12 @@ export interface CampaignPlatformGrainRow {
   spend: number;
   impressions: number;
   clicks: number;
+  landingPageViews: number;
   conversions: number;
   conversionValue: number;
+  cpm: number | null;
   ctr: number | null;
+  voc: number | null;
   cvr: number | null;
   cpa: number | null;
   roas: number | null;
@@ -236,9 +239,12 @@ export async function campaignByPlatform(
       spend: sumSpend,
       impressions: sumImpressions,
       clicks: sumClicks,
+      landingPageViews: sumLandingPageViews,
       conversions: sumConversions,
       conversionValue: sumConversionValue,
+      cpm,
       ctr,
+      voc,
       cvr,
       cpa,
       roas,
@@ -255,9 +261,12 @@ export async function campaignByPlatform(
     spend: num(r.spend),
     impressions: num(r.impressions),
     clicks: num(r.clicks),
+    landingPageViews: num(r.landingPageViews),
     conversions: num(r.conversions),
     conversionValue: num(r.conversionValue),
+    cpm: numOrNull(r.cpm),
     ctr: numOrNull(r.ctr),
+    voc: numOrNull(r.voc),
     cvr: numOrNull(r.cvr),
     cpa: numOrNull(r.cpa),
     roas: numOrNull(r.roas),

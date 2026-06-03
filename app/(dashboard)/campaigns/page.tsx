@@ -12,7 +12,7 @@ import { FilterStrip } from "@/components/filters/filter-strip";
 import { KpiTile } from "@/components/kpi/kpi-tile";
 import { CampaignWinners } from "@/components/campaign/campaign-winners";
 import { CampaignScatter } from "@/components/campaign/campaign-scatter";
-import { CampaignRankBars } from "@/components/campaign/campaign-rank-bars";
+import { CampaignLeaderboards } from "@/components/campaign/campaign-leaderboards";
 import { CampaignTable } from "@/components/campaign/campaign-table";
 import { dashboardFiltersSchema } from "@/validators/filters";
 import { int, pct, ratio, usd } from "@/lib/format";
@@ -124,10 +124,15 @@ export default async function CampaignsPage({
         <CampaignScatter rows={grain} />
       </section>
 
-      {/* Leaderboard bars */}
+      {/* Leaderboards — top 3 per metric */}
       <section className="space-y-3">
-        <h2 className="text-sm font-medium text-ink">Leaderboard</h2>
-        <CampaignRankBars rows={grain} />
+        <div>
+          <h2 className="text-sm font-medium text-ink">Leaderboards</h2>
+          <p className="text-[11px] text-ink-3">
+            Top 3 campaigns for each metric (CPA &amp; CPM ranked lowest-first).
+          </p>
+        </div>
+        <CampaignLeaderboards rows={grain} />
       </section>
 
       {/* Full table at the end */}
