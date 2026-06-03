@@ -89,20 +89,34 @@
   --radius: 0.625rem;
 }
 
-/* Theme 2 · SLATE — cool blue-grey. */
+/*
+ * Each theme below ALSO sets its own accent (`--brand` / `--brand-2`) and the
+ * matching `--primary-foreground` (text on filled brand buttons — dark for the
+ * light/vivid accents). This is the big lever: the accent drives buttons,
+ * active nav, the logo gradient, focus rings, and links, so each theme reads
+ * as a genuinely different colorway — not just a darker background.
+ * `--brand-soft` / `--brand-glow` derive from `--brand` via color-mix in :root,
+ * so they re-resolve automatically. The platform + pos/neg/warn chart colors
+ * stay shared, so the data graphs look the same in every theme.
+ */
+
+/* Theme 2 · SLATE — blue chrome + azure accent. */
 .slate {
-  --bg: #0b0e16;
-  --surface: #141a25;
-  --surface-2: #1c2433;
-  --surface-3: #253042;
-  --line: #2c3647;
-  --line-2: #3b475c;
-  --ink: #eef2f8;
-  --ink-2: #9fabbd;
-  --ink-3: #647082;
+  --bg: #0a1322;
+  --surface: #11203a;
+  --surface-2: #182a4a;
+  --surface-3: #20375d;
+  --line: #2a4570;
+  --line-2: #3a5a8f;
+  --ink: #e8f0fc;
+  --ink-2: #9db4d6;
+  --ink-3: #607aa0;
+  --brand: #2f7bf6;
+  --brand-2: #6ba5ff;
+  --primary-foreground: #ffffff;
 }
 
-/* Theme 3 · CARBON — neutral near-black (lets the chart colors pop). */
+/* Theme 3 · CARBON — neutral chrome + electric-cyan accent. */
 .carbon {
   --bg: #0a0a0b;
   --surface: #141416;
@@ -113,64 +127,77 @@
   --ink: #f4f4f5;
   --ink-2: #a1a1aa;
   --ink-3: #6e6e76;
+  --brand: #06b6d4;
+  --brand-2: #67e8f9;
+  --primary-foreground: #042027;
 }
 
-/* Theme 4 · CONTRAST — pure black + bright ink + stronger borders. The
-   high-legibility / accessibility-leaning option. */
+/* Theme 4 · CONTRAST — pure black + bright ink + bold amber accent. */
 .contrast {
   --bg: #000000;
-  --surface: #0a0a0a;
-  --surface-2: #151515;
-  --surface-3: #202020;
+  --surface: #0b0b0b;
+  --surface-2: #161616;
+  --surface-3: #212121;
   --line: #3a3a3a;
   --line-2: #565656;
   --ink: #ffffff;
   --ink-2: #d6d6d6;
   --ink-3: #a3a3a3;
+  --brand: #f59e0b;
+  --brand-2: #fbbf24;
+  --primary-foreground: #1a1205;
 }
 
-/* Theme 5 · FOREST — muted natural green (dark). */
+/* Theme 5 · FOREST — green chrome + leaf accent. */
 .forest {
-  --bg: #0a130d;
-  --surface: #111b14;
-  --surface-2: #18261d;
-  --surface-3: #1f3026;
-  --line: #283b2f;
-  --line-2: #385140;
-  --ink: #e9f2ec;
-  --ink-2: #9db3a4;
-  --ink-3: #647a6b;
+  --bg: #08140c;
+  --surface: #0f2116;
+  --surface-2: #16301f;
+  --surface-3: #1d3f29;
+  --line: #265235;
+  --line-2: #356b47;
+  --ink: #e7f5ec;
+  --ink-2: #9cc1a8;
+  --ink-3: #5f846c;
+  --brand: #22c55e;
+  --brand-2: #4ade80;
+  --primary-foreground: #052e16;
 }
 
-/* Theme 6 · SEPIA — warm espresso (dark). */
+/* Theme 6 · SEPIA — warm espresso chrome + burnt-orange accent. */
 .sepia {
-  --bg: #130d0a;
-  --surface: #1d1512;
-  --surface-2: #271d18;
-  --surface-3: #312520;
-  --line: #3b2d26;
-  --line-2: #4f3d34;
-  --ink: #f3eae1;
-  --ink-2: #bba897;
-  --ink-3: #80705f;
+  --bg: #150d06;
+  --surface: #21160d;
+  --surface-2: #2d1f13;
+  --surface-3: #3a291a;
+  --line: #47331f;
+  --line-2: #5e442b;
+  --ink: #f6ece0;
+  --ink-2: #c3aa8f;
+  --ink-3: #88725b;
+  --brand: #f97316;
+  --brand-2: #fdba74;
+  --primary-foreground: #2a1206;
 }
 
-/* Theme 7 · OCEAN — deep teal (dark). */
+/* Theme 7 · OCEAN — teal chrome + aqua accent. */
 .ocean {
-  --bg: #08141b;
-  --surface: #0f1e27;
-  --surface-2: #152935;
-  --surface-3: #1c3442;
-  --line: #223f4f;
-  --line-2: #305768;
-  --ink: #e6f2f5;
-  --ink-2: #9ab4bd;
-  --ink-3: #5f7e88;
+  --bg: #06141a;
+  --surface: #0c2128;
+  --surface-2: #122f38;
+  --surface-3: #173c48;
+  --line: #1f4f5e;
+  --line-2: #2c6d80;
+  --ink: #e3f4f6;
+  --ink-2: #95babf;
+  --ink-3: #5c8289;
+  --brand: #14b8a6;
+  --brand-2: #2dd4bf;
+  --primary-foreground: #042f2a;
 }
 
-/* Theme 8 · SAND — warm paper (the LIGHT, natural-tone theme). Excluded from
-   the `dark:` variant above; also re-tunes pos/neg/warn + popover so status
-   colors stay legible on a light background. */
+/* Theme 8 · SAND — warm paper LIGHT theme + clay accent. Excluded from the
+   `dark:` variant above; re-tunes pos/neg/warn + popover for a light bg. */
 .sand {
   --bg: #f5f1e8;
   --surface: #fffdf8;
@@ -184,6 +211,9 @@
   --pos: #15935f;
   --neg: #d83a3a;
   --warn: #a8730f;
+  --brand: #c2410c;
+  --brand-2: #ea580c;
+  --primary-foreground: #ffffff;
   --popover: var(--surface);
 }
 
