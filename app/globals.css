@@ -1,11 +1,13 @@
 @import "tailwindcss";
 
 /*
- * The app ships three dark THEMES (Midnight / Slate / Carbon). next-themes
- * toggles `class="midnight|slate|carbon"` on <html>. All three are dark, so
- * `dark:` utilities key off any of the theme classes.
+ * The app ships eight THEMES. Seven are dark (Midnight / Slate / Carbon /
+ * Contrast / Forest / Sepia / Ocean) and one is light (Sand). next-themes
+ * toggles `class="<theme>"` on <html>. `dark:` utilities key off the seven
+ * dark theme classes — Sand is intentionally excluded so shadcn renders its
+ * light base styles there.
  */
-@custom-variant dark (&:where(.midnight, .slate, .carbon, .midnight *, .slate *, .carbon *));
+@custom-variant dark (&:where(.midnight, .slate, .carbon, .contrast, .forest, .sepia, .ocean, .midnight *, .slate *, .carbon *, .contrast *, .forest *, .sepia *, .ocean *));
 
 /*
  * Urjwan CCMS palette — three dark THEMES on one axis.
@@ -111,6 +113,78 @@
   --ink: #f4f4f5;
   --ink-2: #a1a1aa;
   --ink-3: #6e6e76;
+}
+
+/* Theme 4 · CONTRAST — pure black + bright ink + stronger borders. The
+   high-legibility / accessibility-leaning option. */
+.contrast {
+  --bg: #000000;
+  --surface: #0a0a0a;
+  --surface-2: #151515;
+  --surface-3: #202020;
+  --line: #3a3a3a;
+  --line-2: #565656;
+  --ink: #ffffff;
+  --ink-2: #d6d6d6;
+  --ink-3: #a3a3a3;
+}
+
+/* Theme 5 · FOREST — muted natural green (dark). */
+.forest {
+  --bg: #0a130d;
+  --surface: #111b14;
+  --surface-2: #18261d;
+  --surface-3: #1f3026;
+  --line: #283b2f;
+  --line-2: #385140;
+  --ink: #e9f2ec;
+  --ink-2: #9db3a4;
+  --ink-3: #647a6b;
+}
+
+/* Theme 6 · SEPIA — warm espresso (dark). */
+.sepia {
+  --bg: #130d0a;
+  --surface: #1d1512;
+  --surface-2: #271d18;
+  --surface-3: #312520;
+  --line: #3b2d26;
+  --line-2: #4f3d34;
+  --ink: #f3eae1;
+  --ink-2: #bba897;
+  --ink-3: #80705f;
+}
+
+/* Theme 7 · OCEAN — deep teal (dark). */
+.ocean {
+  --bg: #08141b;
+  --surface: #0f1e27;
+  --surface-2: #152935;
+  --surface-3: #1c3442;
+  --line: #223f4f;
+  --line-2: #305768;
+  --ink: #e6f2f5;
+  --ink-2: #9ab4bd;
+  --ink-3: #5f7e88;
+}
+
+/* Theme 8 · SAND — warm paper (the LIGHT, natural-tone theme). Excluded from
+   the `dark:` variant above; also re-tunes pos/neg/warn + popover so status
+   colors stay legible on a light background. */
+.sand {
+  --bg: #f5f1e8;
+  --surface: #fffdf8;
+  --surface-2: #efe9dc;
+  --surface-3: #e6ddcb;
+  --line: #e1d9c7;
+  --line-2: #cdc3ac;
+  --ink: #2a2420;
+  --ink-2: #5c5447;
+  --ink-3: #8a8170;
+  --pos: #15935f;
+  --neg: #d83a3a;
+  --warn: #a8730f;
+  --popover: var(--surface);
 }
 
 @theme inline {

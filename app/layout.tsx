@@ -4,8 +4,18 @@ import { ThemeProvider } from "@/components/theme/theme-provider";
 import { ThemedToaster } from "@/components/theme/themed-toaster";
 import "./globals.css";
 
-// The three selectable tones. Midnight is the default (matches :root).
-const THEMES = ["midnight", "slate", "carbon"];
+// The eight selectable tones (Sand is light, the rest dark). Midnight is the
+// default and matches :root.
+const THEMES = [
+  "midnight",
+  "slate",
+  "carbon",
+  "contrast",
+  "forest",
+  "sepia",
+  "ocean",
+  "sand",
+];
 
 const jakarta = Plus_Jakarta_Sans({
   variable: "--font-sans",
