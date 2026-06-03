@@ -1,18 +1,16 @@
 "use client";
 
-import { useTheme } from "next-themes";
 import { Toaster } from "sonner";
 
 /**
- * Sonner toaster that follows the active theme. The custom classNames use our
- * semantic tokens (which flip with the theme automatically); passing `theme`
- * keeps sonner's own base styles (e.g. close button, default surfaces) in sync.
+ * Sonner toaster. All three app themes are dark, so sonner's own base styles
+ * stay on "dark"; the custom classNames use our semantic tokens, which
+ * re-tone automatically with the active theme.
  */
 export function ThemedToaster() {
-  const { resolvedTheme } = useTheme();
   return (
     <Toaster
-      theme={resolvedTheme === "light" ? "light" : "dark"}
+      theme="dark"
       position="bottom-right"
       toastOptions={{
         classNames: {

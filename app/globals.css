@@ -1,44 +1,39 @@
 @import "tailwindcss";
 
 /*
- * Class-based dark mode. next-themes toggles `class="light|dark"` on <html>,
- * so `dark:` utilities must key off that class, not `prefers-color-scheme`.
+ * The app ships three dark THEMES (Midnight / Slate / Carbon). next-themes
+ * toggles `class="midnight|slate|carbon"` on <html>. All three are dark, so
+ * `dark:` utilities key off any of the theme classes.
  */
-@custom-variant dark (&:where(.dark, .dark *));
+@custom-variant dark (&:where(.midnight, .slate, .carbon, .midnight *, .slate *, .carbon *));
 
 /*
- * Urjwan CCMS palette.
+ * Urjwan CCMS palette — three dark THEMES on one axis.
  *
- * The DARK palette is lifted verbatim from docs/mockups/*.html and lives under
- * `.dark`. The LIGHT palette (default, in `:root`) is a warm-paper counterpart
- * tuned for the same brand world. Every component consumes the *semantic*
- * tokens below (which point at the base palette vars), so switching the
- * `.dark` class re-themes the whole app without touching component code.
+ * Theme 1 (MIDNIGHT) is the default and lives in `:root`. SLATE and CARBON
+ * are class overrides (`.slate` / `.carbon`) that re-tone only the
+ * surface/ink/line scale. The shadcn semantic tokens point at the base
+ * palette vars via `var()`, so they re-resolve automatically when a theme
+ * class swaps the underlying `--surface` / `--ink` / `--line` values — the
+ * whole app re-themes without touching component code.
+ *
+ * What's SHARED across all three themes (declared once in `:root`, never
+ * overridden): brand magenta, the five platform colors, and pos/neg/warn.
+ * These stay in lockstep with the literal hex mirrors in lib/palette.ts that
+ * Recharts needs, so the charts/graphs look identical in every theme — only
+ * the surrounding chrome changes tone.
  *
  * Naming note: the mockups call the magenta `--accent`, but shadcn uses
- * `--accent` for its hover-surface semantic. To avoid the clash, the brand
- * magenta lives on `--brand` here. UI code should use `text-brand` /
- * `bg-brand` for the magenta and the shadcn semantic tokens (`primary`,
- * `accent`, `muted`, etc.) for everything else.
- *
- * Platform + brand colors are intentionally shared across themes (declared
- * once in `:root`, not overridden in `.dark`) so they stay in lockstep with
- * the literal hex mirrors in lib/palette.ts that Recharts needs. Only the
- * surface/ink/line scale and the status colors (pos/neg/warn) flip.
+ * `--accent` for its hover-surface semantic, so the brand magenta lives on
+ * `--brand`. UI code uses `text-brand` / `bg-brand` for the magenta and the
+ * shadcn tokens (`primary`, `accent`, `muted`, …) for everything else.
  */
 :root {
-  /* Light palette — warm paper, white cards */
-  --bg: #f7f5f1;
-  --surface: #ffffff;
-  --surface-2: #f1ece4;
-  --surface-3: #e7e1d6;
-  --line: #e4ded3;
-  --line-2: #d3ccbd;
-  --ink: #1c1825;
-  --ink-2: #595365;
-  --ink-3: #8b8597;
-
-  /* Brand (overridable per accent below) + platform colors */
+  /* ---------------------------------------------------------------
+   * Shared across ALL themes — brand + platform + chart colors.
+   * These never change between themes so graphs/charts stay in
+   * lockstep with the literal hex mirrors in lib/palette.ts.
+   * ------------------------------------------------------------- */
   --brand: #d4145a;
   --brand-2: #ff4d8d;
   --instagram: #c13584;
@@ -46,22 +41,35 @@
   --tiktok: #d4d4d8;
   --snapchat: #ffd80b;
   --google: #34d399;
-
-  /* Derived from --brand so they track the active accent automatically. */
-  --brand-soft: color-mix(in srgb, var(--brand) 12%, transparent);
+  --brand-soft: color-mix(in srgb, var(--brand) 14%, transparent);
   --brand-glow: color-mix(in srgb, var(--brand) 32%, transparent);
 
-  /* Light-tuned variants */
-  --pos: #15935f;
-  --neg: #d83a3a;
-  --warn: #b07a16;
+  /* Status colors — kept consistent across the (all-dark) themes. */
+  --pos: #5ee6a8;
+  --neg: #ff6b6b;
+  --warn: #f5c97a;
 
-  /* shadcn semantic tokens, mapped to the CCMS palette */
+  /* ---------------------------------------------------------------
+   * Theme 1 · MIDNIGHT (default tone) — deep purple-black.
+   * Lives in :root so it's the no-class fallback (no flash).
+   * Slate/Carbon below override only the surface/ink/line scale.
+   * ------------------------------------------------------------- */
+  --bg: #0a0812;
+  --surface: #14111e;
+  --surface-2: #1b1828;
+  --surface-3: #221e2f;
+  --line: #2a2638;
+  --line-2: #3a3548;
+  --ink: #f2ebe5;
+  --ink-2: #a8a2b5;
+  --ink-3: #6b6679;
+
+  /* shadcn semantic tokens → CCMS palette (re-resolve per theme via var()) */
   --background: var(--bg);
   --foreground: var(--ink);
   --card: var(--surface);
   --card-foreground: var(--ink);
-  --popover: var(--surface);
+  --popover: var(--surface-2);
   --popover-foreground: var(--ink);
   --primary: var(--brand);
   --primary-foreground: #ffffff;
@@ -79,52 +87,30 @@
   --radius: 0.625rem;
 }
 
-.dark {
-  /* Dark palette — verbatim from the mockups */
-  --bg: #0a0812;
-  --surface: #14111e;
-  --surface-2: #1b1828;
-  --surface-3: #221e2f;
-  --line: #2a2638;
-  --line-2: #3a3548;
-  --ink: #f2ebe5;
-  --ink-2: #a8a2b5;
-  --ink-3: #6b6679;
-
-  /* Dark-tuned variants */
-  --pos: #5ee6a8;
-  --neg: #ff6b6b;
-  --warn: #f5c97a;
-
-  /* Dark popover sits a touch above the card surface */
-  --popover: var(--surface-2);
+/* Theme 2 · SLATE — cool blue-grey. */
+.slate {
+  --bg: #0b0e16;
+  --surface: #141a25;
+  --surface-2: #1c2433;
+  --surface-3: #253042;
+  --line: #2c3647;
+  --line-2: #3b475c;
+  --ink: #eef2f8;
+  --ink-2: #9fabbd;
+  --ink-3: #647082;
 }
 
-/*
- * Accent palettes — orthogonal to light/dark. Only the brand hue changes;
- * --brand-soft / --brand-glow derive from it via color-mix in :root. These
- * sit after :root so they win on equal specificity. Magenta is also the
- * :root default, so an unset (or "magenta") accent renders identically.
- */
-[data-accent="magenta"] {
-  --brand: #d4145a;
-  --brand-2: #ff4d8d;
-}
-[data-accent="violet"] {
-  --brand: #7c3aed;
-  --brand-2: #a78bfa;
-}
-[data-accent="blue"] {
-  --brand: #2563eb;
-  --brand-2: #60a5fa;
-}
-[data-accent="emerald"] {
-  --brand: #059669;
-  --brand-2: #34d399;
-}
-[data-accent="amber"] {
-  --brand: #d97706;
-  --brand-2: #fbbf24;
+/* Theme 3 · CARBON — neutral near-black (lets the chart colors pop). */
+.carbon {
+  --bg: #0a0a0b;
+  --surface: #141416;
+  --surface-2: #1c1c1f;
+  --surface-3: #252528;
+  --line: #2a2a2e;
+  --line-2: #3a3a40;
+  --ink: #f4f4f5;
+  --ink-2: #a1a1aa;
+  --ink-3: #6e6e76;
 }
 
 @theme inline {

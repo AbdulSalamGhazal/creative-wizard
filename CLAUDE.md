@@ -163,6 +163,18 @@ This app is deployed and in production use. Treat `main` as shippable.
   their own inline editor (`updateCreativeNotes` via NotesPanel); `patchCreative`
   never touches notes. Tag editing uses `tag-multi-select.tsx` (a Popover
   dropdown), and the publish date uses a Calendar popover.
+- **Theming = one axis, three dark THEMES** (Midnight / Slate / Carbon),
+  managed by next-themes (`attribute="class"`, `storageKey="cw-theme"`,
+  `defaultTheme="midnight"`, `enableSystem={false}`) → `class="midnight|slate|
+  carbon"` on `<html>`. Midnight is the base palette in `:root`; `.slate` /
+  `.carbon` override ONLY the surface/ink/line scale. Brand magenta, the five
+  platform colors, and pos/neg/warn are shared across all themes (declared once
+  in `:root`) so the charts/graphs look identical in every theme — only the
+  chrome re-tones. The `dark:` variant is redefined to match any theme class
+  (all three are dark). This REPLACED the old light/dark + 5-accent model
+  (accent-provider.tsx / accents.ts deleted) — the accent hue swaps were
+  cosmetically pointless. To add a theme: add a `.<name>` palette override +
+  the name to `THEMES` in layout.tsx + an entry in theme-toggle.tsx.
 - **Screenshot-to-clipboard** lives in the top bar (`components/layout/
   screenshot-button.tsx`). It renders the live page DOM to a PNG via
   `modern-screenshot` (dynamically imported, so it's not in the initial
