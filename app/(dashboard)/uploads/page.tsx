@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Plus, Upload as UploadIcon } from "lucide-react";
+import { PencilLine, Plus, Upload as UploadIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { asc, desc, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
@@ -75,12 +75,20 @@ export default async function UploadsPage() {
             Every CSV the team has imported. {rows.length} {rows.length === 1 ? "batch" : "batches"}.
           </p>
         </div>
-        <Button asChild>
-          <Link href="/uploads/new">
-            <Plus className="w-4 h-4" />
-            New upload
-          </Link>
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button asChild variant="outline">
+            <Link href="/uploads/bulk-update">
+              <PencilLine className="w-4 h-4" />
+              Bulk update
+            </Link>
+          </Button>
+          <Button asChild>
+            <Link href="/uploads/new">
+              <Plus className="w-4 h-4" />
+              New upload
+            </Link>
+          </Button>
+        </div>
       </div>
 
       {rows.length === 0 ? (
