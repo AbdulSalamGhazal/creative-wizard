@@ -15,7 +15,7 @@ import { int, pct, ratio, usd } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { TypeRollupRow } from "@/db/queries/trends";
 
-type Metric = "spend" | "impressions" | "roas" | "ctr" | "cpc" | "cpa";
+type Metric = "spend" | "impressions" | "roas" | "ctr" | "cvr" | "cpc" | "cpa";
 type CreativeType = TypeRollupRow["type"];
 const TYPES: CreativeType[] = ["video", "image", "slides"];
 
@@ -42,10 +42,11 @@ const METRICS: Record<
     axis: (v) => `${ratio(v)}×`,
   },
   ctr: { label: "CTR", cell: pct, axis: (v) => pct(v) },
+  cvr: { label: "CvR", cell: pct, axis: (v) => pct(v) },
   cpc: { label: "CPC", cell: usd, axis: (v) => compactUsd.format(v) },
   cpa: { label: "CPA", cell: usd, axis: (v) => compactUsd.format(v) },
 };
-const METRIC_ORDER: Metric[] = ["spend", "impressions", "roas", "ctr", "cpc", "cpa"];
+const METRIC_ORDER: Metric[] = ["spend", "impressions", "roas", "ctr", "cvr", "cpc", "cpa"];
 
 type ChartRow = { platform: string } & Partial<Record<CreativeType, number | null>>;
 

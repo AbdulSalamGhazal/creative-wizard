@@ -67,6 +67,7 @@ export const METRIC_COLUMN_KEYS = [
   "complete_rate",
   "landing_page_views",
   "voc",
+  "cvr",
 ] as const;
 export type MetricColumnKey = (typeof METRIC_COLUMN_KEYS)[number];
 
@@ -94,6 +95,7 @@ export const METRIC_META: Record<
   complete_rate: { label: "Complete rate", unit: "pct" },
   landing_page_views: { label: "Landing page views", unit: "int" },
   voc: { label: "VOC", unit: "pct" },
+  cvr: { label: "CvR", unit: "pct" },
 };
 
 /** Numeric comparison operators for metric filters. */

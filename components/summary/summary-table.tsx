@@ -91,6 +91,7 @@ const METRIC_COLUMNS: Array<{
   { key: "complete_rate", label: "Complete", format: (v) => pct(v) },
   { key: "landing_page_views", label: "LP views", format: (v) => (v && v > 0 ? int(v) : "—") },
   { key: "voc", label: "VOC", format: (v) => pct(v) },
+  { key: "cvr", label: "CvR", format: (v) => pct(v) },
 ];
 
 /** Picks the right field from a metric block given the column key. */
@@ -124,6 +125,8 @@ function pickMetric(block: PlatformMetricBlock, key: string): number | null {
       return block.landingPageViews;
     case "voc":
       return block.voc;
+    case "cvr":
+      return block.cvr;
   }
   return null;
 }
@@ -790,6 +793,7 @@ function aggregateBlocks(
     completeRate: null,
     landingPageViews,
     voc: clicks > 0 ? landingPageViews / clicks : null,
+    cvr: hasConv && landingPageViews > 0 ? conversions / landingPageViews : null,
   };
 }
 

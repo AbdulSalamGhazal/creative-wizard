@@ -26,6 +26,7 @@ function MetricCells({ r }: { r: TypeRollupRow }) {
       <td className="px-3 py-2.5 text-right text-ink tabular-nums">
         {r.roas === null ? "—" : `${ratio(r.roas)}×`}
       </td>
+      <td className="px-3 py-2.5 text-right text-ink tabular-nums">{pct(r.cvr)}</td>
     </>
   );
 }
@@ -81,6 +82,7 @@ export function TypeRollupTable({
             <th className="font-medium px-3 py-2.5 text-right">CPC</th>
             <th className="font-medium px-3 py-2.5 text-right">CPA</th>
             <th className="font-medium px-3 py-2.5 text-right">ROAS</th>
+            <th className="font-medium px-3 py-2.5 text-right">CvR</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-line">
@@ -88,7 +90,7 @@ export function TypeRollupTable({
             ? orderedPlatforms.map((platform) => (
                 <Fragment key={platform}>
                   <tr className="bg-surface-2/40">
-                    <td colSpan={8} className="px-3 py-1.5">
+                    <td colSpan={9} className="px-3 py-1.5">
                       <span className="inline-flex items-center gap-2 text-[11px] uppercase tracking-[0.14em] text-ink-2">
                         <span
                           className="w-2 h-2 rounded-full"

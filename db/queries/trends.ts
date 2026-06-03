@@ -11,6 +11,7 @@ import {
   ctr,
   cpa,
   cpc,
+  cvr,
   hookRate,
   holdRate,
   roas,
@@ -155,6 +156,7 @@ export interface TypeRollupRow {
   cpc: number | null;
   cpa: number | null;
   roas: number | null;
+  cvr: number | null;
 }
 
 const TYPE_ORDER: Record<TypeRollupRow["type"], number> = {
@@ -201,6 +203,7 @@ export async function typeRollup(
       cpc,
       cpa,
       roas,
+      cvr,
     })
     .from(performanceRecords)
     .innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId))
@@ -222,6 +225,7 @@ export async function typeRollup(
     cpc: numOrNull(r.cpc),
     cpa: numOrNull(r.cpa),
     roas: numOrNull(r.roas),
+    cvr: numOrNull(r.cvr),
   }));
 
   out.sort((a, b) =>

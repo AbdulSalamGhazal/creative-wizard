@@ -102,6 +102,7 @@ const METRIC_LABELS: Record<MetricColumnKey, string> = {
   complete_rate: "Complete rate",
   landing_page_views: "Landing page views",
   voc: "VOC",
+  cvr: "CvR",
 };
 
 const DATE_PRESETS = [

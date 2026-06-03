@@ -94,6 +94,7 @@ export interface MetricBlockSql {
   cpa: SQL<number>;
   roas: SQL<number>;
   voc: SQL<number>;
+  cvr: SQL<number>;
   hookRate: SQL<number>;
   holdRate: SQL<number>;
   completeRate: SQL<number>;
@@ -140,6 +141,7 @@ export function scopedMetrics(predicate: SQL): MetricBlockSql {
     cpa: sql<number>`${spend} / NULLIF(${conversions}, 0)`,
     roas: sql<number>`${conversionValue} / NULLIF(${spend}, 0)`,
     voc: sql<number>`${landingPageViews}::numeric / NULLIF(${clicks}, 0)`,
+    cvr: sql<number>`${conversions}::numeric / NULLIF(${landingPageViews}, 0)`,
     hookRate: sql<number>`${videoViews2s}::numeric / NULLIF(${imprVideo}, 0)`,
     holdRate: sql<number>`${videoViews50}::numeric / NULLIF(${videoViews2s}, 0)`,
     completeRate: sql<number>`${videoViews100}::numeric / NULLIF(${videoViews2s}, 0)`,

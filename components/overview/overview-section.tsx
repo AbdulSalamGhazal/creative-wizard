@@ -69,6 +69,7 @@ export async function OverviewSection({
     { label: "Impressions", value: int(k.impressions) },
     { label: "Blended CTR", value: pct(k.ctr) },
     { label: "Conversions", value: int(k.conversions) },
+    { label: "Blended CvR", value: pct(k.cvr) },
     { label: "Blended CPA", value: usd(k.cpa) },
     { label: "Blended ROAS", value: ratio(k.roas) },
   ];
@@ -102,7 +103,7 @@ export async function OverviewSection({
       </div>
 
       {/* KPI tiles */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-4">
         {tiles.map((t) => (
           <KpiTile
             key={t.label}

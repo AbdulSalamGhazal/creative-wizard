@@ -14,6 +14,7 @@ import {
   cpa,
   cpc,
   cpm,
+  cvr,
   hookRate,
   holdRate,
   roas,
@@ -60,6 +61,7 @@ export interface Kpis {
   cpc: number | null;
   cpa: number | null;
   roas: number | null;
+  cvr: number | null;
   hookRate: number | null;
   holdRate: number | null;
 }
@@ -209,6 +211,7 @@ export async function kpis(filters: KpiFilters): Promise<Kpis> {
       cpc,
       cpa,
       roas,
+      cvr,
       hookRate,
       holdRate,
     })
@@ -239,6 +242,7 @@ export async function kpis(filters: KpiFilters): Promise<Kpis> {
     cpc: num(row?.cpc),
     cpa: num(row?.cpa),
     roas: num(row?.roas),
+    cvr: num(row?.cvr),
     hookRate: num(row?.hookRate),
     holdRate: num(row?.holdRate),
   };

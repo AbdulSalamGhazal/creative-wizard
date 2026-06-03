@@ -27,6 +27,7 @@ import {
   cpc,
   cpm,
   completeRate,
+  cvr,
   hookRate,
   holdRate,
   platformMetrics,
@@ -95,6 +96,7 @@ export interface PlatformMetricBlock {
   completeRate: number | null;
   landingPageViews: number;
   voc: number | null;
+  cvr: number | null;
 }
 
 export interface SummaryRow {
@@ -150,6 +152,7 @@ const METRIC_KEYS = [
   "complete_rate",
   "landing_page_views",
   "voc",
+  "cvr",
 ] as const;
 type MetricKey = (typeof METRIC_KEYS)[number];
 
@@ -240,6 +243,8 @@ function orderBySql(
         return sumLandingPageViews;
       case "voc":
         return voc;
+      case "cvr":
+        return cvr;
     }
   }
   const platformMeta = metricsByPlatform.get(scope as Platform);
@@ -273,6 +278,8 @@ function orderBySql(
       return platformMeta.landingPageViews;
     case "voc":
       return platformMeta.voc;
+    case "cvr":
+      return platformMeta.cvr;
   }
 }
 
@@ -333,6 +340,9 @@ function comparable(
       break;
     case "voc":
       raw = block.voc;
+      break;
+    case "cvr":
+      raw = block.cvr;
       break;
     default:
       raw = null;
@@ -488,6 +498,7 @@ export async function listCreativeSummary(
     totalCompleteRate: completeRate,
     totalLandingPageViews: sumLandingPageViews,
     totalVoc: voc,
+    totalCvr: cvr,
   };
   for (const pf of selectedPlatforms) {
     const m = metricsByPlatform.get(pf)!;
@@ -506,6 +517,7 @@ export async function listCreativeSummary(
     select[`${pf}_completeRate`] = m.completeRate;
     select[`${pf}_landingPageViews`] = m.landingPageViews;
     select[`${pf}_voc`] = m.voc;
+    select[`${pf}_cvr`] = m.cvr;
   }
 
   // Rating is derived in JS (not SQL), so a rate sort can't be expressed in
@@ -593,6 +605,7 @@ export async function listCreativeSummary(
         completeRate: numOrNull(r[`${pf}_completeRate`]),
         landingPageViews: num(r[`${pf}_landingPageViews`]),
         voc: numOrNull(r[`${pf}_voc`]),
+        cvr: numOrNull(r[`${pf}_cvr`]),
       };
     }
     return {
@@ -622,6 +635,7 @@ export async function listCreativeSummary(
         completeRate: numOrNull(r.totalCompleteRate),
         landingPageViews: num(r.totalLandingPageViews),
         voc: numOrNull(r.totalVoc),
+        cvr: numOrNull(r.totalCvr),
       },
     };
   });
