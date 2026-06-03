@@ -77,10 +77,16 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
-      <body
-        className={`${jakarta.variable} ${inter.variable} ${grotesk.variable} ${instrument.variable} ${plexMono.variable} antialiased`}
-      >
+    // The font CSS-var classes go on <html> (not <body>) so that `--ff-*`
+    // resolve in the same scope where `data-font` selects `--font-ui`. Custom
+    // properties don't inherit upward, so defining them on <body> would leave
+    // them invalid for the html-level `[data-font]` rules.
+    <html
+      lang="en"
+      suppressHydrationWarning
+      className={`${jakarta.variable} ${inter.variable} ${grotesk.variable} ${instrument.variable} ${plexMono.variable}`}
+    >
+      <body className="antialiased">
         <script dangerouslySetInnerHTML={{ __html: fontScript }} />
         <ThemeProvider
           attribute="class"
