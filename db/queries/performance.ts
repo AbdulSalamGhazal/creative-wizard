@@ -22,7 +22,9 @@ import {
   sumConversionValue,
   sumConversions,
   sumImpressions,
+  sumLandingPageViews,
   sumSpend,
+  voc,
 } from "@/lib/metrics";
 import {
   addDays,
@@ -62,6 +64,8 @@ export interface Kpis {
   cpa: number | null;
   roas: number | null;
   cvr: number | null;
+  voc: number | null;
+  landingPageViews: number | null;
   hookRate: number | null;
   holdRate: number | null;
 }
@@ -214,6 +218,8 @@ export async function kpis(filters: KpiFilters): Promise<Kpis> {
       cpa,
       roas,
       cvr,
+      voc,
+      landingPageViews: sumLandingPageViews,
       hookRate,
       holdRate,
     })
@@ -245,6 +251,8 @@ export async function kpis(filters: KpiFilters): Promise<Kpis> {
     cpa: num(row?.cpa),
     roas: num(row?.roas),
     cvr: num(row?.cvr),
+    voc: num(row?.voc),
+    landingPageViews: num(row?.landingPageViews),
     hookRate: num(row?.hookRate),
     holdRate: num(row?.holdRate),
   };
