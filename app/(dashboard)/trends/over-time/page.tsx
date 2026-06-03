@@ -85,6 +85,7 @@ export default async function TrendsOverTimePage({
     { label: "Impressions", value: int(k.current.impressions), delta: k.delta.impressions },
     { label: "Blended CTR", value: pct(k.current.ctr), delta: k.delta.ctr },
     { label: "Conversions", value: int(k.current.conversions), delta: k.delta.conversions },
+    { label: "Blended CvR", value: pct(k.current.cvr), delta: k.delta.cvr },
     { label: "Blended CPA", value: usd(k.current.cpa), delta: k.delta.cpa, inverted: true },
     { label: "Blended ROAS", value: ratio(k.current.roas), delta: k.delta.roas },
   ];
@@ -124,7 +125,7 @@ export default async function TrendsOverTimePage({
         </Badge>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-4">
         {tiles.map((t) => (
           <KpiTile
             key={t.label}

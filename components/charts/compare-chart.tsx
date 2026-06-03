@@ -48,6 +48,7 @@ function fmt(metric: CompareMetric, v: number | null | undefined): string {
     case "cpa":
       return usd(v);
     case "ctr":
+    case "cvr":
     case "hookRate":
       return pct(v);
     case "roas":
@@ -103,7 +104,7 @@ export function CompareChart({ rows, creatives, metric }: Props) {
             tickFormatter={(v: number) =>
               metric === "spend" || metric === "cpm" || metric === "cpc" || metric === "cpa"
                 ? compactUsd.format(v)
-                : metric === "ctr" || metric === "hookRate"
+                : metric === "ctr" || metric === "cvr" || metric === "hookRate"
                   ? `${(v * 100).toFixed(1)}%`
                   : v >= 1000
                     ? `${(v / 1000).toFixed(1)}k`

@@ -151,6 +151,7 @@ export default async function ComparePage({
                   <th className="font-medium px-2 py-2 text-right">Spend</th>
                   <th className="font-medium px-2 py-2 text-right">Impressions</th>
                   <th className="font-medium px-2 py-2 text-right">CTR</th>
+                  <th className="font-medium px-2 py-2 text-right">CvR</th>
                   <th className="font-medium px-2 py-2 text-right">CPA</th>
                   <th className="font-medium px-2 py-2 text-right">ROAS</th>
                   <th className="font-medium px-2 py-2 text-right">Hook rate</th>
@@ -177,6 +178,7 @@ export default async function ComparePage({
                     <td className="px-2 py-2.5 text-right text-ink">{usd(t.spend)}</td>
                     <td className="px-2 py-2.5 text-right text-ink-2">{int(t.impressions)}</td>
                     <td className="px-2 py-2.5 text-right text-ink-2">{pct(t.ctr)}</td>
+                    <td className="px-2 py-2.5 text-right text-ink-2">{pct(t.cvr)}</td>
                     <td className="px-2 py-2.5 text-right text-ink-2">{usd(t.cpa)}</td>
                     <td className="px-2 py-2.5 text-right text-ink">{ratio(t.roas)}</td>
                     <td className="px-2 py-2.5 text-right text-ink-2">{pct(t.hookRate)}</td>

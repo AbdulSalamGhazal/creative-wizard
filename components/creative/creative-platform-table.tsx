@@ -9,6 +9,7 @@ interface Props {
       ctr: number | null;
       cpa: number | null;
       roas: number | null;
+      cvr: number | null;
     }
   >;
 }
@@ -33,6 +34,7 @@ export function CreativePlatformTable({ rows }: Props) {
             <th className="font-medium px-3 py-2.5 text-right">Clicks</th>
             <th className="font-medium px-3 py-2.5 text-right">CTR</th>
             <th className="font-medium px-3 py-2.5 text-right">Conv.</th>
+            <th className="font-medium px-3 py-2.5 text-right">CvR</th>
             <th className="font-medium px-3 py-2.5 text-right">CPA</th>
             <th className="font-medium px-3 py-2.5 text-right">ROAS</th>
           </tr>
@@ -54,6 +56,7 @@ export function CreativePlatformTable({ rows }: Props) {
               <td className="px-3 py-2.5 text-right text-ink-2">{int(r.clicks)}</td>
               <td className="px-3 py-2.5 text-right text-ink-2">{pct(r.ctr)}</td>
               <td className="px-3 py-2.5 text-right text-ink-2">{int(r.conversions)}</td>
+              <td className="px-3 py-2.5 text-right text-ink-2">{pct(r.cvr)}</td>
               <td className="px-3 py-2.5 text-right text-ink-2">{usd(r.cpa)}</td>
               <td className="px-3 py-2.5 text-right text-ink">{ratio(r.roas)}</td>
             </tr>

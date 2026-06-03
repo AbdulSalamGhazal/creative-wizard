@@ -20,6 +20,7 @@ const CSV_COLUMNS: CsvColumn<TopCreativeRow>[] = [
   { key: "clicks", label: "Clicks", value: (r) => r.clicks },
   { key: "ctr", label: "CTR", value: (r) => r.ctr },
   { key: "conversions", label: "Conversions", value: (r) => r.conversions },
+  { key: "cvr", label: "CvR", value: (r) => r.cvr },
   { key: "roas", label: "ROAS", value: (r) => r.roas },
 ];
 
@@ -69,6 +70,7 @@ export function TopCreativesTable({ rows }: Props) {
             <th className="font-medium px-2 py-2 text-right">Impressions</th>
             <th className="font-medium px-2 py-2 text-right">CTR</th>
             <th className="font-medium px-2 py-2 text-right">Conv.</th>
+            <th className="font-medium px-2 py-2 text-right">CvR</th>
             <th className="font-medium px-2 py-2 text-right">ROAS</th>
           </tr>
         </thead>
@@ -91,6 +93,7 @@ export function TopCreativesTable({ rows }: Props) {
               <td className="px-2 py-2.5 text-right text-ink-2">{int(r.impressions)}</td>
               <td className="px-2 py-2.5 text-right text-ink-2">{pct(r.ctr)}</td>
               <td className="px-2 py-2.5 text-right text-ink-2">{int(r.conversions)}</td>
+              <td className="px-2 py-2.5 text-right text-ink-2">{pct(r.cvr)}</td>
               <td className="px-2 py-2.5 text-right text-ink">{ratio(r.roas)}</td>
             </tr>
           ))}

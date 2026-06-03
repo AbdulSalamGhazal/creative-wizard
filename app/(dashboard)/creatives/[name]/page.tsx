@@ -150,6 +150,7 @@ export default async function CreativeDetailPage({
     { label: "Impressions", value: int(k.impressions) },
     { label: "Blended CTR", value: pct(k.ctr) },
     { label: "Conversions", value: int(k.conversions) },
+    { label: "Blended CvR", value: pct(k.cvr) },
     { label: "Blended CPA", value: usd(k.cpa) },
     { label: "Blended ROAS", value: ratio(k.roas) },
   ];
@@ -187,7 +188,7 @@ export default async function CreativeDetailPage({
           <AnalyticsDateFilter from={from ?? null} to={to ?? null} />
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-4">
           {tiles.map((t) => (
             <Card key={t.label} className="bg-surface border-line">
               <CardHeader className="pb-2">

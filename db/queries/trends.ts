@@ -50,6 +50,7 @@ export interface TagRollupRow {
   ctr: number | null;
   cpa: number | null;
   roas: number | null;
+  cvr: number | null;
   hookRate: number | null;
   spendDelta: Delta;
 }
@@ -58,7 +59,7 @@ export interface TagRollupRow {
  *  a creative's spend counts toward each tag it carries. */
 async function tagAggregates(
   f: TrendsFilters,
-): Promise<Map<string, { spend: number; impressions: number; clicks: number; conversions: number | null; ctr: number | null; cpa: number | null; roas: number | null; hookRate: number | null; creatives: number }>> {
+): Promise<Map<string, { spend: number; impressions: number; clicks: number; conversions: number | null; ctr: number | null; cpa: number | null; roas: number | null; cvr: number | null; hookRate: number | null; creatives: number }>> {
   const conds: SQL[] = [];
   if (f.from && f.to) conds.push(between(performanceRecords.date, f.from, f.to));
   if (!f.includeExcluded) conds.push(eq(performanceRecords.excludedFromAggregates, false));
@@ -80,6 +81,7 @@ async function tagAggregates(
       ctr,
       cpa,
       roas,
+      cvr,
       hookRate,
     })
     .from(performanceRecords)
@@ -98,6 +100,7 @@ async function tagAggregates(
       ctr: numOrNull(r.ctr),
       cpa: numOrNull(r.cpa),
       roas: numOrNull(r.roas),
+      cvr: numOrNull(r.cvr),
       hookRate: numOrNull(r.hookRate),
       creatives: num(r.creatives),
     };
@@ -131,6 +134,7 @@ export async function tagRollup(f: TrendsFilters): Promise<TagRollupRow[]> {
       ctr: c.ctr,
       cpa: c.cpa,
       roas: c.roas,
+      cvr: c.cvr,
       hookRate: c.hookRate,
       spendDelta:
         f.from && f.to ? computeDelta(c.spend, prevSpend) : { pct: null, mode: "absent" },

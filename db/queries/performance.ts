@@ -81,6 +81,7 @@ export interface PlatformMixRow {
   ctr: number | null;
   cpa: number | null;
   roas: number | null;
+  cvr: number | null;
 }
 
 export interface ProductMixRow {
@@ -117,6 +118,7 @@ export interface TopCreativeRow {
   conversions: number | null;
   ctr: number | null;
   roas: number | null;
+  cvr: number | null;
   /** Daily-spend series across the filter window, ordered ASC by date. */
   sparkline: number[];
 }
@@ -316,6 +318,7 @@ export async function topCreatives(
       conversions: sumConversions,
       ctr,
       roas,
+      cvr,
     })
     .from(performanceRecords)
     .innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId))
@@ -387,6 +390,7 @@ export async function topCreatives(
     conversions: num(r.conversions),
     ctr: num(r.ctr),
     roas: num(r.roas),
+    cvr: num(r.cvr),
     sparkline: seriesByCreative.get(r.creativeId) ?? [],
   }));
 }
@@ -412,6 +416,7 @@ export async function platformMix(
       ctr,
       cpa,
       roas,
+      cvr,
     })
     .from(performanceRecords)
     .$dynamic();
@@ -440,6 +445,7 @@ export async function platformMix(
     ctr: num(r.ctr),
     cpa: num(r.cpa),
     roas: num(r.roas),
+    cvr: num(r.cvr),
   }));
 }
 
@@ -587,6 +593,7 @@ export type CompareMetric =
   | "clicks"
   | "conversions"
   | "ctr"
+  | "cvr"
   | "cpm"
   | "cpc"
   | "cpa"
@@ -667,6 +674,8 @@ function metricForCompare(m: CompareMetric): SQL<number> {
       return sumConversions as SQL<number>;
     case "ctr":
       return ctr;
+    case "cvr":
+      return cvr;
     case "cpm":
       return cpm;
     case "cpc":
@@ -763,6 +772,7 @@ export interface KpisWithDelta {
     cpc: Delta;
     cpa: Delta;
     roas: Delta;
+    cvr: Delta;
     hookRate: Delta;
     holdRate: Delta;
   };
@@ -802,6 +812,7 @@ export async function kpisWithDelta(
       cpc: computeDelta(current.cpc, previous.cpc),
       cpa: computeDelta(current.cpa, previous.cpa),
       roas: computeDelta(current.roas, previous.roas),
+      cvr: computeDelta(current.cvr, previous.cvr),
       hookRate: computeDelta(current.hookRate, previous.hookRate),
       holdRate: computeDelta(current.holdRate, previous.holdRate),
     },

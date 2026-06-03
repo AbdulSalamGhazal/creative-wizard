@@ -27,6 +27,7 @@ export function TagRollupTable({ rows }: { rows: TagRollupRow[] }) {
             <th className="font-medium px-3 py-2.5 text-right">Creatives</th>
             <th className="font-medium px-3 py-2.5 text-right">Spend</th>
             <th className="font-medium px-3 py-2.5 text-right">CTR</th>
+            <th className="font-medium px-3 py-2.5 text-right">CvR</th>
             <th className="font-medium px-3 py-2.5 text-right">CPA</th>
             <th className="font-medium px-3 py-2.5 text-right">ROAS</th>
             <th className="font-medium px-3 py-2.5 text-right">Hook</th>
@@ -54,6 +55,7 @@ export function TagRollupTable({ rows }: { rows: TagRollupRow[] }) {
                 </span>
               </td>
               <td className="px-3 py-2.5 text-right text-ink tabular-nums">{pct(r.ctr)}</td>
+              <td className="px-3 py-2.5 text-right text-ink tabular-nums">{pct(r.cvr)}</td>
               <td className="px-3 py-2.5 text-right text-ink tabular-nums">{usd(r.cpa)}</td>
               <td className="px-3 py-2.5 text-right text-ink tabular-nums">
                 {r.roas === null ? "—" : `${ratio(r.roas)}×`}
