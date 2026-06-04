@@ -13,8 +13,9 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { DeltaBadge } from "@/components/kpi/delta-badge";
 import { int, pct, ratio, usd } from "@/lib/format";
+import { computeDelta, type Delta } from "@/lib/period";
 import { cn } from "@/lib/utils";
-import type { TagRollupRow, TagDeltaKey } from "@/db/queries/trends";
+import type { TagMetrics, TagRollupRow } from "@/db/queries/trends";
 
 type Num = number | null;
 const DASH = "—";
@@ -23,30 +24,30 @@ const fPct = (v: Num) => (v === null ? DASH : pct(v));
 const fRatio = (v: Num) => (v === null ? DASH : `${ratio(v)}×`);
 const fInt = (v: Num) => (v === null ? DASH : int(v));
 
-type Key = keyof TagRollupRow;
+type Key = keyof TagMetrics;
 
 interface Col {
   key: Key;
   label: string;
   fmt: (v: Num) => string;
-  delta?: TagDeltaKey;
-  invertedDelta?: boolean;
+  /** Lower is better (ranks ascending; delta colours invert). */
+  lower?: boolean;
 }
 
-// Every available metric column (Tag is always shown, separately).
+// Every numeric column (Tag is the row label, shown separately).
 const COLS: Col[] = [
   { key: "creatives", label: "Creatives", fmt: fInt },
-  { key: "spend", label: "Spend", fmt: fUsd, delta: "spend" },
+  { key: "spend", label: "Spend", fmt: fUsd },
   { key: "impressions", label: "Impr", fmt: fInt },
   { key: "clicks", label: "Clicks", fmt: fInt },
-  { key: "conversions", label: "Conv", fmt: fInt, delta: "conversions" },
+  { key: "conversions", label: "Conv", fmt: fInt },
   { key: "revenue", label: "Revenue", fmt: fUsd },
-  { key: "ctr", label: "CTR", fmt: fPct, delta: "ctr" },
+  { key: "ctr", label: "CTR", fmt: fPct },
   { key: "cvr", label: "CvR", fmt: fPct },
-  { key: "cpa", label: "CPA", fmt: fUsd, delta: "cpa", invertedDelta: true },
-  { key: "cpm", label: "CPM", fmt: fUsd },
-  { key: "cpc", label: "CPC", fmt: fUsd },
-  { key: "roas", label: "ROAS", fmt: fRatio, delta: "roas" },
+  { key: "cpa", label: "CPA", fmt: fUsd, lower: true },
+  { key: "cpm", label: "CPM", fmt: fUsd, lower: true },
+  { key: "cpc", label: "CPC", fmt: fUsd, lower: true },
+  { key: "roas", label: "ROAS", fmt: fRatio },
   { key: "voc", label: "VOC", fmt: fPct },
   { key: "hookRate", label: "Hook", fmt: fPct },
   { key: "holdRate", label: "Hold", fmt: fPct },
@@ -59,13 +60,42 @@ const DEFAULT_VISIBLE = new Set<Key>([
 ]);
 
 type SortKey = Key | "tag";
+type Mode = "values" | "rank" | "avg" | "prev";
+
+const MODES: { k: Mode; label: string }[] = [
+  { k: "values", label: "Values" },
+  { k: "rank", label: "Rank" },
+  { k: "avg", label: "Vs avg" },
+  { k: "prev", label: "Vs prev" },
+];
+
+const ABSENT: Delta = { pct: null, mode: "absent" };
 
 export function TagRollupTable({ rows }: { rows: TagRollupRow[] }) {
   const [visible, setVisible] = useState<Set<Key>>(new Set(DEFAULT_VISIBLE));
   const [sortKey, setSortKey] = useState<SortKey>("spend");
   const [dir, setDir] = useState<"asc" | "desc">("desc");
+  const [mode, setMode] = useState<Mode>("values");
 
   const shown = COLS.filter((c) => visible.has(c.key));
+
+  // Per-column rank maps (good direction) and cross-tag averages — recomputed
+  // from the full set, independent of the sort order.
+  const { rankMaps, avgs } = useMemo(() => {
+    const rankMaps: Record<string, Map<string, number>> = {};
+    const avgs: Record<string, number | null> = {};
+    for (const c of COLS) {
+      const vals = rows
+        .map((r) => ({ tag: r.tag, v: r[c.key] as Num }))
+        .filter((x): x is { tag: string; v: number } => x.v !== null);
+      const sorted = [...vals].sort((a, b) => (c.lower ? a.v - b.v : b.v - a.v));
+      const m = new Map<string, number>();
+      sorted.forEach((x, i) => m.set(x.tag, i + 1));
+      rankMaps[c.key] = m;
+      avgs[c.key] = vals.length ? vals.reduce((s, x) => s + x.v, 0) / vals.length : null;
+    }
+    return { rankMaps, avgs };
+  }, [rows]);
 
   const sorted = useMemo(() => {
     const copy = [...rows];
@@ -104,38 +134,72 @@ export function TagRollupTable({ rows }: { rows: TagRollupRow[] }) {
   const SortIcon = ({ k }: { k: SortKey }) =>
     sortKey !== k ? null : dir === "asc" ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />;
 
+  const cell = (r: TagRollupRow, c: Col) => {
+    const v = r[c.key] as Num;
+    if (mode === "values") return c.fmt(v);
+    if (mode === "rank") {
+      const rk = rankMaps[c.key]?.get(r.tag);
+      return rk ? <span className={cn(rk <= 3 && "text-ink font-medium")}>#{rk}</span> : DASH;
+    }
+    if (mode === "avg") {
+      const avg = avgs[c.key] ?? null;
+      const delta: Delta =
+        v === null || avg === null || avg === 0 ? ABSENT : { pct: (v - avg) / avg, mode: "pct" };
+      return <DeltaBadge delta={delta} inverted={c.lower} />;
+    }
+    // prev
+    const prevV = r.prev ? ((r.prev[c.key] as Num) ?? null) : null;
+    return <DeltaBadge delta={r.prev ? computeDelta(v, prevV) : ABSENT} inverted={c.lower} />;
+  };
+
+  const modeHint =
+    mode === "rank" ? "Each cell is the tag's rank among all tags for that metric."
+    : mode === "avg" ? "Each cell is the delta vs the average tag this period."
+    : mode === "prev" ? "Each cell is the delta vs the previous period."
+    : null;
+
   return (
     <div className="space-y-2">
-      <div className="flex items-center justify-between">
-        <span className="text-[11px] text-ink-3">
-          {rows.length} tag{rows.length === 1 ? "" : "s"} · sortable
-        </span>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div className="inline-flex items-center rounded-md border border-line bg-surface-2 p-0.5 text-xs">
+          {MODES.map((m) => (
             <button
+              key={m.k}
               type="button"
-              className="inline-flex items-center gap-2 h-8 px-3 rounded-md border border-line text-xs text-ink-2 bg-surface hover:bg-surface-2 hover:text-ink transition-colors"
+              onClick={() => setMode(m.k)}
+              className={cn(
+                "px-2.5 py-1 rounded transition-colors",
+                mode === m.k ? "bg-surface text-ink shadow-sm" : "text-ink-3 hover:text-ink",
+              )}
             >
-              <Columns3 className="w-3.5 h-3.5" />
-              Columns
-              <span className="text-ink-3">{shown.length}</span>
+              {m.label}
             </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-52 max-h-96 overflow-y-auto">
-            <DropdownMenuLabel>Columns</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            {COLS.map((c) => (
-              <DropdownMenuCheckboxItem
-                key={c.key}
-                checked={visible.has(c.key)}
-                onCheckedChange={() => toggleCol(c.key)}
-                onSelect={(e) => e.preventDefault()}
-              >
-                {c.label}
-              </DropdownMenuCheckboxItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
+          ))}
+        </div>
+        <div className="flex items-center gap-3">
+          {modeHint && <span className="text-[11px] text-ink-3 hidden md:inline">{modeHint}</span>}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button type="button" className="inline-flex items-center gap-2 h-8 px-3 rounded-md border border-line text-xs text-ink-2 bg-surface hover:bg-surface-2 hover:text-ink transition-colors">
+                <Columns3 className="w-3.5 h-3.5" /> Columns <span className="text-ink-3">{shown.length}</span>
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-52 max-h-96 overflow-y-auto">
+              <DropdownMenuLabel>Columns</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {COLS.map((c) => (
+                <DropdownMenuCheckboxItem
+                  key={c.key}
+                  checked={visible.has(c.key)}
+                  onCheckedChange={() => toggleCol(c.key)}
+                  onSelect={(e) => e.preventDefault()}
+                >
+                  {c.label}
+                </DropdownMenuCheckboxItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
 
       <div className="overflow-x-auto rounded-lg border border-line bg-surface">
@@ -174,10 +238,7 @@ export function TagRollupTable({ rows }: { rows: TagRollupRow[] }) {
                 </td>
                 {shown.map((c) => (
                   <td key={c.key} className="px-3 py-2.5 text-right text-ink tabular-nums whitespace-nowrap">
-                    <span className="inline-flex items-center gap-1.5 justify-end">
-                      {c.fmt(r[c.key] as Num)}
-                      {c.delta && <DeltaBadge delta={r.deltas[c.delta]} inverted={c.invertedDelta} />}
-                    </span>
+                    <span className="inline-flex items-center justify-end">{cell(r, c)}</span>
                   </td>
                 ))}
               </tr>

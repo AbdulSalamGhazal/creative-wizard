@@ -31,7 +31,7 @@ import {
   sumVideoViews100,
   voc,
 } from "@/lib/metrics";
-import { computeDelta, prevPeriod, type Delta } from "@/lib/period";
+import { prevPeriod } from "@/lib/period";
 
 type Platform = (typeof platformEnum)[number];
 
@@ -51,10 +51,8 @@ export interface TrendsFilters {
 // By tag
 // =====================================================================
 
-export type TagDeltaKey = "spend" | "conversions" | "roas" | "cpa" | "ctr";
-
-export interface TagRollupRow {
-  tag: string;
+/** The metric set surfaced per tag (current window or the prior one). */
+export interface TagMetrics {
   creatives: number;
   // additive
   spend: number;
@@ -62,7 +60,6 @@ export interface TagRollupRow {
   clicks: number;
   conversions: number;
   revenue: number;
-  landingPageViews: number;
   // ratios (weighted)
   ctr: number | null;
   cvr: number | null;
@@ -75,10 +72,16 @@ export interface TagRollupRow {
   holdRate: number | null;
   completeRate: number | null;
   aov: number | null;
-  /** Movement vs the immediately-prior equal-length window. */
-  deltas: Record<TagDeltaKey, Delta>;
-  /** Back-compat alias for the spend delta. */
-  spendDelta: Delta;
+}
+
+export interface TagRollupRow extends TagMetrics {
+  tag: string;
+  landingPageViews: number;
+  /**
+   * The same metrics for the immediately-prior equal-length window — powers
+   * the table's "Vs prev" view. Null when unbounded (no range to compare).
+   */
+  prev: TagMetrics | null;
 }
 
 interface TagAgg {
@@ -169,10 +172,33 @@ async function tagAggregates(f: TrendsFilters): Promise<Map<string, TagAgg>> {
   return map;
 }
 
+/** Project a per-window aggregate to the surfaced metric set. */
+function toTagMetrics(a: TagAgg): TagMetrics {
+  return {
+    creatives: a.creatives,
+    spend: a.spend,
+    impressions: a.impressions,
+    clicks: a.clicks,
+    conversions: a.conversions,
+    revenue: a.revenue,
+    ctr: a.ctr,
+    cvr: a.cvr,
+    cpa: a.cpa,
+    cpm: a.cpm,
+    cpc: a.cpc,
+    roas: a.roas,
+    voc: a.voc,
+    hookRate: a.hookRate,
+    holdRate: a.holdRate,
+    completeRate: a.completeRate,
+    aov: a.aov,
+  };
+}
+
 /**
- * Per-tag rollup for Trends → By tag. Weighted metrics per tag, plus
- * movement deltas against the immediately-prior equal-length window when a
- * date range is set.
+ * Per-tag rollup for Trends → By tag. Weighted metrics per tag, plus the same
+ * metrics for the immediately-prior equal-length window (when a date range is
+ * set) so the table can render its rank / vs-average / vs-previous views.
  */
 export async function tagRollup(f: TrendsFilters): Promise<TagRollupRow[]> {
   const bounded = Boolean(f.from && f.to);
@@ -184,41 +210,14 @@ export async function tagRollup(f: TrendsFilters): Promise<TagRollupRow[]> {
     prevMap = await tagAggregates({ ...f, from: prev.from, to: prev.to });
   }
 
-  const absent: Delta = { pct: null, mode: "absent" };
   const rows: TagRollupRow[] = [];
   for (const [tag, c] of current) {
     const p = prevMap.get(tag);
-    const d = (cur: number | null, prev: number | null): Delta =>
-      bounded ? computeDelta(cur, prev ?? null) : absent;
-    const deltas: Record<TagDeltaKey, Delta> = {
-      spend: d(c.spend, p?.spend ?? null),
-      conversions: d(c.conversions, p?.conversions ?? null),
-      roas: d(c.roas, p?.roas ?? null),
-      cpa: d(c.cpa, p?.cpa ?? null),
-      ctr: d(c.ctr, p?.ctr ?? null),
-    };
     rows.push({
       tag,
-      creatives: c.creatives,
-      spend: c.spend,
-      impressions: c.impressions,
-      clicks: c.clicks,
-      conversions: c.conversions,
-      revenue: c.revenue,
+      ...toTagMetrics(c),
       landingPageViews: c.landingPageViews,
-      ctr: c.ctr,
-      cvr: c.cvr,
-      cpa: c.cpa,
-      cpm: c.cpm,
-      cpc: c.cpc,
-      roas: c.roas,
-      voc: c.voc,
-      hookRate: c.hookRate,
-      holdRate: c.holdRate,
-      completeRate: c.completeRate,
-      aov: c.aov,
-      deltas,
-      spendDelta: deltas.spend,
+      prev: p ? toTagMetrics(p) : null,
     });
   }
   rows.sort((a, b) => b.spend - a.spend);
