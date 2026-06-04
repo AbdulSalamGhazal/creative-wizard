@@ -9,7 +9,6 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
   activePresetKey,
@@ -21,12 +20,14 @@ import {
 } from "@/lib/date-presets";
 
 /**
- * Reusable date-range control: the full preset list + a custom two-month
- * calendar. Presentational — the parent owns where the range goes (URL params,
- * state, …) via `onChange`. Passing `null, null` means Lifetime / all-time.
+ * Reusable date-range control: the full preset list on the left, a live
+ * two-month calendar on the right. Picking a preset or completing a range on
+ * the calendar applies immediately — no extra "apply" step.
  *
- * Conversions go through lib/date-presets so the picked day never shifts
- * across the UTC boundary.
+ * Presentational — the parent owns where the range goes (URL params, state, …)
+ * via `onChange`. Passing `null, null` means Lifetime / all-time. Conversions
+ * go through lib/date-presets so the picked day never shifts across the UTC
+ * boundary.
  */
 export function DateRangePicker({
   from,
@@ -38,7 +39,6 @@ export function DateRangePicker({
   onChange: (from: string | null, to: string | null) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const [mode, setMode] = useState<"presets" | "custom">("presets");
 
   const initial: DateRange | undefined = useMemo(() => {
     if (from && to) {
@@ -51,11 +51,13 @@ export function DateRangePicker({
   const label = useMemo(() => presetLabel(from, to), [from, to]);
   const presetActive = activePresetKey(from, to);
 
-  const applyCustom = () => {
-    if (pending?.from && pending.to) {
-      onChange(localDateToIso(pending.from), localDateToIso(pending.to));
+  const onCalendarSelect = (range: DateRange | undefined) => {
+    setPending(range);
+    // Apply once a full range is selected; keep the picker open after the
+    // first click so the user can choose the second date.
+    if (range?.from && range.to) {
+      onChange(localDateToIso(range.from), localDateToIso(range.to));
       setOpen(false);
-      setMode("presets");
     }
   };
 
@@ -64,10 +66,7 @@ export function DateRangePicker({
       open={open}
       onOpenChange={(o) => {
         setOpen(o);
-        if (!o) {
-          setMode("presets");
-          setPending(initial);
-        }
+        if (o) setPending(initial); // re-seed from current range on open
       }}
     >
       <PopoverTrigger asChild>
@@ -87,12 +86,13 @@ export function DateRangePicker({
         </button>
       </PopoverTrigger>
       <PopoverContent align="start" className="p-0 w-auto">
-        {mode === "presets" ? (
-          <div className="w-52 p-1">
+        <div className="flex">
+          {/* Quick ranges */}
+          <div className="w-40 p-1 border-r border-line shrink-0">
             <div className="px-2 py-1.5 text-[11px] uppercase tracking-[0.14em] text-ink-3">
-              Date range
+              Quick ranges
             </div>
-            <div className="space-y-0.5 max-h-80 overflow-y-auto">
+            <div className="space-y-0.5">
               {DATE_PRESETS.map((p) => (
                 <button
                   key={p.key}
@@ -103,7 +103,10 @@ export function DateRangePicker({
                     else onChange(null, null);
                     setOpen(false);
                   }}
-                  className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm text-ink-2 hover:bg-surface-2 hover:text-ink"
+                  className={cn(
+                    "w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm hover:bg-surface-2 hover:text-ink",
+                    presetActive === p.key ? "text-ink bg-surface-2" : "text-ink-2",
+                  )}
                 >
                   <span className="flex-1 text-left">{p.label}</span>
                   {presetActive === p.key && (
@@ -111,44 +114,20 @@ export function DateRangePicker({
                   )}
                 </button>
               ))}
-              <button
-                type="button"
-                onClick={() => setMode("custom")}
-                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm text-ink-2 hover:bg-surface-2 hover:text-ink border-t border-line mt-1"
-              >
-                <span className="flex-1 text-left">Custom range…</span>
-              </button>
             </div>
           </div>
-        ) : (
-          <div className="p-3 space-y-3">
+
+          {/* Calendar — selecting a full range applies it directly */}
+          <div className="p-3">
             <Calendar
               mode="range"
               numberOfMonths={2}
-              defaultMonth={pending?.from ?? new Date()}
+              defaultMonth={pending?.from ?? initial?.from ?? new Date()}
               selected={pending}
-              onSelect={setPending}
+              onSelect={onCalendarSelect}
             />
-            <div className="flex items-center justify-between gap-2">
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => setMode("presets")}
-              >
-                Back
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                onClick={applyCustom}
-                disabled={!pending?.from || !pending?.to}
-              >
-                Apply
-              </Button>
-            </div>
           </div>
-        )}
+        </div>
       </PopoverContent>
     </Popover>
   );

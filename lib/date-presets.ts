@@ -64,16 +64,18 @@ export interface DatePreset {
 }
 
 /**
- * The canonical preset list, in display order. "Last N days" ranges end
- * today (inclusive). Custom range is handled by the picker UI, not listed here.
+ * The canonical preset list, in display order. "Last N days" ranges END
+ * YESTERDAY (today is excluded — its data is still partial), so "Last 3 days"
+ * on Jun 4 is Jun 1–3. "This month"/"This quarter" are to-date and do include
+ * today. Custom range is the calendar, not a preset entry.
  */
 export const DATE_PRESETS: DatePreset[] = [
   { key: "yesterday", label: "Yesterday", range: (t) => ({ from: shiftIso(t, -1), to: shiftIso(t, -1) }) },
-  { key: "3", label: "Last 3 days", range: (t) => ({ from: shiftIso(t, -2), to: t }) },
-  { key: "5", label: "Last 5 days", range: (t) => ({ from: shiftIso(t, -4), to: t }) },
-  { key: "7", label: "Last 7 days", range: (t) => ({ from: shiftIso(t, -6), to: t }) },
-  { key: "14", label: "Last 14 days", range: (t) => ({ from: shiftIso(t, -13), to: t }) },
-  { key: "30", label: "Last 30 days", range: (t) => ({ from: shiftIso(t, -29), to: t }) },
+  { key: "3", label: "Last 3 days", range: (t) => ({ from: shiftIso(t, -3), to: shiftIso(t, -1) }) },
+  { key: "5", label: "Last 5 days", range: (t) => ({ from: shiftIso(t, -5), to: shiftIso(t, -1) }) },
+  { key: "7", label: "Last 7 days", range: (t) => ({ from: shiftIso(t, -7), to: shiftIso(t, -1) }) },
+  { key: "14", label: "Last 14 days", range: (t) => ({ from: shiftIso(t, -14), to: shiftIso(t, -1) }) },
+  { key: "30", label: "Last 30 days", range: (t) => ({ from: shiftIso(t, -30), to: shiftIso(t, -1) }) },
   { key: "this-month", label: "This month", range: (t) => ({ from: startOfMonth(t), to: t }) },
   {
     key: "last-month",
