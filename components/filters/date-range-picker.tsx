@@ -47,18 +47,33 @@ export function DateRangePicker({
     return undefined;
   }, [from, to]);
   const [pending, setPending] = useState<DateRange | undefined>(initial);
+  // First click of an in-progress selection. While set, the next click
+  // completes the range. We drive selection from the clicked day ourselves so
+  // a fresh click always starts a new range instead of extending the seeded one.
+  const [anchor, setAnchor] = useState<Date | null>(null);
 
   const label = useMemo(() => presetLabel(from, to), [from, to]);
   const presetActive = activePresetKey(from, to);
 
-  const onCalendarSelect = (range: DateRange | undefined) => {
-    setPending(range);
-    // Apply once a full range is selected; keep the picker open after the
-    // first click so the user can choose the second date.
-    if (range?.from && range.to) {
-      onChange(localDateToIso(range.from), localDateToIso(range.to));
-      setOpen(false);
+  // `triggerDate` is the day actually clicked — we ignore react-day-picker's
+  // computed range and build a deterministic two-click flow from it.
+  const onCalendarSelect = (
+    _range: DateRange | undefined,
+    triggerDate: Date,
+  ) => {
+    if (anchor === null) {
+      // First click: start a fresh range at the clicked day.
+      setAnchor(triggerDate);
+      setPending({ from: triggerDate, to: undefined });
+      return;
     }
+    // Second click: complete the range (order the two endpoints) and apply.
+    const fromD = anchor <= triggerDate ? anchor : triggerDate;
+    const toD = anchor <= triggerDate ? triggerDate : anchor;
+    setPending({ from: fromD, to: toD });
+    setAnchor(null);
+    onChange(localDateToIso(fromD), localDateToIso(toD));
+    setOpen(false);
   };
 
   return (
@@ -66,7 +81,11 @@ export function DateRangePicker({
       open={open}
       onOpenChange={(o) => {
         setOpen(o);
-        if (o) setPending(initial); // re-seed from current range on open
+        if (o) {
+          // Re-seed from the current range and reset the in-progress anchor.
+          setPending(initial);
+          setAnchor(null);
+        }
       }}
     >
       <PopoverTrigger asChild>
