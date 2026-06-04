@@ -3,13 +3,14 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { defaultDateRange } from "@/db/queries/performance";
-import { tagRollup } from "@/db/queries/trends";
+import { tagRollup, tagByPlatform } from "@/db/queries/trends";
 import { listProducts } from "@/db/queries/products";
 import { listAllTags } from "@/db/queries/creatives";
 import { FilterStrip } from "@/components/filters/filter-strip";
 import { TagRollupTable } from "@/components/trends/tag-rollup-table";
 import { TagScatter } from "@/components/trends/tag-scatter";
 import { TagLeaderboard } from "@/components/trends/tag-leaderboard";
+import { TagPlatformCompare } from "@/components/trends/tag-platform-compare";
 import { dashboardFiltersSchema } from "@/validators/filters";
 import { periodCaption } from "@/lib/period";
 
@@ -40,14 +41,17 @@ export default async function TrendsByTagPage({
   const from = parsed.from ?? range.from;
   const to = parsed.to ?? range.to;
 
-  const [rows, products, tags] = await Promise.all([
-    tagRollup({
-      from,
-      to,
-      platforms: parsed.platforms.length > 0 ? parsed.platforms : undefined,
-      productIds: parsed.productIds.length > 0 ? parsed.productIds : undefined,
-      includeExcluded: parsed.includeExcluded,
-    }),
+  const filters = {
+    from,
+    to,
+    platforms: parsed.platforms.length > 0 ? parsed.platforms : undefined,
+    productIds: parsed.productIds.length > 0 ? parsed.productIds : undefined,
+    includeExcluded: parsed.includeExcluded,
+  };
+
+  const [rows, platformRows, products, tags] = await Promise.all([
+    tagRollup(filters),
+    tagByPlatform(filters),
     listProducts(),
     listAllTags(),
   ]);
@@ -88,6 +92,9 @@ export default async function TrendsByTagPage({
         <TagScatter rows={rows} />
         <TagLeaderboard rows={rows} />
       </div>
+
+      {/* Platform comparison — top tags per channel for a chosen metric */}
+      <TagPlatformCompare rows={platformRows} />
 
       {/* Full rollup — sortable, with a column selector */}
       <TagRollupTable rows={rows} />

@@ -225,6 +225,82 @@ export async function tagRollup(f: TrendsFilters): Promise<TagRollupRow[]> {
 }
 
 // =====================================================================
+// By tag × platform — powers the platform-comparison section
+// =====================================================================
+
+export interface TagPlatformRow extends TagMetrics {
+  platform: Platform;
+  tag: string;
+}
+
+/**
+ * Tag metrics broken out per platform (group by platform, tag). Same fan-out
+ * as the blended rollup — a creative's spend counts toward each tag it carries
+ * — but kept per platform so the UI can rank the top tags within each channel.
+ */
+export async function tagByPlatform(f: TrendsFilters): Promise<TagPlatformRow[]> {
+  const conds: SQL[] = [];
+  if (f.from && f.to) conds.push(between(performanceRecords.date, f.from, f.to));
+  if (!f.includeExcluded) conds.push(eq(performanceRecords.excludedFromAggregates, false));
+  if (f.platforms && f.platforms.length > 0) {
+    conds.push(inArray(performanceRecords.platform, f.platforms));
+  }
+  if (f.productIds && f.productIds.length > 0) {
+    conds.push(inArray(creatives.productId, f.productIds));
+  }
+
+  const rows = await db
+    .select({
+      platform: performanceRecords.platform,
+      tag: creativeTags.tag,
+      creatives: sql<number>`COUNT(DISTINCT ${creatives.id})`,
+      spend: sumSpend,
+      impressions: sumImpressions,
+      clicks: sumClicks,
+      conversions: sumConversions,
+      revenue: sumConversionValue,
+      ctr,
+      cvr,
+      cpa,
+      cpm,
+      cpc,
+      roas,
+      voc,
+      hookRate,
+      holdRate,
+      completeRate,
+      aov: sql<number>`SUM(${performanceRecords.conversionValue}) / NULLIF(SUM(${performanceRecords.conversions}), 0)`,
+    })
+    .from(performanceRecords)
+    .innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId))
+    .innerJoin(creativeTags, eq(creativeTags.creativeId, creatives.id))
+    .where(conds.length > 0 ? and(...conds) : undefined)
+    .groupBy(performanceRecords.platform, creativeTags.tag);
+
+  return rows.map((r) => ({
+    platform: r.platform as Platform,
+    tag: r.tag,
+    creatives: num(r.creatives),
+    spend: num(r.spend),
+    impressions: num(r.impressions),
+    clicks: num(r.clicks),
+    conversions: num(r.conversions),
+    revenue: num(r.revenue),
+    ctr: numOrNull(r.ctr),
+    cvr: numOrNull(r.cvr),
+    cpa: numOrNull(r.cpa),
+    cpm: numOrNull(r.cpm),
+    cpc: numOrNull(r.cpc),
+    roas: numOrNull(r.roas),
+    voc: numOrNull(r.voc),
+    hookRate: numOrNull(r.hookRate),
+    holdRate: numOrNull(r.holdRate),
+    completeRate: numOrNull(r.completeRate),
+    aov: numOrNull(r.aov),
+  }));
+}
+
+// =====================================================================
 // By type (video / image / slides), optionally split by platform
 // =====================================================================
 
