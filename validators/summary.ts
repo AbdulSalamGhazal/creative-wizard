@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { platformEnum, creativeTypeEnum, creativeStatusEnum } from "@/db/schema";
 import { RATING_VALUES, type Rating } from "@/lib/rating";
+import { defaultDateRange } from "@/lib/date-presets";
 
 /**
  * URL-state validator for the Summary view.
@@ -234,8 +235,19 @@ const sortKeySchema = z
   .max(48);
 
 export const summaryFiltersSchema = z.object({
-  from: z.string().date().optional().catch(undefined),
-  to: z.string().date().optional().catch(undefined),
+  // Default to the last 7 days when no range is set (Lifetime is concrete).
+  from: z
+    .string()
+    .date()
+    .optional()
+    .catch(undefined)
+    .transform((v) => v ?? defaultDateRange().from),
+  to: z
+    .string()
+    .date()
+    .optional()
+    .catch(undefined)
+    .transform((v) => v ?? defaultDateRange().to),
   q: z
     .string()
     .max(255)

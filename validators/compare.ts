@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { platformEnum } from "@/db/schema";
 import type { CompareMetric } from "@/db/queries/performance";
+import { defaultDateRange } from "@/lib/date-presets";
 
 type Platform = (typeof platformEnum)[number];
 
@@ -81,8 +82,19 @@ export const compareFiltersSchema = z
         const deduped = uniq(valid).slice(0, MAX_COMPARE_BLOCKS);
         return deduped.length > 0 ? deduped : ["spend"];
       }),
-    from: z.string().date().optional().catch(undefined),
-    to: z.string().date().optional().catch(undefined),
+    // Default to the last 7 days when no range is set (Lifetime is concrete).
+    from: z
+      .string()
+      .date()
+      .optional()
+      .catch(undefined)
+      .transform((v) => v ?? defaultDateRange().from),
+    to: z
+      .string()
+      .date()
+      .optional()
+      .catch(undefined)
+      .transform((v) => v ?? defaultDateRange().to),
   })
   .transform((v) => ({
     sideA: {

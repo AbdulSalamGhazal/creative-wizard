@@ -56,6 +56,33 @@ export interface DateRangeValue {
   to: string;
 }
 
+/**
+ * Lifetime / all-time is represented as a concrete range from a fixed floor
+ * (before any possible data) to today, rather than an absent range. That lets
+ * "no range in the URL" mean "use the default" while Lifetime stays an explicit,
+ * shareable, persisted choice.
+ */
+export const LIFETIME_FLOOR = "2000-01-01";
+
+/** Default range applied when nothing is selected: the last 7 days. */
+export function defaultDateRange(): DateRangeValue {
+  const preset = DATE_PRESETS.find((p) => p.key === "7");
+  return preset!.range(todayIso())!;
+}
+
+/**
+ * Resolve an effective range: the explicit one when both ends are set,
+ * otherwise the default (last 7 days). Lifetime arrives as the concrete
+ * floor→today range, so it passes through unchanged.
+ */
+export function resolveDefaultRange(
+  from: string | null | undefined,
+  to: string | null | undefined,
+): DateRangeValue {
+  if (from && to) return { from, to };
+  return defaultDateRange();
+}
+
 export interface DatePreset {
   key: string;
   label: string;
@@ -94,7 +121,11 @@ export const DATE_PRESETS: DatePreset[] = [
       return { from: startOfQuarter(prevEnd), to: prevEnd };
     },
   },
-  { key: "lifetime", label: "Lifetime", range: () => null },
+  {
+    key: "lifetime",
+    label: "Lifetime",
+    range: (t) => ({ from: LIFETIME_FLOOR, to: t }),
+  },
 ];
 
 /** Which preset (if any) the current range matches. Lifetime when cleared. */
@@ -102,7 +133,8 @@ export function activePresetKey(
   from: string | null,
   to: string | null,
 ): string | null {
-  if (!from && !to) return "lifetime";
+  // Empty now means "use the default", not Lifetime — Lifetime is the concrete
+  // floor→today range and matches in the preset loop below.
   if (!from || !to) return null;
   const today = todayIso();
   for (const p of DATE_PRESETS) {

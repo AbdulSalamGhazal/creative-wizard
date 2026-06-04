@@ -16,6 +16,7 @@ import {
   isoToLocalDate,
   localDateToIso,
   presetLabel,
+  resolveDefaultRange,
   todayIso,
 } from "@/lib/date-presets";
 
@@ -40,20 +41,22 @@ export function DateRangePicker({
 }) {
   const [open, setOpen] = useState(false);
 
-  const initial: DateRange | undefined = useMemo(() => {
-    if (from && to) {
-      return { from: isoToLocalDate(from), to: isoToLocalDate(to) };
-    }
-    return undefined;
-  }, [from, to]);
+  // The effective range: the explicit one, or the default (last 7 days) when
+  // nothing is set. Drives the label, the highlighted preset, and the calendar
+  // seed, so an unset picker still reads "Last 7 days".
+  const eff = useMemo(() => resolveDefaultRange(from, to), [from, to]);
+  const initial: DateRange | undefined = useMemo(
+    () => ({ from: isoToLocalDate(eff.from), to: isoToLocalDate(eff.to) }),
+    [eff],
+  );
   const [pending, setPending] = useState<DateRange | undefined>(initial);
   // First click of an in-progress selection. While set, the next click
   // completes the range. We drive selection from the clicked day ourselves so
   // a fresh click always starts a new range instead of extending the seeded one.
   const [anchor, setAnchor] = useState<Date | null>(null);
 
-  const label = useMemo(() => presetLabel(from, to), [from, to]);
-  const presetActive = activePresetKey(from, to);
+  const label = useMemo(() => presetLabel(eff.from, eff.to), [eff]);
+  const presetActive = activePresetKey(eff.from, eff.to);
 
   // `triggerDate` is the day actually clicked — we ignore react-day-picker's
   // computed range and build a deterministic two-click flow from it.

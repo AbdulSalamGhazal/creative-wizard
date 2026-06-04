@@ -25,6 +25,7 @@ import { AnalyticsDateFilter } from "@/components/creative/analytics-date-filter
 import { NotesPanel } from "@/components/creative/notes-panel";
 import { AuditFeed } from "@/components/audit/audit-feed";
 import { int, pct, ratio, usd } from "@/lib/format";
+import { presetLabel, resolveDefaultRange } from "@/lib/date-presets";
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -71,9 +72,11 @@ export default async function CreativeDetailPage({
   const toRaw = pickFirst(sp.to);
   const from = fromRaw && ISO_DATE.test(fromRaw) ? fromRaw : undefined;
   const to = toRaw && ISO_DATE.test(toRaw) ? toRaw : undefined;
-  // Only treat as a bounded range when BOTH ends are present.
-  const range = from && to ? { from, to } : {};
-  const rangeLabel = from && to ? `${from} → ${to}` : "All-time";
+  // Default to the last 7 days when no range is set (Lifetime is concrete).
+  // `from`/`to` stay raw (null when unset) for the picker; `range` is resolved.
+  const eff = resolveDefaultRange(from, to);
+  const range = { from: eff.from, to: eff.to };
+  const rangeLabel = presetLabel(eff.from, eff.to);
 
   // Rebuild the Library's filtered/sorted sequence so the pager matches it.
   const navParsed = creativeListFiltersSchema.parse({

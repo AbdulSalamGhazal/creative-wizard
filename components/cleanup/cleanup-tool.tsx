@@ -29,6 +29,7 @@ import { DateRangePicker } from "@/components/filters/date-range-picker";
 import { previewCleanupAction, runCleanup } from "@/app/actions/cleanup";
 import type { CleanupPreview } from "@/db/queries/cleanup";
 import { usd, int } from "@/lib/format";
+import { defaultDateRange } from "@/lib/date-presets";
 import { cn } from "@/lib/utils";
 
 type Platform = "instagram" | "facebook" | "tiktok" | "snapchat" | "google";
@@ -57,8 +58,10 @@ export function CleanupTool({ products, creatives }: Props) {
   const [isPending, startTransition] = useTransition();
 
   const [platforms, setPlatforms] = useState<Platform[]>([]);
-  const [from, setFrom] = useState<string | null>(null);
-  const [to, setTo] = useState<string | null>(null);
+  // Seed the scope to the last 7 days (matches the picker default everywhere).
+  // It's still preview-then-confirm, so a bounded default is safe.
+  const [from, setFrom] = useState<string | null>(() => defaultDateRange().from);
+  const [to, setTo] = useState<string | null>(() => defaultDateRange().to);
   const [productIds, setProductIds] = useState<string[]>([]);
   const [creativeIds, setCreativeIds] = useState<string[]>([]);
 

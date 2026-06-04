@@ -20,6 +20,7 @@ import { CampaignRecordsTable } from "@/components/campaign/campaign-records-tab
 import { AnalyticsDateFilter } from "@/components/creative/analytics-date-filter";
 import { PLATFORM_COLOR, PLATFORM_LABEL } from "@/lib/palette";
 import { int, isoDate, pct, ratio, usd } from "@/lib/format";
+import { presetLabel, resolveDefaultRange } from "@/lib/date-presets";
 import type { Delta } from "@/lib/period";
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -57,8 +58,10 @@ export default async function CampaignDetailPage({
 
   const from = ISO_DATE.test(sp.from ?? "") ? sp.from : undefined;
   const to = ISO_DATE.test(sp.to ?? "") ? sp.to : undefined;
-  const range = from && to ? { from, to } : {};
-  const rangeLabel = from && to ? `${from} → ${to}` : "All-time";
+  // Default to the last 7 days when no range is set (Lifetime is concrete).
+  const eff = resolveDefaultRange(from, to);
+  const range = { from: eff.from, to: eff.to };
+  const rangeLabel = presetLabel(eff.from, eff.to);
 
   const meta = await campaignMeta(decoded);
   if (!meta) notFound();

@@ -15,7 +15,6 @@ import {
   type PortfolioFilters,
 } from "@/db/queries/portfolio";
 import { portfolioFiltersSchema } from "@/validators/portfolio";
-import { addDays } from "@/lib/period";
 import { ksaCalendarEvents, KSA_EVENT_COLOR } from "@/lib/ksa-calendar";
 import { PortfolioFilterBar } from "@/components/portfolio/portfolio-filter-bar";
 import { PortfolioScorecard } from "@/components/portfolio/portfolio-scorecard";
@@ -33,13 +32,6 @@ function pickFirst(v: string | string[] | undefined): string | undefined {
   return Array.isArray(v) ? v[0] : v;
 }
 
-function defaultRange(): { from: string; to: string } {
-  const today = new Date();
-  today.setUTCHours(0, 0, 0, 0);
-  const to = today.toISOString().slice(0, 10);
-  return { from: addDays(to, -29), to };
-}
-
 export default async function CampaignsPage({
   searchParams,
 }: {
@@ -55,10 +47,10 @@ export default async function CampaignsPage({
     includeExcluded: pickFirst(params.includeExcluded),
   });
 
-  // The page is always range-bounded so comparisons + rolling averages work.
-  const def = defaultRange();
-  const from = parsed.from ?? def.from;
-  const to = parsed.to ?? def.to;
+  // The validator defaults from/to to the last 7 days when no range is set, so
+  // the page is always range-bounded (comparisons + rolling averages work).
+  const from = parsed.from;
+  const to = parsed.to;
   const compare = parsed.compare as CompareMode;
 
   const filters: PortfolioFilters = {
