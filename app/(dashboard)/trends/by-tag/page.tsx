@@ -8,6 +8,8 @@ import { listProducts } from "@/db/queries/products";
 import { listAllTags } from "@/db/queries/creatives";
 import { FilterStrip } from "@/components/filters/filter-strip";
 import { TagRollupTable } from "@/components/trends/tag-rollup-table";
+import { TagScatter } from "@/components/trends/tag-scatter";
+import { TagLeaderboard } from "@/components/trends/tag-leaderboard";
 import { dashboardFiltersSchema } from "@/validators/filters";
 import { periodCaption } from "@/lib/period";
 
@@ -81,6 +83,13 @@ export default async function TrendsByTagPage({
         </Badge>
       </div>
 
+      {/* Graphs: efficiency scatter + ranked leaderboard */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <TagScatter rows={rows} />
+        <TagLeaderboard rows={rows} />
+      </div>
+
+      {/* Full rollup — sortable, with a column selector */}
       <TagRollupTable rows={rows} />
     </div>
   );

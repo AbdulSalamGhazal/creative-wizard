@@ -8,9 +8,11 @@ import {
   products,
 } from "@/db/schema";
 import {
+  completeRate,
   ctr,
   cpa,
   cpc,
+  cpm,
   cvr,
   hookRate,
   holdRate,
@@ -21,6 +23,7 @@ import {
   sumConversions,
   sumImpressions,
   sumSpend,
+  voc,
 } from "@/lib/metrics";
 import { computeDelta, prevPeriod, type Delta } from "@/lib/period";
 
@@ -42,24 +45,60 @@ export interface TrendsFilters {
 // By tag
 // =====================================================================
 
+export type TagDeltaKey = "spend" | "conversions" | "roas" | "cpa" | "ctr";
+
 export interface TagRollupRow {
   tag: string;
   creatives: number;
+  // additive
   spend: number;
   impressions: number;
+  clicks: number;
+  conversions: number;
+  revenue: number;
+  landingPageViews: number;
+  // ratios (weighted)
   ctr: number | null;
-  cpa: number | null;
-  roas: number | null;
   cvr: number | null;
+  cpa: number | null;
+  cpm: number | null;
+  cpc: number | null;
+  roas: number | null;
+  voc: number | null;
   hookRate: number | null;
+  holdRate: number | null;
+  completeRate: number | null;
+  aov: number | null;
+  /** Movement vs the immediately-prior equal-length window. */
+  deltas: Record<TagDeltaKey, Delta>;
+  /** Back-compat alias for the spend delta. */
   spendDelta: Delta;
+}
+
+interface TagAgg {
+  spend: number;
+  impressions: number;
+  clicks: number;
+  conversions: number;
+  revenue: number;
+  landingPageViews: number;
+  ctr: number | null;
+  cvr: number | null;
+  cpa: number | null;
+  cpm: number | null;
+  cpc: number | null;
+  roas: number | null;
+  voc: number | null;
+  hookRate: number | null;
+  holdRate: number | null;
+  completeRate: number | null;
+  aov: number | null;
+  creatives: number;
 }
 
 /** Raw per-tag aggregates for one window. Fan-out by tag is intentional —
  *  a creative's spend counts toward each tag it carries. */
-async function tagAggregates(
-  f: TrendsFilters,
-): Promise<Map<string, { spend: number; impressions: number; clicks: number; conversions: number | null; ctr: number | null; cpa: number | null; roas: number | null; cvr: number | null; hookRate: number | null; creatives: number }>> {
+async function tagAggregates(f: TrendsFilters): Promise<Map<string, TagAgg>> {
   const conds: SQL[] = [];
   if (f.from && f.to) conds.push(between(performanceRecords.date, f.from, f.to));
   if (!f.includeExcluded) conds.push(eq(performanceRecords.excludedFromAggregates, false));
@@ -78,11 +117,19 @@ async function tagAggregates(
       impressions: sumImpressions,
       clicks: sumClicks,
       conversions: sumConversions,
+      revenue: sumConversionValue,
+      landingPageViews: sql<number>`SUM(${performanceRecords.landingPageViews})`,
       ctr,
-      cpa,
-      roas,
       cvr,
+      cpa,
+      cpm,
+      cpc,
+      roas,
+      voc,
       hookRate,
+      holdRate,
+      completeRate,
+      aov: sql<number>`SUM(${performanceRecords.conversionValue}) / NULLIF(SUM(${performanceRecords.conversions}), 0)`,
     })
     .from(performanceRecords)
     .innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId))
@@ -90,54 +137,82 @@ async function tagAggregates(
     .where(conds.length > 0 ? and(...conds) : undefined)
     .groupBy(creativeTags.tag);
 
-  const map = new Map<string, ReturnType<typeof rowShape>>();
-  function rowShape(r: (typeof rows)[number]) {
-    return {
+  const map = new Map<string, TagAgg>();
+  for (const r of rows) {
+    map.set(r.tag, {
       spend: num(r.spend),
       impressions: num(r.impressions),
       clicks: num(r.clicks),
-      conversions: numOrNull(r.conversions),
+      conversions: num(r.conversions),
+      revenue: num(r.revenue),
+      landingPageViews: num(r.landingPageViews),
       ctr: numOrNull(r.ctr),
-      cpa: numOrNull(r.cpa),
-      roas: numOrNull(r.roas),
       cvr: numOrNull(r.cvr),
+      cpa: numOrNull(r.cpa),
+      cpm: numOrNull(r.cpm),
+      cpc: numOrNull(r.cpc),
+      roas: numOrNull(r.roas),
+      voc: numOrNull(r.voc),
       hookRate: numOrNull(r.hookRate),
+      holdRate: numOrNull(r.holdRate),
+      completeRate: numOrNull(r.completeRate),
+      aov: numOrNull(r.aov),
       creatives: num(r.creatives),
-    };
+    });
   }
-  for (const r of rows) map.set(r.tag, rowShape(r));
   return map;
 }
 
 /**
- * Per-tag rollup for Trends → By tag. Weighted metrics per tag, plus a
- * spend delta against the immediately-prior equal-length window when a
+ * Per-tag rollup for Trends → By tag. Weighted metrics per tag, plus
+ * movement deltas against the immediately-prior equal-length window when a
  * date range is set.
  */
 export async function tagRollup(f: TrendsFilters): Promise<TagRollupRow[]> {
+  const bounded = Boolean(f.from && f.to);
   const current = await tagAggregates(f);
 
-  let prevMap = new Map<string, { spend: number }>();
-  if (f.from && f.to) {
-    const prev = prevPeriod(f.from, f.to);
+  let prevMap = new Map<string, TagAgg>();
+  if (bounded) {
+    const prev = prevPeriod(f.from!, f.to!);
     prevMap = await tagAggregates({ ...f, from: prev.from, to: prev.to });
   }
 
+  const absent: Delta = { pct: null, mode: "absent" };
   const rows: TagRollupRow[] = [];
   for (const [tag, c] of current) {
-    const prevSpend = prevMap.get(tag)?.spend ?? null;
+    const p = prevMap.get(tag);
+    const d = (cur: number | null, prev: number | null): Delta =>
+      bounded ? computeDelta(cur, prev ?? null) : absent;
+    const deltas: Record<TagDeltaKey, Delta> = {
+      spend: d(c.spend, p?.spend ?? null),
+      conversions: d(c.conversions, p?.conversions ?? null),
+      roas: d(c.roas, p?.roas ?? null),
+      cpa: d(c.cpa, p?.cpa ?? null),
+      ctr: d(c.ctr, p?.ctr ?? null),
+    };
     rows.push({
       tag,
       creatives: c.creatives,
       spend: c.spend,
       impressions: c.impressions,
+      clicks: c.clicks,
+      conversions: c.conversions,
+      revenue: c.revenue,
+      landingPageViews: c.landingPageViews,
       ctr: c.ctr,
-      cpa: c.cpa,
-      roas: c.roas,
       cvr: c.cvr,
+      cpa: c.cpa,
+      cpm: c.cpm,
+      cpc: c.cpc,
+      roas: c.roas,
+      voc: c.voc,
       hookRate: c.hookRate,
-      spendDelta:
-        f.from && f.to ? computeDelta(c.spend, prevSpend) : { pct: null, mode: "absent" },
+      holdRate: c.holdRate,
+      completeRate: c.completeRate,
+      aov: c.aov,
+      deltas,
+      spendDelta: deltas.spend,
     });
   }
   rows.sort((a, b) => b.spend - a.spend);
