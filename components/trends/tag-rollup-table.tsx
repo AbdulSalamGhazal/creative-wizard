@@ -134,22 +134,50 @@ export function TagRollupTable({ rows }: { rows: TagRollupRow[] }) {
   const SortIcon = ({ k }: { k: SortKey }) =>
     sortKey !== k ? null : dir === "asc" ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />;
 
+  // Every mode keeps the value visible; non-default modes append an indicator.
   const cell = (r: TagRollupRow, c: Col) => {
     const v = r[c.key] as Num;
-    if (mode === "values") return c.fmt(v);
+    const value = <span className="text-ink">{c.fmt(v)}</span>;
+    if (mode === "values") return value;
     if (mode === "rank") {
       const rk = rankMaps[c.key]?.get(r.tag);
-      return rk ? <span className={cn(rk <= 3 && "text-ink font-medium")}>#{rk}</span> : DASH;
+      return (
+        <>
+          {value}
+          {rk ? (
+            <span
+              className={cn(
+                "inline-flex items-center h-4 px-1 rounded text-[10px] border tabular-nums",
+                rk <= 3
+                  ? "border-brand/40 text-brand bg-[var(--brand-soft)]"
+                  : "border-line-2 text-ink-3",
+              )}
+            >
+              #{rk}
+            </span>
+          ) : null}
+        </>
+      );
     }
     if (mode === "avg") {
       const avg = avgs[c.key] ?? null;
       const delta: Delta =
         v === null || avg === null || avg === 0 ? ABSENT : { pct: (v - avg) / avg, mode: "pct" };
-      return <DeltaBadge delta={delta} inverted={c.lower} />;
+      return (
+        <>
+          {value}
+          <DeltaBadge delta={delta} inverted={c.lower} />
+        </>
+      );
     }
     // prev
     const prevV = r.prev ? ((r.prev[c.key] as Num) ?? null) : null;
-    return <DeltaBadge delta={r.prev ? computeDelta(v, prevV) : ABSENT} inverted={c.lower} />;
+    return (
+      <>
+        {value}
+        <DeltaBadge delta={r.prev ? computeDelta(v, prevV) : ABSENT} inverted={c.lower} />
+      </>
+    );
   };
 
   const modeHint =
@@ -238,7 +266,7 @@ export function TagRollupTable({ rows }: { rows: TagRollupRow[] }) {
                 </td>
                 {shown.map((c) => (
                   <td key={c.key} className="px-3 py-2.5 text-right text-ink tabular-nums whitespace-nowrap">
-                    <span className="inline-flex items-center justify-end">{cell(r, c)}</span>
+                    <span className="inline-flex items-center justify-end gap-1.5">{cell(r, c)}</span>
                   </td>
                 ))}
               </tr>
