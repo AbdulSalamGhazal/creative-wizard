@@ -40,13 +40,15 @@ interface FilterStripProps {
   products?: Array<{ id: string; name: string }>;
   /** Tag options for the Tags filter. */
   tags?: string[];
+  /** Hide the Type filter — e.g. on the video-only diagnostics page. */
+  hideType?: boolean;
 }
 
 function csv(v: string | null): string[] {
   return v ? v.split(",").filter(Boolean) : [];
 }
 
-export function FilterStrip({ products = [], tags = [] }: FilterStripProps = {}) {
+export function FilterStrip({ products = [], tags = [], hideType = false }: FilterStripProps = {}) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -230,32 +232,34 @@ export function FilterStrip({ products = [], tags = [] }: FilterStripProps = {})
         </DropdownMenu>
 
         {/* Type */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button type="button">
-              <Chip
-                icon={Shapes}
-                label="Type"
-                value={typeLabel}
-                active={types.length > 0}
-              />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-44">
-            <DropdownMenuLabel>Type</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            {TYPES.map((t) => (
-              <DropdownMenuCheckboxItem
-                key={t.value}
-                checked={types.includes(t.value)}
-                onCheckedChange={() => toggleMulti("types", t.value, types)}
-                onSelect={(e) => e.preventDefault()}
-              >
-                {t.label}
-              </DropdownMenuCheckboxItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
+        {!hideType && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button type="button">
+                <Chip
+                  icon={Shapes}
+                  label="Type"
+                  value={typeLabel}
+                  active={types.length > 0}
+                />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-44">
+              <DropdownMenuLabel>Type</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {TYPES.map((t) => (
+                <DropdownMenuCheckboxItem
+                  key={t.value}
+                  checked={types.includes(t.value)}
+                  onCheckedChange={() => toggleMulti("types", t.value, types)}
+                  onSelect={(e) => e.preventDefault()}
+                >
+                  {t.label}
+                </DropdownMenuCheckboxItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
 
         {/* Tags */}
         <DropdownMenu>

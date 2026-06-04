@@ -22,7 +22,13 @@ import {
   sumConversionValue,
   sumConversions,
   sumImpressions,
+  sumLandingPageViews,
   sumSpend,
+  sumVideoViews2s,
+  sumVideoViews25,
+  sumVideoViews50,
+  sumVideoViews75,
+  sumVideoViews100,
   voc,
 } from "@/lib/metrics";
 import { computeDelta, prevPeriod, type Delta } from "@/lib/period";
@@ -452,22 +458,48 @@ export async function launchReport(): Promise<LaunchReportResult> {
 // Video diagnostics
 // =====================================================================
 
-export interface VideoDiagnosticRow {
+/** Raw retention funnel counts for one video (or the portfolio aggregate). */
+export interface VideoFunnel {
+  impressions: number;
+  v2s: number; // 2-second "hook" plays
+  v25: number;
+  v50: number;
+  v75: number;
+  v100: number; // completions
+}
+
+export interface VideoDiagnosticRow extends VideoFunnel {
   creativeId: string;
   name: string;
   productName: string;
   status: "draft" | "active" | "paused" | "archived";
   spend: number;
-  impressions: number;
-  hookRate: number | null;
-  holdRate: number | null;
+  clicks: number;
+  conversions: number;
+  revenue: number;
+  // Funnel rates (null when the denominator is zero)
+  hookRate: number | null; // 2s ÷ impressions — does the open stop the scroll
+  ret25: number | null; // 25% ÷ 2s
+  holdRate: number | null; // 50% ÷ 2s — does it hold past the midpoint
+  ret75: number | null; // 75% ÷ 2s
+  completeRate: number | null; // 100% ÷ 2s — do they finish
+  // Outcome + efficiency
   ctr: number | null;
+  cvr: number | null;
+  cpa: number | null;
+  roas: number | null;
+  costPerHook: number | null; // spend ÷ 2s plays
+  costPerCompletion: number | null; // spend ÷ completions
 }
 
 export interface VideoDiagnosticsResult {
   rows: VideoDiagnosticRow[];
+  /** Portfolio funnel — sum across all matched videos (disjoint, so exact). */
+  aggregate: VideoFunnel;
+  videoCount: number;
   medianHookRate: number | null;
   medianHoldRate: number | null;
+  medianCompleteRate: number | null;
 }
 
 function median(values: number[]): number | null {
@@ -478,8 +510,9 @@ function median(values: number[]): number | null {
 }
 
 /**
- * Per-video hook rate (3s/impressions) and hold rate (15s/3s), with the
- * portfolio medians for context. Restricted to video creatives.
+ * Per-video retention funnel (impressions → 2s → 25/50/75/100%) with derived
+ * hook/hold/complete rates, conversion outcome, and cost-per-attention, plus
+ * the portfolio aggregate funnel and medians. Restricted to video creatives.
  */
 export async function videoDiagnostics(
   f: TrendsFilters,
@@ -502,9 +535,15 @@ export async function videoDiagnostics(
       status: creatives.status,
       spend: sumSpend,
       impressions: sumImpressions,
-      hookRate,
-      holdRate,
-      ctr,
+      clicks: sumClicks,
+      conversions: sumConversions,
+      revenue: sumConversionValue,
+      lpv: sumLandingPageViews,
+      v2s: sumVideoViews2s,
+      v25: sumVideoViews25,
+      v50: sumVideoViews50,
+      v75: sumVideoViews75,
+      v100: sumVideoViews100,
     })
     .from(performanceRecords)
     .innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId))
@@ -513,21 +552,59 @@ export async function videoDiagnostics(
     .groupBy(creatives.id, creatives.name, products.name, creatives.status)
     .orderBy(desc(sumSpend));
 
-  const out: VideoDiagnosticRow[] = rows.map((r) => ({
-    creativeId: r.creativeId,
-    name: r.name,
-    productName: r.productName,
-    status: r.status as VideoDiagnosticRow["status"],
-    spend: num(r.spend),
-    impressions: num(r.impressions),
-    hookRate: numOrNull(r.hookRate),
-    holdRate: numOrNull(r.holdRate),
-    ctr: numOrNull(r.ctr),
-  }));
+  const rate = (a: number, b: number): number | null => (b > 0 ? a / b : null);
+
+  const out: VideoDiagnosticRow[] = rows.map((r) => {
+    const impressions = num(r.impressions);
+    const v2s = num(r.v2s);
+    const v25 = num(r.v25);
+    const v50 = num(r.v50);
+    const v75 = num(r.v75);
+    const v100 = num(r.v100);
+    const spend = num(r.spend);
+    const clicks = num(r.clicks);
+    const conversions = num(r.conversions);
+    const revenue = num(r.revenue);
+    const lpv = num(r.lpv);
+    return {
+      creativeId: r.creativeId,
+      name: r.name,
+      productName: r.productName,
+      status: r.status as VideoDiagnosticRow["status"],
+      impressions, v2s, v25, v50, v75, v100,
+      spend, clicks, conversions, revenue,
+      hookRate: rate(v2s, impressions),
+      ret25: rate(v25, v2s),
+      holdRate: rate(v50, v2s),
+      ret75: rate(v75, v2s),
+      completeRate: rate(v100, v2s),
+      ctr: rate(clicks, impressions),
+      cvr: rate(conversions, lpv),
+      cpa: rate(spend, conversions),
+      roas: rate(revenue, spend),
+      costPerHook: rate(spend, v2s),
+      costPerCompletion: rate(spend, v100),
+    };
+  });
+
+  const aggregate: VideoFunnel = out.reduce(
+    (a, r) => ({
+      impressions: a.impressions + r.impressions,
+      v2s: a.v2s + r.v2s,
+      v25: a.v25 + r.v25,
+      v50: a.v50 + r.v50,
+      v75: a.v75 + r.v75,
+      v100: a.v100 + r.v100,
+    }),
+    { impressions: 0, v2s: 0, v25: 0, v50: 0, v75: 0, v100: 0 },
+  );
 
   return {
     rows: out,
+    aggregate,
+    videoCount: out.length,
     medianHookRate: median(out.map((r) => r.hookRate ?? NaN)),
     medianHoldRate: median(out.map((r) => r.holdRate ?? NaN)),
+    medianCompleteRate: median(out.map((r) => r.completeRate ?? NaN)),
   };
 }
