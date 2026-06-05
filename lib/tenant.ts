@@ -24,12 +24,19 @@ export interface Account {
   id: string;
   name: string;
   slug: string;
+  /** "Active" status window in hours (daily-grain → rounds to days). */
+  statusWindowHours: number;
 }
 
 /** Every brand, oldest first (the oldest is the default/fallback). */
 export const listAccounts = cache(async (): Promise<Account[]> => {
   return db
-    .select({ id: accounts.id, name: accounts.name, slug: accounts.slug })
+    .select({
+      id: accounts.id,
+      name: accounts.name,
+      slug: accounts.slug,
+      statusWindowHours: accounts.statusWindowHours,
+    })
     .from(accounts)
     .orderBy(asc(accounts.createdAt));
 });
@@ -56,5 +63,12 @@ export const getActiveAccount = cache(async (): Promise<Account> => {
     id: DEFAULT_ACCOUNT_ID,
     name: "Urjwan",
     slug: "urjwan",
+    statusWindowHours: 24,
   };
+});
+
+/** The active brand's "Active" status window, in hours (default 24). */
+export const getActiveStatusWindowHours = cache(async (): Promise<number> => {
+  const acct = await getActiveAccount();
+  return acct.statusWindowHours ?? 24;
 });

@@ -51,6 +51,13 @@ export const accounts = pgTable("accounts", {
   id: uuid("id").primaryKey().defaultRandom(),
   name: varchar("name", { length: 120 }).notNull(),
   slug: varchar("slug", { length: 120 }).notNull().unique(),
+  /**
+   * "Active" window for the dynamic creative status: a creative counts as Active
+   * on a platform if it spent within this many hours of THAT platform's latest
+   * data day. Data is daily-grain, so this rounds to whole days (24h = the
+   * latest day only, 48h = last two days, …). Per-brand, default 24h.
+   */
+  statusWindowHours: integer("status_window_hours").notNull().default(24),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -125,6 +132,33 @@ export const creativeTags = pgTable(
   (t) => ({
     pk: primaryKey({ columns: [t.creativeId, t.tag] }),
     tagIdx: index("creative_tags_tag_idx").on(t.tag),
+  }),
+);
+
+/**
+ * Manual per-(creative, platform) TERMINATION — the only manual lever in the
+ * dynamic creative-status model. A row means "this creative is Terminated on
+ * this platform": sticky, and it overrides the spend-derived Active/Pause logic
+ * until removed. No row = automatic status. Reactivating deletes the row.
+ * account_id is carried (and scoped) even though creative_id already implies
+ * the account, so termination reads/writes stay first-class account-scoped.
+ */
+export const creativePlatformOverrides = pgTable(
+  "creative_platform_overrides",
+  {
+    accountId: accountId(),
+    creativeId: uuid("creative_id")
+      .notNull()
+      .references(() => creatives.id, { onDelete: "cascade" }),
+    platform: varchar("platform", { length: 16, enum: platformEnum }).notNull(),
+    terminatedAt: timestamp("terminated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    terminatedByUserId: uuid("terminated_by_user_id").references(() => users.id),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.creativeId, t.platform] }),
+    accountIdx: index("cpo_account_idx").on(t.accountId),
   }),
 );
 
