@@ -132,6 +132,23 @@ export const ratingRules = pgTable("rating_rules", {
   updatedByUserId: uuid("updated_by_user_id").references(() => users.id),
 });
 
+/**
+ * Per-platform overrides for the rating cutoffs. The `rating_rules` singleton
+ * above is the DEFAULT (used for the blended total and any platform without a
+ * row here); a row in this table customizes one platform's thresholds. One row
+ * per platform, keyed by the platform name.
+ */
+export const platformRatingRules = pgTable("platform_rating_rules", {
+  platform: varchar("platform", { length: 16, enum: platformEnum }).primaryKey(),
+  minSpend: numeric("min_spend", { precision: 14, scale: 2 }).notNull().default("500"),
+  goodRoas: numeric("good_roas", { precision: 10, scale: 2 }).notNull().default("4"),
+  decentRoas: numeric("decent_roas", { precision: 10, scale: 2 }).notNull().default("2"),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedByUserId: uuid("updated_by_user_id").references(() => users.id),
+});
+
 export const uploadBatches = pgTable("upload_batches", {
   id: uuid("id").primaryKey().defaultRandom(),
   platform: varchar("platform", { length: 16, enum: platformEnum }).notNull(),

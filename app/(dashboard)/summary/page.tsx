@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { listAllTags } from "@/db/queries/creatives";
 import { listProducts } from "@/db/queries/products";
 import { listCreativeSummary } from "@/db/queries/summary";
-import { getRatingRules } from "@/db/queries/rating";
+import { getRatingConfig } from "@/db/queries/rating";
 import {
   getDefaultSummaryView,
   listSummaryViews,
@@ -62,9 +62,9 @@ export default async function SummaryPage({
 
   const user = await requireAuth();
 
-  // Rating rules feed both the Rate column and the rate sort/filter, so fetch
-  // them first (one tiny singleton read) and hand them to the summary query.
-  const ratingRulesConfig = await getRatingRules();
+  // Rating config (default + per-platform overrides) feeds the Rate column and
+  // the rate sort/filter, so fetch it first and hand it to the summary query.
+  const ratingConfig = await getRatingConfig();
 
   // Filter dropdowns + the query run in parallel.
   const [
@@ -89,7 +89,7 @@ export default async function SummaryPage({
       metricFilters:
         parsed.metricFilters.length > 0 ? parsed.metricFilters : undefined,
       rateFilter: parsed.rate,
-      ratingRules: ratingRulesConfig,
+      ratingConfig,
     }),
     listProducts(),
     listAllTags(),
@@ -149,7 +149,7 @@ export default async function SummaryPage({
         baseParams={baseParams.toString()}
         hiddenIdentity={new Set(parsed.hideIdentity)}
         hiddenMetrics={new Set(parsed.hideMetrics)}
-        rules={ratingRulesConfig}
+        ratingConfig={ratingConfig}
         showRate={!parsed.hideRate}
         showBlended={!parsed.hideBlended}
       />

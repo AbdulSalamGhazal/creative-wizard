@@ -6,7 +6,13 @@ import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { PLATFORM_COLOR, PLATFORM_LABEL } from "@/lib/palette";
 import { int, pct, ratio, usd } from "@/lib/format";
-import { RATING_META, rateBlock, type RatingRules } from "@/lib/rating";
+import {
+  RATING_META,
+  rateBlock,
+  rulesForScope,
+  type RatingConfig,
+  type RatingRules,
+} from "@/lib/rating";
 import type {
   PlatformMetricBlock,
   SummaryRow,
@@ -30,8 +36,8 @@ interface Props {
   hiddenIdentity?: Set<IdentityColumnKey>;
   /** Metric columns to suppress — applies to every platform + total group. */
   hiddenMetrics?: Set<MetricColumnKey>;
-  /** Rating cutoffs driving the Rate column. */
-  rules: RatingRules;
+  /** Rating config (default + per-platform overrides) driving the Rate column. */
+  ratingConfig: RatingConfig;
   /** Whether to render the Rate column (first in each group). Default true. */
   showRate?: boolean;
   /** Show the Blended Total column group. Defaults to "2+ platforms" when undefined. */
@@ -149,7 +155,7 @@ export function SummaryTable({
   baseParams,
   hiddenIdentity,
   hiddenMetrics,
-  rules,
+  ratingConfig,
   showRate = true,
   showBlended,
 }: Props) {
@@ -511,7 +517,7 @@ export function SummaryTable({
                       : r.perPlatform[g as keyof typeof r.perPlatform]
                   }
                   showRate={showRate}
-                  rules={rules}
+                  ratingConfig={ratingConfig}
                   visibleMetrics={visibleMetrics}
                   muted={g === "total"}
                 />
@@ -710,14 +716,14 @@ function RateAndMetricsCells({
   scope,
   block,
   showRate,
-  rules,
+  ratingConfig,
   visibleMetrics,
   muted = false,
 }: {
   scope: string;
   block: PlatformMetricBlock | undefined;
   showRate: boolean;
-  rules: RatingRules;
+  ratingConfig: RatingConfig;
   visibleMetrics: MetricColumn[];
   muted?: boolean;
 }) {
@@ -725,7 +731,7 @@ function RateAndMetricsCells({
     <>
       {showRate && (
         <td className="px-3 py-2 text-center whitespace-nowrap border-l border-line">
-          <RateBadge block={block} rules={rules} />
+          <RateBadge block={block} rules={rulesForScope(ratingConfig, scope)} />
         </td>
       )}
       {visibleMetrics.map((m, mi) => {

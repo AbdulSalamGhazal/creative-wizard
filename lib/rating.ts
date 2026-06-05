@@ -46,6 +46,30 @@ export const DEFAULT_RATING_RULES: RatingRules = {
   decentRoas: 2,
 };
 
+/**
+ * The full rating config: a default (blended total + any platform without an
+ * override) plus optional per-platform overrides keyed by platform name.
+ */
+export interface RatingConfig {
+  default: RatingRules;
+  byPlatform: Record<string, RatingRules>;
+}
+
+export const DEFAULT_RATING_CONFIG: RatingConfig = {
+  default: DEFAULT_RATING_RULES,
+  byPlatform: {},
+};
+
+/**
+ * Resolve the rules that apply to a rating scope. The blended total ("total")
+ * always uses the default; a platform uses its override when present, else the
+ * default.
+ */
+export function rulesForScope(config: RatingConfig, scope: string): RatingRules {
+  if (scope === "total") return config.default;
+  return config.byPlatform[scope] ?? config.default;
+}
+
 /** The minimal shape needed to rate a block. */
 export interface RatableBlock {
   spend: number;

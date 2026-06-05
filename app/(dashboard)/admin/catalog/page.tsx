@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { requireAdmin } from "@/lib/auth";
 import { listTags } from "@/db/queries/tags";
-import { getRatingRules } from "@/db/queries/rating";
+import { getRatingConfig } from "@/db/queries/rating";
 import { ProductsAdmin } from "@/components/product/products-admin";
 import { PlatformsAdmin } from "@/components/platform/platforms-admin";
 import { MappingsAdmin } from "@/components/platform/mappings-admin";
@@ -73,7 +73,7 @@ export default async function CatalogAdminPage({ searchParams }: Props) {
       {active === "tags" && <TagsTable rows={await listTags()} />}
       {active === "platforms" && <PlatformsAdmin />}
       {active === "mapping" && <MappingsAdmin />}
-      {active === "rating" && <RatingRulesAdmin rules={await getRatingRules()} />}
+      {active === "rating" && <RatingRulesAdmin config={await getRatingConfig()} />}
     </div>
   );
 }

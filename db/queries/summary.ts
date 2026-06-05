@@ -48,10 +48,11 @@ import {
   type SortDir,
 } from "@/validators/summary";
 import {
-  DEFAULT_RATING_RULES,
+  DEFAULT_RATING_CONFIG,
   RATING_RANK,
   rateBlock,
-  type RatingRules,
+  rulesForScope,
+  type RatingConfig,
 } from "@/lib/rating";
 
 type Platform = (typeof platformEnum)[number];
@@ -76,8 +77,8 @@ export interface SummaryFilterInput {
   metricFilters?: MetricFilterCondition[];
   /** Categorical rating filter (scope + selected ratings). */
   rateFilter?: RateFilterCondition | null;
-  /** Rules driving the rating — needed for rate sort + rate filter. */
-  ratingRules?: RatingRules;
+  /** Rules driving the rating (default + per-platform) — for rate sort/filter. */
+  ratingConfig?: RatingConfig;
 }
 
 export interface PlatformMetricBlock {
@@ -650,8 +651,9 @@ export async function listCreativeSummary(
       ? rows.filter((r) => passesMetricFilters(r, filters.metricFilters!))
       : rows;
 
-  // Rating-based filter + sort (both derived from spend/ROAS in JS).
-  const rules = filters.ratingRules ?? DEFAULT_RATING_RULES;
+  // Rating-based filter + sort (both derived from spend/ROAS in JS). Each
+  // scope resolves to its own rules — a platform's override, else the default.
+  const config = filters.ratingConfig ?? DEFAULT_RATING_CONFIG;
   const blockFor = (row: SummaryRow, scope: string) =>
     scope === "total" ? row.total : row.perPlatform[scope as Platform];
 
@@ -659,7 +661,7 @@ export async function listCreativeSummary(
   if (rate && rate.ratings.length > 0) {
     const want = new Set(rate.ratings);
     filteredRows = filteredRows.filter((r) =>
-      want.has(rateBlock(blockFor(r, rate.scope), rules)),
+      want.has(rateBlock(blockFor(r, rate.scope), rulesForScope(config, rate.scope))),
     );
   }
 
@@ -669,8 +671,8 @@ export async function listCreativeSummary(
     // Copy before sorting so the SQL-ordered `rows` isn't mutated in place
     // when no row-dropping filter ran (filteredRows may alias rows).
     filteredRows = [...filteredRows].sort((a, b) => {
-      const ra = RATING_RANK[rateBlock(blockFor(a, scope!), rules)];
-      const rb = RATING_RANK[rateBlock(blockFor(b, scope!), rules)];
+      const ra = RATING_RANK[rateBlock(blockFor(a, scope!), rulesForScope(config, scope!))];
+      const rb = RATING_RANK[rateBlock(blockFor(b, scope!), rulesForScope(config, scope!))];
       if (ra !== rb) return (ra - rb) * factor;
       return a.name.localeCompare(b.name);
     });

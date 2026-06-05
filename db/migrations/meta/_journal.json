@@ -85,6 +85,13 @@
       "when": 1780228547208,
       "tag": "0011_minor_guardsmen",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1780667359399,
+      "tag": "0012_curvy_the_phantom",
+      "breakpoints": true
     }
   ]
 }
