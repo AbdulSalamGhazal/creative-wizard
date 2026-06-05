@@ -15,3 +15,6 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 coverage/
+
+# Local-only analysis/verification scripts (read prod data via .env.production.local)
+analysis/

@@ -215,6 +215,34 @@ This app is deployed and in production use. Treat `main` as shippable.
   itself) and the sonner toaster are filtered out. A browser web app CANNOT
   silently capture the OS desktop — that needs `getDisplayMedia`, which always
   shows a picker; this DOM-render path is the no-prompt option.
+- **Multi-tenancy = row-level `account_id`, scoped in the query/action layer
+  (NOT a security boundary).** The app manages 2–5 brands from one DB; the
+  active brand is the `ccms_account` cookie, resolved per request by the
+  cache()-deduped `getActiveAccountId()` / `listAccounts()` / `getActiveAccount()`
+  in `lib/tenant.ts` (mirrors `auth()`). Any signed-in user may switch to any
+  brand via the top-bar `AccountSwitcher` (next to the title) or the **Brands**
+  tab under `/admin/catalog`; `setActiveAccount`/`createAccount`/`renameAccount`
+  live in `app/actions/account.ts`. Every tenant table carries `account_id`
+  (FK → `accounts`, DEFAULT the Urjwan id `00000000-0000-0000-0000-000000000001`):
+  products, creatives, tags, performance_records, upload_batches,
+  upload_validation_sessions, summary_views, platform_field_mappings,
+  audit_events, rating_rules (PK = account_id), platform_rating_rules
+  (PK = (account_id, platform)). `creative_tags` has NO `account_id` — it's
+  scoped transitively via its creative, so tag rename/delete **cascades must be
+  bounded by a `creatives WHERE account_id` subquery** (else a shared tag string
+  hits other brands). Reads: every `db/queries/*` condition-builder injects one
+  `eq(table.accountId, await getActiveAccountId())`; writes: actions/routes stamp
+  `accountId` on inserts and scope updates/deletes. The upload pipeline stores
+  the account on the validation session and commits under THAT account (a
+  mid-flow switch can't cross-write). `logAudit` stamps `account_id` (override
+  param for the session-scoped upload audits). Single-account behaviour is
+  unchanged because the filter = the only account = all rows. Migrations: **0013**
+  (additive: accounts + `account_id` NOT NULL DEFAULT Urjwan + composite uniques —
+  backward-compatible, deploy-safe alone) and **0014** (rating PK restructure —
+  NOT backward-compatible: drops `rating_rules.id`, so it must land WITH the code,
+  not before/after). Both applied to prod. To add a tenant table: add
+  `accountId: accountId()`, scope its queries + writes, prefix any unique index
+  with `account_id`.
 - **Deleting a creative is a hard delete** (`deleteCreative`). It removes the
   creative's `performance_records` first (no cascade on that FK), then the
   creative (tags cascade). The confirm dialog
