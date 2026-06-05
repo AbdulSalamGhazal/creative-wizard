@@ -2,11 +2,13 @@ import Link from "next/link";
 import { requireAdmin } from "@/lib/auth";
 import { listTags } from "@/db/queries/tags";
 import { getRatingConfig } from "@/db/queries/rating";
+import { getActiveAccountId, listAccounts } from "@/lib/tenant";
 import { ProductsAdmin } from "@/components/product/products-admin";
 import { PlatformsAdmin } from "@/components/platform/platforms-admin";
 import { MappingsAdmin } from "@/components/platform/mappings-admin";
 import { TagsTable } from "@/components/tag/tags-table";
 import { RatingRulesAdmin } from "@/components/rating/rating-rules-admin";
+import { AccountsAdmin } from "@/components/account/accounts-admin";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +18,7 @@ const TABS = [
   { key: "platforms", label: "Platforms" },
   { key: "mapping", label: "CSV mapping" },
   { key: "rating", label: "Rate rules" },
+  { key: "brands", label: "Brands" },
 ] as const;
 type TabKey = (typeof TABS)[number]["key"];
 
@@ -74,6 +77,12 @@ export default async function CatalogAdminPage({ searchParams }: Props) {
       {active === "platforms" && <PlatformsAdmin />}
       {active === "mapping" && <MappingsAdmin />}
       {active === "rating" && <RatingRulesAdmin config={await getRatingConfig()} />}
+      {active === "brands" && (
+        <AccountsAdmin
+          accounts={await listAccounts()}
+          activeId={await getActiveAccountId()}
+        />
+      )}
     </div>
   );
 }

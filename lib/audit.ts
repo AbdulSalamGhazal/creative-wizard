@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { auditEvents } from "@/db/schema";
+import { getActiveAccountId } from "@/lib/tenant";
 
 /**
  * Append-only audit trail.
@@ -91,6 +92,12 @@ export interface AuditEventInput {
   actorUserId?: string | null;
   /** Action-specific extras. Keep small; large blobs belong elsewhere. */
   meta?: Record<string, unknown> | null;
+  /**
+   * Account (brand) this event belongs to. Defaults to the request's active
+   * account. The upload pipeline passes the session's account explicitly so a
+   * mid-flow brand switch can't mis-file the commit/rollback audit.
+   */
+  accountId?: string;
 }
 
 /**
@@ -101,9 +108,11 @@ export interface AuditEventInput {
  */
 export async function logAudit(input: AuditEventInput): Promise<number | null> {
   try {
+    const accountId = input.accountId ?? (await getActiveAccountId());
     const [row] = await db
       .insert(auditEvents)
       .values({
+        accountId,
         action: input.action,
         entityType: input.entityType,
         entityId: input.entityId ?? null,

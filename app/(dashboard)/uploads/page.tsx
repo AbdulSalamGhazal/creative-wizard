@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { creatives, products, uploadBatches, users } from "@/db/schema";
 import { isoDate, int } from "@/lib/format";
 import { auth } from "@/lib/auth";
+import { getActiveAccountId } from "@/lib/tenant";
 import { RollbackButton } from "@/components/upload/rollback-button";
 import { CleanupTool } from "@/components/cleanup/cleanup-tool";
 
@@ -29,6 +30,7 @@ export default async function UploadsPage() {
   const canCleanup =
     currentUser?.role === "admin" || currentUser?.role === "editor";
 
+  const acct = await getActiveAccountId();
   const rows = await db
     .select({
       id: uploadBatches.id,
@@ -41,6 +43,7 @@ export default async function UploadsPage() {
     })
     .from(uploadBatches)
     .innerJoin(users, eq(users.id, uploadBatches.uploadedByUserId))
+    .where(eq(uploadBatches.accountId, acct))
     .orderBy(desc(uploadBatches.uploadedAt))
     .limit(50);
 
@@ -50,6 +53,7 @@ export default async function UploadsPage() {
         db
           .select({ id: products.id, name: products.name })
           .from(products)
+          .where(eq(products.accountId, acct))
           .orderBy(asc(products.name)),
         db
           .select({
@@ -59,6 +63,7 @@ export default async function UploadsPage() {
           })
           .from(creatives)
           .innerJoin(products, eq(products.id, creatives.productId))
+          .where(eq(creatives.accountId, acct))
           .orderBy(asc(creatives.name)),
       ])
     : [[], []];

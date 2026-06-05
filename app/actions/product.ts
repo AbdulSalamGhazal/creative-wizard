@@ -1,12 +1,13 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { count, eq } from "drizzle-orm";
+import { and, count, eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth";
 import { creatives, products } from "@/db/schema";
 import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
+import { getActiveAccountId } from "@/lib/tenant";
 
 export interface ProductMutationResult {
   ok: boolean;
@@ -43,14 +44,15 @@ export async function createProduct(input: unknown): Promise<ProductMutationResu
     }
     const name = parsed.data.trim();
     let slug = slugify(name);
+    const acct = await getActiveAccountId();
 
-    // Ensure slug uniqueness (append -2, -3 …).
+    // Ensure slug uniqueness within this account (append -2, -3 …).
     const baseSlug = slug;
     for (let i = 2; ; i++) {
       const [existing] = await db
         .select({ id: products.id })
         .from(products)
-        .where(eq(products.slug, slug))
+        .where(and(eq(products.accountId, acct), eq(products.slug, slug)))
         .limit(1);
       if (!existing) break;
       slug = `${baseSlug}-${i}`;
@@ -59,11 +61,11 @@ export async function createProduct(input: unknown): Promise<ProductMutationResu
       }
     }
 
-    // Name uniqueness pre-check.
+    // Name uniqueness pre-check (scoped to this account).
     const [nameExists] = await db
       .select({ id: products.id })
       .from(products)
-      .where(eq(products.name, name))
+      .where(and(eq(products.accountId, acct), eq(products.name, name)))
       .limit(1);
     if (nameExists) {
       return {
@@ -76,6 +78,7 @@ export async function createProduct(input: unknown): Promise<ProductMutationResu
     const [inserted] = await db
       .insert(products)
       .values({
+        accountId: acct,
         name,
         slug,
         createdByUserId: user.id,
@@ -107,10 +110,11 @@ export async function createProduct(input: unknown): Promise<ProductMutationResu
 export async function archiveProduct(productId: string): Promise<ProductMutationResult> {
   try {
     const me = await requireAdmin();
+    const acct = await getActiveAccountId();
     const [existing] = await db
       .select({ id: products.id, status: products.status, name: products.name })
       .from(products)
-      .where(eq(products.id, productId))
+      .where(and(eq(products.accountId, acct), eq(products.id, productId)))
       .limit(1);
     if (!existing) return { ok: false, error: "Product not found." };
     if (existing.status === "archived") return { ok: true };
@@ -118,7 +122,7 @@ export async function archiveProduct(productId: string): Promise<ProductMutation
     await db
       .update(products)
       .set({ status: "archived", updatedAt: new Date() })
-      .where(eq(products.id, productId));
+      .where(and(eq(products.accountId, acct), eq(products.id, productId)));
 
     try {
       revalidatePath("/admin/products");
@@ -142,15 +146,16 @@ export async function archiveProduct(productId: string): Promise<ProductMutation
 export async function restoreProduct(productId: string): Promise<ProductMutationResult> {
   try {
     const me = await requireAdmin();
+    const acct = await getActiveAccountId();
     const [existing] = await db
       .select({ name: products.name })
       .from(products)
-      .where(eq(products.id, productId))
+      .where(and(eq(products.accountId, acct), eq(products.id, productId)))
       .limit(1);
     await db
       .update(products)
       .set({ status: "active", updatedAt: new Date() })
-      .where(eq(products.id, productId));
+      .where(and(eq(products.accountId, acct), eq(products.id, productId)));
     try {
       revalidatePath("/admin/products");
       revalidatePath("/creatives");
@@ -171,9 +176,11 @@ export async function restoreProduct(productId: string): Promise<ProductMutation
 }
 
 export async function countCreativesPerProduct(): Promise<Map<string, number>> {
+  const acct = await getActiveAccountId();
   const rows = await db
     .select({ productId: creatives.productId, c: count() })
     .from(creatives)
+    .where(eq(creatives.accountId, acct))
     .groupBy(creatives.productId);
   return new Map(rows.map((r) => [r.productId, Number(r.c)]));
 }

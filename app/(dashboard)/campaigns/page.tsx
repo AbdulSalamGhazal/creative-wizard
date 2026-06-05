@@ -1,7 +1,5 @@
 import { Suspense } from "react";
 import { Badge } from "@/components/ui/badge";
-import { db } from "@/lib/db";
-import { ratingRules } from "@/db/schema";
 import {
   comparisonWindow,
   COMPARE_LABEL,
@@ -14,6 +12,7 @@ import {
   type CompareMode,
   type PortfolioFilters,
 } from "@/db/queries/portfolio";
+import { getRatingRules } from "@/db/queries/rating";
 import { portfolioFiltersSchema } from "@/validators/portfolio";
 import { ksaCalendarEvents, KSA_EVENT_COLOR } from "@/lib/ksa-calendar";
 import { PortfolioFilterBar } from "@/components/portfolio/portfolio-filter-bar";
@@ -68,11 +67,11 @@ export default async function CampaignsPage({
       portfolioAllocation(filters),
       portfolioCampaigns(filters),
       portfolioLaunches(filters),
-      db.select().from(ratingRules).limit(1),
+      getRatingRules(),
     ]);
 
   // Target CPA is derived from the good-ROAS threshold × current AOV.
-  const goodRoas = rating[0] ? Number(rating[0].goodRoas) : 4;
+  const goodRoas = rating.goodRoas;
   const targetRoas = goodRoas > 0 ? goodRoas : null;
   const targetCpa =
     kpis.current.aov !== null && goodRoas > 0 ? kpis.current.aov / goodRoas : null;

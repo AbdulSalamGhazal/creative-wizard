@@ -29,6 +29,7 @@ import {
   sumSpend,
 } from "@/lib/metrics";
 import { addDays, computeDelta, prevPeriod, type Delta } from "@/lib/period";
+import { getActiveAccountId } from "@/lib/tenant";
 
 type Platform = (typeof platformEnum)[number];
 
@@ -68,8 +69,12 @@ export const COMPARE_LABEL: Record<CompareMode, string> = {
 function baseConds(
   f: PortfolioFilters,
   range: { from: string; to: string },
+  acct: string,
 ): SQL[] {
-  const c: SQL[] = [between(performanceRecords.date, range.from, range.to)];
+  const c: SQL[] = [
+    eq(performanceRecords.accountId, acct),
+    between(performanceRecords.date, range.from, range.to),
+  ];
   if (!f.includeExcluded) {
     c.push(eq(performanceRecords.excludedFromAggregates, false));
   }
@@ -158,10 +163,11 @@ export async function portfolioKpis(
   f: PortfolioFilters,
   mode: CompareMode,
 ): Promise<PortfolioKpis> {
+  const acct = await getActiveAccountId();
   const cmp = comparisonWindow(f.from, f.to, mode);
   const [curS, prevS] = await Promise.all([
-    sumsFor(baseConds(f, { from: f.from, to: f.to })),
-    sumsFor(baseConds(f, cmp)),
+    sumsFor(baseConds(f, { from: f.from, to: f.to }, acct)),
+    sumsFor(baseConds(f, cmp, acct)),
   ]);
   const current = derive(curS);
   const previous = derive(prevS);
@@ -199,6 +205,7 @@ export interface TrendPoint {
 }
 
 export async function portfolioTrend(f: PortfolioFilters): Promise<TrendPoint[]> {
+  const acct = await getActiveAccountId();
   // Pull 6 leading days so the rolling average is correct at the left edge.
   const lead = addDays(f.from, -6);
   const rows = await db
@@ -209,7 +216,7 @@ export async function portfolioTrend(f: PortfolioFilters): Promise<TrendPoint[]>
       revenue: sumConversionValue,
     })
     .from(performanceRecords)
-    .where(and(...baseConds(f, { from: lead, to: f.to })))
+    .where(and(...baseConds(f, { from: lead, to: f.to }, acct)))
     .groupBy(performanceRecords.date)
     .orderBy(asc(performanceRecords.date));
 
@@ -268,6 +275,7 @@ export interface AllocationRow {
 export async function portfolioAllocation(
   f: PortfolioFilters,
 ): Promise<AllocationRow[]> {
+  const acct = await getActiveAccountId();
   const rows = await db
     .select({
       platform: performanceRecords.platform,
@@ -276,7 +284,7 @@ export async function portfolioAllocation(
       revenue: sumConversionValue,
     })
     .from(performanceRecords)
-    .where(and(...baseConds(f, { from: f.from, to: f.to })))
+    .where(and(...baseConds(f, { from: f.from, to: f.to }, acct)))
     .groupBy(performanceRecords.platform)
     .orderBy(desc(sumSpend));
   return rows.map((r) => ({
@@ -314,6 +322,7 @@ export async function portfolioCampaigns(
   f: PortfolioFilters,
   range?: { from: string; to: string },
 ): Promise<PortfolioCampaignRow[]> {
+  const acct = await getActiveAccountId();
   const r = range ?? { from: f.from, to: f.to };
   const rows = await db
     .select({
@@ -335,7 +344,7 @@ export async function portfolioCampaigns(
       lastDate: sql<string | null>`MAX(${performanceRecords.date})`,
     })
     .from(performanceRecords)
-    .where(and(...baseConds(f, r)))
+    .where(and(...baseConds(f, r, acct)))
     .groupBy(performanceRecords.campaignName)
     .orderBy(desc(sumSpend));
   return rows.map((row) => ({
@@ -460,6 +469,7 @@ export interface LaunchAnnotation {
 export async function portfolioLaunches(
   f: PortfolioFilters,
 ): Promise<LaunchAnnotation[]> {
+  const acct = await getActiveAccountId();
   const rows = await db
     .select({
       date: creatives.launchDate,
@@ -468,6 +478,7 @@ export async function portfolioLaunches(
     .from(creatives)
     .where(
       and(
+        eq(creatives.accountId, acct),
         sql`${creatives.launchDate} IS NOT NULL`,
         between(creatives.launchDate, f.from, f.to),
       ),

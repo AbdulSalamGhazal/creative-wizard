@@ -1,6 +1,7 @@
 import { and, asc, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { summaryViews, users } from "@/db/schema";
+import { getActiveAccountId } from "@/lib/tenant";
 
 export interface SummaryViewRow {
   id: string;
@@ -19,6 +20,7 @@ export interface SummaryViewRow {
 export async function listSummaryViews(
   page = "summary",
 ): Promise<SummaryViewRow[]> {
+  const acct = await getActiveAccountId();
   const rows = await db
     .select({
       id: summaryViews.id,
@@ -31,7 +33,7 @@ export async function listSummaryViews(
     })
     .from(summaryViews)
     .leftJoin(users, eq(users.id, summaryViews.ownerUserId))
-    .where(eq(summaryViews.page, page))
+    .where(and(eq(summaryViews.accountId, acct), eq(summaryViews.page, page)))
     .orderBy(asc(summaryViews.name));
   return rows.map((r) => ({
     id: r.id,
@@ -48,16 +50,24 @@ export async function listSummaryViews(
 export async function getDefaultSummaryView(
   page = "summary",
 ): Promise<{ id: string; query: string } | null> {
+  const acct = await getActiveAccountId();
   const [row] = await db
     .select({ id: summaryViews.id, query: summaryViews.query })
     .from(summaryViews)
-    .where(and(eq(summaryViews.page, page), eq(summaryViews.isDefault, true)))
+    .where(
+      and(
+        eq(summaryViews.accountId, acct),
+        eq(summaryViews.page, page),
+        eq(summaryViews.isDefault, true),
+      ),
+    )
     .limit(1);
   return row ?? null;
 }
 
 /** Single view by id — used by the delete/default actions to authorize + label. */
 export async function getSummaryView(id: string) {
+  const acct = await getActiveAccountId();
   const [row] = await db
     .select({
       id: summaryViews.id,
@@ -67,7 +77,7 @@ export async function getSummaryView(id: string) {
       isDefault: summaryViews.isDefault,
     })
     .from(summaryViews)
-    .where(and(eq(summaryViews.id, id)))
+    .where(and(eq(summaryViews.accountId, acct), eq(summaryViews.id, id)))
     .limit(1);
   return row ?? null;
 }

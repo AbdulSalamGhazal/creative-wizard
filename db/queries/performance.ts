@@ -33,6 +33,7 @@ import {
   prevPeriod,
   type Delta,
 } from "@/lib/period";
+import { getActiveAccountId } from "@/lib/tenant";
 
 type Platform = (typeof platformEnum)[number];
 type CreativeType = (typeof creativeTypeEnum)[number];
@@ -131,12 +132,13 @@ const num = (v: unknown): number | null =>
   v === null || v === undefined ? null : Number(v);
 
 /** Build the WHERE/JOIN scaffolding shared by every aggregation query. */
-function buildBaseConditions(filters: KpiFilters): {
+async function buildBaseConditions(filters: KpiFilters): Promise<{
   conditions: SQL[];
   needsCreativeJoin: boolean;
   needsTagJoin: boolean;
-} {
-  const conditions: SQL[] = [];
+}> {
+  const acct = await getActiveAccountId();
+  const conditions: SQL[] = [eq(performanceRecords.accountId, acct)];
 
   if (filters.from && filters.to) {
     conditions.push(between(performanceRecords.date, filters.from, filters.to));
@@ -203,7 +205,7 @@ function buildBaseConditions(filters: KpiFilters): {
  */
 export async function kpis(filters: KpiFilters): Promise<Kpis> {
   const { conditions, needsCreativeJoin, needsTagJoin } =
-    buildBaseConditions(filters);
+    await buildBaseConditions(filters);
 
   let q = db
     .select({
@@ -267,7 +269,7 @@ export async function spendByDatePlatform(
   filters: KpiFilters,
 ): Promise<SpendByDatePlatform[]> {
   const { conditions, needsCreativeJoin, needsTagJoin } =
-    buildBaseConditions(filters);
+    await buildBaseConditions(filters);
 
   let q = db
     .select({
@@ -309,7 +311,7 @@ export async function topCreatives(
   filters: KpiFilters,
   limit = 10,
 ): Promise<TopCreativeRow[]> {
-  const { conditions, needsTagJoin } = buildBaseConditions(filters);
+  const { conditions, needsTagJoin } = await buildBaseConditions(filters);
 
   // This query always needs the creatives + products join for the name/product
   // columns, regardless of which filters are active.
@@ -412,7 +414,7 @@ export async function platformMix(
   filters: KpiFilters,
 ): Promise<PlatformMixRow[]> {
   const { conditions, needsCreativeJoin, needsTagJoin } =
-    buildBaseConditions(filters);
+    await buildBaseConditions(filters);
 
   let q = db
     .select({
@@ -465,7 +467,7 @@ export async function platformMix(
 export async function productMix(
   filters: KpiFilters,
 ): Promise<ProductMixRow[]> {
-  const { conditions, needsTagJoin } = buildBaseConditions(filters);
+  const { conditions, needsTagJoin } = await buildBaseConditions(filters);
 
   let q = db
     .select({
@@ -506,7 +508,7 @@ export async function productMix(
  * type-mix donut. Always joins creatives for the `type` column.
  */
 export async function typeMix(filters: KpiFilters): Promise<TypeMixRow[]> {
-  const { conditions, needsTagJoin } = buildBaseConditions(filters);
+  const { conditions, needsTagJoin } = await buildBaseConditions(filters);
 
   let q = db
     .select({
@@ -545,7 +547,8 @@ export async function typeMix(filters: KpiFilters): Promise<TypeMixRow[]> {
  * — the same semantics as the Trends "By tag" rollup).
  */
 export async function tagMix(filters: KpiFilters): Promise<TagMixRow[]> {
-  const conditions: SQL[] = [];
+  const acct = await getActiveAccountId();
+  const conditions: SQL[] = [eq(performanceRecords.accountId, acct)];
   if (filters.from && filters.to) {
     conditions.push(between(performanceRecords.date, filters.from, filters.to));
   }
@@ -635,7 +638,7 @@ export async function compareSeries(
 ): Promise<CompareSeriesPoint[]> {
   if (filters.creativeIds.length === 0) return [];
   const { conditions, needsCreativeJoin, needsTagJoin } =
-    buildBaseConditions(filters);
+    await buildBaseConditions(filters);
 
   const metricSql = metricForCompare(filters.metric);
 
@@ -702,7 +705,7 @@ export async function compareTotals(
   filters: KpiFilters & { creativeIds: string[] },
 ): Promise<CompareTotalsRow[]> {
   if (filters.creativeIds.length === 0) return [];
-  const { conditions, needsTagJoin } = buildBaseConditions(filters);
+  const { conditions, needsTagJoin } = await buildBaseConditions(filters);
 
   let q = db
     .select({
@@ -881,7 +884,7 @@ async function spendByDate(
   filters: KpiFilters,
 ): Promise<Array<{ date: string; spend: number }>> {
   const { conditions, needsCreativeJoin, needsTagJoin } =
-    buildBaseConditions(filters);
+    await buildBaseConditions(filters);
 
   let q = db
     .select({
@@ -1021,7 +1024,7 @@ interface SpendPerCreativeRow {
 async function spendPerCreative(
   filters: KpiFilters,
 ): Promise<SpendPerCreativeRow[]> {
-  const { conditions, needsTagJoin } = buildBaseConditions(filters);
+  const { conditions, needsTagJoin } = await buildBaseConditions(filters);
 
   let q = db
     .select({
@@ -1075,6 +1078,7 @@ export interface CompareDimensionRow {
  * powers the cascading Platform → Campaign → Creative selectors on Compare.
  */
 export async function compareDimensions(): Promise<CompareDimensionRow[]> {
+  const acct = await getActiveAccountId();
   const rows = await db
     .selectDistinct({
       platform: performanceRecords.platform,
@@ -1086,7 +1090,12 @@ export async function compareDimensions(): Promise<CompareDimensionRow[]> {
     .from(performanceRecords)
     .innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId))
     .innerJoin(products, eq(products.id, creatives.productId))
-    .where(eq(performanceRecords.excludedFromAggregates, false))
+    .where(
+      and(
+        eq(performanceRecords.accountId, acct),
+        eq(performanceRecords.excludedFromAggregates, false),
+      ),
+    )
     .orderBy(
       asc(performanceRecords.platform),
       asc(performanceRecords.campaignName),
@@ -1109,7 +1118,7 @@ export async function compareDimensions(): Promise<CompareDimensionRow[]> {
 export async function compareSideSeries(
   filters: KpiFilters & { metric: CompareMetric },
 ): Promise<Array<{ date: string; value: number | null }>> {
-  const { conditions, needsCreativeJoin } = buildBaseConditions(filters);
+  const { conditions, needsCreativeJoin } = await buildBaseConditions(filters);
   const metricSql = metricForCompare(filters.metric);
   let q = db
     .select({ date: performanceRecords.date, value: metricSql })

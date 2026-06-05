@@ -22,6 +22,15 @@ export const creativeTypeEnum = ["video", "slides", "image"] as const;
 export const creativeStatusEnum = ["draft", "active", "paused", "archived"] as const;
 export const productStatusEnum = ["active", "archived"] as const;
 
+/**
+ * The fixed UUID of the original brand ("Urjwan"). It's the DEFAULT for every
+ * tenant table's `account_id` column so (a) the additive migration backfills
+ * existing rows to it and (b) any write that forgets to set an account still
+ * lands on the primary brand rather than failing. New code always sets the
+ * account explicitly; this is a transition/safety net.
+ */
+export const DEFAULT_ACCOUNT_ID = "00000000-0000-0000-0000-000000000001";
+
 export const users = pgTable("users", {
   id: uuid("id").primaryKey().defaultRandom(),
   email: varchar("email", { length: 255 }).notNull().unique(),
@@ -33,12 +42,32 @@ export const users = pgTable("users", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+/**
+ * Brands / tenants. Global (shared across the app); every tenant-scoped table
+ * carries an `account_id` FK to this table. Users are global too — any user can
+ * switch to any account via the brand switcher.
+ */
+export const accounts = pgTable("accounts", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: varchar("name", { length: 120 }).notNull(),
+  slug: varchar("slug", { length: 120 }).notNull().unique(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** Shared `account_id` column definition for tenant-scoped tables. */
+const accountId = () =>
+  uuid("account_id")
+    .notNull()
+    .references(() => accounts.id)
+    .default(DEFAULT_ACCOUNT_ID);
+
 export const products = pgTable(
   "products",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    name: varchar("name", { length: 255 }).notNull().unique(),
-    slug: varchar("slug", { length: 255 }).notNull().unique(),
+    accountId: accountId(),
+    name: varchar("name", { length: 255 }).notNull(),
+    slug: varchar("slug", { length: 255 }).notNull(),
     status: varchar("status", { length: 16, enum: productStatusEnum })
       .notNull()
       .default("active"),
@@ -50,6 +79,8 @@ export const products = pgTable(
   },
   (t) => ({
     statusIdx: index("products_status_idx").on(t.status),
+    accountNameIdx: uniqueIndex("products_account_name_idx").on(t.accountId, t.name),
+    accountSlugIdx: uniqueIndex("products_account_slug_idx").on(t.accountId, t.slug),
   }),
 );
 
@@ -57,7 +88,8 @@ export const creatives = pgTable(
   "creatives",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    name: varchar("name", { length: 255 }).notNull().unique(),
+    accountId: accountId(),
+    name: varchar("name", { length: 255 }).notNull(),
     productId: uuid("product_id")
       .notNull()
       .references(() => products.id),
@@ -78,6 +110,7 @@ export const creatives = pgTable(
     productIdx: index("creatives_product_idx").on(t.productId),
     statusIdx: index("creatives_status_idx").on(t.status),
     typeIdx: index("creatives_type_idx").on(t.type),
+    accountNameIdx: uniqueIndex("creatives_account_name_idx").on(t.accountId, t.name),
   }),
 );
 
@@ -101,14 +134,21 @@ export const creativeTags = pgTable(
  * canonical list admins curate. Renaming a tag here cascades to
  * `creative_tags`; deleting removes the assignments too.
  */
-export const tags = pgTable("tags", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  name: varchar("name", { length: 64 }).notNull().unique(),
-  createdByUserId: uuid("created_by_user_id").references(() => users.id),
-  createdAt: timestamp("created_at", { withTimezone: true })
-    .notNull()
-    .defaultNow(),
-});
+export const tags = pgTable(
+  "tags",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    accountId: accountId(),
+    name: varchar("name", { length: 64 }).notNull(),
+    createdByUserId: uuid("created_by_user_id").references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => ({
+    accountNameIdx: uniqueIndex("tags_account_name_idx").on(t.accountId, t.name),
+  }),
+);
 
 /**
  * Singleton config for the creative rating shown on /summary. One global row
@@ -121,36 +161,51 @@ export const tags = pgTable("tags", {
  * Applied identically to each platform's own values and the blended total.
  * Edited from /admin/catalog?tab=rating (admin only).
  */
-export const ratingRules = pgTable("rating_rules", {
-  id: integer("id").primaryKey().default(1),
-  minSpend: numeric("min_spend", { precision: 14, scale: 2 }).notNull().default("500"),
-  goodRoas: numeric("good_roas", { precision: 10, scale: 2 }).notNull().default("4"),
-  decentRoas: numeric("decent_roas", { precision: 10, scale: 2 }).notNull().default("2"),
-  updatedAt: timestamp("updated_at", { withTimezone: true })
-    .notNull()
-    .defaultNow(),
-  updatedByUserId: uuid("updated_by_user_id").references(() => users.id),
-});
+export const ratingRules = pgTable(
+  "rating_rules",
+  {
+    // One default-rating row per brand (was a global id=1 singleton).
+    accountId: accountId(),
+    minSpend: numeric("min_spend", { precision: 14, scale: 2 }).notNull().default("500"),
+    goodRoas: numeric("good_roas", { precision: 10, scale: 2 }).notNull().default("4"),
+    decentRoas: numeric("decent_roas", { precision: 10, scale: 2 }).notNull().default("2"),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedByUserId: uuid("updated_by_user_id").references(() => users.id),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.accountId] }),
+  }),
+);
 
 /**
- * Per-platform overrides for the rating cutoffs. The `rating_rules` singleton
- * above is the DEFAULT (used for the blended total and any platform without a
- * row here); a row in this table customizes one platform's thresholds. One row
- * per platform, keyed by the platform name.
+ * Per-platform overrides for the rating cutoffs. The `rating_rules` row above
+ * is the DEFAULT (used for the blended total and any platform without a row
+ * here); a row in this table customizes one platform's thresholds. One row per
+ * (brand, platform).
  */
-export const platformRatingRules = pgTable("platform_rating_rules", {
-  platform: varchar("platform", { length: 16, enum: platformEnum }).primaryKey(),
-  minSpend: numeric("min_spend", { precision: 14, scale: 2 }).notNull().default("500"),
-  goodRoas: numeric("good_roas", { precision: 10, scale: 2 }).notNull().default("4"),
-  decentRoas: numeric("decent_roas", { precision: 10, scale: 2 }).notNull().default("2"),
-  updatedAt: timestamp("updated_at", { withTimezone: true })
-    .notNull()
-    .defaultNow(),
-  updatedByUserId: uuid("updated_by_user_id").references(() => users.id),
-});
+export const platformRatingRules = pgTable(
+  "platform_rating_rules",
+  {
+    accountId: accountId(),
+    platform: varchar("platform", { length: 16, enum: platformEnum }).notNull(),
+    minSpend: numeric("min_spend", { precision: 14, scale: 2 }).notNull().default("500"),
+    goodRoas: numeric("good_roas", { precision: 10, scale: 2 }).notNull().default("4"),
+    decentRoas: numeric("decent_roas", { precision: 10, scale: 2 }).notNull().default("2"),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedByUserId: uuid("updated_by_user_id").references(() => users.id),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.accountId, t.platform] }),
+  }),
+);
 
 export const uploadBatches = pgTable("upload_batches", {
   id: uuid("id").primaryKey().defaultRandom(),
+  accountId: accountId(),
   platform: varchar("platform", { length: 16, enum: platformEnum }).notNull(),
   fileName: varchar("file_name", { length: 255 }).notNull(),
   uploadedByUserId: uuid("uploaded_by_user_id")
@@ -176,6 +231,7 @@ export const platformFieldMappings = pgTable(
   "platform_field_mappings",
   {
     id: uuid("id").primaryKey().defaultRandom(),
+    accountId: accountId(),
     platform: varchar("platform", { length: 16, enum: platformEnum }).notNull(),
     internalField: varchar("internal_field", { length: 32 }).notNull(),
     headerName: varchar("header_name", { length: 255 }).notNull(),
@@ -186,7 +242,12 @@ export const platformFieldMappings = pgTable(
       .defaultNow(),
   },
   (t) => ({
-    uniq: uniqueIndex("pfm_unique_idx").on(t.platform, t.internalField, t.headerName),
+    uniq: uniqueIndex("pfm_unique_idx").on(
+      t.accountId,
+      t.platform,
+      t.internalField,
+      t.headerName,
+    ),
     platformIdx: index("pfm_platform_idx").on(t.platform),
   }),
 );
@@ -201,6 +262,7 @@ export const uploadValidationSessions = pgTable(
   "upload_validation_sessions",
   {
     token: uuid("token").primaryKey().defaultRandom(),
+    accountId: accountId(),
     platform: varchar("platform", { length: 16, enum: platformEnum }).notNull(),
     fileName: varchar("file_name", { length: 255 }).notNull(),
     uploadedByUserId: uuid("uploaded_by_user_id")
@@ -231,6 +293,7 @@ export const summaryViews = pgTable(
   "summary_views",
   {
     id: uuid("id").primaryKey().defaultRandom(),
+    accountId: accountId(),
     page: varchar("page", { length: 32 }).notNull().default("summary"),
     name: varchar("name", { length: 120 }).notNull(),
     query: text("query").notNull(),
@@ -248,13 +311,14 @@ export const summaryViews = pgTable(
     pageIdx: index("summary_views_page_idx").on(t.page),
     ownerIdx: index("summary_views_owner_idx").on(t.ownerUserId),
     uniqOwnerName: uniqueIndex("summary_views_owner_name_idx").on(
+      t.accountId,
       t.ownerUserId,
       t.page,
       t.name,
     ),
-    // One default per page — partial unique index over rows where is_default.
+    // One default per page per account — partial unique index over is_default.
     oneDefaultPerPage: uniqueIndex("summary_views_default_idx")
-      .on(t.page)
+      .on(t.accountId, t.page)
       .where(sql`${t.isDefault}`),
   }),
 );
@@ -277,6 +341,7 @@ export const auditEvents = pgTable(
   "audit_events",
   {
     id: bigint("id", { mode: "number" }).primaryKey().generatedByDefaultAsIdentity(),
+    accountId: accountId(),
     at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
     actorUserId: uuid("actor_user_id").references(() => users.id),
     action: varchar("action", { length: 64 }).notNull(),
@@ -297,6 +362,7 @@ export const performanceRecords = pgTable(
   "performance_records",
   {
     id: bigint("id", { mode: "number" }).primaryKey().generatedByDefaultAsIdentity(),
+    accountId: accountId(),
     creativeId: uuid("creative_id")
       .notNull()
       .references(() => creatives.id),
@@ -339,6 +405,7 @@ export const performanceRecords = pgTable(
     creativePlatformCampaignDateIdx: uniqueIndex(
       "perf_creative_platform_campaign_date_idx",
     ).on(t.creativeId, t.platform, t.campaignName, t.date),
+    accountDateIdx: index("perf_account_date_idx").on(t.accountId, t.date),
     dateIdx: index("perf_date_idx").on(t.date),
     platformDateIdx: index("perf_platform_date_idx").on(t.platform, t.date),
     batchIdx: index("perf_upload_batch_idx").on(t.uploadBatchId),

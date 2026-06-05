@@ -3,6 +3,7 @@ import type { SessionUser } from "@/lib/auth";
 import { UserMenu } from "@/components/auth/user-menu";
 import { CommandPalette } from "@/components/layout/command-palette";
 import { ScreenshotButton } from "@/components/layout/screenshot-button";
+import { AccountSwitcher } from "@/components/layout/account-switcher";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 
 function initials(name: string): string {
@@ -13,9 +14,11 @@ function initials(name: string): string {
 interface Props {
   user: SessionUser;
   creatives: Array<{ id: string; name: string; productName: string }>;
+  accounts: Array<{ id: string; name: string }>;
+  activeAccountId: string;
 }
 
-export function TopBar({ user, creatives }: Props) {
+export function TopBar({ user, creatives, accounts, activeAccountId }: Props) {
   return (
     <header className="border-b border-line sticky top-0 z-20 bg-background">
       <div className="flex items-center justify-between px-6 h-14">
@@ -33,6 +36,7 @@ export function TopBar({ user, creatives }: Props) {
           <div className="text-[17px] font-semibold tracking-tight leading-none text-ink">
             Creative Wizard
           </div>
+          <AccountSwitcher accounts={accounts} activeId={activeAccountId} />
         </div>
         <div className="flex items-center gap-3">
           <CommandPalette creatives={creatives} />

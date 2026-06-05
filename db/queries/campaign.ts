@@ -39,6 +39,7 @@ import {
   voc,
 } from "@/lib/metrics";
 import { computeDelta, prevPeriod, type Delta } from "@/lib/period";
+import { getActiveAccountId } from "@/lib/tenant";
 
 type Platform = (typeof platformEnum)[number];
 type CreativeType = (typeof creativeTypeEnum)[number];
@@ -81,8 +82,8 @@ export interface CampaignListRow {
   lastDate: string | null;
 }
 
-function listConds(f: CampaignFilters): SQL[] {
-  const c: SQL[] = [];
+function listConds(f: CampaignFilters, acct: string): SQL[] {
+  const c: SQL[] = [eq(performanceRecords.accountId, acct)];
   if (f.from && f.to) c.push(between(performanceRecords.date, f.from, f.to));
   if (!f.includeExcluded) {
     c.push(eq(performanceRecords.excludedFromAggregates, false));
@@ -112,7 +113,7 @@ function listConds(f: CampaignFilters): SQL[] {
 export async function listCampaigns(
   f: CampaignFilters,
 ): Promise<CampaignListRow[]> {
-  const conds = listConds(f);
+  const conds = listConds(f, await getActiveAccountId());
   const rows = await db
     .select({
       campaign: performanceRecords.campaignName,
@@ -172,7 +173,7 @@ export interface CampaignPortfolio {
 export async function campaignPortfolio(
   f: CampaignFilters,
 ): Promise<CampaignPortfolio> {
-  const conds = listConds(f);
+  const conds = listConds(f, await getActiveAccountId());
   const [r] = await db
     .select({
       campaigns: sql<number>`COUNT(DISTINCT ${performanceRecords.campaignName})::int`,
@@ -231,7 +232,7 @@ export interface CampaignPlatformGrainRow {
 export async function campaignByPlatform(
   f: CampaignFilters,
 ): Promise<CampaignPlatformGrainRow[]> {
-  const conds = listConds(f);
+  const conds = listConds(f, await getActiveAccountId());
   const rows = await db
     .select({
       platform: performanceRecords.platform,
@@ -288,6 +289,7 @@ export interface CampaignMeta {
 
 /** All-time facts for one campaign. Null when the campaign has no records. */
 export async function campaignMeta(name: string): Promise<CampaignMeta | null> {
+  const acct = await getActiveAccountId();
   const [r] = await db
     .select({
       platforms: sql<Platform[]>`array_agg(DISTINCT ${performanceRecords.platform})`,
@@ -300,7 +302,12 @@ export async function campaignMeta(name: string): Promise<CampaignMeta | null> {
     .from(performanceRecords)
     .innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId))
     .innerJoin(products, eq(products.id, creatives.productId))
-    .where(eq(performanceRecords.campaignName, name));
+    .where(
+      and(
+        eq(performanceRecords.accountId, acct),
+        eq(performanceRecords.campaignName, name),
+      ),
+    );
 
   if (!r || num(r.rows) === 0) return null;
   return {
@@ -354,8 +361,16 @@ export interface CampaignAnalytics {
   deltas: Record<CampaignDeltaKey, Delta> | null;
 }
 
-function detailCond(name: string, range: Range, includeExcluded?: boolean): SQL {
-  const c: SQL[] = [eq(performanceRecords.campaignName, name)];
+function detailCond(
+  name: string,
+  range: Range,
+  acct: string,
+  includeExcluded?: boolean,
+): SQL {
+  const c: SQL[] = [
+    eq(performanceRecords.accountId, acct),
+    eq(performanceRecords.campaignName, name),
+  ];
   if (range.from && range.to) {
     c.push(between(performanceRecords.date, range.from, range.to));
   }
@@ -415,16 +430,17 @@ export async function campaignAnalytics(
   range: Range,
   includeExcluded?: boolean,
 ): Promise<CampaignAnalytics> {
+  const acct = await getActiveAccountId();
   const bounded = Boolean(range.from && range.to);
   if (!bounded) {
-    const totals = await totalsFor(detailCond(name, range, includeExcluded));
+    const totals = await totalsFor(detailCond(name, range, acct, includeExcluded));
     return { totals, deltas: null };
   }
   const prev = prevPeriod(range.from!, range.to!);
   const [totals, prior] = await Promise.all([
-    totalsFor(detailCond(name, range, includeExcluded)),
+    totalsFor(detailCond(name, range, acct, includeExcluded)),
     totalsFor(
-      detailCond(name, { from: prev.from, to: prev.to }, includeExcluded),
+      detailCond(name, { from: prev.from, to: prev.to }, acct, includeExcluded),
     ),
   ]);
   const d = (k: CampaignDeltaKey): Delta =>
@@ -471,6 +487,7 @@ export async function campaignDaily(
   range: Range,
   includeExcluded?: boolean,
 ): Promise<CampaignDailyPoint[]> {
+  const acct = await getActiveAccountId();
   const rows = await db
     .select({
       date: performanceRecords.date,
@@ -487,7 +504,7 @@ export async function campaignDaily(
     })
     .from(performanceRecords)
     .innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId))
-    .where(detailCond(name, range, includeExcluded))
+    .where(detailCond(name, range, acct, includeExcluded))
     .groupBy(performanceRecords.date)
     .orderBy(asc(performanceRecords.date));
   return rows.map((r) => ({
@@ -527,6 +544,7 @@ export async function campaignPlatforms(
   range: Range,
   includeExcluded?: boolean,
 ): Promise<CampaignPlatformRow[]> {
+  const acct = await getActiveAccountId();
   const rows = await db
     .select({
       platform: performanceRecords.platform,
@@ -542,7 +560,7 @@ export async function campaignPlatforms(
     })
     .from(performanceRecords)
     .innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId))
-    .where(detailCond(name, range, includeExcluded))
+    .where(detailCond(name, range, acct, includeExcluded))
     .groupBy(performanceRecords.platform)
     .orderBy(desc(sumSpend));
   return rows.map((r) => ({
@@ -584,6 +602,7 @@ export async function campaignCreatives(
   range: Range,
   includeExcluded?: boolean,
 ): Promise<CampaignCreativeRow[]> {
+  const acct = await getActiveAccountId();
   const rows = await db
     .select({
       creativeId: creatives.id,
@@ -602,7 +621,7 @@ export async function campaignCreatives(
     })
     .from(performanceRecords)
     .innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId))
-    .where(detailCond(name, range, includeExcluded))
+    .where(detailCond(name, range, acct, includeExcluded))
     .groupBy(
       creatives.id,
       creatives.name,
@@ -651,6 +670,7 @@ export async function campaignRecords(
   range: Range,
   includeExcluded?: boolean,
 ): Promise<CampaignRecordRow[]> {
+  const acct = await getActiveAccountId();
   const rows = await db
     .select({
       id: performanceRecords.id,
@@ -667,7 +687,7 @@ export async function campaignRecords(
     })
     .from(performanceRecords)
     .innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId))
-    .where(detailCond(name, range, includeExcluded))
+    .where(detailCond(name, range, acct, includeExcluded))
     .orderBy(desc(performanceRecords.date), desc(performanceRecords.spend))
     .limit(500);
   return rows.map((r) => ({

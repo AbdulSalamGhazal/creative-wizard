@@ -1,11 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth";
 import { performanceRecords, uploadBatches } from "@/db/schema";
 import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
+import { getActiveAccountId } from "@/lib/tenant";
 
 const ROLLBACK_WINDOW_MS = 24 * 60 * 60 * 1000;
 
@@ -25,6 +26,7 @@ export interface RollbackResult {
 export async function rollbackBatch(batchId: string): Promise<RollbackResult> {
   try {
     const user = await requireAdmin();
+    const acct = await getActiveAccountId();
 
     const [batch] = await db
       .select({
@@ -36,7 +38,7 @@ export async function rollbackBatch(batchId: string): Promise<RollbackResult> {
         rowsImported: uploadBatches.rowsImported,
       })
       .from(uploadBatches)
-      .where(eq(uploadBatches.id, batchId))
+      .where(and(eq(uploadBatches.accountId, acct), eq(uploadBatches.id, batchId)))
       .limit(1);
 
     if (!batch) return { ok: false, error: "Batch not found." };
@@ -53,7 +55,12 @@ export async function rollbackBatch(batchId: string): Promise<RollbackResult> {
     await db.transaction(async (tx) => {
       await tx
         .delete(performanceRecords)
-        .where(eq(performanceRecords.uploadBatchId, batchId));
+        .where(
+          and(
+            eq(performanceRecords.accountId, acct),
+            eq(performanceRecords.uploadBatchId, batchId),
+          ),
+        );
 
       await tx
         .update(uploadBatches)
@@ -62,7 +69,7 @@ export async function rollbackBatch(batchId: string): Promise<RollbackResult> {
           rolledBackAt: new Date(),
           rolledBackByUserId: user.id,
         })
-        .where(eq(uploadBatches.id, batchId));
+        .where(and(eq(uploadBatches.accountId, acct), eq(uploadBatches.id, batchId)));
     });
 
     try {

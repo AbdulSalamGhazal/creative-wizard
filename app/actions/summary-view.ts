@@ -8,6 +8,7 @@ import { summaryViews } from "@/db/schema";
 import { getSummaryView } from "@/db/queries/summary-views";
 import { createSummaryViewSchema } from "@/validators/summary-view";
 import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
+import { getActiveAccountId } from "@/lib/tenant";
 
 export interface ViewMutationResult {
   ok: boolean;
@@ -33,11 +34,12 @@ export async function createSummaryView(
       };
     }
     const { name, query, page } = parsed.data;
+    const acct = await getActiveAccountId();
 
     try {
       const [inserted] = await db
         .insert(summaryViews)
-        .values({ name, query, page, ownerUserId: user.id })
+        .values({ accountId: acct, name, query, page, ownerUserId: user.id })
         .returning({ id: summaryViews.id });
 
       try {
@@ -84,6 +86,7 @@ export async function deleteSummaryView(
     const user = await requireAuth();
     if (!z_uuid(id)) return { ok: false, error: "Invalid id." };
 
+    const acct = await getActiveAccountId();
     const view = await getSummaryView(id);
     if (!view) return { ok: false, error: "View not found." };
 
@@ -91,7 +94,9 @@ export async function deleteSummaryView(
       return { ok: false, error: "Only the owner or an admin can delete this view." };
     }
 
-    await db.delete(summaryViews).where(eq(summaryViews.id, id));
+    await db
+      .delete(summaryViews)
+      .where(and(eq(summaryViews.accountId, acct), eq(summaryViews.id, id)));
 
     try {
       revalidatePath("/summary");
@@ -128,19 +133,22 @@ export async function setDefaultView(id: string): Promise<ViewMutationResult> {
     const user = await requireAuth();
     if (!z_uuid(id)) return { ok: false, error: "Invalid id." };
 
+    const acct = await getActiveAccountId();
     const view = await getSummaryView(id);
     if (!view) return { ok: false, error: "View not found." };
 
     const makeDefault = !view.isDefault;
 
     await db.transaction(async (tx) => {
-      // Clear the current default for this page first to satisfy the
-      // one-default-per-page partial unique index.
+      // Clear THIS account's current default for the page first, to satisfy the
+      // one-default-per-(account,page) partial unique index. Scoped to acct so
+      // it can't clear another brand's default.
       await tx
         .update(summaryViews)
         .set({ isDefault: false })
         .where(
           and(
+            eq(summaryViews.accountId, acct),
             eq(summaryViews.page, view.page),
             eq(summaryViews.isDefault, true),
           ),
@@ -149,7 +157,7 @@ export async function setDefaultView(id: string): Promise<ViewMutationResult> {
         await tx
           .update(summaryViews)
           .set({ isDefault: true })
-          .where(eq(summaryViews.id, id));
+          .where(and(eq(summaryViews.accountId, acct), eq(summaryViews.id, id)));
       }
     });
 

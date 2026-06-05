@@ -1,6 +1,7 @@
-import { asc, sql } from "drizzle-orm";
+import { and, asc, eq, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { creatives, users } from "@/db/schema";
+import { getActiveAccountId } from "@/lib/tenant";
 
 /**
  * Users who've authored at least one creative — the candidate set for the
@@ -11,6 +12,7 @@ import { creatives, users } from "@/db/schema";
 export async function listCreators(): Promise<
   Array<{ id: string; name: string; email: string }>
 > {
+  const acct = await getActiveAccountId();
   const rows = await db
     .selectDistinct({
       id: users.id,
@@ -18,7 +20,13 @@ export async function listCreators(): Promise<
       email: users.email,
     })
     .from(users)
-    .innerJoin(creatives, sql`${creatives.createdByUserId} = ${users.id}`)
+    .innerJoin(
+      creatives,
+      and(
+        eq(creatives.createdByUserId, users.id),
+        eq(creatives.accountId, acct),
+      ),
+    )
     .orderBy(asc(users.name));
   return rows;
 }

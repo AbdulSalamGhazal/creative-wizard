@@ -2,6 +2,7 @@ import { and, desc, eq, lt, sql, type SQL } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { auditEvents, users } from "@/db/schema";
 import type { AuditAction, AuditEntityType } from "@/lib/audit";
+import { getActiveAccountId } from "@/lib/tenant";
 
 export interface AuditFeedFilters {
   /** Filter by action (e.g. "creative.update") or category ("creative"). */
@@ -32,7 +33,8 @@ export async function listAuditEvents(
   filters: AuditFeedFilters = {},
 ): Promise<AuditFeedRow[]> {
   const limit = Math.min(Math.max(filters.limit ?? 100, 1), 500);
-  const conds: SQL[] = [];
+  const acct = await getActiveAccountId();
+  const conds: SQL[] = [eq(auditEvents.accountId, acct)];
   if (filters.category) conds.push(eq(auditEvents.entityType, filters.category));
   if (filters.entityType && !filters.category) {
     conds.push(eq(auditEvents.entityType, filters.entityType));
@@ -84,12 +86,14 @@ export async function listAuditEvents(
 export async function auditCategoryCounts(): Promise<
   Array<{ category: string; count: number }>
 > {
+  const acct = await getActiveAccountId();
   const rows = await db
     .select({
       category: auditEvents.entityType,
       count: sql<number>`count(*)::int`,
     })
     .from(auditEvents)
+    .where(eq(auditEvents.accountId, acct))
     .groupBy(auditEvents.entityType);
   return rows;
 }

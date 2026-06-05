@@ -1,13 +1,14 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth";
-import { creativeTags, tags } from "@/db/schema";
+import { creatives, creativeTags, tags } from "@/db/schema";
 import { getTag } from "@/db/queries/tags";
 import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
+import { getActiveAccountId } from "@/lib/tenant";
 
 export interface TagMutationResult {
   ok: boolean;
@@ -39,17 +40,18 @@ export async function createTag(input: unknown): Promise<TagMutationResult> {
       return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid name" };
     }
     const name = parsed.data;
+    const acct = await getActiveAccountId();
 
     const [existing] = await db
       .select({ id: tags.id })
       .from(tags)
-      .where(eq(tags.name, name))
+      .where(and(eq(tags.accountId, acct), eq(tags.name, name)))
       .limit(1);
     if (existing) return { ok: false, error: "That tag already exists." };
 
     const [inserted] = await db
       .insert(tags)
-      .values({ name, createdByUserId: user.id })
+      .values({ accountId: acct, name, createdByUserId: user.id })
       .returning({ id: tags.id });
 
     revalidate();
@@ -83,6 +85,7 @@ export async function renameTag(
       return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid name" };
     }
     const next = parsed.data;
+    const acct = await getActiveAccountId();
 
     const tag = await getTag(id);
     if (!tag) return { ok: false, error: "Tag not found." };
@@ -91,18 +94,29 @@ export async function renameTag(
     const [clash] = await db
       .select({ id: tags.id })
       .from(tags)
-      .where(eq(tags.name, next))
+      .where(and(eq(tags.accountId, acct), eq(tags.name, next)))
       .limit(1);
     if (clash) return { ok: false, error: "Another tag already uses that name." };
 
+    // Subquery of this account's creative ids — scopes the cascade so a tag
+    // string shared with another brand can't be renamed across tenants.
+    const acctCreatives = db
+      .select({ id: creatives.id })
+      .from(creatives)
+      .where(eq(creatives.accountId, acct));
+
     await db.transaction(async (tx) => {
       await tx.update(tags).set({ name: next }).where(eq(tags.id, id));
-      // Cascade to assignments. onConflictDoNothing guards the rare case
-      // where a creative already carried both the old and new tag.
+      // Cascade to assignments — but ONLY for this account's creatives.
       await tx
         .update(creativeTags)
         .set({ tag: next })
-        .where(eq(creativeTags.tag, tag.name));
+        .where(
+          and(
+            eq(creativeTags.tag, tag.name),
+            inArray(creativeTags.creativeId, acctCreatives),
+          ),
+        );
     });
 
     revalidate();
@@ -127,13 +141,26 @@ export async function renameTag(
 export async function deleteTag(id: string): Promise<TagMutationResult> {
   try {
     const user = await requireAdmin();
+    const acct = await getActiveAccountId();
     const tag = await getTag(id);
     if (!tag) return { ok: false, error: "Tag not found." };
+
+    // Scope the assignment removal to this account's creatives so a shared tag
+    // string doesn't get stripped from another brand's creatives.
+    const acctCreatives = db
+      .select({ id: creatives.id })
+      .from(creatives)
+      .where(eq(creatives.accountId, acct));
 
     const removed = await db.transaction(async (tx) => {
       const r = await tx
         .delete(creativeTags)
-        .where(eq(creativeTags.tag, tag.name))
+        .where(
+          and(
+            eq(creativeTags.tag, tag.name),
+            inArray(creativeTags.creativeId, acctCreatives),
+          ),
+        )
         .returning({ creativeId: creativeTags.creativeId });
       await tx.delete(tags).where(eq(tags.id, id));
       return r.length;

@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { revalidatePath } from "next/cache";
-import { eq, inArray, lt } from "drizzle-orm";
+import { and, eq, inArray, lt } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireEditor } from "@/lib/auth";
@@ -89,6 +89,7 @@ export async function POST(request: NextRequest) {
   const [session] = await db
     .select({
       token: uploadValidationSessions.token,
+      accountId: uploadValidationSessions.accountId,
       platform: uploadValidationSessions.platform,
       fileName: uploadValidationSessions.fileName,
       payload: uploadValidationSessions.payload,
@@ -122,13 +123,18 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // Scope every write to the account the session was validated under — NOT the
+  // current cookie — so a brand switch between validate and commit can't write
+  // this file's rows into a different brand.
+  const acct = session.accountId;
+
   // Re-resolve creative IDs by name in case the registry shifted between
   // validate and commit. Names that vanished → 422 with a clear pointer.
   const names = [...new Set(payload.rows.map((r) => r.creativeName))];
   const found = await db
     .select({ id: creatives.id, name: creatives.name, type: creatives.type })
     .from(creatives)
-    .where(inArray(creatives.name, names));
+    .where(and(eq(creatives.accountId, acct), inArray(creatives.name, names)));
   const idByName = new Map(found.map((c) => [c.name, c.id]));
   const typeByName = new Map(found.map((c) => [c.name, c.type]));
   const missing = names.filter((n) => !idByName.has(n));
@@ -200,6 +206,7 @@ export async function POST(request: NextRequest) {
       const [batch] = await tx
         .insert(uploadBatches)
         .values({
+          accountId: acct,
           platform,
           fileName: session.fileName,
           uploadedByUserId: user.id,
@@ -211,6 +218,7 @@ export async function POST(request: NextRequest) {
       batchId = batch.id;
 
       const inserts = insertRows.map((r) => ({
+        accountId: acct,
         creativeId: idByName.get(r.creativeName)!,
         platform,
         campaignName: r.campaignName,
@@ -237,7 +245,12 @@ export async function POST(request: NextRequest) {
       const ret = await tx
         .update(performanceRecords)
         .set(metricValues(row))
-        .where(eq(performanceRecords.id, id))
+        .where(
+          and(
+            eq(performanceRecords.accountId, acct),
+            eq(performanceRecords.id, id),
+          ),
+        )
         .returning({ id: performanceRecords.id });
       updated += ret.length;
     }
@@ -265,6 +278,7 @@ export async function POST(request: NextRequest) {
     entityId: result.batchId,
     entityLabel: session.fileName,
     actorUserId: user.id,
+    accountId: acct,
     meta: {
       platform,
       rowsImported: result.rowsImported,

@@ -22,6 +22,7 @@ import {
   type creativeTypeEnum,
 } from "@/db/schema";
 import type { CreativeSort } from "@/validators/creative";
+import { getActiveAccountId } from "@/lib/tenant";
 
 type CreativeType = (typeof creativeTypeEnum)[number];
 type CreativeStatus = (typeof creativeStatusEnum)[number];
@@ -118,7 +119,8 @@ export async function listCreatives(
       .groupBy(creativeTags.creativeId),
   );
 
-  const conditions: SQL[] = [];
+  const acct = await getActiveAccountId();
+  const conditions: SQL[] = [eq(creatives.accountId, acct)];
 
   if (filters.q) {
     const pattern = `%${filters.q}%`;
@@ -272,6 +274,7 @@ function orderByForSort(sort: CreativeSort): SQL[] {
 
 /** Header stats: total / active / paused / added-this-month. */
 export async function creativeStats(): Promise<CreativeStats> {
+  const acct = await getActiveAccountId();
   const [row] = await db
     .select({
       total: sql<string>`COUNT(*)`,
@@ -279,7 +282,8 @@ export async function creativeStats(): Promise<CreativeStats> {
       paused: sql<string>`COUNT(*) FILTER (WHERE ${creatives.status} = 'paused')`,
       addedThisMonth: sql<string>`COUNT(*) FILTER (WHERE ${creatives.createdAt} >= date_trunc('month', now()))`,
     })
-    .from(creatives);
+    .from(creatives)
+    .where(eq(creatives.accountId, acct));
 
   return {
     total: Number(row?.total ?? 0),
@@ -311,6 +315,7 @@ export interface CreativeDetail {
 export async function getCreativeByName(
   name: string,
 ): Promise<CreativeDetail | null> {
+  const acct = await getActiveAccountId();
   const [row] = await db
     .select({
       id: creatives.id,
@@ -327,7 +332,7 @@ export async function getCreativeByName(
     })
     .from(creatives)
     .innerJoin(products, eq(products.id, creatives.productId))
-    .where(eq(creatives.name, name))
+    .where(and(eq(creatives.accountId, acct), eq(creatives.name, name)))
     .limit(1);
 
   if (!row) return null;
@@ -492,15 +497,18 @@ export async function creativeRecords(
  * legacy ad-hoc assignment still appears until it's curated.
  */
 export async function listAllTags(): Promise<string[]> {
+  const acct = await getActiveAccountId();
   const rows = await db
     .select({
       tag: sql<string>`t`,
     })
     .from(
       sql`(
-        SELECT ${tags.name} AS t FROM ${tags}
+        SELECT ${tags.name} AS t FROM ${tags} WHERE ${tags.accountId} = ${acct}
         UNION
         SELECT ${creativeTags.tag} AS t FROM ${creativeTags}
+          JOIN ${creatives} ON ${creatives.id} = ${creativeTags.creativeId}
+          WHERE ${creatives.accountId} = ${acct}
       ) AS u`,
     )
     .orderBy(sql`t`);

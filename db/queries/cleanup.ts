@@ -1,6 +1,7 @@
-import { and, between, inArray, sql, type SQL } from "drizzle-orm";
+import { and, between, eq, inArray, sql, type SQL } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { creatives, performanceRecords, platformEnum } from "@/db/schema";
+import { getActiveAccountId } from "@/lib/tenant";
 
 type Platform = (typeof platformEnum)[number];
 
@@ -25,8 +26,8 @@ export interface CleanupPreview {
  * match exactly the same rows. Returns an empty array when no filter is set
  * — callers MUST treat empty as "match nothing" and refuse to delete.
  */
-function buildConditions(f: CleanupMatch): SQL[] {
-  const conds: SQL[] = [];
+function buildConditions(f: CleanupMatch, acct: string): SQL[] {
+  const conds: SQL[] = [eq(performanceRecords.accountId, acct)];
   if (f.platforms && f.platforms.length > 0) {
     conds.push(inArray(performanceRecords.platform, f.platforms));
   }
@@ -52,12 +53,27 @@ function buildConditions(f: CleanupMatch): SQL[] {
   return conds;
 }
 
+/**
+ * Did the user supply at least one real filter? The account scope is always
+ * present in the SQL conditions, so we can't infer "no filter" from the
+ * conditions array — we check the user-facing fields directly. Callers MUST
+ * treat false as "match nothing" and refuse to delete.
+ */
+function hasAnyFilter(f: CleanupMatch): boolean {
+  return Boolean(
+    (f.platforms && f.platforms.length > 0) ||
+      (f.from && f.to) ||
+      (f.creativeIds && f.creativeIds.length > 0) ||
+      (f.productIds && f.productIds.length > 0),
+  );
+}
+
 /** Count + summarize what a cleanup selection would affect. Read-only. */
 export async function previewCleanup(f: CleanupMatch): Promise<CleanupPreview> {
-  const conds = buildConditions(f);
-  if (conds.length === 0) {
+  if (!hasAnyFilter(f)) {
     return { rows: 0, spend: 0, creatives: 0, from: null, to: null };
   }
+  const conds = buildConditions(f, await getActiveAccountId());
   const [row] = await db
     .select({
       rows: sql<number>`count(*)::int`,
@@ -87,8 +103,8 @@ export async function previewCleanup(f: CleanupMatch): Promise<CleanupPreview> {
  * (admin-only, audited at the action layer) in addition to batch rollback.
  */
 export async function deleteRecords(f: CleanupMatch): Promise<number> {
-  const conds = buildConditions(f);
-  if (conds.length === 0) return 0;
+  if (!hasAnyFilter(f)) return 0;
+  const conds = buildConditions(f, await getActiveAccountId());
   const deleted = await db
     .delete(performanceRecords)
     .where(and(...conds))

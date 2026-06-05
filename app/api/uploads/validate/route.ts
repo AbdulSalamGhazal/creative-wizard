@@ -13,6 +13,7 @@ import {
 import { MAX_FILE_BYTES } from "@/csv/parse";
 import { runPipeline, type ParsedRow } from "@/csv/pipeline";
 import { resolveAdapter } from "@/db/queries/platforms";
+import { getActiveAccountId } from "@/lib/tenant";
 
 const VALIDATION_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
@@ -90,9 +91,14 @@ export async function POST(request: NextRequest) {
 
   try {
   const buffer = new Uint8Array(await file.arrayBuffer());
+  const acct = await getActiveAccountId();
 
-  // Snapshot of registered creative names (strict byte-equal matching).
-  const allNames = await db.select({ name: creatives.name }).from(creatives);
+  // Snapshot of registered creative names (strict byte-equal matching),
+  // scoped to the active brand so names only match within this account.
+  const allNames = await db
+    .select({ name: creatives.name })
+    .from(creatives)
+    .where(eq(creatives.accountId, acct));
   const registeredNames = new Set(allNames.map((r) => r.name));
 
   const adapter = await resolveAdapter(platform);
@@ -121,6 +127,7 @@ export async function POST(request: NextRequest) {
             )
             .where(
               and(
+                eq(performanceRecords.accountId, acct),
                 eq(creatives.name, name),
                 eq(performanceRecords.platform, plat),
                 eq(performanceRecords.campaignName, campaignName),
@@ -159,7 +166,12 @@ export async function POST(request: NextRequest) {
       ? await db
           .select({ id: creatives.id, name: creatives.name })
           .from(creatives)
-          .where(inArray(creatives.name, wantedNames))
+          .where(
+            and(
+              eq(creatives.accountId, acct),
+              inArray(creatives.name, wantedNames),
+            ),
+          )
       : [];
     const idByName = new Map(nameRows.map((c) => [c.name, c.id]));
     const creativeIds = [...idByName.values()];
@@ -186,6 +198,7 @@ export async function POST(request: NextRequest) {
             )
             .where(
               and(
+                eq(performanceRecords.accountId, acct),
                 eq(performanceRecords.platform, platform),
                 eq(uploadBatches.status, "active"),
                 inArray(performanceRecords.creativeId, creativeIds),
@@ -240,6 +253,7 @@ export async function POST(request: NextRequest) {
   const [inserted] = await db
     .insert(uploadValidationSessions)
     .values({
+      accountId: acct,
       platform,
       fileName: file.name || "upload.csv",
       uploadedByUserId: user.id,

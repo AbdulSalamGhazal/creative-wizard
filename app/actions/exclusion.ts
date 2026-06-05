@@ -1,13 +1,14 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireEditor } from "@/lib/auth";
 import { creatives, performanceRecords } from "@/db/schema";
 import { excludeSchema } from "@/validators/exclusion";
 import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
+import { getActiveAccountId } from "@/lib/tenant";
 
 const idSchema = z.coerce.number().int().positive();
 
@@ -28,6 +29,7 @@ export async function excludeRecord(
     const user = await requireEditor();
     const id = idSchema.parse(recordId);
     const parsed = excludeSchema.parse({ reason });
+    const acct = await getActiveAccountId();
 
     const [updated] = await db
       .update(performanceRecords)
@@ -37,7 +39,12 @@ export async function excludeRecord(
         excludedByUserId: user.id,
         excludedAt: new Date(),
       })
-      .where(eq(performanceRecords.id, id))
+      .where(
+        and(
+          eq(performanceRecords.accountId, acct),
+          eq(performanceRecords.id, id),
+        ),
+      )
       .returning({
         creativeId: performanceRecords.creativeId,
         date: performanceRecords.date,
@@ -73,6 +80,7 @@ export async function includeRecord(recordId: number): Promise<ActionResult> {
   try {
     const user = await requireEditor();
     const id = idSchema.parse(recordId);
+    const acct = await getActiveAccountId();
 
     const [updated] = await db
       .update(performanceRecords)
@@ -82,7 +90,12 @@ export async function includeRecord(recordId: number): Promise<ActionResult> {
         excludedByUserId: null,
         excludedAt: null,
       })
-      .where(eq(performanceRecords.id, id))
+      .where(
+        and(
+          eq(performanceRecords.accountId, acct),
+          eq(performanceRecords.id, id),
+        ),
+      )
       .returning({
         creativeId: performanceRecords.creativeId,
         date: performanceRecords.date,

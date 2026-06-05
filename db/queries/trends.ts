@@ -32,6 +32,7 @@ import {
   voc,
 } from "@/lib/metrics";
 import { prevPeriod } from "@/lib/period";
+import { getActiveAccountId } from "@/lib/tenant";
 
 type Platform = (typeof platformEnum)[number];
 
@@ -108,7 +109,8 @@ interface TagAgg {
 /** Raw per-tag aggregates for one window. Fan-out by tag is intentional —
  *  a creative's spend counts toward each tag it carries. */
 async function tagAggregates(f: TrendsFilters): Promise<Map<string, TagAgg>> {
-  const conds: SQL[] = [];
+  const acct = await getActiveAccountId();
+  const conds: SQL[] = [eq(performanceRecords.accountId, acct)];
   if (f.from && f.to) conds.push(between(performanceRecords.date, f.from, f.to));
   if (!f.includeExcluded) conds.push(eq(performanceRecords.excludedFromAggregates, false));
   if (f.platforms && f.platforms.length > 0) {
@@ -239,7 +241,8 @@ export interface TagPlatformRow extends TagMetrics {
  * — but kept per platform so the UI can rank the top tags within each channel.
  */
 export async function tagByPlatform(f: TrendsFilters): Promise<TagPlatformRow[]> {
-  const conds: SQL[] = [];
+  const acct = await getActiveAccountId();
+  const conds: SQL[] = [eq(performanceRecords.accountId, acct)];
   if (f.from && f.to) conds.push(between(performanceRecords.date, f.from, f.to));
   if (!f.includeExcluded) conds.push(eq(performanceRecords.excludedFromAggregates, false));
   if (f.platforms && f.platforms.length > 0) {
@@ -337,7 +340,8 @@ export async function typeRollup(
 ): Promise<TypeRollupRow[]> {
   const byPlatform = opts.byPlatform === true;
 
-  const conds: SQL[] = [];
+  const acct = await getActiveAccountId();
+  const conds: SQL[] = [eq(performanceRecords.accountId, acct)];
   if (f.from && f.to) conds.push(between(performanceRecords.date, f.from, f.to));
   if (!f.includeExcluded) {
     conds.push(eq(performanceRecords.excludedFromAggregates, false));
@@ -438,6 +442,7 @@ export interface LaunchReportResult {
  * uses a FILTER over that. Ratios are weighted (scopedMetrics / lib/metrics).
  */
 export async function launchReport(): Promise<LaunchReportResult> {
+  const acct = await getActiveAccountId();
   const first7 = scopedMetrics(
     sql`${performanceRecords.date} <= ${creatives.launchDate} + 6 AND ${performanceRecords.excludedFromAggregates} = false`,
   );
@@ -474,7 +479,12 @@ export async function launchReport(): Promise<LaunchReportResult> {
         eq(performanceRecords.excludedFromAggregates, false),
       ),
     )
-    .where(sql`${creatives.launchDate} IS NOT NULL`)
+    .where(
+      and(
+        eq(creatives.accountId, acct),
+        sql`${creatives.launchDate} IS NOT NULL`,
+      ),
+    )
     .groupBy(
       creatives.id,
       creatives.name,
@@ -592,7 +602,11 @@ function median(values: number[]): number | null {
 export async function videoDiagnostics(
   f: TrendsFilters,
 ): Promise<VideoDiagnosticsResult> {
-  const conds: SQL[] = [eq(creatives.type, "video")];
+  const acct = await getActiveAccountId();
+  const conds: SQL[] = [
+    eq(performanceRecords.accountId, acct),
+    eq(creatives.type, "video"),
+  ];
   if (f.from && f.to) conds.push(between(performanceRecords.date, f.from, f.to));
   if (!f.includeExcluded) conds.push(eq(performanceRecords.excludedFromAggregates, false));
   if (f.platforms && f.platforms.length > 0) {

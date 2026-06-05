@@ -6,16 +6,16 @@ import {
   type RatingConfig,
   type RatingRules,
 } from "@/lib/rating";
-
-const SINGLETON_ID = 1;
+import { getActiveAccountId } from "@/lib/tenant";
 
 /**
- * Read the global rating rules. Returns the seeded singleton (id = 1), or the
+ * Read the active brand's default rating rules. Returns the brand's row, or the
  * built-in defaults if the row is missing — so /summary never breaks just
- * because the config hasn't been touched. Numeric columns come back as
- * strings from postgres-js, so coerce at the edge.
+ * because the config hasn't been touched. Numeric columns come back as strings
+ * from postgres-js, so coerce at the edge.
  */
 export async function getRatingRules(): Promise<RatingRules> {
+  const acct = await getActiveAccountId();
   const [row] = await db
     .select({
       minSpend: ratingRules.minSpend,
@@ -23,7 +23,7 @@ export async function getRatingRules(): Promise<RatingRules> {
       decentRoas: ratingRules.decentRoas,
     })
     .from(ratingRules)
-    .where(eq(ratingRules.id, SINGLETON_ID))
+    .where(eq(ratingRules.accountId, acct))
     .limit(1);
 
   if (!row) return DEFAULT_RATING_RULES;
@@ -36,11 +36,12 @@ export async function getRatingRules(): Promise<RatingRules> {
 }
 
 /**
- * Read the full rating config: the default (singleton) plus every per-platform
- * override. Platforms without an override row simply fall back to the default
- * at resolution time (lib/rating#rulesForScope).
+ * Read the active brand's full rating config: its default plus every
+ * per-platform override. Platforms without an override row simply fall back to
+ * the default at resolution time (lib/rating#rulesForScope).
  */
 export async function getRatingConfig(): Promise<RatingConfig> {
+  const acct = await getActiveAccountId();
   const [def, overrides] = await Promise.all([
     getRatingRules(),
     db
@@ -50,7 +51,8 @@ export async function getRatingConfig(): Promise<RatingConfig> {
         goodRoas: platformRatingRules.goodRoas,
         decentRoas: platformRatingRules.decentRoas,
       })
-      .from(platformRatingRules),
+      .from(platformRatingRules)
+      .where(eq(platformRatingRules.accountId, acct)),
   ]);
 
   const byPlatform: Record<string, RatingRules> = {};
@@ -63,5 +65,3 @@ export async function getRatingConfig(): Promise<RatingConfig> {
   }
   return { default: def, byPlatform };
 }
-
-export { SINGLETON_ID as RATING_RULES_ID };

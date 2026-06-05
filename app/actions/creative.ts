@@ -14,6 +14,7 @@ import {
 } from "@/db/schema";
 import { creativeCreateSchema } from "@/validators/creative";
 import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
+import { getActiveAccountId } from "@/lib/tenant";
 
 export interface CreativeMutationResult {
   ok: boolean;
@@ -37,12 +38,14 @@ export async function createCreative(
       return { ok: false, error: "Invalid input", fieldErrors };
     }
     const data = parsed.data;
+    const acct = await getActiveAccountId();
 
     // Name uniqueness pre-check (DB will enforce, but a clean message helps).
+    // Names are unique per account, so scope the check.
     const existing = await db
       .select({ id: creatives.id })
       .from(creatives)
-      .where(eq(creatives.name, data.name))
+      .where(and(eq(creatives.accountId, acct), eq(creatives.name, data.name)))
       .limit(1);
     if (existing.length > 0) {
       return {
@@ -55,6 +58,7 @@ export async function createCreative(
     const [inserted] = await db
       .insert(creatives)
       .values({
+        accountId: acct,
         name: data.name,
         productId: data.productId,
         type: data.type,
@@ -110,10 +114,11 @@ export async function updateCreativeNotes(
     if (notes.length > 5000) {
       return { ok: false, error: "Notes too long (5000 char max)." };
     }
+    const acct = await getActiveAccountId();
     const [updated] = await db
       .update(creatives)
       .set({ notes: notes || null, updatedAt: new Date() })
-      .where(eq(creatives.id, creativeId))
+      .where(and(eq(creatives.accountId, acct), eq(creatives.id, creativeId)))
       .returning({ id: creatives.id, name: creatives.name });
     try {
       revalidatePath("/creatives");
@@ -158,10 +163,13 @@ export async function bulkUpdateStatus(input: unknown): Promise<
       };
     }
 
+    const acct = await getActiveAccountId();
     const result = await db
       .update(creatives)
       .set({ status: parsed.data.status, updatedAt: new Date() })
-      .where(inArray(creatives.id, parsed.data.ids))
+      .where(
+        and(eq(creatives.accountId, acct), inArray(creatives.id, parsed.data.ids)),
+      )
       .returning({ id: creatives.id, name: creatives.name });
 
     try {
@@ -251,6 +259,7 @@ export async function patchCreative(
       };
     }
     const data = parsed.data;
+    const acct = await getActiveAccountId();
 
     const [oldRow] = await db
       .select({
@@ -262,16 +271,22 @@ export async function patchCreative(
         launchDate: creatives.launchDate,
       })
       .from(creatives)
-      .where(eq(creatives.id, data.id))
+      .where(and(eq(creatives.accountId, acct), eq(creatives.id, data.id)))
       .limit(1);
     if (!oldRow) return { ok: false, error: "Creative not found." };
 
-    // Name uniqueness — only when actually renaming.
+    // Name uniqueness — only when actually renaming (scoped to this account).
     if (data.name !== undefined && data.name !== oldRow.name) {
       const [collision] = await db
         .select({ id: creatives.id })
         .from(creatives)
-        .where(and(eq(creatives.name, data.name), ne(creatives.id, data.id)))
+        .where(
+          and(
+            eq(creatives.accountId, acct),
+            eq(creatives.name, data.name),
+            ne(creatives.id, data.id),
+          ),
+        )
         .limit(1);
       if (collision) {
         return {
@@ -383,11 +398,12 @@ export async function deleteCreative(
     if (!z.string().uuid().safeParse(creativeId).success) {
       return { ok: false, error: "Invalid creative id." };
     }
+    const acct = await getActiveAccountId();
 
     const [target] = await db
       .select({ id: creatives.id, name: creatives.name })
       .from(creatives)
-      .where(eq(creatives.id, creativeId))
+      .where(and(eq(creatives.accountId, acct), eq(creatives.id, creativeId)))
       .limit(1);
     if (!target) return { ok: false, error: "Creative not found." };
 

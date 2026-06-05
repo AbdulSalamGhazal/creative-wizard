@@ -54,6 +54,7 @@ import {
   rulesForScope,
   type RatingConfig,
 } from "@/lib/rating";
+import { getActiveAccountId } from "@/lib/tenant";
 
 type Platform = (typeof platformEnum)[number];
 type CreativeType = (typeof creativeTypeEnum)[number];
@@ -440,7 +441,8 @@ export async function listCreativeSummary(
   }
 
   // -------- WHERE clauses on creatives --------
-  const whereConds: SQL[] = [];
+  const acct = await getActiveAccountId();
+  const whereConds: SQL[] = [eq(creatives.accountId, acct)];
   if (filters.q) {
     whereConds.push(ilike(creatives.name, `%${filters.q}%`));
   }

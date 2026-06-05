@@ -1,6 +1,7 @@
-import { asc, count, eq } from "drizzle-orm";
+import { and, asc, count, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { performanceRecords, platformFieldMappings } from "@/db/schema";
+import { getActiveAccountId } from "@/lib/tenant";
 import type {
   InternalField,
   PlatformAdapter,
@@ -14,9 +15,11 @@ export type Platform = PlatformAdapter["platform"];
  * channels actually have data. Feeds the Catalog → Platforms overview.
  */
 export async function platformRecordCounts(): Promise<Record<string, number>> {
+  const acct = await getActiveAccountId();
   const rows = await db
     .select({ platform: performanceRecords.platform, n: count() })
     .from(performanceRecords)
+    .where(eq(performanceRecords.accountId, acct))
     .groupBy(performanceRecords.platform);
   const out: Record<string, number> = {};
   for (const r of rows) out[r.platform] = Number(r.n);
@@ -32,6 +35,7 @@ export interface MappingRow {
 }
 
 export async function listAllMappings(): Promise<MappingRow[]> {
+  const acct = await getActiveAccountId();
   const rows = await db
     .select({
       id: platformFieldMappings.id,
@@ -41,6 +45,7 @@ export async function listAllMappings(): Promise<MappingRow[]> {
       priority: platformFieldMappings.priority,
     })
     .from(platformFieldMappings)
+    .where(eq(platformFieldMappings.accountId, acct))
     .orderBy(
       asc(platformFieldMappings.platform),
       asc(platformFieldMappings.internalField),
@@ -57,6 +62,7 @@ export async function listAllMappings(): Promise<MappingRow[]> {
 export async function listMappingsForPlatform(
   platform: Platform,
 ): Promise<MappingRow[]> {
+  const acct = await getActiveAccountId();
   const rows = await db
     .select({
       id: platformFieldMappings.id,
@@ -66,7 +72,12 @@ export async function listMappingsForPlatform(
       priority: platformFieldMappings.priority,
     })
     .from(platformFieldMappings)
-    .where(eq(platformFieldMappings.platform, platform))
+    .where(
+      and(
+        eq(platformFieldMappings.accountId, acct),
+        eq(platformFieldMappings.platform, platform),
+      ),
+    )
     .orderBy(
       asc(platformFieldMappings.internalField),
       asc(platformFieldMappings.priority),

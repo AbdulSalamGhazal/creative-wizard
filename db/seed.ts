@@ -21,6 +21,7 @@ import {
   platformFieldMappings,
   uploadBatches,
   performanceRecords,
+  DEFAULT_ACCOUNT_ID,
   type platformEnum,
 } from "@/db/schema";
 import { hashPassword } from "@/lib/auth-password";
@@ -342,9 +343,14 @@ async function main() {
   // (The schema column defaults stay at the generic 4× / 2× for real use.)
   await db
     .insert(ratingRules)
-    .values({ id: 1, minSpend: "500", goodRoas: "9", decentRoas: "7" })
-    .onConflictDoNothing({ target: ratingRules.id });
-  console.log("  rating rules: singleton ensured (id=1)");
+    .values({
+      accountId: DEFAULT_ACCOUNT_ID,
+      minSpend: "500",
+      goodRoas: "9",
+      decentRoas: "7",
+    })
+    .onConflictDoNothing({ target: ratingRules.accountId });
+  console.log("  rating rules: default-account row ensured");
 
   console.log("Done.");
 }

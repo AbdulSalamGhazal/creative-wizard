@@ -1,13 +1,14 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { eq, max } from "drizzle-orm";
+import { and, eq, max } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth";
 import { platformFieldMappings, platformEnum } from "@/db/schema";
 import { INTERNAL_FIELDS } from "@/csv/platforms/types";
 import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
+import { getActiveAccountId } from "@/lib/tenant";
 
 const inputSchema = z.object({
   platform: z.enum(platformEnum),
@@ -33,16 +34,23 @@ export async function addHeaderMapping(input: unknown): Promise<MutationResult> 
     const { platform, internalField, headerName } = parsed.data;
     const trimmed = headerName.trim();
     if (trimmed.length === 0) return { ok: false, error: "Header name is empty." };
+    const acct = await getActiveAccountId();
 
-    // Append at the end of the priority list for the (platform, field).
+    // Append at the end of the priority list for this account's (platform, field).
     const [{ max: maxPriority } = { max: null }] = await db
       .select({ max: max(platformFieldMappings.priority) })
       .from(platformFieldMappings)
-      .where(eq(platformFieldMappings.platform, platform));
+      .where(
+        and(
+          eq(platformFieldMappings.accountId, acct),
+          eq(platformFieldMappings.platform, platform),
+        ),
+      );
 
     const [inserted] = await db
       .insert(platformFieldMappings)
       .values({
+        accountId: acct,
         platform,
         internalField,
         headerName: trimmed,
@@ -50,7 +58,9 @@ export async function addHeaderMapping(input: unknown): Promise<MutationResult> 
         createdByUserId: user.id,
       })
       .onConflictDoNothing({
+        // Must match the unique index, which is now account-prefixed.
         target: [
+          platformFieldMappings.accountId,
           platformFieldMappings.platform,
           platformFieldMappings.internalField,
           platformFieldMappings.headerName,
@@ -85,6 +95,7 @@ export async function removeHeaderMapping(id: string): Promise<MutationResult> {
     if (!z.string().uuid().safeParse(id).success) {
       return { ok: false, error: "Invalid id." };
     }
+    const acct = await getActiveAccountId();
     const [existing] = await db
       .select({
         platform: platformFieldMappings.platform,
@@ -92,11 +103,21 @@ export async function removeHeaderMapping(id: string): Promise<MutationResult> {
         headerName: platformFieldMappings.headerName,
       })
       .from(platformFieldMappings)
-      .where(eq(platformFieldMappings.id, id))
+      .where(
+        and(
+          eq(platformFieldMappings.accountId, acct),
+          eq(platformFieldMappings.id, id),
+        ),
+      )
       .limit(1);
     await db
       .delete(platformFieldMappings)
-      .where(eq(platformFieldMappings.id, id));
+      .where(
+        and(
+          eq(platformFieldMappings.accountId, acct),
+          eq(platformFieldMappings.id, id),
+        ),
+      );
     try {
       revalidatePath("/admin/platforms");
     } catch (err) {

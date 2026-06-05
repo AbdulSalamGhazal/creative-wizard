@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { asc } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { requireEditor } from "@/lib/auth";
 import {
@@ -13,6 +13,7 @@ import {
 } from "@/db/schema";
 import { parseFile } from "@/csv/parse";
 import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
+import { getActiveAccountId } from "@/lib/tenant";
 
 /**
  * Bulk-create creatives from a CSV/XLSX upload.
@@ -158,15 +159,23 @@ async function build(formData: FormData): Promise<BuildResult> {
   }
 
   // Reference data: product name (lowercased) → id; existing creative names.
+  // Both scoped to the active account so cross-brand names don't collide.
+  const acct = await getActiveAccountId();
   const productRows = await db
     .select({ id: products.id, name: products.name })
     .from(products)
+    .where(eq(products.accountId, acct))
     .orderBy(asc(products.name));
   const productByName = new Map<string, string>();
   for (const p of productRows) productByName.set(p.name.trim().toLowerCase(), p.id);
 
   const existingNames = new Set(
-    (await db.select({ name: creatives.name }).from(creatives)).map((r) => r.name),
+    (
+      await db
+        .select({ name: creatives.name })
+        .from(creatives)
+        .where(eq(creatives.accountId, acct))
+    ).map((r) => r.name),
   );
 
   const cell = (row: string[], i: number) => (i >= 0 ? (row[i] ?? "").trim() : "");
@@ -308,11 +317,13 @@ export async function commitBulkCreatives(
     }
     if (normalized.length === 0) return { ok: false, error: "Nothing to create." };
 
+    const acct = await getActiveAccountId();
     await db.transaction(async (tx) => {
       for (const r of normalized) {
         const [inserted] = await tx
           .insert(creatives)
           .values({
+            accountId: acct,
             name: r.name,
             productId: r.productId,
             type: r.type,
