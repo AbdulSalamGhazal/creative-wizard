@@ -1,10 +1,11 @@
-import { asc } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { products } from "@/db/schema";
 import { ProductCreateForm } from "@/components/product/product-create-form";
 import { ProductRowActions } from "@/components/product/product-row-actions";
 import { countCreativesPerProduct } from "@/app/actions/product";
 import { isoDate } from "@/lib/format";
+import { getActiveAccountId } from "@/lib/tenant";
 
 /**
  * Products management section — the body of the former /admin/products page,
@@ -12,6 +13,7 @@ import { isoDate } from "@/lib/format";
  * product; products with creatives can be archived but not deleted.
  */
 export async function ProductsAdmin() {
+  const acct = await getActiveAccountId();
   const [list, creativeCounts] = await Promise.all([
     db
       .select({
@@ -22,6 +24,7 @@ export async function ProductsAdmin() {
         createdAt: products.createdAt,
       })
       .from(products)
+      .where(eq(products.accountId, acct))
       .orderBy(asc(products.name)),
     countCreativesPerProduct(),
   ]);
