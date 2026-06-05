@@ -1,19 +1,22 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { and, count, eq, inArray, ne } from "drizzle-orm";
+import { and, count, eq, ne } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireEditor } from "@/lib/auth";
 import {
   creatives,
-  creativeStatusEnum,
+  creativePlatformOverrides,
   creativeTags,
   creativeTypeEnum,
   performanceRecords,
   products,
 } from "@/db/schema";
-import { creativeCreateSchema } from "@/validators/creative";
+import {
+  creativeCreateSchema,
+  creativeTerminationSchema,
+} from "@/validators/creative";
 import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
 import { getActiveAccountId } from "@/lib/tenant";
 
@@ -83,11 +86,13 @@ export async function createCreative(
     const [inserted] = await db
       .insert(creatives)
       .values({
+        // `status` is intentionally omitted — the DB column keeps its
+        // NOT NULL DEFAULT 'draft', which is now ignored. Status is derived
+        // dynamically (see lib/creative-status.ts); new creatives read as "New".
         accountId: acct,
         name: data.name,
         productId: data.productId,
         type: data.type,
-        status: data.status,
         thumbnailUrl: data.thumbnailUrl,
         launchDate: data.launchDate,
         notes: data.notes,
@@ -119,7 +124,6 @@ export async function createCreative(
       meta: {
         productId: data.productId,
         type: data.type,
-        status: data.status,
         tags: data.tags,
       },
     });
@@ -167,56 +171,75 @@ export async function updateCreativeNotes(
 }
 
 /**
- * Bulk-change status across N creatives. Used by the Library's bulk-action
- * bar; admin-or-editor only.
+ * Set (or clear) the manual per-platform TERMINATION on a creative — the only
+ * manual status lever now that the rest of the status is derived. A row in
+ * `creative_platform_overrides` marks the creative as Terminated on that
+ * platform; deleting it reactivates (the platform falls back to its derived
+ * active/pause status). Editor-or-admin only; account-scoped both ways.
  */
-const bulkStatusSchema = z.object({
-  ids: z.array(z.string().uuid()).min(1),
-  status: z.enum(creativeStatusEnum),
-});
-
-export async function bulkUpdateStatus(input: unknown): Promise<
-  CreativeMutationResult & { updated?: number }
-> {
+export async function setCreativeTermination(
+  input: unknown,
+): Promise<{ ok: boolean; error?: string }> {
   try {
     const user = await requireEditor();
-    const parsed = bulkStatusSchema.safeParse(input);
+    const parsed = creativeTerminationSchema.safeParse(input);
     if (!parsed.success) {
       return {
         ok: false,
         error: parsed.error.issues[0]?.message ?? "Invalid input",
       };
     }
-
+    const { creativeId, platform, terminated } = parsed.data;
     const acct = await getActiveAccountId();
-    const result = await db
-      .update(creatives)
-      .set({ status: parsed.data.status, updatedAt: new Date() })
-      .where(
-        and(eq(creatives.accountId, acct), inArray(creatives.id, parsed.data.ids)),
-      )
-      .returning({ id: creatives.id, name: creatives.name });
+
+    // The creative must belong to the active brand (the override FK only
+    // enforces global existence — re-validate against the account before write).
+    const [target] = await db
+      .select({ id: creatives.id, name: creatives.name })
+      .from(creatives)
+      .where(and(eq(creatives.accountId, acct), eq(creatives.id, creativeId)))
+      .limit(1);
+    if (!target) return { ok: false, error: "Creative not found." };
+
+    if (terminated) {
+      await db
+        .insert(creativePlatformOverrides)
+        .values({
+          accountId: acct,
+          creativeId,
+          platform,
+          terminatedByUserId: user.id,
+        })
+        .onConflictDoNothing();
+    } else {
+      await db
+        .delete(creativePlatformOverrides)
+        .where(
+          and(
+            eq(creativePlatformOverrides.accountId, acct),
+            eq(creativePlatformOverrides.creativeId, creativeId),
+            eq(creativePlatformOverrides.platform, platform),
+          ),
+        );
+    }
 
     try {
       revalidatePath("/creatives");
+      revalidatePath(`/creatives/${encodeURIComponent(target.name)}`);
     } catch (err) {
-      console.warn("revalidatePath after bulk update failed:", err);
+      console.warn("revalidatePath after termination change failed:", err);
     }
 
     await logAudit({
-      action: AUDIT_ACTIONS.CREATIVE_STATUS_BULK,
+      action: AUDIT_ACTIONS.CREATIVE_UPDATE,
       entityType: "creative",
-      entityId: null,
-      entityLabel: `${result.length} creative${result.length === 1 ? "" : "s"}`,
+      entityId: target.id,
+      entityLabel: target.name,
       actorUserId: user.id,
-      meta: {
-        status: parsed.data.status,
-        count: result.length,
-        names: result.map((r) => r.name).slice(0, 25),
-      },
+      meta: { termination: { platform, terminated } },
     });
 
-    return { ok: true, updated: result.length };
+    return { ok: true };
   } catch (err) {
     return {
       ok: false,
@@ -227,9 +250,10 @@ export async function bulkUpdateStatus(input: unknown): Promise<
 
 /**
  * Inline edit from the creative detail page — the single save path for every
- * editable field (name / product / type / status / thumbnail / launch date /
- * tags). Every field is optional; only the fields actually present in the
- * payload are written. Tags, when provided, replace the whole set (wipe +
+ * editable field (name / product / type / thumbnail / launch date / tags).
+ * Status is NOT here — it's derived dynamically, with per-platform termination
+ * as the only manual lever (see setCreativeTermination). Every field is
+ * optional; only the fields actually present in the payload are written. Tags, when provided, replace the whole set (wipe +
  * reinsert in one transaction). Renaming is validated for uniqueness, exactly
  * like the old full-edit form — the detail page now edits everything in place,
  * so there is no separate `/edit` route.
@@ -243,7 +267,6 @@ const creativePatchSchema = z
     name: z.string().min(1).max(255).optional(),
     productId: z.string().uuid().optional(),
     type: z.enum(creativeTypeEnum).optional(),
-    status: z.enum(creativeStatusEnum).optional(),
     thumbnailUrl: z.string().url().nullable().optional(),
     launchDate: z
       .string()
@@ -258,7 +281,6 @@ const creativePatchSchema = z
       d.name !== undefined ||
       d.productId !== undefined ||
       d.type !== undefined ||
-      d.status !== undefined ||
       d.thumbnailUrl !== undefined ||
       d.launchDate !== undefined ||
       d.tags !== undefined,
@@ -291,7 +313,6 @@ export async function patchCreative(
         name: creatives.name,
         productId: creatives.productId,
         type: creatives.type,
-        status: creatives.status,
         thumbnailUrl: creatives.thumbnailUrl,
         launchDate: creatives.launchDate,
       })
@@ -341,7 +362,6 @@ export async function patchCreative(
     if (data.name !== undefined) set.name = data.name;
     if (data.productId !== undefined) set.productId = data.productId;
     if (data.type !== undefined) set.type = data.type;
-    if (data.status !== undefined) set.status = data.status;
     if (data.thumbnailUrl !== undefined) set.thumbnailUrl = data.thumbnailUrl;
     if (data.launchDate !== undefined) set.launchDate = data.launchDate;
     const hasScalarChange = Object.keys(set).length > 1; // more than updatedAt
@@ -381,9 +401,6 @@ export async function patchCreative(
     }
     if (data.type !== undefined && oldRow.type !== data.type) {
       changes.type = { from: oldRow.type, to: data.type };
-    }
-    if (data.status !== undefined && oldRow.status !== data.status) {
-      changes.status = { from: oldRow.status, to: data.status };
     }
     if (data.thumbnailUrl !== undefined && oldRow.thumbnailUrl !== data.thumbnailUrl) {
       changes.thumbnailUrl = {

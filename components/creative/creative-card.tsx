@@ -2,6 +2,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { ArrowUpRight, Film, Image as ImageIcon, Layers } from "lucide-react";
 import type { CreativeListRow } from "@/db/queries/creatives";
+import { StatusBadge } from "@/components/creative/status-badge";
 import { gradientFor } from "@/lib/palette";
 import { cn } from "@/lib/utils";
 import { isoDate, usd } from "@/lib/format";
@@ -21,20 +22,6 @@ const TYPE_ICON: Record<
   slides: Layers,
 };
 
-const STATUS_LABEL: Record<CreativeListRow["status"], string> = {
-  active: "Active",
-  paused: "Paused",
-  draft: "Draft",
-  archived: "Archived",
-};
-
-const STATUS_DOT: Record<CreativeListRow["status"], string> = {
-  active: "var(--pos)",
-  paused: "var(--warn)",
-  draft: "var(--ink-3)",
-  archived: "var(--ink-3)",
-};
-
 export function CreativeCard({
   row,
   listCtx,
@@ -44,8 +31,10 @@ export function CreativeCard({
 }) {
   const TypeIcon = TYPE_ICON[row.type];
   const grad = gradientFor(row.name);
-  const isDraft = row.status === "draft";
-  const isArchived = row.status === "archived";
+  // "new" (never spent) keeps the dashed placeholder border the old `draft`
+  // had; "terminated" keeps the dimmed treatment the old `archived` had.
+  const isNew = row.status === "new";
+  const isTerminated = row.status === "terminated";
   const visibleTags = row.tags.slice(0, 2);
   const overflow = row.tags.length - visibleTags.length;
 
@@ -55,9 +44,9 @@ export function CreativeCard({
       className={cn(
         "group block rounded-lg border bg-surface text-left transition-all duration-200",
         "hover:-translate-y-0.5 hover:border-line-2",
-        isDraft
+        isNew
           ? "border-dashed border-line-2"
-          : isArchived
+          : isTerminated
             ? "border-line opacity-65 hover:opacity-80"
             : "border-line",
       )}
@@ -100,13 +89,10 @@ export function CreativeCard({
         </span>
 
         {/* Status badge */}
-        <span className="absolute top-2 right-2 inline-flex items-center gap-1.5 h-6 px-2 rounded-md bg-background/80 backdrop-blur border border-line text-[10px] text-ink-2">
-          <span
-            className="w-1.5 h-1.5 rounded-full"
-            style={{ background: STATUS_DOT[row.status] }}
-          />
-          {STATUS_LABEL[row.status]}
-        </span>
+        <StatusBadge
+          status={row.status}
+          className="absolute top-2 right-2 h-6 px-2 rounded-md bg-background/80 backdrop-blur border border-line text-[10px]"
+        />
 
         {/* Hover action chevron */}
         <span className="absolute bottom-2 right-2 inline-flex items-center justify-center w-7 h-7 rounded-md bg-background/80 backdrop-blur border border-line text-ink-2 opacity-0 group-hover:opacity-100 transition-opacity">

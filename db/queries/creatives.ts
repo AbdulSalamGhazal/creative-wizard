@@ -18,21 +18,21 @@ import {
   products,
   tags,
   platformEnum,
-  type creativeStatusEnum,
   type creativeTypeEnum,
 } from "@/db/schema";
 import type { CreativeSort } from "@/validators/creative";
 import { getActiveAccountId } from "@/lib/tenant";
+import { creativeStatusMap, statusFor } from "@/db/queries/creative-status";
+import type { CreativeStatus } from "@/lib/creative-status";
 
 type CreativeType = (typeof creativeTypeEnum)[number];
-type CreativeStatus = (typeof creativeStatusEnum)[number];
 type Platform = (typeof platformEnum)[number];
 
 export interface CreativeListFilters {
   q?: string;
   productIds?: string[];
   types?: CreativeType[];
-  statuses?: CreativeStatus[];
+  statuses?: CreativeStatus[] | undefined;
   /** Keep only creatives with ≥1 performance record on these platforms. */
   platforms?: Platform[];
   tags?: string[];
@@ -140,9 +140,8 @@ export async function listCreatives(
   if (filters.types && filters.types.length > 0) {
     conditions.push(inArray(creatives.type, filters.types));
   }
-  if (filters.statuses && filters.statuses.length > 0) {
-    conditions.push(inArray(creatives.status, filters.statuses));
-  }
+  // NOTE: status is no longer a DB column we read — it's derived dynamically
+  // (see creativeStatusMap below) and filtered in JS after attaching.
   if (filters.tags && filters.tags.length > 0) {
     conditions.push(
       sql`EXISTS (SELECT 1 FROM ${creativeTags} ct
@@ -178,7 +177,6 @@ export async function listCreatives(
       productId: creatives.productId,
       productName: products.name,
       type: creatives.type,
-      status: creatives.status,
       thumbnailUrl: creatives.thumbnailUrl,
       launchDate: creatives.launchDate,
       tags: tagsAlias,
@@ -203,24 +201,40 @@ export async function listCreatives(
     ? baseQuery.limit(filters.limit)
     : baseQuery);
 
-  const totalMatching = rows[0] ? Number(rows[0].totalMatching) : 0;
+  // Attach the dynamic, derived status to every row (account-scoped, batched).
+  const statusMap = await creativeStatusMap(rows.map((r) => r.id));
 
-  return {
-    rows: rows.map((r) => ({
-      id: r.id,
-      name: r.name,
-      productId: r.productId,
-      productName: r.productName,
-      type: r.type as CreativeType,
-      status: r.status as CreativeStatus,
-      thumbnailUrl: r.thumbnailUrl,
-      launchDate: r.launchDate,
-      tags: r.tags ?? [],
-      spend7d: r.spend7d === null ? 0 : Number(r.spend7d),
-      spend30d: r.spend30d === null ? 0 : Number(r.spend30d),
-    })),
-    totalMatching,
-  };
+  let mapped: CreativeListRow[] = rows.map((r) => ({
+    id: r.id,
+    name: r.name,
+    productId: r.productId,
+    productName: r.productName,
+    type: r.type as CreativeType,
+    status: statusFor(statusMap, r.id).general,
+    thumbnailUrl: r.thumbnailUrl,
+    launchDate: r.launchDate,
+    tags: r.tags ?? [],
+    spend7d: r.spend7d === null ? 0 : Number(r.spend7d),
+    spend30d: r.spend30d === null ? 0 : Number(r.spend30d),
+  }));
+
+  // Status filter runs in JS, AFTER status is attached — the dynamic status
+  // isn't a DB column, so it can't be a SQL WHERE. The Library shows all
+  // matching rows (no real pagination), so JS filtering is exact: recompute
+  // totalMatching from the filtered length rather than the now-stale
+  // COUNT(*) OVER () window (which didn't account for the status filter).
+  if (filters.statuses?.length) {
+    const allowed = new Set(filters.statuses);
+    mapped = mapped.filter((row) => allowed.has(row.status));
+  }
+
+  const totalMatching = filters.statuses?.length
+    ? mapped.length
+    : rows[0]
+      ? Number(rows[0].totalMatching)
+      : 0;
+
+  return { rows: mapped, totalMatching };
 }
 
 function orderByForSort(sort: CreativeSort): SQL[] {
@@ -272,23 +286,31 @@ function orderByForSort(sort: CreativeSort): SQL[] {
   }
 }
 
-/** Header stats: total / active / paused / added-this-month. */
+/** Header stats: total / active / paused / added-this-month. Active & paused
+ *  are the DERIVED dynamic statuses (not the legacy column). */
 export async function creativeStats(): Promise<CreativeStats> {
   const acct = await getActiveAccountId();
   const [row] = await db
     .select({
       total: sql<string>`COUNT(*)`,
-      active: sql<string>`COUNT(*) FILTER (WHERE ${creatives.status} = 'active')`,
-      paused: sql<string>`COUNT(*) FILTER (WHERE ${creatives.status} = 'paused')`,
       addedThisMonth: sql<string>`COUNT(*) FILTER (WHERE ${creatives.createdAt} >= date_trunc('month', now()))`,
     })
     .from(creatives)
     .where(eq(creatives.accountId, acct));
 
+  // Active / paused come from the dynamic status of every creative in the brand.
+  const statusMap = await creativeStatusMap();
+  let active = 0;
+  let paused = 0;
+  for (const v of statusMap.values()) {
+    if (v.general === "active") active += 1;
+    else if (v.general === "pause") paused += 1;
+  }
+
   return {
     total: Number(row?.total ?? 0),
-    active: Number(row?.active ?? 0),
-    paused: Number(row?.paused ?? 0),
+    active,
+    paused,
     addedThisMonth: Number(row?.addedThisMonth ?? 0),
   };
 }
@@ -297,13 +319,17 @@ export async function creativeStats(): Promise<CreativeStats> {
 // Creative Detail queries
 // -----------------------------------------------------------------------------
 
+/**
+ * Detail-page identity fields. Status is NOT here — it's derived dynamically:
+ * the page computes `creativeStatusMap([id])` + `terminatedPlatformsFor(id)`
+ * and passes the result to the header.
+ */
 export interface CreativeDetail {
   id: string;
   name: string;
   productId: string;
   productName: string;
   type: CreativeType;
-  status: CreativeStatus;
   thumbnailUrl: string | null;
   launchDate: string | null;
   notes: string | null;
@@ -323,7 +349,6 @@ export async function getCreativeByName(
       productId: creatives.productId,
       productName: products.name,
       type: creatives.type,
-      status: creatives.status,
       thumbnailUrl: creatives.thumbnailUrl,
       launchDate: creatives.launchDate,
       notes: creatives.notes,
@@ -346,7 +371,6 @@ export async function getCreativeByName(
   return {
     ...row,
     type: row.type as CreativeType,
-    status: row.status as CreativeStatus,
     tags: tagRows.map((t) => t.tag),
   };
 }

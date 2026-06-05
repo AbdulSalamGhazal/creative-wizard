@@ -55,10 +55,23 @@ import {
   type RatingConfig,
 } from "@/lib/rating";
 import { getActiveAccountId } from "@/lib/tenant";
+import { creativeStatusMap, statusFor } from "@/db/queries/creative-status";
+import type {
+  CreativeStatus as DynamicCreativeStatus,
+  PlatformStatus,
+} from "@/lib/creative-status";
 
 type Platform = (typeof platformEnum)[number];
 type CreativeType = (typeof creativeTypeEnum)[number];
 type CreativeStatus = (typeof creativeStatusEnum)[number];
+
+/** Status-filter input — keep rows whose dynamic status on the chosen scope is
+ *  in `statuses`. Scope "total" → general roll-up; a platform → that platform's
+ *  per-platform status. Mirrors the rate filter's scope handling. */
+export interface StatusFilterInput {
+  scope: "total" | Platform;
+  statuses: DynamicCreativeStatus[];
+}
 
 export interface SummaryFilterInput {
   from?: string;
@@ -78,6 +91,8 @@ export interface SummaryFilterInput {
   metricFilters?: MetricFilterCondition[];
   /** Categorical rating filter (scope + selected ratings). */
   rateFilter?: RateFilterCondition | null;
+  /** Dynamic status filter (scope + selected statuses). */
+  statusFilter?: StatusFilterInput | null;
   /** Rules driving the rating (default + per-platform) — for rate sort/filter. */
   ratingConfig?: RatingConfig;
 }
@@ -107,7 +122,12 @@ export interface SummaryRow {
   productName: string;
   productId: string;
   type: CreativeType;
+  /** Legacy manual status column (still selected for the existing `statuses=` WHERE filter + status sort). */
   status: CreativeStatus;
+  /** Dynamic general status — derived roll-up across platforms (new/active/pause/terminated). */
+  generalStatus: DynamicCreativeStatus;
+  /** Dynamic per-platform status for platforms this creative has presence on. */
+  perPlatformStatus: Partial<Record<Platform, PlatformStatus>>;
   creatorName: string | null;
   creatorEmail: string | null;
   tags: string[];
@@ -587,6 +607,11 @@ export async function listCreativeSummary(
     tagsByCreative.set(t.creativeId, list);
   }
 
+  // Dynamic status (general + per-platform), keyed by creativeId. Account-scoped
+  // internally; restricted to the visible creatives so the status query matches
+  // the page. A creative absent from the map = "new" (see statusFor).
+  const sMap = await creativeStatusMap(ids);
+
   // Reshape — pull each row's per-platform fields into a nested block.
   const rows: SummaryRow[] = rawRows.map((row) => {
     const r = row as unknown as Record<string, unknown>;
@@ -611,6 +636,7 @@ export async function listCreativeSummary(
         cvr: numOrNull(r[`${pf}_cvr`]),
       };
     }
+    const dyn = statusFor(sMap, r.creativeId as string);
     return {
       creativeId: r.creativeId as string,
       name: r.name as string,
@@ -618,6 +644,8 @@ export async function listCreativeSummary(
       productName: r.productName as string,
       type: r.type as CreativeType,
       status: r.status as CreativeStatus,
+      generalStatus: dyn.general,
+      perPlatformStatus: dyn.perPlatform,
       creatorName: (r.creatorName as string | null) ?? null,
       creatorEmail: (r.creatorEmail as string | null) ?? null,
       tags: tagsByCreative.get(r.creativeId as string) ?? [],
@@ -665,6 +693,22 @@ export async function listCreativeSummary(
     filteredRows = filteredRows.filter((r) =>
       want.has(rateBlock(blockFor(r, rate.scope), rulesForScope(config, rate.scope))),
     );
+  }
+
+  // Dynamic-status filter — same row-dropping shape as the rate filter. Scope
+  // "total" tests the general roll-up; a platform scope tests that platform's
+  // per-platform status (a creative with NO presence on the platform has no
+  // per-platform status, so it's excluded).
+  const status = filters.statusFilter;
+  if (status && status.statuses.length > 0) {
+    const want = new Set<DynamicCreativeStatus>(status.statuses);
+    filteredRows = filteredRows.filter((r) => {
+      const s: DynamicCreativeStatus | PlatformStatus | undefined =
+        status.scope === "total"
+          ? r.generalStatus
+          : r.perPlatformStatus[status.scope as Platform];
+      return s !== undefined && want.has(s as DynamicCreativeStatus);
+    });
   }
 
   if (isRateSort) {

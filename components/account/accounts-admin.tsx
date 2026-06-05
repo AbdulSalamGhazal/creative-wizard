@@ -10,12 +10,14 @@ import {
   createAccount,
   renameAccount,
   setActiveAccount,
+  setStatusWindow,
 } from "@/app/actions/account";
 
 interface AccountRow {
   id: string;
   name: string;
   slug: string;
+  statusWindowHours: number;
 }
 
 /**
@@ -89,6 +91,23 @@ export function AccountsAdmin({
     });
   };
 
+  const saveWindow = (id: string, raw: string) => {
+    const hours = Math.round(Number(raw));
+    if (!Number.isFinite(hours) || hours < 1 || hours > 720) {
+      toast.error("Window must be 1–720 hours");
+      return;
+    }
+    startTransition(async () => {
+      const res = await setStatusWindow({ id, hours });
+      if (!res.ok) {
+        toast.error(res.error ?? "Could not update window");
+        return;
+      }
+      toast.success("Active window updated");
+      router.refresh();
+    });
+  };
+
   return (
     <div className="space-y-4">
       <div className="rounded-lg border border-line bg-surface p-4">
@@ -124,6 +143,9 @@ export function AccountsAdmin({
             <tr className="text-left text-[11px] uppercase tracking-[0.14em] text-ink-3 border-b border-line">
               <th className="font-medium px-3 py-2.5">Brand</th>
               <th className="font-medium px-3 py-2.5">Slug</th>
+              <th className="font-medium px-3 py-2.5" title="A creative counts as Active on a platform if it spent within this many hours of that platform's latest data day (rounds to whole days).">
+                Active window
+              </th>
               <th className="font-medium px-3 py-2.5 text-right"></th>
             </tr>
           </thead>
@@ -162,6 +184,30 @@ export function AccountsAdmin({
                     )}
                   </td>
                   <td className="px-3 py-2 text-ink-3">{r.slug}</td>
+                  <td className="px-3 py-2">
+                    <span className="inline-flex items-center gap-1.5">
+                      <Input
+                        type="number"
+                        min={1}
+                        max={720}
+                        defaultValue={r.statusWindowHours}
+                        disabled={isPending}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            (e.target as HTMLInputElement).blur();
+                          }
+                        }}
+                        onBlur={(e) => {
+                          if (Number(e.target.value) !== r.statusWindowHours) {
+                            saveWindow(r.id, e.target.value);
+                          }
+                        }}
+                        className="h-7 w-16"
+                      />
+                      <span className="text-ink-3 text-xs">h</span>
+                    </span>
+                  </td>
                   <td className="px-3 py-2 text-right whitespace-nowrap">
                     {editing ? (
                       <span className="inline-flex items-center gap-1">

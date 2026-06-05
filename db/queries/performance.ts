@@ -9,6 +9,8 @@ import {
   creativeStatusEnum,
   creativeTypeEnum,
 } from "@/db/schema";
+import { creativeStatusMap, statusFor } from "@/db/queries/creative-status";
+import type { CreativeStatus } from "@/lib/creative-status";
 import {
   ctr,
   cpa,
@@ -37,7 +39,10 @@ import { getActiveAccountId } from "@/lib/tenant";
 
 type Platform = (typeof platformEnum)[number];
 type CreativeType = (typeof creativeTypeEnum)[number];
-type CreativeStatus = (typeof creativeStatusEnum)[number];
+/** The OLD, now-frozen manual status enum. Only kept for the (unused)
+ *  `KpiFilters.statuses` field — the dynamic status comes from
+ *  `@/lib/creative-status` via `CreativeStatus`. */
+type FrozenStatus = (typeof creativeStatusEnum)[number];
 
 export interface KpiFilters {
   from?: string; // ISO date YYYY-MM-DD; omit for all-time
@@ -45,7 +50,9 @@ export interface KpiFilters {
   productIds?: string[];
   platforms?: Platform[];
   types?: CreativeType[];
-  statuses?: CreativeStatus[];
+  /** No longer applied — the dynamic status can't be a SQL WHERE. Kept so
+   *  existing callers that still pass it don't break. */
+  statuses?: FrozenStatus[];
   tags?: string[];
   creativeIds?: string[];
   /** Combined "Campaign ➤ Adset" values to include (used by Compare sides). */
@@ -158,10 +165,13 @@ async function buildBaseConditions(filters: KpiFilters): Promise<{
     );
   }
 
+  // NOTE: `filters.statuses` (the OLD manual status enum) is intentionally NOT
+  // applied. Status is now DERIVED dynamically (spend-based) and can't be
+  // expressed as a SQL WHERE here, so the aggregate views no longer filter by
+  // it. The field is kept on KpiFilters for caller compatibility only.
   const needsCreativeJoin =
     (filters.productIds && filters.productIds.length > 0) ||
-    (filters.types && filters.types.length > 0) ||
-    (filters.statuses && filters.statuses.length > 0);
+    (filters.types && filters.types.length > 0);
 
   if (needsCreativeJoin) {
     if (filters.productIds && filters.productIds.length > 0) {
@@ -169,9 +179,6 @@ async function buildBaseConditions(filters: KpiFilters): Promise<{
     }
     if (filters.types && filters.types.length > 0) {
       conditions.push(inArray(creatives.type, filters.types));
-    }
-    if (filters.statuses && filters.statuses.length > 0) {
-      conditions.push(inArray(creatives.status, filters.statuses));
     }
   }
 
@@ -321,7 +328,6 @@ export async function topCreatives(
       name: creatives.name,
       productName: products.name,
       type: creatives.type,
-      status: creatives.status,
       spend: sumSpend,
       impressions: sumImpressions,
       clicks: sumClicks,
@@ -344,9 +350,12 @@ export async function topCreatives(
 
   const rows = await q
     .where(and(...conditions))
-    .groupBy(creatives.id, creatives.name, products.name, creatives.type, creatives.status)
+    .groupBy(creatives.id, creatives.name, products.name, creatives.type)
     .orderBy(desc(sumSpend))
     .limit(limit);
+
+  // Derive the dynamic general status for the returned creatives.
+  const sMap = await creativeStatusMap(rows.map((r) => r.creativeId));
 
   // Pull daily-spend series for the top creatives in one extra query so the
   // table can render sparklines without N+1.
@@ -393,7 +402,7 @@ export async function topCreatives(
     name: r.name,
     productName: r.productName,
     type: r.type as CreativeType,
-    status: r.status as CreativeStatus,
+    status: statusFor(sMap, r.creativeId).general,
     spend: Number(r.spend ?? 0),
     impressions: Number(r.impressions ?? 0),
     clicks: Number(r.clicks ?? 0),
@@ -567,9 +576,7 @@ export async function tagMix(filters: KpiFilters): Promise<TagMixRow[]> {
   if (filters.types && filters.types.length > 0) {
     conditions.push(inArray(creatives.type, filters.types));
   }
-  if (filters.statuses && filters.statuses.length > 0) {
-    conditions.push(inArray(creatives.status, filters.statuses));
-  }
+  // NOTE: `filters.statuses` is no longer applied — status is dynamic now.
   // When a tag filter is set we still group by tag; the filter narrows which
   // tags appear.
   if (filters.tags && filters.tags.length > 0) {
@@ -946,7 +953,7 @@ export async function topMovers(
   const currMap = new Map(
     currRows.map((r) => [
       r.creativeId,
-      { spend: r.spend, name: r.name, productName: r.productName, type: r.type, status: r.status },
+      { spend: r.spend, name: r.name, productName: r.productName, type: r.type },
     ]),
   );
 
@@ -956,7 +963,7 @@ export async function topMovers(
     .map((r) => r.creativeId);
   const priorOnlyMeta = new Map<
     string,
-    { name: string; productName: string; type: CreativeType; status: CreativeStatus }
+    { name: string; productName: string; type: CreativeType }
   >();
   if (priorOnlyIds.length > 0) {
     const metaRows = await db
@@ -965,7 +972,6 @@ export async function topMovers(
         name: creatives.name,
         productName: products.name,
         type: creatives.type,
-        status: creatives.status,
       })
       .from(creatives)
       .innerJoin(products, eq(products.id, creatives.productId))
@@ -975,10 +981,12 @@ export async function topMovers(
         name: r.name,
         productName: r.productName,
         type: r.type as CreativeType,
-        status: r.status as CreativeStatus,
       });
     }
   }
+
+  // Derive the dynamic general status once for the union of current + prior ids.
+  const sMap = await creativeStatusMap([...allIds]);
 
   const rows: TopMoverRow[] = [];
   for (const id of allIds) {
@@ -993,7 +1001,7 @@ export async function topMovers(
       name: meta.name,
       productName: meta.productName,
       type: meta.type,
-      status: meta.status,
+      status: statusFor(sMap, id).general,
       currentSpend,
       previousSpend,
       delta: computeDelta(currentSpend, previousSpend),
@@ -1017,7 +1025,6 @@ interface SpendPerCreativeRow {
   name: string;
   productName: string;
   type: CreativeType;
-  status: CreativeStatus;
   spend: number;
 }
 
@@ -1032,7 +1039,6 @@ async function spendPerCreative(
       name: creatives.name,
       productName: products.name,
       type: creatives.type,
-      status: creatives.status,
       spend: sumSpend,
     })
     .from(performanceRecords)
@@ -1049,14 +1055,13 @@ async function spendPerCreative(
 
   const rows = await q
     .where(and(...conditions))
-    .groupBy(creatives.id, creatives.name, products.name, creatives.type, creatives.status);
+    .groupBy(creatives.id, creatives.name, products.name, creatives.type);
 
   return rows.map((r) => ({
     creativeId: r.creativeId,
     name: r.name,
     productName: r.productName,
     type: r.type as CreativeType,
-    status: r.status as CreativeStatus,
     spend: Number(r.spend ?? 0),
   }));
 }

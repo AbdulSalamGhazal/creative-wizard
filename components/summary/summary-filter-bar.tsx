@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Activity,
   CircleDot,
   ChevronDown,
   Columns3,
@@ -29,12 +30,20 @@ import {
   MAX_PLATFORMS,
   METRIC_COLUMN_KEYS,
   parseRateFilter,
+  parseStatusFilter,
   serializeRateFilter,
+  serializeStatusFilter,
   type IdentityColumnKey,
   type MetricColumnKey,
   type MetricFilterScope,
 } from "@/validators/summary";
 import { RATING_META, RATING_VALUES, type Rating } from "@/lib/rating";
+import {
+  CREATIVE_STATUSES,
+  STATUS_DOT,
+  STATUS_LABEL,
+  type CreativeStatus,
+} from "@/lib/creative-status";
 import { PLATFORM_LABEL } from "@/lib/palette";
 import { MetricFilterControl } from "@/components/summary/metric-filter";
 import { ViewsControl } from "@/components/summary/views-control";
@@ -146,6 +155,18 @@ export function SummaryFilterBar({
   useEffect(() => {
     if (parsedRate?.scope) setRateScope(parsedRate.scope);
   }, [parsedRate?.scope]);
+
+  // Dynamic-status filter — same shape as the rate filter: scope in local state
+  // (so a scope can be picked before any status is checked), statuses in the URL.
+  const statusParam = searchParams.get("status");
+  const parsedStatus = useMemo(() => parseStatusFilter(statusParam), [statusParam]);
+  const statusValues = parsedStatus?.statuses ?? [];
+  const [statusScope, setStatusScope] = useState<MetricFilterScope>(
+    parsedStatus?.scope ?? "total",
+  );
+  useEffect(() => {
+    if (parsedStatus?.scope) setStatusScope(parsedStatus.scope);
+  }, [parsedStatus?.scope]);
 
   const urlQ = searchParams.get("q") ?? "";
   const [qInput, setQInput] = useState(urlQ);
@@ -281,6 +302,24 @@ export function SummaryFilterBar({
     if (rateRatings.length > 0) writeRate(scope, rateRatings);
   };
 
+  // Status filter: toggle a status in/out of the active set (URL param
+  // `status=<scope>:<statuses>`); change scope while keeping selected statuses.
+  const writeStatus = (scope: MetricFilterScope, statuses: CreativeStatus[]) =>
+    update((next) => {
+      if (statuses.length === 0) next.delete("status");
+      else next.set("status", serializeStatusFilter({ scope, statuses }));
+    });
+  const toggleStatus = (s: CreativeStatus) => {
+    const set = new Set(statusValues);
+    if (set.has(s)) set.delete(s);
+    else set.add(s);
+    writeStatus(statusScope, [...set]);
+  };
+  const changeStatusScope = (scope: MetricFilterScope) => {
+    setStatusScope(scope);
+    if (statusValues.length > 0) writeStatus(scope, statusValues);
+  };
+
   const filtersActive =
     urlQ.length > 0 ||
     productIds.length > 0 ||
@@ -292,6 +331,7 @@ export function SummaryFilterBar({
     !!to ||
     includeExcluded ||
     rateRatings.length > 0 ||
+    statusValues.length > 0 ||
     !!searchParams.get("metricFilters");
 
   const clearAll = () =>
@@ -315,6 +355,7 @@ export function SummaryFilterBar({
         "hideBlended",
         "metricFilters",
         "rate",
+        "status",
       ].forEach((k) => next.delete(k));
     });
 
@@ -341,6 +382,20 @@ export function SummaryFilterBar({
     rateRatings.length === 0
       ? "Any"
       : `${rateScope === "total" ? "Total" : PLATFORM_LABEL[rateScope as keyof typeof PLATFORM_LABEL] ?? rateScope} · ${rateRatings.length}`;
+
+  // Scopes the Status filter can target: the general roll-up (Total) + each
+  // shown platform's per-platform status.
+  const statusScopeOptions: Array<{ value: MetricFilterScope; label: string }> = [
+    { value: "total", label: "Total" },
+    ...effectivePlatforms.map((p) => ({
+      value: p as MetricFilterScope,
+      label: PLATFORM_LABEL[p as keyof typeof PLATFORM_LABEL] ?? p,
+    })),
+  ];
+  const statusLabel =
+    statusValues.length === 0
+      ? "Any"
+      : `${statusScope === "total" ? "Total" : PLATFORM_LABEL[statusScope as keyof typeof PLATFORM_LABEL] ?? statusScope} · ${statusValues.length}`;
 
   return (
     <div className="sticky top-0 z-20 -mx-6 px-6 py-3 border-b border-line bg-background/95 backdrop-blur">
@@ -612,6 +667,76 @@ export function SummaryFilterBar({
                     className="w-full text-left px-2 py-1.5 text-xs text-ink-2 hover:text-ink hover:bg-surface-2 transition-colors"
                   >
                     Clear rating filter
+                  </button>
+                </>
+              )}
+            </DropdownMenuContent>
+          )}
+        </FilterPill>
+
+        {/* Dynamic-status filter — keep only creatives at a given live status,
+            on a chosen scope (general roll-up or one platform). */}
+        <FilterPill
+          icon={Activity}
+          label="Live status"
+          value={statusLabel}
+          active={statusValues.length > 0}
+        >
+          {() => (
+            <DropdownMenuContent align="start" className="w-56">
+              <DropdownMenuLabel>Scope</DropdownMenuLabel>
+              <div className="px-2 pb-2 flex flex-wrap gap-1">
+                {statusScopeOptions.map((s) => (
+                  <button
+                    key={s.value}
+                    type="button"
+                    onClick={() => changeStatusScope(s.value)}
+                    className={cn(
+                      "px-2 h-6 rounded text-[11px] border transition-colors",
+                      statusScope === s.value
+                        ? "border-brand/50 text-ink bg-[var(--brand-soft)]"
+                        : "border-line text-ink-2 hover:text-ink hover:bg-surface-2",
+                    )}
+                  >
+                    {s.label}
+                  </button>
+                ))}
+              </div>
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel>Status</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {CREATIVE_STATUSES.map((s) => {
+                // Per-platform scopes never carry the whole-creative "new" state.
+                const disabled = statusScope !== "total" && s === "new";
+                return (
+                  <DropdownMenuCheckboxItem
+                    key={s}
+                    checked={statusValues.includes(s)}
+                    disabled={disabled}
+                    onCheckedChange={() => toggleStatus(s)}
+                    onSelect={(e) => e.preventDefault()}
+                  >
+                    <span className="inline-flex items-center gap-1.5">
+                      <span
+                        className="h-1.5 w-1.5 rounded-full shrink-0"
+                        style={{ background: STATUS_DOT[s] }}
+                      />
+                      <span className={cn(disabled && "text-ink-3")}>
+                        {STATUS_LABEL[s]}
+                      </span>
+                    </span>
+                  </DropdownMenuCheckboxItem>
+                );
+              })}
+              {statusValues.length > 0 && (
+                <>
+                  <DropdownMenuSeparator />
+                  <button
+                    type="button"
+                    onClick={() => writeStatus(statusScope, [])}
+                    className="w-full text-left px-2 py-1.5 text-xs text-ink-2 hover:text-ink hover:bg-surface-2 transition-colors"
+                  >
+                    Clear status filter
                   </button>
                 </>
               )}

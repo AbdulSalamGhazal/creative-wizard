@@ -145,7 +145,6 @@ export function FilterStrip({ products = [], tags = [], hideType = false }: Filt
       next.delete("includeExcluded");
       next.delete("productIds");
       next.delete("types");
-      next.delete("statuses");
       next.delete("tags");
     });
   };

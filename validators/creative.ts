@@ -1,13 +1,16 @@
 import { z } from "zod";
-import { creativeStatusEnum, creativeTypeEnum, platformEnum } from "@/db/schema";
+import { creativeTypeEnum, platformEnum } from "@/db/schema";
+import { CREATIVE_STATUSES } from "@/lib/creative-status";
 
 // Initial sketch; see docs/prd.md §5.1.
 // The creative attribute set is expected to evolve during development.
+// Status is no longer a manual attribute — it's derived dynamically (see
+// lib/creative-status.ts), with per-platform termination as the only manual
+// lever (creativeTerminationSchema below).
 export const creativeCreateSchema = z.object({
   name: z.string().min(1).max(255),
   productId: z.string().uuid(),
   type: z.enum(creativeTypeEnum),
-  status: z.enum(creativeStatusEnum).default("draft"),
   thumbnailUrl: z.string().url().optional(),
   launchDate: z.string().date().optional(),
   notes: z.string().optional(),
@@ -15,6 +18,19 @@ export const creativeCreateSchema = z.object({
 });
 
 export type CreativeCreateInput = z.infer<typeof creativeCreateSchema>;
+
+/**
+ * Manual per-platform termination lever. A creative is "Terminated" on a
+ * platform when a `creative_platform_overrides` row exists for it; this schema
+ * backs the detail header's Terminate / Reactivate buttons.
+ */
+export const creativeTerminationSchema = z.object({
+  creativeId: z.string().uuid(),
+  platform: z.enum(platformEnum),
+  terminated: z.boolean(),
+});
+
+export type CreativeTerminationInput = z.infer<typeof creativeTerminationSchema>;
 
 // -----------------------------------------------------------------------------
 // Library URL filters (creator + launchFrom/launchTo deferred until a user
@@ -68,7 +84,9 @@ export const creativeListFiltersSchema = z.object({
     .transform((s) => (s && s.trim() ? s.trim() : undefined)),
   productIds: csvString(),
   types: csvEnum(creativeTypeEnum),
-  statuses: csvEnum(creativeStatusEnum),
+  // Library status filter uses the NEW dynamic status set
+  // (new|active|pause|terminated), NOT the OLD manual `creativeStatusEnum`.
+  statuses: csvEnum(CREATIVE_STATUSES),
   // Keep only creatives with performance data on the selected platform(s).
   platforms: csvEnum(platformEnum),
   tags: csvString(),

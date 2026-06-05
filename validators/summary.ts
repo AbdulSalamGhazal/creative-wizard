@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { platformEnum, creativeTypeEnum, creativeStatusEnum } from "@/db/schema";
 import { RATING_VALUES, type Rating } from "@/lib/rating";
+import { CREATIVE_STATUSES, type CreativeStatus } from "@/lib/creative-status";
 import { defaultDateRange } from "@/lib/date-presets";
 
 /**
@@ -220,6 +221,51 @@ export function serializeRateFilter(c: RateFilterCondition): string {
   return `${c.scope}:${c.ratings.join(",")}`;
 }
 
+/**
+ * The Status filter: keep only creatives whose dynamic status — on a chosen
+ * scope (general roll-up via "total", or one platform's per-platform status) —
+ * is in the selected set. Encoded in the URL as `status=<scope>:<status,status>`
+ * e.g. `status=total:active,pause` or `status=tiktok:terminated`.
+ *
+ * `statuses` empty means the filter is inactive (the scope is still remembered
+ * so the picker keeps the user's choice). Mirrors the Rate filter exactly.
+ *
+ * Note: the four dynamic statuses (new/active/pause/terminated) come from
+ * `lib/creative-status.ts` — distinct from the legacy manual `creativeStatusEnum`
+ * still used by the `statuses=` library-style filter on the WHERE clause.
+ */
+export interface StatusFilterCondition {
+  scope: MetricFilterScope;
+  statuses: CreativeStatus[];
+}
+
+export function parseStatusFilter(
+  raw: string | null | undefined,
+): StatusFilterCondition | null {
+  if (!raw) return null;
+  const [scopeRaw, statusesRaw] = raw.split(":");
+  const scope: MetricFilterScope = (METRIC_FILTER_SCOPES as readonly string[]).includes(
+    scopeRaw ?? "",
+  )
+    ? (scopeRaw as MetricFilterScope)
+    : "total";
+  const statuses = [
+    ...new Set(
+      (statusesRaw ?? "")
+        .split(",")
+        .filter(Boolean)
+        .filter((s): s is CreativeStatus =>
+          (CREATIVE_STATUSES as readonly string[]).includes(s),
+        ),
+    ),
+  ];
+  return { scope, statuses };
+}
+
+export function serializeStatusFilter(c: StatusFilterCondition): string {
+  return `${c.scope}:${c.statuses.join(",")}`;
+}
+
 /** Identity columns + per-platform metric keys. Validated against the
  *  selected platforms in the page; an invalid combination falls back to
  *  the default sort. */
@@ -294,6 +340,12 @@ export const summaryFiltersSchema = z.object({
     .string()
     .optional()
     .transform((s) => parseRateFilter(s)),
+  // Dynamic Status filter (scope + selected statuses). Scope "total" matches the
+  // general roll-up; a platform scope matches that platform's per-platform status.
+  status: z
+    .string()
+    .optional()
+    .transform((s) => parseStatusFilter(s)),
 });
 
 export type SummaryFilters = z.infer<typeof summaryFiltersSchema>;

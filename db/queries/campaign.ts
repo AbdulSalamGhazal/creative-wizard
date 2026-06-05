@@ -19,6 +19,8 @@ import {
   platformEnum,
   products,
 } from "@/db/schema";
+import { creativeStatusMap, statusFor } from "@/db/queries/creative-status";
+import type { CreativeStatus } from "@/lib/creative-status";
 import {
   completeRate,
   cpa,
@@ -43,7 +45,9 @@ import { getActiveAccountId } from "@/lib/tenant";
 
 type Platform = (typeof platformEnum)[number];
 type CreativeType = (typeof creativeTypeEnum)[number];
-type CreativeStatus = (typeof creativeStatusEnum)[number];
+/** OLD manual status enum — only the campaign-list filter still uses it. The
+ *  per-creative status shown in the table is the DYNAMIC `CreativeStatus`. */
+type FrozenStatus = (typeof creativeStatusEnum)[number];
 
 const num = (v: unknown): number => (v === null || v === undefined ? 0 : Number(v));
 const numOrNull = (v: unknown): number | null =>
@@ -62,7 +66,7 @@ export interface CampaignFilters extends Range {
   platforms?: Platform[];
   productIds?: string[];
   types?: CreativeType[];
-  statuses?: CreativeStatus[];
+  statuses?: FrozenStatus[];
   tags?: string[];
   includeExcluded?: boolean;
 }
@@ -608,7 +612,6 @@ export async function campaignCreatives(
       creativeId: creatives.id,
       name: creatives.name,
       type: creatives.type,
-      status: creatives.status,
       thumbnailUrl: creatives.thumbnailUrl,
       spend: sumSpend,
       impressions: sumImpressions,
@@ -626,15 +629,18 @@ export async function campaignCreatives(
       creatives.id,
       creatives.name,
       creatives.type,
-      creatives.status,
       creatives.thumbnailUrl,
     )
     .orderBy(desc(sumSpend));
+
+  // Attach the dynamic general status for each creative in this campaign.
+  const sMap = await creativeStatusMap(rows.map((r) => r.creativeId));
+
   return rows.map((r) => ({
     creativeId: r.creativeId,
     name: r.name,
     type: r.type as CreativeType,
-    status: r.status as CreativeStatus,
+    status: statusFor(sMap, r.creativeId).general,
     thumbnailUrl: r.thumbnailUrl,
     spend: num(r.spend),
     impressions: num(r.impressions),

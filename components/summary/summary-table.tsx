@@ -22,6 +22,8 @@ import {
   type MetricColumnKey,
   type SortDir,
 } from "@/validators/summary";
+import { StatusBadge } from "@/components/creative/status-badge";
+import type { PlatformStatus } from "@/lib/creative-status";
 
 interface Props {
   rows: SummaryRow[];
@@ -447,16 +449,26 @@ export function SummaryTable({
                   case "name":
                     return (
                       <td key="name" style={style} className={`px-3 py-2 ${nowrap}`}>
-                        <Link
-                          href={`/creatives/${encodeURIComponent(r.name)}`}
-                          title={r.name}
-                          className={
-                            "font-mono text-ink text-[12px] hover:text-brand transition-colors " +
-                            (w ? "block truncate" : "")
-                          }
-                        >
-                          {r.name}
-                        </Link>
+                        <span className="inline-flex items-center gap-2 max-w-full">
+                          {/* Dynamic general status — a colored dot, label in
+                              its title; sits before the name so the live state
+                              reads at a glance without a dedicated column. */}
+                          <StatusBadge
+                            status={r.generalStatus}
+                            dotOnly
+                            className="shrink-0"
+                          />
+                          <Link
+                            href={`/creatives/${encodeURIComponent(r.name)}`}
+                            title={r.name}
+                            className={
+                              "font-mono text-ink text-[12px] hover:text-brand transition-colors " +
+                              (w ? "block truncate" : "")
+                            }
+                          >
+                            {r.name}
+                          </Link>
+                        </span>
                       </td>
                     );
                   case "product":
@@ -515,6 +527,14 @@ export function SummaryTable({
                     g === "total"
                       ? r.total
                       : r.perPlatform[g as keyof typeof r.perPlatform]
+                  }
+                  // Per-platform dynamic status for this creative on this
+                  // platform (undefined for the blended "total" group, or for
+                  // a platform the creative never ran on → renders nothing).
+                  platformStatus={
+                    g === "total"
+                      ? undefined
+                      : r.perPlatformStatus[g as keyof typeof r.perPlatformStatus]
                   }
                   showRate={showRate}
                   ratingConfig={ratingConfig}
@@ -715,6 +735,7 @@ function SortableTh({
 function RateAndMetricsCells({
   scope,
   block,
+  platformStatus,
   showRate,
   ratingConfig,
   visibleMetrics,
@@ -722,30 +743,49 @@ function RateAndMetricsCells({
 }: {
   scope: string;
   block: PlatformMetricBlock | undefined;
+  /** This creative's status on this platform (undefined for "total" / never-ran). */
+  platformStatus?: PlatformStatus;
   showRate: boolean;
   ratingConfig: RatingConfig;
   visibleMetrics: MetricColumn[];
   muted?: boolean;
 }) {
+  // The per-platform status dot leads the group: it shares the Rate cell when
+  // Rate is shown, otherwise it prefixes the first metric cell. The blended
+  // "total" group has no per-platform status, so this is always undefined there.
+  const statusDot = platformStatus ? (
+    <StatusBadge status={platformStatus} dotOnly className="align-middle" />
+  ) : null;
   return (
     <>
       {showRate && (
         <td className="px-3 py-2 text-center whitespace-nowrap border-l border-line">
-          <RateBadge block={block} rules={rulesForScope(ratingConfig, scope)} />
+          <span className="inline-flex items-center justify-center gap-1.5">
+            {statusDot}
+            <RateBadge block={block} rules={rulesForScope(ratingConfig, scope)} />
+          </span>
         </td>
       )}
       {visibleMetrics.map((m, mi) => {
         const v = block ? pickMetric(block, m.key) : null;
+        const leadsGroup = mi === 0 && !showRate;
         return (
           <td
             key={`${scope}.${m.key}`}
             className={
               "px-3 py-2 text-right whitespace-nowrap tabular-nums " +
               (muted ? "text-ink-2 " : "text-ink ") +
-              (mi === 0 && !showRate ? "border-l border-line" : "")
+              (leadsGroup ? "border-l border-line" : "")
             }
           >
-            {m.format(v)}
+            {leadsGroup && statusDot ? (
+              <span className="inline-flex items-center justify-end gap-1.5">
+                {statusDot}
+                {m.format(v)}
+              </span>
+            ) : (
+              m.format(v)
+            )}
           </td>
         );
       })}

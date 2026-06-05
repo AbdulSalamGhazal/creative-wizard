@@ -33,6 +33,8 @@ import {
 } from "@/lib/metrics";
 import { prevPeriod } from "@/lib/period";
 import { getActiveAccountId } from "@/lib/tenant";
+import { creativeStatusMap, statusFor } from "@/db/queries/creative-status";
+import type { CreativeStatus } from "@/lib/creative-status";
 
 type Platform = (typeof platformEnum)[number];
 
@@ -557,7 +559,7 @@ export interface VideoDiagnosticRow extends VideoFunnel {
   creativeId: string;
   name: string;
   productName: string;
-  status: "draft" | "active" | "paused" | "archived";
+  status: CreativeStatus;
   spend: number;
   clicks: number;
   conversions: number;
@@ -621,7 +623,6 @@ export async function videoDiagnostics(
       creativeId: creatives.id,
       name: creatives.name,
       productName: products.name,
-      status: creatives.status,
       spend: sumSpend,
       impressions: sumImpressions,
       clicks: sumClicks,
@@ -638,8 +639,11 @@ export async function videoDiagnostics(
     .innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId))
     .innerJoin(products, eq(products.id, creatives.productId))
     .where(and(...conds))
-    .groupBy(creatives.id, creatives.name, products.name, creatives.status)
+    .groupBy(creatives.id, creatives.name, products.name)
     .orderBy(desc(sumSpend));
+
+  // Attach the dynamic general status for each video creative.
+  const sMap = await creativeStatusMap(rows.map((r) => r.creativeId));
 
   const rate = (a: number, b: number): number | null => (b > 0 ? a / b : null);
 
@@ -659,7 +663,7 @@ export async function videoDiagnostics(
       creativeId: r.creativeId,
       name: r.name,
       productName: r.productName,
-      status: r.status as VideoDiagnosticRow["status"],
+      status: statusFor(sMap, r.creativeId).general,
       impressions, v2s, v25, v50, v75, v100,
       spend, clicks, conversions, revenue,
       hookRate: rate(v2s, impressions),

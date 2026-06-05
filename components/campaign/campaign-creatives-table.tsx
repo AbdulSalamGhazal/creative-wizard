@@ -1,7 +1,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { Film, Image as ImageIcon, Layers } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/creative/status-badge";
 import { int, pct, ratio, usd } from "@/lib/format";
 import { gradientFor } from "@/lib/palette";
 import type { CampaignCreativeRow } from "@/db/queries/campaign";
@@ -15,13 +15,6 @@ const TYPE_LABEL: Record<CampaignCreativeRow["type"], string> = {
   video: "Video",
   image: "Image",
   slides: "Slides",
-};
-
-const statusBadge: Record<CampaignCreativeRow["status"], string> = {
-  active: "border-pos/40 text-pos bg-pos/10",
-  draft: "border-line-2 text-ink-2 bg-surface-2",
-  paused: "border-warn/40 text-warn bg-warn/10",
-  archived: "border-line-2 text-ink-3 bg-surface-2",
 };
 
 /**
@@ -92,9 +85,7 @@ export function CampaignCreativesTable({ rows }: { rows: CampaignCreativeRow[] }
                   </Link>
                 </td>
                 <td className="px-3 py-2.5">
-                  <Badge variant="outline" className={`text-[10px] ${statusBadge[r.status]}`}>
-                    {r.status}
-                  </Badge>
+                  <StatusBadge status={r.status} />
                 </td>
                 <td className="px-3 py-2.5 text-right text-ink tabular-nums">{usd(r.spend)}</td>
                 <td className="px-3 py-2.5 text-right text-ink-2 tabular-nums">{int(r.impressions)}</td>

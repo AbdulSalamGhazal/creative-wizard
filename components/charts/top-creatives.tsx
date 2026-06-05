@@ -1,8 +1,9 @@
-import { Badge } from "@/components/ui/badge";
 import { DownloadCsvButton } from "@/components/ui/download-csv-button";
 import { Sparkline } from "@/components/charts/sparkline";
+import { StatusBadge } from "@/components/creative/status-badge";
 import { int, pct, ratio, usd } from "@/lib/format";
 import { rowsToCsv, todayStamp, type CsvColumn } from "@/lib/csv-export";
+import { STATUS_LABEL } from "@/lib/creative-status";
 import type { TopCreativeRow } from "@/db/queries/performance";
 
 interface Props {
@@ -14,7 +15,7 @@ const CSV_COLUMNS: CsvColumn<TopCreativeRow>[] = [
   { key: "name", label: "Creative", value: (r) => r.name },
   { key: "product", label: "Product", value: (r) => r.productName },
   { key: "type", label: "Type", value: (r) => r.type },
-  { key: "status", label: "Status", value: (r) => r.status },
+  { key: "status", label: "Status", value: (r) => STATUS_LABEL[r.status] },
   { key: "spend", label: "Spend (USD)", value: (r) => r.spend },
   { key: "impressions", label: "Impressions", value: (r) => r.impressions },
   { key: "clicks", label: "Clicks", value: (r) => r.clicks },
@@ -28,13 +29,6 @@ const TYPE_LABEL: Record<TopCreativeRow["type"], string> = {
   video: "Video",
   image: "Image",
   slides: "Slides",
-};
-
-const statusClass: Record<TopCreativeRow["status"], string> = {
-  active: "border-pos/40 text-pos bg-pos/10",
-  draft: "border-line-2 text-ink-2 bg-surface-2",
-  paused: "border-warn/40 text-warn bg-warn/10",
-  archived: "border-line-2 text-ink-3 bg-surface-2",
 };
 
 export function TopCreativesTable({ rows }: Props) {
@@ -82,9 +76,7 @@ export function TopCreativesTable({ rows }: Props) {
               <td className="px-2 py-2.5 text-ink-2">{r.productName}</td>
               <td className="px-2 py-2.5 text-ink-2">{TYPE_LABEL[r.type]}</td>
               <td className="px-2 py-2.5">
-                <Badge variant="outline" className={statusClass[r.status]}>
-                  {r.status}
-                </Badge>
+                <StatusBadge status={r.status} />
               </td>
               <td className="px-2 py-2.5 text-right text-ink">{usd(r.spend)}</td>
               <td className="px-2 py-2.5">

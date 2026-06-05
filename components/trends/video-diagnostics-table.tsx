@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { int, pct, ratio, usd } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { StatusBadge } from "@/components/creative/status-badge";
 import type { VideoDiagnosticRow } from "@/db/queries/trends";
 
 const DASH = "—";
@@ -54,13 +55,6 @@ const COLS: Col[] = [
 const DEFAULT_VISIBLE = new Set<Key>([
   "productName", "spend", "hookRate", "holdRate", "completeRate", "cvr", "roas",
 ]);
-
-const STATUS_CLS: Record<string, string> = {
-  active: "border-pos/40 text-pos bg-pos/10",
-  paused: "border-warn/40 text-warn bg-warn/10",
-  draft: "border-line-2 text-ink-3 bg-surface-2",
-  archived: "border-line-2 text-ink-3 bg-surface-2",
-};
 
 type SortKey = Key | "name";
 
@@ -183,12 +177,9 @@ export function VideoDiagnosticsTable({
                 </td>
                 {shown.map((c) => {
                   if (c.kind === "status") {
-                    const s = r.status;
                     return (
                       <td key={c.key} className="px-3 py-2.5">
-                        <span className={cn("inline-flex items-center h-5 px-1.5 rounded text-[10px] border", STATUS_CLS[s] ?? STATUS_CLS.draft)}>
-                          {s}
-                        </span>
+                        <StatusBadge status={r.status} />
                       </td>
                     );
                   }

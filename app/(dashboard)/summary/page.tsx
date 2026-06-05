@@ -58,6 +58,7 @@ export default async function SummaryPage({
     hideBlended: pickFirst(params.hideBlended),
     metricFilters: pickFirst(params.metricFilters),
     rate: pickFirst(params.rate),
+    status: pickFirst(params.status),
   });
 
   const user = await requireAuth();
@@ -89,6 +90,7 @@ export default async function SummaryPage({
       metricFilters:
         parsed.metricFilters.length > 0 ? parsed.metricFilters : undefined,
       rateFilter: parsed.rate,
+      statusFilter: parsed.status,
       ratingConfig,
     }),
     listProducts(),

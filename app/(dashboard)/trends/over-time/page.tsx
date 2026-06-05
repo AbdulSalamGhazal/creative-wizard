@@ -41,7 +41,6 @@ export default async function TrendsOverTimePage({
     productIds: pickFirst(params.productIds),
     platforms: pickFirst(params.platforms),
     types: pickFirst(params.types),
-    statuses: pickFirst(params.statuses),
     tags: pickFirst(params.tags),
     includeExcluded: pickFirst(params.includeExcluded),
   });
@@ -56,7 +55,6 @@ export default async function TrendsOverTimePage({
     productIds: parsed.productIds,
     platforms: parsed.platforms.length > 0 ? parsed.platforms : undefined,
     types: parsed.types.length > 0 ? parsed.types : undefined,
-    statuses: parsed.statuses.length > 0 ? parsed.statuses : undefined,
     tags: parsed.tags.length > 0 ? parsed.tags : undefined,
     includeExcluded: parsed.includeExcluded,
   };

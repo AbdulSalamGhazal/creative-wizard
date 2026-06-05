@@ -32,6 +32,7 @@ import {
   type CreativeSort,
   type CreativeView,
 } from "@/validators/creative";
+import { CREATIVE_STATUSES, STATUS_LABEL } from "@/lib/creative-status";
 
 interface Props {
   products: Array<{ id: string; name: string }>;
@@ -44,12 +45,12 @@ const TYPES = [
   { value: "slides", label: "Slides" },
 ] as const;
 
-const STATUSES = [
-  { value: "active", label: "Active" },
-  { value: "paused", label: "Paused" },
-  { value: "draft", label: "Draft" },
-  { value: "archived", label: "Archived" },
-] as const;
+// Dynamic creative status (new|active|pause|terminated), labelled via the
+// shared STATUS_LABEL map.
+const STATUSES = CREATIVE_STATUSES.map((value) => ({
+  value,
+  label: STATUS_LABEL[value],
+}));
 
 const PLATFORMS = ALL_PLATFORMS.map((p) => ({
   value: p,

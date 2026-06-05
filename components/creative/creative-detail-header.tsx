@@ -29,13 +29,22 @@ import {
 import { Calendar } from "@/components/ui/calendar";
 import { ThumbnailUpload } from "@/components/creative/thumbnail-upload";
 import { TagMultiSelect } from "@/components/creative/tag-multi-select";
-import { patchCreative } from "@/app/actions/creative";
-import { creativeStatusEnum, creativeTypeEnum } from "@/db/schema";
+import { StatusBadge } from "@/components/creative/status-badge";
+import {
+  patchCreative,
+  setCreativeTermination,
+} from "@/app/actions/creative";
+import { creativeTypeEnum } from "@/db/schema";
+import { ALL_PLATFORMS, PLATFORM_LABEL } from "@/lib/palette";
 import { isoDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { CreativeDetail } from "@/db/queries/creatives";
+import type {
+  CreativeStatusResult,
+  Platform,
+  PlatformStatus,
+} from "@/lib/creative-status";
 
-type Status = CreativeDetail["status"];
 type Type = CreativeDetail["type"];
 
 const TYPE_LABEL: Record<Type, string> = {
@@ -48,20 +57,6 @@ const TYPE_ICON: Record<Type, React.ComponentType<{ className?: string }>> = {
   video: Film,
   image: ImageIcon,
   slides: Layers,
-};
-
-const STATUS_LABEL: Record<Status, string> = {
-  active: "Active",
-  paused: "Paused",
-  draft: "Draft",
-  archived: "Archived",
-};
-
-const STATUS_DOT: Record<Status, string> = {
-  active: "var(--pos)",
-  paused: "var(--warn)",
-  draft: "var(--ink-3)",
-  archived: "var(--ink-3)",
 };
 
 // Local-date <-> ISO helpers (avoid UTC off-by-one on the calendar).
@@ -85,10 +80,16 @@ function sameSet(a: string[], b: string[]): boolean {
 
 export function CreativeDetailHeader({
   creative,
+  status,
+  terminated,
   allTags,
   products,
 }: {
   creative: CreativeDetail;
+  /** Dynamic status (general + per-platform), computed by the page. */
+  status: CreativeStatusResult;
+  /** Platforms this creative is manually terminated on. */
+  terminated: Platform[];
   allTags: string[];
   products: Array<{ id: string; name: string }>;
 }) {
@@ -96,12 +97,13 @@ export function CreativeDetailHeader({
   const [isPending, startTransition] = useTransition();
   const [dateOpen, setDateOpen] = useState(false);
 
-  // Saved baseline (updated on successful save) + live drafts.
+  // Saved baseline (updated on successful save) + live drafts. Status is NOT
+  // part of this editor — it's derived, with per-platform termination as the
+  // only manual lever (handled separately below, not via patchCreative).
   const [saved, setSaved] = useState({
     name: creative.name,
     productId: creative.productId,
     type: creative.type,
-    status: creative.status,
     thumbnailUrl: creative.thumbnailUrl,
     launchDate: creative.launchDate,
     tags: creative.tags,
@@ -110,7 +112,6 @@ export function CreativeDetailHeader({
   const [name, setName] = useState(creative.name);
   const [productId, setProductId] = useState(creative.productId);
   const [type, setType] = useState<Type>(creative.type);
-  const [status, setStatus] = useState<Status>(creative.status);
   const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(
     creative.thumbnailUrl,
   );
@@ -124,7 +125,6 @@ export function CreativeDetailHeader({
     nameTrimmed !== saved.name ||
     productId !== saved.productId ||
     type !== saved.type ||
-    status !== saved.status ||
     thumbnailUrl !== saved.thumbnailUrl ||
     launchDate !== saved.launchDate ||
     !sameSet(tags, saved.tags);
@@ -135,7 +135,6 @@ export function CreativeDetailHeader({
     setName(saved.name);
     setProductId(saved.productId);
     setType(saved.type);
-    setStatus(saved.status);
     setThumbnailUrl(saved.thumbnailUrl);
     setLaunchDate(saved.launchDate);
     setTags(saved.tags);
@@ -147,7 +146,6 @@ export function CreativeDetailHeader({
     if (nameTrimmed !== saved.name) patch.name = nameTrimmed;
     if (productId !== saved.productId) patch.productId = productId;
     if (type !== saved.type) patch.type = type;
-    if (status !== saved.status) patch.status = status;
     if (thumbnailUrl !== saved.thumbnailUrl) patch.thumbnailUrl = thumbnailUrl;
     if (launchDate !== saved.launchDate) patch.launchDate = launchDate;
     if (!sameSet(tags, saved.tags)) patch.tags = tags;
@@ -169,7 +167,6 @@ export function CreativeDetailHeader({
           name: nameTrimmed,
           productId,
           type,
-          status,
           thumbnailUrl,
           launchDate,
           tags,
@@ -250,11 +247,14 @@ export function CreativeDetailHeader({
             </Select>
           </div>
 
-          {/* Name */}
+          {/* Name + read-only dynamic status */}
           <div className="space-y-1.5">
-            <label className="text-[10px] uppercase tracking-[0.18em] text-ink-3">
-              Creative name
-            </label>
+            <div className="flex items-center justify-between gap-3">
+              <label className="text-[10px] uppercase tracking-[0.18em] text-ink-3">
+                Creative name
+              </label>
+              <StatusBadge status={status.general} />
+            </div>
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -271,8 +271,8 @@ export function CreativeDetailHeader({
             )}
           </div>
 
-          {/* Type + Status */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-xl">
+          {/* Type */}
+          <div className="max-w-xl">
             <div className="space-y-1.5">
               <label className="text-[10px] uppercase tracking-[0.14em] text-ink-3">
                 Type
@@ -282,7 +282,7 @@ export function CreativeDetailHeader({
                 onValueChange={(v) => setType(v as Type)}
                 disabled={isPending}
               >
-                <SelectTrigger className="h-8 text-xs">
+                <SelectTrigger className="h-8 text-xs w-full sm:w-1/2">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -300,35 +300,13 @@ export function CreativeDetailHeader({
                 </SelectContent>
               </Select>
             </div>
-
-            <div className="space-y-1.5">
-              <label className="text-[10px] uppercase tracking-[0.14em] text-ink-3">
-                Status
-              </label>
-              <Select
-                value={status}
-                onValueChange={(v) => setStatus(v as Status)}
-                disabled={isPending}
-              >
-                <SelectTrigger className="h-8 text-xs">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {creativeStatusEnum.map((s) => (
-                    <SelectItem key={s} value={s} className="text-xs">
-                      <span className="inline-flex items-center gap-2">
-                        <span
-                          className="w-1.5 h-1.5 rounded-full"
-                          style={{ background: STATUS_DOT[s] }}
-                        />
-                        {STATUS_LABEL[s]}
-                      </span>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
           </div>
+
+          {/* Per-platform status + termination lever */}
+          <PlatformStatusSection
+            creativeId={creative.id}
+            perPlatform={status.perPlatform}
+          />
 
           {/* Publish date */}
           <div className="space-y-1.5">
@@ -394,6 +372,104 @@ export function CreativeDetailHeader({
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Per-platform status rows + the manual Terminate / Reactivate lever. Each
+ * platform with presence (it ran or is terminated) shows its derived status
+ * badge and a button to flip its termination. A creative with no presence at
+ * all reads "New" and shows a short note instead of controls.
+ */
+function PlatformStatusSection({
+  creativeId,
+  perPlatform,
+}: {
+  creativeId: string;
+  perPlatform: Partial<Record<Platform, PlatformStatus>>;
+}) {
+  const [pending, setPending] = useState<Platform | null>(null);
+  const [, startTransition] = useTransition();
+  const router = useRouter();
+
+  // Stable display order, following the canonical platform list.
+  const present = ALL_PLATFORMS.filter(
+    (p): p is Platform => perPlatform[p] !== undefined,
+  );
+
+  const flip = (platform: Platform, terminated: boolean) => {
+    setPending(platform);
+    startTransition(async () => {
+      const res = await setCreativeTermination({
+        creativeId,
+        platform,
+        terminated,
+      });
+      setPending(null);
+      if (!res.ok) {
+        toast.error(res.error ?? "Couldn't update termination");
+        return;
+      }
+      toast.success(
+        terminated
+          ? `Terminated on ${PLATFORM_LABEL[platform]}`
+          : `Reactivated on ${PLATFORM_LABEL[platform]}`,
+      );
+      router.refresh();
+    });
+  };
+
+  return (
+    <div className="space-y-1.5">
+      <label className="text-[10px] uppercase tracking-[0.14em] text-ink-3">
+        Platform status
+      </label>
+      {present.length === 0 ? (
+        <p className="text-[11px] text-ink-3">No platform activity yet.</p>
+      ) : (
+        <div className="space-y-1.5 max-w-xl">
+          {present.map((p) => {
+            const s = perPlatform[p]!;
+            const isTerminated = s === "terminated";
+            const busy = pending === p;
+            return (
+              <div
+                key={p}
+                className="flex items-center justify-between gap-3 rounded-md border border-line bg-surface px-3 py-2"
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="text-xs text-ink truncate">
+                    {PLATFORM_LABEL[p]}
+                  </span>
+                  <StatusBadge status={s} />
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={isTerminated ? "outline" : "ghost"}
+                  onClick={() => flip(p, !isTerminated)}
+                  disabled={busy}
+                  className={cn(
+                    "h-7 text-[11px]",
+                    isTerminated
+                      ? "text-ink-2 hover:text-ink"
+                      : "text-neg hover:text-neg",
+                  )}
+                >
+                  {busy ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : isTerminated ? (
+                    "Reactivate"
+                  ) : (
+                    "Terminate"
+                  )}
+                </Button>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

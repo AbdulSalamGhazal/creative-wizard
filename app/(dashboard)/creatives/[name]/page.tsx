@@ -13,6 +13,11 @@ import {
   listCreatives,
 } from "@/db/queries/creatives";
 import { listProducts } from "@/db/queries/products";
+import {
+  creativeStatusMap,
+  statusFor,
+  terminatedPlatformsFor,
+} from "@/db/queries/creative-status";
 import { listAuditEvents } from "@/db/queries/audit";
 import { creativeListFiltersSchema } from "@/validators/creative";
 import { CreativeDetailHeader } from "@/components/creative/creative-detail-header";
@@ -104,6 +109,15 @@ export default async function CreativeDetailPage({
     notFound();
   }
 
+  // Dynamic status (general + per-platform) + the manual termination set, both
+  // account-scoped. The header renders the general badge, the per-platform
+  // rows, and the Terminate / Reactivate levers from these.
+  const [sMap, terminated] = await Promise.all([
+    creativeStatusMap([creative.id]),
+    terminatedPlatformsFor(creative.id),
+  ]);
+  const status = statusFor(sMap, creative.id);
+
   const [
     k,
     byPlatform,
@@ -173,6 +187,8 @@ export default async function CreativeDetailPage({
       <section className="space-y-6">
         <CreativeDetailHeader
           creative={creative}
+          status={status}
+          terminated={terminated}
           allTags={allTags}
           products={products}
         />

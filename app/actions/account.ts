@@ -11,6 +11,7 @@ import {
   createAccountSchema,
   renameAccountSchema,
   setActiveAccountSchema,
+  setStatusWindowSchema,
 } from "@/validators/account";
 
 const COOKIE_MAX_AGE = 365 * 24 * 60 * 60; // 1 year
@@ -90,6 +91,26 @@ export async function createAccount(input: unknown): Promise<ActionResult> {
 
     revalidatePath("/", "layout");
     return { ok: true, id: row?.id };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : "Unknown error" };
+  }
+}
+
+/** Set a brand's "Active" status window, in hours (admin). */
+export async function setStatusWindow(input: unknown): Promise<ActionResult> {
+  try {
+    await requireAdmin();
+    const parsed = setStatusWindowSchema.safeParse(input);
+    if (!parsed.success) {
+      return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid window" };
+    }
+    await db
+      .update(accounts)
+      .set({ statusWindowHours: parsed.data.hours })
+      .where(eq(accounts.id, parsed.data.id));
+
+    revalidatePath("/", "layout");
+    return { ok: true };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : "Unknown error" };
   }

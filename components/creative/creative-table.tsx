@@ -2,23 +2,12 @@
 
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
-import { toast } from "sonner";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { DownloadCsvButton } from "@/components/ui/download-csv-button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { bulkUpdateStatus } from "@/app/actions/creative";
 import type { CreativeListRow } from "@/db/queries/creatives";
 import type { CreativeSort } from "@/validators/creative";
+import { StatusBadge } from "@/components/creative/status-badge";
 import { rowsToCsv, todayStamp, type CsvColumn } from "@/lib/csv-export";
 import { isoDate, usd } from "@/lib/format";
 
@@ -38,20 +27,6 @@ const TYPE_LABEL: Record<CreativeListRow["type"], string> = {
   image: "Image",
   slides: "Slides",
 };
-
-const statusClass: Record<CreativeListRow["status"], string> = {
-  active: "border-pos/40 text-pos bg-pos/10",
-  draft: "border-line-2 text-ink-2 bg-surface-2",
-  paused: "border-warn/40 text-warn bg-warn/10",
-  archived: "border-line-2 text-ink-3 bg-surface-2",
-};
-
-const BULK_STATUSES: Array<{ value: CreativeListRow["status"]; label: string }> = [
-  { value: "active", label: "Activate" },
-  { value: "paused", label: "Pause" },
-  { value: "draft", label: "Mark as draft" },
-  { value: "archived", label: "Archive" },
-];
 
 // Sortable columns → their asc/desc URL sort values (validated in
 // validators/creative.ts). Clicking a header cycles desc → asc → default.
@@ -80,10 +55,6 @@ export function CreativeTable({
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const currentSort = (searchParams.get("sort") as CreativeSort) ?? DEFAULT_SORT;
-
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [bulkStatus, setBulkStatus] = useState<CreativeListRow["status"] | "">("");
-  const [isPending, startTransition] = useTransition();
 
   // ---- Resizable text columns (Creative, Product) ----
   const [widths, setWidths] = useState<Record<string, number>>({});
@@ -150,39 +121,6 @@ export function CreativeTable({
     return { active, dir, href: qs ? `${pathname}?${qs}` : pathname };
   };
 
-  const allIds = useMemo(() => rows.map((r) => r.id), [rows]);
-  const allSelected = selected.size > 0 && selected.size === allIds.length;
-  const someSelected = selected.size > 0 && !allSelected;
-
-  const toggleOne = (id: string, checked: boolean) => {
-    setSelected((s) => {
-      const next = new Set(s);
-      if (checked) next.add(id);
-      else next.delete(id);
-      return next;
-    });
-  };
-  const toggleAll = (checked: boolean) => {
-    setSelected(checked ? new Set(allIds) : new Set());
-  };
-  const clearSelection = () => setSelected(new Set());
-
-  const applyBulkStatus = () => {
-    if (!bulkStatus || selected.size === 0) return;
-    const ids = Array.from(selected);
-    const targetStatus = bulkStatus;
-    startTransition(async () => {
-      const res = await bulkUpdateStatus({ ids, status: targetStatus });
-      if (!res.ok) {
-        toast.error(res.error ?? "Bulk update failed");
-        return;
-      }
-      toast.success(`${res.updated ?? ids.length} creatives → ${targetStatus}`);
-      setSelected(new Set());
-      setBulkStatus("");
-    });
-  };
-
   if (rows.length === 0) {
     return (
       <div className="rounded-lg border border-dashed border-line bg-surface px-6 py-16 text-center">
@@ -205,15 +143,6 @@ export function CreativeTable({
         <table className="w-full text-sm num">
           <thead>
             <tr className="text-left text-[11px] uppercase tracking-[0.14em] text-ink-3 [&>th]:sticky [&>th]:top-0 [&>th]:z-10 [&>th]:bg-surface [&>th]:border-b [&>th]:border-line">
-              <th className="font-medium pl-3 pr-2 py-2.5 w-8">
-                <Checkbox
-                  checked={
-                    allSelected ? true : someSelected ? "indeterminate" : false
-                  }
-                  onCheckedChange={(v) => toggleAll(v === true)}
-                  aria-label="Select all"
-                />
-              </th>
               <SortableTextTh
                 label="Creative"
                 state={sortState("name")}
@@ -246,19 +175,8 @@ export function CreativeTable({
             {rows.map((r) => (
               <tr
                 key={r.id}
-                className={
-                  selected.has(r.id)
-                    ? "bg-[var(--brand-soft)]/60 hover:bg-[var(--brand-soft)] transition-colors"
-                    : "hover:bg-surface-2/60 transition-colors"
-                }
+                className="hover:bg-surface-2/60 transition-colors"
               >
-                <td className="pl-3 pr-2 py-2.5">
-                  <Checkbox
-                    checked={selected.has(r.id)}
-                    onCheckedChange={(v) => toggleOne(r.id, v === true)}
-                    aria-label={`Select ${r.name}`}
-                  />
-                </td>
                 <td
                   style={widthStyle("name")}
                   className={`px-3 py-2.5 ${widths.name ? "" : "whitespace-nowrap"}`}
@@ -283,9 +201,7 @@ export function CreativeTable({
                 </td>
                 <td className="px-3 py-2.5 text-ink-2">{TYPE_LABEL[r.type]}</td>
                 <td className="px-3 py-2.5">
-                  <Badge variant="outline" className={statusClass[r.status]}>
-                    {r.status}
-                  </Badge>
+                  <StatusBadge status={r.status} />
                 </td>
                 <td className="px-3 py-2.5 text-ink-2">
                   {r.launchDate ? isoDate(r.launchDate) : "—"}
@@ -322,48 +238,6 @@ export function CreativeTable({
           </tbody>
         </table>
       </div>
-
-      {/* Sticky bulk-action bar */}
-      {selected.size > 0 && (
-        <div className="sticky bottom-4 z-20 flex items-center gap-3 px-4 py-3 rounded-lg border border-brand/40 bg-surface shadow-lg shadow-black/30">
-          <span className="text-sm text-ink num">
-            <span className="text-ink font-semibold">{selected.size}</span> selected
-          </span>
-          <Select
-            value={bulkStatus}
-            onValueChange={(v) => setBulkStatus(v as CreativeListRow["status"])}
-          >
-            <SelectTrigger className="h-8 w-[200px] text-xs">
-              <SelectValue placeholder="Change status…" />
-            </SelectTrigger>
-            <SelectContent>
-              {BULK_STATUSES.map((s) => (
-                <SelectItem key={s.value} value={s.value}>
-                  {s.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Button
-            type="button"
-            size="sm"
-            onClick={applyBulkStatus}
-            disabled={isPending || !bulkStatus}
-          >
-            {isPending ? "Applying…" : "Apply"}
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant="ghost"
-            onClick={clearSelection}
-            disabled={isPending}
-            className="ml-auto"
-          >
-            Clear
-          </Button>
-        </div>
-      )}
     </div>
   );
 }

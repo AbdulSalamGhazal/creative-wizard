@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { platformEnum, creativeTypeEnum, creativeStatusEnum } from "@/db/schema";
+import { platformEnum, creativeTypeEnum } from "@/db/schema";
 import { defaultDateRange } from "@/lib/date-presets";
 
 // Global dashboard filters encoded in URL searchParams.
@@ -37,7 +37,9 @@ export const dashboardFiltersSchema = z.object({
     .transform((s) => (s ? s.split(",").filter(Boolean) : [])),
   platforms: csvEnum(platformEnum),
   types: csvEnum(creativeTypeEnum),
-  statuses: csvEnum(creativeStatusEnum),
+  // The OLD manual `statuses` filter was retired — status is DERIVED now and
+  // can't be a SQL WHERE on the aggregate views. The Library/Summary status
+  // filters live in their own validators and are unaffected.
   tags: z
     .string()
     .optional()

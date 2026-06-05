@@ -29,21 +29,11 @@ const TYPES = [
   { value: "slides", label: "Slides" },
 ] as const;
 
-const STATUSES = [
-  { value: "draft", label: "Draft" },
-  { value: "active", label: "Active" },
-  { value: "paused", label: "Paused" },
-  { value: "archived", label: "Archived" },
-] as const;
-
 export function CreativeCreateForm({ products, allTags }: Props) {
   const router = useRouter();
   const [name, setName] = useState("");
   const [productId, setProductId] = useState<string>(products[0]?.id ?? "");
   const [type, setType] = useState<"video" | "image" | "slides">("video");
-  const [status, setStatus] = useState<
-    "draft" | "active" | "paused" | "archived"
-  >("draft");
   const [launchDate, setLaunchDate] = useState("");
   const [tagsInput, setTagsInput] = useState("");
   const [notes, setNotes] = useState("");
@@ -67,7 +57,6 @@ export function CreativeCreateForm({ products, allTags }: Props) {
         name: name.trim(),
         productId,
         type,
-        status,
         launchDate: launchDate || undefined,
         notes: notes.trim() || undefined,
         thumbnailUrl: thumbnailUrl || undefined,
@@ -139,30 +128,13 @@ export function CreativeCreateForm({ products, allTags }: Props) {
         </Field>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Field label="Status" error={fieldErrors.status}>
-          <Select
-            value={status}
-            onValueChange={(v) => setStatus(v as typeof status)}
-          >
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {STATUSES.map((s) => (
-                <SelectItem key={s.value} value={s.value}>
-                  {s.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </Field>
-        <Field label="Launch date" hint="Optional." error={fieldErrors.launchDate}>
-          <Input
-            type="date"
-            value={launchDate}
-            onChange={(e) => setLaunchDate(e.target.value)}
-          />
-        </Field>
-      </div>
+      <Field label="Launch date" hint="Optional." error={fieldErrors.launchDate}>
+        <Input
+          type="date"
+          value={launchDate}
+          onChange={(e) => setLaunchDate(e.target.value)}
+        />
+      </Field>
 
       <Field
         label="Thumbnail"
