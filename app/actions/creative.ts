@@ -11,6 +11,7 @@ import {
   creativeTags,
   creativeTypeEnum,
   performanceRecords,
+  products,
 } from "@/db/schema";
 import { creativeCreateSchema } from "@/validators/creative";
 import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
@@ -21,6 +22,19 @@ export interface CreativeMutationResult {
   error?: string;
   fieldErrors?: Record<string, string>;
   name?: string;
+}
+
+/** Does this product exist AND belong to the given account? */
+async function productInAccount(
+  productId: string,
+  acct: string,
+): Promise<boolean> {
+  const [row] = await db
+    .select({ id: products.id })
+    .from(products)
+    .where(and(eq(products.accountId, acct), eq(products.id, productId)))
+    .limit(1);
+  return Boolean(row);
 }
 
 export async function createCreative(
@@ -52,6 +66,17 @@ export async function createCreative(
         ok: false,
         error: "A creative with that name already exists.",
         fieldErrors: { name: "Already in use" },
+      };
+    }
+
+    // The product must belong to the active brand — the FK only enforces that
+    // the product exists globally, so without this a forged payload (or a stale
+    // id) could bind this creative to another brand's product.
+    if (!(await productInAccount(data.productId, acct))) {
+      return {
+        ok: false,
+        error: "Unknown product.",
+        fieldErrors: { productId: "Invalid product" },
       };
     }
 
@@ -295,6 +320,20 @@ export async function patchCreative(
           fieldErrors: { name: "Already in use" },
         };
       }
+    }
+
+    // Re-parenting to a product? It must belong to the active brand (the FK is
+    // global, so this is the only thing stopping a cross-tenant re-parent).
+    if (
+      data.productId !== undefined &&
+      data.productId !== oldRow.productId &&
+      !(await productInAccount(data.productId, acct))
+    ) {
+      return {
+        ok: false,
+        error: "Unknown product.",
+        fieldErrors: { productId: "Invalid product" },
+      };
     }
 
     // Build a set clause from only the provided scalar fields.
