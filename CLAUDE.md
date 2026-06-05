@@ -242,7 +242,13 @@ This app is deployed and in production use. Treat `main` as shippable.
   NOT backward-compatible: drops `rating_rules.id`, so it must land WITH the code,
   not before/after). Both applied to prod. To add a tenant table: add
   `accountId: accountId()`, scope its queries + writes, prefix any unique index
-  with `account_id`.
+  with `account_id`. **A foreign-key target must be re-validated against the
+  active account before a write** — the FK only enforces global existence
+  (`creatives.product_id → products.id` is NOT a composite `(account_id,
+  product_id)` FK), so an action writing a caller-supplied id must first look it
+  up scoped to the account (see `productInAccount` in `app/actions/creative.ts`;
+  the bulk-create path does the equivalent via an account-scoped name map). A
+  multi-agent audit caught this on create/patchCreative after the initial ship.
 - **Deleting a creative is a hard delete** (`deleteCreative`). It removes the
   creative's `performance_records` first (no cascade on that FK), then the
   creative (tags cascade). The confirm dialog
