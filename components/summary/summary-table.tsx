@@ -444,9 +444,10 @@ export function SummaryTable({
                           {/* Dynamic general status — a colored dot, label in
                               its title; sits before the name so the live state
                               reads at a glance without a dedicated column. */}
+                          {/* Show label for New — dot-only is too faint at --ink-3 */}
                           <StatusBadge
                             status={r.generalStatus}
-                            dotOnly
+                            dotOnly={r.generalStatus !== "new"}
                             className="shrink-0"
                           />
                           <Link
@@ -508,13 +509,12 @@ export function SummaryTable({
                       ? r.total
                       : r.perPlatform[g as keyof typeof r.perPlatform]
                   }
-                  // Per-platform dynamic status for this creative on this
-                  // platform (undefined for the blended "total" group, or for
-                  // a platform the creative never ran on → renders nothing).
+                  // Per-platform status. Undefined for "total" (blended) → no dot.
+                  // Undefined for a selected platform → creative never ran there → New.
                   platformStatus={
                     g === "total"
                       ? undefined
-                      : r.perPlatformStatus[g as keyof typeof r.perPlatformStatus]
+                      : (r.perPlatformStatus[g as keyof typeof r.perPlatformStatus] ?? "new")
                   }
                   showRate={showRate}
                   ratingConfig={ratingConfig}
@@ -723,18 +723,22 @@ function RateAndMetricsCells({
 }: {
   scope: string;
   block: PlatformMetricBlock | undefined;
-  /** This creative's status on this platform (undefined for "total" / never-ran). */
-  platformStatus?: PlatformStatus;
+  /** This creative's status on this platform.
+   *  undefined → "total" group (no dot); "new" → never ran on this platform. */
+  platformStatus?: PlatformStatus | "new";
   showRate: boolean;
   ratingConfig: RatingConfig;
   visibleMetrics: MetricColumn[];
   muted?: boolean;
 }) {
-  // The per-platform status dot leads the group: it shares the Rate cell when
-  // Rate is shown, otherwise it prefixes the first metric cell. The blended
-  // "total" group has no per-platform status, so this is always undefined there.
+  // The per-platform status dot leads the group. "new" gets dot+label (same
+  // reason as the general badge — a muted dot-only is too easy to miss).
   const statusDot = platformStatus ? (
-    <StatusBadge status={platformStatus} dotOnly className="align-middle" />
+    <StatusBadge
+      status={platformStatus}
+      dotOnly={platformStatus !== "new"}
+      className="align-middle"
+    />
   ) : null;
   return (
     <>
