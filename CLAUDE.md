@@ -249,6 +249,30 @@ This app is deployed and in production use. Treat `main` as shippable.
   up scoped to the account (see `productInAccount` in `app/actions/creative.ts`;
   the bulk-create path does the equivalent via an account-scoped name map). A
   multi-agent audit caught this on create/patchCreative after the initial ship.
+- **Creative status is DYNAMIC (spend-derived), not a stored field.** The old
+  manual `creatives.status` enum (draft/active/paused/archived) is retired —
+  the column still exists but is **no longer read** (kept to keep migration 0015
+  additive; a later cleanup can drop it). Status now = `New` (never spent
+  anywhere) / `Active` (spent within the brand's window of a platform's OWN
+  latest data day) / `Pause` (ran but not within the window) / `Terminated`
+  (manual, sticky, **per creative×platform**, stored in `creative_platform_overrides`).
+  Pure derivation lives in `lib/creative-status.ts` (`deriveCreativeStatus`,
+  `STATUS_LABEL`/`STATUS_DOT`); the account-scoped query is
+  `db/queries/creative-status.ts` (`creativeStatusMap(ids?)` + `statusFor`).
+  **Per-platform status is anchored to each platform's own latest data day**
+  (uploads are per-platform, so freshness differs per channel) — never a single
+  global "today"/max-date. General status is a roll-up: `active` if active on any
+  platform ▸ else `pause` ▸ else `terminated` (terminated everywhere it ran) ▸
+  else `new`. The window is per-brand `accounts.status_window_hours` (default 24;
+  daily-grain data rounds up to whole days, so 24h = the latest day only),
+  editable in the Brands admin via `setStatusWindow`. Terminate/reactivate =
+  `setCreativeTermination` (per creative×platform). Render with
+  `<StatusBadge>`. The aggregate KPI views (Overview/Trends/Funnel/Compare)
+  dropped their status filter (can't be a SQL WHERE); Library + Summary keep it
+  (Summary's is platform-scoped). KNOWN GAP: the Library/Summary "status" column
+  SORT still orders by the dead legacy column — switch to JS sort on the derived
+  value if you touch it. Migration 0015 (additive: the overrides table + window
+  column + archived→terminated backfill) is applied to prod.
 - **Deleting a creative is a hard delete** (`deleteCreative`). It removes the
   creative's `performance_records` first (no cascade on that FK), then the
   creative (tags cascade). The confirm dialog
