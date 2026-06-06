@@ -151,7 +151,6 @@ export interface PlatformStatusCounts {
 
 export interface CreativeStatusBreakdown {
   total: number;
-  addedThisMonth: number;
   /** General (roll-up) status counts across all creatives in the brand. */
   general: Record<CreativeStatus, number>;
   /** Per-platform counts of creatives present on that platform, by status. */
@@ -159,7 +158,7 @@ export interface CreativeStatusBreakdown {
 }
 
 /**
- * Library header stats: total + this-month, the general status breakdown
+ * Library header stats: total, the general status breakdown
  * (new/active/pause/terminated), and a per-platform breakdown. Computed from a
  * SINGLE status-map pass (account-scoped). A creative absent from the map has
  * no spend and no termination → counts as New.
@@ -168,14 +167,10 @@ export async function creativeStatusBreakdown(): Promise<CreativeStatusBreakdown
   const acct = await getActiveAccountId();
 
   const [counts] = await db
-    .select({
-      total: sql<number>`COUNT(*)::int`,
-      addedThisMonth: sql<number>`COUNT(*) FILTER (WHERE ${creatives.createdAt} >= date_trunc('month', now()))::int`,
-    })
+    .select({ total: sql<number>`COUNT(*)::int` })
     .from(creatives)
     .where(eq(creatives.accountId, acct));
   const total = Number(counts?.total ?? 0);
-  const addedThisMonth = Number(counts?.addedThisMonth ?? 0);
 
   const map = await creativeStatusMap();
 
@@ -207,5 +202,5 @@ export async function creativeStatusBreakdown(): Promise<CreativeStatusBreakdown
     c.new = Math.max(0, total - (c.active + c.pause + c.terminated));
   }
 
-  return { total, addedThisMonth, general, perPlatform };
+  return { total, general, perPlatform };
 }

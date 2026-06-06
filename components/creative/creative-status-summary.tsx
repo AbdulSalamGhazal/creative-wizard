@@ -16,7 +16,7 @@ export function CreativeStatusSummary({
 }: {
   breakdown: CreativeStatusBreakdown;
 }) {
-  const { total, addedThisMonth, general, perPlatform } = breakdown;
+  const { total, general, perPlatform } = breakdown;
 
   return (
     <div className="mt-2 space-y-1.5">
@@ -32,8 +32,6 @@ export function CreativeStatusSummary({
             {general[s]} {STATUS_LABEL[s]}
           </span>
         ))}
-        <span className="text-ink-3">·</span>
-        <span className="text-ink-3">{addedThisMonth} this month</span>
       </div>
 
       {/* Per-platform: active / pause / terminated */}
