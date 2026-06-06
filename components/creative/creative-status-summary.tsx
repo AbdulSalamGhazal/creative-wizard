@@ -40,29 +40,26 @@ export function CreativeStatusSummary({
       <div className="flex items-center flex-wrap gap-x-3.5 gap-y-1 text-xs num">
         {ALL_PLATFORMS.map((p) => {
           const c = perPlatform[p];
-          const ran = c.active + c.pause + c.terminated;
           return (
             <span
               key={p}
               className="inline-flex items-center gap-1"
-              title={`${PLATFORM_LABEL[p]}: ${c.active} active · ${c.pause} pause · ${c.terminated} terminated`}
+              title={`${PLATFORM_LABEL[p]}: ${c.new} new · ${c.active} active · ${c.pause} pause · ${c.terminated} terminated`}
             >
               <span className="font-medium" style={{ color: PLATFORM_COLOR[p] }}>
                 {PLATFORM_LABEL[p]}
               </span>
-              {ran === 0 ? (
-                <span className="text-ink-3">—</span>
-              ) : (
-                <span className="inline-flex items-center gap-0.5">
-                  <span style={{ color: STATUS_DOT.active }}>{c.active}</span>
-                  <span className="text-ink-3">/</span>
-                  <span style={{ color: STATUS_DOT.pause }}>{c.pause}</span>
-                  <span className="text-ink-3">/</span>
-                  <span style={{ color: STATUS_DOT.terminated }}>
-                    {c.terminated}
-                  </span>
+              <span className="inline-flex items-center gap-0.5">
+                <span style={{ color: STATUS_DOT.new }}>{c.new}</span>
+                <span className="text-ink-3">/</span>
+                <span style={{ color: STATUS_DOT.active }}>{c.active}</span>
+                <span className="text-ink-3">/</span>
+                <span style={{ color: STATUS_DOT.pause }}>{c.pause}</span>
+                <span className="text-ink-3">/</span>
+                <span style={{ color: STATUS_DOT.terminated }}>
+                  {c.terminated}
                 </span>
-              )}
+              </span>
             </span>
           );
         })}

@@ -141,6 +141,9 @@ export async function terminatedPlatformsFor(
 }
 
 export interface PlatformStatusCounts {
+  /** Creatives that have never run (and aren't terminated) on this platform =
+   *  total − present. Per-platform "new" is derived, not a stored status. */
+  new: number;
   active: number;
   pause: number;
   terminated: number;
@@ -184,7 +187,7 @@ export async function creativeStatusBreakdown(): Promise<CreativeStatusBreakdown
   };
   const perPlatform = {} as Record<Platform, PlatformStatusCounts>;
   for (const p of platformEnum) {
-    perPlatform[p as Platform] = { active: 0, pause: 0, terminated: 0 };
+    perPlatform[p as Platform] = { new: 0, active: 0, pause: 0, terminated: 0 };
   }
 
   for (const res of map.values()) {
@@ -196,6 +199,13 @@ export async function creativeStatusBreakdown(): Promise<CreativeStatusBreakdown
   }
   // Creatives with no spend and no termination never enter the map → all New.
   general.new = Math.max(0, total - map.size);
+
+  // Per-platform "new" = every creative not present (running/paused/terminated)
+  // on that platform — i.e. it has never started there.
+  for (const p of platformEnum) {
+    const c = perPlatform[p as Platform];
+    c.new = Math.max(0, total - (c.active + c.pause + c.terminated));
+  }
 
   return { total, addedThisMonth, general, perPlatform };
 }
