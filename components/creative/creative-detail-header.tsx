@@ -408,21 +408,18 @@ function PlatformStatusSection({
       <label className="text-[10px] uppercase tracking-[0.14em] text-ink-3">
         Platform status
       </label>
-      {/* One row per platform. Left border accent uses the platform's own color. */}
-      <div className="flex flex-col gap-2 max-w-sm">
+      {/* All 5 platforms in one row, compact chips. */}
+      <div className="flex flex-wrap gap-2">
         {ALL_PLATFORMS.map((p) => {
           const s = perPlatform[p];
           const color = PLATFORM_COLOR[p];
           return (
             <div
               key={p}
-              className="flex items-center justify-between gap-4 rounded-md border border-line bg-surface pl-3 pr-4 py-2.5"
+              className="flex items-center gap-2 rounded-md border border-line bg-surface pl-2.5 pr-3 py-1.5"
               style={{ borderLeftColor: color, borderLeftWidth: 3 }}
             >
-              <span
-                className="text-sm font-medium"
-                style={{ color }}
-              >
+              <span className="text-xs font-medium whitespace-nowrap" style={{ color }}>
                 {PLATFORM_LABEL[p]}
               </span>
               <StatusBadge status={s ?? "new"} />
