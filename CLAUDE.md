@@ -108,6 +108,16 @@ This app is deployed and in production use. Treat `main` as shippable.
 
 ## Learned
 
+- **`next build` fails on `react/no-unescaped-entities` — `tsc`/typecheck does
+  NOT catch it.** A raw apostrophe/quote in JSX *text* (e.g. `that platform's
+  day`) is an ESLint **error** that fails `next build` (and therefore the Vercel
+  deploy), even though `npm run typecheck` is green. Escape as `&apos;`/`&rsquo;`
+  or reword. When verifying a deploy, **never trust `npm run build | tail -n`** —
+  the "Failed to compile" line scrolls above the tail window and looks like a
+  success. Check the exit code and `grep -iE "failed to compile|Error:"` on the
+  full log. A failed Vercel build silently keeps serving the previous deploy, so
+  prod looks "not updated" with no error surfaced.
+
 - **Campaign name + duplicate detection (v2).** `performance_records.campaign_name`
   stores the combined `Campaign ➤ Adset` value — and for **instagram/facebook**
   the platform is appended (e.g. `Holiday ➤ Broad (Instagram)`) so the same Meta
