@@ -23,7 +23,7 @@ import {
 import type { CreativeSort } from "@/validators/creative";
 import { getActiveAccountId } from "@/lib/tenant";
 import { creativeStatusMap, statusFor } from "@/db/queries/creative-status";
-import type { CreativeStatus } from "@/lib/creative-status";
+import { STATUS_ORDER, type CreativeStatus } from "@/lib/creative-status";
 
 type CreativeType = (typeof creativeTypeEnum)[number];
 type Platform = (typeof platformEnum)[number];
@@ -204,13 +204,29 @@ export async function listCreatives(
   // Attach the dynamic, derived status to every row (account-scoped, batched).
   const statusMap = await creativeStatusMap(rows.map((r) => r.id));
 
+  // When EXACTLY ONE platform is filtered, the Library scopes status to THAT
+  // platform (badge + filter + sort all reflect the per-platform status), so a
+  // creative that ran on the platform shows with its status there — Active on
+  // Instagram but Paused on TikTok reads "Pause" under a TikTok filter, and
+  // isn't hidden. With 0 or multiple platforms we show the general roll-up.
+  // A creative that ran on the platform but never spent there → "new".
+  const scopePlatform =
+    filters.platforms && filters.platforms.length === 1
+      ? filters.platforms[0]!
+      : null;
+  const effectiveStatus = (id: string): CreativeStatus => {
+    const s = statusFor(statusMap, id);
+    if (scopePlatform) return s.perPlatform[scopePlatform] ?? "new";
+    return s.general;
+  };
+
   let mapped: CreativeListRow[] = rows.map((r) => ({
     id: r.id,
     name: r.name,
     productId: r.productId,
     productName: r.productName,
     type: r.type as CreativeType,
-    status: statusFor(statusMap, r.id).general,
+    status: effectiveStatus(r.id),
     thumbnailUrl: r.thumbnailUrl,
     launchDate: r.launchDate,
     tags: r.tags ?? [],
@@ -219,16 +235,27 @@ export async function listCreatives(
   }));
 
   // Status filter runs in JS, AFTER status is attached — the dynamic status
-  // isn't a DB column, so it can't be a SQL WHERE. The Library shows all
-  // matching rows (no real pagination), so JS filtering is exact: recompute
-  // totalMatching from the filtered length rather than the now-stale
-  // COUNT(*) OVER () window (which didn't account for the status filter).
+  // isn't a DB column, so it can't be a SQL WHERE. It matches the EFFECTIVE
+  // (platform-scoped when one platform is selected) status. The Library shows
+  // all matching rows (no real pagination), so JS filtering is exact.
+  const statusFiltered = Boolean(filters.statuses?.length);
   if (filters.statuses?.length) {
     const allowed = new Set(filters.statuses);
     mapped = mapped.filter((row) => allowed.has(row.status));
   }
 
-  const totalMatching = filters.statuses?.length
+  // Status sort must run in JS too (the legacy SQL column is dead). For a
+  // status sort, the SQL ordered by name as a stable base; re-order by the
+  // derived status rank here.
+  if (filters.sort === "status-asc" || filters.sort === "status-desc") {
+    const dir = filters.sort === "status-asc" ? 1 : -1;
+    mapped.sort((a, b) => {
+      const d = (STATUS_ORDER[a.status] - STATUS_ORDER[b.status]) * dir;
+      return d !== 0 ? d : a.name.localeCompare(b.name);
+    });
+  }
+
+  const totalMatching = statusFiltered
     ? mapped.length
     : rows[0]
       ? Number(rows[0].totalMatching)
@@ -255,10 +282,11 @@ function orderByForSort(sort: CreativeSort): SQL[] {
       return [asc(creatives.type), asc(creatives.name)];
     case "type-desc":
       return [desc(creatives.type), asc(creatives.name)];
+    // Dynamic status isn't a DB column — order by name here as a stable base;
+    // listCreatives re-sorts by the derived status rank in JS.
     case "status-asc":
-      return [asc(creatives.status), asc(creatives.name)];
     case "status-desc":
-      return [desc(creatives.status), asc(creatives.name)];
+      return [asc(creatives.name)];
     case "tag-asc":
       // First tag alphabetically (MIN over the creative's tags); untagged
       // creatives sort last.

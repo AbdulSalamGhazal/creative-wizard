@@ -20,6 +20,14 @@ export type CreativeStatus = (typeof CREATIVE_STATUSES)[number];
 
 export type PlatformStatus = "active" | "pause" | "terminated";
 
+/** Sort rank (most-relevant → least): active ▸ pause ▸ new ▸ terminated. */
+export const STATUS_ORDER: Record<CreativeStatus, number> = {
+  active: 0,
+  pause: 1,
+  new: 2,
+  terminated: 3,
+};
+
 export const STATUS_LABEL: Record<CreativeStatus, string> = {
   new: "New",
   active: "Active",

@@ -56,9 +56,10 @@ import {
 } from "@/lib/rating";
 import { getActiveAccountId } from "@/lib/tenant";
 import { creativeStatusMap, statusFor } from "@/db/queries/creative-status";
-import type {
-  CreativeStatus as DynamicCreativeStatus,
-  PlatformStatus,
+import {
+  STATUS_ORDER,
+  type CreativeStatus as DynamicCreativeStatus,
+  type PlatformStatus,
 } from "@/lib/creative-status";
 
 type Platform = (typeof platformEnum)[number];
@@ -122,8 +123,6 @@ export interface SummaryRow {
   productName: string;
   productId: string;
   type: CreativeType;
-  /** Legacy manual status column (still selected for the existing `statuses=` WHERE filter + status sort). */
-  status: CreativeStatus;
   /** Dynamic general status — derived roll-up across platforms (new/active/pause/terminated). */
   generalStatus: DynamicCreativeStatus;
   /** Dynamic per-platform status for platforms this creative has presence on. */
@@ -229,7 +228,10 @@ function orderBySql(
       case "type":
         return creatives.type;
       case "status":
-        return creatives.status;
+        // Dynamic general status can't be a SQL sort (it's derived in JS). Give
+        // SQL a neutral stable base (spend desc); the JS re-sort below applies
+        // the real STATUS_ORDER ordering. Mirrors the rate-sort handling.
+        return sumSpend;
       case "creator":
         return users.name;
     }
@@ -500,7 +502,6 @@ export async function listCreativeSummary(
     productId: products.id,
     productName: products.name,
     type: creatives.type,
-    status: creatives.status,
     creatorName: users.name,
     creatorEmail: users.email,
     // Blended totals — uses the canonical lib/metrics fragments. The JOIN
@@ -543,18 +544,21 @@ export async function listCreativeSummary(
     select[`${pf}_cvr`] = m.cvr;
   }
 
-  // Rating is derived in JS (not SQL), so a rate sort can't be expressed in
-  // ORDER BY. Detect it, give SQL a neutral stable order, and re-sort the
-  // materialized rows below.
+  // Rating AND the dynamic general status are derived in JS (not SQL), so
+  // neither a rate sort nor a status sort can be expressed in ORDER BY. Detect
+  // them, give SQL a neutral stable order, and re-sort the materialized rows
+  // below.
   const isRateSort = resolved.key.endsWith(".rate");
+  const isStatusSort = resolved.key === "status";
   const isIdentitySort = IDENTITY_SORT_KEYS.has(resolved.key);
-  const baseOrderExpr = isRateSort
-    ? sumSpend
-    : orderBySql(resolved.key, selectedPlatforms, metricsByPlatform);
+  const baseOrderExpr =
+    isRateSort || isStatusSort
+      ? sumSpend
+      : orderBySql(resolved.key, selectedPlatforms, metricsByPlatform);
   // Null metrics must sort as 0 globally (a creative with no clicks has cpc =
   // "—"; it should sort at the 0 position, not jump to the very top/bottom that
   // Postgres' default NULLS FIRST/LAST would give). Identity (text) columns and
-  // the rate-sort base order are left untouched.
+  // the rate/status-sort base order are left untouched.
   const orderExpr =
     isRateSort || isIdentitySort
       ? baseOrderExpr
@@ -573,14 +577,15 @@ export async function listCreativeSummary(
       products.id,
       products.name,
       creatives.type,
-      creatives.status,
       users.name,
       users.email,
     )
     .orderBy(
-      // For a rate sort, SQL just provides a stable base order (spend desc);
-      // the JS re-sort below applies the real rating order.
-      isRateSort || resolved.dir === "desc" ? desc(orderExpr) : asc(orderExpr),
+      // For a rate or status sort, SQL just provides a stable base order
+      // (spend desc); the JS re-sort below applies the real rating/status order.
+      isRateSort || isStatusSort || resolved.dir === "desc"
+        ? desc(orderExpr)
+        : asc(orderExpr),
       // Stable secondary sort so equal-spend rows don't shuffle between
       // requests.
       asc(creatives.name),
@@ -643,7 +648,6 @@ export async function listCreativeSummary(
       productId: r.productId as string,
       productName: r.productName as string,
       type: r.type as CreativeType,
-      status: r.status as CreativeStatus,
       generalStatus: dyn.general,
       perPlatformStatus: dyn.perPlatform,
       creatorName: (r.creatorName as string | null) ?? null,
@@ -720,6 +724,20 @@ export async function listCreativeSummary(
       const ra = RATING_RANK[rateBlock(blockFor(a, scope!), rulesForScope(config, scope!))];
       const rb = RATING_RANK[rateBlock(blockFor(b, scope!), rulesForScope(config, scope!))];
       if (ra !== rb) return (ra - rb) * factor;
+      return a.name.localeCompare(b.name);
+    });
+  }
+
+  // Dynamic general-status sort — same JS re-sort shape as the rate sort, but
+  // ordered by STATUS_ORDER over each row's derived generalStatus (the legacy
+  // SQL column is gone). Copy before sorting so the SQL-ordered rows aren't
+  // mutated in place when filteredRows aliases rows.
+  if (isStatusSort) {
+    const factor = resolved.dir === "asc" ? 1 : -1;
+    filteredRows = [...filteredRows].sort((a, b) => {
+      const sa = STATUS_ORDER[a.generalStatus];
+      const sb = STATUS_ORDER[b.generalStatus];
+      if (sa !== sb) return (sa - sb) * factor;
       return a.name.localeCompare(b.name);
     });
   }

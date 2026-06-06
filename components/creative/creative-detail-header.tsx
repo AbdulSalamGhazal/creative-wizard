@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   CalendarDays,
@@ -27,6 +27,15 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { ThumbnailUpload } from "@/components/creative/thumbnail-upload";
 import { TagMultiSelect } from "@/components/creative/tag-multi-select";
 import { StatusBadge } from "@/components/creative/status-badge";
@@ -306,6 +315,7 @@ export function CreativeDetailHeader({
           <PlatformStatusSection
             creativeId={creative.id}
             perPlatform={status.perPlatform}
+            terminated={terminated}
           />
 
           {/* Publish date */}
@@ -385,91 +395,176 @@ export function CreativeDetailHeader({
 function PlatformStatusSection({
   creativeId,
   perPlatform,
+  terminated,
 }: {
   creativeId: string;
   perPlatform: Partial<Record<Platform, PlatformStatus>>;
+  terminated: Platform[];
 }) {
-  const [pending, setPending] = useState<Platform | null>(null);
-  const [, startTransition] = useTransition();
-  const router = useRouter();
-
-  // Stable display order, following the canonical platform list.
-  const present = ALL_PLATFORMS.filter(
-    (p): p is Platform => perPlatform[p] !== undefined,
-  );
-
-  const flip = (platform: Platform, terminated: boolean) => {
-    setPending(platform);
-    startTransition(async () => {
-      const res = await setCreativeTermination({
-        creativeId,
-        platform,
-        terminated,
-      });
-      setPending(null);
-      if (!res.ok) {
-        toast.error(res.error ?? "Couldn't update termination");
-        return;
-      }
-      toast.success(
-        terminated
-          ? `Terminated on ${PLATFORM_LABEL[platform]}`
-          : `Reactivated on ${PLATFORM_LABEL[platform]}`,
-      );
-      router.refresh();
-    });
-  };
+  const [open, setOpen] = useState(false);
 
   return (
     <div className="space-y-1.5">
       <label className="text-[10px] uppercase tracking-[0.14em] text-ink-3">
         Platform status
       </label>
-      {present.length === 0 ? (
-        <p className="text-[11px] text-ink-3">No platform activity yet.</p>
-      ) : (
-        <div className="space-y-1.5 max-w-xl">
-          {present.map((p) => {
-            const s = perPlatform[p]!;
-            const isTerminated = s === "terminated";
-            const busy = pending === p;
+      {/* All platforms, read-only. A platform with no spend (and not terminated)
+          shows a muted "—". Termination is a separate, deliberate action. */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-w-xl">
+        {ALL_PLATFORMS.map((p) => {
+          const s = perPlatform[p];
+          return (
+            <div
+              key={p}
+              className="flex items-center justify-between gap-3 rounded-md border border-line bg-surface px-3 py-1.5"
+            >
+              <span className="text-xs text-ink truncate">
+                {PLATFORM_LABEL[p]}
+              </span>
+              {s ? (
+                <StatusBadge status={s} />
+              ) : (
+                <span className="text-xs text-ink-3" title="No spend yet">
+                  —
+                </span>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      <div className="pt-0.5">
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="text-[11px] text-ink-3 hover:text-neg transition-colors underline-offset-2 hover:underline"
+        >
+          Terminate / reactivate…
+        </button>
+      </div>
+      <TerminationDialog
+        creativeId={creativeId}
+        terminated={terminated}
+        open={open}
+        onOpenChange={setOpen}
+      />
+    </div>
+  );
+}
+
+/**
+ * The deliberate, rare termination control. Lists every platform with a toggle
+ * (checked = Terminated); the user picks which platforms to terminate or
+ * reactivate, then applies. Termination is sticky and overrides the automatic
+ * Active/Pause status until reactivated.
+ */
+function TerminationDialog({
+  creativeId,
+  terminated,
+  open,
+  onOpenChange,
+}: {
+  creativeId: string;
+  terminated: Platform[];
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+}) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const original = useMemo(() => new Set(terminated), [terminated]);
+  const [picked, setPicked] = useState<Set<Platform>>(() => new Set(terminated));
+
+  // Re-sync when the dialog (re)opens or the server state changes.
+  useEffect(() => {
+    if (open) setPicked(new Set(terminated));
+  }, [open, terminated]);
+
+  const toggle = (p: Platform) => {
+    setPicked((prev) => {
+      const next = new Set(prev);
+      if (next.has(p)) next.delete(p);
+      else next.add(p);
+      return next;
+    });
+  };
+
+  const changes = ALL_PLATFORMS.filter(
+    (p) => original.has(p) !== picked.has(p),
+  );
+
+  const apply = () => {
+    if (changes.length === 0) {
+      onOpenChange(false);
+      return;
+    }
+    startTransition(async () => {
+      for (const p of changes) {
+        const res = await setCreativeTermination({
+          creativeId,
+          platform: p,
+          terminated: picked.has(p),
+        });
+        if (!res.ok) {
+          toast.error(res.error ?? `Couldn't update ${PLATFORM_LABEL[p]}`);
+          return;
+        }
+      }
+      toast.success("Termination updated");
+      onOpenChange(false);
+      router.refresh();
+    });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Terminate creative</DialogTitle>
+          <DialogDescription>
+            Pick the platforms to terminate. Terminated platforms stay
+            Terminated (ignoring spend) until you reactivate them here.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-1">
+          {ALL_PLATFORMS.map((p) => {
+            const checked = picked.has(p);
             return (
-              <div
+              <label
                 key={p}
-                className="flex items-center justify-between gap-3 rounded-md border border-line bg-surface px-3 py-2"
+                className="flex items-center gap-2.5 rounded-md px-2 py-2 hover:bg-surface-2 cursor-pointer"
               >
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className="text-xs text-ink truncate">
-                    {PLATFORM_LABEL[p]}
+                <Checkbox
+                  checked={checked}
+                  onCheckedChange={() => toggle(p)}
+                  disabled={pending}
+                />
+                <span className="text-sm text-ink">{PLATFORM_LABEL[p]}</span>
+                {original.has(p) && (
+                  <span className="ml-auto text-[10px] uppercase tracking-wider text-neg">
+                    Terminated
                   </span>
-                  <StatusBadge status={s} />
-                </div>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant={isTerminated ? "outline" : "ghost"}
-                  onClick={() => flip(p, !isTerminated)}
-                  disabled={busy}
-                  className={cn(
-                    "h-7 text-[11px]",
-                    isTerminated
-                      ? "text-ink-2 hover:text-ink"
-                      : "text-neg hover:text-neg",
-                  )}
-                >
-                  {busy ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  ) : isTerminated ? (
-                    "Reactivate"
-                  ) : (
-                    "Terminate"
-                  )}
-                </Button>
-              </div>
+                )}
+              </label>
             );
           })}
         </div>
-      )}
-    </div>
+        <DialogFooter>
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={() => onOpenChange(false)}
+            disabled={pending}
+          >
+            Cancel
+          </Button>
+          <Button type="button" onClick={apply} disabled={pending}>
+            {pending ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              `Apply${changes.length ? ` (${changes.length})` : ""}`
+            )}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import { PLATFORM_COLOR, PLATFORM_LABEL } from "@/lib/palette";
 import { int, pct, ratio, usd } from "@/lib/format";
 import {
@@ -67,13 +66,6 @@ function RateBadge({ block, rules }: { block: PlatformMetricBlock | undefined; r
     </span>
   );
 }
-
-const STATUS_CLASS: Record<SummaryRow["status"], string> = {
-  active: "border-pos/40 text-pos bg-pos/10",
-  draft: "border-line-2 text-ink-2 bg-surface-2",
-  paused: "border-warn/40 text-warn bg-warn/10",
-  archived: "border-line-2 text-ink-3 bg-surface-2",
-};
 
 // Metric column definitions: key suffix, label, formatter, alignment.
 // These are reused for every platform block AND for the total/blended
@@ -294,7 +286,6 @@ export function SummaryTable({
     { key: "name", label: "Creative" },
     { key: "product", label: "Product", hideKey: "product" },
     { key: "type", label: "Type", hideKey: "type" },
-    { key: "status", label: "Status", hideKey: "status" },
     { key: "creator", label: "Creator", hideKey: "creator" },
   ];
   const identityCols = ALL_IDENTITY_COLS.filter(
@@ -489,17 +480,6 @@ export function SummaryTable({
                         className="px-3 py-2 text-ink-2 whitespace-nowrap capitalize"
                       >
                         {r.type}
-                      </td>
-                    );
-                  case "status":
-                    return (
-                      <td key="status" className="px-3 py-2 whitespace-nowrap">
-                        <Badge
-                          variant="outline"
-                          className={STATUS_CLASS[r.status]}
-                        >
-                          {r.status}
-                        </Badge>
                       </td>
                     );
                   case "creator":
