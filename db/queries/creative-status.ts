@@ -1,11 +1,17 @@
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { creativePlatformOverrides, performanceRecords } from "@/db/schema";
+import {
+  creativePlatformOverrides,
+  creatives,
+  performanceRecords,
+  platformEnum,
+} from "@/db/schema";
 import { getActiveAccountId, getActiveStatusWindowHours } from "@/lib/tenant";
 import {
   deriveCreativeStatus,
   hoursToWindowDays,
   NEW_STATUS,
+  type CreativeStatus,
   type CreativeStatusInput,
   type CreativeStatusResult,
   type Platform,
@@ -132,4 +138,64 @@ export async function terminatedPlatformsFor(
       ),
     );
   return rows.map((r) => r.platform as Platform);
+}
+
+export interface PlatformStatusCounts {
+  active: number;
+  pause: number;
+  terminated: number;
+}
+
+export interface CreativeStatusBreakdown {
+  total: number;
+  addedThisMonth: number;
+  /** General (roll-up) status counts across all creatives in the brand. */
+  general: Record<CreativeStatus, number>;
+  /** Per-platform counts of creatives present on that platform, by status. */
+  perPlatform: Record<Platform, PlatformStatusCounts>;
+}
+
+/**
+ * Library header stats: total + this-month, the general status breakdown
+ * (new/active/pause/terminated), and a per-platform breakdown. Computed from a
+ * SINGLE status-map pass (account-scoped). A creative absent from the map has
+ * no spend and no termination → counts as New.
+ */
+export async function creativeStatusBreakdown(): Promise<CreativeStatusBreakdown> {
+  const acct = await getActiveAccountId();
+
+  const [counts] = await db
+    .select({
+      total: sql<number>`COUNT(*)::int`,
+      addedThisMonth: sql<number>`COUNT(*) FILTER (WHERE ${creatives.createdAt} >= date_trunc('month', now()))::int`,
+    })
+    .from(creatives)
+    .where(eq(creatives.accountId, acct));
+  const total = Number(counts?.total ?? 0);
+  const addedThisMonth = Number(counts?.addedThisMonth ?? 0);
+
+  const map = await creativeStatusMap();
+
+  const general: Record<CreativeStatus, number> = {
+    new: 0,
+    active: 0,
+    pause: 0,
+    terminated: 0,
+  };
+  const perPlatform = {} as Record<Platform, PlatformStatusCounts>;
+  for (const p of platformEnum) {
+    perPlatform[p as Platform] = { active: 0, pause: 0, terminated: 0 };
+  }
+
+  for (const res of map.values()) {
+    general[res.general] += 1; // in-map general is always active/pause/terminated
+    for (const p of platformEnum) {
+      const s = res.perPlatform[p as Platform];
+      if (s) perPlatform[p as Platform][s] += 1;
+    }
+  }
+  // Creatives with no spend and no termination never enter the map → all New.
+  general.new = Math.max(0, total - map.size);
+
+  return { total, addedThisMonth, general, perPlatform };
 }

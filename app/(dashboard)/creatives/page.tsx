@@ -1,8 +1,5 @@
-import {
-  listCreatives,
-  creativeStats,
-  listAllTags,
-} from "@/db/queries/creatives";
+import { listCreatives, listAllTags } from "@/db/queries/creatives";
+import { creativeStatusBreakdown } from "@/db/queries/creative-status";
 import { listProducts } from "@/db/queries/products";
 import { creativeListFiltersSchema } from "@/validators/creative";
 import { LibraryHeader } from "@/components/creative/library-header";
@@ -34,7 +31,7 @@ export default async function CreativesPage({
     view: pickFirst(params.view),
   });
 
-  const [listResult, stats, products, allTags] = await Promise.all([
+  const [listResult, breakdown, products, allTags] = await Promise.all([
     listCreatives({
       q: parsed.q,
       productIds: parsed.productIds.length > 0 ? parsed.productIds : undefined,
@@ -44,7 +41,7 @@ export default async function CreativesPage({
       tags: parsed.tags.length > 0 ? parsed.tags : undefined,
       sort: parsed.sort,
     }),
-    creativeStats(),
+    creativeStatusBreakdown(),
     listProducts(),
     listAllTags(),
   ]);
@@ -69,7 +66,7 @@ export default async function CreativesPage({
 
   return (
     <div className="space-y-6">
-      <LibraryHeader stats={stats} />
+      <LibraryHeader breakdown={breakdown} />
       <LibraryFilterBar products={products} tags={allTags} />
 
       <div className="flex items-center justify-between">

@@ -59,12 +59,6 @@ export interface CreativeListResult {
   totalMatching: number;
 }
 
-export interface CreativeStats {
-  total: number;
-  active: number;
-  paused: number;
-  addedThisMonth: number;
-}
 
 /**
  * Library list with all filter support. Uses two CTEs (spend_30d, tag_agg) so
@@ -317,34 +311,9 @@ function orderByForSort(sort: CreativeSort): SQL[] {
   }
 }
 
-/** Header stats: total / active / paused / added-this-month. Active & paused
- *  are the DERIVED dynamic statuses (not the legacy column). */
-export async function creativeStats(): Promise<CreativeStats> {
-  const acct = await getActiveAccountId();
-  const [row] = await db
-    .select({
-      total: sql<string>`COUNT(*)`,
-      addedThisMonth: sql<string>`COUNT(*) FILTER (WHERE ${creatives.createdAt} >= date_trunc('month', now()))`,
-    })
-    .from(creatives)
-    .where(eq(creatives.accountId, acct));
-
-  // Active / paused come from the dynamic status of every creative in the brand.
-  const statusMap = await creativeStatusMap();
-  let active = 0;
-  let paused = 0;
-  for (const v of statusMap.values()) {
-    if (v.general === "active") active += 1;
-    else if (v.general === "pause") paused += 1;
-  }
-
-  return {
-    total: Number(row?.total ?? 0),
-    active,
-    paused,
-    addedThisMonth: Number(row?.addedThisMonth ?? 0),
-  };
-}
+// (Library header stats now come from creativeStatusBreakdown() in
+// db/queries/creative-status.ts — a single status-map pass with the general +
+// per-platform breakdown.)
 
 // -----------------------------------------------------------------------------
 // Creative Detail queries

@@ -1,9 +1,14 @@
 import Link from "next/link";
 import { Plus, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import type { CreativeStats } from "@/db/queries/creatives";
+import type { CreativeStatusBreakdown } from "@/db/queries/creative-status";
+import { CreativeStatusSummary } from "@/components/creative/creative-status-summary";
 
-export function LibraryHeader({ stats }: { stats: CreativeStats }) {
+export function LibraryHeader({
+  breakdown,
+}: {
+  breakdown: CreativeStatusBreakdown;
+}) {
   return (
     <div className="flex items-end justify-between flex-wrap gap-4">
       <div>
@@ -13,15 +18,7 @@ export function LibraryHeader({ stats }: { stats: CreativeStats }) {
         <h1 className="font-display text-4xl tracking-tight">
           All creatives, on file
         </h1>
-        <div className="mt-2 flex items-center gap-2 text-sm text-ink-2 num">
-          <span>{stats.total} total</span>
-          <span className="text-ink-3">·</span>
-          <span className="text-pos">{stats.active} active</span>
-          <span className="text-ink-3">·</span>
-          <span className="text-warn">{stats.paused} paused</span>
-          <span className="text-ink-3">·</span>
-          <span>{stats.addedThisMonth} this month</span>
-        </div>
+        <CreativeStatusSummary breakdown={breakdown} />
       </div>
       <div className="flex items-center gap-2">
         <Button asChild variant="outline">
