@@ -149,15 +149,18 @@ export async function listCreatives(
                     AND ct.tag IN ${filters.tags})`,
     );
   }
-  if (filters.platforms && filters.platforms.length > 0) {
-    // Creatives that ran on any of the selected platforms. EXISTS (not a JOIN)
-    // so a creative with rows on two platforms isn't counted twice / fanned out.
+  if (filters.platforms && filters.platforms.length > 1) {
+    // Multiple platforms: narrow to creatives with data on any of them.
+    // EXISTS avoids fan-out (a creative on two platforms isn't doubled).
     conditions.push(
       sql`EXISTS (SELECT 1 FROM ${performanceRecords} pr
                   WHERE pr.creative_id = ${creatives.id}
                     AND pr.platform IN ${filters.platforms})`,
     );
   }
+  // Single platform: DO NOT filter by presence. Show every creative and derive
+  // its per-platform status (New when it never ran there). The platform filter's
+  // purpose here is to scope the status badge, not to narrow the list.
 
   // Build dynamic ORDER BY from the enum. Tuple of SQL fragments is safe
   // because we never interpolate user input here.
