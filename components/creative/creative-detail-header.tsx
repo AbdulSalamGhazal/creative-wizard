@@ -44,7 +44,7 @@ import {
   setCreativeTermination,
 } from "@/app/actions/creative";
 import { creativeTypeEnum } from "@/db/schema";
-import { ALL_PLATFORMS, PLATFORM_LABEL } from "@/lib/palette";
+import { ALL_PLATFORMS, PLATFORM_COLOR, PLATFORM_LABEL } from "@/lib/palette";
 import { isoDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { CreativeDetail } from "@/db/queries/creatives";
@@ -408,20 +408,23 @@ function PlatformStatusSection({
       <label className="text-[10px] uppercase tracking-[0.14em] text-ink-3">
         Platform status
       </label>
-      {/* All platforms, read-only. A platform with no spend (and not terminated)
-          shows a muted "—". Termination is a separate, deliberate action. */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-w-xl">
+      {/* One row per platform. Left border accent uses the platform's own color. */}
+      <div className="flex flex-col gap-2 max-w-sm">
         {ALL_PLATFORMS.map((p) => {
           const s = perPlatform[p];
+          const color = PLATFORM_COLOR[p];
           return (
             <div
               key={p}
-              className="flex items-center justify-between gap-3 rounded-md border border-line bg-surface px-3 py-1.5"
+              className="flex items-center justify-between gap-4 rounded-md border border-line bg-surface pl-3 pr-4 py-2.5"
+              style={{ borderLeftColor: color, borderLeftWidth: 3 }}
             >
-              <span className="text-xs text-ink truncate">
+              <span
+                className="text-sm font-medium"
+                style={{ color }}
+              >
                 {PLATFORM_LABEL[p]}
               </span>
-              {/* No spend on this platform (and not terminated) = New. */}
               <StatusBadge status={s ?? "new"} />
             </div>
           );
