@@ -119,7 +119,7 @@ export function StatusConfigAdmin({ brands }: { brands: BrandWindow[] }) {
                       setCustomValues((v) => ({ ...v, [b.id]: e.target.value }))
                     }
                     onKeyDown={(e) => {
-                      if (e.key === "Enter" && customHours) {
+                      if (e.key === "Enter" && customHours !== null) {
                         save(b.id, customHours);
                         setCustomValues((v) => ({ ...v, [b.id]: "" }));
                       }
@@ -127,7 +127,7 @@ export function StatusConfigAdmin({ brands }: { brands: BrandWindow[] }) {
                     className="h-8 w-24 text-sm"
                   />
                   <span className="text-xs text-ink-3">h</span>
-                  {customHours && customHours !== current && (
+                  {customHours !== null && customHours !== current && (
                     <Button
                       type="button"
                       size="sm"

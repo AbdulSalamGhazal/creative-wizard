@@ -14,6 +14,7 @@ import {
 import { int, pct, ratio, usd } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { StatusBadge } from "@/components/creative/status-badge";
+import { STATUS_ORDER } from "@/lib/creative-status";
 import type { VideoDiagnosticRow } from "@/db/queries/trends";
 
 const DASH = "—";
@@ -81,6 +82,10 @@ export function VideoDiagnosticsTable({
     const copy = [...rows];
     copy.sort((a, b) => {
       if (sortKey === "name") return dir === "asc" ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name);
+      if (sortKey === "status") {
+        const cmp = STATUS_ORDER[a.status] - STATUS_ORDER[b.status];
+        return dir === "asc" ? cmp : -cmp;
+      }
       const av = a[sortKey];
       const bv = b[sortKey];
       if (typeof av === "string" || typeof bv === "string") {

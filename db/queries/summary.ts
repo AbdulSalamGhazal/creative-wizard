@@ -13,7 +13,6 @@ import type { PgColumn } from "drizzle-orm/pg-core";
 import { db } from "@/lib/db";
 import {
   creatives,
-  creativeStatusEnum,
   creativeTags,
   creativeTypeEnum,
   performanceRecords,
@@ -64,7 +63,6 @@ import {
 
 type Platform = (typeof platformEnum)[number];
 type CreativeType = (typeof creativeTypeEnum)[number];
-type CreativeStatus = (typeof creativeStatusEnum)[number];
 
 /** Status-filter input — keep rows whose dynamic status on the chosen scope is
  *  in `statuses`. Scope "total" → general roll-up; a platform → that platform's
@@ -82,7 +80,6 @@ export interface SummaryFilterInput {
   /** Platforms to render columns for. Capped to ≤3 by the validator. */
   platforms?: Platform[];
   types?: CreativeType[];
-  statuses?: CreativeStatus[];
   tags?: string[];
   creatorIds?: string[];
   includeExcluded?: boolean;
@@ -473,9 +470,6 @@ export async function listCreativeSummary(
   }
   if (filters.types && filters.types.length > 0) {
     whereConds.push(inArray(creatives.type, filters.types));
-  }
-  if (filters.statuses && filters.statuses.length > 0) {
-    whereConds.push(inArray(creatives.status, filters.statuses));
   }
   if (filters.creatorIds && filters.creatorIds.length > 0) {
     whereConds.push(inArray(creatives.createdByUserId, filters.creatorIds));

@@ -10,7 +10,8 @@ export type Platform = (typeof platformEnum)[number];
  *  - new:        the creative has never spent anywhere.
  *  - active:     spending within the configured window on ≥1 platform.
  *  - pause:      has spent before, but not within the window on any platform.
- *  - terminated: (general) terminated on every platform it has presence on.
+ *  - terminated: (general) Terminated only when ALL platforms are terminated;
+ *                any never-spent/untouched platform yields New.
  *
  * Per-platform we only surface active/pause/terminated — "new" is a
  * whole-creative "hasn't started" concept.
@@ -82,7 +83,7 @@ export interface CreativeStatusResult {
  * Derive one creative's per-platform + general status. Each platform is judged
  * against ITS OWN latest data day (so a stale upload on one channel can't make
  * a still-running creative look paused). General roll-up precedence:
- * active ▸ pause ▸ terminated ▸ new.
+ * active ▸ pause ▸ new ▸ terminated.
  */
 export function deriveCreativeStatus(
   input: CreativeStatusInput,

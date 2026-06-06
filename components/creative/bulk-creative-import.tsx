@@ -61,9 +61,9 @@ export function BulkCreativeImport({ products }: Props) {
   const downloadTemplate = () => {
     const sampleProduct = products[0] ?? "Your Product";
     const lines = [
-      "name,product,type,status,launch_date,tags",
-      `URJ_VID_100,${sampleProduct},video,draft,2026-05-01,launch;ugc`,
-      `URJ_IMG_101,${sampleProduct},image,active,,evergreen`,
+      "name,product,type,launch_date,tags",
+      `URJ_VID_100,${sampleProduct},video,2026-05-01,launch;ugc`,
+      `URJ_IMG_101,${sampleProduct},image,,evergreen`,
     ];
     const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
@@ -92,7 +92,6 @@ export function BulkCreativeImport({ products }: Props) {
           <li><span className="font-mono text-ink">name</span> — required, unique</li>
           <li><span className="font-mono text-ink">product</span> — required, must match a product</li>
           <li><span className="font-mono text-ink">type</span> — video / image / slides (default video)</li>
-          <li><span className="font-mono text-ink">status</span> — draft / active / paused / archived (default draft)</li>
           <li><span className="font-mono text-ink">launch_date</span> — optional (YYYY-MM-DD or DD/MM/YYYY)</li>
           <li><span className="font-mono text-ink">tags</span> — optional, <code>;</code> or <code>,</code> separated</li>
         </ul>
@@ -136,7 +135,6 @@ export function BulkCreativeImport({ products }: Props) {
                   <th className="font-medium px-3 py-2">Name</th>
                   <th className="font-medium px-3 py-2">Product</th>
                   <th className="font-medium px-3 py-2">Type</th>
-                  <th className="font-medium px-3 py-2">Status</th>
                   <th className="font-medium px-3 py-2">Tags / issue</th>
                 </tr>
               </thead>
@@ -158,7 +156,6 @@ export function BulkCreativeImport({ products }: Props) {
                       {r.productName || <span className="text-ink-3">—</span>}
                     </td>
                     <td className="px-3 py-2 text-ink-2 capitalize">{r.type}</td>
-                    <td className="px-3 py-2 text-ink-2 capitalize">{r.status}</td>
                     <td className="px-3 py-2">
                       {r.ok ? (
                         <span className="text-ink-3">{r.tags.join(", ") || "—"}</span>

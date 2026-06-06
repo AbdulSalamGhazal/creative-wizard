@@ -8,6 +8,7 @@ import { DownloadCsvButton } from "@/components/ui/download-csv-button";
 import type { CreativeListRow } from "@/db/queries/creatives";
 import type { CreativeSort } from "@/validators/creative";
 import { StatusBadge } from "@/components/creative/status-badge";
+import { STATUS_LABEL } from "@/lib/creative-status";
 import { rowsToCsv, todayStamp, type CsvColumn } from "@/lib/csv-export";
 import { isoDate, usd } from "@/lib/format";
 
@@ -15,7 +16,7 @@ const CSV_COLUMNS: CsvColumn<CreativeListRow>[] = [
   { key: "name", label: "Creative", value: (r) => r.name },
   { key: "product", label: "Product", value: (r) => r.productName },
   { key: "type", label: "Type", value: (r) => r.type },
-  { key: "status", label: "Status", value: (r) => r.status },
+  { key: "status", label: "Status", value: (r) => STATUS_LABEL[r.status] },
   { key: "launchDate", label: "Launch date", value: (r) => r.launchDate ?? "" },
   { key: "spend7d", label: "7d spend (USD)", value: (r) => r.spend7d },
   { key: "spend30d", label: "30d spend (USD)", value: (r) => r.spend30d },

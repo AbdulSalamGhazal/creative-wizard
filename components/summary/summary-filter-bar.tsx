@@ -2,7 +2,6 @@
 
 import {
   Activity,
-  CircleDot,
   ChevronDown,
   Columns3,
   Layers,
@@ -74,18 +73,10 @@ const TYPES = [
   { value: "slides", label: "Slides" },
 ] as const;
 
-const STATUSES = [
-  { value: "active", label: "Active" },
-  { value: "paused", label: "Paused" },
-  { value: "draft", label: "Draft" },
-  { value: "archived", label: "Archived" },
-] as const;
-
 /** Human labels for the Columns dropdown — must match the keys in validators/summary. */
 const IDENTITY_LABELS: Record<IdentityColumnKey, string> = {
   product: "Product",
   type: "Type",
-  status: "Status",
   creator: "Creator",
 };
 const METRIC_LABELS: Record<MetricColumnKey, string> = {
@@ -129,7 +120,6 @@ export function SummaryFilterBar({
   const platforms = csv(searchParams.get("platforms")).slice(0, MAX_PLATFORMS);
   const productIds = csv(searchParams.get("productIds"));
   const types = csv(searchParams.get("types"));
-  const statuses = csv(searchParams.get("statuses"));
   const selectedTags = csv(searchParams.get("tags"));
   const includeExcluded = searchParams.get("includeExcluded") === "1";
   const hiddenIdentity = csv(searchParams.get("hideIdentity")).filter(
@@ -324,7 +314,6 @@ export function SummaryFilterBar({
     urlQ.length > 0 ||
     productIds.length > 0 ||
     types.length > 0 ||
-    statuses.length > 0 ||
     selectedTags.length > 0 ||
     platforms.length > 0 ||
     !!from ||
@@ -340,7 +329,6 @@ export function SummaryFilterBar({
         "q",
         "productIds",
         "types",
-        "statuses",
         "tags",
         "creatorIds",
         "platforms",
@@ -538,39 +526,6 @@ export function SummaryFilterBar({
                   onSelect={(e) => e.preventDefault()}
                 >
                   {t.label}
-                </DropdownMenuCheckboxItem>
-              ))}
-            </DropdownMenuContent>
-          )}
-        </FilterPill>
-
-        {/* Status */}
-        <FilterPill
-          icon={CircleDot}
-          label="Status"
-          value={
-            statuses.length === 0
-              ? "Any"
-              : statuses.length === 1
-                ? (STATUSES.find((s) => s.value === statuses[0])?.label ?? "1")
-                : `${statuses.length} selected`
-          }
-          active={statuses.length > 0}
-        >
-          {() => (
-            <DropdownMenuContent align="start" className="w-44">
-              <DropdownMenuLabel>Status</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              {STATUSES.map((s) => (
-                <DropdownMenuCheckboxItem
-                  key={s.value}
-                  checked={statuses.includes(s.value)}
-                  onCheckedChange={() =>
-                    toggleMulti("statuses", s.value, statuses)
-                  }
-                  onSelect={(e) => e.preventDefault()}
-                >
-                  {s.label}
                 </DropdownMenuCheckboxItem>
               ))}
             </DropdownMenuContent>

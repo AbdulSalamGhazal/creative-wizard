@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { platformEnum, creativeTypeEnum, creativeStatusEnum } from "@/db/schema";
+import { platformEnum, creativeTypeEnum } from "@/db/schema";
 import { RATING_VALUES, type Rating } from "@/lib/rating";
 import { CREATIVE_STATUSES, type CreativeStatus } from "@/lib/creative-status";
 import { defaultDateRange } from "@/lib/date-presets";
@@ -43,7 +43,6 @@ export const MAX_PLATFORMS = 5;
 export const IDENTITY_COLUMN_KEYS = [
   "product",
   "type",
-  "status",
   "creator",
 ] as const;
 export type IdentityColumnKey = (typeof IDENTITY_COLUMN_KEYS)[number];
@@ -306,7 +305,6 @@ export const summaryFiltersSchema = z.object({
     arr.slice(0, MAX_PLATFORMS),
   ),
   types: csvEnum(creativeTypeEnum),
-  statuses: csvEnum(creativeStatusEnum),
   tags: csv(),
   creatorIds: csv(),
   includeExcluded: z

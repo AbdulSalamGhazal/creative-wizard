@@ -12,7 +12,6 @@ import {
 import { db } from "@/lib/db";
 import {
   creatives,
-  creativeStatusEnum,
   creativeTags,
   creativeTypeEnum,
   performanceRecords,
@@ -45,9 +44,6 @@ import { getActiveAccountId } from "@/lib/tenant";
 
 type Platform = (typeof platformEnum)[number];
 type CreativeType = (typeof creativeTypeEnum)[number];
-/** OLD manual status enum — only the campaign-list filter still uses it. The
- *  per-creative status shown in the table is the DYNAMIC `CreativeStatus`. */
-type FrozenStatus = (typeof creativeStatusEnum)[number];
 
 const num = (v: unknown): number => (v === null || v === undefined ? 0 : Number(v));
 const numOrNull = (v: unknown): number | null =>
@@ -66,7 +62,6 @@ export interface CampaignFilters extends Range {
   platforms?: Platform[];
   productIds?: string[];
   types?: CreativeType[];
-  statuses?: FrozenStatus[];
   tags?: string[];
   includeExcluded?: boolean;
 }
@@ -100,9 +95,6 @@ function listConds(f: CampaignFilters, acct: string): SQL[] {
   }
   if (f.types && f.types.length > 0) {
     c.push(inArray(creatives.type, f.types));
-  }
-  if (f.statuses && f.statuses.length > 0) {
-    c.push(inArray(creatives.status, f.statuses));
   }
   if (f.tags && f.tags.length > 0) {
     c.push(

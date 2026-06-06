@@ -6,7 +6,6 @@ import { db } from "@/lib/db";
 import { requireEditor } from "@/lib/auth";
 import {
   creatives,
-  creativeStatusEnum,
   creativeTags,
   creativeTypeEnum,
   products,
@@ -19,21 +18,19 @@ import { getActiveAccountId } from "@/lib/tenant";
  * Bulk-create creatives from a CSV/XLSX upload.
  *
  * Shape per row: name (required), product (required — must match an existing
- * product by name), type, status, launch_date, tags, notes. Validation is
+ * product by name), type, launch_date, tags, notes. Validation is
  * all-or-nothing: the file previews with per-row errors and nothing is written
  * unless every row is valid (mirrors the performance-CSV philosophy, though
  * this is a separate, simpler pipeline — creatives, not performance records).
  */
 
 type CreativeType = (typeof creativeTypeEnum)[number];
-type CreativeStatus = (typeof creativeStatusEnum)[number];
 
 export interface BulkRowResult {
   rowNumber: number;
   name: string;
   productName: string;
   type: string;
-  status: string;
   launchDate: string | null;
   tags: string[];
   ok: boolean;
@@ -62,7 +59,6 @@ const HEADER_MAP: Record<string, string[]> = {
   name: ["name", "creative", "creative name"],
   product: ["product", "product name"],
   type: ["type", "creative type"],
-  status: ["status"],
   launchDate: ["launch_date", "launch date", "launchdate", "launched"],
   tags: ["tags", "tag"],
   notes: ["notes", "note"],
@@ -106,7 +102,6 @@ interface NormalizedRow {
   name: string;
   productId: string;
   type: CreativeType;
-  status: CreativeStatus;
   launchDate: string | null;
   tags: string[];
   notes: string | null;
@@ -142,7 +137,6 @@ async function build(formData: FormData): Promise<BuildResult> {
     name: indexFor(parsed.header, "name"),
     product: indexFor(parsed.header, "product"),
     type: indexFor(parsed.header, "type"),
-    status: indexFor(parsed.header, "status"),
     launchDate: indexFor(parsed.header, "launchDate"),
     tags: indexFor(parsed.header, "tags"),
     notes: indexFor(parsed.header, "notes"),
@@ -191,7 +185,6 @@ async function build(formData: FormData): Promise<BuildResult> {
     const name = cell(row, idx.name);
     const productName = cell(row, idx.product);
     const typeRaw = cell(row, idx.type).toLowerCase();
-    const statusRaw = cell(row, idx.status).toLowerCase();
     const launchRaw = cell(row, idx.launchDate);
     const tagsRaw = cell(row, idx.tags);
 
@@ -214,12 +207,6 @@ async function build(formData: FormData): Promise<BuildResult> {
     const type = (typeRaw || "video") as CreativeType;
     if (!(creativeTypeEnum as readonly string[]).includes(type)) {
       errors.push(`Invalid type "${typeRaw}". Use video, image, or slides.`);
-    }
-
-    // status (default draft)
-    const status = (statusRaw || "draft") as CreativeStatus;
-    if (!(creativeStatusEnum as readonly string[]).includes(status)) {
-      errors.push(`Invalid status "${statusRaw}". Use draft, active, paused, or archived.`);
     }
 
     // launch date
@@ -245,7 +232,6 @@ async function build(formData: FormData): Promise<BuildResult> {
       name,
       productName,
       type,
-      status,
       launchDate: launch.value,
       tags,
       ok,
@@ -258,7 +244,6 @@ async function build(formData: FormData): Promise<BuildResult> {
         name,
         productId,
         type,
-        status,
         launchDate: launch.value,
         tags,
         notes: idx.notes >= 0 ? cell(row, idx.notes) || null : null,
@@ -323,11 +308,13 @@ export async function commitBulkCreatives(
         const [inserted] = await tx
           .insert(creatives)
           .values({
+            // `status` is intentionally omitted — the DB column keeps its
+            // NOT NULL DEFAULT 'draft', which is now ignored. Status is derived
+            // dynamically (see lib/creative-status.ts); new creatives read as "New".
             accountId: acct,
             name: r.name,
             productId: r.productId,
             type: r.type,
-            status: r.status,
             launchDate: r.launchDate,
             notes: r.notes,
             createdByUserId: user.id,
