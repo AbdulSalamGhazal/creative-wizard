@@ -98,12 +98,10 @@ export function deriveCreativeStatus(
 
   let anyActive = false;
   let anyPause = false;
-  let anyTerminated = false;
 
   for (const p of platforms) {
     if (terminated.has(p)) {
       perPlatform[p] = "terminated";
-      anyTerminated = true;
       continue;
     }
     const last = input.lastSpendByPlatform[p];
