@@ -421,13 +421,8 @@ function PlatformStatusSection({
               <span className="text-xs text-ink truncate">
                 {PLATFORM_LABEL[p]}
               </span>
-              {s ? (
-                <StatusBadge status={s} />
-              ) : (
-                <span className="text-xs text-ink-3" title="No spend yet">
-                  —
-                </span>
-              )}
+              {/* No spend on this platform (and not terminated) = New. */}
+              <StatusBadge status={s ?? "new"} />
             </div>
           );
         })}
