@@ -119,11 +119,21 @@ export function deriveCreativeStatus(
     }
   }
 
+  // "Terminated" as general ONLY when every one of the 5 platforms has been
+  // explicitly terminated. If any platform is "New" (never spent, never
+  // terminated), the creative still has unused potential → general = New.
+  // Precedence: Active > Pause > New > Terminated.
+  const hasAnyNew = platformEnum.some(
+    (p) =>
+      !input.lastSpendByPlatform[p as Platform] &&
+      !terminated.has(p as Platform),
+  );
+
   let general: CreativeStatus;
   if (anyActive) general = "active";
   else if (anyPause) general = "pause";
-  else if (anyTerminated) general = "terminated";
-  else general = "new";
+  else if (hasAnyNew) general = "new";
+  else general = "terminated"; // only when all 5 platforms are explicitly terminated
 
   return { general, perPlatform };
 }
