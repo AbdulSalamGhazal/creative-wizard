@@ -56,7 +56,7 @@ export function StatusConfigAdmin({ brands }: { brands: BrandWindow[] }) {
       <div className="rounded-lg border border-line bg-surface/60 px-5 py-4 text-sm text-ink-2 space-y-1.5 max-w-2xl">
         <p>
           A creative is <strong className="text-ink">Active</strong> on a platform when it
-          has spent within this window of that platform's own latest data day.
+          has spent within this window of the latest data day on that platform.
           Because uploads are per-platform and daily-grain, the window rounds to
           whole days — 24 h = the latest day only.
         </p>
