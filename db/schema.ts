@@ -107,6 +107,9 @@ export const creatives = pgTable(
       .default("draft"),
     launchDate: date("launch_date"),
     notes: text("notes"),
+    // The creative's source link (e.g. the live post/ad or asset URL).
+    // Display-only metadata; not used in aggregation.
+    sourceLink: text("source_link"),
     createdByUserId: uuid("created_by_user_id")
       .notNull()
       .references(() => users.id),

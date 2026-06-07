@@ -16,6 +16,7 @@ import {
 import {
   creativeCreateSchema,
   creativeTerminationSchema,
+  sourceLinkSchema,
 } from "@/validators/creative";
 import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
 import { getActiveAccountId } from "@/lib/tenant";
@@ -96,6 +97,7 @@ export async function createCreative(
         thumbnailUrl: data.thumbnailUrl,
         launchDate: data.launchDate,
         notes: data.notes,
+        sourceLink: data.sourceLink ?? null,
         createdByUserId: user.id,
       })
       .returning({ id: creatives.id, name: creatives.name });
@@ -164,6 +166,58 @@ export async function updateCreativeNotes(
         meta: { length: notes.length },
       });
     }
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : "Unknown error" };
+  }
+}
+
+/**
+ * Update a creative's source link. Like notes, this has its own inline editor
+ * (SourceLinkPanel) and a dedicated action, so it never clobbers the fields
+ * edited by `patchCreative`. The value is validated + cleaned by
+ * `sourceLinkSchema` (trims, requires an http(s) URL, blank → unset → NULL).
+ * Editor-or-admin only; account-scoped.
+ */
+export async function updateCreativeSourceLink(
+  creativeId: string,
+  link: unknown,
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const user = await requireEditor();
+    const parsed = sourceLinkSchema.safeParse(link);
+    if (!parsed.success) {
+      return {
+        ok: false,
+        error: parsed.error.issues[0]?.message ?? "Invalid link.",
+      };
+    }
+    const url = parsed.data ?? null; // undefined (blank) → clear
+
+    const acct = await getActiveAccountId();
+    const [updated] = await db
+      .update(creatives)
+      .set({ sourceLink: url, updatedAt: new Date() })
+      .where(and(eq(creatives.accountId, acct), eq(creatives.id, creativeId)))
+      .returning({ id: creatives.id, name: creatives.name });
+    if (!updated) return { ok: false, error: "Creative not found." };
+
+    try {
+      revalidatePath("/creatives");
+      revalidatePath(`/creatives/${encodeURIComponent(updated.name)}`);
+    } catch (err) {
+      console.warn("revalidatePath after source-link update failed:", err);
+    }
+
+    await logAudit({
+      action: AUDIT_ACTIONS.CREATIVE_SOURCE_UPDATE,
+      entityType: "creative",
+      entityId: updated.id,
+      entityLabel: updated.name,
+      actorUserId: user.id,
+      meta: { set: Boolean(url) },
+    });
+
     return { ok: true };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : "Unknown error" };

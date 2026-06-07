@@ -21,6 +21,7 @@ export const AUDIT_ACTIONS = {
   CREATIVE_BULK_CREATE: "creative.bulk_create",
   CREATIVE_UPDATE: "creative.update",
   CREATIVE_NOTES_UPDATE: "creative.notes_update",
+  CREATIVE_SOURCE_UPDATE: "creative.source_update",
   CREATIVE_STATUS_BULK: "creative.bulk_status",
   CREATIVE_DELETE: "creative.delete",
 
@@ -134,6 +135,7 @@ export const AUDIT_LABELS: Record<AuditAction, string> = {
   "creative.bulk_create": "Bulk-created creatives",
   "creative.update": "Updated creative",
   "creative.notes_update": "Edited notes",
+  "creative.source_update": "Edited source link",
   "creative.bulk_status": "Bulk status change",
   "creative.delete": "Deleted creative",
   "exclusion.exclude": "Excluded record",
@@ -168,6 +170,7 @@ export const AUDIT_CATEGORIES: Record<AuditAction, AuditEntityType> = {
   "creative.bulk_create": "creative",
   "creative.update": "creative",
   "creative.notes_update": "creative",
+  "creative.source_update": "creative",
   "creative.bulk_status": "creative",
   "creative.delete": "creative",
   "exclusion.exclude": "exclusion",

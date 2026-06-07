@@ -28,6 +28,7 @@ import { CreativePlatformTable } from "@/components/creative/creative-platform-t
 import { CreativeRecordsTable } from "@/components/creative/creative-records-table";
 import { AnalyticsDateFilter } from "@/components/creative/analytics-date-filter";
 import { NotesPanel } from "@/components/creative/notes-panel";
+import { SourceLinkPanel } from "@/components/creative/source-link-panel";
 import { AuditFeed } from "@/components/audit/audit-feed";
 import { int, pct, ratio, usd } from "@/lib/format";
 import { presetLabel, resolveDefaultRange } from "@/lib/date-presets";
@@ -192,7 +193,13 @@ export default async function CreativeDetailPage({
           allTags={allTags}
           products={products}
         />
-        <NotesPanel creativeId={creative.id} initialNotes={creative.notes} />
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+          <SourceLinkPanel
+            creativeId={creative.id}
+            initialLink={creative.sourceLink}
+          />
+          <NotesPanel creativeId={creative.id} initialNotes={creative.notes} />
+        </div>
       </section>
 
       {/* ─────────── Analytics ─────────── */}

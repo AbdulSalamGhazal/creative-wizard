@@ -333,6 +333,7 @@ export interface CreativeDetail {
   thumbnailUrl: string | null;
   launchDate: string | null;
   notes: string | null;
+  sourceLink: string | null;
   createdAt: Date;
   updatedAt: Date;
   tags: string[];
@@ -352,6 +353,7 @@ export async function getCreativeByName(
       thumbnailUrl: creatives.thumbnailUrl,
       launchDate: creatives.launchDate,
       notes: creatives.notes,
+      sourceLink: creatives.sourceLink,
       createdAt: creatives.createdAt,
       updatedAt: creatives.updatedAt,
     })

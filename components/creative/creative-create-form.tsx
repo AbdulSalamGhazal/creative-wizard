@@ -37,6 +37,7 @@ export function CreativeCreateForm({ products, allTags }: Props) {
   const [launchDate, setLaunchDate] = useState("");
   const [tagsInput, setTagsInput] = useState("");
   const [notes, setNotes] = useState("");
+  const [sourceLink, setSourceLink] = useState("");
   const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
@@ -60,6 +61,7 @@ export function CreativeCreateForm({ products, allTags }: Props) {
         launchDate: launchDate || undefined,
         notes: notes.trim() || undefined,
         thumbnailUrl: thumbnailUrl || undefined,
+        sourceLink: sourceLink.trim() || undefined,
         tags,
       });
       if (!res.ok) {
@@ -157,6 +159,21 @@ export function CreativeCreateForm({ products, allTags }: Props) {
           value={tagsInput}
           onChange={setTagsInput}
           allTags={allTags}
+        />
+      </Field>
+
+      <Field
+        label="Source link"
+        hint="Optional. The live post, ad, or asset URL."
+        error={fieldErrors.sourceLink}
+      >
+        <Input
+          type="url"
+          inputMode="url"
+          value={sourceLink}
+          onChange={(e) => setSourceLink(e.target.value)}
+          placeholder="https://…"
+          maxLength={2048}
         />
       </Field>
 

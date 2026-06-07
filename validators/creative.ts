@@ -7,6 +7,23 @@ import { CREATIVE_STATUSES } from "@/lib/creative-status";
 // Status is no longer a manual attribute — it's derived dynamically (see
 // lib/creative-status.ts), with per-platform termination as the only manual
 // lever (creativeTerminationSchema below).
+/**
+ * The creative's source link (the live post/ad or asset URL). A single
+ * optional http(s) URL. Preprocessing trims and treats blank as "unset"
+ * (→ undefined) so an empty field clears the value instead of failing.
+ */
+export const sourceLinkSchema = z.preprocess(
+  (v) => (typeof v === "string" && v.trim() ? v.trim() : undefined),
+  z
+    .string()
+    .max(2048)
+    .url()
+    .refine((u) => /^https?:\/\//i.test(u), "Must start with http:// or https://")
+    .optional(),
+);
+
+export type SourceLinkInput = z.infer<typeof sourceLinkSchema>;
+
 export const creativeCreateSchema = z.object({
   name: z.string().min(1).max(255),
   productId: z.string().uuid(),
@@ -14,6 +31,7 @@ export const creativeCreateSchema = z.object({
   thumbnailUrl: z.string().url().optional(),
   launchDate: z.string().date().optional(),
   notes: z.string().optional(),
+  sourceLink: sourceLinkSchema,
   tags: z.array(z.string().min(1).max(64)).default([]),
 });
 
