@@ -47,7 +47,7 @@ export default function DashboardError({
         <div className="mt-6 flex items-center justify-center gap-2">
           <Button onClick={reset}>Try again</Button>
           <Button variant="ghost" asChild>
-            <Link href="/">Go to Overview</Link>
+            <Link href="/">Go to Dashboard</Link>
           </Button>
         </div>
       </div>

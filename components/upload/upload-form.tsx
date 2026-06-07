@@ -215,7 +215,7 @@ export function UploadForm() {
         </p>
         <div className="mt-6 flex items-center justify-center gap-2">
           <Button asChild>
-            <Link href="/">View on Overview</Link>
+            <Link href="/">View on Dashboard</Link>
           </Button>
           <Button variant="ghost" onClick={reset}>
             <RefreshCw className="w-3.5 h-3.5" />

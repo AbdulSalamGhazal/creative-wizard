@@ -16,7 +16,7 @@ export default function NotFound() {
         </p>
         <div className="mt-6">
           <Button asChild>
-            <Link href="/">Back to Overview</Link>
+            <Link href="/">Back to Dashboard</Link>
           </Button>
         </div>
       </div>

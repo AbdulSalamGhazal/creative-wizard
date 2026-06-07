@@ -46,7 +46,7 @@ interface Props {
 }
 
 const PAGES = [
-  { href: "/", label: "Overview", icon: LayoutDashboard },
+  { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/creatives", label: "Creatives library", icon: Images },
   { href: "/creatives/new", label: "New creative", icon: Plus },
   { href: "/summary", label: "Summary — per-platform grid", icon: Table2 },

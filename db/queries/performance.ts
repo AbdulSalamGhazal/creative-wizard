@@ -468,6 +468,76 @@ export async function platformMix(
   }));
 }
 
+export type BreakdownDimension = "platform" | "campaign";
+
+export interface MetricBreakdownRow {
+  /** Platform value (e.g. "instagram") or the combined campaign name. */
+  key: string;
+  spend: number;
+  conversions: number | null;
+  conversionValue: number | null;
+  cpa: number | null;
+  roas: number | null;
+}
+
+/**
+ * Per-dimension metric breakdown for the Dashboard metric cards. Groups the
+ * filtered records by EITHER platform OR campaign name and returns spend /
+ * conversions / revenue / CPA / ROAS per group, ordered by spend desc. All
+ * derived metrics use the canonical weighted fragments from `lib/metrics.ts`.
+ *
+ * `dimension = "campaign"` is used when the view is pinned to a single platform
+ * (the filters already restrict to it), so the cards drill one level deeper.
+ */
+export async function metricBreakdown(
+  filters: KpiFilters,
+  dimension: BreakdownDimension,
+): Promise<MetricBreakdownRow[]> {
+  const { conditions, needsCreativeJoin, needsTagJoin } =
+    await buildBaseConditions(filters);
+
+  const dimCol =
+    dimension === "platform"
+      ? performanceRecords.platform
+      : performanceRecords.campaignName;
+
+  let q = db
+    .select({
+      key: dimCol,
+      spend: sumSpend,
+      conversions: sumConversions,
+      conversionValue: sumConversionValue,
+      cpa,
+      roas,
+    })
+    .from(performanceRecords)
+    .$dynamic();
+
+  if (needsCreativeJoin || needsTagJoin) {
+    q = q.innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId));
+  }
+  if (needsTagJoin) {
+    q = q.innerJoin(
+      creativeTags,
+      eq(creativeTags.creativeId, performanceRecords.creativeId),
+    );
+  }
+
+  const rows = await q
+    .where(and(...conditions))
+    .groupBy(dimCol)
+    .orderBy(desc(sumSpend));
+
+  return rows.map((r) => ({
+    key: String(r.key),
+    spend: Number(r.spend ?? 0),
+    conversions: num(r.conversions),
+    conversionValue: num(r.conversionValue),
+    cpa: num(r.cpa),
+    roas: num(r.roas),
+  }));
+}
+
 /**
  * Spend per product for the Overview product-mix donut. Always joins
  * creatives → products. Filters from `buildBaseConditions` apply; we just

@@ -1,18 +1,13 @@
 import { Suspense } from "react";
 import { Badge } from "@/components/ui/badge";
-import {
-  defaultDateRange,
-  platformMix,
-  type KpiFilters,
-} from "@/db/queries/performance";
+import { defaultDateRange, type KpiFilters } from "@/db/queries/performance";
 import { listProducts } from "@/db/queries/products";
 import { listAllTags } from "@/db/queries/creatives";
+import { DashboardMetrics } from "@/components/overview/dashboard-metrics";
 import { OverviewSection } from "@/components/overview/overview-section";
 import { FilterStrip } from "@/components/filters/filter-strip";
 import { dashboardFiltersSchema } from "@/validators/filters";
 import { PLATFORM_LABEL } from "@/lib/palette";
-
-type Platform = "instagram" | "facebook" | "tiktok" | "snapchat" | "google";
 
 const TRAILING_DAYS_DEFAULT = 30;
 
@@ -23,7 +18,7 @@ function pickFirst(value: string | string[] | undefined): string | undefined {
   return value;
 }
 
-export default async function OverviewPage({
+export default async function DashboardPage({
   searchParams,
 }: {
   searchParams: Promise<SearchParams>;
@@ -53,21 +48,17 @@ export default async function OverviewPage({
     includeExcluded: parsed.includeExcluded,
   };
 
+  // When the view is pinned to exactly ONE platform, the metric breakdowns
+  // drill one level deeper — by campaign within that platform. Otherwise they
+  // break down by platform.
+  const singlePlatform = parsed.platforms.length === 1 ? parsed.platforms[0] : null;
+  const dimension = singlePlatform ? "campaign" : "platform";
+
   const platformsBadge =
     parsed.platforms.length > 0 ? parsed.platforms.join(", ") : "all platforms";
   const rangeLabel = `${from} → ${to}`;
 
-  // Which platforms to break out: those with spend in the window (already
-  // narrowed by any platform filter), ordered by spend desc. We only show
-  // the per-platform sections when 2+ platforms are in scope — with one,
-  // the breakout would just duplicate the blended section above.
-  const [present, products, tags] = await Promise.all([
-    platformMix(filters),
-    listProducts(),
-    listAllTags(),
-  ]);
-  const presentPlatforms = present.map((r) => r.platform as Platform);
-  const showBreakouts = presentPlatforms.length >= 2;
+  const [products, tags] = await Promise.all([listProducts(), listAllTags()]);
 
   return (
     <div className="space-y-6">
@@ -83,9 +74,11 @@ export default async function OverviewPage({
 
       <div className="flex items-end justify-between flex-wrap gap-3">
         <div>
-          <h1 className="font-display text-4xl tracking-tight">Overview</h1>
+          <h1 className="font-display text-4xl tracking-tight">Dashboard</h1>
           <p className="text-ink-2 text-sm mt-1">
-            Aggregated performance across products, platforms, and creatives.
+            {singlePlatform
+              ? `${PLATFORM_LABEL[singlePlatform]} — headline metrics with a per-campaign breakdown.`
+              : "Headline metrics with a per-platform breakdown."}
           </p>
         </div>
         <Badge variant="outline" className="text-ink-3">
@@ -94,32 +87,13 @@ export default async function OverviewPage({
         </Badge>
       </div>
 
+      <DashboardMetrics filters={filters} dimension={dimension} />
+
       <OverviewSection
-        title="All platforms"
+        title="Trends & mix"
         filters={filters}
         rangeLabel={rangeLabel}
       />
-
-      {showBreakouts && (
-        <>
-          <div className="flex items-center gap-3 pt-4">
-            <span className="text-[11px] uppercase tracking-[0.18em] text-ink-3">
-              By platform
-            </span>
-            <div className="h-px flex-1 bg-line" />
-          </div>
-          {presentPlatforms.map((p) => (
-            <div key={p} className="border-t border-line pt-2">
-              <OverviewSection
-                title={PLATFORM_LABEL[p]}
-                filters={filters}
-                platform={p}
-                rangeLabel={rangeLabel}
-              />
-            </div>
-          ))}
-        </>
-      )}
     </div>
   );
 }

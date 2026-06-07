@@ -1,6 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
-  kpis,
   platformMix,
   productMix,
   spendByDatePlatform,
@@ -14,14 +13,12 @@ import { TopCreativesTable } from "@/components/charts/top-creatives";
 import { PlatformMixDonut } from "@/components/charts/platform-mix";
 import { ProductMixDonut } from "@/components/charts/product-mix";
 import { MixDonut, type MixSlice } from "@/components/charts/mix-donut";
-import { KpiTile } from "@/components/kpi/kpi-tile";
 import {
   PLATFORM_COLOR,
   TYPE_COLOR,
   TYPE_LABEL,
   swatchColor,
 } from "@/lib/palette";
-import { usd, int, pct, ratio } from "@/lib/format";
 
 type Platform = "instagram" | "facebook" | "tiktok" | "snapchat" | "google";
 
@@ -52,9 +49,8 @@ export async function OverviewSection({
     ? { ...filters, platforms: [platform] }
     : filters;
 
-  const [k, spendRows, topRows, platformMixRows, productMixRows, typeMixRows, tagMixRows] =
+  const [spendRows, topRows, platformMixRows, productMixRows, typeMixRows, tagMixRows] =
     await Promise.all([
-      kpis(f),
       spendByDatePlatform(f),
       topCreatives(f, 10),
       // Platform-mix only makes sense in the blended section.
@@ -63,16 +59,6 @@ export async function OverviewSection({
       typeMix(f),
       tagMix(f),
     ]);
-
-  const tiles: Array<{ label: string; value: string; inverted?: boolean }> = [
-    { label: "Spend", value: usd(k.spend) },
-    { label: "Impressions", value: int(k.impressions) },
-    { label: "Blended CTR", value: pct(k.ctr) },
-    { label: "Conversions", value: int(k.conversions) },
-    { label: "Blended CvR", value: pct(k.cvr) },
-    { label: "Blended CPA", value: usd(k.cpa) },
-    { label: "Blended ROAS", value: ratio(k.roas) },
-  ];
 
   const typeSlices: MixSlice[] = typeMixRows.map((r) => ({
     key: r.type,
@@ -100,13 +86,6 @@ export async function OverviewSection({
         ) : null}
         <h2 className="font-display text-2xl tracking-tight">{title}</h2>
         <span className="text-[11px] text-ink-3 num">{rangeLabel}</span>
-      </div>
-
-      {/* KPI tiles */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-4">
-        {tiles.map((t) => (
-          <KpiTile key={t.label} label={t.label} value={t.value} />
-        ))}
       </div>
 
       {/* Spend over time */}

@@ -30,7 +30,7 @@ interface NavItem {
 }
 
 const items: NavItem[] = [
-  { href: "/", label: "Overview", icon: LayoutDashboard, group: "primary" },
+  { href: "/", label: "Dashboard", icon: LayoutDashboard, group: "primary" },
   { href: "/creatives", label: "Creatives", icon: Images, group: "primary" },
   { href: "/summary", label: "Summary", icon: Table2, group: "primary" },
   { href: "/funnel", label: "Funnel", icon: Filter, group: "primary" },

@@ -18,6 +18,18 @@ const ratioFormatter = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 2,
 });
 
+const usdCompactFormatter = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
+  notation: "compact",
+  maximumFractionDigits: 1,
+});
+
+const intCompactFormatter = new Intl.NumberFormat("en-US", {
+  notation: "compact",
+  maximumFractionDigits: 1,
+});
+
 const EM_DASH = "—";
 
 export function usd(value: number | null | undefined): string {
@@ -38,6 +50,18 @@ export function pct(value: number | null | undefined): string {
 export function ratio(value: number | null | undefined): string {
   if (value === null || value === undefined || Number.isNaN(value)) return EM_DASH;
   return ratioFormatter.format(value);
+}
+
+/** Compact currency for tight spaces (e.g. "$1.2M", "$8.4K"). */
+export function usdCompact(value: number | null | undefined): string {
+  if (value === null || value === undefined || Number.isNaN(value)) return EM_DASH;
+  return usdCompactFormatter.format(value);
+}
+
+/** Compact integer for tight spaces (e.g. "1.2M", "8.4K"). */
+export function intCompact(value: number | null | undefined): string {
+  if (value === null || value === undefined || Number.isNaN(value)) return EM_DASH;
+  return intCompactFormatter.format(value);
 }
 
 export function isoDate(value: Date | string | null | undefined): string {
