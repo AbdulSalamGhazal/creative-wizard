@@ -14,7 +14,7 @@ import {
   PLATFORM_LABEL,
   swatchColor,
 } from "@/lib/palette";
-import { int, intCompact, ratio, usd, usdCompact } from "@/lib/format";
+import { int, intCompact, ratio, usd0, usd1, usdCompact } from "@/lib/format";
 
 const CAMPAIGN_LIMIT = 8;
 
@@ -55,32 +55,35 @@ export async function DashboardMetrics({
       ? swatchColor(key)
       : PLATFORM_COLOR[key as keyof typeof PLATFORM_COLOR] ?? "var(--ink-3)";
 
-  // Composition: bar = this group's share of the total for that metric.
+  // Composition: bar = this group's share of the total for that metric. Groups
+  // with no value for the metric are dropped (no zero-rows).
   const shareBars = (pick: Pick, fmt: (v: number | null) => string): BreakdownBar[] => {
     const denom = full.reduce((s, r) => s + (pick(r) ?? 0), 0);
-    return shown.map((r) => ({
-      key: r.key,
-      label: labelFor(r.key),
-      color: colorFor(r.key),
-      fraction: denom > 0 ? (pick(r) ?? 0) / denom : 0,
-      display: fmt(pick(r)),
-    }));
+    return shown
+      .filter((r) => (pick(r) ?? 0) > 0)
+      .map((r) => ({
+        key: r.key,
+        label: labelFor(r.key),
+        color: colorFor(r.key),
+        fraction: denom > 0 ? (pick(r) ?? 0) / denom : 0,
+        display: fmt(pick(r)),
+      }));
   };
 
-  // Ratio: bar = this group's value relative to the largest in the set.
+  // Ratio: bar = this group's value relative to the largest in the set. Groups
+  // with no value are dropped.
   const valueBars = (pick: Pick, fmt: (v: number) => string): BreakdownBar[] => {
-    const vals = shown
-      .map((r) => pick(r))
-      .filter((v): v is number => v !== null);
+    const rows = shown.filter((r) => (pick(r) ?? 0) > 0);
+    const vals = rows.map((r) => pick(r)).filter((v): v is number => v !== null);
     const max = vals.length ? Math.max(...vals) : 0;
-    return shown.map((r) => {
-      const v = pick(r);
+    return rows.map((r) => {
+      const v = pick(r)!;
       return {
         key: r.key,
         label: labelFor(r.key),
         color: colorFor(r.key),
-        fraction: v !== null && max > 0 ? v / max : 0,
-        display: v !== null ? fmt(v) : "—",
+        fraction: max > 0 ? v / max : 0,
+        display: fmt(v),
       };
     });
   };
@@ -92,13 +95,18 @@ export async function DashboardMetrics({
       ? filters.platforms
       : [...ALL_PLATFORMS]
   ) as string[];
-  const runCounts = selPlatforms.map((p) => ({
-    p,
-    active: statusB.perPlatform[p as keyof typeof statusB.perPlatform]?.active ?? 0,
-  }));
+  const runCounts = selPlatforms
+    .map((p) => ({
+      p,
+      active: statusB.perPlatform[p as keyof typeof statusB.perPlatform]?.active ?? 0,
+    }))
+    .filter((r) => r.active > 0); // hide platforms with nothing running
   const runMax = Math.max(0, ...runCounts.map((r) => r.active));
   const runningHeadline =
-    selPlatforms.length === 1 ? runCounts[0]!.active : statusB.general.active;
+    selPlatforms.length === 1
+      ? statusB.perPlatform[selPlatforms[0] as keyof typeof statusB.perPlatform]
+          ?.active ?? 0
+      : statusB.general.active;
   const runningBars: BreakdownBar[] = runCounts.map(({ p, active }) => ({
     key: p,
     label: PLATFORM_LABEL[p as keyof typeof PLATFORM_LABEL] ?? p,
@@ -109,10 +117,10 @@ export async function DashboardMetrics({
 
   return (
     <div className="space-y-3">
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
         <MetricCard
           label="Spend"
-          value={usd(k.spend)}
+          value={usd0(k.spend)}
           icon={DollarSign}
           bars={shareBars((r) => r.spend, usdCompact)}
         />
@@ -124,15 +132,15 @@ export async function DashboardMetrics({
         />
         <MetricCard
           label="Revenue"
-          value={usd(k.conversionValue)}
+          value={usd0(k.conversionValue)}
           icon={Banknote}
           bars={shareBars((r) => r.conversionValue, usdCompact)}
         />
         <MetricCard
           label="CPA"
-          value={usd(k.cpa)}
+          value={usd1(k.cpa)}
           icon={Receipt}
-          bars={valueBars((r) => r.cpa, usd)}
+          bars={valueBars((r) => r.cpa, usd1)}
         />
         <MetricCard
           label="ROAS"

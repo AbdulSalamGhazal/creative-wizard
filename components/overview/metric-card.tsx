@@ -29,20 +29,20 @@ export function MetricCard({
   emptyText?: string;
 }) {
   return (
-    <div className="rounded-xl border border-line bg-surface p-5 flex items-center justify-between gap-5">
+    <div className="rounded-xl border border-line bg-surface p-5 flex items-center justify-between gap-4">
       {/* Left: headline */}
       <div className="min-w-0">
         <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.16em] text-ink-3">
           <Icon className="h-3 w-3" />
           <span>{label}</span>
         </div>
-        <div className="font-display text-5xl leading-none num text-ink mt-3 whitespace-nowrap">
+        <div className="font-display text-4xl leading-none num text-ink mt-2.5 whitespace-nowrap">
           {value}
         </div>
       </div>
 
       {/* Right: narrow breakdown */}
-      <div className="w-40 shrink-0">
+      <div className="w-32 shrink-0">
         {bars.length === 0 ? (
           <p className="text-[11px] text-ink-3 italic">{emptyText}</p>
         ) : (
