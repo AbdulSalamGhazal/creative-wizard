@@ -56,7 +56,6 @@ export default async function DashboardPage({
 
   const platformsBadge =
     parsed.platforms.length > 0 ? parsed.platforms.join(", ") : "all platforms";
-  const rangeLabel = `${from} → ${to}`;
 
   const [products, tags] = await Promise.all([listProducts(), listAllTags()]);
 
@@ -90,9 +89,9 @@ export default async function DashboardPage({
       <DashboardMetrics filters={filters} dimension={dimension} />
 
       <OverviewSection
-        title="Trends & mix"
         filters={filters}
-        rangeLabel={rangeLabel}
+        dimension={dimension}
+        dimensionLabel={singlePlatform ? PLATFORM_LABEL[singlePlatform] : undefined}
       />
     </div>
   );

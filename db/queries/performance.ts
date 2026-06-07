@@ -538,6 +538,74 @@ export async function metricBreakdown(
   }));
 }
 
+export interface MetricOverTimeRow {
+  date: string; // YYYY-MM-DD
+  key: string; // platform value or campaign name
+  spend: number;
+  conversions: number | null;
+  conversionValue: number | null;
+  cpa: number | null;
+  roas: number | null;
+}
+
+/**
+ * Per-(date, dimension) metrics for the Dashboard's "X over time" line chart.
+ * One row per (day, platform) — or (day, campaign) when the view is pinned to a
+ * single platform — carrying every selectable metric so the client can switch
+ * which one it plots without a refetch. Derived metrics use the canonical
+ * weighted fragments. Ordered by date for a stable x-axis.
+ */
+export async function metricOverTime(
+  filters: KpiFilters,
+  dimension: BreakdownDimension,
+): Promise<MetricOverTimeRow[]> {
+  const { conditions, needsCreativeJoin, needsTagJoin } =
+    await buildBaseConditions(filters);
+
+  const dimCol =
+    dimension === "platform"
+      ? performanceRecords.platform
+      : performanceRecords.campaignName;
+
+  let q = db
+    .select({
+      date: performanceRecords.date,
+      key: dimCol,
+      spend: sumSpend,
+      conversions: sumConversions,
+      conversionValue: sumConversionValue,
+      cpa,
+      roas,
+    })
+    .from(performanceRecords)
+    .$dynamic();
+
+  if (needsCreativeJoin || needsTagJoin) {
+    q = q.innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId));
+  }
+  if (needsTagJoin) {
+    q = q.innerJoin(
+      creativeTags,
+      eq(creativeTags.creativeId, performanceRecords.creativeId),
+    );
+  }
+
+  const rows = await q
+    .where(and(...conditions))
+    .groupBy(performanceRecords.date, dimCol)
+    .orderBy(performanceRecords.date);
+
+  return rows.map((r) => ({
+    date: r.date,
+    key: String(r.key),
+    spend: Number(r.spend ?? 0),
+    conversions: num(r.conversions),
+    conversionValue: num(r.conversionValue),
+    cpa: num(r.cpa),
+    roas: num(r.roas),
+  }));
+}
+
 /**
  * Spend per product for the Overview product-mix donut. Always joins
  * creatives → products. Filters from `buildBaseConditions` apply; we just

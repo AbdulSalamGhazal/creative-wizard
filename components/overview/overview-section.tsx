@@ -1,64 +1,79 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
+  metricOverTime,
   platformMix,
   productMix,
-  spendByDatePlatform,
   tagMix,
   topCreatives,
   typeMix,
+  type BreakdownDimension,
   type KpiFilters,
 } from "@/db/queries/performance";
-import { SpendOverTimeChart } from "@/components/charts/spend-over-time";
+import {
+  MetricOverTimeChart,
+  type OverTimeKey,
+} from "@/components/charts/metric-over-time";
 import { TopCreativesTable } from "@/components/charts/top-creatives";
 import { PlatformMixDonut } from "@/components/charts/platform-mix";
 import { ProductMixDonut } from "@/components/charts/product-mix";
 import { MixDonut, type MixSlice } from "@/components/charts/mix-donut";
 import {
   PLATFORM_COLOR,
+  PLATFORM_LABEL,
   TYPE_COLOR,
   TYPE_LABEL,
   swatchColor,
 } from "@/lib/palette";
 
-type Platform = "instagram" | "facebook" | "tiktok" | "snapchat" | "google";
+const CAMPAIGN_LINE_LIMIT = 6;
 
 interface Props {
-  title: string;
-  /** Base filters from the URL (date / product / type / status / tag / excluded). */
+  /** Base filters from the URL (date / product / type / tag / excluded). */
   filters: KpiFilters;
-  /** When set, the whole section is pinned to one platform; the platform-mix
-   *  donut is omitted (it would be a single slice). */
-  platform?: Platform;
-  /** Caption under each KPI tile — the active window. */
-  rangeLabel: string;
+  /** Over-time breakdown dimension: platform, or campaign when one platform
+   *  is pinned. */
+  dimension: BreakdownDimension;
+  /** Pinned-platform name, shown beside "by campaign". */
+  dimensionLabel?: string;
 }
 
 /**
- * One self-contained Overview block: KPI tiles → spend-over-time chart →
- * mix donuts → top creatives. Rendered once for "All platforms" and once
- * per platform (pinned) so the team can read the blended picture and then
- * each channel on its own, on a single page.
+ * The lower Dashboard block: a metric-over-time line chart (metric picker in
+ * its header, broken down by platform — or campaign when pinned to one),
+ * the mix donuts, and the top-creatives table.
  */
-export async function OverviewSection({
-  title,
-  filters,
-  platform,
-  rangeLabel,
-}: Props) {
-  const f: KpiFilters = platform
-    ? { ...filters, platforms: [platform] }
-    : filters;
-
-  const [spendRows, topRows, platformMixRows, productMixRows, typeMixRows, tagMixRows] =
+export async function OverviewSection({ filters, dimension, dimensionLabel }: Props) {
+  const [otRows, topRows, platformMixRows, productMixRows, typeMixRows, tagMixRows] =
     await Promise.all([
-      spendByDatePlatform(f),
-      topCreatives(f, 10),
-      // Platform-mix only makes sense in the blended section.
-      platform ? Promise.resolve([]) : platformMix(f),
-      productMix(f),
-      typeMix(f),
-      tagMix(f),
+      metricOverTime(filters, dimension),
+      topCreatives(filters, 10),
+      platformMix(filters),
+      productMix(filters),
+      typeMix(filters),
+      tagMix(filters),
     ]);
+
+  // Order the over-time lines by total spend; cap campaign lines so the chart
+  // stays legible. Platform lines are always all present platforms.
+  const totals = new Map<string, number>();
+  for (const r of otRows) totals.set(r.key, (totals.get(r.key) ?? 0) + r.spend);
+  let orderedKeys = [...totals.entries()].sort((a, b) => b[1] - a[1]).map(([k]) => k);
+  if (dimension === "campaign") orderedKeys = orderedKeys.slice(0, CAMPAIGN_LINE_LIMIT);
+  const keySet = new Set(orderedKeys);
+
+  const keys: OverTimeKey[] = orderedKeys.map((k) => ({
+    key: k,
+    label:
+      dimension === "platform"
+        ? PLATFORM_LABEL[k as keyof typeof PLATFORM_LABEL] ?? k
+        : k,
+    color:
+      dimension === "platform"
+        ? PLATFORM_COLOR[k as keyof typeof PLATFORM_COLOR] ?? "var(--ink-3)"
+        : swatchColor(k),
+  }));
+  const otFiltered =
+    dimension === "campaign" ? otRows.filter((r) => keySet.has(r.key)) : otRows;
 
   const typeSlices: MixSlice[] = typeMixRows.map((r) => ({
     key: r.type,
@@ -75,41 +90,24 @@ export async function OverviewSection({
 
   return (
     <section className="space-y-4">
-      {/* Section heading */}
-      <div className="flex items-center gap-2.5 pt-2">
-        {platform ? (
-          <span
-            className="w-2.5 h-2.5 rounded-sm shrink-0"
-            style={{ background: PLATFORM_COLOR[platform] }}
-            aria-hidden
-          />
-        ) : null}
-        <h2 className="font-display text-2xl tracking-tight">{title}</h2>
-        <span className="text-[11px] text-ink-3 num">{rangeLabel}</span>
-      </div>
+      {/* Metric over time */}
+      <MetricOverTimeChart
+        rows={otFiltered}
+        keys={keys}
+        dimension={dimension}
+        dimensionLabel={dimensionLabel}
+      />
 
-      {/* Spend over time */}
-      <Card className="bg-surface border-line">
-        <CardHeader>
-          <CardTitle className="text-sm">Spend over time</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <SpendOverTimeChart rows={spendRows} />
-        </CardContent>
-      </Card>
-
-      {/* Mix donuts: Platform (blended only) / Product / Type / Tag */}
+      {/* Mix donuts: Platform / Product / Type / Tag */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {!platform && (
-          <Card className="bg-surface border-line">
-            <CardHeader>
-              <CardTitle className="text-sm">Platform mix</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <PlatformMixDonut rows={platformMixRows} />
-            </CardContent>
-          </Card>
-        )}
+        <Card className="bg-surface border-line">
+          <CardHeader>
+            <CardTitle className="text-sm">Platform mix</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <PlatformMixDonut rows={platformMixRows} />
+          </CardContent>
+        </Card>
         <Card className="bg-surface border-line">
           <CardHeader>
             <CardTitle className="text-sm">Product mix</CardTitle>
