@@ -1,4 +1,4 @@
-import { Activity, Banknote, DollarSign, Receipt, Target, TrendingUp } from "lucide-react";
+import { Banknote, DollarSign, Receipt, Target, TrendingUp } from "lucide-react";
 import {
   kpis,
   metricBreakdown,
@@ -6,14 +6,8 @@ import {
   type KpiFilters,
   type MetricBreakdownRow,
 } from "@/db/queries/performance";
-import { creativeStatusBreakdown } from "@/db/queries/creative-status";
 import { MetricCard, type BreakdownBar } from "@/components/overview/metric-card";
-import {
-  ALL_PLATFORMS,
-  PLATFORM_COLOR,
-  PLATFORM_LABEL,
-  swatchColor,
-} from "@/lib/palette";
+import { PLATFORM_COLOR, PLATFORM_LABEL, swatchColor } from "@/lib/palette";
 import { int, intCompact, ratio, usd0, usd1, usdCompact } from "@/lib/format";
 
 const CAMPAIGN_LIMIT = 8;
@@ -38,10 +32,9 @@ export async function DashboardMetrics({
   filters: KpiFilters;
   dimension: BreakdownDimension;
 }) {
-  const [k, full, statusB] = await Promise.all([
+  const [k, full] = await Promise.all([
     kpis(filters),
     metricBreakdown(filters, dimension),
-    creativeStatusBreakdown(),
   ]);
 
   const isCampaign = dimension === "campaign";
@@ -88,36 +81,9 @@ export async function DashboardMetrics({
     });
   };
 
-  // Running ads = creatives whose live status is Active. Always broken down by
-  // platform (status isn't campaign-scoped); honors the platform filter.
-  const selPlatforms = (
-    filters.platforms && filters.platforms.length > 0
-      ? filters.platforms
-      : [...ALL_PLATFORMS]
-  ) as string[];
-  const runCounts = selPlatforms
-    .map((p) => ({
-      p,
-      active: statusB.perPlatform[p as keyof typeof statusB.perPlatform]?.active ?? 0,
-    }))
-    .filter((r) => r.active > 0); // hide platforms with nothing running
-  const runMax = Math.max(0, ...runCounts.map((r) => r.active));
-  const runningHeadline =
-    selPlatforms.length === 1
-      ? statusB.perPlatform[selPlatforms[0] as keyof typeof statusB.perPlatform]
-          ?.active ?? 0
-      : statusB.general.active;
-  const runningBars: BreakdownBar[] = runCounts.map(({ p, active }) => ({
-    key: p,
-    label: PLATFORM_LABEL[p as keyof typeof PLATFORM_LABEL] ?? p,
-    color: PLATFORM_COLOR[p as keyof typeof PLATFORM_COLOR] ?? "var(--ink-3)",
-    fraction: runMax > 0 ? active / runMax : 0,
-    display: int(active),
-  }));
-
   return (
     <div className="space-y-3">
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         <MetricCard
           label="Spend"
           value={usd0(k.spend)}
@@ -147,13 +113,6 @@ export async function DashboardMetrics({
           value={k.roas !== null ? `${ratio(k.roas)}×` : "—"}
           icon={TrendingUp}
           bars={valueBars((r) => r.roas, (v) => `${ratio(v)}×`)}
-        />
-        <MetricCard
-          label="Running ads"
-          value={int(runningHeadline)}
-          icon={Activity}
-          bars={runningBars}
-          emptyText="None running."
         />
       </div>
       {isCampaign && moreCount > 0 && (
