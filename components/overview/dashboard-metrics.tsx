@@ -109,7 +109,7 @@ export async function DashboardMetrics({
 
   return (
     <div className="space-y-3">
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <MetricCard
           label="Spend"
           value={usd(k.spend)}
