@@ -39,6 +39,7 @@ import {
 import { ThumbnailUpload } from "@/components/creative/thumbnail-upload";
 import { TagMultiSelect } from "@/components/creative/tag-multi-select";
 import { StatusBadge } from "@/components/creative/status-badge";
+import { SourceLinkControl } from "@/components/creative/source-link-control";
 import {
   patchCreative,
   setCreativeTermination,
@@ -229,6 +230,12 @@ export function CreativeDetailHeader({
           <p className="text-[10px] text-ink-3 px-0.5">
             Click or drag to {thumbnailUrl ? "replace" : "add"} a thumbnail.
           </p>
+          <div className="pt-1">
+            <SourceLinkControl
+              creativeId={creative.id}
+              initialLink={creative.sourceLink}
+            />
+          </div>
         </div>
 
         {/* Editable meta */}
