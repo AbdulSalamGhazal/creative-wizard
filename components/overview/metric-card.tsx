@@ -1,5 +1,4 @@
 import type { ComponentType } from "react";
-import { cn } from "@/lib/utils";
 
 export interface BreakdownBar {
   key: string;
@@ -20,14 +19,12 @@ export function MetricCard({
   label,
   value,
   icon: Icon,
-  caption,
   bars,
   emptyText = "No data in range.",
 }: {
   label: string;
   value: string;
   icon: ComponentType<{ className?: string }>;
-  caption: string;
   bars: BreakdownBar[];
   emptyText?: string;
 }) {
@@ -39,7 +36,7 @@ export function MetricCard({
           <div className="text-[10px] uppercase tracking-[0.16em] text-ink-3">
             {label}
           </div>
-          <div className="font-display text-3xl leading-none num text-ink mt-1.5">
+          <div className="font-display text-[2.75rem] leading-none num text-ink mt-1.5">
             {value}
           </div>
         </div>
@@ -49,42 +46,35 @@ export function MetricCard({
       </div>
 
       {/* Breakdown */}
-      <div className="space-y-2">
-        <div className="text-[10px] uppercase tracking-[0.14em] text-ink-3">
-          {caption}
-        </div>
-        {bars.length === 0 ? (
-          <p className="text-xs text-ink-3 italic">{emptyText}</p>
-        ) : (
-          <ul className="space-y-2">
-            {bars.map((b) => (
-              <li key={b.key} className="space-y-1">
-                <div className="flex items-center justify-between gap-2 text-xs">
-                  <span className="inline-flex items-center gap-1.5 min-w-0">
-                    <span
-                      className="h-2 w-2 rounded-full shrink-0"
-                      style={{ background: b.color }}
-                    />
-                    <span className="truncate text-ink-2" title={b.label}>
-                      {b.label}
-                    </span>
-                  </span>
-                  <span className="num text-ink shrink-0">{b.display}</span>
-                </div>
-                <div className="h-1.5 w-full rounded-full bg-surface-2 overflow-hidden">
-                  <div
-                    className={cn("h-full rounded-full")}
-                    style={{
-                      width: `${Math.max(2, Math.min(100, b.fraction * 100))}%`,
-                      background: b.color,
-                    }}
-                  />
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
+      {bars.length === 0 ? (
+        <p className="text-[11px] text-ink-3 italic">{emptyText}</p>
+      ) : (
+        <ul className="space-y-1">
+          {bars.map((b) => (
+            <li key={b.key} className="flex items-center gap-2 text-[11px]">
+              <span
+                className="h-1.5 w-1.5 rounded-full shrink-0"
+                style={{ background: b.color }}
+              />
+              <span className="truncate text-ink-3 w-16 shrink-0" title={b.label}>
+                {b.label}
+              </span>
+              <span className="h-1 flex-1 rounded-full bg-surface-2 overflow-hidden">
+                <span
+                  className="block h-full rounded-full"
+                  style={{
+                    width: `${Math.max(2, Math.min(100, b.fraction * 100))}%`,
+                    background: b.color,
+                  }}
+                />
+              </span>
+              <span className="num text-ink-2 shrink-0 tabular-nums">
+                {b.display}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
