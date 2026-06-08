@@ -441,13 +441,13 @@ export function SummaryTable({
                     return (
                       <td key="name" style={style} className={`px-3 py-2 ${nowrap}`}>
                         <span className="inline-flex items-center gap-2 max-w-full">
-                          {/* Dynamic general status — a colored dot, label in
-                              its title; sits before the name so the live state
-                              reads at a glance without a dedicated column. */}
-                          {/* Show label for New — dot-only is too faint at --ink-3 */}
+                          {/* Dynamic general status — a colored dot only (label
+                              in its title); sits before the name so the live
+                              state reads at a glance without a dedicated column. */}
                           <StatusBadge
                             status={r.generalStatus}
-                            dotOnly={r.generalStatus !== "new"}
+                            dotOnly
+                            dotClassName="h-2.5 w-2.5"
                             className="shrink-0"
                           />
                           <Link
@@ -731,12 +731,13 @@ function RateAndMetricsCells({
   visibleMetrics: MetricColumn[];
   muted?: boolean;
 }) {
-  // The per-platform status dot leads the group. "new" gets dot+label (same
-  // reason as the general badge — a muted dot-only is too easy to miss).
+  // The per-platform status dot leads the group — a colored dot only (state in
+  // the title), including "new" (just the grey dot, no label).
   const statusDot = platformStatus ? (
     <StatusBadge
       status={platformStatus}
-      dotOnly={platformStatus !== "new"}
+      dotOnly
+      dotClassName="h-2.5 w-2.5"
       className="align-middle"
     />
   ) : null;

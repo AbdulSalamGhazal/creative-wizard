@@ -16,10 +16,13 @@ export function StatusBadge({
   status,
   className,
   dotOnly = false,
+  dotClassName,
 }: {
   status: CreativeStatus | PlatformStatus;
   className?: string;
   dotOnly?: boolean;
+  /** Override the dot size/shape (e.g. a bigger dot in dense tables). */
+  dotClassName?: string;
 }) {
   const s = status as CreativeStatus;
   return (
@@ -28,7 +31,7 @@ export function StatusBadge({
       title={STATUS_LABEL[s]}
     >
       <span
-        className="h-1.5 w-1.5 rounded-full shrink-0"
+        className={cn("h-1.5 w-1.5 rounded-full shrink-0", dotClassName)}
         style={{ background: STATUS_DOT[s] }}
       />
       {!dotOnly && STATUS_LABEL[s]}

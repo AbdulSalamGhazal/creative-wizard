@@ -396,7 +396,10 @@ function passesMetricFilters(
       case "lte":
         return v <= f.value;
       case "eq":
-        return v === f.value;
+        // Exact float equality essentially never matches a weighted ratio
+        // (CTR = 2.7491…), so compare at the 2-dp display precision: "= 2"
+        // matches a value rendered as 2.00.
+        return Math.round(v * 100) === Math.round(f.value * 100);
     }
   });
 }
@@ -669,14 +672,26 @@ export async function listCreativeSummary(
     };
   });
 
+  // A filter (metric / rate / status) can carry a platform scope that's no
+  // longer in the current platform selection — e.g. a saved view or edited URL
+  // pinned `google:roas` while the view now shows only IG/TikTok. That platform
+  // has no metric block, so the filter would silently drop EVERY row and the
+  // table looks broken. Ignore any filter whose scope isn't "total" or a
+  // currently-selected platform rather than zeroing the result set.
+  const scopeOk = (scope: string) =>
+    scope === "total" || selectedPlatforms.includes(scope as Platform);
+
   // Numeric metric filters — applied in-memory against each creative's
   // blended total. There's no LIMIT on this query, so post-aggregation
   // filtering is exactly equivalent to a HAVING clause but far simpler to
   // express against the dynamic per-selection total expressions. Sort order
   // from SQL is preserved because we only drop rows.
+  const activeMetricFilters = (filters.metricFilters ?? []).filter((f) =>
+    scopeOk(f.scope),
+  );
   let filteredRows =
-    filters.metricFilters && filters.metricFilters.length > 0
-      ? rows.filter((r) => passesMetricFilters(r, filters.metricFilters!))
+    activeMetricFilters.length > 0
+      ? rows.filter((r) => passesMetricFilters(r, activeMetricFilters))
       : rows;
 
   // Rating-based filter + sort (both derived from spend/ROAS in JS). Each
@@ -686,7 +701,7 @@ export async function listCreativeSummary(
     scope === "total" ? row.total : row.perPlatform[scope as Platform];
 
   const rate = filters.rateFilter;
-  if (rate && rate.ratings.length > 0) {
+  if (rate && rate.ratings.length > 0 && scopeOk(rate.scope)) {
     const want = new Set(rate.ratings);
     filteredRows = filteredRows.filter((r) =>
       want.has(rateBlock(blockFor(r, rate.scope), rulesForScope(config, rate.scope))),
@@ -698,7 +713,7 @@ export async function listCreativeSummary(
   // per-platform status (a creative with NO presence on the platform has no
   // per-platform status, so it's excluded).
   const status = filters.statusFilter;
-  if (status && status.statuses.length > 0) {
+  if (status && status.statuses.length > 0 && scopeOk(status.scope)) {
     const want = new Set<DynamicCreativeStatus>(status.statuses);
     filteredRows = filteredRows.filter((r) => {
       const s: DynamicCreativeStatus | PlatformStatus | undefined =
