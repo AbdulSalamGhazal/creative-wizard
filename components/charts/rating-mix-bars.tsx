@@ -2,7 +2,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { RATING_VALUES, type Rating } from "@/lib/rating";
 
 const COLOR: Record<Rating, string> = {
-  good: "var(--pos)",
+  // --pos is bright enough that white in-segment text washes out, so darken it
+  // ~22% just for this chart (the global --pos is untouched elsewhere).
+  good: "color-mix(in srgb, var(--pos) 78%, #000 22%)",
   decent: "var(--warn)",
   bad: "var(--neg)",
   na: "var(--ink-3)",
