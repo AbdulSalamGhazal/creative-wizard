@@ -27,6 +27,8 @@ interface Point {
   name: string;
   spend: number;
   roas: number;
+  /** ROAS clamped to the axis cap, for plotting (tooltip shows the real value). */
+  roasPlot: number;
   conversions: number;
 }
 
@@ -36,14 +38,27 @@ interface Point {
  * (right + green) separate from money pits (right + red) at a glance.
  */
 export function RoasScatter({ points }: { points: CreativePoint[] }) {
-  const data: Point[] = points
-    .filter((p) => p.spend > 0 && p.roas !== null)
-    .map((p) => ({
+  const valid = points.filter((p) => p.spend > 0 && p.roas !== null);
+
+  // Cap the Y axis just above the 90th-percentile ROAS so a few outliers don't
+  // stretch the whole axis; dots above the cap are clamped to the top edge
+  // (their real ROAS still shows in the tooltip).
+  const sortedRoas = valid.map((p) => p.roas as number).sort((a, b) => a - b);
+  const p90 = sortedRoas.length
+    ? sortedRoas[Math.min(sortedRoas.length - 1, Math.floor(sortedRoas.length * 0.9))]!
+    : 4;
+  const cap = Math.max(4, Math.ceil(p90 * 1.2));
+
+  const data: Point[] = valid.map((p) => {
+    const roas = p.roas as number;
+    return {
       name: p.name,
       spend: p.spend,
-      roas: p.roas as number,
+      roas,
+      roasPlot: Math.min(roas, cap),
       conversions: p.conversions ?? 0,
-    }));
+    };
+  });
 
   return (
     <Card className="bg-surface border-line h-full flex flex-col">
@@ -70,8 +85,10 @@ export function RoasScatter({ points }: { points: CreativePoint[] }) {
                 />
                 <YAxis
                   type="number"
-                  dataKey="roas"
+                  dataKey="roasPlot"
                   name="ROAS"
+                  domain={[0, cap]}
+                  allowDataOverflow
                   tickFormatter={(v: number) => `${v}×`}
                   tick={{ fill: "var(--ink-3)", fontSize: 11 }}
                   stroke="var(--line-2)"

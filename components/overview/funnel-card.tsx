@@ -28,7 +28,18 @@ export function FunnelCard({ k }: { k: Kpis }) {
           </div>
         ) : (
           stages.map((s, i) => {
-            const width = top > 0 ? Math.max(1.5, (s.value / top) * 100) : 0;
+            // Log-scaled width: a linear share would make clicks/conversions
+            // invisible next to impressions. Log keeps every stage readable and
+            // descending; the precise drop-off is the step-rate text.
+            const width =
+              s.value <= 0 || top <= 0
+                ? 0
+                : Math.max(
+                    4,
+                    (Math.log10(Math.max(10, s.value)) /
+                      Math.log10(Math.max(10, top))) *
+                      100,
+                  );
             return (
               <div key={s.label}>
                 {i > 0 && s.rate !== null && (
