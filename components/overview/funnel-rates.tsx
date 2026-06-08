@@ -28,18 +28,25 @@ export function FunnelRates({
   kd: KpisWithDelta | null;
   daily: DailyRatesRow[];
 }) {
-  // Clamp the sparkline series to its 5th–95th percentile so a single
-  // low-traffic spike day (e.g. 1 impression → 100% CTR) can't blow up the
-  // autoscale and flatten every normal day against the floor.
+  // Low-traffic days produce garbage rates (1 impression → 100% CTR) that blow
+  // up the autoscale and flatten every normal day. Clamp the series to its
+  // 10th–90th percentile (kills outliers even if several days are bad), then
+  // lightly smooth it so the sparkline shows a clean trend.
   const series = (key: RateKey): number[] => {
-    const vals = daily.map((d) => d[key]).filter((v): v is number => v !== null);
+    let vals = daily.map((d) => d[key]).filter((v): v is number => v !== null);
     if (vals.length < 5) return vals;
     const sorted = [...vals].sort((a, b) => a - b);
     const at = (p: number) => sorted[Math.round(p * (sorted.length - 1))]!;
-    const lo = at(0.05);
-    const hi = at(0.95);
-    if (hi <= lo) return vals;
-    return vals.map((v) => Math.min(hi, Math.max(lo, v)));
+    const lo = at(0.1);
+    const hi = at(0.9);
+    if (hi > lo) vals = vals.map((v) => Math.min(hi, Math.max(lo, v)));
+    // 3-point moving average.
+    return vals.map((_, i) => {
+      const s = Math.max(0, i - 1);
+      const e = Math.min(vals.length, i + 2);
+      const w = vals.slice(s, e);
+      return w.reduce((a, b) => a + b, 0) / w.length;
+    });
   };
 
   const rates: Array<{
