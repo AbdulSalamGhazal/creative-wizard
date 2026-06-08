@@ -10,7 +10,7 @@ import type { CreativeStatusTransitions } from "@/db/queries/creative-status";
 
 // SVG coordinate space (scales to container width via viewBox).
 const W = 360;
-const H = 220;
+const H = 186;
 const PAD = 12;
 const LABEL_W = 74;
 const NODE_W = 12;

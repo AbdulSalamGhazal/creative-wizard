@@ -68,7 +68,7 @@ export async function OverviewSection({ filters, dimension, dimensionLabel }: Pr
     typeDimensionSpend(filters, dimension),
     tagMix(filters),
     hasRange
-      ? topMovers(filters as KpiFilters & { from: string; to: string }, 7)
+      ? topMovers(filters as KpiFilters & { from: string; to: string }, 12)
       : Promise.resolve([]),
     hasRange
       ? creativeStatusTransitions(filters.from!, filters.to!)

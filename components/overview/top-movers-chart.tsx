@@ -18,13 +18,13 @@ export function TopMoversChart({ rows }: { rows: TopMoverRow[] }) {
         <CardTitle className="text-sm">Top movers</CardTitle>
         <span className="text-[11px] text-ink-3 font-normal">spend Δ vs previous</span>
       </CardHeader>
-      <CardContent className="flex-1">
+      <CardContent className="flex-1 flex flex-col">
         {withDelta.length === 0 || max === 0 ? (
           <div className="h-full min-h-[120px] flex items-center justify-center text-ink-3 text-sm">
             No spend movement in this window.
           </div>
         ) : (
-          <ul className="space-y-2">
+          <ul className="flex-1 flex flex-col justify-between gap-1.5">
             {withDelta.map((r) => {
               const up = r.abs >= 0;
               const frac = max > 0 ? Math.abs(r.abs) / max : 0;
