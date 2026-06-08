@@ -4,7 +4,7 @@ import {
   productMix,
   tagMix,
   topCreatives,
-  typePlatformSpend,
+  typeDimensionSpend,
   type BreakdownDimension,
   type KpiFilters,
 } from "@/db/queries/performance";
@@ -14,7 +14,10 @@ import {
 } from "@/components/charts/metric-over-time";
 import { TopCreativesTable } from "@/components/charts/top-creatives";
 import { ProductMixDonut } from "@/components/charts/product-mix";
-import { TypeCompositionChart } from "@/components/charts/type-composition";
+import {
+  TypeMixLines,
+  type TypeLineKey,
+} from "@/components/charts/type-mix-lines";
 import { TagLeaderboard } from "@/components/charts/tag-leaderboard";
 import { PLATFORM_COLOR, PLATFORM_LABEL, swatchColor } from "@/lib/palette";
 
@@ -37,12 +40,12 @@ interface Props {
  * and the top-creatives table.
  */
 export async function OverviewSection({ filters, dimension, dimensionLabel }: Props) {
-  const [otRows, topRows, productMixRows, typePlatformRows, tagMixRows] =
+  const [otRows, topRows, productMixRows, typeRows, tagMixRows] =
     await Promise.all([
       metricOverTime(filters, dimension),
       topCreatives(filters, 10),
       productMix(filters),
-      typePlatformSpend(filters),
+      typeDimensionSpend(filters, dimension),
       tagMix(filters),
     ]);
 
@@ -68,6 +71,24 @@ export async function OverviewSection({ filters, dimension, dimensionLabel }: Pr
   const otFiltered =
     dimension === "campaign" ? otRows.filter((r) => keySet.has(r.key)) : otRows;
 
+  // Type-mix lines: one per platform (or top campaigns when pinned), ordered by
+  // total spend. The chart computes shares + the blended "All" line itself.
+  const typeTotals = new Map<string, number>();
+  for (const r of typeRows) typeTotals.set(r.key, (typeTotals.get(r.key) ?? 0) + r.spend);
+  let typeKeyOrder = [...typeTotals.entries()].sort((a, b) => b[1] - a[1]).map(([k]) => k);
+  if (dimension === "campaign") typeKeyOrder = typeKeyOrder.slice(0, CAMPAIGN_LINE_LIMIT);
+  const typeKeys: TypeLineKey[] = typeKeyOrder.map((k) => ({
+    key: k,
+    label:
+      dimension === "platform"
+        ? PLATFORM_LABEL[k as keyof typeof PLATFORM_LABEL] ?? k
+        : k,
+    color:
+      dimension === "platform"
+        ? PLATFORM_COLOR[k as keyof typeof PLATFORM_COLOR] ?? "var(--ink-3)"
+        : swatchColor(k),
+  }));
+
   return (
     <section className="space-y-4">
       {/* Metric over time */}
@@ -84,11 +105,16 @@ export async function OverviewSection({ filters, dimension, dimensionLabel }: Pr
           <CardHeader>
             <CardTitle className="text-sm">Product mix</CardTitle>
           </CardHeader>
-          <CardContent className="flex-1 flex items-center justify-center">
+          <CardContent className="flex-1 flex flex-col justify-center">
             <ProductMixDonut rows={productMixRows} />
           </CardContent>
         </Card>
-        <TypeCompositionChart rows={typePlatformRows} />
+        <TypeMixLines
+          rows={typeRows}
+          keys={typeKeys}
+          dimension={dimension}
+          dimensionLabel={dimensionLabel}
+        />
         <TagLeaderboard rows={tagMixRows} />
       </div>
 

@@ -606,26 +606,33 @@ export async function metricOverTime(
   }));
 }
 
-export interface TypePlatformSpendRow {
+export interface TypeDimensionSpendRow {
   type: CreativeType;
-  platform: Platform;
+  key: string; // platform value or campaign name
   spend: number;
 }
 
 /**
- * Spend per (creative type, platform) for the Dashboard's type-composition
- * chart — each type's magnitude plus how it splits across platforms. Joins
+ * Spend per (creative type, dimension) for the Dashboard's type-mix lines —
+ * each dimension's spend split across the creative types. Dimension is platform
+ * normally, or campaign when the view is pinned to a single platform. Joins
  * creatives for the `type` column; honors all base filters.
  */
-export async function typePlatformSpend(
+export async function typeDimensionSpend(
   filters: KpiFilters,
-): Promise<TypePlatformSpendRow[]> {
+  dimension: BreakdownDimension,
+): Promise<TypeDimensionSpendRow[]> {
   const { conditions, needsTagJoin } = await buildBaseConditions(filters);
+
+  const dimCol =
+    dimension === "platform"
+      ? performanceRecords.platform
+      : performanceRecords.campaignName;
 
   let q = db
     .select({
       type: creatives.type,
-      platform: performanceRecords.platform,
+      key: dimCol,
       spend: sumSpend,
     })
     .from(performanceRecords)
@@ -641,11 +648,11 @@ export async function typePlatformSpend(
 
   const rows = await q
     .where(and(...conditions))
-    .groupBy(creatives.type, performanceRecords.platform);
+    .groupBy(creatives.type, dimCol);
 
   return rows.map((r) => ({
     type: r.type as CreativeType,
-    platform: r.platform as Platform,
+    key: String(r.key),
     spend: Number(r.spend ?? 0),
   }));
 }
