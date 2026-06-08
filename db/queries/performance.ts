@@ -606,6 +606,50 @@ export async function metricOverTime(
   }));
 }
 
+export interface TypePlatformSpendRow {
+  type: CreativeType;
+  platform: Platform;
+  spend: number;
+}
+
+/**
+ * Spend per (creative type, platform) for the Dashboard's type-composition
+ * chart — each type's magnitude plus how it splits across platforms. Joins
+ * creatives for the `type` column; honors all base filters.
+ */
+export async function typePlatformSpend(
+  filters: KpiFilters,
+): Promise<TypePlatformSpendRow[]> {
+  const { conditions, needsTagJoin } = await buildBaseConditions(filters);
+
+  let q = db
+    .select({
+      type: creatives.type,
+      platform: performanceRecords.platform,
+      spend: sumSpend,
+    })
+    .from(performanceRecords)
+    .innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId))
+    .$dynamic();
+
+  if (needsTagJoin) {
+    q = q.innerJoin(
+      creativeTags,
+      eq(creativeTags.creativeId, performanceRecords.creativeId),
+    );
+  }
+
+  const rows = await q
+    .where(and(...conditions))
+    .groupBy(creatives.type, performanceRecords.platform);
+
+  return rows.map((r) => ({
+    type: r.type as CreativeType,
+    platform: r.platform as Platform,
+    spend: Number(r.spend ?? 0),
+  }));
+}
+
 /**
  * Spend per product for the Overview product-mix donut. Always joins
  * creatives → products. Filters from `buildBaseConditions` apply; we just
