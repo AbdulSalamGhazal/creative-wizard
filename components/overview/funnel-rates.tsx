@@ -1,29 +1,31 @@
-import { ArrowDownRight, ArrowUpRight, Sparkles } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { DeltaBadge } from "@/components/kpi/delta-badge";
 import { computeDelta, type Delta } from "@/lib/period";
 import { pct, usd } from "@/lib/format";
 import type { Kpis, KpisWithDelta } from "@/db/queries/performance";
 
 /**
- * The four funnel efficiency rates — CPM, CTR, VOC, CvR — as a clean 3-column
- * list: name · value · period-over-period delta. CPM is lower-is-better
- * (inverted); the rest are higher-is-better.
+ * The four funnel efficiency rates — CPM, CTR, VOC, CvR — as soft stat tiles
+ * with a period-over-period delta pill. CPM is lower-is-better (inverted); the
+ * rest are higher-is-better.
  */
 export function FunnelRates({ k, kd }: { k: Kpis; kd: KpisWithDelta | null }) {
   const rates: Array<{
     label: string;
+    hint: string;
     value: string;
     delta?: Delta;
     inverted?: boolean;
   }> = [
-    { label: "CPM", value: usd(k.cpm), delta: kd?.delta.cpm, inverted: true },
-    { label: "CTR", value: pct(k.ctr), delta: kd?.delta.ctr },
+    { label: "CPM", hint: "cost / 1k impr.", value: usd(k.cpm), delta: kd?.delta.cpm, inverted: true },
+    { label: "CTR", hint: "clicks / impr.", value: pct(k.ctr), delta: kd?.delta.ctr },
     {
       label: "VOC",
+      hint: "views / clicks",
       value: pct(k.voc),
       delta: kd ? computeDelta(kd.current.voc, kd.previous.voc) : undefined,
     },
-    { label: "CvR", value: pct(k.cvr), delta: kd?.delta.cvr },
+    { label: "CvR", hint: "conv. / views", value: pct(k.cvr), delta: kd?.delta.cvr },
   ];
 
   return (
@@ -31,56 +33,25 @@ export function FunnelRates({ k, kd }: { k: Kpis; kd: KpisWithDelta | null }) {
       <CardHeader>
         <CardTitle className="text-sm">Funnel rates</CardTitle>
       </CardHeader>
-      <CardContent className="flex-1 flex flex-col justify-between gap-2">
+      <CardContent className="flex-1 grid grid-cols-2 gap-2.5">
         {rates.map((r) => (
-          <div key={r.label} className="flex items-baseline gap-4">
-            <span className="w-10 shrink-0 text-xs uppercase tracking-[0.16em] text-ink-3">
-              {r.label}
-            </span>
-            <span className="w-28 shrink-0 text-right font-display text-3xl num text-ink">
+          <div
+            key={r.label}
+            className="rounded-xl bg-surface-2/60 px-4 py-3 flex flex-col justify-center gap-1.5"
+          >
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[11px] font-semibold tracking-wide text-ink-2">
+                {r.label}
+              </span>
+              {r.delta ? <DeltaBadge delta={r.delta} inverted={r.inverted} /> : null}
+            </div>
+            <div className="font-display text-[2.2rem] leading-none num text-ink">
               {r.value}
-            </span>
-            {r.delta ? <BigDelta delta={r.delta} inverted={r.inverted} /> : null}
+            </div>
+            <div className="text-[10px] text-ink-3">{r.hint}</div>
           </div>
         ))}
       </CardContent>
     </Card>
-  );
-}
-
-function BigDelta({ delta, inverted }: { delta: Delta; inverted?: boolean }) {
-  if (delta.mode === "absent") {
-    return <span className="text-sm text-ink-3">—</span>;
-  }
-  if (delta.mode === "new") {
-    return (
-      <span className="inline-flex items-center gap-1 text-sm font-semibold text-pos">
-        <Sparkles className="w-4 h-4" />
-        New
-      </span>
-    );
-  }
-  if (delta.mode === "removed") {
-    return (
-      <span className="inline-flex items-center gap-1 text-sm font-semibold text-neg">
-        <ArrowDownRight className="w-4 h-4" />
-        Gone
-      </span>
-    );
-  }
-  const p = delta.pct ?? 0;
-  const up = p >= 0;
-  const good = inverted ? !up : up;
-  const Icon = up ? ArrowUpRight : ArrowDownRight;
-  return (
-    <span
-      className={`inline-flex items-center gap-0.5 text-sm font-semibold num ${
-        good ? "text-pos" : "text-neg"
-      }`}
-    >
-      <Icon className="w-4 h-4" />
-      {up ? "+" : ""}
-      {(p * 100).toFixed(1)}%
-    </span>
   );
 }
