@@ -1,9 +1,9 @@
-import { Wand2 } from "lucide-react";
 import type { SessionUser } from "@/lib/auth";
 import { UserMenu } from "@/components/auth/user-menu";
 import { CommandPalette } from "@/components/layout/command-palette";
 import { ScreenshotButton } from "@/components/layout/screenshot-button";
 import { AccountSwitcher } from "@/components/layout/account-switcher";
+import { LogoMark } from "@/components/layout/logo-mark";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 
 function initials(name: string): string {
@@ -23,16 +23,7 @@ export function TopBar({ user, creatives, accounts, activeAccountId }: Props) {
     <header className="border-b border-line sticky top-0 z-20 bg-background">
       <div className="flex items-center justify-between px-6 h-14">
         <div className="flex items-center gap-2.5">
-          <div
-            className="w-7 h-7 rounded-md flex items-center justify-center"
-            style={{
-              background:
-                "linear-gradient(135deg, var(--brand), var(--brand-2))",
-              boxShadow: "0 0 20px var(--brand-glow)",
-            }}
-          >
-            <Wand2 className="w-4 h-4 text-white" />
-          </div>
+          <LogoMark className="w-7 h-7 shrink-0" />
           <div className="text-[17px] font-semibold tracking-tight leading-none text-ink">
             Creative Wizard
           </div>
