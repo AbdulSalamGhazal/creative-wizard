@@ -124,9 +124,9 @@ export function CorrelationMatrix({ rows }: { rows: CreativeMetricRow[] }) {
           <div className="space-y-3">
             <div className="overflow-x-auto">
               <div
-                className="grid gap-[2px] mx-auto w-fit text-[10px]"
+                className="grid gap-[3px] mx-auto w-fit text-[11px]"
                 style={{
-                  gridTemplateColumns: `minmax(24px,auto) repeat(${n}, minmax(0,52px))`,
+                  gridTemplateColumns: `minmax(28px,auto) repeat(${n}, minmax(0,66px))`,
                 }}
               >
                 {/* Corner + column-header pickers */}
@@ -137,7 +137,7 @@ export function CorrelationMatrix({ rows }: { rows: CreativeMetricRow[] }) {
                     value={key}
                     onValueChange={(v) => changeSlot(i, v as MetricKey)}
                   >
-                    <SelectTrigger className="h-5 w-full justify-center gap-0.5 border-0 bg-transparent px-0.5 text-[9px] font-semibold text-ink-2 shadow-none hover:text-ink focus:ring-0 focus:ring-offset-0 [&>svg]:size-3 [&>svg]:opacity-50">
+                    <SelectTrigger className="h-6 w-full justify-center gap-0.5 border-0 bg-transparent px-0.5 text-[10px] font-semibold text-ink-2 shadow-none hover:text-ink focus:ring-0 focus:ring-offset-0 [&>svg]:size-3 [&>svg]:opacity-50">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -157,7 +157,7 @@ export function CorrelationMatrix({ rows }: { rows: CreativeMetricRow[] }) {
                 {/* Rows (left labels mirror the column pickers) */}
                 {selected.map((rowKey, i) => (
                   <Fragment key={`r-${rowKey}`}>
-                    <div className="flex items-center justify-end pr-1 text-[9px] font-semibold text-ink-3">
+                    <div className="flex items-center justify-end pr-1.5 text-[10px] font-semibold text-ink-3">
                       {LABEL[rowKey]}
                     </div>
                     {selected.map((colKey, j) => {
