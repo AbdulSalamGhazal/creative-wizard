@@ -1,7 +1,9 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
+  creativeDimensionPoints,
   creativePoints,
   kpis,
+  kpisWithDelta,
   metricOverTime,
   productMix,
   tagMix,
@@ -10,12 +12,14 @@ import {
   typeDimensionSpend,
   type BreakdownDimension,
   type KpiFilters,
+  type KpisWithDelta,
 } from "@/db/queries/performance";
 import {
   creativeStatusTransitions,
   type CreativeStatusTransitions,
 } from "@/db/queries/creative-status";
 import { getRatingConfig } from "@/db/queries/rating";
+import { rateBlock, rulesForScope, type Rating } from "@/lib/rating";
 import {
   MetricOverTimeChart,
   type OverTimeKey,
@@ -26,9 +30,12 @@ import { TypeMixBars } from "@/components/charts/type-mix-bars";
 import { TagLeaderboard } from "@/components/charts/tag-leaderboard";
 import { TopMoversChart } from "@/components/overview/top-movers-chart";
 import { StatusFlow } from "@/components/overview/status-flow";
-import { FunnelCard } from "@/components/overview/funnel-card";
+import { FunnelRates } from "@/components/overview/funnel-rates";
 import { RoasScatter } from "@/components/charts/roas-scatter";
-import { RatingDistribution } from "@/components/overview/rating-distribution";
+import {
+  RatingMixBars,
+  type RatingRow,
+} from "@/components/charts/rating-mix-bars";
 import { PLATFORM_COLOR, PLATFORM_LABEL, swatchColor } from "@/lib/palette";
 
 const EMPTY_TRANSITIONS: CreativeStatusTransitions = {
@@ -67,9 +74,10 @@ export async function OverviewSection({ filters, dimension, dimensionLabel }: Pr
     tagMixRows,
     moverRows,
     statusTransitions,
-    k,
+    kd,
     points,
     ratingConfig,
+    ratingDimRows,
   ] = await Promise.all([
     metricOverTime(filters, dimension),
     topCreatives(filters, 10),
@@ -82,10 +90,14 @@ export async function OverviewSection({ filters, dimension, dimensionLabel }: Pr
     hasRange
       ? creativeStatusTransitions(filters.from!, filters.to!)
       : Promise.resolve(EMPTY_TRANSITIONS),
-    kpis(filters),
+    hasRange
+      ? kpisWithDelta(filters as KpiFilters & { from: string; to: string })
+      : Promise.resolve(null as KpisWithDelta | null),
     creativePoints(filters),
     getRatingConfig(),
+    creativeDimensionPoints(filters, dimension),
   ]);
+  const k = kd?.current ?? (await kpis(filters));
 
   // Order the over-time lines by total spend; cap campaign lines so the chart
   // stays legible. Platform lines are always all present platforms.
@@ -130,6 +142,39 @@ export async function OverviewSection({ filters, dimension, dimensionLabel }: Pr
   const typeOverallLabel =
     dimension === "campaign" ? dimensionLabel ?? "All campaigns" : "Overall";
 
+  // Rating-mix rows: rate each (creative, dimension) block, then sum spend by
+  // (dimension, rating). Platform blocks use that platform's rules; campaign
+  // blocks use the default rules.
+  const ratingAgg = new Map<string, number>();
+  for (const row of ratingDimRows) {
+    const rules =
+      dimension === "platform"
+        ? rulesForScope(ratingConfig, row.key)
+        : ratingConfig.default;
+    const rating = rateBlock({ spend: row.spend, roas: row.roas }, rules);
+    const aggKey = `${rating}|${row.key}`;
+    ratingAgg.set(aggKey, (ratingAgg.get(aggKey) ?? 0) + row.spend);
+  }
+  const ratingRows: RatingRow[] = [...ratingAgg.entries()].map(([aggKey, spend]) => {
+    const sep = aggKey.indexOf("|");
+    return {
+      rating: aggKey.slice(0, sep) as Rating,
+      key: aggKey.slice(sep + 1),
+      spend,
+    };
+  });
+  const ratingTotals = new Map<string, number>();
+  for (const r of ratingRows) ratingTotals.set(r.key, (ratingTotals.get(r.key) ?? 0) + r.spend);
+  let ratingKeyOrder = [...ratingTotals.entries()].sort((a, b) => b[1] - a[1]).map(([k]) => k);
+  if (dimension === "campaign") ratingKeyOrder = ratingKeyOrder.slice(0, CAMPAIGN_LINE_LIMIT);
+  const ratingSeries = ratingKeyOrder.map((k) => ({
+    key: k,
+    label:
+      dimension === "platform"
+        ? PLATFORM_LABEL[k as keyof typeof PLATFORM_LABEL] ?? k
+        : k,
+  }));
+
   return (
     <section className="space-y-4">
       {/* Metric over time */}
@@ -166,11 +211,17 @@ export async function OverviewSection({ filters, dimension, dimensionLabel }: Pr
         <StatusFlow data={statusTransitions} />
       </div>
 
-      {/* Funnel + spend-vs-ROAS scatter + rating distribution */}
+      {/* Funnel rates + spend-vs-ROAS scatter + rating mix */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <FunnelCard k={k} />
+        <FunnelRates k={k} kd={kd} />
         <RoasScatter points={points.slice(0, 40)} />
-        <RatingDistribution points={points} config={ratingConfig} />
+        <RatingMixBars
+          rows={ratingRows}
+          series={ratingSeries}
+          overallLabel={typeOverallLabel}
+          dimension={dimension}
+          dimensionLabel={dimensionLabel}
+        />
       </div>
 
       {/* Top creatives */}

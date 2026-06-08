@@ -522,6 +522,62 @@ export async function creativePoints(
     .filter((r) => r.spend > 0);
 }
 
+export interface CreativeDimensionPoint {
+  key: string; // platform value or campaign name
+  spend: number;
+  roas: number | null;
+}
+
+/**
+ * Spend + ROAS per (creative, dimension) block — one row per creative on each
+ * platform (or campaign when pinned). Used by the rating-mix composition: each
+ * block is rated individually, then spend is summed by (dimension, rating).
+ */
+export async function creativeDimensionPoints(
+  filters: KpiFilters,
+  dimension: "platform" | "campaign",
+): Promise<CreativeDimensionPoint[]> {
+  const { conditions, needsCreativeJoin, needsTagJoin } =
+    await buildBaseConditions(filters);
+
+  const dimCol =
+    dimension === "platform"
+      ? performanceRecords.platform
+      : performanceRecords.campaignName;
+
+  let q = db
+    .select({
+      creativeId: performanceRecords.creativeId,
+      key: dimCol,
+      spend: sumSpend,
+      roas,
+    })
+    .from(performanceRecords)
+    .$dynamic();
+
+  if (needsCreativeJoin || needsTagJoin) {
+    q = q.innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId));
+  }
+  if (needsTagJoin) {
+    q = q.innerJoin(
+      creativeTags,
+      eq(creativeTags.creativeId, performanceRecords.creativeId),
+    );
+  }
+
+  const rows = await q
+    .where(and(...conditions))
+    .groupBy(performanceRecords.creativeId, dimCol);
+
+  return rows
+    .map((r) => ({
+      key: String(r.key),
+      spend: Number(r.spend ?? 0),
+      roas: num(r.roas),
+    }))
+    .filter((r) => r.spend > 0);
+}
+
 export type BreakdownDimension = "platform" | "campaign";
 
 export interface MetricBreakdownRow {
