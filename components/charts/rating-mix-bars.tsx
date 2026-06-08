@@ -25,10 +25,15 @@ interface SeriesItem {
   label: string;
 }
 
+// Only label a segment when it's wide enough to fit "NN%" without clipping;
+// smaller slivers stay color-only (the tooltip still has the exact figure).
+const LABEL_MIN_FRAC = 0.1;
+
 /**
  * Spend by rating as 100%-stacked bars: a row per platform (or campaign when
- * pinned), each split by Good / Decent / Bad / N/A. An emphasized "Overall" row
- * on top shows the blended split. Mirrors the type-mix composition.
+ * pinned), each split by Good / Decent / Bad / N/A with the percentage written
+ * inside each segment. An emphasized "Overall" row on top shows the blended
+ * split. Label sits left of the bar so many rows (campaign view) stay compact.
  */
 export function RatingMixBars({
   rows,
@@ -63,21 +68,42 @@ export function RatingMixBars({
     .map((s) => ({ ...s, ...sumByRating((row) => row.key === s.key) }))
     .filter((r) => r.total > 0);
 
-  const renderBar = (m: Map<Rating, number>, total: number, big: boolean) => (
+  const bar = (m: Map<Rating, number>, total: number, tall: boolean) => (
     <div
-      className={`flex ${big ? "h-4" : "h-2.5"} w-full rounded-full overflow-hidden bg-surface-2`}
+      className={`flex ${tall ? "h-8" : "h-7"} w-full rounded-lg overflow-hidden bg-surface-2`}
     >
       {present.map((r) => {
         const frac = total > 0 ? (m.get(r) ?? 0) / total : 0;
         if (frac <= 0) return null;
+        const p = Math.round(frac * 100);
         return (
           <span
             key={r}
-            title={`${LABEL[r]}: ${Math.round(frac * 100)}%`}
-            style={{ width: `${frac * 100}%`, background: COLOR[r] }}
-          />
+            title={`${LABEL[r]}: ${p}%`}
+            className="flex items-center justify-center overflow-hidden text-[11px] font-semibold tabular-nums leading-none"
+            style={{
+              width: `${frac * 100}%`,
+              background: COLOR[r],
+              color: "rgba(255,255,255,0.96)",
+              textShadow: "0 1px 1.5px rgba(0,0,0,0.4)",
+            }}
+          >
+            {frac >= LABEL_MIN_FRAC ? `${p}%` : ""}
+          </span>
         );
       })}
+    </div>
+  );
+
+  const row = (label: string, m: Map<Rating, number>, total: number, tall: boolean) => (
+    <div className="flex items-center gap-2.5">
+      <span
+        className={`w-20 shrink-0 truncate text-xs ${tall ? "font-semibold text-ink" : "text-ink-2"}`}
+        title={label}
+      >
+        {label}
+      </span>
+      <div className="flex-1">{bar(m, total, tall)}</div>
     </div>
   );
 
@@ -112,18 +138,10 @@ export function RatingMixBars({
             No spend in this window.
           </div>
         ) : (
-          <div className="flex-1 flex flex-col justify-around gap-3">
-            <div className="space-y-1.5">
-              <span className="text-sm font-medium text-ink">{overallLabel}</span>
-              {renderBar(overall.m, overall.total, true)}
-            </div>
+          <div className="flex-1 flex flex-col justify-center gap-2.5">
+            {row(overallLabel, overall.m, overall.total, true)}
             {rowData.map((r) => (
-              <div key={r.key} className="space-y-1">
-                <span className="block truncate text-xs text-ink-2" title={r.label}>
-                  {r.label}
-                </span>
-                {renderBar(r.m, r.total, false)}
-              </div>
+              <div key={r.key}>{row(r.label, r.m, r.total, false)}</div>
             ))}
           </div>
         )}
