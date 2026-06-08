@@ -3,6 +3,7 @@ import {
   creativeDimensionPoints,
   creativePoints,
   dailyFunnelRates,
+  dailyTotals,
   kpis,
   kpisWithDelta,
   metricOverTime,
@@ -33,6 +34,7 @@ import { TopMoversChart } from "@/components/overview/top-movers-chart";
 import { StatusFlow } from "@/components/overview/status-flow";
 import { FunnelRates } from "@/components/overview/funnel-rates";
 import { RoasScatter } from "@/components/charts/roas-scatter";
+import { CalendarHeatmap } from "@/components/charts/calendar-heatmap";
 import {
   RatingMixBars,
   type RatingRow,
@@ -80,6 +82,7 @@ export async function OverviewSection({ filters, dimension, dimensionLabel }: Pr
     ratingConfig,
     ratingDimRows,
     dailyRates,
+    dailyTotalRows,
   ] = await Promise.all([
     metricOverTime(filters, dimension),
     topCreatives(filters, 10),
@@ -105,6 +108,7 @@ export async function OverviewSection({ filters, dimension, dimensionLabel }: Pr
     getRatingConfig(),
     creativeDimensionPoints(filters, dimension),
     dailyFunnelRates(filters),
+    dailyTotals(filters),
   ]);
   const k = kd?.current ?? (await kpis(filters));
 
@@ -220,16 +224,25 @@ export async function OverviewSection({ filters, dimension, dimensionLabel }: Pr
         <StatusFlow data={statusTransitions} />
       </div>
 
-      {/* Funnel rates + spend-vs-ROAS scatter + rating mix */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      {/* Funnel rates + spend-vs-ROAS scatter (full row, half each) */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <FunnelRates k={k} kd={kd} daily={dailyRates} />
         <RoasScatter points={points.slice(0, 40)} />
+      </div>
+
+      {/* Rating mix + activity calendar (full row, half each) */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <RatingMixBars
           rows={ratingRows}
           series={ratingSeries}
           overallLabel={typeOverallLabel}
           dimension={dimension}
           dimensionLabel={dimensionLabel}
+        />
+        <CalendarHeatmap
+          days={dailyTotalRows}
+          from={filters.from}
+          to={filters.to}
         />
       </div>
 

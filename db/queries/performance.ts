@@ -570,6 +570,65 @@ export async function dailyFunnelRates(
   }));
 }
 
+export interface DailyTotalsRow {
+  date: string; // YYYY-MM-DD
+  spend: number;
+  conversions: number;
+  conversionValue: number;
+  impressions: number;
+  clicks: number;
+}
+
+/**
+ * Per-day component sums across the whole filtered set (all platforms blended).
+ * The caller derives whichever metric the calendar heatmap is showing — ROAS =
+ * conversionValue / spend, CPA = spend / conversions, etc. — keeping every
+ * derived figure a weighted ratio of sums, never a mean of per-row ratios.
+ * Ordered by date.
+ */
+export async function dailyTotals(
+  filters: KpiFilters,
+): Promise<DailyTotalsRow[]> {
+  const { conditions, needsCreativeJoin, needsTagJoin } =
+    await buildBaseConditions(filters);
+
+  let q = db
+    .select({
+      date: performanceRecords.date,
+      spend: sumSpend,
+      conversions: sumConversions,
+      conversionValue: sumConversionValue,
+      impressions: sumImpressions,
+      clicks: sumClicks,
+    })
+    .from(performanceRecords)
+    .$dynamic();
+
+  if (needsCreativeJoin || needsTagJoin) {
+    q = q.innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId));
+  }
+  if (needsTagJoin) {
+    q = q.innerJoin(
+      creativeTags,
+      eq(creativeTags.creativeId, performanceRecords.creativeId),
+    );
+  }
+
+  const rows = await q
+    .where(and(...conditions))
+    .groupBy(performanceRecords.date)
+    .orderBy(performanceRecords.date);
+
+  return rows.map((r) => ({
+    date: r.date,
+    spend: Number(r.spend ?? 0),
+    conversions: Number(r.conversions ?? 0),
+    conversionValue: Number(r.conversionValue ?? 0),
+    impressions: Number(r.impressions ?? 0),
+    clicks: Number(r.clicks ?? 0),
+  }));
+}
+
 export interface CreativeDimensionPoint {
   key: string; // platform value or campaign name
   spend: number;
