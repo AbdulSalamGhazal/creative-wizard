@@ -265,10 +265,16 @@ export async function creativeStatusTransitions(
   const startCounts = zero();
   const endCounts = zero();
   const counts = new Map<string, number>();
+  let counted = 0;
 
   for (const id of ids) {
     const f = statusFor(startMap, id).general;
     const t = statusFor(endMap, id).general;
+    // New→New is "no real change" (e.g. a creative terminated on one platform
+    // with no spend rolls up to New) — drop it from the flow entirely so it
+    // shows neither as a ribbon nor in the untouched count.
+    if (f === "new" && t === "new") continue;
+    counted += 1;
     startCounts[f] += 1;
     endCounts[t] += 1;
     const key = `${f}|${t}`;
@@ -289,5 +295,5 @@ export async function creativeStatusTransitions(
     .where(eq(creatives.accountId, acct));
   const untouchedNew = Math.max(0, Number(cnt?.total ?? 0) - ids.size);
 
-  return { transitions, startCounts, endCounts, total: ids.size, untouchedNew };
+  return { transitions, startCounts, endCounts, total: counted, untouchedNew };
 }
