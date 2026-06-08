@@ -577,6 +577,7 @@ export interface CreativeMetricRow {
   ctr: number | null;
   hookRate: number | null;
   holdRate: number | null;
+  voc: number | null;
   cvr: number | null;
   cpa: number | null;
   roas: number | null;
@@ -603,6 +604,7 @@ export async function creativeMetricRows(
       ctr,
       hookRate,
       holdRate,
+      voc,
       cvr,
       cpa,
       roas,
@@ -632,6 +634,7 @@ export async function creativeMetricRows(
       ctr: num(r.ctr),
       hookRate: num(r.hookRate),
       holdRate: num(r.holdRate),
+      voc: num(r.voc),
       cvr: num(r.cvr),
       cpa: num(r.cpa),
       roas: num(r.roas),
