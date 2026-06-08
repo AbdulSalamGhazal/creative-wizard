@@ -28,8 +28,19 @@ export function FunnelRates({
   kd: KpisWithDelta | null;
   daily: DailyRatesRow[];
 }) {
-  const series = (key: RateKey): number[] =>
-    daily.map((d) => d[key]).filter((v): v is number => v !== null);
+  // Clamp the sparkline series to its 5th–95th percentile so a single
+  // low-traffic spike day (e.g. 1 impression → 100% CTR) can't blow up the
+  // autoscale and flatten every normal day against the floor.
+  const series = (key: RateKey): number[] => {
+    const vals = daily.map((d) => d[key]).filter((v): v is number => v !== null);
+    if (vals.length < 5) return vals;
+    const sorted = [...vals].sort((a, b) => a - b);
+    const at = (p: number) => sorted[Math.round(p * (sorted.length - 1))]!;
+    const lo = at(0.05);
+    const hi = at(0.95);
+    if (hi <= lo) return vals;
+    return vals.map((v) => Math.min(hi, Math.max(lo, v)));
+  };
 
   const rates: Array<{
     key: RateKey;
