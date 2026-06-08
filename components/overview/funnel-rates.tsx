@@ -45,7 +45,7 @@ export function FunnelRates({ k, kd }: { k: Kpis; kd: KpisWithDelta | null }) {
                 <DeltaBadge delta={t.delta} inverted={t.inverted} />
               ) : null}
             </div>
-            <div className="font-display text-2xl num text-ink mt-1.5">
+            <div className="font-display text-[1.9rem] leading-none num text-ink mt-2">
               {t.value}
             </div>
           </div>
