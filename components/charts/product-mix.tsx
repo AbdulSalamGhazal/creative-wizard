@@ -33,16 +33,16 @@ export function ProductMixDonut({ rows }: Props) {
 
   if (data.length === 0) {
     return (
-      <div className="h-44 flex items-center justify-center text-ink-3 text-sm border border-dashed border-line rounded-md">
+      <div className="h-full min-h-[200px] flex items-center justify-center text-ink-3 text-sm border border-dashed border-line rounded-md">
         No spend in the selected window.
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col items-center gap-3">
-      {/* Donut (full width, uncompressed) */}
-      <div className="relative h-44 w-full">
+    <div className="flex flex-col items-center gap-3 h-full">
+      {/* Donut grows to fill the card height; legend below keeps full width */}
+      <div className="relative flex-1 min-h-[160px] w-full">
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
             <Pie

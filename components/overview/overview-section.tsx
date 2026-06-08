@@ -105,7 +105,7 @@ export async function OverviewSection({ filters, dimension, dimensionLabel }: Pr
           <CardHeader>
             <CardTitle className="text-sm">Product mix</CardTitle>
           </CardHeader>
-          <CardContent className="flex-1 flex flex-col justify-center">
+          <CardContent className="flex-1 flex flex-col">
             <ProductMixDonut rows={productMixRows} />
           </CardContent>
         </Card>
