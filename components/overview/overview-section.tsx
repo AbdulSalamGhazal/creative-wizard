@@ -88,7 +88,13 @@ export async function OverviewSection({ filters, dimension, dimensionLabel }: Pr
       ? topMovers(filters as KpiFilters & { from: string; to: string }, 12)
       : Promise.resolve([]),
     hasRange
-      ? creativeStatusTransitions(filters.from!, filters.to!)
+      ? creativeStatusTransitions({
+          from: filters.from!,
+          to: filters.to!,
+          productIds: filters.productIds,
+          types: filters.types,
+          tags: filters.tags,
+        })
       : Promise.resolve(EMPTY_TRANSITIONS),
     hasRange
       ? kpisWithDelta(filters as KpiFilters & { from: string; to: string })

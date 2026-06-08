@@ -1,8 +1,9 @@
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, sql, type SQL } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
   creativePlatformOverrides,
   creatives,
+  creativeTags,
   performanceRecords,
   platformEnum,
 } from "@/db/schema";
@@ -236,6 +237,45 @@ function isoMinusOneDay(iso: string): string {
   return d.toISOString().slice(0, 10);
 }
 
+export interface StatusTransitionFilters {
+  from: string;
+  to: string;
+  /** Creative-attribute filters that scope the flow (NOT platform — status is a
+   *  per-platform concept, so the platform filter is intentionally not applied
+   *  here). */
+  productIds?: string[];
+  types?: Array<"video" | "image" | "slides">;
+  tags?: string[];
+}
+
+/** Creative IDs matching the product/type/tag filters (account-scoped), or
+ *  undefined when none of those filters are set (→ whole brand). */
+async function statusRestrictIds(
+  filters: StatusTransitionFilters,
+): Promise<string[] | undefined> {
+  const hasAttr =
+    (filters.productIds && filters.productIds.length > 0) ||
+    (filters.types && filters.types.length > 0) ||
+    (filters.tags && filters.tags.length > 0);
+  if (!hasAttr) return undefined;
+
+  const acct = await getActiveAccountId();
+  const conds: SQL[] = [eq(creatives.accountId, acct)];
+  if (filters.productIds && filters.productIds.length > 0) {
+    conds.push(inArray(creatives.productId, filters.productIds));
+  }
+  if (filters.types && filters.types.length > 0) {
+    conds.push(inArray(creatives.type, filters.types));
+  }
+  if (filters.tags && filters.tags.length > 0) {
+    conds.push(
+      sql`EXISTS (SELECT 1 FROM ${creativeTags} WHERE ${creativeTags.creativeId} = ${creatives.id} AND ${inArray(creativeTags.tag, filters.tags)})`,
+    );
+  }
+  const rows = await db.select({ id: creatives.id }).from(creatives).where(and(...conds));
+  return rows.map((r) => r.id);
+}
+
 /**
  * How creatives moved between dynamic statuses over a window: their status as
  * it stood just before `from` vs. as of `to`. Built from two point-in-time
@@ -247,12 +287,13 @@ function isoMinusOneDay(iso: string): string {
  * (a creative that was New and stayed New — never spent — adds no flow).
  */
 export async function creativeStatusTransitions(
-  from: string,
-  to: string,
+  filters: StatusTransitionFilters,
 ): Promise<CreativeStatusTransitions> {
+  const restrictIds = await statusRestrictIds(filters);
+
   const [startMap, endMap] = await Promise.all([
-    creativeStatusMap(undefined, { asOf: isoMinusOneDay(from) }),
-    creativeStatusMap(undefined, { asOf: to }),
+    creativeStatusMap(restrictIds, { asOf: isoMinusOneDay(filters.from) }),
+    creativeStatusMap(restrictIds, { asOf: filters.to }),
   ]);
 
   const ids = new Set<string>([...startMap.keys(), ...endMap.keys()]);
@@ -287,13 +328,19 @@ export async function creativeStatusTransitions(
   });
 
   // The bulk left out of the flow: creatives New at both ends (never spent, never
-  // terminated) = total brand creatives minus those with any history.
-  const acct = await getActiveAccountId();
-  const [cnt] = await db
-    .select({ total: sql<number>`COUNT(*)::int` })
-    .from(creatives)
-    .where(eq(creatives.accountId, acct));
-  const untouchedNew = Math.max(0, Number(cnt?.total ?? 0) - ids.size);
+  // terminated) = the in-scope population minus those with any history.
+  let totalCreatives: number;
+  if (restrictIds) {
+    totalCreatives = restrictIds.length;
+  } else {
+    const acct = await getActiveAccountId();
+    const [cnt] = await db
+      .select({ total: sql<number>`COUNT(*)::int` })
+      .from(creatives)
+      .where(eq(creatives.accountId, acct));
+    totalCreatives = Number(cnt?.total ?? 0);
+  }
+  const untouchedNew = Math.max(0, totalCreatives - ids.size);
 
   return { transitions, startCounts, endCounts, total: counted, untouchedNew };
 }
