@@ -72,36 +72,35 @@ export function FunnelRates({
       <CardHeader>
         <CardTitle className="text-sm">Funnel rates</CardTitle>
       </CardHeader>
-      <CardContent className="flex-1 grid grid-cols-2 gap-2.5">
+      <CardContent className="flex-1 grid grid-cols-2 gap-3">
         {rates.map((r) => {
           const color = COLOR[r.key];
           return (
             <div
               key={r.key}
-              className="rounded-xl bg-surface-2/60 px-4 py-3 flex flex-col justify-between gap-2"
+              className="rounded-xl bg-surface-2/60 px-4 py-4 flex flex-col gap-3"
             >
               <div className="flex items-center justify-between gap-2">
-                <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold tracking-wide text-ink-2">
+                <span className="inline-flex items-center gap-1.5 text-xs font-semibold tracking-wide text-ink-2">
                   <span
-                    className="h-2 w-2 rounded-full"
+                    className="h-2.5 w-2.5 rounded-full"
                     style={{ background: color }}
                   />
                   {r.label}
                 </span>
                 {r.delta ? <Trend delta={r.delta} inverted={r.inverted} /> : null}
               </div>
-              <div className="flex items-end justify-between gap-2">
-                <span className="font-display text-[2.1rem] leading-none num text-ink">
-                  {r.value}
-                </span>
-                <Sparkline
-                  values={series(r.key)}
-                  color={color}
-                  width={66}
-                  height={26}
-                  baseline="data"
-                />
-              </div>
+              <span className="font-display text-[3rem] leading-[0.95] num text-ink">
+                {r.value}
+              </span>
+              <Sparkline
+                values={series(r.key)}
+                color={color}
+                width={260}
+                height={46}
+                baseline="data"
+                responsive
+              />
             </div>
           );
         })}

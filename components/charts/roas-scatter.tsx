@@ -67,11 +67,11 @@ export function RoasScatter({ points }: { points: CreativePoint[] }) {
       </CardHeader>
       <CardContent className="flex-1">
         {data.length === 0 ? (
-          <div className="h-full min-h-[160px] flex items-center justify-center text-ink-3 text-sm">
+          <div className="h-full min-h-[240px] flex items-center justify-center text-ink-3 text-sm">
             No rated spend in this window.
           </div>
         ) : (
-          <div className="h-full min-h-[200px]">
+          <div className="h-full min-h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
               <ScatterChart margin={{ top: 8, right: 10, bottom: 2, left: 0 }}>
                 <CartesianGrid stroke="var(--line)" strokeDasharray="3 3" />

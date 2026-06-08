@@ -16,6 +16,12 @@ interface Props {
    * rates (CTR/CvR) so their variation is visible instead of squashed.
    */
   baseline?: "zero" | "data";
+  /**
+   * Stretch to the parent's width instead of a fixed `width`. `width` is then
+   * just the logical viewBox width; the SVG scales via `preserveAspectRatio`
+   * and the stroke stays crisp (non-scaling). Height stays fixed.
+   */
+  responsive?: boolean;
 }
 
 export function Sparkline({
@@ -25,6 +31,7 @@ export function Sparkline({
   color = "var(--brand)",
   filled = true,
   baseline = "zero",
+  responsive = false,
 }: Props) {
   if (values.length === 0) {
     return (
@@ -68,9 +75,10 @@ export function Sparkline({
 
   return (
     <svg
-      width={width}
+      width={responsive ? "100%" : width}
       height={height}
       viewBox={`0 0 ${width} ${height}`}
+      preserveAspectRatio={responsive ? "none" : "xMidYMid meet"}
       className="overflow-visible"
       aria-hidden
     >
@@ -89,6 +97,7 @@ export function Sparkline({
         strokeWidth={1.4}
         strokeLinecap="round"
         strokeLinejoin="round"
+        vectorEffect={responsive ? "non-scaling-stroke" : undefined}
       />
     </svg>
   );
