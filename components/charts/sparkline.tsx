@@ -39,7 +39,13 @@ export function Sparkline({
 
   const max = baseline === "data" ? Math.max(...values) : Math.max(...values, 0);
   const min = baseline === "data" ? Math.min(...values) : Math.min(...values, 0);
-  const span = Math.max(max - min, 1);
+  // "data" baseline can hold tiny fractions (CTR/CvR ~0.02); flooring the span at
+  // 1 would collapse all their variation into a flat line, so use the true range
+  // there and only guard against a zero span (all values identical). "zero"
+  // baseline keeps the 1 floor — its values are counts/dollars and the floor
+  // suppresses noise near zero.
+  const span =
+    baseline === "data" ? (max > min ? max - min : 1) : Math.max(max - min, 1);
   const pad = 1.5; // px breathing room at the top/bottom so the line never touches the edge
 
   // Even for a single point, draw a flat baseline so the row still feels alive.
