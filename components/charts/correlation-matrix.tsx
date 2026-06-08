@@ -43,13 +43,6 @@ const LABEL = Object.fromEntries(CATALOG.map((m) => [m.key, m.label])) as Record
 /** Default six: cost + engagement + conversion + the two outcomes. */
 const DEFAULT: MetricKey[] = ["spend", "cpm", "ctr", "cvr", "cpa", "roas"];
 
-// Pairs that move together by construction (they share formula components), so a
-// strong coefficient is arithmetic, not behaviour — shown muted. CPA =
-// spend/conversions and ROAS = revenue/spend are inverse by build; CPA ∝
-// CPC / CvR.
-const MECHANICAL = new Set(["cpa|roas", "cpa|cvr"]);
-const pairKey = (a: string, b: string) => [a, b].sort().join("|");
-
 // Creatives with almost no delivery carry no signal — exclude them so a 12-
 // impression fluke can't enter the ranking.
 const MIN_IMPRESSIONS = 100;
@@ -129,87 +122,88 @@ export function CorrelationMatrix({ rows }: { rows: CreativeMetricRow[] }) {
           </div>
         ) : (
           <div className="space-y-3">
-            <div
-              className="grid gap-[2px] text-[10px]"
-              style={{
-                gridTemplateColumns: `minmax(30px,auto) repeat(${n}, minmax(0,1fr))`,
-              }}
-            >
-              {/* Corner + column-header pickers */}
-              <div />
-              {selected.map((key, i) => (
-                <Select
-                  key={`h-${i}`}
-                  value={key}
-                  onValueChange={(v) => changeSlot(i, v as MetricKey)}
-                >
-                  <SelectTrigger className="h-6 w-full justify-center gap-0.5 border-0 bg-transparent px-0.5 text-[10px] font-semibold text-ink-2 shadow-none hover:text-ink focus:ring-0 focus:ring-offset-0 [&>svg]:size-3 [&>svg]:opacity-50">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {CATALOG.map((m) => (
-                      <SelectItem key={m.key} value={m.key} className="text-sm">
-                        {m.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              ))}
+            <div className="overflow-x-auto">
+              <div
+                className="grid gap-[2px] mx-auto w-fit text-[10px]"
+                style={{
+                  gridTemplateColumns: `minmax(24px,auto) repeat(${n}, minmax(0,52px))`,
+                }}
+              >
+                {/* Corner + column-header pickers */}
+                <div />
+                {selected.map((key, i) => (
+                  <Select
+                    key={`h-${i}`}
+                    value={key}
+                    onValueChange={(v) => changeSlot(i, v as MetricKey)}
+                  >
+                    <SelectTrigger className="h-5 w-full justify-center gap-0.5 border-0 bg-transparent px-0.5 text-[9px] font-semibold text-ink-2 shadow-none hover:text-ink focus:ring-0 focus:ring-offset-0 [&>svg]:size-3 [&>svg]:opacity-50">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {CATALOG.map((m) => (
+                        <SelectItem
+                          key={m.key}
+                          value={m.key}
+                          className="text-sm"
+                        >
+                          {m.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ))}
 
-              {/* Rows (left labels mirror the column pickers) */}
-              {selected.map((rowKey, i) => (
-                <Fragment key={`r-${rowKey}`}>
-                  <div className="flex items-center justify-end pr-1.5 font-semibold text-ink-3">
-                    {LABEL[rowKey]}
-                  </div>
-                  {selected.map((colKey, j) => {
-                    if (i === j) {
+                {/* Rows (left labels mirror the column pickers) */}
+                {selected.map((rowKey, i) => (
+                  <Fragment key={`r-${rowKey}`}>
+                    <div className="flex items-center justify-end pr-1 text-[9px] font-semibold text-ink-3">
+                      {LABEL[rowKey]}
+                    </div>
+                    {selected.map((colKey, j) => {
+                      if (i === j) {
+                        return (
+                          <div
+                            key={colKey}
+                            className="aspect-square rounded-[3px] bg-surface-2/50 flex items-center justify-center text-ink-3 num"
+                          >
+                            1
+                          </div>
+                        );
+                      }
+                      const res = matrix[i]![j];
+                      if (!res) {
+                        return (
+                          <div
+                            key={colKey}
+                            className="aspect-square rounded-[3px] border border-line/60 flex items-center justify-center text-ink-3"
+                            title={`${LABEL[rowKey]} vs ${LABEL[colKey]}: too few creatives`}
+                          >
+                            ·
+                          </div>
+                        );
+                      }
+                      const mag = Math.min(1, Math.abs(res.rho));
+                      const pct = Math.round((0.14 + mag * 0.62) * 100);
+                      const base = res.rho >= 0 ? "var(--pos)" : "var(--neg)";
                       return (
                         <div
                           key={colKey}
-                          className="aspect-square rounded-[3px] bg-surface-2/50 flex items-center justify-center text-ink-3 num"
+                          className="aspect-square rounded-[3px] flex items-center justify-center num font-semibold text-ink"
+                          style={{
+                            backgroundColor: `color-mix(in srgb, ${base} ${pct}%, transparent)`,
+                          }}
+                          title={`${LABEL[rowKey]} vs ${LABEL[colKey]}: ρ = ${res.rho.toFixed(
+                            2,
+                          )} · n = ${res.n}`}
                         >
-                          1
+                          {fmtRho(res.rho)}
                         </div>
                       );
-                    }
-                    const res = matrix[i]![j];
-                    if (!res) {
-                      return (
-                        <div
-                          key={colKey}
-                          className="aspect-square rounded-[3px] border border-line/60 flex items-center justify-center text-ink-3"
-                          title={`${LABEL[rowKey]} vs ${LABEL[colKey]}: too few creatives`}
-                        >
-                          ·
-                        </div>
-                      );
-                    }
-                    const mech = MECHANICAL.has(pairKey(rowKey, colKey));
-                    const mag = Math.min(1, Math.abs(res.rho));
-                    const pct = mech
-                      ? 14
-                      : Math.round((0.14 + mag * 0.62) * 100);
-                    const base = res.rho >= 0 ? "var(--pos)" : "var(--neg)";
-                    return (
-                      <div
-                        key={colKey}
-                        className={`aspect-square rounded-[3px] flex items-center justify-center num ${
-                          mech ? "italic text-ink-3" : "font-semibold text-ink"
-                        }`}
-                        style={{
-                          backgroundColor: `color-mix(in srgb, ${base} ${pct}%, transparent)`,
-                        }}
-                        title={`${LABEL[rowKey]} vs ${LABEL[colKey]}: ρ = ${res.rho.toFixed(
-                          2,
-                        )} · n = ${res.n}${mech ? " · mechanically related" : ""}`}
-                      >
-                        {fmtRho(res.rho)}
-                      </div>
-                    );
-                  })}
-                </Fragment>
-              ))}
+                    })}
+                  </Fragment>
+                ))}
+              </div>
             </div>
 
             {/* Legend */}
@@ -227,12 +221,7 @@ export function CorrelationMatrix({ rows }: { rows: CreativeMetricRow[] }) {
                 />
                 +1
               </span>
-              <span
-                className="italic"
-                title="These pairs share a formula component, so they correlate by arithmetic, not creative behaviour — e.g. CPA and ROAS are inverse by definition."
-              >
-                muted = mechanically linked
-              </span>
+              <span>a metric&rsquo;s row = its correlations</span>
             </div>
           </div>
         )}
