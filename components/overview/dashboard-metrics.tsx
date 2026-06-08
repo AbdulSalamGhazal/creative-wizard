@@ -58,19 +58,19 @@ export async function DashboardMetrics({
       ? swatchColor(key)
       : PLATFORM_COLOR[key as keyof typeof PLATFORM_COLOR] ?? "var(--ink-3)";
 
-  // Composition: bar = this group's share of the total for that metric. Groups
-  // with no value for the metric are dropped (no zero-rows).
+  // Magnitude: bar = this group's value relative to the LARGEST in the set (so
+  // the biggest bar is full-width and the rest scale against it — same as the
+  // ratio bars). The figure still shows the absolute value. Zero-rows dropped.
   const shareBars = (pick: Pick, fmt: (v: number | null) => string): BreakdownBar[] => {
-    const denom = full.reduce((s, r) => s + (pick(r) ?? 0), 0);
-    return shown
-      .filter((r) => (pick(r) ?? 0) > 0)
-      .map((r) => ({
-        key: r.key,
-        label: labelFor(r.key),
-        color: colorFor(r.key),
-        fraction: denom > 0 ? (pick(r) ?? 0) / denom : 0,
-        display: fmt(pick(r)),
-      }));
+    const rows = shown.filter((r) => (pick(r) ?? 0) > 0);
+    const max = rows.reduce((m, r) => Math.max(m, pick(r) ?? 0), 0);
+    return rows.map((r) => ({
+      key: r.key,
+      label: labelFor(r.key),
+      color: colorFor(r.key),
+      fraction: max > 0 ? (pick(r) ?? 0) / max : 0,
+      display: fmt(pick(r)),
+    }));
   };
 
   // Ratio: bar = this group's value relative to the largest in the set. Groups
