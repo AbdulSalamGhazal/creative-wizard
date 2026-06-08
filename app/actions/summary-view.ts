@@ -122,11 +122,10 @@ export async function deleteSummaryView(
 }
 
 /**
- * Toggle a view as the team default for its page. Setting one clears any
- * existing default (one default per page, also enforced by a partial unique
- * index). Calling on the current default clears it (no default).
- *
- * Any signed-in user can change the team default; it's audit-logged.
+ * Toggle a view as the caller's own default for its page. Views (and their
+ * default) are private per user, so only the owner (or an admin) may set it,
+ * and clearing the prior default is scoped to that owner — one user's default
+ * never touches another's. Calling on the current default clears it.
  */
 export async function setDefaultView(id: string): Promise<ViewMutationResult> {
   try {
@@ -137,18 +136,23 @@ export async function setDefaultView(id: string): Promise<ViewMutationResult> {
     const view = await getSummaryView(id);
     if (!view) return { ok: false, error: "View not found." };
 
+    if (view.ownerUserId !== user.id && user.role !== "admin") {
+      return { ok: false, error: "Only the owner can change this view's default." };
+    }
+
     const makeDefault = !view.isDefault;
 
     await db.transaction(async (tx) => {
-      // Clear THIS account's current default for the page first, to satisfy the
-      // one-default-per-(account,page) partial unique index. Scoped to acct so
-      // it can't clear another brand's default.
+      // Clear this OWNER's current default for the page first, to satisfy the
+      // one-default-per-(account,owner,page) partial unique index. Scoped to the
+      // view's owner so it can't clear another user's (or brand's) default.
       await tx
         .update(summaryViews)
         .set({ isDefault: false })
         .where(
           and(
             eq(summaryViews.accountId, acct),
+            eq(summaryViews.ownerUserId, view.ownerUserId),
             eq(summaryViews.page, view.page),
             eq(summaryViews.isDefault, true),
           ),

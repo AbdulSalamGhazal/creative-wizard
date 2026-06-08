@@ -74,19 +74,19 @@ export function ViewsControl({ views, currentUserId, isAdmin }: Props) {
       const clean = cleanQuery(query);
       if (clean === "") {
         // An "all creatives" view (no filters/columns/sort) resolves to a bare
-        // /summary. When a team default exists the server redirects a bare
-        // /summary straight back to that default — so the view would appear to
-        // "bounce back" and never apply. Route through ?view=none (the same
-        // escape the "Show all" button uses) so the unfiltered table is
-        // actually reachable by clicking the view.
-        router.push(hasDefault ? `${pathname}?view=none` : pathname, {
-          scroll: false,
-        });
+        // /summary. When a default exists the server redirects a bare /summary
+        // straight back to that default — so the view would appear to "bounce
+        // back" and never apply. ALWAYS route through ?view=none (the same
+        // escape "Show all" uses): the param is stripped by cleanQuery/sameQuery
+        // so it's harmless when no default exists, and routing through it
+        // unconditionally removes the dependency on a possibly-stale `hasDefault`
+        // (a flakiness source right after toggling a default).
+        router.push(`${pathname}?view=none`, { scroll: false });
         return;
       }
       router.push(`${pathname}?${clean}`, { scroll: false });
     },
-    [pathname, router, hasDefault],
+    [pathname, router],
   );
 
   const save = () => {
@@ -283,13 +283,10 @@ export function ViewsControl({ views, currentUserId, isAdmin }: Props) {
               type="button"
               onClick={() => {
                 setOpen(false);
-                // If a team default is set, a bare /summary would redirect
-                // straight back to it — so route through ?view=none to reach
-                // the unfiltered table.
-                router.push(
-                  hasDefault ? `${pathname}?view=none` : pathname,
-                  { scroll: false },
-                );
+                // Always route through ?view=none: a bare /summary would
+                // redirect back to a default if one exists, and the param is
+                // harmless (stripped by cleanQuery/sameQuery) when none does.
+                router.push(`${pathname}?view=none`, { scroll: false });
               }}
               className="inline-flex items-center gap-1 text-[11px] text-ink-3 hover:text-ink transition-colors px-1"
             >

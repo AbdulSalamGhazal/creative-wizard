@@ -334,8 +334,8 @@ export const summaryViews = pgTable(
     page: varchar("page", { length: 32 }).notNull().default("summary"),
     name: varchar("name", { length: 120 }).notNull(),
     query: text("query").notNull(),
-    /** At most one default per page (team-wide landing config). Enforced by
-     *  the partial unique index below. */
+    /** At most one default per (user, page) — each user has their own default
+     *  landing config. Enforced by the partial unique index below. */
     isDefault: boolean("is_default").notNull().default(false),
     ownerUserId: uuid("owner_user_id")
       .notNull()
@@ -353,9 +353,10 @@ export const summaryViews = pgTable(
       t.page,
       t.name,
     ),
-    // One default per page per account — partial unique index over is_default.
-    oneDefaultPerPage: uniqueIndex("summary_views_default_idx")
-      .on(t.accountId, t.page)
+    // One default per (account, user, page) — partial unique index over
+    // is_default. Per-user so each teammate keeps their own default view.
+    oneDefaultPerUserPage: uniqueIndex("summary_views_default_idx")
+      .on(t.accountId, t.ownerUserId, t.page)
       .where(sql`${t.isDefault}`),
   }),
 );

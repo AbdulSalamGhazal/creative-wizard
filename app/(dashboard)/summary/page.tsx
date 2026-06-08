@@ -27,13 +27,14 @@ export default async function SummaryPage({
   searchParams: Promise<SearchParams>;
 }) {
   const params = await searchParams;
+  const user = await requireAuth();
 
   // Default-view redirect: a bare /summary (no params at all) lands on the
-  // team default view, if one is set with a non-empty config. The explicit
-  // `?view=none` escape hatch (from "Show all" in the Views control) skips
-  // this so the unfiltered table stays reachable.
+  // caller's OWN default view, if they set one with a non-empty config. The
+  // explicit `?view=none` escape hatch (from "Show all" in the Views control)
+  // skips this so the unfiltered table stays reachable.
   if (Object.keys(params).length === 0) {
-    const def = await getDefaultSummaryView("summary");
+    const def = await getDefaultSummaryView(user.id, "summary");
     if (def && def.query.trim().length > 0) {
       redirect(`/summary?${def.query}`);
     }
@@ -59,8 +60,6 @@ export default async function SummaryPage({
     rate: pickFirst(params.rate),
     status: pickFirst(params.status),
   });
-
-  const user = await requireAuth();
 
   // Rating config (default + per-platform overrides) feeds the Rate column and
   // the rate sort/filter, so fetch it first and hand it to the summary query.
@@ -93,7 +92,7 @@ export default async function SummaryPage({
     }),
     listProducts(),
     listAllTags(),
-    listSummaryViews("summary"),
+    listSummaryViews(user.id, "summary"),
   ]);
 
   // Reconstruct the base URLSearchParams for sort-link href computation.

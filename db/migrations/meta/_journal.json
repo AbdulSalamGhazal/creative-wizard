@@ -120,6 +120,13 @@
       "when": 1780839843356,
       "tag": "0016_useful_tombstone",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1780957377117,
+      "tag": "0017_quick_pride",
+      "breakpoints": true
     }
   ]
 }

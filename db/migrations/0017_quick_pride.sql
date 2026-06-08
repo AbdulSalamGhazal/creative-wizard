@@ -1,0 +1,2 @@
+DROP INDEX "summary_views_default_idx";--> statement-breakpoint
+CREATE UNIQUE INDEX "summary_views_default_idx" ON "summary_views" USING btree ("account_id","owner_user_id","page") WHERE "summary_views"."is_default";

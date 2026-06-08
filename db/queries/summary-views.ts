@@ -14,10 +14,13 @@ export interface SummaryViewRow {
 }
 
 /**
- * All saved views for a page, team-visible. Owner name joined for the
- * "saved by" hint. Ordered by name for a stable list.
+ * A user's own saved views for a page (private — views are per-user, never
+ * shared across teammates). Scoped to the active account AND the owner. Owner
+ * name is still joined for the label, though it's always the caller now.
+ * Ordered by name for a stable list.
  */
 export async function listSummaryViews(
+  ownerUserId: string,
   page = "summary",
 ): Promise<SummaryViewRow[]> {
   const acct = await getActiveAccountId();
@@ -33,7 +36,13 @@ export async function listSummaryViews(
     })
     .from(summaryViews)
     .leftJoin(users, eq(users.id, summaryViews.ownerUserId))
-    .where(and(eq(summaryViews.accountId, acct), eq(summaryViews.page, page)))
+    .where(
+      and(
+        eq(summaryViews.accountId, acct),
+        eq(summaryViews.page, page),
+        eq(summaryViews.ownerUserId, ownerUserId),
+      ),
+    )
     .orderBy(asc(summaryViews.name));
   return rows.map((r) => ({
     id: r.id,
@@ -46,8 +55,9 @@ export async function listSummaryViews(
   }));
 }
 
-/** The team default view for a page, if one is set and non-empty. */
+/** The caller's own default view for a page, if one is set and non-empty. */
 export async function getDefaultSummaryView(
+  ownerUserId: string,
   page = "summary",
 ): Promise<{ id: string; query: string } | null> {
   const acct = await getActiveAccountId();
@@ -58,6 +68,7 @@ export async function getDefaultSummaryView(
       and(
         eq(summaryViews.accountId, acct),
         eq(summaryViews.page, page),
+        eq(summaryViews.ownerUserId, ownerUserId),
         eq(summaryViews.isDefault, true),
       ),
     )
