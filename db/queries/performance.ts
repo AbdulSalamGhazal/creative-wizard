@@ -118,7 +118,7 @@ export interface TagMixRow {
   conversions: number | null;
 }
 
-export interface TopCreativeRow {
+export interface LeaderboardRow {
   creativeId: string;
   name: string;
   productName: string;
@@ -128,10 +128,15 @@ export interface TopCreativeRow {
   impressions: number;
   clicks: number;
   conversions: number | null;
+  conversionValue: number | null;
+  cpm: number | null;
   ctr: number | null;
-  roas: number | null;
+  voc: number | null;
   cvr: number | null;
-  /** Daily-spend series across the filter window, ordered ASC by date. */
+  cpa: number | null;
+  roas: number | null;
+  /** Daily-spend series across the filter window, ordered ASC by date. Only
+   *  populated for the ranking-candidate pool (see creativeLeaderboard). */
   sparkline: number[];
 }
 
@@ -310,18 +315,19 @@ export async function spendByDatePlatform(
 }
 
 /**
- * Top N creatives by spend over the filter window. Joins creatives + products
- * so the table can render the human-readable product name without a second
- * round-trip.
+ * All creatives over the filter window with their full metric set, for the
+ * dashboard leaderboard table — the client re-ranks (by spend / CPM / CTR / VOC
+ * / CvR / ROAS) and slices the top N, so the whole candidate set is returned,
+ * not a pre-sliced top-N. Joins creatives + products for the human-readable
+ * names. Daily-spend sparklines are fetched only for the ranking-candidate pool
+ * (the union of the top 12 by each rankable metric), so any displayed row has
+ * its trend without pulling daily rows for every creative.
  */
-export async function topCreatives(
+export async function creativeLeaderboard(
   filters: KpiFilters,
-  limit = 10,
-): Promise<TopCreativeRow[]> {
+): Promise<LeaderboardRow[]> {
   const { conditions, needsTagJoin } = await buildBaseConditions(filters);
 
-  // This query always needs the creatives + products join for the name/product
-  // columns, regardless of which filters are active.
   let q = db
     .select({
       creativeId: creatives.id,
@@ -332,9 +338,13 @@ export async function topCreatives(
       impressions: sumImpressions,
       clicks: sumClicks,
       conversions: sumConversions,
+      conversionValue: sumConversionValue,
+      cpm,
       ctr,
-      roas,
+      voc,
       cvr,
+      cpa,
+      roas,
     })
     .from(performanceRecords)
     .innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId))
@@ -348,22 +358,59 @@ export async function topCreatives(
     );
   }
 
-  const rows = await q
+  const raw = await q
     .where(and(...conditions))
     .groupBy(creatives.id, creatives.name, products.name, creatives.type)
-    .orderBy(desc(sumSpend))
-    .limit(limit);
+    .orderBy(desc(sumSpend));
 
-  // Derive the dynamic general status for the returned creatives.
-  const sMap = await creativeStatusMap(rows.map((r) => r.creativeId));
+  const base = raw
+    .map((r) => ({
+      creativeId: r.creativeId,
+      name: r.name,
+      productName: r.productName,
+      type: r.type as CreativeType,
+      spend: Number(r.spend ?? 0),
+      impressions: Number(r.impressions ?? 0),
+      clicks: Number(r.clicks ?? 0),
+      conversions: num(r.conversions),
+      conversionValue: num(r.conversionValue),
+      cpm: num(r.cpm),
+      ctr: num(r.ctr),
+      voc: num(r.voc),
+      cvr: num(r.cvr),
+      cpa: num(r.cpa),
+      roas: num(r.roas),
+    }))
+    .filter((r) => r.spend > 0);
 
-  // Pull daily-spend series for the top creatives in one extra query so the
-  // table can render sparklines without N+1.
-  const topIds = rows.map((r) => r.creativeId);
-  let sparkRows: Array<{ creativeId: string; date: string; spend: number | null }> = [];
-  if (topIds.length > 0) {
+  // Candidate pool = union of the top 12 by each rankable metric.
+  const RANK: Array<{
+    pick: (r: (typeof base)[number]) => number | null;
+    lower?: boolean;
+  }> = [
+    { pick: (r) => r.spend },
+    { pick: (r) => r.cpm, lower: true },
+    { pick: (r) => r.ctr },
+    { pick: (r) => r.voc },
+    { pick: (r) => r.cvr },
+    { pick: (r) => r.roas },
+  ];
+  const pool = new Set<string>();
+  for (const { pick, lower } of RANK) {
+    [...base]
+      .filter((r) => pick(r) !== null)
+      .sort((a, b) => (lower ? pick(a)! - pick(b)! : pick(b)! - pick(a)!))
+      .slice(0, 12)
+      .forEach((r) => pool.add(r.creativeId));
+  }
+
+  const sMap = await creativeStatusMap(base.map((r) => r.creativeId));
+
+  const seriesByCreative = new Map<string, number[]>();
+  const poolIds = [...pool];
+  if (poolIds.length > 0) {
     const sparkConditions: SQL[] = [
-      inArray(performanceRecords.creativeId, topIds),
+      inArray(performanceRecords.creativeId, poolIds),
     ];
     if (filters.from && filters.to) {
       sparkConditions.push(
@@ -378,7 +425,7 @@ export async function topCreatives(
         inArray(performanceRecords.platform, filters.platforms),
       );
     }
-    sparkRows = await db
+    const sparkRows = await db
       .select({
         creativeId: performanceRecords.creativeId,
         date: performanceRecords.date,
@@ -388,28 +435,16 @@ export async function topCreatives(
       .where(and(...sparkConditions))
       .groupBy(performanceRecords.creativeId, performanceRecords.date)
       .orderBy(performanceRecords.creativeId, performanceRecords.date);
+    for (const r of sparkRows) {
+      const list = seriesByCreative.get(r.creativeId) ?? [];
+      list.push(Number(r.spend ?? 0));
+      seriesByCreative.set(r.creativeId, list);
+    }
   }
 
-  const seriesByCreative = new Map<string, number[]>();
-  for (const r of sparkRows) {
-    const list = seriesByCreative.get(r.creativeId) ?? [];
-    list.push(Number(r.spend ?? 0));
-    seriesByCreative.set(r.creativeId, list);
-  }
-
-  return rows.map((r) => ({
-    creativeId: r.creativeId,
-    name: r.name,
-    productName: r.productName,
-    type: r.type as CreativeType,
+  return base.map((r) => ({
+    ...r,
     status: statusFor(sMap, r.creativeId).general,
-    spend: Number(r.spend ?? 0),
-    impressions: Number(r.impressions ?? 0),
-    clicks: Number(r.clicks ?? 0),
-    conversions: num(r.conversions),
-    ctr: num(r.ctr),
-    roas: num(r.roas),
-    cvr: num(r.cvr),
     sparkline: seriesByCreative.get(r.creativeId) ?? [],
   }));
 }

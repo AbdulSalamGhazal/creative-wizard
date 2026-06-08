@@ -1,37 +1,193 @@
+"use client";
+
+import { useMemo, useRef, useState, type ReactNode } from "react";
+import { Columns3 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { DownloadCsvButton } from "@/components/ui/download-csv-button";
 import { Sparkline } from "@/components/charts/sparkline";
 import { StatusBadge } from "@/components/creative/status-badge";
 import { int, pct, ratio, usd } from "@/lib/format";
 import { rowsToCsv, todayStamp, type CsvColumn } from "@/lib/csv-export";
 import { STATUS_LABEL } from "@/lib/creative-status";
-import type { TopCreativeRow } from "@/db/queries/performance";
+import { cn } from "@/lib/utils";
+import type { LeaderboardRow } from "@/db/queries/performance";
 
-interface Props {
-  rows: TopCreativeRow[];
+type Num = number | null;
+const fUsd = (v: Num) => (v === null ? "—" : usd(v));
+const fPct = (v: Num) => (v === null ? "—" : pct(v));
+const fRatio = (v: Num) => (v === null ? "—" : `${ratio(v)}×`);
+
+const TYPE_LABEL: Record<LeaderboardRow["type"], string> = {
+  video: "Video",
+  image: "Image",
+  slides: "Slides",
+};
+
+type ColKey =
+  | "name"
+  | "product"
+  | "type"
+  | "status"
+  | "spend"
+  | "cpm"
+  | "impressions"
+  | "clicks"
+  | "ctr"
+  | "voc"
+  | "conversions"
+  | "cvr"
+  | "roas"
+  | "revenue"
+  | "cpa"
+  | "trend";
+
+interface Col {
+  key: ColKey;
+  label: string;
+  width: number;
+  align: "left" | "right";
+  /** Default-visible. */
+  on: boolean;
+  /** Can't be hidden (the identity column). */
+  locked?: boolean;
+  render: (r: LeaderboardRow) => ReactNode;
 }
 
-const CSV_COLUMNS: CsvColumn<TopCreativeRow>[] = [
+const COLS: Col[] = [
+  {
+    key: "name",
+    label: "Creative",
+    width: 200,
+    align: "left",
+    on: true,
+    locked: true,
+    render: (r) => <span className="font-mono text-ink text-[13px]">{r.name}</span>,
+  },
+  { key: "product", label: "Product", width: 130, align: "left", on: true, render: (r) => <span className="text-ink-2">{r.productName}</span> },
+  { key: "type", label: "Type", width: 80, align: "left", on: true, render: (r) => <span className="text-ink-2">{TYPE_LABEL[r.type]}</span> },
+  { key: "status", label: "Status", width: 96, align: "left", on: true, render: (r) => <StatusBadge status={r.status} /> },
+  { key: "spend", label: "Spend", width: 92, align: "right", on: true, render: (r) => <span className="text-ink">{usd(r.spend)}</span> },
+  { key: "cpm", label: "CPM", width: 80, align: "right", on: false, render: (r) => <span className="text-ink-2">{fUsd(r.cpm)}</span> },
+  { key: "impressions", label: "Impr.", width: 100, align: "right", on: true, render: (r) => <span className="text-ink-2">{int(r.impressions)}</span> },
+  { key: "clicks", label: "Clicks", width: 88, align: "right", on: false, render: (r) => <span className="text-ink-2">{int(r.clicks)}</span> },
+  { key: "ctr", label: "CTR", width: 78, align: "right", on: true, render: (r) => <span className="text-ink-2">{fPct(r.ctr)}</span> },
+  { key: "voc", label: "VOC", width: 78, align: "right", on: false, render: (r) => <span className="text-ink-2">{fPct(r.voc)}</span> },
+  { key: "conversions", label: "Conv.", width: 84, align: "right", on: true, render: (r) => <span className="text-ink-2">{int(r.conversions)}</span> },
+  { key: "cvr", label: "CvR", width: 78, align: "right", on: true, render: (r) => <span className="text-ink-2">{fPct(r.cvr)}</span> },
+  { key: "roas", label: "ROAS", width: 80, align: "right", on: true, render: (r) => <span className="text-ink">{fRatio(r.roas)}</span> },
+  { key: "revenue", label: "Revenue", width: 100, align: "right", on: false, render: (r) => <span className="text-ink-2">{fUsd(r.conversionValue)}</span> },
+  { key: "cpa", label: "CPA", width: 80, align: "right", on: false, render: (r) => <span className="text-ink-2">{fUsd(r.cpa)}</span> },
+  { key: "trend", label: "Trend", width: 92, align: "left", on: true, render: (r) => <Sparkline values={r.sparkline} color="var(--brand-2)" width={72} /> },
+];
+
+const COL_BY_KEY = Object.fromEntries(COLS.map((c) => [c.key, c])) as Record<ColKey, Col>;
+
+// The ranking segmented control. `pick` selects the metric; `lower` flags the
+// cost metric (CPM) so "top" means cheapest, not most expensive. Each maps to a
+// column that is force-shown while it's the active ranking.
+const RANK_OPTIONS: Array<{
+  key: string;
+  label: string;
+  col: ColKey;
+  pick: (r: LeaderboardRow) => number | null;
+  lower?: boolean;
+}> = [
+  { key: "spend", label: "Spend", col: "spend", pick: (r) => r.spend },
+  { key: "cpm", label: "CPM", col: "cpm", pick: (r) => r.cpm, lower: true },
+  { key: "ctr", label: "CTR", col: "ctr", pick: (r) => r.ctr },
+  { key: "voc", label: "VOC", col: "voc", pick: (r) => r.voc },
+  { key: "cvr", label: "CvR", col: "cvr", pick: (r) => r.cvr },
+  { key: "roas", label: "ROAS", col: "roas", pick: (r) => r.roas },
+];
+
+const CSV_COLUMNS: CsvColumn<LeaderboardRow>[] = [
   { key: "rank", label: "#", value: (_r, i) => i + 1 },
   { key: "name", label: "Creative", value: (r) => r.name },
   { key: "product", label: "Product", value: (r) => r.productName },
   { key: "type", label: "Type", value: (r) => r.type },
   { key: "status", label: "Status", value: (r) => STATUS_LABEL[r.status] },
   { key: "spend", label: "Spend (USD)", value: (r) => r.spend },
+  { key: "cpm", label: "CPM (USD)", value: (r) => r.cpm },
   { key: "impressions", label: "Impressions", value: (r) => r.impressions },
   { key: "clicks", label: "Clicks", value: (r) => r.clicks },
   { key: "ctr", label: "CTR", value: (r) => r.ctr },
+  { key: "voc", label: "VOC", value: (r) => r.voc },
   { key: "conversions", label: "Conversions", value: (r) => r.conversions },
   { key: "cvr", label: "CvR", value: (r) => r.cvr },
   { key: "roas", label: "ROAS", value: (r) => r.roas },
+  { key: "revenue", label: "Revenue (USD)", value: (r) => r.conversionValue },
+  { key: "cpa", label: "CPA (USD)", value: (r) => r.cpa },
 ];
 
-const TYPE_LABEL: Record<TopCreativeRow["type"], string> = {
-  video: "Video",
-  image: "Image",
-  slides: "Slides",
-};
+export function TopCreativesTable({
+  rows,
+  limit = 10,
+}: {
+  rows: LeaderboardRow[];
+  limit?: number;
+}) {
+  const [rankBy, setRankBy] = useState("spend");
+  const [hidden, setHidden] = useState<Set<ColKey>>(
+    () => new Set(COLS.filter((c) => !c.on).map((c) => c.key)),
+  );
+  const [widths, setWidths] = useState<Record<string, number>>(() =>
+    Object.fromEntries(COLS.map((c) => [c.key, c.width])),
+  );
+  const dragRef = useRef<{ key: ColKey; startX: number; startW: number } | null>(null);
 
-export function TopCreativesTable({ rows }: Props) {
+  const opt = RANK_OPTIONS.find((o) => o.key === rankBy) ?? RANK_OPTIONS[0]!;
+
+  // Visible = not hidden, but always include the identity column and the metric
+  // currently being ranked by (so you can see what you sorted on).
+  const shown = useMemo(
+    () => COLS.filter((c) => c.locked || c.key === opt.col || !hidden.has(c.key)),
+    [hidden, opt.col],
+  );
+
+  const ranked = useMemo(() => {
+    const withVal = rows.filter((r) => opt.pick(r) !== null);
+    const without = rows.filter((r) => opt.pick(r) === null);
+    withVal.sort((a, b) =>
+      opt.lower ? opt.pick(a)! - opt.pick(b)! : opt.pick(b)! - opt.pick(a)!,
+    );
+    return [...withVal, ...without].slice(0, limit);
+  }, [rows, opt, limit]);
+
+  const totalWidth = shown.reduce((s, c) => s + (widths[c.key] ?? c.width), 0) + 36;
+
+  const toggleCol = (key: ColKey) =>
+    setHidden((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+
+  const onResizeDown = (key: ColKey, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragRef.current = { key, startX: e.clientX, startW: widths[key] ?? COL_BY_KEY[key].width };
+    const onMove = (ev: MouseEvent) => {
+      const d = dragRef.current;
+      if (!d) return;
+      setWidths((prev) => ({ ...prev, [d.key]: Math.max(44, d.startW + (ev.clientX - d.startX)) }));
+    };
+    const onUp = () => {
+      dragRef.current = null;
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  };
+
   if (rows.length === 0) {
     return (
       <div className="h-48 flex items-center justify-center text-ink-3 text-sm border border-dashed border-line rounded-md">
@@ -40,57 +196,102 @@ export function TopCreativesTable({ rows }: Props) {
     );
   }
 
-  const csvContent = rowsToCsv(rows, CSV_COLUMNS);
-
   return (
-    <div className="space-y-2">
-      <div className="flex justify-end">
-        <DownloadCsvButton
-          csvContent={csvContent}
-          filename={`top-creatives-${todayStamp()}.csv`}
-        />
-      </div>
-      <div className="overflow-x-auto -mx-2">
-      <table className="w-full text-sm num">
-        <thead>
-          <tr className="text-left text-[11px] uppercase tracking-[0.14em] text-ink-3">
-            <th className="font-medium px-2 py-2 w-8">#</th>
-            <th className="font-medium px-2 py-2">Creative</th>
-            <th className="font-medium px-2 py-2">Product</th>
-            <th className="font-medium px-2 py-2">Type</th>
-            <th className="font-medium px-2 py-2">Status</th>
-            <th className="font-medium px-2 py-2 text-right">Spend</th>
-            <th className="font-medium px-2 py-2">Trend</th>
-            <th className="font-medium px-2 py-2 text-right">Impressions</th>
-            <th className="font-medium px-2 py-2 text-right">CTR</th>
-            <th className="font-medium px-2 py-2 text-right">Conv.</th>
-            <th className="font-medium px-2 py-2 text-right">CvR</th>
-            <th className="font-medium px-2 py-2 text-right">ROAS</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-line">
-          {rows.map((r, i) => (
-            <tr key={r.creativeId} className="hover:bg-surface-2/60 transition-colors">
-              <td className="px-2 py-2.5 text-ink-3">{i + 1}</td>
-              <td className="px-2 py-2.5 font-mono text-ink text-[13px]">{r.name}</td>
-              <td className="px-2 py-2.5 text-ink-2">{r.productName}</td>
-              <td className="px-2 py-2.5 text-ink-2">{TYPE_LABEL[r.type]}</td>
-              <td className="px-2 py-2.5">
-                <StatusBadge status={r.status} />
-              </td>
-              <td className="px-2 py-2.5 text-right text-ink">{usd(r.spend)}</td>
-              <td className="px-2 py-2.5">
-                <Sparkline values={r.sparkline} color="var(--brand-2)" />
-              </td>
-              <td className="px-2 py-2.5 text-right text-ink-2">{int(r.impressions)}</td>
-              <td className="px-2 py-2.5 text-right text-ink-2">{pct(r.ctr)}</td>
-              <td className="px-2 py-2.5 text-right text-ink-2">{int(r.conversions)}</td>
-              <td className="px-2 py-2.5 text-right text-ink-2">{pct(r.cvr)}</td>
-              <td className="px-2 py-2.5 text-right text-ink">{ratio(r.roas)}</td>
-            </tr>
+    <div className="space-y-2.5">
+      {/* Toolbar: ranking segmented control + export + column toggles */}
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div className="inline-flex items-center rounded-md border border-line bg-surface-2 p-0.5 text-xs">
+          {RANK_OPTIONS.map((o) => (
+            <button
+              key={o.key}
+              type="button"
+              onClick={() => setRankBy(o.key)}
+              className={cn(
+                "px-2.5 py-1 rounded transition-colors",
+                rankBy === o.key ? "bg-surface text-ink shadow-sm" : "text-ink-3 hover:text-ink",
+              )}
+            >
+              {o.label}
+            </button>
           ))}
-        </tbody>
-      </table>
+        </div>
+        <div className="flex items-center gap-2">
+          <DownloadCsvButton
+            csvContent={rowsToCsv(ranked, CSV_COLUMNS)}
+            filename={`top-creatives-${rankBy}-${todayStamp()}.csv`}
+          />
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                className="inline-flex items-center gap-2 h-8 px-3 rounded-md border border-line text-xs text-ink-2 bg-surface hover:bg-surface-2 hover:text-ink transition-colors"
+              >
+                <Columns3 className="w-3.5 h-3.5" /> Columns{" "}
+                <span className="text-ink-3">{shown.length}</span>
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48 max-h-96 overflow-y-auto">
+              <DropdownMenuLabel>Columns</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {COLS.map((c) => (
+                <DropdownMenuCheckboxItem
+                  key={c.key}
+                  checked={c.locked || c.key === opt.col || !hidden.has(c.key)}
+                  disabled={c.locked || c.key === opt.col}
+                  onCheckedChange={() => toggleCol(c.key)}
+                  onSelect={(e) => e.preventDefault()}
+                >
+                  {c.label}
+                </DropdownMenuCheckboxItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </div>
+
+      <div className="overflow-x-auto -mx-2">
+        <table className="text-sm num table-fixed" style={{ width: totalWidth }}>
+          <colgroup>
+            <col style={{ width: 36 }} />
+            {shown.map((c) => (
+              <col key={c.key} style={{ width: widths[c.key] ?? c.width }} />
+            ))}
+          </colgroup>
+          <thead>
+            <tr className="text-left text-[11px] uppercase tracking-[0.12em] text-ink-3 select-none">
+              <th className="font-medium px-2 py-2">#</th>
+              {shown.map((c) => (
+                <th key={c.key} className="relative font-medium px-2 py-2">
+                  <div className={cn("truncate", c.align === "right" && "text-right")}>
+                    {c.label}
+                  </div>
+                  <span
+                    onMouseDown={(e) => onResizeDown(c.key, e)}
+                    className="absolute top-0 right-0 h-full w-1.5 cursor-col-resize hover:bg-brand/40 active:bg-brand/60"
+                  />
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-line">
+            {ranked.map((r, i) => (
+              <tr key={r.creativeId} className="hover:bg-surface-2/60 transition-colors">
+                <td className="px-2 py-2.5 text-ink-3">{i + 1}</td>
+                {shown.map((c) => (
+                  <td
+                    key={c.key}
+                    className={cn(
+                      "px-2 py-2.5 overflow-hidden whitespace-nowrap text-ellipsis",
+                      c.align === "right" && "text-right",
+                    )}
+                  >
+                    {c.render(r)}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </div>
   );

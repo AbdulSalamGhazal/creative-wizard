@@ -1,6 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   creativeDimensionPoints,
+  creativeLeaderboard,
   creativeMetricRows,
   creativePoints,
   dailyFunnelRates,
@@ -9,7 +10,6 @@ import {
   metricOverTime,
   productMix,
   tagMix,
-  topCreatives,
   topMovers,
   typeDimensionSpend,
   type BreakdownDimension,
@@ -85,7 +85,7 @@ export async function OverviewSection({ filters, dimension, dimensionLabel }: Pr
     metricRows,
   ] = await Promise.all([
     metricOverTime(filters, dimension),
-    topCreatives(filters, 10),
+    creativeLeaderboard(filters),
     productMix(filters),
     typeDimensionSpend(filters, dimension),
     tagMix(filters),
@@ -245,7 +245,7 @@ export async function OverviewSection({ filters, dimension, dimensionLabel }: Pr
       {/* Top creatives */}
       <Card className="bg-surface border-line">
         <CardHeader>
-          <CardTitle className="text-sm">Top creatives by spend</CardTitle>
+          <CardTitle className="text-sm">Top creatives</CardTitle>
         </CardHeader>
         <CardContent>
           <TopCreativesTable rows={topRows} />
