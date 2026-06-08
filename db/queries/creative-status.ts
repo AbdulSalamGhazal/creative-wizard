@@ -29,9 +29,11 @@ import {
  */
 export async function creativeStatusMap(
   creativeIds?: string[],
+  opts?: { asOf?: string },
 ): Promise<Map<string, CreativeStatusResult>> {
   if (creativeIds && creativeIds.length === 0) return new Map();
   const restrict = Boolean(creativeIds && creativeIds.length > 0);
+  const asOf = opts?.asOf; // point-in-time: status as it stood on this ISO date
 
   const [acct, windowHours] = await Promise.all([
     getActiveAccountId(),
@@ -52,6 +54,7 @@ export async function creativeStatusMap(
         eq(performanceRecords.accountId, acct),
         eq(performanceRecords.excludedFromAggregates, false),
         sql`${performanceRecords.spend} > 0`,
+        ...(asOf ? [sql`${performanceRecords.date} <= ${asOf}`] : []),
         ...(restrict
           ? [inArray(performanceRecords.creativeId, creativeIds!)]
           : []),
@@ -59,7 +62,8 @@ export async function creativeStatusMap(
     )
     .groupBy(performanceRecords.creativeId, performanceRecords.platform);
 
-  // Each platform's latest data day in the brand (the freshness anchor).
+  // Each platform's latest data day in the brand (the freshness anchor) — as of
+  // `asOf` when reconstructing a point-in-time snapshot.
   const freshness = await db
     .select({
       platform: performanceRecords.platform,
@@ -70,11 +74,12 @@ export async function creativeStatusMap(
       and(
         eq(performanceRecords.accountId, acct),
         eq(performanceRecords.excludedFromAggregates, false),
+        ...(asOf ? [sql`${performanceRecords.date} <= ${asOf}`] : []),
       ),
     )
     .groupBy(performanceRecords.platform);
 
-  // Manual terminations.
+  // Manual terminations (only those applied on or before `asOf`).
   const overrides = await db
     .select({
       creativeId: creativePlatformOverrides.creativeId,
@@ -84,6 +89,9 @@ export async function creativeStatusMap(
     .where(
       and(
         eq(creativePlatformOverrides.accountId, acct),
+        ...(asOf
+          ? [sql`${creativePlatformOverrides.terminatedAt}::date <= ${asOf}`]
+          : []),
         ...(restrict
           ? [inArray(creativePlatformOverrides.creativeId, creativeIds!)]
           : []),
@@ -203,4 +211,71 @@ export async function creativeStatusBreakdown(): Promise<CreativeStatusBreakdown
   }
 
   return { total, general, perPlatform };
+}
+
+export interface StatusTransition {
+  from: CreativeStatus;
+  to: CreativeStatus;
+  count: number;
+}
+
+export interface CreativeStatusTransitions {
+  /** Every (from → to) pair with a count > 0, including unchanged (from===to). */
+  transitions: StatusTransition[];
+  startCounts: Record<CreativeStatus, number>;
+  endCounts: Record<CreativeStatus, number>;
+  total: number;
+}
+
+function isoMinusOneDay(iso: string): string {
+  const d = new Date(`${iso}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() - 1);
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * How creatives moved between dynamic statuses over a window: their status as
+ * it stood just before `from` vs. as of `to`. Built from two point-in-time
+ * status snapshots (see {@link creativeStatusMap} `asOf`), so this reconstructs
+ * historical status — New/Active/Pause is re-derived as-of each date and
+ * Terminated honors `terminated_at`. Account-scoped.
+ *
+ * Only creatives with any spend/termination history at either end are counted
+ * (a creative that was New and stayed New — never spent — adds no flow).
+ */
+export async function creativeStatusTransitions(
+  from: string,
+  to: string,
+): Promise<CreativeStatusTransitions> {
+  const [startMap, endMap] = await Promise.all([
+    creativeStatusMap(undefined, { asOf: isoMinusOneDay(from) }),
+    creativeStatusMap(undefined, { asOf: to }),
+  ]);
+
+  const ids = new Set<string>([...startMap.keys(), ...endMap.keys()]);
+  const zero = (): Record<CreativeStatus, number> => ({
+    new: 0,
+    active: 0,
+    pause: 0,
+    terminated: 0,
+  });
+  const startCounts = zero();
+  const endCounts = zero();
+  const counts = new Map<string, number>();
+
+  for (const id of ids) {
+    const f = statusFor(startMap, id).general;
+    const t = statusFor(endMap, id).general;
+    startCounts[f] += 1;
+    endCounts[t] += 1;
+    const key = `${f}|${t}`;
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+
+  const transitions: StatusTransition[] = [...counts.entries()].map(([k, count]) => {
+    const [f, t] = k.split("|") as [CreativeStatus, CreativeStatus];
+    return { from: f, to: t, count };
+  });
+
+  return { transitions, startCounts, endCounts, total: ids.size };
 }
