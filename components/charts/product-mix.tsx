@@ -33,15 +33,16 @@ export function ProductMixDonut({ rows }: Props) {
 
   if (data.length === 0) {
     return (
-      <div className="h-64 flex items-center justify-center text-ink-3 text-sm border border-dashed border-line rounded-md">
+      <div className="h-44 flex items-center justify-center text-ink-3 text-sm border border-dashed border-line rounded-md">
         No spend in the selected window.
       </div>
     );
   }
 
   return (
-    <div className="h-64 grid grid-cols-[1fr_auto] items-center gap-4">
-      <div className="relative h-full">
+    <div className="flex flex-col items-center gap-3">
+      {/* Donut (full width, uncompressed) */}
+      <div className="relative h-44 w-full">
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
             <Pie
@@ -72,9 +73,10 @@ export function ProductMixDonut({ rows }: Props) {
           </div>
         </div>
       </div>
-      <ul className="space-y-2 text-xs min-w-[140px] max-h-56 overflow-y-auto">
+      {/* Legend below */}
+      <ul className="w-full grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs max-h-28 overflow-y-auto">
         {data.map((d) => (
-          <li key={d.productId} className="flex items-center gap-2">
+          <li key={d.productId} className="flex items-center gap-2 min-w-0">
             <span
               className="w-2.5 h-2.5 rounded-sm shrink-0"
               style={{ background: d.color }}
@@ -82,7 +84,9 @@ export function ProductMixDonut({ rows }: Props) {
             <span className="text-ink-2 flex-1 truncate" title={d.productName}>
               {d.productName}
             </span>
-            <span className="text-ink num">{(d.share * 100).toFixed(1)}%</span>
+            <span className="text-ink num shrink-0">
+              {(d.share * 100).toFixed(1)}%
+            </span>
           </li>
         ))}
       </ul>
