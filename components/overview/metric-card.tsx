@@ -1,4 +1,6 @@
 import type { ComponentType } from "react";
+import { DeltaBadge } from "@/components/kpi/delta-badge";
+import type { Delta } from "@/lib/period";
 
 export interface BreakdownBar {
   key: string;
@@ -20,21 +22,30 @@ export function MetricCard({
   value,
   icon: Icon,
   bars,
+  delta,
+  deltaInverted = false,
   emptyText = "No data in range.",
 }: {
   label: string;
   value: string;
   icon: ComponentType<{ className?: string }>;
   bars: BreakdownBar[];
+  /** Period-over-period change vs the previous equal window. */
+  delta?: Delta;
+  /** Lower-is-better metric (e.g. CPA) → flip the badge color semantics. */
+  deltaInverted?: boolean;
   emptyText?: string;
 }) {
   return (
     <div className="rounded-xl border border-line bg-surface p-4 flex flex-col gap-3.5">
       {/* Headline */}
       <div>
-        <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-[0.16em] text-ink-3">
-          <Icon className="h-3.5 w-3.5" />
-          <span>{label}</span>
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-[0.16em] text-ink-3">
+            <Icon className="h-3.5 w-3.5" />
+            <span>{label}</span>
+          </div>
+          {delta ? <DeltaBadge delta={delta} inverted={deltaInverted} /> : null}
         </div>
         <div className="font-display text-[2.6rem] leading-none num text-ink mt-2 whitespace-nowrap">
           {value}

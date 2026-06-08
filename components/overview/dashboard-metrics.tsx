@@ -1,12 +1,14 @@
 import { Banknote, DollarSign, Receipt, Target, TrendingUp } from "lucide-react";
 import {
   kpis,
+  kpisWithDelta,
   metricBreakdown,
   type BreakdownDimension,
   type KpiFilters,
   type MetricBreakdownRow,
 } from "@/db/queries/performance";
 import { MetricCard, type BreakdownBar } from "@/components/overview/metric-card";
+import { computeDelta } from "@/lib/period";
 import { PLATFORM_COLOR, PLATFORM_LABEL, swatchColor } from "@/lib/palette";
 import { int, intCompact, ratio, usd0, usd1, usdCompact } from "@/lib/format";
 
@@ -32,10 +34,18 @@ export async function DashboardMetrics({
   filters: KpiFilters;
   dimension: BreakdownDimension;
 }) {
-  const [k, full] = await Promise.all([
-    kpis(filters),
+  const hasRange = Boolean(filters.from && filters.to);
+  const [kd, full] = await Promise.all([
+    hasRange
+      ? kpisWithDelta(filters as KpiFilters & { from: string; to: string })
+      : Promise.resolve(null),
     metricBreakdown(filters, dimension),
   ]);
+  const k = kd?.current ?? (await kpis(filters));
+  const d = kd?.delta;
+  const revenueDelta = kd
+    ? computeDelta(kd.current.conversionValue, kd.previous.conversionValue)
+    : undefined;
 
   const isCampaign = dimension === "campaign";
   const shown = isCampaign ? full.slice(0, CAMPAIGN_LIMIT) : full;
@@ -88,30 +98,36 @@ export async function DashboardMetrics({
           label="Spend"
           value={usd0(k.spend)}
           icon={DollarSign}
+          delta={d?.spend}
           bars={shareBars((r) => r.spend, usdCompact)}
         />
         <MetricCard
           label="Conversions"
           value={int(k.conversions)}
           icon={Target}
+          delta={d?.conversions}
           bars={shareBars((r) => r.conversions, intCompact)}
         />
         <MetricCard
           label="Revenue"
           value={usd0(k.conversionValue)}
           icon={Banknote}
+          delta={revenueDelta}
           bars={shareBars((r) => r.conversionValue, usdCompact)}
         />
         <MetricCard
           label="CPA"
           value={usd1(k.cpa)}
           icon={Receipt}
+          delta={d?.cpa}
+          deltaInverted
           bars={valueBars((r) => r.cpa, usd1)}
         />
         <MetricCard
           label="ROAS"
           value={k.roas !== null ? `${ratio(k.roas)}×` : "—"}
           icon={TrendingUp}
+          delta={d?.roas}
           bars={valueBars((r) => r.roas, (v) => `${ratio(v)}×`)}
         />
       </div>

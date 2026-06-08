@@ -4,10 +4,12 @@ import {
   productMix,
   tagMix,
   topCreatives,
+  topMovers,
   typeDimensionSpend,
   type BreakdownDimension,
   type KpiFilters,
 } from "@/db/queries/performance";
+import { creativeStatusBreakdown } from "@/db/queries/creative-status";
 import {
   MetricOverTimeChart,
   type OverTimeKey,
@@ -16,6 +18,8 @@ import { TopCreativesTable } from "@/components/charts/top-creatives";
 import { ProductMixDonut } from "@/components/charts/product-mix";
 import { TypeMixBars } from "@/components/charts/type-mix-bars";
 import { TagLeaderboard } from "@/components/charts/tag-leaderboard";
+import { TopMoversCard } from "@/components/overview/top-movers-card";
+import { StatusHealthCard } from "@/components/overview/status-health-card";
 import { PLATFORM_COLOR, PLATFORM_LABEL, swatchColor } from "@/lib/palette";
 
 const CAMPAIGN_LINE_LIMIT = 6;
@@ -37,14 +41,26 @@ interface Props {
  * and the top-creatives table.
  */
 export async function OverviewSection({ filters, dimension, dimensionLabel }: Props) {
-  const [otRows, topRows, productMixRows, typeRows, tagMixRows] =
-    await Promise.all([
-      metricOverTime(filters, dimension),
-      topCreatives(filters, 10),
-      productMix(filters),
-      typeDimensionSpend(filters, dimension),
-      tagMix(filters),
-    ]);
+  const hasRange = Boolean(filters.from && filters.to);
+  const [
+    otRows,
+    topRows,
+    productMixRows,
+    typeRows,
+    tagMixRows,
+    moverRows,
+    statusBreakdown,
+  ] = await Promise.all([
+    metricOverTime(filters, dimension),
+    topCreatives(filters, 10),
+    productMix(filters),
+    typeDimensionSpend(filters, dimension),
+    tagMix(filters),
+    hasRange
+      ? topMovers(filters as KpiFilters & { from: string; to: string }, 7)
+      : Promise.resolve([]),
+    creativeStatusBreakdown(),
+  ]);
 
   // Order the over-time lines by total spend; cap campaign lines so the chart
   // stays legible. Platform lines are always all present platforms.
@@ -117,6 +133,12 @@ export async function OverviewSection({ filters, dimension, dimensionLabel }: Pr
           dimensionLabel={dimensionLabel}
         />
         <TagLeaderboard rows={tagMixRows} />
+      </div>
+
+      {/* Top movers + status health */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <TopMoversCard rows={moverRows} />
+        <StatusHealthCard breakdown={statusBreakdown} />
       </div>
 
       {/* Top creatives */}
