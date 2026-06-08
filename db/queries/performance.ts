@@ -570,36 +570,42 @@ export async function dailyFunnelRates(
   }));
 }
 
-export interface DailyTotalsRow {
-  date: string; // YYYY-MM-DD
+export interface CreativeMetricRow {
   spend: number;
-  conversions: number;
-  conversionValue: number;
   impressions: number;
-  clicks: number;
+  cpm: number | null;
+  ctr: number | null;
+  hookRate: number | null;
+  holdRate: number | null;
+  cvr: number | null;
+  cpa: number | null;
+  roas: number | null;
 }
 
 /**
- * Per-day component sums across the whole filtered set (all platforms blended).
- * The caller derives whichever metric the calendar heatmap is showing — ROAS =
- * conversionValue / spend, CPA = spend / conversions, etc. — keeping every
- * derived figure a weighted ratio of sums, never a mean of per-row ratios.
- * Ordered by date.
+ * One row per creative with its blended funnel + outcome metrics, for the
+ * per-creative correlation matrix. Each rate is the weighted ratio of that
+ * creative's component sums (canonical fragments from `lib/metrics.ts`), so a
+ * creative that never converted yields NULL CvR/ROAS rather than 0 — and is
+ * dropped pairwise when correlating. Only creatives with spend are returned.
  */
-export async function dailyTotals(
+export async function creativeMetricRows(
   filters: KpiFilters,
-): Promise<DailyTotalsRow[]> {
+): Promise<CreativeMetricRow[]> {
   const { conditions, needsCreativeJoin, needsTagJoin } =
     await buildBaseConditions(filters);
 
   let q = db
     .select({
-      date: performanceRecords.date,
       spend: sumSpend,
-      conversions: sumConversions,
-      conversionValue: sumConversionValue,
       impressions: sumImpressions,
-      clicks: sumClicks,
+      cpm,
+      ctr,
+      hookRate,
+      holdRate,
+      cvr,
+      cpa,
+      roas,
     })
     .from(performanceRecords)
     .$dynamic();
@@ -616,17 +622,21 @@ export async function dailyTotals(
 
   const rows = await q
     .where(and(...conditions))
-    .groupBy(performanceRecords.date)
-    .orderBy(performanceRecords.date);
+    .groupBy(performanceRecords.creativeId);
 
-  return rows.map((r) => ({
-    date: r.date,
-    spend: Number(r.spend ?? 0),
-    conversions: Number(r.conversions ?? 0),
-    conversionValue: Number(r.conversionValue ?? 0),
-    impressions: Number(r.impressions ?? 0),
-    clicks: Number(r.clicks ?? 0),
-  }));
+  return rows
+    .map((r) => ({
+      spend: Number(r.spend ?? 0),
+      impressions: Number(r.impressions ?? 0),
+      cpm: num(r.cpm),
+      ctr: num(r.ctr),
+      hookRate: num(r.hookRate),
+      holdRate: num(r.holdRate),
+      cvr: num(r.cvr),
+      cpa: num(r.cpa),
+      roas: num(r.roas),
+    }))
+    .filter((r) => r.spend > 0);
 }
 
 export interface CreativeDimensionPoint {

@@ -1,9 +1,9 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   creativeDimensionPoints,
+  creativeMetricRows,
   creativePoints,
   dailyFunnelRates,
-  dailyTotals,
   kpis,
   kpisWithDelta,
   metricOverTime,
@@ -34,7 +34,7 @@ import { TopMoversChart } from "@/components/overview/top-movers-chart";
 import { StatusFlow } from "@/components/overview/status-flow";
 import { FunnelRates } from "@/components/overview/funnel-rates";
 import { RoasScatter } from "@/components/charts/roas-scatter";
-import { CalendarHeatmap } from "@/components/charts/calendar-heatmap";
+import { CorrelationMatrix } from "@/components/charts/correlation-matrix";
 import {
   RatingMixBars,
   type RatingRow,
@@ -82,7 +82,7 @@ export async function OverviewSection({ filters, dimension, dimensionLabel }: Pr
     ratingConfig,
     ratingDimRows,
     dailyRates,
-    dailyTotalRows,
+    metricRows,
   ] = await Promise.all([
     metricOverTime(filters, dimension),
     topCreatives(filters, 10),
@@ -108,7 +108,7 @@ export async function OverviewSection({ filters, dimension, dimensionLabel }: Pr
     getRatingConfig(),
     creativeDimensionPoints(filters, dimension),
     dailyFunnelRates(filters),
-    dailyTotals(filters),
+    creativeMetricRows(filters),
   ]);
   const k = kd?.current ?? (await kpis(filters));
 
@@ -230,7 +230,7 @@ export async function OverviewSection({ filters, dimension, dimensionLabel }: Pr
         <RoasScatter points={points.slice(0, 40)} />
       </div>
 
-      {/* Rating mix + activity calendar (full row, half each) */}
+      {/* Rating mix + per-creative correlation matrix (full row, half each) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <RatingMixBars
           rows={ratingRows}
@@ -239,11 +239,7 @@ export async function OverviewSection({ filters, dimension, dimensionLabel }: Pr
           dimension={dimension}
           dimensionLabel={dimensionLabel}
         />
-        <CalendarHeatmap
-          days={dailyTotalRows}
-          from={filters.from}
-          to={filters.to}
-        />
+        <CorrelationMatrix rows={metricRows} />
       </div>
 
       {/* Top creatives */}
