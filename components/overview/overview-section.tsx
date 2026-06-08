@@ -2,6 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   creativeDimensionPoints,
   creativePoints,
+  dailyFunnelRates,
   kpis,
   kpisWithDelta,
   metricOverTime,
@@ -78,6 +79,7 @@ export async function OverviewSection({ filters, dimension, dimensionLabel }: Pr
     points,
     ratingConfig,
     ratingDimRows,
+    dailyRates,
   ] = await Promise.all([
     metricOverTime(filters, dimension),
     topCreatives(filters, 10),
@@ -102,6 +104,7 @@ export async function OverviewSection({ filters, dimension, dimensionLabel }: Pr
     creativePoints(filters),
     getRatingConfig(),
     creativeDimensionPoints(filters, dimension),
+    dailyFunnelRates(filters),
   ]);
   const k = kd?.current ?? (await kpis(filters));
 
@@ -219,7 +222,7 @@ export async function OverviewSection({ filters, dimension, dimensionLabel }: Pr
 
       {/* Funnel rates + spend-vs-ROAS scatter + rating mix */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <FunnelRates k={k} kd={kd} />
+        <FunnelRates k={k} kd={kd} daily={dailyRates} />
         <RoasScatter points={points.slice(0, 40)} />
         <RatingMixBars
           rows={ratingRows}

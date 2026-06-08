@@ -522,6 +522,54 @@ export async function creativePoints(
     .filter((r) => r.spend > 0);
 }
 
+export interface DailyRatesRow {
+  date: string;
+  cpm: number | null;
+  ctr: number | null;
+  voc: number | null;
+  cvr: number | null;
+}
+
+/**
+ * Per-day blended funnel rates (CPM / CTR / VOC / CvR) for the Dashboard's
+ * funnel-rate sparklines. Each day's rate is the weighted ratio of that day's
+ * component sums. Ordered by date.
+ */
+export async function dailyFunnelRates(
+  filters: KpiFilters,
+): Promise<DailyRatesRow[]> {
+  const { conditions, needsCreativeJoin, needsTagJoin } =
+    await buildBaseConditions(filters);
+
+  let q = db
+    .select({ date: performanceRecords.date, cpm, ctr, voc, cvr })
+    .from(performanceRecords)
+    .$dynamic();
+
+  if (needsCreativeJoin || needsTagJoin) {
+    q = q.innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId));
+  }
+  if (needsTagJoin) {
+    q = q.innerJoin(
+      creativeTags,
+      eq(creativeTags.creativeId, performanceRecords.creativeId),
+    );
+  }
+
+  const rows = await q
+    .where(and(...conditions))
+    .groupBy(performanceRecords.date)
+    .orderBy(performanceRecords.date);
+
+  return rows.map((r) => ({
+    date: r.date,
+    cpm: num(r.cpm),
+    ctr: num(r.ctr),
+    voc: num(r.voc),
+    cvr: num(r.cvr),
+  }));
+}
+
 export interface CreativeDimensionPoint {
   key: string; // platform value or campaign name
   spend: number;
