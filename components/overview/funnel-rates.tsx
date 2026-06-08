@@ -76,7 +76,13 @@ export function FunnelRates({
                 <span className="font-display text-[2.1rem] leading-none num text-ink">
                   {r.value}
                 </span>
-                <Sparkline values={series(r.key)} color={color} width={66} height={26} />
+                <Sparkline
+                  values={series(r.key)}
+                  color={color}
+                  width={66}
+                  height={26}
+                  baseline="data"
+                />
               </div>
             </div>
           );

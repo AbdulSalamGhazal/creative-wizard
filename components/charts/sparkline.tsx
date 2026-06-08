@@ -10,6 +10,12 @@ interface Props {
   color?: string;
   /** Render the area under the line too. */
   filled?: boolean;
+  /**
+   * Y-axis baseline. "zero" (default) anchors the scale at 0 — good for spend.
+   * "data" scales to the values' own min/max — use for small, tightly-ranged
+   * rates (CTR/CvR) so their variation is visible instead of squashed.
+   */
+  baseline?: "zero" | "data";
 }
 
 export function Sparkline({
@@ -18,6 +24,7 @@ export function Sparkline({
   height = 22,
   color = "var(--brand)",
   filled = true,
+  baseline = "zero",
 }: Props) {
   if (values.length === 0) {
     return (
@@ -30,8 +37,8 @@ export function Sparkline({
     );
   }
 
-  const max = Math.max(...values, 0);
-  const min = Math.min(...values, 0);
+  const max = baseline === "data" ? Math.max(...values) : Math.max(...values, 0);
+  const min = baseline === "data" ? Math.min(...values) : Math.min(...values, 0);
   const span = Math.max(max - min, 1);
   const pad = 1.5; // px breathing room at the top/bottom so the line never touches the edge
 
