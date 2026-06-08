@@ -60,31 +60,36 @@ interface Col {
   render: (r: LeaderboardRow) => ReactNode;
 }
 
+// Order here is the display order. The Creative column flexes to fill leftover
+// width (see the colgroup), so the table always spans the card; every other
+// column is a fixed, resizable width. Default-visible set per the dashboard
+// spec: Creative · Product · Status · Spend · CPM · CTR · VOC · CvR · CPA ·
+// ROAS · Trend (the rest are available via the Columns menu).
 const COLS: Col[] = [
   {
     key: "name",
     label: "Creative",
-    width: 200,
+    width: 220,
     align: "left",
     on: true,
     locked: true,
     render: (r) => <span className="font-mono text-ink text-[13px]">{r.name}</span>,
   },
   { key: "product", label: "Product", width: 130, align: "left", on: true, render: (r) => <span className="text-ink-2">{r.productName}</span> },
-  { key: "type", label: "Type", width: 80, align: "left", on: true, render: (r) => <span className="text-ink-2">{TYPE_LABEL[r.type]}</span> },
+  { key: "type", label: "Type", width: 80, align: "left", on: false, render: (r) => <span className="text-ink-2">{TYPE_LABEL[r.type]}</span> },
   { key: "status", label: "Status", width: 96, align: "left", on: true, render: (r) => <StatusBadge status={r.status} /> },
-  { key: "spend", label: "Spend", width: 92, align: "right", on: true, render: (r) => <span className="text-ink">{usd(r.spend)}</span> },
-  { key: "cpm", label: "CPM", width: 80, align: "right", on: false, render: (r) => <span className="text-ink-2">{fUsd(r.cpm)}</span> },
-  { key: "impressions", label: "Impr.", width: 100, align: "right", on: true, render: (r) => <span className="text-ink-2">{int(r.impressions)}</span> },
-  { key: "clicks", label: "Clicks", width: 88, align: "right", on: false, render: (r) => <span className="text-ink-2">{int(r.clicks)}</span> },
-  { key: "ctr", label: "CTR", width: 78, align: "right", on: true, render: (r) => <span className="text-ink-2">{fPct(r.ctr)}</span> },
-  { key: "voc", label: "VOC", width: 78, align: "right", on: false, render: (r) => <span className="text-ink-2">{fPct(r.voc)}</span> },
-  { key: "conversions", label: "Conv.", width: 84, align: "right", on: true, render: (r) => <span className="text-ink-2">{int(r.conversions)}</span> },
-  { key: "cvr", label: "CvR", width: 78, align: "right", on: true, render: (r) => <span className="text-ink-2">{fPct(r.cvr)}</span> },
-  { key: "roas", label: "ROAS", width: 80, align: "right", on: true, render: (r) => <span className="text-ink">{fRatio(r.roas)}</span> },
+  { key: "spend", label: "Spend", width: 90, align: "right", on: true, render: (r) => <span className="text-ink">{usd(r.spend)}</span> },
+  { key: "cpm", label: "CPM", width: 76, align: "right", on: true, render: (r) => <span className="text-ink-2">{fUsd(r.cpm)}</span> },
+  { key: "impressions", label: "Impr.", width: 96, align: "right", on: false, render: (r) => <span className="text-ink-2">{int(r.impressions)}</span> },
+  { key: "clicks", label: "Clicks", width: 84, align: "right", on: false, render: (r) => <span className="text-ink-2">{int(r.clicks)}</span> },
+  { key: "ctr", label: "CTR", width: 74, align: "right", on: true, render: (r) => <span className="text-ink-2">{fPct(r.ctr)}</span> },
+  { key: "voc", label: "VOC", width: 74, align: "right", on: true, render: (r) => <span className="text-ink-2">{fPct(r.voc)}</span> },
+  { key: "conversions", label: "Conv.", width: 84, align: "right", on: false, render: (r) => <span className="text-ink-2">{int(r.conversions)}</span> },
+  { key: "cvr", label: "CvR", width: 74, align: "right", on: true, render: (r) => <span className="text-ink-2">{fPct(r.cvr)}</span> },
+  { key: "cpa", label: "CPA", width: 78, align: "right", on: true, render: (r) => <span className="text-ink-2">{fUsd(r.cpa)}</span> },
+  { key: "roas", label: "ROAS", width: 78, align: "right", on: true, render: (r) => <span className="text-ink">{fRatio(r.roas)}</span> },
   { key: "revenue", label: "Revenue", width: 100, align: "right", on: false, render: (r) => <span className="text-ink-2">{fUsd(r.conversionValue)}</span> },
-  { key: "cpa", label: "CPA", width: 80, align: "right", on: false, render: (r) => <span className="text-ink-2">{fUsd(r.cpa)}</span> },
-  { key: "trend", label: "Trend", width: 92, align: "left", on: true, render: (r) => <Sparkline values={r.sparkline} color="var(--brand-2)" width={72} /> },
+  { key: "trend", label: "Trend", width: 120, align: "left", on: true, render: (r) => <Sparkline values={r.sparkline} color="var(--brand-2)" responsive height={24} /> },
 ];
 
 const COL_BY_KEY = Object.fromEntries(COLS.map((c) => [c.key, c])) as Record<ColKey, Col>;
@@ -159,8 +164,6 @@ export function TopCreativesTable({
     );
     return [...withVal, ...without].slice(0, limit);
   }, [rows, opt, limit]);
-
-  const totalWidth = shown.reduce((s, c) => s + (widths[c.key] ?? c.width), 0) + 36;
 
   const toggleCol = (key: ColKey) =>
     setHidden((prev) => {
@@ -250,12 +253,18 @@ export function TopCreativesTable({
       </div>
 
       <div className="overflow-x-auto -mx-2">
-        <table className="text-sm num table-fixed" style={{ width: totalWidth }}>
+        <table className="w-full text-sm num table-fixed">
           <colgroup>
             <col style={{ width: 36 }} />
-            {shown.map((c) => (
-              <col key={c.key} style={{ width: widths[c.key] ?? c.width }} />
-            ))}
+            {shown.map((c) =>
+              c.key === "name" ? (
+                // No width → flexes to absorb leftover space so the table fills
+                // the card; everything else stays a fixed, resizable width.
+                <col key={c.key} />
+              ) : (
+                <col key={c.key} style={{ width: widths[c.key] ?? c.width }} />
+              ),
+            )}
           </colgroup>
           <thead>
             <tr className="text-left text-[11px] uppercase tracking-[0.12em] text-ink-3 select-none">
@@ -265,10 +274,12 @@ export function TopCreativesTable({
                   <div className={cn("truncate", c.align === "right" && "text-right")}>
                     {c.label}
                   </div>
-                  <span
-                    onMouseDown={(e) => onResizeDown(c.key, e)}
-                    className="absolute top-0 right-0 h-full w-1.5 cursor-col-resize hover:bg-brand/40 active:bg-brand/60"
-                  />
+                  {c.key !== "name" && (
+                    <span
+                      onMouseDown={(e) => onResizeDown(c.key, e)}
+                      className="absolute top-0 right-0 h-full w-1.5 cursor-col-resize hover:bg-brand/40 active:bg-brand/60"
+                    />
+                  )}
                 </th>
               ))}
             </tr>
