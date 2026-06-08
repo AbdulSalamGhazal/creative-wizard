@@ -325,6 +325,7 @@ export async function spendByDatePlatform(
  */
 export async function creativeLeaderboard(
   filters: KpiFilters,
+  minSpend = 300,
 ): Promise<LeaderboardRow[]> {
   const { conditions, needsTagJoin } = await buildBaseConditions(filters);
 
@@ -381,7 +382,10 @@ export async function creativeLeaderboard(
       cpa: num(r.cpa),
       roas: num(r.roas),
     }))
-    .filter((r) => r.spend > 0);
+    // Spend floor: creatives below it carry too little signal to rank on (a $5
+    // creative shouldn't top the CTR/ROAS board), so they're dropped before
+    // both the candidate pool and the client-side ranking.
+    .filter((r) => r.spend >= minSpend);
 
   // Candidate pool = union of the top 12 by each rankable metric.
   const RANK: Array<{

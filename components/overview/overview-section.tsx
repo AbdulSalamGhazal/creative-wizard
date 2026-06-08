@@ -242,11 +242,9 @@ export async function OverviewSection({ filters, dimension, dimensionLabel }: Pr
         <CorrelationMatrix rows={metricRows} />
       </div>
 
-      {/* Top creatives */}
+      {/* Top creatives (title + ranking metric + column toggles live in the
+          table's own toolbar) */}
       <Card className="bg-surface border-line">
-        <CardHeader>
-          <CardTitle className="text-sm">Top creatives</CardTitle>
-        </CardHeader>
         <CardContent>
           <TopCreativesTable rows={topRows} />
         </CardContent>

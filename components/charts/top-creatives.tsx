@@ -10,12 +10,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { DownloadCsvButton } from "@/components/ui/download-csv-button";
 import { Sparkline } from "@/components/charts/sparkline";
 import { StatusBadge } from "@/components/creative/status-badge";
 import { int, pct, ratio, usd } from "@/lib/format";
-import { rowsToCsv, todayStamp, type CsvColumn } from "@/lib/csv-export";
-import { STATUS_LABEL } from "@/lib/creative-status";
 import { cn } from "@/lib/utils";
 import type { LeaderboardRow } from "@/db/queries/performance";
 
@@ -112,25 +109,6 @@ const RANK_OPTIONS: Array<{
   { key: "roas", label: "ROAS", col: "roas", pick: (r) => r.roas },
 ];
 
-const CSV_COLUMNS: CsvColumn<LeaderboardRow>[] = [
-  { key: "rank", label: "#", value: (_r, i) => i + 1 },
-  { key: "name", label: "Creative", value: (r) => r.name },
-  { key: "product", label: "Product", value: (r) => r.productName },
-  { key: "type", label: "Type", value: (r) => r.type },
-  { key: "status", label: "Status", value: (r) => STATUS_LABEL[r.status] },
-  { key: "spend", label: "Spend (USD)", value: (r) => r.spend },
-  { key: "cpm", label: "CPM (USD)", value: (r) => r.cpm },
-  { key: "impressions", label: "Impressions", value: (r) => r.impressions },
-  { key: "clicks", label: "Clicks", value: (r) => r.clicks },
-  { key: "ctr", label: "CTR", value: (r) => r.ctr },
-  { key: "voc", label: "VOC", value: (r) => r.voc },
-  { key: "conversions", label: "Conversions", value: (r) => r.conversions },
-  { key: "cvr", label: "CvR", value: (r) => r.cvr },
-  { key: "roas", label: "ROAS", value: (r) => r.roas },
-  { key: "revenue", label: "Revenue (USD)", value: (r) => r.conversionValue },
-  { key: "cpa", label: "CPA (USD)", value: (r) => r.cpa },
-];
-
 export function TopCreativesTable({
   rows,
   limit = 10,
@@ -194,16 +172,20 @@ export function TopCreativesTable({
   if (rows.length === 0) {
     return (
       <div className="h-48 flex items-center justify-center text-ink-3 text-sm border border-dashed border-line rounded-md">
-        No creatives in the selected window.
+        No creatives with ≥ $300 spend in this window.
       </div>
     );
   }
 
   return (
     <div className="space-y-2.5">
-      {/* Toolbar: ranking segmented control + export + column toggles */}
-      <div className="flex items-center justify-between flex-wrap gap-2">
-        <div className="inline-flex items-center rounded-md border border-line bg-surface-2 p-0.5 text-xs">
+      {/* Toolbar: title (left) · ranking metric (center) · column toggles (right) */}
+      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+        <div className="justify-self-start flex items-baseline gap-2">
+          <h3 className="text-sm font-semibold leading-none text-ink">Top creatives</h3>
+          <span className="text-[11px] text-ink-3">spend ≥ $300</span>
+        </div>
+        <div className="justify-self-center inline-flex items-center rounded-md border border-line bg-surface-2 p-0.5 text-xs">
           {RANK_OPTIONS.map((o) => (
             <button
               key={o.key}
@@ -218,11 +200,7 @@ export function TopCreativesTable({
             </button>
           ))}
         </div>
-        <div className="flex items-center gap-2">
-          <DownloadCsvButton
-            csvContent={rowsToCsv(ranked, CSV_COLUMNS)}
-            filename={`top-creatives-${rankBy}-${todayStamp()}.csv`}
-          />
+        <div className="justify-self-end">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
