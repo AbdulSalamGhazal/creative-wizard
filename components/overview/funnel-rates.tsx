@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import { ArrowDownRight, ArrowUpRight, Sparkles } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { computeDelta, type Delta } from "@/lib/period";
@@ -5,9 +6,9 @@ import { pct, usd } from "@/lib/format";
 import type { Kpis, KpisWithDelta } from "@/db/queries/performance";
 
 /**
- * The four funnel efficiency rates — CPM, CTR, VOC, CvR — each as a large
- * number with a period-over-period delta. CPM is lower-is-better (inverted);
- * the rest are higher-is-better.
+ * The four funnel efficiency rates — CPM, CTR, VOC, CvR — as a clean 3-column
+ * list: name · value · period-over-period delta. CPM is lower-is-better
+ * (inverted); the rest are higher-is-better.
  */
 export function FunnelRates({ k, kd }: { k: Kpis; kd: KpisWithDelta | null }) {
   const rates: Array<{
@@ -31,19 +32,17 @@ export function FunnelRates({ k, kd }: { k: Kpis; kd: KpisWithDelta | null }) {
       <CardHeader>
         <CardTitle className="text-sm">Funnel rates</CardTitle>
       </CardHeader>
-      <CardContent className="flex-1 flex flex-col justify-between gap-2">
+      <CardContent className="flex-1 grid grid-cols-[auto_1fr_auto] auto-rows-fr items-center gap-x-4">
         {rates.map((r) => (
-          <div key={r.label} className="space-y-0.5">
-            <div className="text-[10px] uppercase tracking-[0.18em] text-ink-3">
+          <Fragment key={r.label}>
+            <span className="text-xs uppercase tracking-[0.16em] text-ink-3">
               {r.label}
-            </div>
-            <div className="flex items-end justify-between gap-3">
-              <span className="font-display text-[2.6rem] leading-none num text-ink">
-                {r.value}
-              </span>
+            </span>
+            <span className="font-display text-3xl num text-ink">{r.value}</span>
+            <span className="justify-self-end">
               {r.delta ? <BigDelta delta={r.delta} inverted={r.inverted} /> : null}
-            </div>
-          </div>
+            </span>
+          </Fragment>
         ))}
       </CardContent>
     </Card>
