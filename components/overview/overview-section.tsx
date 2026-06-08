@@ -1,5 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
+  creativePoints,
+  kpis,
   metricOverTime,
   productMix,
   tagMix,
@@ -13,6 +15,7 @@ import {
   creativeStatusTransitions,
   type CreativeStatusTransitions,
 } from "@/db/queries/creative-status";
+import { getRatingConfig } from "@/db/queries/rating";
 import {
   MetricOverTimeChart,
   type OverTimeKey,
@@ -23,6 +26,9 @@ import { TypeMixBars } from "@/components/charts/type-mix-bars";
 import { TagLeaderboard } from "@/components/charts/tag-leaderboard";
 import { TopMoversChart } from "@/components/overview/top-movers-chart";
 import { StatusFlow } from "@/components/overview/status-flow";
+import { FunnelCard } from "@/components/overview/funnel-card";
+import { RoasScatter } from "@/components/charts/roas-scatter";
+import { RatingDistribution } from "@/components/overview/rating-distribution";
 import { PLATFORM_COLOR, PLATFORM_LABEL, swatchColor } from "@/lib/palette";
 
 const EMPTY_TRANSITIONS: CreativeStatusTransitions = {
@@ -61,6 +67,9 @@ export async function OverviewSection({ filters, dimension, dimensionLabel }: Pr
     tagMixRows,
     moverRows,
     statusTransitions,
+    k,
+    points,
+    ratingConfig,
   ] = await Promise.all([
     metricOverTime(filters, dimension),
     topCreatives(filters, 10),
@@ -73,6 +82,9 @@ export async function OverviewSection({ filters, dimension, dimensionLabel }: Pr
     hasRange
       ? creativeStatusTransitions(filters.from!, filters.to!)
       : Promise.resolve(EMPTY_TRANSITIONS),
+    kpis(filters),
+    creativePoints(filters),
+    getRatingConfig(),
   ]);
 
   // Order the over-time lines by total spend; cap campaign lines so the chart
@@ -152,6 +164,13 @@ export async function OverviewSection({ filters, dimension, dimensionLabel }: Pr
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <TopMoversChart rows={moverRows} />
         <StatusFlow data={statusTransitions} />
+      </div>
+
+      {/* Funnel + spend-vs-ROAS scatter + rating distribution */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <FunnelCard k={k} />
+        <RoasScatter points={points.slice(0, 40)} />
+        <RatingDistribution points={points} config={ratingConfig} />
       </div>
 
       {/* Top creatives */}

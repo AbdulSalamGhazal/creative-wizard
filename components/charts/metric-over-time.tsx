@@ -132,11 +132,11 @@ export function MetricOverTimeChart({ rows, keys, dimension, dimensionLabel }: P
           </Select>
           <span className="text-sm text-ink-2">over time</span>
         </div>
-        <span className="text-[11px] text-ink-3">
-          {dimension === "campaign"
-            ? `by campaign${dimensionLabel ? ` · ${dimensionLabel}` : ""}`
-            : "by platform"}
-        </span>
+        {dimension === "campaign" && (
+          <span className="text-[11px] text-ink-3">
+            by campaign{dimensionLabel ? ` · ${dimensionLabel}` : ""}
+          </span>
+        )}
       </div>
 
       {/* Legend */}

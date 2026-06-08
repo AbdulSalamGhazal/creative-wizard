@@ -468,6 +468,60 @@ export async function platformMix(
   }));
 }
 
+export interface CreativePoint {
+  creativeId: string;
+  name: string;
+  spend: number;
+  roas: number | null;
+  conversions: number | null;
+}
+
+/**
+ * One lean row per creative (spend / ROAS / conversions) for the Dashboard's
+ * spend-vs-ROAS scatter and rating distribution. Ordered by spend desc; only
+ * creatives with spend in the window. No product join / sparkline (unlike
+ * topCreatives) so it stays cheap across the whole library.
+ */
+export async function creativePoints(
+  filters: KpiFilters,
+): Promise<CreativePoint[]> {
+  const { conditions, needsTagJoin } = await buildBaseConditions(filters);
+
+  let q = db
+    .select({
+      creativeId: creatives.id,
+      name: creatives.name,
+      spend: sumSpend,
+      roas,
+      conversions: sumConversions,
+    })
+    .from(performanceRecords)
+    .innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId))
+    .$dynamic();
+
+  if (needsTagJoin) {
+    q = q.innerJoin(
+      creativeTags,
+      eq(creativeTags.creativeId, performanceRecords.creativeId),
+    );
+  }
+
+  const rows = await q
+    .where(and(...conditions))
+    .groupBy(creatives.id, creatives.name)
+    .orderBy(desc(sumSpend));
+
+  return rows
+    .map((r) => ({
+      creativeId: r.creativeId,
+      name: r.name,
+      spend: Number(r.spend ?? 0),
+      roas: num(r.roas),
+      conversions: num(r.conversions),
+    }))
+    .filter((r) => r.spend > 0);
+}
+
 export type BreakdownDimension = "platform" | "campaign";
 
 export interface MetricBreakdownRow {

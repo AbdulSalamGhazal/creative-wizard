@@ -70,11 +70,11 @@ export function TypeMixBars({
     <Card className="bg-surface border-line h-full flex flex-col">
       <CardHeader className="flex-row items-center justify-between gap-2 space-y-0">
         <CardTitle className="text-sm">Type mix</CardTitle>
-        <span className="text-[11px] text-ink-3 font-normal">
-          {dimension === "campaign"
-            ? `by campaign${dimensionLabel ? ` · ${dimensionLabel}` : ""}`
-            : "by platform"}
-        </span>
+        {dimension === "campaign" && (
+          <span className="text-[11px] text-ink-3 font-normal">
+            by campaign{dimensionLabel ? ` · ${dimensionLabel}` : ""}
+          </span>
+        )}
       </CardHeader>
       <CardContent className="flex-1 flex flex-col gap-3">
         {/* Type legend */}
