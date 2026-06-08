@@ -30,6 +30,7 @@ const EMPTY_TRANSITIONS: CreativeStatusTransitions = {
   startCounts: { new: 0, active: 0, pause: 0, terminated: 0 },
   endCounts: { new: 0, active: 0, pause: 0, terminated: 0 },
   total: 0,
+  untouchedNew: 0,
 };
 
 const CAMPAIGN_LINE_LIMIT = 6;

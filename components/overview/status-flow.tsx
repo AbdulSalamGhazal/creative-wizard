@@ -5,6 +5,7 @@ import {
   STATUS_LABEL,
   type CreativeStatus,
 } from "@/lib/creative-status";
+import { int } from "@/lib/format";
 import type { CreativeStatusTransitions } from "@/db/queries/creative-status";
 
 // SVG coordinate space (scales to container width via viewBox).
@@ -34,7 +35,7 @@ export function StatusFlow({
 }: {
   data: CreativeStatusTransitions;
 }) {
-  const { transitions, startCounts, endCounts, total } = data;
+  const { transitions, startCounts, endCounts, total, untouchedNew } = data;
 
   const startStatuses = CREATIVE_STATUSES.filter((s) => startCounts[s] > 0);
   const endStatuses = CREATIVE_STATUSES.filter((s) => endCounts[s] > 0);
@@ -93,7 +94,8 @@ export function StatusFlow({
           start of period → now
         </span>
       </CardHeader>
-      <CardContent className="flex-1 flex items-center">
+      <CardContent className="flex-1 flex flex-col">
+        <div className="flex-1 flex items-center">
         {total === 0 ? (
           <div className="w-full min-h-[140px] flex items-center justify-center text-ink-3 text-sm">
             No status changes in this window.
@@ -158,6 +160,16 @@ export function StatusFlow({
               </g>
             ))}
           </svg>
+        )}
+        </div>
+        {untouchedNew > 0 && (
+          <div className="flex items-center gap-1.5 text-[11px] text-ink-3 pt-2 mt-1 border-t border-line">
+            <span
+              className="h-2 w-2 rounded-full shrink-0"
+              style={{ background: STATUS_DOT.new }}
+            />
+            {int(untouchedNew)} untouched · still New (not in the flow)
+          </div>
         )}
       </CardContent>
     </Card>

@@ -224,7 +224,10 @@ export interface CreativeStatusTransitions {
   transitions: StatusTransition[];
   startCounts: Record<CreativeStatus, number>;
   endCounts: Record<CreativeStatus, number>;
+  /** Creatives that appear in the flow (had any spend/termination at either end). */
   total: number;
+  /** New-at-both-ends creatives left OUT of the flow (never spent or terminated). */
+  untouchedNew: number;
 }
 
 function isoMinusOneDay(iso: string): string {
@@ -277,5 +280,14 @@ export async function creativeStatusTransitions(
     return { from: f, to: t, count };
   });
 
-  return { transitions, startCounts, endCounts, total: ids.size };
+  // The bulk left out of the flow: creatives New at both ends (never spent, never
+  // terminated) = total brand creatives minus those with any history.
+  const acct = await getActiveAccountId();
+  const [cnt] = await db
+    .select({ total: sql<number>`COUNT(*)::int` })
+    .from(creatives)
+    .where(eq(creatives.accountId, acct));
+  const untouchedNew = Math.max(0, Number(cnt?.total ?? 0) - ids.size);
+
+  return { transitions, startCounts, endCounts, total: ids.size, untouchedNew };
 }
