@@ -404,7 +404,6 @@ function passesMetricFilters(
   });
 }
 
-const ALL_PLATFORMS: Platform[] = ["instagram", "facebook", "tiktok", "snapchat", "google"];
 
 /**
  * The Summary view's single query. Returns one row per creative with every
@@ -441,9 +440,15 @@ export async function listCreativeSummary(
   const selectedPlatforms: Platform[] =
     filters.platforms && filters.platforms.length > 0
       ? filters.platforms.slice(0, 5)
-      : (ALL_PLATFORMS.slice(0, 3) as Platform[]);
+      : [];
 
   const resolved = resolveSort(filters.sort, filters.dir, selectedPlatforms);
+
+  // No platform selected → show nothing. Platform selection is explicit: an
+  // empty selection means an empty table, not a silent default set of platforms.
+  if (selectedPlatforms.length === 0) {
+    return { rows: [], platforms: [], effectiveSort: resolved };
+  }
 
   // Pre-build per-platform metric fragments once so the SELECT and the
   // ORDER BY share the same expressions.

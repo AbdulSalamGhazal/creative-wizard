@@ -106,9 +106,9 @@ export default async function SummaryPage({
       ? `${parsed.from} → ${parsed.to}`
       : "all time";
   const platformsLabel =
-    selectedPlatforms.length === parsed.platforms.length || parsed.platforms.length === 0
-      ? "default platforms"
-      : `${selectedPlatforms.join(", ")}`;
+    selectedPlatforms.length === 0
+      ? "no platforms selected"
+      : selectedPlatforms.join(", ");
 
   return (
     <div className="space-y-4">

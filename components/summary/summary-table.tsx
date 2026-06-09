@@ -271,12 +271,18 @@ export function SummaryTable({
   };
 
   if (rows.length === 0) {
+    const noPlatforms = platforms.length === 0;
     return (
       <div className="rounded-lg border border-dashed border-line bg-surface px-6 py-16 text-center">
-        <p className="text-ink-2 text-sm">No creatives match these filters.</p>
+        <p className="text-ink-2 text-sm">
+          {noPlatforms
+            ? "Select one or more platforms to see the summary."
+            : "No creatives match these filters."}
+        </p>
         <p className="text-ink-3 text-xs mt-1">
-          Try widening the date range, removing filters, or selecting more
-          platforms.
+          {noPlatforms
+            ? "Use the Platforms filter above to choose which platforms to compare."
+            : "Try widening the date range, removing filters, or selecting more platforms."}
         </p>
       </div>
     );
