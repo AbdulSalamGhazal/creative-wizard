@@ -77,6 +77,11 @@ const TYPES = creativeTypeEnum.map((value) => ({
   label: TYPE_LABEL[value] ?? value,
 }));
 
+const ALL_PLATFORM_VALUES = PLATFORMS.map((p) => p.value);
+// Sentinel meaning "the user deliberately deselected every platform" — distinct
+// from an absent param (which defaults to all). Parses to [] server-side.
+const PLATFORMS_NONE = "none";
+
 /** Human labels for the Columns dropdown — must match the keys in validators/summary. */
 const IDENTITY_LABELS: Record<IdentityColumnKey, string> = {
   product: "Product",
@@ -121,7 +126,15 @@ export function SummaryFilterBar({
 
   const from = searchParams.get("from");
   const to = searchParams.get("to");
-  const platforms = csv(searchParams.get("platforms")).slice(0, MAX_PLATFORMS);
+  // No `platforms` param → all platforms (the default). The "none" sentinel →
+  // nothing selected (user cleared them). Otherwise the listed subset.
+  const rawPlatforms = searchParams.get("platforms");
+  const platforms =
+    rawPlatforms === null
+      ? ALL_PLATFORM_VALUES
+      : rawPlatforms === PLATFORMS_NONE
+        ? []
+        : csv(rawPlatforms).slice(0, MAX_PLATFORMS);
   const productIds = csv(searchParams.get("productIds"));
   const types = csv(searchParams.get("types"));
   const selectedTags = csv(searchParams.get("tags"));
@@ -206,7 +219,10 @@ export function SummaryFilterBar({
       set.add(value);
     }
     update((next) => {
-      if (set.size === 0) next.delete("platforms");
+      if (set.size === 0)
+        next.set("platforms", PLATFORMS_NONE); // explicit "show nothing"
+      else if (set.size >= ALL_PLATFORM_VALUES.length)
+        next.delete("platforms"); // all selected = the default → clean URL
       else next.set("platforms", [...set].join(","));
     });
   };
@@ -426,12 +442,14 @@ export function SummaryFilterBar({
           label="Platforms"
           value={
             platforms.length === 0
-              ? "All"
-              : platforms.length === 1
-                ? (PLATFORMS.find((p) => p.value === platforms[0])?.label ?? "1")
-                : `${platforms.length} selected`
+              ? "None"
+              : platforms.length >= ALL_PLATFORM_VALUES.length
+                ? "All"
+                : platforms.length === 1
+                  ? (PLATFORMS.find((p) => p.value === platforms[0])?.label ?? "1")
+                  : `${platforms.length} selected`
           }
-          active={platforms.length > 0}
+          active={platforms.length < ALL_PLATFORM_VALUES.length}
         >
           {() => (
             <DropdownMenuContent align="start" className="w-56">

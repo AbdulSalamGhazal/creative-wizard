@@ -8,6 +8,7 @@ import {
   listSummaryViews,
 } from "@/db/queries/summary-views";
 import { summaryFiltersSchema } from "@/validators/summary";
+import { platformEnum } from "@/db/schema";
 import { requireAuth } from "@/lib/auth";
 import { SummaryFilterBar } from "@/components/summary/summary-filter-bar";
 import { SummaryTable } from "@/components/summary/summary-table";
@@ -61,6 +62,14 @@ export default async function SummaryPage({
     status: pickFirst(params.status),
   });
 
+  // Platform default: NO `platforms` param at all → all platforms (the default
+  // landing view). An explicit `platforms=none` sentinel (the user deselected
+  // every platform) parses to [] and shows nothing. A subset → just those.
+  const effectivePlatforms =
+    pickFirst(params.platforms) === undefined
+      ? [...platformEnum]
+      : parsed.platforms;
+
   // Rating config (default + per-platform overrides) feeds the Rate column and
   // the rate sort/filter, so fetch it first and hand it to the summary query.
   const ratingConfig = await getRatingConfig();
@@ -77,7 +86,7 @@ export default async function SummaryPage({
       to: parsed.to,
       q: parsed.q,
       productIds: parsed.productIds.length > 0 ? parsed.productIds : undefined,
-      platforms: parsed.platforms.length > 0 ? parsed.platforms : undefined,
+      platforms: effectivePlatforms.length > 0 ? effectivePlatforms : undefined,
       types: parsed.types.length > 0 ? parsed.types : undefined,
       tags: parsed.tags.length > 0 ? parsed.tags : undefined,
       creatorIds: parsed.creatorIds.length > 0 ? parsed.creatorIds : undefined,
@@ -108,7 +117,9 @@ export default async function SummaryPage({
   const platformsLabel =
     selectedPlatforms.length === 0
       ? "no platforms selected"
-      : selectedPlatforms.join(", ");
+      : selectedPlatforms.length === platformEnum.length
+        ? "all platforms"
+        : selectedPlatforms.join(", ");
 
   return (
     <div className="space-y-4">
