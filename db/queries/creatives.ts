@@ -73,42 +73,33 @@ export interface CreativeListResult {
 export async function listCreatives(
   filters: CreativeListFilters,
 ): Promise<CreativeListResult> {
-  // The recent-spend windows must respect the platform filter so the 7d/30d
-  // columns reflect what's actually filtered — without this they always summed
-  // every platform regardless of the selection. (Account isolation is already
-  // guaranteed by the creative_id join to the account-scoped `creatives`.)
-  const platformCond =
-    filters.platforms && filters.platforms.length > 0
-      ? sql` AND platform = ANY(${filters.platforms})`
-      : sql``;
-
-  const spend30d = db.$with("spend_30d").as(
-    db
-      .select({
-        creativeId: sql<string>`creative_id`.as("creative_id"),
-        spend: sql<string>`SUM(spend)`.as("spend"),
-      })
-      .from(
-        sql`(SELECT creative_id, spend FROM performance_records
-             WHERE date >= CURRENT_DATE - INTERVAL '30 days'
-               AND excluded_from_aggregates = false${platformCond}) AS pr`,
-      )
-      .groupBy(sql`creative_id`),
-  );
-
-  const spend7d = db.$with("spend_7d").as(
-    db
-      .select({
-        creativeId: sql<string>`creative_id`.as("creative_id"),
-        spend: sql<string>`SUM(spend)`.as("spend"),
-      })
-      .from(
-        sql`(SELECT creative_id, spend FROM performance_records
-             WHERE date >= CURRENT_DATE - INTERVAL '7 days'
-               AND excluded_from_aggregates = false${platformCond}) AS pr`,
-      )
-      .groupBy(sql`creative_id`),
-  );
+  // Recent-spend windows. Built via the query builder (not a raw subquery) so
+  // the platform predicate binds safely through `inArray`. They respect the
+  // platform filter so the 7d/30d columns reflect what's actually filtered
+  // (without it they summed every platform). The interval is inlined from a
+  // trusted integer; account isolation comes from the creative_id join to the
+  // account-scoped `creatives`.
+  const spendWindowCte = (alias: string, days: number) => {
+    const conds: SQL[] = [
+      sql`${performanceRecords.date} >= CURRENT_DATE - ${sql.raw(`INTERVAL '${days} days'`)}`,
+      eq(performanceRecords.excludedFromAggregates, false),
+    ];
+    if (filters.platforms && filters.platforms.length > 0) {
+      conds.push(inArray(performanceRecords.platform, filters.platforms));
+    }
+    return db.$with(alias).as(
+      db
+        .select({
+          creativeId: sql<string>`${performanceRecords.creativeId}`.as("creative_id"),
+          spend: sql<string>`SUM(${performanceRecords.spend})`.as("spend"),
+        })
+        .from(performanceRecords)
+        .where(and(...conds))
+        .groupBy(performanceRecords.creativeId),
+    );
+  };
+  const spend30d = spendWindowCte("spend_30d", 30);
+  const spend7d = spendWindowCte("spend_7d", 7);
 
   const tagAgg = db.$with("tag_agg").as(
     db
