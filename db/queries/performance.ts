@@ -413,8 +413,14 @@ export async function creativeLeaderboard(
   const seriesByCreative = new Map<string, number[]>();
   const poolIds = [...pool];
   if (poolIds.length > 0) {
+    // Mirror the base query's record-level scope so the sparkline can't diverge
+    // from the aggregate: account (defense-in-depth), date, excluded, platform,
+    // and campaign. (Creative-level filters — product/type/tag — are already
+    // baked into poolIds, which is a subset of the filtered `base`.)
+    const acct = await getActiveAccountId();
     const sparkConditions: SQL[] = [
       inArray(performanceRecords.creativeId, poolIds),
+      eq(performanceRecords.accountId, acct),
     ];
     if (filters.from && filters.to) {
       sparkConditions.push(
@@ -427,6 +433,11 @@ export async function creativeLeaderboard(
     if (filters.platforms && filters.platforms.length > 0) {
       sparkConditions.push(
         inArray(performanceRecords.platform, filters.platforms),
+      );
+    }
+    if (filters.campaignNames && filters.campaignNames.length > 0) {
+      sparkConditions.push(
+        inArray(performanceRecords.campaignName, filters.campaignNames),
       );
     }
     const sparkRows = await db

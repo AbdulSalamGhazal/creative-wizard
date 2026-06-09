@@ -38,15 +38,22 @@ function buildConditions(f: CleanupMatch, acct: string): SQL[] {
     conds.push(inArray(performanceRecords.creativeId, f.creativeIds));
   }
   if (f.productIds && f.productIds.length > 0) {
-    // performance_records has no product_id; match creatives under the
-    // selected products via a subquery.
+    // performance_records has no product_id; match creatives under the selected
+    // products via a subquery. Scope the subquery to the active account too —
+    // it feeds a destructive hard-delete, so it must never resolve another
+    // brand's product ids.
     conds.push(
       inArray(
         performanceRecords.creativeId,
         db
           .select({ id: creatives.id })
           .from(creatives)
-          .where(inArray(creatives.productId, f.productIds)),
+          .where(
+            and(
+              eq(creatives.accountId, acct),
+              inArray(creatives.productId, f.productIds),
+            ),
+          ),
       ),
     );
   }

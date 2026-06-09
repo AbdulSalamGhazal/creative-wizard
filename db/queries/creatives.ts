@@ -187,7 +187,11 @@ export async function listCreatives(
   // at 50, which silently hid creatives — with all-NULL launch dates the cap
   // sliced by name and dropped whole types (image/slides) past row 50. Callers
   // that want a smaller page can still pass an explicit `limit`.
-  const rows = await (filters.limit
+  // Skip the SQL LIMIT when a status filter is active: the derived-status filter
+  // runs in JS AFTER the query, so a DB-side limit would slice BEFORE filtering
+  // and both the rows and the "N of M" count would miss status-matching
+  // creatives past the cap. With a status filter we fetch all and limit in JS.
+  const rows = await (filters.limit && !filters.statuses?.length
     ? baseQuery.limit(filters.limit)
     : baseQuery);
 
@@ -259,7 +263,13 @@ export async function listCreatives(
       ? Number(rows[0].totalMatching)
       : 0;
 
-  return { rows: mapped, totalMatching };
+  // With a status filter the SQL LIMIT was skipped, so apply the caller's limit
+  // to the RETURNED rows here — totalMatching above already reflects the full
+  // filtered count.
+  const finalRows =
+    filters.limit && statusFiltered ? mapped.slice(0, filters.limit) : mapped;
+
+  return { rows: finalRows, totalMatching };
 }
 
 function orderByForSort(sort: CreativeSort): SQL[] {

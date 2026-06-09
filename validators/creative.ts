@@ -56,12 +56,19 @@ export type CreativeTerminationInput = z.infer<typeof creativeTerminationSchema>
 // -----------------------------------------------------------------------------
 
 function csvEnum<T extends readonly [string, ...string[]]>(values: T) {
+  const allowed = new Set<string>(values);
+  // Drop only the INVALID tokens, keeping valid siblings — a single stale value
+  // (e.g. a legacy `platforms=meta` link) must not silently disable the whole
+  // filter. (The old `.pipe(z.array(z.enum)).catch([])` reset the entire array
+  // to [] on any bad token.)
   return z
     .string()
     .optional()
-    .transform((s) => (s ? s.split(",").filter(Boolean) : []))
-    .pipe(z.array(z.enum(values)))
-    .catch([]);
+    .transform((s) =>
+      (s ? s.split(",").filter(Boolean) : []).filter(
+        (v): v is T[number] => allowed.has(v),
+      ),
+    );
 }
 
 function csvString() {

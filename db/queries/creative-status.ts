@@ -195,14 +195,18 @@ export async function creativeStatusBreakdown(): Promise<CreativeStatusBreakdown
   }
 
   for (const res of map.values()) {
-    general[res.general] += 1; // in-map general is always active/pause/terminated
+    // NB: an in-map general CAN be "new" — a creative terminated on one platform
+    // but never spent anywhere rolls up to New (hasAnyNew). So count it here…
+    general[res.general] += 1;
     for (const p of platformEnum) {
       const s = res.perPlatform[p as Platform];
       if (s) perPlatform[p as Platform][s] += 1;
     }
   }
-  // Creatives with no spend and no termination never enter the map → all New.
-  general.new = Math.max(0, total - map.size);
+  // …and ADD (not overwrite) the creatives that never entered the map (no spend
+  // and no termination → New). Overwriting would drop the in-map News above and
+  // make the four buckets sum to less than `total`.
+  general.new += Math.max(0, total - map.size);
 
   // Per-platform "new" = every creative not present (running/paused/terminated)
   // on that platform — i.e. it has never started there.

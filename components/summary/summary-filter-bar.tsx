@@ -335,7 +335,10 @@ export function SummaryFilterBar({
     productIds.length > 0 ||
     types.length > 0 ||
     selectedTags.length > 0 ||
-    platforms.length > 0 ||
+    // A platform filter is "active" only when the URL explicitly sets it — the
+    // default (no param) resolves `platforms` to all 5, so `platforms.length`
+    // would otherwise be permanently truthy and pin the "Clear" button on.
+    rawPlatforms !== null ||
     !!from ||
     !!to ||
     includeExcluded ||

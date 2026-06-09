@@ -93,9 +93,22 @@ interface PivotRow {
 export function MetricOverTimeChart({ rows, keys, dimension, dimensionLabel }: Props) {
   const [metric, setMetric] = useState<MetricKey>("spend");
   const def = METRICS.find((m) => m.value === metric) ?? METRICS[0]!;
-  const labelByKey = useMemo(
-    () => new Map(keys.map((k) => [k.key, k.label])),
+  // Recharts resolves a STRING dataKey through lodash get(), which treats "." /
+  // "[" / "]" as a nested path — so a campaign name like "2.0 Launch ➤ Broad"
+  // would silently plot nothing (looked up as row["2"]["0 Launch ➤ Broad"]).
+  // Map every series to a safe synthetic id (s0, s1, …) used for the pivot
+  // property AND the <Line dataKey>; the real name lives only in the label.
+  const safeKeys = useMemo(
+    () => keys.map((k, i) => ({ ...k, id: `s${i}` })),
     [keys],
+  );
+  const idByKey = useMemo(
+    () => new Map(safeKeys.map((k) => [k.key, k.id])),
+    [safeKeys],
+  );
+  const labelById = useMemo(
+    () => new Map(safeKeys.map((k) => [k.id, k.label])),
+    [safeKeys],
   );
 
   const data = useMemo<PivotRow[]>(() => {
@@ -105,13 +118,14 @@ export function MetricOverTimeChart({ rows, keys, dimension, dimensionLabel }: P
       let e = byDate.get(r.date);
       if (!e) {
         e = { date: r.date };
-        for (const k of keys) e[k.key] = null;
+        for (const k of safeKeys) e[k.id] = null;
         byDate.set(r.date, e);
       }
-      e[r.key] = def.pick(r);
+      const id = idByKey.get(r.key);
+      if (id) e[id] = def.pick(r);
     }
     return [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
-  }, [rows, keys, def]);
+  }, [rows, safeKeys, idByKey, def]);
 
   return (
     <div className="rounded-xl border border-line bg-surface p-4 md:p-5 space-y-3">
@@ -185,15 +199,15 @@ export function MetricOverTimeChart({ rows, keys, dimension, dimensionLabel }: P
                   <CustomTooltip
                     fmt={def.fmt}
                     additive={def.additive}
-                    labelByKey={labelByKey}
+                    labelByKey={labelById}
                   />
                 }
               />
-              {keys.map((k) => (
+              {safeKeys.map((k) => (
                 <Line
-                  key={k.key}
+                  key={k.id}
                   type="monotone"
-                  dataKey={k.key}
+                  dataKey={k.id}
                   stroke={k.color}
                   strokeWidth={1.8}
                   dot={false}
