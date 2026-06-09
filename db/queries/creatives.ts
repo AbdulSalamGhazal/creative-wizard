@@ -73,6 +73,15 @@ export interface CreativeListResult {
 export async function listCreatives(
   filters: CreativeListFilters,
 ): Promise<CreativeListResult> {
+  // The recent-spend windows must respect the platform filter so the 7d/30d
+  // columns reflect what's actually filtered — without this they always summed
+  // every platform regardless of the selection. (Account isolation is already
+  // guaranteed by the creative_id join to the account-scoped `creatives`.)
+  const platformCond =
+    filters.platforms && filters.platforms.length > 0
+      ? sql` AND platform = ANY(${filters.platforms})`
+      : sql``;
+
   const spend30d = db.$with("spend_30d").as(
     db
       .select({
@@ -82,7 +91,7 @@ export async function listCreatives(
       .from(
         sql`(SELECT creative_id, spend FROM performance_records
              WHERE date >= CURRENT_DATE - INTERVAL '30 days'
-               AND excluded_from_aggregates = false) AS pr`,
+               AND excluded_from_aggregates = false${platformCond}) AS pr`,
       )
       .groupBy(sql`creative_id`),
   );
@@ -96,7 +105,7 @@ export async function listCreatives(
       .from(
         sql`(SELECT creative_id, spend FROM performance_records
              WHERE date >= CURRENT_DATE - INTERVAL '7 days'
-               AND excluded_from_aggregates = false) AS pr`,
+               AND excluded_from_aggregates = false${platformCond}) AS pr`,
       )
       .groupBy(sql`creative_id`),
   );
