@@ -444,12 +444,6 @@ export async function listCreativeSummary(
 
   const resolved = resolveSort(filters.sort, filters.dir, selectedPlatforms);
 
-  // No platform selected → show nothing. Platform selection is explicit: an
-  // empty selection means an empty table, not a silent default set of platforms.
-  if (selectedPlatforms.length === 0) {
-    return { rows: [], platforms: [], effectiveSort: resolved };
-  }
-
   // Pre-build per-platform metric fragments once so the SELECT and the
   // ORDER BY share the same expressions.
   const metricsByPlatform = new Map<Platform, ReturnType<typeof platformMetrics>>();
@@ -458,11 +452,16 @@ export async function listCreativeSummary(
   }
 
   // -------- JOIN clauses on performance_records --------
+  // NB: deliberately NOT filtered by platform. The blended Total must always be
+  // every platform's combined figure regardless of which per-platform columns
+  // are shown, and each per-platform block isolates its own platform via a
+  // FILTER aggregate (scopedMetrics). So a creative that ran on a hidden
+  // platform still contributes to its Total. Platform selection only controls
+  // which per-platform *columns* are emitted (the SELECT loop below).
   const joinConds: SQL[] = [eq(performanceRecords.creativeId, creatives.id)];
   if (filters.from && filters.to) {
     joinConds.push(between(performanceRecords.date, filters.from, filters.to));
   }
-  joinConds.push(inArray(performanceRecords.platform, selectedPlatforms));
   if (!filters.includeExcluded) {
     joinConds.push(eq(performanceRecords.excludedFromAggregates, false));
   }
@@ -506,9 +505,10 @@ export async function listCreativeSummary(
     type: creatives.type,
     creatorName: users.name,
     creatorEmail: users.email,
-    // Blended totals — uses the canonical lib/metrics fragments. The JOIN
-    // already restricted rows to the selected platforms + date range, so
-    // these sum the correct universe.
+    // Blended totals — canonical lib/metrics fragments over ALL platforms (the
+    // JOIN is intentionally not platform-filtered), so the Total is the combined
+    // figure across every platform regardless of which per-platform columns are
+    // shown.
     totalSpend: sumSpend,
     totalImpressions: sumImpressions,
     totalClicks: sumClicks,
