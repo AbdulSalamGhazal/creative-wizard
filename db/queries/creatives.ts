@@ -143,18 +143,11 @@ export async function listCreatives(
                     AND ct.tag IN ${filters.tags})`,
     );
   }
-  if (filters.platforms && filters.platforms.length > 1) {
-    // Multiple platforms: narrow to creatives with data on any of them.
-    // EXISTS avoids fan-out (a creative on two platforms isn't doubled).
-    conditions.push(
-      sql`EXISTS (SELECT 1 FROM ${performanceRecords} pr
-                  WHERE pr.creative_id = ${creatives.id}
-                    AND pr.platform IN ${filters.platforms})`,
-    );
-  }
-  // Single platform: DO NOT filter by presence. Show every creative and derive
-  // its per-platform status (New when it never ran there). The platform filter's
-  // purpose here is to scope the status badge, not to narrow the list.
+  // The platform filter NEVER narrows the list (one platform or several). It
+  // only scopes the status (and the 7d/30d spend columns) to the selected
+  // platform(s): every creative still shows, and its status becomes the roll-up
+  // over just those platforms — New where it never ran on any of them. See
+  // effectiveStatus below.
 
   // Build dynamic ORDER BY from the enum. Tuple of SQL fragments is safe
   // because we never interpolate user input here.
@@ -201,20 +194,28 @@ export async function listCreatives(
   // Attach the dynamic, derived status to every row (account-scoped, batched).
   const statusMap = await creativeStatusMap(rows.map((r) => r.id));
 
-  // When EXACTLY ONE platform is filtered, the Library scopes status to THAT
-  // platform (badge + filter + sort all reflect the per-platform status), so a
-  // creative that ran on the platform shows with its status there — Active on
-  // Instagram but Paused on TikTok reads "Pause" under a TikTok filter, and
-  // isn't hidden. With 0 or multiple platforms we show the general roll-up.
-  // A creative that ran on the platform but never spent there → "new".
-  const scopePlatform =
-    filters.platforms && filters.platforms.length === 1
-      ? filters.platforms[0]!
-      : null;
+  // The shown status is scoped to the SELECTED platforms — for one or several,
+  // roll up over just those platforms with the same precedence as the general
+  // roll-up (active ▸ pause ▸ new ▸ terminated; a platform the creative never
+  // ran on counts as New). No platform selected → the general (all-platform)
+  // roll-up. Badge, status filter, and status sort all read this.
+  const scopePlatforms = filters.platforms ?? [];
   const effectiveStatus = (id: string): CreativeStatus => {
     const s = statusFor(statusMap, id);
-    if (scopePlatform) return s.perPlatform[scopePlatform] ?? "new";
-    return s.general;
+    if (scopePlatforms.length === 0) return s.general;
+    let anyActive = false;
+    let anyPause = false;
+    let anyNew = false;
+    for (const p of scopePlatforms) {
+      const ps = s.perPlatform[p];
+      if (ps === "active") anyActive = true;
+      else if (ps === "pause") anyPause = true;
+      else if (ps !== "terminated") anyNew = true; // undefined = never ran there
+    }
+    if (anyActive) return "active";
+    if (anyPause) return "pause";
+    if (anyNew) return "new";
+    return "terminated";
   };
 
   let mapped: CreativeListRow[] = rows.map((r) => ({
