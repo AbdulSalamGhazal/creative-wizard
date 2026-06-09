@@ -48,9 +48,12 @@ const MIN_COL_WIDTH = 90;
 
 export function CreativeTable({
   rows,
+  total,
   listCtx,
 }: {
   rows: CreativeListRow[];
+  /** Total matching across the filter (for the "Showing N of M" count). */
+  total?: number;
   listCtx?: string;
 }) {
   const pathname = usePathname();
@@ -134,7 +137,11 @@ export function CreativeTable({
 
   return (
     <div className="space-y-2">
-      <div className="flex justify-end">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-xs text-ink-3 num">
+          Showing {rows.length}
+          {total !== undefined ? ` of ${total}` : ""} creatives
+        </p>
         <DownloadCsvButton
           csvContent={csvContent}
           filename={`creatives-${todayStamp()}.csv`}

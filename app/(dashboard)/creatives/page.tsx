@@ -69,16 +69,20 @@ export default async function CreativesPage({
       <LibraryHeader breakdown={breakdown} />
       <LibraryFilterBar products={products} tags={allTags} />
 
-      <div className="flex items-center justify-between">
-        <p className="text-xs text-ink-3 num">
-          Showing {listResult.rows.length} of {listResult.totalMatching} creatives
-        </p>
-      </div>
-
       {parsed.view === "table" ? (
-        <CreativeTable rows={listResult.rows} listCtx={listCtx} />
+        <CreativeTable
+          rows={listResult.rows}
+          total={listResult.totalMatching}
+          listCtx={listCtx}
+        />
       ) : (
-        <CreativeGrid rows={listResult.rows} listCtx={listCtx} />
+        <div className="space-y-2">
+          <p className="text-xs text-ink-3 num">
+            Showing {listResult.rows.length} of {listResult.totalMatching}{" "}
+            creatives
+          </p>
+          <CreativeGrid rows={listResult.rows} listCtx={listCtx} />
+        </div>
       )}
     </div>
   );
