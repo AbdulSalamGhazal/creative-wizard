@@ -235,20 +235,26 @@ export function SummaryTable({
     return w ? { width: w, minWidth: w, maxWidth: w } : undefined;
   };
 
+  // First-click direction per column. Status ranks active→pause→new→terminated
+  // ascending (STATUS_ORDER), so asc-first surfaces the most-relevant (active)
+  // creatives; every other column is biggest-first (desc).
+  const firstDir = (key: string): SortDir => (key === "status" ? "asc" : "desc");
+
   const sortHref = (key: string): string => {
     const next = new URLSearchParams(baseParams);
+    const dflt = firstDir(key);
     if (sort.key === key) {
-      // Cycle: desc → asc → reset
-      if (sort.dir === "desc") {
+      // Cycle: <first> → <other> → reset
+      if (sort.dir === dflt) {
         next.set("sort", key);
-        next.set("dir", "asc");
+        next.set("dir", dflt === "desc" ? "asc" : "desc");
       } else {
         next.delete("sort");
         next.delete("dir");
       }
     } else {
       next.set("sort", key);
-      next.set("dir", "desc");
+      next.set("dir", dflt);
     }
     const qs = next.toString();
     return qs ? `${pathname}?${qs}` : pathname;

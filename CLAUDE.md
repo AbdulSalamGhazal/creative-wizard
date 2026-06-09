@@ -279,10 +279,14 @@ This app is deployed and in production use. Treat `main` as shippable.
   `setCreativeTermination` (per creative×platform). Render with
   `<StatusBadge>`. The aggregate KPI views (Overview/Trends/Funnel/Compare)
   dropped their status filter (can't be a SQL WHERE); Library + Summary keep it
-  (Summary's is platform-scoped). KNOWN GAP: the Library/Summary "status" column
-  SORT still orders by the dead legacy column — switch to JS sort on the derived
-  value if you touch it. Migration 0015 (additive: the overrides table + window
-  column + archived→terminated backfill) is applied to prod.
+  (Summary's is platform-scoped). Summary's status column SORT is a JS re-sort
+  over the DERIVED `generalStatus` (STATUS_ORDER), and the status column defaults
+  to **asc on first click** (active→pause→new→terminated, so the most-relevant
+  show first) via `firstDir()` in summary-table.tsx — NOT the dead legacy column.
+  KNOWN GAP: the Library "status" column SORT may still order by the dead legacy
+  column — switch to a JS sort on the derived value if you touch it. Migration
+  0015 (additive: the overrides table + window column + archived→terminated
+  backfill) is applied to prod.
 - **Deleting a creative is a hard delete** (`deleteCreative`). It removes the
   creative's `performance_records` first (no cascade on that FK), then the
   creative (tags cascade). The confirm dialog

@@ -44,6 +44,7 @@ import {
   type CreativeStatus,
 } from "@/lib/creative-status";
 import { PLATFORM_LABEL } from "@/lib/palette";
+import { platformEnum, creativeTypeEnum } from "@/db/schema";
 import { MetricFilterControl } from "@/components/summary/metric-filter";
 import { ViewsControl } from "@/components/summary/views-control";
 import type { SummaryViewRow } from "@/db/queries/summary-views";
@@ -59,19 +60,22 @@ interface Props {
   isAdmin: boolean;
 }
 
-const PLATFORMS = [
-  { value: "instagram", label: "Instagram" },
-  { value: "facebook", label: "Facebook" },
-  { value: "tiktok", label: "TikTok" },
-  { value: "snapchat", label: "Snapchat" },
-  { value: "google", label: "Google" },
-] as const;
-
-const TYPES = [
-  { value: "video", label: "Video" },
-  { value: "image", label: "Image" },
-  { value: "slides", label: "Slides" },
-] as const;
+// Derived from the canonical enums so the option lists can never drift from the
+// live platform/type set (a new platform added to the schema shows up here for
+// free). Labels come from the shared PLATFORM_LABEL map / a local type map.
+const TYPE_LABEL: Record<(typeof creativeTypeEnum)[number], string> = {
+  video: "Video",
+  image: "Image",
+  slides: "Slides",
+};
+const PLATFORMS = platformEnum.map((value) => ({
+  value,
+  label: PLATFORM_LABEL[value] ?? value,
+}));
+const TYPES = creativeTypeEnum.map((value) => ({
+  value,
+  label: TYPE_LABEL[value] ?? value,
+}));
 
 /** Human labels for the Columns dropdown — must match the keys in validators/summary. */
 const IDENTITY_LABELS: Record<IdentityColumnKey, string> = {
