@@ -13,7 +13,6 @@ import { cn } from "@/lib/utils";
 import {
   activePresetKey,
   DATE_PRESETS,
-  DATE_RANGE_COOKIE,
   encodeRememberedRange,
   isoToLocalDate,
   localDateToIso,
@@ -22,12 +21,7 @@ import {
   todayIso,
   type DateRangeValue,
 } from "@/lib/date-presets";
-
-/** Persist the chosen range as this user's default (1-year cookie). */
-function rememberSelection(value: string | null) {
-  if (!value) return;
-  document.cookie = `${DATE_RANGE_COOKIE}=${encodeURIComponent(value)}; path=/; max-age=31536000; samesite=lax`;
-}
+import { rememberDateRange } from "@/app/actions/date-range";
 
 /**
  * Reusable date-range control: the full preset list on the left, a live
@@ -100,8 +94,11 @@ export function DateRangePicker({
     setAnchor(null);
     const fromIso = localDateToIso(fromD);
     const toIso = localDateToIso(toD);
-    if (remember) rememberSelection(encodeRememberedRange(null, fromIso, toIso));
     onChange(fromIso, toIso);
+    if (remember) {
+      const value = encodeRememberedRange(null, fromIso, toIso);
+      if (value) void rememberDateRange(value);
+    }
     setOpen(false);
   };
 
@@ -146,10 +143,10 @@ export function DateRangePicker({
                   key={p.key}
                   type="button"
                   onClick={() => {
-                    if (remember) rememberSelection(p.key);
                     const res = p.range(todayIso());
                     if (res) onChange(res.from, res.to);
                     else onChange(null, null);
+                    if (remember) void rememberDateRange(p.key);
                     setOpen(false);
                   }}
                   className={cn(

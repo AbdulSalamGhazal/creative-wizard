@@ -18,7 +18,16 @@ import {
  */
 export async function readRememberedRange(): Promise<DateRangeValue> {
   const store = await cookies();
-  const raw = store.get(DATE_RANGE_COOKIE)?.value;
+  let raw = store.get(DATE_RANGE_COOKIE)?.value;
+  // Tolerate a percent-encoded value (an earlier client-side writer encoded the
+  // `custom:` prefix) as well as the clean value the server action stores now.
+  if (raw && raw.includes("%")) {
+    try {
+      raw = decodeURIComponent(raw);
+    } catch {
+      // keep the raw value
+    }
+  }
   return decodeRememberedRange(raw, todayIso()) ?? defaultDateRange();
 }
 
