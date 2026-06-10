@@ -3,7 +3,6 @@ import {
   creativeDimensionPoints,
   creativeLeaderboard,
   creativeMetricRows,
-  creativePoints,
   dailyFunnelRates,
   kpis,
   kpisWithDelta,
@@ -33,7 +32,6 @@ import { TagLeaderboard } from "@/components/charts/tag-leaderboard";
 import { TopMoversChart } from "@/components/overview/top-movers-chart";
 import { StatusFlowGrid } from "@/components/overview/status-flow-grid";
 import { FunnelRates } from "@/components/overview/funnel-rates";
-import { RoasScatter } from "@/components/charts/roas-scatter";
 import { CorrelationMatrix } from "@/components/charts/correlation-matrix";
 import {
   RatingMixBars,
@@ -71,7 +69,6 @@ export async function OverviewSection({ filters, dimension, dimensionLabel }: Pr
     moverRows,
     statusScopes,
     kd,
-    points,
     ratingConfig,
     ratingDimRows,
     dailyRates,
@@ -103,7 +100,6 @@ export async function OverviewSection({ filters, dimension, dimensionLabel }: Pr
     hasRange
       ? kpisWithDelta(filters as KpiFilters & { from: string; to: string })
       : Promise.resolve(null as KpisWithDelta | null),
-    creativePoints(filters),
     getRatingConfig(),
     creativeDimensionPoints(filters, dimension),
     dailyFunnelRates(filters),
@@ -217,18 +213,15 @@ export async function OverviewSection({ filters, dimension, dimensionLabel }: Pr
         <TagLeaderboard rows={tagMixRows} />
       </div>
 
-      {/* Top movers */}
-      <TopMoversChart rows={moverRows} />
+      {/* Top movers + funnel rates (full row, half each) */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <TopMoversChart rows={moverRows} />
+        <FunnelRates k={k} kd={kd} daily={dailyRates} />
+      </div>
 
       {/* Status flow — four diagrams (per platform, or per top campaign when a
           single platform is filtered) */}
       <StatusFlowGrid scopes={statusScopes} dimension={dimension} />
-
-      {/* Funnel rates + spend-vs-ROAS scatter (full row, half each) */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <FunnelRates k={k} kd={kd} daily={dailyRates} />
-        <RoasScatter points={points.slice(0, 40)} />
-      </div>
 
       {/* Rating mix + per-creative correlation matrix (full row, half each) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
