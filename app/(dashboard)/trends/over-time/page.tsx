@@ -47,8 +47,8 @@ export default async function TrendsOverTimePage({
   });
 
   const range = await resolvePreferredRange(
-    parsed.from,
-    parsed.to,
+    pickFirst(params.from),
+    pickFirst(params.to),
     defaultDateRange(TRAILING_DAYS_DEFAULT),
   );
   const from = range.from;

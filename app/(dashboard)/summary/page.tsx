@@ -8,7 +8,7 @@ import {
   listSummaryViews,
 } from "@/db/queries/summary-views";
 import { summaryFiltersSchema } from "@/validators/summary";
-import { getPreferredRange } from "@/db/queries/user-prefs";
+import { resolvePreferredRange } from "@/db/queries/user-prefs";
 import { LIFETIME_FLOOR, presetLabel, todayIso } from "@/lib/date-presets";
 import { platformEnum } from "@/db/schema";
 import { requireAuth } from "@/lib/auth";
@@ -65,14 +65,13 @@ export default async function SummaryPage({
   });
 
   // An explicit, valid URL range wins; otherwise the user's saved default;
-  // otherwise all-time (Lifetime). (Summary previously defaulted to all-time.)
-  const range =
-    parsed.from && parsed.to
-      ? { from: parsed.from, to: parsed.to }
-      : ((await getPreferredRange()) ?? {
-          from: LIFETIME_FLOOR,
-          to: todayIso(),
-        });
+  // otherwise all-time (Lifetime). RAW params (not the validator-defaulted
+  // parsed.from/to) so the saved preference isn't masked.
+  const range = await resolvePreferredRange(
+    pickFirst(params.from),
+    pickFirst(params.to),
+    { from: LIFETIME_FLOOR, to: todayIso() },
+  );
 
   // Platform default: NO `platforms` param at all → all platforms (the default
   // landing view). An explicit `platforms=none` sentinel (the user deselected

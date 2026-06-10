@@ -26,16 +26,27 @@ export const getPreferredRange = cache(
   },
 );
 
+const ISO = /^\d{4}-\d{2}-\d{2}$/;
+
 /**
- * Effective range for a page: the explicit URL range when both ends are set,
- * otherwise the user's remembered range, otherwise the page's own `fallback`
- * (so a first-time user with no preference keeps the existing default).
+ * Effective range for a page: the explicit URL range when both ends are present
+ * AND valid ISO dates, otherwise the user's remembered range, otherwise the
+ * page's own `fallback` (so a first-time user keeps the existing default).
+ *
+ * IMPORTANT: pass the RAW search params (e.g. `pickFirst(params.from)`), NOT a
+ * validator's output. Several filter validators backfill from/to to a default
+ * (`.transform(v => v ?? defaultDateRange().from)`), so their value is never
+ * absent — passing that here would mask the saved preference on every page.
+ * The explicit ISO check makes the helper robust even if a defaulted value
+ * leaks through, and guards against a malformed URL value.
  */
 export async function resolvePreferredRange(
   from: string | null | undefined,
   to: string | null | undefined,
   fallback: DateRangeValue,
 ): Promise<DateRangeValue> {
-  if (from && to) return { from, to };
+  if (from && to && ISO.test(from) && ISO.test(to) && from <= to) {
+    return { from, to };
+  }
   return (await getPreferredRange()) ?? fallback;
 }

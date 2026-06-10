@@ -36,8 +36,8 @@ export default async function DashboardPage({
   });
 
   const range = await resolvePreferredRange(
-    parsed.from,
-    parsed.to,
+    pickFirst(params.from),
+    pickFirst(params.to),
     defaultDateRange(TRAILING_DAYS_DEFAULT),
   );
   const from = range.from;
