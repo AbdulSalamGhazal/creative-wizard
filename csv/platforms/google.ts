@@ -35,8 +35,9 @@ export const googleAdapter: PlatformAdapter = {
     conversions: ["Conversions"],
     conversion_value: ["Conv. value", "Conversion value"],
     landing_page_views: ["Landing page views", "Page views"],
-    add_to_cart: ["Add to cart", "Adds to cart"],
-    add_payment: ["Add payment info", "Adds payment info"],
+    // No built-in defaults — mapped only via Configuration → CSV mapping.
+    add_to_cart: [],
+    add_payment: [],
     video_views_2s: ["Video played to 2s", "Video views at 2s"],
     video_views_25: ["Video played to 25%", "25% video views"],
     video_views_50: ["Video played to 50%", "50% video views"],

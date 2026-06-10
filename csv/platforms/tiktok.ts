@@ -35,8 +35,9 @@ export const tiktokAdapter: PlatformAdapter = {
     conversions: ["Conversions", "Total complete payment"],
     conversion_value: ["Total complete payment value", "Conversion value"],
     landing_page_views: ["Landing page views", "Page views"],
-    add_to_cart: ["Add to cart (website)", "Add to cart", "Add to Cart"],
-    add_payment: ["Add payment info (website)", "Add payment info", "Add Payment Info"],
+    // No built-in defaults — mapped only via Configuration → CSV mapping.
+    add_to_cart: [],
+    add_payment: [],
     video_views_2s: ["2-second video views", "Video views at 2s"],
     video_views_25: ["Video views at 25%", "25% video views"],
     video_views_50: ["Video views at 50%", "50% video views"],

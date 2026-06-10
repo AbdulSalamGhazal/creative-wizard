@@ -32,8 +32,11 @@ export const META_HEADER_MAP: Record<InternalField, string[]> = {
   conversions: ["Results", "Conversions"],
   conversion_value: ["Purchase value", "Conversion value"],
   landing_page_views: ["Landing page views", "LP views"],
-  add_to_cart: ["Adds to cart", "Website adds to cart", "Add to cart"],
-  add_payment: ["Adds of payment info", "Website adds of payment info", "Add payment info"],
+  // No built-in defaults — these optional metrics are captured ONLY via an
+  // explicit header mapping in Configuration → CSV mapping (so what's mapped is
+  // visible, never silently auto-matched).
+  add_to_cart: [],
+  add_payment: [],
   video_views_2s: ["2-second continuous video plays", "2-second video views", "Video plays at 2s"],
   video_views_25: ["Video plays at 25%", "25% video views"],
   video_views_50: ["Video plays at 50%", "50% video views"],

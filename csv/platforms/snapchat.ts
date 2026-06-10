@@ -35,8 +35,9 @@ export const snapchatAdapter: PlatformAdapter = {
     conversions: ["Total Conversions", "Conversions"],
     conversion_value: ["Total Conversion Value", "Conversion value"],
     landing_page_views: ["Landing page views", "Page views"],
-    add_to_cart: ["Add to Cart", "Adds to Cart"],
-    add_payment: ["Add Payment Info", "Adds Payment Info"],
+    // No built-in defaults — mapped only via Configuration → CSV mapping.
+    add_to_cart: [],
+    add_payment: [],
     video_views_2s: ["2s Video Views", "Video Views 2s"],
     video_views_25: ["Video Views 25%", "25% Video Views"],
     video_views_50: ["Video Views 50%", "50% Video Views"],
