@@ -134,6 +134,13 @@
       "when": 1781086003006,
       "tag": "0018_odd_invaders",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1781087392362,
+      "tag": "0019_mean_boomerang",
+      "breakpoints": true
     }
   ]
 }

@@ -418,6 +418,11 @@ export const performanceRecords = pgTable(
     conversions: integer("conversions"),
     conversionValue: numeric("conversion_value", { precision: 14, scale: 4 }),
     landingPageViews: integer("landing_page_views"),
+    // Mid-funnel commerce events — populated where the platform reports them;
+    // null otherwise. Plain event counts, aggregated via SUM like conversions.
+    // Presentation in the UI is intentionally deferred — schema only for now.
+    addToCart: integer("add_to_cart"),
+    addPayment: integer("add_payment"),
     // Video view funnel — populated for video creatives only; null for
     // image/slides so they're excluded from video-rate math.
     videoViews2s: integer("video_views_2s"),
