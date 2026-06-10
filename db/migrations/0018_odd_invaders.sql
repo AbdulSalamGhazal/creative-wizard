@@ -1,0 +1,1 @@
+CREATE INDEX "perf_account_campaign_date_idx" ON "performance_records" USING btree ("account_id","campaign_name","date");

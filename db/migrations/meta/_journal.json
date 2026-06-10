@@ -127,6 +127,13 @@
       "when": 1780957377117,
       "tag": "0017_quick_pride",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1781086003006,
+      "tag": "0018_odd_invaders",
+      "breakpoints": true
     }
   ]
 }

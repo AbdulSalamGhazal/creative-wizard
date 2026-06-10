@@ -444,6 +444,13 @@ export const performanceRecords = pgTable(
       "perf_creative_platform_campaign_date_idx",
     ).on(t.creativeId, t.platform, t.campaignName, t.date),
     accountDateIdx: index("perf_account_date_idx").on(t.accountId, t.date),
+    // Speeds the campaign-diagnosis queries, which filter by
+    // (account_id, campaign_name, date). Additive — no data/column change.
+    accountCampaignDateIdx: index("perf_account_campaign_date_idx").on(
+      t.accountId,
+      t.campaignName,
+      t.date,
+    ),
     dateIdx: index("perf_date_idx").on(t.date),
     platformDateIdx: index("perf_platform_date_idx").on(t.platform, t.date),
     batchIdx: index("perf_upload_batch_idx").on(t.uploadBatchId),
