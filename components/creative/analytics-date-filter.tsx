@@ -11,14 +11,9 @@ import { DateRangePicker } from "@/components/filters/date-range-picker";
 export function AnalyticsDateFilter({
   from,
   to,
-  defaultFrom,
-  defaultTo,
 }: {
   from: string | null;
   to: string | null;
-  /** Effective default range (remembered choice) for the picker label. */
-  defaultFrom?: string;
-  defaultTo?: string;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -37,17 +32,5 @@ export function AnalyticsDateFilter({
     );
   };
 
-  return (
-    <DateRangePicker
-      from={from}
-      to={to}
-      onChange={onChange}
-      remember
-      fallback={
-        defaultFrom && defaultTo
-          ? { from: defaultFrom, to: defaultTo }
-          : undefined
-      }
-    />
-  );
+  return <DateRangePicker from={from} to={to} onChange={onChange} />;
 }

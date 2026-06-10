@@ -9,11 +9,15 @@ import {
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { DeltaBadge } from "@/components/kpi/delta-badge";
-import { kpisWithDelta } from "@/db/queries/performance";
-import { readRememberedRange } from "@/lib/date-range-cookie";
+import {
+  defaultDateRange,
+  kpisWithDelta,
+} from "@/db/queries/performance";
 import { usd } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
+
+const TRAILING_DAYS_DEFAULT = 30;
 
 /**
  * Trends landing — a launcher for the analytical sub-views. Each card
@@ -24,7 +28,7 @@ export const dynamic = "force-dynamic";
  * placeholders so the IA is visible end-to-end while we build them out.
  */
 export default async function TrendsLandingPage() {
-  const range = await readRememberedRange();
+  const range = defaultDateRange(TRAILING_DAYS_DEFAULT);
   const k = await kpisWithDelta({ from: range.from, to: range.to });
 
   return (

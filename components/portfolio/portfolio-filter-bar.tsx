@@ -32,14 +32,7 @@ function csv(v: string | null): string[] {
   return v ? v.split(",").filter(Boolean) : [];
 }
 
-export function PortfolioFilterBar({
-  defaultFrom,
-  defaultTo,
-}: {
-  /** Effective default range (remembered choice) for the picker label. */
-  defaultFrom?: string;
-  defaultTo?: string;
-} = {}) {
+export function PortfolioFilterBar() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -118,17 +111,7 @@ export function PortfolioFilterBar({
 
   return (
     <div className="flex items-center gap-2 flex-wrap">
-      <DateRangePicker
-        from={from}
-        to={to}
-        onChange={setRange}
-        remember
-        fallback={
-          defaultFrom && defaultTo
-            ? { from: defaultFrom, to: defaultTo }
-            : undefined
-        }
-      />
+      <DateRangePicker from={from} to={to} onChange={setRange} />
 
       {/* Comparison mode */}
       <div className="inline-flex items-center rounded-md border border-line bg-surface-2 p-0.5 text-xs">

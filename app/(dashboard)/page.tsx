@@ -1,9 +1,6 @@
 import { Suspense } from "react";
 import { Badge } from "@/components/ui/badge";
-import { type KpiFilters } from "@/db/queries/performance";
-import { readRememberedRange } from "@/lib/date-range-cookie";
-
-export const dynamic = "force-dynamic";
+import { defaultDateRange, type KpiFilters } from "@/db/queries/performance";
 import { listProducts } from "@/db/queries/products";
 import { listAllTags } from "@/db/queries/creatives";
 import { DashboardMetrics } from "@/components/overview/dashboard-metrics";
@@ -12,6 +9,7 @@ import { FilterStrip } from "@/components/filters/filter-strip";
 import { dashboardFiltersSchema } from "@/validators/filters";
 import { PLATFORM_LABEL } from "@/lib/palette";
 
+const TRAILING_DAYS_DEFAULT = 30;
 
 type SearchParams = Record<string, string | string[] | undefined>;
 
@@ -36,7 +34,7 @@ export default async function DashboardPage({
     includeExcluded: pickFirst(params.includeExcluded),
   });
 
-  const defaultRange = await readRememberedRange();
+  const defaultRange = defaultDateRange(TRAILING_DAYS_DEFAULT);
   const from = parsed.from ?? defaultRange.from;
   const to = parsed.to ?? defaultRange.to;
 
@@ -69,12 +67,7 @@ export default async function DashboardPage({
         }
       >
         <div className="-mx-6 -mt-6 mb-2">
-          <FilterStrip
-            products={products}
-            tags={tags}
-            defaultFrom={from}
-            defaultTo={to}
-          />
+          <FilterStrip products={products} tags={tags} />
         </div>
       </Suspense>
 

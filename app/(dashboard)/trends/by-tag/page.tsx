@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { readRememberedRange } from "@/lib/date-range-cookie";
+import { defaultDateRange } from "@/db/queries/performance";
 import { tagRollup, tagByPlatform } from "@/db/queries/trends";
 import { listProducts } from "@/db/queries/products";
 import { listAllTags } from "@/db/queries/creatives";
@@ -16,6 +16,7 @@ import { periodCaption } from "@/lib/period";
 
 export const dynamic = "force-dynamic";
 
+const TRAILING_DAYS_DEFAULT = 30;
 
 type SearchParams = Record<string, string | string[] | undefined>;
 function pickFirst(v: string | string[] | undefined): string | undefined {
@@ -36,7 +37,7 @@ export default async function TrendsByTagPage({
     includeExcluded: pickFirst(params.includeExcluded),
   });
 
-  const range = await readRememberedRange();
+  const range = defaultDateRange(TRAILING_DAYS_DEFAULT);
   const from = parsed.from ?? range.from;
   const to = parsed.to ?? range.to;
 
@@ -61,12 +62,7 @@ export default async function TrendsByTagPage({
         fallback={<div className="-mx-6 px-6 h-12 border-b border-line bg-background/95" />}
       >
         <div className="-mx-6 -mt-6 mb-2">
-          <FilterStrip
-            products={products}
-            tags={tags}
-            defaultFrom={from}
-            defaultTo={to}
-          />
+          <FilterStrip products={products} tags={tags} />
         </div>
       </Suspense>
 

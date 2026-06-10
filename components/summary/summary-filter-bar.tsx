@@ -58,9 +58,6 @@ interface Props {
   views: SummaryViewRow[];
   currentUserId: string;
   isAdmin: boolean;
-  /** Effective default range (remembered choice) for the picker label. */
-  defaultFrom?: string;
-  defaultTo?: string;
 }
 
 // Derived from the canonical enums so the option lists can never drift from the
@@ -121,8 +118,6 @@ export function SummaryFilterBar({
   views,
   currentUserId,
   isAdmin,
-  defaultFrom,
-  defaultTo,
 }: Props) {
   const router = useRouter();
   const pathname = usePathname();
@@ -442,17 +437,7 @@ export function SummaryFilterBar({
         </div>
 
         {/* Date range */}
-        <DateRangePicker
-          from={from}
-          to={to}
-          onChange={applyRange}
-          remember
-          fallback={
-            defaultFrom && defaultTo
-              ? { from: defaultFrom, to: defaultTo }
-              : undefined
-          }
-        />
+        <DateRangePicker from={from} to={to} onChange={applyRange} />
 
         {/* Platforms — select any number */}
         <FilterPill
