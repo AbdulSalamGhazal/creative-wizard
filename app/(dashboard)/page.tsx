@@ -2,6 +2,8 @@ import { Suspense } from "react";
 import { Badge } from "@/components/ui/badge";
 import { type KpiFilters } from "@/db/queries/performance";
 import { readRememberedRange } from "@/lib/date-range-cookie";
+
+export const dynamic = "force-dynamic";
 import { listProducts } from "@/db/queries/products";
 import { listAllTags } from "@/db/queries/creatives";
 import { DashboardMetrics } from "@/components/overview/dashboard-metrics";

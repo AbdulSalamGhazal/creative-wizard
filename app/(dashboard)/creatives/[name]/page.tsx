@@ -33,6 +33,8 @@ import { int, pct, ratio, usd } from "@/lib/format";
 import { presetLabel } from "@/lib/date-presets";
 import { resolveRememberedRange } from "@/lib/date-range-cookie";
 
+export const dynamic = "force-dynamic";
+
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 // Library filter/sort keys carried into the detail URL so the prev/next pager
