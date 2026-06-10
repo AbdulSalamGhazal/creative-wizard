@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import type { DateRange } from "react-day-picker";
 import { CalendarDays, Check, ChevronDown } from "lucide-react";
 import {
@@ -13,12 +14,15 @@ import { cn } from "@/lib/utils";
 import {
   activePresetKey,
   DATE_PRESETS,
+  encodePreferredRange,
   isoToLocalDate,
   localDateToIso,
   presetLabel,
   resolveDefaultRange,
   todayIso,
+  type DateRangeValue,
 } from "@/lib/date-presets";
+import { setPreferredRange } from "@/app/actions/user-prefs";
 
 /**
  * Reusable date-range control: the full preset list on the left, a live
@@ -34,17 +38,43 @@ export function DateRangePicker({
   from,
   to,
   onChange,
+  remember = false,
+  fallback,
 }: {
   from: string | null;
   to: string | null;
   onChange: (from: string | null, to: string | null) => void;
+  /** When true, a pick is saved as this user's default (DB, server-side). */
+  remember?: boolean;
+  /**
+   * Range to show as the label / calendar seed when no explicit range is set —
+   * the user's saved default, resolved server-side and passed in. Highlight
+   * stays driven by the raw `from`/`to`.
+   */
+  fallback?: DateRangeValue;
 }) {
   const [open, setOpen] = useState(false);
+  const router = useRouter();
+  const [, startTransition] = useTransition();
 
-  // The effective range: the explicit one, or the default (last 7 days) when
-  // nothing is set. Drives the label, the highlighted preset, and the calendar
-  // seed, so an unset picker still reads "Last 7 days".
-  const eff = useMemo(() => resolveDefaultRange(from, to), [from, to]);
+  // Persist the pick as the user's default — the proven brand-switcher pattern:
+  // await the server action (writes DB + revalidatePath), then router.refresh()
+  // so every page re-reads it on the next navigation.
+  const persist = (value: string | null) => {
+    if (!remember || !value) return;
+    startTransition(async () => {
+      await setPreferredRange(value);
+      router.refresh();
+    });
+  };
+
+  // The effective range: the explicit one, else the passed-in fallback (the
+  // saved default), else last 7 days. Drives the label, highlighted preset,
+  // and calendar seed.
+  const eff = useMemo(
+    () => (from && to ? { from, to } : (fallback ?? resolveDefaultRange(null, null))),
+    [from, to, fallback],
+  );
   const initial: DateRange | undefined = useMemo(
     () => ({ from: isoToLocalDate(eff.from), to: isoToLocalDate(eff.to) }),
     [eff],
@@ -75,7 +105,10 @@ export function DateRangePicker({
     const toD = anchor <= triggerDate ? triggerDate : anchor;
     setPending({ from: fromD, to: toD });
     setAnchor(null);
-    onChange(localDateToIso(fromD), localDateToIso(toD));
+    const fromIso = localDateToIso(fromD);
+    const toIso = localDateToIso(toD);
+    persist(encodePreferredRange(null, fromIso, toIso));
+    onChange(fromIso, toIso);
     setOpen(false);
   };
 
@@ -120,6 +153,7 @@ export function DateRangePicker({
                   key={p.key}
                   type="button"
                   onClick={() => {
+                    persist(p.key);
                     const res = p.range(todayIso());
                     if (res) onChange(res.from, res.to);
                     else onChange(null, null);

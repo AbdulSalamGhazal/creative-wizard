@@ -151,3 +151,42 @@ export function presetLabel(from: string | null, to: string | null): string {
   if (from && to) return `${from} → ${to}`;
   return "Lifetime";
 }
+
+const ISO_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * Encode a picked range into the compact string stored as the user's preferred
+ * default (db: users.preferred_date_range): a preset key when one was clicked
+ * (kept ROLLING — it recomputes relative to "today" each visit), else the exact
+ * `custom:FROM..TO` dates. Null when there's nothing to store.
+ */
+export function encodePreferredRange(
+  presetKey: string | null,
+  from: string | null,
+  to: string | null,
+): string | null {
+  if (presetKey) return presetKey;
+  if (from && to) return `custom:${from}..${to}`;
+  return null;
+}
+
+/**
+ * Decode the stored preferred-range string into a concrete range for the given
+ * "today". A preset key resolves through DATE_PRESETS (rolling); `custom:a..b`
+ * returns the explicit dates. Null when absent or unparseable.
+ */
+export function decodePreferredRange(
+  raw: string | null | undefined,
+  today: string,
+): DateRangeValue | null {
+  if (!raw) return null;
+  if (raw.startsWith("custom:")) {
+    const [from, to] = raw.slice("custom:".length).split("..");
+    if (from && to && ISO_RE.test(from) && ISO_RE.test(to) && from <= to) {
+      return { from, to };
+    }
+    return null;
+  }
+  const preset = DATE_PRESETS.find((p) => p.key === raw);
+  return preset?.range(today) ?? null;
+}

@@ -39,6 +39,13 @@ export const users = pgTable("users", {
    *  rejects users with no hash and points them to ask an admin to set one. */
   passwordHash: text("password_hash"),
   role: varchar("role", { length: 16, enum: roleEnum }).notNull().default("editor"),
+  /**
+   * The user's remembered default date range, applied on any page that has no
+   * explicit from/to in its URL. A preset key (e.g. "30", "lifetime" — kept
+   * rolling) or `custom:FROM..TO`. Null until they pick a range. Per-user
+   * (global, across brands).
+   */
+  preferredDateRange: text("preferred_date_range"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

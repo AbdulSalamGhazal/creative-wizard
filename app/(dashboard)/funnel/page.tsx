@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { Badge } from "@/components/ui/badge";
 import { defaultDateRange } from "@/db/queries/performance";
+import { resolvePreferredRange } from "@/db/queries/user-prefs";
 import {
   campaignFunnel,
   funnelDaily,
@@ -43,9 +44,13 @@ export default async function FunnelPage({
     includeExcluded: pickFirst(params.includeExcluded),
   });
 
-  const range = defaultDateRange(TRAILING_DAYS_DEFAULT);
-  const from = parsed.from ?? range.from;
-  const to = parsed.to ?? range.to;
+  const range = await resolvePreferredRange(
+    parsed.from,
+    parsed.to,
+    defaultDateRange(TRAILING_DAYS_DEFAULT),
+  );
+  const from = range.from;
+  const to = range.to;
   const filters = {
     from,
     to,
@@ -81,7 +86,12 @@ export default async function FunnelPage({
         fallback={<div className="-mx-6 px-6 h-12 border-b border-line bg-background/95" />}
       >
         <div className="-mx-6 -mt-6 mb-2">
-          <FilterStrip products={products} tags={tags} />
+          <FilterStrip
+            products={products}
+            tags={tags}
+            defaultFrom={from}
+            defaultTo={to}
+          />
         </div>
       </Suspense>
 

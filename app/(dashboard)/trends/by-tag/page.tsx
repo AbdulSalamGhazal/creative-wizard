@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { defaultDateRange } from "@/db/queries/performance";
+import { resolvePreferredRange } from "@/db/queries/user-prefs";
 import { tagRollup, tagByPlatform } from "@/db/queries/trends";
 import { listProducts } from "@/db/queries/products";
 import { listAllTags } from "@/db/queries/creatives";
@@ -37,9 +38,13 @@ export default async function TrendsByTagPage({
     includeExcluded: pickFirst(params.includeExcluded),
   });
 
-  const range = defaultDateRange(TRAILING_DAYS_DEFAULT);
-  const from = parsed.from ?? range.from;
-  const to = parsed.to ?? range.to;
+  const range = await resolvePreferredRange(
+    parsed.from,
+    parsed.to,
+    defaultDateRange(TRAILING_DAYS_DEFAULT),
+  );
+  const from = range.from;
+  const to = range.to;
 
   const filters = {
     from,
@@ -62,7 +67,12 @@ export default async function TrendsByTagPage({
         fallback={<div className="-mx-6 px-6 h-12 border-b border-line bg-background/95" />}
       >
         <div className="-mx-6 -mt-6 mb-2">
-          <FilterStrip products={products} tags={tags} />
+          <FilterStrip
+            products={products}
+            tags={tags}
+            defaultFrom={from}
+            defaultTo={to}
+          />
         </div>
       </Suspense>
 

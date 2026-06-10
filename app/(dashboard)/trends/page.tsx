@@ -13,6 +13,7 @@ import {
   defaultDateRange,
   kpisWithDelta,
 } from "@/db/queries/performance";
+import { resolvePreferredRange } from "@/db/queries/user-prefs";
 import { usd } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
@@ -28,7 +29,11 @@ const TRAILING_DAYS_DEFAULT = 30;
  * placeholders so the IA is visible end-to-end while we build them out.
  */
 export default async function TrendsLandingPage() {
-  const range = defaultDateRange(TRAILING_DAYS_DEFAULT);
+  const range = await resolvePreferredRange(
+    undefined,
+    undefined,
+    defaultDateRange(TRAILING_DAYS_DEFAULT),
+  );
   const k = await kpisWithDelta({ from: range.from, to: range.to });
 
   return (

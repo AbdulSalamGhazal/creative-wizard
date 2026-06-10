@@ -19,7 +19,8 @@ import {
 import { parseCampaignDetailParams } from "@/validators/campaign";
 import { PLATFORM_COLOR, PLATFORM_LABEL } from "@/lib/palette";
 import { isoDate } from "@/lib/format";
-import { presetLabel, resolveDefaultRange } from "@/lib/date-presets";
+import { defaultDateRange, presetLabel } from "@/lib/date-presets";
+import { resolvePreferredRange } from "@/db/queries/user-prefs";
 
 export const dynamic = "force-dynamic";
 
@@ -49,7 +50,11 @@ export default async function CampaignDetailPage({
   const parsed = parseCampaignDetailParams(sp);
 
   // Default to a concrete recent window when no range is set.
-  const eff = resolveDefaultRange(parsed.from, parsed.to);
+  const eff = await resolvePreferredRange(
+    parsed.from,
+    parsed.to,
+    defaultDateRange(),
+  );
   const range = { from: eff.from, to: eff.to };
   const rangeLabel = presetLabel(eff.from, eff.to);
 
@@ -74,7 +79,12 @@ export default async function CampaignDetailPage({
             <ArrowLeft className="w-3 h-3" />
             All campaigns
           </Link>
-          <AnalyticsDateFilter from={parsed.from ?? null} to={parsed.to ?? null} />
+          <AnalyticsDateFilter
+            from={parsed.from ?? null}
+            to={parsed.to ?? null}
+            defaultFrom={eff.from}
+            defaultTo={eff.to}
+          />
         </div>
 
         <div className="space-y-2 min-w-0">

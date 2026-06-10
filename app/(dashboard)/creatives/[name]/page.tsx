@@ -30,7 +30,8 @@ import { AnalyticsDateFilter } from "@/components/creative/analytics-date-filter
 import { NotesPanel } from "@/components/creative/notes-panel";
 import { AuditFeed } from "@/components/audit/audit-feed";
 import { int, pct, ratio, usd } from "@/lib/format";
-import { presetLabel, resolveDefaultRange } from "@/lib/date-presets";
+import { defaultDateRange, presetLabel } from "@/lib/date-presets";
+import { resolvePreferredRange } from "@/db/queries/user-prefs";
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -79,7 +80,7 @@ export default async function CreativeDetailPage({
   const to = toRaw && ISO_DATE.test(toRaw) ? toRaw : undefined;
   // Default to the last 7 days when no range is set (Lifetime is concrete).
   // `from`/`to` stay raw (null when unset) for the picker; `range` is resolved.
-  const eff = resolveDefaultRange(from, to);
+  const eff = await resolvePreferredRange(from, to, defaultDateRange());
   const range = { from: eff.from, to: eff.to };
   const rangeLabel = presetLabel(eff.from, eff.to);
 
@@ -204,7 +205,12 @@ export default async function CreativeDetailPage({
               {rangeLabel} · across platforms
             </p>
           </div>
-          <AnalyticsDateFilter from={from ?? null} to={to ?? null} />
+          <AnalyticsDateFilter
+            from={from ?? null}
+            to={to ?? null}
+            defaultFrom={eff.from}
+            defaultTo={eff.to}
+          />
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-4">

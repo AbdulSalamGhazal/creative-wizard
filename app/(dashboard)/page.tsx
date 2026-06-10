@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { Badge } from "@/components/ui/badge";
 import { defaultDateRange, type KpiFilters } from "@/db/queries/performance";
+import { resolvePreferredRange } from "@/db/queries/user-prefs";
 import { listProducts } from "@/db/queries/products";
 import { listAllTags } from "@/db/queries/creatives";
 import { DashboardMetrics } from "@/components/overview/dashboard-metrics";
@@ -34,9 +35,13 @@ export default async function DashboardPage({
     includeExcluded: pickFirst(params.includeExcluded),
   });
 
-  const defaultRange = defaultDateRange(TRAILING_DAYS_DEFAULT);
-  const from = parsed.from ?? defaultRange.from;
-  const to = parsed.to ?? defaultRange.to;
+  const range = await resolvePreferredRange(
+    parsed.from,
+    parsed.to,
+    defaultDateRange(TRAILING_DAYS_DEFAULT),
+  );
+  const from = range.from;
+  const to = range.to;
 
   const filters: KpiFilters = {
     from,
@@ -67,7 +72,12 @@ export default async function DashboardPage({
         }
       >
         <div className="-mx-6 -mt-6 mb-2">
-          <FilterStrip products={products} tags={tags} />
+          <FilterStrip
+            products={products}
+            tags={tags}
+            defaultFrom={from}
+            defaultTo={to}
+          />
         </div>
       </Suspense>
 

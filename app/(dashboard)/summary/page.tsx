@@ -8,6 +8,8 @@ import {
   listSummaryViews,
 } from "@/db/queries/summary-views";
 import { summaryFiltersSchema } from "@/validators/summary";
+import { getPreferredRange } from "@/db/queries/user-prefs";
+import { LIFETIME_FLOOR, presetLabel, todayIso } from "@/lib/date-presets";
 import { platformEnum } from "@/db/schema";
 import { requireAuth } from "@/lib/auth";
 import { SummaryFilterBar } from "@/components/summary/summary-filter-bar";
@@ -62,6 +64,16 @@ export default async function SummaryPage({
     status: pickFirst(params.status),
   });
 
+  // An explicit, valid URL range wins; otherwise the user's saved default;
+  // otherwise all-time (Lifetime). (Summary previously defaulted to all-time.)
+  const range =
+    parsed.from && parsed.to
+      ? { from: parsed.from, to: parsed.to }
+      : ((await getPreferredRange()) ?? {
+          from: LIFETIME_FLOOR,
+          to: todayIso(),
+        });
+
   // Platform default: NO `platforms` param at all → all platforms (the default
   // landing view). An explicit `platforms=none` sentinel (the user deselected
   // every platform) parses to [] and shows nothing. A subset → just those.
@@ -82,8 +94,8 @@ export default async function SummaryPage({
     views,
   ] = await Promise.all([
     listCreativeSummary({
-      from: parsed.from,
-      to: parsed.to,
+      from: range.from,
+      to: range.to,
       q: parsed.q,
       productIds: parsed.productIds.length > 0 ? parsed.productIds : undefined,
       platforms: effectivePlatforms.length > 0 ? effectivePlatforms : undefined,
@@ -110,10 +122,7 @@ export default async function SummaryPage({
     if (typeof v === "string" && v) baseParams.set(k, v);
   }
 
-  const rangeLabel =
-    parsed.from && parsed.to
-      ? `${parsed.from} → ${parsed.to}`
-      : "all time";
+  const rangeLabel = presetLabel(range.from, range.to);
   const platformsLabel =
     selectedPlatforms.length === 0
       ? "no platforms selected"
@@ -130,6 +139,8 @@ export default async function SummaryPage({
         views={views}
         currentUserId={user.id}
         isAdmin={user.role === "admin"}
+        defaultFrom={range.from}
+        defaultTo={range.to}
       />
 
       <div className="flex items-end justify-between flex-wrap gap-2">
