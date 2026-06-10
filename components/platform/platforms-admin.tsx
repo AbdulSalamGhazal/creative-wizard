@@ -6,29 +6,17 @@ import {
 } from "@/db/queries/platforms";
 import { ALL_PLATFORMS, PLATFORM_COLOR, PLATFORM_LABEL } from "@/lib/palette";
 import { int } from "@/lib/format";
-import type { InternalField } from "@/csv/platforms/types";
+import {
+  FIELD_META,
+  INTERNAL_FIELDS,
+  type InternalField,
+} from "@/csv/platforms/types";
 
-// Required fields gate "mapping ready"; optional ones (the commerce funnel
-// events) count toward "all fields" but don't block readiness.
-const REQUIRED_FIELDS: InternalField[] = [
-  "creative_name",
-  "campaign_name",
-  "adset_name",
-  "date",
-  "spend",
-  "impressions",
-  "clicks",
-  "conversions",
-  "conversion_value",
-  "landing_page_views",
-  "video_views_2s",
-  "video_views_25",
-  "video_views_50",
-  "video_views_75",
-  "video_views_100",
-];
-const OPTIONAL_FIELDS: InternalField[] = ["add_to_cart", "add_payment"];
-const ALL_FIELDS = [...REQUIRED_FIELDS, ...OPTIONAL_FIELDS];
+// Derived from the single field registry (csv/platforms/types). Required
+// fields gate the "mapping ready" badge; optional ones still count toward the
+// "all fields" total but don't block readiness.
+const REQUIRED_FIELDS = INTERNAL_FIELDS.filter((f) => FIELD_META[f].required);
+const ALL_FIELDS = INTERNAL_FIELDS;
 
 /**
  * Platforms overview — the supported ad channels (a fixed set: adding a new

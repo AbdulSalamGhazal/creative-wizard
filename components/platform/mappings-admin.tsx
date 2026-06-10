@@ -2,27 +2,7 @@ import { listAllMappings, type MappingRow } from "@/db/queries/platforms";
 import { ALL_PLATFORMS, PLATFORM_COLOR, PLATFORM_LABEL } from "@/lib/palette";
 import { MappingAddForm } from "@/components/platform/mapping-add-form";
 import { MappingRemoveButton } from "@/components/platform/mapping-remove-button";
-import type { InternalField } from "@/csv/platforms/types";
-
-const FIELDS: Array<{ value: InternalField; label: string; required: boolean }> = [
-  { value: "creative_name", label: "Creative name", required: true },
-  { value: "campaign_name", label: "Campaign name", required: true },
-  { value: "adset_name", label: "Ad set name", required: true },
-  { value: "date", label: "Date", required: true },
-  { value: "spend", label: "Spend", required: true },
-  { value: "impressions", label: "Impressions", required: true },
-  { value: "clicks", label: "Clicks", required: true },
-  { value: "conversions", label: "Conversions", required: true },
-  { value: "conversion_value", label: "Conversion value", required: true },
-  { value: "landing_page_views", label: "Landing page views", required: true },
-  { value: "add_to_cart", label: "Add to cart (ATC)", required: false },
-  { value: "add_payment", label: "Add payment (AP)", required: false },
-  { value: "video_views_2s", label: "Video views 2s", required: true },
-  { value: "video_views_25", label: "Video views 25%", required: true },
-  { value: "video_views_50", label: "Video views 50%", required: true },
-  { value: "video_views_75", label: "Video views 75%", required: true },
-  { value: "video_views_100", label: "Video views 100%", required: true },
-];
+import { FIELD_LIST, type InternalField } from "@/csv/platforms/types";
 
 /**
  * CSV column-mapping section — the body of the former /admin/platforms page,
@@ -68,8 +48,8 @@ export async function MappingsAdmin() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-line">
-                  {FIELDS.map((f) => (
-                    <tr key={f.value} className="align-top">
+                  {FIELD_LIST.map((f) => (
+                    <tr key={f.key} className="align-top">
                       <td className="px-3 py-2.5">
                         <div className="text-ink">{f.label}</div>
                         <div className="text-[10px] uppercase tracking-[0.14em] text-ink-3">
@@ -78,8 +58,8 @@ export async function MappingsAdmin() {
                       </td>
                       <td className="px-3 py-2.5">
                         <div className="flex flex-wrap items-center gap-1.5">
-                          {byField[f.value]?.length ? (
-                            byField[f.value]!.map((r) => (
+                          {byField[f.key]?.length ? (
+                            byField[f.key]!.map((r) => (
                               <span
                                 key={r.id}
                                 className="inline-flex items-center gap-1 h-6 pl-2 pr-1 rounded text-[11px] bg-surface-2 border border-line text-ink-2"

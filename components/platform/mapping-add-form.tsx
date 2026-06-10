@@ -13,28 +13,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { addHeaderMapping } from "@/app/actions/platform-mapping";
+import { FIELD_LIST, type InternalField } from "@/csv/platforms/types";
 
-const FIELDS = [
-  { value: "creative_name", label: "Creative name" },
-  { value: "campaign_name", label: "Campaign name" },
-  { value: "adset_name", label: "Ad set name" },
-  { value: "date", label: "Date" },
-  { value: "spend", label: "Spend" },
-  { value: "impressions", label: "Impressions" },
-  { value: "clicks", label: "Clicks" },
-  { value: "conversions", label: "Conversions" },
-  { value: "conversion_value", label: "Conversion value" },
-  { value: "landing_page_views", label: "Landing page views" },
-  { value: "add_to_cart", label: "Add to cart (ATC)" },
-  { value: "add_payment", label: "Add payment (AP)" },
-  { value: "video_views_2s", label: "Video views 2s" },
-  { value: "video_views_25", label: "Video views 25%" },
-  { value: "video_views_50", label: "Video views 50%" },
-  { value: "video_views_75", label: "Video views 75%" },
-  { value: "video_views_100", label: "Video views 100%" },
-] as const;
-
-type Field = (typeof FIELDS)[number]["value"];
+type Field = InternalField;
 
 export function MappingAddForm({
   platform,
@@ -78,8 +59,8 @@ export function MappingAddForm({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {FIELDS.map((f) => (
-              <SelectItem key={f.value} value={f.value}>
+            {FIELD_LIST.map((f) => (
+              <SelectItem key={f.key} value={f.key}>
                 {f.label}
               </SelectItem>
             ))}

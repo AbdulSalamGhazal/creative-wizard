@@ -294,3 +294,18 @@ This app is deployed and in production use. Treat `main` as shippable.
   count + per-platform breakdown + date range from `creativeDeletionSummary`,
   and an acknowledgement checkbox gates the destructive button. The audit row
   (`creative.delete`) survives because it stores a label, not an FK.
+- **CSV internal fields have ONE source of truth — `csv/platforms/types.ts`.**
+  Adding a metric the upload pipeline understands (e.g. `add_to_cart`,
+  `add_payment`) means: (1) the schema column + migration, (2) `INTERNAL_FIELDS`
+  + a `FIELD_META` entry (label + `required`) in `types.ts`, (3) each adapter's
+  `headerMap` candidate, (4) `csv/pipeline.ts` parse + `ParsedRow`, (5) the
+  commit route's `metricValues`. The mapping-admin UI (rows, add-header
+  dropdown, platforms-readiness card) **derives** from `FIELD_LIST`/`FIELD_META`
+  — do NOT re-list fields in those components. This was a real bug: those three
+  UI components each kept their OWN hand-copied field list, so a new field
+  landed in the pipeline but never showed in Configuration → CSV mapping. Fixed
+  by making them read `FIELD_LIST`; the `Record<InternalField, …>` types on
+  `FIELD_META` and every adapter `headerMap` now make the compiler REJECT any
+  field that isn't described everywhere (verified by injecting a probe field →
+  5 adapter errors + 1 FIELD_META error). New optional metrics go in
+  `FIELD_META` with `required: false` so existing uploads keep validating.
