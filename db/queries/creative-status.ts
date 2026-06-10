@@ -1,4 +1,4 @@
-import { and, eq, inArray, sql, type SQL } from "drizzle-orm";
+import { and, between, desc, eq, inArray, sql, type SQL } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
   creativePlatformOverrides,
@@ -347,4 +347,250 @@ export async function creativeStatusTransitions(
   const untouchedNew = Math.max(0, totalCreatives - ids.size);
 
   return { transitions, startCounts, endCounts, total: counted, untouchedNew };
+}
+
+// ---------------------------------------------------------------------------
+// Status-flow BREAKDOWN — four diagrams in one row, no all-platforms roll-up.
+//   • dimension "platform": one diagram per platform (the four below), using
+//     each platform's own per-platform status (New/Active/Pause/Terminated).
+//   • dimension "campaign": one diagram per top-4-by-spend campaign on the
+//     single filtered platform, using campaign-scoped status — New (never
+//     joined the campaign) / Active (spending in it now) / Pause (spent then
+//     stopped). No Terminated: termination is per creative×platform, not per
+//     campaign.
+// Both keep the same start-of-window → now transition shape as the single flow.
+// ---------------------------------------------------------------------------
+
+/** Platforms shown in the status-flow grid (Google intentionally excluded). */
+export const FLOW_PLATFORMS: Platform[] = [
+  "instagram",
+  "facebook",
+  "tiktok",
+  "snapchat",
+];
+
+export interface StatusFlowScope {
+  /** Platform value or campaign name. */
+  key: string;
+  data: CreativeStatusTransitions;
+}
+
+function isoMinusDays(iso: string, days: number): string {
+  const d = new Date(`${iso}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() - days);
+  return d.toISOString().slice(0, 10);
+}
+
+const zeroCounts = (): Record<CreativeStatus, number> => ({
+  new: 0,
+  active: 0,
+  pause: 0,
+  terminated: 0,
+});
+
+/** Roll a set of per-creative (start, end) status pairs into a transitions
+ *  dataset. `universeTotal` is the full in-scope population (for the untouched
+ *  "never moved" count); New→New pairs are dropped from the flow. */
+function buildTransitions(
+  ids: Iterable<string>,
+  statusAt: (id: string) => {
+    s: CreativeStatus;
+    e: CreativeStatus;
+    present: boolean;
+  },
+  universeTotal: number,
+): CreativeStatusTransitions {
+  const startCounts = zeroCounts();
+  const endCounts = zeroCounts();
+  const counts = new Map<string, number>();
+  let counted = 0;
+  let present = 0;
+  for (const id of ids) {
+    const { s, e, present: pres } = statusAt(id);
+    if (pres) present += 1;
+    if (s === "new" && e === "new") continue;
+    counted += 1;
+    startCounts[s] += 1;
+    endCounts[e] += 1;
+    const k = `${s}|${e}`;
+    counts.set(k, (counts.get(k) ?? 0) + 1);
+  }
+  const transitions: StatusTransition[] = [...counts.entries()].map(([k, c]) => {
+    const [f, t] = k.split("|") as [CreativeStatus, CreativeStatus];
+    return { from: f, to: t, count: c };
+  });
+  return {
+    transitions,
+    startCounts,
+    endCounts,
+    total: counted,
+    untouchedNew: Math.max(0, universeTotal - present),
+  };
+}
+
+export async function statusFlowBreakdown(
+  filters: StatusTransitionFilters,
+  dimension: "platform" | "campaign",
+  platform?: Platform,
+): Promise<StatusFlowScope[]> {
+  const restrictIds = await statusRestrictIds(filters);
+  const acct = await getActiveAccountId();
+
+  // --- Per-platform breakdown (default) -----------------------------------
+  if (dimension !== "campaign" || !platform) {
+    const [startMap, endMap] = await Promise.all([
+      creativeStatusMap(restrictIds, { asOf: isoMinusOneDay(filters.from) }),
+      creativeStatusMap(restrictIds, { asOf: filters.to }),
+    ]);
+    let totalInScope: number;
+    if (restrictIds) {
+      totalInScope = restrictIds.length;
+    } else {
+      const [c] = await db
+        .select({ total: sql<number>`COUNT(*)::int` })
+        .from(creatives)
+        .where(eq(creatives.accountId, acct));
+      totalInScope = Number(c?.total ?? 0);
+    }
+    const ids = new Set<string>([...startMap.keys(), ...endMap.keys()]);
+    return FLOW_PLATFORMS.map((p) => ({
+      key: p,
+      data: buildTransitions(
+        ids,
+        (id) => {
+          const s = startMap.get(id)?.perPlatform[p];
+          const e = endMap.get(id)?.perPlatform[p];
+          return { s: s ?? "new", e: e ?? "new", present: Boolean(s || e) };
+        },
+        totalInScope,
+      ),
+    }));
+  }
+
+  // --- Per-campaign breakdown (single platform filtered) ------------------
+  const P = platform;
+  const windowDays = hoursToWindowDays(await getActiveStatusWindowHours());
+  const startAsOf = isoMinusOneDay(filters.from);
+  const endAsOf = filters.to;
+
+  const scopeConds = (extra: SQL[]): SQL[] => {
+    const c: SQL[] = [
+      eq(performanceRecords.accountId, acct),
+      eq(performanceRecords.platform, P),
+      eq(performanceRecords.excludedFromAggregates, false),
+      ...extra,
+    ];
+    if (restrictIds) c.push(inArray(performanceRecords.creativeId, restrictIds));
+    return c;
+  };
+
+  // Top 4 campaigns on P by spend within the window.
+  const topRows = await db
+    .select({
+      campaign: performanceRecords.campaignName,
+      spend: sql<number>`SUM(${performanceRecords.spend})`,
+    })
+    .from(performanceRecords)
+    .where(and(...scopeConds([between(performanceRecords.date, filters.from, filters.to)])))
+    .groupBy(performanceRecords.campaignName)
+    .orderBy(desc(sql`SUM(${performanceRecords.spend})`))
+    .limit(4);
+  const campaigns = topRows.map((r) => r.campaign);
+  if (campaigns.length === 0) return [];
+
+  // Universe = creatives that ran on P (any time up to `to`) — so "New" for a
+  // campaign means "on this platform but never joined this campaign".
+  const uniRows = await db
+    .select({ id: performanceRecords.creativeId })
+    .from(performanceRecords)
+    .where(
+      and(
+        ...scopeConds([
+          sql`${performanceRecords.spend} > 0`,
+          sql`${performanceRecords.date} <= ${endAsOf}`,
+        ]),
+      ),
+    )
+    .groupBy(performanceRecords.creativeId);
+  const universe = uniRows.map((r) => r.id);
+
+  // Each platform's freshness anchor at each as-of (latest data day ≤ as-of).
+  const latestDay = async (asOf: string): Promise<string | null> => {
+    const [r] = await db
+      .select({ last: sql<string>`MAX(${performanceRecords.date})` })
+      .from(performanceRecords)
+      .where(
+        and(
+          eq(performanceRecords.accountId, acct),
+          eq(performanceRecords.platform, P),
+          eq(performanceRecords.excludedFromAggregates, false),
+          sql`${performanceRecords.date} <= ${asOf}`,
+        ),
+      );
+    return r?.last ?? null;
+  };
+
+  // Per-(creative, campaign) last spend date on P, as of `asOf`.
+  const lastSpend = async (asOf: string): Promise<Map<string, Map<string, string>>> => {
+    const rows = await db
+      .select({
+        creativeId: performanceRecords.creativeId,
+        campaign: performanceRecords.campaignName,
+        last: sql<string>`MAX(${performanceRecords.date})`,
+      })
+      .from(performanceRecords)
+      .where(
+        and(
+          ...scopeConds([
+            inArray(performanceRecords.campaignName, campaigns),
+            sql`${performanceRecords.spend} > 0`,
+            sql`${performanceRecords.date} <= ${asOf}`,
+          ]),
+        ),
+      )
+      .groupBy(performanceRecords.creativeId, performanceRecords.campaignName);
+    const m = new Map<string, Map<string, string>>();
+    for (const r of rows) {
+      let cm = m.get(r.campaign);
+      if (!cm) {
+        cm = new Map();
+        m.set(r.campaign, cm);
+      }
+      cm.set(r.creativeId, r.last);
+    }
+    return m;
+  };
+
+  const [startAnchor, endAnchor, startSpend, endSpend] = await Promise.all([
+    latestDay(startAsOf),
+    latestDay(endAsOf),
+    lastSpend(startAsOf),
+    lastSpend(endAsOf),
+  ]);
+
+  const statusOf = (
+    last: string | undefined,
+    anchor: string | null,
+  ): CreativeStatus => {
+    if (!last) return "new";
+    if (!anchor) return "pause";
+    return last >= isoMinusDays(anchor, windowDays - 1) ? "active" : "pause";
+  };
+
+  return campaigns.map((c) => {
+    const startC = startSpend.get(c) ?? new Map<string, string>();
+    const endC = endSpend.get(c) ?? new Map<string, string>();
+    return {
+      key: c,
+      data: buildTransitions(
+        universe,
+        (id) => ({
+          s: statusOf(startC.get(id), startAnchor),
+          e: statusOf(endC.get(id), endAnchor),
+          present: startC.has(id) || endC.has(id),
+        }),
+        universe.length,
+      ),
+    };
+  });
 }

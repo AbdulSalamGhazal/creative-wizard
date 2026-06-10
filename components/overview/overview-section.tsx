@@ -17,8 +17,8 @@ import {
   type KpisWithDelta,
 } from "@/db/queries/performance";
 import {
-  creativeStatusTransitions,
-  type CreativeStatusTransitions,
+  statusFlowBreakdown,
+  type StatusFlowScope,
 } from "@/db/queries/creative-status";
 import { getRatingConfig } from "@/db/queries/rating";
 import { rateBlock, rulesForScope, type Rating } from "@/lib/rating";
@@ -31,7 +31,7 @@ import { ProductMixDonut } from "@/components/charts/product-mix";
 import { TypeMixBars } from "@/components/charts/type-mix-bars";
 import { TagLeaderboard } from "@/components/charts/tag-leaderboard";
 import { TopMoversChart } from "@/components/overview/top-movers-chart";
-import { StatusFlow } from "@/components/overview/status-flow";
+import { StatusFlowGrid } from "@/components/overview/status-flow-grid";
 import { FunnelRates } from "@/components/overview/funnel-rates";
 import { RoasScatter } from "@/components/charts/roas-scatter";
 import { CorrelationMatrix } from "@/components/charts/correlation-matrix";
@@ -41,13 +41,6 @@ import {
 } from "@/components/charts/rating-mix-bars";
 import { PLATFORM_COLOR, PLATFORM_LABEL, swatchColor } from "@/lib/palette";
 
-const EMPTY_TRANSITIONS: CreativeStatusTransitions = {
-  transitions: [],
-  startCounts: { new: 0, active: 0, pause: 0, terminated: 0 },
-  endCounts: { new: 0, active: 0, pause: 0, terminated: 0 },
-  total: 0,
-  untouchedNew: 0,
-};
 
 const CAMPAIGN_LINE_LIMIT = 6;
 
@@ -76,7 +69,7 @@ export async function OverviewSection({ filters, dimension, dimensionLabel }: Pr
     typeRows,
     tagMixRows,
     moverRows,
-    statusTransitions,
+    statusScopes,
     kd,
     points,
     ratingConfig,
@@ -93,14 +86,20 @@ export async function OverviewSection({ filters, dimension, dimensionLabel }: Pr
       ? topMovers(filters as KpiFilters & { from: string; to: string }, 12)
       : Promise.resolve([]),
     hasRange
-      ? creativeStatusTransitions({
-          from: filters.from!,
-          to: filters.to!,
-          productIds: filters.productIds,
-          types: filters.types,
-          tags: filters.tags,
-        })
-      : Promise.resolve(EMPTY_TRANSITIONS),
+      ? statusFlowBreakdown(
+          {
+            from: filters.from!,
+            to: filters.to!,
+            productIds: filters.productIds,
+            types: filters.types,
+            tags: filters.tags,
+          },
+          dimension,
+          dimension === "campaign" && filters.platforms?.length === 1
+            ? filters.platforms[0]
+            : undefined,
+        )
+      : Promise.resolve([] as StatusFlowScope[]),
     hasRange
       ? kpisWithDelta(filters as KpiFilters & { from: string; to: string })
       : Promise.resolve(null as KpisWithDelta | null),
@@ -218,11 +217,12 @@ export async function OverviewSection({ filters, dimension, dimensionLabel }: Pr
         <TagLeaderboard rows={tagMixRows} />
       </div>
 
-      {/* Top movers + status flow */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <TopMoversChart rows={moverRows} />
-        <StatusFlow data={statusTransitions} />
-      </div>
+      {/* Top movers */}
+      <TopMoversChart rows={moverRows} />
+
+      {/* Status flow — four diagrams (per platform, or per top campaign when a
+          single platform is filtered) */}
+      <StatusFlowGrid scopes={statusScopes} dimension={dimension} />
 
       {/* Funnel rates + spend-vs-ROAS scatter (full row, half each) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
