@@ -15,6 +15,8 @@ const FIELDS: Array<{ value: InternalField; label: string; required: boolean }> 
   { value: "conversions", label: "Conversions", required: true },
   { value: "conversion_value", label: "Conversion value", required: true },
   { value: "landing_page_views", label: "Landing page views", required: true },
+  { value: "add_to_cart", label: "Add to cart (ATC)", required: false },
+  { value: "add_payment", label: "Add payment (AP)", required: false },
   { value: "video_views_2s", label: "Video views 2s", required: true },
   { value: "video_views_25", label: "Video views 25%", required: true },
   { value: "video_views_50", label: "Video views 50%", required: true },

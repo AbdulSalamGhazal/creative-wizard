@@ -25,6 +25,8 @@ const FIELDS = [
   { value: "conversions", label: "Conversions" },
   { value: "conversion_value", label: "Conversion value" },
   { value: "landing_page_views", label: "Landing page views" },
+  { value: "add_to_cart", label: "Add to cart (ATC)" },
+  { value: "add_payment", label: "Add payment (AP)" },
   { value: "video_views_2s", label: "Video views 2s" },
   { value: "video_views_25", label: "Video views 25%" },
   { value: "video_views_50", label: "Video views 50%" },

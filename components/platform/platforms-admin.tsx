@@ -8,7 +8,8 @@ import { ALL_PLATFORMS, PLATFORM_COLOR, PLATFORM_LABEL } from "@/lib/palette";
 import { int } from "@/lib/format";
 import type { InternalField } from "@/csv/platforms/types";
 
-// Every mapped column is required now (no optional fields).
+// Required fields gate "mapping ready"; optional ones (the commerce funnel
+// events) count toward "all fields" but don't block readiness.
 const REQUIRED_FIELDS: InternalField[] = [
   "creative_name",
   "campaign_name",
@@ -26,7 +27,7 @@ const REQUIRED_FIELDS: InternalField[] = [
   "video_views_75",
   "video_views_100",
 ];
-const OPTIONAL_FIELDS: InternalField[] = [];
+const OPTIONAL_FIELDS: InternalField[] = ["add_to_cart", "add_payment"];
 const ALL_FIELDS = [...REQUIRED_FIELDS, ...OPTIONAL_FIELDS];
 
 /**
