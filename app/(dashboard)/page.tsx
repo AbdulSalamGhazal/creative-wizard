@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { Badge } from "@/components/ui/badge";
-import { defaultDateRange, type KpiFilters } from "@/db/queries/performance";
+import { type KpiFilters } from "@/db/queries/performance";
+import { defaultDateRange } from "@/lib/date-presets";
 import { resolvePreferredRange } from "@/db/queries/user-prefs";
 import { listProducts } from "@/db/queries/products";
 import { listAllTags } from "@/db/queries/creatives";

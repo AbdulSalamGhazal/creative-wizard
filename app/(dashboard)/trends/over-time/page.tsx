@@ -4,12 +4,12 @@ import { ArrowLeft } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
-  defaultDateRange,
   kpisWithDelta,
   spendByDateComparison,
   topMovers,
   type KpiFilters,
 } from "@/db/queries/performance";
+import { defaultDateRange } from "@/lib/date-presets";
 import { resolvePreferredRange } from "@/db/queries/user-prefs";
 import { listProducts } from "@/db/queries/products";
 import { listAllTags } from "@/db/queries/creatives";

@@ -27,9 +27,23 @@ export function isoToLocalDate(iso: string): Date | undefined {
   return new Date(y, m - 1, d);
 }
 
-/** Today as an ISO calendar date in the viewer's local timezone. */
+/**
+ * Today as an ISO calendar date in the business timezone (KSA / Asia/Riyadh).
+ *
+ * Using a FIXED timezone (not the machine's local one) is essential: the server
+ * runs in UTC while users are in KSA (UTC+3), so `new Date()` disagrees on the
+ * calendar date during KSA's early-morning hours. That made rolling ranges land
+ * a day behind and the picker label fail to match a preset (showing raw dates).
+ * Computing "today" in KSA on both server and client keeps them in lockstep.
+ */
+export const BUSINESS_TZ = "Asia/Riyadh";
 export function todayIso(): string {
-  return localDateToIso(new Date());
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: BUSINESS_TZ,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
 }
 
 function shiftIso(iso: string, days: number): string {
@@ -64,10 +78,15 @@ export interface DateRangeValue {
  */
 export const LIFETIME_FLOOR = "2000-01-01";
 
-/** Default range applied when nothing is selected: the last 7 days. */
-export function defaultDateRange(): DateRangeValue {
-  const preset = DATE_PRESETS.find((p) => p.key === "7");
-  return preset!.range(todayIso())!;
+/**
+ * Default "last N days" range (ending yesterday — today is excluded since its
+ * data is still partial), computed identically to the DATE_PRESETS entries so a
+ * fallback range always matches its preset and the picker shows "Last N days"
+ * rather than raw dates. Defaults to 7 days.
+ */
+export function defaultDateRange(days = 7): DateRangeValue {
+  const t = todayIso();
+  return { from: shiftIso(t, -days), to: shiftIso(t, -1) };
 }
 
 /**

@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { defaultDateRange } from "@/db/queries/performance";
+import { defaultDateRange } from "@/lib/date-presets";
 import { resolvePreferredRange } from "@/db/queries/user-prefs";
 import { videoDiagnostics } from "@/db/queries/trends";
 import { listProducts } from "@/db/queries/products";

@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import { Badge } from "@/components/ui/badge";
-import { defaultDateRange } from "@/db/queries/performance";
+import { defaultDateRange } from "@/lib/date-presets";
 import { resolvePreferredRange } from "@/db/queries/user-prefs";
 import {
   campaignFunnel,

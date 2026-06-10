@@ -9,10 +9,8 @@ import {
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { DeltaBadge } from "@/components/kpi/delta-badge";
-import {
-  defaultDateRange,
-  kpisWithDelta,
-} from "@/db/queries/performance";
+import { kpisWithDelta } from "@/db/queries/performance";
+import { defaultDateRange } from "@/lib/date-presets";
 import { resolvePreferredRange } from "@/db/queries/user-prefs";
 import { usd } from "@/lib/format";
 
