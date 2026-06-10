@@ -309,3 +309,23 @@ This app is deployed and in production use. Treat `main` as shippable.
   field that isn't described everywhere (verified by injecting a probe field →
   5 adapter errors + 1 FIELD_META error). New optional metrics go in
   `FIELD_META` with `required: false` so existing uploads keep validating.
+- **The default date range is REMEMBERED per user (cookie), not fixed.** When a
+  page has no explicit `from`/`to` in its URL it uses the `ccms_date_range`
+  cookie — a preset key (e.g. `30`, kept ROLLING so it recomputes relative to
+  today) or `custom:FROM..TO` (frozen dates). First-ever visit / unreadable
+  cookie → last 7 days. The shared `DateRangePicker` writes the cookie on every
+  pick (opt-in via its `remember` prop) and shows the remembered range as its
+  label via a `fallback` prop (so the trigger matches the data — this also fixed
+  a pre-existing mismatch where dashboards showed 30 days but the picker said "7
+  days"). Pure decode/encode live in `lib/date-presets.ts`
+  (`decodeRememberedRange`/`encodeRememberedRange`, unit-tested); the async
+  server reader is `lib/date-range-cookie.ts` (`readRememberedRange` /
+  `resolveRememberedRange`, read during SSR so there's no flash). Every
+  date-filtered page resolves its window through those helpers and passes the
+  resolved range to its filter bar as `defaultFrom`/`defaultTo`. Bars that opt
+  in: FilterStrip, PortfolioFilterBar, SummaryFilterBar, AnalyticsDateFilter.
+  Compare + Cleanup deliberately do NOT remember (they own special, non-global
+  ranges). This replaced the old fixed defaults (dashboards 30d via
+  `defaultDateRange(TRAILING_DAYS_DEFAULT)`, detail pages 7d via
+  `resolveDefaultRange`, Summary all-time) — all now unified on the cookie. No
+  DB/migration; the cookie is non-sensitive and per-browser.

@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import { Badge } from "@/components/ui/badge";
-import { defaultDateRange } from "@/db/queries/performance";
+import { readRememberedRange } from "@/lib/date-range-cookie";
 import {
   campaignFunnel,
   funnelDaily,
@@ -22,7 +22,6 @@ import { pct, usd } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
-const TRAILING_DAYS_DEFAULT = 30;
 
 type SearchParams = Record<string, string | string[] | undefined>;
 function pickFirst(v: string | string[] | undefined): string | undefined {
@@ -43,7 +42,7 @@ export default async function FunnelPage({
     includeExcluded: pickFirst(params.includeExcluded),
   });
 
-  const range = defaultDateRange(TRAILING_DAYS_DEFAULT);
+  const range = await readRememberedRange();
   const from = parsed.from ?? range.from;
   const to = parsed.to ?? range.to;
   const filters = {
@@ -81,7 +80,12 @@ export default async function FunnelPage({
         fallback={<div className="-mx-6 px-6 h-12 border-b border-line bg-background/95" />}
       >
         <div className="-mx-6 -mt-6 mb-2">
-          <FilterStrip products={products} tags={tags} />
+          <FilterStrip
+            products={products}
+            tags={tags}
+            defaultFrom={from}
+            defaultTo={to}
+          />
         </div>
       </Suspense>
 

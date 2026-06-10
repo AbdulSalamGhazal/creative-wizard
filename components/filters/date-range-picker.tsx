@@ -13,12 +13,21 @@ import { cn } from "@/lib/utils";
 import {
   activePresetKey,
   DATE_PRESETS,
+  DATE_RANGE_COOKIE,
+  encodeRememberedRange,
   isoToLocalDate,
   localDateToIso,
   presetLabel,
   resolveDefaultRange,
   todayIso,
+  type DateRangeValue,
 } from "@/lib/date-presets";
+
+/** Persist the chosen range as this user's default (1-year cookie). */
+function rememberSelection(value: string | null) {
+  if (!value) return;
+  document.cookie = `${DATE_RANGE_COOKIE}=${encodeURIComponent(value)}; path=/; max-age=31536000; samesite=lax`;
+}
 
 /**
  * Reusable date-range control: the full preset list on the left, a live
@@ -34,17 +43,31 @@ export function DateRangePicker({
   from,
   to,
   onChange,
+  remember = false,
+  fallback,
 }: {
   from: string | null;
   to: string | null;
   onChange: (from: string | null, to: string | null) => void;
+  /** When true, picking a range stores it as this user's default (cookie). */
+  remember?: boolean;
+  /**
+   * The range to show as the label / calendar seed when no explicit range is
+   * set — normally the user's remembered default (resolved server-side and
+   * passed in), so the trigger reads e.g. "Last 30 days" instead of always
+   * "Last 7 days". The highlight stays driven by the raw `from`/`to`.
+   */
+  fallback?: DateRangeValue;
 }) {
   const [open, setOpen] = useState(false);
 
-  // The effective range: the explicit one, or the default (last 7 days) when
-  // nothing is set. Drives the label, the highlighted preset, and the calendar
-  // seed, so an unset picker still reads "Last 7 days".
-  const eff = useMemo(() => resolveDefaultRange(from, to), [from, to]);
+  // The effective range: the explicit one, else the passed-in fallback (the
+  // remembered default), else last 7 days. Drives the label, the highlighted
+  // preset, and the calendar seed.
+  const eff = useMemo(
+    () => (from && to ? { from, to } : (fallback ?? resolveDefaultRange(null, null))),
+    [from, to, fallback],
+  );
   const initial: DateRange | undefined = useMemo(
     () => ({ from: isoToLocalDate(eff.from), to: isoToLocalDate(eff.to) }),
     [eff],
@@ -75,7 +98,10 @@ export function DateRangePicker({
     const toD = anchor <= triggerDate ? triggerDate : anchor;
     setPending({ from: fromD, to: toD });
     setAnchor(null);
-    onChange(localDateToIso(fromD), localDateToIso(toD));
+    const fromIso = localDateToIso(fromD);
+    const toIso = localDateToIso(toD);
+    if (remember) rememberSelection(encodeRememberedRange(null, fromIso, toIso));
+    onChange(fromIso, toIso);
     setOpen(false);
   };
 
@@ -120,6 +146,7 @@ export function DateRangePicker({
                   key={p.key}
                   type="button"
                   onClick={() => {
+                    if (remember) rememberSelection(p.key);
                     const res = p.range(todayIso());
                     if (res) onChange(res.from, res.to);
                     else onChange(null, null);

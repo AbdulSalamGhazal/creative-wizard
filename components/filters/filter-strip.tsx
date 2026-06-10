@@ -42,13 +42,27 @@ interface FilterStripProps {
   tags?: string[];
   /** Hide the Type filter — e.g. on the video-only diagnostics page. */
   hideType?: boolean;
+  /**
+   * The effective default range (the user's remembered choice, resolved
+   * server-side) shown as the picker label when no explicit range is in the
+   * URL — so the trigger matches the data instead of always reading "Last 7
+   * days".
+   */
+  defaultFrom?: string;
+  defaultTo?: string;
 }
 
 function csv(v: string | null): string[] {
   return v ? v.split(",").filter(Boolean) : [];
 }
 
-export function FilterStrip({ products = [], tags = [], hideType = false }: FilterStripProps = {}) {
+export function FilterStrip({
+  products = [],
+  tags = [],
+  hideType = false,
+  defaultFrom,
+  defaultTo,
+}: FilterStripProps = {}) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -163,7 +177,17 @@ export function FilterStrip({ products = [], tags = [], hideType = false }: Filt
     <div className="sticky top-0 z-10 border-b border-line bg-background/95 backdrop-blur">
       <div className="flex items-center gap-2 px-6 h-12 overflow-x-auto">
         {/* Date range */}
-        <DateRangePicker from={from} to={to} onChange={applyRange} />
+        <DateRangePicker
+          from={from}
+          to={to}
+          onChange={applyRange}
+          remember
+          fallback={
+            defaultFrom && defaultTo
+              ? { from: defaultFrom, to: defaultTo }
+              : undefined
+          }
+        />
 
         {/* Platforms */}
         <DropdownMenu>

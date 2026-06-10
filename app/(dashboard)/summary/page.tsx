@@ -8,6 +8,8 @@ import {
   listSummaryViews,
 } from "@/db/queries/summary-views";
 import { summaryFiltersSchema } from "@/validators/summary";
+import { readRememberedRange } from "@/lib/date-range-cookie";
+import { presetLabel } from "@/lib/date-presets";
 import { platformEnum } from "@/db/schema";
 import { requireAuth } from "@/lib/auth";
 import { SummaryFilterBar } from "@/components/summary/summary-filter-bar";
@@ -41,9 +43,11 @@ export default async function SummaryPage({
     }
   }
 
+  const rawFrom = pickFirst(params.from);
+  const rawTo = pickFirst(params.to);
   const parsed = summaryFiltersSchema.parse({
-    from: pickFirst(params.from),
-    to: pickFirst(params.to),
+    from: rawFrom,
+    to: rawTo,
     q: pickFirst(params.q),
     productIds: pickFirst(params.productIds),
     platforms: pickFirst(params.platforms),
@@ -61,6 +65,14 @@ export default async function SummaryPage({
     rate: pickFirst(params.rate),
     status: pickFirst(params.status),
   });
+
+  // An explicit, valid URL range wins; otherwise the user's remembered default
+  // (cookie), falling back to last 7 days. (Summary previously defaulted to
+  // all-time when no range was set.)
+  const range =
+    parsed.from && parsed.to
+      ? { from: parsed.from, to: parsed.to }
+      : await readRememberedRange();
 
   // Platform default: NO `platforms` param at all → all platforms (the default
   // landing view). An explicit `platforms=none` sentinel (the user deselected
@@ -82,8 +94,8 @@ export default async function SummaryPage({
     views,
   ] = await Promise.all([
     listCreativeSummary({
-      from: parsed.from,
-      to: parsed.to,
+      from: range.from,
+      to: range.to,
       q: parsed.q,
       productIds: parsed.productIds.length > 0 ? parsed.productIds : undefined,
       platforms: effectivePlatforms.length > 0 ? effectivePlatforms : undefined,
@@ -110,10 +122,7 @@ export default async function SummaryPage({
     if (typeof v === "string" && v) baseParams.set(k, v);
   }
 
-  const rangeLabel =
-    parsed.from && parsed.to
-      ? `${parsed.from} → ${parsed.to}`
-      : "all time";
+  const rangeLabel = presetLabel(range.from, range.to);
   const platformsLabel =
     selectedPlatforms.length === 0
       ? "no platforms selected"
@@ -130,6 +139,8 @@ export default async function SummaryPage({
         views={views}
         currentUserId={user.id}
         isAdmin={user.role === "admin"}
+        defaultFrom={range.from}
+        defaultTo={range.to}
       />
 
       <div className="flex items-end justify-between flex-wrap gap-2">

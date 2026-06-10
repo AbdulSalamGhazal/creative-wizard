@@ -4,12 +4,12 @@ import { ArrowLeft } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
-  defaultDateRange,
   kpisWithDelta,
   spendByDateComparison,
   topMovers,
   type KpiFilters,
 } from "@/db/queries/performance";
+import { readRememberedRange } from "@/lib/date-range-cookie";
 import { listProducts } from "@/db/queries/products";
 import { listAllTags } from "@/db/queries/creatives";
 import { FilterStrip } from "@/components/filters/filter-strip";
@@ -19,8 +19,6 @@ import { TopMoversTable } from "@/components/trends/top-movers-table";
 import { dashboardFiltersSchema } from "@/validators/filters";
 import { usd, int, pct, ratio } from "@/lib/format";
 import { periodCaption } from "@/lib/period";
-
-const TRAILING_DAYS_DEFAULT = 30;
 
 type SearchParams = Record<string, string | string[] | undefined>;
 
@@ -45,7 +43,7 @@ export default async function TrendsOverTimePage({
     includeExcluded: pickFirst(params.includeExcluded),
   });
 
-  const defaultRange = defaultDateRange(TRAILING_DAYS_DEFAULT);
+  const defaultRange = await readRememberedRange();
   const from = parsed.from ?? defaultRange.from;
   const to = parsed.to ?? defaultRange.to;
 
@@ -96,7 +94,12 @@ export default async function TrendsOverTimePage({
         }
       >
         <div className="-mx-6 -mt-6 mb-2">
-          <FilterStrip products={products} tags={tags} />
+          <FilterStrip
+            products={products}
+            tags={tags}
+            defaultFrom={from}
+            defaultTo={to}
+          />
         </div>
       </Suspense>
 

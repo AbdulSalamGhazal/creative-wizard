@@ -14,6 +14,7 @@ import {
 } from "@/db/queries/portfolio";
 import { getRatingRules } from "@/db/queries/rating";
 import { portfolioFiltersSchema } from "@/validators/portfolio";
+import { readRememberedRange } from "@/lib/date-range-cookie";
 import { ksaCalendarEvents, KSA_EVENT_COLOR } from "@/lib/ksa-calendar";
 import { PortfolioFilterBar } from "@/components/portfolio/portfolio-filter-bar";
 import { PortfolioScorecard } from "@/components/portfolio/portfolio-scorecard";
@@ -37,19 +38,26 @@ export default async function CampaignsPage({
   searchParams: Promise<SearchParams>;
 }) {
   const params = await searchParams;
+  const rawFrom = pickFirst(params.from);
+  const rawTo = pickFirst(params.to);
   const parsed = portfolioFiltersSchema.parse({
-    from: pickFirst(params.from),
-    to: pickFirst(params.to),
+    from: rawFrom,
+    to: rawTo,
     platforms: pickFirst(params.platforms),
     q: pickFirst(params.q),
     compare: pickFirst(params.compare),
     includeExcluded: pickFirst(params.includeExcluded),
   });
 
-  // The validator defaults from/to to the last 7 days when no range is set, so
-  // the page is always range-bounded (comparisons + rolling averages work).
-  const from = parsed.from;
-  const to = parsed.to;
+  // The page is always range-bounded (comparisons + rolling averages work).
+  // An explicit URL range wins (validated); otherwise use the user's remembered
+  // default (cookie), falling back to last 7 days.
+  const range =
+    rawFrom && rawTo
+      ? { from: parsed.from, to: parsed.to }
+      : await readRememberedRange();
+  const from = range.from;
+  const to = range.to;
   const compare = parsed.compare as CompareMode;
 
   const filters: PortfolioFilters = {
@@ -117,7 +125,7 @@ export default async function CampaignsPage({
       </div>
 
       <Suspense fallback={null}>
-        <PortfolioFilterBar />
+        <PortfolioFilterBar defaultFrom={from} defaultTo={to} />
       </Suspense>
 
       {/* 1. Scorecard */}

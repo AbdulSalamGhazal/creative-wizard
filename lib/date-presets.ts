@@ -151,3 +151,47 @@ export function presetLabel(from: string | null, to: string | null): string {
   if (from && to) return `${from} → ${to}`;
   return "Lifetime";
 }
+
+/**
+ * Cookie that remembers each user's last-chosen date range so it becomes their
+ * default on the next visit (set client-side by the picker, read server-side by
+ * each page). The value is either a preset key (e.g. "30" — kept ROLLING, so it
+ * recomputes relative to "today" on every visit) or `custom:FROM..TO` (frozen
+ * explicit calendar dates).
+ */
+export const DATE_RANGE_COOKIE = "ccms_date_range";
+
+const ISO_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * Decode a remembered-range cookie value into a concrete range for the given
+ * "today". A preset key resolves through DATE_PRESETS (rolling); `custom:a..b`
+ * returns the explicit dates. Returns null when the value is absent or
+ * unparseable so the caller can fall back to the fixed default.
+ */
+export function decodeRememberedRange(
+  raw: string | null | undefined,
+  today: string,
+): DateRangeValue | null {
+  if (!raw) return null;
+  if (raw.startsWith("custom:")) {
+    const [from, to] = raw.slice("custom:".length).split("..");
+    if (from && to && ISO_RE.test(from) && ISO_RE.test(to) && from <= to) {
+      return { from, to };
+    }
+    return null;
+  }
+  const preset = DATE_PRESETS.find((p) => p.key === raw);
+  return preset?.range(today) ?? null;
+}
+
+/** Cookie value to store for a chosen preset key or explicit custom range. */
+export function encodeRememberedRange(
+  presetKey: string | null,
+  from: string | null,
+  to: string | null,
+): string | null {
+  if (presetKey) return presetKey;
+  if (from && to) return `custom:${from}..${to}`;
+  return null;
+}
