@@ -20,6 +20,8 @@ export const INTERNAL_FIELDS = [
   "conversions",
   "conversion_value",
   "landing_page_views",
+  "add_to_cart",
+  "add_payment",
   "video_views_2s",
   "video_views_25",
   "video_views_50",

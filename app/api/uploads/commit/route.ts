@@ -171,6 +171,8 @@ export async function POST(request: NextRequest) {
       conversionValue:
         r.conversionValue === null ? null : r.conversionValue.toString(),
       landingPageViews: r.landingPageViews,
+      addToCart: r.addToCart,
+      addPayment: r.addPayment,
       videoViews2s: isVideo ? r.videoViews2s : null,
       videoViews25: isVideo ? r.videoViews25 : null,
       videoViews50: isVideo ? r.videoViews50 : null,

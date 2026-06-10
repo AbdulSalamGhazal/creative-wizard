@@ -37,6 +37,8 @@ export interface ParsedRow {
   /** Combined "Campaign ➤ Adset", with " (Instagram)"/" (Facebook)" appended for those two platforms (see lib/campaign.ts). */
   campaignName: string;
   landingPageViews: number | null;
+  addToCart: number | null;
+  addPayment: number | null;
   videoViews2s: number | null;
   videoViews25: number | null;
   videoViews50: number | null;
@@ -309,6 +311,8 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
     const conversions = parseNumericCell("conversions");
     const conversionValue = parseNumericCell("conversion_value");
     const landingPageViews = parseNumericCell("landing_page_views");
+    const addToCart = parseNumericCell("add_to_cart");
+    const addPayment = parseNumericCell("add_payment");
     const videoViews2s = parseNumericCell("video_views_2s");
     const videoViews25 = parseNumericCell("video_views_25");
     const videoViews50 = parseNumericCell("video_views_50");
@@ -350,6 +354,8 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
       conversionValue,
       landingPageViews:
         landingPageViews === null ? null : Math.floor(landingPageViews),
+      addToCart: addToCart === null ? null : Math.floor(addToCart),
+      addPayment: addPayment === null ? null : Math.floor(addPayment),
       videoViews2s: videoViews2s === null ? null : Math.floor(videoViews2s),
       videoViews25: videoViews25 === null ? null : Math.floor(videoViews25),
       videoViews50: videoViews50 === null ? null : Math.floor(videoViews50),
