@@ -13,9 +13,9 @@ import type {
 } from "@/db/queries/creative-status";
 
 // SVG coordinate space (scales to its cell width via viewBox).
-const W = 340;
-const H = 172;
-const PAD = 10;
+const W = 360;
+const H = 230;
+const PAD = 12;
 const LABEL_W = 70;
 const NODE_W = 11;
 const GAP = 9;
@@ -159,7 +159,7 @@ export function StatusFlowGrid({
             No status data in this window.
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-x-4 gap-y-5">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-6 gap-y-6">
             {scopes.map((sc) => (
               <div key={sc.key} className="min-w-0">
                 <span
