@@ -2,6 +2,7 @@ import { cn } from "@/lib/utils";
 import {
   STATUS_DOT,
   STATUS_LABEL,
+  STATUS_LETTER,
   type CreativeStatus,
   type PlatformStatus,
 } from "@/lib/creative-status";
@@ -35,6 +36,39 @@ export function StatusBadge({
         style={{ background: STATUS_DOT[s] }}
       />
       {!dotOnly && STATUS_LABEL[s]}
+    </span>
+  );
+}
+
+/**
+ * Compact square status chip — a single letter (N/A/P/T) in the status color,
+ * on a faint tint with a matching border. Built for dense tables where a
+ * colored dot reads as ambiguous; the full label is in the title.
+ */
+export function StatusSquare({
+  status,
+  className,
+}: {
+  status: CreativeStatus | PlatformStatus;
+  className?: string;
+}) {
+  const s = status as CreativeStatus;
+  const color = STATUS_DOT[s];
+  return (
+    <span
+      title={STATUS_LABEL[s]}
+      aria-label={STATUS_LABEL[s]}
+      className={cn(
+        "inline-flex h-4 w-4 items-center justify-center rounded-[3px] border text-[9px] font-semibold leading-none tabular-nums",
+        className,
+      )}
+      style={{
+        color,
+        borderColor: color,
+        backgroundColor: `color-mix(in srgb, ${color} 16%, transparent)`,
+      }}
+    >
+      {STATUS_LETTER[s]}
     </span>
   );
 }

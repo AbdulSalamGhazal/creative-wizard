@@ -36,6 +36,14 @@ export const STATUS_LABEL: Record<CreativeStatus, string> = {
   terminated: "Terminated",
 };
 
+/** Single-letter code for the compact square status chip (dense tables). */
+export const STATUS_LETTER: Record<CreativeStatus, string> = {
+  new: "N",
+  active: "A",
+  pause: "P",
+  terminated: "T",
+};
+
 /** Dot/badge color per status (theme CSS vars). Four distinct tones:
  *  gray = not started, green = running, amber = paused, red = terminated. */
 export const STATUS_DOT: Record<CreativeStatus, string> = {

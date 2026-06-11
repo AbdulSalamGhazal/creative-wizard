@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { PLATFORM_COLOR, PLATFORM_LABEL } from "@/lib/palette";
 import { int, pct, ratio, usd } from "@/lib/format";
 import {
@@ -21,7 +22,7 @@ import {
   type MetricColumnKey,
   type SortDir,
 } from "@/validators/summary";
-import { StatusBadge } from "@/components/creative/status-badge";
+import { StatusSquare } from "@/components/creative/status-badge";
 import type { PlatformStatus } from "@/lib/creative-status";
 
 interface Props {
@@ -159,10 +160,11 @@ export function SummaryTable({
     (m) => !hiddenMetrics?.has(m.key as MetricColumnKey),
   );
   const visibleMetricCount = visibleMetrics.length;
-  // Each platform/total group leads with the Rate column (when shown), then
-  // its visible metric columns.
+  // Each platform/total group leads with a thin Status column then the Rate
+  // column (both shown together under `showRate`), then its visible metrics.
   const rateCols = showRate ? 1 : 0;
-  const groupColSpan = visibleMetricCount + rateCols;
+  const statusCols = showRate ? 1 : 0;
+  const groupColSpan = visibleMetricCount + rateCols + statusCols;
 
   // ---- Resizable text columns -------------------------------------------
   const [widths, setWidths] = useState<Record<string, number>>({});
@@ -340,12 +342,21 @@ export function SummaryTable({
             scrolls; an opaque background keeps rows from showing through. */}
         <thead className="sticky top-0 z-20 bg-surface">
           <tr className="border-b border-line bg-surface-2/40">
+            {/* The Creative (name) banner pins left; the remaining identity
+                columns share a blank banner so the per-column labels in the
+                next row still align under it. */}
             <th
-              colSpan={identityCols.length}
-              className="px-3 py-1.5 text-[10px] uppercase tracking-[0.14em] text-ink-3 text-left"
+              style={widthStyle("name")}
+              className="sticky left-0 z-30 bg-surface-2 px-3 py-1.5 text-[10px] uppercase tracking-[0.14em] text-ink-3 text-left"
             >
               Creative
             </th>
+            {identityCols.length > 1 && (
+              <th
+                colSpan={identityCols.length - 1}
+                className="px-3 py-1.5 text-[10px] uppercase tracking-[0.14em] text-ink-3 text-left"
+              />
+            )}
             {groupColSpan > 0 &&
               orderedGroups.map((g, idx) => {
                 const isTotal = g === "total";
@@ -410,6 +421,7 @@ export function SummaryTable({
                   width={widths[c.key]}
                   style={widthStyle(c.key)}
                   resizable={resizable}
+                  pinned={c.key === "name"}
                   onResizeStart={(e) => startResize(c.key, e)}
                   thRef={(el) => {
                     thRefs.current[c.key] = el;
@@ -434,7 +446,7 @@ export function SummaryTable({
           {rows.map((r) => (
             <tr
               key={r.creativeId}
-              className="hover:bg-surface-2/40 transition-colors"
+              className="group hover:bg-surface-2/40 transition-colors"
             >
               {/* Identity — render only the visible columns */}
               {identityCols.map((c) => {
@@ -444,15 +456,21 @@ export function SummaryTable({
                 switch (c.key) {
                   case "name":
                     return (
-                      <td key="name" style={style} className={`px-3 py-2 ${nowrap}`}>
+                      <td
+                        key="name"
+                        style={style}
+                        className={cn(
+                          "px-3 py-2 sticky left-0 z-10 bg-surface group-hover:bg-surface-2",
+                          nowrap,
+                        )}
+                      >
                         <span className="inline-flex items-center gap-2 max-w-full">
-                          {/* Dynamic general status — a colored dot only (label
-                              in its title); sits before the name so the live
-                              state reads at a glance without a dedicated column. */}
-                          <StatusBadge
+                          {/* Dynamic general status — a square letter chip
+                              (label in its title); sits before the name and
+                              pins with it so the live state stays visible while
+                              scrolling the metrics horizontally. */}
+                          <StatusSquare
                             status={r.generalStatus}
-                            dotOnly
-                            dotClassName="h-2.5 w-2.5"
                             className="shrink-0"
                           />
                           <Link
@@ -536,7 +554,12 @@ export function SummaryTable({
               {identityCols.map((c, i) => (
                 <td
                   key={`foot-${c.key}`}
-                  className="sticky bottom-0 z-10 bg-surface-2 px-3 py-2 text-ink font-semibold whitespace-nowrap"
+                  className={cn(
+                    "sticky bottom-0 z-10 bg-surface-2 px-3 py-2 text-ink font-semibold whitespace-nowrap",
+                    // The name (Totals) cell pins left too, so it stays in the
+                    // bottom-left corner during horizontal scroll.
+                    i === 0 && "left-0 z-20",
+                  )}
                 >
                   {i === 0 ? "Totals" : ""}
                 </td>
@@ -572,6 +595,7 @@ function IdentityTh({
   width,
   style,
   resizable,
+  pinned = false,
   onResizeStart,
   thRef,
 }: {
@@ -583,6 +607,8 @@ function IdentityTh({
   width?: number;
   style?: React.CSSProperties;
   resizable: boolean;
+  /** Freeze this header to the left edge during horizontal scroll. */
+  pinned?: boolean;
   onResizeStart: (e: React.MouseEvent) => void;
   thRef: (el: HTMLTableCellElement | null) => void;
 }) {
@@ -590,9 +616,11 @@ function IdentityTh({
     <th
       ref={thRef}
       style={style}
-      className={
-        "relative font-medium px-3 py-2 text-left " + (width ? "" : "whitespace-nowrap")
-      }
+      className={cn(
+        "relative font-medium px-3 py-2 text-left",
+        !width && "whitespace-nowrap",
+        pinned && "sticky left-0 z-30 bg-surface",
+      )}
     >
       <Link
         href={href}
@@ -643,22 +671,31 @@ function RateAndMetricsHead({
   return (
     <>
       {showRate && (
-        <th
-          className="font-medium px-3 py-2 whitespace-nowrap text-center border-l border-line"
-          title="Derived from ROAS and the spend gate in Configuration → Rate rules."
-        >
-          <Link
-            href={sortHref(`${scope}.rate`)}
-            scroll={false}
-            className={
-              "inline-flex items-center gap-1 hover:text-ink transition-colors " +
-              (sort.key === `${scope}.rate` ? "text-brand" : "")
-            }
+        <>
+          {/* Thin Status column leads the group (owns the divider). */}
+          <th
+            className="font-medium px-2 py-2 text-center border-l border-line"
+            title="Status on this platform — N: new · A: active · P: pause · T: terminated"
           >
-            Rate
-            <SortIcon active={sort.key === `${scope}.rate`} dir={sort.dir} />
-          </Link>
-        </th>
+            St.
+          </th>
+          <th
+            className="font-medium px-3 py-2 whitespace-nowrap text-center"
+            title="Derived from ROAS and the spend gate in Configuration → Rate rules."
+          >
+            <Link
+              href={sortHref(`${scope}.rate`)}
+              scroll={false}
+              className={
+                "inline-flex items-center gap-1 hover:text-ink transition-colors " +
+                (sort.key === `${scope}.rate` ? "text-brand" : "")
+              }
+            >
+              Rate
+              <SortIcon active={sort.key === `${scope}.rate`} dir={sort.dir} />
+            </Link>
+          </th>
+        </>
       )}
       {visibleMetrics.map((m, i) => (
         <SortableTh
@@ -736,28 +773,28 @@ function RateAndMetricsCells({
   visibleMetrics: MetricColumn[];
   muted?: boolean;
 }) {
-  // The per-platform status dot leads the group — a colored dot only (state in
-  // the title), including "new" (just the grey dot, no label).
-  const statusDot = platformStatus ? (
-    <StatusBadge
-      status={platformStatus}
-      dotOnly
-      dotClassName="h-2.5 w-2.5"
-      className="align-middle"
-    />
+  // The per-platform status square: a letter chip (state in its title),
+  // including "new" (grey "N"). Undefined for the blended "total" group.
+  const statusSquare = platformStatus ? (
+    <StatusSquare status={platformStatus} />
   ) : null;
   return (
     <>
       {showRate && (
-        <td className="px-3 py-2 text-center whitespace-nowrap border-l border-line">
-          <span className="inline-flex items-center justify-center gap-1.5">
-            {statusDot}
+        <>
+          {/* Thin Status column leads the group (owns the divider). */}
+          <td className="px-2 py-2 text-center whitespace-nowrap border-l border-line">
+            {statusSquare}
+          </td>
+          <td className="px-3 py-2 text-center whitespace-nowrap">
             <RateBadge block={block} rules={rulesForScope(ratingConfig, scope)} />
-          </span>
-        </td>
+          </td>
+        </>
       )}
       {visibleMetrics.map((m, mi) => {
         const v = block ? pickMetric(block, m.key) : null;
+        // When the Rate (and Status) columns are hidden, the status chip rides
+        // along in the first metric cell so it never fully disappears.
         const leadsGroup = mi === 0 && !showRate;
         return (
           <td
@@ -768,9 +805,9 @@ function RateAndMetricsCells({
               (leadsGroup ? "border-l border-line" : "")
             }
           >
-            {leadsGroup && statusDot ? (
+            {leadsGroup && statusSquare ? (
               <span className="inline-flex items-center justify-end gap-1.5">
-                {statusDot}
+                {statusSquare}
                 {m.format(v)}
               </span>
             ) : (
@@ -852,9 +889,14 @@ function FooterCells({
   return (
     <>
       {showRate && (
-        <td className="sticky bottom-0 z-10 bg-surface-2 px-3 py-2 text-center whitespace-nowrap border-l border-line text-ink-3">
-          —
-        </td>
+        <>
+          <td className="sticky bottom-0 z-10 bg-surface-2 px-2 py-2 text-center border-l border-line text-ink-3">
+            —
+          </td>
+          <td className="sticky bottom-0 z-10 bg-surface-2 px-3 py-2 text-center whitespace-nowrap text-ink-3">
+            —
+          </td>
+        </>
       )}
       {visibleMetrics.map((m, mi) => {
         const v = block ? pickMetric(block, m.key) : null;
