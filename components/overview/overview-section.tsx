@@ -129,13 +129,10 @@ export async function OverviewSection({ filters, dimension, dimensionLabel }: Pr
   const otFiltered =
     dimension === "campaign" ? otRows.filter((r) => keySet.has(r.key)) : otRows;
 
-  // Type-mix rows: one per platform (Google dropped for now) — or top campaigns
-  // when a platform is pinned — ordered by total spend. The chart adds the
-  // emphasized "Overall" row and computes the per-type percentages itself.
-  const typeData =
-    dimension === "platform"
-      ? typeRows.filter((r) => r.key !== "google")
-      : typeRows;
+  // Type-mix rows: one per platform — or top campaigns when a platform is
+  // pinned — ordered by total spend. The chart adds the emphasized "Overall"
+  // row and computes the per-type percentages itself.
+  const typeData = typeRows;
   const typeTotals = new Map<string, number>();
   for (const r of typeData) typeTotals.set(r.key, (typeTotals.get(r.key) ?? 0) + r.spend);
   let typeKeyOrder = [...typeTotals.entries()].sort((a, b) => b[1] - a[1]).map(([k]) => k);

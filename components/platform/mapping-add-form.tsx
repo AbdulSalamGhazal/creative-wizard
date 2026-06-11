@@ -20,7 +20,7 @@ type Field = InternalField;
 export function MappingAddForm({
   platform,
 }: {
-  platform: "instagram" | "facebook" | "tiktok" | "snapchat" | "google";
+  platform: "instagram" | "facebook" | "tiktok" | "snapchat";
 }) {
   const [field, setField] = useState<Field>("creative_name");
   const [headerName, setHeaderName] = useState("");

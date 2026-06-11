@@ -26,7 +26,6 @@ const PLATFORMS = [
   { value: "facebook", label: "Facebook" },
   { value: "tiktok", label: "TikTok" },
   { value: "snapchat", label: "Snapchat" },
-  { value: "google", label: "Google" },
 ] as const;
 
 const TYPES = [

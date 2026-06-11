@@ -32,14 +32,13 @@ import { usd, int } from "@/lib/format";
 import { defaultDateRange } from "@/lib/date-presets";
 import { cn } from "@/lib/utils";
 
-type Platform = "instagram" | "facebook" | "tiktok" | "snapchat" | "google";
+type Platform = "instagram" | "facebook" | "tiktok" | "snapchat";
 
 const PLATFORMS: Array<{ value: Platform; label: string }> = [
   { value: "instagram", label: "Instagram" },
   { value: "facebook", label: "Facebook" },
   { value: "tiktok", label: "TikTok" },
   { value: "snapchat", label: "Snapchat" },
-  { value: "google", label: "Google" },
 ];
 
 interface Props {

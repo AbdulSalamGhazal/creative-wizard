@@ -9,7 +9,6 @@ export const PLATFORMS = [
   { value: "facebook", label: PLATFORM_LABEL.facebook },
   { value: "tiktok", label: PLATFORM_LABEL.tiktok },
   { value: "snapchat", label: PLATFORM_LABEL.snapchat },
-  { value: "google", label: PLATFORM_LABEL.google },
 ] as const;
 
 export type Platform = (typeof PLATFORMS)[number]["value"];

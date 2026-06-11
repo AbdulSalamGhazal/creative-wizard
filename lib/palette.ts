@@ -2,19 +2,20 @@
  * Hex mirrors of the platform colors defined in app/globals.css.
  * Recharts and other DOM-renderers need literal color values, not CSS vars.
  * Keep these in sync with `--instagram`, `--facebook`, `--tiktok`,
- * `--snapchat`, `--google`.
+ * `--snapchat`.
  *
  * Meta was split into Instagram + Facebook — they are now two distinct
- * platforms everywhere in the system.
+ * platforms everywhere in the system. (Google was removed — to re-add it,
+ * restore it in `platformEnum` (db/schema.ts), these three maps, and the
+ * `--google` CSS var in app/globals.css.)
  */
-type PlatformKey = "instagram" | "facebook" | "tiktok" | "snapchat" | "google";
+type PlatformKey = "instagram" | "facebook" | "tiktok" | "snapchat";
 
 export const PLATFORM_COLOR: Record<PlatformKey, string> = {
   instagram: "#c13584", // IG purple/magenta
   facebook: "#4f8efb", // FB blue
   tiktok: "#d4d4d8", // light grey (distinct from IG pink)
   snapchat: "#ffd80b", // yellow
-  google: "#34d399", // emerald
 };
 
 export const PLATFORM_LABEL: Record<PlatformKey, string> = {
@@ -22,7 +23,6 @@ export const PLATFORM_LABEL: Record<PlatformKey, string> = {
   facebook: "Facebook",
   tiktok: "TikTok",
   snapchat: "Snapchat",
-  google: "Google",
 };
 
 export const ALL_PLATFORMS = [
@@ -30,7 +30,6 @@ export const ALL_PLATFORMS = [
   "facebook",
   "tiktok",
   "snapchat",
-  "google",
 ] as const;
 
 /**

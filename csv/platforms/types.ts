@@ -80,7 +80,7 @@ export const FIELD_LIST: ReadonlyArray<{
 export type DateFormat = "YYYY-MM-DD" | "MM/DD/YYYY" | "D Mon YYYY" | "DD/MM/YYYY";
 
 export interface PlatformAdapter {
-  platform: "instagram" | "facebook" | "tiktok" | "snapchat" | "google";
+  platform: "instagram" | "facebook" | "tiktok" | "snapchat";
   /**
    * Map internal field names → candidate header strings (case-insensitive,
    * whitespace-trimmed match). The pipeline picks the first candidate that

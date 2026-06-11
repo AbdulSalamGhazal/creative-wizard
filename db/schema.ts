@@ -17,7 +17,7 @@ import {
 import { sql } from "drizzle-orm";
 
 export const roleEnum = ["admin", "editor", "viewer"] as const;
-export const platformEnum = ["instagram", "facebook", "tiktok", "snapchat", "google"] as const;
+export const platformEnum = ["instagram", "facebook", "tiktok", "snapchat"] as const;
 export const creativeTypeEnum = ["video", "slides", "image"] as const;
 export const creativeStatusEnum = ["draft", "active", "paused", "archived"] as const;
 export const productStatusEnum = ["active", "archived"] as const;

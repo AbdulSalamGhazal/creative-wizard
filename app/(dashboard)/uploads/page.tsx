@@ -20,7 +20,6 @@ const PLATFORM_LABEL: Record<string, string> = {
   facebook: "Facebook",
   tiktok: "TikTok",
   snapchat: "Snapchat",
-  google: "Google",
 };
 
 export default async function UploadsPage() {

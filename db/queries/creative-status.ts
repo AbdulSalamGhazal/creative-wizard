@@ -361,7 +361,7 @@ export async function creativeStatusTransitions(
 // Both keep the same start-of-window → now transition shape as the single flow.
 // ---------------------------------------------------------------------------
 
-/** Platforms shown in the status-flow grid (Google intentionally excluded). */
+/** Platforms shown in the status-flow grid. */
 export const FLOW_PLATFORMS: Platform[] = [
   "instagram",
   "facebook",

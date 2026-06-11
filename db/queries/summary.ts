@@ -679,7 +679,7 @@ export async function listCreativeSummary(
 
   // A filter (metric / rate / status) can carry a platform scope that's no
   // longer in the current platform selection — e.g. a saved view or edited URL
-  // pinned `google:roas` while the view now shows only IG/TikTok. That platform
+  // pinned `snapchat:roas` while the view now shows only IG/TikTok. That platform
   // has no metric block, so the filter would silently drop EVERY row and the
   // table looks broken. Ignore any filter whose scope isn't "total" or a
   // currently-selected platform rather than zeroing the result set.

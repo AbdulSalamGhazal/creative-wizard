@@ -24,7 +24,6 @@ interface PivotRow {
   facebook: number | null;
   tiktok: number | null;
   snapchat: number | null;
-  google: number | null;
 }
 
 const compactUsd = new Intl.NumberFormat("en-US", {
@@ -53,7 +52,6 @@ export function CreativePerfLineChart({ rows }: Props) {
           facebook: null,
           tiktok: null,
           snapchat: null,
-          google: null,
         };
         byDate.set(r.date, existing);
       }

@@ -153,8 +153,7 @@ export async function POST(request: NextRequest) {
     | "instagram"
     | "facebook"
     | "tiktok"
-    | "snapchat"
-    | "google";
+    | "snapchat";
 
   // Column values for one performance_records row. Identity columns
   // (creative/platform/campaign/date) are added separately for inserts;

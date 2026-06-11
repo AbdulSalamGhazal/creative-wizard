@@ -29,7 +29,6 @@ import { instagramAdapter } from "@/csv/platforms/instagram";
 import { facebookAdapter } from "@/csv/platforms/facebook";
 import { tiktokAdapter } from "@/csv/platforms/tiktok";
 import { snapchatAdapter } from "@/csv/platforms/snapchat";
-import { googleAdapter } from "@/csv/platforms/google";
 import type { InternalField } from "@/csv/platforms/types";
 import { sql } from "drizzle-orm";
 import { buildCampaignName } from "@/lib/campaign";
@@ -160,7 +159,7 @@ async function main() {
   // Seeds the placeholder candidate headers we shipped in code into the DB
   // so the admin UI starts with reasonable defaults. Each (platform, field,
   // header) is unique; ON CONFLICT DO NOTHING keeps re-runs no-ops.
-  const adapters = [instagramAdapter, facebookAdapter, tiktokAdapter, snapchatAdapter, googleAdapter];
+  const adapters = [instagramAdapter, facebookAdapter, tiktokAdapter, snapchatAdapter];
   let mappingsInserted = 0;
   for (const a of adapters) {
     for (const [field, headers] of Object.entries(a.headerMap) as Array<[

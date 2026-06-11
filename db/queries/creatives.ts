@@ -445,7 +445,7 @@ export async function creativeDeletionSummary(
 
 export interface CreativeRecordRow {
   id: number;
-  platform: "instagram" | "facebook" | "tiktok" | "snapchat" | "google";
+  platform: "instagram" | "facebook" | "tiktok" | "snapchat";
   campaignName: string;
   date: string;
   spend: number;
