@@ -2,7 +2,14 @@
 
 import { Layers, Search, X } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+} from "react";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -67,20 +74,31 @@ export function PortfolioFilterBar({
     [pathname, router, searchParams],
   );
 
-  // Debounced campaign search.
+  // Debounced campaign search. The input is the source of truth while typing;
+  // we only adopt a `q` change we DIDN'T originate (Clear, back/forward) so a
+  // late-landing navigation can't reset the field and eat typed characters.
   const [qLocal, setQLocal] = useState(qParam);
-  useEffect(() => setQLocal(qParam), [qParam]);
+  const pendingQPushes = useRef<Set<string>>(new Set());
   useEffect(() => {
+    if (pendingQPushes.current.has(qParam)) {
+      pendingQPushes.current.delete(qParam);
+      return;
+    }
+    pendingQPushes.current.clear();
+    setQLocal(qParam);
+  }, [qParam]);
+  useEffect(() => {
+    const trimmed = qLocal.trim();
+    if (trimmed === qParam) return;
     const t = setTimeout(() => {
-      if (qLocal === qParam) return;
+      pendingQPushes.current.add(trimmed);
       update((next) => {
-        if (qLocal.trim()) next.set("q", qLocal.trim());
+        if (trimmed) next.set("q", trimmed);
         else next.delete("q");
       });
     }, 300);
     return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [qLocal]);
+  }, [qLocal, qParam, update]);
 
   const setRange = (f: string | null, t: string | null) => {
     update((next) => {

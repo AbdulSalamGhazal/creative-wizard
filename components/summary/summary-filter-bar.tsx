@@ -13,7 +13,14 @@ import {
   X,
 } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+} from "react";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -182,7 +189,24 @@ export function SummaryFilterBar({
 
   const urlQ = searchParams.get("q") ?? "";
   const [qInput, setQInput] = useState(urlQ);
-  useEffect(() => setQInput(urlQ), [urlQ]);
+  // The search input is the source of truth while the user types; the URL `q` is
+  // just a debounced side effect. We must NOT mirror the URL back into the input
+  // for our own writes — a navigation that lands a few keystrokes late would
+  // otherwise reset the field and eat the characters typed since. So we track
+  // the values we've pushed and only adopt a `q` change that we DIDN'T originate
+  // (Clear, a saved view, browser back/forward).
+  const pendingQPushes = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (pendingQPushes.current.has(urlQ)) {
+      // Our own debounced write echoing back — consume it, keep the (possibly
+      // newer) text the user has typed in the meantime.
+      pendingQPushes.current.delete(urlQ);
+      return;
+    }
+    // Genuine external change → adopt it and drop any of our now-stale writes.
+    pendingQPushes.current.clear();
+    setQInput(urlQ);
+  }, [urlQ]);
 
   const update = useCallback(
     (mutate: (next: URLSearchParams) => void) => {
@@ -198,12 +222,17 @@ export function SummaryFilterBar({
     [pathname, router, searchParams],
   );
 
-  // Debounce search → URL
+  // Debounce search → URL. Compare the TRIMMED input against the URL so a
+  // trailing space the user just typed doesn't loop a no-op write.
   useEffect(() => {
-    if (qInput === urlQ) return;
+    const trimmed = qInput.trim();
+    if (trimmed === urlQ) return;
     const id = setTimeout(() => {
+      // Record the value before navigating so the URL echo above is recognised
+      // as ours and doesn't clobber the input.
+      pendingQPushes.current.add(trimmed);
       update((next) => {
-        if (qInput.trim()) next.set("q", qInput.trim());
+        if (trimmed) next.set("q", trimmed);
         else next.delete("q");
       });
     }, 250);

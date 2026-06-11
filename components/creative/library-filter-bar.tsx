@@ -15,7 +15,14 @@ import {
 } from "lucide-react";
 import { ALL_PLATFORMS, PLATFORM_LABEL } from "@/lib/palette";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+} from "react";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -105,9 +112,20 @@ export function LibraryFilterBar({ products, tags }: Props) {
   const view = creativeViewValues.includes(viewParam) ? viewParam : "table";
 
   // Local search input state so typing feels instant; we push to URL on debounce.
+  // The input is the source of truth while typing — we only adopt a `q` change
+  // we DIDN'T originate (Clear, back/forward), tracking our own debounced writes
+  // so a late-landing navigation can't reset the field and eat typed characters.
   const urlQ = searchParams.get("q") ?? "";
   const [qInput, setQInput] = useState(urlQ);
-  useEffect(() => setQInput(urlQ), [urlQ]);
+  const pendingQPushes = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (pendingQPushes.current.has(urlQ)) {
+      pendingQPushes.current.delete(urlQ);
+      return;
+    }
+    pendingQPushes.current.clear();
+    setQInput(urlQ);
+  }, [urlQ]);
 
   const update = useCallback(
     (mutate: (next: URLSearchParams) => void) => {
@@ -123,12 +141,15 @@ export function LibraryFilterBar({ products, tags }: Props) {
     [pathname, router, searchParams],
   );
 
-  // Debounce search input → URL.
+  // Debounce search input → URL. Compare the TRIMMED value so a trailing space
+  // doesn't loop a no-op write; record the push so the URL echo is ignored.
   useEffect(() => {
-    if (qInput === urlQ) return;
+    const trimmed = qInput.trim();
+    if (trimmed === urlQ) return;
     const id = setTimeout(() => {
+      pendingQPushes.current.add(trimmed);
       update((next) => {
-        if (qInput.trim()) next.set("q", qInput.trim());
+        if (trimmed) next.set("q", trimmed);
         else next.delete("q");
       });
     }, 250);
