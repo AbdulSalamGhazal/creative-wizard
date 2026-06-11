@@ -44,15 +44,16 @@ const PLATFORMS: Array<{ value: Platform; label: string }> = [
 interface Props {
   products: Array<{ id: string; name: string }>;
   creatives: Array<{ id: string; name: string; productName: string }>;
+  campaigns: string[];
 }
 
 /**
  * Admin record-cleanup tool. Build a selection (platform / date range /
- * product / creative — combined with AND), preview the exact impact, then
- * permanently delete after a typed confirmation. Hard delete is a sanctioned,
- * audit-logged exit path for performance_records.
+ * product / creative / campaign — combined with AND), preview the exact impact,
+ * then permanently delete after a typed confirmation. Hard delete is a
+ * sanctioned, audit-logged exit path for performance_records.
  */
-export function CleanupTool({ products, creatives }: Props) {
+export function CleanupTool({ products, creatives, campaigns }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
@@ -63,6 +64,7 @@ export function CleanupTool({ products, creatives }: Props) {
   const [to, setTo] = useState<string | null>(() => defaultDateRange().to);
   const [productIds, setProductIds] = useState<string[]>([]);
   const [creativeIds, setCreativeIds] = useState<string[]>([]);
+  const [campaignNames, setCampaignNames] = useState<string[]>([]);
 
   const [preview, setPreview] = useState<CleanupPreview | null>(null);
   const [confirmText, setConfirmText] = useState("");
@@ -71,7 +73,8 @@ export function CleanupTool({ products, creatives }: Props) {
     platforms.length > 0 ||
     (!!from && !!to) ||
     productIds.length > 0 ||
-    creativeIds.length > 0;
+    creativeIds.length > 0 ||
+    campaignNames.length > 0;
 
   // Any filter change invalidates a stale preview.
   const resetPreview = () => {
@@ -86,8 +89,9 @@ export function CleanupTool({ products, creatives }: Props) {
       to: to ?? undefined,
       productIds,
       creativeIds,
+      campaigns: campaignNames,
     }),
-    [platforms, from, to, productIds, creativeIds],
+    [platforms, from, to, productIds, creativeIds, campaignNames],
   );
 
   const toggle = <T,>(arr: T[], v: T, set: (x: T[]) => void) => {
@@ -121,6 +125,7 @@ export function CleanupTool({ products, creatives }: Props) {
       setTo(null);
       setProductIds([]);
       setCreativeIds([]);
+      setCampaignNames([]);
       setPreview(null);
       setConfirmText("");
       router.refresh();
@@ -137,6 +142,12 @@ export function CleanupTool({ products, creatives }: Props) {
     creativeIds.length === 0
       ? "Any"
       : `${creativeIds.length} selected`;
+  const campaignLabel =
+    campaignNames.length === 0
+      ? "Any"
+      : campaignNames.length === 1
+        ? campaignNames[0]
+        : `${campaignNames.length} selected`;
 
   const confirmed = confirmText.trim().toUpperCase() === "DELETE";
 
@@ -257,6 +268,51 @@ export function CleanupTool({ products, creatives }: Props) {
                       <span className="ml-auto text-[11px] text-ink-3 truncate">
                         {c.productName}
                       </span>
+                    </CommandItem>
+                  );
+                })}
+              </CommandList>
+            </Command>
+          </PopoverContent>
+        </Popover>
+
+        {/* Campaigns (searchable) */}
+        <Popover>
+          <PopoverTrigger asChild>
+            <button type="button" className={pill(campaignNames.length > 0)}>
+              <span className="text-ink-3">Campaigns</span>
+              <span className="text-ink max-w-[160px] truncate">
+                {campaignLabel}
+              </span>
+              <ChevronDown className="w-3 h-3 text-ink-3 shrink-0" />
+            </button>
+          </PopoverTrigger>
+          <PopoverContent align="start" className="p-0 w-96">
+            <Command
+              filter={(value, search) =>
+                value.toLowerCase().includes(search.toLowerCase()) ? 1 : 0
+              }
+            >
+              <CommandInput placeholder="Search campaigns…" />
+              <CommandList className="max-h-72">
+                <CommandEmpty>No campaigns found.</CommandEmpty>
+                {campaigns.map((name) => {
+                  const checked = campaignNames.includes(name);
+                  return (
+                    <CommandItem
+                      key={name}
+                      value={name}
+                      onSelect={() =>
+                        toggle(campaignNames, name, setCampaignNames)
+                      }
+                    >
+                      <Check
+                        className={cn(
+                          "w-3.5 h-3.5 shrink-0 text-brand",
+                          checked ? "opacity-100" : "opacity-0",
+                        )}
+                      />
+                      <span className="text-[12px] truncate">{name}</span>
                     </CommandItem>
                   );
                 })}

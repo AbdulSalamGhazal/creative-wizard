@@ -9,6 +9,7 @@ import { auth } from "@/lib/auth";
 import { getActiveAccountId } from "@/lib/tenant";
 import { RollbackButton } from "@/components/upload/rollback-button";
 import { CleanupTool } from "@/components/cleanup/cleanup-tool";
+import { listAccountCampaigns } from "@/db/queries/cleanup";
 
 const ROLLBACK_WINDOW_MS = 24 * 60 * 60 * 1000;
 
@@ -47,7 +48,7 @@ export default async function UploadsPage() {
     .limit(50);
 
   // Filter options for the cleanup tool (fetched for editors + admins).
-  const [cleanupProducts, cleanupCreatives] = canCleanup
+  const [cleanupProducts, cleanupCreatives, cleanupCampaigns] = canCleanup
     ? await Promise.all([
         db
           .select({ id: products.id, name: products.name })
@@ -64,8 +65,9 @@ export default async function UploadsPage() {
           .innerJoin(products, eq(products.id, creatives.productId))
           .where(eq(creatives.accountId, acct))
           .orderBy(asc(creatives.name)),
+        listAccountCampaigns(),
       ])
-    : [[], []];
+    : [[], [], []];
 
   return (
     <div className="space-y-6">
@@ -162,7 +164,11 @@ export default async function UploadsPage() {
       </p>
 
       {canCleanup && (
-        <CleanupTool products={cleanupProducts} creatives={cleanupCreatives} />
+        <CleanupTool
+          products={cleanupProducts}
+          creatives={cleanupCreatives}
+          campaigns={cleanupCampaigns}
+        />
       )}
     </div>
   );

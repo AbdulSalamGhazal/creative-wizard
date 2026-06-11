@@ -16,13 +16,15 @@ export const cleanupFiltersSchema = z
     to: z.string().date().optional(),
     productIds: z.array(z.string().uuid()).default([]),
     creativeIds: z.array(z.string().uuid()).default([]),
+    campaigns: z.array(z.string().min(1)).default([]),
   })
   .refine(
     (f) =>
       f.platforms.length > 0 ||
       (!!f.from && !!f.to) ||
       f.productIds.length > 0 ||
-      f.creativeIds.length > 0,
+      f.creativeIds.length > 0 ||
+      f.campaigns.length > 0,
     { message: "Select at least one filter before previewing or deleting." },
   );
 

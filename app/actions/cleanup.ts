@@ -92,6 +92,7 @@ export async function runCleanup(input: unknown): Promise<CleanupResult> {
           to: f.to ?? null,
           productIds: f.productIds,
           creativeIds: f.creativeIds,
+          campaigns: f.campaigns,
         },
       },
     });

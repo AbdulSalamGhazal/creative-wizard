@@ -1,4 +1,4 @@
-import { and, between, eq, inArray, sql, type SQL } from "drizzle-orm";
+import { and, asc, between, eq, inArray, sql, type SQL } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { creatives, performanceRecords, platformEnum } from "@/db/schema";
 import { getActiveAccountId } from "@/lib/tenant";
@@ -11,6 +11,7 @@ export interface CleanupMatch {
   to?: string;
   productIds?: string[];
   creativeIds?: string[];
+  campaigns?: string[];
 }
 
 export interface CleanupPreview {
@@ -36,6 +37,12 @@ function buildConditions(f: CleanupMatch, acct: string): SQL[] {
   }
   if (f.creativeIds && f.creativeIds.length > 0) {
     conds.push(inArray(performanceRecords.creativeId, f.creativeIds));
+  }
+  if (f.campaigns && f.campaigns.length > 0) {
+    // campaign_name stores the combined "Campaign ➤ Adset" value (with the
+    // platform suffix for IG/FB), so an exact in-list match deletes precisely
+    // the rows the user picked.
+    conds.push(inArray(performanceRecords.campaignName, f.campaigns));
   }
   if (f.productIds && f.productIds.length > 0) {
     // performance_records has no product_id; match creatives under the selected
@@ -71,8 +78,25 @@ function hasAnyFilter(f: CleanupMatch): boolean {
     (f.platforms && f.platforms.length > 0) ||
       (f.from && f.to) ||
       (f.creativeIds && f.creativeIds.length > 0) ||
-      (f.productIds && f.productIds.length > 0),
+      (f.productIds && f.productIds.length > 0) ||
+      (f.campaigns && f.campaigns.length > 0),
   );
+}
+
+/**
+ * Distinct campaign names for the active account, for the cleanup campaign
+ * picker. Date-unbounded on purpose — cleanup operates on historical data, so
+ * the picker must surface every campaign that has ever stored a record, not
+ * just recent ones.
+ */
+export async function listAccountCampaigns(): Promise<string[]> {
+  const acct = await getActiveAccountId();
+  const rows = await db
+    .selectDistinct({ name: performanceRecords.campaignName })
+    .from(performanceRecords)
+    .where(eq(performanceRecords.accountId, acct))
+    .orderBy(asc(performanceRecords.campaignName));
+  return rows.map((r) => r.name);
 }
 
 /** Count + summarize what a cleanup selection would affect. Read-only. */
