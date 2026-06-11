@@ -191,10 +191,18 @@ function resolveSort(
   // Per-platform / total metric keys: "<platform | total>.<metric>"
   const [scope, metric] = sort.split(".");
   if (!scope || !metric) return DEFAULT_SORT;
-  // "rate" is a derived categorical column sortable per scope (handled in JS).
-  if (metric !== "rate" && !METRIC_KEYS.includes(metric as MetricKey)) {
+  // "rate" and "status" are derived categorical columns sortable per scope
+  // (both handled by a JS re-sort, not SQL).
+  if (
+    metric !== "rate" &&
+    metric !== "status" &&
+    !METRIC_KEYS.includes(metric as MetricKey)
+  ) {
     return DEFAULT_SORT;
   }
+  // The blended total has a Rate cell but no per-platform status chip, so
+  // "total.status" isn't a real column — fall back to the default sort.
+  if (metric === "status" && scope === "total") return DEFAULT_SORT;
   if (scope === "total") return { key: sort, dir: direction };
   if (selectedPlatforms.includes(scope as Platform)) {
     return { key: sort, dir: direction };
@@ -552,9 +560,12 @@ export async function listCreativeSummary(
   // below.
   const isRateSort = resolved.key.endsWith(".rate");
   const isStatusSort = resolved.key === "status";
+  // Per-platform status sort ("<platform>.status") — derived in JS like rate
+  // and the general status, so SQL only needs a neutral base order.
+  const isPlatformStatusSort = resolved.key.endsWith(".status");
   const isIdentitySort = IDENTITY_SORT_KEYS.has(resolved.key);
   const baseOrderExpr =
-    isRateSort || isStatusSort
+    isRateSort || isStatusSort || isPlatformStatusSort
       ? sumSpend
       : orderBySql(resolved.key, selectedPlatforms, metricsByPlatform);
   // Null metrics must sort as 0 globally (a creative with no clicks has cpc =
@@ -585,7 +596,7 @@ export async function listCreativeSummary(
     .orderBy(
       // For a rate or status sort, SQL just provides a stable base order
       // (spend desc); the JS re-sort below applies the real rating/status order.
-      isRateSort || isStatusSort || resolved.dir === "desc"
+      isRateSort || isStatusSort || isPlatformStatusSort || resolved.dir === "desc"
         ? desc(orderExpr)
         : asc(orderExpr),
       // Stable secondary sort so equal-spend rows don't shuffle between
@@ -751,6 +762,19 @@ export async function listCreativeSummary(
     filteredRows = [...filteredRows].sort((a, b) => {
       const sa = STATUS_ORDER[a.generalStatus];
       const sb = STATUS_ORDER[b.generalStatus];
+      if (sa !== sb) return (sa - sb) * factor;
+      return a.name.localeCompare(b.name);
+    });
+  }
+
+  // Per-platform status sort — ranks by that platform's status (STATUS_ORDER),
+  // treating "no presence on the platform" as New to match what the cell shows.
+  if (isPlatformStatusSort) {
+    const [scope] = resolved.key.split(".");
+    const factor = resolved.dir === "asc" ? 1 : -1;
+    filteredRows = [...filteredRows].sort((a, b) => {
+      const sa = STATUS_ORDER[a.perPlatformStatus[scope as Platform] ?? "new"];
+      const sb = STATUS_ORDER[b.perPlatformStatus[scope as Platform] ?? "new"];
       if (sa !== sb) return (sa - sb) * factor;
       return a.name.localeCompare(b.name);
     });

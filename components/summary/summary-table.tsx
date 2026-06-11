@@ -239,8 +239,10 @@ export function SummaryTable({
 
   // First-click direction per column. Status ranks active→pause→new→terminated
   // ascending (STATUS_ORDER), so asc-first surfaces the most-relevant (active)
-  // creatives; every other column is biggest-first (desc).
-  const firstDir = (key: string): SortDir => (key === "status" ? "asc" : "desc");
+  // creatives; every other column is biggest-first (desc). Covers both the
+  // general "status" key and the per-platform "<platform>.status" keys.
+  const firstDir = (key: string): SortDir =>
+    key === "status" || key.endsWith(".status") ? "asc" : "desc";
 
   const sortHref = (key: string): string => {
     const next = new URLSearchParams(baseParams);
@@ -672,13 +674,31 @@ function RateAndMetricsHead({
     <>
       {showRate && (
         <>
-          {/* Thin Status column leads the group (owns the divider). */}
-          <th
-            className="font-medium px-2 py-2 text-center border-l border-line"
-            title="Status on this platform — N: new · A: active · P: pause · T: terminated"
-          >
-            St.
-          </th>
+          {/* Thin Status column leads the group (owns the divider). Sortable
+              per platform (by that platform's status); the blended total has no
+              per-platform status, so its header is plain text. */}
+          {scope === "total" ? (
+            <th className="font-medium px-2 py-2 text-center border-l border-line text-ink-3">
+              St.
+            </th>
+          ) : (
+            <th
+              className="font-medium px-2 py-2 text-center border-l border-line"
+              title="Status on this platform — N: new · A: active · P: pause · T: terminated"
+            >
+              <Link
+                href={sortHref(`${scope}.status`)}
+                scroll={false}
+                className={
+                  "inline-flex items-center gap-1 hover:text-ink transition-colors " +
+                  (sort.key === `${scope}.status` ? "text-brand" : "")
+                }
+              >
+                St.
+                <SortIcon active={sort.key === `${scope}.status`} dir={sort.dir} />
+              </Link>
+            </th>
+          )}
           <th
             className="font-medium px-3 py-2 whitespace-nowrap text-center"
             title="Derived from ROAS and the spend gate in Configuration → Rate rules."
