@@ -29,7 +29,7 @@ function pickFirst(v: string | string[] | undefined): string | undefined {
 /** Map a Compare side's selections onto the shared KpiFilters shape. */
 function sideFilter(
   side: CompareSide,
-  range: { from?: string; to?: string },
+  range: { from: string; to: string },
 ): KpiFilters {
   return {
     platforms: side.platforms.length ? side.platforms : undefined,
@@ -40,12 +40,13 @@ function sideFilter(
 }
 
 function sideSummary(side: CompareSide): string {
-  if (sideIsEmpty(side)) return "All data";
   const parts: string[] = [];
   if (side.platforms.length) parts.push(`${side.platforms.length} platform(s)`);
   if (side.campaigns.length) parts.push(`${side.campaigns.length} campaign(s)`);
   if (side.creatives.length) parts.push(`${side.creatives.length} creative(s)`);
-  return parts.join(" · ");
+  const sel = sideIsEmpty(side) ? "All data" : parts.join(" · ");
+  // Surface a side-specific window so the totals row says what it covers.
+  return side.from && side.to ? `${sel} · ${side.from} → ${side.to}` : sel;
 }
 
 export default async function ComparePage({
@@ -58,41 +59,63 @@ export default async function ComparePage({
     aPlatforms: pickFirst(params.aPlatforms),
     aCampaigns: pickFirst(params.aCampaigns),
     aCreatives: pickFirst(params.aCreatives),
+    aFrom: pickFirst(params.aFrom),
+    aTo: pickFirst(params.aTo),
     bPlatforms: pickFirst(params.bPlatforms),
     bCampaigns: pickFirst(params.bCampaigns),
     bCreatives: pickFirst(params.bCreatives),
+    bFrom: pickFirst(params.bFrom),
+    bTo: pickFirst(params.bTo),
+    cPlatforms: pickFirst(params.cPlatforms),
+    cCampaigns: pickFirst(params.cCampaigns),
+    cCreatives: pickFirst(params.cCreatives),
+    cFrom: pickFirst(params.cFrom),
+    cTo: pickFirst(params.cTo),
+    sides: pickFirst(params.sides),
     metrics: pickFirst(params.metrics),
     from: pickFirst(params.from),
     to: pickFirst(params.to),
   });
 
   const dimensions = await compareDimensions();
-  const range =
-    parsed.from && parsed.to ? { from: parsed.from, to: parsed.to } : {};
-  const fa = sideFilter(parsed.sideA, range);
-  const fb = sideFilter(parsed.sideB, range);
 
-  const [aTotals, bTotals] = await Promise.all([kpis(fa), kpis(fb)]);
+  // Each side runs over its own window when set, else the shared one (the
+  // validator guarantees the shared from/to are always concrete).
+  const sharedRange = { from: parsed.from, to: parsed.to };
+  const effRange = (s: CompareSide) =>
+    s.from && s.to ? { from: s.from, to: s.to } : sharedRange;
+  const sideFilters = parsed.sides.map((s) => sideFilter(s, effRange(s)));
 
-  // Per metric block, A's and B's daily series, tagged so the chart draws two
-  // lines ("A" / "B").
+  const totals = await Promise.all(sideFilters.map((f) => kpis(f)));
+
+  // Per metric block: one daily series per side, tagged with the side id so
+  // the chart draws one line each ("A" / "B" / "C").
   const seriesByMetric = await Promise.all(
     parsed.metrics.map(async (m: CompareMetric) => {
-      const [a, b] = await Promise.all([
-        compareSideSeries({ ...fa, metric: m }),
-        compareSideSeries({ ...fb, metric: m }),
-      ]);
-      return [
-        ...a.map((p) => ({ creativeId: "A", date: p.date, value: p.value })),
-        ...b.map((p) => ({ creativeId: "B", date: p.date, value: p.value })),
-      ];
+      const perSide = await Promise.all(
+        sideFilters.map((f) => compareSideSeries({ ...f, metric: m })),
+      );
+      return perSide.flatMap((pts, i) =>
+        pts.map((p) => ({
+          creativeId: parsed.sides[i]!.key.toUpperCase(),
+          date: p.date,
+          value: p.value,
+        })),
+      );
     }),
   );
 
-  const sides = [
-    { id: "A", name: "Side A" },
-    { id: "B", name: "Side B" },
-  ];
+  const chartSides = parsed.sides.map((s) => ({
+    id: s.key.toUpperCase(),
+    name: s.label,
+  }));
+
+  // Windows differ → plot day-aligned (D1, D2, …) instead of by calendar date,
+  // so a May week can overlay a June week. Same windows → calendar axis.
+  const ranges = parsed.sides.map((s) => effRange(s));
+  const sameWindow = ranges.every(
+    (r) => r.from === ranges[0]!.from && r.to === ranges[0]!.to,
+  );
 
   return (
     <div className="space-y-6">
@@ -100,18 +123,19 @@ export default async function ComparePage({
         <div className="text-[10px] uppercase tracking-[0.18em] text-ink-3 mb-1">
           Compare
         </div>
-        <h1 className="font-display text-4xl tracking-tight">A vs B comparison</h1>
+        <h1 className="font-display text-4xl tracking-tight">Side-by-side comparison</h1>
         <p className="text-ink-2 text-sm mt-1">
-          Define two sides by Platform → Campaign → Creative (each level
-          optional = “all”), then stack a chart per metric. Blended figures are
-          true weighted averages.
+          Define two or three sides by Platform → Campaign → Creative (each
+          level optional = &ldquo;all&rdquo;), each over its own time window,
+          then stack a chart per metric. Blended figures are true weighted
+          averages. When windows differ, charts align by day (D1 = each
+          side&rsquo;s first day with data).
         </p>
       </div>
 
       <CompareControls
         dimensions={dimensions}
-        sideA={parsed.sideA}
-        sideB={parsed.sideB}
+        sides={parsed.sides}
         from={parsed.from ?? null}
         to={parsed.to ?? null}
       />
@@ -125,8 +149,9 @@ export default async function ComparePage({
           <CardContent>
             <CompareChart
               rows={seriesByMetric[i] ?? []}
-              creatives={sides}
+              creatives={chartSides}
               metric={metric}
+              align={!sameWindow}
             />
           </CardContent>
         </Card>
@@ -134,27 +159,22 @@ export default async function ComparePage({
 
       <AddMetricBlock metrics={parsed.metrics} />
 
-      {/* A vs B totals */}
+      {/* Side totals */}
       <Card className="bg-surface border-line">
         <CardHeader>
           <h2 className="text-sm font-medium text-ink">
-            {parsed.from && parsed.to ? "Totals in window" : "All-time totals"}
+            {sameWindow
+              ? "Totals in window"
+              : "Totals — each side over its own window"}
           </h2>
         </CardHeader>
         <CardContent>
           <CompareTotalsTable
-            sides={[
-              {
-                label: "Side A",
-                selection: sideSummary(parsed.sideA),
-                totals: aTotals,
-              },
-              {
-                label: "Side B",
-                selection: sideSummary(parsed.sideB),
-                totals: bTotals,
-              },
-            ]}
+            sides={parsed.sides.map((s, i) => ({
+              label: s.label,
+              selection: sideSummary(s),
+              totals: totals[i]!,
+            }))}
           />
         </CardContent>
       </Card>

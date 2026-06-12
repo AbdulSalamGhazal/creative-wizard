@@ -13,15 +13,22 @@ import { useMemo } from "react";
 import { usd, ratio, pct, int } from "@/lib/format";
 import type { CompareMetric, CompareSeriesPoint } from "@/db/queries/performance";
 
-interface CreativeOption {
+interface SideOption {
   id: string;
   name: string;
 }
 
 interface Props {
   rows: CompareSeriesPoint[];
-  creatives: CreativeOption[];
+  /** One entry per side; `id` matches the rows' creativeId tag. */
+  creatives: SideOption[];
   metric: CompareMetric;
+  /**
+   * Day-aligned mode for sides with different time windows: each side is
+   * re-anchored to its own first data day ("D1", "D2", …) so a May week can
+   * overlay a June week. The tooltip shows each side's real calendar date.
+   */
+  align?: boolean;
 }
 
 const COLORS = ["#FF4D8D", "#5EE6A8", "#FFD166", "#6D8FFF", "#34D399"];
@@ -38,6 +45,15 @@ const compactUsd = new Intl.NumberFormat("en-US", {
   notation: "compact",
   maximumFractionDigits: 1,
 });
+
+const DAY_MS = 86_400_000;
+/** Whole days between two ISO dates (UTC-midnight parse, so no DST drift). */
+function diffDays(a: string, b: string): number {
+  return Math.round((Date.parse(b) - Date.parse(a)) / DAY_MS);
+}
+function addDaysIso(a: string, n: number): string {
+  return new Date(Date.parse(a) + n * DAY_MS).toISOString().slice(0, 10);
+}
 
 function fmt(metric: CompareMetric, v: number | null | undefined): string {
   if (v === null || v === undefined) return "—";
@@ -60,30 +76,50 @@ function fmt(metric: CompareMetric, v: number | null | undefined): string {
   }
 }
 
-export function CompareChart({ rows, creatives, metric }: Props) {
-  type ChartRow = { date: string } & Record<string, string | number | null>;
-  const data = useMemo<ChartRow[]>(() => {
-    const byDate = new Map<string, ChartRow>();
+export function CompareChart({ rows, creatives, metric, align = false }: Props) {
+  type ChartRow = Record<string, string | number | null>;
+
+  // In aligned mode each side is anchored to ITS OWN first data day; we keep
+  // the anchor around so the tooltip can recover real calendar dates.
+  const firstDateBySide = useMemo(() => {
+    const m = new Map<string, string>();
     for (const r of rows) {
-      const existing = byDate.get(r.date);
+      const cur = m.get(r.creativeId);
+      if (!cur || r.date < cur) m.set(r.creativeId, r.date);
+    }
+    return m;
+  }, [rows]);
+
+  const xKey = align ? "day" : "date";
+
+  const data = useMemo<ChartRow[]>(() => {
+    const byX = new Map<string | number, ChartRow>();
+    for (const r of rows) {
+      // Calendar-gap-preserving day index (D1 = the side's first data day).
+      const x = align
+        ? diffDays(firstDateBySide.get(r.creativeId) ?? r.date, r.date) + 1
+        : r.date;
+      const existing = byX.get(x);
       if (existing) {
         existing[r.creativeId] = r.value;
         continue;
       }
-      const fresh: ChartRow = { date: r.date };
+      const fresh: ChartRow = { [xKey]: x };
       for (const c of creatives) fresh[c.id] = null;
       fresh[r.creativeId] = r.value;
-      byDate.set(r.date, fresh);
+      byX.set(x, fresh);
     }
-    return [...byDate.values()].sort((a, b) =>
-      String(a.date).localeCompare(String(b.date)),
+    return [...byX.values()].sort((a, b) =>
+      align
+        ? Number(a.day) - Number(b.day)
+        : String(a.date).localeCompare(String(b.date)),
     );
-  }, [rows, creatives]);
+  }, [rows, creatives, align, firstDateBySide, xKey]);
 
   if (data.length === 0) {
     return (
       <div className="h-72 flex items-center justify-center text-ink-3 text-sm border border-dashed border-line rounded-md">
-        Pick two or more creatives to compare.
+        No data for this selection in the chosen window.
       </div>
     );
   }
@@ -94,8 +130,10 @@ export function CompareChart({ rows, creatives, metric }: Props) {
         <LineChart data={data} margin={{ top: 12, right: 12, left: 0, bottom: 0 }}>
           <CartesianGrid stroke="var(--line)" strokeDasharray="3 3" vertical={false} />
           <XAxis
-            dataKey="date"
-            tickFormatter={(d: string) => monthDay.format(new Date(d))}
+            dataKey={xKey}
+            tickFormatter={(d: string | number) =>
+              align ? `D${d}` : monthDay.format(new Date(String(d)))
+            }
             tick={{ fill: "var(--ink-3)", fontSize: 11 }}
             stroke="var(--line-2)"
             tickMargin={6}
@@ -116,26 +154,42 @@ export function CompareChart({ rows, creatives, metric }: Props) {
           />
           <Tooltip
             content={({ active, payload, label }) => {
-              if (!active || !payload || !label) return null;
+              if (!active || !payload || label === undefined || label === null)
+                return null;
               return (
                 <div className="rounded-md border border-line bg-popover/95 backdrop-blur px-3 py-2 text-xs shadow-lg">
                   <div className="text-ink-2 mb-1.5">
-                    {monthDay.format(new Date(label as string))}
+                    {align
+                      ? `Day ${label}`
+                      : monthDay.format(new Date(label as string))}
                   </div>
                   <div className="space-y-1">
                     {payload.map((p) => {
                       const c = creatives.find((c) => c.id === p.dataKey);
+                      // Aligned mode: recover this side's real calendar date
+                      // for the hovered day index.
+                      const anchor = align
+                        ? firstDateBySide.get(String(p.dataKey))
+                        : undefined;
+                      const sideDate = anchor
+                        ? monthDay.format(
+                            new Date(addDaysIso(anchor, Number(label) - 1)),
+                          )
+                        : null;
                       return (
                         <div
                           key={String(p.dataKey)}
-                          className="flex items-center gap-2 min-w-[180px]"
+                          className="flex items-center gap-2 min-w-[200px]"
                         >
                           <span
                             className="w-2 h-2 rounded-sm shrink-0"
                             style={{ background: p.color }}
                           />
-                          <span className="text-ink-2 truncate max-w-[120px]">
+                          <span className="text-ink-2 truncate max-w-[130px]">
                             {c?.name ?? p.dataKey}
+                            {sideDate && (
+                              <span className="text-ink-3"> · {sideDate}</span>
+                            )}
                           </span>
                           <span className="ml-auto text-ink num">
                             {fmt(metric, p.value as number | null)}
