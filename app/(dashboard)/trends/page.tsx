@@ -52,7 +52,7 @@ export default async function TrendsLandingPage() {
           href="/trends/over-time"
           icon={LineChartIcon}
           title="Over time"
-          description="Period-over-period deltas. Where did spend, CTR, and CPA actually go vs the prior window?"
+          description="What changed vs the prior window: every platform, campaign, or creative ranked worst-first, with warnings on big drops."
           available
           teaser={
             <div className="flex items-baseline gap-3">

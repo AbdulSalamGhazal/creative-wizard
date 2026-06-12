@@ -1,4 +1,5 @@
 import { and, asc, between, desc, eq, inArray, sql, type SQL } from "drizzle-orm";
+import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import { db } from "@/lib/db";
 import {
   creatives,
@@ -1306,86 +1307,6 @@ export async function kpisWithDelta(
   };
 }
 
-export interface SpendComparePoint {
-  /**
-   * Day offset from the start of the window (0-indexed). Both series use
-   * the same offset so they line up on the X axis even though they
-   * correspond to different calendar dates.
-   */
-  dayOffset: number;
-  current: number | null;
-  previous: number | null;
-  /** Calendar date of the current series at this offset (YYYY-MM-DD). */
-  currentDate: string;
-  /** Calendar date of the prior series at this offset (YYYY-MM-DD). */
-  previousDate: string;
-}
-
-/**
- * Two daily spend series (current + previous) zipped by day offset for the
- * Over-time comparison chart. We aggregate spend per date, then stitch the
- * two windows together client-side so the renderer doesn't have to.
- */
-export async function spendByDateComparison(
-  filters: KpiFilters & { from: string; to: string },
-): Promise<SpendComparePoint[]> {
-  const prev = prevPeriod(filters.from, filters.to);
-
-  const [currRows, prevRows] = await Promise.all([
-    spendByDate(filters),
-    spendByDate({ ...filters, from: prev.from, to: prev.to }),
-  ]);
-
-  const currMap = new Map(currRows.map((r) => [r.date, r.spend]));
-  const prevMap = new Map(prevRows.map((r) => [r.date, r.spend]));
-
-  const length = dayCount(filters.from, filters.to);
-  const out: SpendComparePoint[] = [];
-  for (let i = 0; i < length; i++) {
-    const currentDate = addDays(filters.from, i);
-    const previousDate = addDays(prev.from, i);
-    out.push({
-      dayOffset: i,
-      currentDate,
-      previousDate,
-      current: currMap.get(currentDate) ?? 0,
-      previous: prevMap.get(previousDate) ?? 0,
-    });
-  }
-  return out;
-}
-
-/** Single-series daily spend total (no platform breakdown). */
-async function spendByDate(
-  filters: KpiFilters,
-): Promise<Array<{ date: string; spend: number }>> {
-  const { conditions, needsCreativeJoin, needsTagJoin } =
-    await buildBaseConditions(filters);
-
-  let q = db
-    .select({
-      date: performanceRecords.date,
-      spend: sumSpend,
-    })
-    .from(performanceRecords)
-    .$dynamic();
-
-  if (needsCreativeJoin || needsTagJoin) {
-    q = q.innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId));
-  }
-  if (needsTagJoin) {
-    q = q.innerJoin(
-      creativeTags,
-      eq(creativeTags.creativeId, performanceRecords.creativeId),
-    );
-  }
-
-  const rows = await q
-    .where(and(...conditions))
-    .groupBy(performanceRecords.date)
-    .orderBy(performanceRecords.date);
-  return rows.map((r) => ({ date: r.date, spend: Number(r.spend ?? 0) }));
-}
 
 export interface TopMoverRow {
   creativeId: string;
@@ -1609,6 +1530,139 @@ export async function compareSideSeries(
     date: r.date,
     value: r.value === null || r.value === undefined ? null : Number(r.value),
   }));
+}
+
+// =====================================================================
+// Change breakdown — powers Trends → Over time ("what changed")
+// =====================================================================
+
+export type ChangeDim = "platform" | "campaign" | "creative";
+
+export interface ChangeBreakdownEntity {
+  /** platform value / campaign name / creative id, per dim. */
+  key: string;
+  /** Display label (creative NAME for the creative dim). */
+  label: string;
+  /** Secondary line — the product name (creative dim only). */
+  sub: string | null;
+  cur: ChangeWindowSums;
+  prev: ChangeWindowSums;
+}
+
+export interface ChangeWindowSums {
+  spend: number;
+  impressions: number;
+  clicks: number;
+  conversions: number;
+  conversionValue: number;
+  landingPageViews: number;
+}
+
+/**
+ * Component sums per entity (platform / campaign / creative) for the selected
+ * window AND the immediately-prior equal-length window, in one scan: the WHERE
+ * spans both windows and FILTER clauses split the aggregates. Ratios are
+ * recombined in lib/change-radar.ts from these sums (weighted averages).
+ * Entities with no rows in either window simply don't appear.
+ */
+export async function changeBreakdown(
+  filters: KpiFilters & { from: string; to: string },
+  dim: ChangeDim,
+): Promise<{
+  rows: ChangeBreakdownEntity[];
+  prevRange: { from: string; to: string };
+}> {
+  const prev = prevPeriod(filters.from, filters.to);
+  // Span both windows; the per-window split happens in the FILTER clauses.
+  const { conditions, needsCreativeJoin, needsTagJoin } =
+    await buildBaseConditions({ ...filters, from: prev.from, to: filters.to });
+
+  const inCur = sql`${performanceRecords.date} BETWEEN ${filters.from} AND ${filters.to}`;
+  const inPrev = sql`${performanceRecords.date} BETWEEN ${prev.from} AND ${prev.to}`;
+  const split = (col: AnyPgColumn) => ({
+    cur: sql<string>`COALESCE(SUM(${col}) FILTER (WHERE ${inCur}), 0)`,
+    prev: sql<string>`COALESCE(SUM(${col}) FILTER (WHERE ${inPrev}), 0)`,
+  });
+  const spend = split(performanceRecords.spend);
+  const impressions = split(performanceRecords.impressions);
+  const clicks = split(performanceRecords.clicks);
+  const conversions = split(performanceRecords.conversions);
+  const conversionValue = split(performanceRecords.conversionValue);
+  const landingPageViews = split(performanceRecords.landingPageViews);
+
+  const keyExpr =
+    dim === "platform"
+      ? performanceRecords.platform
+      : dim === "campaign"
+        ? performanceRecords.campaignName
+        : creatives.id;
+
+  let q = db
+    .select({
+      key: keyExpr,
+      label: dim === "creative" ? creatives.name : keyExpr,
+      sub: dim === "creative" ? products.name : sql<string | null>`NULL`,
+      spendCur: spend.cur,
+      spendPrev: spend.prev,
+      imprCur: impressions.cur,
+      imprPrev: impressions.prev,
+      clicksCur: clicks.cur,
+      clicksPrev: clicks.prev,
+      convCur: conversions.cur,
+      convPrev: conversions.prev,
+      cvCur: conversionValue.cur,
+      cvPrev: conversionValue.prev,
+      lpvCur: landingPageViews.cur,
+      lpvPrev: landingPageViews.prev,
+    })
+    .from(performanceRecords)
+    .$dynamic();
+
+  const joinCreatives = dim === "creative" || needsCreativeJoin || needsTagJoin;
+  if (joinCreatives) {
+    q = q.innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId));
+  }
+  if (dim === "creative") {
+    q = q.innerJoin(products, eq(products.id, creatives.productId));
+  }
+  if (needsTagJoin) {
+    q = q.innerJoin(
+      creativeTags,
+      eq(creativeTags.creativeId, performanceRecords.creativeId),
+    );
+  }
+
+  const grouped =
+    dim === "creative"
+      ? q.groupBy(creatives.id, creatives.name, products.name)
+      : q.groupBy(keyExpr);
+
+  const rows = await grouped.where(and(...conditions));
+
+  return {
+    prevRange: prev,
+    rows: rows.map((r) => ({
+      key: String(r.key),
+      label: String(r.label),
+      sub: r.sub === null ? null : String(r.sub),
+      cur: {
+        spend: num(r.spendCur) ?? 0,
+        impressions: num(r.imprCur) ?? 0,
+        clicks: num(r.clicksCur) ?? 0,
+        conversions: num(r.convCur) ?? 0,
+        conversionValue: num(r.cvCur) ?? 0,
+        landingPageViews: num(r.lpvCur) ?? 0,
+      },
+      prev: {
+        spend: num(r.spendPrev) ?? 0,
+        impressions: num(r.imprPrev) ?? 0,
+        clicks: num(r.clicksPrev) ?? 0,
+        conversions: num(r.convPrev) ?? 0,
+        conversionValue: num(r.cvPrev) ?? 0,
+        landingPageViews: num(r.lpvPrev) ?? 0,
+      },
+    })),
+  };
 }
 
 export const rawSql = sql;
