@@ -110,10 +110,12 @@ export function CompareControls({ dimensions, sides, from, to }: Props) {
           />
         ))}
         {sides.length === 2 && (
+          // self-start + justify-self-start keep the button text-sized instead
+          // of stretching to the side cards' grid cell.
           <button
             type="button"
             onClick={addSideC}
-            className="min-h-[160px] rounded-lg border border-dashed border-line flex flex-col items-center justify-center gap-2 text-sm text-ink-2 hover:text-ink hover:border-line-2 hover:bg-surface-2/50 transition-colors"
+            className="self-start justify-self-start inline-flex items-center gap-2 h-9 px-4 rounded-lg border border-dashed border-line text-sm text-ink-2 hover:text-ink hover:border-line-2 hover:bg-surface-2/50 transition-colors"
           >
             <Plus className="w-4 h-4" />
             Add side C
