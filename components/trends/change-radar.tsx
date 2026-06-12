@@ -1,5 +1,11 @@
 import Link from "next/link";
-import { AlertTriangle } from "lucide-react";
+import {
+  AlertTriangle,
+  ArrowDownRight,
+  ArrowUpRight,
+  Eye,
+  Sparkles,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { pct, ratio, usd } from "@/lib/format";
 import {
@@ -25,37 +31,48 @@ export interface ChangeRadarRow {
 
 const TIER_META: Record<
   ChangeTier,
-  { label: string; row: string; badge: string }
+  {
+    label: string;
+    row: string;
+    badge: string;
+    icon: React.ComponentType<{ className?: string }> | null;
+  }
 > = {
   drop: {
     label: "Big drop",
-    row: "border-neg/50",
+    row: "border-neg/50 bg-neg/[0.04]",
     badge: "border-neg/40 bg-neg/10 text-neg",
+    icon: AlertTriangle,
   },
   watch: {
     label: "Watch",
-    row: "border-warn/40",
+    row: "border-warn/40 bg-warn/[0.03]",
     badge: "border-warn/40 bg-warn/10 text-warn",
+    icon: Eye,
   },
   gone: {
     label: "Gone",
     row: "border-line",
     badge: "border-line bg-surface-2 text-ink-2",
+    icon: ArrowDownRight,
   },
   new: {
     label: "New",
-    row: "border-line",
+    row: "border-brand/30",
     badge: "border-brand/40 bg-[var(--brand-soft)] text-ink",
+    icon: Sparkles,
   },
   stable: {
     label: "Stable",
     row: "border-line",
     badge: "border-line bg-surface-2 text-ink-3",
+    icon: null,
   },
   low: {
     label: "Low spend",
     row: "border-line",
     badge: "border-line bg-surface-2 text-ink-3",
+    icon: null,
   },
 };
 
@@ -81,16 +98,14 @@ function fmtValue(key: ChangeMetricKey, v: number | null): string {
   }
 }
 
-function fmtChange(change: number | null): string | null {
-  if (change === null) return null;
-  const p = Math.round(Math.abs(change) * 100);
-  return `${change >= 0 ? "+" : "−"}${p}%`;
+function fmtChange(change: number): string {
+  return `${change >= 0 ? "+" : "−"}${Math.round(Math.abs(change) * 100)}%`;
 }
 
 /**
  * One sorted, severity-tinted list — the page IS the warning system. Each row:
- * entity identity (left) and its key-metric deltas vs the prior window
- * (right); the worst-deteriorating metric carries the alert icon.
+ * entity identity + the metric that drove the change (left), every key metric
+ * with its direction-aware delta vs the prior window (right).
  */
 export function ChangeRadar({ rows }: { rows: ChangeRadarRow[] }) {
   if (rows.length === 0) {
@@ -110,26 +125,29 @@ export function ChangeRadar({ rows }: { rows: ChangeRadarRow[] }) {
     <div className="space-y-2">
       {rows.map((r) => {
         const meta = TIER_META[r.assessment.tier];
+        const TierIcon = meta.icon;
         const isGone = r.assessment.tier === "gone";
         const warned =
           r.assessment.tier === "drop" || r.assessment.tier === "watch";
+        const worst = r.assessment.worst;
         return (
           <div
             key={r.key}
             className={cn(
-              "rounded-lg border bg-surface p-3.5 flex flex-wrap items-center gap-x-6 gap-y-2",
+              "rounded-lg border bg-surface p-3.5 flex flex-wrap items-center gap-x-6 gap-y-2.5 transition-colors",
               meta.row,
               r.assessment.tier === "low" && "opacity-60",
             )}
           >
-            <div className="min-w-[230px] flex-1">
+            <div className="min-w-[240px] flex-1">
               <div className="flex items-center gap-2 min-w-0">
                 <span
                   className={cn(
-                    "inline-flex h-5 items-center px-1.5 rounded text-[10px] border whitespace-nowrap shrink-0",
+                    "inline-flex h-5 items-center gap-1 px-1.5 rounded text-[10px] border whitespace-nowrap shrink-0",
                     meta.badge,
                   )}
                 >
+                  {TierIcon && <TierIcon className="w-3 h-3" />}
                   {meta.label}
                 </span>
                 <Link
@@ -139,8 +157,24 @@ export function ChangeRadar({ rows }: { rows: ChangeRadarRow[] }) {
                 >
                   {r.label}
                 </Link>
+                {/* What drove the warning — the single loudest deterioration. */}
+                {warned && worst && worst.change !== null && (
+                  <span
+                    className={cn(
+                      "inline-flex items-center gap-0.5 text-[11px] tabular-nums whitespace-nowrap shrink-0",
+                      r.assessment.tier === "drop" ? "text-neg" : "text-warn",
+                    )}
+                  >
+                    {worst.change >= 0 ? (
+                      <ArrowUpRight className="w-3 h-3" />
+                    ) : (
+                      <ArrowDownRight className="w-3 h-3" />
+                    )}
+                    {METRIC_LABEL[worst.key]} {fmtChange(worst.change)}
+                  </span>
+                )}
               </div>
-              <div className="text-[11px] text-ink-3 mt-1">
+              <div className="text-[11px] text-ink-3 mt-1.5">
                 {isGone
                   ? `had ${usd(r.prevSpend)} in the prior window · nothing in this one`
                   : `${usd(r.curSpend)} spend${
@@ -149,6 +183,15 @@ export function ChangeRadar({ rows }: { rows: ChangeRadarRow[] }) {
                 {r.assessment.tier === "new" && " · no data in the prior window"}
                 {r.sub && ` · ${r.sub}`}
               </div>
+              {/* Spend-share bar — anchors each row's weight at a glance. */}
+              {!isGone && r.share !== null && (
+                <div className="mt-1.5 h-1 max-w-[240px] rounded-full bg-surface-2 overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-brand/60"
+                    style={{ width: `${Math.max(r.share * 100, 1.5)}%` }}
+                  />
+                </div>
+              )}
             </div>
 
             <div className="flex flex-wrap gap-1.5">
@@ -157,7 +200,7 @@ export function ChangeRadar({ rows }: { rows: ChangeRadarRow[] }) {
                   key={m.key}
                   metric={m}
                   showPrevValue={isGone}
-                  isWorst={warned && r.assessment.worst?.key === m.key}
+                  isWorst={warned && worst?.key === m.key}
                 />
               ))}
             </div>
@@ -178,43 +221,71 @@ function MetricChip({
   showPrevValue: boolean;
   isWorst: boolean;
 }) {
-  const d = metric.deterioration ?? 0;
+  const d = metric.deterioration;
   const severity =
-    metric.deterioration !== null && d >= CHANGE_DROP
+    d !== null && d >= CHANGE_DROP
       ? "drop"
-      : metric.deterioration !== null && d >= CHANGE_WATCH
+      : d !== null && d >= CHANGE_WATCH
         ? "watch"
         : "none";
-  const improved = metric.deterioration !== null && d <= -CHANGE_WATCH;
-  const change = fmtChange(metric.change);
+
+  // Delta coloring: the ARROW shows the value's direction, the COLOR shows
+  // whether that direction is good (CPA falling = green ↓, ROAS falling =
+  // red ↓). Spend stays informational (muted); tiny moves stay muted too.
+  const change = metric.change;
+  let deltaClass = "text-ink-3";
+  if (severity === "none" && d !== null && Math.abs(d) >= 0.05) {
+    deltaClass = d < 0 ? "text-pos" : "text-neg/80";
+  }
 
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-[11px] whitespace-nowrap tabular-nums",
+        "inline-flex items-baseline gap-1.5 rounded-md border px-2.5 py-1.5 text-[11px] whitespace-nowrap tabular-nums",
         severity === "drop"
-          ? "border-neg/50 bg-neg/10 text-neg"
+          ? "border-neg/50 bg-neg/10"
           : severity === "watch"
-            ? "border-warn/40 bg-warn/10 text-warn"
-            : "border-line text-ink",
+            ? "border-warn/40 bg-warn/10"
+            : "border-line bg-surface-2/40",
       )}
     >
-      <span className={severity === "none" ? "text-ink-3" : undefined}>
+      <span className="text-[9px] uppercase tracking-[0.1em] text-ink-3">
         {METRIC_LABEL[metric.key]}
       </span>
-      <span className="font-medium">
+      <span
+        className={cn(
+          "font-semibold",
+          severity === "drop"
+            ? "text-neg"
+            : severity === "watch"
+              ? "text-warn"
+              : "text-ink",
+        )}
+      >
         {fmtValue(metric.key, showPrevValue ? metric.prev : metric.cur)}
       </span>
-      {change && !showPrevValue && (
+      {change !== null && !showPrevValue && (
         <span
           className={cn(
-            severity === "none" && (improved ? "text-pos" : "text-ink-3"),
+            "inline-flex items-center gap-0.5",
+            severity === "drop"
+              ? "text-neg"
+              : severity === "watch"
+                ? "text-warn"
+                : deltaClass,
           )}
         >
-          {change}
+          {change >= 0 ? (
+            <ArrowUpRight className="w-2.5 h-2.5 self-center" />
+          ) : (
+            <ArrowDownRight className="w-2.5 h-2.5 self-center" />
+          )}
+          {fmtChange(change)}
         </span>
       )}
-      {isWorst && <AlertTriangle className="w-3 h-3 shrink-0" />}
+      {isWorst && (
+        <AlertTriangle className="w-3 h-3 self-center text-neg shrink-0" />
+      )}
     </span>
   );
 }
