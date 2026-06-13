@@ -82,7 +82,7 @@ export default async function TrendsLandingPage() {
           href="/trends/launches"
           icon={Rocket}
           title="Launches"
-          description="Cohort view: first-7-day and first-30-day performance of every launched creative."
+          description="Creative fatigue — ROAS decay across days 1–7, 8–30, 31–90 from each creative’s own launch. Catch the ones wearing out."
           available
         />
         <LensCard

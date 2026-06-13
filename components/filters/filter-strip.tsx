@@ -44,6 +44,9 @@ interface FilterStripProps {
   /** The effective default range (user's saved choice) for the picker label. */
   defaultFrom?: string;
   defaultTo?: string;
+  /** Persist the picked range as the user's global default. Off for pages where
+   *  the date means something page-specific (e.g. Launches = launch cohort). */
+  rememberDate?: boolean;
 }
 
 function csv(v: string | null): string[] {
@@ -56,6 +59,7 @@ export function FilterStrip({
   hideType = false,
   defaultFrom,
   defaultTo,
+  rememberDate = true,
 }: FilterStripProps = {}) {
   const router = useRouter();
   const pathname = usePathname();
@@ -175,7 +179,7 @@ export function FilterStrip({
           from={from}
           to={to}
           onChange={applyRange}
-          remember
+          remember={rememberDate}
           fallback={
             defaultFrom && defaultTo
               ? { from: defaultFrom, to: defaultTo }

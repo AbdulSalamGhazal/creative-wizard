@@ -12,6 +12,7 @@ import {
 } from "@/db/schema";
 import { creativeStatusMap, statusFor } from "@/db/queries/creative-status";
 import type { CreativeStatus } from "@/lib/creative-status";
+import type { FatigueWindowSums } from "@/lib/launch-fatigue";
 import {
   ctr,
   cpa,
@@ -1663,6 +1664,159 @@ export async function changeBreakdown(
       },
     })),
   };
+}
+
+// =====================================================================
+// Launch fatigue — powers Trends → Launches
+// =====================================================================
+
+export interface LaunchFatigueFilters {
+  /** Cohort filter — keep creatives whose effective launch falls in [from, to]. */
+  launchedFrom?: string;
+  launchedTo?: string;
+  platforms?: Platform[];
+  productIds?: string[];
+  types?: CreativeType[];
+  tags?: string[];
+  includeExcluded?: boolean;
+}
+
+export interface LaunchFatigueRow {
+  creativeId: string;
+  name: string;
+  productName: string;
+  type: CreativeType;
+  /** Effective launch day (manual launch_date, else the first day with spend). */
+  launchDate: string;
+  /** True when launchDate fell back to the first-spend day. */
+  derived: boolean;
+  daysSinceLaunch: number;
+  w1: FatigueWindowSums; // days 1–7
+  w2: FatigueWindowSums; // days 8–30
+  w3: FatigueWindowSums; // days 31–90
+}
+
+/**
+ * Per-creative component sums over three SEPARATE windows anchored to each
+ * creative's own launch day (0 = launch): days 1–7, 8–30, 31–90. Launch =
+ * `launch_date`, falling back to the creative's first spend day so creatives
+ * without a manual date still appear. Ratios + the fatigue verdict are derived
+ * from these sums in lib/launch-fatigue.ts. Filters scope which creatives and
+ * which performance rows count; `launchedFrom`/`launchedTo` filter by launch
+ * date (cohort). Creatives with no spend in the selected scope are dropped.
+ */
+export async function launchFatigue(
+  f: LaunchFatigueFilters,
+): Promise<LaunchFatigueRow[]> {
+  const acct = await getActiveAccountId();
+  const inList = (vals: string[]) =>
+    sql.join(
+      vals.map((v) => sql`${v}`),
+      sql`, `,
+    );
+
+  // Creative-side filters live in the eff CTE so they bound the cohort.
+  const creativeConds: SQL[] = [];
+  if (f.types?.length) creativeConds.push(sql`c.type IN (${inList(f.types)})`);
+  if (f.productIds?.length)
+    creativeConds.push(sql`c.product_id IN (${inList(f.productIds)})`);
+  if (f.tags?.length)
+    creativeConds.push(
+      sql`EXISTS (SELECT 1 FROM creative_tags ct WHERE ct.creative_id = c.id AND ct.tag IN (${inList(f.tags)}))`,
+    );
+  const creativeWhere = creativeConds.length
+    ? sql` AND ${sql.join(creativeConds, sql` AND `)}`
+    : sql``;
+
+  // Perf-row scoping on the join (platform / excluded) so a creative still
+  // appears even if a filter zeroes it out — those are dropped below.
+  const platformJoin = f.platforms?.length
+    ? sql` AND pr.platform IN (${inList(f.platforms)})`
+    : sql``;
+  const excludedJoin = f.includeExcluded
+    ? sql``
+    : sql` AND pr.excluded_from_aggregates = false`;
+  const cohortWhere =
+    f.launchedFrom && f.launchedTo
+      ? sql` AND eff.eff_launch BETWEEN ${f.launchedFrom} AND ${f.launchedTo}`
+      : sql``;
+
+  const winSum = (col: string, lo: number, hi: number) =>
+    sql`COALESCE(SUM(pr.${sql.raw(col)}) FILTER (WHERE (pr.date - eff.eff_launch) BETWEEN ${lo} AND ${hi}), 0)`;
+  const windows: Array<{ p: string; lo: number; hi: number }> = [
+    { p: "w1", lo: 0, hi: 6 },
+    { p: "w2", lo: 7, hi: 29 },
+    { p: "w3", lo: 30, hi: 89 },
+  ];
+  const cols: Array<[alias: string, col: string]> = [
+    ["spend", "spend"],
+    ["cv", "conversion_value"],
+    ["clicks", "clicks"],
+    ["impr", "impressions"],
+    ["conv", "conversions"],
+    ["lpv", "landing_page_views"],
+  ];
+  const sumSelects = windows.flatMap((w) =>
+    cols.map(
+      ([alias, col]) =>
+        sql`${winSum(col, w.lo, w.hi)} AS ${sql.raw(`${w.p}_${alias}`)}`,
+    ),
+  );
+
+  const rows = (await db.execute(sql`
+    WITH eff AS (
+      SELECT c.id, c.name, c.type, p.name AS product_name,
+             (c.launch_date IS NULL) AS derived,
+             COALESCE(c.launch_date, (
+               SELECT MIN(pr0.date) FROM performance_records pr0
+               WHERE pr0.creative_id = c.id AND pr0.excluded_from_aggregates = false
+             )) AS eff_launch
+      FROM creatives c
+      JOIN products p ON p.id = c.product_id
+      WHERE c.account_id = ${acct}${creativeWhere}
+    )
+    SELECT eff.id, eff.name, eff.type, eff.product_name, eff.derived,
+           eff.eff_launch::text AS eff_launch,
+           (CURRENT_DATE - eff.eff_launch)::int AS days_since,
+           ${sql.join(sumSelects, sql`, `)}
+    FROM eff
+    LEFT JOIN performance_records pr
+      ON pr.creative_id = eff.id
+      AND pr.date >= eff.eff_launch
+      AND pr.date <= eff.eff_launch + 89${platformJoin}${excludedJoin}
+    WHERE eff.eff_launch IS NOT NULL${cohortWhere}
+    GROUP BY eff.id, eff.name, eff.type, eff.product_name, eff.derived, eff.eff_launch
+    ORDER BY eff.eff_launch DESC
+  `)) as unknown as Array<Record<string, unknown>>;
+
+  const winFor = (r: Record<string, unknown>, p: string): FatigueWindowSums => ({
+    spend: Number(r[`${p}_spend`] ?? 0),
+    conversionValue: Number(r[`${p}_cv`] ?? 0),
+    clicks: Number(r[`${p}_clicks`] ?? 0),
+    impressions: Number(r[`${p}_impr`] ?? 0),
+    conversions: Number(r[`${p}_conv`] ?? 0),
+    landingPageViews: Number(r[`${p}_lpv`] ?? 0),
+  });
+
+  return rows
+    .map((r) => {
+      const w1 = winFor(r, "w1");
+      const w2 = winFor(r, "w2");
+      const w3 = winFor(r, "w3");
+      return {
+        creativeId: String(r.id),
+        name: String(r.name),
+        productName: String(r.product_name),
+        type: String(r.type) as CreativeType,
+        launchDate: String(r.eff_launch),
+        derived: r.derived === true || r.derived === "t",
+        daysSinceLaunch: Number(r.days_since ?? 0),
+        w1,
+        w2,
+        w3,
+      };
+    })
+    .filter((r) => r.w1.spend + r.w2.spend + r.w3.spend > 0);
 }
 
 export const rawSql = sql;
