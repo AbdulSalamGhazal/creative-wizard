@@ -7,10 +7,16 @@ import { listProducts } from "@/db/queries/products";
 import { listAllTags } from "@/db/queries/creatives";
 import { FilterStrip } from "@/components/filters/filter-strip";
 import {
-  LaunchFatigue,
+  LaunchFatigueSummary,
+  LaunchFatigueTable,
   type LaunchFatigueViewRow,
 } from "@/components/trends/launch-fatigue";
-import { assessFatigue, FATIGUE_TIER_ORDER } from "@/lib/launch-fatigue";
+import {
+  assessFatigue,
+  FATIGUE_TIER_ORDER,
+  type FatigueTier,
+  type FatigueWindowSums,
+} from "@/lib/launch-fatigue";
 import { dashboardFiltersSchema } from "@/validators/filters";
 import { LIFETIME_FLOOR, presetLabel, todayIso } from "@/lib/date-presets";
 
@@ -87,15 +93,38 @@ export default async function TrendsLaunchesPage({
       return b.launchDate.localeCompare(a.launchDate);
     });
 
-  const count = (t: string) =>
-    rows.filter((r) => r.assessment.tier === t).length;
-  const summaryParts = [
-    count("fatigued") > 0 && `${count("fatigued")} fatigued`,
-    count("holding") > 0 && `${count("holding")} holding`,
-    count("improving") > 0 && `${count("improving")} improving`,
-    count("new") > 0 && `${count("new")} too new`,
-    count("low") > 0 && `${count("low")} low spend`,
-  ].filter(Boolean);
+  // Portfolio summary across every launch in view: blended window sums →
+  // assessment, plus the verdict tally.
+  const counts: Record<FatigueTier, number> = {
+    fatigued: 0,
+    improving: 0,
+    holding: 0,
+    new: 0,
+    low: 0,
+  };
+  for (const r of rows) counts[r.assessment.tier] += 1;
+
+  const zero = (): FatigueWindowSums => ({
+    spend: 0,
+    conversionValue: 0,
+    clicks: 0,
+    impressions: 0,
+    conversions: 0,
+    landingPageViews: 0,
+  });
+  const port = { w1: zero(), w2: zero(), w3: zero() };
+  for (const r of raw) {
+    for (const k of ["w1", "w2", "w3"] as const) {
+      port[k].spend += r[k].spend;
+      port[k].conversionValue += r[k].conversionValue;
+      port[k].clicks += r[k].clicks;
+      port[k].impressions += r[k].impressions;
+      port[k].conversions += r[k].conversions;
+      port[k].landingPageViews += r[k].landingPageViews;
+    }
+  }
+  const portfolio = assessFatigue(port.w1, port.w2, port.w3);
+  const totalSpend = port.w1.spend + port.w2.spend + port.w3.spend;
 
   const cohortLabel = cohort.launchedFrom
     ? presetLabel(cohort.launchedFrom, cohort.launchedTo!)
@@ -139,11 +168,19 @@ export default async function TrendsLaunchesPage({
         </Badge>
       </div>
 
-      {summaryParts.length > 0 && (
-        <div className="text-[11px] text-ink-3">{summaryParts.join(" · ")}</div>
+      {rows.length > 0 && (
+        <LaunchFatigueSummary
+          count={rows.length}
+          totalSpend={totalSpend}
+          counts={counts}
+          w1={portfolio.w1}
+          w2={portfolio.w2}
+          w3={portfolio.w3}
+          drop={portfolio.drop}
+        />
       )}
 
-      <LaunchFatigue rows={rows} />
+      <LaunchFatigueTable rows={rows} />
     </div>
   );
 }
