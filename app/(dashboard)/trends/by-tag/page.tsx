@@ -85,7 +85,7 @@ export default async function TrendsByTagPage({
             <ArrowLeft className="w-3 h-3" />
             Trends
           </Link>
-          <h1 className="font-display text-4xl tracking-tight">By tag</h1>
+          <h1 className="font-display text-4xl tracking-tight">Tags</h1>
           <p className="text-ink-2 text-sm mt-1">
             Performance rolled up by tag. A creative counts toward every tag it
             carries. Spend Δ is {periodCaption(from, to)}. Click a tag to open

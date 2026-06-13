@@ -67,14 +67,14 @@ export default async function TrendsLandingPage() {
         <LensCard
           href="/trends/by-tag"
           icon={Hash}
-          title="By tag"
+          title="Tags"
           description="Roll up spend, CTR, CPA, and ROAS by tag. Which creative themes are doing the work?"
           available
         />
         <LensCard
           href="/trends/by-type"
           icon={Shapes}
-          title="By type"
+          title="Types"
           description="Spend, CTR, CPC, CPA, and ROAS by creative format — video, image, slides — and split each by platform."
           available
         />
