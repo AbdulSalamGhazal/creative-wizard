@@ -170,7 +170,7 @@ export default async function TrendsOverTimePage({
             <ArrowLeft className="w-3 h-3" />
             Trends
           </Link>
-          <h1 className="font-display text-4xl tracking-tight">Over time</h1>
+          <h1 className="font-display text-4xl tracking-tight">Changes</h1>
           <p className="text-ink-2 text-sm mt-1">
             What changed vs the prior window of equal length — and which metric
             drove it. Worst first; tiny spenders never trigger warnings.

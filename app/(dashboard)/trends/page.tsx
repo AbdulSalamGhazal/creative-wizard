@@ -51,7 +51,7 @@ export default async function TrendsLandingPage() {
         <LensCard
           href="/trends/over-time"
           icon={LineChartIcon}
-          title="Over time"
+          title="Changes"
           description="What changed vs the prior window: every platform, campaign, or creative ranked worst-first, with warnings on big drops."
           available
           teaser={
