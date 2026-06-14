@@ -47,6 +47,39 @@ export const FATIGUE_IMPROVE = 0.15;
 /** Below this lifetime (3-window) spend, ratios swing too wildly to judge. */
 export const FATIGUE_SPEND_FLOOR = 150;
 
+/**
+ * The three measurement windows, in days SINCE launch (day 0 = launch day).
+ * The single source of truth for both the SQL aggregation (db/queries/
+ * performance.ts) and the UI — keep them deriving from this so they can't drift.
+ * `endDay` is inclusive; the SQL also caps the join at the last window's endDay.
+ */
+export const FATIGUE_WINDOWS = [
+  { key: "w1", label: "Days 1–7", short: "Launch wk", startDay: 0, endDay: 6 },
+  { key: "w2", label: "Days 8–30", short: "Days 8–30", startDay: 7, endDay: 29 },
+  { key: "w3", label: "Days 31–90", short: "Days 31–90", startDay: 30, endDay: 89 },
+] as const;
+
+export type FatigueWindowKey = (typeof FATIGUE_WINDOWS)[number]["key"];
+
+/**
+ * Where a creative stands relative to one window, given its age (days since
+ * launch). `not_started` = the window's days haven't elapsed yet; `in_progress`
+ * = the window has begun but isn't fully elapsed (so its ROAS is partial);
+ * `complete` = the whole window is in the past. Lets the table distinguish
+ * "too young to have run yet" from "ran but spent nothing here (paused/off)".
+ */
+export type WindowState = "not_started" | "in_progress" | "complete";
+
+export function windowState(
+  daysSinceLaunch: number,
+  startDay: number,
+  endDay: number,
+): WindowState {
+  if (daysSinceLaunch < startDay) return "not_started";
+  if (daysSinceLaunch <= endDay) return "in_progress";
+  return "complete";
+}
+
 /** Worst (most fatigued) first; positive news last. */
 export const FATIGUE_TIER_ORDER: Record<FatigueTier, number> = {
   fatigued: 0,

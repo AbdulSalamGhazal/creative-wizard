@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   assessFatigue,
   deriveWindowMetrics,
+  FATIGUE_WINDOWS,
+  windowState,
   type FatigueWindowSums,
 } from "@/lib/launch-fatigue";
 
@@ -92,5 +94,24 @@ describe("assessFatigue", () => {
     const a = assessFatigue(w(40, 9), w(40, 2), w(30, 1));
     expect(a.tier).toBe("low");
     expect(a.drop).toBeNull();
+  });
+});
+
+describe("windowState", () => {
+  const w3 = FATIGUE_WINDOWS[2]; // days 31–90 → startDay 30, endDay 89
+
+  it("is not_started before the window's first day", () => {
+    expect(windowState(22, w3.startDay, w3.endDay)).toBe("not_started");
+  });
+
+  it("is in_progress once the window has begun but not fully elapsed", () => {
+    expect(windowState(45, w3.startDay, w3.endDay)).toBe("in_progress");
+    // The boundary days count as in-progress (inclusive on both ends).
+    expect(windowState(30, w3.startDay, w3.endDay)).toBe("in_progress");
+    expect(windowState(89, w3.startDay, w3.endDay)).toBe("in_progress");
+  });
+
+  it("is complete once the whole window is in the past", () => {
+    expect(windowState(90, w3.startDay, w3.endDay)).toBe("complete");
   });
 });

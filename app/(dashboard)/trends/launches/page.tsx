@@ -125,6 +125,7 @@ export default async function TrendsLaunchesPage({
   }
   const portfolio = assessFatigue(port.w1, port.w2, port.w3);
   const totalSpend = port.w1.spend + port.w2.spend + port.w3.spend;
+  const estimatedCount = rows.filter((r) => r.derived).length;
 
   const cohortLabel = cohort.launchedFrom
     ? presetLabel(cohort.launchedFrom, cohort.launchedTo!)
@@ -172,6 +173,7 @@ export default async function TrendsLaunchesPage({
         <LaunchFatigueSummary
           count={rows.length}
           totalSpend={totalSpend}
+          estimatedCount={estimatedCount}
           counts={counts}
           w1={portfolio.w1}
           w2={portfolio.w2}

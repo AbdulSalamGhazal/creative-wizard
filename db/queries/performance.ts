@@ -12,7 +12,7 @@ import {
 } from "@/db/schema";
 import { creativeStatusMap, statusFor } from "@/db/queries/creative-status";
 import type { CreativeStatus } from "@/lib/creative-status";
-import type { FatigueWindowSums } from "@/lib/launch-fatigue";
+import { FATIGUE_WINDOWS, type FatigueWindowSums } from "@/lib/launch-fatigue";
 import {
   ctr,
   cpa,
@@ -1743,11 +1743,14 @@ export async function launchFatigue(
 
   const winSum = (col: string, lo: number, hi: number) =>
     sql`COALESCE(SUM(pr.${sql.raw(col)}) FILTER (WHERE (pr.date - eff.eff_launch) BETWEEN ${lo} AND ${hi}), 0)`;
-  const windows: Array<{ p: string; lo: number; hi: number }> = [
-    { p: "w1", lo: 0, hi: 6 },
-    { p: "w2", lo: 7, hi: 29 },
-    { p: "w3", lo: 30, hi: 89 },
-  ];
+  // Derive the window bounds from the shared definition so the SQL and UI never
+  // drift. `maxDay` also caps the join below to the last window's last day.
+  const windows = FATIGUE_WINDOWS.map((w) => ({
+    p: w.key,
+    lo: w.startDay,
+    hi: w.endDay,
+  }));
+  const maxDay = Math.max(...FATIGUE_WINDOWS.map((w) => w.endDay));
   const cols: Array<[alias: string, col: string]> = [
     ["spend", "spend"],
     ["cv", "conversion_value"],
@@ -1783,7 +1786,7 @@ export async function launchFatigue(
     LEFT JOIN performance_records pr
       ON pr.creative_id = eff.id
       AND pr.date >= eff.eff_launch
-      AND pr.date <= eff.eff_launch + 89${platformJoin}${excludedJoin}
+      AND pr.date <= eff.eff_launch + ${maxDay}::int${platformJoin}${excludedJoin}
     WHERE eff.eff_launch IS NOT NULL${cohortWhere}
     GROUP BY eff.id, eff.name, eff.type, eff.product_name, eff.derived, eff.eff_launch
     ORDER BY eff.eff_launch DESC
