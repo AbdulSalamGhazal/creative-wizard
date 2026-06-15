@@ -54,13 +54,14 @@ export function CreativePlatformTable({ rows, campaigns }: Props) {
           <tr className="text-left text-[11px] uppercase tracking-[0.14em] text-ink-3 border-b border-line">
             <th className="font-medium px-3 py-2.5">Platform</th>
             <th className="font-medium px-3 py-2.5 text-right">Spend</th>
-            <th className="font-medium px-3 py-2.5 text-right">Impressions</th>
-            <th className="font-medium px-3 py-2.5 text-right">Clicks</th>
-            <th className="font-medium px-3 py-2.5 text-right">CTR</th>
             <th className="font-medium px-3 py-2.5 text-right">Conv.</th>
-            <th className="font-medium px-3 py-2.5 text-right">CvR</th>
+            <th className="font-medium px-3 py-2.5 text-right">Revenue</th>
             <th className="font-medium px-3 py-2.5 text-right">CPA</th>
             <th className="font-medium px-3 py-2.5 text-right">ROAS</th>
+            <th className="font-medium px-3 py-2.5 text-right">CPM</th>
+            <th className="font-medium px-3 py-2.5 text-right">CTR</th>
+            <th className="font-medium px-3 py-2.5 text-right">VOC</th>
+            <th className="font-medium px-3 py-2.5 text-right">CvR</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-line">
@@ -95,13 +96,14 @@ export function CreativePlatformTable({ rows, campaigns }: Props) {
                     </button>
                   </td>
                   <td className="px-3 py-2.5 text-right text-ink tabular-nums">{usd(r.spend)}</td>
-                  <td className="px-3 py-2.5 text-right text-ink-2 tabular-nums">{int(r.impressions)}</td>
-                  <td className="px-3 py-2.5 text-right text-ink-2 tabular-nums">{int(r.clicks)}</td>
-                  <td className="px-3 py-2.5 text-right text-ink-2 tabular-nums">{pct(r.ctr)}</td>
                   <td className="px-3 py-2.5 text-right text-ink-2 tabular-nums">{int(r.conversions)}</td>
-                  <td className="px-3 py-2.5 text-right text-ink-2 tabular-nums">{pct(r.cvr)}</td>
+                  <td className="px-3 py-2.5 text-right text-ink-2 tabular-nums">{usd(r.conversionValue)}</td>
                   <td className="px-3 py-2.5 text-right text-ink-2 tabular-nums">{usd(r.cpa)}</td>
                   <td className="px-3 py-2.5 text-right text-ink tabular-nums">{ratio(r.roas)}</td>
+                  <td className="px-3 py-2.5 text-right text-ink-2 tabular-nums">{usd(r.cpm)}</td>
+                  <td className="px-3 py-2.5 text-right text-ink-2 tabular-nums">{pct(r.ctr)}</td>
+                  <td className="px-3 py-2.5 text-right text-ink-2 tabular-nums">{pct(r.voc)}</td>
+                  <td className="px-3 py-2.5 text-right text-ink-2 tabular-nums">{pct(r.cvr)}</td>
                 </tr>
 
                 {/* Per-campaign breakdown for this platform (collapsed by default) */}
@@ -120,18 +122,19 @@ export function CreativePlatformTable({ rows, campaigns }: Props) {
                         </span>
                       </td>
                       <td className="px-3 py-1.5 text-right text-ink-2 tabular-nums">{usd(c.spend)}</td>
-                      <td className="px-3 py-1.5 text-right text-ink-3 tabular-nums">{int(c.impressions)}</td>
-                      <td className="px-3 py-1.5 text-right text-ink-3 tabular-nums">{int(c.clicks)}</td>
-                      <td className="px-3 py-1.5 text-right text-ink-3 tabular-nums">{pct(c.ctr)}</td>
                       <td className="px-3 py-1.5 text-right text-ink-3 tabular-nums">{int(c.conversions)}</td>
-                      <td className="px-3 py-1.5 text-right text-ink-3 tabular-nums">{pct(c.cvr)}</td>
+                      <td className="px-3 py-1.5 text-right text-ink-3 tabular-nums">{usd(c.conversionValue)}</td>
                       <td className="px-3 py-1.5 text-right text-ink-3 tabular-nums">{usd(c.cpa)}</td>
                       <td className="px-3 py-1.5 text-right text-ink-2 tabular-nums">{ratio(c.roas)}</td>
+                      <td className="px-3 py-1.5 text-right text-ink-3 tabular-nums">{usd(c.cpm)}</td>
+                      <td className="px-3 py-1.5 text-right text-ink-3 tabular-nums">{pct(c.ctr)}</td>
+                      <td className="px-3 py-1.5 text-right text-ink-3 tabular-nums">{pct(c.voc)}</td>
+                      <td className="px-3 py-1.5 text-right text-ink-3 tabular-nums">{pct(c.cvr)}</td>
                     </tr>
                   ))}
                 {isOpen && camps.length === 0 && (
                   <tr className="bg-surface-2/25">
-                    <td colSpan={9} className="py-2 pl-10 pr-3 text-[11px] text-ink-3">
+                    <td colSpan={10} className="py-2 pl-10 pr-3 text-[11px] text-ink-3">
                       No campaigns in this window.
                     </td>
                   </tr>
