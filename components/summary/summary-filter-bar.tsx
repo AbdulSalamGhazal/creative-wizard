@@ -97,6 +97,7 @@ const IDENTITY_LABELS: Record<IdentityColumnKey, string> = {
   product: "Product",
   type: "Type",
   creator: "Creator",
+  launch: "Launch date",
 };
 const METRIC_LABELS: Record<MetricColumnKey, string> = {
   spend: "Spend",

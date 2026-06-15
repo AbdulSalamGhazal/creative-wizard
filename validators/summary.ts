@@ -44,6 +44,7 @@ export const IDENTITY_COLUMN_KEYS = [
   "product",
   "type",
   "creator",
+  "launch",
 ] as const;
 export type IdentityColumnKey = (typeof IDENTITY_COLUMN_KEYS)[number];
 

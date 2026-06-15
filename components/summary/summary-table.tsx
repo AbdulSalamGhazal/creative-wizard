@@ -295,6 +295,7 @@ export function SummaryTable({
     { key: "name", label: "Creative" },
     { key: "product", label: "Product", hideKey: "product" },
     { key: "type", label: "Type", hideKey: "type" },
+    { key: "launch", label: "Launch date", hideKey: "launch" },
     { key: "creator", label: "Creator", hideKey: "creator" },
   ];
   const identityCols = ALL_IDENTITY_COLS.filter(
@@ -506,6 +507,15 @@ export function SummaryTable({
                         className="px-3 py-2 text-ink-2 whitespace-nowrap capitalize"
                       >
                         {r.type}
+                      </td>
+                    );
+                  case "launch":
+                    return (
+                      <td
+                        key="launch"
+                        className="px-3 py-2 text-ink-2 whitespace-nowrap tabular-nums"
+                      >
+                        {r.launchDate ?? <span className="text-ink-3">—</span>}
                       </td>
                     );
                   case "creator":

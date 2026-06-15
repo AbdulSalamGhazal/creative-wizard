@@ -126,6 +126,8 @@ export interface SummaryRow {
   perPlatformStatus: Partial<Record<Platform, PlatformStatus>>;
   creatorName: string | null;
   creatorEmail: string | null;
+  /** Manual launch date (`creatives.launch_date`), null when not set. */
+  launchDate: string | null;
   tags: string[];
   /** One entry per selected platform; key is the platform string. */
   perPlatform: Partial<Record<Platform, PlatformMetricBlock>>;
@@ -152,6 +154,7 @@ const IDENTITY_SORT_KEYS = new Set([
   "type",
   "status",
   "creator",
+  "launch",
 ]);
 
 /** Per-platform metric keys (one suffix per metric). */
@@ -239,6 +242,10 @@ function orderBySql(
         return sumSpend;
       case "creator":
         return users.name;
+      case "launch":
+        // Manual launch date (nullable). Postgres orders NULLs last on asc /
+        // first on desc — creatives with no set date cluster at one end.
+        return creatives.launchDate;
     }
   }
   const [scope, metric] = key.split(".") as [string, MetricKey];
@@ -511,6 +518,7 @@ export async function listCreativeSummary(
     productId: products.id,
     productName: products.name,
     type: creatives.type,
+    launchDate: creatives.launchDate,
     creatorName: users.name,
     creatorEmail: users.email,
     // Blended totals — canonical lib/metrics fragments over ALL platforms (the
@@ -665,6 +673,7 @@ export async function listCreativeSummary(
       perPlatformStatus: dyn.perPlatform,
       creatorName: (r.creatorName as string | null) ?? null,
       creatorEmail: (r.creatorEmail as string | null) ?? null,
+      launchDate: (r.launchDate as string | null) ?? null,
       tags: tagsByCreative.get(r.creativeId as string) ?? [],
       perPlatform,
       total: {
