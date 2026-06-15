@@ -20,6 +20,36 @@ import {
 } from "@/lib/audit";
 import type { AuditFeedRow } from "@/db/queries/audit";
 import { relativeTime } from "@/lib/format";
+import { PLATFORM_LABEL } from "@/lib/palette";
+
+const platformLabel = (p: string): string =>
+  (PLATFORM_LABEL as Record<string, string>)[p] ?? p;
+
+const plural = (n: number, word: string): string =>
+  `${n} ${word}${n === 1 ? "" : "s"}`;
+
+function fmtVal(v: unknown): string {
+  if (v === null || v === undefined || v === "") return "—";
+  return String(v);
+}
+
+// Human phrasing for a single field change in a creative.update event.
+function describeChange(field: string, c: { from: unknown; to: unknown }): string {
+  switch (field) {
+    case "name":
+      return `renamed ${fmtVal(c.from)} → ${fmtVal(c.to)}`;
+    case "type":
+      return `type ${fmtVal(c.from)} → ${fmtVal(c.to)}`;
+    case "productId":
+      return "product reassigned";
+    case "thumbnailUrl":
+      return c.to ? "thumbnail added" : "thumbnail removed";
+    case "launchDate":
+      return `launch date ${fmtVal(c.from)} → ${fmtVal(c.to)}`;
+    default:
+      return `${field} ${fmtVal(c.from)} → ${fmtVal(c.to)}`;
+  }
+}
 
 /**
  * Renders an append-only audit feed. Used by /admin/audit (full feed) and
@@ -110,52 +140,145 @@ function categoryColor(category: AuditEntityType): string {
 function metaSummary(row: AuditFeedRow): string | null {
   const m = row.meta;
   if (!m) return null;
+  const join = (parts: Array<string | null | undefined | false>) => {
+    const s = parts.filter(Boolean) as string[];
+    return s.length ? s.join(" · ") : null;
+  };
   switch (row.action) {
+    case "creative.create": {
+      const type = m.type as string | undefined;
+      const tags = (m.tags as string[] | undefined) ?? [];
+      return join([type, tags.length ? plural(tags.length, "tag") : null]);
+    }
+    case "creative.bulk_create": {
+      const count = m.count as number | undefined;
+      const names = (m.names as string[] | undefined) ?? [];
+      const preview = names.slice(0, 5).join(", ");
+      return count
+        ? `${plural(count, "creative")}${preview ? ` · ${preview}${names.length > 5 ? "…" : ""}` : ""}`
+        : null;
+    }
+    case "creative.update": {
+      const term = m.termination as
+        | { platform: string; terminated: boolean }
+        | undefined;
+      if (term) {
+        return `${term.terminated ? "terminated" : "reactivated"} on ${platformLabel(term.platform)}`;
+      }
+      const changes =
+        (m.changes as Record<string, { from: unknown; to: unknown }> | undefined) ?? {};
+      const parts = Object.entries(changes).map(([k, v]) => describeChange(k, v));
+      const tagsCount = m.tagsCount as number | undefined;
+      if (tagsCount !== undefined) parts.push(`tags set (${tagsCount})`);
+      return parts.length ? parts.join(" · ") : null;
+    }
+    case "creative.notes_update": {
+      const len = m.length as number | undefined;
+      if (len === undefined) return null;
+      return len > 0 ? `notes set (${len} chars)` : "notes cleared";
+    }
+    case "creative.source_update":
+      return (m.set as boolean | undefined) ? "source link set" : "source link removed";
     case "creative.bulk_status": {
       const count = m.count as number | undefined;
       const status = m.status as string | undefined;
-      if (count && status) return `${count} → ${status}`;
-      return null;
+      return count && status ? `${count} → ${status}` : null;
     }
-    case "creative.update": {
-      const changes = m.changes as Record<string, { from: unknown; to: unknown }> | undefined;
-      if (!changes) return null;
-      const entries = Object.entries(changes);
-      if (entries.length === 0) return "(no field changes — tags only)";
-      return entries
-        .map(([k, v]) => `${k}: ${String(v.from)} → ${String(v.to)}`)
-        .join(", ");
-    }
-    case "user.role_change": {
-      const from = m.from as string | null | undefined;
-      const to = m.to as string | undefined;
-      return from && to ? `${from} → ${to}` : null;
+    case "creative.delete": {
+      const n = m.recordsDeleted as number | undefined;
+      return n !== undefined ? `removed with ${plural(n, "record")}` : null;
     }
     case "exclusion.exclude": {
+      const platform = m.platform as string | undefined;
       const reason = m.reason as string | undefined;
-      return reason ? `Reason: ${reason}` : null;
+      return join([
+        platform ? platformLabel(platform) : null,
+        m.date as string | undefined,
+        reason ? `reason: ${reason}` : null,
+      ]);
+    }
+    case "exclusion.include": {
+      const platform = m.platform as string | undefined;
+      return join([
+        platform ? platformLabel(platform) : null,
+        m.date as string | undefined,
+      ]);
     }
     case "upload.commit": {
       const platform = m.platform as string | undefined;
-      const rows = m.rowsImported as number | undefined;
-      if (platform && rows !== undefined) return `${platform} · ${rows} rows`;
-      return null;
+      const imp = m.rowsImported as number | undefined;
+      const upd = m.rowsUpdated as number | undefined;
+      const upsert = m.upsert as boolean | undefined;
+      const creatives = m.creatives as number | undefined;
+      const dr = m.dateRange as { from?: string; to?: string } | null | undefined;
+      return join([
+        platform ? platformLabel(platform) : null,
+        imp !== undefined ? `${imp} imported` : null,
+        upsert && upd ? `${upd} updated` : null,
+        creatives ? plural(creatives, "creative") : null,
+        dr?.from && dr?.to ? `${dr.from} → ${dr.to}` : null,
+      ]);
     }
     case "upload.rollback": {
-      const rows = m.rowsDeleted as number | undefined;
-      return rows !== undefined ? `Removed ${rows} rows` : null;
+      const n = m.rowsDeleted as number | undefined;
+      return n !== undefined ? `removed ${plural(n, "row")}` : null;
+    }
+    case "upload.bulk_delete": {
+      const n = m.deleted as number | undefined;
+      const creatives = m.creatives as number | undefined;
+      const span = m.dateSpan as string | null | undefined;
+      return join([
+        n !== undefined ? plural(n, "record") : null,
+        creatives ? plural(creatives, "creative") : null,
+        span,
+      ]);
+    }
+    case "product.create": {
+      const slug = m.slug as string | undefined;
+      return slug ? `slug: ${slug}` : null;
     }
     case "mapping.add":
     case "mapping.remove": {
       const platform = m.platform as string | undefined;
       const field = m.internalField as string | undefined;
       const header = m.headerName as string | undefined;
-      if (platform && field && header) return `${platform} · ${field} ← "${header}"`;
-      return null;
+      return platform && field && header
+        ? `${platformLabel(platform)} · ${field} ← "${header}"`
+        : null;
     }
+    case "user.invite":
+      return join([m.email as string | undefined, m.role as string | undefined]);
+    case "user.role_change": {
+      const from = m.from as string | null | undefined;
+      const to = m.to as string | undefined;
+      return to ? `${from ?? "—"} → ${to}` : null;
+    }
+    case "auth.signin":
+      return (m.email as string | undefined) ?? null;
     case "auth.signin_failed": {
       const reason = m.reason as string | undefined;
-      return reason ? `(${reason.replace(/_/g, " ")})` : null;
+      return join([
+        m.email as string | undefined,
+        reason ? `(${reason.replace(/_/g, " ")})` : null,
+      ]);
+    }
+    case "tag.rename": {
+      const from = m.from as string | undefined;
+      const to = m.to as string | undefined;
+      return from && to ? `${from} → ${to}` : null;
+    }
+    case "tag.delete": {
+      const n = m.removedFromCreatives as number | undefined;
+      return n !== undefined ? `removed from ${plural(n, "creative")}` : null;
+    }
+    case "view.create":
+    case "view.delete": {
+      const page = m.page as string | undefined;
+      return page ? `page: ${page}` : null;
+    }
+    case "view.set_default": {
+      const page = m.page as string | undefined;
+      return page ? `${page} · default ${(m.default as boolean) ? "on" : "off"}` : null;
     }
     default:
       return null;
@@ -238,7 +361,7 @@ export function AuditFeed({ rows, compact = false }: Props) {
                   ))}
               </div>
               {summary && (
-                <div className="text-[11px] text-ink-3 mt-0.5 truncate">{summary}</div>
+                <div className="text-[11px] text-ink-3 mt-0.5 break-words">{summary}</div>
               )}
             </div>
             <time
