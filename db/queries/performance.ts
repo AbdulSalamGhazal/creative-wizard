@@ -316,6 +316,79 @@ export async function spendByDatePlatform(
   }));
 }
 
+export interface DailyMetricRow {
+  date: string;
+  platform: Platform;
+  spend: number;
+  impressions: number;
+  clicks: number;
+  conversions: number | null;
+  conversionValue: number;
+  ctr: number | null;
+  cpa: number | null;
+  roas: number | null;
+  cvr: number | null;
+}
+
+/**
+ * Per (date, platform) metrics for the perf line chart — one weighted figure
+ * per metric per platform per day, so the chart can switch which metric it
+ * plots client-side. Ratios are recombined from component sums in SQL (never an
+ * average of per-row ratios). Honours the usual filters via buildBaseConditions.
+ */
+export async function creativeDailyMetrics(
+  filters: KpiFilters,
+): Promise<DailyMetricRow[]> {
+  const { conditions, needsCreativeJoin, needsTagJoin } =
+    await buildBaseConditions(filters);
+
+  let q = db
+    .select({
+      date: performanceRecords.date,
+      platform: performanceRecords.platform,
+      spend: sumSpend,
+      impressions: sumImpressions,
+      clicks: sumClicks,
+      conversions: sumConversions,
+      conversionValue: sumConversionValue,
+      ctr,
+      cpa,
+      roas,
+      cvr,
+    })
+    .from(performanceRecords)
+    .$dynamic();
+
+  if (needsCreativeJoin || needsTagJoin) {
+    q = q.innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId));
+  }
+  if (needsTagJoin) {
+    q = q.innerJoin(
+      creativeTags,
+      eq(creativeTags.creativeId, performanceRecords.creativeId),
+    );
+  }
+
+  const rows = await q
+    .where(and(...conditions))
+    .groupBy(performanceRecords.date, performanceRecords.platform)
+    .orderBy(performanceRecords.date);
+
+  return rows.map((r) => ({
+    date: r.date,
+    platform: r.platform as Platform,
+    spend: Number(r.spend ?? 0),
+    impressions: Number(r.impressions ?? 0),
+    clicks: Number(r.clicks ?? 0),
+    conversions: num(r.conversions),
+    conversionValue: Number(r.conversionValue ?? 0),
+    ctr: num(r.ctr),
+    cpa: num(r.cpa),
+    roas: num(r.roas),
+    cvr: num(r.cvr),
+  }));
+}
+
 /**
  * All creatives over the filter window with their full metric set, for the
  * dashboard leaderboard table — the client re-ranks (by spend / CPM / CTR / VOC

@@ -1,10 +1,11 @@
 import { notFound } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { DollarSign, Target, Banknote, Receipt, TrendingUp } from "lucide-react";
 import {
   campaignMix,
-  kpis,
+  creativeDailyMetrics,
+  kpisWithDelta,
   platformMix,
-  spendByDatePlatform,
 } from "@/db/queries/performance";
 import {
   creativeDeletionSummary,
@@ -30,7 +31,9 @@ import { CreativeRecordsTable } from "@/components/creative/creative-records-tab
 import { AnalyticsDateFilter } from "@/components/creative/analytics-date-filter";
 import { NotesPanel } from "@/components/creative/notes-panel";
 import { AuditFeed } from "@/components/audit/audit-feed";
-import { int, pct, ratio, usd } from "@/lib/format";
+import { MetricCard } from "@/components/overview/metric-card";
+import { int, ratio, usd0, usd1 } from "@/lib/format";
+import { computeDelta } from "@/lib/period";
 import { defaultDateRange, presetLabel } from "@/lib/date-presets";
 import { resolvePreferredRange } from "@/db/queries/user-prefs";
 import { safeDecodeURIComponent } from "@/lib/url";
@@ -122,10 +125,10 @@ export default async function CreativeDetailPage({
   const status = statusFor(sMap, creative.id);
 
   const [
-    k,
+    kd,
     byPlatform,
     byCampaign,
-    perfRows,
+    dailyRows,
     records,
     activity,
     deletionSummary,
@@ -133,10 +136,10 @@ export default async function CreativeDetailPage({
     products,
     navList,
   ] = await Promise.all([
-    kpis({ creativeIds: [creative.id], ...range }),
+    kpisWithDelta({ creativeIds: [creative.id], from: range.from, to: range.to }),
     platformMix({ creativeIds: [creative.id], ...range }),
     campaignMix({ creativeIds: [creative.id], ...range }),
-    spendByDatePlatform({ creativeIds: [creative.id], ...range }),
+    creativeDailyMetrics({ creativeIds: [creative.id], ...range }),
     creativeRecords(creative.id, range),
     listAuditEvents({
       entityType: "creative",
@@ -167,15 +170,15 @@ export default async function CreativeDetailPage({
   const detailHref = (nm: string) =>
     `/creatives/${encodeURIComponent(nm)}${navQuery ? `?${navQuery}` : ""}`;
 
-  const tiles = [
-    { label: "Spend", value: usd(k.spend) },
-    { label: "Impressions", value: int(k.impressions) },
-    { label: "Blended CTR", value: pct(k.ctr) },
-    { label: "Conversions", value: int(k.conversions) },
-    { label: "Blended CvR", value: pct(k.cvr) },
-    { label: "Blended CPA", value: usd(k.cpa) },
-    { label: "Blended ROAS", value: ratio(k.roas) },
-  ];
+  // Headline metrics — the same five as the Dashboard (with period-over-period
+  // deltas), but total-only (no per-platform breakdown). Revenue's delta isn't
+  // in the delta bundle, so derive it like the Dashboard does.
+  const k = kd.current;
+  const d = kd.delta;
+  const revenueDelta = computeDelta(
+    kd.current.conversionValue,
+    kd.previous.conversionValue,
+  );
 
   return (
     <div className="space-y-10">
@@ -217,21 +220,18 @@ export default async function CreativeDetailPage({
           />
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-4">
-          {tiles.map((t) => (
-            <Card key={t.label} className="bg-surface border-line">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-xs uppercase tracking-[0.14em] text-ink-3 font-medium">
-                  {t.label}
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="font-display text-3xl num text-ink leading-none">
-                  {t.value}
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+          <MetricCard label="Spend" value={usd0(k.spend)} icon={DollarSign} delta={d.spend} hideBreakdown />
+          <MetricCard label="Conversions" value={int(k.conversions)} icon={Target} delta={d.conversions} hideBreakdown />
+          <MetricCard label="Revenue" value={usd0(k.conversionValue)} icon={Banknote} delta={revenueDelta} hideBreakdown />
+          <MetricCard label="CPA" value={usd1(k.cpa)} icon={Receipt} delta={d.cpa} deltaInverted hideBreakdown />
+          <MetricCard
+            label="ROAS"
+            value={k.roas !== null ? `${ratio(k.roas)}×` : "—"}
+            icon={TrendingUp}
+            delta={d.roas}
+            hideBreakdown
+          />
         </div>
 
         <Card className="bg-surface border-line">
@@ -239,7 +239,7 @@ export default async function CreativeDetailPage({
             <CardTitle className="text-sm">Performance over time</CardTitle>
           </CardHeader>
           <CardContent>
-            <CreativePerfLineChart rows={perfRows} />
+            <CreativePerfLineChart rows={dailyRows} />
           </CardContent>
         </Card>
 

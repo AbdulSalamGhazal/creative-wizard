@@ -21,20 +21,23 @@ export function MetricCard({
   label,
   value,
   icon: Icon,
-  bars,
+  bars = [],
   delta,
   deltaInverted = false,
   emptyText = "No data in range.",
+  hideBreakdown = false,
 }: {
   label: string;
   value: string;
   icon: ComponentType<{ className?: string }>;
-  bars: BreakdownBar[];
+  bars?: BreakdownBar[];
   /** Period-over-period change vs the previous equal window. */
   delta?: Delta;
   /** Lower-is-better metric (e.g. CPA) → flip the badge color semantics. */
   deltaInverted?: boolean;
   emptyText?: string;
+  /** Render only the headline + delta (no per-dimension breakdown). */
+  hideBreakdown?: boolean;
 }) {
   return (
     <div className="rounded-xl border border-line bg-surface p-4 flex flex-col gap-3.5">
@@ -53,7 +56,7 @@ export function MetricCard({
       </div>
 
       {/* Breakdown */}
-      {bars.length === 0 ? (
+      {hideBreakdown ? null : bars.length === 0 ? (
         <p className="text-xs text-ink-3 italic">{emptyText}</p>
       ) : (
         <ul className="space-y-1.5">
