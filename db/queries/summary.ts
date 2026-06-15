@@ -726,17 +726,19 @@ export async function listCreativeSummary(
 
   // Dynamic-status filter — same row-dropping shape as the rate filter. Scope
   // "total" tests the general roll-up; a platform scope tests that platform's
-  // per-platform status (a creative with NO presence on the platform has no
-  // per-platform status, so it's excluded).
+  // per-platform status. Per-platform "new" is NEVER a stored status — it's the
+  // ABSENCE of presence on that platform — so an undefined platform status maps
+  // to "new", matching what the cell shows and how the column sorts. (Without
+  // this, filtering "new" on a platform could never match anything.)
   const status = filters.statusFilter;
   if (status && status.statuses.length > 0 && scopeOk(status.scope)) {
     const want = new Set<DynamicCreativeStatus>(status.statuses);
     filteredRows = filteredRows.filter((r) => {
-      const s: DynamicCreativeStatus | PlatformStatus | undefined =
+      const s: DynamicCreativeStatus =
         status.scope === "total"
           ? r.generalStatus
-          : r.perPlatformStatus[status.scope as Platform];
-      return s !== undefined && want.has(s as DynamicCreativeStatus);
+          : (r.perPlatformStatus[status.scope as Platform] ?? "new");
+      return want.has(s);
     });
   }
 
