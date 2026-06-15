@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
+  campaignMix,
   kpis,
   platformMix,
   spendByDatePlatform,
@@ -123,6 +124,7 @@ export default async function CreativeDetailPage({
   const [
     k,
     byPlatform,
+    byCampaign,
     perfRows,
     records,
     activity,
@@ -133,6 +135,7 @@ export default async function CreativeDetailPage({
   ] = await Promise.all([
     kpis({ creativeIds: [creative.id], ...range }),
     platformMix({ creativeIds: [creative.id], ...range }),
+    campaignMix({ creativeIds: [creative.id], ...range }),
     spendByDatePlatform({ creativeIds: [creative.id], ...range }),
     creativeRecords(creative.id, range),
     listAuditEvents({
@@ -242,7 +245,7 @@ export default async function CreativeDetailPage({
 
         <div>
           <h3 className="text-sm font-medium text-ink mb-3">By platform</h3>
-          <CreativePlatformTable rows={byPlatform} />
+          <CreativePlatformTable rows={byPlatform} campaigns={byCampaign} />
         </div>
 
         <div>

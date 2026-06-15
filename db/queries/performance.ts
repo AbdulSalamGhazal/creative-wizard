@@ -520,6 +520,68 @@ export async function platformMix(
   }));
 }
 
+export interface CampaignMixRow extends PlatformMixRow {
+  /** Combined `Campaign ➤ Adset` (with platform suffix for IG/FB). */
+  campaign: string;
+}
+
+/**
+ * Same shape as {@link platformMix} but one row per (platform, campaign) — the
+ * per-platform totals broken out by campaign. Used by the creative detail page
+ * to expand each platform row into its campaigns. Honours the same filters
+ * (creativeIds, date range, excluded, account scope) via buildBaseConditions.
+ */
+export async function campaignMix(
+  filters: KpiFilters,
+): Promise<CampaignMixRow[]> {
+  const { conditions, needsCreativeJoin, needsTagJoin } =
+    await buildBaseConditions(filters);
+
+  let q = db
+    .select({
+      platform: performanceRecords.platform,
+      campaign: performanceRecords.campaignName,
+      spend: sumSpend,
+      impressions: sumImpressions,
+      clicks: sumClicks,
+      conversions: sumConversions,
+      ctr,
+      cpa,
+      roas,
+      cvr,
+    })
+    .from(performanceRecords)
+    .$dynamic();
+
+  if (needsCreativeJoin || needsTagJoin) {
+    q = q.innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId));
+  }
+  if (needsTagJoin) {
+    q = q.innerJoin(
+      creativeTags,
+      eq(creativeTags.creativeId, performanceRecords.creativeId),
+    );
+  }
+
+  const rows = await q
+    .where(and(...conditions))
+    .groupBy(performanceRecords.platform, performanceRecords.campaignName)
+    .orderBy(desc(sumSpend));
+
+  return rows.map((r) => ({
+    platform: r.platform as Platform,
+    campaign: r.campaign as string,
+    spend: Number(r.spend ?? 0),
+    impressions: Number(r.impressions ?? 0),
+    clicks: Number(r.clicks ?? 0),
+    conversions: num(r.conversions),
+    ctr: num(r.ctr),
+    cpa: num(r.cpa),
+    roas: num(r.roas),
+    cvr: num(r.cvr),
+  }));
+}
+
 export interface CreativePoint {
   creativeId: string;
   name: string;
