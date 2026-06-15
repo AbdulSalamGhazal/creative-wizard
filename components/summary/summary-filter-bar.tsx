@@ -729,29 +729,25 @@ export function SummaryFilterBar({
               <DropdownMenuSeparator />
               <DropdownMenuLabel>Status</DropdownMenuLabel>
               <DropdownMenuSeparator />
-              {CREATIVE_STATUSES.map((s) => {
-                // Per-platform scopes never carry the whole-creative "new" state.
-                const disabled = statusScope !== "total" && s === "new";
-                return (
-                  <DropdownMenuCheckboxItem
-                    key={s}
-                    checked={statusValues.includes(s)}
-                    disabled={disabled}
-                    onCheckedChange={() => toggleStatus(s)}
-                    onSelect={(e) => e.preventDefault()}
-                  >
-                    <span className="inline-flex items-center gap-1.5">
-                      <span
-                        className="h-1.5 w-1.5 rounded-full shrink-0"
-                        style={{ background: STATUS_DOT[s] }}
-                      />
-                      <span className={cn(disabled && "text-ink-3")}>
-                        {STATUS_LABEL[s]}
-                      </span>
-                    </span>
-                  </DropdownMenuCheckboxItem>
-                );
-              })}
+              {/* All four statuses are valid on every scope. On a platform,
+                  "new" = the creative never ran there (matches the "N" chip in
+                  that platform's column); the query maps no-presence to new. */}
+              {CREATIVE_STATUSES.map((s) => (
+                <DropdownMenuCheckboxItem
+                  key={s}
+                  checked={statusValues.includes(s)}
+                  onCheckedChange={() => toggleStatus(s)}
+                  onSelect={(e) => e.preventDefault()}
+                >
+                  <span className="inline-flex items-center gap-1.5">
+                    <span
+                      className="h-1.5 w-1.5 rounded-full shrink-0"
+                      style={{ background: STATUS_DOT[s] }}
+                    />
+                    <span>{STATUS_LABEL[s]}</span>
+                  </span>
+                </DropdownMenuCheckboxItem>
+              ))}
               {statusValues.length > 0 && (
                 <>
                   <DropdownMenuSeparator />
