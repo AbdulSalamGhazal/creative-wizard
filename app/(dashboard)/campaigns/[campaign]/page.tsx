@@ -18,6 +18,7 @@ import {
 } from "@/components/campaign/campaign-diagnosis";
 import { parseCampaignDetailParams } from "@/validators/campaign";
 import { PLATFORM_COLOR, PLATFORM_LABEL } from "@/lib/palette";
+import { safeDecodeURIComponent } from "@/lib/url";
 import { isoDate } from "@/lib/format";
 import { defaultDateRange, presetLabel } from "@/lib/date-presets";
 import { resolvePreferredRange } from "@/db/queries/user-prefs";
@@ -46,7 +47,7 @@ export default async function CampaignDetailPage({
 }) {
   const { campaign } = await params;
   const sp = await searchParams;
-  const decoded = decodeURIComponent(campaign);
+  const decoded = safeDecodeURIComponent(campaign);
   const parsed = parseCampaignDetailParams(sp);
 
   // Default to a concrete recent window when no range is set.

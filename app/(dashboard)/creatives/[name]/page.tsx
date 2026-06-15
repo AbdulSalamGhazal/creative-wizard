@@ -32,6 +32,7 @@ import { AuditFeed } from "@/components/audit/audit-feed";
 import { int, pct, ratio, usd } from "@/lib/format";
 import { defaultDateRange, presetLabel } from "@/lib/date-presets";
 import { resolvePreferredRange } from "@/db/queries/user-prefs";
+import { safeDecodeURIComponent } from "@/lib/url";
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -72,7 +73,7 @@ export default async function CreativeDetailPage({
 }) {
   const { name } = await params;
   const sp = await searchParams;
-  const decoded = decodeURIComponent(name);
+  const decoded = safeDecodeURIComponent(name);
 
   const fromRaw = pickFirst(sp.from);
   const toRaw = pickFirst(sp.to);
