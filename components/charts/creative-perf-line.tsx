@@ -17,18 +17,20 @@ import type { DailyMetricRow } from "@/db/queries/performance";
 
 interface Props {
   rows: DailyMetricRow[];
+  /** Heading shown inline with the metric pills. */
+  title?: string;
 }
 
 type MetricKey =
   | "spend"
-  | "conversionValue"
   | "conversions"
-  | "impressions"
-  | "clicks"
-  | "ctr"
-  | "cvr"
+  | "conversionValue"
   | "cpa"
-  | "roas";
+  | "roas"
+  | "cpm"
+  | "ctr"
+  | "voc"
+  | "cvr";
 
 interface MetricDef {
   key: MetricKey;
@@ -42,14 +44,14 @@ interface MetricDef {
 
 const METRICS: MetricDef[] = [
   { key: "spend", label: "Spend", get: (r) => r.spend, fmt: usd, axis: (v) => usdCompact(v) },
-  { key: "conversionValue", label: "Revenue", get: (r) => r.conversionValue, fmt: usd, axis: (v) => usdCompact(v) },
   { key: "conversions", label: "Conversions", get: (r) => r.conversions, fmt: int, axis: (v) => intCompact(v) },
-  { key: "impressions", label: "Impressions", get: (r) => r.impressions, fmt: int, axis: (v) => intCompact(v) },
-  { key: "clicks", label: "Clicks", get: (r) => r.clicks, fmt: int, axis: (v) => intCompact(v) },
-  { key: "ctr", label: "CTR", get: (r) => r.ctr, fmt: pct, axis: (v) => pct(v) },
-  { key: "cvr", label: "CvR", get: (r) => r.cvr, fmt: pct, axis: (v) => pct(v) },
+  { key: "conversionValue", label: "Revenue", get: (r) => r.conversionValue, fmt: usd, axis: (v) => usdCompact(v) },
   { key: "cpa", label: "CPA", get: (r) => r.cpa, fmt: usd, axis: (v) => usdCompact(v) },
   { key: "roas", label: "ROAS", get: (r) => r.roas, fmt: (v) => (v === null ? "—" : `${ratio(v)}×`), axis: (v) => `${ratio(v)}×` },
+  { key: "cpm", label: "CPM", get: (r) => r.cpm, fmt: usd, axis: (v) => usdCompact(v) },
+  { key: "ctr", label: "CTR", get: (r) => r.ctr, fmt: pct, axis: (v) => pct(v) },
+  { key: "voc", label: "VOC", get: (r) => r.voc, fmt: pct, axis: (v) => pct(v) },
+  { key: "cvr", label: "CvR", get: (r) => r.cvr, fmt: pct, axis: (v) => pct(v) },
 ];
 
 interface PivotRow {
@@ -66,7 +68,10 @@ const monthDay = new Intl.DateTimeFormat("en-US", {
   timeZone: "UTC",
 });
 
-export function CreativePerfLineChart({ rows }: Props) {
+export function CreativePerfLineChart({
+  rows,
+  title = "Performance over time",
+}: Props) {
   const [metricKey, setMetricKey] = useState<MetricKey>("spend");
   const metric = METRICS.find((m) => m.key === metricKey) ?? METRICS[0]!;
 
@@ -98,27 +103,32 @@ export function CreativePerfLineChart({ rows }: Props) {
 
   return (
     <div className="space-y-3">
-      {/* Metric selector — a row of pills (not a dropdown). */}
-      <div className="flex flex-wrap gap-1.5">
-        {METRICS.map((m) => {
-          const active = m.key === metricKey;
-          return (
-            <button
-              key={m.key}
-              type="button"
-              onClick={() => setMetricKey(m.key)}
-              aria-pressed={active}
-              className={cn(
-                "h-7 px-3 rounded-md text-xs border transition-colors",
-                active
-                  ? "border-brand/50 bg-[var(--brand-soft)] text-ink font-medium"
-                  : "border-line text-ink-2 hover:text-ink hover:bg-surface-2",
-              )}
-            >
-              {m.label}
-            </button>
-          );
-        })}
+      {/* Title + metric selector share one row — the title pins left, the pills
+          fill the rest and wrap within their own block (never onto a row of
+          their own). */}
+      <div className="flex items-start justify-between gap-x-4 gap-y-2">
+        <h3 className="text-sm font-medium text-ink shrink-0 leading-7">{title}</h3>
+        <div className="flex flex-wrap justify-end gap-1.5">
+          {METRICS.map((m) => {
+            const active = m.key === metricKey;
+            return (
+              <button
+                key={m.key}
+                type="button"
+                onClick={() => setMetricKey(m.key)}
+                aria-pressed={active}
+                className={cn(
+                  "h-7 px-3 rounded-md text-xs border transition-colors",
+                  active
+                    ? "border-brand/50 bg-[var(--brand-soft)] text-ink font-medium"
+                    : "border-line text-ink-2 hover:text-ink hover:bg-surface-2",
+                )}
+              >
+                {m.label}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {data.length === 0 ? (

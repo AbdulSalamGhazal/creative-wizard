@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { DollarSign, Target, Banknote, Receipt, TrendingUp } from "lucide-react";
 import {
   campaignMix,
@@ -235,11 +235,8 @@ export default async function CreativeDetailPage({
         </div>
 
         <Card className="bg-surface border-line">
-          <CardHeader>
-            <CardTitle className="text-sm">Performance over time</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <CreativePerfLineChart rows={dailyRows} />
+          <CardContent className="pt-6">
+            <CreativePerfLineChart title="Performance over time" rows={dailyRows} />
           </CardContent>
         </Card>
 

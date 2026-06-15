@@ -320,14 +320,14 @@ export interface DailyMetricRow {
   date: string;
   platform: Platform;
   spend: number;
-  impressions: number;
-  clicks: number;
   conversions: number | null;
   conversionValue: number;
+  cpm: number | null;
   ctr: number | null;
+  voc: number | null;
+  cvr: number | null;
   cpa: number | null;
   roas: number | null;
-  cvr: number | null;
 }
 
 /**
@@ -347,14 +347,14 @@ export async function creativeDailyMetrics(
       date: performanceRecords.date,
       platform: performanceRecords.platform,
       spend: sumSpend,
-      impressions: sumImpressions,
-      clicks: sumClicks,
       conversions: sumConversions,
       conversionValue: sumConversionValue,
+      cpm,
       ctr,
+      voc,
+      cvr,
       cpa,
       roas,
-      cvr,
     })
     .from(performanceRecords)
     .$dynamic();
@@ -378,14 +378,14 @@ export async function creativeDailyMetrics(
     date: r.date,
     platform: r.platform as Platform,
     spend: Number(r.spend ?? 0),
-    impressions: Number(r.impressions ?? 0),
-    clicks: Number(r.clicks ?? 0),
     conversions: num(r.conversions),
     conversionValue: Number(r.conversionValue ?? 0),
+    cpm: num(r.cpm),
     ctr: num(r.ctr),
+    voc: num(r.voc),
+    cvr: num(r.cvr),
     cpa: num(r.cpa),
     roas: num(r.roas),
-    cvr: num(r.cvr),
   }));
 }
 
