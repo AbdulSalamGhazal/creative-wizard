@@ -422,7 +422,10 @@ export async function patchCreative(
 
     await db.transaction(async (tx) => {
       if (hasScalarChange) {
-        await tx.update(creatives).set(set).where(eq(creatives.id, data.id));
+        await tx
+          .update(creatives)
+          .set(set)
+          .where(and(eq(creatives.accountId, acct), eq(creatives.id, data.id)));
       }
       if (data.tags !== undefined) {
         await tx.delete(creativeTags).where(eq(creativeTags.creativeId, data.id));

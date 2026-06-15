@@ -7,6 +7,8 @@ import {
   LogOut,
   Package,
   ShieldAlert,
+  SlidersHorizontal,
+  Tags,
   Trash2,
   Upload,
   UserPlus,
@@ -107,6 +109,10 @@ function ActionIcon({ action }: { action: AuditAction }) {
     "user.password_reset": ShieldAlert,
     "mapping.add": Layers3,
     "mapping.remove": Layers3,
+    "tag.create": Tags,
+    "tag.rename": Tags,
+    "tag.delete": Tags,
+    "rating.update": SlidersHorizontal,
     "auth.signin": LogIn,
     "auth.signin_failed": ShieldAlert,
     "auth.signout": LogOut,
@@ -221,7 +227,11 @@ function metaSummary(row: AuditFeedRow): string | null {
     }
     case "upload.rollback": {
       const n = m.rowsDeleted as number | undefined;
-      return n !== undefined ? `removed ${plural(n, "row")}` : null;
+      const platform = m.platform as string | undefined;
+      return join([
+        platform ? platformLabel(platform) : null,
+        n !== undefined ? `removed ${plural(n, "row")}` : null,
+      ]);
     }
     case "upload.bulk_delete": {
       const n = m.deleted as number | undefined;
@@ -247,7 +257,19 @@ function metaSummary(row: AuditFeedRow): string | null {
         : null;
     }
     case "user.invite":
-      return join([m.email as string | undefined, m.role as string | undefined]);
+      return join([
+        m.email as string | undefined,
+        m.name as string | undefined,
+        m.role as string | undefined,
+      ]);
+    case "rating.update": {
+      const before = m.before as
+        | { goodRoas?: number; decentRoas?: number; minSpend?: number }
+        | null
+        | undefined;
+      if (!before) return "thresholds set";
+      return `was Good ≥ ${before.goodRoas}×, Decent ≥ ${before.decentRoas}×, min $${before.minSpend}`;
+    }
     case "user.role_change": {
       const from = m.from as string | null | undefined;
       const to = m.to as string | undefined;
