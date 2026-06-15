@@ -454,6 +454,8 @@ export interface CreativeRecordRow {
   conversions: number | null;
   conversionValue: number | null;
   landingPageViews: number | null;
+  addToCart: number | null;
+  addPayment: number | null;
   videoViews2s: number | null;
   videoViews25: number | null;
   videoViews50: number | null;
@@ -485,6 +487,8 @@ export async function creativeRecords(
       conversionValue: performanceRecords.conversionValue,
       campaignName: performanceRecords.campaignName,
       landingPageViews: performanceRecords.landingPageViews,
+      addToCart: performanceRecords.addToCart,
+      addPayment: performanceRecords.addPayment,
       videoViews2s: performanceRecords.videoViews2s,
       videoViews25: performanceRecords.videoViews25,
       videoViews50: performanceRecords.videoViews50,
@@ -516,6 +520,8 @@ export async function creativeRecords(
     conversionValue: r.conversionValue === null ? null : Number(r.conversionValue),
     campaignName: r.campaignName,
     landingPageViews: r.landingPageViews,
+    addToCart: r.addToCart,
+    addPayment: r.addPayment,
     videoViews2s: r.videoViews2s,
     videoViews25: r.videoViews25,
     videoViews50: r.videoViews50,

@@ -247,14 +247,13 @@ export default async function CreativeDetailPage({
           <h3 className="text-sm font-medium text-ink mb-3">By platform</h3>
           <CreativePlatformTable rows={byPlatform} campaigns={byCampaign} />
         </div>
-
-        <div>
-          <h3 className="text-sm font-medium text-ink mb-3">
-            {from && to ? "Records in range" : "All records"}
-          </h3>
-          <CreativeRecordsTable rows={records} />
-        </div>
       </section>
+
+      {/* ─────────── Records (own block, collapsed by default) ─────────── */}
+      <CreativeRecordsTable
+        rows={records}
+        title={from && to ? "Records in range" : "All records"}
+      />
 
       {/* ─────────── Activity log ─────────── */}
       <div>
