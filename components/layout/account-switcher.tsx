@@ -25,7 +25,7 @@ interface Props {
 }
 
 /**
- * Brand (account) switcher in the top bar, right of the "Creative Wizard"
+ * Brand (account) switcher in the top bar, right of the "WIZARD"
  * title. Selecting a brand writes the `ccms_account` cookie via
  * `setActiveAccount`, then refreshes so every server component re-reads under
  * the new account. A view preference, not a security boundary — any signed-in

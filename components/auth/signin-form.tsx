@@ -2,7 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { Wand2 } from "lucide-react";
+import { LogoMark } from "@/components/layout/logo-mark";
+import { BrandWordmark } from "@/components/layout/brand-wordmark";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -35,18 +36,10 @@ export function SignInForm({ nextPath }: { nextPath: string }) {
   return (
     <div className="w-full max-w-sm space-y-6">
       <div className="text-center space-y-2">
-        <div
-          className="w-12 h-12 rounded-md mx-auto flex items-center justify-center"
-          style={{
-            background: "linear-gradient(135deg, var(--brand), var(--brand-2))",
-            boxShadow: "0 0 20px var(--brand-glow)",
-          }}
-        >
-          <Wand2 className="w-6 h-6 text-white" />
-        </div>
+        <LogoMark className="w-14 h-14 mx-auto" />
         <div>
-          <h1 className="font-display text-3xl tracking-tight">Creative Wizard</h1>
-          <div className="text-[11px] uppercase tracking-[0.18em] text-ink-3 mt-1">
+          <BrandWordmark className="text-4xl" />
+          <div className="text-[11px] uppercase tracking-[0.18em] text-ink-3 mt-2">
             Sign in to continue
           </div>
         </div>

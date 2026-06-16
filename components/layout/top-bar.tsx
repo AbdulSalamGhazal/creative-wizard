@@ -4,6 +4,7 @@ import { CommandPalette } from "@/components/layout/command-palette";
 import { ScreenshotButton } from "@/components/layout/screenshot-button";
 import { AccountSwitcher } from "@/components/layout/account-switcher";
 import { LogoMark } from "@/components/layout/logo-mark";
+import { BrandWordmark } from "@/components/layout/brand-wordmark";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 
 function initials(name: string): string {
@@ -24,9 +25,7 @@ export function TopBar({ user, creatives, accounts, activeAccountId }: Props) {
       <div className="flex items-center justify-between px-6 h-14">
         <div className="flex items-center gap-2.5">
           <LogoMark className="w-7 h-7 shrink-0" />
-          <div className="text-[17px] font-semibold tracking-tight leading-none text-ink">
-            Creative Wizard
-          </div>
+          <BrandWordmark className="text-[19px] leading-none" />
           <AccountSwitcher accounts={accounts} activeId={activeAccountId} />
         </div>
         <div className="flex items-center gap-3">

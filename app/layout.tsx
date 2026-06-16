@@ -67,8 +67,8 @@ const plexMono = IBM_Plex_Mono({
 const fontScript = `(function(){try{var f=localStorage.getItem('cw-font');if(f){document.documentElement.setAttribute('data-font',f);}}catch(e){}})();`;
 
 export const metadata: Metadata = {
-  title: "Creative Wizard",
-  description: "Creative Wizard — creative performance management",
+  title: "WIZARD",
+  description: "WIZARD — creative performance management",
 };
 
 export default function RootLayout({
