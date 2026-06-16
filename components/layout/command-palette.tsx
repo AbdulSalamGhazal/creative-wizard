@@ -52,7 +52,6 @@ const PAGES = [
   { href: "/summary", label: "Summary — per-platform grid", icon: Table2 },
   { href: "/funnel", label: "Funnel — CPM / CTR / VOC / CvR by campaign", icon: Filter },
   { href: "/campaigns", label: "Campaigns — full campaign analysis", icon: Megaphone },
-  { href: "/trends", label: "Trends", icon: LineChart },
   { href: "/trends/over-time", label: "Trends · Changes", icon: LineChart },
   { href: "/trends/by-tag", label: "Trends · Tags", icon: Hash },
   { href: "/trends/by-type", label: "Trends · Types", icon: Shapes },
