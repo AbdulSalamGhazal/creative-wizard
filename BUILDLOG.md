@@ -1,5 +1,16 @@
 # Build Log
 
+> **⚠️ Frozen as of 2026-06-16 — superseded by `git log` + `CLAUDE.md`.**
+> This file is a historical record of the **May 2026 initial build phase only**
+> (through "Drop auto-detect, force explicit platform pick", 2026-05-27). The
+> June 2026 feature wave — multi-tenancy/brand switching, campaigns & portfolio,
+> by-tag & video diagnostics, per-platform rating, status-flow, launches/fatigue,
+> change-radar, the creative-detail overhaul, and the dynamic-status work — is
+> **not** logged here. For changes after 2026-05-27, read the **git history**
+> (every commit has a descriptive conventional message) and **`CLAUDE.md`** (the
+> living architecture + "Learned" intentional-design notes). No new entries are
+> added below; it is kept as a snapshot of how the foundation was built.
+
 Append-only log of decisions, scaffolding actions, and conflicts flagged
 during the build. Each entry is dated and short. Read this when something
 looks unfamiliar — it's the audit trail behind the code.

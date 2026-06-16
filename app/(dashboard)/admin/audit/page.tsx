@@ -17,6 +17,8 @@ const CATEGORY_OPTIONS: Array<{ value: AuditEntityType | "all"; label: string }>
   { value: "mapping", label: "CSV mapping" },
   { value: "auth", label: "Auth" },
   { value: "view", label: "Views" },
+  { value: "rating", label: "Rating rules" },
+  { value: "account", label: "Brands" },
 ];
 
 interface Props {

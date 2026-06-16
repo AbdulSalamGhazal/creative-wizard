@@ -1,5 +1,7 @@
 import Link from "next/link";
 import {
+  Building2,
+  Clock,
   GitBranch,
   Images,
   Layers3,
@@ -117,6 +119,9 @@ function ActionIcon({ action }: { action: AuditAction }) {
     "auth.signin_failed": ShieldAlert,
     "auth.signout": LogOut,
     "auth.password_change": ShieldAlert,
+    "account.create": Building2,
+    "account.rename": Building2,
+    "account.window_update": Clock,
   };
   const Icon = map[action] ?? ListFilter;
   return <Icon className="w-3.5 h-3.5" />;
@@ -138,6 +143,8 @@ function categoryColor(category: AuditEntityType): string {
       return "border-line-2 text-ink-3 bg-surface-2";
     case "auth":
       return "border-line-2 text-ink-3 bg-surface-2";
+    case "account":
+      return "border-brand/40 text-brand bg-brand/10";
     default:
       return "border-line-2 text-ink-3 bg-surface-2";
   }
@@ -301,6 +308,20 @@ function metaSummary(row: AuditFeedRow): string | null {
     case "view.set_default": {
       const page = m.page as string | undefined;
       return page ? `${page} · default ${(m.default as boolean) ? "on" : "off"}` : null;
+    }
+    case "account.create": {
+      const slug = m.slug as string | undefined;
+      return slug ? `slug: ${slug}` : null;
+    }
+    case "account.rename": {
+      const from = m.from as string | null | undefined;
+      const to = m.to as string | undefined;
+      return to ? `${from ?? "—"} → ${to}` : null;
+    }
+    case "account.window_update": {
+      const from = m.fromHours as number | null | undefined;
+      const to = m.toHours as number | undefined;
+      return to !== undefined ? `${from != null ? `${from}h` : "—"} → ${to}h` : null;
     }
     default:
       return null;

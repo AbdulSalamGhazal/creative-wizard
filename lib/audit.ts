@@ -66,6 +66,11 @@ export const AUDIT_ACTIONS = {
 
   // Rating rules (Summary rate config)
   RATING_UPDATE: "rating.update",
+
+  // Brands (accounts)
+  ACCOUNT_CREATE: "account.create",
+  ACCOUNT_RENAME: "account.rename",
+  ACCOUNT_WINDOW_UPDATE: "account.window_update",
 } as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[keyof typeof AUDIT_ACTIONS];
@@ -80,7 +85,8 @@ export type AuditEntityType =
   | "auth"
   | "view"
   | "tag"
-  | "rating";
+  | "rating"
+  | "account";
 
 export interface AuditEventInput {
   action: AuditAction;
@@ -162,6 +168,9 @@ export const AUDIT_LABELS: Record<AuditAction, string> = {
   "tag.rename": "Renamed tag",
   "tag.delete": "Deleted tag",
   "rating.update": "Updated rating rules",
+  "account.create": "Created brand",
+  "account.rename": "Renamed brand",
+  "account.window_update": "Changed status window",
 };
 
 /** Coarse grouping for filter chips. */
@@ -197,4 +206,7 @@ export const AUDIT_CATEGORIES: Record<AuditAction, AuditEntityType> = {
   "tag.rename": "tag",
   "tag.delete": "tag",
   "rating.update": "rating",
+  "account.create": "account",
+  "account.rename": "account",
+  "account.window_update": "account",
 };
