@@ -269,9 +269,11 @@ This app is deployed and in production use. Treat `main` as shippable.
   Pure derivation lives in `lib/creative-status.ts` (`deriveCreativeStatus`,
   `STATUS_LABEL`/`STATUS_DOT`); the account-scoped query is
   `db/queries/creative-status.ts` (`creativeStatusMap(ids?)` + `statusFor`).
-  **Per-platform status is anchored to each platform's own latest data day**
-  (uploads are per-platform, so freshness differs per channel) — never a single
-  global "today"/max-date. General status is a roll-up: `active` if active on any
+  **Per-platform status is anchored to each platform's own latest SPEND day**
+  (the latest day with `spend > 0`; the freshness query matches the activity
+  query's `spend > 0` so a trailing $0 day can't mislabel a recent spender as
+  Pause — uploads are per-platform, so freshness differs per channel) — never a
+  single global "today"/max-date. General status is a roll-up: `active` if active on any
   platform ▸ else `pause` ▸ else `terminated` (terminated everywhere it ran) ▸
   else `new`. The window is per-brand `accounts.status_window_hours` (default 24;
   daily-grain data rounds up to whole days, so 24h = the latest day only),

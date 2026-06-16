@@ -63,8 +63,9 @@ export async function creativeStatusMap(
     )
     .groupBy(performanceRecords.creativeId, performanceRecords.platform);
 
-  // Each platform's latest data day in the brand (the freshness anchor) — as of
-  // `asOf` when reconstructing a point-in-time snapshot.
+  // Each platform's latest SPEND day in the brand (the freshness anchor) — as of
+  // `asOf` when reconstructing a point-in-time snapshot. Matches the activity
+  // query's `spend > 0` so a trailing $0 day can't mislabel a recent spender.
   const freshness = await db
     .select({
       platform: performanceRecords.platform,
@@ -75,6 +76,7 @@ export async function creativeStatusMap(
       and(
         eq(performanceRecords.accountId, acct),
         eq(performanceRecords.excludedFromAggregates, false),
+        sql`${performanceRecords.spend} > 0`,
         ...(asOf ? [sql`${performanceRecords.date} <= ${asOf}`] : []),
       ),
     )
@@ -514,7 +516,7 @@ export async function statusFlowBreakdown(
     .groupBy(performanceRecords.creativeId);
   const universe = uniRows.map((r) => r.id);
 
-  // Each platform's freshness anchor at each as-of (latest data day ≤ as-of).
+  // Each platform's freshness anchor at each as-of (latest SPEND day ≤ as-of).
   const latestDay = async (asOf: string): Promise<string | null> => {
     const [r] = await db
       .select({ last: sql<string>`MAX(${performanceRecords.date})` })
@@ -524,6 +526,7 @@ export async function statusFlowBreakdown(
           eq(performanceRecords.accountId, acct),
           eq(performanceRecords.platform, P),
           eq(performanceRecords.excludedFromAggregates, false),
+          sql`${performanceRecords.spend} > 0`,
           sql`${performanceRecords.date} <= ${asOf}`,
         ),
       );
