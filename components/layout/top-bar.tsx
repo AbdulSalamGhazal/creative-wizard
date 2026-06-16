@@ -24,8 +24,8 @@ export function TopBar({ user, creatives, accounts, activeAccountId }: Props) {
     <header className="border-b border-line sticky top-0 z-20 bg-background">
       <div className="flex items-center justify-between px-6 h-14">
         <div className="flex items-center gap-2.5">
-          <LogoMark className="w-7 h-7 shrink-0" />
-          <BrandWordmark className="text-[19px] leading-none" />
+          <LogoMark className="w-10 h-10 shrink-0" />
+          <BrandWordmark className="text-2xl leading-none" />
           <AccountSwitcher accounts={accounts} activeId={activeAccountId} />
         </div>
         <div className="flex items-center gap-3">
