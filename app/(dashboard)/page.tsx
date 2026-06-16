@@ -85,11 +85,6 @@ export default async function DashboardPage({
       <div className="flex items-end justify-between flex-wrap gap-3">
         <div>
           <h1 className="font-display text-4xl tracking-tight">Dashboard</h1>
-          <p className="text-ink-2 text-sm mt-1">
-            {singlePlatform
-              ? `${PLATFORM_LABEL[singlePlatform]} — headline metrics with a per-campaign breakdown.`
-              : "Headline metrics with a per-platform breakdown."}
-          </p>
         </div>
         <Badge variant="outline" className="text-ink-3">
           {from} → {to} · {platformsBadge} ·{" "}

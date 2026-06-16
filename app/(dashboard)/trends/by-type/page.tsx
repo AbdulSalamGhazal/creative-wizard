@@ -87,11 +87,6 @@ export default async function TrendsByTypePage({
             Trends
           </Link>
           <h1 className="font-display text-4xl tracking-tight">Types</h1>
-          <p className="text-ink-2 text-sm mt-1">
-            How each creative format — video, image, slides — performs, and how
-            that breaks down within each platform. Switch the chart metric, or
-            click any row to open the matching Library view.
-          </p>
         </div>
         <Badge variant="outline" className="text-ink-3">
           {from} → {to}

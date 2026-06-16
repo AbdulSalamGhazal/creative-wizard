@@ -109,15 +109,7 @@ export default async function CampaignsPage({
       {/* Header + filters */}
       <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
-          <div className="text-[10px] uppercase tracking-[0.18em] text-ink-3 mb-1">
-            Campaigns
-          </div>
-          <h1 className="font-display text-4xl tracking-tight">All campaigns</h1>
-          <p className="text-ink-2 text-sm mt-1 max-w-2xl">
-            Portfolio command center — where the budget goes, what&apos;s working,
-            what&apos;s wasting, and what changed. Drill into Funnel or a creative
-            from here.
-          </p>
+          <h1 className="font-display text-4xl tracking-tight">Campaigns</h1>
         </div>
         <Badge variant="outline" className="text-ink-3 shrink-0">
           {from} → {to}

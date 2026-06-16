@@ -31,10 +31,8 @@ export default async function UsersAdminPage() {
           Admin
         </div>
         <h1 className="font-display text-4xl tracking-tight">Team</h1>
-        <p className="text-ink-2 text-sm mt-1">
-          {team.length} member{team.length === 1 ? "" : "s"}. Admins manage the
-          team, the catalog, and rollbacks; editors upload data and manage
-          creatives.
+        <p className="text-ink-3 text-sm mt-1">
+          {team.length} member{team.length === 1 ? "" : "s"}.
         </p>
       </div>
 

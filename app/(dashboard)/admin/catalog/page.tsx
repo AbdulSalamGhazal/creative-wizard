@@ -46,10 +46,6 @@ export default async function CatalogAdminPage({ searchParams }: Props) {
           Admin
         </div>
         <h1 className="font-display text-4xl tracking-tight">Configuration</h1>
-        <p className="text-ink-2 text-sm mt-1">
-          Manage the building blocks creatives reference — products, tags, and
-          per-platform CSV column mappings — plus the Summary rating rules.
-        </p>
       </div>
 
       {/* Tab nav */}

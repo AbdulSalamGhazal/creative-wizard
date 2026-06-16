@@ -87,9 +87,8 @@ export default async function TrendsByTagPage({
           </Link>
           <h1 className="font-display text-4xl tracking-tight">Tags</h1>
           <p className="text-ink-2 text-sm mt-1">
-            Performance rolled up by tag. A creative counts toward every tag it
-            carries. Spend Δ is {periodCaption(from, to)}. Click a tag to open
-            the filtered Library.
+            A creative counts toward every tag it carries. Spend Δ is{" "}
+            {periodCaption(from, to)}.
           </p>
         </div>
         <Badge variant="outline" className="text-ink-3">

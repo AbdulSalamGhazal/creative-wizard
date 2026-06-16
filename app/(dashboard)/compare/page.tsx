@@ -120,16 +120,10 @@ export default async function ComparePage({
   return (
     <div className="space-y-6">
       <div>
-        <div className="text-[10px] uppercase tracking-[0.18em] text-ink-3 mb-1">
-          Compare
-        </div>
-        <h1 className="font-display text-4xl tracking-tight">Side-by-side comparison</h1>
+        <h1 className="font-display text-4xl tracking-tight">Compare</h1>
         <p className="text-ink-2 text-sm mt-1">
-          Define two or three sides by Platform → Campaign → Creative (each
-          level optional = &ldquo;all&rdquo;), each over its own time window,
-          then stack a chart per metric. Blended figures are true weighted
-          averages. When windows differ, charts align by day (D1 = each
-          side&rsquo;s first day with data).
+          Blended figures are true weighted averages. When windows differ,
+          charts align by day (D1 = each side&rsquo;s first day with data).
         </p>
       </div>
 

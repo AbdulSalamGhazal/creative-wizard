@@ -172,8 +172,8 @@ export default async function TrendsOverTimePage({
           </Link>
           <h1 className="font-display text-4xl tracking-tight">Changes</h1>
           <p className="text-ink-2 text-sm mt-1">
-            What changed vs the prior window of equal length — and which metric
-            drove it. Worst first; tiny spenders never trigger warnings.
+            Ranked worst-first vs the prior window of equal length. Tiny
+            spenders never trigger warnings.
           </p>
         </div>
         <Badge variant="outline" className="text-ink-3">

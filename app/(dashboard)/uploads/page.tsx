@@ -77,8 +77,8 @@ export default async function UploadsPage() {
             Uploads
           </div>
           <h1 className="font-display text-4xl tracking-tight">Upload history</h1>
-          <p className="text-ink-2 text-sm mt-1">
-            Every CSV the team has imported. {rows.length} {rows.length === 1 ? "batch" : "batches"}.
+          <p className="text-ink-3 text-sm mt-1">
+            {rows.length} {rows.length === 1 ? "batch" : "batches"}.
           </p>
         </div>
         <Button asChild>

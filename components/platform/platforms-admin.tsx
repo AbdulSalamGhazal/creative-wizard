@@ -40,9 +40,7 @@ export async function PlatformsAdmin() {
   return (
     <div className="space-y-4">
       <p className="text-ink-2 text-sm">
-        The supported ad channels. Platforms are a fixed set — adding a new
-        network is a code change, not a setting. Each card shows its CSV
-        column-mapping readiness and how many performance rows it holds.
+        A fixed set — adding a network is a code change, not a setting.
       </p>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

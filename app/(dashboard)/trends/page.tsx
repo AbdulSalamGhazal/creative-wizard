@@ -41,10 +41,6 @@ export default async function TrendsLandingPage() {
           Analytics
         </div>
         <h1 className="font-display text-4xl tracking-tight">Trends</h1>
-        <p className="text-ink-2 text-sm mt-1">
-          Deeper analytical views. Each lens answers one strategic question —
-          pick where to dig in.
-        </p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -52,7 +48,6 @@ export default async function TrendsLandingPage() {
           href="/trends/over-time"
           icon={LineChartIcon}
           title="Changes"
-          description="What changed vs the prior window: every platform, campaign, or creative ranked worst-first, with warnings on big drops."
           available
           teaser={
             <div className="flex items-baseline gap-3">
@@ -68,28 +63,24 @@ export default async function TrendsLandingPage() {
           href="/trends/by-tag"
           icon={Hash}
           title="Tags"
-          description="Roll up spend, CTR, CPA, and ROAS by tag. Which creative themes are doing the work?"
           available
         />
         <LensCard
           href="/trends/by-type"
           icon={Shapes}
           title="Types"
-          description="Spend, CTR, CPC, CPA, and ROAS by creative format — video, image, slides — and split each by platform."
           available
         />
         <LensCard
           href="/trends/launches"
           icon={Rocket}
           title="Launches"
-          description="Creative fatigue — ROAS decay across days 1–7, 8–30, 31–90 from each creative’s own launch. Catch the ones wearing out."
           available
         />
         <LensCard
           href="/trends/video"
           icon={Video}
           title="Video diagnostics"
-          description="Hook rate (2s) and hold rate (50% view) — the early signals that decide whether a video lives or dies."
           available
         />
       </div>
@@ -108,7 +99,7 @@ function LensCard({
   href: string;
   icon: React.ComponentType<{ className?: string }>;
   title: string;
-  description: string;
+  description?: string;
   teaser?: React.ReactNode;
   available?: boolean;
 }) {
@@ -130,7 +121,9 @@ function LensCard({
             </span>
           )}
         </div>
-        <p className="text-ink-2 text-sm leading-relaxed">{description}</p>
+        {description && (
+          <p className="text-ink-2 text-sm leading-relaxed">{description}</p>
+        )}
         {teaser && (
           <div className="pt-2 border-t border-line">{teaser}</div>
         )}

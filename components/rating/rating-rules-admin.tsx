@@ -40,10 +40,9 @@ export function RatingRulesAdmin({ config }: { config: RatingConfig }) {
       <div>
         <h2 className="text-sm font-medium text-ink">Rate rules</h2>
         <p className="text-[12px] text-ink-2 mt-1">
-          Drives the <span className="text-ink">Rate</span> column on Summary. A
-          creative is rated from its ROAS once it has spent enough to judge. The
-          default applies to the blended total and any platform without its own
-          override below.
+          Drives the <span className="text-ink">Rate</span> column on Summary.
+          The default applies to the blended total and any platform without its
+          own override below.
         </p>
       </div>
 

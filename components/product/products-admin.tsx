@@ -35,9 +35,8 @@ export async function ProductsAdmin() {
   return (
     <div className="space-y-6">
       <p className="text-ink-2 text-sm">
-        {active.length} active · {archived.length} archived. Every creative
-        belongs to one product. Products with creatives can be archived but
-        not deleted.
+        {active.length} active · {archived.length} archived. Products with
+        creatives can be archived but not deleted.
       </p>
 
       <div className="rounded-lg border border-line bg-surface p-4">

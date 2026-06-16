@@ -21,9 +21,8 @@ export default async function NewCreativePage() {
           New creative
         </h1>
         <p className="text-ink-2 text-sm mt-1">
-          Register the creative once, then performance rows that reference this
-          exact name import cleanly. Names are case- and whitespace-sensitive,
-          so match them to your ad platform exactly.
+          Names are case- and whitespace-sensitive — match your ad platform
+          exactly so performance rows import cleanly.
         </p>
       </div>
 

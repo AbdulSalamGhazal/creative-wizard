@@ -13,12 +13,6 @@ export async function MappingsAdmin() {
 
   return (
     <div className="space-y-8">
-      <p className="text-ink-2 text-sm max-w-2xl">
-        For each platform, list the column headers your export uses for each
-        field. On upload, headers are matched case-insensitively and the first
-        match wins. Add one when an export uses a header that isn&apos;t
-        recognized yet.
-      </p>
 
       {ALL_PLATFORMS.map((platform) => {
         const platformRows = rows.filter((r) => r.platform === platform);

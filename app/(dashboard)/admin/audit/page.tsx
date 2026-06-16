@@ -47,9 +47,8 @@ export default async function AuditPage({ searchParams }: Props) {
           Admin
         </div>
         <h1 className="font-display text-4xl tracking-tight">Audit log</h1>
-        <p className="text-ink-2 text-sm mt-1">
-          Every mutation in the system, newest first. {total.toLocaleString()}{" "}
-          event{total === 1 ? "" : "s"} recorded.
+        <p className="text-ink-3 text-sm mt-1">
+          {total.toLocaleString()} event{total === 1 ? "" : "s"} · newest first.
         </p>
       </div>
 

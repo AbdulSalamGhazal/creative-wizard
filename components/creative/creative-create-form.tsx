@@ -91,7 +91,7 @@ export function CreativeCreateForm({ products, allTags }: Props) {
     <form onSubmit={submit} className="space-y-5">
       <Field
         label="Name"
-        hint="The canonical creative identifier matched against CSV rows. Case- and whitespace-sensitive."
+        hint="Case- and whitespace-sensitive — must match your CSV rows exactly."
         error={fieldErrors.name}
       >
         <Input
@@ -140,7 +140,7 @@ export function CreativeCreateForm({ products, allTags }: Props) {
 
       <Field
         label="Thumbnail"
-        hint="Optional. Shown on the board and detail page — auto-resized & optimized."
+        hint="Optional."
         error={fieldErrors.thumbnailUrl}
       >
         <ThumbnailUpload
@@ -152,7 +152,7 @@ export function CreativeCreateForm({ products, allTags }: Props) {
 
       <Field
         label="Tags"
-        hint="Comma-separated. Click a suggestion to append."
+        hint="Comma-separated."
         error={fieldErrors.tags}
       >
         <TagInput
@@ -164,7 +164,7 @@ export function CreativeCreateForm({ products, allTags }: Props) {
 
       <Field
         label="Source link"
-        hint="Optional. The live post, ad, or asset URL."
+        hint="Optional."
         error={fieldErrors.sourceLink}
       >
         <Input

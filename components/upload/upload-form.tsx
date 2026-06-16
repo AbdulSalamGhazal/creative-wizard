@@ -246,9 +246,7 @@ export function UploadForm() {
             disabled={busy || stage.kind === "valid"}
           />
           {!platform && (
-            <p className="text-[11px] text-ink-3">
-              Pick the platform that exported this file. Required.
-            </p>
+            <p className="text-[11px] text-ink-3">Required.</p>
           )}
         </div>
       )}

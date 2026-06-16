@@ -15,9 +15,7 @@ export function LibraryHeader({
         <div className="text-[10px] uppercase tracking-[0.18em] text-ink-3 mb-1">
           Library
         </div>
-        <h1 className="font-display text-4xl tracking-tight">
-          All creatives, on file
-        </h1>
+        <h1 className="font-display text-4xl tracking-tight">Creatives</h1>
         <CreativeStatusSummary breakdown={breakdown} />
       </div>
       <div className="flex items-center gap-2">

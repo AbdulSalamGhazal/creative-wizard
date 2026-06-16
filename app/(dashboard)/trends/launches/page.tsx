@@ -158,10 +158,9 @@ export default async function TrendsLaunchesPage({
           </Link>
           <h1 className="font-display text-4xl tracking-tight">Launches</h1>
           <p className="text-ink-2 text-sm mt-1 max-w-2xl">
-            Creative fatigue — each creative&rsquo;s ROAS across three windows
-            anchored to its own launch: days 1&ndash;7, 8&ndash;30, 31&ndash;90.
-            Fatigued = ROAS fell ≥30% by the latest window. The date filter picks
-            the launch cohort; tiny spenders are muted.
+            ROAS across three windows from each creative&rsquo;s launch: days
+            1&ndash;7, 8&ndash;30, 31&ndash;90. Fatigued = ROAS fell ≥30% by the
+            latest window. Tiny spenders are muted.
           </p>
         </div>
         <Badge variant="outline" className="text-ink-3">

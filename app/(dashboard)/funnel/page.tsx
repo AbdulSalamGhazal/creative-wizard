@@ -101,11 +101,6 @@ export default async function FunnelPage({
             Main metrics
           </div>
           <h1 className="font-display text-4xl tracking-tight">Funnel</h1>
-          <p className="text-ink-2 text-sm mt-1">
-            CPM, CTR, VOC, and CvR by campaign — the funnel from impression to
-            conversion. Watch which rate is sliding to see exactly where a
-            campaign is leaking.
-          </p>
         </div>
         <Badge variant="outline" className="text-ink-3">
           {from} → {to}

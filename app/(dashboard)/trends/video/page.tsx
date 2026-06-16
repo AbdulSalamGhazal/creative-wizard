@@ -88,10 +88,8 @@ export default async function TrendsVideoPage({
           </Link>
           <h1 className="font-display text-4xl tracking-tight">Video diagnostics</h1>
           <p className="text-ink-2 text-sm mt-1 max-w-2xl">
-            Where do viewers drop off, and does watching translate into buying?
-            The retention funnel (2s → 25 → 50 → 75 → 100%) separates the hook
-            from the hold from the finish. Video creatives only. Rates below the
-            portfolio median are flagged amber.
+            Retention funnel: 2s → 25 → 50 → 75 → 100%. Video creatives only;
+            rates below the portfolio median are flagged amber.
           </p>
         </div>
         <div className="flex items-center gap-2">

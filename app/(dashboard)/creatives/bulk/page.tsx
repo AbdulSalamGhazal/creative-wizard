@@ -20,9 +20,8 @@ export default async function BulkCreativesPage() {
         </Link>
         <h1 className="font-display text-4xl tracking-tight mt-2">Bulk add creatives</h1>
         <p className="text-ink-2 text-sm mt-1">
-          Upload a CSV or XLSX to create many creatives at once. Rows are
-          validated against your catalog — nothing is created unless every row
-          is clean.
+          Rows are validated against your catalog — nothing is created unless
+          every row is clean.
         </p>
       </div>
 
