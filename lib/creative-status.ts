@@ -74,8 +74,9 @@ export interface CreativeStatusInput {
 }
 
 export interface StatusContext {
-  /** Each platform's latest data day in the brand (YYYY-MM-DD) — the freshness
-   *  anchor, since uploads are per-platform. */
+  /** Each platform's latest SPEND day in the brand (YYYY-MM-DD) — the freshness
+   *  anchor, since uploads are per-platform. Latest day with spend > 0, so a
+   *  trailing $0 upload day can't mislabel a recent spender as Pause. */
   latestDayByPlatform: Partial<Record<Platform, string>>;
   /** Active window in whole days (see hoursToWindowDays). */
   windowDays: number;
@@ -89,7 +90,7 @@ export interface CreativeStatusResult {
 
 /**
  * Derive one creative's per-platform + general status. Each platform is judged
- * against ITS OWN latest data day (so a stale upload on one channel can't make
+ * against ITS OWN latest spend day (so a stale upload on one channel can't make
  * a still-running creative look paused). General roll-up precedence:
  * active ▸ pause ▸ new ▸ terminated.
  */
