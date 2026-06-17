@@ -118,13 +118,17 @@ export const RATING_WINDOW_LOOKBACK: Record<RatingWindow, number | null> = {
   none: 0,
 };
 
-/** Display label + Tailwind classes (semantic theme tokens) per rating. */
+/** Display label + Tailwind classes per rating. SOLID-filled (vs the outlined
+ *  status chips) so Rate is instantly distinguishable: green = Good ▸ amber =
+ *  Decent ▸ red = Bad ▸ gray = N/A, white label on the fill. */
 export const RATING_META: Record<
   Rating,
   { label: string; badgeClass: string }
 > = {
-  good: { label: "Good", badgeClass: "border-pos/40 text-pos bg-pos/10" },
-  decent: { label: "Decent", badgeClass: "border-warn/40 text-warn bg-warn/10" },
-  bad: { label: "Bad", badgeClass: "border-neg/40 text-neg bg-neg/10" },
-  na: { label: "N/A", badgeClass: "border-line-2 text-ink-3 bg-surface-2" },
+  // Dark label on the light fills (green/amber), white on the dark ones
+  // (red/gray) — keeps every chip a high-contrast solid block.
+  good: { label: "Good", badgeClass: "bg-pos text-[#101014] border-transparent font-semibold" },
+  decent: { label: "Decent", badgeClass: "bg-warn text-[#101014] border-transparent font-semibold" },
+  bad: { label: "Bad", badgeClass: "bg-neg text-white border-transparent font-semibold" },
+  na: { label: "N/A", badgeClass: "bg-ink-3 text-white border-transparent font-semibold" },
 };
