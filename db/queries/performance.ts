@@ -845,6 +845,7 @@ export async function creativeMetricRows(
 }
 
 export interface CreativeDimensionPoint {
+  creativeId: string;
   key: string; // platform value or campaign name
   spend: number;
   roas: number | null;
@@ -893,6 +894,7 @@ export async function creativeDimensionPoints(
 
   return rows
     .map((r) => ({
+      creativeId: String(r.creativeId),
       key: String(r.key),
       spend: Number(r.spend ?? 0),
       roas: num(r.roas),

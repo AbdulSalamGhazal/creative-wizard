@@ -12,6 +12,7 @@ import {
   topMovers,
   typeDimensionSpend,
   type BreakdownDimension,
+  type CreativeDimensionPoint,
   type KpiFilters,
   type KpisWithDelta,
 } from "@/db/queries/performance";
@@ -20,7 +21,13 @@ import {
   type StatusFlowScope,
 } from "@/db/queries/creative-status";
 import { getRatingConfig } from "@/db/queries/rating";
-import { rateBlock, rulesForScope, type Rating } from "@/lib/rating";
+import {
+  rateBlock,
+  rulesForScope,
+  RATING_WINDOW_LOOKBACK,
+  type Rating,
+  type RatingWindow,
+} from "@/lib/rating";
 import {
   MetricOverTimeChart,
   type OverTimeKey,
@@ -50,6 +57,16 @@ interface Props {
   dimension: BreakdownDimension;
   /** Pinned-platform name, shown beside "by campaign". */
   dimensionLabel?: string;
+  /** Lookback window for the "Spend by rating" ratings (not the displayed
+   *  spend — that always tracks the selected range). */
+  ratingWindow: RatingWindow;
+}
+
+/** Subtract whole days from an ISO YYYY-MM-DD date (UTC). */
+function isoMinusDays(iso: string, days: number): string {
+  const d = new Date(`${iso}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() - days);
+  return d.toISOString().slice(0, 10);
 }
 
 /**
@@ -58,8 +75,31 @@ interface Props {
  * of three mix graphs (Product donut · Type composition · Tag leaderboard),
  * and the top-creatives table.
  */
-export async function OverviewSection({ filters, dimension, dimensionLabel }: Props) {
+export async function OverviewSection({
+  filters,
+  dimension,
+  dimensionLabel,
+  ratingWindow,
+}: Props) {
   const hasRange = Boolean(filters.from && filters.to);
+
+  // Rating lookback: judge each creative over a wider window than the displayed
+  // range so a tight range doesn't read all-N/A. `none` → rate over the
+  // selected range itself (no extra query); else widen the range start.
+  const ratingLookback = RATING_WINDOW_LOOKBACK[ratingWindow];
+  const ratingFilters: KpiFilters | null =
+    ratingWindow === "none"
+      ? null
+      : {
+          ...filters,
+          from:
+            ratingLookback === null
+              ? undefined // lifetime: no lower bound
+              : filters.from
+                ? isoMinusDays(filters.from, ratingLookback)
+                : undefined,
+        };
+
   const [
     otRows,
     topRows,
@@ -73,6 +113,7 @@ export async function OverviewSection({ filters, dimension, dimensionLabel }: Pr
     ratingDimRows,
     dailyRates,
     metricRows,
+    ratingWindowRows,
   ] = await Promise.all([
     metricOverTime(filters, dimension),
     creativeLeaderboard(filters),
@@ -104,6 +145,9 @@ export async function OverviewSection({ filters, dimension, dimensionLabel }: Pr
     creativeDimensionPoints(filters, dimension),
     dailyFunnelRates(filters),
     creativeMetricRows(filters),
+    ratingFilters
+      ? creativeDimensionPoints(ratingFilters, dimension)
+      : Promise.resolve([] as CreativeDimensionPoint[]),
   ]);
   const k = kd?.current ?? (await kpis(filters));
 
@@ -147,16 +191,27 @@ export async function OverviewSection({ filters, dimension, dimensionLabel }: Pr
   const typeOverallLabel =
     dimension === "campaign" ? dimensionLabel ?? "All campaigns" : "Overall";
 
-  // Rating-mix rows: rate each (creative, dimension) block, then sum spend by
-  // (dimension, rating). Platform blocks use that platform's rules; campaign
-  // blocks use the default rules.
+  // Rating-mix rows: bucket each (creative, dimension) block's SELECTED-range
+  // spend by its rating — where the rating is judged over the (possibly wider)
+  // lookback window so a tight range doesn't read all-N/A. Platform blocks use
+  // that platform's rules; campaign blocks use the default rules.
+  const ratingWindowByBlock = new Map<string, { spend: number; roas: number | null }>();
+  for (const r of ratingWindowRows) {
+    ratingWindowByBlock.set(`${r.creativeId}|${r.key}`, { spend: r.spend, roas: r.roas });
+  }
   const ratingAgg = new Map<string, number>();
   for (const row of ratingDimRows) {
     const rules =
       dimension === "platform"
         ? rulesForScope(ratingConfig, row.key)
         : ratingConfig.default;
-    const rating = rateBlock({ spend: row.spend, roas: row.roas }, rules);
+    // Judge over the lookback block when present, else the block's own
+    // selected-range figures (the `none` window, or a creative with no prior
+    // history).
+    const judged =
+      ratingWindowByBlock.get(`${row.creativeId}|${row.key}`) ??
+      { spend: row.spend, roas: row.roas };
+    const rating = rateBlock(judged, rules);
     const aggKey = `${rating}|${row.key}`;
     ratingAgg.set(aggKey, (ratingAgg.get(aggKey) ?? 0) + row.spend);
   }
@@ -228,6 +283,7 @@ export async function OverviewSection({ filters, dimension, dimensionLabel }: Pr
           overallLabel={typeOverallLabel}
           dimension={dimension}
           dimensionLabel={dimensionLabel}
+          ratingWindow={ratingWindow}
         />
         <CorrelationMatrix rows={metricRows} />
       </div>

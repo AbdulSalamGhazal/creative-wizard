@@ -88,6 +88,42 @@ export function rateBlock(
   return "bad";
 }
 
+/**
+ * Rating lookback window (Dashboard "Spend by rating"). The bars always show
+ * the SELECTED-range spend, but each creative's rating can be judged over a
+ * WIDER window so a tight range doesn't leave everything N/A (too little spend
+ * to clear `minSpend`). The window extends backward from the range start to
+ * its end: e.g. range 14–15 with "7d" rates over days 7–15.
+ *
+ *   7d / 30d  → selected range + N days before its start
+ *   life      → all history up to the range end (no lower bound)
+ *   none      → the selected range only (rating == displayed spend window)
+ */
+export const RATING_WINDOWS = ["7d", "30d", "life", "none"] as const;
+export type RatingWindow = (typeof RATING_WINDOWS)[number];
+
+export const RATING_WINDOW_LABEL: Record<RatingWindow, string> = {
+  "7d": "7d",
+  "30d": "30d",
+  life: "Lifetime",
+  none: "None",
+};
+
+/** Days to extend the rating sample before the range start. `null` = no lower
+ *  bound (lifetime); `0` = exactly the selected range. */
+export const RATING_WINDOW_LOOKBACK: Record<RatingWindow, number | null> = {
+  "7d": 7,
+  "30d": 30,
+  life: null,
+  none: 0,
+};
+
+export function parseRatingWindow(value: string | undefined): RatingWindow {
+  return (RATING_WINDOWS as readonly string[]).includes(value ?? "")
+    ? (value as RatingWindow)
+    : "7d";
+}
+
 /** Display label + Tailwind classes (semantic theme tokens) per rating. */
 export const RATING_META: Record<
   Rating,

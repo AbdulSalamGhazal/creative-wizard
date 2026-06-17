@@ -1,5 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { RATING_VALUES, type Rating } from "@/lib/rating";
+import { RATING_VALUES, type Rating, type RatingWindow } from "@/lib/rating";
+import { RatingWindowControl } from "@/components/charts/rating-window-control";
 
 const COLOR: Record<Rating, string> = {
   // --pos is bright enough that white in-segment text washes out, so darken it
@@ -43,12 +44,14 @@ export function RatingMixBars({
   overallLabel,
   dimension,
   dimensionLabel,
+  ratingWindow,
 }: {
   rows: RatingRow[];
   series: SeriesItem[];
   overallLabel: string;
   dimension: "platform" | "campaign";
   dimensionLabel?: string;
+  ratingWindow: RatingWindow;
 }) {
   const present = RATING_VALUES.filter((r) =>
     rows.some((row) => row.rating === r && row.spend > 0),
@@ -112,12 +115,15 @@ export function RatingMixBars({
   return (
     <Card className="bg-surface border-line h-full flex flex-col">
       <CardHeader className="flex-row items-center justify-between gap-2 space-y-0">
-        <CardTitle className="text-sm">Spend by rating</CardTitle>
-        {dimension === "campaign" && (
-          <span className="text-[11px] text-ink-3 font-normal">
-            by campaign{dimensionLabel ? ` · ${dimensionLabel}` : ""}
-          </span>
-        )}
+        <div className="flex items-baseline gap-2 min-w-0">
+          <CardTitle className="text-sm">Spend by rating</CardTitle>
+          {dimension === "campaign" && (
+            <span className="text-[11px] text-ink-3 font-normal truncate">
+              by campaign{dimensionLabel ? ` · ${dimensionLabel}` : ""}
+            </span>
+          )}
+        </div>
+        <RatingWindowControl value={ratingWindow} />
       </CardHeader>
       <CardContent className="flex-1 flex flex-col gap-3">
         <div className="flex flex-wrap gap-x-3 gap-y-1">
