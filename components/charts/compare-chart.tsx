@@ -11,6 +11,7 @@ import {
 } from "recharts";
 import { useMemo } from "react";
 import { usd, ratio, pct, int } from "@/lib/format";
+import { useChartFit, ChartFitToggle } from "@/components/charts/chart-fit";
 import type { CompareMetric, CompareSeriesPoint } from "@/db/queries/performance";
 
 interface SideOption {
@@ -116,6 +117,17 @@ export function CompareChart({ rows, creatives, metric, align = false }: Props) 
     );
   }, [rows, creatives, align, firstDateBySide, xKey]);
 
+  const yValues = useMemo(() => {
+    const out: number[] = [];
+    for (const row of data)
+      for (const c of creatives) {
+        const v = row[c.id];
+        if (typeof v === "number") out.push(v);
+      }
+    return out;
+  }, [data, creatives]);
+  const fit = useChartFit(yValues);
+
   if (data.length === 0) {
     return (
       <div className="h-72 flex items-center justify-center text-ink-3 text-sm border border-dashed border-line rounded-md">
@@ -125,7 +137,8 @@ export function CompareChart({ rows, creatives, metric, align = false }: Props) 
   }
 
   return (
-    <div className="h-72">
+    <div className="h-72 relative">
+      <ChartFitToggle fit={fit} />
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={data} margin={{ top: 12, right: 12, left: 0, bottom: 0 }}>
           <CartesianGrid stroke="var(--line)" strokeDasharray="3 3" vertical={false} />
@@ -151,6 +164,8 @@ export function CompareChart({ rows, creatives, metric, align = false }: Props) 
             tick={{ fill: "var(--ink-3)", fontSize: 11 }}
             stroke="var(--line-2)"
             width={56}
+            domain={fit.clip ? [0, fit.cap] : undefined}
+            allowDataOverflow={fit.clip}
           />
           <Tooltip
             content={({ active, payload, label }) => {

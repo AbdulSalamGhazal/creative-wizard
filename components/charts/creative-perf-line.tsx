@@ -13,6 +13,7 @@ import { useMemo, useState } from "react";
 import { ALL_PLATFORMS, PLATFORM_COLOR, PLATFORM_LABEL } from "@/lib/palette";
 import { int, intCompact, pct, ratio, usd, usdCompact } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { useChartFit, ChartFitToggle } from "@/components/charts/chart-fit";
 import type { DailyMetricRow } from "@/db/queries/performance";
 
 interface Props {
@@ -101,6 +102,17 @@ export function CreativePerfLineChart({
     return ALL_PLATFORMS.filter((p) => set.has(p));
   }, [rows]);
 
+  const yValues = useMemo(() => {
+    const out: number[] = [];
+    for (const row of data)
+      for (const p of presentPlatforms) {
+        const v = row[p];
+        if (typeof v === "number") out.push(v);
+      }
+    return out;
+  }, [data, presentPlatforms]);
+  const fit = useChartFit(yValues);
+
   return (
     <div className="space-y-3">
       {/* Title + metric selector share one row — the title pins left, the pills
@@ -136,7 +148,8 @@ export function CreativePerfLineChart({
           No performance records for this creative.
         </div>
       ) : (
-        <div className="h-72">
+        <div className="h-72 relative">
+          <ChartFitToggle fit={fit} />
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={data} margin={{ top: 12, right: 12, left: 0, bottom: 0 }}>
               <CartesianGrid stroke="var(--line)" strokeDasharray="3 3" vertical={false} />
@@ -152,6 +165,8 @@ export function CreativePerfLineChart({
                 tick={{ fill: "var(--ink-3)", fontSize: 11 }}
                 stroke="var(--line-2)"
                 width={56}
+                domain={fit.clip ? [0, fit.cap] : undefined}
+                allowDataOverflow={fit.clip}
               />
               <Tooltip content={<LineTooltip fmt={metric.fmt} metricLabel={metric.label} />} />
               {presentPlatforms.map((p) => (

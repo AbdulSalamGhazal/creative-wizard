@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   CartesianGrid,
   Line,
@@ -12,6 +12,7 @@ import {
 } from "recharts";
 import { pct, usd } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { useChartFit, ChartFitToggle } from "@/components/charts/chart-fit";
 import type { FunnelDailyPoint } from "@/db/queries/funnel";
 
 type Metric = "cpm" | "ctr" | "voc" | "cvr";
@@ -38,6 +39,16 @@ export function FunnelTrendChart({ points }: { points: FunnelDailyPoint[] }) {
   const m = METRICS[metric];
   const hasData = points.some((p) => p[metric] != null);
 
+  const yValues = useMemo(() => {
+    const out: number[] = [];
+    for (const p of points) {
+      const v = p[metric];
+      if (typeof v === "number") out.push(v);
+    }
+    return out;
+  }, [points, metric]);
+  const fit = useChartFit(yValues);
+
   return (
     <div className="rounded-lg border border-line bg-surface p-4">
       <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
@@ -59,7 +70,8 @@ export function FunnelTrendChart({ points }: { points: FunnelDailyPoint[] }) {
         </div>
       </div>
 
-      <div className="h-64">
+      <div className="h-64 relative">
+        <ChartFitToggle fit={fit} />
         {hasData ? (
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={points} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
@@ -77,6 +89,8 @@ export function FunnelTrendChart({ points }: { points: FunnelDailyPoint[] }) {
                 tick={{ fill: "var(--ink-3)", fontSize: 11 }}
                 stroke="var(--line-2)"
                 width={56}
+                domain={fit.clip ? [0, fit.cap] : undefined}
+                allowDataOverflow={fit.clip}
               />
               <Tooltip content={<TrendTip metric={metric} />} />
               <Line

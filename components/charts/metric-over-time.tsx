@@ -18,6 +18,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { usd, int, ratio } from "@/lib/format";
+import { useChartFit, ChartFitToggle } from "@/components/charts/chart-fit";
 import type { MetricOverTimeRow } from "@/db/queries/performance";
 
 export interface OverTimeKey {
@@ -127,6 +128,18 @@ export function MetricOverTimeChart({ rows, keys, dimension, dimensionLabel }: P
     return [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
   }, [rows, safeKeys, idByKey, def]);
 
+  // Robust Y-axis: cap a lone anomaly spike so the rest stays readable.
+  const yValues = useMemo(() => {
+    const out: number[] = [];
+    for (const row of data)
+      for (const k of safeKeys) {
+        const v = row[k.id];
+        if (typeof v === "number") out.push(v);
+      }
+    return out;
+  }, [data, safeKeys]);
+  const fit = useChartFit(yValues);
+
   return (
     <div className="rounded-xl border border-line bg-surface p-4 md:p-5 space-y-3">
       {/* Header: metric picker + dimension hint */}
@@ -177,7 +190,8 @@ export function MetricOverTimeChart({ rows, keys, dimension, dimensionLabel }: P
           No data in the selected window.
         </div>
       ) : (
-        <div className="h-64">
+        <div className="h-64 relative">
+          <ChartFitToggle fit={fit} />
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={data} margin={{ top: 12, right: 12, left: 0, bottom: 0 }}>
               <CartesianGrid stroke="var(--line)" strokeDasharray="3 3" vertical={false} />
@@ -193,6 +207,8 @@ export function MetricOverTimeChart({ rows, keys, dimension, dimensionLabel }: P
                 tick={{ fill: "var(--ink-3)", fontSize: 11 }}
                 stroke="var(--line-2)"
                 width={56}
+                domain={fit.clip ? [0, fit.cap] : undefined}
+                allowDataOverflow={fit.clip}
               />
               <Tooltip
                 content={

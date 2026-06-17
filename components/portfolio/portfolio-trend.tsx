@@ -14,6 +14,8 @@ import {
 } from "recharts";
 import { int, ratio, usd } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { robustUpperBound } from "@/lib/chart-scale";
+import { ChartFitToggle } from "@/components/charts/chart-fit";
 import type { TrendPoint } from "@/db/queries/portfolio";
 
 export interface TrendAnnotation {
@@ -59,6 +61,35 @@ export function PortfolioTrend({
   const dates = useMemo(() => new Set(data.map((d) => d.date)), [data]);
   const marks = annotations.filter((a) => dates.has(a.date));
 
+  // Robust axis fit per side (left = spend, right = the selected ratio metric,
+  // the spike-prone one). One toggle expands both back to full range.
+  const leftBound = useMemo(() => {
+    const out: number[] = [];
+    for (const d of data) {
+      if (typeof d.spend === "number") out.push(d.spend);
+      if (typeof d.spend7 === "number") out.push(d.spend7);
+    }
+    return robustUpperBound(out);
+  }, [data]);
+  const rightBound = useMemo(() => {
+    const out: number[] = [];
+    for (const d of data) {
+      const v = d[metric];
+      if (typeof v === "number") out.push(v);
+    }
+    return robustUpperBound(out);
+  }, [data, metric]);
+  const [expanded, setExpanded] = useState(false);
+  const clipLeft = leftBound.trimmed && !expanded;
+  const clipRight = rightBound.trimmed && !expanded;
+  const fitToggle = {
+    trimmed: leftBound.trimmed || rightBound.trimmed,
+    expanded,
+    clip: (leftBound.trimmed || rightBound.trimmed) && !expanded,
+    cap: 0,
+    toggle: () => setExpanded((e) => !e),
+  };
+
   if (data.length === 0) {
     return (
       <div className="rounded-lg border border-line bg-surface p-4">
@@ -73,7 +104,8 @@ export function PortfolioTrend({
   return (
     <div className="rounded-lg border border-line bg-surface p-4">
       <Header metric={metric} setMetric={setMetric} />
-      <div className="h-72">
+      <div className="h-72 relative">
+        <ChartFitToggle fit={fitToggle} />
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart data={data} margin={{ top: 14, right: 8, left: 4, bottom: 4 }}>
             <CartesianGrid stroke="var(--line)" strokeDasharray="3 3" vertical={false} />
@@ -90,6 +122,8 @@ export function PortfolioTrend({
               stroke="var(--line-2)"
               tickFormatter={(v: number) => compactUsd.format(v)}
               width={48}
+              domain={clipLeft ? [0, leftBound.cap] : undefined}
+              allowDataOverflow={clipLeft}
             />
             <YAxis
               yAxisId="right"
@@ -98,6 +132,8 @@ export function PortfolioTrend({
               stroke="var(--line-2)"
               tickFormatter={r.tick}
               width={48}
+              domain={clipRight ? [0, rightBound.cap] : undefined}
+              allowDataOverflow={clipRight}
             />
 
             {marks.map((m, i) => (
