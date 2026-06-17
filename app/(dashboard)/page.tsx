@@ -9,7 +9,6 @@ import { DashboardMetrics } from "@/components/overview/dashboard-metrics";
 import { OverviewSection } from "@/components/overview/overview-section";
 import { FilterStrip } from "@/components/filters/filter-strip";
 import { dashboardFiltersSchema } from "@/validators/filters";
-import { parseRatingWindow } from "@/lib/rating";
 import { PLATFORM_LABEL } from "@/lib/palette";
 
 const TRAILING_DAYS_DEFAULT = 30;
@@ -61,8 +60,6 @@ export default async function DashboardPage({
   const singlePlatform = parsed.platforms.length === 1 ? parsed.platforms[0] : null;
   const dimension = singlePlatform ? "campaign" : "platform";
 
-  const ratingWindow = parseRatingWindow(pickFirst(params.rw));
-
   const platformsBadge =
     parsed.platforms.length > 0 ? parsed.platforms.join(", ") : "all platforms";
 
@@ -101,7 +98,6 @@ export default async function DashboardPage({
         filters={filters}
         dimension={dimension}
         dimensionLabel={singlePlatform ? PLATFORM_LABEL[singlePlatform] : undefined}
-        ratingWindow={ratingWindow}
       />
     </div>
   );

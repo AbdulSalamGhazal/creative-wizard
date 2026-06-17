@@ -118,12 +118,6 @@ export const RATING_WINDOW_LOOKBACK: Record<RatingWindow, number | null> = {
   none: 0,
 };
 
-export function parseRatingWindow(value: string | undefined): RatingWindow {
-  return (RATING_WINDOWS as readonly string[]).includes(value ?? "")
-    ? (value as RatingWindow)
-    : "7d";
-}
-
 /** Display label + Tailwind classes (semantic theme tokens) per rating. */
 export const RATING_META: Record<
   Rating,

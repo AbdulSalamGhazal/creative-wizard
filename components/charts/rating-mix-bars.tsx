@@ -1,3 +1,6 @@
+"use client";
+
+import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { RATING_VALUES, type Rating, type RatingWindow } from "@/lib/rating";
 import { RatingWindowControl } from "@/components/charts/rating-window-control";
@@ -39,20 +42,22 @@ const LABEL_MIN_FRAC = 0.1;
  * split. Label sits left of the bar so many rows (campaign view) stay compact.
  */
 export function RatingMixBars({
-  rows,
+  rowsByWindow,
   series,
   overallLabel,
   dimension,
   dimensionLabel,
-  ratingWindow,
 }: {
-  rows: RatingRow[];
+  /** Pre-computed rating mix for every lookback window; switching is instant. */
+  rowsByWindow: Record<RatingWindow, RatingRow[]>;
   series: SeriesItem[];
   overallLabel: string;
   dimension: "platform" | "campaign";
   dimensionLabel?: string;
-  ratingWindow: RatingWindow;
 }) {
+  const [window, setWindow] = useState<RatingWindow>("7d");
+  const rows = rowsByWindow[window];
+
   const present = RATING_VALUES.filter((r) =>
     rows.some((row) => row.rating === r && row.spend > 0),
   );
@@ -116,14 +121,14 @@ export function RatingMixBars({
     <Card className="bg-surface border-line h-full flex flex-col">
       <CardHeader className="flex-row items-center justify-between gap-2 space-y-0">
         <div className="flex items-baseline gap-2 min-w-0">
-          <CardTitle className="text-sm">Spend by rating</CardTitle>
+          <CardTitle className="text-sm whitespace-nowrap">Spend by rating</CardTitle>
           {dimension === "campaign" && (
             <span className="text-[11px] text-ink-3 font-normal truncate">
               by campaign{dimensionLabel ? ` · ${dimensionLabel}` : ""}
             </span>
           )}
         </div>
-        <RatingWindowControl value={ratingWindow} />
+        <RatingWindowControl value={window} onChange={setWindow} className="shrink-0" />
       </CardHeader>
       <CardContent className="flex-1 flex flex-col gap-3">
         <div className="flex flex-wrap gap-x-3 gap-y-1">

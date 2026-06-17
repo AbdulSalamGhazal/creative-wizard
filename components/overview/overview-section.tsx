@@ -24,7 +24,6 @@ import { getRatingConfig } from "@/db/queries/rating";
 import {
   rateBlock,
   rulesForScope,
-  RATING_WINDOW_LOOKBACK,
   type Rating,
   type RatingWindow,
 } from "@/lib/rating";
@@ -57,9 +56,6 @@ interface Props {
   dimension: BreakdownDimension;
   /** Pinned-platform name, shown beside "by campaign". */
   dimensionLabel?: string;
-  /** Lookback window for the "Spend by rating" ratings (not the displayed
-   *  spend — that always tracks the selected range). */
-  ratingWindow: RatingWindow;
 }
 
 /** Subtract whole days from an ISO YYYY-MM-DD date (UTC). */
@@ -79,26 +75,23 @@ export async function OverviewSection({
   filters,
   dimension,
   dimensionLabel,
-  ratingWindow,
 }: Props) {
   const hasRange = Boolean(filters.from && filters.to);
 
   // Rating lookback: judge each creative over a wider window than the displayed
-  // range so a tight range doesn't read all-N/A. `none` → rate over the
-  // selected range itself (no extra query); else widen the range start.
-  const ratingLookback = RATING_WINDOW_LOOKBACK[ratingWindow];
-  const ratingFilters: KpiFilters | null =
-    ratingWindow === "none"
-      ? null
-      : {
-          ...filters,
-          from:
-            ratingLookback === null
-              ? undefined // lifetime: no lower bound
-              : filters.from
-                ? isoMinusDays(filters.from, ratingLookback)
-                : undefined,
-        };
+  // range so a tight range doesn't read all-N/A. We compute ALL windows up
+  // front so the in-card switch is instant (no navigation / page reload). A
+  // window widens the range START only; `null` lookback = lifetime (no lower
+  // bound), and the `none` window reuses the selected-range blocks themselves.
+  const windowFilters = (lookbackDays: number | null): KpiFilters => ({
+    ...filters,
+    from:
+      lookbackDays === null
+        ? undefined
+        : filters.from
+          ? isoMinusDays(filters.from, lookbackDays)
+          : undefined,
+  });
 
   const [
     otRows,
@@ -113,7 +106,9 @@ export async function OverviewSection({
     ratingDimRows,
     dailyRates,
     metricRows,
-    ratingWindowRows,
+    rows7d,
+    rows30d,
+    rowsLife,
   ] = await Promise.all([
     metricOverTime(filters, dimension),
     creativeLeaderboard(filters),
@@ -145,9 +140,9 @@ export async function OverviewSection({
     creativeDimensionPoints(filters, dimension),
     dailyFunnelRates(filters),
     creativeMetricRows(filters),
-    ratingFilters
-      ? creativeDimensionPoints(ratingFilters, dimension)
-      : Promise.resolve([] as CreativeDimensionPoint[]),
+    creativeDimensionPoints(windowFilters(7), dimension),
+    creativeDimensionPoints(windowFilters(30), dimension),
+    creativeDimensionPoints(windowFilters(null), dimension),
   ]);
   const k = kd?.current ?? (await kpis(filters));
 
@@ -192,39 +187,48 @@ export async function OverviewSection({
     dimension === "campaign" ? dimensionLabel ?? "All campaigns" : "Overall";
 
   // Rating-mix rows: bucket each (creative, dimension) block's SELECTED-range
-  // spend by its rating — where the rating is judged over the (possibly wider)
-  // lookback window so a tight range doesn't read all-N/A. Platform blocks use
-  // that platform's rules; campaign blocks use the default rules.
-  const ratingWindowByBlock = new Map<string, { spend: number; roas: number | null }>();
-  for (const r of ratingWindowRows) {
-    ratingWindowByBlock.set(`${r.creativeId}|${r.key}`, { spend: r.spend, roas: r.roas });
-  }
-  const ratingAgg = new Map<string, number>();
-  for (const row of ratingDimRows) {
-    const rules =
-      dimension === "platform"
-        ? rulesForScope(ratingConfig, row.key)
-        : ratingConfig.default;
-    // Judge over the lookback block when present, else the block's own
-    // selected-range figures (the `none` window, or a creative with no prior
-    // history).
-    const judged =
-      ratingWindowByBlock.get(`${row.creativeId}|${row.key}`) ??
-      { spend: row.spend, roas: row.roas };
-    const rating = rateBlock(judged, rules);
-    const aggKey = `${rating}|${row.key}`;
-    ratingAgg.set(aggKey, (ratingAgg.get(aggKey) ?? 0) + row.spend);
-  }
-  const ratingRows: RatingRow[] = [...ratingAgg.entries()].map(([aggKey, spend]) => {
-    const sep = aggKey.indexOf("|");
-    return {
-      rating: aggKey.slice(0, sep) as Rating,
-      key: aggKey.slice(sep + 1),
-      spend,
-    };
-  });
+  // spend by its rating — where the rating is judged over the chosen lookback
+  // window so a tight range doesn't read all-N/A. Platform blocks use that
+  // platform's rules; campaign blocks use the default rules. Computed for every
+  // window so the in-card picker switches client-side with no reload.
+  const ratingRowsFor = (windowRows: CreativeDimensionPoint[]): RatingRow[] => {
+    const byBlock = new Map<string, { spend: number; roas: number | null }>();
+    for (const r of windowRows) {
+      byBlock.set(`${r.creativeId}|${r.key}`, { spend: r.spend, roas: r.roas });
+    }
+    const agg = new Map<string, number>();
+    for (const row of ratingDimRows) {
+      const rules =
+        dimension === "platform"
+          ? rulesForScope(ratingConfig, row.key)
+          : ratingConfig.default;
+      const judged =
+        byBlock.get(`${row.creativeId}|${row.key}`) ??
+        { spend: row.spend, roas: row.roas };
+      const rating = rateBlock(judged, rules);
+      const aggKey = `${rating}|${row.key}`;
+      agg.set(aggKey, (agg.get(aggKey) ?? 0) + row.spend);
+    }
+    return [...agg.entries()].map(([aggKey, spend]) => {
+      const sep = aggKey.indexOf("|");
+      return {
+        rating: aggKey.slice(0, sep) as Rating,
+        key: aggKey.slice(sep + 1),
+        spend,
+      };
+    });
+  };
+  const ratingRowsByWindow: Record<RatingWindow, RatingRow[]> = {
+    "7d": ratingRowsFor(rows7d),
+    "30d": ratingRowsFor(rows30d),
+    life: ratingRowsFor(rowsLife),
+    none: ratingRowsFor(ratingDimRows),
+  };
+
+  // Key order is window-independent (the displayed per-key spend is the
+  // selected-range spend regardless of which window rated it).
   const ratingTotals = new Map<string, number>();
-  for (const r of ratingRows) ratingTotals.set(r.key, (ratingTotals.get(r.key) ?? 0) + r.spend);
+  for (const r of ratingDimRows) ratingTotals.set(r.key, (ratingTotals.get(r.key) ?? 0) + r.spend);
   let ratingKeyOrder = [...ratingTotals.entries()].sort((a, b) => b[1] - a[1]).map(([k]) => k);
   if (dimension === "campaign") ratingKeyOrder = ratingKeyOrder.slice(0, CAMPAIGN_LINE_LIMIT);
   const ratingSeries = ratingKeyOrder.map((k) => ({
@@ -278,12 +282,11 @@ export async function OverviewSection({
       {/* Rating mix + per-creative correlation matrix (full row, half each) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <RatingMixBars
-          rows={ratingRows}
+          rowsByWindow={ratingRowsByWindow}
           series={ratingSeries}
           overallLabel={typeOverallLabel}
           dimension={dimension}
           dimensionLabel={dimensionLabel}
-          ratingWindow={ratingWindow}
         />
         <CorrelationMatrix rows={metricRows} />
       </div>
