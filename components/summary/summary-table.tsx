@@ -449,7 +449,7 @@ export function SummaryTable({
           {rows.map((r) => (
             <tr
               key={r.creativeId}
-              className="group hover:bg-surface-2/40 transition-colors"
+              className="group hover:bg-surface-3 transition-colors"
             >
               {/* Identity — render only the visible columns */}
               {identityCols.map((c) => {
@@ -463,7 +463,7 @@ export function SummaryTable({
                         key="name"
                         style={style}
                         className={cn(
-                          "px-3 py-2 sticky left-0 z-10 bg-surface group-hover:bg-surface-2",
+                          "px-3 py-2 sticky left-0 z-10 bg-surface group-hover:bg-surface-3 group-hover:[box-shadow:inset_3px_0_0_var(--brand)]",
                           nowrap,
                         )}
                       >
