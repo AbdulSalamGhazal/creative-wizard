@@ -36,6 +36,8 @@ export const sumClicks: SQL<number> = sql<number>`SUM(${p.clicks})`;
 export const sumConversions: SQL<number> = sql<number>`SUM(${p.conversions})`;
 export const sumConversionValue: SQL<number> = sql<number>`SUM(${p.conversionValue})`;
 export const sumLandingPageViews: SQL<number> = sql<number>`SUM(${p.landingPageViews})`;
+export const sumAddToCart: SQL<number> = sql<number>`SUM(${p.addToCart})`;
+export const sumAddPayment: SQL<number> = sql<number>`SUM(${p.addPayment})`;
 export const sumVideoViews2s: SQL<number> = sql<number>`SUM(${p.videoViews2s})`;
 export const sumVideoViews25: SQL<number> = sql<number>`SUM(${p.videoViews25})`;
 export const sumVideoViews50: SQL<number> = sql<number>`SUM(${p.videoViews50})`;
@@ -55,6 +57,15 @@ export const voc: SQL<number> = sql<number>`SUM(${p.landingPageViews})::numeric 
  * →(CvR)→ conversions.
  */
 export const cvr: SQL<number> = sql<number>`SUM(${p.conversions})::numeric / NULLIF(SUM(${p.landingPageViews}), 0)`;
+
+/**
+ * Lower-funnel step rates (shown ×100 as %). The funnel between LP view and
+ * purchase: LP views →(atcRate)→ add-to-cart →(apRate)→ add-payment
+ * →(purchaseRate)→ conversions.
+ */
+export const atcRate: SQL<number> = sql<number>`SUM(${p.addToCart})::numeric / NULLIF(SUM(${p.landingPageViews}), 0)`;
+export const apRate: SQL<number> = sql<number>`SUM(${p.addPayment})::numeric / NULLIF(SUM(${p.addToCart}), 0)`;
+export const purchaseRate: SQL<number> = sql<number>`SUM(${p.conversions})::numeric / NULLIF(SUM(${p.addPayment}), 0)`;
 
 // Video-funnel rates — non-video rows carry NULL video views and so are
 // skipped; hookRate's denominator is restricted to rows with video data.

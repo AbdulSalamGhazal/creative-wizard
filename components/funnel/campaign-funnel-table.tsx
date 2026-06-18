@@ -18,8 +18,13 @@ type SortKey =
   | "cpm"
   | "ctr"
   | "voc"
+  | "atcRate"
+  | "apRate"
+  | "purchaseRate"
   | "cvr"
   | "conversions"
+  | "addToCart"
+  | "addPayment"
   | "roas"
   | "impressions";
 type Dir = "asc" | "desc";
@@ -33,8 +38,13 @@ const COLUMNS: Array<{ key: SortKey; label: string; numeric: boolean }> = [
   { key: "cpm", label: "CPM", numeric: true },
   { key: "ctr", label: "CTR", numeric: true },
   { key: "voc", label: "VOC", numeric: true },
+  { key: "atcRate", label: "ATC%", numeric: true },
+  { key: "apRate", label: "AP%", numeric: true },
+  { key: "purchaseRate", label: "PR%", numeric: true },
   { key: "cvr", label: "CvR", numeric: true },
   { key: "conversions", label: "Conv.", numeric: true },
+  { key: "addToCart", label: "ATC", numeric: true },
+  { key: "addPayment", label: "AP", numeric: true },
   { key: "roas", label: "ROAS", numeric: true },
   { key: "impressions", label: "Impr.", numeric: true },
 ];
@@ -127,6 +137,8 @@ export function CampaignFunnelTable({ rows }: { rows: CampaignFunnelRow[] }) {
     let impressions = 0;
     let clicks = 0;
     let lpv = 0;
+    let atc = 0;
+    let ap = 0;
     let conversions = 0;
     let conversionValue = 0;
     for (const r of rows) {
@@ -134,6 +146,8 @@ export function CampaignFunnelTable({ rows }: { rows: CampaignFunnelRow[] }) {
       impressions += r.impressions;
       clicks += r.clicks;
       lpv += r.landingPageViews;
+      atc += r.addToCart;
+      ap += r.addPayment;
       conversions += r.conversions;
       conversionValue += r.conversionValue;
     }
@@ -141,9 +155,14 @@ export function CampaignFunnelTable({ rows }: { rows: CampaignFunnelRow[] }) {
       spend,
       impressions,
       conversions,
+      addToCart: atc,
+      addPayment: ap,
       cpm: impressions > 0 ? (spend / impressions) * 1000 : null,
       ctr: impressions > 0 ? clicks / impressions : null,
       voc: clicks > 0 ? lpv / clicks : null,
+      atcRate: lpv > 0 ? atc / lpv : null,
+      apRate: atc > 0 ? ap / atc : null,
+      purchaseRate: ap > 0 ? conversions / ap : null,
       cvr: lpv > 0 ? conversions / lpv : null,
       roas: spend > 0 ? conversionValue / spend : null,
     };
@@ -256,8 +275,13 @@ export function CampaignFunnelTable({ rows }: { rows: CampaignFunnelRow[] }) {
               <td className="px-3 py-2.5 text-right text-ink tabular-nums">{usd(r.cpm)}</td>
               <td className="px-3 py-2.5 text-right text-ink tabular-nums">{pct(r.ctr)}</td>
               <td className="px-3 py-2.5 text-right text-ink tabular-nums">{pct(r.voc)}</td>
+              <td className="px-3 py-2.5 text-right text-ink tabular-nums">{pct(r.atcRate)}</td>
+              <td className="px-3 py-2.5 text-right text-ink tabular-nums">{pct(r.apRate)}</td>
+              <td className="px-3 py-2.5 text-right text-ink tabular-nums">{pct(r.purchaseRate)}</td>
               <td className="px-3 py-2.5 text-right text-ink tabular-nums">{pct(r.cvr)}</td>
               <td className="px-3 py-2.5 text-right text-ink-2 tabular-nums">{int(r.conversions)}</td>
+              <td className="px-3 py-2.5 text-right text-ink-2 tabular-nums">{int(r.addToCart)}</td>
+              <td className="px-3 py-2.5 text-right text-ink-2 tabular-nums">{int(r.addPayment)}</td>
               <td className="px-3 py-2.5 text-right text-ink tabular-nums">
                 {r.roas === null ? "—" : `${ratio(r.roas)}×`}
               </td>
@@ -278,8 +302,13 @@ export function CampaignFunnelTable({ rows }: { rows: CampaignFunnelRow[] }) {
             <td className="px-3 py-2 text-right text-ink tabular-nums">{usd(totals.cpm)}</td>
             <td className="px-3 py-2 text-right text-ink tabular-nums">{pct(totals.ctr)}</td>
             <td className="px-3 py-2 text-right text-ink tabular-nums">{pct(totals.voc)}</td>
+            <td className="px-3 py-2 text-right text-ink tabular-nums">{pct(totals.atcRate)}</td>
+            <td className="px-3 py-2 text-right text-ink tabular-nums">{pct(totals.apRate)}</td>
+            <td className="px-3 py-2 text-right text-ink tabular-nums">{pct(totals.purchaseRate)}</td>
             <td className="px-3 py-2 text-right text-ink tabular-nums">{pct(totals.cvr)}</td>
             <td className="px-3 py-2 text-right text-ink tabular-nums">{int(totals.conversions)}</td>
+            <td className="px-3 py-2 text-right text-ink tabular-nums">{int(totals.addToCart)}</td>
+            <td className="px-3 py-2 text-right text-ink tabular-nums">{int(totals.addPayment)}</td>
             <td className="px-3 py-2 text-right text-ink tabular-nums">
               {totals.roas === null ? "—" : `${ratio(totals.roas)}×`}
             </td>

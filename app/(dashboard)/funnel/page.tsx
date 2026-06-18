@@ -129,6 +129,24 @@ export default async function FunnelPage({
           caption={`LP views / clicks · ${caption}`}
         />
         <KpiTile
+          label="ATC"
+          value={pct(c.atcRate)}
+          delta={overview.deltas.atcRate}
+          caption={`add-to-cart / LP views · ${caption}`}
+        />
+        <KpiTile
+          label="AP"
+          value={pct(c.apRate)}
+          delta={overview.deltas.apRate}
+          caption={`add-payment / add-to-cart · ${caption}`}
+        />
+        <KpiTile
+          label="PR"
+          value={pct(c.purchaseRate)}
+          delta={overview.deltas.purchaseRate}
+          caption={`purchases / add-payment · ${caption}`}
+        />
+        <KpiTile
           label="CvR"
           value={pct(c.cvr)}
           delta={overview.deltas.cvr}

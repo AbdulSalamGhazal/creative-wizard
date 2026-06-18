@@ -10,7 +10,14 @@ import type {
   PlatformCampaignRow,
 } from "@/db/queries/funnel";
 
-type RateKey = "cpm" | "ctr" | "voc" | "cvr";
+type RateKey =
+  | "cpm"
+  | "ctr"
+  | "voc"
+  | "atcRate"
+  | "apRate"
+  | "purchaseRate"
+  | "cvr";
 
 const RATES: Array<{
   key: RateKey;
@@ -23,6 +30,9 @@ const RATES: Array<{
   { key: "cpm", label: "CPM", fmt: (v) => usd(v), lowerBetter: true, hint: "cost / 1k impressions" },
   { key: "ctr", label: "CTR", fmt: (v) => pct(v), lowerBetter: false, hint: "clicks / impressions" },
   { key: "voc", label: "VOC", fmt: (v) => pct(v), lowerBetter: false, hint: "LP views / clicks" },
+  { key: "atcRate", label: "ATC%", fmt: (v) => pct(v), lowerBetter: false, hint: "add-to-cart / LP views" },
+  { key: "apRate", label: "AP%", fmt: (v) => pct(v), lowerBetter: false, hint: "add-payment / add-to-cart" },
+  { key: "purchaseRate", label: "PR%", fmt: (v) => pct(v), lowerBetter: false, hint: "purchases / add-payment" },
   { key: "cvr", label: "CvR", fmt: (v) => pct(v), lowerBetter: false, hint: "conversions / LP views" },
 ];
 
@@ -56,7 +66,15 @@ export function PlatformFunnelComparison({
   // Per rate: which platform leads, and the max magnitude (for bar scaling).
   const { best, maxAbs } = useMemo(() => {
     const best: Partial<Record<RateKey, string>> = {};
-    const maxAbs: Record<RateKey, number> = { cpm: 0, ctr: 0, voc: 0, cvr: 0 };
+    const maxAbs: Record<RateKey, number> = {
+      cpm: 0,
+      ctr: 0,
+      voc: 0,
+      atcRate: 0,
+      apRate: 0,
+      purchaseRate: 0,
+      cvr: 0,
+    };
     for (const r of RATES) {
       let bestPlat: string | null = null;
       let bestVal: number | null = null;
@@ -102,6 +120,8 @@ export function PlatformFunnelComparison({
             <th className="font-medium px-3 py-2.5 text-right">Impr.</th>
             <th className="font-medium px-3 py-2.5 text-right">Clicks</th>
             <th className="font-medium px-3 py-2.5 text-right">LP views</th>
+            <th className="font-medium px-3 py-2.5 text-right">ATC</th>
+            <th className="font-medium px-3 py-2.5 text-right">AP</th>
             <th className="font-medium px-3 py-2.5 text-right">Conv.</th>
             {RATES.map((r) => (
               <th
@@ -151,6 +171,8 @@ export function PlatformFunnelComparison({
                   <td className="px-3 py-2.5 text-right text-ink-2 tabular-nums">{int(row.impressions)}</td>
                   <td className="px-3 py-2.5 text-right text-ink-2 tabular-nums">{int(row.clicks)}</td>
                   <td className="px-3 py-2.5 text-right text-ink-2 tabular-nums">{int(row.landingPageViews)}</td>
+                  <td className="px-3 py-2.5 text-right text-ink-2 tabular-nums">{int(row.addToCart)}</td>
+                  <td className="px-3 py-2.5 text-right text-ink-2 tabular-nums">{int(row.addPayment)}</td>
                   <td className="px-3 py-2.5 text-right text-ink-2 tabular-nums">{int(row.conversions)}</td>
                   {RATES.map((r) => {
                     const v = row[r.key];
@@ -206,16 +228,21 @@ export function PlatformFunnelComparison({
                       <td className="px-3 py-1.5 text-right text-ink-3 tabular-nums">{int(c.impressions)}</td>
                       <td className="px-3 py-1.5 text-right text-ink-3 tabular-nums">{int(c.clicks)}</td>
                       <td className="px-3 py-1.5 text-right text-ink-3 tabular-nums">{int(c.landingPageViews)}</td>
+                      <td className="px-3 py-1.5 text-right text-ink-3 tabular-nums">{int(c.addToCart)}</td>
+                      <td className="px-3 py-1.5 text-right text-ink-3 tabular-nums">{int(c.addPayment)}</td>
                       <td className="px-3 py-1.5 text-right text-ink-3 tabular-nums">{int(c.conversions)}</td>
                       <td className="px-3 py-1.5 text-right text-ink-2 tabular-nums">{usd(c.cpm)}</td>
                       <td className="px-3 py-1.5 text-right text-ink-2 tabular-nums">{pct(c.ctr)}</td>
                       <td className="px-3 py-1.5 text-right text-ink-2 tabular-nums">{pct(c.voc)}</td>
+                      <td className="px-3 py-1.5 text-right text-ink-2 tabular-nums">{pct(c.atcRate)}</td>
+                      <td className="px-3 py-1.5 text-right text-ink-2 tabular-nums">{pct(c.apRate)}</td>
+                      <td className="px-3 py-1.5 text-right text-ink-2 tabular-nums">{pct(c.purchaseRate)}</td>
                       <td className="px-3 py-1.5 text-right text-ink-2 tabular-nums">{pct(c.cvr)}</td>
                     </tr>
                   ))}
                 {isOpen && camps.length === 0 && (
                   <tr className="bg-surface-2/25">
-                    <td colSpan={10} className="py-2 pl-10 pr-3 text-[11px] text-ink-3">
+                    <td colSpan={15} className="py-2 pl-10 pr-3 text-[11px] text-ink-3">
                       No campaigns in this window.
                     </td>
                   </tr>

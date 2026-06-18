@@ -15,7 +15,14 @@ import { cn } from "@/lib/utils";
 import { useChartFit, ChartFitToggle } from "@/components/charts/chart-fit";
 import type { FunnelDailyPoint } from "@/db/queries/funnel";
 
-type Metric = "cpm" | "ctr" | "voc" | "cvr";
+type Metric =
+  | "cpm"
+  | "ctr"
+  | "voc"
+  | "atcRate"
+  | "apRate"
+  | "purchaseRate"
+  | "cvr";
 
 const METRICS: Record<
   Metric,
@@ -24,9 +31,12 @@ const METRICS: Record<
   cpm: { label: "CPM", color: "#FBBF24", fmt: usd },
   ctr: { label: "CTR", color: "#60A5FA", fmt: pct },
   voc: { label: "VOC", color: "#34D399", fmt: pct },
+  atcRate: { label: "ATC", color: "#22D3EE", fmt: pct },
+  apRate: { label: "AP", color: "#F472B6", fmt: pct },
+  purchaseRate: { label: "PR", color: "#FB923C", fmt: pct },
   cvr: { label: "CvR", color: "#A78BFA", fmt: pct },
 };
-const ORDER: Metric[] = ["cpm", "ctr", "voc", "cvr"];
+const ORDER: Metric[] = ["cpm", "ctr", "voc", "atcRate", "apRate", "purchaseRate", "cvr"];
 
 const monthDay = new Intl.DateTimeFormat("en-US", {
   month: "short",

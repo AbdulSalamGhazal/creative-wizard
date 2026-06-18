@@ -9,16 +9,24 @@ import type { FunnelTotals } from "@/db/queries/funnel";
  * you can see exactly where a campaign set is leaking.
  */
 const STAGES: Array<{
-  volKey: "impressions" | "clicks" | "landingPageViews" | "conversions";
+  volKey:
+    | "impressions"
+    | "clicks"
+    | "landingPageViews"
+    | "addToCart"
+    | "addPayment"
+    | "conversions";
   label: string;
   color: string;
-  rateKey?: "ctr" | "voc" | "cvr";
+  rateKey?: "ctr" | "voc" | "atcRate" | "apRate" | "purchaseRate";
   rateLabel?: string;
 }> = [
   { volKey: "impressions", label: "Impressions", color: "#60A5FA" },
   { volKey: "clicks", label: "Clicks", color: "#34D399", rateKey: "ctr", rateLabel: "CTR" },
   { volKey: "landingPageViews", label: "LP views", color: "#FBBF24", rateKey: "voc", rateLabel: "VOC" },
-  { volKey: "conversions", label: "Conversions", color: "#A78BFA", rateKey: "cvr", rateLabel: "CvR" },
+  { volKey: "addToCart", label: "Add to cart", color: "#22D3EE", rateKey: "atcRate", rateLabel: "ATC" },
+  { volKey: "addPayment", label: "Add payment", color: "#F472B6", rateKey: "apRate", rateLabel: "AP" },
+  { volKey: "conversions", label: "Conversions", color: "#A78BFA", rateKey: "purchaseRate", rateLabel: "PR" },
 ];
 
 export function FunnelStages({ totals }: { totals: FunnelTotals }) {
