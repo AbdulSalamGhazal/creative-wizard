@@ -79,8 +79,6 @@ export default async function FunnelPage({
     listAllTags(),
   ]);
 
-  const c = overview.current;
-
   return (
     <div className="space-y-6">
       <Suspense
@@ -111,7 +109,7 @@ export default async function FunnelPage({
       {/* Headline funnel rates in one row — dashboard "Funnel rates" style */}
       <FunnelRateTiles overview={overview} daily={daily} />
 
-      <FunnelStages totals={c} />
+      <FunnelStages overview={overview} />
       <FunnelTrendChart points={daily} prevPoints={dailyPrev} />
 
       {/* Platform-vs-platform comparison */}
