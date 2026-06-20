@@ -3,7 +3,7 @@
 import { Fragment, useMemo, useState } from "react";
 import { ChevronRight } from "lucide-react";
 import { PLATFORM_COLOR, PLATFORM_LABEL } from "@/lib/palette";
-import { int, pct, usd } from "@/lib/format";
+import { int, pct, ratio, usd } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type {
   PlatformFunnelRow,
@@ -32,8 +32,8 @@ const RATES: Array<{
   { key: "voc", label: "VOC", fmt: (v) => pct(v), lowerBetter: false, hint: "LP views / clicks" },
   { key: "atcRate", label: "ATC%", fmt: (v) => pct(v), lowerBetter: false, hint: "add-to-cart / LP views" },
   { key: "apRate", label: "AP%", fmt: (v) => pct(v), lowerBetter: false, hint: "add-payment / add-to-cart" },
-  { key: "purchaseRate", label: "PR%", fmt: (v) => pct(v), lowerBetter: false, hint: "purchases / add-payment" },
-  { key: "cvr", label: "CvR", fmt: (v) => pct(v), lowerBetter: false, hint: "conversions / LP views" },
+  { key: "purchaseRate", label: "CvR (AP)", fmt: (v) => pct(v), lowerBetter: false, hint: "conversions / add-payment" },
+  { key: "cvr", label: "CvR (LP)", fmt: (v) => pct(v), lowerBetter: false, hint: "conversions / LP views" },
 ];
 
 /**
@@ -117,12 +117,9 @@ export function PlatformFunnelComparison({
           <tr className="text-left text-[11px] uppercase tracking-[0.14em] text-ink-3 border-b border-line">
             <th className="font-medium px-3 py-2.5">Platform</th>
             <th className="font-medium px-3 py-2.5 text-right">Spend</th>
-            <th className="font-medium px-3 py-2.5 text-right">Impr.</th>
-            <th className="font-medium px-3 py-2.5 text-right">Clicks</th>
-            <th className="font-medium px-3 py-2.5 text-right">LP views</th>
-            <th className="font-medium px-3 py-2.5 text-right">ATC</th>
-            <th className="font-medium px-3 py-2.5 text-right">AP</th>
             <th className="font-medium px-3 py-2.5 text-right">Conv.</th>
+            <th className="font-medium px-3 py-2.5 text-right">CPA</th>
+            <th className="font-medium px-3 py-2.5 text-right">ROAS</th>
             {RATES.map((r) => (
               <th
                 key={r.key}
@@ -168,12 +165,11 @@ export function PlatformFunnelComparison({
                     </button>
                   </td>
                   <td className="px-3 py-2.5 text-right text-ink tabular-nums">{usd(row.spend)}</td>
-                  <td className="px-3 py-2.5 text-right text-ink-2 tabular-nums">{int(row.impressions)}</td>
-                  <td className="px-3 py-2.5 text-right text-ink-2 tabular-nums">{int(row.clicks)}</td>
-                  <td className="px-3 py-2.5 text-right text-ink-2 tabular-nums">{int(row.landingPageViews)}</td>
-                  <td className="px-3 py-2.5 text-right text-ink-2 tabular-nums">{int(row.addToCart)}</td>
-                  <td className="px-3 py-2.5 text-right text-ink-2 tabular-nums">{int(row.addPayment)}</td>
                   <td className="px-3 py-2.5 text-right text-ink-2 tabular-nums">{int(row.conversions)}</td>
+                  <td className="px-3 py-2.5 text-right text-ink tabular-nums">{usd(row.cpa)}</td>
+                  <td className="px-3 py-2.5 text-right text-ink tabular-nums">
+                    {row.roas === null ? "—" : `${ratio(row.roas)}×`}
+                  </td>
                   {RATES.map((r) => {
                     const v = row[r.key];
                     const isBest = best[r.key] === row.platform;
@@ -225,12 +221,11 @@ export function PlatformFunnelComparison({
                         </span>
                       </td>
                       <td className="px-3 py-1.5 text-right text-ink-2 tabular-nums">{usd(c.spend)}</td>
-                      <td className="px-3 py-1.5 text-right text-ink-3 tabular-nums">{int(c.impressions)}</td>
-                      <td className="px-3 py-1.5 text-right text-ink-3 tabular-nums">{int(c.clicks)}</td>
-                      <td className="px-3 py-1.5 text-right text-ink-3 tabular-nums">{int(c.landingPageViews)}</td>
-                      <td className="px-3 py-1.5 text-right text-ink-3 tabular-nums">{int(c.addToCart)}</td>
-                      <td className="px-3 py-1.5 text-right text-ink-3 tabular-nums">{int(c.addPayment)}</td>
                       <td className="px-3 py-1.5 text-right text-ink-3 tabular-nums">{int(c.conversions)}</td>
+                      <td className="px-3 py-1.5 text-right text-ink-2 tabular-nums">{usd(c.cpa)}</td>
+                      <td className="px-3 py-1.5 text-right text-ink-2 tabular-nums">
+                        {c.roas === null ? "—" : `${ratio(c.roas)}×`}
+                      </td>
                       <td className="px-3 py-1.5 text-right text-ink-2 tabular-nums">{usd(c.cpm)}</td>
                       <td className="px-3 py-1.5 text-right text-ink-2 tabular-nums">{pct(c.ctr)}</td>
                       <td className="px-3 py-1.5 text-right text-ink-2 tabular-nums">{pct(c.voc)}</td>
@@ -242,7 +237,7 @@ export function PlatformFunnelComparison({
                   ))}
                 {isOpen && camps.length === 0 && (
                   <tr className="bg-surface-2/25">
-                    <td colSpan={15} className="py-2 pl-10 pr-3 text-[11px] text-ink-3">
+                    <td colSpan={12} className="py-2 pl-10 pr-3 text-[11px] text-ink-3">
                       No campaigns in this window.
                     </td>
                   </tr>

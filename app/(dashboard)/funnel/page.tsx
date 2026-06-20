@@ -18,7 +18,7 @@ import { FunnelTrendChart } from "@/components/funnel/funnel-trend-chart";
 import { PlatformFunnelComparison } from "@/components/funnel/platform-funnel-comparison";
 import { CampaignFunnelTable } from "@/components/funnel/campaign-funnel-table";
 import { dashboardFiltersSchema } from "@/validators/filters";
-import { periodCaption } from "@/lib/period";
+import { prevPeriod } from "@/lib/period";
 import { pct, usd } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
@@ -59,10 +59,12 @@ export default async function FunnelPage({
     includeExcluded: parsed.includeExcluded,
   };
 
+  const prev = prevPeriod(from, to);
   const [
     overview,
     campaigns,
     daily,
+    dailyPrev,
     byPlatform,
     byPlatformCampaign,
     products,
@@ -71,13 +73,13 @@ export default async function FunnelPage({
     funnelOverview(filters),
     campaignFunnel(filters),
     funnelDaily(filters),
+    funnelDaily({ ...filters, from: prev.from, to: prev.to }),
     platformFunnel(filters),
     platformCampaignFunnel(filters),
     listProducts(),
     listAllTags(),
   ]);
 
-  const caption = periodCaption(from, to);
   const c = overview.current;
 
   return (
@@ -107,57 +109,19 @@ export default async function FunnelPage({
         </Badge>
       </div>
 
-      {/* Headline funnel rates (CPM lower = better, so its delta is inverted) */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <KpiTile
-          label="CPM"
-          value={usd(c.cpm)}
-          delta={overview.deltas.cpm}
-          inverted
-          caption={`cost / 1k impressions · ${caption}`}
-        />
-        <KpiTile
-          label="CTR"
-          value={pct(c.ctr)}
-          delta={overview.deltas.ctr}
-          caption={`clicks / impressions · ${caption}`}
-        />
-        <KpiTile
-          label="VOC"
-          value={pct(c.voc)}
-          delta={overview.deltas.voc}
-          caption={`LP views / clicks · ${caption}`}
-        />
-        <KpiTile
-          label="ATC"
-          value={pct(c.atcRate)}
-          delta={overview.deltas.atcRate}
-          caption={`add-to-cart / LP views · ${caption}`}
-        />
-        <KpiTile
-          label="AP"
-          value={pct(c.apRate)}
-          delta={overview.deltas.apRate}
-          caption={`add-payment / add-to-cart · ${caption}`}
-        />
-        <KpiTile
-          label="PR"
-          value={pct(c.purchaseRate)}
-          delta={overview.deltas.purchaseRate}
-          caption={`purchases / add-payment · ${caption}`}
-        />
-        <KpiTile
-          label="CvR"
-          value={pct(c.cvr)}
-          delta={overview.deltas.cvr}
-          caption={`conversions / LP views · ${caption}`}
-        />
+      {/* Headline funnel rates in one row (CPM lower = better → inverted delta) */}
+      <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-7 gap-2">
+        <KpiTile dense label="CPM" value={usd(c.cpm)} delta={overview.deltas.cpm} inverted />
+        <KpiTile dense label="CTR" value={pct(c.ctr)} delta={overview.deltas.ctr} />
+        <KpiTile dense label="VOC" value={pct(c.voc)} delta={overview.deltas.voc} />
+        <KpiTile dense label="ATC" value={pct(c.atcRate)} delta={overview.deltas.atcRate} />
+        <KpiTile dense label="AP" value={pct(c.apRate)} delta={overview.deltas.apRate} />
+        <KpiTile dense label="CvR (AP)" value={pct(c.purchaseRate)} delta={overview.deltas.purchaseRate} />
+        <KpiTile dense label="CvR (LP)" value={pct(c.cvr)} delta={overview.deltas.cvr} />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <FunnelStages totals={c} />
-        <FunnelTrendChart points={daily} />
-      </div>
+      <FunnelStages totals={c} />
+      <FunnelTrendChart points={daily} prevPoints={dailyPrev} />
 
       {/* Platform-vs-platform comparison */}
       <div className="space-y-2">
@@ -167,9 +131,8 @@ export default async function FunnelPage({
             {byPlatform.length === 1 ? "" : "s"}
           </h2>
           <p className="text-[11px] text-ink-3">
-            Channels side-by-side across the funnel. Green marks the leader per
-            metric — lowest CPM, highest CTR / VOC / CvR. Click a platform to
-            expand its campaign breakdown.
+            Green marks the leader per rate (lowest CPM, highest conversion
+            rates). Click a platform to expand its campaign breakdown.
           </p>
         </div>
         <PlatformFunnelComparison

@@ -19,13 +19,37 @@ export function KpiTile({
   delta,
   inverted = false,
   caption,
+  dense = false,
 }: {
   label: string;
   value: string;
   delta?: Delta;
   inverted?: boolean;
   caption?: string;
+  /** Compact layout for many-in-a-row strips (smaller value, tighter padding,
+   *  delta wraps under the value). */
+  dense?: boolean;
 }) {
+  if (dense) {
+    return (
+      <Card className="bg-surface border-line">
+        <CardContent className="p-3">
+          <div className="text-[10px] uppercase tracking-[0.12em] text-ink-3 font-medium mb-1.5">
+            {label}
+          </div>
+          <div className="font-display text-2xl num text-ink leading-none">
+            {value}
+          </div>
+          {delta && (
+            <div className="mt-1.5">
+              <DeltaBadge delta={delta} inverted={inverted} />
+            </div>
+          )}
+          {caption && <div className="text-[10px] text-ink-3 mt-1.5">{caption}</div>}
+        </CardContent>
+      </Card>
+    );
+  }
   return (
     <Card className="bg-surface border-line">
       <CardHeader className="pb-2">
