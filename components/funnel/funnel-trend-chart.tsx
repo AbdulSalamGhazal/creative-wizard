@@ -34,9 +34,35 @@ const monthDay = new Intl.DateTimeFormat("en-US", {
 
 const FIXED_TICKS = [0, 0.2, 0.4, 0.6, 0.8, 1];
 
+/** Centered moving-average half-window (±3 → a 7-day window) used by Smooth. */
+const SMOOTH_HALF = 3;
+
 interface Row {
   date: string;
   [k: string]: number | string | null;
+}
+
+/**
+ * Centered moving average for one column: each point becomes the mean of the
+ * non-null values within ±SMOOTH_HALF. Null stays null (a gap, not invented),
+ * so `connectNulls` still bridges missing days the same way.
+ */
+function smoothColumn(rows: Row[], key: string): Array<number | null> {
+  return rows.map((row, i) => {
+    if (typeof row[key] !== "number") return null;
+    let sum = 0;
+    let n = 0;
+    const lo = Math.max(0, i - SMOOTH_HALF);
+    const hi = Math.min(rows.length - 1, i + SMOOTH_HALF);
+    for (let j = lo; j <= hi; j++) {
+      const v = rows[j]?.[key];
+      if (typeof v === "number") {
+        sum += v;
+        n += 1;
+      }
+    }
+    return n > 0 ? sum / n : null;
+  });
 }
 
 /**
@@ -58,6 +84,7 @@ export function FunnelTrendChart({
     () => new Set(METRICS.map((m) => m.key)),
   );
   const [compare, setCompare] = useState(false);
+  const [smooth, setSmooth] = useState(false);
   const [expanded, setExpanded] = useState(false);
 
   // Close the expanded view on Escape.
@@ -84,6 +111,19 @@ export function FunnelTrendChart({
     [points, prevPoints],
   );
 
+  // When Smooth is on, replace every metric column (and its _prev) with its
+  // moving average so day-to-day noise flattens into the underlying trend.
+  const displayData = useMemo<Row[]>(() => {
+    if (!smooth) return data;
+    const keys = METRICS.flatMap((m) => [m.key, `${m.key}_prev`]);
+    const cols = new Map(keys.map((k) => [k, smoothColumn(data, k)]));
+    return data.map((row, i) => {
+      const next: Row = { date: row.date };
+      for (const k of keys) next[k] = cols.get(k)?.[i] ?? null;
+      return next;
+    });
+  }, [data, smooth]);
+
   const toggle = (k: MetricKey) =>
     setShown((prev) => {
       const next = new Set(prev);
@@ -106,6 +146,20 @@ export function FunnelTrendChart({
         </p>
       </div>
       <div className="flex items-center gap-2 shrink-0">
+        <button
+          type="button"
+          onClick={() => setSmooth((v) => !v)}
+          aria-pressed={smooth}
+          title="Smooth out day-to-day noise (7-day moving average)"
+          className={cn(
+            "h-7 px-2.5 rounded-md border text-[11px] font-medium transition-colors",
+            smooth
+              ? "border-brand/50 bg-[var(--brand-soft)] text-ink"
+              : "border-line text-ink-2 hover:text-ink hover:bg-surface-2",
+          )}
+        >
+          Smooth
+        </button>
         <button
           type="button"
           onClick={() => setCompare((v) => !v)}
@@ -162,7 +216,7 @@ export function FunnelTrendChart({
 
   const chart = (
     <ResponsiveContainer width="100%" height="100%">
-      <LineChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+      <LineChart data={displayData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
         <CartesianGrid stroke="var(--line)" strokeDasharray="3 3" vertical={false} />
         <XAxis
           dataKey="date"
