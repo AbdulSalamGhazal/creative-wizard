@@ -109,7 +109,7 @@ export default async function FunnelPage({
       {/* Headline funnel rates in one row — dashboard "Funnel rates" style */}
       <FunnelRateTiles overview={overview} daily={daily} />
 
-      <FunnelStages overview={overview} />
+      <FunnelStages totals={overview.current} />
       <FunnelTrendChart points={daily} prevPoints={dailyPrev} />
 
       {/* Platform-vs-platform comparison */}
