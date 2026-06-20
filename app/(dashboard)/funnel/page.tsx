@@ -12,14 +12,13 @@ import {
 import { listProducts } from "@/db/queries/products";
 import { listAllTags } from "@/db/queries/creatives";
 import { FilterStrip } from "@/components/filters/filter-strip";
-import { KpiTile } from "@/components/kpi/kpi-tile";
+import { FunnelRateTiles } from "@/components/funnel/funnel-rate-tiles";
 import { FunnelStages } from "@/components/funnel/funnel-stages";
 import { FunnelTrendChart } from "@/components/funnel/funnel-trend-chart";
 import { PlatformFunnelComparison } from "@/components/funnel/platform-funnel-comparison";
 import { CampaignFunnelTable } from "@/components/funnel/campaign-funnel-table";
 import { dashboardFiltersSchema } from "@/validators/filters";
 import { prevPeriod } from "@/lib/period";
-import { pct, usd } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -109,16 +108,8 @@ export default async function FunnelPage({
         </Badge>
       </div>
 
-      {/* Headline funnel rates in one row (CPM lower = better → inverted delta) */}
-      <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-7 gap-2">
-        <KpiTile dense label="CPM" value={usd(c.cpm)} delta={overview.deltas.cpm} inverted />
-        <KpiTile dense label="CTR" value={pct(c.ctr)} delta={overview.deltas.ctr} />
-        <KpiTile dense label="VOC" value={pct(c.voc)} delta={overview.deltas.voc} />
-        <KpiTile dense label="ATC" value={pct(c.atcRate)} delta={overview.deltas.atcRate} />
-        <KpiTile dense label="AP" value={pct(c.apRate)} delta={overview.deltas.apRate} />
-        <KpiTile dense label="CvR (AP)" value={pct(c.purchaseRate)} delta={overview.deltas.purchaseRate} />
-        <KpiTile dense label="CvR (LP)" value={pct(c.cvr)} delta={overview.deltas.cvr} />
-      </div>
+      {/* Headline funnel rates in one row — dashboard "Funnel rates" style */}
+      <FunnelRateTiles overview={overview} daily={daily} />
 
       <FunnelStages totals={c} />
       <FunnelTrendChart points={daily} prevPoints={dailyPrev} />
