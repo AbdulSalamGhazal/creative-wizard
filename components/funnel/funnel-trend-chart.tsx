@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { Maximize2, X } from "lucide-react";
 import {
   CartesianGrid,
   Line,
@@ -31,16 +32,20 @@ const monthDay = new Intl.DateTimeFormat("en-US", {
   timeZone: "UTC",
 });
 
+const FIXED_TICKS = [0, 0.2, 0.4, 0.6, 0.8, 1];
+
 interface Row {
   date: string;
   [k: string]: number | string | null;
 }
 
 /**
- * Funnel conversion-rates over time. Every funnel step plots as a line (all are
- * %, so they share one axis); click a legend chip to toggle a line off. The "vs
- * prev" switch overlays the prior equal-length window for the shown metrics as
- * dashed lines (aligned by relative day).
+ * Funnel conversion-rates over time. Every funnel step plots as a line; click a
+ * legend chip to toggle a line off. With 2+ metrics shown the Y-axis is pinned
+ * to an even 0–100% so a high-value rate can't squash the others (values above
+ * 100% are clipped — inspect them via the tooltip / expanded view); a single
+ * metric auto-scales to its own range. "vs prev" overlays the prior equal-length
+ * window as dashed lines. Expand fills the screen, keeping all the toggles.
  */
 export function FunnelTrendChart({
   points,
@@ -53,6 +58,17 @@ export function FunnelTrendChart({
     () => new Set(METRICS.map((m) => m.key)),
   );
   const [compare, setCompare] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+
+  // Close the expanded view on Escape.
+  useEffect(() => {
+    if (!expanded) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setExpanded(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [expanded]);
 
   const data = useMemo<Row[]>(
     () =>
@@ -77,17 +93,19 @@ export function FunnelTrendChart({
     });
 
   const visible = METRICS.filter((m) => shown.has(m.key));
+  // 2+ metrics → pin the axis so one tall rate doesn't flatten the rest.
+  const fixedAxis = visible.length > 1;
 
-  return (
-    <div className="rounded-lg border border-line bg-surface p-4">
-      <div className="flex items-start justify-between flex-wrap gap-3 mb-3">
-        <div>
-          <h3 className="text-sm text-ink-2">Funnel rates over time</h3>
-          <p className="text-[10px] text-ink-3">
-            Click a metric to hide it. Toggle &ldquo;vs prev&rdquo; to overlay the
-            prior period (dashed).
-          </p>
-        </div>
+  const header = (inFull: boolean) => (
+    <div className="flex items-start justify-between flex-wrap gap-3 mb-3">
+      <div>
+        <h3 className="text-sm text-ink-2">Funnel rates over time</h3>
+        <p className="text-[10px] text-ink-3">
+          Click a metric to hide it. Toggle &ldquo;vs prev&rdquo; to overlay the
+          prior period (dashed).
+        </p>
+      </div>
+      <div className="flex items-center gap-2 shrink-0">
         <button
           type="button"
           onClick={() => setCompare((v) => !v)}
@@ -101,94 +119,132 @@ export function FunnelTrendChart({
         >
           vs prev period
         </button>
-      </div>
-
-      {/* Legend / metric toggles */}
-      <div className="flex flex-wrap gap-1.5 mb-2">
-        {METRICS.map((m) => {
-          const on = shown.has(m.key);
-          return (
-            <button
-              key={m.key}
-              type="button"
-              onClick={() => toggle(m.key)}
-              aria-pressed={on}
-              className={cn(
-                "inline-flex items-center gap-1.5 h-6 px-2 rounded-md border text-[11px] transition-colors",
-                on
-                  ? "border-line bg-surface-2 text-ink"
-                  : "border-line text-ink-3 hover:text-ink line-through opacity-60",
-              )}
-            >
-              <span
-                className="h-2 w-2 rounded-full shrink-0"
-                style={{ background: m.color }}
-              />
-              {m.label}
-            </button>
-          );
-        })}
-      </div>
-
-      <div className="h-72">
-        {data.length === 0 ? (
-          <div className="h-full flex items-center justify-center text-ink-3 text-sm border border-dashed border-line rounded-md">
-            No data in this window.
-          </div>
-        ) : (
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-              <CartesianGrid stroke="var(--line)" strokeDasharray="3 3" vertical={false} />
-              <XAxis
-                dataKey="date"
-                tickFormatter={(d: string) => monthDay.format(new Date(d))}
-                tick={{ fill: "var(--ink-3)", fontSize: 11 }}
-                stroke="var(--line-2)"
-                tickMargin={6}
-                minTickGap={24}
-              />
-              <YAxis
-                tickFormatter={(v: number) => `${(v * 100).toFixed(0)}%`}
-                tick={{ fill: "var(--ink-3)", fontSize: 11 }}
-                stroke="var(--line-2)"
-                width={44}
-              />
-              <Tooltip
-                content={<FunnelTip visible={visible} compare={compare} />}
-              />
-              {visible.map((m) => (
-                <Line
-                  key={m.key}
-                  type="monotone"
-                  dataKey={m.key}
-                  name={m.label}
-                  stroke={m.color}
-                  strokeWidth={1.8}
-                  dot={false}
-                  connectNulls
-                  isAnimationActive={false}
-                />
-              ))}
-              {compare &&
-                visible.map((m) => (
-                  <Line
-                    key={`${m.key}_prev`}
-                    type="monotone"
-                    dataKey={`${m.key}_prev`}
-                    stroke={m.color}
-                    strokeWidth={1.4}
-                    strokeDasharray="4 3"
-                    strokeOpacity={0.5}
-                    dot={false}
-                    connectNulls
-                    isAnimationActive={false}
-                  />
-                ))}
-            </LineChart>
-          </ResponsiveContainer>
-        )}
+        <button
+          type="button"
+          onClick={() => setExpanded(!inFull)}
+          aria-label={inFull ? "Close expanded view" : "Expand to full screen"}
+          title={inFull ? "Close (Esc)" : "Expand"}
+          className="h-7 w-7 inline-flex items-center justify-center rounded-md border border-line text-ink-2 hover:text-ink hover:bg-surface-2 transition-colors"
+        >
+          {inFull ? <X className="w-4 h-4" /> : <Maximize2 className="w-3.5 h-3.5" />}
+        </button>
       </div>
     </div>
+  );
+
+  const legend = (
+    <div className="flex flex-wrap gap-1.5 mb-2">
+      {METRICS.map((m) => {
+        const on = shown.has(m.key);
+        return (
+          <button
+            key={m.key}
+            type="button"
+            onClick={() => toggle(m.key)}
+            aria-pressed={on}
+            className={cn(
+              "inline-flex items-center gap-1.5 h-6 px-2 rounded-md border text-[11px] transition-colors",
+              on
+                ? "border-line bg-surface-2 text-ink"
+                : "border-line text-ink-3 hover:text-ink line-through opacity-60",
+            )}
+          >
+            <span
+              className="h-2 w-2 rounded-full shrink-0"
+              style={{ background: m.color }}
+            />
+            {m.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+
+  const chart = (
+    <ResponsiveContainer width="100%" height="100%">
+      <LineChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+        <CartesianGrid stroke="var(--line)" strokeDasharray="3 3" vertical={false} />
+        <XAxis
+          dataKey="date"
+          tickFormatter={(d: string) => monthDay.format(new Date(d))}
+          tick={{ fill: "var(--ink-3)", fontSize: 11 }}
+          stroke="var(--line-2)"
+          tickMargin={6}
+          minTickGap={24}
+        />
+        <YAxis
+          domain={fixedAxis ? [0, 1] : ["auto", "auto"]}
+          ticks={fixedAxis ? FIXED_TICKS : undefined}
+          allowDataOverflow={fixedAxis}
+          tickFormatter={(v: number) => `${(v * 100).toFixed(0)}%`}
+          tick={{ fill: "var(--ink-3)", fontSize: 11 }}
+          stroke="var(--line-2)"
+          width={44}
+        />
+        <Tooltip content={<FunnelTip visible={visible} compare={compare} />} />
+        {visible.map((m) => (
+          <Line
+            key={m.key}
+            type="monotone"
+            dataKey={m.key}
+            name={m.label}
+            stroke={m.color}
+            strokeWidth={1.8}
+            dot={false}
+            connectNulls
+            isAnimationActive={false}
+          />
+        ))}
+        {compare &&
+          visible.map((m) => (
+            <Line
+              key={`${m.key}_prev`}
+              type="monotone"
+              dataKey={`${m.key}_prev`}
+              stroke={m.color}
+              strokeWidth={1.4}
+              strokeDasharray="4 3"
+              strokeOpacity={0.5}
+              dot={false}
+              connectNulls
+              isAnimationActive={false}
+            />
+          ))}
+      </LineChart>
+    </ResponsiveContainer>
+  );
+
+  const emptyState = (
+    <div className="h-full flex items-center justify-center text-ink-3 text-sm border border-dashed border-line rounded-md">
+      No data in this window.
+    </div>
+  );
+
+  return (
+    <>
+      <div className="rounded-lg border border-line bg-surface p-4">
+        {header(false)}
+        {legend}
+        <div className="h-80">{data.length === 0 ? emptyState : chart}</div>
+      </div>
+
+      {expanded && (
+        <div
+          className="fixed inset-0 z-50 bg-background/95 backdrop-blur-sm p-3 sm:p-6 flex flex-col"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Funnel rates over time — expanded"
+        >
+          <div className="flex-1 min-h-0 flex flex-col rounded-lg border border-line bg-surface p-4 shadow-2xl">
+            {header(true)}
+            {legend}
+            <div className="flex-1 min-h-0">
+              {data.length === 0 ? emptyState : chart}
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
