@@ -1,0 +1,339 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import { Maximize2, X } from "lucide-react";
+import {
+  CartesianGrid,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+import { intCompact, pct, ratio, usd, usdCompact } from "@/lib/format";
+import { swatchColor } from "@/lib/palette";
+import { cn } from "@/lib/utils";
+import type { CampaignCreativeDailyPoint } from "@/db/queries/campaign";
+
+type MetricKey =
+  | "spend"
+  | "conversionValue"
+  | "conversions"
+  | "impressions"
+  | "clicks"
+  | "ctr"
+  | "cvr"
+  | "roas"
+  | "cpa"
+  | "cpm"
+  | "voc";
+type Kind = "usd" | "int" | "pct" | "ratio";
+
+const METRICS: Array<{ key: MetricKey; label: string; kind: Kind }> = [
+  { key: "spend", label: "Spend", kind: "usd" },
+  { key: "conversionValue", label: "Revenue", kind: "usd" },
+  { key: "conversions", label: "Conversions", kind: "int" },
+  { key: "impressions", label: "Impressions", kind: "int" },
+  { key: "clicks", label: "Clicks", kind: "int" },
+  { key: "ctr", label: "CTR", kind: "pct" },
+  { key: "cvr", label: "CvR", kind: "pct" },
+  { key: "roas", label: "ROAS", kind: "ratio" },
+  { key: "cpa", label: "CPA", kind: "usd" },
+  { key: "cpm", label: "CPM", kind: "usd" },
+  { key: "voc", label: "VOC", kind: "pct" },
+];
+
+const DEFAULT_SHOWN = 6;
+const SMOOTH_HALF = 3;
+
+const monthDay = new Intl.DateTimeFormat("en-US", {
+  month: "short",
+  day: "numeric",
+  timeZone: "UTC",
+});
+
+const axisFmt = (kind: Kind) => (v: number) => {
+  if (kind === "usd") return usdCompact(v);
+  if (kind === "int") return intCompact(v);
+  if (kind === "pct") return `${(v * 100).toFixed(0)}%`;
+  return `${v.toFixed(1)}×`;
+};
+const cellFmt = (kind: Kind, v: number | null) => {
+  if (kind === "usd") return usd(v);
+  if (kind === "int") return v === null ? "—" : intCompact(v);
+  if (kind === "pct") return pct(v);
+  return ratio(v);
+};
+
+interface Row {
+  date: string;
+  [creativeId: string]: number | null | string;
+}
+
+function smoothColumn(rows: Row[], key: string): Array<number | null> {
+  return rows.map((row, i) => {
+    if (typeof row[key] !== "number") return null;
+    let sum = 0;
+    let n = 0;
+    for (let j = Math.max(0, i - SMOOTH_HALF); j <= Math.min(rows.length - 1, i + SMOOTH_HALF); j++) {
+      const v = rows[j]?.[key];
+      if (typeof v === "number") {
+        sum += v;
+        n += 1;
+      }
+    }
+    return n > 0 ? sum / n : null;
+  });
+}
+
+/**
+ * One line per creative over time, for whatever metric is selected. Click a
+ * legend chip to hide a creative; Smooth applies a 7-day moving average; Expand
+ * fills the screen keeping every control.
+ */
+export function CampaignCreativeChart({
+  points,
+  creatives,
+}: {
+  points: CampaignCreativeDailyPoint[];
+  creatives: Array<{ creativeId: string; name: string }>;
+}) {
+  const [metric, setMetric] = useState<MetricKey>("spend");
+  const [smooth, setSmooth] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+  const [shown, setShown] = useState<Set<string>>(
+    () => new Set(creatives.slice(0, DEFAULT_SHOWN).map((c) => c.creativeId)),
+  );
+
+  useEffect(() => {
+    if (!expanded) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setExpanded(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [expanded]);
+
+  const meta = METRICS.find((m) => m.key === metric)!;
+
+  const data = useMemo<Row[]>(() => {
+    const byDate = new Map<string, Row>();
+    for (const p of points) {
+      let row = byDate.get(p.date);
+      if (!row) {
+        row = { date: p.date };
+        byDate.set(p.date, row);
+      }
+      row[p.creativeId] = p[metric];
+    }
+    const rows = [...byDate.values()].sort((a, b) =>
+      (a.date as string) < (b.date as string) ? -1 : 1,
+    );
+    if (!smooth) return rows;
+    const cols = new Map(creatives.map((c) => [c.creativeId, smoothColumn(rows, c.creativeId)]));
+    return rows.map((row, i) => {
+      const next: Row = { date: row.date as string };
+      for (const c of creatives) next[c.creativeId] = cols.get(c.creativeId)?.[i] ?? null;
+      return next;
+    });
+  }, [points, metric, smooth, creatives]);
+
+  const toggle = (id: string) =>
+    setShown((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
+  const visible = creatives.filter((c) => shown.has(c.creativeId));
+
+  const header = (inFull: boolean) => (
+    <div className="flex items-start justify-between flex-wrap gap-3 mb-3">
+      <div className="flex items-center gap-2">
+        <h3 className="text-sm text-ink-2">By creative over time</h3>
+        <select
+          value={metric}
+          onChange={(e) => setMetric(e.target.value as MetricKey)}
+          className="h-7 rounded-md border border-line bg-surface-2 px-2 text-[11px] text-ink"
+          aria-label="Metric"
+        >
+          {METRICS.map((m) => (
+            <option key={m.key} value={m.key}>
+              {m.label}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div className="flex items-center gap-2 shrink-0">
+        <button
+          type="button"
+          onClick={() => setSmooth((v) => !v)}
+          aria-pressed={smooth}
+          title="7-day moving average"
+          className={cn(
+            "h-7 px-2.5 rounded-md border text-[11px] font-medium transition-colors",
+            smooth
+              ? "border-brand/50 bg-[var(--brand-soft)] text-ink"
+              : "border-line text-ink-2 hover:text-ink hover:bg-surface-2",
+          )}
+        >
+          Smooth
+        </button>
+        <button
+          type="button"
+          onClick={() => setExpanded(!inFull)}
+          aria-label={inFull ? "Close expanded view" : "Expand to full screen"}
+          title={inFull ? "Close (Esc)" : "Expand"}
+          className="h-7 w-7 inline-flex items-center justify-center rounded-md border border-line text-ink-2 hover:text-ink hover:bg-surface-2 transition-colors"
+        >
+          {inFull ? <X className="w-4 h-4" /> : <Maximize2 className="w-3.5 h-3.5" />}
+        </button>
+      </div>
+    </div>
+  );
+
+  const legend = (
+    <div className="flex flex-wrap gap-1.5 mb-2">
+      {creatives.map((c) => {
+        const on = shown.has(c.creativeId);
+        return (
+          <button
+            key={c.creativeId}
+            type="button"
+            onClick={() => toggle(c.creativeId)}
+            aria-pressed={on}
+            title={c.name}
+            className={cn(
+              "inline-flex items-center gap-1.5 h-6 px-2 rounded-md border text-[11px] max-w-[14rem] transition-colors",
+              on
+                ? "border-line bg-surface-2 text-ink"
+                : "border-line text-ink-3 hover:text-ink line-through opacity-60",
+            )}
+          >
+            <span
+              className="h-2 w-2 rounded-full shrink-0"
+              style={{ background: swatchColor(c.name) }}
+            />
+            <span className="truncate">{c.name}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+
+  const chart = (
+    <ResponsiveContainer width="100%" height="100%">
+      <LineChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+        <CartesianGrid stroke="var(--line)" strokeDasharray="3 3" vertical={false} />
+        <XAxis
+          dataKey="date"
+          tickFormatter={(d: string) => monthDay.format(new Date(d))}
+          tick={{ fill: "var(--ink-3)", fontSize: 11 }}
+          stroke="var(--line-2)"
+          tickMargin={6}
+          minTickGap={24}
+        />
+        <YAxis
+          tickFormatter={axisFmt(meta.kind)}
+          tick={{ fill: "var(--ink-3)", fontSize: 11 }}
+          stroke="var(--line-2)"
+          width={48}
+        />
+        <Tooltip content={<ChartTip visible={visible} kind={meta.kind} metricLabel={meta.label} />} />
+        {visible.map((c) => (
+          <Line
+            key={c.creativeId}
+            type="monotone"
+            dataKey={c.creativeId}
+            name={c.name}
+            stroke={swatchColor(c.name)}
+            strokeWidth={1.8}
+            dot={false}
+            connectNulls
+            isAnimationActive={false}
+          />
+        ))}
+      </LineChart>
+    </ResponsiveContainer>
+  );
+
+  const empty = (
+    <div className="h-full flex items-center justify-center text-ink-3 text-sm border border-dashed border-line rounded-md">
+      No data in this window.
+    </div>
+  );
+
+  return (
+    <>
+      <div className="rounded-lg border border-line bg-surface p-4">
+        {header(false)}
+        {legend}
+        <div className="h-80">{data.length === 0 ? empty : chart}</div>
+      </div>
+
+      {expanded && (
+        <div
+          className="fixed inset-0 z-50 bg-background/95 backdrop-blur-sm p-3 sm:p-6 flex flex-col"
+          role="dialog"
+          aria-modal="true"
+          aria-label="By creative over time — expanded"
+        >
+          <div className="flex-1 min-h-0 flex flex-col rounded-lg border border-line bg-surface p-4 shadow-2xl">
+            {header(true)}
+            {legend}
+            <div className="flex-1 min-h-0">{data.length === 0 ? empty : chart}</div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+function ChartTip({
+  active,
+  label,
+  payload,
+  visible,
+  kind,
+  metricLabel,
+}: {
+  active?: boolean;
+  label?: string;
+  payload?: Array<{ dataKey: string; value: number | null }>;
+  visible: Array<{ creativeId: string; name: string }>;
+  kind: Kind;
+  metricLabel: string;
+}) {
+  if (!active || !payload || payload.length === 0 || !label) return null;
+  const byKey = new Map(payload.map((p) => [p.dataKey, p.value]));
+  // Show the creatives with a value this day, biggest first.
+  const rows = visible
+    .map((c) => ({ c, v: byKey.get(c.creativeId) ?? null }))
+    .filter((r) => r.v !== null && r.v !== undefined)
+    .sort((a, b) => (b.v ?? 0) - (a.v ?? 0));
+  return (
+    <div className="rounded-md border border-line bg-popover/95 backdrop-blur px-3 py-2 text-xs shadow-lg max-w-[18rem]">
+      <div className="text-ink-2 mb-1.5">
+        {monthDay.format(new Date(label))} · {metricLabel}
+      </div>
+      <div className="space-y-1">
+        {rows.length === 0 ? (
+          <div className="text-ink-3">No data</div>
+        ) : (
+          rows.map(({ c, v }) => (
+            <div key={c.creativeId} className="flex items-center gap-2">
+              <span
+                className="w-2 h-2 rounded-sm shrink-0"
+                style={{ background: swatchColor(c.name) }}
+              />
+              <span className="text-ink-2 truncate max-w-[10rem]">{c.name}</span>
+              <span className="ml-auto text-ink num tabular-nums">{cellFmt(kind, v)}</span>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}

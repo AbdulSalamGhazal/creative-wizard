@@ -30,6 +30,8 @@ import {
   hookRate,
   holdRate,
   roas,
+  sumAddToCart,
+  sumAddPayment,
   sumClicks,
   sumConversionValue,
   sumConversions,
@@ -604,8 +606,10 @@ export interface CampaignCreativeRow {
   impressions: number;
   clicks: number;
   conversions: number;
+  conversionValue: number;
   ctr: number | null;
   cvr: number | null;
+  cpa: number | null;
   roas: number | null;
   lastDate: string | null;
 }
@@ -626,8 +630,10 @@ export async function campaignCreatives(
       impressions: sumImpressions,
       clicks: sumClicks,
       conversions: sumConversions,
+      conversionValue: sumConversionValue,
       ctr,
       cvr,
+      cpa,
       roas,
       lastDate: sql<string | null>`MAX(${performanceRecords.date})`,
     })
@@ -655,8 +661,10 @@ export async function campaignCreatives(
     impressions: num(r.impressions),
     clicks: num(r.clicks),
     conversions: num(r.conversions),
+    conversionValue: num(r.conversionValue),
     ctr: numOrNull(r.ctr),
     cvr: numOrNull(r.cvr),
+    cpa: numOrNull(r.cpa),
     roas: numOrNull(r.roas),
     lastDate: r.lastDate,
   }));
@@ -666,6 +674,8 @@ export async function campaignCreatives(
 // Detail: day-level records
 // =====================================================================
 
+/** Every uploaded metric field, plus the row's identity. `null` = the platform
+ *  didn't report that field for this row. */
 export interface CampaignRecordRow {
   id: number;
   date: string;
@@ -677,6 +687,13 @@ export interface CampaignRecordRow {
   conversions: number | null;
   conversionValue: number | null;
   landingPageViews: number | null;
+  addToCart: number | null;
+  addPayment: number | null;
+  videoViews2s: number | null;
+  videoViews25: number | null;
+  videoViews50: number | null;
+  videoViews75: number | null;
+  videoViews100: number | null;
   excludedFromAggregates: boolean;
 }
 
@@ -698,13 +715,20 @@ export async function campaignRecords(
       conversions: performanceRecords.conversions,
       conversionValue: performanceRecords.conversionValue,
       landingPageViews: performanceRecords.landingPageViews,
+      addToCart: performanceRecords.addToCart,
+      addPayment: performanceRecords.addPayment,
+      videoViews2s: performanceRecords.videoViews2s,
+      videoViews25: performanceRecords.videoViews25,
+      videoViews50: performanceRecords.videoViews50,
+      videoViews75: performanceRecords.videoViews75,
+      videoViews100: performanceRecords.videoViews100,
       excludedFromAggregates: performanceRecords.excludedFromAggregates,
     })
     .from(performanceRecords)
     .innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId))
     .where(detailCond(name, range, acct, includeExcluded))
     .orderBy(desc(performanceRecords.date), desc(performanceRecords.spend))
-    .limit(500);
+    .limit(2000);
   return rows.map((r) => ({
     id: r.id,
     date: r.date,
@@ -716,7 +740,155 @@ export async function campaignRecords(
     conversions: numOrNull(r.conversions),
     conversionValue: numOrNull(r.conversionValue),
     landingPageViews: numOrNull(r.landingPageViews),
+    addToCart: numOrNull(r.addToCart),
+    addPayment: numOrNull(r.addPayment),
+    videoViews2s: numOrNull(r.videoViews2s),
+    videoViews25: numOrNull(r.videoViews25),
+    videoViews50: numOrNull(r.videoViews50),
+    videoViews75: numOrNull(r.videoViews75),
+    videoViews100: numOrNull(r.videoViews100),
     excludedFromAggregates: r.excludedFromAggregates,
+  }));
+}
+
+// =====================================================================
+// Detail: day-level rollup (all creatives merged) — for the records table's
+// "group by day" toggle. One row per date, every metric field SUMmed.
+// =====================================================================
+
+export interface CampaignDayRow {
+  date: string;
+  records: number;
+  spend: number;
+  impressions: number;
+  clicks: number;
+  conversions: number;
+  conversionValue: number;
+  landingPageViews: number;
+  addToCart: number;
+  addPayment: number;
+  videoViews2s: number;
+  videoViews25: number;
+  videoViews50: number;
+  videoViews75: number;
+  videoViews100: number;
+}
+
+export async function campaignRecordsByDay(
+  name: string,
+  range: Range,
+  includeExcluded?: boolean,
+): Promise<CampaignDayRow[]> {
+  const acct = await getActiveAccountId();
+  const rows = await db
+    .select({
+      date: performanceRecords.date,
+      records: sql<number>`COUNT(*)::int`,
+      spend: sumSpend,
+      impressions: sumImpressions,
+      clicks: sumClicks,
+      conversions: sumConversions,
+      conversionValue: sumConversionValue,
+      landingPageViews: sumLandingPageViews,
+      addToCart: sumAddToCart,
+      addPayment: sumAddPayment,
+      videoViews2s: sumVideoViews2s,
+      videoViews25: sumVideoViews25,
+      videoViews50: sumVideoViews50,
+      videoViews75: sumVideoViews75,
+      videoViews100: sumVideoViews100,
+    })
+    .from(performanceRecords)
+    .innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId))
+    .where(detailCond(name, range, acct, includeExcluded))
+    .groupBy(performanceRecords.date)
+    .orderBy(desc(performanceRecords.date));
+  return rows.map((r) => ({
+    date: r.date,
+    records: num(r.records),
+    spend: num(r.spend),
+    impressions: num(r.impressions),
+    clicks: num(r.clicks),
+    conversions: num(r.conversions),
+    conversionValue: num(r.conversionValue),
+    landingPageViews: num(r.landingPageViews),
+    addToCart: num(r.addToCart),
+    addPayment: num(r.addPayment),
+    videoViews2s: num(r.videoViews2s),
+    videoViews25: num(r.videoViews25),
+    videoViews50: num(r.videoViews50),
+    videoViews75: num(r.videoViews75),
+    videoViews100: num(r.videoViews100),
+  }));
+}
+
+// =====================================================================
+// Detail: per-creative daily series — one line per creative in the chart.
+// =====================================================================
+
+export interface CampaignCreativeDailyPoint {
+  date: string;
+  creativeId: string;
+  creativeName: string;
+  spend: number;
+  impressions: number;
+  clicks: number;
+  conversions: number;
+  conversionValue: number;
+  cpm: number | null;
+  cpc: number | null;
+  cpa: number | null;
+  ctr: number | null;
+  voc: number | null;
+  cvr: number | null;
+  roas: number | null;
+}
+
+export async function campaignDailyByCreative(
+  name: string,
+  range: Range,
+  includeExcluded?: boolean,
+): Promise<CampaignCreativeDailyPoint[]> {
+  const acct = await getActiveAccountId();
+  const rows = await db
+    .select({
+      date: performanceRecords.date,
+      creativeId: creatives.id,
+      creativeName: creatives.name,
+      spend: sumSpend,
+      impressions: sumImpressions,
+      clicks: sumClicks,
+      conversions: sumConversions,
+      conversionValue: sumConversionValue,
+      cpm,
+      cpc,
+      cpa,
+      ctr,
+      voc,
+      cvr,
+      roas,
+    })
+    .from(performanceRecords)
+    .innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId))
+    .where(detailCond(name, range, acct, includeExcluded))
+    .groupBy(performanceRecords.date, creatives.id, creatives.name)
+    .orderBy(asc(performanceRecords.date));
+  return rows.map((r) => ({
+    date: r.date,
+    creativeId: r.creativeId,
+    creativeName: r.creativeName,
+    spend: num(r.spend),
+    impressions: num(r.impressions),
+    clicks: num(r.clicks),
+    conversions: num(r.conversions),
+    conversionValue: num(r.conversionValue),
+    cpm: numOrNull(r.cpm),
+    cpc: numOrNull(r.cpc),
+    cpa: numOrNull(r.cpa),
+    ctr: numOrNull(r.ctr),
+    voc: numOrNull(r.voc),
+    cvr: numOrNull(r.cvr),
+    roas: numOrNull(r.roas),
   }));
 }
 

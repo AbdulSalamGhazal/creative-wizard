@@ -1,21 +1,19 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { Suspense } from "react";
 import { ArrowLeft } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { campaignMeta } from "@/db/queries/campaign";
-import { AnalyticsDateFilter } from "@/components/creative/analytics-date-filter";
 import {
-  BridgeSection,
-  BridgeSkeleton,
-  RawDataDisclosure,
-  RawDataSkeleton,
-  RetentionSection,
-  StructurePanel,
-  StructureSkeleton,
-  VerdictPanel,
-  VerdictSkeleton,
-} from "@/components/campaign/campaign-diagnosis";
+  campaignAnalytics,
+  campaignCreatives,
+  campaignDailyByCreative,
+  campaignMeta,
+  campaignRecords,
+  campaignRecordsByDay,
+} from "@/db/queries/campaign";
+import { AnalyticsDateFilter } from "@/components/creative/analytics-date-filter";
+import { CampaignCreativeKpis } from "@/components/campaign/campaign-creative-kpis";
+import { CampaignCreativeChart } from "@/components/campaign/campaign-creative-chart";
+import { CampaignRecordsTable } from "@/components/campaign/campaign-records-table";
 import { parseCampaignDetailParams } from "@/validators/campaign";
 import { PLATFORM_COLOR, PLATFORM_LABEL } from "@/lib/palette";
 import { safeDecodeURIComponent } from "@/lib/url";
@@ -26,12 +24,10 @@ import { resolvePreferredRange } from "@/db/queries/user-prefs";
 export const dynamic = "force-dynamic";
 
 /**
- * Campaign DIAGNOSIS page — its single job is to explain *why* a campaign wins
- * or loses (not to re-display its metrics; those lenses live on /funnel,
- * /trends, /summary, /compare, /creatives). Five panels: the verdict (index vs
- * within-audience baseline), the ROAS bridge (mix vs rate), creative
- * contributions, within-campaign winners/losers + money-left-on-the-table, and
- * (video only) retention zones. Raw records sit behind a disclosure.
+ * Campaign detail. Three lenses, top to bottom:
+ *  1. headline KPIs, each broken down by creative,
+ *  2. one line per creative over time (any metric, smooth, expand),
+ *  3. the raw uploaded rows (per record or grouped by day, sortable, all fields).
  */
 export default async function CampaignDetailPage({
   params,
@@ -50,23 +46,26 @@ export default async function CampaignDetailPage({
   const decoded = safeDecodeURIComponent(campaign);
   const parsed = parseCampaignDetailParams(sp);
 
-  // Default to a concrete recent window when no range is set.
-  const eff = await resolvePreferredRange(
-    parsed.from,
-    parsed.to,
-    defaultDateRange(),
-  );
+  const eff = await resolvePreferredRange(parsed.from, parsed.to, defaultDateRange());
   const range = { from: eff.from, to: eff.to };
   const rangeLabel = presetLabel(eff.from, eff.to);
 
   const meta = await campaignMeta(decoded);
   if (!meta) notFound();
 
-  const panelArgs = {
-    campaign: decoded,
-    range,
-    includeExcluded: parsed.includeExcluded,
-  };
+  const inc = parsed.includeExcluded;
+  const [analytics, creativeRows, daily, records, byDay] = await Promise.all([
+    campaignAnalytics(decoded, range, inc),
+    campaignCreatives(decoded, range, inc),
+    campaignDailyByCreative(decoded, range, inc),
+    campaignRecords(decoded, range, inc),
+    campaignRecordsByDay(decoded, range, inc),
+  ]);
+
+  const legendCreatives = creativeRows.map((c) => ({
+    creativeId: c.creativeId,
+    name: c.name,
+  }));
 
   return (
     <div className="space-y-6">
@@ -120,27 +119,19 @@ export default async function CampaignDetailPage({
         </div>
       </section>
 
-      {/* ─────────── Diagnostic panels ─────────── */}
-      <Suspense fallback={<VerdictSkeleton />}>
-        <VerdictPanel {...panelArgs} />
-      </Suspense>
+      {/* 1 ─── Headline KPIs, broken down by creative ─── */}
+      <CampaignCreativeKpis analytics={analytics} creatives={creativeRows} />
 
-      <Suspense fallback={<BridgeSkeleton />}>
-        <BridgeSection {...panelArgs} compare={parsed.compare} />
-      </Suspense>
+      {/* 2 ─── One line per creative over time ─── */}
+      <CampaignCreativeChart points={daily} creatives={legendCreatives} />
 
-      <Suspense fallback={<StructureSkeleton />}>
-        <StructurePanel {...panelArgs} />
-      </Suspense>
-
-      {/* Video-only — renders nothing when the campaign has no video creatives. */}
-      <Suspense fallback={null}>
-        <RetentionSection {...panelArgs} />
-      </Suspense>
-
-      <Suspense fallback={<RawDataSkeleton />}>
-        <RawDataDisclosure {...panelArgs} />
-      </Suspense>
+      {/* 3 ─── Raw uploaded rows ─── */}
+      <div className="space-y-2">
+        <h2 className="text-[11px] uppercase tracking-[0.14em] text-ink-3">
+          Row data
+        </h2>
+        <CampaignRecordsTable records={records} byDay={byDay} />
+      </div>
     </div>
   );
 }
