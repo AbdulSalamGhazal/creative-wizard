@@ -8,7 +8,7 @@ import {
   Wallet,
 } from "lucide-react";
 import { MetricCard, type BreakdownBar } from "@/components/overview/metric-card";
-import { swatchColor } from "@/lib/palette";
+import { seriesColor } from "@/lib/palette";
 import { int, pct, ratio, usd } from "@/lib/format";
 import type {
   CampaignAnalytics,
@@ -35,6 +35,10 @@ export function CampaignCreativeKpis({
   const t = analytics.totals;
   const d = analytics.deltas;
 
+  // Color by rank in the (spend-sorted) creative list — same mapping the chart
+  // uses — so a creative is the same color everywhere and no two collide.
+  const colorOf = new Map(creatives.map((c, i) => [c.creativeId, seriesColor(i)]));
+
   const shareBars = (
     pick: (c: CampaignCreativeRow) => number,
     fmt: (n: number) => string,
@@ -47,7 +51,7 @@ export function CampaignCreativeKpis({
       .map((c) => ({
         key: c.creativeId,
         label: c.name,
-        color: swatchColor(c.name),
+        color: colorOf.get(c.creativeId) ?? "#888",
         fraction: total > 0 ? pick(c) / total : 0,
         display: fmt(pick(c)),
       }));
@@ -66,7 +70,7 @@ export function CampaignCreativeKpis({
       .map(({ c, v }) => ({
         key: c.creativeId,
         label: c.name,
-        color: swatchColor(c.name),
+        color: colorOf.get(c.creativeId) ?? "#888",
         fraction: max > 0 ? v / max : 0,
         display: fmt(v),
       }));

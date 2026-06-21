@@ -84,6 +84,36 @@ export function swatchColor(name: string): string {
   return PRODUCT_COLORS[hashString(name) % PRODUCT_COLORS.length]!;
 }
 
+/**
+ * A 16-hue series palette, ordered so adjacent entries are far apart on the
+ * wheel. Assign by RANK (not by name-hash) so the items in one set never
+ * collide — the first ~12 are strongly distinct, the rest fill in for large
+ * sets. Used for per-creative chart lines + KPI breakdown bars.
+ */
+const SERIES_COLORS = [
+  "#60A5FA", // blue
+  "#F472B6", // pink
+  "#34D399", // emerald
+  "#FBBF24", // amber
+  "#A78BFA", // violet
+  "#FB923C", // orange
+  "#22D3EE", // cyan
+  "#F87171", // red
+  "#818CF8", // indigo
+  "#4ADE80", // green
+  "#E879F9", // fuchsia
+  "#2DD4BF", // teal
+  "#FCA5A5", // light red
+  "#38BDF8", // sky
+  "#A3E635", // lime
+  "#C084FC", // purple
+];
+
+/** Color for the index-th item in an ordered set (cycles past 16). */
+export function seriesColor(index: number): string {
+  return SERIES_COLORS[((index % SERIES_COLORS.length) + SERIES_COLORS.length) % SERIES_COLORS.length]!;
+}
+
 /** Fixed colors + labels for the three creative types. */
 export const TYPE_COLOR: Record<"video" | "image" | "slides", string> = {
   video: "#60A5FA", // sky

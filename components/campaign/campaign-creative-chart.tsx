@@ -12,7 +12,7 @@ import {
   YAxis,
 } from "recharts";
 import { intCompact, pct, ratio, usd, usdCompact } from "@/lib/format";
-import { swatchColor } from "@/lib/palette";
+import { seriesColor } from "@/lib/palette";
 import { cn } from "@/lib/utils";
 import type { CampaignCreativeDailyPoint } from "@/db/queries/campaign";
 
@@ -147,7 +147,16 @@ export function CampaignCreativeChart({
       return next;
     });
 
-  const visible = creatives.filter((c) => shown.has(c.creativeId));
+  // Color by rank in the (spend-sorted) creative list so no two collide.
+  const colorOf = useMemo(
+    () => new Map(creatives.map((c, i) => [c.creativeId, seriesColor(i)])),
+    [creatives],
+  );
+  const color = (id: string) => colorOf.get(id) ?? "#888";
+
+  const visible = creatives
+    .filter((c) => shown.has(c.creativeId))
+    .map((c) => ({ ...c, color: color(c.creativeId) }));
 
   const header = (inFull: boolean) => (
     <div className="flex items-start justify-between flex-wrap gap-3 mb-3">
@@ -214,7 +223,7 @@ export function CampaignCreativeChart({
           >
             <span
               className="h-2 w-2 rounded-full shrink-0"
-              style={{ background: swatchColor(c.name) }}
+              style={{ background: color(c.creativeId) }}
             />
             <span className="truncate">{c.name}</span>
           </button>
@@ -248,7 +257,7 @@ export function CampaignCreativeChart({
             type="monotone"
             dataKey={c.creativeId}
             name={c.name}
-            stroke={swatchColor(c.name)}
+            stroke={c.color}
             strokeWidth={1.8}
             dot={false}
             connectNulls
@@ -302,7 +311,7 @@ function ChartTip({
   active?: boolean;
   label?: string;
   payload?: Array<{ dataKey: string; value: number | null }>;
-  visible: Array<{ creativeId: string; name: string }>;
+  visible: Array<{ creativeId: string; name: string; color: string }>;
   kind: Kind;
   metricLabel: string;
 }) {
@@ -326,7 +335,7 @@ function ChartTip({
             <div key={c.creativeId} className="flex items-center gap-2">
               <span
                 className="w-2 h-2 rounded-sm shrink-0"
-                style={{ background: swatchColor(c.name) }}
+                style={{ background: c.color }}
               />
               <span className="text-ink-2 truncate max-w-[10rem]">{c.name}</span>
               <span className="ml-auto text-ink num tabular-nums">{cellFmt(kind, v)}</span>
