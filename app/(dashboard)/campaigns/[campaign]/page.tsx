@@ -130,7 +130,7 @@ export default async function CampaignDetailPage({
         <h2 className="text-[11px] uppercase tracking-[0.14em] text-ink-3">
           Row data
         </h2>
-        <CampaignRecordsTable records={records} byDay={byDay} />
+        <CampaignRecordsTable records={records} byDay={byDay} campaign={decoded} />
       </div>
     </div>
   );

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ArrowDown, ArrowUp } from "lucide-react";
+import { ArrowDown, ArrowUp, Download } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { int, usd } from "@/lib/format";
 import { PLATFORM_COLOR, PLATFORM_LABEL } from "@/lib/palette";
@@ -69,9 +69,11 @@ function sortRows<T>(
 export function CampaignRecordsTable({
   records,
   byDay,
+  campaign,
 }: {
   records: CampaignRecordRow[];
   byDay: CampaignDayRow[];
+  campaign: string;
 }) {
   const [mode, setMode] = useState<Mode>("raw");
   const [sortKey, setSortKey] = useState<string>("date");
@@ -103,6 +105,56 @@ export function CampaignRecordsTable({
   );
 
   const truncated = records.length >= 2000;
+
+  // Export exactly what's shown — active view (record / day) + current sort —
+  // with raw numeric values (no $/commas) so the CSV opens clean in a sheet.
+  const downloadCsv = () => {
+    const esc = (v: string | number | null | boolean): string => {
+      if (v === null || v === undefined) return "";
+      const s = String(v);
+      return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    let headers: string[];
+    let body: Array<Array<string | number | null | boolean>>;
+    if (mode === "raw") {
+      headers = [
+        "Date",
+        "Creative",
+        "Platform",
+        ...METRIC_COLS.map((c) => c.label),
+        "Excluded",
+      ];
+      body = sortedRecords.map((r) => [
+        r.date,
+        r.creativeName,
+        PLATFORM_LABEL[r.platform],
+        ...METRIC_COLS.map((c) => r[c.key]),
+        r.excludedFromAggregates ? "yes" : "no",
+      ]);
+    } else {
+      headers = ["Date", "Rows", ...METRIC_COLS.map((c) => c.label)];
+      body = sortedDays.map((r) => [
+        r.date,
+        r.records,
+        ...METRIC_COLS.map((c) => r[c.key]),
+      ]);
+    }
+    const csv = [headers, ...body]
+      .map((row) => row.map(esc).join(","))
+      .join("\r\n");
+    const slug =
+      campaign.replace(/[^a-z0-9]+/gi, "-").replace(/^-+|-+$/g, "").toLowerCase() ||
+      "campaign";
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${slug}-${mode === "day" ? "by-day" : "records"}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
 
   if (records.length === 0) {
     return (
@@ -159,11 +211,21 @@ export function CampaignRecordsTable({
             </button>
           ))}
         </div>
-        <span className="text-[11px] text-ink-3 num">
-          {mode === "raw"
-            ? `${records.length}${truncated ? "+" : ""} records`
-            : `${byDay.length} days`}
-        </span>
+        <div className="flex items-center gap-3">
+          <span className="text-[11px] text-ink-3 num">
+            {mode === "raw"
+              ? `${records.length}${truncated ? "+" : ""} records`
+              : `${byDay.length} days`}
+          </span>
+          <button
+            type="button"
+            onClick={downloadCsv}
+            className="h-7 px-2.5 inline-flex items-center gap-1.5 rounded-md border border-line text-[11px] text-ink-2 hover:text-ink hover:bg-surface-2 transition-colors"
+          >
+            <Download className="w-3.5 h-3.5" />
+            CSV
+          </button>
+        </div>
       </div>
 
       <div className="max-h-[60vh] overflow-auto rounded-lg border border-line bg-surface">
