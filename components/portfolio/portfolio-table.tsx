@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useMemo } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ArrowDown, ArrowUp } from "lucide-react";
 import { int, isoDate, pct, ratio, usd } from "@/lib/format";
 import { PLATFORM_COLOR, PLATFORM_LABEL } from "@/lib/palette";
@@ -54,10 +54,32 @@ const DASH = "—";
 const fUsd = (v: number | null) => (v === null ? DASH : usd(v));
 const fRatio = (v: number | null) => (v === null ? DASH : `${ratio(v)}×`);
 
-export function PortfolioTable({ rows }: { rows: PortfolioCampaignRow[] }) {
+const SORT_KEYS = new Set<string>(COLS.filter((c) => c.sortable).map((c) => c.key));
+
+/** Hideable columns (everything but the identity column) — for a Columns control. */
+export const CAMPAIGN_TABLE_COLUMNS = COLS.filter((c) => c.key !== "campaign").map(
+  (c) => ({ key: c.key, label: c.label }),
+);
+
+export function PortfolioTable({
+  rows,
+  sort = "spend",
+  dir: dirProp = "desc",
+  hidden = [],
+}: {
+  rows: PortfolioCampaignRow[];
+  sort?: string;
+  dir?: "asc" | "desc";
+  hidden?: string[];
+}) {
   const router = useRouter();
-  const [sortKey, setSortKey] = useState<SortKey>("spend");
-  const [dir, setDir] = useState<"asc" | "desc">("desc");
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  const sortKey = (SORT_KEYS.has(sort) ? sort : "spend") as SortKey;
+  const dir: "asc" | "desc" = dirProp === "asc" ? "asc" : "desc";
+  const hiddenSet = useMemo(() => new Set(hidden), [hidden]);
+  const cols = useMemo(() => COLS.filter((c) => !hiddenSet.has(c.key)), [hiddenSet]);
 
   const sorted = useMemo(() => {
     const copy = [...rows];
@@ -107,12 +129,18 @@ export function PortfolioTable({ rows }: { rows: PortfolioCampaignRow[] }) {
   }, [rows]);
 
   const toggleSort = (key: SortKey) => {
-    if (key === sortKey) {
-      setDir((d) => (d === "asc" ? "desc" : "asc"));
-    } else {
-      setSortKey(key);
-      setDir(key === "campaign" ? "asc" : "desc");
-    }
+    const nextDir =
+      key === sortKey
+        ? dir === "asc"
+          ? "desc"
+          : "asc"
+        : key === "campaign"
+          ? "asc"
+          : "desc";
+    const next = new URLSearchParams(searchParams.toString());
+    next.set("sort", key);
+    next.set("dir", nextDir);
+    router.push(`${pathname}?${next.toString()}`, { scroll: false });
   };
 
   if (rows.length === 0) {
@@ -209,7 +237,7 @@ export function PortfolioTable({ rows }: { rows: PortfolioCampaignRow[] }) {
       <table className="min-w-[1180px] w-full text-sm num">
         <thead className="sticky top-0 z-10 bg-surface">
           <tr className="text-[11px] uppercase tracking-[0.12em] text-ink-3 border-b border-line">
-            {COLS.map((c) => (
+            {cols.map((c) => (
               <th
                 key={c.key}
                 className={cn(
@@ -250,7 +278,7 @@ export function PortfolioTable({ rows }: { rows: PortfolioCampaignRow[] }) {
               onClick={() => router.push(`/campaigns/${encodeURIComponent(r.campaign)}`)}
               className="hover:bg-surface-2/60 transition-colors cursor-pointer"
             >
-              {COLS.map((c) => (
+              {cols.map((c) => (
                 <td
                   key={c.key}
                   className={cn(
@@ -268,7 +296,7 @@ export function PortfolioTable({ rows }: { rows: PortfolioCampaignRow[] }) {
         </tbody>
         <tfoot className="sticky bottom-0 z-10 bg-surface">
           <tr className="border-t border-line-2 text-ink font-medium">
-            {COLS.map((c) => (
+            {cols.map((c) => (
               <td
                 key={c.key}
                 className={cn(

@@ -41,6 +41,15 @@ export const portfolioFiltersSchema = z.object({
     .string()
     .optional()
     .transform((s) => s === "1" || s === "true"),
+  // Rich-table state (the campaigns table reads these from the URL so saved
+  // views capture sort + hidden columns). Unknown values fall back in the table.
+  sort: z.string().max(24).optional().catch(undefined),
+  dir: z.enum(["asc", "desc"]).optional().catch(undefined),
+  hide: z
+    .string()
+    .optional()
+    .transform((s) => (s ? s.split(",").filter(Boolean) : []))
+    .catch([]),
 });
 
 export type PortfolioFiltersInput = z.infer<typeof portfolioFiltersSchema>;

@@ -21,6 +21,10 @@ interface Props {
   views: SummaryViewRow[];
   currentUserId: string;
   isAdmin: boolean;
+  /** View namespace — views are saved/listed per (user, page). */
+  page?: string;
+  /** Label for the "clear / ignore default" escape (noun varies per page). */
+  clearLabel?: string;
 }
 
 /** Non-filter params that shouldn't be saved into or compared against a view. */
@@ -54,7 +58,13 @@ function cleanQuery(s: string): string {
  * string, so whatever filters/columns/sort exist now or later are captured
  * automatically.
  */
-export function ViewsControl({ views, currentUserId, isAdmin }: Props) {
+export function ViewsControl({
+  views,
+  currentUserId,
+  isAdmin,
+  page = "summary",
+  clearLabel = "Show all creatives (ignore default)",
+}: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -96,7 +106,7 @@ export function ViewsControl({ views, currentUserId, isAdmin }: Props) {
       const res = await createSummaryView({
         name: trimmed,
         query: savableQuery,
-        page: "summary",
+        page,
       });
       if (!res.ok) {
         toast.error(res.error ?? "Could not save view");
@@ -291,9 +301,7 @@ export function ViewsControl({ views, currentUserId, isAdmin }: Props) {
               className="inline-flex items-center gap-1 text-[11px] text-ink-3 hover:text-ink transition-colors px-1"
             >
               <X className="w-3 h-3" />
-              {hasDefault
-                ? "Show all creatives (ignore default)"
-                : "Clear view"}
+              {hasDefault ? clearLabel : "Clear view"}
             </button>
           )}
         </div>
