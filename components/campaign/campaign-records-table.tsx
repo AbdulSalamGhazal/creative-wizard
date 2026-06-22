@@ -1,8 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ArrowDown, ArrowUp, Download } from "lucide-react";
+import { Download } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { DataTable, type DataColumn } from "@/components/ui/data-table";
 import { int, usd } from "@/lib/format";
 import { PLATFORM_COLOR, PLATFORM_LABEL } from "@/lib/palette";
 import { cn } from "@/lib/utils";
@@ -48,11 +49,7 @@ const fmtMetric = (v: number | null, money?: boolean) =>
 
 type SortVal = string | number | null;
 
-function sortRows<T>(
-  rows: T[],
-  getVal: (r: T) => SortVal,
-  dir: SortDir,
-): T[] {
+function sortRows<T>(rows: T[], getVal: (r: T) => SortVal, dir: SortDir): T[] {
   return [...rows].sort((a, b) => {
     const av = getVal(a);
     const bv = getVal(b);
@@ -78,14 +75,7 @@ export function CampaignRecordsTable({
   const [mode, setMode] = useState<Mode>("raw");
   const [sortKey, setSortKey] = useState<string>("date");
   const [dir, setDir] = useState<SortDir>(-1);
-
-  const onSort = (key: string) => {
-    if (key === sortKey) setDir((d) => (d === 1 ? -1 : 1));
-    else {
-      setSortKey(key);
-      setDir(-1);
-    }
-  };
+  const [order, setOrder] = useState<string[]>([]);
 
   const getVal = (r: CampaignRecordRow | CampaignDayRow, key: string): SortVal => {
     if (key === "date") return r.date;
@@ -95,6 +85,8 @@ export function CampaignRecordsTable({
     return (r as unknown as Record<string, number | null>)[key] ?? null;
   };
 
+  // The wrapper owns the sort (so the CSV can export exactly what's shown); the
+  // DataTable just renders the already-sorted rows + drives header clicks.
   const sortedRecords = useMemo(
     () => sortRows(records, (r) => getVal(r, sortKey), dir),
     [records, sortKey, dir],
@@ -106,8 +98,6 @@ export function CampaignRecordsTable({
 
   const truncated = records.length >= 2000;
 
-  // Export exactly what's shown — active view (record / day) + current sort —
-  // with raw numeric values (no $/commas) so the CSV opens clean in a sheet.
   const downloadCsv = () => {
     const esc = (v: string | number | null | boolean): string => {
       if (v === null || v === undefined) return "";
@@ -117,13 +107,7 @@ export function CampaignRecordsTable({
     let headers: string[];
     let body: Array<Array<string | number | null | boolean>>;
     if (mode === "raw") {
-      headers = [
-        "Date",
-        "Creative",
-        "Platform",
-        ...METRIC_COLS.map((c) => c.label),
-        "Excluded",
-      ];
+      headers = ["Date", "Creative", "Platform", ...METRIC_COLS.map((c) => c.label), "Excluded"];
       body = sortedRecords.map((r) => [
         r.date,
         r.creativeName,
@@ -133,18 +117,11 @@ export function CampaignRecordsTable({
       ]);
     } else {
       headers = ["Date", "Rows", ...METRIC_COLS.map((c) => c.label)];
-      body = sortedDays.map((r) => [
-        r.date,
-        r.records,
-        ...METRIC_COLS.map((c) => r[c.key]),
-      ]);
+      body = sortedDays.map((r) => [r.date, r.records, ...METRIC_COLS.map((c) => r[c.key])]);
     }
-    const csv = [headers, ...body]
-      .map((row) => row.map(esc).join(","))
-      .join("\r\n");
+    const csv = [headers, ...body].map((row) => row.map(esc).join(",")).join("\r\n");
     const slug =
-      campaign.replace(/[^a-z0-9]+/gi, "-").replace(/^-+|-+$/g, "").toLowerCase() ||
-      "campaign";
+      campaign.replace(/[^a-z0-9]+/gi, "-").replace(/^-+|-+$/g, "").toLowerCase() || "campaign";
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -156,6 +133,92 @@ export function CampaignRecordsTable({
     URL.revokeObjectURL(url);
   };
 
+  const metricColumns = <T,>(): DataColumn<T>[] =>
+    METRIC_COLS.map((c) => ({
+      key: c.key,
+      label: c.label,
+      align: "right" as const,
+      sortable: true,
+      render: (r: T) =>
+        fmtMetric((r as unknown as Record<string, number | null>)[c.key] ?? null, c.money),
+    }));
+
+  const rawColumns: DataColumn<CampaignRecordRow>[] = [
+    {
+      key: "date",
+      label: "Date",
+      align: "left",
+      sortable: true,
+      pinned: true,
+      defaultSortDir: "desc",
+      render: (r) => <span className="tabular-nums">{r.date}</span>,
+    },
+    {
+      key: "creativeName",
+      label: "Creative",
+      align: "left",
+      sortable: true,
+      render: (r) => (
+        <span className="flex items-center gap-1.5 min-w-0">
+          <span className="block truncate max-w-[14rem] font-mono text-[12px]" title={r.creativeName}>
+            {r.creativeName}
+          </span>
+          {r.excludedFromAggregates && (
+            <Badge variant="outline" className="text-[9px] border-line-2 text-ink-3">
+              excl
+            </Badge>
+          )}
+        </span>
+      ),
+    },
+    {
+      key: "platform",
+      label: "Platform",
+      align: "left",
+      sortable: true,
+      render: (r) => (
+        <span className="inline-flex items-center gap-1.5 whitespace-nowrap text-xs">
+          <span className="w-2 h-2 rounded-sm" style={{ background: PLATFORM_COLOR[r.platform] }} />
+          {PLATFORM_LABEL[r.platform]}
+        </span>
+      ),
+    },
+    ...metricColumns<CampaignRecordRow>(),
+  ];
+
+  const dayColumns: DataColumn<CampaignDayRow>[] = [
+    {
+      key: "date",
+      label: "Date",
+      align: "left",
+      sortable: true,
+      pinned: true,
+      defaultSortDir: "desc",
+      render: (r) => <span className="tabular-nums">{r.date}</span>,
+    },
+    {
+      key: "records",
+      label: "Rows",
+      align: "right",
+      sortable: true,
+      render: (r) => <span className="text-ink-3">{r.records}</span>,
+    },
+    ...metricColumns<CampaignDayRow>(),
+  ];
+
+  const onSort = (key: string, d: "asc" | "desc") => {
+    setSortKey(key);
+    setDir(d === "asc" ? 1 : -1);
+  };
+  const sharedProps = {
+    sort: sortKey,
+    dir: (dir === 1 ? "asc" : "desc") as "asc" | "desc",
+    onSort,
+    order,
+    onReorder: setOrder,
+    minWidthClass: "min-w-[1100px]",
+  };
+
   if (records.length === 0) {
     return (
       <div className="rounded-lg border border-dashed border-line bg-surface px-6 py-10 text-center text-ink-3 text-sm">
@@ -163,30 +226,6 @@ export function CampaignRecordsTable({
       </div>
     );
   }
-
-  const Th = ({
-    label,
-    sortK,
-    align = "right",
-  }: {
-    label: string;
-    sortK: string;
-    align?: "left" | "right";
-  }) => (
-    <th
-      className={cn(
-        "font-medium px-3 py-2.5 bg-surface whitespace-nowrap select-none cursor-pointer hover:text-ink",
-        align === "right" ? "text-right" : "text-left",
-      )}
-      onClick={() => onSort(sortK)}
-    >
-      <span className={cn("inline-flex items-center gap-1", align === "right" && "flex-row-reverse")}>
-        {label}
-        {sortKey === sortK &&
-          (dir === 1 ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
-      </span>
-    </th>
-  );
 
   return (
     <div className="space-y-2">
@@ -228,88 +267,22 @@ export function CampaignRecordsTable({
         </div>
       </div>
 
-      <div className="max-h-[60vh] overflow-auto rounded-lg border border-line bg-surface">
-        <table className="w-full text-sm num">
-          <thead className="sticky top-0 z-10 bg-surface">
-            <tr className="text-[11px] uppercase tracking-[0.12em] text-ink-3 border-b border-line">
-              <Th label="Date" sortK="date" align="left" />
-              {mode === "raw" ? (
-                <>
-                  <Th label="Creative" sortK="creativeName" align="left" />
-                  <Th label="Platform" sortK="platform" align="left" />
-                </>
-              ) : (
-                <Th label="Rows" sortK="records" />
-              )}
-              {METRIC_COLS.map((c) => (
-                <Th key={c.key} label={c.label} sortK={c.key} />
-              ))}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-line">
-            {mode === "raw"
-              ? sortedRecords.map((r) => (
-                  <tr
-                    key={r.id}
-                    className={cn(
-                      "hover:bg-surface-2/50 transition-colors",
-                      r.excludedFromAggregates && "opacity-55",
-                    )}
-                  >
-                    <td className="px-3 py-2 text-ink-2 tabular-nums whitespace-nowrap">
-                      {r.date}
-                    </td>
-                    <td className="px-3 py-2">
-                      <span className="flex items-center gap-1.5 min-w-0">
-                        <span
-                          className="block truncate max-w-[14rem] font-mono text-[12px] text-ink-2"
-                          title={r.creativeName}
-                        >
-                          {r.creativeName}
-                        </span>
-                        {r.excludedFromAggregates && (
-                          <Badge variant="outline" className="text-[9px] border-line-2 text-ink-3">
-                            excl
-                          </Badge>
-                        )}
-                      </span>
-                    </td>
-                    <td className="px-3 py-2">
-                      <span className="inline-flex items-center gap-1.5 text-ink-2 whitespace-nowrap text-xs">
-                        <span
-                          className="w-2 h-2 rounded-sm"
-                          style={{ background: PLATFORM_COLOR[r.platform] }}
-                        />
-                        {PLATFORM_LABEL[r.platform]}
-                      </span>
-                    </td>
-                    {METRIC_COLS.map((c) => (
-                      <td key={c.key} className="px-3 py-2 text-right text-ink-2 tabular-nums">
-                        {fmtMetric(r[c.key], c.money)}
-                      </td>
-                    ))}
-                  </tr>
-                ))
-              : sortedDays.map((r) => (
-                  <tr key={r.date} className="hover:bg-surface-2/50 transition-colors">
-                    <td className="px-3 py-2 text-ink-2 tabular-nums whitespace-nowrap">
-                      {r.date}
-                    </td>
-                    <td className="px-3 py-2 text-right text-ink-3 tabular-nums">{r.records}</td>
-                    {METRIC_COLS.map((c) => (
-                      <td key={c.key} className="px-3 py-2 text-right text-ink-2 tabular-nums">
-                        {fmtMetric(r[c.key], c.money)}
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-          </tbody>
-        </table>
-      </div>
+      {mode === "raw" ? (
+        <DataTable
+          {...sharedProps}
+          columns={rawColumns}
+          rows={sortedRecords}
+          rowKey={(r) => String(r.id)}
+          rowClassName={(r) => (r.excludedFromAggregates ? "opacity-55" : "")}
+        />
+      ) : (
+        <DataTable {...sharedProps} columns={dayColumns} rows={sortedDays} rowKey={(r) => r.date} />
+      )}
+
       {truncated && mode === "raw" && (
         <p className="text-[10px] text-ink-3">
-          Showing the first 2,000 records. Switch to “By day” for the full
-          window, or narrow the date range.
+          Showing the first 2,000 records. Switch to “By day” for the full window, or narrow the
+          date range.
         </p>
       )}
     </div>

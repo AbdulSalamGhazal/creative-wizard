@@ -44,6 +44,7 @@ export function DataTable<T>({
   onSort,
   onReorder,
   onRowClick,
+  rowClassName,
   showTotals = false,
   minWidthClass = "min-w-[960px]",
   empty,
@@ -58,6 +59,8 @@ export function DataTable<T>({
   onSort?: (key: string, dir: "asc" | "desc") => void;
   onReorder?: (order: string[]) => void;
   onRowClick?: (row: T) => void;
+  /** Extra classes per row (e.g. dim excluded rows). */
+  rowClassName?: (row: T) => string;
   showTotals?: boolean;
   minWidthClass?: string;
   empty?: React.ReactNode;
@@ -264,6 +267,7 @@ export function DataTable<T>({
               className={cn(
                 "group hover:bg-surface-2/60 transition-colors",
                 onRowClick && "cursor-pointer",
+                rowClassName?.(r),
               )}
             >
               {cols.map((c, i) => (
