@@ -14,6 +14,8 @@ import {
 import { intCompact, pct, ratio, usd, usdCompact } from "@/lib/format";
 import { seriesColor } from "@/lib/palette";
 import { cn } from "@/lib/utils";
+import { MetricPicker } from "@/components/charts/metric-picker";
+import { SeriesLegend } from "@/components/charts/series-legend";
 import type { CampaignCreativeDailyPoint } from "@/db/queries/campaign";
 
 type MetricKey =
@@ -162,18 +164,11 @@ export function CampaignCreativeChart({
     <div className="flex items-start justify-between flex-wrap gap-3 mb-3">
       <div className="flex items-center gap-2">
         <h3 className="text-sm text-ink-2">By creative over time</h3>
-        <select
+        <MetricPicker
+          options={METRICS.map((m) => ({ value: m.key, label: m.label }))}
           value={metric}
-          onChange={(e) => setMetric(e.target.value as MetricKey)}
-          className="h-7 rounded-md border border-line bg-surface-2 px-2 text-[11px] text-ink"
-          aria-label="Metric"
-        >
-          {METRICS.map((m) => (
-            <option key={m.key} value={m.key}>
-              {m.label}
-            </option>
-          ))}
-        </select>
+          onChange={setMetric}
+        />
       </div>
       <div className="flex items-center gap-2 shrink-0">
         <button
@@ -204,32 +199,16 @@ export function CampaignCreativeChart({
   );
 
   const legend = (
-    <div className="flex flex-wrap gap-1.5 mb-2">
-      {creatives.map((c) => {
-        const on = shown.has(c.creativeId);
-        return (
-          <button
-            key={c.creativeId}
-            type="button"
-            onClick={() => toggle(c.creativeId)}
-            aria-pressed={on}
-            title={c.name}
-            className={cn(
-              "inline-flex items-center gap-1.5 h-6 px-2 rounded-md border text-[11px] max-w-[14rem] transition-colors",
-              on
-                ? "border-line bg-surface-2 text-ink"
-                : "border-line text-ink-3 hover:text-ink line-through opacity-60",
-            )}
-          >
-            <span
-              className="h-2 w-2 rounded-full shrink-0"
-              style={{ background: color(c.creativeId) }}
-            />
-            <span className="truncate">{c.name}</span>
-          </button>
-        );
-      })}
-    </div>
+    <SeriesLegend
+      className="mb-2"
+      items={creatives.map((c) => ({
+        key: c.creativeId,
+        label: c.name,
+        color: color(c.creativeId),
+      }))}
+      shown={shown}
+      onToggle={toggle}
+    />
   );
 
   const chart = (

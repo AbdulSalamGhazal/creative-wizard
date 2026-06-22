@@ -10,13 +10,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { MetricPicker } from "@/components/charts/metric-picker";
 import { usd, int, ratio } from "@/lib/format";
 import { useChartFit, ChartFitToggle } from "@/components/charts/chart-fit";
 import type { MetricOverTimeRow } from "@/db/queries/performance";
@@ -145,18 +139,11 @@ export function MetricOverTimeChart({ rows, keys, dimension, dimensionLabel }: P
       {/* Header: metric picker + dimension hint */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-2">
-          <Select value={metric} onValueChange={(v) => setMetric(v as MetricKey)}>
-            <SelectTrigger className="h-8 w-[150px] text-sm font-medium">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {METRICS.map((m) => (
-                <SelectItem key={m.value} value={m.value} className="text-sm">
-                  {m.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <MetricPicker
+            options={METRICS.map((m) => ({ value: m.value, label: m.label }))}
+            value={metric}
+            onChange={setMetric}
+          />
           <span className="text-sm text-ink-2">over time</span>
         </div>
         {dimension === "campaign" && (

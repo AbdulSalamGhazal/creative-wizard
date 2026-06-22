@@ -13,6 +13,7 @@ import {
 } from "recharts";
 import { pct } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { SeriesLegend } from "@/components/charts/series-legend";
 import type { FunnelDailyPoint } from "@/db/queries/funnel";
 
 type MetricKey = "ctr" | "voc" | "atcRate" | "apRate" | "purchaseRate" | "cvr";
@@ -187,31 +188,12 @@ export function FunnelTrendChart({
   );
 
   const legend = (
-    <div className="flex flex-wrap gap-1.5 mb-2">
-      {METRICS.map((m) => {
-        const on = shown.has(m.key);
-        return (
-          <button
-            key={m.key}
-            type="button"
-            onClick={() => toggle(m.key)}
-            aria-pressed={on}
-            className={cn(
-              "inline-flex items-center gap-1.5 h-6 px-2 rounded-md border text-[11px] transition-colors",
-              on
-                ? "border-line bg-surface-2 text-ink"
-                : "border-line text-ink-3 hover:text-ink line-through opacity-60",
-            )}
-          >
-            <span
-              className="h-2 w-2 rounded-full shrink-0"
-              style={{ background: m.color }}
-            />
-            {m.label}
-          </button>
-        );
-      })}
-    </div>
+    <SeriesLegend
+      className="mb-2"
+      items={METRICS.map((m) => ({ key: m.key, label: m.label, color: m.color }))}
+      shown={shown}
+      onToggle={(k) => toggle(k as MetricKey)}
+    />
   );
 
   const chart = (

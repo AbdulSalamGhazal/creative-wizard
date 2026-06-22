@@ -12,7 +12,7 @@ import {
 } from "recharts";
 import { ALL_PLATFORMS, PLATFORM_LABEL, TYPE_COLOR, TYPE_LABEL } from "@/lib/palette";
 import { int, pct, ratio, usd } from "@/lib/format";
-import { cn } from "@/lib/utils";
+import { MetricPicker } from "@/components/charts/metric-picker";
 import type { TypeRollupRow } from "@/db/queries/trends";
 
 type Metric = "spend" | "impressions" | "roas" | "ctr" | "cvr" | "cpc" | "cpa";
@@ -92,21 +92,11 @@ export function TypePlatformChart({ rows }: { rows: TypeRollupRow[] }) {
             </span>
           ))}
         </div>
-        <div className="inline-flex items-center rounded-md border border-line bg-surface-2 p-0.5 text-xs">
-          {METRIC_ORDER.map((key) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => setMetric(key)}
-              className={cn(
-                "px-2.5 h-7 rounded transition-colors",
-                metric === key ? "bg-surface-3 text-ink" : "text-ink-3 hover:text-ink",
-              )}
-            >
-              {METRICS[key].label}
-            </button>
-          ))}
-        </div>
+        <MetricPicker
+          options={METRIC_ORDER.map((key) => ({ value: key, label: METRICS[key].label }))}
+          value={metric}
+          onChange={setMetric}
+        />
       </div>
 
       <div className="h-72">
