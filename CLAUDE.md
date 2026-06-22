@@ -311,3 +311,34 @@ This app is deployed and in production use. Treat `main` as shippable.
   field that isn't described everywhere (verified by injecting a probe field →
   5 adapter errors + 1 FIELD_META error). New optional metrics go in
   `FIELD_META` with `required: false` so existing uploads keep validating.
+- **Shared UI primitives — DO NOT re-implement these per surface.** A
+  consistency pass unified table + chart-control patterns that had drifted
+  (each page had grown its own). Use them for any new table/chart:
+  - **Tables → `components/ui/data-table.tsx` (`DataTable<T>`).** The canonical
+    flat-column table: controlled sort (`sort`/`dir` + `onSort`), drag-grip
+    reorder (`order` + `onReorder`), drag-edge resize (internal/ephemeral),
+    externally-controlled column visibility (`hidden`), Summary-style borders
+    (`border-l` between columns + `divide-y` rows), sticky header/footer +
+    sticky pinned first column, optional totals (`showTotals`), `onRowClick`,
+    `rowClassName`. Columns are a typed config (`DataColumn<T>`:
+    key/label/align/sortable/pinned/render/total/sortValue/defaultSortDir). The
+    consumer owns sort/order/hidden state and backs it with the URL (for saved
+    views — see the campaigns table) **or** local state (detail tables). On it:
+    the **Campaigns** table (`portfolio-table.tsx`, URL-backed + views),
+    **By-tag** (`tag-rollup-table.tsx`), **Video** (`video-diagnostics-table.tsx`),
+    and the **campaign row-data** table (`campaign-records-table.tsx`). The
+    Columns dropdown lives in each consumer's toolbar and drives `hidden`.
+  - **THE ONE EXCEPTION: the Summary table** (`summary-table.tsx`) is NOT on
+    DataTable and shouldn't be forced onto it — its columns are per-platform
+    GROUPS (a grouped header row), not flat columns, so it reorders/hides at the
+    group level. It already shares the same visual language (borders, sort
+    arrows, resize handle) — DataTable's border style was derived from it. Leave
+    its structure; only keep the look in sync.
+  - **Chart metric pick → `components/charts/metric-picker.tsx` (`MetricPicker`)**
+    — one segmented control (wraps when many options). Replaced the old mix of
+    native `<select>`, shadcn `<Select>`, and ad-hoc pill/segment groups. On it:
+    campaign creative chart, trends type×platform, metric-over-time,
+    creative-perf-line.
+  - **Chart series legend → `components/charts/series-legend.tsx`
+    (`SeriesLegend`)** — one toggle-chip legend for show/hide series (funnel rate
+    lines, campaign creative lines).

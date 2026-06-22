@@ -12,7 +12,7 @@ import {
 import { useMemo, useState } from "react";
 import { ALL_PLATFORMS, PLATFORM_COLOR, PLATFORM_LABEL } from "@/lib/palette";
 import { int, intCompact, pct, ratio, usd, usdCompact } from "@/lib/format";
-import { cn } from "@/lib/utils";
+import { MetricPicker } from "@/components/charts/metric-picker";
 import { useChartFit, ChartFitToggle } from "@/components/charts/chart-fit";
 import type { DailyMetricRow } from "@/db/queries/performance";
 
@@ -120,27 +120,12 @@ export function CreativePerfLineChart({
           their own). */}
       <div className="flex items-start justify-between gap-x-4 gap-y-2">
         <h3 className="text-sm font-medium text-ink shrink-0 leading-7">{title}</h3>
-        <div className="flex flex-wrap justify-end gap-1.5">
-          {METRICS.map((m) => {
-            const active = m.key === metricKey;
-            return (
-              <button
-                key={m.key}
-                type="button"
-                onClick={() => setMetricKey(m.key)}
-                aria-pressed={active}
-                className={cn(
-                  "h-7 px-3 rounded-md text-xs border transition-colors",
-                  active
-                    ? "border-brand/50 bg-[var(--brand-soft)] text-ink font-medium"
-                    : "border-line text-ink-2 hover:text-ink hover:bg-surface-2",
-                )}
-              >
-                {m.label}
-              </button>
-            );
-          })}
-        </div>
+        <MetricPicker
+          className="justify-end"
+          options={METRICS.map((m) => ({ value: m.key, label: m.label }))}
+          value={metricKey}
+          onChange={setMetricKey}
+        />
       </div>
 
       {data.length === 0 ? (
