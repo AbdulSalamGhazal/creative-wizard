@@ -97,17 +97,20 @@ export function PortfolioTable({
     const renderCell = (r: PortfolioCampaignRow, key: string): React.ReactNode => {
       switch (key) {
         case "campaign":
-          return <span className="text-ink truncate block max-w-[260px]">{r.campaign}</span>;
+          // No width cap — the (resizable) column governs how much shows, so the
+          // full name is visible by default and widening reveals the rest.
+          return <span className="text-ink">{r.campaign}</span>;
         case "platforms":
           return (
-            <span className="inline-flex items-center gap-1">
+            <span className="inline-flex items-center gap-2">
               {r.platforms.map((p) => (
-                <span
-                  key={p}
-                  className="w-2 h-2 rounded-full"
-                  style={{ background: PLATFORM_COLOR[p] }}
-                  title={PLATFORM_LABEL[p]}
-                />
+                <span key={p} className="inline-flex items-center gap-1.5 whitespace-nowrap">
+                  <span
+                    className="w-2 h-2 rounded-full shrink-0"
+                    style={{ background: PLATFORM_COLOR[p] }}
+                  />
+                  <span className="text-ink-2">{PLATFORM_LABEL[p]}</span>
+                </span>
               ))}
             </span>
           );
