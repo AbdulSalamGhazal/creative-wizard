@@ -11,6 +11,7 @@ import {
   YAxis,
 } from "recharts";
 import { MetricPicker } from "@/components/charts/metric-picker";
+import { SeriesLegend } from "@/components/charts/series-legend";
 import { ChartShell, ExpandButton, SmoothToggle } from "@/components/charts/chart-shell";
 import { smoothColumns } from "@/lib/chart-smooth";
 import { usd, int, ratio } from "@/lib/format";
@@ -90,6 +91,9 @@ interface PivotRow {
 export function MetricOverTimeChart({ rows, keys, dimension, dimensionLabel }: Props) {
   const [metric, setMetric] = useState<MetricKey>("spend");
   const [smooth, setSmooth] = useState(false);
+  // Track which series are hidden (toggled off via the legend). A hidden-set
+  // (not a shown-set) means series that appear later default to shown.
+  const [hidden, setHidden] = useState<Set<string>>(() => new Set());
   const def = METRICS.find((m) => m.value === metric) ?? METRICS[0]!;
   // Recharts resolves a STRING dataKey through lodash get(), which treats "." /
   // "[" / "]" as a nested path — so a campaign name like "2.0 Launch ➤ Broad"
@@ -108,6 +112,17 @@ export function MetricOverTimeChart({ rows, keys, dimension, dimensionLabel }: P
     () => new Map(safeKeys.map((k) => [k.id, k.label])),
     [safeKeys],
   );
+  const shown = useMemo(
+    () => new Set(keys.filter((k) => !hidden.has(k.key)).map((k) => k.key)),
+    [keys, hidden],
+  );
+  const toggle = (key: string) =>
+    setHidden((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
 
   const data = useMemo<PivotRow[]>(() => {
     if (rows.length === 0) return [];
@@ -130,16 +145,18 @@ export function MetricOverTimeChart({ rows, keys, dimension, dimensionLabel }: P
     [smooth, data, safeKeys],
   );
 
-  // Robust Y-axis: cap a lone anomaly spike so the rest stays readable.
+  // Robust Y-axis: cap a lone anomaly spike so the rest stays readable. Only
+  // the visible series count, so hiding the spike rescales to fill the space.
   const yValues = useMemo(() => {
     const out: number[] = [];
     for (const row of display)
       for (const k of safeKeys) {
+        if (hidden.has(k.key)) continue;
         const v = row[k.id];
         if (typeof v === "number") out.push(v);
       }
     return out;
-  }, [display, safeKeys]);
+  }, [display, safeKeys, hidden]);
   const fit = useChartFit(yValues);
 
   return (
@@ -167,23 +184,13 @@ export function MetricOverTimeChart({ rows, keys, dimension, dimensionLabel }: P
             </div>
           </div>
 
-          {/* Legend */}
+          {/* Legend — click a series to hide it */}
           {keys.length > 0 && (
-            <div className="flex flex-wrap gap-x-3 gap-y-1">
-              {keys.map((k) => (
-                <span
-                  key={k.key}
-                  className="inline-flex items-center gap-1.5 text-[11px] text-ink-3 max-w-[180px]"
-                  title={k.label}
-                >
-                  <span
-                    className="h-2 w-2 rounded-full shrink-0"
-                    style={{ background: k.color }}
-                  />
-                  <span className="truncate">{k.label}</span>
-                </span>
-              ))}
-            </div>
+            <SeriesLegend
+              items={keys.map((k) => ({ key: k.key, label: k.label, color: k.color }))}
+              shown={shown}
+              onToggle={toggle}
+            />
           )}
 
           {display.length === 0 ? (
@@ -225,19 +232,21 @@ export function MetricOverTimeChart({ rows, keys, dimension, dimensionLabel }: P
                       />
                     }
                   />
-                  {safeKeys.map((k) => (
-                    <Line
-                      key={k.id}
-                      type="monotone"
-                      dataKey={k.id}
-                      stroke={k.color}
-                      strokeWidth={1.8}
-                      dot={false}
-                      activeDot={{ r: 4 }}
-                      connectNulls={false}
-                      isAnimationActive={false}
-                    />
-                  ))}
+                  {safeKeys
+                    .filter((k) => !hidden.has(k.key))
+                    .map((k) => (
+                      <Line
+                        key={k.id}
+                        type="monotone"
+                        dataKey={k.id}
+                        stroke={k.color}
+                        strokeWidth={1.8}
+                        dot={false}
+                        activeDot={{ r: 4 }}
+                        connectNulls={false}
+                        isAnimationActive={false}
+                      />
+                    ))}
                 </LineChart>
               </ResponsiveContainer>
             </div>
