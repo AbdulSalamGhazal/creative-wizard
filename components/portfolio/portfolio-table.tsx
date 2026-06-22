@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { ArrowDown, ArrowUp } from "lucide-react";
+import { ArrowDown, ArrowUp, GripVertical } from "lucide-react";
 import { int, isoDate, pct, ratio, usd } from "@/lib/format";
 import { PLATFORM_COLOR, PLATFORM_LABEL } from "@/lib/palette";
 import { cn } from "@/lib/utils";
@@ -25,8 +25,10 @@ type SortKey =
   | "cvr"
   | "lastDate";
 
+type ColKey = SortKey | "platforms";
+
 interface Col {
-  key: SortKey | "platforms";
+  key: ColKey;
   label: string;
   align: Align;
   sortable: boolean;
@@ -50,27 +52,50 @@ const COLS: Col[] = [
   { key: "lastDate", label: "Last", align: "right", sortable: true },
 ];
 
+/** The first column is the pinned identity — not hideable, not reorderable. */
+const IDENTITY: ColKey = "campaign";
 const DASH = "—";
+const MIN_W = 64;
+
 const fUsd = (v: number | null) => (v === null ? DASH : usd(v));
 const fRatio = (v: number | null) => (v === null ? DASH : `${ratio(v)}×`);
 
 const SORT_KEYS = new Set<string>(COLS.filter((c) => c.sortable).map((c) => c.key));
 
 /** Hideable columns (everything but the identity column) — for a Columns control. */
-export const CAMPAIGN_TABLE_COLUMNS = COLS.filter((c) => c.key !== "campaign").map(
+export const CAMPAIGN_TABLE_COLUMNS = COLS.filter((c) => c.key !== IDENTITY).map(
   (c) => ({ key: c.key, label: c.label }),
 );
+
+/** Reorder the non-identity columns by the saved `order`; identity stays first. */
+function orderedColumns(order: string[]): Col[] {
+  const rest = COLS.filter((c) => c.key !== IDENTITY);
+  const byKey = new Map(rest.map((c) => [c.key as string, c]));
+  const out: Col[] = [];
+  const seen = new Set<string>();
+  for (const k of order) {
+    const col = byKey.get(k);
+    if (col && !seen.has(k)) {
+      out.push(col);
+      seen.add(k);
+    }
+  }
+  for (const col of rest) if (!seen.has(col.key)) out.push(col);
+  return [COLS.find((c) => c.key === IDENTITY)!, ...out];
+}
 
 export function PortfolioTable({
   rows,
   sort = "spend",
   dir: dirProp = "desc",
   hidden = [],
+  order = [],
 }: {
   rows: PortfolioCampaignRow[];
   sort?: string;
   dir?: "asc" | "desc";
   hidden?: string[];
+  order?: string[];
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -79,7 +104,71 @@ export function PortfolioTable({
   const sortKey = (SORT_KEYS.has(sort) ? sort : "spend") as SortKey;
   const dir: "asc" | "desc" = dirProp === "asc" ? "asc" : "desc";
   const hiddenSet = useMemo(() => new Set(hidden), [hidden]);
-  const cols = useMemo(() => COLS.filter((c) => !hiddenSet.has(c.key)), [hiddenSet]);
+  const fullOrder = useMemo(() => orderedColumns(order), [order]);
+  const cols = useMemo(
+    () => fullOrder.filter((c) => !hiddenSet.has(c.key)),
+    [fullOrder, hiddenSet],
+  );
+
+  // ── Column widths (drag to resize; ephemeral, like the Summary table) ──
+  const [widths, setWidths] = useState<Record<string, number>>({});
+  const resizing = useRef<{ key: string; startX: number; startW: number } | null>(null);
+
+  const onResizeMove = useCallback((e: MouseEvent) => {
+    const r = resizing.current;
+    if (!r) return;
+    setWidths((prev) => ({
+      ...prev,
+      [r.key]: Math.max(MIN_W, r.startW + (e.clientX - r.startX)),
+    }));
+  }, []);
+  const onResizeEnd = useCallback(() => {
+    resizing.current = null;
+    document.removeEventListener("mousemove", onResizeMove);
+    document.removeEventListener("mouseup", onResizeEnd);
+  }, [onResizeMove]);
+  const onResizeStart = useCallback(
+    (key: string, e: React.MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const th = (e.currentTarget as HTMLElement).closest("th");
+      const startW = widths[key] ?? th?.getBoundingClientRect().width ?? 120;
+      resizing.current = { key, startX: e.clientX, startW };
+      document.addEventListener("mousemove", onResizeMove);
+      document.addEventListener("mouseup", onResizeEnd);
+    },
+    [widths, onResizeMove, onResizeEnd],
+  );
+  const styleFor = (key: string): React.CSSProperties | undefined => {
+    const w = widths[key];
+    return w ? { width: w, minWidth: w, maxWidth: w } : undefined;
+  };
+
+  // ── Column reorder (drag a header by its grip; persisted in the URL) ──
+  const dragKey = useRef<string | null>(null);
+  const onDrop = (targetKey: string) => {
+    const from = dragKey.current;
+    dragKey.current = null;
+    if (!from || from === targetKey || from === IDENTITY || targetKey === IDENTITY) return;
+    const keys = fullOrder.filter((c) => c.key !== IDENTITY).map((c) => c.key as string);
+    const fi = keys.indexOf(from);
+    const ti = keys.indexOf(targetKey);
+    if (fi < 0 || ti < 0) return;
+    keys.splice(fi, 1);
+    keys.splice(ti, 0, from);
+    const next = new URLSearchParams(searchParams.toString());
+    next.set("order", keys.join(","));
+    router.push(`${pathname}?${next.toString()}`, { scroll: false });
+  };
+
+  const toggleSort = (key: SortKey) => {
+    const nextDir =
+      key === sortKey ? (dir === "asc" ? "desc" : "asc") : key === "campaign" ? "asc" : "desc";
+    const next = new URLSearchParams(searchParams.toString());
+    next.set("sort", key);
+    next.set("dir", nextDir);
+    router.push(`${pathname}?${next.toString()}`, { scroll: false });
+  };
 
   const sorted = useMemo(() => {
     const copy = [...rows];
@@ -94,7 +183,6 @@ export function PortfolioTable({
         const cmp = av < bv ? -1 : av > bv ? 1 : 0;
         return dir === "asc" ? cmp : -cmp;
       }
-      // Numeric — null treated as 0 so blanks sink to the bottom on high→low.
       const av = (a[sortKey] as number | null) ?? 0;
       const bv = (b[sortKey] as number | null) ?? 0;
       return dir === "asc" ? av - bv : bv - av;
@@ -102,7 +190,6 @@ export function PortfolioTable({
     return copy;
   }, [rows, sortKey, dir]);
 
-  // Pinned totals — sums for additive, weighted for ratios, from these rows.
   const totals = useMemo(() => {
     const t = rows.reduce(
       (acc, r) => {
@@ -128,21 +215,6 @@ export function PortfolioTable({
     };
   }, [rows]);
 
-  const toggleSort = (key: SortKey) => {
-    const nextDir =
-      key === sortKey
-        ? dir === "asc"
-          ? "desc"
-          : "asc"
-        : key === "campaign"
-          ? "asc"
-          : "desc";
-    const next = new URLSearchParams(searchParams.toString());
-    next.set("sort", key);
-    next.set("dir", nextDir);
-    router.push(`${pathname}?${next.toString()}`, { scroll: false });
-  };
-
   if (rows.length === 0) {
     return (
       <div className="h-32 flex items-center justify-center text-ink-3 text-sm border border-dashed border-line rounded-lg">
@@ -151,7 +223,7 @@ export function PortfolioTable({
     );
   }
 
-  const cell = (r: PortfolioCampaignRow, key: Col["key"]) => {
+  const cell = (r: PortfolioCampaignRow, key: ColKey) => {
     switch (key) {
       case "campaign":
         return <span className="text-ink truncate block max-w-[260px]">{r.campaign}</span>;
@@ -197,7 +269,7 @@ export function PortfolioTable({
     }
   };
 
-  const totalCell = (key: Col["key"]) => {
+  const totalCell = (key: ColKey) => {
     switch (key) {
       case "campaign":
         return <span className="text-ink-2 font-medium">Totals · weighted</span>;
@@ -232,43 +304,83 @@ export function PortfolioTable({
     }
   };
 
+  // border-l on every column after the first → full vertical grid like Summary.
+  const colBorder = (i: number) => (i > 0 ? "border-l border-line" : "");
+  const stickyId = (key: ColKey, bg: string) =>
+    key === IDENTITY ? `sticky left-0 z-10 ${bg}` : "";
+
   return (
     <div className="rounded-lg border border-line bg-surface overflow-auto max-h-[70vh]">
-      <table className="min-w-[1180px] w-full text-sm num">
-        <thead className="sticky top-0 z-10 bg-surface">
-          <tr className="text-[11px] uppercase tracking-[0.12em] text-ink-3 border-b border-line">
-            {cols.map((c) => (
-              <th
-                key={c.key}
-                className={cn(
-                  "font-medium px-3 py-2.5 whitespace-nowrap bg-surface",
-                  c.align === "right" ? "text-right" : "text-left",
-                  c.key === "campaign" && "sticky left-0 z-20 bg-surface",
-                )}
-              >
-                {c.sortable ? (
-                  <button
-                    type="button"
-                    onClick={() => toggleSort(c.key as SortKey)}
+      <table className="min-w-[1180px] w-full text-[12px] num">
+        <thead className="sticky top-0 z-20 bg-surface">
+          <tr className="text-[11px] uppercase tracking-[0.12em] text-ink-3 border-b border-line bg-surface-2/40">
+            {cols.map((c, i) => {
+              const reorderable = c.key !== IDENTITY;
+              return (
+                <th
+                  key={c.key}
+                  style={styleFor(c.key)}
+                  onDragOver={reorderable ? (e) => e.preventDefault() : undefined}
+                  onDrop={reorderable ? () => onDrop(c.key) : undefined}
+                  className={cn(
+                    "group/th relative font-medium px-3 py-2 whitespace-nowrap bg-surface-2/40",
+                    c.align === "right" ? "text-right" : "text-left",
+                    colBorder(i),
+                    stickyId(c.key, "z-30 bg-surface-2"),
+                  )}
+                >
+                  <span
                     className={cn(
-                      "inline-flex items-center gap-1 hover:text-ink transition-colors",
-                      sortKey === c.key && "text-ink",
+                      "inline-flex items-center gap-1",
                       c.align === "right" && "flex-row-reverse",
                     )}
                   >
-                    {c.label}
-                    {sortKey === c.key &&
-                      (dir === "asc" ? (
-                        <ArrowUp className="w-3 h-3" />
-                      ) : (
-                        <ArrowDown className="w-3 h-3" />
-                      ))}
-                  </button>
-                ) : (
-                  c.label
-                )}
-              </th>
-            ))}
+                    {reorderable && (
+                      <span
+                        draggable
+                        onDragStart={() => {
+                          dragKey.current = c.key;
+                        }}
+                        onDragEnd={() => {
+                          dragKey.current = null;
+                        }}
+                        title="Drag to reorder"
+                        className="cursor-grab active:cursor-grabbing text-ink-3/0 group-hover/th:text-ink-3 hover:!text-ink transition-colors"
+                      >
+                        <GripVertical className="w-3 h-3" />
+                      </span>
+                    )}
+                    {c.sortable ? (
+                      <button
+                        type="button"
+                        onClick={() => toggleSort(c.key as SortKey)}
+                        className={cn(
+                          "inline-flex items-center gap-1 hover:text-ink transition-colors",
+                          sortKey === c.key && "text-ink",
+                          c.align === "right" && "flex-row-reverse",
+                        )}
+                      >
+                        {c.label}
+                        {sortKey === c.key &&
+                          (dir === "asc" ? (
+                            <ArrowUp className="w-3 h-3" />
+                          ) : (
+                            <ArrowDown className="w-3 h-3" />
+                          ))}
+                      </button>
+                    ) : (
+                      c.label
+                    )}
+                  </span>
+                  {/* Drag-to-resize handle on the right edge */}
+                  <span
+                    onMouseDown={(e) => onResizeStart(c.key, e)}
+                    title="Drag to resize"
+                    className="absolute top-0 right-0 h-full w-1.5 cursor-col-resize select-none hover:bg-brand/40 active:bg-brand/60"
+                  />
+                </th>
+              );
+            })}
           </tr>
         </thead>
         <tbody className="divide-y divide-line">
@@ -276,16 +388,17 @@ export function PortfolioTable({
             <tr
               key={r.campaign}
               onClick={() => router.push(`/campaigns/${encodeURIComponent(r.campaign)}`)}
-              className="hover:bg-surface-2/60 transition-colors cursor-pointer"
+              className="group hover:bg-surface-2/60 transition-colors cursor-pointer"
             >
-              {cols.map((c) => (
+              {cols.map((c, i) => (
                 <td
                   key={c.key}
+                  style={styleFor(c.key)}
                   className={cn(
-                    "px-3 py-2 whitespace-nowrap text-ink-2",
+                    "px-3 py-2 whitespace-nowrap text-ink-2 overflow-hidden text-ellipsis",
                     c.align === "right" ? "text-right tabular-nums" : "text-left",
-                    c.key === "campaign" &&
-                      "sticky left-0 z-10 bg-surface group-hover:bg-surface-2",
+                    colBorder(i),
+                    stickyId(c.key, "bg-surface group-hover:bg-surface-2/60"),
                   )}
                 >
                   {cell(r, c.key)}
@@ -295,14 +408,16 @@ export function PortfolioTable({
           ))}
         </tbody>
         <tfoot className="sticky bottom-0 z-10 bg-surface">
-          <tr className="border-t border-line-2 text-ink font-medium">
-            {cols.map((c) => (
+          <tr className="border-t-2 border-line text-ink font-medium">
+            {cols.map((c, i) => (
               <td
                 key={c.key}
+                style={styleFor(c.key)}
                 className={cn(
                   "px-3 py-2.5 whitespace-nowrap bg-surface",
                   c.align === "right" ? "text-right tabular-nums" : "text-left",
-                  c.key === "campaign" && "sticky left-0 z-20 bg-surface",
+                  colBorder(i),
+                  stickyId(c.key, "z-20 bg-surface"),
                 )}
               >
                 {totalCell(c.key)}

@@ -50,6 +50,11 @@ export const portfolioFiltersSchema = z.object({
     .optional()
     .transform((s) => (s ? s.split(",").filter(Boolean) : []))
     .catch([]),
+  order: z
+    .string()
+    .optional()
+    .transform((s) => (s ? s.split(",").filter(Boolean) : []))
+    .catch([]),
 });
 
 export type PortfolioFiltersInput = z.infer<typeof portfolioFiltersSchema>;

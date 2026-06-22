@@ -12,7 +12,7 @@
  * never averaged.
  */
 
-import { and, asc, between, desc, eq, ilike, inArray, sql, type SQL } from "drizzle-orm";
+import { and, asc, between, desc, eq, ilike, inArray, or, sql, type SQL } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { creatives, performanceRecords, platformEnum } from "@/db/schema";
 import {
@@ -82,7 +82,21 @@ function baseConds(
     c.push(inArray(performanceRecords.platform, f.platforms));
   }
   if (f.q && f.q.trim()) {
-    c.push(ilike(performanceRecords.campaignName, `%${f.q.trim()}%`));
+    const like = `%${f.q.trim()}%`;
+    // Match on the campaign name OR on a creative name — and when a creative
+    // matches, keep the WHOLE campaign (every campaign that runs that creative),
+    // not just that creative's rows. So the second arm is a campaign-level IN.
+    c.push(
+      or(
+        ilike(performanceRecords.campaignName, like),
+        sql`${performanceRecords.campaignName} IN (
+          SELECT DISTINCT pr2.campaign_name
+          FROM performance_records pr2
+          JOIN creatives cr2 ON cr2.id = pr2.creative_id
+          WHERE pr2.account_id = ${acct} AND cr2.name ILIKE ${like}
+        )`,
+      )!,
+    );
   }
   return c;
 }

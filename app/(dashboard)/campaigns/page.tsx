@@ -54,6 +54,7 @@ export default async function CampaignsPage({
     sort: pickFirst(params.sort),
     dir: pickFirst(params.dir),
     hide: pickFirst(params.hide),
+    order: pickFirst(params.order),
   });
 
   // Explicit URL range wins; otherwise the saved default; otherwise last-7.
@@ -104,6 +105,7 @@ export default async function CampaignsPage({
         sort={parsed.sort}
         dir={parsed.dir}
         hidden={parsed.hide}
+        order={parsed.order}
       />
     </div>
   );
