@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { Maximize2, X } from "lucide-react";
+import { useMemo, useState } from "react";
 import {
   CartesianGrid,
   Line,
@@ -14,6 +13,8 @@ import {
 import { pct } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { SeriesLegend } from "@/components/charts/series-legend";
+import { ChartShell, ExpandButton, SmoothToggle } from "@/components/charts/chart-shell";
+import { smoothColumns } from "@/lib/chart-smooth";
 import type { FunnelDailyPoint } from "@/db/queries/funnel";
 
 type MetricKey = "ctr" | "voc" | "atcRate" | "apRate" | "purchaseRate" | "cvr";
@@ -35,35 +36,9 @@ const monthDay = new Intl.DateTimeFormat("en-US", {
 
 const FIXED_TICKS = [0, 0.2, 0.4, 0.6, 0.8, 1];
 
-/** Centered moving-average half-window (±3 → a 7-day window) used by Smooth. */
-const SMOOTH_HALF = 3;
-
 interface Row {
   date: string;
   [k: string]: number | string | null;
-}
-
-/**
- * Centered moving average for one column: each point becomes the mean of the
- * non-null values within ±SMOOTH_HALF. Null stays null (a gap, not invented),
- * so `connectNulls` still bridges missing days the same way.
- */
-function smoothColumn(rows: Row[], key: string): Array<number | null> {
-  return rows.map((row, i) => {
-    if (typeof row[key] !== "number") return null;
-    let sum = 0;
-    let n = 0;
-    const lo = Math.max(0, i - SMOOTH_HALF);
-    const hi = Math.min(rows.length - 1, i + SMOOTH_HALF);
-    for (let j = lo; j <= hi; j++) {
-      const v = rows[j]?.[key];
-      if (typeof v === "number") {
-        sum += v;
-        n += 1;
-      }
-    }
-    return n > 0 ? sum / n : null;
-  });
 }
 
 /**
@@ -86,17 +61,6 @@ export function FunnelTrendChart({
   );
   const [compare, setCompare] = useState(false);
   const [smooth, setSmooth] = useState(false);
-  const [expanded, setExpanded] = useState(false);
-
-  // Close the expanded view on Escape.
-  useEffect(() => {
-    if (!expanded) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setExpanded(false);
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [expanded]);
 
   const data = useMemo<Row[]>(
     () =>
@@ -114,16 +78,13 @@ export function FunnelTrendChart({
 
   // When Smooth is on, replace every metric column (and its _prev) with its
   // moving average so day-to-day noise flattens into the underlying trend.
-  const displayData = useMemo<Row[]>(() => {
-    if (!smooth) return data;
-    const keys = METRICS.flatMap((m) => [m.key, `${m.key}_prev`]);
-    const cols = new Map(keys.map((k) => [k, smoothColumn(data, k)]));
-    return data.map((row, i) => {
-      const next: Row = { date: row.date };
-      for (const k of keys) next[k] = cols.get(k)?.[i] ?? null;
-      return next;
-    });
-  }, [data, smooth]);
+  const displayData = useMemo<Row[]>(
+    () =>
+      smooth
+        ? smoothColumns(data, METRICS.flatMap((m) => [m.key, `${m.key}_prev`]))
+        : data,
+    [data, smooth],
+  );
 
   const toggle = (k: MetricKey) =>
     setShown((prev) => {
@@ -137,7 +98,7 @@ export function FunnelTrendChart({
   // 2+ metrics → pin the axis so one tall rate doesn't flatten the rest.
   const fixedAxis = visible.length > 1;
 
-  const header = (inFull: boolean) => (
+  const header = (inFull: boolean, toggleExpand: () => void) => (
     <div className="flex items-start justify-between flex-wrap gap-3 mb-3">
       <div>
         <h3 className="text-sm text-ink-2">Funnel rates over time</h3>
@@ -147,20 +108,7 @@ export function FunnelTrendChart({
         </p>
       </div>
       <div className="flex items-center gap-2 shrink-0">
-        <button
-          type="button"
-          onClick={() => setSmooth((v) => !v)}
-          aria-pressed={smooth}
-          title="Smooth out day-to-day noise (7-day moving average)"
-          className={cn(
-            "h-7 px-2.5 rounded-md border text-[11px] font-medium transition-colors",
-            smooth
-              ? "border-brand/50 bg-[var(--brand-soft)] text-ink"
-              : "border-line text-ink-2 hover:text-ink hover:bg-surface-2",
-          )}
-        >
-          Smooth
-        </button>
+        <SmoothToggle on={smooth} onToggle={() => setSmooth((v) => !v)} />
         <button
           type="button"
           onClick={() => setCompare((v) => !v)}
@@ -174,15 +122,7 @@ export function FunnelTrendChart({
         >
           vs prev period
         </button>
-        <button
-          type="button"
-          onClick={() => setExpanded(!inFull)}
-          aria-label={inFull ? "Close expanded view" : "Expand to full screen"}
-          title={inFull ? "Close (Esc)" : "Expand"}
-          className="h-7 w-7 inline-flex items-center justify-center rounded-md border border-line text-ink-2 hover:text-ink hover:bg-surface-2 transition-colors"
-        >
-          {inFull ? <X className="w-4 h-4" /> : <Maximize2 className="w-3.5 h-3.5" />}
-        </button>
+        <ExpandButton inFull={inFull} onClick={toggleExpand} />
       </div>
     </div>
   );
@@ -257,30 +197,17 @@ export function FunnelTrendChart({
   );
 
   return (
-    <>
-      <div className="rounded-lg border border-line bg-surface p-4">
-        {header(false)}
-        {legend}
-        <div className="h-80">{data.length === 0 ? emptyState : chart}</div>
-      </div>
-
-      {expanded && (
-        <div
-          className="fixed inset-0 z-50 bg-background/95 backdrop-blur-sm p-3 sm:p-6 flex flex-col"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Funnel rates over time — expanded"
-        >
-          <div className="flex-1 min-h-0 flex flex-col rounded-lg border border-line bg-surface p-4 shadow-2xl">
-            {header(true)}
-            {legend}
-            <div className="flex-1 min-h-0">
-              {data.length === 0 ? emptyState : chart}
-            </div>
+    <ChartShell ariaLabel="Funnel rates over time — expanded">
+      {({ inFull, toggleExpand }) => (
+        <>
+          {header(inFull, toggleExpand)}
+          {legend}
+          <div className={inFull ? "flex-1 min-h-0" : "h-80"}>
+            {data.length === 0 ? emptyState : chart}
           </div>
-        </div>
+        </>
       )}
-    </>
+    </ChartShell>
   );
 }
 

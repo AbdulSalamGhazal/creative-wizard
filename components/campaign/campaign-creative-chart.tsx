@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { Maximize2, X } from "lucide-react";
+import { useMemo, useState } from "react";
 import {
   CartesianGrid,
   Line,
@@ -13,9 +12,10 @@ import {
 } from "recharts";
 import { intCompact, pct, ratio, usd, usdCompact } from "@/lib/format";
 import { seriesColor } from "@/lib/palette";
-import { cn } from "@/lib/utils";
 import { MetricPicker } from "@/components/charts/metric-picker";
 import { SeriesLegend } from "@/components/charts/series-legend";
+import { ChartShell, ExpandButton, SmoothToggle } from "@/components/charts/chart-shell";
+import { smoothColumns } from "@/lib/chart-smooth";
 import type { CampaignCreativeDailyPoint } from "@/db/queries/campaign";
 
 type MetricKey =
@@ -47,7 +47,6 @@ const METRICS: Array<{ key: MetricKey; label: string; kind: Kind }> = [
 ];
 
 const DEFAULT_SHOWN = 6;
-const SMOOTH_HALF = 3;
 
 const monthDay = new Intl.DateTimeFormat("en-US", {
   month: "short",
@@ -73,22 +72,6 @@ interface Row {
   [creativeId: string]: number | null | string;
 }
 
-function smoothColumn(rows: Row[], key: string): Array<number | null> {
-  return rows.map((row, i) => {
-    if (typeof row[key] !== "number") return null;
-    let sum = 0;
-    let n = 0;
-    for (let j = Math.max(0, i - SMOOTH_HALF); j <= Math.min(rows.length - 1, i + SMOOTH_HALF); j++) {
-      const v = rows[j]?.[key];
-      if (typeof v === "number") {
-        sum += v;
-        n += 1;
-      }
-    }
-    return n > 0 ? sum / n : null;
-  });
-}
-
 /**
  * One line per creative over time, for whatever metric is selected. Click a
  * legend chip to hide a creative; Smooth applies a 7-day moving average; Expand
@@ -103,19 +86,9 @@ export function CampaignCreativeChart({
 }) {
   const [metric, setMetric] = useState<MetricKey>("spend");
   const [smooth, setSmooth] = useState(false);
-  const [expanded, setExpanded] = useState(false);
   const [shown, setShown] = useState<Set<string>>(
     () => new Set(creatives.slice(0, DEFAULT_SHOWN).map((c) => c.creativeId)),
   );
-
-  useEffect(() => {
-    if (!expanded) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setExpanded(false);
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [expanded]);
 
   const meta = METRICS.find((m) => m.key === metric)!;
 
@@ -132,13 +105,9 @@ export function CampaignCreativeChart({
     const rows = [...byDate.values()].sort((a, b) =>
       (a.date as string) < (b.date as string) ? -1 : 1,
     );
-    if (!smooth) return rows;
-    const cols = new Map(creatives.map((c) => [c.creativeId, smoothColumn(rows, c.creativeId)]));
-    return rows.map((row, i) => {
-      const next: Row = { date: row.date as string };
-      for (const c of creatives) next[c.creativeId] = cols.get(c.creativeId)?.[i] ?? null;
-      return next;
-    });
+    return smooth
+      ? smoothColumns(rows, creatives.map((c) => c.creativeId))
+      : rows;
   }, [points, metric, smooth, creatives]);
 
   const toggle = (id: string) =>
@@ -160,7 +129,7 @@ export function CampaignCreativeChart({
     .filter((c) => shown.has(c.creativeId))
     .map((c) => ({ ...c, color: color(c.creativeId) }));
 
-  const header = (inFull: boolean) => (
+  const header = (inFull: boolean, toggleExpand: () => void) => (
     <div className="flex items-start justify-between flex-wrap gap-3 mb-3">
       <div className="flex items-center gap-2">
         <h3 className="text-sm text-ink-2">By creative over time</h3>
@@ -171,29 +140,8 @@ export function CampaignCreativeChart({
         />
       </div>
       <div className="flex items-center gap-2 shrink-0">
-        <button
-          type="button"
-          onClick={() => setSmooth((v) => !v)}
-          aria-pressed={smooth}
-          title="7-day moving average"
-          className={cn(
-            "h-7 px-2.5 rounded-md border text-[11px] font-medium transition-colors",
-            smooth
-              ? "border-brand/50 bg-[var(--brand-soft)] text-ink"
-              : "border-line text-ink-2 hover:text-ink hover:bg-surface-2",
-          )}
-        >
-          Smooth
-        </button>
-        <button
-          type="button"
-          onClick={() => setExpanded(!inFull)}
-          aria-label={inFull ? "Close expanded view" : "Expand to full screen"}
-          title={inFull ? "Close (Esc)" : "Expand"}
-          className="h-7 w-7 inline-flex items-center justify-center rounded-md border border-line text-ink-2 hover:text-ink hover:bg-surface-2 transition-colors"
-        >
-          {inFull ? <X className="w-4 h-4" /> : <Maximize2 className="w-3.5 h-3.5" />}
-        </button>
+        <SmoothToggle on={smooth} onToggle={() => setSmooth((v) => !v)} />
+        <ExpandButton inFull={inFull} onClick={toggleExpand} />
       </div>
     </div>
   );
@@ -254,28 +202,17 @@ export function CampaignCreativeChart({
   );
 
   return (
-    <>
-      <div className="rounded-lg border border-line bg-surface p-4">
-        {header(false)}
-        {legend}
-        <div className="h-80">{data.length === 0 ? empty : chart}</div>
-      </div>
-
-      {expanded && (
-        <div
-          className="fixed inset-0 z-50 bg-background/95 backdrop-blur-sm p-3 sm:p-6 flex flex-col"
-          role="dialog"
-          aria-modal="true"
-          aria-label="By creative over time — expanded"
-        >
-          <div className="flex-1 min-h-0 flex flex-col rounded-lg border border-line bg-surface p-4 shadow-2xl">
-            {header(true)}
-            {legend}
-            <div className="flex-1 min-h-0">{data.length === 0 ? empty : chart}</div>
+    <ChartShell ariaLabel="By creative over time — expanded">
+      {({ inFull, toggleExpand }) => (
+        <>
+          {header(inFull, toggleExpand)}
+          {legend}
+          <div className={inFull ? "flex-1 min-h-0" : "h-80"}>
+            {data.length === 0 ? empty : chart}
           </div>
-        </div>
+        </>
       )}
-    </>
+    </ChartShell>
   );
 }
 
