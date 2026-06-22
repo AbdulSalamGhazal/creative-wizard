@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, ne } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireEditor } from "@/lib/auth";
@@ -12,6 +12,7 @@ import {
 } from "@/db/schema";
 import { MAX_FILE_BYTES } from "@/csv/parse";
 import { runPipeline, type ParsedRow } from "@/csv/pipeline";
+import { campaignPlatformCollisions } from "@/csv/cross-platform";
 import { resolveAdapter } from "@/db/queries/platforms";
 import { getActiveAccountId } from "@/lib/tenant";
 
@@ -148,6 +149,43 @@ export async function POST(request: NextRequest) {
         errors: result.errors,
         warnings: result.warnings,
       },
+      { status: 422 },
+    );
+  }
+
+  // Cross-platform campaign-name guard (E060): a campaign name must belong to a
+  // single platform — the app keys a campaign by name alone, so the same name on
+  // two platforms would silently merge into one campaign. Reject if any campaign
+  // in this file already exists on a DIFFERENT platform (active batches only).
+  const fileCampaigns = [...new Set(result.rows.map((r) => r.campaignName))];
+  const onOtherPlatforms = fileCampaigns.length
+    ? await db
+        .selectDistinct({
+          campaignName: performanceRecords.campaignName,
+          platform: performanceRecords.platform,
+        })
+        .from(performanceRecords)
+        .innerJoin(
+          uploadBatches,
+          eq(uploadBatches.id, performanceRecords.uploadBatchId),
+        )
+        .where(
+          and(
+            eq(performanceRecords.accountId, acct),
+            inArray(performanceRecords.campaignName, fileCampaigns),
+            ne(performanceRecords.platform, platform),
+            eq(uploadBatches.status, "active"),
+          ),
+        )
+    : [];
+  const collisionErrors = campaignPlatformCollisions(
+    platform,
+    fileCampaigns,
+    onOtherPlatforms,
+  );
+  if (collisionErrors.length > 0) {
+    return NextResponse.json(
+      { ok: false, platform, errors: collisionErrors, warnings: result.warnings },
       { status: 422 },
     );
   }

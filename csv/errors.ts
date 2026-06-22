@@ -25,6 +25,10 @@ export const errorCodes = {
   // distinct and allowed; only true duplicates are rejected.
   E050: "ERROR",
   E051: "ERROR",
+  // E060: a campaign name in this file already exists on a DIFFERENT platform.
+  // A campaign name must belong to one platform — the app treats the same name
+  // as one campaign, so allowing it on two platforms would silently merge them.
+  E060: "ERROR",
   W001: "WARNING",
   W002: "WARNING",
 } as const;
