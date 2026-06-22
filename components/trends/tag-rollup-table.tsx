@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowDown, ArrowUp, Columns3, Hash } from "lucide-react";
+import { Columns3, Hash } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -11,6 +11,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { DataTable, type DataColumn } from "@/components/ui/data-table";
 import { DeltaBadge } from "@/components/kpi/delta-badge";
 import { int, pct, ratio, usd } from "@/lib/format";
 import { computeDelta, type Delta } from "@/lib/period";
@@ -59,7 +60,6 @@ const DEFAULT_VISIBLE = new Set<Key>([
   "creatives", "spend", "conversions", "ctr", "cvr", "cpa", "roas", "hookRate",
 ]);
 
-type SortKey = Key | "tag";
 type Mode = "values" | "rank" | "avg" | "prev";
 
 const MODES: { k: Mode; label: string }[] = [
@@ -73,14 +73,12 @@ const ABSENT: Delta = { pct: null, mode: "absent" };
 
 export function TagRollupTable({ rows }: { rows: TagRollupRow[] }) {
   const [visible, setVisible] = useState<Set<Key>>(new Set(DEFAULT_VISIBLE));
-  const [sortKey, setSortKey] = useState<SortKey>("spend");
+  const [sortKey, setSortKey] = useState<string>("spend");
   const [dir, setDir] = useState<"asc" | "desc">("desc");
+  const [order, setOrder] = useState<string[]>([]);
   const [mode, setMode] = useState<Mode>("values");
 
-  const shown = COLS.filter((c) => visible.has(c.key));
-
-  // Per-column rank maps (good direction) and cross-tag averages — recomputed
-  // from the full set, independent of the sort order.
+  // Per-column rank maps (good direction) and cross-tag averages.
   const { rankMaps, avgs } = useMemo(() => {
     const rankMaps: Record<string, Map<string, number>> = {};
     const avgs: Record<string, number | null> = {};
@@ -88,33 +86,15 @@ export function TagRollupTable({ rows }: { rows: TagRollupRow[] }) {
       const vals = rows
         .map((r) => ({ tag: r.tag, v: r[c.key] as Num }))
         .filter((x): x is { tag: string; v: number } => x.v !== null);
-      const sorted = [...vals].sort((a, b) => (c.lower ? a.v - b.v : b.v - a.v));
+      const s = [...vals].sort((a, b) => (c.lower ? a.v - b.v : b.v - a.v));
       const m = new Map<string, number>();
-      sorted.forEach((x, i) => m.set(x.tag, i + 1));
+      s.forEach((x, i) => m.set(x.tag, i + 1));
       rankMaps[c.key] = m;
       avgs[c.key] = vals.length ? vals.reduce((s, x) => s + x.v, 0) / vals.length : null;
     }
     return { rankMaps, avgs };
   }, [rows]);
 
-  const sorted = useMemo(() => {
-    const copy = [...rows];
-    copy.sort((a, b) => {
-      if (sortKey === "tag") {
-        const cmp = a.tag.localeCompare(b.tag);
-        return dir === "asc" ? cmp : -cmp;
-      }
-      const av = (a[sortKey] as Num) ?? 0;
-      const bv = (b[sortKey] as Num) ?? 0;
-      return dir === "asc" ? av - bv : bv - av;
-    });
-    return copy;
-  }, [rows, sortKey, dir]);
-
-  const toggleSort = (key: SortKey) => {
-    if (key === sortKey) setDir((d) => (d === "asc" ? "desc" : "asc"));
-    else { setSortKey(key); setDir(key === "tag" ? "asc" : "desc"); }
-  };
   const toggleCol = (key: Key) =>
     setVisible((prev) => {
       const next = new Set(prev);
@@ -122,17 +102,6 @@ export function TagRollupTable({ rows }: { rows: TagRollupRow[] }) {
       else next.add(key);
       return next;
     });
-
-  if (rows.length === 0) {
-    return (
-      <div className="rounded-lg border border-dashed border-line bg-surface px-6 py-12 text-center">
-        <p className="text-ink-2 text-sm">No tagged creatives in this window.</p>
-      </div>
-    );
-  }
-
-  const SortIcon = ({ k }: { k: SortKey }) =>
-    sortKey !== k ? null : dir === "asc" ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />;
 
   // Every mode keeps the value visible; non-default modes append an indicator.
   const cell = (r: TagRollupRow, c: Col) => {
@@ -170,7 +139,6 @@ export function TagRollupTable({ rows }: { rows: TagRollupRow[] }) {
         </>
       );
     }
-    // prev
     const prevV = r.prev ? ((r.prev[c.key] as Num) ?? null) : null;
     return (
       <>
@@ -179,6 +147,45 @@ export function TagRollupTable({ rows }: { rows: TagRollupRow[] }) {
       </>
     );
   };
+
+  const columns = useMemo<DataColumn<TagRollupRow>[]>(() => {
+    const tagCol: DataColumn<TagRollupRow> = {
+      key: "tag",
+      label: "Tag",
+      align: "left",
+      sortable: true,
+      pinned: true,
+      defaultSortDir: "asc",
+      sortValue: (r) => r.tag,
+      render: (r) => (
+        <Link
+          href={`/creatives?tags=${encodeURIComponent(r.tag)}`}
+          className="inline-flex items-center gap-1.5 text-ink hover:text-brand transition-colors"
+        >
+          <Hash className="w-3 h-3 text-ink-3" />
+          {r.tag}
+        </Link>
+      ),
+    };
+    const metricCols: DataColumn<TagRollupRow>[] = COLS.map((c) => ({
+      key: c.key,
+      label: c.label,
+      align: "right",
+      sortable: true,
+      sortValue: (r) => (r[c.key] as Num) ?? null,
+      render: (r) => (
+        <span className="inline-flex items-center justify-end gap-1.5">{cell(r, c)}</span>
+      ),
+    }));
+    return [tagCol, ...metricCols];
+    // cell() closes over mode/rankMaps/avgs.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, rankMaps, avgs]);
+
+  const hidden = useMemo(
+    () => COLS.filter((c) => !visible.has(c.key)).map((c) => c.key),
+    [visible],
+  );
 
   const modeHint =
     mode === "rank" ? "Each cell is the tag's rank among all tags for that metric."
@@ -209,7 +216,8 @@ export function TagRollupTable({ rows }: { rows: TagRollupRow[] }) {
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button type="button" className="inline-flex items-center gap-2 h-8 px-3 rounded-md border border-line text-xs text-ink-2 bg-surface hover:bg-surface-2 hover:text-ink transition-colors">
-                <Columns3 className="w-3.5 h-3.5" /> Columns <span className="text-ink-3">{shown.length}</span>
+                <Columns3 className="w-3.5 h-3.5" /> Columns{" "}
+                <span className="text-ink-3">{visible.size}</span>
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-52 max-h-96 overflow-y-auto">
@@ -230,50 +238,26 @@ export function TagRollupTable({ rows }: { rows: TagRollupRow[] }) {
         </div>
       </div>
 
-      <div className="overflow-x-auto rounded-lg border border-line bg-surface">
-        <table className="w-full text-sm num">
-          <thead>
-            <tr className="text-left text-[11px] uppercase tracking-[0.14em] text-ink-3 border-b border-line">
-              <th className="font-medium px-3 py-2.5">
-                <button type="button" onClick={() => toggleSort("tag")} className="inline-flex items-center gap-1 hover:text-ink">
-                  Tag <SortIcon k="tag" />
-                </button>
-              </th>
-              {shown.map((c) => (
-                <th key={c.key} className="font-medium px-3 py-2.5 text-right whitespace-nowrap">
-                  <button
-                    type="button"
-                    onClick={() => toggleSort(c.key)}
-                    className={cn("inline-flex items-center gap-1 flex-row-reverse hover:text-ink", sortKey === c.key && "text-ink")}
-                  >
-                    {c.label} <SortIcon k={c.key} />
-                  </button>
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-line">
-            {sorted.map((r) => (
-              <tr key={r.tag} className="hover:bg-surface-2/60 transition-colors">
-                <td className="px-3 py-2.5">
-                  <Link
-                    href={`/creatives?tags=${encodeURIComponent(r.tag)}`}
-                    className="inline-flex items-center gap-1.5 text-ink hover:text-brand transition-colors"
-                  >
-                    <Hash className="w-3 h-3 text-ink-3" />
-                    {r.tag}
-                  </Link>
-                </td>
-                {shown.map((c) => (
-                  <td key={c.key} className="px-3 py-2.5 text-right text-ink tabular-nums whitespace-nowrap">
-                    <span className="inline-flex items-center justify-end gap-1.5">{cell(r, c)}</span>
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <DataTable
+        columns={columns}
+        rows={rows}
+        rowKey={(r) => r.tag}
+        sort={sortKey}
+        dir={dir}
+        hidden={hidden}
+        order={order}
+        onSort={(key, d) => {
+          setSortKey(key);
+          setDir(d);
+        }}
+        onReorder={setOrder}
+        minWidthClass="min-w-[760px]"
+        empty={
+          <div className="rounded-lg border border-dashed border-line bg-surface px-6 py-12 text-center">
+            <p className="text-ink-2 text-sm">No tagged creatives in this window.</p>
+          </div>
+        }
+      />
     </div>
   );
 }
