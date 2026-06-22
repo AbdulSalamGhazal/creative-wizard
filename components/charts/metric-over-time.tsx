@@ -11,6 +11,8 @@ import {
   YAxis,
 } from "recharts";
 import { MetricPicker } from "@/components/charts/metric-picker";
+import { ChartShell, ExpandButton, SmoothToggle } from "@/components/charts/chart-shell";
+import { smoothColumns } from "@/lib/chart-smooth";
 import { usd, int, ratio } from "@/lib/format";
 import { useChartFit, ChartFitToggle } from "@/components/charts/chart-fit";
 import type { MetricOverTimeRow } from "@/db/queries/performance";
@@ -87,6 +89,7 @@ interface PivotRow {
  */
 export function MetricOverTimeChart({ rows, keys, dimension, dimensionLabel }: Props) {
   const [metric, setMetric] = useState<MetricKey>("spend");
+  const [smooth, setSmooth] = useState(false);
   const def = METRICS.find((m) => m.value === metric) ?? METRICS[0]!;
   // Recharts resolves a STRING dataKey through lodash get(), which treats "." /
   // "[" / "]" as a nested path — so a campaign name like "2.0 Launch ➤ Broad"
@@ -122,109 +125,126 @@ export function MetricOverTimeChart({ rows, keys, dimension, dimensionLabel }: P
     return [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
   }, [rows, safeKeys, idByKey, def]);
 
+  const display = useMemo(
+    () => (smooth ? smoothColumns(data, safeKeys.map((k) => k.id)) : data),
+    [smooth, data, safeKeys],
+  );
+
   // Robust Y-axis: cap a lone anomaly spike so the rest stays readable.
   const yValues = useMemo(() => {
     const out: number[] = [];
-    for (const row of data)
+    for (const row of display)
       for (const k of safeKeys) {
         const v = row[k.id];
         if (typeof v === "number") out.push(v);
       }
     return out;
-  }, [data, safeKeys]);
+  }, [display, safeKeys]);
   const fit = useChartFit(yValues);
 
   return (
-    <div className="rounded-xl border border-line bg-surface p-4 md:p-5 space-y-3">
-      {/* Header: metric picker + dimension hint */}
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="flex items-center gap-2">
-          <MetricPicker
-            options={METRICS.map((m) => ({ value: m.value, label: m.label }))}
-            value={metric}
-            onChange={setMetric}
-          />
-          <span className="text-sm text-ink-2">over time</span>
-        </div>
-        {dimension === "campaign" && (
-          <span className="text-[11px] text-ink-3">
-            by campaign{dimensionLabel ? ` · ${dimensionLabel}` : ""}
-          </span>
-        )}
-      </div>
+    <ChartShell ariaLabel="Metric over time — expanded">
+      {({ inFull, toggleExpand }) => (
+        <div className={inFull ? "flex flex-col h-full gap-3" : "space-y-3"}>
+          {/* Header: metric picker + controls */}
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-2">
+              <MetricPicker
+                options={METRICS.map((m) => ({ value: m.value, label: m.label }))}
+                value={metric}
+                onChange={setMetric}
+              />
+              <span className="text-sm text-ink-2">over time</span>
+            </div>
+            <div className="flex items-center gap-2">
+              {dimension === "campaign" && (
+                <span className="text-[11px] text-ink-3">
+                  by campaign{dimensionLabel ? ` · ${dimensionLabel}` : ""}
+                </span>
+              )}
+              <SmoothToggle on={smooth} onToggle={() => setSmooth((v) => !v)} />
+              <ExpandButton inFull={inFull} onClick={toggleExpand} />
+            </div>
+          </div>
 
-      {/* Legend */}
-      {keys.length > 0 && (
-        <div className="flex flex-wrap gap-x-3 gap-y-1">
-          {keys.map((k) => (
-            <span
-              key={k.key}
-              className="inline-flex items-center gap-1.5 text-[11px] text-ink-3 max-w-[180px]"
-              title={k.label}
-            >
-              <span
-                className="h-2 w-2 rounded-full shrink-0"
-                style={{ background: k.color }}
-              />
-              <span className="truncate">{k.label}</span>
-            </span>
-          ))}
-        </div>
-      )}
-
-      {data.length === 0 ? (
-        <div className="h-64 flex items-center justify-center text-ink-3 text-sm border border-dashed border-line rounded-md">
-          No data in the selected window.
-        </div>
-      ) : (
-        <div className="h-64 relative">
-          <ChartFitToggle fit={fit} />
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={data} margin={{ top: 12, right: 12, left: 0, bottom: 0 }}>
-              <CartesianGrid stroke="var(--line)" strokeDasharray="3 3" vertical={false} />
-              <XAxis
-                dataKey="date"
-                tickFormatter={(d: string) => monthDay.format(new Date(d))}
-                tick={{ fill: "var(--ink-3)", fontSize: 11 }}
-                stroke="var(--line-2)"
-                tickMargin={6}
-              />
-              <YAxis
-                tickFormatter={(v: number) => axisFormat(metric, v)}
-                tick={{ fill: "var(--ink-3)", fontSize: 11 }}
-                stroke="var(--line-2)"
-                width={56}
-                domain={fit.clip ? [0, fit.cap] : undefined}
-                allowDataOverflow={fit.clip}
-              />
-              <Tooltip
-                content={
-                  <CustomTooltip
-                    fmt={def.fmt}
-                    additive={def.additive}
-                    labelByKey={labelById}
+          {/* Legend */}
+          {keys.length > 0 && (
+            <div className="flex flex-wrap gap-x-3 gap-y-1">
+              {keys.map((k) => (
+                <span
+                  key={k.key}
+                  className="inline-flex items-center gap-1.5 text-[11px] text-ink-3 max-w-[180px]"
+                  title={k.label}
+                >
+                  <span
+                    className="h-2 w-2 rounded-full shrink-0"
+                    style={{ background: k.color }}
                   />
-                }
-              />
-              {safeKeys.map((k) => (
-                <Line
-                  key={k.id}
-                  type="monotone"
-                  dataKey={k.id}
-                  stroke={k.color}
-                  strokeWidth={1.8}
-                  dot={false}
-                  activeDot={{ r: 4 }}
-                  connectNulls={false}
-                  isAnimationActive
-                  animationDuration={700}
-                />
+                  <span className="truncate">{k.label}</span>
+                </span>
               ))}
-            </LineChart>
-          </ResponsiveContainer>
+            </div>
+          )}
+
+          {display.length === 0 ? (
+            <div
+              className={
+                (inFull ? "flex-1 min-h-0" : "h-64") +
+                " flex items-center justify-center text-ink-3 text-sm border border-dashed border-line rounded-md"
+              }
+            >
+              No data in the selected window.
+            </div>
+          ) : (
+            <div className={(inFull ? "flex-1 min-h-0" : "h-64") + " relative"}>
+              <ChartFitToggle fit={fit} />
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={display} margin={{ top: 12, right: 12, left: 0, bottom: 0 }}>
+                  <CartesianGrid stroke="var(--line)" strokeDasharray="3 3" vertical={false} />
+                  <XAxis
+                    dataKey="date"
+                    tickFormatter={(d: string) => monthDay.format(new Date(d))}
+                    tick={{ fill: "var(--ink-3)", fontSize: 11 }}
+                    stroke="var(--line-2)"
+                    tickMargin={6}
+                  />
+                  <YAxis
+                    tickFormatter={(v: number) => axisFormat(metric, v)}
+                    tick={{ fill: "var(--ink-3)", fontSize: 11 }}
+                    stroke="var(--line-2)"
+                    width={56}
+                    domain={fit.clip ? [0, fit.cap] : undefined}
+                    allowDataOverflow={fit.clip}
+                  />
+                  <Tooltip
+                    content={
+                      <CustomTooltip
+                        fmt={def.fmt}
+                        additive={def.additive}
+                        labelByKey={labelById}
+                      />
+                    }
+                  />
+                  {safeKeys.map((k) => (
+                    <Line
+                      key={k.id}
+                      type="monotone"
+                      dataKey={k.id}
+                      stroke={k.color}
+                      strokeWidth={1.8}
+                      dot={false}
+                      activeDot={{ r: 4 }}
+                      connectNulls={false}
+                      isAnimationActive={false}
+                    />
+                  ))}
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          )}
         </div>
       )}
-    </div>
+    </ChartShell>
   );
 }
 
