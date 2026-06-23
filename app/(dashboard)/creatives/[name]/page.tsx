@@ -234,11 +234,7 @@ export default async function CreativeDetailPage({
           />
         </div>
 
-        <Card className="bg-surface border-line">
-          <CardContent className="pt-6">
-            <CreativePerfLineChart title="Performance over time" rows={dailyRows} />
-          </CardContent>
-        </Card>
+        <CreativePerfLineChart title="Performance over time" rows={dailyRows} />
 
         <div>
           <h3 className="text-sm font-medium text-ink mb-3">By platform</h3>

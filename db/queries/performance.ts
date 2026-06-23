@@ -323,6 +323,9 @@ export interface DailyMetricRow {
   date: string;
   platform: Platform;
   spend: number;
+  impressions: number;
+  clicks: number;
+  landingPageViews: number;
   conversions: number | null;
   conversionValue: number;
   cpm: number | null;
@@ -350,6 +353,9 @@ export async function creativeDailyMetrics(
       date: performanceRecords.date,
       platform: performanceRecords.platform,
       spend: sumSpend,
+      impressions: sumImpressions,
+      clicks: sumClicks,
+      landingPageViews: sumLandingPageViews,
       conversions: sumConversions,
       conversionValue: sumConversionValue,
       cpm,
@@ -381,6 +387,9 @@ export async function creativeDailyMetrics(
     date: r.date,
     platform: r.platform as Platform,
     spend: Number(r.spend ?? 0),
+    impressions: Number(r.impressions ?? 0),
+    clicks: Number(r.clicks ?? 0),
+    landingPageViews: Number(r.landingPageViews ?? 0),
     conversions: num(r.conversions),
     conversionValue: Number(r.conversionValue ?? 0),
     cpm: num(r.cpm),
