@@ -11,9 +11,11 @@ import {
   listSummaryViews,
 } from "@/db/queries/summary-views";
 import { requireAuth } from "@/lib/auth";
+import Link from "next/link";
+import { Plus } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { PortfolioFilterBar } from "@/components/portfolio/portfolio-filter-bar";
 import { PortfolioTable } from "@/components/portfolio/portfolio-table";
-import { NewCampaignDialog } from "@/components/campaign/new-campaign-dialog";
 
 export const dynamic = "force-dynamic";
 
@@ -89,7 +91,11 @@ export default async function CampaignsPage({
             {campaigns.length === 1 ? "" : "s"} · {from} → {to}
           </p>
         </div>
-        <NewCampaignDialog />
+        <Button asChild size="sm" variant="outline">
+          <Link href="/campaigns/new">
+            <Plus className="w-4 h-4" /> New campaign
+          </Link>
+        </Button>
       </div>
 
       <Suspense fallback={null}>
