@@ -13,6 +13,7 @@ import {
 import { requireAuth } from "@/lib/auth";
 import { PortfolioFilterBar } from "@/components/portfolio/portfolio-filter-bar";
 import { PortfolioTable } from "@/components/portfolio/portfolio-table";
+import { NewCampaignDialog } from "@/components/campaign/new-campaign-dialog";
 
 export const dynamic = "force-dynamic";
 
@@ -88,6 +89,7 @@ export default async function CampaignsPage({
             {campaigns.length === 1 ? "" : "s"} · {from} → {to}
           </p>
         </div>
+        <NewCampaignDialog />
       </div>
 
       <Suspense fallback={null}>

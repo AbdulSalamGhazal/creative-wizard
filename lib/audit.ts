@@ -25,6 +25,9 @@ export const AUDIT_ACTIONS = {
   CREATIVE_STATUS_BULK: "creative.bulk_status",
   CREATIVE_DELETE: "creative.delete",
 
+  // Campaigns
+  CAMPAIGN_CREATE: "campaign.create",
+
   // Exclusions
   EXCLUSION_EXCLUDE: "exclusion.exclude",
   EXCLUSION_INCLUDE: "exclusion.include",
@@ -86,7 +89,8 @@ export type AuditEntityType =
   | "view"
   | "tag"
   | "rating"
-  | "account";
+  | "account"
+  | "campaign";
 
 export interface AuditEventInput {
   action: AuditAction;
@@ -144,6 +148,7 @@ export const AUDIT_LABELS: Record<AuditAction, string> = {
   "creative.source_update": "Edited source link",
   "creative.bulk_status": "Bulk status change",
   "creative.delete": "Deleted creative",
+  "campaign.create": "Registered campaign",
   "exclusion.exclude": "Excluded record",
   "exclusion.include": "Re-included record",
   "upload.commit": "Committed upload",
@@ -182,6 +187,7 @@ export const AUDIT_CATEGORIES: Record<AuditAction, AuditEntityType> = {
   "creative.source_update": "creative",
   "creative.bulk_status": "creative",
   "creative.delete": "creative",
+  "campaign.create": "campaign",
   "exclusion.exclude": "exclusion",
   "exclusion.include": "exclusion",
   "upload.commit": "upload",

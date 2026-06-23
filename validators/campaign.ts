@@ -1,4 +1,17 @@
 import { z } from "zod";
+import { platformEnum } from "@/db/schema";
+
+/**
+ * New-campaign form. The buyer enters the Campaign + Ad Set + Platform; the
+ * action runs these through buildCampaignName to produce the EXACT stored
+ * `campaign_name`, so a registered campaign matches an uploaded one byte-for-byte.
+ */
+export const createCampaignSchema = z.object({
+  campaign: z.string().trim().min(1, "Campaign name is required").max(400),
+  adset: z.string().trim().max(400).optional().default(""),
+  platform: z.enum(platformEnum),
+});
+export type CreateCampaignInput = z.infer<typeof createCampaignSchema>;
 
 /** Compare modes for the campaign-diagnosis ROAS bridge. */
 export const CAMPAIGN_COMPARE = ["prev", "wow", "mom"] as const;

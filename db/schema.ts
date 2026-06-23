@@ -131,6 +131,35 @@ export const creatives = pgTable(
   }),
 );
 
+/**
+ * Registered campaigns. Like creatives, a campaign must exist here before any
+ * upload can reference it — otherwise renaming a campaign at the source would
+ * silently spawn a new one. `name` is the FULL stored campaign_name produced by
+ * lib/campaign.buildCampaignName ("Campaign ➤ Ad Set" + "(Platform)" for
+ * Instagram/Facebook), so upload validation matches it byte-for-byte. Unique
+ * per account; one name lives on exactly one platform (see the E060 guard).
+ */
+export const campaigns = pgTable(
+  "campaigns",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    accountId: accountId(),
+    name: text("name").notNull(),
+    platform: varchar("platform", { length: 16, enum: platformEnum }).notNull(),
+    createdByUserId: uuid("created_by_user_id")
+      .notNull()
+      .references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    accountNameIdx: uniqueIndex("campaigns_account_name_idx").on(t.accountId, t.name),
+    accountPlatformIdx: index("campaigns_account_platform_idx").on(
+      t.accountId,
+      t.platform,
+    ),
+  }),
+);
+
 export const creativeTags = pgTable(
   "creative_tags",
   {
