@@ -450,11 +450,18 @@ export const performanceRecords = pgTable(
     platform: varchar("platform", { length: 16, enum: platformEnum }).notNull(),
     date: date("date").notNull(),
     /**
-     * Combined "Campaign Name ➤ Adset Name" sourced from the upload's two
-     * columns. The UI only ever labels and shows this as "Campaign Name".
-     * Part of the dedup key.
+     * Legacy text identity — "Campaign Name ➤ Adset Name". Being retired in
+     * favour of campaign_id (the FK below); nullable during the migration and
+     * dropped once every read/write path is off it. The UI labels a campaign via
+     * the joined campaigns.name, not this column.
      */
-    campaignName: text("campaign_name").notNull(),
+    campaignName: text("campaign_name"),
+    /**
+     * The real campaign identity — FK to the registered campaigns row. Part of
+     * the dedup key (creative, platform, campaign, date). Nullable only during
+     * the additive migration window; made NOT NULL in the contract migration.
+     */
+    campaignId: uuid("campaign_id").references(() => campaigns.id),
     spend: numeric("spend", { precision: 14, scale: 4 }).notNull(),
     impressions: integer("impressions").notNull(),
     clicks: integer("clicks").notNull(),
@@ -497,6 +504,16 @@ export const performanceRecords = pgTable(
     accountCampaignDateIdx: index("perf_account_campaign_date_idx").on(
       t.accountId,
       t.campaignName,
+      t.date,
+    ),
+    // New campaign_id-keyed identity + lookup indexes (replace the campaign_name
+    // ones above once the contract migration drops the text column).
+    creativePlatformCampaignIdDateIdx: uniqueIndex(
+      "perf_creative_platform_campaign_id_date_idx",
+    ).on(t.creativeId, t.platform, t.campaignId, t.date),
+    accountCampaignIdDateIdx: index("perf_account_campaign_id_date_idx").on(
+      t.accountId,
+      t.campaignId,
       t.date,
     ),
     dateIdx: index("perf_date_idx").on(t.date),

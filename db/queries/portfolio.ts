@@ -12,7 +12,7 @@
 
 import { and, between, desc, eq, ilike, inArray, or, sql, type SQL } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { performanceRecords, platformEnum } from "@/db/schema";
+import { campaigns, performanceRecords, platformEnum } from "@/db/schema";
 import {
   cpm as cpmSql,
   ctr as ctrSql,
@@ -66,9 +66,9 @@ function baseConds(
     // not just that creative's rows. So the second arm is a campaign-level IN.
     c.push(
       or(
-        ilike(performanceRecords.campaignName, like),
-        sql`${performanceRecords.campaignName} IN (
-          SELECT DISTINCT pr2.campaign_name
+        ilike(campaigns.name, like),
+        sql`${performanceRecords.campaignId} IN (
+          SELECT DISTINCT pr2.campaign_id
           FROM performance_records pr2
           JOIN creatives cr2 ON cr2.id = pr2.creative_id
           WHERE pr2.account_id = ${acct} AND cr2.name ILIKE ${like}
@@ -110,7 +110,7 @@ export async function portfolioCampaigns(
   const r = range ?? { from: f.from, to: f.to };
   const rows = await db
     .select({
-      campaign: performanceRecords.campaignName,
+      campaign: campaigns.name,
       platforms: sql<Platform[]>`array_agg(DISTINCT ${performanceRecords.platform})`,
       creatives: sql<number>`COUNT(DISTINCT ${performanceRecords.creativeId})::int`,
       spend: sumSpend,
@@ -128,8 +128,9 @@ export async function portfolioCampaigns(
       lastDate: sql<string | null>`MAX(${performanceRecords.date})`,
     })
     .from(performanceRecords)
+    .innerJoin(campaigns, eq(campaigns.id, performanceRecords.campaignId))
     .where(and(...baseConds(f, r, acct)))
-    .groupBy(performanceRecords.campaignName)
+    .groupBy(campaigns.id)
     .orderBy(desc(sumSpend));
   return rows.map((row) => ({
     campaign: row.campaign,

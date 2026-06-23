@@ -19,6 +19,7 @@ import {
   tags,
   ratingRules,
   platformFieldMappings,
+  campaigns,
   uploadBatches,
   performanceRecords,
   DEFAULT_ACCOUNT_ID,
@@ -30,7 +31,7 @@ import { facebookAdapter } from "@/csv/platforms/facebook";
 import { tiktokAdapter } from "@/csv/platforms/tiktok";
 import { snapchatAdapter } from "@/csv/platforms/snapchat";
 import type { InternalField } from "@/csv/platforms/types";
-import { sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { buildCampaignName } from "@/lib/campaign";
 
 type Platform = (typeof platformEnum)[number];
@@ -257,8 +258,32 @@ async function main() {
 
   const SEED_DAYS = 60;
 
+  // Register the seed campaigns (one per platform) so performance rows carry a
+  // campaign_id FK, mirroring the real upload path. Default account (Urjwan).
+  const campaignIdByName = new Map<string, string>();
+  for (const platform of platforms) {
+    const name = buildCampaignName("Always-On", "Broad", platform);
+    const [campRow] = await db
+      .insert(campaigns)
+      .values({ name, platform, objective: "Sales", createdByUserId: adminId })
+      .onConflictDoNothing({ target: [campaigns.accountId, campaigns.name] })
+      .returning({ id: campaigns.id });
+    let campId = campRow?.id;
+    if (!campId) {
+      const [existing] = await db
+        .select({ id: campaigns.id })
+        .from(campaigns)
+        .where(eq(campaigns.name, name))
+        .limit(1);
+      campId = existing!.id;
+    }
+    campaignIdByName.set(name, campId);
+  }
+
   for (const c of creativeList) {
     for (const platform of platforms) {
+      const campaignName = buildCampaignName("Always-On", "Broad", platform);
+      const campaignId = campaignIdByName.get(campaignName)!;
       for (let d = 0; d < SEED_DAYS; d++) {
         const date = new Date(today);
         date.setUTCDate(date.getUTCDate() - d);
@@ -286,7 +311,8 @@ async function main() {
         rows.push({
           creativeId: c.id,
           platform,
-          campaignName: buildCampaignName("Always-On", "Broad", platform),
+          campaignName,
+          campaignId,
           date: dateStr,
           spend: spend.toString(),
           impressions,
@@ -319,7 +345,7 @@ async function main() {
         target: [
           performanceRecords.creativeId,
           performanceRecords.platform,
-          performanceRecords.campaignName,
+          performanceRecords.campaignId,
           performanceRecords.date,
         ],
       })

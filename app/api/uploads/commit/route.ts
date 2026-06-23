@@ -5,6 +5,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireEditor } from "@/lib/auth";
 import {
+  campaigns,
   creatives,
   performanceRecords,
   uploadBatches,
@@ -148,6 +149,30 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // Resolve campaign_id from the registry (account-scoped). The names were
+  // validated as registered at validate-time (E061); re-resolve here in case the
+  // registry shifted. A vanished campaign → 422, like the creative case.
+  const campaignNames = [...new Set(payload.rows.map((r) => r.campaignName))];
+  const campRows = await db
+    .select({ id: campaigns.id, name: campaigns.name })
+    .from(campaigns)
+    .where(
+      and(eq(campaigns.accountId, acct), inArray(campaigns.name, campaignNames)),
+    );
+  const campaignIdByName = new Map(campRows.map((c) => [c.name, c.id]));
+  const missingCampaigns = campaignNames.filter(
+    (n) => !campaignIdByName.has(n),
+  );
+  if (missingCampaigns.length > 0) {
+    return NextResponse.json(
+      {
+        error: "Some campaigns were removed since validation.",
+        missing: missingCampaigns,
+      },
+      { status: 422 },
+    );
+  }
+
   // Transactional commit.
   const platform = session.platform as
     | "instagram"
@@ -222,7 +247,10 @@ export async function POST(request: NextRequest) {
         accountId: acct,
         creativeId: idByName.get(r.creativeName)!,
         platform,
+        // Dual-write during the expand phase: campaign_id is the new identity,
+        // campaign_name stays populated until the contract migration drops it.
         campaignName: r.campaignName,
+        campaignId: campaignIdByName.get(r.campaignName)!,
         date: r.date,
         ...metricValues(r),
         uploadBatchId: batch.id,

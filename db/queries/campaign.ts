@@ -11,6 +11,7 @@ import {
 } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
+  campaigns,
   creatives,
   creativeTags,
   creativeTypeEnum,
@@ -118,7 +119,7 @@ export async function listCampaigns(
   const conds = listConds(f, await getActiveAccountId());
   const rows = await db
     .select({
-      campaign: performanceRecords.campaignName,
+      campaign: campaigns.name,
       platforms: sql<Platform[]>`array_agg(DISTINCT ${performanceRecords.platform})`,
       creatives: sql<number>`COUNT(DISTINCT ${performanceRecords.creativeId})::int`,
       spend: sumSpend,
@@ -133,8 +134,9 @@ export async function listCampaigns(
     })
     .from(performanceRecords)
     .innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId))
+    .innerJoin(campaigns, eq(campaigns.id, performanceRecords.campaignId))
     .where(conds.length > 0 ? and(...conds) : undefined)
-    .groupBy(performanceRecords.campaignName)
+    .groupBy(campaigns.id)
     .orderBy(desc(sumSpend));
 
   return rows.map((r) => ({
@@ -178,7 +180,7 @@ export async function campaignPortfolio(
   const conds = listConds(f, await getActiveAccountId());
   const [r] = await db
     .select({
-      campaigns: sql<number>`COUNT(DISTINCT ${performanceRecords.campaignName})::int`,
+      campaigns: sql<number>`COUNT(DISTINCT ${performanceRecords.campaignId})::int`,
       platforms: sql<number>`COUNT(DISTINCT ${performanceRecords.platform})::int`,
       creatives: sql<number>`COUNT(DISTINCT ${performanceRecords.creativeId})::int`,
       spend: sumSpend,
@@ -238,7 +240,7 @@ export async function campaignByPlatform(
   const rows = await db
     .select({
       platform: performanceRecords.platform,
-      campaign: performanceRecords.campaignName,
+      campaign: campaigns.name,
       spend: sumSpend,
       impressions: sumImpressions,
       clicks: sumClicks,
@@ -254,8 +256,9 @@ export async function campaignByPlatform(
     })
     .from(performanceRecords)
     .innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId))
+    .innerJoin(campaigns, eq(campaigns.id, performanceRecords.campaignId))
     .where(conds.length > 0 ? and(...conds) : undefined)
-    .groupBy(performanceRecords.platform, performanceRecords.campaignName)
+    .groupBy(performanceRecords.platform, campaigns.id)
     .having(gt(sumSpend, 0))
     .orderBy(desc(sumSpend));
   return rows.map((r) => ({
@@ -304,10 +307,11 @@ export async function campaignMeta(name: string): Promise<CampaignMeta | null> {
     .from(performanceRecords)
     .innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId))
     .innerJoin(products, eq(products.id, creatives.productId))
+    .innerJoin(campaigns, eq(campaigns.id, performanceRecords.campaignId))
     .where(
       and(
         eq(performanceRecords.accountId, acct),
-        eq(performanceRecords.campaignName, name),
+        eq(campaigns.name, name),
       ),
     );
 
@@ -371,7 +375,7 @@ function detailCond(
 ): SQL {
   const c: SQL[] = [
     eq(performanceRecords.accountId, acct),
-    eq(performanceRecords.campaignName, name),
+    eq(campaigns.name, name),
   ];
   if (range.from && range.to) {
     c.push(between(performanceRecords.date, range.from, range.to));
@@ -405,6 +409,7 @@ async function totalsFor(cond: SQL): Promise<CampaignTotals> {
     })
     .from(performanceRecords)
     .innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId))
+    .innerJoin(campaigns, eq(campaigns.id, performanceRecords.campaignId))
     .where(cond);
   return {
     spend: num(r?.spend),
@@ -506,6 +511,7 @@ export async function campaignDaily(
     })
     .from(performanceRecords)
     .innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId))
+    .innerJoin(campaigns, eq(campaigns.id, performanceRecords.campaignId))
     .where(detailCond(name, range, acct, includeExcluded))
     .groupBy(performanceRecords.date)
     .orderBy(asc(performanceRecords.date));
@@ -562,6 +568,7 @@ export async function campaignPlatforms(
     })
     .from(performanceRecords)
     .innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId))
+    .innerJoin(campaigns, eq(campaigns.id, performanceRecords.campaignId))
     .where(detailCond(name, range, acct, includeExcluded))
     .groupBy(performanceRecords.platform)
     .orderBy(desc(sumSpend));
@@ -626,6 +633,7 @@ export async function campaignCreatives(
     })
     .from(performanceRecords)
     .innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId))
+    .innerJoin(campaigns, eq(campaigns.id, performanceRecords.campaignId))
     .where(detailCond(name, range, acct, includeExcluded))
     .groupBy(
       creatives.id,
@@ -713,6 +721,7 @@ export async function campaignRecords(
     })
     .from(performanceRecords)
     .innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId))
+    .innerJoin(campaigns, eq(campaigns.id, performanceRecords.campaignId))
     .where(detailCond(name, range, acct, includeExcluded))
     .orderBy(desc(performanceRecords.date), desc(performanceRecords.spend))
     .limit(2000);
@@ -787,6 +796,7 @@ export async function campaignRecordsByDay(
     })
     .from(performanceRecords)
     .innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId))
+    .innerJoin(campaigns, eq(campaigns.id, performanceRecords.campaignId))
     .where(detailCond(name, range, acct, includeExcluded))
     .groupBy(performanceRecords.date)
     .orderBy(desc(performanceRecords.date));
@@ -859,6 +869,7 @@ export async function campaignDailyByCreative(
     })
     .from(performanceRecords)
     .innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId))
+    .innerJoin(campaigns, eq(campaigns.id, performanceRecords.campaignId))
     .where(detailCond(name, range, acct, includeExcluded))
     .groupBy(performanceRecords.date, creatives.id, creatives.name)
     .orderBy(asc(performanceRecords.date));

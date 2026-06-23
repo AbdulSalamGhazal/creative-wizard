@@ -1,6 +1,11 @@
 import { and, asc, between, eq, inArray, sql, type SQL } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { creatives, performanceRecords, platformEnum } from "@/db/schema";
+import {
+  campaigns,
+  creatives,
+  performanceRecords,
+  platformEnum,
+} from "@/db/schema";
 import { getActiveAccountId } from "@/lib/tenant";
 
 type Platform = (typeof platformEnum)[number];
@@ -27,7 +32,10 @@ export interface CleanupPreview {
  * match exactly the same rows. Returns an empty array when no filter is set
  * — callers MUST treat empty as "match nothing" and refuse to delete.
  */
-function buildConditions(f: CleanupMatch, acct: string): SQL[] {
+async function buildConditions(
+  f: CleanupMatch,
+  acct: string,
+): Promise<SQL[]> {
   const conds: SQL[] = [eq(performanceRecords.accountId, acct)];
   if (f.platforms && f.platforms.length > 0) {
     conds.push(inArray(performanceRecords.platform, f.platforms));
@@ -39,10 +47,25 @@ function buildConditions(f: CleanupMatch, acct: string): SQL[] {
     conds.push(inArray(performanceRecords.creativeId, f.creativeIds));
   }
   if (f.campaigns && f.campaigns.length > 0) {
-    // campaign_name stores the combined "Campaign ➤ Adset" value (with the
-    // platform suffix for IG/FB), so an exact in-list match deletes precisely
+    // The picker supplies campaign NAMES (the combined "Campaign ➤ Adset" value
+    // with the platform suffix for IG/FB). Resolve them to campaign ids scoped
+    // to the active account, then match by campaign_id so we delete precisely
     // the rows the user picked.
-    conds.push(inArray(performanceRecords.campaignName, f.campaigns));
+    const campIds = await db
+      .select({ id: campaigns.id })
+      .from(campaigns)
+      .where(
+        and(
+          eq(campaigns.accountId, acct),
+          inArray(campaigns.name, f.campaigns),
+        ),
+      );
+    conds.push(
+      inArray(
+        performanceRecords.campaignId,
+        campIds.map((c) => c.id),
+      ),
+    );
   }
   if (f.productIds && f.productIds.length > 0) {
     // performance_records has no product_id; match creatives under the selected
@@ -92,10 +115,11 @@ function hasAnyFilter(f: CleanupMatch): boolean {
 export async function listAccountCampaigns(): Promise<string[]> {
   const acct = await getActiveAccountId();
   const rows = await db
-    .selectDistinct({ name: performanceRecords.campaignName })
+    .selectDistinct({ name: campaigns.name })
     .from(performanceRecords)
+    .innerJoin(campaigns, eq(campaigns.id, performanceRecords.campaignId))
     .where(eq(performanceRecords.accountId, acct))
-    .orderBy(asc(performanceRecords.campaignName));
+    .orderBy(asc(campaigns.name));
   return rows.map((r) => r.name);
 }
 
@@ -104,7 +128,7 @@ export async function previewCleanup(f: CleanupMatch): Promise<CleanupPreview> {
   if (!hasAnyFilter(f)) {
     return { rows: 0, spend: 0, creatives: 0, from: null, to: null };
   }
-  const conds = buildConditions(f, await getActiveAccountId());
+  const conds = await buildConditions(f, await getActiveAccountId());
   const [row] = await db
     .select({
       rows: sql<number>`count(*)::int`,
@@ -135,7 +159,7 @@ export async function previewCleanup(f: CleanupMatch): Promise<CleanupPreview> {
  */
 export async function deleteRecords(f: CleanupMatch): Promise<number> {
   if (!hasAnyFilter(f)) return 0;
-  const conds = buildConditions(f, await getActiveAccountId());
+  const conds = await buildConditions(f, await getActiveAccountId());
   const deleted = await db
     .delete(performanceRecords)
     .where(and(...conds))

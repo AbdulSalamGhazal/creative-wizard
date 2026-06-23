@@ -2,6 +2,7 @@ import { and, asc, between, desc, eq, inArray, sql, type SQL } from "drizzle-orm
 import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import { db } from "@/lib/db";
 import {
+  campaigns,
   creatives,
   creativeTags,
   performanceRecords,
@@ -170,8 +171,20 @@ async function buildBaseConditions(filters: KpiFilters): Promise<{
     conditions.push(inArray(performanceRecords.creativeId, filters.creativeIds));
   }
   if (filters.campaignNames && filters.campaignNames.length > 0) {
+    const campIds = await db
+      .select({ id: campaigns.id })
+      .from(campaigns)
+      .where(
+        and(
+          eq(campaigns.accountId, acct),
+          inArray(campaigns.name, filters.campaignNames),
+        ),
+      );
     conditions.push(
-      inArray(performanceRecords.campaignName, filters.campaignNames),
+      inArray(
+        performanceRecords.campaignId,
+        campIds.map((c) => c.id),
+      ),
     );
   }
 
@@ -523,8 +536,20 @@ export async function creativeLeaderboard(
       );
     }
     if (filters.campaignNames && filters.campaignNames.length > 0) {
+      const campIds = await db
+        .select({ id: campaigns.id })
+        .from(campaigns)
+        .where(
+          and(
+            eq(campaigns.accountId, acct),
+            inArray(campaigns.name, filters.campaignNames),
+          ),
+        );
       sparkConditions.push(
-        inArray(performanceRecords.campaignName, filters.campaignNames),
+        inArray(
+          performanceRecords.campaignId,
+          campIds.map((c) => c.id),
+        ),
       );
     }
     const sparkRows = await db
@@ -631,7 +656,7 @@ export async function campaignMix(
   let q = db
     .select({
       platform: performanceRecords.platform,
-      campaign: performanceRecords.campaignName,
+      campaign: campaigns.name,
       spend: sumSpend,
       impressions: sumImpressions,
       clicks: sumClicks,
@@ -645,6 +670,7 @@ export async function campaignMix(
       roas,
     })
     .from(performanceRecords)
+    .innerJoin(campaigns, eq(campaigns.id, performanceRecords.campaignId))
     .$dynamic();
 
   if (needsCreativeJoin || needsTagJoin) {
@@ -659,7 +685,7 @@ export async function campaignMix(
 
   const rows = await q
     .where(and(...conditions))
-    .groupBy(performanceRecords.platform, performanceRecords.campaignName)
+    .groupBy(performanceRecords.platform, campaigns.id)
     .orderBy(desc(sumSpend));
 
   return rows.map((r) => ({
@@ -872,10 +898,8 @@ export async function creativeDimensionPoints(
   const { conditions, needsCreativeJoin, needsTagJoin } =
     await buildBaseConditions(filters);
 
-  const dimCol =
-    dimension === "platform"
-      ? performanceRecords.platform
-      : performanceRecords.campaignName;
+  const dimCol: AnyPgColumn =
+    dimension === "platform" ? performanceRecords.platform : campaigns.name;
 
   let q = db
     .select({
@@ -889,6 +913,9 @@ export async function creativeDimensionPoints(
 
   if (needsCreativeJoin || needsTagJoin) {
     q = q.innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId));
+  }
+  if (dimension === "campaign") {
+    q = q.innerJoin(campaigns, eq(campaigns.id, performanceRecords.campaignId));
   }
   if (needsTagJoin) {
     q = q.innerJoin(
@@ -939,10 +966,8 @@ export async function metricBreakdown(
   const { conditions, needsCreativeJoin, needsTagJoin } =
     await buildBaseConditions(filters);
 
-  const dimCol =
-    dimension === "platform"
-      ? performanceRecords.platform
-      : performanceRecords.campaignName;
+  const dimCol: AnyPgColumn =
+    dimension === "platform" ? performanceRecords.platform : campaigns.name;
 
   let q = db
     .select({
@@ -958,6 +983,9 @@ export async function metricBreakdown(
 
   if (needsCreativeJoin || needsTagJoin) {
     q = q.innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId));
+  }
+  if (dimension === "campaign") {
+    q = q.innerJoin(campaigns, eq(campaigns.id, performanceRecords.campaignId));
   }
   if (needsTagJoin) {
     q = q.innerJoin(
@@ -1005,10 +1033,8 @@ export async function metricOverTime(
   const { conditions, needsCreativeJoin, needsTagJoin } =
     await buildBaseConditions(filters);
 
-  const dimCol =
-    dimension === "platform"
-      ? performanceRecords.platform
-      : performanceRecords.campaignName;
+  const dimCol: AnyPgColumn =
+    dimension === "platform" ? performanceRecords.platform : campaigns.name;
 
   let q = db
     .select({
@@ -1025,6 +1051,9 @@ export async function metricOverTime(
 
   if (needsCreativeJoin || needsTagJoin) {
     q = q.innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId));
+  }
+  if (dimension === "campaign") {
+    q = q.innerJoin(campaigns, eq(campaigns.id, performanceRecords.campaignId));
   }
   if (needsTagJoin) {
     q = q.innerJoin(
@@ -1067,10 +1096,8 @@ export async function typeDimensionSpend(
 ): Promise<TypeDimensionSpendRow[]> {
   const { conditions, needsTagJoin } = await buildBaseConditions(filters);
 
-  const dimCol =
-    dimension === "platform"
-      ? performanceRecords.platform
-      : performanceRecords.campaignName;
+  const dimCol: AnyPgColumn =
+    dimension === "platform" ? performanceRecords.platform : campaigns.name;
 
   let q = db
     .select({
@@ -1082,6 +1109,9 @@ export async function typeDimensionSpend(
     .innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId))
     .$dynamic();
 
+  if (dimension === "campaign") {
+    q = q.innerJoin(campaigns, eq(campaigns.id, performanceRecords.campaignId));
+  }
   if (needsTagJoin) {
     q = q.innerJoin(
       creativeTags,
@@ -1639,12 +1669,13 @@ export async function compareDimensions(): Promise<CompareDimensionRow[]> {
   const rows = await db
     .selectDistinct({
       platform: performanceRecords.platform,
-      campaign: performanceRecords.campaignName,
+      campaign: campaigns.name,
       creativeId: creatives.id,
       creativeName: creatives.name,
       productName: products.name,
     })
     .from(performanceRecords)
+    .innerJoin(campaigns, eq(campaigns.id, performanceRecords.campaignId))
     .innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId))
     .innerJoin(products, eq(products.id, creatives.productId))
     .where(
@@ -1655,7 +1686,7 @@ export async function compareDimensions(): Promise<CompareDimensionRow[]> {
     )
     .orderBy(
       asc(performanceRecords.platform),
-      asc(performanceRecords.campaignName),
+      asc(campaigns.name),
       asc(creatives.name),
     );
   return rows.map((r) => ({
@@ -1752,11 +1783,11 @@ export async function changeBreakdown(
   const conversionValue = split(performanceRecords.conversionValue);
   const landingPageViews = split(performanceRecords.landingPageViews);
 
-  const keyExpr =
+  const keyExpr: AnyPgColumn =
     dim === "platform"
       ? performanceRecords.platform
       : dim === "campaign"
-        ? performanceRecords.campaignName
+        ? campaigns.name
         : creatives.id;
 
   let q = db
@@ -1783,6 +1814,9 @@ export async function changeBreakdown(
   const joinCreatives = dim === "creative" || needsCreativeJoin || needsTagJoin;
   if (joinCreatives) {
     q = q.innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId));
+  }
+  if (dim === "campaign") {
+    q = q.innerJoin(campaigns, eq(campaigns.id, performanceRecords.campaignId));
   }
   if (dim === "creative") {
     q = q.innerJoin(products, eq(products.id, creatives.productId));

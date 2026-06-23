@@ -1,6 +1,7 @@
 import { and, between, desc, eq, inArray, sql, type SQL } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
+  campaigns,
   creativePlatformOverrides,
   creatives,
   creativeTags,
@@ -489,16 +490,17 @@ export async function statusFlowBreakdown(
   // Top 4 campaigns on P by spend within the window.
   const topRows = await db
     .select({
-      campaign: performanceRecords.campaignName,
+      campaign: campaigns.name,
       spend: sql<number>`SUM(${performanceRecords.spend})`,
     })
     .from(performanceRecords)
+    .innerJoin(campaigns, eq(campaigns.id, performanceRecords.campaignId))
     .where(and(...scopeConds([between(performanceRecords.date, filters.from, filters.to)])))
-    .groupBy(performanceRecords.campaignName)
+    .groupBy(campaigns.id)
     .orderBy(desc(sql`SUM(${performanceRecords.spend})`))
     .limit(4);
-  const campaigns = topRows.map((r) => r.campaign);
-  if (campaigns.length === 0) return [];
+  const campaignNames = topRows.map((r) => r.campaign);
+  if (campaignNames.length === 0) return [];
 
   // Universe = creatives that ran on P (any time up to `to`) — so "New" for a
   // campaign means "on this platform but never joined this campaign".
@@ -538,20 +540,21 @@ export async function statusFlowBreakdown(
     const rows = await db
       .select({
         creativeId: performanceRecords.creativeId,
-        campaign: performanceRecords.campaignName,
+        campaign: campaigns.name,
         last: sql<string>`MAX(${performanceRecords.date})`,
       })
       .from(performanceRecords)
+      .innerJoin(campaigns, eq(campaigns.id, performanceRecords.campaignId))
       .where(
         and(
           ...scopeConds([
-            inArray(performanceRecords.campaignName, campaigns),
+            inArray(campaigns.name, campaignNames),
             sql`${performanceRecords.spend} > 0`,
             sql`${performanceRecords.date} <= ${asOf}`,
           ]),
         ),
       )
-      .groupBy(performanceRecords.creativeId, performanceRecords.campaignName);
+      .groupBy(performanceRecords.creativeId, campaigns.id);
     const m = new Map<string, Map<string, string>>();
     for (const r of rows) {
       let cm = m.get(r.campaign);
@@ -580,7 +583,7 @@ export async function statusFlowBreakdown(
     return last >= isoMinusDays(anchor, windowDays - 1) ? "active" : "pause";
   };
 
-  return campaigns.map((c) => {
+  return campaignNames.map((c) => {
     const startC = startSpend.get(c) ?? new Map<string, string>();
     const endC = endSpend.get(c) ?? new Map<string, string>();
     return {

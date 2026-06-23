@@ -136,12 +136,13 @@ export async function POST(request: NextRequest) {
               uploadBatches,
               eq(uploadBatches.id, performanceRecords.uploadBatchId),
             )
+            .innerJoin(campaigns, eq(campaigns.id, performanceRecords.campaignId))
             .where(
               and(
                 eq(performanceRecords.accountId, acct),
                 eq(creatives.name, name),
                 eq(performanceRecords.platform, plat),
-                eq(performanceRecords.campaignName, campaignName),
+                eq(campaigns.name, campaignName),
                 eq(performanceRecords.date, date),
                 eq(uploadBatches.status, "active"),
               ),
@@ -171,7 +172,7 @@ export async function POST(request: NextRequest) {
   const onOtherPlatforms = fileCampaigns.length
     ? await db
         .selectDistinct({
-          campaignName: performanceRecords.campaignName,
+          campaignName: campaigns.name,
           platform: performanceRecords.platform,
         })
         .from(performanceRecords)
@@ -179,10 +180,11 @@ export async function POST(request: NextRequest) {
           uploadBatches,
           eq(uploadBatches.id, performanceRecords.uploadBatchId),
         )
+        .innerJoin(campaigns, eq(campaigns.id, performanceRecords.campaignId))
         .where(
           and(
             eq(performanceRecords.accountId, acct),
-            inArray(performanceRecords.campaignName, fileCampaigns),
+            inArray(campaigns.name, fileCampaigns),
             ne(performanceRecords.platform, platform),
             eq(uploadBatches.status, "active"),
           ),
@@ -236,7 +238,7 @@ export async function POST(request: NextRequest) {
             .select({
               id: performanceRecords.id,
               creativeId: performanceRecords.creativeId,
-              campaignName: performanceRecords.campaignName,
+              campaignName: campaigns.name,
               date: performanceRecords.date,
             })
             .from(performanceRecords)
@@ -244,13 +246,14 @@ export async function POST(request: NextRequest) {
               uploadBatches,
               eq(uploadBatches.id, performanceRecords.uploadBatchId),
             )
+            .innerJoin(campaigns, eq(campaigns.id, performanceRecords.campaignId))
             .where(
               and(
                 eq(performanceRecords.accountId, acct),
                 eq(performanceRecords.platform, platform),
                 eq(uploadBatches.status, "active"),
                 inArray(performanceRecords.creativeId, creativeIds),
-                inArray(performanceRecords.campaignName, campaignNames),
+                inArray(campaigns.name, campaignNames),
                 inArray(performanceRecords.date, recordDates),
               ),
             )

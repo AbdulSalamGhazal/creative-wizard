@@ -12,6 +12,7 @@ import {
 } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
+  campaigns,
   creatives,
   creativeTags,
   performanceRecords,
@@ -435,7 +436,7 @@ export async function creativeDeletionSummary(
 
   const [agg] = await db
     .select({
-      campaigns: sql<number>`COUNT(DISTINCT ${performanceRecords.campaignName})::int`,
+      campaigns: sql<number>`COUNT(DISTINCT ${performanceRecords.campaignId})::int`,
     })
     .from(performanceRecords)
     .where(eq(performanceRecords.creativeId, creativeId));
@@ -485,7 +486,7 @@ export async function creativeRecords(
       clicks: performanceRecords.clicks,
       conversions: performanceRecords.conversions,
       conversionValue: performanceRecords.conversionValue,
-      campaignName: performanceRecords.campaignName,
+      campaignName: campaigns.name,
       landingPageViews: performanceRecords.landingPageViews,
       addToCart: performanceRecords.addToCart,
       addPayment: performanceRecords.addPayment,
@@ -499,6 +500,7 @@ export async function creativeRecords(
       excludedAt: performanceRecords.excludedAt,
     })
     .from(performanceRecords)
+    .innerJoin(campaigns, eq(campaigns.id, performanceRecords.campaignId))
     .where(
       and(
         eq(performanceRecords.creativeId, creativeId),
