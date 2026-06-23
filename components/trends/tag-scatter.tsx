@@ -14,7 +14,7 @@ import {
   ZAxis,
 } from "recharts";
 import { int, pct, ratio, usd } from "@/lib/format";
-import { cn } from "@/lib/utils";
+import { MetricPicker } from "@/components/charts/metric-picker";
 import type { TagRollupRow } from "@/db/queries/trends";
 
 const compactUsd = new Intl.NumberFormat("en-US", {
@@ -67,21 +67,12 @@ export function TagScatter({ rows }: { rows: TagRollupRow[] }) {
             Each dot is a tag · bubble = creatives · click to open the Library
           </p>
         </div>
-        <div className="inline-flex items-center rounded-md border border-line bg-surface-2 p-0.5 text-xs">
-          {(Object.keys(Y) as YMetric[]).map((k) => (
-            <button
-              key={k}
-              type="button"
-              onClick={() => setMetric(k)}
-              className={cn(
-                "px-2.5 py-1 rounded transition-colors",
-                metric === k ? "bg-surface text-ink shadow-sm" : "text-ink-3 hover:text-ink",
-              )}
-            >
-              {Y[k].label}
-            </button>
-          ))}
-        </div>
+        <MetricPicker
+          ariaLabel="Y metric"
+          options={(Object.keys(Y) as YMetric[]).map((k) => ({ value: k, label: Y[k].label }))}
+          value={metric}
+          onChange={setMetric}
+        />
       </div>
 
       {data.length === 0 ? (
@@ -127,7 +118,7 @@ export function TagScatter({ rows }: { rows: TagRollupRow[] }) {
                     tag: string; x: number; creatives: number; cpa: number | null; roas: number | null;
                   };
                   return (
-                    <div className="rounded-md border border-line bg-surface px-3 py-2 shadow-lg shadow-black/30 text-xs max-w-xs">
+                    <div className="rounded-md border border-line bg-popover/95 backdrop-blur px-3 py-2 shadow-lg text-xs max-w-xs">
                       <div className="text-ink font-medium mb-1 truncate">#{p.tag}</div>
                       <Row label="Spend" value={usd(p.x)} />
                       <Row label="Creatives" value={int(p.creatives)} />

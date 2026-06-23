@@ -93,7 +93,7 @@ export function VideoScatter({ rows }: { rows: VideoDiagnosticRow[] }) {
                   if (!active || !payload || payload.length === 0) return null;
                   const p = payload[0]?.payload as { name: string; spend: number; xv: number; yv: number };
                   return (
-                    <div className="rounded-md border border-line bg-surface px-3 py-2 shadow-lg shadow-black/30 text-xs max-w-xs">
+                    <div className="rounded-md border border-line bg-popover/95 backdrop-blur px-3 py-2 shadow-lg text-xs max-w-xs">
                       <div className="text-ink font-medium mb-1 truncate">{p.name}</div>
                       <Row label={x.label} value={x.fmt(p.xv)} />
                       <Row label={y.label} value={y.fmt(p.yv)} />

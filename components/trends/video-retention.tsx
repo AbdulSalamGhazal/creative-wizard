@@ -132,7 +132,7 @@ export function VideoRetention({
               content={({ active, payload, label }) => {
                 if (!active || !payload || payload.length === 0) return null;
                 return (
-                  <div className="rounded-md border border-line bg-surface px-3 py-2 shadow-lg shadow-black/30 text-xs max-w-[16rem]">
+                  <div className="rounded-md border border-line bg-popover/95 backdrop-blur px-3 py-2 shadow-lg text-xs max-w-[16rem]">
                     <div className="text-ink font-medium mb-1">{label}</div>
                     {payload.slice(0, 8).map((p) => (
                       <div key={String(p.dataKey)} className="flex items-center justify-between gap-4">

@@ -160,7 +160,7 @@ function TypeTooltip({
   const platform = payload[0]?.payload.platform ?? "";
   const m = METRICS[metric];
   return (
-    <div className="rounded-md border border-line bg-surface px-3 py-2 shadow-lg shadow-black/30 text-xs">
+    <div className="rounded-md border border-line bg-popover/95 backdrop-blur px-3 py-2 shadow-lg text-xs">
       <div className="text-ink font-medium mb-1.5">
         {PLATFORM_LABEL[platform as keyof typeof PLATFORM_LABEL] ?? platform}
       </div>

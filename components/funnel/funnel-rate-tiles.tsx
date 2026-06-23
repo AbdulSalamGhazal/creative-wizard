@@ -1,7 +1,6 @@
-import { ArrowDownRight, ArrowUpRight } from "lucide-react";
 import { Sparkline } from "@/components/charts/sparkline";
+import { DeltaBadge } from "@/components/kpi/delta-badge";
 import { pct, usd } from "@/lib/format";
-import type { Delta } from "@/lib/period";
 import type { FunnelOverview, FunnelDailyPoint } from "@/db/queries/funnel";
 
 type RateKey =
@@ -82,7 +81,7 @@ export function FunnelRateTiles({
                 />
                 {r.label}
               </span>
-              <Trend delta={delta} inverted={r.inverted} />
+              <DeltaBadge delta={delta} inverted={r.inverted} />
             </div>
             <span className="font-display text-[2rem] leading-[0.95] num text-ink">
               {value}
@@ -102,23 +101,3 @@ export function FunnelRateTiles({
   );
 }
 
-function Trend({ delta, inverted }: { delta: Delta; inverted?: boolean }) {
-  if (delta.mode !== "pct") {
-    return <span className="text-[11px] text-ink-3">—</span>;
-  }
-  const p = delta.pct ?? 0;
-  const up = p >= 0;
-  const good = inverted ? !up : up;
-  const Icon = up ? ArrowUpRight : ArrowDownRight;
-  return (
-    <span
-      className={`inline-flex items-center gap-0.5 text-[11px] font-semibold num shrink-0 ${
-        good ? "text-pos" : "text-neg"
-      }`}
-    >
-      <Icon className="w-3.5 h-3.5" />
-      {up ? "+" : ""}
-      {(p * 100).toFixed(1)}%
-    </span>
-  );
-}
