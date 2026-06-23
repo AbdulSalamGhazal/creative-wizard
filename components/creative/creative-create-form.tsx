@@ -32,8 +32,9 @@ const TYPES = [
 export function CreativeCreateForm({ products, allTags }: Props) {
   const router = useRouter();
   const [name, setName] = useState("");
-  const [productId, setProductId] = useState<string>(products[0]?.id ?? "");
-  const [type, setType] = useState<"video" | "image" | "slides">("video");
+  // No defaults — force a deliberate pick so a left-on-default value can't slip through.
+  const [productId, setProductId] = useState<string>("");
+  const [type, setType] = useState<"" | "video" | "image" | "slides">("");
   const [launchDate, setLaunchDate] = useState("");
   const [tagsInput, setTagsInput] = useState("");
   const [notes, setNotes] = useState("");
@@ -47,6 +48,10 @@ export function CreativeCreateForm({ products, allTags }: Props) {
     e.preventDefault();
     setError(null);
     setFieldErrors({});
+
+    // Guard (also narrows `type` off the "" placeholder); the button is disabled
+    // until these are set, so this only ever no-ops a stray submit.
+    if (!name.trim() || !productId || !type) return;
 
     const tags = tagsInput
       .split(",")
@@ -106,7 +111,7 @@ export function CreativeCreateForm({ products, allTags }: Props) {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Field label="Product" error={fieldErrors.productId}>
           <Select value={productId} onValueChange={setProductId}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectTrigger><SelectValue placeholder="Select a product…" /></SelectTrigger>
             <SelectContent>
               {products.map((p) => (
                 <SelectItem key={p.id} value={p.id}>
@@ -118,7 +123,7 @@ export function CreativeCreateForm({ products, allTags }: Props) {
         </Field>
         <Field label="Type" error={fieldErrors.type}>
           <Select value={type} onValueChange={(v) => setType(v as typeof type)}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectTrigger><SelectValue placeholder="Select a type…" /></SelectTrigger>
             <SelectContent>
               {TYPES.map((t) => (
                 <SelectItem key={t.value} value={t.value}>
@@ -201,7 +206,10 @@ export function CreativeCreateForm({ products, allTags }: Props) {
         >
           Cancel
         </Button>
-        <Button type="submit" disabled={isPending || !name.trim() || !productId}>
+        <Button
+          type="submit"
+          disabled={isPending || !name.trim() || !productId || !type}
+        >
           {isPending ? "Creating…" : "Create creative"}
         </Button>
       </div>
