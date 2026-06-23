@@ -251,6 +251,7 @@ export function TagRollupTable({ rows }: { rows: TagRollupRow[] }) {
           setDir(d);
         }}
         onReorder={setOrder}
+        csvFileName="by-tag"
         minWidthClass="min-w-[760px]"
         empty={
           <div className="rounded-lg border border-dashed border-line bg-surface px-6 py-12 text-center">

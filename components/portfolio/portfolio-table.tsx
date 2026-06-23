@@ -192,6 +192,10 @@ export function PortfolioTable({
       render: (r) => renderCell(r, m.key),
       total: () => renderTotal(m.key),
       sortValue: m.sortable ? (r) => sortVal(r, m.key) : undefined,
+      csv:
+        m.key === "platforms"
+          ? (r: PortfolioCampaignRow) => r.platforms.join(" | ")
+          : undefined,
     }));
   }, [totals]);
 
@@ -213,6 +217,7 @@ export function PortfolioTable({
       onReorder={(o) => pushParams((p) => p.set("order", o.join(",")))}
       onRowClick={(r) => router.push(`/campaigns/${encodeURIComponent(r.campaign)}`)}
       showTotals
+      csvFileName="campaigns"
       minWidthClass="min-w-[1180px]"
       empty={
         <div className="h-32 flex items-center justify-center text-ink-3 text-sm border border-dashed border-line rounded-lg">

@@ -121,6 +121,7 @@ export function VideoDiagnosticsTable({
         if (c.kind === "text") return String(r[c.key] ?? "");
         return (r[c.key] as Num) ?? null;
       },
+      csv: c.kind === "status" ? (r: VideoDiagnosticRow) => r.status : undefined,
       render: (r) => {
         if (c.kind === "status") return <StatusBadge status={r.status} />;
         if (c.kind === "text")
@@ -178,6 +179,7 @@ export function VideoDiagnosticsTable({
         dir={dir}
         hidden={hidden}
         order={order}
+        csvFileName="video-diagnostics"
         onSort={(key, d) => {
           setSortKey(key);
           setDir(d);

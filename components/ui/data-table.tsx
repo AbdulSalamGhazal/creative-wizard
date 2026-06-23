@@ -3,6 +3,8 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import { ArrowDown, ArrowUp, GripVertical } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { DownloadCsvButton } from "@/components/ui/download-csv-button";
+import { rowsToCsv, type CsvColumn } from "@/lib/csv-export";
 
 /**
  * The canonical data table. One sort/resize/reorder/visibility behaviour for
@@ -29,6 +31,8 @@ export interface DataColumn<T> {
   sortValue?: (row: T) => number | string | null;
   /** Direction on first click of THIS column (default "desc"). */
   defaultSortDir?: "asc" | "desc";
+  /** Raw value for CSV export. Falls back to `sortValue` when omitted. */
+  csv?: (row: T) => string | number | null;
 }
 
 const MIN_W = 64;
@@ -47,6 +51,7 @@ export function DataTable<T>({
   rowClassName,
   showTotals = false,
   minWidthClass = "min-w-[960px]",
+  csvFileName,
   empty,
 }: {
   columns: DataColumn<T>[];
@@ -63,6 +68,10 @@ export function DataTable<T>({
   rowClassName?: (row: T) => string;
   showTotals?: boolean;
   minWidthClass?: string;
+  /** When set, shows a "Download CSV" button that exports the shown columns
+   *  (in their current order/visibility/sort) using each column's `csv` value
+   *  (or `sortValue` as a fallback). The filename gets a `.csv` suffix. */
+  csvFileName?: string;
   empty?: React.ReactNode;
 }) {
   const pinnedCol = columns.find((c) => c.pinned);
@@ -170,6 +179,17 @@ export function DataTable<T>({
     return w ? { width: w, minWidth: w, maxWidth: w } : undefined;
   };
 
+  // CSV of exactly what's shown (visible columns, in order, current sort).
+  const csvContent = useMemo(() => {
+    if (!csvFileName) return "";
+    const csvCols: CsvColumn<T>[] = cols.map((c) => ({
+      key: c.key,
+      label: c.label,
+      value: (r) => (c.csv ? c.csv(r) : c.sortValue ? c.sortValue(r) : null),
+    }));
+    return rowsToCsv(sorted, csvCols);
+  }, [csvFileName, cols, sorted]);
+
   if (rows.length === 0) {
     return (
       <>
@@ -187,7 +207,13 @@ export function DataTable<T>({
     col.pinned ? `sticky left-0 ${extra}` : "";
 
   return (
-    <div className="rounded-lg border border-line bg-surface overflow-auto max-h-[70vh]">
+    <div className="space-y-2">
+      {csvFileName && (
+        <div className="flex justify-end">
+          <DownloadCsvButton csvContent={csvContent} filename={`${csvFileName}.csv`} />
+        </div>
+      )}
+      <div className="rounded-lg border border-line bg-surface overflow-auto max-h-[70vh]">
       <table className={cn(minWidthClass, "w-full text-[12px] num")}>
         <thead className="sticky top-0 z-20 bg-surface">
           <tr className="text-[11px] uppercase tracking-[0.12em] text-ink-3 border-b border-line bg-surface-2/40">
@@ -308,6 +334,7 @@ export function DataTable<T>({
           </tfoot>
         )}
       </table>
+      </div>
     </div>
   );
 }
