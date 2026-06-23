@@ -101,3 +101,29 @@ export function SmoothToggle({
     </button>
   );
 }
+
+/** The "Group" toggle — collapse the shown series into one combined line. */
+export function GroupToggle({
+  on,
+  onToggle,
+}: {
+  on: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-pressed={on}
+      title="Combine the shown series into a single total line"
+      className={
+        "h-7 px-2.5 rounded-md border text-[11px] font-medium transition-colors " +
+        (on
+          ? "border-brand/50 bg-[var(--brand-soft)] text-ink"
+          : "border-line text-ink-2 hover:text-ink hover:bg-surface-2")
+      }
+    >
+      Group
+    </button>
+  );
+}
