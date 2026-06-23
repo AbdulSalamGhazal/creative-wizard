@@ -118,22 +118,25 @@ This app is deployed and in production use. Treat `main` as shippable.
   full log. A failed Vercel build silently keeps serving the previous deploy, so
   prod looks "not updated" with no error surfaced.
 
-- **Campaign name + duplicate detection (v2).** `performance_records.campaign_name`
-  stores the combined `Campaign ➤ Adset` value — and for **instagram/facebook**
-  a short platform tag is appended (e.g. `Holiday ➤ Broad (IG)` / `(FB)`) so the
-  same Meta campaign split across the two stays distinct in storage, filters, and
-  pickers. (The tag was originally the full `(Instagram)`/`(Facebook)` label;
-  shortened to `(IG)`/`(FB)` later — the stored `campaign_name`s + the `campaigns`
-  registry were migrated together via `db/scripts/shorten-platform-tags.ts`, since
-  the tag must match byte-for-byte between the registry and what an upload builds.)
-  The format is built ONLY through `lib/campaign.ts` `buildCampaignName()` (the
-  `PLATFORM_TAG` map; used by the CSV pipeline and the seed) — don't open-code it,
-  and changing a tag means migrating the stored names + registry too. Duplicates
-  are keyed on
-  `(creative, platform, campaign, date)` and rejected via E050 (intra-file) /
-  E051 (already-imported) plus a unique index (migrations 0010+0011). The same
-  creative across *different* campaigns on the same day is allowed. (This
-  superseded the brief 0009 'allow duplicates + W003 advisory' step.)
+- **Campaign identity = `performance_records.campaign_id` FK (normalized).** A
+  perf row's campaign is a FK to the `campaigns` registry — NOT a text column.
+  (The old denormalized `campaign_name` text was dropped in migrations 0023
+  expand / 0024 contract; reads `JOIN campaigns` and source the display name from
+  `campaigns.name`, writes resolve `campaign_id` from the registry by
+  `(account_id, built-name)`.) The registry name is the combined `Campaign ➤
+  Adset` value — and for **instagram/facebook** a short platform tag is appended
+  (e.g. `Holiday ➤ Broad (IG)` / `(FB)`) so the same Meta campaign split across
+  the two stays distinct. That name format is built ONLY through
+  `lib/campaign.ts` `buildCampaignName()` (the `PLATFORM_TAG` map; used by the
+  CSV pipeline, the create-campaign action, and the seed) — don't open-code it.
+  Because a renamed/​re-tagged campaign is now a single-row update to
+  `campaigns.name` (every perf row follows via the FK), there's no bulk
+  campaign_name rewrite anymore; the one-off `shorten-platform-tags.ts` that did
+  the `(Instagram)→(IG)` rewrite was deleted post-normalization. Duplicates are
+  keyed on `(creative, platform, campaign_id, date)` and rejected via E050
+  (intra-file) / E051 (already-imported, joins `campaigns`) plus the
+  `perf_creative_platform_campaign_id_date_idx` unique index. The same creative
+  across *different* campaigns on the same day is allowed.
 - The admin record-cleanup tool (`/uploads`, `app/actions/cleanup.ts`) is a
   sanctioned hard-delete exit path for `performance_records`, added at the
   user's request. It overrides the original "rollback is the only exit path"

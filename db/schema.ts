@@ -450,18 +450,14 @@ export const performanceRecords = pgTable(
     platform: varchar("platform", { length: 16, enum: platformEnum }).notNull(),
     date: date("date").notNull(),
     /**
-     * Legacy text identity — "Campaign Name ➤ Adset Name". Being retired in
-     * favour of campaign_id (the FK below); nullable during the migration and
-     * dropped once every read/write path is off it. The UI labels a campaign via
-     * the joined campaigns.name, not this column.
+     * The campaign identity — FK to the registered campaigns row. Part of the
+     * dedup key (creative, platform, campaign, date). The campaign's display
+     * name comes from the joined campaigns.name (the old denormalized
+     * campaign_name text column was dropped in migration 0024).
      */
-    campaignName: text("campaign_name"),
-    /**
-     * The real campaign identity — FK to the registered campaigns row. Part of
-     * the dedup key (creative, platform, campaign, date). Nullable only during
-     * the additive migration window; made NOT NULL in the contract migration.
-     */
-    campaignId: uuid("campaign_id").references(() => campaigns.id),
+    campaignId: uuid("campaign_id")
+      .notNull()
+      .references(() => campaigns.id),
     spend: numeric("spend", { precision: 14, scale: 4 }).notNull(),
     impressions: integer("impressions").notNull(),
     clicks: integer("clicks").notNull(),
@@ -494,23 +490,13 @@ export const performanceRecords = pgTable(
   (t) => ({
     // Unique on the FULL dedup key. The same creative can run on the same
     // platform/date across different campaigns (allowed), but not the same
-    // campaign twice — campaign_name disambiguates.
-    creativePlatformCampaignDateIdx: uniqueIndex(
-      "perf_creative_platform_campaign_date_idx",
-    ).on(t.creativeId, t.platform, t.campaignName, t.date),
-    accountDateIdx: index("perf_account_date_idx").on(t.accountId, t.date),
-    // Speeds the per-campaign queries (campaign detail + the campaigns table),
-    // which filter by (account_id, campaign_name, date).
-    accountCampaignDateIdx: index("perf_account_campaign_date_idx").on(
-      t.accountId,
-      t.campaignName,
-      t.date,
-    ),
-    // New campaign_id-keyed identity + lookup indexes (replace the campaign_name
-    // ones above once the contract migration drops the text column).
+    // campaign twice — campaign_id disambiguates.
     creativePlatformCampaignIdDateIdx: uniqueIndex(
       "perf_creative_platform_campaign_id_date_idx",
     ).on(t.creativeId, t.platform, t.campaignId, t.date),
+    accountDateIdx: index("perf_account_date_idx").on(t.accountId, t.date),
+    // Speeds the per-campaign queries (campaign detail + the campaigns table),
+    // which filter by (account_id, campaign_id, date).
     accountCampaignIdDateIdx: index("perf_account_campaign_id_date_idx").on(
       t.accountId,
       t.campaignId,

@@ -311,7 +311,6 @@ async function main() {
         rows.push({
           creativeId: c.id,
           platform,
-          campaignName,
           campaignId,
           date: dateStr,
           spend: spend.toString(),

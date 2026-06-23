@@ -169,6 +169,13 @@
       "when": 1782245667515,
       "tag": "0023_campaign_id_expand",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1782247940688,
+      "tag": "0024_campaign_id_contract",
+      "breakpoints": true
     }
   ]
 }

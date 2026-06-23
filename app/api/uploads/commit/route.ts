@@ -247,9 +247,6 @@ export async function POST(request: NextRequest) {
         accountId: acct,
         creativeId: idByName.get(r.creativeName)!,
         platform,
-        // Dual-write during the expand phase: campaign_id is the new identity,
-        // campaign_name stays populated until the contract migration drops it.
-        campaignName: r.campaignName,
         campaignId: campaignIdByName.get(r.campaignName)!,
         date: r.date,
         ...metricValues(r),
