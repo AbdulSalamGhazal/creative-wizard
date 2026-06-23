@@ -40,10 +40,15 @@ import {
   type CreativeView,
 } from "@/validators/creative";
 import { CREATIVE_STATUSES, STATUS_LABEL } from "@/lib/creative-status";
+import { ViewsControl } from "@/components/summary/views-control";
+import type { SummaryViewRow } from "@/db/queries/summary-views";
 
 interface Props {
   products: Array<{ id: string; name: string }>;
   tags: string[];
+  views: SummaryViewRow[];
+  currentUserId: string;
+  isAdmin: boolean;
 }
 
 const TYPES = [
@@ -95,7 +100,7 @@ const DROPDOWN_SORTS: CreativeSort[] = [
   "created-desc",
 ];
 
-export function LibraryFilterBar({ products, tags }: Props) {
+export function LibraryFilterBar({ products, tags, views, currentUserId, isAdmin }: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -207,6 +212,14 @@ export function LibraryFilterBar({ products, tags }: Props) {
   return (
     <div className="sticky top-0 z-10 -mx-6 px-6 py-3 border-b border-line bg-background/95 backdrop-blur">
       <div className="flex items-center gap-2 flex-wrap">
+        <ViewsControl
+          views={views}
+          currentUserId={currentUserId}
+          isAdmin={isAdmin}
+          page="creatives"
+          clearLabel="Show all creatives (ignore default)"
+        />
+
         {/* Search */}
         <div className="relative">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-ink-3 pointer-events-none" />

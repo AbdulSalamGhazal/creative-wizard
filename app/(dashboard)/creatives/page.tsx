@@ -1,11 +1,19 @@
+import { redirect } from "next/navigation";
 import { listCreatives, listAllTags } from "@/db/queries/creatives";
 import { creativeStatusBreakdown } from "@/db/queries/creative-status";
 import { listProducts } from "@/db/queries/products";
+import {
+  getDefaultSummaryView,
+  listSummaryViews,
+} from "@/db/queries/summary-views";
+import { requireAuth } from "@/lib/auth";
 import { creativeListFiltersSchema } from "@/validators/creative";
 import { LibraryHeader } from "@/components/creative/library-header";
 import { LibraryFilterBar } from "@/components/creative/library-filter-bar";
 import { CreativeGrid } from "@/components/creative/creative-grid";
 import { CreativeTable } from "@/components/creative/creative-table";
+
+export const dynamic = "force-dynamic";
 
 type SearchParams = Record<string, string | string[] | undefined>;
 
@@ -20,6 +28,16 @@ export default async function CreativesPage({
   searchParams: Promise<SearchParams>;
 }) {
   const params = await searchParams;
+  const user = await requireAuth();
+
+  // Bare /creatives (no params) lands on the caller's own default view, if set.
+  if (Object.keys(params).length === 0) {
+    const def = await getDefaultSummaryView(user.id, "creatives");
+    if (def && def.query.trim().length > 0) {
+      redirect(`/creatives?${def.query}`);
+    }
+  }
+
   const parsed = creativeListFiltersSchema.parse({
     q: pickFirst(params.q),
     productIds: pickFirst(params.productIds),
@@ -31,7 +49,7 @@ export default async function CreativesPage({
     view: pickFirst(params.view),
   });
 
-  const [listResult, breakdown, products, allTags] = await Promise.all([
+  const [listResult, breakdown, products, allTags, views] = await Promise.all([
     listCreatives({
       q: parsed.q,
       productIds: parsed.productIds.length > 0 ? parsed.productIds : undefined,
@@ -44,6 +62,7 @@ export default async function CreativesPage({
     creativeStatusBreakdown(),
     listProducts(),
     listAllTags(),
+    listSummaryViews(user.id, "creatives"),
   ]);
 
   // Carry the active filter/sort into each detail link so the detail page's
@@ -67,7 +86,13 @@ export default async function CreativesPage({
   return (
     <div className="space-y-6">
       <LibraryHeader breakdown={breakdown} />
-      <LibraryFilterBar products={products} tags={allTags} />
+      <LibraryFilterBar
+        products={products}
+        tags={allTags}
+        views={views}
+        currentUserId={user.id}
+        isAdmin={user.role === "admin"}
+      />
 
       {parsed.view === "table" ? (
         <CreativeTable
