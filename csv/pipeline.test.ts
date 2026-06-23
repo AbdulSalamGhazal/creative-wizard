@@ -259,7 +259,7 @@ describe("CSV pipeline — Stage 5 (database duplicates)", () => {
       },
     });
     expect(res.ok).toBe(true);
-    expect(seenCampaign).toBe("Holiday ➤ Broad (Instagram)");
+    expect(seenCampaign).toBe("Holiday ➤ Broad (IG)");
   });
 });
 
@@ -297,7 +297,7 @@ describe("CSV pipeline — happy path", () => {
 describe("CSV pipeline — campaign registration (E061)", () => {
   it("accepts a row whose campaign is registered", async () => {
     const res = await run(`${META_HEADER}\n${row({})}\n`, {
-      registeredCampaigns: new Set(["Spring Launch ➤ Broad (Instagram)"]),
+      registeredCampaigns: new Set(["Spring Launch ➤ Broad (IG)"]),
     });
     expect(res.ok).toBe(true);
   });

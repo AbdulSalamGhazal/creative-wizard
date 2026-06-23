@@ -34,7 +34,7 @@ export interface ParsedRow {
   clicks: number;
   conversions: number | null;
   conversionValue: number | null;
-  /** Combined "Campaign ➤ Adset", with " (Instagram)"/" (Facebook)" appended for those two platforms (see lib/campaign.ts). */
+  /** Combined "Campaign ➤ Adset", with " (IG)"/" (FB)" appended for those two platforms (see lib/campaign.ts). */
   campaignName: string;
   landingPageViews: number | null;
   addToCart: number | null;

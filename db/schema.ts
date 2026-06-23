@@ -139,7 +139,7 @@ export const creatives = pgTable(
  * Registered campaigns. Like creatives, a campaign must exist here before any
  * upload can reference it — otherwise renaming a campaign at the source would
  * silently spawn a new one. `name` is the FULL stored campaign_name produced by
- * lib/campaign.buildCampaignName ("Campaign ➤ Ad Set" + "(Platform)" for
+ * lib/campaign.buildCampaignName ("Campaign ➤ Ad Set" + " (IG)"/" (FB)" for
  * Instagram/Facebook), so upload validation matches it byte-for-byte. Unique
  * per account; one name lives on exactly one platform (see the E060 guard).
  */

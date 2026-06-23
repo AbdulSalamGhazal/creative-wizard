@@ -1,5 +1,3 @@
-import { PLATFORM_LABEL } from "@/lib/palette";
-
 /**
  * Campaign objectives — the single source of truth for both the DB enum
  * (db/schema.ts re-exports this as campaignObjectiveEnum) and the create-form
@@ -19,13 +17,19 @@ export const CAMPAIGN_OBJECTIVES = [
  * Instagram and Facebook were split out of a single "Meta" export, so the exact
  * same `Campaign ➤ Adset` can legitimately appear on both. To keep them
  * distinct everywhere `campaign_name` is stored, shown, or filtered, we append
- * the platform to their stored campaign name — e.g. `Holiday ➤ Broad (Instagram)`
- * vs `Holiday ➤ Broad (Facebook)`. Every other platform is left untagged.
+ * a short platform tag to their stored campaign name — e.g.
+ * `Holiday ➤ Broad (IG)` vs `Holiday ➤ Broad (FB)`. Every other platform is
+ * left untagged. (Short tags, not the full label, keep the stored name compact.)
  *
  * This is the single source of truth for the stored `campaign_name` format —
- * the CSV pipeline (uploads) and the seed both build through it.
+ * the CSV pipeline (uploads) and the seed both build through it. Changing a tag
+ * here also requires migrating the stored `campaign_name`s + the `campaigns`
+ * registry so uploads keep matching byte-for-byte.
  */
-const PLATFORM_TAGGED = new Set<string>(["instagram", "facebook"]);
+const PLATFORM_TAG: Record<string, string> = {
+  instagram: "IG",
+  facebook: "FB",
+};
 
 export function buildCampaignName(
   campaign: string,
@@ -36,10 +40,9 @@ export function buildCampaignName(
     .map((s) => (s ?? "").trim())
     .filter((s) => s.length > 0)
     .join(" ➤ ");
-  if (base && PLATFORM_TAGGED.has(platform)) {
-    const label =
-      PLATFORM_LABEL[platform as keyof typeof PLATFORM_LABEL] ?? platform;
-    return `${base} (${label})`;
+  const tag = PLATFORM_TAG[platform];
+  if (base && tag) {
+    return `${base} (${tag})`;
   }
   return base;
 }
