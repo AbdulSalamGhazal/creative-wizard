@@ -14,20 +14,9 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { buildCampaignName } from "@/lib/campaign";
+import { buildCampaignName, CAMPAIGN_OBJECTIVES } from "@/lib/campaign";
 import { ALL_PLATFORMS, PLATFORM_LABEL } from "@/lib/palette";
 import { createCampaign } from "@/app/actions/campaign";
-
-// Keep in sync with campaignObjectiveEnum in db/schema.ts (the validator is the
-// source of truth and rejects anything off-list).
-const OBJECTIVES = [
-  "Sales",
-  "Prospecting",
-  "Retargeting",
-  "Reach&Freq",
-  "Traffic",
-  "Video Views",
-] as const;
 
 /**
  * Register a campaign. Mirrors how an upload builds the stored name: the buyer
@@ -125,7 +114,7 @@ export function NewCampaignDialog() {
               onChange={(e) => setObjective(e.target.value)}
               className="w-full h-9 rounded-md border border-line bg-surface text-sm text-ink px-2 focus:outline-none focus:border-brand/50"
             >
-              {OBJECTIVES.map((o) => (
+              {CAMPAIGN_OBJECTIVES.map((o) => (
                 <option key={o} value={o}>
                   {o}
                 </option>

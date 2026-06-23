@@ -94,8 +94,15 @@ const WEIGHT: Partial<Record<MetricKey, (p: CampaignCreativeDailyPoint) => numbe
 function aggMetric(metric: MetricKey, pts: CampaignCreativeDailyPoint[]): number | null {
   if (ADDITIVE.has(metric)) {
     let sum = 0;
-    for (const p of pts) sum += (p[metric] as number) ?? 0;
-    return sum;
+    let any = false;
+    for (const p of pts) {
+      const v = p[metric] as number | null;
+      if (typeof v === "number") {
+        sum += v;
+        any = true;
+      }
+    }
+    return any ? sum : null;
   }
   const w = WEIGHT[metric];
   if (!w) return null;

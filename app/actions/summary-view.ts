@@ -43,7 +43,9 @@ export async function createSummaryView(
         .returning({ id: summaryViews.id });
 
       try {
-        revalidatePath("/summary");
+        // Views live on /summary, /campaigns and /creatives — revalidate the
+        // page this view belongs to, not always /summary.
+        revalidatePath(`/${page}`);
       } catch (err) {
         console.warn("revalidatePath after view create failed:", err);
       }
@@ -99,7 +101,7 @@ export async function deleteSummaryView(
       .where(and(eq(summaryViews.accountId, acct), eq(summaryViews.id, id)));
 
     try {
-      revalidatePath("/summary");
+      revalidatePath(`/${view.page}`);
     } catch (err) {
       console.warn("revalidatePath after view delete failed:", err);
     }
@@ -166,7 +168,7 @@ export async function setDefaultView(id: string): Promise<ViewMutationResult> {
     });
 
     try {
-      revalidatePath("/summary");
+      revalidatePath(`/${view.page}`);
     } catch (err) {
       console.warn("revalidatePath after set-default failed:", err);
     }

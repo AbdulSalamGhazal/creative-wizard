@@ -314,5 +314,13 @@ describe("CSV pipeline — campaign registration (E061)", () => {
     const res = await run(`${META_HEADER}\n${row({})}\n`);
     expect(res.ok).toBe(true);
   });
+
+  it("rejects everything when the registry is EMPTY (not a silent accept)", async () => {
+    const res = await run(`${META_HEADER}\n${row({})}\n`, {
+      registeredCampaigns: new Set(),
+    });
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.errors.some((e) => e.code === "E061")).toBe(true);
+  });
 });
 

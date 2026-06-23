@@ -1,6 +1,21 @@
 import { PLATFORM_LABEL } from "@/lib/palette";
 
 /**
+ * Campaign objectives — the single source of truth for both the DB enum
+ * (db/schema.ts re-exports this as campaignObjectiveEnum) and the create-form
+ * dropdown. Client-safe (this module pulls in no server code), so the UI can
+ * import it without bundling the schema. Keep "Sales" first — it's the default.
+ */
+export const CAMPAIGN_OBJECTIVES = [
+  "Sales",
+  "Prospecting",
+  "Retargeting",
+  "Reach&Freq",
+  "Traffic",
+  "Video Views",
+] as const;
+
+/**
  * Instagram and Facebook were split out of a single "Meta" export, so the exact
  * same `Campaign ➤ Adset` can legitimately appear on both. To keep them
  * distinct everywhere `campaign_name` is stored, shown, or filtered, we append

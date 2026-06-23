@@ -15,20 +15,16 @@ import {
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
+import { CAMPAIGN_OBJECTIVES } from "@/lib/campaign";
 
 export const roleEnum = ["admin", "editor", "viewer"] as const;
 export const platformEnum = ["instagram", "facebook", "tiktok", "snapchat"] as const;
 export const creativeTypeEnum = ["video", "slides", "image"] as const;
 export const creativeStatusEnum = ["draft", "active", "paused", "archived"] as const;
 export const productStatusEnum = ["active", "archived"] as const;
-export const campaignObjectiveEnum = [
-  "Sales",
-  "Prospecting",
-  "Retargeting",
-  "Reach&Freq",
-  "Traffic",
-  "Video Views",
-] as const;
+// Single source of truth lives in lib/campaign (client-safe) so the create-form
+// dropdown and this DB enum can never drift.
+export const campaignObjectiveEnum = CAMPAIGN_OBJECTIVES;
 
 /**
  * The fixed UUID of the original brand ("Urjwan"). It's the DEFAULT for every
