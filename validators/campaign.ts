@@ -10,7 +10,9 @@ export const createCampaignSchema = z.object({
   campaign: z.string().trim().min(1, "Campaign name is required").max(400),
   adset: z.string().trim().max(400).optional().default(""),
   platform: z.enum(platformEnum),
-  objective: z.enum(campaignObjectiveEnum).default("Sales"),
+  // Required (no silent default) — the create form forces a deliberate pick.
+  // The DB column still defaults to "Sales" for the historical backfill.
+  objective: z.enum(campaignObjectiveEnum),
 });
 export type CreateCampaignInput = z.infer<typeof createCampaignSchema>;
 
