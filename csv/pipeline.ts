@@ -71,6 +71,9 @@ export interface PipelineInput extends ParseInput {
   platform?: Platform;
   /** All creative names registered in the library, used for strict matching. */
   registeredNames: Set<string>;
+  /** Registered campaign names (the built campaign_name). When provided, a row
+   *  whose campaign isn't registered is rejected (E061). Omit to skip the check. */
+  registeredCampaigns?: Set<string>;
   /** Returns the existing batch id for a (name, platform, campaign, date) tuple, or null. */
   findExistingBatch?: (
     creativeName: string,
@@ -341,6 +344,20 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
       allCells.adset_name ?? "",
       platform,
     );
+
+    // E061 — the campaign must be registered (like creatives, E020). Stops a
+    // source-side rename from silently creating a new campaign.
+    if (input.registeredCampaigns && !input.registeredCampaigns.has(campaignName)) {
+      collected.push({
+        code: "E061",
+        severity: "ERROR",
+        message: `Row ${rowNumber}: campaign \`'${campaignName}'\` is not registered. Create it on the Campaigns page first.`,
+        row: rowNumber,
+        field: "campaign_name",
+        value: campaignName,
+      });
+      continue;
+    }
 
     accepted.push({
       rowNumber,

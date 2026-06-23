@@ -55,12 +55,14 @@ async function run(
       campaign: string,
       d: string,
     ) => Promise<string | null>;
+    registeredCampaigns?: Set<string>;
   } = {},
 ) {
   return runPipeline({
     content: csv,
     platform: "instagram",
     registeredNames: REGISTERED,
+    registeredCampaigns: opts.registeredCampaigns,
     findExistingBatch: opts.findExistingBatch,
   });
 }
@@ -289,6 +291,28 @@ describe("CSV pipeline — happy path", () => {
     );
     expect(res.ok).toBe(true);
     if (res.ok) expect(res.rows).toHaveLength(1);
+  });
+});
+
+describe("CSV pipeline — campaign registration (E061)", () => {
+  it("accepts a row whose campaign is registered", async () => {
+    const res = await run(`${META_HEADER}\n${row({})}\n`, {
+      registeredCampaigns: new Set(["Spring Launch ➤ Broad (Instagram)"]),
+    });
+    expect(res.ok).toBe(true);
+  });
+
+  it("rejects a row whose campaign is NOT registered — E061", async () => {
+    const res = await run(`${META_HEADER}\n${row({})}\n`, {
+      registeredCampaigns: new Set(["Some Other Campaign"]),
+    });
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.errors.some((e) => e.code === "E061")).toBe(true);
+  });
+
+  it("skips the check entirely when registeredCampaigns is omitted", async () => {
+    const res = await run(`${META_HEADER}\n${row({})}\n`);
+    expect(res.ok).toBe(true);
   });
 });
 

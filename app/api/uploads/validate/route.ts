@@ -4,6 +4,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireEditor } from "@/lib/auth";
 import {
+  campaigns,
   creatives,
   performanceRecords,
   platformEnum,
@@ -102,6 +103,14 @@ export async function POST(request: NextRequest) {
     .where(eq(creatives.accountId, acct));
   const registeredNames = new Set(allNames.map((r) => r.name));
 
+  // Registered campaigns (the built campaign_name), scoped to the active brand.
+  // A row whose campaign isn't registered is rejected (E061) — see the pipeline.
+  const allCampaigns = await db
+    .select({ name: campaigns.name })
+    .from(campaigns)
+    .where(eq(campaigns.accountId, acct));
+  const registeredCampaigns = new Set(allCampaigns.map((r) => r.name));
+
   const adapter = await resolveAdapter(platform);
 
   const result = await runPipeline({
@@ -109,6 +118,7 @@ export async function POST(request: NextRequest) {
     byteLength: file.size,
     adapter,
     registeredNames,
+    registeredCampaigns,
     // In upsert mode we DON'T reject existing rows (no E051) — the pipeline
     // skips Stage 5 entirely when findExistingBatch is omitted, and we
     // partition new-vs-existing below instead.

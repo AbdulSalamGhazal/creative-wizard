@@ -29,6 +29,10 @@ export const errorCodes = {
   // A campaign name must belong to one platform — the app treats the same name
   // as one campaign, so allowing it on two platforms would silently merge them.
   E060: "ERROR",
+  // E061: the campaign isn't registered. Like creatives (E020), a campaign must
+  // be created in the system before an upload can reference it — otherwise a
+  // rename at the source would silently spawn a new campaign.
+  E061: "ERROR",
   W001: "WARNING",
   W002: "WARNING",
 } as const;
