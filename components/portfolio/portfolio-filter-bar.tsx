@@ -1,6 +1,6 @@
 "use client";
 
-import { Columns3, Layers, Search, X } from "lucide-react";
+import { Columns3, Layers, Search, Target, X } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   useCallback,
@@ -22,6 +22,7 @@ import { DateRangePicker } from "@/components/filters/date-range-picker";
 import { ViewsControl } from "@/components/summary/views-control";
 import { CAMPAIGN_TABLE_COLUMNS } from "@/components/portfolio/portfolio-table";
 import type { SummaryViewRow } from "@/db/queries/summary-views";
+import { CAMPAIGN_OBJECTIVES } from "@/lib/campaign";
 import { cn } from "@/lib/utils";
 
 const PLATFORMS = [
@@ -58,6 +59,10 @@ export function PortfolioFilterBar({
   const to = searchParams.get("to");
   const platforms = useMemo(
     () => csv(searchParams.get("platforms")),
+    [searchParams],
+  );
+  const objectives = useMemo(
+    () => csv(searchParams.get("objectives")),
     [searchParams],
   );
   const hiddenCols = useMemo(
@@ -125,6 +130,16 @@ export function PortfolioFilterBar({
     });
   };
 
+  const toggleObjective = (value: string) => {
+    const set = new Set(objectives);
+    if (set.has(value)) set.delete(value);
+    else set.add(value);
+    update((next) => {
+      if (set.size === 0) next.delete("objectives");
+      else next.set("objectives", [...set].join(","));
+    });
+  };
+
   const toggleColumn = (key: string) => {
     const set = new Set(hiddenCols);
     if (set.has(key)) set.delete(key);
@@ -141,6 +156,13 @@ export function PortfolioFilterBar({
       : platforms.length === 1
         ? PLATFORMS.find((p) => p.value === platforms[0])?.label ?? "1"
         : `${platforms.length} platforms`;
+
+  const objectiveLabel =
+    objectives.length === 0
+      ? "All objectives"
+      : objectives.length === 1
+        ? objectives[0]
+        : `${objectives.length} objectives`;
 
   const shownCount = CAMPAIGN_TABLE_COLUMNS.filter((c) => !hiddenCols.has(c.key)).length;
 
@@ -193,6 +215,38 @@ export function PortfolioFilterBar({
               onSelect={(e) => e.preventDefault()}
             >
               {p.label}
+            </DropdownMenuCheckboxItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      {/* Objectives */}
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            type="button"
+            className={cn(
+              "inline-flex items-center gap-2 h-8 px-3 rounded-md border text-xs transition-colors",
+              objectives.length > 0
+                ? "border-brand/50 text-ink bg-[var(--brand-soft)]"
+                : "border-line text-ink-2 bg-surface hover:bg-surface-2 hover:text-ink",
+            )}
+          >
+            <Target className="w-3.5 h-3.5" />
+            <span className="text-ink">{objectiveLabel}</span>
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="w-48">
+          <DropdownMenuLabel>Objectives</DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          {CAMPAIGN_OBJECTIVES.map((o) => (
+            <DropdownMenuCheckboxItem
+              key={o}
+              checked={objectives.includes(o)}
+              onCheckedChange={() => toggleObjective(o)}
+              onSelect={(e) => e.preventDefault()}
+            >
+              {o}
             </DropdownMenuCheckboxItem>
           ))}
         </DropdownMenuContent>

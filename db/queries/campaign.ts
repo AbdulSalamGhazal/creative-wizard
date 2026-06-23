@@ -285,6 +285,7 @@ export async function campaignByPlatform(
 
 export interface CampaignMeta {
   campaign: string;
+  objective: string;
   platforms: Platform[];
   productNames: string[];
   creativeCount: number;
@@ -297,6 +298,9 @@ export async function campaignMeta(name: string): Promise<CampaignMeta | null> {
   const acct = await getActiveAccountId();
   const [r] = await db
     .select({
+      // One campaign = one objective, so MIN just returns that single value
+      // without needing a GROUP BY alongside the aggregates.
+      objective: sql<string>`MIN(${campaigns.objective})`,
       platforms: sql<Platform[]>`array_agg(DISTINCT ${performanceRecords.platform})`,
       productNames: sql<string[]>`array_agg(DISTINCT ${products.name})`,
       creativeCount: sql<number>`COUNT(DISTINCT ${performanceRecords.creativeId})::int`,
@@ -318,6 +322,7 @@ export async function campaignMeta(name: string): Promise<CampaignMeta | null> {
   if (!r || num(r.rows) === 0) return null;
   return {
     campaign: name,
+    objective: r.objective,
     platforms: r.platforms ?? [],
     productNames: r.productNames ?? [],
     creativeCount: num(r.creativeCount),

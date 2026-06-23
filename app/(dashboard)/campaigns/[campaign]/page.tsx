@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Target } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import {
   campaignAnalytics,
@@ -95,6 +95,10 @@ export default async function CampaignDetailPage({
             {meta.campaign}
           </h1>
           <div className="flex items-center gap-2 flex-wrap text-xs">
+            <Badge variant="outline" className="border-brand/40 text-ink">
+              <Target className="w-3 h-3 mr-1" />
+              {meta.objective}
+            </Badge>
             {meta.platforms.map((p) => (
               <Badge key={p} variant="outline" className="text-ink-2">
                 <span

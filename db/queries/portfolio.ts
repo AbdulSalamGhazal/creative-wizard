@@ -12,7 +12,12 @@
 
 import { and, between, desc, eq, ilike, inArray, or, sql, type SQL } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { campaigns, performanceRecords, platformEnum } from "@/db/schema";
+import {
+  campaignObjectiveEnum,
+  campaigns,
+  performanceRecords,
+  platformEnum,
+} from "@/db/schema";
 import {
   cpm as cpmSql,
   ctr as ctrSql,
@@ -29,6 +34,7 @@ import {
 import { getActiveAccountId } from "@/lib/tenant";
 
 type Platform = (typeof platformEnum)[number];
+type CampaignObjective = (typeof campaignObjectiveEnum)[number];
 
 const num = (v: unknown): number => (v === null || v === undefined ? 0 : Number(v));
 const numOrNull = (v: unknown): number | null =>
@@ -39,6 +45,8 @@ export interface PortfolioFilters {
   from: string;
   to: string;
   platforms?: Platform[];
+  /** Campaign objective(s) — registry attribute, multi-select. */
+  objectives?: CampaignObjective[];
   /** Campaign-name search (case-insensitive substring). */
   q?: string;
   includeExcluded?: boolean;
@@ -58,6 +66,11 @@ function baseConds(
   }
   if (f.platforms && f.platforms.length > 0) {
     c.push(inArray(performanceRecords.platform, f.platforms));
+  }
+  if (f.objectives && f.objectives.length > 0) {
+    // campaigns is joined in portfolioCampaigns, so this filters on the
+    // registry's objective for each row's campaign.
+    c.push(inArray(campaigns.objective, f.objectives));
   }
   if (f.q && f.q.trim()) {
     const like = `%${f.q.trim()}%`;
@@ -85,6 +98,7 @@ function baseConds(
 
 export interface PortfolioCampaignRow {
   campaign: string;
+  objective: CampaignObjective;
   platforms: Platform[];
   creatives: number;
   spend: number;
@@ -111,6 +125,7 @@ export async function portfolioCampaigns(
   const rows = await db
     .select({
       campaign: campaigns.name,
+      objective: campaigns.objective,
       platforms: sql<Platform[]>`array_agg(DISTINCT ${performanceRecords.platform})`,
       creatives: sql<number>`COUNT(DISTINCT ${performanceRecords.creativeId})::int`,
       spend: sumSpend,
@@ -134,6 +149,7 @@ export async function portfolioCampaigns(
     .orderBy(desc(sumSpend));
   return rows.map((row) => ({
     campaign: row.campaign,
+    objective: row.objective,
     platforms: row.platforms ?? [],
     creatives: num(row.creatives),
     spend: num(row.spend),

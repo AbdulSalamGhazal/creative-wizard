@@ -18,6 +18,7 @@ const COLS_META: Array<{
   defaultSortDir?: "asc" | "desc";
 }> = [
   { key: "campaign", label: "Campaign", align: "left", sortable: true, pinned: true, defaultSortDir: "asc" },
+  { key: "objective", label: "Objective", align: "left", sortable: true, defaultSortDir: "asc" },
   { key: "platforms", label: "Platform", align: "left", sortable: false },
   { key: "creatives", label: "Creatives", align: "right", sortable: true },
   { key: "spend", label: "Spend", align: "right", sortable: true },
@@ -100,6 +101,12 @@ export function PortfolioTable({
           // No width cap — the (resizable) column governs how much shows, so the
           // full name is visible by default and widening reveals the rest.
           return <span className="text-ink">{r.campaign}</span>;
+        case "objective":
+          return (
+            <span className="inline-flex items-center rounded-full border border-line bg-surface-2 px-2 py-0.5 text-[11px] text-ink-2 whitespace-nowrap">
+              {r.objective}
+            </span>
+          );
         case "platforms":
           return (
             <span className="inline-flex items-center gap-2">
@@ -178,6 +185,7 @@ export function PortfolioTable({
     };
     const sortVal = (r: PortfolioCampaignRow, key: string): number | string | null => {
       if (key === "campaign") return r.campaign;
+      if (key === "objective") return r.objective;
       if (key === "lastDate") return r.lastDate ?? "";
       return (r[key as keyof PortfolioCampaignRow] as number | null) ?? null;
     };
@@ -218,7 +226,7 @@ export function PortfolioTable({
       onRowClick={(r) => router.push(`/campaigns/${encodeURIComponent(r.campaign)}`)}
       showTotals
       csvFileName="campaigns"
-      minWidthClass="min-w-[1180px]"
+      minWidthClass="min-w-[1320px]"
       empty={
         <div className="h-32 flex items-center justify-center text-ink-3 text-sm border border-dashed border-line rounded-lg">
           No campaigns match these filters.
