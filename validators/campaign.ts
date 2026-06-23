@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { platformEnum } from "@/db/schema";
+import { campaignObjectiveEnum, platformEnum } from "@/db/schema";
 
 /**
  * New-campaign form. The buyer enters the Campaign + Ad Set + Platform; the
@@ -10,6 +10,7 @@ export const createCampaignSchema = z.object({
   campaign: z.string().trim().min(1, "Campaign name is required").max(400),
   adset: z.string().trim().max(400).optional().default(""),
   platform: z.enum(platformEnum),
+  objective: z.enum(campaignObjectiveEnum).default("Sales"),
 });
 export type CreateCampaignInput = z.infer<typeof createCampaignSchema>;
 

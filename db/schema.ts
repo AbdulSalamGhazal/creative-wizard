@@ -21,6 +21,14 @@ export const platformEnum = ["instagram", "facebook", "tiktok", "snapchat"] as c
 export const creativeTypeEnum = ["video", "slides", "image"] as const;
 export const creativeStatusEnum = ["draft", "active", "paused", "archived"] as const;
 export const productStatusEnum = ["active", "archived"] as const;
+export const campaignObjectiveEnum = [
+  "Sales",
+  "Prospecting",
+  "Retargeting",
+  "Reach&Freq",
+  "Traffic",
+  "Video Views",
+] as const;
 
 /**
  * The fixed UUID of the original brand ("Urjwan"). It's the DEFAULT for every
@@ -146,6 +154,9 @@ export const campaigns = pgTable(
     accountId: accountId(),
     name: text("name").notNull(),
     platform: varchar("platform", { length: 16, enum: platformEnum }).notNull(),
+    objective: varchar("objective", { length: 16, enum: campaignObjectiveEnum })
+      .notNull()
+      .default("Sales"),
     createdByUserId: uuid("created_by_user_id")
       .notNull()
       .references(() => users.id),

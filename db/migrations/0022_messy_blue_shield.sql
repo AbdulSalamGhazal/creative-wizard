@@ -1,0 +1,1 @@
+ALTER TABLE "campaigns" ADD COLUMN "objective" varchar(16) DEFAULT 'Sales' NOT NULL;

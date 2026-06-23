@@ -39,7 +39,7 @@ export async function createCampaign(input: unknown): Promise<CampaignMutationRe
         },
       };
     }
-    const { campaign, adset, platform } = parsed.data;
+    const { campaign, adset, platform, objective } = parsed.data;
     const name = buildCampaignName(campaign, adset, platform);
     if (!name) {
       return {
@@ -65,7 +65,7 @@ export async function createCampaign(input: unknown): Promise<CampaignMutationRe
 
     const [inserted] = await db
       .insert(campaigns)
-      .values({ accountId: acct, name, platform, createdByUserId: user.id })
+      .values({ accountId: acct, name, platform, objective, createdByUserId: user.id })
       .returning({ id: campaigns.id });
 
     try {
@@ -80,7 +80,7 @@ export async function createCampaign(input: unknown): Promise<CampaignMutationRe
         entityId: inserted.id,
         entityLabel: name,
         actorUserId: user.id,
-        meta: { platform },
+        meta: { platform, objective },
       });
     }
     return { ok: true, name };

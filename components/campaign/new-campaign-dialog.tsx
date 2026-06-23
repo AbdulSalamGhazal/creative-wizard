@@ -18,6 +18,17 @@ import { buildCampaignName } from "@/lib/campaign";
 import { ALL_PLATFORMS, PLATFORM_LABEL } from "@/lib/palette";
 import { createCampaign } from "@/app/actions/campaign";
 
+// Keep in sync with campaignObjectiveEnum in db/schema.ts (the validator is the
+// source of truth and rejects anything off-list).
+const OBJECTIVES = [
+  "Sales",
+  "Prospecting",
+  "Retargeting",
+  "Reach&Freq",
+  "Traffic",
+  "Video Views",
+] as const;
+
 /**
  * Register a campaign. Mirrors how an upload builds the stored name: the buyer
  * gives Campaign + Ad Set + Platform and sees a live preview of the exact
@@ -29,6 +40,7 @@ export function NewCampaignDialog() {
   const [campaign, setCampaign] = useState("");
   const [adset, setAdset] = useState("");
   const [platform, setPlatform] = useState<string>("instagram");
+  const [objective, setObjective] = useState<string>("Sales");
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
@@ -38,13 +50,14 @@ export function NewCampaignDialog() {
     setCampaign("");
     setAdset("");
     setPlatform("instagram");
+    setObjective("Sales");
     setError(null);
   };
 
   const submit = () => {
     setError(null);
     start(async () => {
-      const res = await createCampaign({ campaign, adset, platform });
+      const res = await createCampaign({ campaign, adset, platform, objective });
       if (res.ok) {
         toast.success(`Campaign registered: ${res.name}`);
         setOpen(false);
@@ -101,6 +114,20 @@ export function NewCampaignDialog() {
               {ALL_PLATFORMS.map((p) => (
                 <option key={p} value={p}>
                   {PLATFORM_LABEL[p]}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="block text-xs text-ink-2 space-y-1">
+            <span>Objective</span>
+            <select
+              value={objective}
+              onChange={(e) => setObjective(e.target.value)}
+              className="w-full h-9 rounded-md border border-line bg-surface text-sm text-ink px-2 focus:outline-none focus:border-brand/50"
+            >
+              {OBJECTIVES.map((o) => (
+                <option key={o} value={o}>
+                  {o}
                 </option>
               ))}
             </select>
