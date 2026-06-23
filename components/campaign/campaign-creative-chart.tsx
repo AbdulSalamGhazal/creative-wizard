@@ -14,7 +14,7 @@ import { intCompact, pct, ratio, usd, usdCompact } from "@/lib/format";
 import { seriesColor } from "@/lib/palette";
 import { MetricPicker } from "@/components/charts/metric-picker";
 import { SeriesLegend } from "@/components/charts/series-legend";
-import { ChartShell, ExpandButton, SmoothToggle } from "@/components/charts/chart-shell";
+import { ChartShell, ExpandButton, SmoothToggle, GroupToggle } from "@/components/charts/chart-shell";
 import { smoothColumns } from "@/lib/chart-smooth";
 import type { CampaignCreativeDailyPoint } from "@/db/queries/campaign";
 
@@ -72,6 +72,46 @@ interface Row {
   [creativeId: string]: number | null | string;
 }
 
+/** Metrics that simply sum when grouped. Everything else is a ratio. */
+const ADDITIVE = new Set<MetricKey>([
+  "spend",
+  "conversionValue",
+  "conversions",
+  "impressions",
+  "clicks",
+]);
+/** A ratio's denominator → lets Group recombine it correctly (never average). */
+const WEIGHT: Partial<Record<MetricKey, (p: CampaignCreativeDailyPoint) => number>> = {
+  ctr: (p) => p.impressions,
+  cpm: (p) => p.impressions,
+  cpa: (p) => p.conversions,
+  voc: (p) => p.clicks,
+  cvr: (p) => p.landingPageViews,
+  roas: (p) => p.spend,
+};
+
+/** Combine the points of one date into a single value for the chosen metric. */
+function aggMetric(metric: MetricKey, pts: CampaignCreativeDailyPoint[]): number | null {
+  if (ADDITIVE.has(metric)) {
+    let sum = 0;
+    for (const p of pts) sum += (p[metric] as number) ?? 0;
+    return sum;
+  }
+  const w = WEIGHT[metric];
+  if (!w) return null;
+  let num = 0;
+  let den = 0;
+  for (const p of pts) {
+    const v = p[metric] as number | null;
+    const ww = w(p);
+    if (typeof v === "number" && typeof ww === "number") {
+      num += v * ww;
+      den += ww;
+    }
+  }
+  return den > 0 ? num / den : null;
+}
+
 /**
  * One line per creative over time, for whatever metric is selected. Click a
  * legend chip to hide a creative; Smooth applies a 7-day moving average; Expand
@@ -86,6 +126,7 @@ export function CampaignCreativeChart({
 }) {
   const [metric, setMetric] = useState<MetricKey>("spend");
   const [smooth, setSmooth] = useState(false);
+  const [group, setGroup] = useState(false);
   const [shown, setShown] = useState<Set<string>>(
     () => new Set(creatives.slice(0, DEFAULT_SHOWN).map((c) => c.creativeId)),
   );
@@ -94,21 +135,32 @@ export function CampaignCreativeChart({
 
   const data = useMemo<Row[]>(() => {
     const byDate = new Map<string, Row>();
-    for (const p of points) {
-      let row = byDate.get(p.date);
-      if (!row) {
-        row = { date: p.date };
-        byDate.set(p.date, row);
+    if (group) {
+      // One combined line: aggregate the shown creatives' points per date.
+      const ptsByDate = new Map<string, CampaignCreativeDailyPoint[]>();
+      for (const p of points) {
+        if (!shown.has(p.creativeId)) continue;
+        const arr = ptsByDate.get(p.date);
+        if (arr) arr.push(p);
+        else ptsByDate.set(p.date, [p]);
       }
-      row[p.creativeId] = p[metric];
+      for (const [date, pts] of ptsByDate) byDate.set(date, { date, all: aggMetric(metric, pts) });
+    } else {
+      for (const p of points) {
+        let row = byDate.get(p.date);
+        if (!row) {
+          row = { date: p.date };
+          byDate.set(p.date, row);
+        }
+        row[p.creativeId] = p[metric];
+      }
     }
     const rows = [...byDate.values()].sort((a, b) =>
       (a.date as string) < (b.date as string) ? -1 : 1,
     );
-    return smooth
-      ? smoothColumns(rows, creatives.map((c) => c.creativeId))
-      : rows;
-  }, [points, metric, smooth, creatives]);
+    const cols = group ? ["all"] : creatives.map((c) => c.creativeId);
+    return smooth ? smoothColumns(rows, cols) : rows;
+  }, [points, metric, smooth, creatives, group, shown]);
 
   const toggle = (id: string) =>
     setShown((prev) => {
@@ -129,6 +181,12 @@ export function CampaignCreativeChart({
     .filter((c) => shown.has(c.creativeId))
     .map((c) => ({ ...c, color: color(c.creativeId) }));
 
+  // The lines drawn + tooltip rows: one combined line when grouped, else the
+  // shown creatives. (Grouped, the legend still picks which creatives sum in.)
+  const lineSpecs = group
+    ? [{ creativeId: "all", name: "All creatives", color: "var(--brand)" }]
+    : visible;
+
   const header = (inFull: boolean, toggleExpand: () => void) => (
     <div className="flex items-start justify-between flex-wrap gap-3 mb-3">
       <div className="flex items-center gap-2">
@@ -140,6 +198,7 @@ export function CampaignCreativeChart({
         />
       </div>
       <div className="flex items-center gap-2 shrink-0">
+        <GroupToggle on={group} onToggle={() => setGroup((v) => !v)} />
         <SmoothToggle on={smooth} onToggle={() => setSmooth((v) => !v)} />
         <ExpandButton inFull={inFull} onClick={toggleExpand} />
       </div>
@@ -177,15 +236,15 @@ export function CampaignCreativeChart({
           stroke="var(--line-2)"
           width={48}
         />
-        <Tooltip content={<ChartTip visible={visible} kind={meta.kind} metricLabel={meta.label} />} />
-        {visible.map((c) => (
+        <Tooltip content={<ChartTip visible={lineSpecs} kind={meta.kind} metricLabel={meta.label} />} />
+        {lineSpecs.map((c) => (
           <Line
             key={c.creativeId}
             type="monotone"
             dataKey={c.creativeId}
             name={c.name}
             stroke={c.color}
-            strokeWidth={1.8}
+            strokeWidth={group ? 2.2 : 1.8}
             dot={false}
             connectNulls
             isAnimationActive={false}

@@ -820,6 +820,7 @@ export interface CampaignCreativeDailyPoint {
   spend: number;
   impressions: number;
   clicks: number;
+  landingPageViews: number;
   conversions: number;
   conversionValue: number;
   cpm: number | null;
@@ -845,6 +846,7 @@ export async function campaignDailyByCreative(
       spend: sumSpend,
       impressions: sumImpressions,
       clicks: sumClicks,
+      landingPageViews: sumLandingPageViews,
       conversions: sumConversions,
       conversionValue: sumConversionValue,
       cpm,
@@ -867,6 +869,7 @@ export async function campaignDailyByCreative(
     spend: num(r.spend),
     impressions: num(r.impressions),
     clicks: num(r.clicks),
+    landingPageViews: num(r.landingPageViews),
     conversions: num(r.conversions),
     conversionValue: num(r.conversionValue),
     cpm: numOrNull(r.cpm),
