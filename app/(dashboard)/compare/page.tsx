@@ -134,21 +134,17 @@ export default async function ComparePage({
         to={parsed.to ?? null}
       />
 
-      {/* One chart block per metric */}
+      {/* One chart block per metric — the chart owns its card (ChartShell),
+          with Smooth / Expand / click-to-hide-side legend. */}
       {parsed.metrics.map((metric, i) => (
-        <Card key={metric} className="bg-surface border-line">
-          <CardHeader>
-            <MetricBlockHeader metric={metric} metrics={parsed.metrics} />
-          </CardHeader>
-          <CardContent>
-            <CompareChart
-              rows={seriesByMetric[i] ?? []}
-              creatives={chartSides}
-              metric={metric}
-              align={!sameWindow}
-            />
-          </CardContent>
-        </Card>
+        <CompareChart
+          key={metric}
+          rows={seriesByMetric[i] ?? []}
+          creatives={chartSides}
+          metric={metric}
+          align={!sameWindow}
+          header={<MetricBlockHeader metric={metric} metrics={parsed.metrics} />}
+        />
       ))}
 
       <AddMetricBlock metrics={parsed.metrics} />
