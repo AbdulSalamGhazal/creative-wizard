@@ -8,8 +8,8 @@ import {
   useMemo,
   useRef,
   useState,
-  useTransition,
 } from "react";
+import { useNavTransition } from "@/lib/nav-progress";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -53,7 +53,7 @@ export function PortfolioFilterBar({
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const [, startTransition] = useTransition();
+  const [, startTransition] = useNavTransition();
 
   const from = searchParams.get("from");
   const to = searchParams.get("to");

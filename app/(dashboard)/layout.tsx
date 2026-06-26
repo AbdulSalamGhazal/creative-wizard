@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { asc } from "drizzle-orm";
 import { Sidebar } from "@/components/layout/sidebar";
 import { TopBar } from "@/components/layout/top-bar";
+import { NavProgressBar } from "@/components/layout/nav-progress-bar";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { creatives, products } from "@/db/schema";
@@ -39,6 +40,7 @@ export default async function DashboardLayout({
 
   return (
     <div className="min-h-screen flex flex-col">
+      <NavProgressBar />
       <TopBar
         user={user}
         creatives={creativeOptions}

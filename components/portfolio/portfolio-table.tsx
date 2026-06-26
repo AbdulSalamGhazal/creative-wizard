@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { DataTable, type DataColumn } from "@/components/ui/data-table";
+import { useNavTransition } from "@/lib/nav-progress";
 import { int, isoDate, pct, ratio, usd } from "@/lib/format";
 import { PLATFORM_COLOR, PLATFORM_LABEL } from "@/lib/palette";
 import type { PortfolioCampaignRow } from "@/db/queries/portfolio";
@@ -62,10 +63,11 @@ export function PortfolioTable({
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
+  const [, startNav] = useNavTransition();
   const pushParams = (mut: (p: URLSearchParams) => void) => {
     const next = new URLSearchParams(searchParams.toString());
     mut(next);
-    router.push(`${pathname}?${next.toString()}`, { scroll: false });
+    startNav(() => router.push(`${pathname}?${next.toString()}`, { scroll: false }));
   };
 
   // Weighted totals from the visible rows.

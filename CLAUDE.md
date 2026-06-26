@@ -351,3 +351,16 @@ This app is deployed and in production use. Treat `main` as shippable.
   - **Chart series legend → `components/charts/series-legend.tsx`
     (`SeriesLegend`)** — one toggle-chip legend for show/hide series (funnel rate
     lines, campaign creative lines).
+
+- **Global navigation progress bar.** App Router has no route-change events, and
+  same-route filter/date/sort changes navigate via `useTransition` — which keeps
+  the current page visible with NO built-in spinner (reads as "nothing
+  happened" on a slow query). Fix: a thin brand top bar (`NavProgressBar` in the
+  dashboard layout) driven by the `navProgress` store in `lib/nav-progress.ts`.
+  Any component that drives a route/searchParam change must use
+  **`useNavTransition()`** (a drop-in `useTransition` that reports its pending
+  state to the store) instead of React's `useTransition`, OR wrap a bare
+  `router.push`/`replace` in the `startTransition` it returns (see
+  `portfolio-table.tsx`). All the filter bars, the date picker's parents,
+  views-control, metric-filter, and the campaigns table already do. New nav
+  components: use `useNavTransition` or they won't show the loading bar.

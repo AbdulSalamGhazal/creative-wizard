@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useTransition } from "react";
+import { useNavTransition } from "@/lib/nav-progress";
 import { DateRangePicker } from "@/components/filters/date-range-picker";
 
 /**
@@ -23,7 +23,7 @@ export function AnalyticsDateFilter({
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const [, startTransition] = useTransition();
+  const [, startTransition] = useNavTransition();
 
   const onChange = (nextFrom: string | null, nextTo: string | null) => {
     const params = new URLSearchParams(searchParams.toString());

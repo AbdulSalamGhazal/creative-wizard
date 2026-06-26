@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useTransition } from "react";
+import { useNavTransition } from "@/lib/nav-progress";
 import { Check, ChevronDown, Plus, RotateCcw, X } from "lucide-react";
 import {
   Popover,
@@ -44,7 +44,7 @@ export function CompareControls({ dimensions, sides, from, to }: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const [, startTransition] = useTransition();
+  const [, startTransition] = useNavTransition();
 
   const update = (mut: (p: URLSearchParams) => void) => {
     const p = new URLSearchParams(searchParams.toString());

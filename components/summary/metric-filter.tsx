@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useTransition } from "react";
+import { useNavTransition } from "@/lib/nav-progress";
 import { Plus, SlidersHorizontal, X } from "lucide-react";
 import {
   Popover,
@@ -71,7 +71,7 @@ export function MetricFilterControl({ platforms }: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const [, startTransition] = useTransition();
+  const [, startTransition] = useNavTransition();
   const [open, setOpen] = useState(false);
 
   const conditions = parseMetricFilters(searchParams.get("metricFilters"));

@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useState, useTransition } from "react";
+import { useCallback, useState } from "react";
+import { useNavTransition } from "@/lib/nav-progress";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { Bookmark, Check, Plus, Star, Trash2, X } from "lucide-react";
@@ -70,7 +71,7 @@ export function ViewsControl({
   const searchParams = useSearchParams();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
-  const [isPending, startTransition] = useTransition();
+  const [isPending, startTransition] = useNavTransition();
 
   const currentQuery = searchParams.toString();
   const savableQuery = cleanQuery(currentQuery);

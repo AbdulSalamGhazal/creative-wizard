@@ -9,7 +9,8 @@ import {
   Tag,
 } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useMemo, useTransition } from "react";
+import { useCallback, useMemo } from "react";
+import { useNavTransition } from "@/lib/nav-progress";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -64,7 +65,7 @@ export function FilterStrip({
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const [, startTransition] = useTransition();
+  const [, startTransition] = useNavTransition();
 
   const from = searchParams.get("from");
   const to = searchParams.get("to");

@@ -21,8 +21,8 @@ import {
   useMemo,
   useRef,
   useState,
-  useTransition,
 } from "react";
+import { useNavTransition } from "@/lib/nav-progress";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -104,7 +104,7 @@ export function LibraryFilterBar({ products, tags, views, currentUserId, isAdmin
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const [, startTransition] = useTransition();
+  const [, startTransition] = useNavTransition();
 
   const productIds = csvParam(searchParams.get("productIds"));
   const types = csvParam(searchParams.get("types"));
