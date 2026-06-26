@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/command";
 import { DateRangePicker } from "@/components/filters/date-range-picker";
 import { COMPARE_COLORS } from "@/components/charts/compare-chart";
-import { PLATFORM_LABEL } from "@/lib/palette";
+import { PLATFORM_COLOR, PLATFORM_LABEL } from "@/lib/palette";
 import { cn } from "@/lib/utils";
 import type { CompareDimensionRow } from "@/db/queries/performance";
 import type { CompareSide, SideKey } from "@/validators/compare";
@@ -130,6 +130,8 @@ interface Option {
   value: string;
   label: string;
   sub?: string;
+  /** Optional colored dot drawn before the label (e.g. the platform color). */
+  dot?: string;
 }
 
 function SideCard({
@@ -158,6 +160,10 @@ function SideCard({
     (d) => side.platforms.length === 0 || side.platforms.includes(d.platform),
   );
   const campaignOpts = uniq(campaignPool.map((d) => d.campaign));
+  // One campaign name belongs to exactly one platform (E060), so this is 1:1.
+  const platformByCampaign = new Map<string, Platform>(
+    campaignPool.map((d) => [d.campaign, d.platform]),
+  );
 
   const creativePool = campaignPool.filter(
     (d) => side.campaigns.length === 0 || side.campaigns.includes(d.campaign),
@@ -230,13 +236,22 @@ function SideCard({
         options={platformOpts.map((p) => ({
           value: p,
           label: PLATFORM_LABEL[p],
+          dot: PLATFORM_COLOR[p],
         }))}
         selected={side.platforms}
         onToggle={(v) => setParam(`${prefix}Platforms`, toggle(side.platforms, v))}
       />
       <MultiSelect
         label="Campaign"
-        options={campaignOpts.map((c) => ({ value: c, label: c }))}
+        options={campaignOpts.map((c) => {
+          const p = platformByCampaign.get(c);
+          return {
+            value: c,
+            label: c,
+            sub: p ? PLATFORM_LABEL[p] : undefined,
+            dot: p ? PLATFORM_COLOR[p] : undefined,
+          };
+        })}
         selected={side.campaigns}
         onToggle={(v) => setParam(`${prefix}Campaigns`, toggle(side.campaigns, v))}
       />
@@ -264,6 +279,7 @@ function MultiSelect({
   onToggle: (v: string) => void;
 }) {
   const labelFor = (v: string) => options.find((o) => o.value === v)?.label ?? v;
+  const dotFor = (v: string) => options.find((o) => o.value === v)?.dot;
   const summary =
     selected.length === 0 ? "All" : selected.map(labelFor).join(", ");
   return (
@@ -314,9 +330,17 @@ function MultiSelect({
                         {isSel && <Check className="w-3 h-3" />}
                       </span>
                       <span className="flex-1 min-w-0">
-                        <span className="block truncate">{o.label}</span>
+                        <span className="flex items-center gap-1.5 min-w-0">
+                          {o.dot && (
+                            <span
+                              className="w-2 h-2 rounded-full shrink-0"
+                              style={{ background: o.dot }}
+                            />
+                          )}
+                          <span className="truncate">{o.label}</span>
+                        </span>
                         {o.sub && (
-                          <span className="block truncate text-[10px] text-ink-3">
+                          <span className="block truncate text-[10px] text-ink-3 pl-3.5">
                             {o.sub}
                           </span>
                         )}
@@ -339,6 +363,12 @@ function MultiSelect({
                 title={`Remove ${labelFor(v)}`}
                 className="group inline-flex max-w-full items-center gap-1 rounded border border-line bg-surface px-1.5 py-0.5 text-[10px] text-ink-2 hover:border-line-2 hover:text-ink transition-colors"
               >
+                {dotFor(v) && (
+                  <span
+                    className="w-1.5 h-1.5 rounded-full shrink-0"
+                    style={{ background: dotFor(v)! }}
+                  />
+                )}
                 <span className="truncate">{labelFor(v)}</span>
                 <X className="h-2.5 w-2.5 shrink-0 text-ink-3 group-hover:text-neg" />
               </button>
