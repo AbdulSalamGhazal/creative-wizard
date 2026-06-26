@@ -72,11 +72,11 @@ export interface DateRangeValue {
 
 /**
  * Lifetime / all-time is represented as a concrete range from a fixed floor
- * (before any possible data) to today, rather than an absent range. That lets
- * "no range in the URL" mean "use the default" while Lifetime stays an explicit,
- * shareable, persisted choice.
+ * (the start of the data — this brand's history begins in 2026) to today,
+ * rather than an absent range. That lets "no range in the URL" mean "use the
+ * default" while Lifetime stays an explicit, shareable, persisted choice.
  */
-export const LIFETIME_FLOOR = "2000-01-01";
+export const LIFETIME_FLOOR = "2026-01-01";
 
 /**
  * Default "last N days" range (ending yesterday — today is excluded since its
