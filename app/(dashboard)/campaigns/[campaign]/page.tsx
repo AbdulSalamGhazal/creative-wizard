@@ -13,7 +13,9 @@ import {
 import { AnalyticsDateFilter } from "@/components/creative/analytics-date-filter";
 import { CampaignCreativeKpis } from "@/components/campaign/campaign-creative-kpis";
 import { CampaignCreativeChart } from "@/components/campaign/campaign-creative-chart";
+import { CampaignCreativesTable } from "@/components/campaign/campaign-creatives-table";
 import { CampaignRecordsTable } from "@/components/campaign/campaign-records-table";
+import { CollapsibleSection } from "@/components/ui/collapsible-section";
 import { parseCampaignDetailParams } from "@/validators/campaign";
 import { PLATFORM_COLOR, PLATFORM_LABEL } from "@/lib/palette";
 import { safeDecodeURIComponent } from "@/lib/url";
@@ -129,13 +131,21 @@ export default async function CampaignDetailPage({
       {/* 2 ─── One line per creative over time ─── */}
       <CampaignCreativeChart points={daily} creatives={legendCreatives} />
 
-      {/* 3 ─── Raw uploaded rows ─── */}
+      {/* 2½ ─── The chart's creatives, tabulated ─── */}
       <div className="space-y-2">
         <h2 className="text-[11px] uppercase tracking-[0.14em] text-ink-3">
-          Row data
+          Creatives
         </h2>
-        <CampaignRecordsTable records={records} byDay={byDay} campaign={decoded} />
+        <CampaignCreativesTable creatives={creativeRows} />
       </div>
+
+      {/* 3 ─── Raw uploaded rows — collapsed by default ─── */}
+      <CollapsibleSection
+        title="Row data"
+        subtitle={`${records.length}${records.length >= 2000 ? "+" : ""} records`}
+      >
+        <CampaignRecordsTable records={records} byDay={byDay} campaign={decoded} />
+      </CollapsibleSection>
     </div>
   );
 }
