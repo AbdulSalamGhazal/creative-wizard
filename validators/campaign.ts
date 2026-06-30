@@ -16,6 +16,17 @@ export const createCampaignSchema = z.object({
 });
 export type CreateCampaignInput = z.infer<typeof createCampaignSchema>;
 
+/**
+ * Edit an existing campaign. Same fields as create (the stored name is rebuilt
+ * from Campaign + Ad Set + Platform so it stays consistent with the tag format),
+ * plus the campaign id to identify the row. Renaming is allowed but must stay
+ * unique per account — the action enforces it.
+ */
+export const updateCampaignSchema = createCampaignSchema.extend({
+  id: z.string().uuid(),
+});
+export type UpdateCampaignInput = z.infer<typeof updateCampaignSchema>;
+
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
 
 const schema = z.object({

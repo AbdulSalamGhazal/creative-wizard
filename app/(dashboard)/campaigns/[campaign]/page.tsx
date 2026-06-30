@@ -9,13 +9,16 @@ import {
   campaignMeta,
   campaignRecords,
   campaignRecordsByDay,
+  campaignRegistry,
 } from "@/db/queries/campaign";
 import { AnalyticsDateFilter } from "@/components/creative/analytics-date-filter";
 import { CampaignCreativeKpis } from "@/components/campaign/campaign-creative-kpis";
 import { CampaignCreativeChart } from "@/components/campaign/campaign-creative-chart";
 import { CampaignCreativesTable } from "@/components/campaign/campaign-creatives-table";
+import { CampaignEditDialog } from "@/components/campaign/campaign-edit-dialog";
 import { CampaignRecordsTable } from "@/components/campaign/campaign-records-table";
 import { CollapsibleSection } from "@/components/ui/collapsible-section";
+import { parseCampaignName } from "@/lib/campaign";
 import { parseCampaignDetailParams } from "@/validators/campaign";
 import { PLATFORM_COLOR, PLATFORM_LABEL } from "@/lib/palette";
 import { safeDecodeURIComponent } from "@/lib/url";
@@ -55,6 +58,11 @@ export default async function CampaignDetailPage({
   const meta = await campaignMeta(decoded);
   if (!meta) notFound();
 
+  // Registry row (id/platform/objective) backs the edit dialog; parse the stored
+  // name back into Campaign + Ad Set so the form pre-fills cleanly.
+  const registry = await campaignRegistry(decoded);
+  const nameParts = registry ? parseCampaignName(decoded, registry.platform) : null;
+
   const inc = parsed.includeExcluded;
   const [analytics, creativeRows, daily, records, byDay] = await Promise.all([
     campaignAnalytics(decoded, range, inc),
@@ -81,12 +89,24 @@ export default async function CampaignDetailPage({
             <ArrowLeft className="w-3 h-3" />
             All campaigns
           </Link>
-          <AnalyticsDateFilter
-            from={parsed.from ?? null}
-            to={parsed.to ?? null}
-            defaultFrom={eff.from}
-            defaultTo={eff.to}
-          />
+          <div className="flex items-center gap-2">
+            {registry && nameParts && (
+              <CampaignEditDialog
+                id={registry.id}
+                currentName={meta.campaign}
+                campaign={nameParts.campaign}
+                adset={nameParts.adset}
+                platform={registry.platform}
+                objective={registry.objective}
+              />
+            )}
+            <AnalyticsDateFilter
+              from={parsed.from ?? null}
+              to={parsed.to ?? null}
+              defaultFrom={eff.from}
+              defaultTo={eff.to}
+            />
+          </div>
         </div>
 
         <div className="space-y-2 min-w-0">

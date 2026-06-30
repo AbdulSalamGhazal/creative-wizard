@@ -293,6 +293,34 @@ export interface CampaignMeta {
   lastDate: string | null;
 }
 
+export interface CampaignRegistry {
+  id: string;
+  platform: Platform;
+  objective: string;
+}
+
+/**
+ * The registry row (id + platform + objective) behind a stored campaign name,
+ * account-scoped. Powers the edit dialog (campaignMeta exposes the name +
+ * objective for display, but not the id/platform the edit form needs to rebuild
+ * the name). Null when the name isn't registered for the active account.
+ */
+export async function campaignRegistry(
+  name: string,
+): Promise<CampaignRegistry | null> {
+  const acct = await getActiveAccountId();
+  const [r] = await db
+    .select({
+      id: campaigns.id,
+      platform: campaigns.platform,
+      objective: campaigns.objective,
+    })
+    .from(campaigns)
+    .where(and(eq(campaigns.accountId, acct), eq(campaigns.name, name)))
+    .limit(1);
+  return r ? { id: r.id, platform: r.platform as Platform, objective: r.objective } : null;
+}
+
 /** All-time facts for one campaign. Null when the campaign has no records. */
 export async function campaignMeta(name: string): Promise<CampaignMeta | null> {
   const acct = await getActiveAccountId();

@@ -46,3 +46,23 @@ export function buildCampaignName(
   }
   return base;
 }
+
+/**
+ * Inverse of buildCampaignName — split a STORED campaign name back into its
+ * Campaign + Ad Set parts for the edit form. Strips the IG/FB platform tag
+ * (so the field doesn't show "(IG)"), then splits on the ➤ separator. The
+ * first segment is the campaign; anything after is the ad set.
+ * `buildCampaignName(parseCampaignName(name, p).campaign, .adset, p)` === name.
+ */
+export function parseCampaignName(
+  stored: string,
+  platform: string,
+): { campaign: string; adset: string } {
+  let base = stored;
+  const tag = PLATFORM_TAG[platform];
+  if (tag && base.endsWith(` (${tag})`)) {
+    base = base.slice(0, -` (${tag})`.length);
+  }
+  const parts = base.split(" ➤ ");
+  return { campaign: parts[0] ?? "", adset: parts.slice(1).join(" ➤ ") };
+}

@@ -27,6 +27,7 @@ export const AUDIT_ACTIONS = {
 
   // Campaigns
   CAMPAIGN_CREATE: "campaign.create",
+  CAMPAIGN_UPDATE: "campaign.update",
 
   // Exclusions
   EXCLUSION_EXCLUDE: "exclusion.exclude",
@@ -149,6 +150,7 @@ export const AUDIT_LABELS: Record<AuditAction, string> = {
   "creative.bulk_status": "Bulk status change",
   "creative.delete": "Deleted creative",
   "campaign.create": "Registered campaign",
+  "campaign.update": "Edited campaign",
   "exclusion.exclude": "Excluded record",
   "exclusion.include": "Re-included record",
   "upload.commit": "Committed upload",
@@ -188,6 +190,7 @@ export const AUDIT_CATEGORIES: Record<AuditAction, AuditEntityType> = {
   "creative.bulk_status": "creative",
   "creative.delete": "creative",
   "campaign.create": "campaign",
+  "campaign.update": "campaign",
   "exclusion.exclude": "exclusion",
   "exclusion.include": "exclusion",
   "upload.commit": "upload",
