@@ -1,10 +1,11 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { and, eq, ne } from "drizzle-orm";
+import { and, count, eq, ne } from "drizzle-orm";
+import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireEditor } from "@/lib/auth";
-import { campaigns } from "@/db/schema";
+import { campaigns, performanceRecords } from "@/db/schema";
 import { buildCampaignName } from "@/lib/campaign";
 import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
 import { getActiveAccountId } from "@/lib/tenant";
@@ -175,6 +176,73 @@ export async function updateCampaign(input: unknown): Promise<CampaignMutationRe
       },
     });
     return { ok: true, name };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : "Unknown error" };
+  }
+}
+
+/**
+ * Hard-delete a campaign and all of its `performance_records`. Those rows are
+ * FK'd to exactly one campaign with NO `ON DELETE CASCADE`, so they're removed
+ * explicitly (inside the transaction) before the campaign row is dropped. The
+ * CREATIVES that ran in the campaign are NOT deleted — only the records tying
+ * them to this campaign — so a creative with data elsewhere keeps it; a creative
+ * that ran only here simply becomes record-less (reads as "New").
+ *
+ * This is a sanctioned hard-delete exit path for `performance_records`,
+ * alongside batch-rollback, the cleanup tool, and deleteCreative. The audit row
+ * survives (it stores a label, not an FK). Editor-or-admin only; account-scoped.
+ */
+export async function deleteCampaign(
+  campaignId: string,
+): Promise<{ ok: boolean; error?: string; recordsDeleted?: number }> {
+  try {
+    const user = await requireEditor();
+    if (!z.string().uuid().safeParse(campaignId).success) {
+      return { ok: false, error: "Invalid campaign id." };
+    }
+    const acct = await getActiveAccountId();
+
+    // The id must exist AND belong to the active account — never trust the caller.
+    const [target] = await db
+      .select({ id: campaigns.id, name: campaigns.name })
+      .from(campaigns)
+      .where(and(eq(campaigns.accountId, acct), eq(campaigns.id, campaignId)))
+      .limit(1);
+    if (!target) return { ok: false, error: "Campaign not found." };
+
+    const recordsDeleted = await db.transaction(async (tx) => {
+      const countRows = await tx
+        .select({ value: count() })
+        .from(performanceRecords)
+        .where(eq(performanceRecords.campaignId, campaignId));
+      const n = countRows[0]?.value ?? 0;
+      // Records first (no cascade on performance_records.campaign_id), then the
+      // campaign row itself. Creatives/upload_batches are left untouched.
+      await tx
+        .delete(performanceRecords)
+        .where(eq(performanceRecords.campaignId, campaignId));
+      await tx.delete(campaigns).where(eq(campaigns.id, campaignId));
+      return n;
+    });
+
+    try {
+      revalidatePath("/campaigns");
+      revalidatePath(`/campaigns/${encodeURIComponent(target.name)}`);
+    } catch (err) {
+      console.warn("revalidatePath after campaign delete failed:", err);
+    }
+
+    await logAudit({
+      action: AUDIT_ACTIONS.CAMPAIGN_DELETE,
+      entityType: "campaign",
+      entityId: target.id,
+      entityLabel: target.name,
+      actorUserId: user.id,
+      meta: { recordsDeleted },
+    });
+
+    return { ok: true, recordsDeleted };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : "Unknown error" };
   }

@@ -6,6 +6,7 @@ import {
   campaignAnalytics,
   campaignCreatives,
   campaignDailyByCreative,
+  campaignDeletionSummary,
   campaignMeta,
   campaignRecords,
   campaignRecordsByDay,
@@ -16,6 +17,7 @@ import { CampaignCreativeKpis } from "@/components/campaign/campaign-creative-kp
 import { CampaignCreativeChart } from "@/components/campaign/campaign-creative-chart";
 import { CampaignCreativesTable } from "@/components/campaign/campaign-creatives-table";
 import { CampaignEditDialog } from "@/components/campaign/campaign-edit-dialog";
+import { DeleteCampaignDialog } from "@/components/campaign/delete-campaign-dialog";
 import { CampaignRecordsTable } from "@/components/campaign/campaign-records-table";
 import { CollapsibleSection } from "@/components/ui/collapsible-section";
 import { parseCampaignName } from "@/lib/campaign";
@@ -64,9 +66,16 @@ export default async function CampaignDetailPage({
   // name back into Campaign + Ad Set so the form pre-fills cleanly.
   const registry = await campaignRegistry(decoded);
   const nameParts = registry ? parseCampaignName(decoded, registry.platform) : null;
-  const campaignStatus = registry
-    ? campaignStatusFor(await campaignStatusMap([registry.id]), registry.id)
-    : null;
+  // Status (current liveness) + deletion summary (what the danger zone removes),
+  // fetched in parallel — both keyed on the registry id.
+  const [campaignStatus, deletionSummary] = registry
+    ? await Promise.all([
+        campaignStatusMap([registry.id]).then((m) =>
+          campaignStatusFor(m, registry.id),
+        ),
+        campaignDeletionSummary(registry.id),
+      ])
+    : [null, null];
 
   const inc = parsed.includeExcluded;
   const [analytics, creativeRows, daily, records, byDay] = await Promise.all([
@@ -180,6 +189,31 @@ export default async function CampaignDetailPage({
       >
         <CampaignRecordsTable records={records} byDay={byDay} campaign={decoded} />
       </CollapsibleSection>
+
+      {/* ─────────── Danger zone ─────────── */}
+      {registry && deletionSummary && (
+        <div className="rounded-xl border border-neg/30 bg-neg/5 p-4 md:p-5">
+          <div className="flex items-center justify-between gap-4 flex-wrap">
+            <div>
+              <h2 className="text-sm font-medium text-ink">
+                Delete this campaign
+              </h2>
+              <p className="text-xs text-ink-3 mt-0.5 max-w-xl">
+                Permanently removes the campaign and all{" "}
+                {deletionSummary.records.toLocaleString()} of its performance
+                records. The {deletionSummary.creatives.toLocaleString()} creative
+                {deletionSummary.creatives === 1 ? "" : "s"} that ran here are
+                kept. This can&apos;t be undone.
+              </p>
+            </div>
+            <DeleteCampaignDialog
+              campaignId={registry.id}
+              campaignName={meta.campaign}
+              summary={deletionSummary}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

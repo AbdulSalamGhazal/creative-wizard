@@ -359,6 +359,73 @@ export async function campaignMeta(name: string): Promise<CampaignMeta | null> {
   };
 }
 
+export interface CampaignDeletionSummary {
+  /** Total performance_records that would be hard-deleted with the campaign. */
+  records: number;
+  /** Per-platform record counts, busiest first (usually one — a campaign is single-platform). */
+  platforms: { platform: Platform; records: number }[];
+  /** Distinct creatives that ran in this campaign (they are NOT deleted). */
+  creatives: number;
+  /** Earliest / latest record date (YYYY-MM-DD), or null when no records. */
+  firstDate: string | null;
+  lastDate: string | null;
+}
+
+/**
+ * Everything hard-deleted alongside a campaign. `performance_records` is FK'd to
+ * exactly one campaign with NO `ON DELETE CASCADE`, so the delete action removes
+ * these rows explicitly (inside a transaction) before dropping the campaign row.
+ * Unlike deleting a creative, the CREATIVES that ran in this campaign are kept —
+ * only their records tied to THIS campaign go, so the `creatives` count is
+ * surfaced to make that consequence explicit in the confirm dialog.
+ * Account-scoped for defence in depth (campaign_id is already account-unique).
+ */
+export async function campaignDeletionSummary(
+  campaignId: string,
+): Promise<CampaignDeletionSummary> {
+  const acct = await getActiveAccountId();
+  const rows = await db
+    .select({
+      platform: performanceRecords.platform,
+      records: sql<number>`COUNT(*)::int`,
+      firstDate: sql<string | null>`MIN(${performanceRecords.date})`,
+      lastDate: sql<string | null>`MAX(${performanceRecords.date})`,
+    })
+    .from(performanceRecords)
+    .where(
+      and(
+        eq(performanceRecords.accountId, acct),
+        eq(performanceRecords.campaignId, campaignId),
+      ),
+    )
+    .groupBy(performanceRecords.platform);
+
+  let records = 0;
+  let firstDate: string | null = null;
+  let lastDate: string | null = null;
+  const platforms = rows.map((r) => {
+    records += r.records;
+    if (r.firstDate && (!firstDate || r.firstDate < firstDate)) firstDate = r.firstDate;
+    if (r.lastDate && (!lastDate || r.lastDate > lastDate)) lastDate = r.lastDate;
+    return { platform: r.platform as Platform, records: r.records };
+  });
+  platforms.sort((a, b) => b.records - a.records);
+
+  const [agg] = await db
+    .select({
+      creatives: sql<number>`COUNT(DISTINCT ${performanceRecords.creativeId})::int`,
+    })
+    .from(performanceRecords)
+    .where(
+      and(
+        eq(performanceRecords.accountId, acct),
+        eq(performanceRecords.campaignId, campaignId),
+      ),
+    );
+
+  return { records, platforms, creatives: num(agg?.creatives), firstDate, lastDate };
+}
+
 export interface CampaignTotals {
   spend: number;
   impressions: number;
