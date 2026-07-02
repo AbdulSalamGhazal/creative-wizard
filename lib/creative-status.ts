@@ -60,7 +60,7 @@ export function hoursToWindowDays(hours: number): number {
 }
 
 /** Subtract whole days from an ISO YYYY-MM-DD date (UTC). */
-function isoMinusDays(iso: string, days: number): string {
+export function isoMinusDays(iso: string, days: number): string {
   const d = new Date(`${iso}T00:00:00Z`);
   d.setUTCDate(d.getUTCDate() - days);
   return d.toISOString().slice(0, 10);

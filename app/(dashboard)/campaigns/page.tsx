@@ -53,6 +53,7 @@ export default async function CampaignsPage({
     to: rawTo,
     platforms: pickFirst(params.platforms),
     objectives: pickFirst(params.objectives),
+    statuses: pickFirst(params.statuses),
     q: pickFirst(params.q),
     includeExcluded: pickFirst(params.includeExcluded),
     sort: pickFirst(params.sort),
@@ -74,6 +75,7 @@ export default async function CampaignsPage({
     to,
     platforms: parsed.platforms.length > 0 ? parsed.platforms : undefined,
     objectives: parsed.objectives.length > 0 ? parsed.objectives : undefined,
+    statuses: parsed.statuses.length > 0 ? parsed.statuses : undefined,
     q: parsed.q,
     includeExcluded: parsed.includeExcluded,
   };

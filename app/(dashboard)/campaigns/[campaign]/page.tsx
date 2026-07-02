@@ -19,6 +19,8 @@ import { CampaignEditDialog } from "@/components/campaign/campaign-edit-dialog";
 import { CampaignRecordsTable } from "@/components/campaign/campaign-records-table";
 import { CollapsibleSection } from "@/components/ui/collapsible-section";
 import { parseCampaignName } from "@/lib/campaign";
+import { campaignStatusFor, campaignStatusMap } from "@/db/queries/campaign-status";
+import { CAMPAIGN_STATUS_DOT, CAMPAIGN_STATUS_LABEL } from "@/lib/campaign-status";
 import { parseCampaignDetailParams } from "@/validators/campaign";
 import { PLATFORM_COLOR, PLATFORM_LABEL } from "@/lib/palette";
 import { safeDecodeURIComponent } from "@/lib/url";
@@ -62,6 +64,9 @@ export default async function CampaignDetailPage({
   // name back into Campaign + Ad Set so the form pre-fills cleanly.
   const registry = await campaignRegistry(decoded);
   const nameParts = registry ? parseCampaignName(decoded, registry.platform) : null;
+  const campaignStatus = registry
+    ? campaignStatusFor(await campaignStatusMap([registry.id]), registry.id)
+    : null;
 
   const inc = parsed.includeExcluded;
   const [analytics, creativeRows, daily, records, byDay] = await Promise.all([
@@ -121,6 +126,15 @@ export default async function CampaignDetailPage({
               <Target className="w-3 h-3 mr-1" />
               {meta.objective}
             </Badge>
+            {campaignStatus && (
+              <Badge variant="outline" className="text-ink-2">
+                <span
+                  className="w-1.5 h-1.5 rounded-sm mr-1.5"
+                  style={{ background: CAMPAIGN_STATUS_DOT[campaignStatus] }}
+                />
+                {CAMPAIGN_STATUS_LABEL[campaignStatus]}
+              </Badge>
+            )}
             {meta.platforms.map((p) => (
               <Badge key={p} variant="outline" className="text-ink-2">
                 <span

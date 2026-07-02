@@ -6,6 +6,8 @@ import { DataTable, type DataColumn } from "@/components/ui/data-table";
 import { useNavTransition } from "@/lib/nav-progress";
 import { int, isoDate, pct, ratio, usd } from "@/lib/format";
 import { PLATFORM_COLOR, PLATFORM_LABEL } from "@/lib/palette";
+import { CampaignStatusBadge } from "@/components/campaign/campaign-status-badge";
+import { CAMPAIGN_STATUS_LABEL, CAMPAIGN_STATUS_ORDER } from "@/lib/campaign-status";
 import type { PortfolioCampaignRow } from "@/db/queries/portfolio";
 
 type Align = "left" | "right";
@@ -20,6 +22,7 @@ const COLS_META: Array<{
 }> = [
   { key: "campaign", label: "Campaign", align: "left", sortable: true, pinned: true, defaultSortDir: "asc" },
   { key: "objective", label: "Objective", align: "left", sortable: true, defaultSortDir: "asc" },
+  { key: "status", label: "Status", align: "left", sortable: true, defaultSortDir: "asc" },
   { key: "platforms", label: "Platform", align: "left", sortable: false },
   { key: "creatives", label: "Creatives", align: "right", sortable: true },
   { key: "spend", label: "Spend", align: "right", sortable: true },
@@ -109,6 +112,8 @@ export function PortfolioTable({
               {r.objective}
             </span>
           );
+        case "status":
+          return <CampaignStatusBadge status={r.status} />;
         case "platforms":
           return (
             <span className="inline-flex items-center gap-2">
@@ -188,6 +193,7 @@ export function PortfolioTable({
     const sortVal = (r: PortfolioCampaignRow, key: string): number | string | null => {
       if (key === "campaign") return r.campaign;
       if (key === "objective") return r.objective;
+      if (key === "status") return CAMPAIGN_STATUS_ORDER[r.status];
       if (key === "lastDate") return r.lastDate ?? "";
       return (r[key as keyof PortfolioCampaignRow] as number | null) ?? null;
     };
@@ -205,7 +211,9 @@ export function PortfolioTable({
       csv:
         m.key === "platforms"
           ? (r: PortfolioCampaignRow) => r.platforms.join(" | ")
-          : undefined,
+          : m.key === "status"
+            ? (r: PortfolioCampaignRow) => CAMPAIGN_STATUS_LABEL[r.status]
+            : undefined,
     }));
   }, [totals]);
 
@@ -228,7 +236,7 @@ export function PortfolioTable({
       onRowClick={(r) => router.push(`/campaigns/${encodeURIComponent(r.campaign)}`)}
       showTotals
       csvFileName="campaigns"
-      minWidthClass="min-w-[1320px]"
+      minWidthClass="min-w-[1440px]"
       empty={
         <div className="h-32 flex items-center justify-center text-ink-3 text-sm border border-dashed border-line rounded-lg">
           No campaigns match these filters.

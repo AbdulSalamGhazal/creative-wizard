@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { campaignObjectiveEnum, platformEnum } from "@/db/schema";
+import { CAMPAIGN_STATUSES } from "@/lib/campaign-status";
 import { defaultDateRange } from "@/lib/date-presets";
 
 /**
@@ -36,6 +37,7 @@ export const portfolioFiltersSchema = z.object({
     .transform((v) => v ?? defaultDateRange().to),
   platforms: csvEnum(platformEnum),
   objectives: csvEnum(campaignObjectiveEnum),
+  statuses: csvEnum(CAMPAIGN_STATUSES),
   q: z.string().trim().min(1).max(120).optional().catch(undefined),
   includeExcluded: z
     .string()

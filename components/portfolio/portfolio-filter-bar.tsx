@@ -1,6 +1,6 @@
 "use client";
 
-import { Columns3, Layers, Search, Target, X } from "lucide-react";
+import { Activity, Columns3, Layers, Search, Target, X } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   useCallback,
@@ -23,6 +23,7 @@ import { ViewsControl } from "@/components/summary/views-control";
 import { CAMPAIGN_TABLE_COLUMNS } from "@/components/portfolio/portfolio-table";
 import type { SummaryViewRow } from "@/db/queries/summary-views";
 import { CAMPAIGN_OBJECTIVES } from "@/lib/campaign";
+import { CAMPAIGN_STATUSES, CAMPAIGN_STATUS_LABEL } from "@/lib/campaign-status";
 import { cn } from "@/lib/utils";
 
 const PLATFORMS = [
@@ -63,6 +64,10 @@ export function PortfolioFilterBar({
   );
   const objectives = useMemo(
     () => csv(searchParams.get("objectives")),
+    [searchParams],
+  );
+  const statuses = useMemo(
+    () => csv(searchParams.get("statuses")),
     [searchParams],
   );
   const hiddenCols = useMemo(
@@ -140,6 +145,16 @@ export function PortfolioFilterBar({
     });
   };
 
+  const toggleStatus = (value: string) => {
+    const set = new Set(statuses);
+    if (set.has(value)) set.delete(value);
+    else set.add(value);
+    update((next) => {
+      if (set.size === 0) next.delete("statuses");
+      else next.set("statuses", [...set].join(","));
+    });
+  };
+
   const toggleColumn = (key: string) => {
     const set = new Set(hiddenCols);
     if (set.has(key)) set.delete(key);
@@ -163,6 +178,15 @@ export function PortfolioFilterBar({
       : objectives.length === 1
         ? objectives[0]
         : `${objectives.length} objectives`;
+
+  const statusLabel =
+    statuses.length === 0
+      ? "All status"
+      : statuses.length === 1
+        ? CAMPAIGN_STATUS_LABEL[
+            statuses[0] as keyof typeof CAMPAIGN_STATUS_LABEL
+          ] ?? statuses[0]
+        : `${statuses.length} statuses`;
 
   const shownCount = CAMPAIGN_TABLE_COLUMNS.filter((c) => !hiddenCols.has(c.key)).length;
 
@@ -247,6 +271,38 @@ export function PortfolioFilterBar({
               onSelect={(e) => e.preventDefault()}
             >
               {o}
+            </DropdownMenuCheckboxItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      {/* Status */}
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            type="button"
+            className={cn(
+              "inline-flex items-center gap-2 h-8 px-3 rounded-md border text-xs transition-colors",
+              statuses.length > 0
+                ? "border-brand/50 text-ink bg-[var(--brand-soft)]"
+                : "border-line text-ink-2 bg-surface hover:bg-surface-2 hover:text-ink",
+            )}
+          >
+            <Activity className="w-3.5 h-3.5" />
+            <span className="text-ink">{statusLabel}</span>
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="w-44">
+          <DropdownMenuLabel>Status</DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          {CAMPAIGN_STATUSES.map((s) => (
+            <DropdownMenuCheckboxItem
+              key={s}
+              checked={statuses.includes(s)}
+              onCheckedChange={() => toggleStatus(s)}
+              onSelect={(e) => e.preventDefault()}
+            >
+              {CAMPAIGN_STATUS_LABEL[s]}
             </DropdownMenuCheckboxItem>
           ))}
         </DropdownMenuContent>

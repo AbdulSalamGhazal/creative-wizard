@@ -32,6 +32,8 @@ import {
   sumSpend,
 } from "@/lib/metrics";
 import { getActiveAccountId } from "@/lib/tenant";
+import { campaignStatusFor, campaignStatusMap } from "@/db/queries/campaign-status";
+import type { CampaignStatus } from "@/lib/campaign-status";
 
 type Platform = (typeof platformEnum)[number];
 type CampaignObjective = (typeof campaignObjectiveEnum)[number];
@@ -47,6 +49,8 @@ export interface PortfolioFilters {
   platforms?: Platform[];
   /** Campaign objective(s) — registry attribute, multi-select. */
   objectives?: CampaignObjective[];
+  /** Dynamic status (active/inactive) — derived, filtered in JS post-query. */
+  statuses?: CampaignStatus[];
   /** Campaign-name search (case-insensitive substring). */
   q?: string;
   includeExcluded?: boolean;
@@ -97,8 +101,11 @@ function baseConds(
 // =====================================================================
 
 export interface PortfolioCampaignRow {
+  campaignId: string;
   campaign: string;
   objective: CampaignObjective;
+  /** Dynamic liveness (spend-derived), computed over all data — not the range. */
+  status: CampaignStatus;
   platforms: Platform[];
   creatives: number;
   spend: number;
@@ -124,6 +131,7 @@ export async function portfolioCampaigns(
   const r = range ?? { from: f.from, to: f.to };
   const rows = await db
     .select({
+      campaignId: campaigns.id,
       campaign: campaigns.name,
       objective: campaigns.objective,
       platforms: sql<Platform[]>`array_agg(DISTINCT ${performanceRecords.platform})`,
@@ -147,7 +155,8 @@ export async function portfolioCampaigns(
     .where(and(...baseConds(f, r, acct)))
     .groupBy(campaigns.id)
     .orderBy(desc(sumSpend));
-  return rows.map((row) => ({
+  const base = rows.map((row) => ({
+    campaignId: row.campaignId,
     campaign: row.campaign,
     objective: row.objective,
     platforms: row.platforms ?? [],
@@ -166,4 +175,18 @@ export async function portfolioCampaigns(
     cvr: numOrNull(row.cvr),
     lastDate: row.lastDate,
   }));
+
+  // Attach dynamic status (computed over ALL data — current liveness, not the
+  // range) and apply the status filter here: a derived value can't be a SQL
+  // WHERE, so it's filtered in the query layer (like Library/Summary status).
+  const statusMap = await campaignStatusMap(base.map((b) => b.campaignId));
+  const rowsWithStatus: PortfolioCampaignRow[] = base.map((b) => ({
+    ...b,
+    status: campaignStatusFor(statusMap, b.campaignId),
+  }));
+  if (f.statuses && f.statuses.length > 0) {
+    const want = new Set(f.statuses);
+    return rowsWithStatus.filter((row) => want.has(row.status));
+  }
+  return rowsWithStatus;
 }
