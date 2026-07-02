@@ -298,6 +298,26 @@ This app is deployed and in production use. Treat `main` as shippable.
   column — switch to a JS sort on the derived value if you touch it. Migration
   0015 (additive: the overrides table + window column + archived→terminated
   backfill) is applied to prod.
+- **Campaign status is DYNAMIC too — 2-state (Active/Inactive), purely derived,
+  NO override, NO schema.** Parallels creative status but simpler: a campaign is
+  `active` if its last real-spend day (`spend > 0`, non-excluded) is within the
+  brand's window of its platform's OWN latest spend day, else `inactive`
+  (includes never-spent). Same window (`accounts.status_window_hours` →
+  `hoursToWindowDays`) and same per-platform freshness anchor as creative status,
+  and likewise computed over ALL data (current liveness), NOT the selected date
+  range. Derivation: `lib/campaign-status.ts` (`deriveCampaignStatus`,
+  `CAMPAIGN_STATUS_LABEL`/`_DOT`/`_ORDER`, reuses the now-exported `isoMinusDays`
+  from `lib/creative-status.ts`); account-scoped query
+  `db/queries/campaign-status.ts` (`campaignStatusMap(ids?)` — two scans:
+  per-`(campaignId, platform)` last-spend-day + per-platform freshness — rolls up
+  active-if-any-platform for the rare untagged multi-platform campaign; +
+  `campaignStatusFor` defaulting to `inactive`). Rendered by
+  `<CampaignStatusBadge>` on the **campaigns table** (a sortable/CSV Status column
+  between Objective and Platform) and the **campaign detail** header. Because it's
+  derived it CAN'T be a SQL WHERE — the `statuses` filter (URL-backed dropdown in
+  `portfolio-filter-bar.tsx`, validated via `csvEnum(CAMPAIGN_STATUSES)`) is
+  applied in the query layer (`portfolioCampaigns` filters the rows after
+  attaching status), same as Library/Summary creative-status filters.
 - **Deleting a creative is a hard delete** (`deleteCreative`). It removes the
   creative's `performance_records` first (no cascade on that FK), then the
   creative (tags cascade). The confirm dialog
