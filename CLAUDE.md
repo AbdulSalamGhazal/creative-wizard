@@ -82,6 +82,16 @@ Do not introduce a new dependency without a one-line justification in the PR des
 - When a change touches one of the documents in `docs/`, update the document in the same change.
 - When the user corrects a mistake that could repeat, append a line to the "Learned" section below.
 
+> **Docs are part of the change, not an afterthought.** Any change that alters
+> behavior described in `docs/*` or in this file MUST update the affected document
+> in the same commit — a PR/session that changes validation, schema identity, auth,
+> tenancy, deletion paths, or metrics without a matching doc edit is incomplete.
+> When code and a doc disagree, do not silently pick a side: fix the doc or flag
+> the conflict. At the end of any session that shipped a feature, re-read the doc
+> sections it touches and correct drift. Docs must stay clean, current, and
+> non-contradictory — the Learned section may add nuance, but the rules sections
+> above it must never state something the Learned section contradicts.
+
 ## Deployment (production) — LIVE
 
 This app is deployed and in production use. Treat `main` as shippable.
