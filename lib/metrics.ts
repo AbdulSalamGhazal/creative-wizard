@@ -49,6 +49,8 @@ export const cpm: SQL<number> = sql<number>`SUM(${p.spend}) / NULLIF(SUM(${p.imp
 export const cpc: SQL<number> = sql<number>`SUM(${p.spend}) / NULLIF(SUM(${p.clicks}), 0)`;
 export const cpa: SQL<number> = sql<number>`SUM(${p.spend}) / NULLIF(SUM(${p.conversions}), 0)`;
 export const roas: SQL<number> = sql<number>`SUM(${p.conversionValue}) / NULLIF(SUM(${p.spend}), 0)`;
+/** Average order value = revenue / orders. */
+export const aov: SQL<number> = sql<number>`SUM(${p.conversionValue}) / NULLIF(SUM(${p.conversions}), 0)`;
 /** Views Over Clicks = landing page views / clicks (shown ×100 as %). */
 export const voc: SQL<number> = sql<number>`SUM(${p.landingPageViews})::numeric / NULLIF(SUM(${p.clicks}), 0)`;
 /**

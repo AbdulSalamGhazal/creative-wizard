@@ -2089,5 +2089,3 @@ export async function bulkUpdateMetricValues(
   `);
   return rows.length;
 }
-
-export const rawSql = sql;

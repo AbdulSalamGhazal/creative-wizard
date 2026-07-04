@@ -8,6 +8,7 @@ import {
   products,
 } from "@/db/schema";
 import {
+  aov,
   completeRate,
   ctr,
   cpa,
@@ -130,7 +131,7 @@ async function tagAggregates(f: TrendsFilters): Promise<Map<string, TagAgg>> {
       clicks: sumClicks,
       conversions: sumConversions,
       revenue: sumConversionValue,
-      landingPageViews: sql<number>`SUM(${performanceRecords.landingPageViews})`,
+      landingPageViews: sumLandingPageViews,
       ctr,
       cvr,
       cpa,
@@ -141,7 +142,7 @@ async function tagAggregates(f: TrendsFilters): Promise<Map<string, TagAgg>> {
       hookRate,
       holdRate,
       completeRate,
-      aov: sql<number>`SUM(${performanceRecords.conversionValue}) / NULLIF(SUM(${performanceRecords.conversions}), 0)`,
+      aov,
     })
     .from(performanceRecords)
     .innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId))
@@ -273,7 +274,7 @@ export async function tagByPlatform(f: TrendsFilters): Promise<TagPlatformRow[]>
       hookRate,
       holdRate,
       completeRate,
-      aov: sql<number>`SUM(${performanceRecords.conversionValue}) / NULLIF(SUM(${performanceRecords.conversions}), 0)`,
+      aov,
     })
     .from(performanceRecords)
     .innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId))

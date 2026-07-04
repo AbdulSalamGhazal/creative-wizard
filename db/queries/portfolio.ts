@@ -19,6 +19,7 @@ import {
   platformEnum,
 } from "@/db/schema";
 import {
+  aov as aovSql,
   cpm as cpmSql,
   ctr as ctrSql,
   cvr as cvrSql,
@@ -144,7 +145,7 @@ export async function portfolioCampaigns(
       revenue: sumConversionValue,
       cpa: cpaSql,
       roas: roasSql,
-      aov: sql<number>`SUM(${performanceRecords.conversionValue}) / NULLIF(SUM(${performanceRecords.conversions}), 0)`,
+      aov: aovSql,
       ctr: ctrSql,
       cpm: cpmSql,
       cvr: cvrSql,
