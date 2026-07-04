@@ -412,6 +412,10 @@ export interface CreativeDeletionSummary {
 export async function creativeDeletionSummary(
   creativeId: string,
 ): Promise<CreativeDeletionSummary> {
+  // Account guard for defence in depth — callers pre-scope the creative id
+  // today, but this query must not depend on that (the sibling
+  // campaignDeletionSummary carries the same explicit guard).
+  const acct = await getActiveAccountId();
   const rows = await db
     .select({
       platform: performanceRecords.platform,
@@ -420,7 +424,12 @@ export async function creativeDeletionSummary(
       lastDate: sql<string | null>`MAX(${performanceRecords.date})`,
     })
     .from(performanceRecords)
-    .where(eq(performanceRecords.creativeId, creativeId))
+    .where(
+      and(
+        eq(performanceRecords.accountId, acct),
+        eq(performanceRecords.creativeId, creativeId),
+      ),
+    )
     .groupBy(performanceRecords.platform);
 
   let records = 0;
@@ -439,7 +448,12 @@ export async function creativeDeletionSummary(
       campaigns: sql<number>`COUNT(DISTINCT ${performanceRecords.campaignId})::int`,
     })
     .from(performanceRecords)
-    .where(eq(performanceRecords.creativeId, creativeId));
+    .where(
+      and(
+        eq(performanceRecords.accountId, acct),
+        eq(performanceRecords.creativeId, creativeId),
+      ),
+    );
 
   return { records, platforms, campaigns: agg?.campaigns ?? 0, firstDate, lastDate };
 }
@@ -476,6 +490,8 @@ export async function creativeRecords(
   creativeId: string,
   range?: { from?: string; to?: string },
 ): Promise<CreativeRecordRow[]> {
+  // Account guard for defence in depth (see creativeDeletionSummary).
+  const acct = await getActiveAccountId();
   const rows = await db
     .select({
       id: performanceRecords.id,
@@ -503,6 +519,7 @@ export async function creativeRecords(
     .innerJoin(campaigns, eq(campaigns.id, performanceRecords.campaignId))
     .where(
       and(
+        eq(performanceRecords.accountId, acct),
         eq(performanceRecords.creativeId, creativeId),
         range?.from && range?.to
           ? between(performanceRecords.date, range.from, range.to)
