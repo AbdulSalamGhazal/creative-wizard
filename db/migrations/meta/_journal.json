@@ -176,6 +176,13 @@
       "when": 1782247940688,
       "tag": "0024_campaign_id_contract",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1783169934668,
+      "tag": "0025_clumsy_silk_fever",
+      "breakpoints": true
     }
   ]
 }

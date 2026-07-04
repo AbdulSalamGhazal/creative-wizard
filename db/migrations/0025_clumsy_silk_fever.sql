@@ -1,0 +1,2 @@
+CREATE INDEX "audit_account_id_idx" ON "audit_events" USING btree ("account_id","id" DESC NULLS LAST);--> statement-breakpoint
+CREATE INDEX "upload_batches_account_uploaded_idx" ON "upload_batches" USING btree ("account_id","uploaded_at" DESC NULLS LAST);

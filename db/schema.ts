@@ -283,20 +283,30 @@ export const platformRatingRules = pgTable(
   }),
 );
 
-export const uploadBatches = pgTable("upload_batches", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  accountId: accountId(),
-  platform: varchar("platform", { length: 16, enum: platformEnum }).notNull(),
-  fileName: varchar("file_name", { length: 255 }).notNull(),
-  uploadedByUserId: uuid("uploaded_by_user_id")
-    .notNull()
-    .references(() => users.id),
-  uploadedAt: timestamp("uploaded_at", { withTimezone: true }).notNull().defaultNow(),
-  rowsImported: integer("rows_imported").notNull(),
-  status: varchar("status", { length: 16 }).notNull().default("active"),
-  rolledBackAt: timestamp("rolled_back_at", { withTimezone: true }),
-  rolledBackByUserId: uuid("rolled_back_by_user_id").references(() => users.id),
-});
+export const uploadBatches = pgTable(
+  "upload_batches",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    accountId: accountId(),
+    platform: varchar("platform", { length: 16, enum: platformEnum }).notNull(),
+    fileName: varchar("file_name", { length: 255 }).notNull(),
+    uploadedByUserId: uuid("uploaded_by_user_id")
+      .notNull()
+      .references(() => users.id),
+    uploadedAt: timestamp("uploaded_at", { withTimezone: true }).notNull().defaultNow(),
+    rowsImported: integer("rows_imported").notNull(),
+    status: varchar("status", { length: 16 }).notNull().default("active"),
+    rolledBackAt: timestamp("rolled_back_at", { withTimezone: true }),
+    rolledBackByUserId: uuid("rolled_back_by_user_id").references(() => users.id),
+  },
+  (t) => ({
+    // The uploads page filters by account and sorts newest-first on every visit.
+    accountUploadedIdx: index("upload_batches_account_uploaded_idx").on(
+      t.accountId,
+      t.uploadedAt.desc(),
+    ),
+  }),
+);
 
 /**
  * Per-platform CSV header → internal-field mappings. Admin-editable from
@@ -432,6 +442,9 @@ export const auditEvents = pgTable(
     meta: jsonb("meta"),
   },
   (t) => ({
+    // The audit feed filters by account and pages by id DESC; the table is
+    // append-only and grows forever, so the account-leading index matters.
+    accountIdIdx: index("audit_account_id_idx").on(t.accountId, t.id.desc()),
     atIdx: index("audit_at_idx").on(t.at),
     actorIdx: index("audit_actor_idx").on(t.actorUserId),
     entityIdx: index("audit_entity_idx").on(t.entityType, t.entityId),
