@@ -5,6 +5,36 @@
 **Related documents:** `urjwan-ccms-prd.md` (v1.2), `urjwan-ccms-validation-spec.md`
 **Status:** Ready for `CLAUDE.md` and implementation
 
+> ---
+> ## ⚠️ HISTORICAL DOCUMENT (v1 planning) — superseded in key areas
+>
+> This tech-spec describes the system as **planned** (pre-build). The build pivoted
+> in several load-bearing ways; where this document and the code disagree, the
+> code + `CLAUDE.md` win. The major pivots:
+>
+> - **Auth:** custom HMAC-signed cookie sessions + bcrypt passwords
+>   (`lib/auth-cookie.ts`), enforced by `middleware.ts` — NOT Google SSO/Auth.js.
+> - **Platforms:** `instagram` / `facebook` / `tiktok` / `snapchat` — Meta was
+>   split into IG + FB, and Google/YouTube was dropped.
+> - **Multi-tenant:** 2–5 brands in one DB via row-level `account_id`
+>   (`accounts` table + `ccms_account` cookie switcher) — not single-tenant.
+> - **Campaign identity:** `performance_records.campaign_id` (uuid FK → the
+>   `campaigns` registry). Campaign names are built ONLY through
+>   `buildCampaignName()` — `Campaign ➤ Adset` + ` (IG)`/` (FB)` platform tags.
+> - **Video metrics:** 2s views + 25/50/75/100% quartiles — not 3s/15s.
+> - **Upload sessions:** stored in Postgres (`upload_validation_sessions`) —
+>   Vercel KV was never used.
+> - **Mutations:** Next.js Server Actions — there is no REST API surface.
+> - **Thumbnails:** stored PUBLIC in Vercel Blob (deliberate decision) — not
+>   private+signed.
+> - **Creative status:** derived dynamically from spend recency (4-state) with
+>   per-platform manual termination — not a manually-managed enum.
+>
+> A full v2 rewrite of this document is a separate task; sections below are
+> retained verbatim for historical context.
+> ---
+
+
 ---
 
 ## 1. Purpose
