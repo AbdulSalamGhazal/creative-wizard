@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { signIn } from "@/app/actions/session";
+import { safeInternalPath } from "@/lib/url";
 
 export function SignInForm({ nextPath }: { nextPath: string }) {
   const router = useRouter();
@@ -28,7 +29,9 @@ export function SignInForm({ nextPath }: { nextPath: string }) {
         setError(res.error ?? "Sign-in failed.");
         return;
       }
-      router.replace(nextPath);
+      // Re-constrain even though the page already sanitized it — the client
+      // must not trust a prop that ultimately came from the URL.
+      router.replace(safeInternalPath(nextPath));
       router.refresh();
     });
   };

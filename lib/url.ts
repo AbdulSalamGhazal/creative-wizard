@@ -19,3 +19,22 @@ export function safeDecodeURIComponent(value: string): string {
     return value;
   }
 }
+
+/**
+ * Constrain a user-supplied redirect target (the sign-in `?next=` param) to a
+ * same-origin path. Only a value starting with a single "/" passes:
+ * "//evil.com" is protocol-relative and "https://evil.com" is absolute — a
+ * crafted /signin?next=//evil.com link must not bounce a signed-in user
+ * off-site. "/\" is rejected too (browsers normalize backslash to "/",
+ * turning it protocol-relative). Used on BOTH the server redirect and the
+ * client router.replace, so neither side trusts the other.
+ */
+export function safeInternalPath(
+  value: string | null | undefined,
+  fallback = "/",
+): string {
+  if (!value || !value.startsWith("/")) return fallback;
+  const second = value.charAt(1);
+  if (second === "/" || second === "\\") return fallback;
+  return value;
+}
