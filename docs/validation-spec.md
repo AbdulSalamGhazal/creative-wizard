@@ -1,9 +1,12 @@
 # Urjwan Creative Management System — Validation Specification
 
-**Version:** 1.0 (Draft)
+**Version:** 1.1
 **Owner:** Salam — Urjwan
 **Related document:** `urjwan-ccms-prd.md`
-**Status:** Skeleton complete; per-platform schemas (§9) pending real CSV samples
+**Status:** Live — updated 2026-07 to document production behavior (upsert mode,
+XLSX ingestion, the campaign registry / E060 / E061, and the encoding decision).
+Per-platform header mappings are DB-driven (`/admin/catalog?tab=mappings`), so
+§9's static tables are historical.
 
 ---
 
@@ -24,7 +27,7 @@ The validation layer obeys these rules without exception:
 1. **All-or-nothing.** A single error rejects the entire file. No partial imports, no "import what you can."
 2. **Collect all errors.** Validation does not stop at the first row-level error. Every problem in the file is surfaced in one report.
 3. **Deterministic.** The same input file produces the same result every time.
-4. **Idempotent.** A record is uniquely keyed by `(creative_name, platform, campaign_name, date)`. The same creative can run in multiple campaigns on the same day (distinct keys → allowed), but re-uploading the *same* campaign's day is rejected as a duplicate — no silent double-counting.
+4. **Idempotent.** A record is uniquely keyed by `(creative, platform, campaign, date)`, where the campaign is resolved through the campaigns **registry** (stored as a `campaign_id` FK — see §4.1). The same creative can run in multiple campaigns on the same day (distinct keys → allowed), but re-uploading the *same* campaign's day is rejected as a duplicate — no silent double-counting. (Upsert mode deliberately relaxes this — see §8.1.)
 5. **Read-only until success.** Nothing is written to the database until validation passes end-to-end and the user confirms import.
 6. **Never modifies the input.** The original CSV file is preserved as uploaded; transformations happen on parsed in-memory data.
 
@@ -49,7 +52,13 @@ Validation runs as a five-stage pipeline. The first two stages are **fail-fast**
 - File size ≤ 10 MB (E001)
 - File parses as CSV (E002)
 - File is not empty after stripping headers and blank rows (E003)
-- File encoding is UTF-8 or Windows-1256 (E004). UTF-8 is tried first; on failure, Windows-1256 is attempted with a non-blocking warning (W001).
+- File encoding must be UTF-8 (E004). *(v1.1 decision: the Windows-1256
+  fallback originally planned here was never implemented and is formally
+  dropped; the W001 code stays reserved but unused. Exports from all four
+  platforms are UTF-8 in practice.)*
+- **XLSX ingestion:** `.xlsx` files are accepted alongside `.csv`. The first
+  sheet is converted in-memory (dates read as real Date cells) and then flows
+  through the identical pipeline — every rule below applies unchanged.
 
 ### 3.2 Stage 2 — Schema
 
@@ -67,6 +76,13 @@ For each row, the following are checked **independently** (one row can produce m
 - Date field parses and is not in the future (E030, E031)
 - Creative-name field is non-empty (E021)
 - Creative-name field matches a registered name in the library (E020)
+- Campaign (+ ad set) resolves to a **registered campaign** for this account
+  (E061) — like creatives, a campaign must be created in the system before an
+  upload can reference it, otherwise a rename at the source would silently
+  spawn a new campaign
+- The campaign name must not already belong to a **different platform** (E060)
+  — one campaign = one platform; allowing the same name on two platforms would
+  silently merge them (Instagram/Facebook stay distinct via the name tag, §4.1)
 
 ### 3.4 Stage 4 — Intra-file duplicates
 
@@ -77,7 +93,7 @@ Rows are keyed by `(creative_name, campaign_name, date)` (platform is constant p
 Each distinct `(creative_name, platform, campaign_name, date)` from the file is checked against existing data:
 
 - If a record already exists for that key → **E051** (blocking), naming the existing batch so the user can roll it back and re-import.
-- The database enforces this with a unique index on `(creative_id, platform, campaign_name, date)`.
+- The database enforces this with a unique index on `(creative_id, platform, campaign_id, date)` — the campaign name from the file is resolved to its registry row's id at commit time.
 
 ---
 
@@ -92,7 +108,26 @@ Matching is **strict**:
 
 The strictness is intentional: it makes the system's behavior fully predictable and pushes the team to maintain naming discipline at the source. Forgiveness here would hide problems rather than fix them.
 
-> A "did you mean" hint based on Levenshtein distance is a nice-to-have for v1.1, after the team has lived with the strict version for a while.
+> A "did you mean" hint based on Levenshtein distance is a nice-to-have for a later version, after the team has lived with the strict version for a while.
+
+> **⚠ Known divergence (2026-07 audit — decision deferred).** The current
+> implementation (a) trims surrounding whitespace off every cell, including
+> creative names, before matching, (b) applies **no** NFC normalization on
+> either side of the match, and (c) parses blank/`-`/`N/A` cells in required
+> numeric columns as `0` instead of raising E042 (§5.1). Whether to enforce
+> this spec as written or amend it to sanction the implemented behavior is an
+> open product decision — do not "fix" either side without it.
+
+### 4.1 Campaign identity & the registry
+
+The stored campaign name is built ONLY through `buildCampaignName()`
+(`lib/campaign.ts`): `Campaign ➤ Adset`, with a short platform tag appended
+for the two Meta channels — `(IG)` for Instagram, `(FB)` for Facebook — so the
+same Meta campaign split across the two stays distinct. Uploads must reference
+a campaign already registered in the system (`/campaigns/new` or the edit
+dialog); unregistered → E061, registered on another platform → E060. The perf
+row stores the registry row's `campaign_id` (uuid FK), so renaming a campaign
+is a single registry update — historical rows follow automatically.
 
 ---
 
@@ -164,7 +199,9 @@ Every error carries a stable code, a severity, a template, and an example. Codes
 | E042  | ERROR    | Row {n}: required field `'{field}'` is missing.                                                           | "Row 88: required field `'Impressions'` is missing."                                                          |
 | E050  | ERROR    | Rows {rows}: duplicate within file — same creative `'{name}'`, campaign `'{campaign}'`, platform `{platform}`, date `{date}`. | — |
 | E051  | ERROR    | Row(s) {rows}: `'{name}'` / campaign `'{campaign}'` on `{platform}` for `{date}` was already imported (batch {id}).         | — |
-| W001  | WARNING  | File was decoded as Windows-1256 (not UTF-8). Future uploads should be UTF-8.                            | —                                                                                                             |
+| E060  | ERROR    | Campaign `'{name}'` already exists on `{platform}` — one campaign belongs to one platform.                | "Campaign `'Summer ➤ Broad'` already exists on tiktok."                                                       |
+| E061  | ERROR    | Row {n}: campaign `'{name}'` is not registered. Register it before importing.                             | —                                                                                                             |
+| W001  | WARNING  | *(reserved — the Windows-1256 fallback was never implemented; see §3.1)*                                  | —                                                                                                             |
 | W002  | WARNING  | Unknown column ignored: `{column}`.                                                                       | "Unknown column ignored: `Custom note`."                                                                      |
 
 The error report rendered to the user is a virtualized list (scrollable, copy-pasteable, exportable as CSV) so that files with hundreds of errors remain reviewable.
@@ -174,11 +211,31 @@ The error report rendered to the user is a virtualized list (scrollable, copy-pa
 ## 8. Re-upload & Rollback Behavior
 
 - An admin can roll back any upload batch within 24 hours of its creation.
-- Rollback deletes all `PerformanceRecord` rows attached to that batch.
-- Re-uploading a file that overlaps existing data is allowed at any time; it
-  remove a batch uploaded by mistake.
-- Rollback is logged on the `UploadBatch` row with the reverting user and timestamp.
+- Rollback deletes all `performance_records` rows attached to that batch.
+- Re-uploading a file that overlaps existing data is **rejected** row-by-row
+  with E051 (strict mode). To replace a batch uploaded by mistake, roll the
+  batch back first and re-import — or use **upsert mode** (§8.1) when the goal
+  is updating existing days in place.
+- Rollback is logged on the `upload_batches` row with the reverting user and timestamp.
 - Beyond 24 hours, batches cannot be rolled back via the UI — an admin must operate on the database directly. This trade-off favors data safety over convenience.
+
+### 8.1 Upsert mode (v1.1)
+
+The New-upload form has an **upsert** toggle, built for TikTok-style rolling
+attribution backfill (re-upload the same window daily; old days gain their
+late-attributed conversions, the newest day is inserted):
+
+- Runs the **same full validation pipeline**, but **skips the E051 check**.
+- Validated rows are partitioned against the unique identity
+  `(creative, platform, campaign, date)`: **new** rows are inserted under a
+  fresh batch; **existing** rows are UPDATEd in place (full row,
+  last-value-wins on every metric column; identity, batch ownership and
+  exclusion flags untouched).
+- Because it reuses the import validation, the file must carry **all mapped
+  columns** (a full export) — partial files don't validate.
+- In-place updates are **not rollback-able**: batch rollback only removes the
+  rows the batch inserted. A pure-update upsert creates no batch at all.
+- Audit: `upload.commit` with `{rowsImported, rowsUpdated, upsert: true}`.
 
 ---
 
