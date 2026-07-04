@@ -18,8 +18,7 @@ If a rule here conflicts with one of those documents, the documents win — flag
 - Drizzle ORM + Postgres (Neon)
 - Auth: custom HMAC-signed cookie sessions (`lib/auth-cookie.ts`) + bcrypt passwords (`lib/auth-password.ts`). Users created via `/admin/users`; first admin via `db/create-admin.ts`. NOT Auth.js/Google — those were never wired up.
 - Tailwind + shadcn/ui + shadcn charts (Recharts under the hood)
-- TanStack Query (client data), TanStack Table (tables)
-- papaparse (CSV), Zod (validation), framer-motion (motion)
+- papaparse (CSV), Zod (validation)
 - Vercel hosting. Vercel KV is NOT used (upload-validation sessions live in Postgres). **Vercel Blob IS used** for creative thumbnails: uploaded via `POST /api/uploads/thumbnail` (editor-only; client downscales→WebP first), stored public, and the returned URL is saved to `creatives.thumbnail_url`. Requires `BLOB_READ_WRITE_TOKEN` (auto-added when a Blob store is connected to the project); the blob host is allow-listed in `next.config.ts` `images.remotePatterns`.
 
 Do not introduce a new dependency without a one-line justification in the PR description.
@@ -38,7 +37,7 @@ Do not introduce a new dependency without a one-line justification in the PR des
 - Schema changes go through Drizzle migrations. Never edit a generated migration; create a new one.
 - Every column used in a filter, join, or sort needs an index. Declare it in the schema file alongside the column.
 - When adding a new dashboard query, check whether existing indexes cover it; add one if not.
-- `performance_records` is **unique** on `(creative_id, platform, campaign_name, date)` — the same creative can run on the same platform/date across different campaigns (distinct rows), but not the same campaign twice. Validation is still the only **entry** path. There are four sanctioned **exit** paths: (1) batch rollback within 24 h (admin-only), (2) the record-cleanup tool on `/uploads` (filtered hard-delete, editor-or-admin, preview-then-confirm, audit-logged via `upload.bulk_delete`), (3) deleting a creative (`deleteCreative` in `app/actions/creative.ts`) — which removes that creative's records inside a transaction because `performance_records.creative_id` has NO `ON DELETE CASCADE`, then deletes the creative (its `creative_tags` cascade). Editor-or-admin, confirm-with-record-summary, audit-logged via `creative.delete`, and (4) deleting a campaign (`deleteCampaign` in `app/actions/campaign.ts`) — the campaign detail page's danger zone; because `performance_records.campaign_id` also has NO `ON DELETE CASCADE`, it removes the campaign's records inside a transaction, then drops the `campaigns` row. The CREATIVES that ran in the campaign are KEPT (only their records for that campaign go); confirm-with-record-summary (`campaignDeletionSummary`), editor-or-admin, audit-logged via `campaign.delete`. No other code should delete from `performance_records`.
+- `performance_records` is **unique** on `(creative_id, platform, campaign_id, date)` — the same creative can run on the same platform/date across different campaigns (distinct rows), but not the same campaign twice. (`campaign_id` is the FK to the campaigns registry; the old `campaign_name` text column is gone — see the Learned section.) Validation is still the only **entry** path. There are four sanctioned **exit** paths: (1) batch rollback within 24 h (admin-only), (2) the record-cleanup tool on `/uploads` (filtered hard-delete, editor-or-admin, preview-then-confirm, audit-logged via `upload.bulk_delete`), (3) deleting a creative (`deleteCreative` in `app/actions/creative.ts`) — which removes that creative's records inside a transaction because `performance_records.creative_id` has NO `ON DELETE CASCADE`, then deletes the creative (its `creative_tags` cascade). Editor-or-admin, confirm-with-record-summary, audit-logged via `creative.delete`, and (4) deleting a campaign (`deleteCampaign` in `app/actions/campaign.ts`) — the campaign detail page's danger zone; because `performance_records.campaign_id` also has NO `ON DELETE CASCADE`, it removes the campaign's records inside a transaction, then drops the `campaigns` row. The CREATIVES that ran in the campaign are KEPT (only their records for that campaign go); confirm-with-record-summary (`campaignDeletionSummary`), editor-or-admin, audit-logged via `campaign.delete`. No other code should delete from `performance_records`.
 - Every creative has a required `product_id`. Products live in their own table and are managed in `/admin/catalog?tab=products`. Never let a creative be saved without one.
 
 ## Aggregation rules (CRITICAL)
@@ -93,7 +92,7 @@ This app is deployed and in production use. Treat `main` as shippable.
 - **Database:** Neon Postgres (eu-central-1). Two connection strings:
   - **Pooled** (host contains `-pooler`) → this is `DATABASE_URL` in Vercel. Required because `lib/db.ts` uses `max: 1` per serverless instance.
   - **Direct** (no `-pooler`) → used ONLY to run migrations.
-- **Vercel env vars:** `DATABASE_URL` (pooled) + `AUTH_SECRET`. Nothing else (no Google/KV/Blob). Local copies of all prod secrets live in gitignored `.env.production.local` — never commit it, never paste it into committed files.
+- **Vercel env vars:** `DATABASE_URL` (pooled), `AUTH_SECRET`, and `BLOB_READ_WRITE_TOKEN` (creative thumbnails live in Vercel Blob — see the Stack section; the token is auto-added when the Blob store is connected). Nothing else (no Google SSO vars, no KV). Local copies of all prod secrets live in gitignored `.env.production.local` — never commit it, never paste it into committed files.
 - **Migrations do NOT run on deploy.** When a change adds a Drizzle migration, run it manually (before/with the deploy) against the **direct** url:
   ```
   DATABASE_URL='<direct-neon-url>' npx drizzle-kit migrate
@@ -190,12 +189,13 @@ This app is deployed and in production use. Treat `main` as shippable.
   next-themes (`attribute="class"`, `storageKey="cw-theme"`,
   `defaultTheme="midnight"`, `enableSystem={false}`) → `class="<theme>"` on
   `<html>`. Midnight is the base palette in `:root`; every other theme is a
-  `.<name>` class that overrides ONLY the surface/ink/line scale (Sand also
-  re-tunes pos/neg/warn + popover since it's light). Brand magenta, the five
+  `.<name>` class that overrides ONLY the surface/ink/line scale (the light
+  themes also re-tune pos/neg/warn + popover). Brand magenta, the five
   platform colors, and (for the dark themes) pos/neg/warn are shared so the
   charts/graphs look identical across themes — only the chrome re-tones. The
-  `dark:` variant matches the seven dark theme classes; **Sand is excluded**
-  so shadcn renders its light base styles there. This REPLACED the old
+  `dark:` variant matches the five dark theme classes (midnight / slate /
+  carbon / contrast / ocean); **the three light themes (Sand / Frost / Rose)
+  are excluded** so shadcn renders its light base styles there. This REPLACED the old
   light/dark + 5-accent model (accent-provider.tsx / accents.ts deleted) — the
   accent hue swaps were cosmetically pointless. To add a theme: add a `.<name>`
   palette override (+ pos/neg/warn if light), add the name to `THEMES` in
@@ -294,8 +294,8 @@ This app is deployed and in production use. Treat `main` as shippable.
   over the DERIVED `generalStatus` (STATUS_ORDER), and the status column defaults
   to **asc on first click** (active→pause→new→terminated, so the most-relevant
   show first) via `firstDir()` in summary-table.tsx — NOT the dead legacy column.
-  KNOWN GAP: the Library "status" column SORT may still order by the dead legacy
-  column — switch to a JS sort on the derived value if you touch it. Migration
+  The Library "status" sort likewise re-sorts in JS by the derived status
+  (STATUS_ORDER in db/queries/creatives.ts). Migration
   0015 (additive: the overrides table + window column + archived→terminated
   backfill) is applied to prod.
 - **Campaign status is DYNAMIC too — 2-state (Active/Inactive), purely derived,
