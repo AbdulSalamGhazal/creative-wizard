@@ -2017,4 +2017,77 @@ export async function launchFatigue(
     .filter((r) => r.w1.spend + r.w2.spend + r.w3.spend > 0);
 }
 
+/** One row's replacement metric values for bulkUpdateMetricValues. Matches the
+ * shape the commit route's metricValues() produces, plus the target row id. */
+export interface PerformanceMetricUpdate {
+  id: number;
+  spend: string;
+  impressions: number;
+  clicks: number;
+  conversions: number | null;
+  conversionValue: string | null;
+  landingPageViews: number | null;
+  addToCart: number | null;
+  addPayment: number | null;
+  videoViews2s: number | null;
+  videoViews25: number | null;
+  videoViews50: number | null;
+  videoViews75: number | null;
+  videoViews100: number | null;
+  rawPayload: unknown;
+}
+
+/** Runs on the shared db handle or inside a transaction. */
+type Executor = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+/**
+ * Bulk in-place overwrite of the metric columns on existing
+ * performance_records rows — the upsert-commit path. One
+ * `UPDATE ... FROM (VALUES ...)` statement per call instead of one UPDATE per
+ * row (a TikTok attribution backfill updates thousands of rows per upload).
+ * Identity columns, batch ownership, and exclusion flags are untouched; rows
+ * whose account_id doesn't match are skipped and not counted.
+ *
+ * Raw SQL is sanctioned in this file only (CLAUDE.md), wrapped in a typed
+ * helper — every value is a bind parameter, nothing is string-interpolated.
+ * Returns the number of rows actually updated.
+ */
+export async function bulkUpdateMetricValues(
+  executor: Executor,
+  accountId: string,
+  updates: PerformanceMetricUpdate[],
+): Promise<number> {
+  if (updates.length === 0) return 0;
+  const tuples = updates.map(
+    (u) =>
+      sql`(${u.id}::bigint, ${u.spend}::numeric, ${u.impressions}::integer, ${u.clicks}::integer, ${u.conversions}::integer, ${u.conversionValue}::numeric, ${u.landingPageViews}::integer, ${u.addToCart}::integer, ${u.addPayment}::integer, ${u.videoViews2s}::integer, ${u.videoViews25}::integer, ${u.videoViews50}::integer, ${u.videoViews75}::integer, ${u.videoViews100}::integer, ${JSON.stringify(u.rawPayload)}::jsonb)`,
+  );
+  const rows = await executor.execute(sql`
+    UPDATE performance_records AS p SET
+      spend = v.spend,
+      impressions = v.impressions,
+      clicks = v.clicks,
+      conversions = v.conversions,
+      conversion_value = v.conversion_value,
+      landing_page_views = v.landing_page_views,
+      add_to_cart = v.add_to_cart,
+      add_payment = v.add_payment,
+      video_views_2s = v.video_views_2s,
+      video_views_25 = v.video_views_25,
+      video_views_50 = v.video_views_50,
+      video_views_75 = v.video_views_75,
+      video_views_100 = v.video_views_100,
+      raw_payload = v.raw_payload
+    FROM (VALUES ${sql.join(tuples, sql`, `)}) AS v(
+      id, spend, impressions, clicks, conversions, conversion_value,
+      landing_page_views, add_to_cart, add_payment, video_views_2s,
+      video_views_25, video_views_50, video_views_75, video_views_100,
+      raw_payload
+    )
+    WHERE p.id = v.id AND p.account_id = ${accountId}
+    RETURNING p.id
+  `);
+  return rows.length;
+}
+
 export const rawSql = sql;

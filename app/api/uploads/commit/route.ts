@@ -12,6 +12,10 @@ import {
   uploadValidationSessions,
 } from "@/db/schema";
 import type { ParsedRow } from "@/csv/pipeline";
+import {
+  bulkUpdateMetricValues,
+  type PerformanceMetricUpdate,
+} from "@/db/queries/performance";
 import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
 
 const bodySchema = z.object({
@@ -223,6 +227,16 @@ export async function POST(request: NextRequest) {
   }
 
   const result = await db.transaction(async (tx) => {
+    // Claim the session token FIRST, atomically: a concurrent double-submit
+    // blocks on this row and then finds it already deleted (→ 410) instead of
+    // committing the same payload twice. Any failure below rolls the claim
+    // back too, so a failed commit stays retryable.
+    const claimed = await tx
+      .delete(uploadValidationSessions)
+      .where(eq(uploadValidationSessions.token, token))
+      .returning({ token: uploadValidationSessions.token });
+    if (claimed.length === 0) return null;
+
     // Only open a batch when there are new rows to insert. A pure-update
     // upsert (every row already exists) creates no batch.
     let batchId: string | null = null;
@@ -263,30 +277,35 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Per-row in-place update of existing records (full last-value-wins
-    // overwrite of the metric columns). Identity, batch ownership and
+    // Batched in-place update of existing records (full last-value-wins
+    // overwrite of the metric columns) — one UPDATE ... FROM (VALUES) per
+    // chunk instead of one statement per row. Identity, batch ownership and
     // exclusion flags are left untouched.
     let updated = 0;
-    for (const { id, row } of updateRows) {
-      const ret = await tx
-        .update(performanceRecords)
-        .set(metricValues(row))
-        .where(
-          and(
-            eq(performanceRecords.accountId, acct),
-            eq(performanceRecords.id, id),
-          ),
-        )
-        .returning({ id: performanceRecords.id });
-      updated += ret.length;
+    if (updateRows.length > 0) {
+      const metricUpdates: PerformanceMetricUpdate[] = updateRows.map(
+        ({ id, row }) => ({ id, ...metricValues(row) }),
+      );
+      for (let i = 0; i < metricUpdates.length; i += CHUNK_SIZE) {
+        updated += await bulkUpdateMetricValues(
+          tx,
+          acct,
+          metricUpdates.slice(i, i + CHUNK_SIZE),
+        );
+      }
     }
-
-    await tx
-      .delete(uploadValidationSessions)
-      .where(eq(uploadValidationSessions.token, token));
 
     return { batchId, rowsImported: inserted, rowsUpdated: updated, upsert };
   });
+
+  // The claim found no session row — a concurrent commit already consumed the
+  // token (or it never existed). Nothing was written by THIS request.
+  if (result === null) {
+    return NextResponse.json(
+      { error: "Token not found or expired", code: "410" },
+      { status: 410 },
+    );
+  }
 
   // Refresh dashboard caches. Wrapped in try/catch so a revalidate failure
   // doesn't mask the successful commit.
