@@ -1,11 +1,11 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { and, count, eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth";
-import { creatives, products } from "@/db/schema";
+import { products } from "@/db/schema";
 import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
 import { getActiveAccountId } from "@/lib/tenant";
 
@@ -173,14 +173,4 @@ export async function restoreProduct(productId: string): Promise<ProductMutation
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : "Unknown error" };
   }
-}
-
-export async function countCreativesPerProduct(): Promise<Map<string, number>> {
-  const acct = await getActiveAccountId();
-  const rows = await db
-    .select({ productId: creatives.productId, c: count() })
-    .from(creatives)
-    .where(eq(creatives.accountId, acct))
-    .groupBy(creatives.productId);
-  return new Map(rows.map((r) => [r.productId, Number(r.c)]));
 }

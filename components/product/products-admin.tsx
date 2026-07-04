@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { products } from "@/db/schema";
 import { ProductCreateForm } from "@/components/product/product-create-form";
 import { ProductRowActions } from "@/components/product/product-row-actions";
-import { countCreativesPerProduct } from "@/app/actions/product";
+import { countCreativesPerProduct } from "@/db/queries/products";
 import { isoDate } from "@/lib/format";
 import { getActiveAccountId } from "@/lib/tenant";
 
