@@ -84,32 +84,36 @@ export async function createCreative(
       };
     }
 
-    const [inserted] = await db
-      .insert(creatives)
-      .values({
-        // `status` is intentionally omitted — the DB column keeps its
-        // NOT NULL DEFAULT 'draft', which is now ignored. Status is derived
-        // dynamically (see lib/creative-status.ts); new creatives read as "New".
-        accountId: acct,
-        name: data.name,
-        productId: data.productId,
-        type: data.type,
-        thumbnailUrl: data.thumbnailUrl,
-        launchDate: data.launchDate,
-        notes: data.notes,
-        sourceLink: data.sourceLink ?? null,
-        createdByUserId: user.id,
-      })
-      .returning({ id: creatives.id, name: creatives.name });
+    // One transaction for creative + tags — a tag-insert failure must not
+    // leave an orphaned creative behind (same pattern as patchCreative).
+    const inserted = await db.transaction(async (tx) => {
+      const [row] = await tx
+        .insert(creatives)
+        .values({
+          // `status` is intentionally omitted — the DB column keeps its
+          // NOT NULL DEFAULT 'draft', which is now ignored. Status is derived
+          // dynamically (see lib/creative-status.ts); new creatives read as "New".
+          accountId: acct,
+          name: data.name,
+          productId: data.productId,
+          type: data.type,
+          thumbnailUrl: data.thumbnailUrl,
+          launchDate: data.launchDate,
+          notes: data.notes,
+          sourceLink: data.sourceLink ?? null,
+          createdByUserId: user.id,
+        })
+        .returning({ id: creatives.id, name: creatives.name });
+      if (!row) throw new Error("Insert failed.");
 
-    if (!inserted) return { ok: false, error: "Insert failed." };
-
-    if (data.tags.length > 0) {
-      await db
-        .insert(creativeTags)
-        .values(data.tags.map((tag) => ({ creativeId: inserted.id, tag })))
-        .onConflictDoNothing();
-    }
+      if (data.tags.length > 0) {
+        await tx
+          .insert(creativeTags)
+          .values(data.tags.map((tag) => ({ creativeId: row.id, tag })))
+          .onConflictDoNothing();
+      }
+      return row;
+    });
 
     try {
       revalidatePath("/creatives");
