@@ -1,9 +1,10 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Download } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { DataTable, type DataColumn } from "@/components/ui/data-table";
+import { DownloadCsvButton } from "@/components/ui/download-csv-button";
+import { rowsToCsv } from "@/lib/csv-export";
 import { int, usd } from "@/lib/format";
 import { PLATFORM_LABEL } from "@/lib/palette";
 import { PlatformDot } from "@/components/ui/platform-dot";
@@ -99,40 +100,40 @@ export function CampaignRecordsTable({
 
   const truncated = records.length >= 2000;
 
-  const downloadCsv = () => {
-    const esc = (v: string | number | null | boolean): string => {
-      if (v === null || v === undefined) return "";
-      const s = String(v);
-      return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-    };
-    let headers: string[];
-    let body: Array<Array<string | number | null | boolean>>;
+  // Export exactly what's shown (current mode + sort) via the shared CSV
+  // helpers + DownloadCsvButton.
+  const csvContent = useMemo(() => {
     if (mode === "raw") {
-      headers = ["Date", "Creative", "Platform", ...METRIC_COLS.map((c) => c.label), "Excluded"];
-      body = sortedRecords.map((r) => [
-        r.date,
-        r.creativeName,
-        PLATFORM_LABEL[r.platform],
-        ...METRIC_COLS.map((c) => r[c.key]),
-        r.excludedFromAggregates ? "yes" : "no",
+      return rowsToCsv<CampaignRecordRow>(sortedRecords, [
+        { key: "date", label: "Date", value: (r) => r.date },
+        { key: "creativeName", label: "Creative", value: (r) => r.creativeName },
+        { key: "platform", label: "Platform", value: (r) => PLATFORM_LABEL[r.platform] },
+        ...METRIC_COLS.map((c) => ({
+          key: c.key,
+          label: c.label,
+          value: (r: CampaignRecordRow) => r[c.key],
+        })),
+        {
+          key: "excluded",
+          label: "Excluded",
+          value: (r: CampaignRecordRow) => (r.excludedFromAggregates ? "yes" : "no"),
+        },
       ]);
-    } else {
-      headers = ["Date", "Rows", ...METRIC_COLS.map((c) => c.label)];
-      body = sortedDays.map((r) => [r.date, r.records, ...METRIC_COLS.map((c) => r[c.key])]);
     }
-    const csv = [headers, ...body].map((row) => row.map(esc).join(",")).join("\r\n");
-    const slug =
-      campaign.replace(/[^a-z0-9]+/gi, "-").replace(/^-+|-+$/g, "").toLowerCase() || "campaign";
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${slug}-${mode === "day" ? "by-day" : "records"}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-  };
+    return rowsToCsv<CampaignDayRow>(sortedDays, [
+      { key: "date", label: "Date", value: (r) => r.date },
+      { key: "records", label: "Rows", value: (r) => r.records },
+      ...METRIC_COLS.map((c) => ({
+        key: c.key,
+        label: c.label,
+        value: (r: CampaignDayRow) => r[c.key],
+      })),
+    ]);
+  }, [mode, sortedRecords, sortedDays]);
+
+  const csvFilename = `${
+    campaign.replace(/[^a-z0-9]+/gi, "-").replace(/^-+|-+$/g, "").toLowerCase() || "campaign"
+  }-${mode === "day" ? "by-day" : "records"}.csv`;
 
   const metricColumns = <T,>(): DataColumn<T>[] =>
     METRIC_COLS.map((c) => ({
@@ -260,14 +261,11 @@ export function CampaignRecordsTable({
               ? `${records.length}${truncated ? "+" : ""} records`
               : `${byDay.length} days`}
           </span>
-          <button
-            type="button"
-            onClick={downloadCsv}
-            className="h-7 px-2.5 inline-flex items-center gap-1.5 rounded-md border border-line text-[11px] text-ink-2 hover:text-ink hover:bg-surface-2 transition-colors"
-          >
-            <Download className="w-3.5 h-3.5" />
-            CSV
-          </button>
+          <DownloadCsvButton
+            csvContent={csvContent}
+            filename={csvFilename}
+            label="CSV"
+          />
         </div>
       </div>
 
