@@ -1,8 +1,9 @@
 /**
- * Hex mirrors of the platform colors defined in app/globals.css.
- * Recharts and other DOM-renderers need literal color values, not CSS vars.
- * Keep these in sync with `--instagram`, `--facebook`, `--tiktok`,
- * `--snapchat`.
+ * Platform colors, as references to the CSS vars in app/globals.css so they
+ * follow the active theme. Recharts and inline `style` both resolve `var(…)`
+ * at paint time (SVG fill/stroke and DOM background alike), so a single source
+ * drives every swatch. The three light themes override `--tiktok` / `--snapchat`
+ * (the two hues that fail on white) — see the light-theme block in globals.css.
  *
  * Meta was split into Instagram + Facebook — they are now two distinct
  * platforms everywhere in the system. (Google was removed — to re-add it,
@@ -12,10 +13,10 @@
 type PlatformKey = "instagram" | "facebook" | "tiktok" | "snapchat";
 
 export const PLATFORM_COLOR: Record<PlatformKey, string> = {
-  instagram: "#c13584", // IG purple/magenta
-  facebook: "#4f8efb", // FB blue
-  tiktok: "#d4d4d8", // light grey (distinct from IG pink)
-  snapchat: "#ffd80b", // yellow
+  instagram: "var(--instagram)", // IG purple/magenta
+  facebook: "var(--facebook)", // FB blue
+  tiktok: "var(--tiktok)", // grey (dark on light themes)
+  snapchat: "var(--snapchat)", // yellow (darker gold on light themes)
 };
 
 export const PLATFORM_LABEL: Record<PlatformKey, string> = {
@@ -63,16 +64,17 @@ export function gradientFor(name: string): { from: string; to: string } {
  * Distinct palette for product slices in the product-mix donut. Same hash
  * trick as gradients, but flat colors that legibly contrast with the
  * platform palette (no blue/pink) so the two donuts read differently.
+ * CSS-var references (theme-aware — darker on the light themes).
  */
 const PRODUCT_COLORS = [
-  "#A78BFA", // violet
-  "#F472B6", // pink
-  "#FBBF24", // amber
-  "#34D399", // emerald
-  "#60A5FA", // sky
-  "#F87171", // rose
-  "#22D3EE", // cyan
-  "#C084FC", // lilac
+  "var(--product-1)", // violet
+  "var(--product-2)", // pink
+  "var(--product-3)", // amber
+  "var(--product-4)", // emerald
+  "var(--product-5)", // sky
+  "var(--product-6)", // rose
+  "var(--product-7)", // cyan
+  "var(--product-8)", // lilac
 ];
 
 export function productColor(name: string): string {
@@ -91,22 +93,22 @@ export function swatchColor(name: string): string {
  * sets. Used for per-creative chart lines + KPI breakdown bars.
  */
 const SERIES_COLORS = [
-  "#60A5FA", // blue
-  "#F472B6", // pink
-  "#34D399", // emerald
-  "#FBBF24", // amber
-  "#A78BFA", // violet
-  "#FB923C", // orange
-  "#22D3EE", // cyan
-  "#F87171", // red
-  "#818CF8", // indigo
-  "#4ADE80", // green
-  "#E879F9", // fuchsia
-  "#2DD4BF", // teal
-  "#FCA5A5", // light red
-  "#38BDF8", // sky
-  "#A3E635", // lime
-  "#C084FC", // purple
+  "var(--series-1)", // blue
+  "var(--series-2)", // pink
+  "var(--series-3)", // emerald
+  "var(--series-4)", // amber
+  "var(--series-5)", // violet
+  "var(--series-6)", // orange
+  "var(--series-7)", // cyan
+  "var(--series-8)", // red
+  "var(--series-9)", // indigo
+  "var(--series-10)", // green
+  "var(--series-11)", // fuchsia
+  "var(--series-12)", // teal
+  "var(--series-13)", // light red
+  "var(--series-14)", // sky
+  "var(--series-15)", // lime
+  "var(--series-16)", // purple
 ];
 
 /** Color for the index-th item in an ordered set (cycles past 16). */
@@ -116,9 +118,9 @@ export function seriesColor(index: number): string {
 
 /** Fixed colors + labels for the three creative types. */
 export const TYPE_COLOR: Record<"video" | "image" | "slides", string> = {
-  video: "#60A5FA", // sky
-  image: "#FBBF24", // amber
-  slides: "#A78BFA", // violet
+  video: "var(--type-video)", // sky
+  image: "var(--type-image)", // amber
+  slides: "var(--type-slides)", // violet
 };
 export const TYPE_LABEL: Record<"video" | "image" | "slides", string> = {
   video: "Video",

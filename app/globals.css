@@ -51,6 +51,43 @@
   --warn: #f5c97a;
 
   /* ---------------------------------------------------------------
+   * Data-viz palette — chart series, product/type slices, and the
+   * two low-contrast platform hues. Dark values here (400-level,
+   * legible on the dark surfaces); the three LIGHT themes override
+   * every one of these with a ~600-level equivalent further down so
+   * lines and swatches stay readable on white. Consumers read these
+   * via lib/palette.ts (which now returns `var(--…)`), so a single
+   * source drives both Recharts strokes and DOM swatches.
+   * ------------------------------------------------------------- */
+  --series-1: #60a5fa;
+  --series-2: #f472b6;
+  --series-3: #34d399;
+  --series-4: #fbbf24;
+  --series-5: #a78bfa;
+  --series-6: #fb923c;
+  --series-7: #22d3ee;
+  --series-8: #f87171;
+  --series-9: #818cf8;
+  --series-10: #4ade80;
+  --series-11: #e879f9;
+  --series-12: #2dd4bf;
+  --series-13: #fca5a5;
+  --series-14: #38bdf8;
+  --series-15: #a3e635;
+  --series-16: #c084fc;
+  --product-1: #a78bfa;
+  --product-2: #f472b6;
+  --product-3: #fbbf24;
+  --product-4: #34d399;
+  --product-5: #60a5fa;
+  --product-6: #f87171;
+  --product-7: #22d3ee;
+  --product-8: #c084fc;
+  --type-video: #60a5fa;
+  --type-image: #fbbf24;
+  --type-slides: #a78bfa;
+
+  /* ---------------------------------------------------------------
    * Theme 1 · MIDNIGHT (default tone) — deep purple-black.
    * Lives in :root so it's the no-class fallback (no flash).
    * Slate/Carbon below override only the surface/ink/line scale.
@@ -225,6 +262,49 @@
   --brand-2: #fb7185;
   --primary-foreground: #ffffff;
   --popover: var(--surface);
+}
+
+/* ---------------------------------------------------------------
+ * LIGHT-THEME data-viz overrides. The three light themes share one
+ * darker palette (same idea as their shared pos/neg/warn). Placed
+ * after the individual .sand/.frost/.rose blocks so equal-specificity
+ * source order lets it win. Each value is the ~600-level sibling of
+ * the dark default above, legible on white surfaces.
+ * ------------------------------------------------------------- */
+.sand,
+.frost,
+.rose {
+  /* Only these two platform hues fail on white (tiktok ~1.45:1,
+     snapchat ~1.39:1); IG magenta / FB blue stay as-is. */
+  --tiktok: #52525b;
+  --snapchat: #ca8a04;
+  --series-1: #2563eb;
+  --series-2: #db2777;
+  --series-3: #059669;
+  --series-4: #d97706;
+  --series-5: #7c3aed;
+  --series-6: #ea580c;
+  --series-7: #0891b2;
+  --series-8: #dc2626;
+  --series-9: #4f46e5;
+  --series-10: #16a34a;
+  --series-11: #c026d3;
+  --series-12: #0d9488;
+  --series-13: #e11d48;
+  --series-14: #0284c7;
+  --series-15: #65a30d;
+  --series-16: #9333ea;
+  --product-1: #7c3aed;
+  --product-2: #db2777;
+  --product-3: #d97706;
+  --product-4: #059669;
+  --product-5: #2563eb;
+  --product-6: #dc2626;
+  --product-7: #0891b2;
+  --product-8: #9333ea;
+  --type-video: #2563eb;
+  --type-image: #d97706;
+  --type-slides: #7c3aed;
 }
 
 @theme inline {

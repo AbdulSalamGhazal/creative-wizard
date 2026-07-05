@@ -11,6 +11,7 @@ import {
 } from "recharts";
 import { type ReactNode, useMemo, useState } from "react";
 import { usd, ratio, pct, int } from "@/lib/format";
+import { seriesColor } from "@/lib/palette";
 import { useChartFit, ChartFitToggle } from "@/components/charts/chart-fit";
 import { SeriesLegend } from "@/components/charts/series-legend";
 import {
@@ -41,7 +42,10 @@ interface Props {
   header?: ReactNode;
 }
 
-const COLORS = ["#FF4D8D", "#5EE6A8", "#FFD166", "#6D8FFF", "#34D399"];
+// The five compare sides read from the shared, theme-aware series palette
+// (lib/palette) — the old literals mixed the --pos green (read as "positive")
+// with two near-identical greens. Index-keyed so a side keeps its color.
+const COLORS = [0, 1, 2, 3, 4].map(seriesColor);
 
 const monthDay = new Intl.DateTimeFormat("en-US", {
   month: "short",
@@ -190,7 +194,7 @@ export function CompareChart({
               items={creatives.map((c) => ({
                 key: c.id,
                 label: c.name,
-                color: colorById.get(c.id) ?? "#FF4D8D",
+                color: colorById.get(c.id) ?? seriesColor(0),
               }))}
               shown={shown}
               onToggle={toggle}
@@ -312,11 +316,11 @@ export function CompareChart({
                       key={c.id}
                       type="monotone"
                       dataKey={c.id}
-                      stroke={colorById.get(c.id) ?? "#FF4D8D"}
+                      stroke={colorById.get(c.id) ?? seriesColor(0)}
                       strokeWidth={2}
                       dot={{
                         r: 2.5,
-                        fill: colorById.get(c.id) ?? "#FF4D8D",
+                        fill: colorById.get(c.id) ?? seriesColor(0),
                         strokeWidth: 0,
                       }}
                       activeDot={{ r: 4 }}
