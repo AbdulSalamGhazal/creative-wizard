@@ -1,7 +1,7 @@
-import { Suspense } from "react";
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { PageShell } from "@/components/layout/page-shell";
+import { PageHeader } from "@/components/layout/page-header";
 import {
   changeBreakdown,
   kpisWithDelta,
@@ -145,42 +145,32 @@ export default async function TrendsOverTimePage({
   };
 
   return (
-    <div className="space-y-6">
-      <Suspense
-        fallback={
-          <div className="-mx-6 px-6 h-12 border-b border-line bg-background/95 backdrop-blur" />
-        }
-      >
-        <div className="-mx-6 -mt-6 mb-2">
-          <FilterStrip
-            products={products}
-            tags={tags}
-            defaultFrom={from}
-            defaultTo={to}
-          />
-        </div>
-      </Suspense>
-
-      <div className="flex items-end justify-between flex-wrap gap-3">
-        <div>
-          <Link
-            href="/trends"
-            className="inline-flex items-center gap-1 text-[11px] text-ink-3 hover:text-ink transition-colors mb-2"
-          >
-            <ArrowLeft className="w-3 h-3" />
-            Trends
-          </Link>
-          <h1 className="font-display text-4xl tracking-tight">Changes</h1>
-          <p className="text-ink-2 text-sm mt-1">
+    <PageShell
+      filterStrip={
+        <FilterStrip
+          products={products}
+          tags={tags}
+          defaultFrom={from}
+          defaultTo={to}
+        />
+      }
+    >
+      <PageHeader
+        backLink={{ href: "/trends", label: "Trends" }}
+        title="Changes"
+        subtitle={
+          <>
             Ranked worst-first vs the prior window of equal length. Tiny
             spenders never trigger warnings.
-          </p>
-        </div>
-        <Badge variant="outline" className="text-ink-3">
-          {from} → {to} · vs {breakdown.prevRange.from} →{" "}
-          {breakdown.prevRange.to}
-        </Badge>
-      </div>
+          </>
+        }
+        rightSlot={
+          <Badge variant="outline" className="text-ink-3">
+            {from} → {to} · vs {breakdown.prevRange.from} →{" "}
+            {breakdown.prevRange.to}
+          </Badge>
+        }
+      />
 
       {/* Account-level context — did the whole account move, or just one row? */}
       <div className="flex items-center gap-x-6 gap-y-2 flex-wrap rounded-lg border border-line bg-surface px-4 py-3 text-sm">
@@ -231,6 +221,6 @@ export default async function TrendsOverTimePage({
       </div>
 
       <ChangeRadar rows={rows} />
-    </div>
+    </PageShell>
   );
 }

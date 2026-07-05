@@ -1,5 +1,6 @@
-import { Suspense } from "react";
 import { Badge } from "@/components/ui/badge";
+import { PageShell } from "@/components/layout/page-shell";
+import { PageHeader } from "@/components/layout/page-header";
 import { type KpiFilters } from "@/db/queries/performance";
 import { defaultDateRange } from "@/lib/date-presets";
 import { resolvePreferredRange } from "@/db/queries/user-prefs";
@@ -66,31 +67,25 @@ export default async function DashboardPage({
   const [products, tags] = await Promise.all([listProducts(), listAllTags()]);
 
   return (
-    <div className="space-y-6">
-      <Suspense
-        fallback={
-          <div className="-mx-6 px-6 h-12 border-b border-line bg-background/95 backdrop-blur" />
+    <PageShell
+      filterStrip={
+        <FilterStrip
+          products={products}
+          tags={tags}
+          defaultFrom={from}
+          defaultTo={to}
+        />
+      }
+    >
+      <PageHeader
+        title="Dashboard"
+        rightSlot={
+          <Badge variant="outline" className="text-ink-3">
+            {from} → {to} · {platformsBadge} ·{" "}
+            {parsed.includeExcluded ? "excluded shown" : "excluded hidden"}
+          </Badge>
         }
-      >
-        <div className="-mx-6 -mt-6 mb-2">
-          <FilterStrip
-            products={products}
-            tags={tags}
-            defaultFrom={from}
-            defaultTo={to}
-          />
-        </div>
-      </Suspense>
-
-      <div className="flex items-end justify-between flex-wrap gap-3">
-        <div>
-          <h1 className="font-display text-4xl tracking-tight">Dashboard</h1>
-        </div>
-        <Badge variant="outline" className="text-ink-3">
-          {from} → {to} · {platformsBadge} ·{" "}
-          {parsed.includeExcluded ? "excluded shown" : "excluded hidden"}
-        </Badge>
-      </div>
+      />
 
       <DashboardMetrics filters={filters} dimension={dimension} />
 
@@ -99,6 +94,6 @@ export default async function DashboardPage({
         dimension={dimension}
         dimensionLabel={singlePlatform ? PLATFORM_LABEL[singlePlatform] : undefined}
       />
-    </div>
+    </PageShell>
   );
 }

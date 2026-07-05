@@ -45,7 +45,9 @@ export function PageHeader({
           </div>
         )}
         <h1 className="font-display text-4xl tracking-tight">{title}</h1>
-        {subtitle && <p className="text-ink-2 text-sm mt-1">{subtitle}</p>}
+        {subtitle && (
+          <p className="text-ink-2 text-sm mt-1 max-w-2xl">{subtitle}</p>
+        )}
       </div>
       {rightSlot}
     </div>

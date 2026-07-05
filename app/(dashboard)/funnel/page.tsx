@@ -1,5 +1,6 @@
-import { Suspense } from "react";
 import { Badge } from "@/components/ui/badge";
+import { PageShell } from "@/components/layout/page-shell";
+import { PageHeader } from "@/components/layout/page-header";
 import { defaultDateRange } from "@/lib/date-presets";
 import { resolvePreferredRange } from "@/db/queries/user-prefs";
 import {
@@ -80,31 +81,25 @@ export default async function FunnelPage({
   ]);
 
   return (
-    <div className="space-y-6">
-      <Suspense
-        fallback={<div className="-mx-6 px-6 h-12 border-b border-line bg-background/95" />}
-      >
-        <div className="-mx-6 -mt-6 mb-2">
-          <FilterStrip
-            products={products}
-            tags={tags}
-            defaultFrom={from}
-            defaultTo={to}
-          />
-        </div>
-      </Suspense>
-
-      <div className="flex items-end justify-between flex-wrap gap-3">
-        <div>
-          <div className="text-[10px] uppercase tracking-[0.18em] text-ink-3 mb-1">
-            Main metrics
-          </div>
-          <h1 className="font-display text-4xl tracking-tight">Funnel</h1>
-        </div>
-        <Badge variant="outline" className="text-ink-3">
-          {from} → {to}
-        </Badge>
-      </div>
+    <PageShell
+      filterStrip={
+        <FilterStrip
+          products={products}
+          tags={tags}
+          defaultFrom={from}
+          defaultTo={to}
+        />
+      }
+    >
+      <PageHeader
+        eyebrow="Main metrics"
+        title="Funnel"
+        rightSlot={
+          <Badge variant="outline" className="text-ink-3">
+            {from} → {to}
+          </Badge>
+        }
+      />
 
       {/* Headline funnel rates in one row — dashboard "Funnel rates" style */}
       <FunnelRateTiles overview={overview} daily={daily} />
@@ -136,6 +131,6 @@ export default async function FunnelPage({
         </h2>
         <CampaignFunnelTable rows={campaigns} />
       </div>
-    </div>
+    </PageShell>
   );
 }

@@ -1,7 +1,6 @@
-import { Suspense } from "react";
-import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { PageShell } from "@/components/layout/page-shell";
+import { PageHeader } from "@/components/layout/page-header";
 import { defaultDateRange } from "@/lib/date-presets";
 import { resolvePreferredRange } from "@/db/queries/user-prefs";
 import { videoDiagnostics } from "@/db/queries/trends";
@@ -62,42 +61,32 @@ export default async function TrendsVideoPage({
   ]);
 
   return (
-    <div className="space-y-6">
-      <Suspense
-        fallback={<div className="-mx-6 px-6 h-12 border-b border-line bg-background/95" />}
-      >
-        <div className="-mx-6 -mt-6 mb-2">
-          <FilterStrip
-            products={products}
-            tags={tags}
-            hideType
-            defaultFrom={from}
-            defaultTo={to}
-          />
-        </div>
-      </Suspense>
-
-      <div className="flex items-end justify-between flex-wrap gap-3">
-        <div>
-          <Link
-            href="/trends"
-            className="inline-flex items-center gap-1 text-[11px] text-ink-3 hover:text-ink transition-colors mb-2"
-          >
-            <ArrowLeft className="w-3 h-3" />
-            Trends
-          </Link>
-          <h1 className="font-display text-4xl tracking-tight">Video diagnostics</h1>
-          <p className="text-ink-2 text-sm mt-1 max-w-2xl">
+    <PageShell
+      filterStrip={
+        <FilterStrip
+          products={products}
+          tags={tags}
+          hideType
+          defaultFrom={from}
+          defaultTo={to}
+        />
+      }
+    >
+      <PageHeader
+        backLink={{ href: "/trends", label: "Trends" }}
+        title="Video diagnostics"
+        subtitle={
+          <>
             Retention funnel: 2s → 25 → 50 → 75 → 100%. Video creatives only;
             rates below the portfolio median are flagged amber.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
+          </>
+        }
+        rightSlot={
           <Badge variant="outline" className="text-ink-3">
             {from} → {to}
           </Badge>
-        </div>
-      </div>
+        }
+      />
 
       {videoCount > 0 && (
         <div className="flex items-center gap-6 text-sm">
@@ -123,7 +112,7 @@ export default async function TrendsVideoPage({
         medianHoldRate={medianHoldRate}
         medianCompleteRate={medianCompleteRate}
       />
-    </div>
+    </PageShell>
   );
 }
 

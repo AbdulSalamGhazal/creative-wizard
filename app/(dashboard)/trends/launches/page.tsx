@@ -1,7 +1,6 @@
-import { Suspense } from "react";
-import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { PageShell } from "@/components/layout/page-shell";
+import { PageHeader } from "@/components/layout/page-header";
 import { launchFatigue, type LaunchFatigueFilters } from "@/db/queries/performance";
 import { listProducts } from "@/db/queries/products";
 import { listAllTags } from "@/db/queries/creatives";
@@ -132,41 +131,33 @@ export default async function TrendsLaunchesPage({
     : "all launches";
 
   return (
-    <div className="space-y-6">
-      <Suspense
-        fallback={<div className="-mx-6 px-6 h-12 border-b border-line bg-background/95" />}
-      >
-        <div className="-mx-6 -mt-6 mb-2">
-          <FilterStrip
-            products={products}
-            tags={tags}
-            defaultFrom={LIFETIME_FLOOR}
-            defaultTo={todayIso()}
-            rememberDate={false}
-          />
-        </div>
-      </Suspense>
-
-      <div className="flex items-end justify-between flex-wrap gap-3">
-        <div>
-          <Link
-            href="/trends"
-            className="inline-flex items-center gap-1 text-[11px] text-ink-3 hover:text-ink transition-colors mb-2"
-          >
-            <ArrowLeft className="w-3 h-3" />
-            Trends
-          </Link>
-          <h1 className="font-display text-4xl tracking-tight">Launches</h1>
-          <p className="text-ink-2 text-sm mt-1 max-w-2xl">
+    <PageShell
+      filterStrip={
+        <FilterStrip
+          products={products}
+          tags={tags}
+          defaultFrom={LIFETIME_FLOOR}
+          defaultTo={todayIso()}
+          rememberDate={false}
+        />
+      }
+    >
+      <PageHeader
+        backLink={{ href: "/trends", label: "Trends" }}
+        title="Launches"
+        subtitle={
+          <>
             ROAS across three windows from each creative&rsquo;s launch: days
             1&ndash;7, 8&ndash;30, 31&ndash;90. Fatigued = ROAS fell ≥30% by the
             latest window. Tiny spenders are muted.
-          </p>
-        </div>
-        <Badge variant="outline" className="text-ink-3">
-          {rows.length} launch{rows.length === 1 ? "" : "es"} · {cohortLabel}
-        </Badge>
-      </div>
+          </>
+        }
+        rightSlot={
+          <Badge variant="outline" className="text-ink-3">
+            {rows.length} launch{rows.length === 1 ? "" : "es"} · {cohortLabel}
+          </Badge>
+        }
+      />
 
       {rows.length > 0 && (
         <LaunchFatigueSummary
@@ -182,6 +173,6 @@ export default async function TrendsLaunchesPage({
       )}
 
       <LaunchFatigueTable rows={rows} />
-    </div>
+    </PageShell>
   );
 }
