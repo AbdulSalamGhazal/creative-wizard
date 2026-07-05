@@ -11,7 +11,7 @@ import {
   YAxis,
 } from "recharts";
 import { ALL_PLATFORMS, PLATFORM_LABEL, TYPE_COLOR, TYPE_LABEL } from "@/lib/palette";
-import { int, pct, ratio, usd } from "@/lib/format";
+import { int, pct, ratio, usd, usdCompact, intCompact } from "@/lib/format";
 import { MetricPicker } from "@/components/charts/metric-picker";
 import type { TypeRollupRow } from "@/db/queries/trends";
 import { ChartTooltip } from "@/components/charts/chart-tooltip";
@@ -20,23 +20,13 @@ type Metric = "spend" | "impressions" | "roas" | "ctr" | "cvr" | "cpc" | "cpa";
 type CreativeType = TypeRollupRow["type"];
 const TYPES: CreativeType[] = ["video", "image", "slides"];
 
-const compactUsd = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "USD",
-  notation: "compact",
-  maximumFractionDigits: 1,
-});
-const compactNum = new Intl.NumberFormat("en-US", {
-  notation: "compact",
-  maximumFractionDigits: 1,
-});
 
 const METRICS: Record<
   Metric,
   { label: string; cell: (v: number | null) => string; axis: (v: number) => string }
 > = {
-  spend: { label: "Spend", cell: usd, axis: (v) => compactUsd.format(v) },
-  impressions: { label: "Impressions", cell: int, axis: (v) => compactNum.format(v) },
+  spend: { label: "Spend", cell: usd, axis: (v) => usdCompact(v) },
+  impressions: { label: "Impressions", cell: int, axis: (v) => intCompact(v) },
   roas: {
     label: "ROAS",
     cell: (v) => (v === null ? "—" : `${ratio(v)}×`),
@@ -44,8 +34,8 @@ const METRICS: Record<
   },
   ctr: { label: "CTR", cell: pct, axis: (v) => pct(v) },
   cvr: { label: "CvR", cell: pct, axis: (v) => pct(v) },
-  cpc: { label: "CPC", cell: usd, axis: (v) => compactUsd.format(v) },
-  cpa: { label: "CPA", cell: usd, axis: (v) => compactUsd.format(v) },
+  cpc: { label: "CPC", cell: usd, axis: (v) => usdCompact(v) },
+  cpa: { label: "CPA", cell: usd, axis: (v) => usdCompact(v) },
 };
 const METRIC_ORDER: Metric[] = ["spend", "impressions", "roas", "ctr", "cvr", "cpc", "cpa"];
 

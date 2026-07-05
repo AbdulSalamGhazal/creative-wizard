@@ -43,6 +43,12 @@ const intCompactFormatter = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 1,
 });
 
+const monthDayFormatter = new Intl.DateTimeFormat("en-US", {
+  month: "short",
+  day: "numeric",
+  timeZone: "UTC",
+});
+
 const EM_DASH = "—";
 
 export function usd(value: number | null | undefined): string {
@@ -97,6 +103,17 @@ export function usdCompact(value: number | null | undefined): string {
 export function intCompact(value: number | null | undefined): string {
   if (value === null || value === undefined || Number.isNaN(value)) return EM_DASH;
   return intCompactFormatter.format(value);
+}
+
+/**
+ * Short "Mon D" for chart axes/tooltips (UTC, matching the ISO-date bucketing
+ * used across the dashboard). Replaced 5 copy-pasted local DateTimeFormats.
+ */
+export function monthDay(value: Date | string | null | undefined): string {
+  if (!value) return EM_DASH;
+  const d = typeof value === "string" ? new Date(value) : value;
+  if (Number.isNaN(d.getTime())) return EM_DASH;
+  return monthDayFormatter.format(d);
 }
 
 export function isoDate(value: Date | string | null | undefined): string {

@@ -3,20 +3,13 @@
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import { useMemo } from "react";
 import { productColor } from "@/lib/palette";
-import { usd } from "@/lib/format";
+import { usd, usdCompact } from "@/lib/format";
 import { ChartTooltip } from "@/components/charts/chart-tooltip";
 import type { ProductMixRow } from "@/db/queries/performance";
 
 interface Props {
   rows: ProductMixRow[];
 }
-
-const compactUsd = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "USD",
-  notation: "compact",
-  maximumFractionDigits: 1,
-});
 
 export function ProductMixDonut({ rows }: Props) {
   const { data, total } = useMemo(() => {
@@ -70,7 +63,7 @@ export function ProductMixDonut({ rows }: Props) {
             Total spend
           </div>
           <div className="font-display text-2xl num text-ink mt-1">
-            {compactUsd.format(total)}
+            {usdCompact(total)}
           </div>
         </div>
       </div>

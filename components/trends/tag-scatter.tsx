@@ -13,21 +13,14 @@ import {
   YAxis,
   ZAxis,
 } from "recharts";
-import { int, pct, ratio, usd } from "@/lib/format";
+import { int, pct, ratio, usd, usdCompact } from "@/lib/format";
 import { MetricPicker } from "@/components/charts/metric-picker";
 import type { TagRollupRow } from "@/db/queries/trends";
 import { ChartTooltip } from "@/components/charts/chart-tooltip";
 
-const compactUsd = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "USD",
-  notation: "compact",
-  maximumFractionDigits: 1,
-});
-
 type YMetric = "cpa" | "roas" | "cvr";
 const Y: Record<YMetric, { label: string; fmt: (v: number | null) => string; tick: (v: number) => string }> = {
-  cpa: { label: "CPA", fmt: (v) => (v === null ? "—" : usd(v)), tick: (v) => compactUsd.format(v) },
+  cpa: { label: "CPA", fmt: (v) => (v === null ? "—" : usd(v)), tick: (v) => usdCompact(v) },
   roas: { label: "ROAS", fmt: (v) => (v === null ? "—" : `${ratio(v)}×`), tick: (v) => `${ratio(v)}×` },
   cvr: { label: "CvR", fmt: pct, tick: (v) => pct(v) },
 };
@@ -89,7 +82,7 @@ export function TagScatter({ rows }: { rows: TagRollupRow[] }) {
                 type="number"
                 dataKey="x"
                 name="Spend"
-                tickFormatter={(v) => compactUsd.format(v)}
+                tickFormatter={(v) => usdCompact(v)}
                 tick={{ fill: "var(--ink-3)", fontSize: 11 }}
                 stroke="var(--line-2)"
               />

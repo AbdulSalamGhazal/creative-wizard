@@ -12,14 +12,10 @@ import {
   YAxis,
   ZAxis,
 } from "recharts";
-import { pct, ratio, usd } from "@/lib/format";
+import { pct, ratio, usd, usdCompact } from "@/lib/format";
 import type { VideoDiagnosticRow } from "@/db/queries/trends";
 import { ChartTooltip } from "@/components/charts/chart-tooltip";
 import { MetricPicker } from "@/components/charts/metric-picker";
-
-const compactUsd = new Intl.NumberFormat("en-US", {
-  style: "currency", currency: "USD", notation: "compact", maximumFractionDigits: 1,
-});
 
 type Axis = "hookRate" | "holdRate" | "completeRate" | "ctr" | "cvr" | "roas" | "cpa";
 
@@ -30,7 +26,7 @@ const M: Record<Axis, { label: string; fmt: (v: number | null) => string; tick: 
   ctr: { label: "CTR", fmt: pct, tick: (v) => pct(v) },
   cvr: { label: "CvR", fmt: pct, tick: (v) => pct(v) },
   roas: { label: "ROAS", fmt: (v) => (v === null ? "—" : `${ratio(v)}×`), tick: (v) => `${ratio(v)}×` },
-  cpa: { label: "CPA", fmt: (v) => (v === null ? "—" : usd(v)), tick: (v) => compactUsd.format(v) },
+  cpa: { label: "CPA", fmt: (v) => (v === null ? "—" : usd(v)), tick: (v) => usdCompact(v) },
 };
 const AXES = Object.keys(M) as Axis[];
 

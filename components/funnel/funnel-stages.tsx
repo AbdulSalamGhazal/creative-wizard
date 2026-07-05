@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { int, pct } from "@/lib/format";
+import { int, pct, intCompact } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { FunnelTotals } from "@/db/queries/funnel";
 
@@ -39,11 +39,6 @@ const STAGES: Array<{
   { volKey: "conversions", label: "Conversions", color: "#A78BFA" },
 ];
 
-const compact = new Intl.NumberFormat("en-US", {
-  notation: "compact",
-  maximumFractionDigits: 1,
-});
-
 export function FunnelStages({
   totals,
   compareTotals,
@@ -74,7 +69,7 @@ export function FunnelStages({
         <h3 className="text-sm text-ink-2">Funnel</h3>
         <div className="flex items-center gap-3">
           <span className="text-[11px] text-ink-3 num">
-            {compact.format(totals.impressions)} → {int(totals.conversions)} ·{" "}
+            {intCompact(totals.impressions)} → {int(totals.conversions)} ·{" "}
             {pct(overall)} overall
           </span>
           <button

@@ -10,7 +10,7 @@ import {
   YAxis,
 } from "recharts";
 import { type ReactNode, useMemo, useState } from "react";
-import { usd, roas, pct, int } from "@/lib/format";
+import { usd, roas, pct, int, usdCompact } from "@/lib/format";
 import { seriesColor } from "@/lib/palette";
 import { useChartFit, ChartFitToggle } from "@/components/charts/chart-fit";
 import { SeriesLegend } from "@/components/charts/series-legend";
@@ -52,13 +52,6 @@ const monthDay = new Intl.DateTimeFormat("en-US", {
   month: "short",
   day: "numeric",
   timeZone: "UTC",
-});
-
-const compactUsd = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "USD",
-  notation: "compact",
-  maximumFractionDigits: 1,
 });
 
 const DAY_MS = 86_400_000;
@@ -239,7 +232,7 @@ export function CompareChart({
                       metric === "cpm" ||
                       metric === "cpc" ||
                       metric === "cpa"
-                        ? compactUsd.format(v)
+                        ? usdCompact(v)
                         : metric === "ctr" ||
                             metric === "cvr" ||
                             metric === "hookRate"

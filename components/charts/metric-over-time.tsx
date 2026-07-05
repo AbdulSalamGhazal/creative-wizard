@@ -14,7 +14,7 @@ import { MetricPicker } from "@/components/charts/metric-picker";
 import { SeriesLegend } from "@/components/charts/series-legend";
 import { ChartShell, ExpandButton, SmoothToggle, GroupToggle } from "@/components/charts/chart-shell";
 import { smoothColumns } from "@/lib/chart-smooth";
-import { usd, int, ratio } from "@/lib/format";
+import { usd, int, ratio, usdCompact, intCompact } from "@/lib/format";
 import { useChartFit, ChartFitToggle } from "@/components/charts/chart-fit";
 import type { MetricOverTimeRow } from "@/db/queries/performance";
 import { ChartTooltip } from "@/components/charts/chart-tooltip";
@@ -90,16 +90,6 @@ function aggregate(def: MetricDef, rs: MetricOverTimeRow[]): number | null {
   return den > 0 ? num / den : null;
 }
 
-const compactUsd = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "USD",
-  notation: "compact",
-  maximumFractionDigits: 1,
-});
-const compactInt = new Intl.NumberFormat("en-US", {
-  notation: "compact",
-  maximumFractionDigits: 1,
-});
 const monthDay = new Intl.DateTimeFormat("en-US", {
   month: "short",
   day: "numeric",
@@ -107,9 +97,9 @@ const monthDay = new Intl.DateTimeFormat("en-US", {
 });
 
 function axisFormat(metric: MetricKey, v: number): string {
-  if (metric === "conversions") return compactInt.format(v);
+  if (metric === "conversions") return intCompact(v);
   if (metric === "roas") return `${ratio(v)}×`;
-  return compactUsd.format(v);
+  return usdCompact(v);
 }
 
 interface PivotRow {
