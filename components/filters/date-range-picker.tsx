@@ -144,7 +144,7 @@ export function DateRangePicker({
         <div className="flex">
           {/* Quick ranges */}
           <div className="w-40 p-1 border-r border-line shrink-0">
-            <div className="px-2 py-1.5 text-[11px] uppercase tracking-[0.14em] text-ink-3">
+            <div className="px-2 py-1.5 text-label text-ink-3">
               Quick ranges
             </div>
             <div className="space-y-0.5">

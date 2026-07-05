@@ -168,7 +168,7 @@ export function LaunchFatigueSummary({
         {/* Portfolio headline + verdict tally */}
         <div className="p-5 flex flex-col gap-4">
           <div>
-            <div className="text-[10px] uppercase tracking-[0.14em] text-ink-3">
+            <div className="text-eyebrow text-ink-3">
               Launches in view
             </div>
             <div className="font-display text-3xl text-ink leading-none mt-1.5">
@@ -212,7 +212,7 @@ export function LaunchFatigueSummary({
 
         {/* Blended ROAS decay — the centerpiece, as a mini bar chart */}
         <div className="p-5">
-          <div className="text-[10px] uppercase tracking-[0.14em] text-ink-3">
+          <div className="text-eyebrow text-ink-3">
             Blended ROAS by window
           </div>
           <div className="mt-4 flex items-end gap-5">
@@ -230,7 +230,7 @@ export function LaunchFatigueSummary({
 
         {/* Net fatigue */}
         <div className="p-5 flex flex-col justify-center">
-          <div className="text-[10px] uppercase tracking-[0.14em] text-ink-3">
+          <div className="text-eyebrow text-ink-3">
             Net fatigue
           </div>
           {drop === null ? (
@@ -446,7 +446,7 @@ export function LaunchFatigueTable({ rows }: { rows: LaunchFatigueViewRow[] }) {
       <div className="overflow-x-auto rounded-lg border border-line bg-surface">
         <table className="w-full text-xs num min-w-max">
           <thead>
-            <tr className="text-left text-[11px] uppercase tracking-[0.14em] text-ink-3 border-b border-line">
+            <tr className="text-left text-label text-ink-3 border-b border-line">
               {COLUMNS.map((col) => {
                 const active = sortKey === col.key;
                 const isWindow = col.key === "w1" || col.key === "w2" || col.key === "w3";

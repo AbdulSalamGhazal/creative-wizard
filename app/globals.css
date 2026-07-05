@@ -390,3 +390,19 @@ body {
 .num {
   font-variant-numeric: tabular-nums;
 }
+
+/* Micro-label typography tokens — the two canonical uppercase kickers that
+   replaced ~11 near-duplicate `text-[10/11px] uppercase tracking-[…]` combos.
+   `text-eyebrow` = page/section kicker (10px / 0.18em); `text-label` =
+   table-header / field label (11px / 0.14em). Text color stays at the call
+   site (e.g. add `text-ink-3`). */
+.text-eyebrow {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+}
+.text-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+}

@@ -137,7 +137,7 @@ export function CompareTotalsTable({ sides }: { sides: CompareSideTotals[] }) {
       <div className="overflow-x-auto">
         <table className="w-full text-sm num">
           <thead>
-            <tr className="text-left text-[11px] uppercase tracking-[0.14em] text-ink-3">
+            <tr className="text-left text-label text-ink-3">
               <th className="font-medium px-2 py-2">Side</th>
               <th className="font-medium px-2 py-2">Selection</th>
               {cols.map((c) => (

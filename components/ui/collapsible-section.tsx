@@ -28,7 +28,7 @@ export function CollapsibleSection({
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        className="group inline-flex items-center gap-1.5 text-[11px] uppercase tracking-[0.14em] text-ink-3 hover:text-ink transition-colors"
+        className="group inline-flex items-center gap-1.5 text-label text-ink-3 hover:text-ink transition-colors"
       >
         <ChevronRight
           className={cn(

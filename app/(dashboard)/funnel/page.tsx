@@ -110,7 +110,7 @@ export default async function FunnelPage({
       {/* Platform-vs-platform comparison */}
       <div className="space-y-2">
         <div>
-          <h2 className="text-[11px] uppercase tracking-[0.14em] text-ink-3">
+          <h2 className="text-label text-ink-3">
             Platform comparison · {byPlatform.length} platform
             {byPlatform.length === 1 ? "" : "s"}
           </h2>
@@ -126,7 +126,7 @@ export default async function FunnelPage({
       </div>
 
       <div className="space-y-2">
-        <h2 className="text-[11px] uppercase tracking-[0.14em] text-ink-3">
+        <h2 className="text-label text-ink-3">
           By campaign · {campaigns.length} campaign{campaigns.length === 1 ? "" : "s"}
         </h2>
         <CampaignFunnelTable rows={campaigns} />

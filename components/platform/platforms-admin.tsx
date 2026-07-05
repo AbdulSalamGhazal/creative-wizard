@@ -76,7 +76,7 @@ export async function PlatformsAdmin() {
 
               <div className="grid grid-cols-2 gap-3 text-sm">
                 <div>
-                  <div className="text-[10px] uppercase tracking-[0.14em] text-ink-3">
+                  <div className="text-eyebrow text-ink-3">
                     Required fields
                   </div>
                   <div className="text-ink num mt-0.5">
@@ -84,7 +84,7 @@ export async function PlatformsAdmin() {
                   </div>
                 </div>
                 <div>
-                  <div className="text-[10px] uppercase tracking-[0.14em] text-ink-3">
+                  <div className="text-eyebrow text-ink-3">
                     All fields
                   </div>
                   <div className="text-ink num mt-0.5">
@@ -92,7 +92,7 @@ export async function PlatformsAdmin() {
                   </div>
                 </div>
                 <div>
-                  <div className="text-[10px] uppercase tracking-[0.14em] text-ink-3">
+                  <div className="text-eyebrow text-ink-3">
                     Performance rows
                   </div>
                   <div className="text-ink num mt-0.5">{int(recordCount)}</div>

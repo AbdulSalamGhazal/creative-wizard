@@ -195,7 +195,7 @@ export function CampaignFunnelTable({ rows }: { rows: CampaignFunnelRow[] }) {
     <div className="max-h-[60vh] overflow-auto rounded-lg border border-line bg-surface">
       <table className="w-full text-sm num">
         <thead>
-          <tr className="text-left text-[11px] uppercase tracking-[0.14em] text-ink-3">
+          <tr className="text-left text-label text-ink-3">
             {COLUMNS.map((col) => {
               const active = sortKey === col.key;
               const resizable = col.key === "campaign";

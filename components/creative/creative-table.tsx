@@ -150,7 +150,7 @@ export function CreativeTable({
       <div className="max-h-[70vh] overflow-auto rounded-lg border border-line bg-surface">
         <table className="w-full text-sm num">
           <thead>
-            <tr className="text-left text-[11px] uppercase tracking-[0.14em] text-ink-3 [&>th]:sticky [&>th]:top-0 [&>th]:z-10 [&>th]:bg-surface [&>th]:border-b [&>th]:border-line">
+            <tr className="text-left text-label text-ink-3 [&>th]:sticky [&>th]:top-0 [&>th]:z-10 [&>th]:bg-surface [&>th]:border-b [&>th]:border-line">
               <SortableTextTh
                 label="Creative"
                 state={sortState("name")}

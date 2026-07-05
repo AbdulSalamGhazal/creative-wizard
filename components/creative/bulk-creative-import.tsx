@@ -129,7 +129,7 @@ export function BulkCreativeImport({ products }: Props) {
           <div className="overflow-x-auto rounded-lg border border-line bg-surface">
             <table className="w-full text-xs num">
               <thead>
-                <tr className="text-left text-[10px] uppercase tracking-[0.14em] text-ink-3 border-b border-line">
+                <tr className="text-left text-eyebrow text-ink-3 border-b border-line">
                   <th className="font-medium px-3 py-2 w-10">Row</th>
                   <th className="font-medium px-3 py-2 w-8"></th>
                   <th className="font-medium px-3 py-2">Name</th>

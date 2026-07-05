@@ -83,7 +83,7 @@ export function CreativeCard({
         )}
 
         {/* Type badge */}
-        <span className="absolute top-2 left-2 inline-flex items-center gap-1 h-6 px-2 rounded-md bg-background/80 backdrop-blur border border-line text-[10px] uppercase tracking-[0.14em] text-ink-2">
+        <span className="absolute top-2 left-2 inline-flex items-center gap-1 h-6 px-2 rounded-md bg-background/80 backdrop-blur border border-line text-eyebrow text-ink-2">
           <TypeIcon className="w-3 h-3" />
           {TYPE_LABEL[row.type]}
         </span>

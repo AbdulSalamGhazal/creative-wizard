@@ -206,7 +206,7 @@ export function CreativeRecordsTable({ rows, title = "All records" }: Props) {
             <div className="overflow-x-auto rounded-lg border border-line bg-surface">
               <table className="w-full text-sm num min-w-max">
                 <thead>
-                  <tr className="text-left text-[11px] uppercase tracking-[0.14em] text-ink-3 border-b border-line">
+                  <tr className="text-left text-label text-ink-3 border-b border-line">
                     {visibleCols.map((c) => {
                       const active = sortKey === c.key;
                       return (

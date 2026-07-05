@@ -152,7 +152,7 @@ function DefaultEditor({ rules }: { rules: RatingRules }) {
 
   return (
     <div className="space-y-3">
-      <div className="text-[11px] uppercase tracking-[0.14em] text-ink-3">Default (blended + un-overridden platforms)</div>
+      <div className="text-label text-ink-3">Default (blended + un-overridden platforms)</div>
       <ThresholdInputs
         idPrefix="default"
         minSpend={minSpend} goodRoas={goodRoas} decentRoas={decentRoas}

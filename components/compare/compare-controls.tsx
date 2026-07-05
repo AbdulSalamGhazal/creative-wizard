@@ -205,7 +205,7 @@ function SideCard({
 
       {/* Side-specific window — overrides the shared one for this side only. */}
       <div className="flex items-start gap-2">
-        <span className="text-[10px] uppercase tracking-[0.14em] text-ink-3 w-16 shrink-0 pt-2">
+        <span className="text-eyebrow text-ink-3 w-16 shrink-0 pt-2">
           Window
         </span>
         <div className="flex-1 min-w-0 flex items-center gap-1.5 flex-wrap">
@@ -284,7 +284,7 @@ function MultiSelect({
     selected.length === 0 ? "All" : selected.map(labelFor).join(", ");
   return (
     <div className="flex items-start gap-2">
-      <span className="text-[10px] uppercase tracking-[0.14em] text-ink-3 w-16 shrink-0 pt-2">
+      <span className="text-eyebrow text-ink-3 w-16 shrink-0 pt-2">
         {label}
       </span>
       <div className="flex-1 min-w-0 space-y-1.5">

@@ -126,7 +126,7 @@ export default async function CampaignDetailPage({
         </div>
 
         <div className="space-y-2 min-w-0">
-          <div className="text-[10px] uppercase tracking-[0.18em] text-ink-3">
+          <div className="text-eyebrow text-ink-3">
             {meta.productNames.join(" · ") || "Campaign"}
           </div>
           <h1 className="font-display text-3xl md:text-4xl tracking-tight break-words">
@@ -171,7 +171,7 @@ export default async function CampaignDetailPage({
 
       {/* 2½ ─── The chart's creatives, tabulated ─── */}
       <div className="space-y-2">
-        <h2 className="text-[11px] uppercase tracking-[0.14em] text-ink-3">
+        <h2 className="text-label text-ink-3">
           Creatives
         </h2>
         <CampaignCreativesTable creatives={creativeRows} />

@@ -79,7 +79,7 @@ export function Sidebar({ role }: { role?: "admin" | "editor" | "viewer" }) {
       {admin.length > 0 && (
         <div className="mt-8 pt-4 border-t border-line space-y-0.5 w-full">
           {!collapsed && (
-            <div className="px-3 mb-1 text-[10px] uppercase tracking-[0.18em] text-ink-3">
+            <div className="px-3 mb-1 text-eyebrow text-ink-3">
               Admin
             </div>
           )}

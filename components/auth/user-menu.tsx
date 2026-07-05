@@ -51,7 +51,7 @@ export function UserMenu({ user }: Props) {
               <span className="text-ink-3 text-[11px] font-mono truncate">
                 {user.email}
               </span>
-              <span className="text-ink-3 text-[10px] uppercase tracking-[0.14em] mt-0.5">
+              <span className="text-ink-3 text-eyebrow mt-0.5">
                 {user.role}
               </span>
             </div>

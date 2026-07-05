@@ -34,7 +34,7 @@ export async function MappingsAdmin() {
             <div className="rounded-lg border border-line bg-surface overflow-hidden">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="text-left text-[11px] uppercase tracking-[0.14em] text-ink-3 border-b border-line">
+                  <tr className="text-left text-label text-ink-3 border-b border-line">
                     <th className="font-medium px-3 py-2 w-48">Internal field</th>
                     <th className="font-medium px-3 py-2">Header candidates</th>
                   </tr>
@@ -44,7 +44,7 @@ export async function MappingsAdmin() {
                     <tr key={f.key} className="align-top">
                       <td className="px-3 py-2.5">
                         <div className="text-ink">{f.label}</div>
-                        <div className="text-[10px] uppercase tracking-[0.14em] text-ink-3">
+                        <div className="text-eyebrow text-ink-3">
                           {f.required ? "required" : "optional"}
                         </div>
                       </td>

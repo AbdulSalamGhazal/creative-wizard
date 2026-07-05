@@ -89,7 +89,7 @@ export function SummaryCard({
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <div className="text-[10px] uppercase tracking-[0.14em] text-ink-3 mb-1">
+      <div className="text-eyebrow text-ink-3 mb-1">
         {label}
       </div>
       <div className="font-display text-2xl num text-ink leading-none">

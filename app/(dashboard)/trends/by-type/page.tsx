@@ -135,7 +135,7 @@ export default async function TrendsByTypePage({
 
       {/* Platform → type table */}
       <div className="space-y-2">
-        <h2 className="text-[11px] uppercase tracking-[0.14em] text-ink-3">
+        <h2 className="text-label text-ink-3">
           Breakdown · platform → type
         </h2>
         <TypeRollupTable rows={byTypePlatform} byPlatform />

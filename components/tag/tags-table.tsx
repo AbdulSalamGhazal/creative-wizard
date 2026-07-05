@@ -119,7 +119,7 @@ export function TagsTable({ rows }: { rows: TagRow[] }) {
         <div className="overflow-x-auto rounded-lg border border-line bg-surface">
           <table className="w-full text-sm num">
             <thead>
-              <tr className="text-left text-[11px] uppercase tracking-[0.14em] text-ink-3 border-b border-line">
+              <tr className="text-left text-label text-ink-3 border-b border-line">
                 <th className="font-medium px-3 py-2.5">Tag</th>
                 <th className="font-medium px-3 py-2.5 text-right">Creatives</th>
                 <th className="font-medium px-3 py-2.5">Added</th>

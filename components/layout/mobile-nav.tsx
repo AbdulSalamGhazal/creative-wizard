@@ -76,7 +76,7 @@ export function MobileNav({ role }: { role?: "admin" | "editor" | "viewer" }) {
           )}
           {admin.length > 0 && (
             <div className="pt-3 mt-2 border-t border-line space-y-0.5">
-              <div className="px-3 py-1 text-[10px] uppercase tracking-[0.18em] text-ink-3">
+              <div className="px-3 py-1 text-eyebrow text-ink-3">
                 Admin
               </div>
               {admin.map((item) => link(item.href, item.label))}

@@ -242,7 +242,7 @@ export function CreativeDetailHeader({
         <div className="space-y-4 min-w-0">
           {/* Product */}
           <div className="space-y-1.5">
-            <label className="text-[10px] uppercase tracking-[0.18em] text-ink-3">
+            <label className="text-eyebrow text-ink-3">
               Product
             </label>
             <Select
@@ -266,7 +266,7 @@ export function CreativeDetailHeader({
           {/* Name + read-only dynamic status */}
           <div className="space-y-1.5">
             <div className="flex items-center justify-between gap-3">
-              <label className="text-[10px] uppercase tracking-[0.18em] text-ink-3">
+              <label className="text-eyebrow text-ink-3">
                 Creative name
               </label>
               <StatusBadge status={status.general} />
@@ -290,7 +290,7 @@ export function CreativeDetailHeader({
           {/* Type */}
           <div className="max-w-xl">
             <div className="space-y-1.5">
-              <label className="text-[10px] uppercase tracking-[0.14em] text-ink-3">
+              <label className="text-eyebrow text-ink-3">
                 Type
               </label>
               <Select
@@ -327,7 +327,7 @@ export function CreativeDetailHeader({
 
           {/* Publish date */}
           <div className="space-y-1.5">
-            <label className="text-[10px] uppercase tracking-[0.14em] text-ink-3">
+            <label className="text-eyebrow text-ink-3">
               Publish date
             </label>
             <div className="flex items-center gap-1.5">
@@ -377,7 +377,7 @@ export function CreativeDetailHeader({
 
           {/* Tags */}
           <div className="space-y-1.5">
-            <label className="text-[10px] uppercase tracking-[0.14em] text-ink-3">
+            <label className="text-eyebrow text-ink-3">
               Tags
             </label>
             <TagMultiSelect
@@ -412,7 +412,7 @@ function PlatformStatusSection({
 
   return (
     <div className="space-y-1.5">
-      <label className="text-[10px] uppercase tracking-[0.14em] text-ink-3">
+      <label className="text-eyebrow text-ink-3">
         Platform status
       </label>
       {/* All 5 platforms in one row, compact chips. */}

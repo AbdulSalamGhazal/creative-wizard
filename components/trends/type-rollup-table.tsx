@@ -71,7 +71,7 @@ export function TypeRollupTable({
     <div className="overflow-x-auto rounded-lg border border-line bg-surface">
       <table className="w-full text-sm num">
         <thead>
-          <tr className="text-left text-[11px] uppercase tracking-[0.14em] text-ink-3 border-b border-line">
+          <tr className="text-left text-label text-ink-3 border-b border-line">
             <th className="font-medium px-3 py-2.5">
               {byPlatform ? "Platform · Type" : "Type"}
             </th>
@@ -91,7 +91,7 @@ export function TypeRollupTable({
                 <Fragment key={platform}>
                   <tr className="bg-surface-2/40">
                     <td colSpan={9} className="px-3 py-1.5">
-                      <span className="inline-flex items-center gap-2 text-[11px] uppercase tracking-[0.14em] text-ink-2">
+                      <span className="inline-flex items-center gap-2 text-label text-ink-2">
                         <PlatformDot platform={platform} />
                         {PLATFORM_LABEL[platform]}
                       </span>

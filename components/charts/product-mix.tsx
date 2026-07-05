@@ -66,7 +66,7 @@ export function ProductMixDonut({ rows }: Props) {
           </PieChart>
         </ResponsiveContainer>
         <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-          <div className="text-[10px] uppercase tracking-[0.18em] text-ink-3">
+          <div className="text-eyebrow text-ink-3">
             Total spend
           </div>
           <div className="font-display text-2xl num text-ink mt-1">

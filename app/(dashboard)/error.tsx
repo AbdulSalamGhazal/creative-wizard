@@ -30,7 +30,7 @@ export default function DashboardError({
   return (
     <div className="min-h-[60vh] flex items-center justify-center px-6">
       <div className="text-center max-w-md">
-        <div className="text-[11px] uppercase tracking-[0.18em] text-ink-3">
+        <div className="text-label text-ink-3">
           {looksLikeDb ? "Temporarily unavailable" : "Error"}
         </div>
         <h1 className="font-display text-3xl tracking-tight mt-1">

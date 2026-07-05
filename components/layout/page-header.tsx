@@ -44,7 +44,7 @@ export function PageHeader({
           </Link>
         )}
         {eyebrow && (
-          <div className="text-[10px] uppercase tracking-[0.18em] text-ink-3 mb-1">
+          <div className="text-eyebrow text-ink-3 mb-1">
             {eyebrow}
           </div>
         )}

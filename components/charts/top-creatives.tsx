@@ -245,7 +245,7 @@ export function TopCreativesTable({
             )}
           </colgroup>
           <thead>
-            <tr className="text-left text-[11px] uppercase tracking-[0.12em] text-ink-3 select-none">
+            <tr className="text-left text-label text-ink-3 select-none">
               <th className="font-medium px-2 py-2">#</th>
               {shown.map((c) => (
                 <th key={c.key} className="relative font-medium px-2 py-2">

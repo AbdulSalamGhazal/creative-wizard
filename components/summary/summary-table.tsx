@@ -350,14 +350,14 @@ export function SummaryTable({
                 next row still align under it. */}
             <th
               style={widthStyle("name")}
-              className="sticky left-0 z-30 bg-surface-2 px-3 py-1.5 text-[10px] uppercase tracking-[0.14em] text-ink-3 text-left"
+              className="sticky left-0 z-30 bg-surface-2 px-3 py-1.5 text-eyebrow text-ink-3 text-left"
             >
               Creative
             </th>
             {identityCols.length > 1 && (
               <th
                 colSpan={identityCols.length - 1}
-                className="px-3 py-1.5 text-[10px] uppercase tracking-[0.14em] text-ink-3 text-left"
+                className="px-3 py-1.5 text-eyebrow text-ink-3 text-left"
               />
             )}
             {groupColSpan > 0 &&
@@ -371,7 +371,7 @@ export function SummaryTable({
                     key={g}
                     colSpan={groupColSpan}
                     className={
-                      "px-3 py-1.5 text-[10px] uppercase tracking-[0.14em] border-l border-line text-left " +
+                      "px-3 py-1.5 text-eyebrow border-l border-line text-left " +
                       (isTotal ? "text-ink-2" : "")
                     }
                     style={
@@ -410,7 +410,7 @@ export function SummaryTable({
                 );
               })}
           </tr>
-          <tr className="border-b border-line text-left text-[11px] uppercase tracking-[0.14em] text-ink-3">
+          <tr className="border-b border-line text-left text-label text-ink-3">
             {identityCols.map((c) => {
               const resizable = RESIZABLE_IDENTITY.has(c.key);
               return (

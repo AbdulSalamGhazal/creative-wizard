@@ -42,7 +42,7 @@ export function SignInForm({ nextPath }: { nextPath: string }) {
         <LogoMark className="w-14 h-14 mx-auto" />
         <div>
           <BrandWordmark className="text-4xl" />
-          <div className="text-[11px] uppercase tracking-[0.18em] text-ink-3 mt-2">
+          <div className="text-label text-ink-3 mt-2">
             Sign in to continue
           </div>
         </div>

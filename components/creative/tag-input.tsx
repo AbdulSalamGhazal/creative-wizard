@@ -58,7 +58,7 @@ export function TagInput({
       />
       {allTags.length > 0 && (
         <div className="space-y-1.5">
-          <div className="text-[10px] uppercase tracking-[0.14em] text-ink-3">
+          <div className="text-eyebrow text-ink-3">
             From your library
           </div>
           <div className="flex flex-wrap gap-1.5">

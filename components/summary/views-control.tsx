@@ -167,7 +167,7 @@ export function ViewsControl({
         </button>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-72 p-2 space-y-2">
-        <div className="px-1 text-[11px] uppercase tracking-[0.14em] text-ink-3">
+        <div className="px-1 text-label text-ink-3">
           Saved views
         </div>
 

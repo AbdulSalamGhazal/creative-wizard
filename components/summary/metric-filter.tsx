@@ -151,7 +151,7 @@ export function MetricFilterControl({ platforms }: Props) {
         </button>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-80 p-3 space-y-3">
-        <div className="text-[11px] uppercase tracking-[0.14em] text-ink-3">
+        <div className="text-label text-ink-3">
           Filter by metric
         </div>
 
