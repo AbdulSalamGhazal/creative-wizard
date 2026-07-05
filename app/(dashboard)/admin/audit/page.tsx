@@ -3,6 +3,8 @@ import { requireAdmin } from "@/lib/auth";
 import { listAuditEvents, auditCategoryCounts } from "@/db/queries/audit";
 import type { AuditEntityType } from "@/lib/audit";
 import { AuditFeed } from "@/components/audit/audit-feed";
+import { PageShell } from "@/components/layout/page-shell";
+import { PageHeader } from "@/components/layout/page-header";
 
 export const dynamic = "force-dynamic";
 
@@ -41,16 +43,17 @@ export default async function AuditPage({ searchParams }: Props) {
   const total = counts.reduce((s, c) => s + c.count, 0);
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
-      <div>
-        <div className="text-[10px] uppercase tracking-[0.18em] text-ink-3 mb-1">
-          Admin
-        </div>
-        <h1 className="font-display text-4xl tracking-tight">Audit log</h1>
-        <p className="text-ink-3 text-sm mt-1">
-          {total.toLocaleString()} event{total === 1 ? "" : "s"} · newest first.
-        </p>
-      </div>
+    <PageShell width="admin">
+      <PageHeader
+        eyebrow="Admin"
+        title="Audit log"
+        subtitle={
+          <>
+            {total.toLocaleString()} event{total === 1 ? "" : "s"} · newest
+            first.
+          </>
+        }
+      />
 
       <div className="flex items-center gap-1.5 flex-wrap">
         {CATEGORY_OPTIONS.map((opt) => {
@@ -84,6 +87,6 @@ export default async function AuditPage({ searchParams }: Props) {
           Showing the most recent 200 events. Older entries remain in the DB.
         </p>
       )}
-    </div>
+    </PageShell>
   );
 }

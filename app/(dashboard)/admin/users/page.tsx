@@ -6,6 +6,8 @@ import { UserInviteForm } from "@/components/user/user-invite-form";
 import { UserRoleSelect } from "@/components/user/user-role-select";
 import { AdminSetPasswordButton } from "@/components/user/admin-set-password-button";
 import { isoDate } from "@/lib/format";
+import { PageShell } from "@/components/layout/page-shell";
+import { PageHeader } from "@/components/layout/page-header";
 
 export const dynamic = "force-dynamic";
 
@@ -25,16 +27,12 @@ export default async function UsersAdminPage() {
     .orderBy(asc(users.name));
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
-      <div>
-        <div className="text-[10px] uppercase tracking-[0.18em] text-ink-3 mb-1">
-          Admin
-        </div>
-        <h1 className="font-display text-4xl tracking-tight">Team</h1>
-        <p className="text-ink-3 text-sm mt-1">
-          {team.length} member{team.length === 1 ? "" : "s"}.
-        </p>
-      </div>
+    <PageShell width="admin">
+      <PageHeader
+        eyebrow="Admin"
+        title="Team"
+        subtitle={`${team.length} member${team.length === 1 ? "" : "s"}.`}
+      />
 
       <div className="rounded-lg border border-line bg-surface p-4">
         <UserInviteForm />
@@ -72,6 +70,6 @@ export default async function UsersAdminPage() {
           </tbody>
         </table>
       </div>
-    </div>
+    </PageShell>
   );
 }

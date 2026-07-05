@@ -1,28 +1,17 @@
-import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
 import { UploadForm } from "@/components/upload/upload-form";
+import { PageShell } from "@/components/layout/page-shell";
+import { PageHeader } from "@/components/layout/page-header";
 
 export default function NewUploadPage() {
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
-      <div>
-        <Link
-          href="/uploads"
-          className="inline-flex items-center gap-1 text-xs text-ink-3 hover:text-ink transition-colors"
-        >
-          <ArrowLeft className="w-3 h-3" />
-          Back to upload history
-        </Link>
-        <h1 className="font-display text-4xl tracking-tight mt-3">
-          New upload
-        </h1>
-        <p className="text-ink-2 text-sm mt-1">
-          Every file is validated first — nothing is imported unless all rows
-          check out.
-        </p>
-      </div>
+    <PageShell width="import">
+      <PageHeader
+        backLink={{ href: "/uploads", label: "Back to upload history" }}
+        title="New upload"
+        subtitle="Every file is validated first — nothing is imported unless all rows check out."
+      />
 
       <UploadForm />
-    </div>
+    </PageShell>
   );
 }

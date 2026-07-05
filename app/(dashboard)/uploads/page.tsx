@@ -10,6 +10,8 @@ import { getActiveAccountId } from "@/lib/tenant";
 import { RollbackButton } from "@/components/upload/rollback-button";
 import { CleanupTool } from "@/components/cleanup/cleanup-tool";
 import { listAccountCampaigns } from "@/db/queries/cleanup";
+import { PageShell } from "@/components/layout/page-shell";
+import { PageHeader } from "@/components/layout/page-header";
 
 const ROLLBACK_WINDOW_MS = 24 * 60 * 60 * 1000;
 
@@ -70,24 +72,20 @@ export default async function UploadsPage() {
     : [[], [], []];
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-end justify-between">
-        <div>
-          <div className="text-[10px] uppercase tracking-[0.18em] text-ink-3 mb-1">
-            Uploads
-          </div>
-          <h1 className="font-display text-4xl tracking-tight">Upload history</h1>
-          <p className="text-ink-3 text-sm mt-1">
-            {rows.length} {rows.length === 1 ? "batch" : "batches"}.
-          </p>
-        </div>
-        <Button asChild>
-          <Link href="/uploads/new">
-            <Plus className="w-4 h-4" />
-            New upload
-          </Link>
-        </Button>
-      </div>
+    <PageShell>
+      <PageHeader
+        eyebrow="Uploads"
+        title="Upload history"
+        subtitle={`${rows.length} ${rows.length === 1 ? "batch" : "batches"}.`}
+        rightSlot={
+          <Button asChild>
+            <Link href="/uploads/new">
+              <Plus className="w-4 h-4" />
+              New upload
+            </Link>
+          </Button>
+        }
+      />
 
       {rows.length === 0 ? (
         <div className="rounded-lg border border-dashed border-line bg-surface px-6 py-16 text-center">
@@ -170,6 +168,6 @@ export default async function UploadsPage() {
           campaigns={cleanupCampaigns}
         />
       )}
-    </div>
+    </PageShell>
   );
 }

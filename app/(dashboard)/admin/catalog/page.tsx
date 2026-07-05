@@ -10,6 +10,8 @@ import { TagsTable } from "@/components/tag/tags-table";
 import { RatingRulesAdmin } from "@/components/rating/rating-rules-admin";
 import { AccountsAdmin } from "@/components/account/accounts-admin";
 import { StatusConfigAdmin } from "@/components/creative/status-config-admin";
+import { PageShell } from "@/components/layout/page-shell";
+import { PageHeader } from "@/components/layout/page-header";
 
 export const dynamic = "force-dynamic";
 
@@ -40,13 +42,8 @@ export default async function CatalogAdminPage({ searchParams }: Props) {
     TABS.find((t) => t.key === tab)?.key ?? "products";
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
-      <div>
-        <div className="text-[10px] uppercase tracking-[0.18em] text-ink-3 mb-1">
-          Admin
-        </div>
-        <h1 className="font-display text-4xl tracking-tight">Configuration</h1>
-      </div>
+    <PageShell width="admin">
+      <PageHeader eyebrow="Admin" title="Configuration" />
 
       {/* Tab nav */}
       <div className="flex items-center gap-1 border-b border-line">
@@ -84,6 +81,6 @@ export default async function CatalogAdminPage({ searchParams }: Props) {
           activeId={await getActiveAccountId()}
         />
       )}
-    </div>
+    </PageShell>
   );
 }
