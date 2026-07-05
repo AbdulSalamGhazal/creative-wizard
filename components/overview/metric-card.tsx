@@ -26,6 +26,7 @@ export function MetricCard({
   deltaInverted = false,
   emptyText = "No data in range.",
   hideBreakdown = false,
+  empty = false,
 }: {
   label: string;
   value: string;
@@ -38,6 +39,11 @@ export function MetricCard({
   emptyText?: string;
   /** Render only the headline + delta (no per-dimension breakdown). */
   hideBreakdown?: boolean;
+  /**
+   * No data in the current range. Suppresses the delta chip — a red "Gone"
+   * or any % change next to an empty "—" value reads as an error, not signal.
+   */
+  empty?: boolean;
 }) {
   return (
     <div className="rounded-xl border border-line bg-surface p-4 flex flex-col gap-3.5">
@@ -48,7 +54,9 @@ export function MetricCard({
             <Icon className="h-3.5 w-3.5" />
             <span>{label}</span>
           </div>
-          {delta ? <DeltaBadge delta={delta} inverted={deltaInverted} /> : null}
+          {delta && !empty ? (
+            <DeltaBadge delta={delta} inverted={deltaInverted} />
+          ) : null}
         </div>
         <div className="font-display text-[2.6rem] leading-none num text-ink mt-2 whitespace-nowrap">
           {value}

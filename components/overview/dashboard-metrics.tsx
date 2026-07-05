@@ -46,6 +46,9 @@ export async function DashboardMetrics({
   const revenueDelta = kd
     ? computeDelta(kd.current.conversionValue, kd.previous.conversionValue)
     : undefined;
+  // No spend ⇒ the range has no data at all — every card is empty, so suppress
+  // the delta chips (a red "Gone" beside a "—" value reads as an error).
+  const empty = k.spend == null;
 
   const isCampaign = dimension === "campaign";
   const shown = isCampaign ? full.slice(0, CAMPAIGN_LIMIT) : full;
@@ -100,6 +103,7 @@ export async function DashboardMetrics({
           icon={DollarSign}
           delta={d?.spend}
           bars={shareBars((r) => r.spend, usdCompact)}
+          empty={empty}
         />
         <MetricCard
           label="Conversions"
@@ -107,6 +111,7 @@ export async function DashboardMetrics({
           icon={Target}
           delta={d?.conversions}
           bars={shareBars((r) => r.conversions, intCompact)}
+          empty={empty}
         />
         <MetricCard
           label="Revenue"
@@ -114,6 +119,7 @@ export async function DashboardMetrics({
           icon={Banknote}
           delta={revenueDelta}
           bars={shareBars((r) => r.conversionValue, usdCompact)}
+          empty={empty}
         />
         <MetricCard
           label="CPA"
@@ -122,6 +128,7 @@ export async function DashboardMetrics({
           delta={d?.cpa}
           deltaInverted
           bars={valueBars((r) => r.cpa, usd1)}
+          empty={empty}
         />
         <MetricCard
           label="ROAS"
@@ -129,6 +136,7 @@ export async function DashboardMetrics({
           icon={TrendingUp}
           delta={d?.roas}
           bars={valueBars((r) => r.roas, (v) => `${ratio(v)}×`)}
+          empty={empty}
         />
       </div>
       {isCampaign && moreCount > 0 && (
