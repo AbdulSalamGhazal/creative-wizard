@@ -1,8 +1,16 @@
 import { Skeleton } from "@/components/ui/skeleton";
+import { KpiRowSkeleton } from "@/components/layout/page-skeletons";
 
 export default function CreativeDetailLoading() {
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
+      {/* Pager */}
+      <div className="flex items-center justify-between">
+        <Skeleton className="h-4 w-28" />
+        <Skeleton className="h-8 w-24 rounded-md" />
+      </div>
+
+      {/* Information: thumbnail + editable header */}
       <div className="grid grid-cols-1 md:grid-cols-[260px_1fr] gap-6">
         <Skeleton className="aspect-[4/3] w-full rounded-lg" />
         <div className="space-y-3">
@@ -15,16 +23,13 @@ export default function CreativeDetailLoading() {
           </div>
         </div>
       </div>
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-        {Array.from({ length: 6 }).map((_, i) => (
-          <div key={i} className="rounded-lg border border-line bg-surface p-4 space-y-3">
-            <Skeleton className="h-3 w-16" />
-            <Skeleton className="h-8 w-20" />
-          </div>
-        ))}
+
+      {/* Analytics: 5 KPI tiles + charts */}
+      <div className="rounded-xl border border-line bg-surface/40 p-4 md:p-6 space-y-6">
+        <KpiRowSkeleton count={5} />
+        <Skeleton className="h-72 w-full rounded-lg" />
+        <Skeleton className="h-40 w-full rounded-lg" />
       </div>
-      <Skeleton className="h-72 w-full rounded-lg" />
-      <Skeleton className="h-40 w-full rounded-lg" />
     </div>
   );
 }
