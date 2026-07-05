@@ -43,7 +43,7 @@ export function MappingAddForm({
         toast.error(res.error ?? "Could not add mapping");
         return;
       }
-      toast.success(`Added "${trimmed}"`);
+      toast.success(`Added “${trimmed}”`);
       setHeaderName("");
     });
   };

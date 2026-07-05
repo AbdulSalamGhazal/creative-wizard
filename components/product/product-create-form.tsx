@@ -18,11 +18,10 @@ export function ProductCreateForm() {
     startTransition(async () => {
       const res = await createProduct({ name: name.trim() });
       if (!res.ok) {
-        setError(res.fieldErrors?.name ?? res.error ?? "Failed");
-        toast.error(res.fieldErrors?.name ?? res.error ?? "Could not add product");
+        setError(res.fieldErrors?.name ?? res.error ?? "Could not add product");
         return;
       }
-      toast.success(`Added "${name.trim()}"`);
+      toast.success(`Added “${name.trim()}”`);
       setName("");
     });
   };

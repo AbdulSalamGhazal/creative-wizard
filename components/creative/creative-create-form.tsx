@@ -72,7 +72,6 @@ export function CreativeCreateForm({ products, allTags }: Props) {
       if (!res.ok) {
         setError(res.error ?? "Failed to create");
         setFieldErrors(res.fieldErrors ?? {});
-        toast.error(res.error ?? "Could not create creative");
         return;
       }
       toast.success(`Created ${res.name}`);

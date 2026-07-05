@@ -34,8 +34,7 @@ export function UserInviteForm() {
         password,
       });
       if (!res.ok) {
-        setError(res.error ?? "Failed");
-        toast.error(res.error ?? "Invite failed");
+        setError(res.error ?? "Invite failed");
         return;
       }
       toast.success(`Invited ${name.trim()}`);
@@ -101,10 +100,14 @@ export function UserInviteForm() {
           }
         >
           <UserPlus className="w-4 h-4" />
-          {isPending ? "Adding…" : "Invite"}
+          {isPending ? "Inviting…" : "Invite"}
         </Button>
       </div>
-      {error && <p className="text-[11px] text-neg">{error}</p>}
+      {error && (
+        <div className="rounded-md border border-neg/30 bg-neg/5 px-3 py-2 text-xs text-ink">
+          {error}
+        </div>
+      )}
       <p className="text-[11px] text-ink-3">
         Share the starter password with your teammate over a trusted channel.
         They can change it from the user menu after they sign in.
