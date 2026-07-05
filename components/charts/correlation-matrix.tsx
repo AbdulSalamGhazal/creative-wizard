@@ -107,7 +107,7 @@ export function CorrelationMatrix({ rows }: { rows: CreativeMetricRow[] }) {
   const n = selected.length;
 
   return (
-    <Card className="bg-surface border-line h-full flex flex-col">
+    <Card className="h-full flex flex-col">
       <CardHeader className="space-y-1">
         <CardTitle className="text-sm">Metric correlations</CardTitle>
         <p className="text-[11px] text-ink-3">

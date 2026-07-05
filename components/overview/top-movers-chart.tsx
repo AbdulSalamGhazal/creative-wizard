@@ -13,7 +13,7 @@ export function TopMoversChart({ rows }: { rows: TopMoverRow[] }) {
   const max = withDelta.reduce((m, r) => Math.max(m, Math.abs(r.abs)), 0);
 
   return (
-    <Card className="bg-surface border-line h-full flex flex-col">
+    <Card className="h-full flex flex-col">
       <CardHeader className="flex-row items-center justify-between gap-2 space-y-0">
         <CardTitle className="text-sm">Top movers</CardTitle>
         <span className="text-[11px] text-ink-3 font-normal">spend Δ vs previous</span>

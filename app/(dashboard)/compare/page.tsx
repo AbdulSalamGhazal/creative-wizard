@@ -154,7 +154,7 @@ export default async function ComparePage({
       <AddMetricBlock metrics={parsed.metrics} />
 
       {/* Side totals */}
-      <Card className="bg-surface border-line">
+      <Card>
         <CardHeader>
           <h2 className="text-sm font-medium text-ink">
             {sameWindow

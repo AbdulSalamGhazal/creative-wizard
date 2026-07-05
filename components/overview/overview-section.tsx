@@ -251,7 +251,7 @@ export async function OverviewSection({
 
       {/* Three mix graphs in one row */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <Card className="bg-surface border-line h-full flex flex-col">
+        <Card className="h-full flex flex-col">
           <CardHeader>
             <CardTitle className="text-sm">Product mix</CardTitle>
           </CardHeader>
@@ -293,7 +293,7 @@ export async function OverviewSection({
 
       {/* Top creatives (title + ranking metric + column toggles live in the
           table's own toolbar) */}
-      <Card className="bg-surface border-line">
+      <Card>
         <CardContent>
           <TopCreativesTable rows={topRows} />
         </CardContent>

@@ -67,7 +67,7 @@ export function TypeMixBars({
   );
 
   return (
-    <Card className="bg-surface border-line h-full flex flex-col">
+    <Card className="h-full flex flex-col">
       <CardHeader className="flex-row items-center justify-between gap-2 space-y-0">
         <CardTitle className="text-sm">Type mix</CardTitle>
         {dimension === "campaign" && (

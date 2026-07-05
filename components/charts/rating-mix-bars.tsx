@@ -119,7 +119,7 @@ export function RatingMixBars({
   );
 
   return (
-    <Card className="bg-surface border-line h-full flex flex-col">
+    <Card className="h-full flex flex-col">
       <CardHeader className="flex-row items-center justify-between gap-2 space-y-0">
         <div className="flex items-baseline gap-2 min-w-0">
           <CardTitle className="text-sm whitespace-nowrap">Spend by rating</CardTitle>

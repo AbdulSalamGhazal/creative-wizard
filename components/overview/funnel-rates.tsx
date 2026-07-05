@@ -66,7 +66,7 @@ export function FunnelRates({
   ];
 
   return (
-    <Card className="bg-surface border-line h-full flex flex-col">
+    <Card className="h-full flex flex-col">
       <CardHeader>
         <CardTitle className="text-sm">Funnel rates</CardTitle>
       </CardHeader>

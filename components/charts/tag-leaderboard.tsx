@@ -18,7 +18,7 @@ export function TagLeaderboard({ rows }: { rows: TagMixRow[] }) {
   const max = sorted.length ? sorted[0]!.spend : 0;
 
   return (
-    <Card className="bg-surface border-line h-full flex flex-col">
+    <Card className="h-full flex flex-col">
       <CardHeader>
         <CardTitle className="text-sm">Tag mix</CardTitle>
       </CardHeader>

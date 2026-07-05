@@ -147,7 +147,7 @@ export function StatusFlowGrid({
       : "var(--ink-2)";
 
   return (
-    <Card className="bg-surface border-line">
+    <Card>
       <CardHeader className="flex-row items-center justify-between gap-2 space-y-0">
         <CardTitle className="text-sm">Status flow</CardTitle>
         <span className="text-[11px] text-ink-3 font-normal">
