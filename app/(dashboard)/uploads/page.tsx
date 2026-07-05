@@ -96,7 +96,7 @@ export default async function UploadsPage() {
           </div>
           <p className="mt-4 text-ink-2 text-sm">No uploads yet.</p>
           <p className="mt-1 text-ink-3 text-xs">
-            Start with an Instagram or Facebook export, or any of the five supported platforms.
+            Start with an Instagram or Facebook export, or any of the four supported platforms.
           </p>
           <div className="mt-4">
             <Button asChild>

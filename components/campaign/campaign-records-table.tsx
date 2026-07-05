@@ -5,7 +5,8 @@ import { Download } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { DataTable, type DataColumn } from "@/components/ui/data-table";
 import { int, usd } from "@/lib/format";
-import { PLATFORM_COLOR, PLATFORM_LABEL } from "@/lib/palette";
+import { PLATFORM_LABEL } from "@/lib/palette";
+import { PlatformDot } from "@/components/ui/platform-dot";
 import { cn } from "@/lib/utils";
 import type { CampaignDayRow, CampaignRecordRow } from "@/db/queries/campaign";
 
@@ -164,8 +165,11 @@ export function CampaignRecordsTable({
             {r.creativeName}
           </span>
           {r.excludedFromAggregates && (
-            <Badge variant="outline" className="text-[9px] border-line-2 text-ink-3">
-              excl
+            <Badge
+              variant="outline"
+              className="text-[9px] border-warn/40 text-warn bg-warn/10"
+            >
+              Excluded
             </Badge>
           )}
         </span>
@@ -178,7 +182,7 @@ export function CampaignRecordsTable({
       sortable: true,
       render: (r) => (
         <span className="inline-flex items-center gap-1.5 whitespace-nowrap text-xs">
-          <span className="w-2 h-2 rounded-sm" style={{ background: PLATFORM_COLOR[r.platform] }} />
+          <PlatformDot platform={r.platform} />
           {PLATFORM_LABEL[r.platform]}
         </span>
       ),

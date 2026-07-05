@@ -22,9 +22,10 @@ import { CampaignRecordsTable } from "@/components/campaign/campaign-records-tab
 import { CollapsibleSection } from "@/components/ui/collapsible-section";
 import { parseCampaignName } from "@/lib/campaign";
 import { campaignStatusFor, campaignStatusMap } from "@/db/queries/campaign-status";
-import { CAMPAIGN_STATUS_DOT, CAMPAIGN_STATUS_LABEL } from "@/lib/campaign-status";
+import { CampaignStatusBadge } from "@/components/campaign/campaign-status-badge";
+import { PlatformDot } from "@/components/ui/platform-dot";
 import { parseCampaignDetailParams } from "@/validators/campaign";
-import { PLATFORM_COLOR, PLATFORM_LABEL } from "@/lib/palette";
+import { PLATFORM_LABEL } from "@/lib/palette";
 import { safeDecodeURIComponent } from "@/lib/url";
 import { isoDate } from "@/lib/format";
 import { defaultDateRange, presetLabel } from "@/lib/date-presets";
@@ -137,19 +138,12 @@ export default async function CampaignDetailPage({
             </Badge>
             {campaignStatus && (
               <Badge variant="outline" className="text-ink-2">
-                <span
-                  className="w-1.5 h-1.5 rounded-sm mr-1.5"
-                  style={{ background: CAMPAIGN_STATUS_DOT[campaignStatus] }}
-                />
-                {CAMPAIGN_STATUS_LABEL[campaignStatus]}
+                <CampaignStatusBadge status={campaignStatus} />
               </Badge>
             )}
             {meta.platforms.map((p) => (
               <Badge key={p} variant="outline" className="text-ink-2">
-                <span
-                  className="w-1.5 h-1.5 rounded-sm mr-1.5"
-                  style={{ background: PLATFORM_COLOR[p] }}
-                />
+                <PlatformDot platform={p} size="sm" className="mr-1.5" />
                 {PLATFORM_LABEL[p]}
               </Badge>
             ))}

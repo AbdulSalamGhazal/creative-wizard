@@ -5,7 +5,8 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { DataTable, type DataColumn } from "@/components/ui/data-table";
 import { useNavTransition } from "@/lib/nav-progress";
 import { int, isoDate, pct, ratio, usd } from "@/lib/format";
-import { PLATFORM_COLOR, PLATFORM_LABEL } from "@/lib/palette";
+import { PLATFORM_LABEL } from "@/lib/palette";
+import { PlatformDot } from "@/components/ui/platform-dot";
 import { CampaignStatusBadge } from "@/components/campaign/campaign-status-badge";
 import { CAMPAIGN_STATUS_LABEL, CAMPAIGN_STATUS_ORDER } from "@/lib/campaign-status";
 import type { PortfolioCampaignRow } from "@/db/queries/portfolio";
@@ -119,10 +120,7 @@ export function PortfolioTable({
             <span className="inline-flex items-center gap-2">
               {r.platforms.map((p) => (
                 <span key={p} className="inline-flex items-center gap-1.5 whitespace-nowrap">
-                  <span
-                    className="w-2 h-2 rounded-full shrink-0"
-                    style={{ background: PLATFORM_COLOR[p] }}
-                  />
+                  <PlatformDot platform={p} />
                   <span className="text-ink-2">{PLATFORM_LABEL[p]}</span>
                 </span>
               ))}
