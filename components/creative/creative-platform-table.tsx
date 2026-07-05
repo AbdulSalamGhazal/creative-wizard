@@ -2,7 +2,8 @@
 
 import { Fragment, useMemo, useState } from "react";
 import { ChevronRight } from "lucide-react";
-import { PLATFORM_COLOR, PLATFORM_LABEL } from "@/lib/palette";
+import { PLATFORM_LABEL } from "@/lib/palette";
+import { PlatformDot } from "@/components/ui/platform-dot";
 import { int, pct, roas, usd } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { PlatformMixRow, CampaignMixRow } from "@/db/queries/performance";
@@ -85,10 +86,7 @@ export function CreativePlatformTable({ rows, campaigns }: Props) {
                           isOpen && "rotate-90",
                         )}
                       />
-                      <span
-                        className="w-2 h-2 rounded-sm shrink-0"
-                        style={{ background: PLATFORM_COLOR[r.platform] }}
-                      />
+                      <PlatformDot platform={r.platform} />
                       <span className="whitespace-nowrap">{PLATFORM_LABEL[r.platform]}</span>
                       <span className="text-[10px] text-ink-3">
                         {camps.length} campaign{camps.length === 1 ? "" : "s"}

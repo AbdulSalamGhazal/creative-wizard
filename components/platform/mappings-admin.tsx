@@ -1,5 +1,6 @@
 import { listAllMappings, type MappingRow } from "@/db/queries/platforms";
-import { ALL_PLATFORMS, PLATFORM_COLOR, PLATFORM_LABEL } from "@/lib/palette";
+import { ALL_PLATFORMS, PLATFORM_LABEL } from "@/lib/palette";
+import { PlatformDot } from "@/components/ui/platform-dot";
 import { MappingAddForm } from "@/components/platform/mapping-add-form";
 import { MappingRemoveButton } from "@/components/platform/mapping-remove-button";
 import { FIELD_LIST, type InternalField } from "@/csv/platforms/types";
@@ -20,10 +21,7 @@ export async function MappingsAdmin() {
         return (
           <section key={platform} className="space-y-3">
             <div className="flex items-center gap-2">
-              <span
-                className="w-2 h-2 rounded-sm"
-                style={{ background: PLATFORM_COLOR[platform] }}
-              />
+              <PlatformDot platform={platform} />
               <h3 className="font-display text-xl tracking-tight">
                 {PLATFORM_LABEL[platform]}
               </h3>

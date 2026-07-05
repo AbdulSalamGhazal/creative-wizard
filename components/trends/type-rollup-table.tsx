@@ -3,11 +3,11 @@ import Link from "next/link";
 import { int, pct, ratio, usd } from "@/lib/format";
 import {
   ALL_PLATFORMS,
-  PLATFORM_COLOR,
   PLATFORM_LABEL,
   TYPE_COLOR,
   TYPE_LABEL,
 } from "@/lib/palette";
+import { PlatformDot } from "@/components/ui/platform-dot";
 import type { TypeRollupRow } from "@/db/queries/trends";
 
 type Platform = (typeof ALL_PLATFORMS)[number];
@@ -92,10 +92,7 @@ export function TypeRollupTable({
                   <tr className="bg-surface-2/40">
                     <td colSpan={9} className="px-3 py-1.5">
                       <span className="inline-flex items-center gap-2 text-[11px] uppercase tracking-[0.14em] text-ink-2">
-                        <span
-                          className="w-2 h-2 rounded-full"
-                          style={{ background: PLATFORM_COLOR[platform] }}
-                        />
+                        <PlatformDot platform={platform} />
                         {PLATFORM_LABEL[platform]}
                       </span>
                     </td>

@@ -12,7 +12,8 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { DownloadCsvButton } from "@/components/ui/download-csv-button";
 import { ExcludeRowAction } from "@/components/creative/exclude-row-action";
-import { PLATFORM_COLOR, PLATFORM_LABEL } from "@/lib/palette";
+import { PLATFORM_LABEL } from "@/lib/palette";
+import { PlatformDot } from "@/components/ui/platform-dot";
 import { int, isoDate, usd } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { CreativeRecordRow } from "@/db/queries/creatives";
@@ -71,10 +72,7 @@ const COLUMNS: Col[] = [
     sortVal: (r) => PLATFORM_LABEL[r.platform],
     cell: (r) => (
       <span className="inline-flex items-center gap-2 text-ink-2 whitespace-nowrap">
-        <span
-          className="w-1.5 h-1.5 rounded-sm"
-          style={{ background: PLATFORM_COLOR[r.platform] }}
-        />
+        <PlatformDot platform={r.platform} size="sm" />
         {PLATFORM_LABEL[r.platform]}
       </span>
     ),

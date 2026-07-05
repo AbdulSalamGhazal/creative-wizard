@@ -4,7 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 import { DeltaBadge } from "@/components/kpi/delta-badge";
 import { int, pct, ratio, usd } from "@/lib/format";
-import { PLATFORM_COLOR, PLATFORM_LABEL } from "@/lib/palette";
+import { PLATFORM_LABEL } from "@/lib/palette";
+import { PlatformDot } from "@/components/ui/platform-dot";
 import { cn } from "@/lib/utils";
 import type { CampaignFunnelRow } from "@/db/queries/funnel";
 
@@ -259,10 +260,7 @@ export function CampaignFunnelTable({ rows }: { rows: CampaignFunnelRow[] }) {
               </td>
               <td className="px-3 py-2.5 whitespace-nowrap">
                 <span className="inline-flex items-center gap-1.5 text-ink-2">
-                  <span
-                    className="w-2 h-2 rounded-sm shrink-0"
-                    style={{ background: PLATFORM_COLOR[r.platform] }}
-                  />
+                  <PlatformDot platform={r.platform} />
                   {PLATFORM_LABEL[r.platform]}
                 </span>
               </td>

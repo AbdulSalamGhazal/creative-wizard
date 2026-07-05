@@ -4,7 +4,8 @@ import {
   listAllMappings,
   platformRecordCounts,
 } from "@/db/queries/platforms";
-import { ALL_PLATFORMS, PLATFORM_COLOR, PLATFORM_LABEL } from "@/lib/palette";
+import { ALL_PLATFORMS, PLATFORM_LABEL } from "@/lib/palette";
+import { PlatformDot } from "@/components/ui/platform-dot";
 import { int } from "@/lib/format";
 import {
   FIELD_META,
@@ -58,10 +59,7 @@ export async function PlatformsAdmin() {
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <span
-                    className="w-2.5 h-2.5 rounded-sm"
-                    style={{ background: PLATFORM_COLOR[p] }}
-                  />
+                  <PlatformDot platform={p} />
                   <span className="text-ink font-medium">{PLATFORM_LABEL[p]}</span>
                 </div>
                 <span

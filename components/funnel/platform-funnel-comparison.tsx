@@ -3,6 +3,7 @@
 import { Fragment, useMemo, useState } from "react";
 import { ChevronRight } from "lucide-react";
 import { PLATFORM_COLOR, PLATFORM_LABEL } from "@/lib/palette";
+import { PlatformDot } from "@/components/ui/platform-dot";
 import { int, pct, ratio, usd } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type {
@@ -152,10 +153,7 @@ export function PlatformFunnelComparison({
                           isOpen && "rotate-90",
                         )}
                       />
-                      <span
-                        className="w-2.5 h-2.5 rounded-sm shrink-0"
-                        style={{ background: PLATFORM_COLOR[row.platform] }}
-                      />
+                      <PlatformDot platform={row.platform} />
                       <span className="whitespace-nowrap">
                         {PLATFORM_LABEL[row.platform]}
                       </span>

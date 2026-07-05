@@ -1,7 +1,8 @@
 "use client";
 
 import { Check } from "lucide-react";
-import { PLATFORM_COLOR, PLATFORM_LABEL } from "@/lib/palette";
+import { PLATFORM_LABEL } from "@/lib/palette";
+import { PlatformDot } from "@/components/ui/platform-dot";
 import { cn } from "@/lib/utils";
 
 export const PLATFORMS = [
@@ -49,10 +50,7 @@ export function PlatformPicker({ value, onChange, disabled }: Props) {
             )}
           >
             <div className="flex items-center gap-2">
-              <span
-                className="w-2.5 h-2.5 rounded-sm shrink-0"
-                style={{ background: PLATFORM_COLOR[p.value] }}
-              />
+              <PlatformDot platform={p.value} />
               <span
                 className={cn(
                   "text-sm",

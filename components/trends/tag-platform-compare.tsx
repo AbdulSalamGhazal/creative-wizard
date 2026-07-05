@@ -5,6 +5,7 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { int, pct, ratio, usd } from "@/lib/format";
 import { ALL_PLATFORMS, PLATFORM_COLOR, PLATFORM_LABEL } from "@/lib/palette";
+import { PlatformDot } from "@/components/ui/platform-dot";
 import type { TagPlatformRow } from "@/db/queries/trends";
 
 type MetricKey =
@@ -194,10 +195,7 @@ function MetricRow({
               className="rounded-md border border-line bg-surface-2/40 p-3.5"
             >
               <div className="flex items-center gap-1.5 mb-3">
-                <span
-                  className="w-2.5 h-2.5 rounded-full"
-                  style={{ background: PLATFORM_COLOR[col.platform] }}
-                />
+                <PlatformDot platform={col.platform} />
                 <span className="text-xs font-medium text-ink">
                   {PLATFORM_LABEL[col.platform]}
                 </span>

@@ -12,7 +12,8 @@ import {
   updateRatingRules,
 } from "@/app/actions/rating";
 import { RATING_META, type RatingConfig, type RatingRules } from "@/lib/rating";
-import { ALL_PLATFORMS, PLATFORM_COLOR, PLATFORM_LABEL } from "@/lib/palette";
+import { ALL_PLATFORMS, PLATFORM_LABEL } from "@/lib/palette";
+import { PlatformDot } from "@/components/ui/platform-dot";
 import { usd } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -236,7 +237,7 @@ function PlatformOverrideEditor({
     <div className="rounded-md border border-line bg-surface px-3 py-2.5">
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2 min-w-0">
-          <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: PLATFORM_COLOR[platform] }} />
+          <PlatformDot platform={platform} />
           <span className="text-sm text-ink">{PLATFORM_LABEL[platform]}</span>
           <span className="text-[11px] text-ink-3 truncate">
             {custom ? "Custom" : `Default · ${summarize(def)}`}
