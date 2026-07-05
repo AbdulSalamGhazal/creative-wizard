@@ -88,6 +88,7 @@ export function ExcludeRowAction({ recordId, excluded, context }: Props) {
     <Dialog
       open={open}
       onOpenChange={(o) => {
+        if (isPending) return; // don't allow closing mid-exclude
         setOpen(o);
         if (!o) {
           setReason("");

@@ -63,6 +63,7 @@ export function ChangePasswordDialog({ open, onOpenChange }: Props) {
     <Dialog
       open={open}
       onOpenChange={(o) => {
+        if (isPending) return; // don't allow closing mid-save
         onOpenChange(o);
         if (!o) reset();
       }}

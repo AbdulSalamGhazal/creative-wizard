@@ -43,6 +43,7 @@ export function RollbackButton({ batchId, fileName, rowCount }: Props) {
     <Dialog
       open={open}
       onOpenChange={(o) => {
+        if (isPending) return; // don't allow closing mid-rollback
         setOpen(o);
         if (!o) setError(null);
       }}

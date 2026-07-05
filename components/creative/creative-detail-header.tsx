@@ -519,8 +519,14 @@ function TerminationDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-sm">
+    <Dialog
+      open={open}
+      onOpenChange={(o) => {
+        if (pending) return; // don't allow closing mid-save
+        onOpenChange(o);
+      }}
+    >
+      <DialogContent className="sm:max-w-sm">
         <DialogHeader>
           <DialogTitle>Terminate creative</DialogTitle>
           <DialogDescription>

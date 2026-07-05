@@ -59,6 +59,7 @@ export function CampaignEditDialog({
 
   // Reset drafts to the current values whenever the dialog (re)opens.
   const onOpenChange = (next: boolean) => {
+    if (pending) return; // don't allow closing mid-save
     if (next) {
       setCampaign(initCampaign);
       setAdset(initAdset);
