@@ -77,6 +77,9 @@ export function CampaignCreativeKpis({
   };
 
   const totalRevenue = creatives.reduce((s, c) => s + c.conversionValue, 0);
+  // Empty window (no records) → suppress the delta chips so an empty range
+  // doesn't read as an alarming drop next to the "—" values.
+  const empty = t.spend == null;
 
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
@@ -85,20 +88,23 @@ export function CampaignCreativeKpis({
         value={usd(t.spend)}
         icon={Wallet}
         delta={d?.spend}
-        bars={shareBars((c) => c.spend, (n) => usd(n), t.spend)}
+        empty={empty}
+        bars={shareBars((c) => c.spend, (n) => usd(n), t.spend ?? 0)}
       />
       <MetricCard
         label="Conversions"
         value={int(t.conversions)}
         icon={ShoppingCart}
         delta={d?.conversions}
-        bars={shareBars((c) => c.conversions, (n) => int(n), t.conversions)}
+        empty={empty}
+        bars={shareBars((c) => c.conversions, (n) => int(n), t.conversions ?? 0)}
       />
       <MetricCard
         label="Revenue"
         value={usd(t.conversionValue)}
         icon={Banknote}
         delta={d?.conversionValue}
+        empty={empty}
         bars={shareBars((c) => c.conversionValue, (n) => usd(n), totalRevenue)}
       />
       <MetricCard
@@ -106,6 +112,7 @@ export function CampaignCreativeKpis({
         value={roas(t.roas)}
         icon={TrendingUp}
         delta={d?.roas}
+        empty={empty}
         bars={rateBars((c) => c.roas, (n) => roas(n))}
       />
       <MetricCard
@@ -113,6 +120,7 @@ export function CampaignCreativeKpis({
         value={usd(t.cpa)}
         icon={Coins}
         delta={d?.cpa}
+        empty={empty}
         deltaInverted
         bars={rateBars((c) => c.cpa, (n) => usd(n))}
       />
@@ -121,6 +129,7 @@ export function CampaignCreativeKpis({
         value={pct(t.ctr)}
         icon={MousePointerClick}
         delta={d?.ctr}
+        empty={empty}
         bars={rateBars((c) => c.ctr, (n) => pct(n))}
       />
       <MetricCard
@@ -128,6 +137,7 @@ export function CampaignCreativeKpis({
         value={pct(t.cvr)}
         icon={Percent}
         delta={d?.cvr}
+        empty={empty}
         bars={rateBars((c) => c.cvr, (n) => pct(n))}
       />
     </div>

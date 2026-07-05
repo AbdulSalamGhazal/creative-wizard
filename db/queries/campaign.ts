@@ -427,13 +427,16 @@ export async function campaignDeletionSummary(
 }
 
 export interface CampaignTotals {
-  spend: number;
-  impressions: number;
-  clicks: number;
-  landingPageViews: number;
-  conversions: number;
-  conversionValue: number;
-  videoViews2s: number;
+  // Additive metrics are null (not 0) on an EMPTY window — SUM over no rows is
+  // NULL, so an empty range renders "—" rather than a misleading "$0.00" / "0"
+  // (a real zero, i.e. rows that sum to 0, still renders as 0).
+  spend: number | null;
+  impressions: number | null;
+  clicks: number | null;
+  landingPageViews: number | null;
+  conversions: number | null;
+  conversionValue: number | null;
+  videoViews2s: number | null;
   cpm: number | null;
   cpc: number | null;
   cpa: number | null;
@@ -512,13 +515,15 @@ async function totalsFor(cond: SQL): Promise<CampaignTotals> {
     .innerJoin(campaigns, eq(campaigns.id, performanceRecords.campaignId))
     .where(cond);
   return {
-    spend: num(r?.spend),
-    impressions: num(r?.impressions),
-    clicks: num(r?.clicks),
-    landingPageViews: num(r?.landingPageViews),
-    conversions: num(r?.conversions),
-    conversionValue: num(r?.conversionValue),
-    videoViews2s: num(r?.videoViews2s),
+    // numOrNull so an empty window (SUM → NULL) yields null → "—" in the UI,
+    // while a real zero stays 0.
+    spend: numOrNull(r?.spend),
+    impressions: numOrNull(r?.impressions),
+    clicks: numOrNull(r?.clicks),
+    landingPageViews: numOrNull(r?.landingPageViews),
+    conversions: numOrNull(r?.conversions),
+    conversionValue: numOrNull(r?.conversionValue),
+    videoViews2s: numOrNull(r?.videoViews2s),
     cpm: numOrNull(r?.cpm),
     cpc: numOrNull(r?.cpc),
     cpa: numOrNull(r?.cpa),
