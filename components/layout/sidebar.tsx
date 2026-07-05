@@ -4,73 +4,18 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  LayoutDashboard,
-  Images,
-  GitCompare,
-  LineChart,
-  Table2,
-  Upload,
-  SlidersHorizontal,
-  Filter,
-  Megaphone,
-  Users,
-  ScrollText,
   PanelLeftClose,
   PanelLeftOpen,
   ChevronRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import {
+  NAV_ITEMS as items,
+  isActive,
+  type NavItem,
+} from "@/components/layout/nav-items";
 
 const STORAGE_KEY = "sidebar-collapsed";
-
-interface NavChild {
-  href: string;
-  label: string;
-}
-
-interface NavItem {
-  href: string;
-  label: string;
-  icon: React.ComponentType<{ className?: string }>;
-  group: "primary" | "admin";
-  /** When present, this item is a collapsible section, not a direct link. */
-  children?: NavChild[];
-}
-
-const TRENDS_CHILDREN: NavChild[] = [
-  { href: "/trends/over-time", label: "Changes" },
-  { href: "/trends/by-tag", label: "Tags" },
-  { href: "/trends/by-type", label: "Types" },
-  { href: "/trends/launches", label: "Launches" },
-  { href: "/trends/video", label: "Video" },
-];
-
-const items: NavItem[] = [
-  { href: "/", label: "Dashboard", icon: LayoutDashboard, group: "primary" },
-  { href: "/creatives", label: "Creatives", icon: Images, group: "primary" },
-  { href: "/summary", label: "Summary", icon: Table2, group: "primary" },
-  { href: "/funnel", label: "Funnel", icon: Filter, group: "primary" },
-  { href: "/campaigns", label: "Campaigns", icon: Megaphone, group: "primary" },
-  // Trends is a hub, not a page: clicking it expands the sub-views below.
-  // The href is the first child (used only when the rail is collapsed to icons).
-  {
-    href: "/trends/over-time",
-    label: "Trends",
-    icon: LineChart,
-    group: "primary",
-    children: TRENDS_CHILDREN,
-  },
-  { href: "/compare", label: "Compare", icon: GitCompare, group: "primary" },
-  { href: "/uploads", label: "Uploads", icon: Upload, group: "primary" },
-  { href: "/admin/catalog", label: "Configuration", icon: SlidersHorizontal, group: "admin" },
-  { href: "/admin/users", label: "Team", icon: Users, group: "admin" },
-  { href: "/admin/audit", label: "Audit log", icon: ScrollText, group: "admin" },
-];
-
-function isActive(pathname: string, href: string): boolean {
-  if (href === "/") return pathname === "/";
-  return pathname === href || pathname.startsWith(`${href}/`);
-}
 
 export function Sidebar({ role }: { role?: "admin" | "editor" | "viewer" }) {
   const pathname = usePathname();

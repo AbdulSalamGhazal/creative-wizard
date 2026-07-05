@@ -3,6 +3,7 @@ import { UserMenu } from "@/components/auth/user-menu";
 import { CommandPalette } from "@/components/layout/command-palette";
 import { ScreenshotButton } from "@/components/layout/screenshot-button";
 import { AccountSwitcher } from "@/components/layout/account-switcher";
+import { MobileNav } from "@/components/layout/mobile-nav";
 import { LogoMark } from "@/components/layout/logo-mark";
 import { BrandWordmark } from "@/components/layout/brand-wordmark";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
@@ -24,6 +25,7 @@ export function TopBar({ user, creatives, accounts, activeAccountId }: Props) {
     <header className="border-b border-line sticky top-0 z-20 bg-background">
       <div className="flex items-center justify-between px-6 h-14">
         <div className="flex items-center gap-2.5">
+          <MobileNav role={user.role} />
           <LogoMark className="w-10 h-10 shrink-0" />
           <BrandWordmark className="text-2xl leading-none" />
           <AccountSwitcher accounts={accounts} activeId={activeAccountId} />
