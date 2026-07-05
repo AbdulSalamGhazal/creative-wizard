@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { DataTable, type DataColumn } from "@/components/ui/data-table";
 import { seriesColor } from "@/lib/palette";
 import { int, pct, ratio, usd } from "@/lib/format";
+import { METRIC_LABEL } from "@/lib/metric-labels";
 import type { CampaignCreativeRow } from "@/db/queries/campaign";
 
 /**
@@ -80,10 +81,10 @@ export function CampaignCreativesTable({
       ),
     },
     { key: "spend", label: "Spend", align: "right", sortable: true, render: (r) => usd(r.spend) },
-    { key: "impressions", label: "Impr", align: "right", sortable: true, render: (r) => int(r.impressions) },
+    { key: "impressions", label: METRIC_LABEL.impressions, align: "right", sortable: true, render: (r) => int(r.impressions) },
     { key: "clicks", label: "Clicks", align: "right", sortable: true, render: (r) => int(r.clicks) },
     { key: "conversions", label: "Orders", align: "right", sortable: true, render: (r) => int(r.conversions) },
-    { key: "conversionValue", label: "Revenue", align: "right", sortable: true, render: (r) => usd(r.conversionValue) },
+    { key: "conversionValue", label: METRIC_LABEL.revenue, align: "right", sortable: true, render: (r) => usd(r.conversionValue) },
     { key: "ctr", label: "CTR", align: "right", sortable: true, render: (r) => fPct(r.ctr) },
     { key: "cvr", label: "CvR", align: "right", sortable: true, render: (r) => fPct(r.cvr) },
     { key: "cpa", label: "CPA", align: "right", sortable: true, render: (r) => fUsd(r.cpa) },

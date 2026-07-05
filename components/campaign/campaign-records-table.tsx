@@ -6,6 +6,7 @@ import { DataTable, type DataColumn } from "@/components/ui/data-table";
 import { DownloadCsvButton } from "@/components/ui/download-csv-button";
 import { rowsToCsv } from "@/lib/csv-export";
 import { int, usd } from "@/lib/format";
+import { METRIC_LABEL } from "@/lib/metric-labels";
 import { PLATFORM_LABEL } from "@/lib/palette";
 import { PlatformDot } from "@/components/ui/platform-dot";
 import { cn } from "@/lib/utils";
@@ -14,12 +15,12 @@ import type { CampaignDayRow, CampaignRecordRow } from "@/db/queries/campaign";
 /** Every uploaded metric column. `money` → currency, else integer count. */
 const METRIC_COLS: Array<{ key: MetricKey; label: string; money?: boolean }> = [
   { key: "spend", label: "Spend", money: true },
-  { key: "impressions", label: "Impr." },
+  { key: "impressions", label: METRIC_LABEL.impressions },
   { key: "clicks", label: "Clicks" },
   { key: "landingPageViews", label: "LP views" },
   { key: "addToCart", label: "ATC" },
   { key: "addPayment", label: "AP" },
-  { key: "conversions", label: "Conv." },
+  { key: "conversions", label: METRIC_LABEL.conversions },
   { key: "conversionValue", label: "Value", money: true },
   { key: "videoViews2s", label: "V·2s" },
   { key: "videoViews25", label: "V·25%" },

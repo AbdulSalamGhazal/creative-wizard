@@ -14,6 +14,7 @@ import {
 import { DataTable, type DataColumn } from "@/components/ui/data-table";
 import { DeltaBadge } from "@/components/kpi/delta-badge";
 import { int, pct, ratio, usd } from "@/lib/format";
+import { METRIC_LABEL } from "@/lib/metric-labels";
 import { computeDelta, type Delta } from "@/lib/period";
 import { cn } from "@/lib/utils";
 import type { TagMetrics, TagRollupRow } from "@/db/queries/trends";
@@ -39,10 +40,10 @@ interface Col {
 const COLS: Col[] = [
   { key: "creatives", label: "Creatives", fmt: fInt },
   { key: "spend", label: "Spend", fmt: fUsd },
-  { key: "impressions", label: "Impr", fmt: fInt },
+  { key: "impressions", label: METRIC_LABEL.impressions, fmt: fInt },
   { key: "clicks", label: "Clicks", fmt: fInt },
-  { key: "conversions", label: "Conv", fmt: fInt },
-  { key: "revenue", label: "Revenue", fmt: fUsd },
+  { key: "conversions", label: METRIC_LABEL.conversions, fmt: fInt },
+  { key: "revenue", label: METRIC_LABEL.revenue, fmt: fUsd },
   { key: "ctr", label: "CTR", fmt: fPct },
   { key: "cvr", label: "CvR", fmt: fPct },
   { key: "cpa", label: "CPA", fmt: fUsd, lower: true },

@@ -5,6 +5,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { DataTable, type DataColumn } from "@/components/ui/data-table";
 import { useNavTransition } from "@/lib/nav-progress";
 import { int, isoDate, pct, ratio, usd } from "@/lib/format";
+import { METRIC_LABEL } from "@/lib/metric-labels";
 import { PLATFORM_LABEL } from "@/lib/palette";
 import { PlatformDot } from "@/components/ui/platform-dot";
 import { CampaignStatusBadge } from "@/components/campaign/campaign-status-badge";
@@ -27,10 +28,10 @@ const COLS_META: Array<{
   { key: "platforms", label: "Platform", align: "left", sortable: false },
   { key: "creatives", label: "Creatives", align: "right", sortable: true },
   { key: "spend", label: "Spend", align: "right", sortable: true },
-  { key: "impressions", label: "Impr", align: "right", sortable: true },
+  { key: "impressions", label: METRIC_LABEL.impressions, align: "right", sortable: true },
   { key: "clicks", label: "Clicks", align: "right", sortable: true },
   { key: "orders", label: "Orders", align: "right", sortable: true },
-  { key: "revenue", label: "Revenue", align: "right", sortable: true },
+  { key: "revenue", label: METRIC_LABEL.revenue, align: "right", sortable: true },
   { key: "cpa", label: "CPA", align: "right", sortable: true },
   { key: "roas", label: "ROAS", align: "right", sortable: true },
   { key: "aov", label: "AOV", align: "right", sortable: true },

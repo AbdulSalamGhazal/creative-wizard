@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 import { DeltaBadge } from "@/components/kpi/delta-badge";
 import { int, pct, ratio, usd } from "@/lib/format";
+import { METRIC_LABEL } from "@/lib/metric-labels";
 import { PLATFORM_LABEL } from "@/lib/palette";
 import { PlatformDot } from "@/components/ui/platform-dot";
 import { cn } from "@/lib/utils";
@@ -43,11 +44,11 @@ const COLUMNS: Array<{ key: SortKey; label: string; numeric: boolean }> = [
   { key: "apRate", label: "AP%", numeric: true },
   { key: "purchaseRate", label: "CvR (AP)", numeric: true },
   { key: "cvr", label: "CvR (LP)", numeric: true },
-  { key: "conversions", label: "Conv.", numeric: true },
+  { key: "conversions", label: METRIC_LABEL.conversions, numeric: true },
   { key: "addToCart", label: "ATC", numeric: true },
   { key: "addPayment", label: "AP", numeric: true },
   { key: "roas", label: "ROAS", numeric: true },
-  { key: "impressions", label: "Impr.", numeric: true },
+  { key: "impressions", label: METRIC_LABEL.impressions, numeric: true },
 ];
 
 /**

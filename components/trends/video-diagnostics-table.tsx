@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { DataTable, type DataColumn } from "@/components/ui/data-table";
 import { int, pct, ratio, usd } from "@/lib/format";
+import { METRIC_LABEL } from "@/lib/metric-labels";
 import { cn } from "@/lib/utils";
 import { StatusBadge } from "@/components/creative/status-badge";
 import { STATUS_ORDER } from "@/lib/creative-status";
@@ -40,7 +41,7 @@ const COLS: Col[] = [
   { key: "productName", label: "Product", kind: "text" },
   { key: "status", label: "Status", kind: "status" },
   { key: "spend", label: "Spend", kind: "num", fmt: fUsd },
-  { key: "impressions", label: "Impr", kind: "num", fmt: fInt },
+  { key: "impressions", label: METRIC_LABEL.impressions, kind: "num", fmt: fInt },
   { key: "hookRate", label: "Hook", kind: "num", fmt: fPct, median: "hook" },
   { key: "ret25", label: "25%", kind: "num", fmt: fPct },
   { key: "holdRate", label: "Hold (50%)", kind: "num", fmt: fPct, median: "hold" },

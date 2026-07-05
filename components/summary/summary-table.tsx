@@ -6,6 +6,7 @@ import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PLATFORM_COLOR, PLATFORM_LABEL } from "@/lib/palette";
 import { int, pct, ratio, usd } from "@/lib/format";
+import { METRIC_LABEL } from "@/lib/metric-labels";
 import {
   RATING_META,
   rateBlock,
@@ -79,9 +80,9 @@ const METRIC_COLUMNS: Array<{
   format: MetricFormatter;
 }> = [
   { key: "spend", label: "Spend", format: (v) => usd(v) },
-  { key: "impressions", label: "Imp.", format: (v) => int(v) },
+  { key: "impressions", label: METRIC_LABEL.impressions, format: (v) => int(v) },
   { key: "clicks", label: "Clicks", format: (v) => int(v) },
-  { key: "conversions", label: "Conv.", format: (v) => int(v) },
+  { key: "conversions", label: METRIC_LABEL.conversions, format: (v) => int(v) },
   { key: "ctr", label: "CTR", format: (v) => pct(v) },
   { key: "cpm", label: "CPM", format: (v) => usd(v) },
   { key: "cpc", label: "CPC", format: (v) => usd(v) },

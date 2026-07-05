@@ -13,6 +13,7 @@ import {
 import { Sparkline } from "@/components/charts/sparkline";
 import { StatusBadge } from "@/components/creative/status-badge";
 import { int, pct, ratio, usd } from "@/lib/format";
+import { METRIC_LABEL } from "@/lib/metric-labels";
 import { cn } from "@/lib/utils";
 import type { LeaderboardRow } from "@/db/queries/performance";
 
@@ -77,15 +78,15 @@ const COLS: Col[] = [
   { key: "status", label: "Status", width: 96, align: "left", on: true, render: (r) => <StatusBadge status={r.status} /> },
   { key: "spend", label: "Spend", width: 90, align: "right", on: true, render: (r) => <span className="text-ink">{usd(r.spend)}</span> },
   { key: "cpm", label: "CPM", width: 76, align: "right", on: true, render: (r) => <span className="text-ink-2">{fUsd(r.cpm)}</span> },
-  { key: "impressions", label: "Impr.", width: 96, align: "right", on: false, render: (r) => <span className="text-ink-2">{int(r.impressions)}</span> },
+  { key: "impressions", label: METRIC_LABEL.impressions, width: 96, align: "right", on: false, render: (r) => <span className="text-ink-2">{int(r.impressions)}</span> },
   { key: "clicks", label: "Clicks", width: 84, align: "right", on: false, render: (r) => <span className="text-ink-2">{int(r.clicks)}</span> },
   { key: "ctr", label: "CTR", width: 74, align: "right", on: true, render: (r) => <span className="text-ink-2">{fPct(r.ctr)}</span> },
   { key: "voc", label: "VOC", width: 74, align: "right", on: true, render: (r) => <span className="text-ink-2">{fPct(r.voc)}</span> },
-  { key: "conversions", label: "Conv.", width: 84, align: "right", on: false, render: (r) => <span className="text-ink-2">{int(r.conversions)}</span> },
+  { key: "conversions", label: METRIC_LABEL.conversions, width: 84, align: "right", on: false, render: (r) => <span className="text-ink-2">{int(r.conversions)}</span> },
   { key: "cvr", label: "CvR", width: 74, align: "right", on: true, render: (r) => <span className="text-ink-2">{fPct(r.cvr)}</span> },
   { key: "cpa", label: "CPA", width: 78, align: "right", on: true, render: (r) => <span className="text-ink-2">{fUsd(r.cpa)}</span> },
   { key: "roas", label: "ROAS", width: 78, align: "right", on: true, render: (r) => <span className="text-ink">{fRatio(r.roas)}</span> },
-  { key: "revenue", label: "Revenue", width: 100, align: "right", on: false, render: (r) => <span className="text-ink-2">{fUsd(r.conversionValue)}</span> },
+  { key: "revenue", label: METRIC_LABEL.revenue, width: 100, align: "right", on: false, render: (r) => <span className="text-ink-2">{fUsd(r.conversionValue)}</span> },
   { key: "trend", label: "Trend", width: 120, align: "left", on: true, render: (r) => <Sparkline values={r.sparkline} color="var(--brand-2)" responsive height={24} /> },
 ];
 
