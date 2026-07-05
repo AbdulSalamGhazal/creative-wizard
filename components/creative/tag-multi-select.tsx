@@ -98,7 +98,7 @@ export function TagMultiSelect({
                 <button
                   type="button"
                   onClick={addDraft}
-                  className="inline-flex items-center gap-1 h-8 px-2 rounded-md bg-brand text-white text-[11px] whitespace-nowrap"
+                  className="inline-flex items-center gap-1 h-8 px-2 rounded-md bg-brand text-primary-foreground text-[11px] whitespace-nowrap"
                 >
                   <Plus className="w-3 h-3" />
                   Add
@@ -127,7 +127,7 @@ export function TagMultiSelect({
                       className={cn(
                         "inline-flex items-center justify-center w-4 h-4 rounded border",
                         isSel
-                          ? "bg-brand border-brand text-white"
+                          ? "bg-brand border-brand text-primary-foreground"
                           : "border-line",
                       )}
                     >

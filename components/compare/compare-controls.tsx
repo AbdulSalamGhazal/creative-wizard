@@ -323,7 +323,7 @@ function MultiSelect({
                         className={
                           "w-3.5 h-3.5 rounded-sm border flex items-center justify-center shrink-0 " +
                           (isSel
-                            ? "bg-brand border-brand text-white"
+                            ? "bg-brand border-brand text-primary-foreground"
                             : "border-line-2")
                         }
                       >
