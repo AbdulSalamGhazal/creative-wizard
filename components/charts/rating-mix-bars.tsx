@@ -6,10 +6,11 @@ import { RATING_VALUES, type Rating, type RatingWindow } from "@/lib/rating";
 import { RatingWindowControl } from "@/components/charts/rating-window-control";
 
 const COLOR: Record<Rating, string> = {
-  // --pos is bright enough that white in-segment text washes out, so darken it
-  // ~22% just for this chart (the global --pos is untouched elsewhere).
+  // --pos and --warn are both bright enough that white in-segment text washes
+  // out, so darken each ~22% just for this chart (the globals are untouched
+  // elsewhere). White-on-bare-warn is only ~1.55:1 on the dark themes.
   good: "color-mix(in srgb, var(--pos) 78%, #000 22%)",
-  decent: "var(--warn)",
+  decent: "color-mix(in srgb, var(--warn) 78%, #000 22%)",
   bad: "var(--neg)",
   na: "var(--ink-3)",
 };
