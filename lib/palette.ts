@@ -116,6 +116,32 @@ export function seriesColor(index: number): string {
   return SERIES_COLORS[((index % SERIES_COLORS.length) + SERIES_COLORS.length) % SERIES_COLORS.length]!;
 }
 
+/**
+ * One canonical color per funnel efficiency metric, shared by every funnel
+ * surface (dashboard "Funnel rates" card, the /funnel rate tiles + trend chart)
+ * so a metric reads the same everywhere. Theme-aware (series vars, darker on
+ * light themes) and deliberately NONE of these is a platform hue — the old
+ * overview map used the Facebook blue for CPM and disagreed with /funnel on
+ * CTR (violet vs blue) and VOC (amber vs emerald).
+ */
+export type FunnelMetric =
+  | "cpm"
+  | "ctr"
+  | "voc"
+  | "atcRate"
+  | "apRate"
+  | "purchaseRate"
+  | "cvr";
+export const FUNNEL_METRIC_COLOR: Record<FunnelMetric, string> = {
+  cpm: "var(--series-4)", // amber
+  ctr: "var(--series-1)", // blue
+  voc: "var(--series-3)", // emerald
+  atcRate: "var(--series-7)", // cyan
+  apRate: "var(--series-2)", // pink
+  purchaseRate: "var(--series-6)", // orange
+  cvr: "var(--series-5)", // violet
+};
+
 /** Fixed colors + labels for the three creative types. */
 export const TYPE_COLOR: Record<"video" | "image" | "slides", string> = {
   video: "var(--type-video)", // sky

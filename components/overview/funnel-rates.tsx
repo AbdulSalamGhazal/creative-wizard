@@ -3,16 +3,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Sparkline } from "@/components/charts/sparkline";
 import { computeDelta, type Delta } from "@/lib/period";
 import { pct, usd } from "@/lib/format";
+import { FUNNEL_METRIC_COLOR } from "@/lib/palette";
 import type { DailyRatesRow, Kpis, KpisWithDelta } from "@/db/queries/performance";
 
 type RateKey = "cpm" | "ctr" | "voc" | "cvr";
 
-const COLOR: Record<RateKey, string> = {
-  cpm: "#4f8efb", // blue
-  ctr: "#a855f7", // violet
-  voc: "#f59e0b", // amber
-  cvr: "#34d399", // emerald
-};
+// One shared source for funnel metric colors (lib/palette) — the old local map
+// used the Facebook blue for CPM and disagreed with /funnel on CTR + VOC.
+const COLOR = FUNNEL_METRIC_COLOR;
 
 /**
  * The four funnel efficiency rates — CPM, CTR, VOC, CvR — as colorful stat

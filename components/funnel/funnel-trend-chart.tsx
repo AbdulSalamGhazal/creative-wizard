@@ -15,17 +15,18 @@ import { cn } from "@/lib/utils";
 import { SeriesLegend } from "@/components/charts/series-legend";
 import { ChartShell, ExpandButton, SmoothToggle } from "@/components/charts/chart-shell";
 import { smoothColumns } from "@/lib/chart-smooth";
+import { FUNNEL_METRIC_COLOR } from "@/lib/palette";
 import type { FunnelDailyPoint } from "@/db/queries/funnel";
 
 type MetricKey = "ctr" | "voc" | "atcRate" | "apRate" | "purchaseRate" | "cvr";
 
 const METRICS: Array<{ key: MetricKey; label: string; color: string }> = [
-  { key: "ctr", label: "CTR", color: "#60A5FA" },
-  { key: "voc", label: "VOC", color: "#34D399" },
-  { key: "atcRate", label: "ATC", color: "#22D3EE" },
-  { key: "apRate", label: "AP", color: "#F472B6" },
-  { key: "purchaseRate", label: "CvR (AP)", color: "#FB923C" },
-  { key: "cvr", label: "CvR (LP)", color: "#A78BFA" },
+  { key: "ctr", label: "CTR", color: FUNNEL_METRIC_COLOR.ctr },
+  { key: "voc", label: "VOC", color: FUNNEL_METRIC_COLOR.voc },
+  { key: "atcRate", label: "ATC", color: FUNNEL_METRIC_COLOR.atcRate },
+  { key: "apRate", label: "AP", color: FUNNEL_METRIC_COLOR.apRate },
+  { key: "purchaseRate", label: "CvR (AP)", color: FUNNEL_METRIC_COLOR.purchaseRate },
+  { key: "cvr", label: "CvR (LP)", color: FUNNEL_METRIC_COLOR.cvr },
 ];
 
 const monthDay = new Intl.DateTimeFormat("en-US", {
