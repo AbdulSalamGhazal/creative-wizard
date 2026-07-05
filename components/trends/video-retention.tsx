@@ -12,20 +12,17 @@ import {
   YAxis,
 } from "recharts";
 import { cn } from "@/lib/utils";
+import { seriesColor } from "@/lib/palette";
 import type { VideoDiagnosticRow, VideoFunnel } from "@/db/queries/trends";
 import { ChartTooltip } from "@/components/charts/chart-tooltip";
+import { ChartShell, ExpandButton } from "@/components/charts/chart-shell";
+import { SeriesLegend } from "@/components/charts/series-legend";
 
 type Norm = "impr" | "hook";
 type Mode = "portfolio" | "byVideo";
 
 const STAGES_IMPR = ["Impr", "2s", "25%", "50%", "75%", "100%"] as const;
 const STAGES_HOOK = ["2s", "25%", "50%", "75%", "100%"] as const;
-
-// Distinct line colors for the per-video overlay.
-const SERIES_COLORS = [
-  "#60a5fa", "#f472b6", "#34d399", "#fbbf24", "#a78bfa",
-  "#22d3ee", "#fb923c", "#4ade80",
-];
 
 const TOP_N = 8;
 
@@ -54,12 +51,30 @@ export function VideoRetention({
 }) {
   const [mode, setMode] = useState<Mode>("portfolio");
   const [norm, setNorm] = useState<Norm>("hook");
+  // Hidden per-video lines (byVideo overlay); default all shown.
+  const [hidden, setHidden] = useState<Set<string>>(new Set());
 
   const stages = norm === "impr" ? STAGES_IMPR : STAGES_HOOK;
   const topVideos = useMemo(
     () => rows.filter((r) => r.v2s > 0).slice(0, TOP_N),
     [rows],
   );
+  const colorOf = (id: string) =>
+    seriesColor(topVideos.findIndex((v) => v.creativeId === id));
+  const shownSet = useMemo(
+    () =>
+      new Set(
+        topVideos.filter((v) => !hidden.has(v.creativeId)).map((v) => v.creativeId),
+      ),
+    [topVideos, hidden],
+  );
+  const toggleVideo = (id: string) =>
+    setHidden((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
 
   const { data, insight } = useMemo(() => {
     if (mode === "portfolio") {
@@ -83,109 +98,118 @@ export function VideoRetention({
   }, [mode, norm, aggregate, topVideos, stages]);
 
   return (
-    <div className="rounded-lg border border-line bg-surface p-4">
-      <div className="flex items-start justify-between flex-wrap gap-3 mb-3">
-        <div>
-          <h3 className="text-sm text-ink-2">Retention curve</h3>
-          <p className="text-[10px] text-ink-3">
-            {norm === "hook"
-              ? "Share of 2-second viewers surviving each quartile — holding power."
-              : "Share of impressions reaching each stage — full reach funnel."}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Toggle
-            value={mode}
-            onChange={(v) => setMode(v as Mode)}
-            options={[{ k: "portfolio", label: "Portfolio" }, { k: "byVideo", label: "Top videos" }]}
-          />
-          <Toggle
-            value={norm}
-            onChange={(v) => setNorm(v as Norm)}
-            options={[{ k: "hook", label: "% of 2s" }, { k: "impr", label: "% of impr" }]}
-          />
-        </div>
-      </div>
-
-      {insight && (
-        <div className="mb-2 text-[11px] text-ink-2">
-          Biggest drop-off:{" "}
-          <span className="text-neg font-medium">
-            {insight.from} → {insight.to} (−{insight.drop.toFixed(0)} pts)
-          </span>
-        </div>
-      )}
-
-      <div className="h-72">
-        <ResponsiveContainer width="100%" height="100%">
-          <ComposedChart data={data} margin={{ top: 10, right: 12, left: 0, bottom: 4 }}>
-            <CartesianGrid stroke="var(--line)" strokeDasharray="3 3" vertical={false} />
-            <XAxis dataKey="stage" tick={{ fill: "var(--ink-3)", fontSize: 11 }} stroke="var(--line-2)" />
-            <YAxis
-              tickFormatter={(v) => `${v}%`}
-              domain={[0, 100]}
-              tick={{ fill: "var(--ink-3)", fontSize: 11 }}
-              stroke="var(--line-2)"
-              width={40}
-            />
-            <Tooltip
-              cursor={{ stroke: "var(--line-2)", strokeDasharray: "3 3" }}
-              content={({ active, payload, label }) => {
-                if (!active || !payload || payload.length === 0) return null;
-                return (
-                  <ChartTooltip className="max-w-[16rem]">
-                    <div className="text-ink font-medium mb-1">{label}</div>
-                    {payload.slice(0, 8).map((p) => (
-                      <div key={String(p.dataKey)} className="flex items-center justify-between gap-4">
-                        <span className="inline-flex items-center gap-1.5 text-ink-2 truncate">
-                          <span className="w-2 h-2 rounded-full" style={{ background: p.color }} />
-                          {mode === "portfolio" ? "Retained" : labelFor(topVideos, String(p.dataKey))}
-                        </span>
-                        <span className="tabular-nums text-ink">{(p.value as number).toFixed(0)}%</span>
-                      </div>
-                    ))}
-                  </ChartTooltip>
-                );
-              }}
-            />
-            {mode === "portfolio" ? (
-              <Area
-                type="monotone"
-                dataKey="portfolio"
-                stroke="var(--brand)"
-                fill="var(--brand)"
-                fillOpacity={0.14}
-                strokeWidth={2}
-                dot={{ r: 3, fill: "var(--brand)" }}
+    <ChartShell ariaLabel="Retention curve — expanded">
+      {({ inFull, toggleExpand }) => (
+        <>
+          <div className="flex items-start justify-between flex-wrap gap-3 mb-3">
+            <div>
+              <h3 className="text-sm text-ink-2">Retention curve</h3>
+              <p className="text-[10px] text-ink-3">
+                {norm === "hook"
+                  ? "Share of 2-second viewers surviving each quartile — holding power."
+                  : "Share of impressions reaching each stage — full reach funnel."}
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Toggle
+                value={mode}
+                onChange={(v) => setMode(v as Mode)}
+                options={[{ k: "portfolio", label: "Portfolio" }, { k: "byVideo", label: "Top videos" }]}
               />
-            ) : (
-              topVideos.map((v, i) => (
-                <Line
-                  key={v.creativeId}
-                  type="monotone"
-                  dataKey={v.creativeId}
-                  stroke={SERIES_COLORS[i % SERIES_COLORS.length]}
-                  strokeWidth={1.75}
-                  dot={false}
-                  connectNulls
-                />
-              ))
-            )}
-          </ComposedChart>
-        </ResponsiveContainer>
-      </div>
+              <Toggle
+                value={norm}
+                onChange={(v) => setNorm(v as Norm)}
+                options={[{ k: "hook", label: "% of 2s" }, { k: "impr", label: "% of impr" }]}
+              />
+              <ExpandButton inFull={inFull} onClick={toggleExpand} />
+            </div>
+          </div>
 
-      {mode === "byVideo" && topVideos.length > 0 && (
-        <div className="flex items-center gap-3 flex-wrap mt-2">
-          {topVideos.map((v, i) => (
-            <span key={v.creativeId} className="inline-flex items-center gap-1.5 text-[10px] text-ink-2 max-w-[12rem]">
-              <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: SERIES_COLORS[i % SERIES_COLORS.length] }} />
-              <span className="truncate">{v.name}</span>
-            </span>
-          ))}
-        </div>
+          {insight && (
+            <div className="mb-2 text-[11px] text-ink-2">
+              Biggest drop-off:{" "}
+              <span className="text-neg font-medium">
+                {insight.from} → {insight.to} (−{insight.drop.toFixed(0)} pts)
+              </span>
+            </div>
+          )}
+
+          {mode === "byVideo" && topVideos.length > 0 && (
+            <SeriesLegend
+              className="mb-2"
+              items={topVideos.map((v) => ({
+                key: v.creativeId,
+                label: v.name,
+                color: colorOf(v.creativeId),
+              }))}
+              shown={shownSet}
+              onToggle={toggleVideo}
+            />
+          )}
+
+          <div className={inFull ? "flex-1 min-h-0" : "h-72"}>
+            <ResponsiveContainer width="100%" height="100%">
+              <ComposedChart data={data} margin={{ top: 10, right: 12, left: 0, bottom: 4 }}>
+                <CartesianGrid stroke="var(--line)" strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="stage" tick={{ fill: "var(--ink-3)", fontSize: 11 }} stroke="var(--line-2)" />
+                <YAxis
+                  tickFormatter={(v) => `${v}%`}
+                  domain={[0, 100]}
+                  tick={{ fill: "var(--ink-3)", fontSize: 11 }}
+                  stroke="var(--line-2)"
+                  width={40}
+                />
+                <Tooltip
+                  cursor={{ stroke: "var(--line-2)", strokeDasharray: "3 3" }}
+                  content={({ active, payload, label }) => {
+                    if (!active || !payload || payload.length === 0) return null;
+                    return (
+                      <ChartTooltip className="max-w-[16rem]">
+                        <div className="text-ink font-medium mb-1">{label}</div>
+                        {payload.slice(0, 8).map((p) => (
+                          <div key={String(p.dataKey)} className="flex items-center justify-between gap-4">
+                            <span className="inline-flex items-center gap-1.5 text-ink-2 truncate">
+                              <span className="w-2 h-2 rounded-full" style={{ background: p.color }} />
+                              {mode === "portfolio" ? "Retained" : labelFor(topVideos, String(p.dataKey))}
+                            </span>
+                            <span className="tabular-nums text-ink">{(p.value as number).toFixed(0)}%</span>
+                          </div>
+                        ))}
+                      </ChartTooltip>
+                    );
+                  }}
+                />
+                {mode === "portfolio" ? (
+                  <Area
+                    type="monotone"
+                    dataKey="portfolio"
+                    stroke="var(--brand)"
+                    fill="var(--brand)"
+                    fillOpacity={0.14}
+                    strokeWidth={2}
+                    dot={{ r: 3, fill: "var(--brand)" }}
+                  />
+                ) : (
+                  topVideos
+                    .filter((v) => shownSet.has(v.creativeId))
+                    .map((v) => (
+                      <Line
+                        key={v.creativeId}
+                        type="monotone"
+                        dataKey={v.creativeId}
+                        stroke={colorOf(v.creativeId)}
+                        strokeWidth={1.75}
+                        dot={false}
+                        connectNulls
+                      />
+                    ))
+                )}
+              </ComposedChart>
+            </ResponsiveContainer>
+          </div>
+        </>
       )}
-    </div>
+    </ChartShell>
   );
 }
 
