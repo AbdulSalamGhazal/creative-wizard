@@ -27,6 +27,7 @@ import { PlatformDot } from "@/components/ui/platform-dot";
 import { parseCampaignDetailParams } from "@/validators/campaign";
 import { PLATFORM_LABEL } from "@/lib/palette";
 import { safeDecodeURIComponent } from "@/lib/url";
+import { PageShell } from "@/components/layout/page-shell";
 import { isoDate } from "@/lib/format";
 import { defaultDateRange, presetLabel } from "@/lib/date-presets";
 import { resolvePreferredRange } from "@/db/queries/user-prefs";
@@ -93,7 +94,7 @@ export default async function CampaignDetailPage({
   }));
 
   return (
-    <div className="space-y-6">
+    <PageShell>
       {/* ─────────── Header ─────────── */}
       <section className="space-y-4">
         <div className="flex items-center justify-between gap-3">
@@ -208,6 +209,6 @@ export default async function CampaignDetailPage({
           </div>
         </div>
       )}
-    </div>
+    </PageShell>
   );
 }

@@ -32,6 +32,7 @@ import { AnalyticsDateFilter } from "@/components/creative/analytics-date-filter
 import { NotesPanel } from "@/components/creative/notes-panel";
 import { AuditFeed } from "@/components/audit/audit-feed";
 import { MetricCard } from "@/components/overview/metric-card";
+import { PageShell } from "@/components/layout/page-shell";
 import { int, ratio, usd0, usd1 } from "@/lib/format";
 import { computeDelta } from "@/lib/period";
 import { defaultDateRange, presetLabel } from "@/lib/date-presets";
@@ -181,7 +182,7 @@ export default async function CreativeDetailPage({
   );
 
   return (
-    <div className="space-y-10">
+    <PageShell>
       {/* ─────────── Pager ─────────── */}
       <CreativeDetailNav
         position={position}
@@ -279,6 +280,6 @@ export default async function CreativeDetailPage({
           />
         </div>
       </div>
-    </div>
+    </PageShell>
   );
 }
