@@ -95,7 +95,7 @@ export default async function CampaignsPage({
             {campaigns.length === 1 ? "" : "s"} · {from} → {to}
           </p>
         </div>
-        <Button asChild size="sm" variant="outline">
+        <Button asChild>
           <Link href="/campaigns/new">
             <Plus className="w-4 h-4" /> New campaign
           </Link>
