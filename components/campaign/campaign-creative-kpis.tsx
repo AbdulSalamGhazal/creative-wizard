@@ -79,7 +79,7 @@ export function CampaignCreativeKpis({
   const totalRevenue = creatives.reduce((s, c) => s + c.conversionValue, 0);
 
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
       <MetricCard
         label="Spend"
         value={usd(t.spend)}

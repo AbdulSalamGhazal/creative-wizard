@@ -220,7 +220,7 @@ export default async function CreativeDetailPage({
           />
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
           <MetricCard label="Spend" value={usd0(k.spend)} icon={DollarSign} delta={d.spend} hideBreakdown />
           <MetricCard label="Conversions" value={int(k.conversions)} icon={Target} delta={d.conversions} hideBreakdown />
           <MetricCard label="Revenue" value={usd0(k.conversionValue)} icon={Banknote} delta={revenueDelta} hideBreakdown />
