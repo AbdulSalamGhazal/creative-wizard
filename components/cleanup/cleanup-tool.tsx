@@ -4,6 +4,7 @@ import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { AlertTriangle, Check, ChevronDown, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -321,14 +322,15 @@ export function CleanupTool({ products, creatives, campaigns }: Props) {
           </PopoverContent>
         </Popover>
 
-        <button
+        <Button
           type="button"
+          variant="outline"
+          size="sm"
           onClick={doPreview}
           disabled={!hasFilter || isPending}
-          className="inline-flex items-center gap-2 h-8 px-3 rounded-md border border-line bg-surface text-xs text-ink hover:bg-surface-2 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
         >
           {isPending && !preview ? "Previewing…" : "Preview impact"}
-        </button>
+        </Button>
       </div>
 
       {!hasFilter && (
@@ -379,15 +381,16 @@ export function CleanupTool({ products, creatives, campaigns }: Props) {
                     className="h-8 mt-1 max-w-[220px]"
                   />
                 </div>
-                <button
+                <Button
                   type="button"
+                  variant="destructive"
+                  size="sm"
                   onClick={doDelete}
                   disabled={!confirmed || isPending}
-                  className="inline-flex items-center gap-2 h-8 px-3 rounded-md border border-neg/50 bg-neg/10 text-xs text-neg hover:bg-neg/20 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                   {isPending ? "Deleting…" : `Delete ${int(preview.rows)} rows`}
-                </button>
+                </Button>
               </div>
             </>
           )}

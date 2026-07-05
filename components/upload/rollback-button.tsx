@@ -76,7 +76,7 @@ export function RollbackButton({ batchId, fileName, rowCount }: Props) {
           <Button variant="ghost" onClick={() => setOpen(false)} disabled={isPending}>
             Cancel
           </Button>
-          <Button onClick={run} disabled={isPending}>
+          <Button variant="destructive" onClick={run} disabled={isPending}>
             {isPending ? "Rolling back…" : "Roll back"}
           </Button>
         </DialogFooter>

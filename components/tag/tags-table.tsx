@@ -6,6 +6,15 @@ import { Check, Pencil, Plus, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { isoDate } from "@/lib/format";
 import { createTag, deleteTag, renameTag } from "@/app/actions/tag";
 import type { TagRow } from "@/db/queries/tags";
@@ -21,6 +30,7 @@ export function TagsTable({ rows }: { rows: TagRow[] }) {
   const [newName, setNewName] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
+  const [deleting, setDeleting] = useState<TagRow | null>(null);
 
   const add = () => {
     const name = newName.trim();
@@ -60,12 +70,9 @@ export function TagsTable({ rows }: { rows: TagRow[] }) {
     });
   };
 
-  const remove = (row: TagRow) => {
-    const msg =
-      row.usage > 0
-        ? `Delete “${row.name}”? It will be removed from ${row.usage} creative${row.usage === 1 ? "" : "s"}.`
-        : `Delete “${row.name}”?`;
-    if (!window.confirm(msg)) return;
+  const confirmDelete = () => {
+    const row = deleting;
+    if (!row) return;
     startTransition(async () => {
       const res = await deleteTag(row.id);
       if (!res.ok) {
@@ -73,6 +80,7 @@ export function TagsTable({ rows }: { rows: TagRow[] }) {
         return;
       }
       toast.success(`Deleted “${row.name}”`);
+      setDeleting(null);
       router.refresh();
     });
   };
@@ -190,7 +198,7 @@ export function TagsTable({ rows }: { rows: TagRow[] }) {
                             variant="ghost"
                             size="xs"
                             aria-label={`Delete tag ${r.name}`}
-                            onClick={() => remove(r)}
+                            onClick={() => setDeleting(r)}
                             disabled={isPending}
                             className="text-ink-3 hover:text-neg"
                           >
@@ -206,6 +214,49 @@ export function TagsTable({ rows }: { rows: TagRow[] }) {
           </table>
         </div>
       )}
+
+      <Dialog
+        open={deleting !== null}
+        onOpenChange={(o) => {
+          if (isPending) return; // don't close mid-delete
+          if (!o) setDeleting(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete this tag?</DialogTitle>
+            <DialogDescription>
+              {deleting && deleting.usage > 0 ? (
+                <>
+                  <span className="font-medium text-ink">{deleting.name}</span>{" "}
+                  will be removed from {deleting.usage} creative
+                  {deleting.usage === 1 ? "" : "s"}. This can&apos;t be undone.
+                </>
+              ) : (
+                <>
+                  <span className="font-medium text-ink">{deleting?.name}</span>{" "}
+                  will be removed. This can&apos;t be undone.
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button variant="ghost" size="sm" disabled={isPending}>
+                Cancel
+              </Button>
+            </DialogClose>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={confirmDelete}
+              disabled={isPending}
+            >
+              {isPending ? "Deleting…" : "Delete tag"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
