@@ -15,6 +15,7 @@ import {
 import { pct, ratio, usd } from "@/lib/format";
 import type { VideoDiagnosticRow } from "@/db/queries/trends";
 import { ChartTooltip } from "@/components/charts/chart-tooltip";
+import { MetricPicker } from "@/components/charts/metric-picker";
 
 const compactUsd = new Intl.NumberFormat("en-US", {
   style: "currency", currency: "USD", notation: "compact", maximumFractionDigits: 1,
@@ -123,18 +124,15 @@ export function VideoScatter({ rows }: { rows: VideoDiagnosticRow[] }) {
 
 function Pick({ label, value, onChange }: { label: string; value: Axis; onChange: (a: Axis) => void }) {
   return (
-    <label className="inline-flex items-center gap-1">
+    <div className="inline-flex items-center gap-1.5">
       <span className="text-ink-3">{label}</span>
-      <select
+      <MetricPicker
+        options={AXES.map((a) => ({ value: a, label: M[a].label }))}
         value={value}
-        onChange={(e) => onChange(e.target.value as Axis)}
-        className="h-7 rounded-md border border-line bg-surface text-xs text-ink px-1.5 focus:outline-none focus:border-brand/50"
-      >
-        {AXES.map((a) => (
-          <option key={a} value={a}>{M[a].label}</option>
-        ))}
-      </select>
-    </label>
+        onChange={onChange}
+        ariaLabel={`${label} axis`}
+      />
+    </div>
   );
 }
 

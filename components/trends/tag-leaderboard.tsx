@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { int, pct, ratio, usd } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { MetricPicker } from "@/components/charts/metric-picker";
 import type { TagRollupRow } from "@/db/queries/trends";
 
 type MetricKey =
@@ -62,15 +63,11 @@ export function TagLeaderboard({ rows }: { rows: TagRollupRow[] }) {
           </h3>
           <p className="text-[10px] text-ink-3">Ranked across all tags in this window</p>
         </div>
-        <select
+        <MetricPicker
+          options={METRICS.map((m) => ({ value: m.key, label: m.label }))}
           value={metricKey}
-          onChange={(e) => setMetricKey(e.target.value as MetricKey)}
-          className="h-7 rounded-md border border-line bg-surface text-xs text-ink px-2 focus:outline-none focus:border-brand/50"
-        >
-          {METRICS.map((m) => (
-            <option key={m.key} value={m.key}>{m.label}</option>
-          ))}
-        </select>
+          onChange={setMetricKey}
+        />
       </div>
 
       {ranked.top.length === 0 ? (
