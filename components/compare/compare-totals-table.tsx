@@ -11,7 +11,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { COMPARE_COLORS } from "@/components/charts/compare-chart";
-import { int, pct, ratio, usd } from "@/lib/format";
+import { int, pct, roas, usd } from "@/lib/format";
 import type { Kpis } from "@/db/queries/performance";
 
 type ColumnDef = {
@@ -40,7 +40,7 @@ const COLUMNS: ColumnDef[] = [
   { key: "cpm", label: "CPM", fmt: (v) => usd(v) },
   { key: "cpc", label: "CPC", fmt: (v) => usd(v) },
   { key: "cpa", label: "CPA", fmt: (v) => usd(v) },
-  { key: "roas", label: "ROAS", fmt: (v) => ratio(v), strong: true },
+  { key: "roas", label: "ROAS", fmt: (v) => roas(v), strong: true },
   { key: "hookRate", label: "Hook rate", fmt: (v) => pct(v) },
   { key: "holdRate", label: "Hold rate", fmt: (v) => pct(v) },
 ];

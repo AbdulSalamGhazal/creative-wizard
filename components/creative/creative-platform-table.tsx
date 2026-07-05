@@ -3,7 +3,7 @@
 import { Fragment, useMemo, useState } from "react";
 import { ChevronRight } from "lucide-react";
 import { PLATFORM_COLOR, PLATFORM_LABEL } from "@/lib/palette";
-import { int, pct, ratio, usd } from "@/lib/format";
+import { int, pct, roas, usd } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { PlatformMixRow, CampaignMixRow } from "@/db/queries/performance";
 
@@ -99,7 +99,7 @@ export function CreativePlatformTable({ rows, campaigns }: Props) {
                   <td className="px-3 py-2.5 text-right text-ink-2 tabular-nums">{int(r.conversions)}</td>
                   <td className="px-3 py-2.5 text-right text-ink-2 tabular-nums">{usd(r.conversionValue)}</td>
                   <td className="px-3 py-2.5 text-right text-ink-2 tabular-nums">{usd(r.cpa)}</td>
-                  <td className="px-3 py-2.5 text-right text-ink tabular-nums">{ratio(r.roas)}</td>
+                  <td className="px-3 py-2.5 text-right text-ink tabular-nums">{roas(r.roas)}</td>
                   <td className="px-3 py-2.5 text-right text-ink-2 tabular-nums">{usd(r.cpm)}</td>
                   <td className="px-3 py-2.5 text-right text-ink-2 tabular-nums">{pct(r.ctr)}</td>
                   <td className="px-3 py-2.5 text-right text-ink-2 tabular-nums">{pct(r.voc)}</td>
@@ -125,7 +125,7 @@ export function CreativePlatformTable({ rows, campaigns }: Props) {
                       <td className="px-3 py-1.5 text-right text-ink-3 tabular-nums">{int(c.conversions)}</td>
                       <td className="px-3 py-1.5 text-right text-ink-3 tabular-nums">{usd(c.conversionValue)}</td>
                       <td className="px-3 py-1.5 text-right text-ink-3 tabular-nums">{usd(c.cpa)}</td>
-                      <td className="px-3 py-1.5 text-right text-ink-2 tabular-nums">{ratio(c.roas)}</td>
+                      <td className="px-3 py-1.5 text-right text-ink-2 tabular-nums">{roas(c.roas)}</td>
                       <td className="px-3 py-1.5 text-right text-ink-3 tabular-nums">{usd(c.cpm)}</td>
                       <td className="px-3 py-1.5 text-right text-ink-3 tabular-nums">{pct(c.ctr)}</td>
                       <td className="px-3 py-1.5 text-right text-ink-3 tabular-nums">{pct(c.voc)}</td>

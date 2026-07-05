@@ -65,6 +65,16 @@ export function ratio(value: number | null | undefined): string {
   return ratioFormatter.format(value);
 }
 
+/**
+ * ROAS as a ×-suffixed ratio (e.g. "8.50×"). The suffix is part of the metric's
+ * identity — render ROAS through this everywhere so it never shows as a bare
+ * number that reads like a dollar figure. Null/NaN → em-dash.
+ */
+export function roas(value: number | null | undefined): string {
+  if (value === null || value === undefined || Number.isNaN(value)) return EM_DASH;
+  return `${ratioFormatter.format(value)}×`;
+}
+
 /** Currency with no cents (e.g. "$123,456"). */
 export function usd0(value: number | null | undefined): string {
   if (value === null || value === undefined || Number.isNaN(value)) return EM_DASH;

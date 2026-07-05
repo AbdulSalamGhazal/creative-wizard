@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import { MetricCard, type BreakdownBar } from "@/components/overview/metric-card";
 import { seriesColor } from "@/lib/palette";
-import { int, pct, ratio, usd } from "@/lib/format";
+import { int, pct, roas, usd } from "@/lib/format";
 import type {
   CampaignAnalytics,
   CampaignCreativeRow,
@@ -103,10 +103,10 @@ export function CampaignCreativeKpis({
       />
       <MetricCard
         label="ROAS"
-        value={ratio(t.roas)}
+        value={roas(t.roas)}
         icon={TrendingUp}
         delta={d?.roas}
-        bars={rateBars((c) => c.roas, (n) => ratio(n))}
+        bars={rateBars((c) => c.roas, (n) => roas(n))}
       />
       <MetricCard
         label="CPA"

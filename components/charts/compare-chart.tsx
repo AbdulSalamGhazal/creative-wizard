@@ -10,7 +10,7 @@ import {
   YAxis,
 } from "recharts";
 import { type ReactNode, useMemo, useState } from "react";
-import { usd, ratio, pct, int } from "@/lib/format";
+import { usd, roas, pct, int } from "@/lib/format";
 import { seriesColor } from "@/lib/palette";
 import { useChartFit, ChartFitToggle } from "@/components/charts/chart-fit";
 import { SeriesLegend } from "@/components/charts/series-legend";
@@ -82,7 +82,7 @@ function fmt(metric: CompareMetric, v: number | null | undefined): string {
     case "hookRate":
       return pct(v);
     case "roas":
-      return ratio(v);
+      return roas(v);
     case "impressions":
     case "clicks":
     case "conversions":
