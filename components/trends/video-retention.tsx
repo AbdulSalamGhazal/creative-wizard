@@ -13,6 +13,7 @@ import {
 } from "recharts";
 import { cn } from "@/lib/utils";
 import type { VideoDiagnosticRow, VideoFunnel } from "@/db/queries/trends";
+import { ChartTooltip } from "@/components/charts/chart-tooltip";
 
 type Norm = "impr" | "hook";
 type Mode = "portfolio" | "byVideo";
@@ -132,7 +133,7 @@ export function VideoRetention({
               content={({ active, payload, label }) => {
                 if (!active || !payload || payload.length === 0) return null;
                 return (
-                  <div className="rounded-md border border-line bg-popover/95 backdrop-blur px-3 py-2 shadow-lg text-xs max-w-[16rem]">
+                  <ChartTooltip className="max-w-[16rem]">
                     <div className="text-ink font-medium mb-1">{label}</div>
                     {payload.slice(0, 8).map((p) => (
                       <div key={String(p.dataKey)} className="flex items-center justify-between gap-4">
@@ -143,7 +144,7 @@ export function VideoRetention({
                         <span className="tabular-nums text-ink">{(p.value as number).toFixed(0)}%</span>
                       </div>
                     ))}
-                  </div>
+                  </ChartTooltip>
                 );
               }}
             />

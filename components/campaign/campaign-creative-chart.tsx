@@ -17,6 +17,7 @@ import { SeriesLegend } from "@/components/charts/series-legend";
 import { ChartShell, ExpandButton, SmoothToggle, GroupToggle } from "@/components/charts/chart-shell";
 import { smoothColumns } from "@/lib/chart-smooth";
 import type { CampaignCreativeDailyPoint } from "@/db/queries/campaign";
+import { ChartTooltip } from "@/components/charts/chart-tooltip";
 
 type MetricKey =
   | "spend"
@@ -305,7 +306,7 @@ function ChartTip({
     .filter((r) => r.v !== null && r.v !== undefined)
     .sort((a, b) => (b.v ?? 0) - (a.v ?? 0));
   return (
-    <div className="rounded-md border border-line bg-popover/95 backdrop-blur px-3 py-2 text-xs shadow-lg max-w-[18rem]">
+    <ChartTooltip className="max-w-[18rem]">
       <div className="text-ink-2 mb-1.5">
         {monthDay.format(new Date(label))} · {metricLabel}
       </div>
@@ -325,6 +326,6 @@ function ChartTip({
           ))
         )}
       </div>
-    </div>
+    </ChartTooltip>
   );
 }

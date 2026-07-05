@@ -14,6 +14,7 @@ import {
 } from "recharts";
 import { pct, ratio, usd } from "@/lib/format";
 import type { VideoDiagnosticRow } from "@/db/queries/trends";
+import { ChartTooltip } from "@/components/charts/chart-tooltip";
 
 const compactUsd = new Intl.NumberFormat("en-US", {
   style: "currency", currency: "USD", notation: "compact", maximumFractionDigits: 1,
@@ -93,13 +94,13 @@ export function VideoScatter({ rows }: { rows: VideoDiagnosticRow[] }) {
                   if (!active || !payload || payload.length === 0) return null;
                   const p = payload[0]?.payload as { name: string; spend: number; xv: number; yv: number };
                   return (
-                    <div className="rounded-md border border-line bg-popover/95 backdrop-blur px-3 py-2 shadow-lg text-xs max-w-xs">
+                    <ChartTooltip className="max-w-xs">
                       <div className="text-ink font-medium mb-1 truncate">{p.name}</div>
                       <Row label={x.label} value={x.fmt(p.xv)} />
                       <Row label={y.label} value={y.fmt(p.yv)} />
                       <Row label="Spend" value={usd(p.spend)} />
                       <div className="mt-1 text-[10px] text-ink-3">Click to open creative</div>
-                    </div>
+                    </ChartTooltip>
                   );
                 }}
               />

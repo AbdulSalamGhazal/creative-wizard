@@ -23,6 +23,7 @@ import {
 import { smoothColumns } from "@/lib/chart-smooth";
 import { useChartFit, ChartFitToggle } from "@/components/charts/chart-fit";
 import type { DailyMetricRow } from "@/db/queries/performance";
+import { ChartTooltip } from "@/components/charts/chart-tooltip";
 
 interface Props {
   rows: DailyMetricRow[];
@@ -303,7 +304,7 @@ function LineTooltip({
 }) {
   if (!active || !payload || payload.length === 0 || !label) return null;
   return (
-    <div className="rounded-md border border-line bg-popover/95 backdrop-blur px-3 py-2 text-xs shadow-lg">
+    <ChartTooltip>
       <div className="text-ink-2 mb-1.5">
         {monthDay.format(new Date(label))} · {metricLabel}
       </div>
@@ -319,6 +320,6 @@ function LineTooltip({
           </div>
         ))}
       </div>
-    </div>
+    </ChartTooltip>
   );
 }

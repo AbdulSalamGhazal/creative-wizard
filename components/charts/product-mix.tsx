@@ -4,6 +4,7 @@ import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import { useMemo } from "react";
 import { productColor } from "@/lib/palette";
 import { usd } from "@/lib/format";
+import { ChartTooltip } from "@/components/charts/chart-tooltip";
 import type { ProductMixRow } from "@/db/queries/performance";
 
 interface Props {
@@ -114,7 +115,7 @@ function DonutTooltip({
   const entry = payload[0]?.payload;
   if (!entry) return null;
   return (
-    <div className="rounded-md border border-line bg-popover/95 backdrop-blur px-3 py-2 text-xs shadow-lg">
+    <ChartTooltip>
       <div className="flex items-center gap-2 mb-1">
         <span
           className="w-2 h-2 rounded-sm shrink-0"
@@ -132,6 +133,6 @@ function DonutTooltip({
           {(entry.share * 100).toFixed(1)}%
         </span>
       </div>
-    </div>
+    </ChartTooltip>
   );
 }

@@ -17,6 +17,7 @@ import { ChartShell, ExpandButton, SmoothToggle } from "@/components/charts/char
 import { smoothColumns } from "@/lib/chart-smooth";
 import { FUNNEL_METRIC_COLOR } from "@/lib/palette";
 import type { FunnelDailyPoint } from "@/db/queries/funnel";
+import { ChartTooltip } from "@/components/charts/chart-tooltip";
 
 type MetricKey = "ctr" | "voc" | "atcRate" | "apRate" | "purchaseRate" | "cvr";
 
@@ -228,7 +229,7 @@ function FunnelTip({
   if (!active || !payload || payload.length === 0 || !label) return null;
   const byKey = new Map(payload.map((p) => [p.dataKey, p.value]));
   return (
-    <div className="rounded-md border border-line bg-popover/95 backdrop-blur px-3 py-2 text-xs shadow-lg">
+    <ChartTooltip>
       <div className="text-ink-2 mb-1.5">{monthDay.format(new Date(label))}</div>
       <div className="space-y-1">
         {visible.map((m) => (
@@ -247,6 +248,6 @@ function FunnelTip({
           </div>
         ))}
       </div>
-    </div>
+    </ChartTooltip>
   );
 }

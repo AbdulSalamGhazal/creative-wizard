@@ -14,6 +14,7 @@ import { ALL_PLATFORMS, PLATFORM_LABEL, TYPE_COLOR, TYPE_LABEL } from "@/lib/pal
 import { int, pct, ratio, usd } from "@/lib/format";
 import { MetricPicker } from "@/components/charts/metric-picker";
 import type { TypeRollupRow } from "@/db/queries/trends";
+import { ChartTooltip } from "@/components/charts/chart-tooltip";
 
 type Metric = "spend" | "impressions" | "roas" | "ctr" | "cvr" | "cpc" | "cpa";
 type CreativeType = TypeRollupRow["type"];
@@ -160,7 +161,7 @@ function TypeTooltip({
   const platform = payload[0]?.payload.platform ?? "";
   const m = METRICS[metric];
   return (
-    <div className="rounded-md border border-line bg-popover/95 backdrop-blur px-3 py-2 shadow-lg text-xs">
+    <ChartTooltip>
       <div className="text-ink font-medium mb-1.5">
         {PLATFORM_LABEL[platform as keyof typeof PLATFORM_LABEL] ?? platform}
       </div>
@@ -180,6 +181,6 @@ function TypeTooltip({
           );
         })}
       </div>
-    </div>
+    </ChartTooltip>
   );
 }

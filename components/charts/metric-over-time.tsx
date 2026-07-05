@@ -17,6 +17,7 @@ import { smoothColumns } from "@/lib/chart-smooth";
 import { usd, int, ratio } from "@/lib/format";
 import { useChartFit, ChartFitToggle } from "@/components/charts/chart-fit";
 import type { MetricOverTimeRow } from "@/db/queries/performance";
+import { ChartTooltip } from "@/components/charts/chart-tooltip";
 
 export interface OverTimeKey {
   key: string;
@@ -343,7 +344,7 @@ function CustomTooltip({
   if (!active || !payload || payload.length === 0 || !label) return null;
   const total = payload.reduce((sum, p) => sum + (p.value ?? 0), 0);
   return (
-    <div className="rounded-md border border-line bg-popover/95 backdrop-blur px-3 py-2 text-xs shadow-lg">
+    <ChartTooltip>
       <div className="text-ink-2 mb-1.5">{monthDay.format(new Date(label))}</div>
       <div className="space-y-1">
         {payload.map((p) => (
@@ -365,6 +366,6 @@ function CustomTooltip({
           </div>
         )}
       </div>
-    </div>
+    </ChartTooltip>
   );
 }

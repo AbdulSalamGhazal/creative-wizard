@@ -21,6 +21,7 @@ import {
 } from "@/components/charts/chart-shell";
 import { smoothColumns } from "@/lib/chart-smooth";
 import type { CompareMetric, CompareSeriesPoint } from "@/db/queries/performance";
+import { ChartTooltip } from "@/components/charts/chart-tooltip";
 
 interface SideOption {
   id: string;
@@ -263,7 +264,7 @@ export function CompareChart({
                       )
                         return null;
                       return (
-                        <div className="rounded-md border border-line bg-popover/95 backdrop-blur px-3 py-2 text-xs shadow-lg">
+                        <ChartTooltip>
                           <div className="text-ink-2 mb-1.5">
                             {align
                               ? `Day ${label}`
@@ -307,7 +308,7 @@ export function CompareChart({
                               );
                             })}
                           </div>
-                        </div>
+                        </ChartTooltip>
                       );
                     }}
                   />

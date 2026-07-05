@@ -16,6 +16,7 @@ import {
 import { int, pct, ratio, usd } from "@/lib/format";
 import { MetricPicker } from "@/components/charts/metric-picker";
 import type { TagRollupRow } from "@/db/queries/trends";
+import { ChartTooltip } from "@/components/charts/chart-tooltip";
 
 const compactUsd = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -118,14 +119,14 @@ export function TagScatter({ rows }: { rows: TagRollupRow[] }) {
                     tag: string; x: number; creatives: number; cpa: number | null; roas: number | null;
                   };
                   return (
-                    <div className="rounded-md border border-line bg-popover/95 backdrop-blur px-3 py-2 shadow-lg text-xs max-w-xs">
+                    <ChartTooltip className="max-w-xs">
                       <div className="text-ink font-medium mb-1 truncate">#{p.tag}</div>
                       <Row label="Spend" value={usd(p.x)} />
                       <Row label="Creatives" value={int(p.creatives)} />
                       <Row label="CPA" value={p.cpa === null ? "—" : usd(p.cpa)} />
                       <Row label="ROAS" value={p.roas === null ? "—" : `${ratio(p.roas)}×`} />
                       <div className="mt-1 text-[10px] text-ink-3">Click to open Library</div>
-                    </div>
+                    </ChartTooltip>
                   );
                 }}
               />
