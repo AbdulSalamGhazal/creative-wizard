@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useRef, useState } from "react";
-import { ArrowDown, ArrowUp, GripVertical } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpDown, GripVertical } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { DownloadCsvButton } from "@/components/ui/download-csv-button";
 import { rowsToCsv, type CsvColumn } from "@/lib/csv-export";
@@ -264,12 +264,15 @@ export function DataTable<T>({
                         )}
                       >
                         {c.label}
-                        {sortKey === c.key &&
-                          (dir === "asc" ? (
-                            <ArrowUp className="w-3 h-3" />
+                        {sortKey === c.key ? (
+                          dir === "asc" ? (
+                            <ArrowUp className="w-3 h-3 text-brand" />
                           ) : (
-                            <ArrowDown className="w-3 h-3" />
-                          ))}
+                            <ArrowDown className="w-3 h-3 text-brand" />
+                          )
+                        ) : (
+                          <ArrowUpDown className="w-3 h-3 text-ink-3 opacity-60" />
+                        )}
                       </button>
                     ) : (
                       c.label
