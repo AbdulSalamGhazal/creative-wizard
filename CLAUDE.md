@@ -394,3 +394,41 @@ This app is deployed and in production use. Treat `main` as shippable.
   `portfolio-table.tsx`). All the filter bars, the date picker's parents,
   views-control, metric-filter, and the campaigns table already do. New nav
   components: use `useNavTransition` or they won't show the loading bar.
+
+- **UI consistency pass (2026-07, PARTIAL — 17/24 items) added shared
+  primitives; a fresh session must REUSE these, not re-invent them.**
+  - **Data-viz colors are theme-aware CSS vars, driven from `lib/palette.ts`.**
+    Series/product/type/platform colors are now `var(--series-N)` /
+    `var(--product-N)` / `var(--type-*)` / `var(--instagram|facebook|tiktok|
+    snapchat)` — NOT hex literals. `:root` holds the dark (400-level) values;
+    the grouped `.sand,.frost,.rose` block in `app/globals.css` overrides each
+    with a ~600-level darker sibling so charts stay legible on white. Recharts
+    resolves `var()` in `fill`/`stroke`, and inline `style` resolves it too, so
+    consumers just read the palette exports. Any NEW data color = a CSS var with
+    a light-theme override (verify on Midnight + Frost + Contrast).
+  - **`FUNNEL_METRIC_COLOR`** (lib/palette) is the single color-per-funnel-metric
+    map (cpm/ctr/voc/atcRate/apRate/purchaseRate/cvr) — the dashboard funnel-rates
+    card and the /funnel tiles + trend chart all read it; none collides with a
+    platform hue. **`roas()`** in `lib/format` renders ROAS with the `×` suffix —
+    use it everywhere ROAS shows.
+  - **`PlatformDot`** (`components/ui/platform-dot.tsx`, size `sm|md`) is the
+    canonical platform swatch — replaced hand-rolled dot spans. ~10 inline dot
+    spans in charts/admin tables still need swapping (folded into the Phase-5
+    primitive sweep). **Nav is one source:** `components/layout/nav-items.ts`
+    (`NAV_ITEMS`/`isActive`) drives BOTH the desktop `Sidebar` and the mobile
+    `MobileNav` (hamburger + Sheet, `lg:hidden`, in the TopBar).
+  - **`middleware.ts`** is the real auth boundary (Edge Web-Crypto HMAC verify of
+    the `ccms_session` cookie); the dashboard layout check is now belt-and-braces.
+  - **`MetricCard` has an `empty` prop** that suppresses the delta chip (no more
+    red "Gone" on an empty range). All sticky filter bars sit at `top-14 z-10`.
+  - **STILL PENDING (7 items) — do in a fresh session:** extract `PageHeader`/
+    `PageShell` across ~17 routes; add ~13 tailored `loading.tsx`; the Phase-5
+    primitive extraction (`ChartTooltip`, retheme shadcn `Card` to surface/line,
+    migrate `campaign-funnel-table` + `launch-fatigue` onto `DataTable`, swap
+    native `<select>`s for `MetricPicker`); number-format unification (adopt
+    `usdCompact`/`intCompact`; add `monthDay` to lib/format); one metric-label
+    vocabulary; campaign create/edit forms → shadcn `Select`; the error/feedback
+    convention; then append the "new surfaces MUST use shared primitives" rule to
+    the Shared-UI-primitives section. Deferred sub-items: campaign empty-KPI row
+    `$0.00`→`—` (needs the analytics query to return null on an empty window),
+    and the delete-dialog raw-checkbox → shadcn `Checkbox` swap.
