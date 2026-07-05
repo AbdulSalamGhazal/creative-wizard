@@ -10,6 +10,7 @@ import { requireAuth } from "@/lib/auth";
 import { creativeListFiltersSchema } from "@/validators/creative";
 import { LibraryHeader } from "@/components/creative/library-header";
 import { LibraryFilterBar } from "@/components/creative/library-filter-bar";
+import { PageShell } from "@/components/layout/page-shell";
 import { CreativeGrid } from "@/components/creative/creative-grid";
 import { CreativeTable } from "@/components/creative/creative-table";
 
@@ -84,7 +85,7 @@ export default async function CreativesPage({
   const listCtx = ctxParams.toString();
 
   return (
-    <div className="space-y-6">
+    <PageShell>
       <LibraryHeader breakdown={breakdown} />
       <LibraryFilterBar
         products={products}
@@ -109,6 +110,6 @@ export default async function CreativesPage({
           <CreativeGrid rows={listResult.rows} listCtx={listCtx} />
         </div>
       )}
-    </div>
+    </PageShell>
   );
 }

@@ -14,6 +14,8 @@ import { platformEnum } from "@/db/schema";
 import { requireAuth } from "@/lib/auth";
 import { SummaryFilterBar } from "@/components/summary/summary-filter-bar";
 import { SummaryTable } from "@/components/summary/summary-table";
+import { PageShell } from "@/components/layout/page-shell";
+import { PageHeader } from "@/components/layout/page-header";
 
 export const dynamic = "force-dynamic";
 
@@ -130,7 +132,7 @@ export default async function SummaryPage({
         : selectedPlatforms.join(", ");
 
   return (
-    <div className="space-y-4">
+    <PageShell>
       <SummaryFilterBar
         products={products}
         tags={tags}
@@ -142,21 +144,23 @@ export default async function SummaryPage({
         defaultTo={range.to}
       />
 
-      <div className="flex items-end justify-between flex-wrap gap-2">
-        <div>
-          <h1 className="font-display text-4xl tracking-tight">Summary</h1>
-          <p className="text-ink-3 text-sm mt-1">
+      <PageHeader
+        title="Summary"
+        subtitle={
+          <>
             {rows.length.toLocaleString()} creative{rows.length === 1 ? "" : "s"}
             {" · "}
             {rangeLabel}
             {" · "}
             {platformsLabel}
-          </p>
-        </div>
-        <div className="text-[11px] text-ink-3 font-mono">
-          Sorted by {effectiveSort.key} {effectiveSort.dir}
-        </div>
-      </div>
+          </>
+        }
+        rightSlot={
+          <div className="text-[11px] text-ink-3 font-mono">
+            Sorted by {effectiveSort.key} {effectiveSort.dir}
+          </div>
+        }
+      />
 
       <SummaryTable
         rows={rows}
@@ -170,6 +174,6 @@ export default async function SummaryPage({
         showRate={!parsed.hideRate}
         showBlended={!parsed.hideBlended}
       />
-    </div>
+    </PageShell>
   );
 }

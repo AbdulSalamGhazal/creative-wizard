@@ -10,6 +10,9 @@ interface PageHeaderProps {
   title: string;
   /** One-line description under the title. */
   subtitle?: ReactNode;
+  /** Rich block rendered in the title column, below the subtitle (e.g. a
+   *  status summary). For prose use `subtitle`; use this for elements. */
+  children?: ReactNode;
   /** Right-aligned slot — a primary action button or a context badge. */
   rightSlot?: ReactNode;
 }
@@ -25,6 +28,7 @@ export function PageHeader({
   backLink,
   title,
   subtitle,
+  children,
   rightSlot,
 }: PageHeaderProps) {
   return (
@@ -48,6 +52,7 @@ export function PageHeader({
         {subtitle && (
           <p className="text-ink-2 text-sm mt-1 max-w-2xl">{subtitle}</p>
         )}
+        {children}
       </div>
       {rightSlot}
     </div>

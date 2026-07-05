@@ -16,6 +16,8 @@ import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PortfolioFilterBar } from "@/components/portfolio/portfolio-filter-bar";
 import { PortfolioTable } from "@/components/portfolio/portfolio-table";
+import { PageShell } from "@/components/layout/page-shell";
+import { PageHeader } from "@/components/layout/page-header";
 
 export const dynamic = "force-dynamic";
 
@@ -86,21 +88,23 @@ export default async function CampaignsPage({
   ]);
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-start justify-between flex-wrap gap-3">
-        <div>
-          <h1 className="font-display text-4xl tracking-tight">Campaigns</h1>
-          <p className="text-ink-3 text-sm mt-1 num">
+    <PageShell>
+      <PageHeader
+        title="Campaigns"
+        subtitle={
+          <span className="num">
             {campaigns.length.toLocaleString()} campaign
             {campaigns.length === 1 ? "" : "s"} · {from} → {to}
-          </p>
-        </div>
-        <Button asChild>
-          <Link href="/campaigns/new">
-            <Plus className="w-4 h-4" /> New campaign
-          </Link>
-        </Button>
-      </div>
+          </span>
+        }
+        rightSlot={
+          <Button asChild>
+            <Link href="/campaigns/new">
+              <Plus className="w-4 h-4" /> New campaign
+            </Link>
+          </Button>
+        }
+      />
 
       <Suspense fallback={null}>
         <PortfolioFilterBar
@@ -119,6 +123,6 @@ export default async function CampaignsPage({
         hidden={parsed.hide}
         order={parsed.order}
       />
-    </div>
+    </PageShell>
   );
 }
