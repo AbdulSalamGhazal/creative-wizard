@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { AlertTriangle, Loader2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogClose,
@@ -161,12 +162,11 @@ export function DeleteCampaignDialog({
 
           {/* Acknowledgement guard */}
           <label className="flex items-start gap-2 cursor-pointer select-none rounded-md border border-line bg-surface px-3 py-2.5">
-            <input
-              type="checkbox"
+            <Checkbox
               checked={acknowledged}
-              onChange={(e) => setAcknowledged(e.target.checked)}
+              onCheckedChange={(v) => setAcknowledged(v === true)}
               disabled={isPending}
-              className="mt-0.5 h-3.5 w-3.5 accent-[var(--neg)]"
+              className="mt-0.5"
             />
             <span className="text-xs text-ink-2">
               I understand this permanently deletes{" "}
@@ -182,13 +182,12 @@ export function DeleteCampaignDialog({
 
         <DialogFooter>
           <DialogClose asChild>
-            <Button variant="ghost" size="sm" disabled={isPending}>
+            <Button variant="ghost" disabled={isPending}>
               Cancel
             </Button>
           </DialogClose>
           <Button
             variant="destructive"
-            size="sm"
             onClick={onConfirm}
             disabled={!acknowledged || isPending}
           >
