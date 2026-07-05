@@ -191,7 +191,7 @@ export function PortfolioFilterBar({
   const shownCount = CAMPAIGN_TABLE_COLUMNS.filter((c) => !hiddenCols.has(c.key)).length;
 
   return (
-    <div className="flex items-center gap-2 flex-wrap">
+    <div className="sticky top-14 z-10 -mx-6 px-6 py-3 border-b border-line bg-background/95 backdrop-blur flex items-center gap-2 flex-wrap">
       <ViewsControl
         views={views}
         currentUserId={currentUserId}

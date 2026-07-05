@@ -210,7 +210,7 @@ export function LibraryFilterBar({ products, tags, views, currentUserId, isAdmin
   }, [productIds, products]);
 
   return (
-    <div className="sticky top-0 z-10 -mx-6 px-6 py-3 border-b border-line bg-background/95 backdrop-blur">
+    <div className="sticky top-14 z-10 -mx-6 px-6 py-3 border-b border-line bg-background/95 backdrop-blur">
       <div className="flex items-center gap-2 flex-wrap">
         <ViewsControl
           views={views}

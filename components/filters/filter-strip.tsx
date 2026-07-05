@@ -173,7 +173,7 @@ export function FilterStrip({
   );
 
   return (
-    <div className="sticky top-0 z-10 border-b border-line bg-background/95 backdrop-blur">
+    <div className="sticky top-14 z-10 border-b border-line bg-background/95 backdrop-blur">
       <div className="flex items-center gap-2 px-6 h-12 overflow-x-auto">
         {/* Date range */}
         <DateRangePicker
