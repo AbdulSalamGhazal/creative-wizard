@@ -10,7 +10,7 @@ import {
   YAxis,
 } from "recharts";
 import { type ReactNode, useMemo, useState } from "react";
-import { usd, roas, pct, int, usdCompact } from "@/lib/format";
+import { usd, roas, pct, int, usdCompact, monthDay } from "@/lib/format";
 import { seriesColor } from "@/lib/palette";
 import { useChartFit, ChartFitToggle } from "@/components/charts/chart-fit";
 import { SeriesLegend } from "@/components/charts/series-legend";
@@ -47,12 +47,6 @@ interface Props {
 // (lib/palette) — the old literals mixed the --pos green (read as "positive")
 // with two near-identical greens. Index-keyed so a side keeps its color.
 const COLORS = [0, 1, 2, 3, 4].map(seriesColor);
-
-const monthDay = new Intl.DateTimeFormat("en-US", {
-  month: "short",
-  day: "numeric",
-  timeZone: "UTC",
-});
 
 const DAY_MS = 86_400_000;
 /** Whole days between two ISO dates (UTC-midnight parse, so no DST drift). */
@@ -220,7 +214,7 @@ export function CompareChart({
                   <XAxis
                     dataKey={xKey}
                     tickFormatter={(d: string | number) =>
-                      align ? `D${d}` : monthDay.format(new Date(String(d)))
+                      align ? `D${d}` : monthDay(String(d))
                     }
                     tick={{ fill: "var(--ink-3)", fontSize: 11 }}
                     stroke="var(--line-2)"
@@ -261,7 +255,7 @@ export function CompareChart({
                           <div className="text-ink-2 mb-1.5">
                             {align
                               ? `Day ${label}`
-                              : monthDay.format(new Date(label as string))}
+                              : monthDay(label as string)}
                           </div>
                           <div className="space-y-1">
                             {payload.map((p) => {
@@ -272,9 +266,7 @@ export function CompareChart({
                                 ? firstDateBySide.get(String(p.dataKey))
                                 : undefined;
                               const sideDate = anchor
-                                ? monthDay.format(
-                                    new Date(addDaysIso(anchor, Number(label) - 1)),
-                                  )
+                                ? monthDay(addDaysIso(anchor, Number(label) - 1))
                                 : null;
                               return (
                                 <div

@@ -10,7 +10,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { intCompact, pct, ratio, usd, usdCompact } from "@/lib/format";
+import { intCompact, pct, ratio, usd, usdCompact, monthDay } from "@/lib/format";
 import { seriesColor } from "@/lib/palette";
 import { MetricPicker } from "@/components/charts/metric-picker";
 import { SeriesLegend } from "@/components/charts/series-legend";
@@ -49,12 +49,6 @@ const METRICS: Array<{ key: MetricKey; label: string; kind: Kind }> = [
 ];
 
 const DEFAULT_SHOWN = 6;
-
-const monthDay = new Intl.DateTimeFormat("en-US", {
-  month: "short",
-  day: "numeric",
-  timeZone: "UTC",
-});
 
 const axisFmt = (kind: Kind) => (v: number) => {
   if (kind === "usd") return usdCompact(v);
@@ -245,7 +239,7 @@ export function CampaignCreativeChart({
         <CartesianGrid stroke="var(--line)" strokeDasharray="3 3" vertical={false} />
         <XAxis
           dataKey="date"
-          tickFormatter={(d: string) => monthDay.format(new Date(d))}
+          tickFormatter={(d: string) => monthDay(d)}
           tick={{ fill: "var(--ink-3)", fontSize: 11 }}
           stroke="var(--line-2)"
           tickMargin={6}
@@ -324,7 +318,7 @@ function ChartTip({
   return (
     <ChartTooltip className="max-w-[18rem]">
       <div className="text-ink-2 mb-1.5">
-        {monthDay.format(new Date(label))} · {metricLabel}
+        {monthDay(label)} · {metricLabel}
       </div>
       <div className="space-y-1">
         {rows.length === 0 ? (

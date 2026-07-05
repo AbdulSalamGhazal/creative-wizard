@@ -11,7 +11,7 @@ import {
 } from "recharts";
 import { useMemo, useState } from "react";
 import { ALL_PLATFORMS, PLATFORM_COLOR, PLATFORM_LABEL } from "@/lib/palette";
-import { int, intCompact, pct, ratio, usd, usdCompact } from "@/lib/format";
+import { int, intCompact, pct, ratio, usd, usdCompact, monthDay } from "@/lib/format";
 import { MetricPicker } from "@/components/charts/metric-picker";
 import { SeriesLegend } from "@/components/charts/series-legend";
 import {
@@ -99,12 +99,6 @@ interface PivotRow {
   date: string;
   [series: string]: number | string | null;
 }
-
-const monthDay = new Intl.DateTimeFormat("en-US", {
-  month: "short",
-  day: "numeric",
-  timeZone: "UTC",
-});
 
 export function CreativePerfLineChart({
   rows,
@@ -235,7 +229,7 @@ export function CreativePerfLineChart({
                   <CartesianGrid stroke="var(--line)" strokeDasharray="3 3" vertical={false} />
                   <XAxis
                     dataKey="date"
-                    tickFormatter={(d: string) => monthDay.format(new Date(d))}
+                    tickFormatter={(d: string) => monthDay(d)}
                     tick={{ fill: "var(--ink-3)", fontSize: 11 }}
                     stroke="var(--line-2)"
                     tickMargin={6}
@@ -306,7 +300,7 @@ function LineTooltip({
   return (
     <ChartTooltip>
       <div className="text-ink-2 mb-1.5">
-        {monthDay.format(new Date(label))} · {metricLabel}
+        {monthDay(label)} · {metricLabel}
       </div>
       <div className="space-y-1">
         {payload.map((p) => (

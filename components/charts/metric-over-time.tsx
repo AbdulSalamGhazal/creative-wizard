@@ -14,7 +14,7 @@ import { MetricPicker } from "@/components/charts/metric-picker";
 import { SeriesLegend } from "@/components/charts/series-legend";
 import { ChartShell, ExpandButton, SmoothToggle, GroupToggle } from "@/components/charts/chart-shell";
 import { smoothColumns } from "@/lib/chart-smooth";
-import { usd, int, ratio, usdCompact, intCompact } from "@/lib/format";
+import { usd, int, ratio, usdCompact, intCompact, monthDay } from "@/lib/format";
 import { useChartFit, ChartFitToggle } from "@/components/charts/chart-fit";
 import type { MetricOverTimeRow } from "@/db/queries/performance";
 import { ChartTooltip } from "@/components/charts/chart-tooltip";
@@ -89,12 +89,6 @@ function aggregate(def: MetricDef, rs: MetricOverTimeRow[]): number | null {
   }
   return den > 0 ? num / den : null;
 }
-
-const monthDay = new Intl.DateTimeFormat("en-US", {
-  month: "short",
-  day: "numeric",
-  timeZone: "UTC",
-});
 
 function axisFormat(metric: MetricKey, v: number): string {
   if (metric === "conversions") return intCompact(v);
@@ -265,7 +259,7 @@ export function MetricOverTimeChart({ rows, keys, dimension, dimensionLabel }: P
                   <CartesianGrid stroke="var(--line)" strokeDasharray="3 3" vertical={false} />
                   <XAxis
                     dataKey="date"
-                    tickFormatter={(d: string) => monthDay.format(new Date(d))}
+                    tickFormatter={(d: string) => monthDay(d)}
                     tick={{ fill: "var(--ink-3)", fontSize: 11 }}
                     stroke="var(--line-2)"
                     tickMargin={6}
@@ -335,7 +329,7 @@ function CustomTooltip({
   const total = payload.reduce((sum, p) => sum + (p.value ?? 0), 0);
   return (
     <ChartTooltip>
-      <div className="text-ink-2 mb-1.5">{monthDay.format(new Date(label))}</div>
+      <div className="text-ink-2 mb-1.5">{monthDay(label)}</div>
       <div className="space-y-1">
         {payload.map((p) => (
           <div key={p.dataKey} className="flex items-center gap-2 min-w-[170px]">

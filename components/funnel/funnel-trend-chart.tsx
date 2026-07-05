@@ -10,7 +10,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { pct } from "@/lib/format";
+import { pct, monthDay } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { SeriesLegend } from "@/components/charts/series-legend";
 import { ChartShell, ExpandButton, SmoothToggle } from "@/components/charts/chart-shell";
@@ -29,12 +29,6 @@ const METRICS: Array<{ key: MetricKey; label: string; color: string }> = [
   { key: "purchaseRate", label: "CvR (AP)", color: FUNNEL_METRIC_COLOR.purchaseRate },
   { key: "cvr", label: "CvR (LP)", color: FUNNEL_METRIC_COLOR.cvr },
 ];
-
-const monthDay = new Intl.DateTimeFormat("en-US", {
-  month: "short",
-  day: "numeric",
-  timeZone: "UTC",
-});
 
 const FIXED_TICKS = [0, 0.2, 0.4, 0.6, 0.8, 1];
 
@@ -144,7 +138,7 @@ export function FunnelTrendChart({
         <CartesianGrid stroke="var(--line)" strokeDasharray="3 3" vertical={false} />
         <XAxis
           dataKey="date"
-          tickFormatter={(d: string) => monthDay.format(new Date(d))}
+          tickFormatter={(d: string) => monthDay(d)}
           tick={{ fill: "var(--ink-3)", fontSize: 11 }}
           stroke="var(--line-2)"
           tickMargin={6}
@@ -230,7 +224,7 @@ function FunnelTip({
   const byKey = new Map(payload.map((p) => [p.dataKey, p.value]));
   return (
     <ChartTooltip>
-      <div className="text-ink-2 mb-1.5">{monthDay.format(new Date(label))}</div>
+      <div className="text-ink-2 mb-1.5">{monthDay(label)}</div>
       <div className="space-y-1">
         {visible.map((m) => (
           <div key={m.key} className="flex items-center gap-2 min-w-[150px]">
