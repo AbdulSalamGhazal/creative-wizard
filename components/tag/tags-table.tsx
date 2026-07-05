@@ -164,6 +164,7 @@ export function TagsTable({ rows }: { rows: TagRow[] }) {
                             type="button"
                             variant="ghost"
                             size="xs"
+                            aria-label="Cancel rename"
                             onClick={cancelEdit}
                             disabled={isPending}
                             className="text-ink-3 hover:text-ink"
@@ -188,6 +189,7 @@ export function TagsTable({ rows }: { rows: TagRow[] }) {
                             type="button"
                             variant="ghost"
                             size="xs"
+                            aria-label={`Delete tag ${r.name}`}
                             onClick={() => remove(r)}
                             disabled={isPending}
                             className="text-ink-3 hover:text-neg"

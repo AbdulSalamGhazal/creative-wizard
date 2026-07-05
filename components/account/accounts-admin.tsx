@@ -181,6 +181,7 @@ export function AccountsAdmin({
                           type="button"
                           variant="ghost"
                           size="xs"
+                          aria-label="Cancel rename"
                           onClick={cancelEdit}
                           disabled={isPending}
                           className="text-ink-3 hover:text-ink"

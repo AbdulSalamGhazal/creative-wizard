@@ -435,13 +435,15 @@ function PlatformStatusSection({
         })}
       </div>
       <div className="pt-0.5">
-        <button
+        <Button
           type="button"
+          variant="ghost"
+          size="xs"
           onClick={() => setOpen(true)}
-          className="text-[11px] text-ink-3 hover:text-neg transition-colors underline-offset-2 hover:underline"
+          className="text-[11px] text-ink-3 hover:text-neg -ml-2"
         >
           Terminate / reactivate…
-        </button>
+        </Button>
       </div>
       <TerminationDialog
         creativeId={creativeId}
