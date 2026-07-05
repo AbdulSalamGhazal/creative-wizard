@@ -161,7 +161,7 @@ export function CleanupTool({ products, creatives, campaigns }: Props) {
           Editors & admins · permanent · audit-logged
         </span>
       </div>
-      <p className="text-[12px] text-ink-2">
+      <p className="text-xs text-ink-2">
         Permanently delete performance records matching a selection. Filters
         combine with AND. Preview the impact, then confirm — this cannot be
         undone (unlike a batch rollback).
@@ -263,7 +263,7 @@ export function CleanupTool({ products, creatives, campaigns }: Props) {
                           checked ? "opacity-100" : "opacity-0",
                         )}
                       />
-                      <span className="font-mono text-[12px] truncate">
+                      <span className="font-mono text-xs truncate">
                         {c.name}
                       </span>
                       <span className="ml-auto text-[11px] text-ink-3 truncate">
@@ -313,7 +313,7 @@ export function CleanupTool({ products, creatives, campaigns }: Props) {
                           checked ? "opacity-100" : "opacity-0",
                         )}
                       />
-                      <span className="text-[12px] truncate">{name}</span>
+                      <span className="text-xs truncate">{name}</span>
                     </CommandItem>
                   );
                 })}
@@ -362,7 +362,7 @@ export function CleanupTool({ products, creatives, campaigns }: Props) {
                   <span className="text-ink-3">creatives</span>
                 </span>
                 {preview.from && preview.to && (
-                  <span className="text-ink-3 num text-[12px]">
+                  <span className="text-ink-3 num text-xs">
                     {preview.from} → {preview.to}
                   </span>
                 )}

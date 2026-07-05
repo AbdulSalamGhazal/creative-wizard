@@ -38,7 +38,7 @@ export function MobileNav({ role }: { role?: "admin" | "editor" | "viewer" }) {
       href={href}
       className={cn(
         "block rounded-md px-3 py-2 text-sm transition-colors",
-        opts?.child && "ml-3 text-[13px]",
+        opts?.child && "ml-3 text-xs",
         isActive(pathname, href)
           ? "bg-[var(--brand-soft)] text-ink font-medium"
           : "text-ink-2 hover:bg-surface-2 hover:text-ink",

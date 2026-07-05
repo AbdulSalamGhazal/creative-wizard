@@ -214,7 +214,7 @@ export function DataTable<T>({
         </div>
       )}
       <div className="rounded-lg border border-line bg-surface overflow-auto max-h-[70vh]">
-      <table className={cn(minWidthClass, "w-full text-[12px] num")}>
+      <table className={cn(minWidthClass, "w-full text-xs num")}>
         <thead className="sticky top-0 z-20 bg-surface">
           <tr className="text-[11px] uppercase tracking-[0.12em] text-ink-3 border-b border-line bg-surface-2/40">
             {cols.map((c, i) => {

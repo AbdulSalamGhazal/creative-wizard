@@ -73,7 +73,7 @@ export function CampaignCreativesTable({
             className="w-2 h-2 rounded-full shrink-0"
             style={{ background: colorById.get(r.creativeId) }}
           />
-          <span className="truncate font-mono text-[12px]" title={r.name}>
+          <span className="truncate font-mono text-xs" title={r.name}>
             {r.name}
           </span>
         </span>

@@ -109,7 +109,7 @@ export function CreativePlatformTable({ rows, campaigns }: Props) {
                   camps.map((c) => (
                     <tr
                       key={`${r.platform}::${c.campaign}`}
-                      className="bg-surface-2/25 text-[12px]"
+                      className="bg-surface-2/25 text-xs"
                     >
                       <td className="py-1.5 pl-10 pr-3">
                         <span

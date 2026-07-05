@@ -104,10 +104,10 @@ export function FunnelStages({
           return (
             <div key={s.volKey}>
               <div className="flex items-baseline justify-between gap-2 mb-1">
-                <span className="text-[12px] text-ink-2">{s.label}</span>
+                <span className="text-xs text-ink-2">{s.label}</span>
                 <span className="flex items-baseline gap-2">
                   {compare && <CountDelta cur={count} cmp={cmp} />}
-                  <span className="text-[12px] text-ink num tabular-nums">
+                  <span className="text-xs text-ink num tabular-nums">
                     {int(count)}
                   </span>
                 </span>

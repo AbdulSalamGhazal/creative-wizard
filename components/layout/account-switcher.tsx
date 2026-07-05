@@ -60,7 +60,7 @@ export function AccountSwitcher({ accounts, activeId }: Props) {
           type="button"
           title="Switch brand"
           aria-label="Switch brand"
-          className="flex items-center gap-1.5 rounded-md border border-line px-2 py-1 text-[13px] font-medium text-ink-2 hover:text-ink hover:bg-surface-2 transition"
+          className="flex items-center gap-1.5 rounded-md border border-line px-2 py-1 text-xs font-medium text-ink-2 hover:text-ink hover:bg-surface-2 transition"
         >
           <span className="max-w-[140px] truncate">{active.name}</span>
           {pending ? (

@@ -358,7 +358,7 @@ export function AuditFeed({ rows, compact = false }: Props) {
               {initials(row.actor.name, row.actor.email)}
             </div>
             <div className="leading-tight">
-              <div className="text-[12px] text-ink">{row.actor.name || row.actor.email}</div>
+              <div className="text-xs text-ink">{row.actor.name || row.actor.email}</div>
               <div className="text-[10px] text-ink-3 font-mono">{row.actor.email}</div>
             </div>
           </div>
@@ -371,7 +371,7 @@ export function AuditFeed({ rows, compact = false }: Props) {
             >
               ?
             </div>
-            <div className="text-[12px] text-ink-3">System</div>
+            <div className="text-xs text-ink-3">System</div>
           </div>
         );
 
@@ -393,12 +393,12 @@ export function AuditFeed({ rows, compact = false }: Props) {
                   (href ? (
                     <Link
                       href={href}
-                      className="font-mono text-[12px] text-ink hover:text-brand transition-colors truncate"
+                      className="font-mono text-xs text-ink hover:text-brand transition-colors truncate"
                     >
                       {row.entityLabel}
                     </Link>
                   ) : (
-                    <span className="font-mono text-[12px] text-ink-2 truncate">
+                    <span className="font-mono text-xs text-ink-2 truncate">
                       {row.entityLabel}
                     </span>
                   ))}

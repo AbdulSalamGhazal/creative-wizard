@@ -125,7 +125,7 @@ export default async function UploadsPage() {
                   <tr key={r.id} className="hover:bg-surface-2/60 transition-colors">
                     <td className="px-3 py-2.5 text-ink-2">{isoDate(r.uploadedAt)}</td>
                     <td className="px-3 py-2.5 text-ink-2">{PLATFORM_LABEL[r.platform] ?? r.platform}</td>
-                    <td className="px-3 py-2.5 font-mono text-ink text-[13px]">{r.fileName}</td>
+                    <td className="px-3 py-2.5 font-mono text-ink text-xs">{r.fileName}</td>
                     <td className="px-3 py-2.5 text-ink-2">{r.uploaderName}</td>
                     <td className="px-3 py-2.5 text-right text-ink">{int(r.rowsImported)}</td>
                     <td className="px-3 py-2.5">

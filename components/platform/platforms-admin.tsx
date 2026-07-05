@@ -101,7 +101,7 @@ export async function PlatformsAdmin() {
 
               <Link
                 href="/admin/catalog?tab=mapping"
-                className="inline-flex items-center gap-1 text-[12px] text-ink-2 hover:text-brand transition-colors"
+                className="inline-flex items-center gap-1 text-xs text-ink-2 hover:text-brand transition-colors"
               >
                 Configure CSV mapping
                 <ArrowRight className="w-3 h-3" />

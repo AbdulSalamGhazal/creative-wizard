@@ -70,7 +70,7 @@ const COLS: Col[] = [
     align: "left",
     on: true,
     locked: true,
-    render: (r) => <span className="font-mono text-ink text-[13px]">{r.name}</span>,
+    render: (r) => <span className="font-mono text-ink text-xs">{r.name}</span>,
   },
   { key: "product", label: "Product", width: 130, align: "left", on: true, render: (r) => <span className="text-ink-2">{r.productName}</span> },
   { key: "type", label: "Type", width: 80, align: "left", on: false, render: (r) => <span className="text-ink-2">{TYPE_LABEL[r.type]}</span> },

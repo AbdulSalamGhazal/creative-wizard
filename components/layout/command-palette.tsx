@@ -142,7 +142,7 @@ export function CommandPalette({ creatives, showTrigger = true }: Props) {
                     onSelect={() => go(`/creatives/${encodeURIComponent(c.name)}`)}
                   >
                     <Images className="w-3.5 h-3.5" />
-                    <span className="font-mono text-[13px]">{c.name}</span>
+                    <span className="font-mono text-xs">{c.name}</span>
                     <span className="ml-auto text-[11px] text-ink-3">
                       {c.productName}
                     </span>

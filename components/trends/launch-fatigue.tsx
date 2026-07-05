@@ -444,7 +444,7 @@ export function LaunchFatigueTable({ rows }: { rows: LaunchFatigueViewRow[] }) {
   return (
     <div className="space-y-2">
       <div className="overflow-x-auto rounded-lg border border-line bg-surface">
-        <table className="w-full text-[12px] num min-w-max">
+        <table className="w-full text-xs num min-w-max">
           <thead>
             <tr className="text-left text-[11px] uppercase tracking-[0.14em] text-ink-3 border-b border-line">
               {COLUMNS.map((col) => {

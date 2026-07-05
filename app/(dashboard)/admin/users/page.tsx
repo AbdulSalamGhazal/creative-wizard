@@ -53,7 +53,7 @@ export default async function UsersAdminPage() {
             {team.map((u) => (
               <tr key={u.id} className="hover:bg-surface-2/60 transition-colors">
                 <td className="px-3 py-2.5 text-ink">{u.name}</td>
-                <td className="px-3 py-2.5 font-mono text-ink-2 text-[13px]">{u.email}</td>
+                <td className="px-3 py-2.5 font-mono text-ink-2 text-xs">{u.email}</td>
                 <td className="px-3 py-2.5">
                   <UserRoleSelect
                     userId={u.id}

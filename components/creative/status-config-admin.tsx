@@ -60,7 +60,7 @@ export function StatusConfigAdmin({ brands }: { brands: BrandWindow[] }) {
           Because uploads are per-platform and daily-grain, the window rounds to
           whole days — 24 h = the latest day only.
         </p>
-        <p className="text-ink-3 text-[12px]">
+        <p className="text-ink-3 text-xs">
           Each brand can have its own window. Changes take effect immediately on
           the next page load.
         </p>
@@ -149,9 +149,9 @@ export function StatusConfigAdmin({ brands }: { brands: BrandWindow[] }) {
               {(() => {
                 const preset = PRESETS.find((p) => p.hours === current);
                 return preset ? (
-                  <p className="text-[12px] text-ink-3">{preset.desc}</p>
+                  <p className="text-xs text-ink-3">{preset.desc}</p>
                 ) : (
-                  <p className="text-[12px] text-ink-3">
+                  <p className="text-xs text-ink-3">
                     Custom: {current}h — active if spent in the last{" "}
                     {Math.ceil(current / 24)} data day
                     {Math.ceil(current / 24) !== 1 ? "s" : ""} on each platform.

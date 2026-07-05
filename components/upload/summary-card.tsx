@@ -31,7 +31,7 @@ export function SummaryCard({
       </div>
 
       {isUpsert && (
-        <div className="px-4 pt-4 -mb-1 flex flex-wrap items-center gap-2 text-[12px]">
+        <div className="px-4 pt-4 -mb-1 flex flex-wrap items-center gap-2 text-xs">
           <span className="inline-flex items-center gap-1.5 rounded-md border border-pos/30 bg-pos/10 px-2 py-1 text-pos num">
             <span className="font-display text-sm leading-none">
               {int(summary.newRows ?? 0)}

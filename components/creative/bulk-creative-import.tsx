@@ -88,7 +88,7 @@ export function BulkCreativeImport({ products }: Props) {
             Download template
           </Button>
         </div>
-        <ul className="text-[12px] text-ink-2 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1">
+        <ul className="text-xs text-ink-2 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1">
           <li><span className="font-mono text-ink">name</span> — required, unique</li>
           <li><span className="font-mono text-ink">product</span> — required, must match a product</li>
           <li><span className="font-mono text-ink">type</span> — video / image / slides (default video)</li>
@@ -127,7 +127,7 @@ export function BulkCreativeImport({ products }: Props) {
       {preview?.ok && preview.rows.length > 0 && (
         <div className="space-y-3">
           <div className="overflow-x-auto rounded-lg border border-line bg-surface">
-            <table className="w-full text-[12px] num">
+            <table className="w-full text-xs num">
               <thead>
                 <tr className="text-left text-[10px] uppercase tracking-[0.14em] text-ink-3 border-b border-line">
                   <th className="font-medium px-3 py-2 w-10">Row</th>
@@ -174,7 +174,7 @@ export function BulkCreativeImport({ products }: Props) {
               {isPending ? "Creating…" : `Create ${preview.validCount} creatives`}
             </Button>
           ) : (
-            <p className="text-[12px] text-neg">
+            <p className="text-xs text-neg">
               Fix the {preview.errorCount} flagged row{preview.errorCount === 1 ? "" : "s"}{" "}
               and re-validate — it&apos;s all-or-nothing, nothing is created while any row has an error.
             </p>

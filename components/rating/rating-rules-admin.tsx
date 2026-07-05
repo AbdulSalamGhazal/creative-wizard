@@ -40,7 +40,7 @@ export function RatingRulesAdmin({ config }: { config: RatingConfig }) {
     <div className="space-y-8 max-w-2xl">
       <div>
         <h2 className="text-sm font-medium text-ink">Rate rules</h2>
-        <p className="text-[12px] text-ink-2 mt-1">
+        <p className="text-xs text-ink-2 mt-1">
           Drives the <span className="text-ink">Rate</span> column on Summary.
           The default applies to the blended total and any platform without its
           own override below.
@@ -51,7 +51,7 @@ export function RatingRulesAdmin({ config }: { config: RatingConfig }) {
 
       <div className="border-t border-line pt-6">
         <h3 className="text-sm font-medium text-ink">Per-platform overrides</h3>
-        <p className="text-[12px] text-ink-2 mt-1 mb-4">
+        <p className="text-xs text-ink-2 mt-1 mb-4">
           Turn on a platform to give it its own cutoffs. Off = uses the default.
         </p>
         <div className="space-y-2.5">
@@ -161,7 +161,7 @@ function DefaultEditor({ rules }: { rules: RatingRules }) {
       <div className="rounded-lg border border-line bg-surface p-3">
         <ul className="space-y-1.5">
           {tiers.map((t) => (
-            <li key={t.rating} className="flex items-center gap-2.5 text-[12px]">
+            <li key={t.rating} className="flex items-center gap-2.5 text-xs">
               <span className={"inline-flex items-center justify-center h-5 px-1.5 rounded text-[10px] border whitespace-nowrap w-14 " + RATING_META[t.rating].badgeClass}>
                 {RATING_META[t.rating].label}
               </span>
@@ -170,7 +170,7 @@ function DefaultEditor({ rules }: { rules: RatingRules }) {
           ))}
         </ul>
       </div>
-      {error && <p className="text-[12px] text-neg">{error}</p>}
+      {error && <p className="text-xs text-neg">{error}</p>}
       <div className="flex items-center gap-3">
         <Button onClick={save} disabled={!!error || !dirty || isPending}>
           {isPending ? "Saving…" : "Save default"}

@@ -339,7 +339,7 @@ export function SummaryTable({
 
   return (
     <div className="max-h-[70vh] overflow-auto rounded-lg border border-line bg-surface">
-      <table className="text-[12px] num min-w-max">
+      <table className="text-xs num min-w-max">
         {/* Two-row header: top row = group banners; bottom = column labels.
             The whole <thead> is sticky so it stays frozen while the body
             scrolls; an opaque background keeps rows from showing through. */}
@@ -480,7 +480,7 @@ export function SummaryTable({
                             href={`/creatives/${encodeURIComponent(r.name)}`}
                             title={r.name}
                             className={
-                              "font-mono text-ink text-[12px] hover:text-brand transition-colors " +
+                              "font-mono text-ink text-xs hover:text-brand transition-colors " +
                               (w ? "block truncate" : "")
                             }
                           >

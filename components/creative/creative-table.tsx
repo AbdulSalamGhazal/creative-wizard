@@ -193,7 +193,7 @@ export function CreativeTable({
                     href={`/creatives/${encodeURIComponent(r.name)}${listCtx ? `?${listCtx}` : ""}`}
                     title={r.name}
                     className={
-                      "font-mono text-ink text-[13px] hover:text-brand transition-colors " +
+                      "font-mono text-ink text-xs hover:text-brand transition-colors " +
                       (widths.name ? "block truncate" : "")
                     }
                   >

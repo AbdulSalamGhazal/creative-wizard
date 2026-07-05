@@ -102,7 +102,7 @@ export function CreativeCard({
 
       {/* Body */}
       <div className="px-3 pt-3 pb-2">
-        <div className="font-mono text-[13px] text-ink truncate" title={row.name}>
+        <div className="font-mono text-xs text-ink truncate" title={row.name}>
           {row.name}
         </div>
         <div className="mt-0.5 text-xs text-ink-3 truncate">{row.productName}</div>

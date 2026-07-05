@@ -101,7 +101,7 @@ function ProductTable({
                 }
               >
                 <td className="px-3 py-2.5 text-ink">{r.name}</td>
-                <td className="px-3 py-2.5 font-mono text-ink-2 text-[12px]">
+                <td className="px-3 py-2.5 font-mono text-ink-2 text-xs">
                   {r.slug}
                 </td>
                 <td className="px-3 py-2.5 text-right text-ink-2">

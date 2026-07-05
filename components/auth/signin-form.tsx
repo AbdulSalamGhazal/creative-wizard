@@ -77,7 +77,7 @@ export function SignInForm({ nextPath }: { nextPath: string }) {
             required
           />
         </div>
-        {error && <p className="text-[12px] text-neg">{error}</p>}
+        {error && <p className="text-xs text-neg">{error}</p>}
         <Button
           type="submit"
           className="w-full"
