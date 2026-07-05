@@ -14,7 +14,6 @@ import {
 import { DataTable, type DataColumn } from "@/components/ui/data-table";
 import { int, pct, ratio, usd } from "@/lib/format";
 import { METRIC_LABEL } from "@/lib/metric-labels";
-import { cn } from "@/lib/utils";
 import { StatusBadge } from "@/components/creative/status-badge";
 import { STATUS_ORDER } from "@/lib/creative-status";
 import type { VideoDiagnosticRow } from "@/db/queries/trends";
