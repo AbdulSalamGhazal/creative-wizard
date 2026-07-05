@@ -395,8 +395,8 @@ This app is deployed and in production use. Treat `main` as shippable.
   views-control, metric-filter, and the campaigns table already do. New nav
   components: use `useNavTransition` or they won't show the loading bar.
 
-- **UI consistency pass (2026-07, PARTIAL — 17/24 items) added shared
-  primitives; a fresh session must REUSE these, not re-invent them.**
+- **UI consistency pass (2026-07, COMPLETE — one sub-item deferred) added
+  shared primitives; a fresh session must REUSE these, not re-invent them.**
   - **Data-viz colors are theme-aware CSS vars, driven from `lib/palette.ts`.**
     Series/product/type/platform colors are now `var(--series-N)` /
     `var(--product-N)` / `var(--type-*)` / `var(--instagram|facebook|tiktok|
@@ -412,23 +412,53 @@ This app is deployed and in production use. Treat `main` as shippable.
     platform hue. **`roas()`** in `lib/format` renders ROAS with the `×` suffix —
     use it everywhere ROAS shows.
   - **`PlatformDot`** (`components/ui/platform-dot.tsx`, size `sm|md`) is the
-    canonical platform swatch — replaced hand-rolled dot spans. ~10 inline dot
-    spans in charts/admin tables still need swapping (folded into the Phase-5
-    primitive sweep). **Nav is one source:** `components/layout/nav-items.ts`
+    canonical platform swatch — every hand-rolled dot span (charts, admin +
+    detail tables, funnel, upload picker) is now on it; the only remaining
+    `PLATFORM_COLOR` inline styles are the two per-platform progress BARS.
+    **Nav is one source:** `components/layout/nav-items.ts`
     (`NAV_ITEMS`/`isActive`) drives BOTH the desktop `Sidebar` and the mobile
     `MobileNav` (hamburger + Sheet, `lg:hidden`, in the TopBar).
   - **`middleware.ts`** is the real auth boundary (Edge Web-Crypto HMAC verify of
     the `ccms_session` cookie); the dashboard layout check is now belt-and-braces.
   - **`MetricCard` has an `empty` prop** that suppresses the delta chip (no more
     red "Gone" on an empty range). All sticky filter bars sit at `top-14 z-10`.
-  - **STILL PENDING (7 items) — do in a fresh session:** extract `PageHeader`/
-    `PageShell` across ~17 routes; add ~13 tailored `loading.tsx`; the Phase-5
-    primitive extraction (`ChartTooltip`, retheme shadcn `Card` to surface/line,
-    migrate `campaign-funnel-table` + `launch-fatigue` onto `DataTable`, swap
-    native `<select>`s for `MetricPicker`); number-format unification (adopt
-    `usdCompact`/`intCompact`; add `monthDay` to lib/format); one metric-label
-    vocabulary; campaign create/edit forms → shadcn `Select`; the error/feedback
-    convention; then append the "new surfaces MUST use shared primitives" rule to
-    the Shared-UI-primitives section. Deferred sub-items: campaign empty-KPI row
-    `$0.00`→`—` (needs the analytics query to return null on an empty window),
-    and the delete-dialog raw-checkbox → shadcn `Checkbox` swap.
+  - **Page shell = `PageShell` + `PageHeader`** (`components/layout/`). Every
+    route renders `<PageShell>` (space-y-6 + a width lane: `full`/`admin`=4xl/
+    `form`=2xl/`import`=3xl + an optional full-bleed `filterStrip` slot that owns
+    the old `-mx-6 -mt-6` hack) wrapping `<PageHeader eyebrow? backLink? title
+    subtitle? rightSlot?>`. Don't hand-roll a page header or the filter-strip
+    full-bleed again.
+  - **Every route ships a tailored `loading.tsx`** composed from
+    `components/layout/page-skeletons.tsx` (FilterStrip/FilterBar/Header/KpiRow/
+    ChartCard/Table skeletons) — mirror the real page's shape, not a generic box.
+  - **`ChartTooltip`** (`components/charts/chart-tooltip.tsx`) is the one Recharts
+    tooltip surface (frosted popover); pass `className` for a width cap.
+  - **shadcn `Card` is retheme'd** to `bg-surface`/`border-line`/`rounded-lg` +
+    the p-4 (16px) padding system — DON'T re-add `className="bg-surface
+    border-line"`. It and the hand-rolled `rounded-lg p-4` panels are now one
+    system.
+  - **Two micro-label tokens** in globals.css: `text-eyebrow` (10px/0.18em) and
+    `text-label` (11px/0.14em). Use these, not ad-hoc `text-[10/11px] uppercase
+    tracking-[…]`. Snap arbitrary `text-[12/13px]` to `text-xs`.
+  - **`lib/metric-labels.ts` (`METRIC_LABEL`)** is the single source for metric
+    column labels (Impr./Conv./Revenue …) — tables read it, never re-spell.
+  - **`lib/format` additions:** `monthDay()` (UTC "Mon D"), `usdCompact`/
+    `intCompact` (no private per-chart `Intl` copies). Dash (`—`) means NULL
+    only — a real `0` renders as `0`/`$0` (usd/int already do this).
+  - **Forms:** shadcn `Select` + `Label` via a local `Field` helper (model:
+    `creative-create-form`). Form-level errors render INLINE in the bordered
+    banner (`rounded-md border border-neg/30 bg-neg/5 …`); toasts are for
+    row/background mutations only (curly `“…”` quotes). Real `<form onSubmit>`
+    so Enter submits; never put `disabled` on an `asChild` `<Link>`.
+  - **New surfaces MUST use the shared primitives** — PageHeader/PageShell,
+    Panel/Card, DataTable, MetricPicker, SeriesLegend, ChartTooltip, PlatformDot,
+    DeltaBadge, DownloadCsvButton, `lib/format` (incl. `roas()`/`monthDay`),
+    `lib/palette` (incl. `FUNNEL_METRIC_COLOR`), `lib/metric-labels`
+    (`METRIC_LABEL`) — never a hand-rolled local variant. Any new color is a CSS
+    var with light-theme overrides verified on Midnight/Frost/Contrast; any new
+    page ships its own tailored `loading.tsx` and works at 375px. If a primitive
+    doesn't fit, EXTEND it — don't fork it.
+  - **DEFERRED (its own session):** migrate `campaign-funnel-table.tsx` (330 loc,
+    own sort + drag-resize) and `launch-fatigue.tsx` (734 loc) onto `DataTable`.
+    These are large rewrites of live tables and warrant a dedicated, carefully-
+    verified change rather than being bundled into the consistency sweep.
