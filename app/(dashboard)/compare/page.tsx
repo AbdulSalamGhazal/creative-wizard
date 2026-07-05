@@ -13,6 +13,8 @@ import {
 } from "@/components/compare/metric-blocks";
 import { CompareChart } from "@/components/charts/compare-chart";
 import { CompareTotalsTable } from "@/components/compare/compare-totals-table";
+import { PageShell } from "@/components/layout/page-shell";
+import { PageHeader } from "@/components/layout/page-header";
 import {
   compareFiltersSchema,
   sideIsEmpty,
@@ -118,14 +120,16 @@ export default async function ComparePage({
   );
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="font-display text-4xl tracking-tight">Compare</h1>
-        <p className="text-ink-2 text-sm mt-1">
-          Blended figures are true weighted averages. When windows differ,
-          charts align by day (D1 = each side&rsquo;s first day with data).
-        </p>
-      </div>
+    <PageShell>
+      <PageHeader
+        title="Compare"
+        subtitle={
+          <>
+            Blended figures are true weighted averages. When windows differ,
+            charts align by day (D1 = each side&rsquo;s first day with data).
+          </>
+        }
+      />
 
       <CompareControls
         dimensions={dimensions}
@@ -168,6 +172,6 @@ export default async function ComparePage({
           />
         </CardContent>
       </Card>
-    </div>
+    </PageShell>
   );
 }
