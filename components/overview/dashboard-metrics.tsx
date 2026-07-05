@@ -10,7 +10,7 @@ import {
 import { MetricCard, type BreakdownBar } from "@/components/overview/metric-card";
 import { computeDelta } from "@/lib/period";
 import { PLATFORM_COLOR, PLATFORM_LABEL, swatchColor } from "@/lib/palette";
-import { int, intCompact, ratio, usd0, usd1, usdCompact } from "@/lib/format";
+import { int, intCompact, ratio, usd, usd0, usdCompact } from "@/lib/format";
 
 const CAMPAIGN_LIMIT = 8;
 
@@ -123,11 +123,11 @@ export async function DashboardMetrics({
         />
         <MetricCard
           label="CPA"
-          value={usd1(k.cpa)}
+          value={usd(k.cpa)}
           icon={Receipt}
           delta={d?.cpa}
           deltaInverted
-          bars={valueBars((r) => r.cpa, usd1)}
+          bars={valueBars((r) => r.cpa, usd)}
           empty={empty}
         />
         <MetricCard

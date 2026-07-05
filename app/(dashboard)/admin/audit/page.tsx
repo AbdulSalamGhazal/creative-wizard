@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { int } from "@/lib/format";
 import { requireAdmin } from "@/lib/auth";
 import { listAuditEvents, auditCategoryCounts } from "@/db/queries/audit";
 import type { AuditEntityType } from "@/lib/audit";
@@ -49,7 +50,7 @@ export default async function AuditPage({ searchParams }: Props) {
         title="Audit log"
         subtitle={
           <>
-            {total.toLocaleString()} event{total === 1 ? "" : "s"} · newest
+            {int(total)} event{total === 1 ? "" : "s"} · newest
             first.
           </>
         }

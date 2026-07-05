@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { int } from "@/lib/format";
 import { listAllTags } from "@/db/queries/creatives";
 import { listProducts } from "@/db/queries/products";
 import { listCreativeSummary } from "@/db/queries/summary";
@@ -148,7 +149,7 @@ export default async function SummaryPage({
         title="Summary"
         subtitle={
           <>
-            {rows.length.toLocaleString()} creative{rows.length === 1 ? "" : "s"}
+            {int(rows.length)} creative{rows.length === 1 ? "" : "s"}
             {" · "}
             {rangeLabel}
             {" · "}

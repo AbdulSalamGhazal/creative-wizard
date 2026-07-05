@@ -28,7 +28,7 @@ import { parseCampaignDetailParams } from "@/validators/campaign";
 import { PLATFORM_LABEL } from "@/lib/palette";
 import { safeDecodeURIComponent } from "@/lib/url";
 import { PageShell } from "@/components/layout/page-shell";
-import { isoDate } from "@/lib/format";
+import { isoDate, int } from "@/lib/format";
 import { defaultDateRange, presetLabel } from "@/lib/date-presets";
 import { resolvePreferredRange } from "@/db/queries/user-prefs";
 
@@ -195,8 +195,8 @@ export default async function CampaignDetailPage({
               </h2>
               <p className="text-xs text-ink-3 mt-0.5 max-w-xl">
                 Permanently removes the campaign and all{" "}
-                {deletionSummary.records.toLocaleString()} of its performance
-                records. The {deletionSummary.creatives.toLocaleString()} creative
+                {int(deletionSummary.records)} of its performance
+                records. The {int(deletionSummary.creatives)} creative
                 {deletionSummary.creatives === 1 ? "" : "s"} that ran here are
                 kept. This can&apos;t be undone.
               </p>

@@ -56,7 +56,9 @@ function unitSuffix(unit: MetricUnit): string {
 
 function formatValue(metric: MetricColumnKey, value: number): string {
   const { unit } = METRIC_META[metric];
-  const body = value.toLocaleString(undefined, { maximumFractionDigits: 4 });
+  // Pin the locale (undefined = runtime default → SSR/client drift). Keeps the
+  // up-to-4-decimal precision that int() would drop for rate thresholds.
+  const body = value.toLocaleString("en-US", { maximumFractionDigits: 4 });
   return `${unitPrefix(unit)}${body}${unitSuffix(unit)}`;
 }
 

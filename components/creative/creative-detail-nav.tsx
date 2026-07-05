@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { int } from "@/lib/format";
 import { ArrowLeft, ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -41,10 +42,10 @@ export function CreativeDetailNav({
           {position !== null ? (
             <>
               <span className="text-ink font-medium">{position}</span>
-              <span className="text-ink-3"> of {total.toLocaleString()}</span>
+              <span className="text-ink-3"> of {int(total)}</span>
             </>
           ) : (
-            <span className="text-ink-3">{total.toLocaleString()} total</span>
+            <span className="text-ink-3">{int(total)} total</span>
           )}
         </span>
         <Pager href={nextHref} dir="next" />

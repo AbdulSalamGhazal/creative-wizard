@@ -78,10 +78,10 @@ const METRIC_COLUMNS: Array<{
   label: string;
   format: MetricFormatter;
 }> = [
-  { key: "spend", label: "Spend", format: (v) => (v && v > 0 ? usd(v) : "—") },
-  { key: "impressions", label: "Imp.", format: (v) => (v && v > 0 ? int(v) : "—") },
-  { key: "clicks", label: "Clicks", format: (v) => (v && v > 0 ? int(v) : "—") },
-  { key: "conversions", label: "Conv.", format: (v) => (v && v > 0 ? int(v) : "—") },
+  { key: "spend", label: "Spend", format: (v) => usd(v) },
+  { key: "impressions", label: "Imp.", format: (v) => int(v) },
+  { key: "clicks", label: "Clicks", format: (v) => int(v) },
+  { key: "conversions", label: "Conv.", format: (v) => int(v) },
   { key: "ctr", label: "CTR", format: (v) => pct(v) },
   { key: "cpm", label: "CPM", format: (v) => usd(v) },
   { key: "cpc", label: "CPC", format: (v) => usd(v) },
@@ -90,7 +90,7 @@ const METRIC_COLUMNS: Array<{
   { key: "hook_rate", label: "Hook", format: (v) => pct(v) },
   { key: "hold_rate", label: "Hold", format: (v) => pct(v) },
   { key: "complete_rate", label: "Complete", format: (v) => pct(v) },
-  { key: "landing_page_views", label: "LP views", format: (v) => (v && v > 0 ? int(v) : "—") },
+  { key: "landing_page_views", label: "LP views", format: (v) => int(v) },
   { key: "voc", label: "VOC", format: (v) => pct(v) },
   { key: "cvr", label: "CvR", format: (v) => pct(v) },
 ];

@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { int } from "@/lib/format";
 import { redirect } from "next/navigation";
 import {
   portfolioCampaigns,
@@ -93,7 +94,7 @@ export default async function CampaignsPage({
         title="Campaigns"
         subtitle={
           <span className="num">
-            {campaigns.length.toLocaleString()} campaign
+            {int(campaigns.length)} campaign
             {campaigns.length === 1 ? "" : "s"} · {from} → {to}
           </span>
         }

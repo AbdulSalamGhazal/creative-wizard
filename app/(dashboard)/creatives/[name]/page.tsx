@@ -33,7 +33,7 @@ import { NotesPanel } from "@/components/creative/notes-panel";
 import { AuditFeed } from "@/components/audit/audit-feed";
 import { MetricCard } from "@/components/overview/metric-card";
 import { PageShell } from "@/components/layout/page-shell";
-import { int, ratio, usd0, usd1 } from "@/lib/format";
+import { int, ratio, usd, usd0 } from "@/lib/format";
 import { computeDelta } from "@/lib/period";
 import { defaultDateRange, presetLabel } from "@/lib/date-presets";
 import { resolvePreferredRange } from "@/db/queries/user-prefs";
@@ -225,7 +225,7 @@ export default async function CreativeDetailPage({
           <MetricCard label="Spend" value={usd0(k.spend)} icon={DollarSign} delta={d.spend} hideBreakdown />
           <MetricCard label="Conversions" value={int(k.conversions)} icon={Target} delta={d.conversions} hideBreakdown />
           <MetricCard label="Revenue" value={usd0(k.conversionValue)} icon={Banknote} delta={revenueDelta} hideBreakdown />
-          <MetricCard label="CPA" value={usd1(k.cpa)} icon={Receipt} delta={d.cpa} deltaInverted hideBreakdown />
+          <MetricCard label="CPA" value={usd(k.cpa)} icon={Receipt} delta={d.cpa} deltaInverted hideBreakdown />
           <MetricCard
             label="ROAS"
             value={k.roas !== null ? `${ratio(k.roas)}×` : "—"}
@@ -269,7 +269,7 @@ export default async function CreativeDetailPage({
             <h2 className="text-sm font-medium text-ink">Delete this creative</h2>
             <p className="text-xs text-ink-3 mt-0.5 max-w-xl">
               Permanently removes the creative, its tags, and all{" "}
-              {deletionSummary.records.toLocaleString()} of its performance
+              {int(deletionSummary.records)} of its performance
               records. This can&apos;t be undone and affects no other creative.
             </p>
           </div>
