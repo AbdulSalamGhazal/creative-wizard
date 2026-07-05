@@ -15,6 +15,7 @@ import { seriesColor } from "@/lib/palette";
 import { MetricPicker } from "@/components/charts/metric-picker";
 import { SeriesLegend } from "@/components/charts/series-legend";
 import { ChartShell, ExpandButton, SmoothToggle, GroupToggle } from "@/components/charts/chart-shell";
+import { useChartFit, ChartFitToggle } from "@/components/charts/chart-fit";
 import { smoothColumns } from "@/lib/chart-smooth";
 import type { CampaignCreativeDailyPoint } from "@/db/queries/campaign";
 import { ChartTooltip } from "@/components/charts/chart-tooltip";
@@ -195,6 +196,18 @@ export function CampaignCreativeChart({
     ? [{ creativeId: "all", name: "All creatives", color: "var(--brand)" }]
     : visible;
 
+  // Robust axis fit — cap a lone spike, with a toggle to show the full range.
+  const yValues = useMemo(() => {
+    const out: number[] = [];
+    for (const row of data)
+      for (const l of lineSpecs) {
+        const v = row[l.creativeId];
+        if (typeof v === "number") out.push(v);
+      }
+    return out;
+  }, [data, lineSpecs]);
+  const fit = useChartFit(yValues);
+
   const header = (inFull: boolean, toggleExpand: () => void) => (
     <div className="flex items-start justify-between flex-wrap gap-3 mb-3">
       <div className="flex items-center gap-2">
@@ -243,6 +256,8 @@ export function CampaignCreativeChart({
           tick={{ fill: "var(--ink-3)", fontSize: 11 }}
           stroke="var(--line-2)"
           width={48}
+          domain={fit.clip ? [0, fit.cap] : undefined}
+          allowDataOverflow={fit.clip}
         />
         <Tooltip content={<ChartTip visible={lineSpecs} kind={meta.kind} metricLabel={meta.label} />} />
         {lineSpecs.map((c) => (
@@ -274,8 +289,9 @@ export function CampaignCreativeChart({
         <>
           {header(inFull, toggleExpand)}
           {legend}
-          <div className={inFull ? "flex-1 min-h-0" : "h-80"}>
+          <div className={(inFull ? "flex-1 min-h-0" : "h-80") + " relative"}>
             {data.length === 0 ? empty : chart}
+            {data.length > 0 && <ChartFitToggle fit={fit} />}
           </div>
         </>
       )}
