@@ -51,7 +51,7 @@ Do not introduce a new dependency without a one-line justification in the PR des
 
 - The CSV pipeline is 5 stages. Do not reorder them.
 - Stages 1–2 fail fast. Stages 3–5 collect errors.
-- Creative-name matching is **strict** — no trimming, case-sensitive, NFC only.
+- Creative-name matching is **trim-then-exact** — cells are whitespace-trimmed, then matched byte-exactly (case-sensitive, NO Unicode normalization). Blank/`-`/`—`/`N/A`/`null` numeric cells read as `0` in every numeric column; a required numeric field errors only when its COLUMN is absent (E010), never per blank cell. (v1.2 decision — see validation-spec §4/§5.1.)
 - All-or-nothing: nothing is written to `performance_records` unless the entire file is clean and the user confirms.
 - Every error has a code from `csv/errors.ts`. Never invent ad-hoc error messages.
 
@@ -116,6 +116,15 @@ This app is deployed and in production use. Treat `main` as shippable.
 - **Most changes need no migration.** Schema/structure changes are rare; day-to-day data (creatives, uploads, users) flows through the app UI. Only flag the migration step when a change actually touches `db/schema.ts`.
 
 ## Learned
+
+- **Forgiving CSV matching is INTENTIONAL as of 2026-07 (validation-spec v1.2).**
+  The pipeline trims cells then matches creative names byte-exactly (case-
+  sensitive, no NFC), and reads blank/`-`/`—`/`N/A`/`null` numeric cells as `0`
+  in every numeric column (E042 is for blank identity fields — date/campaign_
+  name/adset_name — only; a missing required column is E010). This was a
+  deliberated product decision, NOT a bug — do **not** "fix" `csv/pipeline.ts`
+  back to strict-with-NFC or make blank numeric cells raise E042. The spec was
+  amended to match the code (not the reverse).
 
 - **`next build` fails on `react/no-unescaped-entities` — `tsc`/typecheck does
   NOT catch it.** A raw apostrophe/quote in JSX *text* (e.g. `that platform's

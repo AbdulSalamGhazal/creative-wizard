@@ -1,10 +1,13 @@
 # Urjwan Creative Management System — Validation Specification
 
-**Version:** 1.1
+**Version:** 1.2
 **Owner:** Salam — Urjwan
 **Related document:** `urjwan-ccms-prd.md`
 **Status:** Live — updated 2026-07 to document production behavior (upsert mode,
 XLSX ingestion, the campaign registry / E060 / E061, and the encoding decision).
+v1.2 blesses the implemented **trim-then-exact** creative-name matching and the
+**blank-numeric-cell → 0** rule as the intended contract (see §4 / §5.1); the
+prior "known divergence" is now a settled decision, not a bug.
 Per-platform header mappings are DB-driven (`/admin/catalog?tab=mappings`), so
 §9's static tables are historical.
 
@@ -99,24 +102,16 @@ Each distinct `(creative_name, platform, campaign_name, date)` from the file is 
 
 ## 4. Creative-Name Matching Rules
 
-Matching is **strict**:
+Matching is **trim-then-exact** (2026-07 decision):
 
-- Exact byte match after UTF-8 NFC normalization.
-- **Case-sensitive.** `URJ_VID_001` and `urj_vid_001` are different names.
-- **No whitespace forgiveness.** `URJ_VID_001 ` (trailing space) and `URJ_VID_001` are different names.
-- No fuzzy matching, no "did you mean" suggestions in v1.
+- **Whitespace is trimmed** off every cell — including the creative name — before matching. `URJ_VID_001 ` (trailing space) and `URJ_VID_001` match.
+- After the trim, the match is **byte-exact**: **case-sensitive** (`URJ_VID_001` and `urj_vid_001` are different names) and with **no Unicode normalization** on either side — the stored library name and the CSV cell must be byte-identical once trimmed.
+- A name that doesn't match a registered creative → **E020** (not registered). An empty creative-name cell → **E021**.
+- No fuzzy matching, no "did you mean" suggestions.
 
-The strictness is intentional: it makes the system's behavior fully predictable and pushes the team to maintain naming discipline at the source. Forgiveness here would hide problems rather than fix them.
+The trim-then-exact rule is intentional: trailing/leading whitespace in a platform export is a formatting artifact, not a naming choice, so forgiving it removes a whole class of false mismatches — while case- and character-exactness still push the team to maintain naming discipline at the source. This is the settled contract; do **not** re-tighten it to strict-with-NFC.
 
-> A "did you mean" hint based on Levenshtein distance is a nice-to-have for a later version, after the team has lived with the strict version for a while.
-
-> **⚠ Known divergence (2026-07 audit — decision deferred).** The current
-> implementation (a) trims surrounding whitespace off every cell, including
-> creative names, before matching, (b) applies **no** NFC normalization on
-> either side of the match, and (c) parses blank/`-`/`N/A` cells in required
-> numeric columns as `0` instead of raising E042 (§5.1). Whether to enforce
-> this spec as written or amend it to sanction the implemented behavior is an
-> open product decision — do not "fix" either side without it.
+> A "did you mean" hint based on Levenshtein distance is a nice-to-have for a later version, after the team has lived with the exact-match version for a while.
 
 ### 4.1 Campaign identity & the registry
 
@@ -142,7 +137,7 @@ Applies to: `spend`, `impressions`, `clicks`, `conversions`, `conversion_value`,
 - Currency symbols and trailing unit strings are stripped: `"$1,234"`, `"1234 USD"` parse to `1234`.
 - Decimal point only as the decimal separator (no European comma-as-decimal in v1; flagged as future work if any platform exports that way).
 - **Negative values are rejected** (E041). Refunds, adjustments, and credits are out of scope for v1.
-- Empty values, `"-"`, `"—"`, `"N/A"`, `"null"` are treated as `0` for **optional** fields and rejected as missing (E042) for **required** fields.
+- Empty values and the empty markers `"-"`, `"—"`, `"N/A"`, `"null"` (case-insensitive, trimmed) are treated as `0` in **every** numeric column — optional *and* required. A day with no conversions is a real, valid row, so a blank numeric cell never fails a row. A **required** numeric field is only enforced at the header stage: if its COLUMN is absent from the mapping the file is rejected with **E010** (`Required column missing`, §3.2) — never per-cell E042.
 - `impressions` and `clicks` are stored as integers; decimal values are accepted and floored (some platforms export `1234.0`).
 
 ### 5.2 Date field
@@ -154,8 +149,8 @@ Applies to: `spend`, `impressions`, `clicks`, `conversions`, `conversion_value`,
 
 ### 5.3 Creative-name field
 
-- Required, non-empty.
-- Matched against the library **exactly as it appears in the CSV cell** — no whitespace trimming, no case folding, no Unicode normalization beyond standard NFC. See §4.
+- Required, non-empty (an empty cell → E021).
+- **Trimmed**, then matched against the library **byte-exactly** — case-sensitive, no case folding, no Unicode normalization. See §4.
 
 ---
 
@@ -196,7 +191,7 @@ Every error carries a stable code, a severity, a template, and an example. Codes
 | E031  | ERROR    | Row {n}: date `'{value}'` is in the future.                                                               | "Row 12: date `'2027-01-01'` is in the future."                                                               |
 | E040  | ERROR    | Row {n}: `'{field}'` is not a valid number (`'{value}'`).                                                 | "Row 88: `'Spend'` is not a valid number (`'twelve'`)."                                                       |
 | E041  | ERROR    | Row {n}: `'{field}'` must be non-negative (got `{value}`).                                                | "Row 88: `'Spend'` must be non-negative (got `-12.45`)."                                                      |
-| E042  | ERROR    | Row {n}: required field `'{field}'` is missing.                                                           | "Row 88: required field `'Impressions'` is missing."                                                          |
+| E042  | ERROR    | Row {n}: required field `'{field}'` is missing. *(Identity fields only — `date`, `campaign_name`, `adset_name`. A blank numeric cell is `0`, never E042; a missing required column is E010.)* | "Row 88: required field `'campaign_name'` is missing." |
 | E050  | ERROR    | Rows {rows}: duplicate within file — same creative `'{name}'`, campaign `'{campaign}'`, platform `{platform}`, date `{date}`. | — |
 | E051  | ERROR    | Row(s) {rows}: `'{name}'` / campaign `'{campaign}'` on `{platform}` for `{date}` was already imported (batch {id}).         | — |
 | E060  | ERROR    | Campaign `'{name}'` already exists on `{platform}` — one campaign belongs to one platform.                | "Campaign `'Summer ➤ Broad'` already exists on tiktok."                                                       |
