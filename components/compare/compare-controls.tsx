@@ -101,7 +101,7 @@ export function CompareControls({ dimensions, sides, from, to }: Props) {
           <SideCard
             key={side.key}
             side={side}
-            accent={COMPARE_COLORS[i % COMPARE_COLORS.length] ?? "#FF4D8D"}
+            accent={COMPARE_COLORS[i % COMPARE_COLORS.length]!}
             dimensions={dimensions}
             sharedRange={sharedRange}
             setParam={setParam}
