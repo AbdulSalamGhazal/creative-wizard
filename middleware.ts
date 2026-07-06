@@ -87,8 +87,10 @@ export async function middleware(req: NextRequest) {
 export const config = {
   // Everything EXCEPT: Next internals/static, the sign-in page (and its server
   // action POST), the public health check, and root-level static assets
-  // (favicon, app icon, the public/*.svg files).
+  // (favicon, app icon, the public/*.svg files). `[^/]*\.svg$` matches only a
+  // ROOT-level .svg filename — a nested path like /admin/export.svg still hits
+  // auth (the old `.*\.svg$` exempted every .svg-suffixed path app-wide).
   matcher: [
-    "/((?!_next/static|_next/image|signin|api/health|favicon.ico|icon.svg|.*\\.svg$).*)",
+    "/((?!_next/static|_next/image|signin|api/health|favicon.ico|icon.svg|[^/]*\\.svg$).*)",
   ],
 };
