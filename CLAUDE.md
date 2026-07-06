@@ -374,8 +374,13 @@ This app is deployed and in production use. Treat `main` as shippable.
     views — see the campaigns table) **or** local state (detail tables). On it:
     the **Campaigns** table (`portfolio-table.tsx`, URL-backed + views),
     **By-tag** (`tag-rollup-table.tsx`), **Video** (`video-diagnostics-table.tsx`),
-    and the **campaign row-data** table (`campaign-records-table.tsx`). The
-    Columns dropdown lives in each consumer's toolbar and drives `hidden`.
+    the **campaign row-data** table (`campaign-records-table.tsx`), and the
+    creative-detail **campaigns/platform** table (`creative-campaigns-table.tsx`,
+    local sort + a By campaign / By platform mode toggle; totals derived from
+    component sums so they match across modes; row-click → campaign detail). The
+    Columns dropdown lives in each consumer's toolbar and drives `hidden`. (The
+    old hand-rolled `creative-platform-table.tsx` — expandable per-platform rows —
+    was replaced by this and DELETED.)
   - **THE ONE EXCEPTION: the Summary table** (`summary-table.tsx`) is NOT on
     DataTable and shouldn't be forced onto it — its columns are per-platform
     GROUPS (a grouped header row), not flat columns, so it reorders/hides at the

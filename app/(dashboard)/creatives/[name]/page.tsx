@@ -26,7 +26,7 @@ import { CreativeDetailHeader } from "@/components/creative/creative-detail-head
 import { CreativeDetailNav } from "@/components/creative/creative-detail-nav";
 import { DeleteCreativeDialog } from "@/components/creative/delete-creative-dialog";
 import { CreativePerfLineChart } from "@/components/charts/creative-perf-line";
-import { CreativePlatformTable } from "@/components/creative/creative-platform-table";
+import { CreativeCampaignsTable } from "@/components/creative/creative-campaigns-table";
 import { CreativeRecordsTable } from "@/components/creative/creative-records-table";
 import { AnalyticsDateFilter } from "@/components/creative/analytics-date-filter";
 import { NotesPanel } from "@/components/creative/notes-panel";
@@ -238,8 +238,8 @@ export default async function CreativeDetailPage({
         <CreativePerfLineChart title="Performance over time" rows={dailyRows} />
 
         <div>
-          <h3 className="text-sm font-medium text-ink mb-3">By platform</h3>
-          <CreativePlatformTable rows={byPlatform} campaigns={byCampaign} />
+          <h3 className="text-sm font-medium text-ink mb-3">Campaigns</h3>
+          <CreativeCampaignsTable campaigns={byCampaign} platforms={byPlatform} />
         </div>
       </section>
 
