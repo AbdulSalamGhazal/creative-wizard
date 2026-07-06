@@ -15,6 +15,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { excludeRecord, includeRecord } from "@/app/actions/exclusion";
+import { useCan } from "@/components/auth/permissions-context";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -27,10 +28,15 @@ interface Props {
 const REASON_MAX = 200;
 
 export function ExcludeRowAction({ recordId, excluded, context }: Props) {
+  const canExclude = useCan("record.exclude");
   const [open, setOpen] = useState(false);
   const [reason, setReason] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+
+  // Read-only viewers still see the "Excluded" badge (rendered by the parent);
+  // they just don't get the toggle affordance.
+  if (!canExclude) return null;
 
   const submitExclude = () => {
     const trimmed = reason.trim();

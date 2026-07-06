@@ -19,6 +19,7 @@ import {
 import { deleteCreative } from "@/app/actions/creative";
 import { int } from "@/lib/format";
 import { PLATFORM_LABEL } from "@/lib/palette";
+import { useCan } from "@/components/auth/permissions-context";
 import type { CreativeDeletionSummary } from "@/db/queries/creatives";
 
 export function DeleteCreativeDialog({
@@ -31,6 +32,7 @@ export function DeleteCreativeDialog({
   summary: CreativeDeletionSummary;
 }) {
   const router = useRouter();
+  const canDelete = useCan("creative.delete");
   const [open, setOpen] = useState(false);
   const [acknowledged, setAcknowledged] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -56,6 +58,8 @@ export function DeleteCreativeDialog({
       router.refresh();
     });
   };
+
+  if (!canDelete) return null;
 
   return (
     <Dialog

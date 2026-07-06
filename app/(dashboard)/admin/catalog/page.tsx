@@ -1,5 +1,7 @@
 import Link from "next/link";
-import { requireAdmin } from "@/lib/auth";
+import { notFound, redirect } from "next/navigation";
+import { auth, can } from "@/lib/auth";
+import type { Permission } from "@/lib/permissions";
 import { listTags } from "@/db/queries/tags";
 import { getRatingConfig } from "@/db/queries/rating";
 import { getActiveAccountId, listAccounts } from "@/lib/tenant";
@@ -16,14 +18,18 @@ import { PageHeader } from "@/components/layout/page-header";
 export const dynamic = "force-dynamic";
 
 const TABS = [
-  { key: "products", label: "Products" },
-  { key: "tags", label: "Tags" },
-  { key: "platforms", label: "Platforms" },
-  { key: "mapping", label: "CSV mapping" },
-  { key: "rating", label: "Rate rules" },
-  { key: "status", label: "Status" },
-  { key: "brands", label: "Brands" },
-] as const;
+  { key: "products", label: "Products", perm: "catalog.products" },
+  { key: "tags", label: "Tags", perm: "catalog.tags" },
+  { key: "platforms", label: "Platforms", perm: "config.mappings" },
+  { key: "mapping", label: "CSV mapping", perm: "config.mappings" },
+  { key: "rating", label: "Rate rules", perm: "config.rating" },
+  { key: "status", label: "Status", perm: "config.brands" },
+  { key: "brands", label: "Brands", perm: "config.brands" },
+] as const satisfies ReadonlyArray<{
+  key: string;
+  label: string;
+  perm: Permission;
+}>;
 type TabKey = (typeof TABS)[number]["key"];
 
 interface Props {
@@ -36,10 +42,16 @@ interface Props {
  * each section stays server-rendered.
  */
 export default async function CatalogAdminPage({ searchParams }: Props) {
-  await requireAdmin();
+  const user = await auth();
+  // Only the tabs this user is allowed to configure.
+  const tabs = TABS.filter((t) => user && can(user, t.perm));
+  if (tabs.length === 0) notFound();
+
   const { tab } = await searchParams;
-  const active: TabKey =
-    TABS.find((t) => t.key === tab)?.key ?? "products";
+  const requested = tabs.find((t) => t.key === tab);
+  // Redirect an unpermitted/unknown tab to the first one they can see.
+  if (!requested) redirect(`/admin/catalog?tab=${tabs[0]!.key}`);
+  const active: TabKey = requested.key;
 
   return (
     <PageShell width="admin">
@@ -47,7 +59,7 @@ export default async function CatalogAdminPage({ searchParams }: Props) {
 
       {/* Tab nav */}
       <div className="flex items-center gap-1 border-b border-line">
-        {TABS.map((t) => {
+        {tabs.map((t) => {
           const isActive = t.key === active;
           return (
             <Link

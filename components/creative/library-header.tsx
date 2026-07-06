@@ -7,28 +7,32 @@ import { CreativeStatusSummary } from "@/components/creative/creative-status-sum
 
 export function LibraryHeader({
   breakdown,
+  canCreate,
 }: {
   breakdown: CreativeStatusBreakdown;
+  canCreate: boolean;
 }) {
   return (
     <PageHeader
       eyebrow="Library"
       title="Creatives"
       rightSlot={
-        <div className="flex items-center gap-2">
-          <Button asChild variant="outline">
-            <Link href="/creatives/bulk">
-              <Upload className="w-4 h-4" />
-              Bulk import
-            </Link>
-          </Button>
-          <Button asChild>
-            <Link href="/creatives/new">
-              <Plus className="w-4 h-4" />
-              New creative
-            </Link>
-          </Button>
-        </div>
+        canCreate ? (
+          <div className="flex items-center gap-2">
+            <Button asChild variant="outline">
+              <Link href="/creatives/bulk">
+                <Upload className="w-4 h-4" />
+                Bulk import
+              </Link>
+            </Button>
+            <Button asChild>
+              <Link href="/creatives/new">
+                <Plus className="w-4 h-4" />
+                New creative
+              </Link>
+            </Button>
+          </div>
+        ) : undefined
       }
     >
       <CreativeStatusSummary breakdown={breakdown} />

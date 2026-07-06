@@ -6,7 +6,7 @@ import {
   getDefaultSummaryView,
   listSummaryViews,
 } from "@/db/queries/summary-views";
-import { requireAuth } from "@/lib/auth";
+import { can, requireAuth } from "@/lib/auth";
 import { creativeListFiltersSchema } from "@/validators/creative";
 import { LibraryHeader } from "@/components/creative/library-header";
 import { LibraryFilterBar } from "@/components/creative/library-filter-bar";
@@ -86,7 +86,10 @@ export default async function CreativesPage({
 
   return (
     <PageShell>
-      <LibraryHeader breakdown={breakdown} />
+      <LibraryHeader
+        breakdown={breakdown}
+        canCreate={can(user, "creative.create")}
+      />
       <LibraryFilterBar
         products={products}
         tags={allTags}

@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { and, count, eq, ne } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { requireEditor } from "@/lib/auth";
+import { requirePermission } from "@/lib/auth";
 import {
   creatives,
   creativePlatformOverrides,
@@ -45,7 +45,7 @@ export async function createCreative(
   input: unknown,
 ): Promise<CreativeMutationResult> {
   try {
-    const user = await requireEditor();
+    const user = await requirePermission("creative.create");
     const parsed = creativeCreateSchema.safeParse(input);
     if (!parsed.success) {
       const fieldErrors: Record<string, string> = {};
@@ -145,7 +145,7 @@ export async function updateCreativeNotes(
   notes: string,
 ): Promise<{ ok: boolean; error?: string }> {
   try {
-    const user = await requireEditor();
+    const user = await requirePermission("creative.edit");
     if (notes.length > 5000) {
       return { ok: false, error: "Notes too long (5000 char max)." };
     }
@@ -188,7 +188,7 @@ export async function updateCreativeSourceLink(
   link: unknown,
 ): Promise<{ ok: boolean; error?: string }> {
   try {
-    const user = await requireEditor();
+    const user = await requirePermission("creative.edit");
     const parsed = sourceLinkSchema.safeParse(link);
     if (!parsed.success) {
       return {
@@ -239,7 +239,7 @@ export async function setCreativeTermination(
   input: unknown,
 ): Promise<{ ok: boolean; error?: string }> {
   try {
-    const user = await requireEditor();
+    const user = await requirePermission("creative.edit");
     const parsed = creativeTerminationSchema.safeParse(input);
     if (!parsed.success) {
       return {
@@ -349,7 +349,7 @@ export async function patchCreative(
   input: unknown,
 ): Promise<CreativeMutationResult> {
   try {
-    const user = await requireEditor();
+    const user = await requirePermission("creative.edit");
     const parsed = creativePatchSchema.safeParse(input);
     if (!parsed.success) {
       const fieldErrors: Record<string, string> = {};
@@ -511,7 +511,7 @@ export async function deleteCreative(
   creativeId: string,
 ): Promise<{ ok: boolean; error?: string; recordsDeleted?: number }> {
   try {
-    const user = await requireEditor();
+    const user = await requirePermission("creative.delete");
     if (!z.string().uuid().safeParse(creativeId).success) {
       return { ok: false, error: "Invalid creative id." };
     }

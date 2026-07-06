@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { requireEditor } from "@/lib/auth";
+import { requirePermission } from "@/lib/auth";
 import { creatives, performanceRecords } from "@/db/schema";
 import { excludeSchema } from "@/validators/exclusion";
 import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
@@ -26,7 +26,7 @@ export async function excludeRecord(
   reason: string,
 ): Promise<ActionResult> {
   try {
-    const user = await requireEditor();
+    const user = await requirePermission("record.exclude");
     const id = idSchema.parse(recordId);
     const parsed = excludeSchema.parse({ reason });
     const acct = await getActiveAccountId();
@@ -78,7 +78,7 @@ export async function excludeRecord(
 /** Clear the exclusion flag on a record. Preserves no history in v1. */
 export async function includeRecord(recordId: number): Promise<ActionResult> {
   try {
-    const user = await requireEditor();
+    const user = await requirePermission("record.exclude");
     const id = idSchema.parse(recordId);
     const acct = await getActiveAccountId();
 

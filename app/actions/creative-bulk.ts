@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { asc, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { requireEditor } from "@/lib/auth";
+import { requirePermission } from "@/lib/auth";
 import {
   creatives,
   creativeTags,
@@ -267,7 +267,7 @@ async function build(formData: FormData): Promise<BuildResult> {
 /** Validate a bulk file and return a per-row preview. Read-only. */
 export async function previewBulkCreatives(formData: FormData): Promise<BulkPreview> {
   try {
-    await requireEditor();
+    await requirePermission("creative.create");
     const { preview } = await build(formData);
     return preview;
   } catch (err) {
@@ -293,7 +293,7 @@ export async function commitBulkCreatives(
   formData: FormData,
 ): Promise<BulkCommitResult> {
   try {
-    const user = await requireEditor();
+    const user = await requirePermission("creative.create");
     const { preview, normalized } = await build(formData);
 
     if (!preview.ok) return { ok: false, error: preview.error ?? "Could not parse the file." };

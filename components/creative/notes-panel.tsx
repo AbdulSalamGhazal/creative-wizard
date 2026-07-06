@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { updateCreativeNotes } from "@/app/actions/creative";
+import { useCan } from "@/components/auth/permissions-context";
 
 const MAX = 5000;
 
@@ -16,6 +17,7 @@ export function NotesPanel({
   creativeId: string;
   initialNotes: string | null;
 }) {
+  const canEdit = useCan("creative.edit");
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(initialNotes ?? "");
   const [saved, setSaved] = useState(initialNotes ?? "");
@@ -48,16 +50,18 @@ export function NotesPanel({
       <div className="rounded-lg border border-line bg-surface p-4 space-y-2">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-medium text-ink">Notes</h2>
-          <Button
-            type="button"
-            variant="ghost"
-            size="xs"
-            onClick={() => setEditing(true)}
-            className="text-ink-3 hover:text-ink"
-          >
-            <Edit3 className="w-3 h-3" />
-            Edit
-          </Button>
+          {canEdit && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="xs"
+              onClick={() => setEditing(true)}
+              className="text-ink-3 hover:text-ink"
+            >
+              <Edit3 className="w-3 h-3" />
+              Edit
+            </Button>
+          )}
         </div>
         {saved ? (
           <p className="text-sm text-ink-2 whitespace-pre-wrap">{saved}</p>

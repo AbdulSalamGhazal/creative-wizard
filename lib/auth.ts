@@ -75,18 +75,6 @@ export async function requireAdmin(): Promise<SessionUser> {
 }
 
 /**
- * @deprecated Coarse role gate — being replaced by `requirePermission(<perm>)`
- * across the action layer (Phase 2). Do not add new callers.
- */
-export async function requireEditor(): Promise<SessionUser> {
-  const user = await requireAuth();
-  if (user.role !== "admin" && user.role !== "editor") {
-    throw new Error("Editor role required");
-  }
-  return user;
-}
-
-/**
  * Whether `user` has `perm`. Admins always do; everyone else gets their explicit
  * set (or the role preset when they have none). Pure + synchronous so it can be
  * used in server components (gating rendered UI) as well as the guards below.

@@ -1,5 +1,5 @@
 import { put } from "@vercel/blob";
-import { requireEditor } from "@/lib/auth";
+import { requirePermission } from "@/lib/auth";
 
 /**
  * Thumbnail upload endpoint. Accepts a single image (multipart `file`), stores
@@ -57,7 +57,7 @@ function sniffImageType(head: Uint8Array): string | null {
 
 export async function POST(req: Request): Promise<Response> {
   try {
-    await requireEditor();
+    await requirePermission("creative.edit");
   } catch {
     return Response.json({ error: "Not authorized." }, { status: 401 });
   }

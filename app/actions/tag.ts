@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { and, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { requireAdmin } from "@/lib/auth";
+import { requirePermission } from "@/lib/auth";
 import { creatives, creativeTags, tags } from "@/db/schema";
 import { getTag } from "@/db/queries/tags";
 import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
@@ -30,7 +30,7 @@ function revalidate() {
 /** Add a tag to the managed vocabulary. Admin only. */
 export async function createTag(input: unknown): Promise<TagMutationResult> {
   try {
-    const user = await requireAdmin();
+    const user = await requirePermission("catalog.tags");
     const parsed = nameSchema.safeParse(
       typeof input === "object" && input !== null
         ? (input as { name?: unknown }).name
@@ -79,7 +79,7 @@ export async function renameTag(
   newName: string,
 ): Promise<TagMutationResult> {
   try {
-    const user = await requireAdmin();
+    const user = await requirePermission("catalog.tags");
     const parsed = nameSchema.safeParse(newName);
     if (!parsed.success) {
       return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid name" };
@@ -140,7 +140,7 @@ export async function renameTag(
  */
 export async function deleteTag(id: string): Promise<TagMutationResult> {
   try {
-    const user = await requireAdmin();
+    const user = await requirePermission("catalog.tags");
     const acct = await getActiveAccountId();
     const tag = await getTag(id);
     if (!tag) return { ok: false, error: "Tag not found." };

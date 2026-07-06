@@ -1,4 +1,6 @@
+import { redirect } from "next/navigation";
 import { listProducts } from "@/db/queries/products";
+import { auth, can } from "@/lib/auth";
 import { BulkCreativeImport } from "@/components/creative/bulk-creative-import";
 import { PageShell } from "@/components/layout/page-shell";
 import { PageHeader } from "@/components/layout/page-header";
@@ -6,6 +8,8 @@ import { PageHeader } from "@/components/layout/page-header";
 export const dynamic = "force-dynamic";
 
 export default async function BulkCreativesPage() {
+  const user = await auth();
+  if (!user || !can(user, "creative.create")) redirect("/creatives");
   const products = await listProducts();
 
   return (

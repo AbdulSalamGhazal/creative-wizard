@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Target } from "lucide-react";
+import { auth, can } from "@/lib/auth";
 import { Badge } from "@/components/ui/badge";
 import {
   campaignAnalytics,
@@ -63,6 +64,9 @@ export default async function CampaignDetailPage({
 
   const meta = await campaignMeta(decoded);
   if (!meta) notFound();
+
+  const user = await auth();
+  const canDelete = user ? can(user, "campaign.delete") : false;
 
   // Registry row (id/platform/objective) backs the edit dialog; parse the stored
   // name back into Campaign + Ad Set so the form pre-fills cleanly.
@@ -185,8 +189,8 @@ export default async function CampaignDetailPage({
         <CampaignRecordsTable records={records} byDay={byDay} campaign={decoded} />
       </CollapsibleSection>
 
-      {/* ─────────── Danger zone ─────────── */}
-      {registry && deletionSummary && (
+      {/* ─────────── Danger zone (delete permission only) ─────────── */}
+      {canDelete && registry && deletionSummary && (
         <div className="rounded-xl border border-neg/30 bg-neg/5 p-4 md:p-5">
           <div className="flex items-center justify-between gap-4 flex-wrap">
             <div>

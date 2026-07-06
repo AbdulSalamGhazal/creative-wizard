@@ -6,7 +6,7 @@ import { db } from "@/lib/db";
 import { creatives, products, uploadBatches, users } from "@/db/schema";
 import { isoDate, int } from "@/lib/format";
 import { PLATFORM_LABEL } from "@/lib/palette";
-import { auth } from "@/lib/auth";
+import { auth, can } from "@/lib/auth";
 import { getActiveAccountId } from "@/lib/tenant";
 import { RollbackButton } from "@/components/upload/rollback-button";
 import { CleanupTool } from "@/components/cleanup/cleanup-tool";
@@ -21,10 +21,9 @@ export const dynamic = "force-dynamic";
 
 export default async function UploadsPage() {
   const currentUser = await auth();
-  const isAdmin = currentUser?.role === "admin";
-  // Rollback stays admin-only; record cleanup is open to editors too.
-  const canCleanup =
-    currentUser?.role === "admin" || currentUser?.role === "editor";
+  const canImport = currentUser ? can(currentUser, "upload.import") : false;
+  const canRollback = currentUser ? can(currentUser, "upload.rollback") : false;
+  const canCleanup = currentUser ? can(currentUser, "upload.cleanup") : false;
 
   const acct = await getActiveAccountId();
   const rows = await db
@@ -72,12 +71,14 @@ export default async function UploadsPage() {
         title="Upload history"
         subtitle={`${rows.length} ${rows.length === 1 ? "batch" : "batches"}.`}
         rightSlot={
-          <Button asChild>
-            <Link href="/uploads/new">
-              <Plus className="w-4 h-4" />
-              New upload
-            </Link>
-          </Button>
+          canImport ? (
+            <Button asChild>
+              <Link href="/uploads/new">
+                <Plus className="w-4 h-4" />
+                New upload
+              </Link>
+            </Button>
+          ) : undefined
         }
       />
 
@@ -114,7 +115,7 @@ export default async function UploadsPage() {
               {rows.map((r) => {
                 const inWindow =
                   Date.now() - r.uploadedAt.getTime() < ROLLBACK_WINDOW_MS;
-                const rollable = isAdmin && r.status === "active" && inWindow;
+                const rollable = canRollback && r.status === "active" && inWindow;
                 return (
                   <tr key={r.id} className="hover:bg-surface-2/60 transition-colors">
                     <td className="px-3 py-2.5 text-ink-2">{isoDate(r.uploadedAt)}</td>
@@ -150,10 +151,12 @@ export default async function UploadsPage() {
         </div>
       )}
 
-      <p className="text-[11px] text-ink-3">
-        Admins can roll back any batch within 24 h of upload. Beyond that
-        window, use the cleanup tool below or contact an operator.
-      </p>
+      {(canRollback || canCleanup) && (
+        <p className="text-[11px] text-ink-3">
+          Roll back any batch within 24 h of upload. Beyond that window, use the
+          cleanup tool below or contact an operator.
+        </p>
+      )}
 
       {canCleanup && (
         <CleanupTool

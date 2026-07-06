@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { auth, can } from "@/lib/auth";
 import { Card, CardContent } from "@/components/ui/card";
 import { DollarSign, Target, Banknote, Receipt, TrendingUp } from "lucide-react";
 import {
@@ -115,6 +116,9 @@ export default async function CreativeDetailPage({
   if (!creative) {
     notFound();
   }
+
+  const user = await auth();
+  const canDelete = user ? can(user, "creative.delete") : false;
 
   // Dynamic status (general + per-platform) + the manual termination set, both
   // account-scoped. The header renders the general badge, the per-platform
@@ -262,24 +266,26 @@ export default async function CreativeDetailPage({
         <AuditFeed rows={activity} />
       </div>
 
-      {/* ─────────── Danger zone ─────────── */}
-      <div className="rounded-xl border border-neg/30 bg-neg/5 p-4 md:p-5">
-        <div className="flex items-center justify-between gap-4 flex-wrap">
-          <div>
-            <h2 className="text-sm font-medium text-ink">Delete this creative</h2>
-            <p className="text-xs text-ink-3 mt-0.5 max-w-xl">
-              Permanently removes the creative, its tags, and all{" "}
-              {int(deletionSummary.records)} of its performance
-              records. This can&apos;t be undone and affects no other creative.
-            </p>
+      {/* ─────────── Danger zone (delete permission only) ─────────── */}
+      {canDelete && (
+        <div className="rounded-xl border border-neg/30 bg-neg/5 p-4 md:p-5">
+          <div className="flex items-center justify-between gap-4 flex-wrap">
+            <div>
+              <h2 className="text-sm font-medium text-ink">Delete this creative</h2>
+              <p className="text-xs text-ink-3 mt-0.5 max-w-xl">
+                Permanently removes the creative, its tags, and all{" "}
+                {int(deletionSummary.records)} of its performance
+                records. This can&apos;t be undone and affects no other creative.
+              </p>
+            </div>
+            <DeleteCreativeDialog
+              creativeId={creative.id}
+              creativeName={creative.name}
+              summary={deletionSummary}
+            />
           </div>
-          <DeleteCreativeDialog
-            creativeId={creative.id}
-            creativeName={creative.name}
-            summary={deletionSummary}
-          />
         </div>
-      </div>
+      )}
     </PageShell>
   );
 }

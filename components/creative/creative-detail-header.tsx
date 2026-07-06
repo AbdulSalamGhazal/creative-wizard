@@ -44,6 +44,7 @@ import {
   patchCreative,
   setCreativeTermination,
 } from "@/app/actions/creative";
+import { useCan } from "@/components/auth/permissions-context";
 import { creativeTypeEnum } from "@/db/schema";
 import { ALL_PLATFORMS, PLATFORM_COLOR, PLATFORM_LABEL } from "@/lib/palette";
 import { isoDate } from "@/lib/format";
@@ -104,8 +105,13 @@ export function CreativeDetailHeader({
   products: Array<{ id: string; name: string }>;
 }) {
   const router = useRouter();
+  const canEdit = useCan("creative.edit");
   const [isPending, startTransition] = useTransition();
   const [dateOpen, setDateOpen] = useState(false);
+
+  // Read-only viewers see the same layout with every control disabled and no
+  // Save bar (the server rejects a patch regardless — this is just UX).
+  const locked = isPending || !canEdit;
 
   // Saved baseline (updated on successful save) + live drafts. Status is NOT
   // part of this editor — it's derived, with per-platform termination as the
@@ -188,8 +194,9 @@ export function CreativeDetailHeader({
 
   return (
     <div className="space-y-4">
-      {/* Save bar */}
-      <div className="flex items-center justify-end gap-2">
+      {/* Save bar — hidden for read-only viewers */}
+      {canEdit && (
+        <div className="flex items-center justify-end gap-2">
           {dirty ? (
             <span className="inline-flex items-center gap-1.5 text-[11px] text-warn">
               <span className="w-1.5 h-1.5 rounded-full bg-warn" />
@@ -217,7 +224,8 @@ export function CreativeDetailHeader({
             )}
             Save changes
           </Button>
-      </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-[260px_1fr] gap-6">
         {/* Thumbnail */}
@@ -225,11 +233,13 @@ export function CreativeDetailHeader({
           <ThumbnailUpload
             value={thumbnailUrl}
             onChange={setThumbnailUrl}
-            disabled={isPending}
+            disabled={locked}
           />
-          <p className="text-[10px] text-ink-3 px-0.5">
-            Click or drag to {thumbnailUrl ? "replace" : "add"} a thumbnail.
-          </p>
+          {canEdit && (
+            <p className="text-[10px] text-ink-3 px-0.5">
+              Click or drag to {thumbnailUrl ? "replace" : "add"} a thumbnail.
+            </p>
+          )}
           <div className="pt-1">
             <SourceLinkControl
               creativeId={creative.id}
@@ -248,7 +258,7 @@ export function CreativeDetailHeader({
             <Select
               value={productId}
               onValueChange={setProductId}
-              disabled={isPending}
+              disabled={locked}
             >
               <SelectTrigger className="h-8 text-xs w-full max-w-xs">
                 <SelectValue />
@@ -274,7 +284,7 @@ export function CreativeDetailHeader({
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              disabled={isPending}
+              disabled={locked}
               placeholder="Creative name"
               className={cn(
                 "w-full bg-transparent font-display text-3xl tracking-tight text-ink",
@@ -296,7 +306,7 @@ export function CreativeDetailHeader({
               <Select
                 value={type}
                 onValueChange={(v) => setType(v as Type)}
-                disabled={isPending}
+                disabled={locked}
               >
                 <SelectTrigger className="h-8 text-xs w-full sm:w-1/2">
                   <SelectValue />
@@ -335,7 +345,7 @@ export function CreativeDetailHeader({
                 <PopoverTrigger asChild>
                   <button
                     type="button"
-                    disabled={isPending}
+                    disabled={locked}
                     className={cn(
                       "inline-flex items-center gap-2 h-8 px-3 rounded-md border text-xs transition-colors disabled:opacity-60",
                       launchDate
@@ -365,7 +375,7 @@ export function CreativeDetailHeader({
                 <button
                   type="button"
                   onClick={() => setLaunchDate(null)}
-                  disabled={isPending}
+                  disabled={locked}
                   className="inline-flex items-center justify-center h-8 w-8 rounded-md border border-line text-ink-3 hover:text-neg transition-colors disabled:opacity-60"
                   aria-label="Clear publish date"
                 >
@@ -384,7 +394,7 @@ export function CreativeDetailHeader({
               value={tags}
               onChange={setTags}
               allTags={allTags}
-              disabled={isPending}
+              disabled={locked}
             />
           </div>
         </div>
@@ -408,6 +418,7 @@ function PlatformStatusSection({
   perPlatform: Partial<Record<Platform, PlatformStatus>>;
   terminated: Platform[];
 }) {
+  const canEdit = useCan("creative.edit");
   const [open, setOpen] = useState(false);
 
   return (
@@ -434,23 +445,27 @@ function PlatformStatusSection({
           );
         })}
       </div>
-      <div className="pt-0.5">
-        <Button
-          type="button"
-          variant="ghost"
-          size="xs"
-          onClick={() => setOpen(true)}
-          className="text-[11px] text-ink-3 hover:text-neg -ml-2"
-        >
-          Terminate / reactivate…
-        </Button>
-      </div>
-      <TerminationDialog
-        creativeId={creativeId}
-        terminated={terminated}
-        open={open}
-        onOpenChange={setOpen}
-      />
+      {canEdit && (
+        <>
+          <div className="pt-0.5">
+            <Button
+              type="button"
+              variant="ghost"
+              size="xs"
+              onClick={() => setOpen(true)}
+              className="text-[11px] text-ink-3 hover:text-neg -ml-2"
+            >
+              Terminate / reactivate…
+            </Button>
+          </div>
+          <TerminationDialog
+            creativeId={creativeId}
+            terminated={terminated}
+            open={open}
+            onOpenChange={setOpen}
+          />
+        </>
+      )}
     </div>
   );
 }

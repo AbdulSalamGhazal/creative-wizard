@@ -1,7 +1,7 @@
 import { asc } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { users } from "@/db/schema";
-import { auth, requireAdmin } from "@/lib/auth";
+import { auth, requirePermission } from "@/lib/auth";
 import { UserInviteForm } from "@/components/user/user-invite-form";
 import { UserRoleSelect } from "@/components/user/user-role-select";
 import { AdminSetPasswordButton } from "@/components/user/admin-set-password-button";
@@ -12,7 +12,7 @@ import { PageHeader } from "@/components/layout/page-header";
 export const dynamic = "force-dynamic";
 
 export default async function UsersAdminPage() {
-  await requireAdmin();
+  await requirePermission("users.manage");
   const me = await auth();
 
   const team = await db

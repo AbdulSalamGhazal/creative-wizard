@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { requireAdmin } from "@/lib/auth";
+import { requirePermission } from "@/lib/auth";
 import { performanceRecords, uploadBatches } from "@/db/schema";
 import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
 import { getActiveAccountId } from "@/lib/tenant";
@@ -25,7 +25,7 @@ export interface RollbackResult {
  */
 export async function rollbackBatch(batchId: string): Promise<RollbackResult> {
   try {
-    const user = await requireAdmin();
+    const user = await requirePermission("upload.rollback");
     const acct = await getActiveAccountId();
 
     const [batch] = await db

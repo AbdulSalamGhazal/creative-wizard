@@ -16,10 +16,10 @@ If a rule here conflicts with one of those documents, the documents win — flag
 
 - Next.js (App Router) + TypeScript strict
 - Drizzle ORM + Postgres (Neon)
-- Auth: custom HMAC-signed cookie sessions (`lib/auth-cookie.ts`) + bcrypt passwords (`lib/auth-password.ts`). Users created via `/admin/users`; first admin via `db/create-admin.ts`. NOT Auth.js/Google — those were never wired up.
+- Auth: custom HMAC-signed cookie sessions (`lib/auth-cookie.ts`) + bcrypt passwords (`lib/auth-password.ts`). Users created via `/admin/users`; first admin via `db/create-admin.ts`. NOT Auth.js/Google — those were never wired up. **Authorization is GRANULAR per-user permissions** (`lib/permissions.ts` catalog is the single source of truth) — see the Learned entry. Admins bypass every check; below admin, each capability is individually grantable and managed at `/admin/access`.
 - Tailwind + shadcn/ui + shadcn charts (Recharts under the hood)
 - papaparse (CSV), Zod (validation)
-- Vercel hosting. Vercel KV is NOT used (upload-validation sessions live in Postgres). **Vercel Blob IS used** for creative thumbnails: uploaded via `POST /api/uploads/thumbnail` (editor-only; client downscales→WebP first), stored public, and the returned URL is saved to `creatives.thumbnail_url`. Requires `BLOB_READ_WRITE_TOKEN` (auto-added when a Blob store is connected to the project); the blob host is allow-listed in `next.config.ts` `images.remotePatterns`.
+- Vercel hosting. Vercel KV is NOT used (upload-validation sessions live in Postgres). **Vercel Blob IS used** for creative thumbnails: uploaded via `POST /api/uploads/thumbnail` (requires `creative.edit`; client downscales→WebP first), stored public, and the returned URL is saved to `creatives.thumbnail_url`. Requires `BLOB_READ_WRITE_TOKEN` (auto-added when a Blob store is connected to the project); the blob host is allow-listed in `next.config.ts` `images.remotePatterns`.
 
 Do not introduce a new dependency without a one-line justification in the PR description.
 
@@ -37,7 +37,7 @@ Do not introduce a new dependency without a one-line justification in the PR des
 - Schema changes go through Drizzle migrations. Never edit a generated migration; create a new one.
 - Every column used in a filter, join, or sort needs an index. Declare it in the schema file alongside the column.
 - When adding a new dashboard query, check whether existing indexes cover it; add one if not.
-- `performance_records` is **unique** on `(creative_id, platform, campaign_id, date)` — the same creative can run on the same platform/date across different campaigns (distinct rows), but not the same campaign twice. (`campaign_id` is the FK to the campaigns registry; the old `campaign_name` text column is gone — see the Learned section.) Validation is still the only **entry** path. There are four sanctioned **exit** paths: (1) batch rollback within 24 h (admin-only), (2) the record-cleanup tool on `/uploads` (filtered hard-delete, editor-or-admin, preview-then-confirm, audit-logged via `upload.bulk_delete`), (3) deleting a creative (`deleteCreative` in `app/actions/creative.ts`) — which removes that creative's records inside a transaction because `performance_records.creative_id` has NO `ON DELETE CASCADE`, then deletes the creative (its `creative_tags` cascade). Editor-or-admin, confirm-with-record-summary, audit-logged via `creative.delete`, and (4) deleting a campaign (`deleteCampaign` in `app/actions/campaign.ts`) — the campaign detail page's danger zone; because `performance_records.campaign_id` also has NO `ON DELETE CASCADE`, it removes the campaign's records inside a transaction, then drops the `campaigns` row. The CREATIVES that ran in the campaign are KEPT (only their records for that campaign go); confirm-with-record-summary (`campaignDeletionSummary`), editor-or-admin, audit-logged via `campaign.delete`. No other code should delete from `performance_records`.
+- `performance_records` is **unique** on `(creative_id, platform, campaign_id, date)` — the same creative can run on the same platform/date across different campaigns (distinct rows), but not the same campaign twice. (`campaign_id` is the FK to the campaigns registry; the old `campaign_name` text column is gone — see the Learned section.) Validation is still the only **entry** path. There are four sanctioned **exit** paths (each gated by a granular permission — see the Learned entry; admins always pass): (1) batch rollback within 24 h (`upload.rollback`), (2) the record-cleanup tool on `/uploads` (filtered hard-delete, `upload.cleanup`, preview-then-confirm, audit-logged via `upload.bulk_delete`), (3) deleting a creative (`deleteCreative` in `app/actions/creative.ts`) — which removes that creative's records inside a transaction because `performance_records.creative_id` has NO `ON DELETE CASCADE`, then deletes the creative (its `creative_tags` cascade). `creative.delete`, confirm-with-record-summary, audit-logged via `creative.delete`, and (4) deleting a campaign (`deleteCampaign` in `app/actions/campaign.ts`) — the campaign detail page's danger zone; because `performance_records.campaign_id` also has NO `ON DELETE CASCADE`, it removes the campaign's records inside a transaction, then drops the `campaigns` row. The CREATIVES that ran in the campaign are KEPT (only their records for that campaign go); confirm-with-record-summary (`campaignDeletionSummary`), `campaign.delete`, audit-logged via `campaign.delete`. No other code should delete from `performance_records`.
 - Every creative has a required `product_id`. Products live in their own table and are managed in `/admin/catalog?tab=products`. Never let a creative be saved without one.
 
 ## Aggregation rules (CRITICAL)
@@ -158,7 +158,7 @@ This app is deployed and in production use. Treat `main` as shippable.
 - The admin record-cleanup tool (`/uploads`, `app/actions/cleanup.ts`) is a
   sanctioned hard-delete exit path for `performance_records`, added at the
   user's request. It overrides the original "rollback is the only exit path"
-  rule. Available to editors + admins (via `requireEditor`). Guardrails: ≥1
+  rule. Gated by the `upload.cleanup` permission. Guardrails: ≥1
   filter required, preview-then-confirm, audit-logged. Keep these whenever
   touching cleanup.
 - **`platform`/`type`/`status` columns are `varchar`, NOT Postgres enums.** The
@@ -488,3 +488,37 @@ This app is deployed and in production use. Treat `main` as shippable.
     own sort + drag-resize) and `launch-fatigue.tsx` (734 loc) onto `DataTable`.
     These are large rewrites of live tables and warrant a dedicated, carefully-
     verified change rather than being bundled into the consistency sweep.
+
+- **Authorization is GRANULAR per-user permissions (2026-07) — DERIVE from the
+  catalog, never re-list.** The old two-tier `requireEditor`/`requireAdmin` model
+  is GONE. `lib/permissions.ts` is the single source of truth: `PERMISSION_GROUPS`
+  (an `as const` catalog of 5 groups / 17 keys) → the `Permission` union +
+  `ALL_PERMISSIONS` are derived from it, so any new capability is added in ONE
+  place and every surface (checks, the `/admin/access` UI, nav) follows.
+  - **Storage:** `users.role` (`admin` | `editor` | `viewer`, a tier) +
+    `users.permissions text[]` NULLABLE (migration 0026, additive). `NULL` →
+    derive from the role preset; a non-null array → an explicit ("Custom") grant.
+    `resolvePermissions(role, permissions)`: admin → ALL; null → preset; array →
+    the filtered explicit set (role tier is cosmetic below admin when the array
+    is present). Presets: admin = everything, editor = `EDITOR_PRESET` (today's
+    old `requireEditor` set EXACTLY — creative/campaign CRUD, import/upsert/
+    cleanup, exclude), viewer = none.
+  - **Enforcement (the server IS the boundary):** every mutating action/route
+    calls `requirePermission(<perm>)` from `lib/auth.ts` (throws otherwise);
+    admins bypass via `can()`. The 3 upload routes: validate/commit →
+    `upload.import`, and re-check `upload.upsert` when `upsert` is on;
+    thumbnail → `creative.edit`. `can(user, perm)` is pure+sync so Server
+    Components gate rendered UI with it.
+  - **UI gating is UX-only (hide, don't disable-only).** A `PermissionsProvider`
+    (`components/auth/permissions-context.tsx`) seeded from the layout exposes
+    `useCan(perm)` to Client Components; server pages/danger-zones gate with
+    `can(user, perm)`. Nav derives visibility via `visibleNavItems()` in
+    `nav-items.ts` (per-item `perms`, shown if the user holds ANY). Never rely on
+    hidden UI for security — the action/route check is the real gate.
+  - **`/admin/access`** (`users.manage`) manages role+permissions per user:
+    preset selector (Admin/Editor/Viewer/Custom) + group checkbox grids + a dirty
+    Save/Discard bar; admin cards render all-checked+disabled; you can't edit your
+    OWN access. `updateUserAccess` in `app/actions/user.ts` enforces the
+    guardrails (no self-edit, can't demote the last admin) and audits
+    `user.permissions_update` with before/after `{role, permissions}`. The
+    invite/role flows accept `viewer` too.

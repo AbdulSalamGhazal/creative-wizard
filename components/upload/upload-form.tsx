@@ -10,6 +10,7 @@ import { ErrorReport } from "@/components/upload/error-report";
 import { SummaryCard } from "@/components/upload/summary-card";
 import { PlatformPicker, PLATFORMS } from "@/components/upload/platform-picker";
 import { PLATFORM_LABEL } from "@/lib/palette";
+import { useCan } from "@/components/auth/permissions-context";
 import type { ValidationError } from "@/csv/errors";
 
 type Platform = (typeof PLATFORMS)[number]["value"];
@@ -52,6 +53,7 @@ type Stage =
 
 export function UploadForm() {
   const router = useRouter();
+  const canUpsert = useCan("upload.upsert");
   const [file, setFile] = useState<File | null>(null);
   const [platform, setPlatform] = useState<Platform | null>(null);
   const [upsert, setUpsert] = useState(false);
@@ -254,7 +256,7 @@ export function UploadForm() {
       {/* Upsert toggle — appears once a file is present. Default off: a plain
           import rejects rows that already exist. On: existing rows are updated
           in place and only new rows are inserted (e.g. attribution backfill). */}
-      {file && (
+      {file && canUpsert && (
         <div className="space-y-2">
           <div className="text-sm text-ink">3. Mode</div>
           <button

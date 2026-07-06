@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireEditor } from "@/lib/auth";
+import { requirePermission } from "@/lib/auth";
 import {
   deleteRecords,
   previewCleanup,
@@ -30,7 +30,7 @@ export async function previewCleanupAction(
   input: unknown,
 ): Promise<PreviewResult> {
   try {
-    await requireEditor();
+    await requirePermission("upload.cleanup");
     const parsed = cleanupFiltersSchema.safeParse(input);
     if (!parsed.success) {
       return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid filters" };
@@ -51,7 +51,7 @@ export async function previewCleanupAction(
  */
 export async function runCleanup(input: unknown): Promise<CleanupResult> {
   try {
-    const user = await requireEditor();
+    const user = await requirePermission("upload.cleanup");
     const parsed = cleanupFiltersSchema.safeParse(input);
     if (!parsed.success) {
       return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid filters" };

@@ -18,14 +18,22 @@ interface Props {
   creatives: Array<{ id: string; name: string; productName: string }>;
   accounts: Array<{ id: string; name: string }>;
   activeAccountId: string;
+  /** The user's effective permission keys — drives which nav items appear. */
+  granted: string[];
 }
 
-export function TopBar({ user, creatives, accounts, activeAccountId }: Props) {
+export function TopBar({
+  user,
+  creatives,
+  accounts,
+  activeAccountId,
+  granted,
+}: Props) {
   return (
     <header className="border-b border-line sticky top-0 z-20 bg-background">
       <div className="flex items-center justify-between px-6 h-14">
         <div className="flex items-center gap-2.5">
-          <MobileNav role={user.role} />
+          <MobileNav granted={granted} />
           <LogoMark className="w-10 h-10 shrink-0" />
           <BrandWordmark className="text-2xl leading-none" />
           <AccountSwitcher accounts={accounts} activeId={activeAccountId} />

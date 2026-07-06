@@ -52,6 +52,7 @@ export function UserRoleSelect({
         <SelectContent>
           <SelectItem value="admin">Admin</SelectItem>
           <SelectItem value="editor">Editor</SelectItem>
+          <SelectItem value="viewer">Viewer</SelectItem>
         </SelectContent>
       </Select>
       {error && <span className="text-[11px] text-neg">{error}</span>}

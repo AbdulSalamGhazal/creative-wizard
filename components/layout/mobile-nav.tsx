@@ -11,7 +11,11 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
-import { NAV_ITEMS, TRENDS_CHILDREN, isActive } from "@/components/layout/nav-items";
+import {
+  TRENDS_CHILDREN,
+  isActive,
+  visibleNavItems,
+} from "@/components/layout/nav-items";
 import { cn } from "@/lib/utils";
 
 /**
@@ -20,7 +24,7 @@ import { cn } from "@/lib/utils";
  * sidebar (components/layout/nav-items) so the two never drift. Closes on any
  * navigation (pathname change).
  */
-export function MobileNav({ role }: { role?: "admin" | "editor" | "viewer" }) {
+export function MobileNav({ granted }: { granted: string[] }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
 
@@ -29,8 +33,9 @@ export function MobileNav({ role }: { role?: "admin" | "editor" | "viewer" }) {
     setOpen(false);
   }, [pathname]);
 
-  const primary = NAV_ITEMS.filter((i) => i.group === "primary");
-  const admin = role === "admin" ? NAV_ITEMS.filter((i) => i.group === "admin") : [];
+  const items = visibleNavItems(granted);
+  const primary = items.filter((i) => i.group === "primary");
+  const admin = items.filter((i) => i.group === "admin");
 
   const link = (href: string, label: string, opts?: { child?: boolean }) => (
     <Link

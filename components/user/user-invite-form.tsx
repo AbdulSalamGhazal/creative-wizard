@@ -18,7 +18,7 @@ import { inviteUser } from "@/app/actions/user";
 export function UserInviteForm() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
-  const [role, setRole] = useState<"admin" | "editor">("editor");
+  const [role, setRole] = useState<"admin" | "editor" | "viewer">("editor");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -72,10 +72,11 @@ export function UserInviteForm() {
       </div>
       <div className="grid grid-cols-1 md:grid-cols-[160px_1fr_auto] gap-2 items-end">
         <div className="space-y-1.5">
-          <Label>Role</Label>
+          <Label>Starting access</Label>
           <Select value={role} onValueChange={(v) => setRole(v as typeof role)}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
+              <SelectItem value="viewer">Viewer</SelectItem>
               <SelectItem value="editor">Editor</SelectItem>
               <SelectItem value="admin">Admin</SelectItem>
             </SelectContent>

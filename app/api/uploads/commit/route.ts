@@ -3,7 +3,7 @@ import { revalidatePath } from "next/cache";
 import { and, eq, inArray, lt } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { requireEditor } from "@/lib/auth";
+import { can, requirePermission } from "@/lib/auth";
 import {
   campaigns,
   creatives,
@@ -65,7 +65,7 @@ const CHUNK_SIZE = 500;
 export async function POST(request: NextRequest) {
   let user;
   try {
-    user = await requireEditor();
+    user = await requirePermission("upload.import");
   } catch {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -214,6 +214,14 @@ export async function POST(request: NextRequest) {
   // For a plain import `existingIds` is absent → every row is an insert.
   const existingIds = payload.existingIds;
   const upsert = Array.isArray(existingIds);
+  // Committing an upsert session overwrites existing rows — re-check the
+  // stricter capability here (a client could POST a session id directly).
+  if (upsert && !can(user, "upload.upsert")) {
+    return NextResponse.json(
+      { error: "You don't have permission to use upsert mode." },
+      { status: 403 },
+    );
+  }
   const insertRows: ParsedRow[] = [];
   const updateRows: { id: number; row: ParsedRow }[] = [];
   if (upsert) {

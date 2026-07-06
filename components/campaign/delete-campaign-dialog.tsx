@@ -19,6 +19,7 @@ import {
 import { deleteCampaign } from "@/app/actions/campaign";
 import { int } from "@/lib/format";
 import { PLATFORM_LABEL } from "@/lib/palette";
+import { useCan } from "@/components/auth/permissions-context";
 import type { CampaignDeletionSummary } from "@/db/queries/campaign";
 
 /**
@@ -37,6 +38,7 @@ export function DeleteCampaignDialog({
   summary: CampaignDeletionSummary;
 }) {
   const router = useRouter();
+  const canDelete = useCan("campaign.delete");
   const [open, setOpen] = useState(false);
   const [acknowledged, setAcknowledged] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -62,6 +64,8 @@ export function DeleteCampaignDialog({
       router.refresh();
     });
   };
+
+  if (!canDelete) return null;
 
   return (
     <Dialog

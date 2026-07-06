@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { requireAdmin } from "@/lib/auth";
+import { requirePermission } from "@/lib/auth";
 import { products } from "@/db/schema";
 import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
 import { getActiveAccountId } from "@/lib/tenant";
@@ -29,7 +29,7 @@ function slugify(name: string): string {
 
 export async function createProduct(input: unknown): Promise<ProductMutationResult> {
   try {
-    const user = await requireAdmin();
+    const user = await requirePermission("catalog.products");
     const parsed = nameSchema.safeParse(
       typeof input === "object" && input !== null
         ? (input as { name?: unknown }).name
@@ -109,7 +109,7 @@ export async function createProduct(input: unknown): Promise<ProductMutationResu
 
 export async function archiveProduct(productId: string): Promise<ProductMutationResult> {
   try {
-    const me = await requireAdmin();
+    const me = await requirePermission("catalog.products");
     const acct = await getActiveAccountId();
     const [existing] = await db
       .select({ id: products.id, status: products.status, name: products.name })
@@ -145,7 +145,7 @@ export async function archiveProduct(productId: string): Promise<ProductMutation
 
 export async function restoreProduct(productId: string): Promise<ProductMutationResult> {
   try {
-    const me = await requireAdmin();
+    const me = await requirePermission("catalog.products");
     const acct = await getActiveAccountId();
     const [existing] = await db
       .select({ name: products.name })

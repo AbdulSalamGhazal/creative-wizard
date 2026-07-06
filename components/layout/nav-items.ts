@@ -10,7 +10,9 @@ import {
   Megaphone,
   Users,
   ScrollText,
+  KeyRound,
 } from "lucide-react";
+import type { Permission } from "@/lib/permissions";
 
 /**
  * Single source of truth for the app's primary + admin navigation. Consumed by
@@ -29,6 +31,12 @@ export interface NavItem {
   group: "primary" | "admin";
   /** When present, this item is a collapsible section, not a direct link. */
   children?: NavChild[];
+  /**
+   * Permissions that unlock this item — shown when the user holds AT LEAST ONE.
+   * Omit for items every signed-in user may see (the read-only dashboards).
+   * Admins hold every permission, so they always see gated items.
+   */
+  perms?: Permission[];
 }
 
 export const TRENDS_CHILDREN: NavChild[] = [
@@ -55,11 +63,60 @@ export const NAV_ITEMS: NavItem[] = [
     children: TRENDS_CHILDREN,
   },
   { href: "/compare", label: "Compare", icon: GitCompare, group: "primary" },
-  { href: "/uploads", label: "Uploads", icon: Upload, group: "primary" },
-  { href: "/admin/catalog", label: "Configuration", icon: SlidersHorizontal, group: "admin" },
-  { href: "/admin/users", label: "Team", icon: Users, group: "admin" },
-  { href: "/admin/audit", label: "Audit log", icon: ScrollText, group: "admin" },
+  {
+    href: "/uploads",
+    label: "Uploads",
+    icon: Upload,
+    group: "primary",
+    perms: ["upload.import", "upload.cleanup", "upload.rollback"],
+  },
+  {
+    href: "/admin/catalog",
+    label: "Configuration",
+    icon: SlidersHorizontal,
+    group: "admin",
+    perms: [
+      "catalog.products",
+      "catalog.tags",
+      "config.rating",
+      "config.mappings",
+      "config.brands",
+    ],
+  },
+  {
+    href: "/admin/access",
+    label: "Access",
+    icon: KeyRound,
+    group: "admin",
+    perms: ["users.manage"],
+  },
+  {
+    href: "/admin/users",
+    label: "Team",
+    icon: Users,
+    group: "admin",
+    perms: ["users.manage"],
+  },
+  {
+    href: "/admin/audit",
+    label: "Audit log",
+    icon: ScrollText,
+    group: "admin",
+    perms: ["audit.view"],
+  },
 ];
+
+/**
+ * Nav items visible to a user holding `granted` permissions. An item with no
+ * `perms` is always shown; one with `perms` needs at least one match. (Admins
+ * hold every permission, so they see everything.)
+ */
+export function visibleNavItems(granted: Iterable<string>): NavItem[] {
+  const set = granted instanceof Set ? granted : new Set(granted);
+  return NAV_ITEMS.filter(
+    (item) => !item.perms || item.perms.some((p) => set.has(p)),
+  );
+}
 
 /** Whether a nav href matches the current pathname (exact for "/", prefix else). */
 export function isActive(pathname: string, href: string): boolean {

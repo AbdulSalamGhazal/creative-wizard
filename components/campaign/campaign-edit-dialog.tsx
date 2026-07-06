@@ -26,6 +26,7 @@ import {
 import { buildCampaignName, CAMPAIGN_OBJECTIVES } from "@/lib/campaign";
 import { ALL_PLATFORMS, PLATFORM_LABEL } from "@/lib/palette";
 import { updateCampaign } from "@/app/actions/campaign";
+import { useCan } from "@/components/auth/permissions-context";
 
 /**
  * Edit a campaign's name (rebuilt from Campaign + Ad Set + Platform), platform
@@ -49,6 +50,7 @@ export function CampaignEditDialog({
   objective: string;
 }) {
   const router = useRouter();
+  const canEdit = useCan("campaign.edit");
   const [open, setOpen] = useState(false);
   const [campaign, setCampaign] = useState(initCampaign);
   const [adset, setAdset] = useState(initAdset);
@@ -93,6 +95,8 @@ export function CampaignEditDialog({
       }
     });
   };
+
+  if (!canEdit) return null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

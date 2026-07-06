@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { and, eq, max } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { requireAdmin } from "@/lib/auth";
+import { requirePermission } from "@/lib/auth";
 import { platformFieldMappings, platformEnum } from "@/db/schema";
 import { INTERNAL_FIELDS } from "@/csv/platforms/types";
 import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
@@ -23,7 +23,7 @@ export interface MutationResult {
 
 export async function addHeaderMapping(input: unknown): Promise<MutationResult> {
   try {
-    const user = await requireAdmin();
+    const user = await requirePermission("config.mappings");
     const parsed = inputSchema.safeParse(input);
     if (!parsed.success) {
       return {
@@ -91,7 +91,7 @@ export async function addHeaderMapping(input: unknown): Promise<MutationResult> 
 
 export async function removeHeaderMapping(id: string): Promise<MutationResult> {
   try {
-    const me = await requireAdmin();
+    const me = await requirePermission("config.mappings");
     if (!z.string().uuid().safeParse(id).success) {
       return { ok: false, error: "Invalid id." };
     }

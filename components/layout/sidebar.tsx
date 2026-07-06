@@ -10,14 +10,14 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
-  NAV_ITEMS as items,
   isActive,
+  visibleNavItems,
   type NavItem,
 } from "@/components/layout/nav-items";
 
 const STORAGE_KEY = "sidebar-collapsed";
 
-export function Sidebar({ role }: { role?: "admin" | "editor" | "viewer" }) {
+export function Sidebar({ granted }: { granted: string[] }) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
 
@@ -43,8 +43,9 @@ export function Sidebar({ role }: { role?: "admin" | "editor" | "viewer" }) {
       return next;
     });
 
+  const items = visibleNavItems(granted);
   const primary = items.filter((i) => i.group === "primary");
-  const admin = role === "admin" ? items.filter((i) => i.group === "admin") : [];
+  const admin = items.filter((i) => i.group === "admin");
 
   return (
     <aside

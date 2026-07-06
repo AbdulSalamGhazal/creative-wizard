@@ -2,7 +2,7 @@
 
 import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { requireAdmin } from "@/lib/auth";
+import { requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { platformRatingRules, ratingRules } from "@/db/schema";
 import { getRatingRules } from "@/db/queries/rating";
@@ -37,7 +37,7 @@ export async function updateRatingRules(
   input: unknown,
 ): Promise<RatingRulesResult> {
   try {
-    const user = await requireAdmin();
+    const user = await requirePermission("config.rating");
     const parsed = ratingRulesSchema.safeParse(input);
     if (!parsed.success) {
       return {
@@ -105,7 +105,7 @@ export async function updatePlatformRatingRules(
   input: unknown,
 ): Promise<RatingRulesResult> {
   try {
-    const user = await requireAdmin();
+    const user = await requirePermission("config.rating");
     const parsed = platformRatingRulesSchema.safeParse(input);
     if (!parsed.success) {
       return {
@@ -163,7 +163,7 @@ export async function clearPlatformRatingRules(
   input: unknown,
 ): Promise<RatingRulesResult> {
   try {
-    const user = await requireAdmin();
+    const user = await requirePermission("config.rating");
     const parsed = clearPlatformRatingSchema.safeParse(input);
     if (!parsed.success) return { ok: false, error: "Invalid platform" };
     const { platform } = parsed.data;

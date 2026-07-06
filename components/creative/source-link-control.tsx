@@ -5,6 +5,7 @@ import { Check, ExternalLink, Link2, Loader2, Pencil, X } from "lucide-react";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { updateCreativeSourceLink } from "@/app/actions/creative";
+import { useCan } from "@/components/auth/permissions-context";
 
 /**
  * Compact source-link control for the detail header (below the thumbnail).
@@ -20,6 +21,7 @@ export function SourceLinkControl({
   creativeId: string;
   initialLink: string | null;
 }) {
+  const canEdit = useCan("creative.edit");
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(initialLink ?? "");
   const [saved, setSaved] = useState(initialLink ?? "");
@@ -44,6 +46,23 @@ export function SourceLinkControl({
     setValue(saved);
     setEditing(false);
   };
+
+  // Read-only viewers: show the link if present, no add/edit affordances.
+  if (!canEdit) {
+    if (!saved) return null;
+    return (
+      <a
+        href={saved}
+        target="_blank"
+        rel="noopener noreferrer"
+        title={saved}
+        className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-line bg-surface text-xs text-ink hover:bg-surface-2 transition-colors"
+      >
+        <ExternalLink className="w-3.5 h-3.5 shrink-0 text-ink-3" />
+        Source
+      </a>
+    );
+  }
 
   if (editing) {
     return (

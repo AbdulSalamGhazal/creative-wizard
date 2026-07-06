@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { and, eq, inArray, ne } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { requireEditor } from "@/lib/auth";
+import { can, requirePermission } from "@/lib/auth";
 import {
   campaigns,
   creatives,
@@ -39,7 +39,7 @@ const platformSchema = z.enum(platformEnum);
 export async function POST(request: NextRequest) {
   let user;
   try {
-    user = await requireEditor();
+    user = await requirePermission("upload.import");
   } catch {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -62,6 +62,13 @@ export async function POST(request: NextRequest) {
   // (e.g. TikTok re-reporting sales for the past week).
   const upsert =
     form.get("upsert") === "true" || form.get("upsert") === "1";
+  // Upsert overwrites existing rows — a stricter, separately-grantable capability.
+  if (upsert && !can(user, "upload.upsert")) {
+    return NextResponse.json(
+      { error: "You don't have permission to use upsert mode." },
+      { status: 403 },
+    );
+  }
 
   const platformResult = platformSchema.safeParse(rawPlatform);
   if (!platformResult.success) {

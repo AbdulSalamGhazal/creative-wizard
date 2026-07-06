@@ -11,7 +11,7 @@ import {
   getDefaultSummaryView,
   listSummaryViews,
 } from "@/db/queries/summary-views";
-import { requireAuth } from "@/lib/auth";
+import { can, requireAuth } from "@/lib/auth";
 import Link from "next/link";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -99,11 +99,13 @@ export default async function CampaignsPage({
           </span>
         }
         rightSlot={
-          <Button asChild>
-            <Link href="/campaigns/new">
-              <Plus className="w-4 h-4" /> New campaign
-            </Link>
-          </Button>
+          can(user, "campaign.create") ? (
+            <Button asChild>
+              <Link href="/campaigns/new">
+                <Plus className="w-4 h-4" /> New campaign
+              </Link>
+            </Button>
+          ) : undefined
         }
       />
 

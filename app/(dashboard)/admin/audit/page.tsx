@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { int } from "@/lib/format";
-import { requireAdmin } from "@/lib/auth";
+import { requirePermission } from "@/lib/auth";
 import { listAuditEvents, auditCategoryCounts } from "@/db/queries/audit";
 import type { AuditEntityType } from "@/lib/audit";
 import { AuditFeed } from "@/components/audit/audit-feed";
@@ -29,7 +29,7 @@ interface Props {
 }
 
 export default async function AuditPage({ searchParams }: Props) {
-  await requireAdmin();
+  await requirePermission("audit.view");
   const { category } = await searchParams;
 
   const selected = CATEGORY_OPTIONS.find((c) => c.value === category)?.value ?? "all";

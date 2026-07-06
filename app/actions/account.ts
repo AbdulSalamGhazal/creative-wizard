@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { eq } from "drizzle-orm";
-import { requireAdmin, requireAuth } from "@/lib/auth";
+import { requireAuth, requirePermission } from "@/lib/auth";
 import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
 import { db } from "@/lib/db";
 import { accounts } from "@/db/schema";
@@ -70,7 +70,7 @@ export async function setActiveAccount(input: unknown): Promise<ActionResult> {
 /** Create a new brand (admin). Starts empty — no creatives/products/etc. */
 export async function createAccount(input: unknown): Promise<ActionResult> {
   try {
-    const user = await requireAdmin();
+    const user = await requirePermission("config.brands");
     const parsed = createAccountSchema.safeParse(input);
     if (!parsed.success) {
       return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid name" };
@@ -111,7 +111,7 @@ export async function createAccount(input: unknown): Promise<ActionResult> {
 /** Set a brand's "Active" status window, in hours (admin). */
 export async function setStatusWindow(input: unknown): Promise<ActionResult> {
   try {
-    const user = await requireAdmin();
+    const user = await requirePermission("config.brands");
     const parsed = setStatusWindowSchema.safeParse(input);
     if (!parsed.success) {
       return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid window" };
@@ -150,7 +150,7 @@ export async function setStatusWindow(input: unknown): Promise<ActionResult> {
 /** Rename a brand (admin). Slug is left unchanged (it's just an internal key). */
 export async function renameAccount(input: unknown): Promise<ActionResult> {
   try {
-    const user = await requireAdmin();
+    const user = await requirePermission("config.brands");
     const parsed = renameAccountSchema.safeParse(input);
     if (!parsed.success) {
       return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
