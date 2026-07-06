@@ -49,6 +49,7 @@ export function AdminSetPasswordButton({ userId, userEmail }: Props) {
     <Dialog
       open={open}
       onOpenChange={(o) => {
+        if (isPending) return; // don't allow closing mid-save
         setOpen(o);
         if (!o) {
           setPassword("");
