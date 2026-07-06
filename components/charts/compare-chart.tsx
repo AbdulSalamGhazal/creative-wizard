@@ -10,7 +10,7 @@ import {
   YAxis,
 } from "recharts";
 import { type ReactNode, useMemo, useState } from "react";
-import { usd, roas, pct, int, usdCompact, monthDay } from "@/lib/format";
+import { usd, roas, pct, int, usdCompact, intCompact, monthDay } from "@/lib/format";
 import { seriesColor } from "@/lib/palette";
 import { useChartFit, ChartFitToggle } from "@/components/charts/chart-fit";
 import { SeriesLegend } from "@/components/charts/series-legend";
@@ -230,10 +230,8 @@ export function CompareChart({
                         : metric === "ctr" ||
                             metric === "cvr" ||
                             metric === "hookRate"
-                          ? `${(v * 100).toFixed(1)}%`
-                          : v >= 1000
-                            ? `${(v / 1000).toFixed(1)}k`
-                            : String(v)
+                          ? pct(v)
+                          : intCompact(v)
                     }
                     tick={{ fill: "var(--ink-3)", fontSize: 11 }}
                     stroke="var(--line-2)"
