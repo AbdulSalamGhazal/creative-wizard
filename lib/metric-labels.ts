@@ -18,6 +18,7 @@ export const METRIC_LABEL = {
   cpc: "CPC",
   cpa: "CPA",
   ctr: "CTR",
+  voc: "VOC",
   cvr: "CvR",
   roas: "ROAS",
 } as const;

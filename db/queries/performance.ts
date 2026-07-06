@@ -92,6 +92,9 @@ export interface PlatformMixRow {
   spend: number;
   impressions: number;
   clicks: number;
+  /** Component sum — lets consumers derive VOC (LPV/clicks) + CvR (conv/LPV)
+   *  weighted totals from sums rather than averaging per-row ratios. */
+  landingPageViews: number;
   conversions: number | null;
   conversionValue: number;
   cpm: number | null;
@@ -593,6 +596,7 @@ export async function platformMix(
       spend: sumSpend,
       impressions: sumImpressions,
       clicks: sumClicks,
+      landingPageViews: sumLandingPageViews,
       conversions: sumConversions,
       conversionValue: sumConversionValue,
       cpm,
@@ -625,6 +629,7 @@ export async function platformMix(
     spend: Number(r.spend ?? 0),
     impressions: Number(r.impressions ?? 0),
     clicks: Number(r.clicks ?? 0),
+    landingPageViews: Number(r.landingPageViews ?? 0),
     conversions: num(r.conversions),
     conversionValue: Number(r.conversionValue ?? 0),
     cpm: num(r.cpm),
@@ -660,6 +665,7 @@ export async function campaignMix(
       spend: sumSpend,
       impressions: sumImpressions,
       clicks: sumClicks,
+      landingPageViews: sumLandingPageViews,
       conversions: sumConversions,
       conversionValue: sumConversionValue,
       cpm,
@@ -694,6 +700,7 @@ export async function campaignMix(
     spend: Number(r.spend ?? 0),
     impressions: Number(r.impressions ?? 0),
     clicks: Number(r.clicks ?? 0),
+    landingPageViews: Number(r.landingPageViews ?? 0),
     conversions: num(r.conversions),
     conversionValue: Number(r.conversionValue ?? 0),
     cpm: num(r.cpm),
