@@ -174,7 +174,7 @@ export default async function TrendsOverTimePage({
 
       {/* Account-level context — did the whole account move, or just one row? */}
       <div className="flex items-center gap-x-6 gap-y-2 flex-wrap rounded-lg border border-line bg-surface px-4 py-3 text-sm">
-        <span className="text-ink-3 text-xs uppercase tracking-[0.12em]">
+        <span className="text-ink-3 text-label">
           Account overall
         </span>
         <span className="inline-flex items-center gap-2">

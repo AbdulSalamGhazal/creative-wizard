@@ -119,7 +119,7 @@ export default async function TrendsVideoPage({
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <span className="text-ink-3 text-xs uppercase tracking-[0.12em]">{label}</span>
+      <span className="text-ink-3 text-label">{label}</span>
       <div className="font-display text-2xl num text-ink leading-none mt-1">{value}</div>
     </div>
   );

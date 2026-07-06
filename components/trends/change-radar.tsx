@@ -249,7 +249,7 @@ function MetricChip({
             : "border-line bg-surface-2/40",
       )}
     >
-      <span className="text-[9px] uppercase tracking-[0.1em] text-ink-3">
+      <span className="text-eyebrow text-ink-3">
         {METRIC_LABEL[metric.key]}
       </span>
       <span
