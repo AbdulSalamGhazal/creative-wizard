@@ -36,5 +36,9 @@ export function safeInternalPath(
   if (!value || !value.startsWith("/")) return fallback;
   const second = value.charAt(1);
   if (second === "/" || second === "\\") return fallback;
+  // Reject ASCII control chars: browsers STRIP tabs/newlines from a URL before
+  // navigating, so "/\t/evil.com" (which "/%09/evil.com" decodes to) re-forms
+  // as "//evil.com" — protocol-relative and off-site.
+  if (/[\x00-\x1f]/.test(value)) return fallback;
   return value;
 }
