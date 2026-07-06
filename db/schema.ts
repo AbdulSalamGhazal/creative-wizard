@@ -42,7 +42,18 @@ export const users = pgTable("users", {
   /** bcrypt hash. Nullable so existing rows can be migrated lazily; sign-in
    *  rejects users with no hash and points them to ask an admin to set one. */
   passwordHash: text("password_hash"),
+  /**
+   * Coarse tier: `admin` bypasses every permission check; `editor` / `viewer`
+   * are the fallback presets used when `permissions IS NULL`. See lib/permissions.ts.
+   */
   role: varchar("role", { length: 16, enum: roleEnum }).notNull().default("editor"),
+  /**
+   * Explicit per-user permission set (a list of `lib/permissions.ts` keys).
+   * NULL → derive from `role` (the preset), which keeps existing users behaving
+   * identically after deploy; a non-null array → that exact "Custom" set.
+   * Admins ignore this (they always have everything).
+   */
+  permissions: text("permissions").array(),
   /**
    * The user's remembered default date range, applied on any page that has no
    * explicit from/to in its URL. A preset key (e.g. "30", "lifetime" — kept

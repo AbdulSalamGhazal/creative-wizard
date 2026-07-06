@@ -47,6 +47,7 @@ export const AUDIT_ACTIONS = {
   // Users
   USER_INVITE: "user.invite",
   USER_ROLE_CHANGE: "user.role_change",
+  USER_PERMISSIONS_UPDATE: "user.permissions_update",
   USER_PASSWORD_RESET: "user.password_reset",
 
   // Platform header mappings
@@ -163,6 +164,7 @@ export const AUDIT_LABELS: Record<AuditAction, string> = {
   "product.restore": "Restored product",
   "user.invite": "Invited user",
   "user.role_change": "Changed user role",
+  "user.permissions_update": "Updated user access",
   "user.password_reset": "Reset user password",
   "mapping.add": "Added CSV mapping",
   "mapping.remove": "Removed CSV mapping",
@@ -204,6 +206,7 @@ export const AUDIT_CATEGORIES: Record<AuditAction, AuditEntityType> = {
   "product.restore": "product",
   "user.invite": "user",
   "user.role_change": "user",
+  "user.permissions_update": "user",
   "user.password_reset": "user",
   "mapping.add": "mapping",
   "mapping.remove": "mapping",

@@ -108,6 +108,7 @@ function ActionIcon({ action }: { action: AuditAction }) {
     "product.restore": Package,
     "user.invite": UserPlus,
     "user.role_change": Users,
+    "user.permissions_update": Users,
     "user.password_reset": ShieldAlert,
     "mapping.add": Layers3,
     "mapping.remove": Layers3,
