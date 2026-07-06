@@ -200,32 +200,44 @@ This app is deployed and in production use. Treat `main` as shippable.
   their own inline editor (`updateCreativeNotes` via NotesPanel); `patchCreative`
   never touches notes. Tag editing uses `tag-multi-select.tsx` (a Popover
   dropdown), and the publish date uses a Calendar popover.
-- **Theming = one axis, eight THEMES** — five dark (Midnight / Slate /
-  Carbon / Contrast / Ocean) + three light (Sand / Frost / Rose). Each theme
-  also sets its own accent (`--brand` / `--brand-2` + matching
-  `--primary-foreground`), so the dominant UI color changes per theme; only the
-  platform + pos/neg/warn chart colors stay shared. Managed by
-  next-themes (`attribute="class"`, `storageKey="cw-theme"`,
-  `defaultTheme="midnight"`, `enableSystem={false}`) → `class="<theme>"` on
-  `<html>`. Midnight is the base palette in `:root`; every other theme is a
-  `.<name>` class that overrides ONLY the surface/ink/line scale (the light
-  themes also re-tune pos/neg/warn + popover). Brand magenta, the five
-  platform colors, and (for the dark themes) pos/neg/warn are shared so the
-  charts/graphs look identical across themes — only the chrome re-tones. The
-  `dark:` variant matches the five dark theme classes (midnight / slate /
-  carbon / contrast / ocean); **the three light themes (Sand / Frost / Rose)
-  are excluded** so shadcn renders its light base styles there. This REPLACED the old
-  light/dark + 5-accent model (accent-provider.tsx / accents.ts deleted) — the
-  accent hue swaps were cosmetically pointless. To add a theme: add a `.<name>`
-  palette override (+ pos/neg/warn if light), add the name to `THEMES` in
-  layout.tsx, add it to `@custom-variant dark` if dark, and add an entry in
-  theme-toggle.tsx. A second, orthogonal axis is the **UI font**: `data-font`
-  on `<html>` (`cw-font` in localStorage, applied pre-paint by the inline
-  script in layout.tsx) picks `--font-ui` among three next/font families
-  (`--ff-jakarta` default / `--ff-inter` / `--ff-grotesk`). Body uses
-  `var(--font-ui)`; headings keep the Instrument Serif display
-  (`--font-display` → `--ff-serif`). Both axes live in the one ThemeToggle
-  dropdown.
+- **Theming = one axis, FOUR THEMES** — two dark (**Midnight** default /
+  **Contrast**) + two light (**Frost** cool blue-white / **Paper** warm cream).
+  (2026-07: slimmed from eight — Slate/Carbon/Ocean/Sand/Rose were deleted and
+  Paper added so the two light options read differently.) Each theme also sets
+  its own accent (`--brand` / `--brand-2` + matching `--primary-foreground`), so
+  the dominant UI color changes per theme; only the platform + pos/neg/warn
+  chart colors stay shared. Managed by next-themes (`attribute="class"`,
+  `storageKey="cw-theme"`, `defaultTheme="midnight"`, `enableSystem={false}`) →
+  `class="<theme>"` on `<html>`. Midnight is the base palette in `:root`; every
+  other theme is a `.<name>` class that overrides the surface/ink/line scale
+  (the two light themes also re-tune pos/neg/warn + popover + the data-viz vars).
+  Brand magenta and the four platform colors are shared so the charts look
+  consistent — only the chrome re-tones. The `dark:` variant matches ONLY the
+  dark classes (`.midnight, .contrast`); the light themes (Frost / Paper) are
+  excluded so shadcn renders its light base styles there.
+  - **Data-viz on light themes:** the grouped `.frost, .paper` block in
+    `app/globals.css` overrides every series/product/type var (and tiktok +
+    snapchat) with the ~600-level darker sibling so lines/swatches stay legible
+    on white (verify new light data colors here).
+  - **To add a theme:** add a `.<name>` palette override (+ pos/neg/warn +
+    popover + the light-viz vars if light), add the name to `THEMES` in
+    layout.tsx, add it to `@custom-variant dark` **only if dark**, add it to the
+    `ok` valid-set in layout.tsx's stale-theme migration script, add an entry in
+    theme-toggle.tsx (swatches mirror globals.css), and (if light) to
+    `LIGHT_THEMES` in themed-toaster.tsx. Verify brand-on-surface and body
+    ink-on-surface hit AA.
+  - **Stale-theme migration:** a pre-paint inline script in layout.tsx maps any
+    stored `cw-theme` that no longer exists BEFORE next-themes reads it —
+    slate/carbon/ocean → midnight, sand/rose → frost, anything unknown →
+    midnight (else the dangling class would silently render Midnight tokens
+    while `dark:` no longer matched → broken mix). The same script drops the
+    now-dead `cw-font` key.
+- **ONE UI font — no font switcher.** Plus Jakarta Sans is the only UI font
+  (`--ff-jakarta`, which `--font-ui`/`--font-sans` point straight at);
+  Instrument Serif is the display/heading font (`--font-display`); IBM Plex Mono
+  is the mono. (2026-07: the old `data-font` axis with Inter / Space Grotesk was
+  removed — dead vars, the `[data-font]` selectors, the `cw-font` key, and the
+  ThemeToggle font section all deleted.)
 - **Upload UPSERT mode** (the New-upload `upsert` toggle). The normal
   import (`runPipeline`) still defaults to strict insert: a row already in the
   DB → E051 reject (guards against re-uploading the wrong file). With the
@@ -415,11 +427,11 @@ This app is deployed and in production use. Treat `main` as shippable.
     Series/product/type/platform colors are now `var(--series-N)` /
     `var(--product-N)` / `var(--type-*)` / `var(--instagram|facebook|tiktok|
     snapchat)` — NOT hex literals. `:root` holds the dark (400-level) values;
-    the grouped `.sand,.frost,.rose` block in `app/globals.css` overrides each
+    the grouped `.frost, .paper` block in `app/globals.css` overrides each
     with a ~600-level darker sibling so charts stay legible on white. Recharts
     resolves `var()` in `fill`/`stroke`, and inline `style` resolves it too, so
     consumers just read the palette exports. Any NEW data color = a CSS var with
-    a light-theme override (verify on Midnight + Frost + Contrast).
+    a light-theme override (verify on Midnight + Frost + Paper + Contrast).
   - **`FUNNEL_METRIC_COLOR`** (lib/palette) is the single color-per-funnel-metric
     map (cpm/ctr/voc/atcRate/apRate/purchaseRate/cvr) — the dashboard funnel-rates
     card and the /funnel tiles + trend chart all read it; none collides with a

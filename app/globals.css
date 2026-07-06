@@ -1,29 +1,29 @@
 @import "tailwindcss";
 
 /*
- * The app ships eight THEMES. Five are dark (Midnight / Slate / Carbon /
- * Contrast / Ocean) and three are light (Sand / Frost / Rose). next-themes
- * toggles `class="<theme>"` on <html>. `dark:` utilities key off the dark
- * theme classes — the light themes are intentionally excluded so shadcn
- * renders its light base styles there.
+ * The app ships four THEMES: two dark (Midnight / Contrast) and two light
+ * (Frost / Paper). next-themes toggles `class="<theme>"` on <html>. `dark:`
+ * utilities key off the dark theme classes — the light themes are
+ * intentionally excluded so shadcn renders its light base styles there.
  */
-@custom-variant dark (&:where(.midnight, .slate, .carbon, .contrast, .ocean, .midnight *, .slate *, .carbon *, .contrast *, .ocean *));
+@custom-variant dark (&:where(.midnight, .contrast, .midnight *, .contrast *));
 
 /*
- * Urjwan CCMS palette — three dark THEMES on one axis.
+ * Urjwan CCMS palette — one theme axis.
  *
- * Theme 1 (MIDNIGHT) is the default and lives in `:root`. SLATE and CARBON
- * are class overrides (`.slate` / `.carbon`) that re-tone only the
- * surface/ink/line scale. The shadcn semantic tokens point at the base
- * palette vars via `var()`, so they re-resolve automatically when a theme
- * class swaps the underlying `--surface` / `--ink` / `--line` values — the
- * whole app re-themes without touching component code.
+ * MIDNIGHT is the default and lives in `:root`. CONTRAST is a dark class
+ * override (`.contrast`) that re-tones the surface/ink/line scale; FROST and
+ * PAPER are light overrides that additionally re-tune pos/neg/warn, popover,
+ * and the data-viz vars. The shadcn semantic tokens point at the base palette
+ * vars via `var()`, so they re-resolve automatically when a theme class swaps
+ * the underlying `--surface` / `--ink` / `--line` values — the whole app
+ * re-themes without touching component code.
  *
- * What's SHARED across all three themes (declared once in `:root`, never
- * overridden): brand magenta, the five platform colors, and pos/neg/warn.
- * These stay in lockstep with the literal hex mirrors in lib/palette.ts that
- * Recharts needs, so the charts/graphs look identical in every theme — only
- * the surrounding chrome changes tone.
+ * What's SHARED across all themes (declared once in `:root`): brand magenta,
+ * the four platform colors, and pos/neg/warn (light themes re-tune the latter
+ * for a white bg). These stay in lockstep with the literal hex mirrors in
+ * lib/palette.ts that Recharts needs, so the charts/graphs look consistent —
+ * only the surrounding chrome changes tone.
  *
  * Naming note: the mockups call the magenta `--accent`, but shadcn uses
  * `--accent` for its hover-surface semantic, so the brand magenta lives on
@@ -88,9 +88,9 @@
   --type-slides: #a78bfa;
 
   /* ---------------------------------------------------------------
-   * Theme 1 · MIDNIGHT (default tone) — deep purple-black.
+   * MIDNIGHT (default tone) — deep purple-black.
    * Lives in :root so it's the no-class fallback (no flash).
-   * Slate/Carbon below override only the surface/ink/line scale.
+   * Contrast/Frost/Paper below override the surface/ink/line scale.
    * ------------------------------------------------------------- */
   --bg: #0a0812;
   --surface: #14111e;
@@ -127,48 +127,15 @@
 
 /*
  * Each theme below ALSO sets its own accent (`--brand` / `--brand-2`) and the
- * matching `--primary-foreground` (text on filled brand buttons — dark for the
- * light/vivid accents). This is the big lever: the accent drives buttons,
- * active nav, the logo gradient, focus rings, and links, so each theme reads
- * as a genuinely different colorway — not just a darker background.
- * `--brand-soft` / `--brand-glow` derive from `--brand` via color-mix in :root,
- * so they re-resolve automatically. The platform + pos/neg/warn chart colors
- * stay shared, so the data graphs look the same in every theme.
+ * matching `--primary-foreground` (text on filled brand buttons). The accent
+ * drives buttons, active nav, the logo gradient, focus rings, and links, so
+ * each theme reads as a genuinely different colorway — not just a darker/
+ * lighter background. `--brand-soft` / `--brand-glow` derive from `--brand`
+ * via color-mix in :root, so they re-resolve automatically. The platform +
+ * pos/neg/warn chart colors stay shared, so the data graphs look consistent.
  */
 
-/* Theme 2 · SLATE — blue chrome + azure accent. */
-.slate {
-  --bg: #0a1322;
-  --surface: #11203a;
-  --surface-2: #182a4a;
-  --surface-3: #20375d;
-  --line: #2a4570;
-  --line-2: #3a5a8f;
-  --ink: #e8f0fc;
-  --ink-2: #9db4d6;
-  --ink-3: #607aa0;
-  --brand: #2f7bf6;
-  --brand-2: #6ba5ff;
-  --primary-foreground: #ffffff;
-}
-
-/* Theme 3 · CARBON — neutral chrome + electric-cyan accent. */
-.carbon {
-  --bg: #0a0a0b;
-  --surface: #141416;
-  --surface-2: #1c1c1f;
-  --surface-3: #252528;
-  --line: #2a2a2e;
-  --line-2: #3a3a40;
-  --ink: #f4f4f5;
-  --ink-2: #a1a1aa;
-  --ink-3: #6e6e76;
-  --brand: #06b6d4;
-  --brand-2: #67e8f9;
-  --primary-foreground: #042027;
-}
-
-/* Theme 4 · CONTRAST — pure black + bright ink + bold amber accent. */
+/* CONTRAST — pure black + bright ink + bold amber accent. */
 .contrast {
   --bg: #000000;
   --surface: #0b0b0b;
@@ -184,45 +151,9 @@
   --primary-foreground: #1a1205;
 }
 
-/* Theme · OCEAN — teal chrome + aqua accent. */
-.ocean {
-  --bg: #06141a;
-  --surface: #0c2128;
-  --surface-2: #122f38;
-  --surface-3: #173c48;
-  --line: #1f4f5e;
-  --line-2: #2c6d80;
-  --ink: #e3f4f6;
-  --ink-2: #95babf;
-  --ink-3: #5c8289;
-  --brand: #14b8a6;
-  --brand-2: #2dd4bf;
-  --primary-foreground: #042f2a;
-}
-
-/* LIGHT themes — all excluded from the `dark:` variant above; each re-tunes
+/* LIGHT themes — both excluded from the `dark:` variant above; each re-tunes
    pos/neg/warn + popover so status colors stay legible on a light bg, and sets
    its own dark-on-light accent. */
-
-/* SAND — warm paper + clay accent. */
-.sand {
-  --bg: #f5f1e8;
-  --surface: #fffdf8;
-  --surface-2: #efe9dc;
-  --surface-3: #e6ddcb;
-  --line: #e1d9c7;
-  --line-2: #cdc3ac;
-  --ink: #2a2420;
-  --ink-2: #5c5447;
-  --ink-3: #8a8170;
-  --pos: #15935f;
-  --neg: #d83a3a;
-  --warn: #a8730f;
-  --brand: #c2410c;
-  --brand-2: #ea580c;
-  --primary-foreground: #ffffff;
-  --popover: var(--surface);
-}
 
 /* FROST — cool blue-white + azure accent. Crisp / clean. */
 .frost {
@@ -244,36 +175,36 @@
   --popover: var(--surface);
 }
 
-/* ROSE — soft warm blush + rose accent. */
-.rose {
-  --bg: #fbf3f4;
-  --surface: #fffafb;
-  --surface-2: #f7e8ec;
-  --surface-3: #f0dae0;
-  --line: #efdade;
-  --line-2: #e0c2cb;
-  --ink: #2a1c22;
-  --ink-2: #5e4a52;
-  --ink-3: #8c747e;
+/* PAPER — warm cream / paper + caramel accent. The warm counterpart to
+   Frost's cool blue-white, so the two light options read differently. */
+.paper {
+  --bg: #f7f3ea;
+  --surface: #fffdf7;
+  --surface-2: #f0ebde;
+  --surface-3: #e8e1d0;
+  --line: #e6dfce;
+  --line-2: #d2c9b3;
+  --ink: #2b2620;
+  --ink-2: #595246;
+  --ink-3: #8a8171;
   --pos: #15935f;
   --neg: #d83a3a;
   --warn: #a8730f;
-  --brand: #e11d48;
-  --brand-2: #fb7185;
+  --brand: #b45309;
+  --brand-2: #d97706;
   --primary-foreground: #ffffff;
   --popover: var(--surface);
 }
 
 /* ---------------------------------------------------------------
- * LIGHT-THEME data-viz overrides. The three light themes share one
+ * LIGHT-THEME data-viz overrides. The two light themes share one
  * darker palette (same idea as their shared pos/neg/warn). Placed
- * after the individual .sand/.frost/.rose blocks so equal-specificity
+ * after the individual .frost/.paper blocks so equal-specificity
  * source order lets it win. Each value is the ~600-level sibling of
  * the dark default above, legible on white surfaces.
  * ------------------------------------------------------------- */
-.sand,
 .frost,
-.rose {
+.paper {
   /* Only these two platform hues fail on white (tiktok ~1.45:1,
      snapchat ~1.39:1); IG magenta / FB blue stay as-is. */
   --tiktok: #52525b;
@@ -353,7 +284,7 @@
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
 
-  /* `--font-ui` is the active UI font (driven by data-font; see below). */
+  /* `--font-ui` is the single UI font (Plus Jakarta Sans; see below). */
   --font-sans: var(--font-ui);
   --font-display: var(--ff-serif);
   --font-mono: var(--ff-mono);
@@ -369,22 +300,12 @@ body {
 }
 
 /*
- * UI font axis — orthogonal to the theme. `data-font` on <html> (persisted in
- * localStorage as `cw-font`, applied before paint by the inline script in the
- * layout) selects which loaded family `--font-ui` points at. Default = Jakarta.
- * Headings keep the Instrument Serif display font (`--font-display`).
+ * The one UI font — Plus Jakarta Sans. `--font-ui` points straight at it (the
+ * old data-font switcher was removed). Headings keep the Instrument Serif
+ * display font (`--font-display`); mono stays on IBM Plex Mono.
  */
 :root {
   --font-ui: var(--ff-jakarta);
-}
-[data-font="jakarta"] {
-  --font-ui: var(--ff-jakarta);
-}
-[data-font="inter"] {
-  --font-ui: var(--ff-inter);
-}
-[data-font="grotesk"] {
-  --font-ui: var(--ff-grotesk);
 }
 
 .num {

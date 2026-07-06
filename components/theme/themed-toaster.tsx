@@ -3,12 +3,12 @@
 import { Toaster } from "sonner";
 import { useTheme } from "next-themes";
 
-/** The three light themes; everything else is one of the five dark themes. */
-const LIGHT_THEMES = new Set(["sand", "frost", "rose"]);
+/** The two light themes; everything else is one of the dark themes. */
+const LIGHT_THEMES = new Set(["frost", "paper"]);
 
 /**
  * Sonner toaster, driven by the active theme so its base surface matches:
- * "light" for sand/frost/rose, "dark" for the five dark themes. The custom
+ * "light" for frost/paper, "dark" for midnight/contrast. The custom
  * classNames use our semantic tokens, which re-tone automatically; the base
  * `theme` still matters for sonner's own defaults (close button, shadows).
  */
