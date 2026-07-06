@@ -5,6 +5,7 @@ import { asc, desc, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { creatives, products, uploadBatches, users } from "@/db/schema";
 import { isoDate, int } from "@/lib/format";
+import { PLATFORM_LABEL } from "@/lib/palette";
 import { auth } from "@/lib/auth";
 import { getActiveAccountId } from "@/lib/tenant";
 import { RollbackButton } from "@/components/upload/rollback-button";
@@ -17,13 +18,6 @@ const ROLLBACK_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 // Always fetch fresh — this page reflects newly-committed batches.
 export const dynamic = "force-dynamic";
-
-const PLATFORM_LABEL: Record<string, string> = {
-  instagram: "Instagram",
-  facebook: "Facebook",
-  tiktok: "TikTok",
-  snapchat: "Snapchat",
-};
 
 export default async function UploadsPage() {
   const currentUser = await auth();
@@ -124,7 +118,7 @@ export default async function UploadsPage() {
                 return (
                   <tr key={r.id} className="hover:bg-surface-2/60 transition-colors">
                     <td className="px-3 py-2.5 text-ink-2">{isoDate(r.uploadedAt)}</td>
-                    <td className="px-3 py-2.5 text-ink-2">{PLATFORM_LABEL[r.platform] ?? r.platform}</td>
+                    <td className="px-3 py-2.5 text-ink-2">{PLATFORM_LABEL[r.platform as keyof typeof PLATFORM_LABEL] ?? r.platform}</td>
                     <td className="px-3 py-2.5 font-mono text-ink text-xs">{r.fileName}</td>
                     <td className="px-3 py-2.5 text-ink-2">{r.uploaderName}</td>
                     <td className="px-3 py-2.5 text-right text-ink">{int(r.rowsImported)}</td>

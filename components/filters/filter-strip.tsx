@@ -20,14 +20,14 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { DateRangePicker } from "@/components/filters/date-range-picker";
+import { ALL_PLATFORMS, PLATFORM_LABEL } from "@/lib/palette";
 import { cn } from "@/lib/utils";
 
-const PLATFORMS = [
-  { value: "instagram", label: "Instagram" },
-  { value: "facebook", label: "Facebook" },
-  { value: "tiktok", label: "TikTok" },
-  { value: "snapchat", label: "Snapchat" },
-] as const;
+// Derived from the canonical platform list (lib/palette) — no hand-copied set.
+const PLATFORMS = ALL_PLATFORMS.map((value) => ({
+  value,
+  label: PLATFORM_LABEL[value],
+}));
 
 const TYPES = [
   { value: "video", label: "Video" },
