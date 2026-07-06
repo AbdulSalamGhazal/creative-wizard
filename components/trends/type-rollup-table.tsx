@@ -1,6 +1,6 @@
 import { Fragment } from "react";
 import Link from "next/link";
-import { int, pct, ratio, usd } from "@/lib/format";
+import { int, pct, roas, usd } from "@/lib/format";
 import {
   ALL_PLATFORMS,
   PLATFORM_LABEL,
@@ -24,7 +24,7 @@ function MetricCells({ r }: { r: TypeRollupRow }) {
       <td className="px-3 py-2.5 text-right text-ink tabular-nums">{usd(r.cpc)}</td>
       <td className="px-3 py-2.5 text-right text-ink tabular-nums">{usd(r.cpa)}</td>
       <td className="px-3 py-2.5 text-right text-ink tabular-nums">
-        {r.roas === null ? "—" : `${ratio(r.roas)}×`}
+        {roas(r.roas)}
       </td>
       <td className="px-3 py-2.5 text-right text-ink tabular-nums">{pct(r.cvr)}</td>
     </>

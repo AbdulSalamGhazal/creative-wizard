@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { DataTable, type DataColumn } from "@/components/ui/data-table";
 import { seriesColor } from "@/lib/palette";
-import { int, pct, ratio, usd } from "@/lib/format";
+import { int, pct, roas, usd } from "@/lib/format";
 import { METRIC_LABEL } from "@/lib/metric-labels";
 import type { CampaignCreativeRow } from "@/db/queries/campaign";
 
@@ -16,7 +16,7 @@ import type { CampaignCreativeRow } from "@/db/queries/campaign";
 
 const DASH = "—";
 const fUsd = (v: number | null) => (v === null ? DASH : usd(v));
-const fRatio = (v: number | null) => (v === null ? DASH : `${ratio(v)}×`);
+const fRatio = (v: number | null) => roas(v);
 const fPct = (v: number | null) => (v === null ? DASH : pct(v));
 
 type SortDir = "asc" | "desc";

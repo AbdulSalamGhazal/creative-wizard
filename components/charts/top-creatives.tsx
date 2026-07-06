@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Sparkline } from "@/components/charts/sparkline";
 import { StatusBadge } from "@/components/creative/status-badge";
-import { int, pct, ratio, usd } from "@/lib/format";
+import { int, pct, roas, usd } from "@/lib/format";
 import { METRIC_LABEL } from "@/lib/metric-labels";
 import { cn } from "@/lib/utils";
 import type { LeaderboardRow } from "@/db/queries/performance";
@@ -20,7 +20,7 @@ import type { LeaderboardRow } from "@/db/queries/performance";
 type Num = number | null;
 const fUsd = (v: Num) => (v === null ? "—" : usd(v));
 const fPct = (v: Num) => (v === null ? "—" : pct(v));
-const fRatio = (v: Num) => (v === null ? "—" : `${ratio(v)}×`);
+const fRatio = (v: Num) => roas(v);
 
 const TYPE_LABEL: Record<LeaderboardRow["type"], string> = {
   video: "Video",

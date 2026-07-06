@@ -22,7 +22,7 @@ import { assessChange, CHANGE_TIER_ORDER } from "@/lib/change-radar";
 import { changeDimSchema, dashboardFiltersSchema } from "@/validators/filters";
 import { PLATFORM_LABEL } from "@/lib/palette";
 import { cn } from "@/lib/utils";
-import { usd, ratio } from "@/lib/format";
+import { usd, roas } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -184,7 +184,7 @@ export default async function TrendsOverTimePage({
         </span>
         <span className="inline-flex items-center gap-2">
           <span className="text-ink-2">ROAS</span>
-          <span className="num text-ink">{ratio(k.current.roas)}×</span>
+          <span className="num text-ink">{roas(k.current.roas)}</span>
           <DeltaBadge delta={k.delta.roas} />
         </span>
         <span className="inline-flex items-center gap-2">

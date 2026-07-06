@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-import { int, pct, ratio, usd } from "@/lib/format";
+import { int, pct, roas, usd } from "@/lib/format";
 import { ALL_PLATFORMS, PLATFORM_COLOR, PLATFORM_LABEL } from "@/lib/palette";
 import { PlatformDot } from "@/components/ui/platform-dot";
 import type { TagPlatformRow } from "@/db/queries/trends";
@@ -23,7 +23,7 @@ const METRICS: MetricDef[] = [
   { key: "spend", label: "Spend", fmt: usd },
   { key: "conversions", label: "Conversions", fmt: int },
   { key: "revenue", label: "Revenue", fmt: usd },
-  { key: "roas", label: "ROAS", fmt: (v) => `${ratio(v)}×` },
+  { key: "roas", label: "ROAS", fmt: (v) => roas(v) },
   { key: "cpa", label: "CPA", fmt: usd, lower: true },
   { key: "cpm", label: "CPM", fmt: usd, lower: true },
   { key: "ctr", label: "CTR", fmt: (v) => pct(v) },

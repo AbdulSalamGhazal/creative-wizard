@@ -11,7 +11,7 @@ import {
 } from "recharts";
 import { useMemo, useState } from "react";
 import { ALL_PLATFORMS, PLATFORM_COLOR, PLATFORM_LABEL } from "@/lib/palette";
-import { int, intCompact, pct, ratio, usd, usdCompact, monthDay } from "@/lib/format";
+import { int, intCompact, monthDay, pct, roas, usd, usdCompact } from "@/lib/format";
 import { MetricPicker } from "@/components/charts/metric-picker";
 import { SeriesLegend } from "@/components/charts/series-legend";
 import {
@@ -61,7 +61,7 @@ const METRICS: MetricDef[] = [
   { key: "conversions", label: "Conversions", get: (r) => r.conversions, fmt: int, axis: (v) => intCompact(v), additive: true },
   { key: "conversionValue", label: "Revenue", get: (r) => r.conversionValue, fmt: usd, axis: (v) => usdCompact(v), additive: true },
   { key: "cpa", label: "CPA", get: (r) => r.cpa, fmt: usd, axis: (v) => usdCompact(v), additive: false, weight: (r) => r.conversions },
-  { key: "roas", label: "ROAS", get: (r) => r.roas, fmt: (v) => (v === null ? "—" : `${ratio(v)}×`), axis: (v) => `${ratio(v)}×`, additive: false, weight: (r) => r.spend },
+  { key: "roas", label: "ROAS", get: (r) => r.roas, fmt: (v) => roas(v), axis: (v) => roas(v), additive: false, weight: (r) => r.spend },
   { key: "cpm", label: "CPM", get: (r) => r.cpm, fmt: usd, axis: (v) => usdCompact(v), additive: false, weight: (r) => r.impressions },
   { key: "ctr", label: "CTR", get: (r) => r.ctr, fmt: pct, axis: (v) => pct(v), additive: false, weight: (r) => r.impressions },
   { key: "voc", label: "VOC", get: (r) => r.voc, fmt: pct, axis: (v) => pct(v), additive: false, weight: (r) => r.clicks },

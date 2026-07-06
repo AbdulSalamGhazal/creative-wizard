@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 import { DeltaBadge } from "@/components/kpi/delta-badge";
-import { int, pct, ratio, usd } from "@/lib/format";
+import { int, pct, roas, usd } from "@/lib/format";
 import { METRIC_LABEL } from "@/lib/metric-labels";
 import { PLATFORM_LABEL } from "@/lib/palette";
 import { PlatformDot } from "@/components/ui/platform-dot";
@@ -282,7 +282,7 @@ export function CampaignFunnelTable({ rows }: { rows: CampaignFunnelRow[] }) {
               <td className="px-3 py-2.5 text-right text-ink-2 tabular-nums">{int(r.addToCart)}</td>
               <td className="px-3 py-2.5 text-right text-ink-2 tabular-nums">{int(r.addPayment)}</td>
               <td className="px-3 py-2.5 text-right text-ink tabular-nums">
-                {r.roas === null ? "—" : `${ratio(r.roas)}×`}
+                {roas(r.roas)}
               </td>
               <td className="px-3 py-2.5 text-right text-ink-2 tabular-nums">{int(r.impressions)}</td>
             </tr>
@@ -309,7 +309,7 @@ export function CampaignFunnelTable({ rows }: { rows: CampaignFunnelRow[] }) {
             <td className="px-3 py-2 text-right text-ink tabular-nums">{int(totals.addToCart)}</td>
             <td className="px-3 py-2 text-right text-ink tabular-nums">{int(totals.addPayment)}</td>
             <td className="px-3 py-2 text-right text-ink tabular-nums">
-              {totals.roas === null ? "—" : `${ratio(totals.roas)}×`}
+              {roas(totals.roas)}
             </td>
             <td className="px-3 py-2 text-right text-ink tabular-nums">{int(totals.impressions)}</td>
           </tr>

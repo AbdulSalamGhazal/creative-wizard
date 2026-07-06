@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { DataTable, type DataColumn } from "@/components/ui/data-table";
 import { DeltaBadge } from "@/components/kpi/delta-badge";
-import { int, pct, ratio, usd } from "@/lib/format";
+import { int, pct, roas, usd } from "@/lib/format";
 import { METRIC_LABEL } from "@/lib/metric-labels";
 import { computeDelta, type Delta } from "@/lib/period";
 import { cn } from "@/lib/utils";
@@ -23,7 +23,7 @@ type Num = number | null;
 const DASH = "—";
 const fUsd = (v: Num) => (v === null ? DASH : usd(v));
 const fPct = (v: Num) => (v === null ? DASH : pct(v));
-const fRatio = (v: Num) => (v === null ? DASH : `${ratio(v)}×`);
+const fRatio = (v: Num) => roas(v);
 const fInt = (v: Num) => (v === null ? DASH : int(v));
 
 type Key = keyof TagMetrics;

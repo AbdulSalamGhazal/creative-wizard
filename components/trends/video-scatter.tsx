@@ -12,7 +12,7 @@ import {
   YAxis,
   ZAxis,
 } from "recharts";
-import { pct, ratio, usd, usdCompact } from "@/lib/format";
+import { pct, roas, usd, usdCompact } from "@/lib/format";
 import type { VideoDiagnosticRow } from "@/db/queries/trends";
 import { ChartTooltip } from "@/components/charts/chart-tooltip";
 import { MetricPicker } from "@/components/charts/metric-picker";
@@ -25,7 +25,7 @@ const M: Record<Axis, { label: string; fmt: (v: number | null) => string; tick: 
   completeRate: { label: "Complete rate", fmt: pct, tick: (v) => pct(v) },
   ctr: { label: "CTR", fmt: pct, tick: (v) => pct(v) },
   cvr: { label: "CvR", fmt: pct, tick: (v) => pct(v) },
-  roas: { label: "ROAS", fmt: (v) => (v === null ? "—" : `${ratio(v)}×`), tick: (v) => `${ratio(v)}×` },
+  roas: { label: "ROAS", fmt: (v) => roas(v), tick: (v) => roas(v) },
   cpa: { label: "CPA", fmt: (v) => (v === null ? "—" : usd(v)), tick: (v) => usdCompact(v) },
 };
 const AXES = Object.keys(M) as Axis[];

@@ -7,7 +7,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { pct, ratio, usd } from "@/lib/format";
+import { pct, roas, usd } from "@/lib/format";
 import {
   CHANGE_DROP,
   CHANGE_WATCH,
@@ -91,7 +91,7 @@ function fmtValue(key: ChangeMetricKey, v: number | null): string {
     case "cpa":
       return usd(v);
     case "roas":
-      return `${ratio(v)}×`;
+      return roas(v);
     case "ctr":
     case "cvr":
       return pct(v);

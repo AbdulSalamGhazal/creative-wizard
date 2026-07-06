@@ -13,7 +13,7 @@ import {
   YAxis,
   ZAxis,
 } from "recharts";
-import { int, pct, ratio, usd, usdCompact } from "@/lib/format";
+import { int, pct, roas, usd, usdCompact } from "@/lib/format";
 import { MetricPicker } from "@/components/charts/metric-picker";
 import type { TagRollupRow } from "@/db/queries/trends";
 import { ChartTooltip } from "@/components/charts/chart-tooltip";
@@ -21,7 +21,7 @@ import { ChartTooltip } from "@/components/charts/chart-tooltip";
 type YMetric = "cpa" | "roas" | "cvr";
 const Y: Record<YMetric, { label: string; fmt: (v: number | null) => string; tick: (v: number) => string }> = {
   cpa: { label: "CPA", fmt: (v) => (v === null ? "—" : usd(v)), tick: (v) => usdCompact(v) },
-  roas: { label: "ROAS", fmt: (v) => (v === null ? "—" : `${ratio(v)}×`), tick: (v) => `${ratio(v)}×` },
+  roas: { label: "ROAS", fmt: (v) => roas(v), tick: (v) => roas(v) },
   cvr: { label: "CvR", fmt: pct, tick: (v) => pct(v) },
 };
 
@@ -117,7 +117,7 @@ export function TagScatter({ rows }: { rows: TagRollupRow[] }) {
                       <Row label="Spend" value={usd(p.x)} />
                       <Row label="Creatives" value={int(p.creatives)} />
                       <Row label="CPA" value={p.cpa === null ? "—" : usd(p.cpa)} />
-                      <Row label="ROAS" value={p.roas === null ? "—" : `${ratio(p.roas)}×`} />
+                      <Row label="ROAS" value={roas(p.roas)} />
                       <div className="mt-1 text-[10px] text-ink-3">Click to open Library</div>
                     </ChartTooltip>
                   );

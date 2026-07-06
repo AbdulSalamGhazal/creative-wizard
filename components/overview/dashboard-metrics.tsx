@@ -10,7 +10,7 @@ import {
 import { MetricCard, type BreakdownBar } from "@/components/overview/metric-card";
 import { computeDelta } from "@/lib/period";
 import { PLATFORM_COLOR, PLATFORM_LABEL, swatchColor } from "@/lib/palette";
-import { int, intCompact, ratio, usd, usd0, usdCompact } from "@/lib/format";
+import { int, intCompact, roas, usd, usd0, usdCompact } from "@/lib/format";
 
 const CAMPAIGN_LIMIT = 8;
 
@@ -132,10 +132,10 @@ export async function DashboardMetrics({
         />
         <MetricCard
           label="ROAS"
-          value={k.roas !== null ? `${ratio(k.roas)}×` : "—"}
+          value={roas(k.roas)}
           icon={TrendingUp}
           delta={d?.roas}
-          bars={valueBars((r) => r.roas, (v) => `${ratio(v)}×`)}
+          bars={valueBars((r) => r.roas, (v) => roas(v))}
           empty={empty}
         />
       </div>

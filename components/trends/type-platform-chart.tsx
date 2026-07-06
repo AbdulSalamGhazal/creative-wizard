@@ -11,7 +11,7 @@ import {
   YAxis,
 } from "recharts";
 import { ALL_PLATFORMS, PLATFORM_LABEL, TYPE_COLOR, TYPE_LABEL } from "@/lib/palette";
-import { int, pct, ratio, usd, usdCompact, intCompact } from "@/lib/format";
+import { int, intCompact, pct, roas, usd, usdCompact } from "@/lib/format";
 import { MetricPicker } from "@/components/charts/metric-picker";
 import type { TypeRollupRow } from "@/db/queries/trends";
 import { ChartTooltip } from "@/components/charts/chart-tooltip";
@@ -29,8 +29,8 @@ const METRICS: Record<
   impressions: { label: "Impressions", cell: int, axis: (v) => intCompact(v) },
   roas: {
     label: "ROAS",
-    cell: (v) => (v === null ? "—" : `${ratio(v)}×`),
-    axis: (v) => `${ratio(v)}×`,
+    cell: (v) => roas(v),
+    axis: (v) => roas(v),
   },
   ctr: { label: "CTR", cell: pct, axis: (v) => pct(v) },
   cvr: { label: "CvR", cell: pct, axis: (v) => pct(v) },

@@ -4,7 +4,7 @@ import { Fragment, useMemo, useState } from "react";
 import { ChevronRight } from "lucide-react";
 import { PLATFORM_COLOR, PLATFORM_LABEL } from "@/lib/palette";
 import { PlatformDot } from "@/components/ui/platform-dot";
-import { int, pct, ratio, usd } from "@/lib/format";
+import { int, pct, roas, usd } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type {
   PlatformFunnelRow,
@@ -166,7 +166,7 @@ export function PlatformFunnelComparison({
                   <td className="px-3 py-2.5 text-right text-ink-2 tabular-nums">{int(row.conversions)}</td>
                   <td className="px-3 py-2.5 text-right text-ink tabular-nums">{usd(row.cpa)}</td>
                   <td className="px-3 py-2.5 text-right text-ink tabular-nums">
-                    {row.roas === null ? "—" : `${ratio(row.roas)}×`}
+                    {roas(row.roas)}
                   </td>
                   {RATES.map((r) => {
                     const v = row[r.key];
@@ -222,7 +222,7 @@ export function PlatformFunnelComparison({
                       <td className="px-3 py-1.5 text-right text-ink-3 tabular-nums">{int(c.conversions)}</td>
                       <td className="px-3 py-1.5 text-right text-ink-2 tabular-nums">{usd(c.cpa)}</td>
                       <td className="px-3 py-1.5 text-right text-ink-2 tabular-nums">
-                        {c.roas === null ? "—" : `${ratio(c.roas)}×`}
+                        {roas(c.roas)}
                       </td>
                       <td className="px-3 py-1.5 text-right text-ink-2 tabular-nums">{usd(c.cpm)}</td>
                       <td className="px-3 py-1.5 text-right text-ink-2 tabular-nums">{pct(c.ctr)}</td>

@@ -14,7 +14,7 @@ import { MetricPicker } from "@/components/charts/metric-picker";
 import { SeriesLegend } from "@/components/charts/series-legend";
 import { ChartShell, ExpandButton, SmoothToggle, GroupToggle } from "@/components/charts/chart-shell";
 import { smoothColumns } from "@/lib/chart-smooth";
-import { usd, int, ratio, usdCompact, intCompact, monthDay } from "@/lib/format";
+import { int, intCompact, monthDay, roas, usd, usdCompact } from "@/lib/format";
 import { useChartFit, ChartFitToggle } from "@/components/charts/chart-fit";
 import type { MetricOverTimeRow } from "@/db/queries/performance";
 import { ChartTooltip } from "@/components/charts/chart-tooltip";
@@ -58,7 +58,7 @@ const METRICS: MetricDef[] = [
     additive: false,
     pick: (r) => r.roas,
     weight: (r) => r.spend,
-    fmt: (v) => (v === null ? "—" : `${ratio(v)}×`),
+    fmt: (v) => roas(v),
   },
 ];
 
@@ -92,7 +92,7 @@ function aggregate(def: MetricDef, rs: MetricOverTimeRow[]): number | null {
 
 function axisFormat(metric: MetricKey, v: number): string {
   if (metric === "conversions") return intCompact(v);
-  if (metric === "roas") return `${ratio(v)}×`;
+  if (metric === "roas") return roas(v);
   return usdCompact(v);
 }
 

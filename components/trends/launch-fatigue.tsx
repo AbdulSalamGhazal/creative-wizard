@@ -14,7 +14,7 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { ratio, usd } from "@/lib/format";
+import { ratio, roas, usd } from "@/lib/format";
 import {
   FATIGUE_TIER_ORDER,
   FATIGUE_WINDOWS,
@@ -649,7 +649,7 @@ function WindowCell({
           </span>
         )}
         <span>
-          {ratio(metrics.roas)}×
+          {roas(metrics.roas)}
           {delta !== null && (
             <span
               className={cn(

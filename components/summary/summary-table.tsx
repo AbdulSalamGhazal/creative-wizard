@@ -5,7 +5,7 @@ import Link from "next/link";
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PLATFORM_COLOR, PLATFORM_LABEL } from "@/lib/palette";
-import { int, pct, ratio, usd } from "@/lib/format";
+import { int, pct, roas, usd } from "@/lib/format";
 import { METRIC_LABEL } from "@/lib/metric-labels";
 import {
   RATING_META,
@@ -87,7 +87,7 @@ const METRIC_COLUMNS: Array<{
   { key: "cpm", label: "CPM", format: (v) => usd(v) },
   { key: "cpc", label: "CPC", format: (v) => usd(v) },
   { key: "cpa", label: "CPA", format: (v) => usd(v) },
-  { key: "roas", label: "ROAS", format: (v) => (v === null ? "—" : `${ratio(v)}×`) },
+  { key: "roas", label: "ROAS", format: (v) => roas(v) },
   { key: "hook_rate", label: "Hook", format: (v) => pct(v) },
   { key: "hold_rate", label: "Hold", format: (v) => pct(v) },
   { key: "complete_rate", label: "Complete", format: (v) => pct(v) },

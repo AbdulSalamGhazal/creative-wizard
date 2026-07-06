@@ -33,7 +33,7 @@ import { NotesPanel } from "@/components/creative/notes-panel";
 import { AuditFeed } from "@/components/audit/audit-feed";
 import { MetricCard } from "@/components/overview/metric-card";
 import { PageShell } from "@/components/layout/page-shell";
-import { int, ratio, usd, usd0 } from "@/lib/format";
+import { int, roas, usd, usd0 } from "@/lib/format";
 import { computeDelta } from "@/lib/period";
 import { defaultDateRange, presetLabel } from "@/lib/date-presets";
 import { resolvePreferredRange } from "@/db/queries/user-prefs";
@@ -228,7 +228,7 @@ export default async function CreativeDetailPage({
           <MetricCard label="CPA" value={usd(k.cpa)} icon={Receipt} delta={d.cpa} deltaInverted hideBreakdown />
           <MetricCard
             label="ROAS"
-            value={k.roas !== null ? `${ratio(k.roas)}×` : "—"}
+            value={roas(k.roas)}
             icon={TrendingUp}
             delta={d.roas}
             hideBreakdown

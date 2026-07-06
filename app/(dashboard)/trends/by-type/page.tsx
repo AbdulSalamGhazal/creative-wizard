@@ -11,7 +11,7 @@ import { TypePlatformChart } from "@/components/trends/type-platform-chart";
 import { TypeRollupTable } from "@/components/trends/type-rollup-table";
 import { dashboardFiltersSchema } from "@/validators/filters";
 import { TYPE_COLOR, TYPE_LABEL } from "@/lib/palette";
-import { pct, ratio, usd } from "@/lib/format";
+import { pct, roas, usd } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -107,7 +107,7 @@ export default async function TrendsByTypePage({
                 <span>
                   ROAS{" "}
                   <span className="text-ink-2 tabular-nums">
-                    {r?.roas == null ? "—" : `${ratio(r.roas)}×`}
+                    {roas(r?.roas)}
                   </span>
                 </span>
                 <span>

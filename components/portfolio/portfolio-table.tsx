@@ -4,7 +4,7 @@ import { useMemo } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { DataTable, type DataColumn } from "@/components/ui/data-table";
 import { useNavTransition } from "@/lib/nav-progress";
-import { int, isoDate, pct, ratio, usd } from "@/lib/format";
+import { int, isoDate, pct, roas, usd } from "@/lib/format";
 import { METRIC_LABEL } from "@/lib/metric-labels";
 import { PLATFORM_LABEL } from "@/lib/palette";
 import { PlatformDot } from "@/components/ui/platform-dot";
@@ -49,7 +49,7 @@ export const CAMPAIGN_TABLE_COLUMNS = COLS_META.filter((c) => !c.pinned).map((c)
 
 const DASH = "—";
 const fUsd = (v: number | null) => (v === null ? DASH : usd(v));
-const fRatio = (v: number | null) => (v === null ? DASH : `${ratio(v)}×`);
+const fRatio = (v: number | null) => roas(v);
 
 export function PortfolioTable({
   rows,
