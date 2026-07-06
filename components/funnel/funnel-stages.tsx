@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { int, pct, intCompact } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { FUNNEL_METRIC_COLOR } from "@/lib/palette";
 import type { FunnelTotals } from "@/db/queries/funnel";
 
 /**
@@ -24,6 +25,10 @@ type VolKey =
   | "conversions";
 type StepKey = "ctr" | "voc" | "atcRate" | "apRate" | "purchaseRate";
 
+// Each stage is colored by the rate LEAVING it, from the shared
+// FUNNEL_METRIC_COLOR map — so a stage bar reads the same hue as its rate tile
+// on the /funnel page (theme-aware CSS vars, legible on the light themes). The
+// terminal Conversions stage has no leaving rate, so it takes the CvR color.
 const STAGES: Array<{
   volKey: VolKey;
   label: string;
@@ -31,12 +36,12 @@ const STAGES: Array<{
   /** Rate of the step LEAVING this stage (→ the next one). Last stage has none. */
   stepKey?: StepKey;
 }> = [
-  { volKey: "impressions", label: "Impressions", color: "#60A5FA", stepKey: "ctr" },
-  { volKey: "clicks", label: "Clicks", color: "#34D399", stepKey: "voc" },
-  { volKey: "landingPageViews", label: "LP views", color: "#FBBF24", stepKey: "atcRate" },
-  { volKey: "addToCart", label: "Add to cart", color: "#22D3EE", stepKey: "apRate" },
-  { volKey: "addPayment", label: "Add payment", color: "#F472B6", stepKey: "purchaseRate" },
-  { volKey: "conversions", label: "Conversions", color: "#A78BFA" },
+  { volKey: "impressions", label: "Impressions", color: FUNNEL_METRIC_COLOR.ctr, stepKey: "ctr" },
+  { volKey: "clicks", label: "Clicks", color: FUNNEL_METRIC_COLOR.voc, stepKey: "voc" },
+  { volKey: "landingPageViews", label: "LP views", color: FUNNEL_METRIC_COLOR.atcRate, stepKey: "atcRate" },
+  { volKey: "addToCart", label: "Add to cart", color: FUNNEL_METRIC_COLOR.apRate, stepKey: "apRate" },
+  { volKey: "addPayment", label: "Add payment", color: FUNNEL_METRIC_COLOR.purchaseRate, stepKey: "purchaseRate" },
+  { volKey: "conversions", label: "Conversions", color: FUNNEL_METRIC_COLOR.cvr },
 ];
 
 export function FunnelStages({
@@ -122,7 +127,10 @@ export function FunnelStages({
                   {compare && (
                     <div
                       className="absolute inset-y-0 border-l border-dashed"
-                      style={{ left: `${cmpW}%`, borderColor: "rgba(255,255,255,0.55)" }}
+                      style={{
+                        left: `${cmpW}%`,
+                        borderColor: "color-mix(in srgb, var(--ink) 55%, transparent)",
+                      }}
                     />
                   )}
                 </div>
