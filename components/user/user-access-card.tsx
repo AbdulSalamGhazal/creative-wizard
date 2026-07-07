@@ -22,6 +22,7 @@ import {
 } from "@/lib/permissions";
 import { updateUserAccess } from "@/app/actions/user";
 import { useNavTransition } from "@/lib/nav-progress";
+import { AdminSetPasswordButton } from "@/components/user/admin-set-password-button";
 
 type Preset = "admin" | "editor" | "viewer" | "custom";
 
@@ -39,6 +40,8 @@ export interface AccessUser {
   role: "admin" | "editor" | "viewer";
   /** null → derive from the role preset; array → an explicit custom grant. */
   permissions: string[] | null;
+  /** Pre-formatted join date shown in the header (optional). */
+  joined?: string;
 }
 
 function setEquals(a: Set<string>, b: readonly string[]): boolean {
@@ -161,27 +164,35 @@ export function UserAccessCard({
               </span>
             )}
           </div>
-          <div className="truncate font-mono text-xs text-ink-3">
-            {user.email}
+          <div className="flex items-center gap-2 truncate font-mono text-xs text-ink-3">
+            <span className="truncate">{user.email}</span>
+            {user.joined && (
+              <span className="shrink-0 font-sans text-ink-3/80">
+                · joined {user.joined}
+              </span>
+            )}
           </div>
         </div>
-        <div className="w-[220px] max-w-full">
-          <Select
-            value={preset}
-            onValueChange={(v) => selectPreset(v as Preset)}
-            disabled={isSelf}
-          >
-            <SelectTrigger aria-label="Access preset">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {(Object.keys(PRESET_LABEL) as Preset[]).map((p) => (
-                <SelectItem key={p} value={p}>
-                  {PRESET_LABEL[p]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        <div className="flex items-center gap-2">
+          <AdminSetPasswordButton userId={user.id} userEmail={user.email} />
+          <div className="w-[220px] max-w-full">
+            <Select
+              value={preset}
+              onValueChange={(v) => selectPreset(v as Preset)}
+              disabled={isSelf}
+            >
+              <SelectTrigger aria-label="Access preset">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {(Object.keys(PRESET_LABEL) as Preset[]).map((p) => (
+                  <SelectItem key={p} value={p}>
+                    {PRESET_LABEL[p]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       </div>
 

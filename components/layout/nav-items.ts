@@ -10,7 +10,6 @@ import {
   Megaphone,
   Users,
   ScrollText,
-  KeyRound,
 } from "lucide-react";
 import type { Permission } from "@/lib/permissions";
 
@@ -82,13 +81,6 @@ export const NAV_ITEMS: NavItem[] = [
       "config.mappings",
       "config.brands",
     ],
-  },
-  {
-    href: "/admin/access",
-    label: "Access",
-    icon: KeyRound,
-    group: "admin",
-    perms: ["users.manage"],
   },
   {
     href: "/admin/users",

@@ -31,8 +31,6 @@ const inviteSchema = z.object({
   password: passwordSchema,
 });
 
-const roleSchema = z.enum(["admin", "editor", "viewer"]);
-
 const setPasswordSchema = z.object({
   userId: z.string().uuid(),
   password: passwordSchema,
@@ -102,64 +100,10 @@ export async function inviteUser(input: unknown): Promise<UserMutationResult> {
   }
 }
 
-export async function updateUserRole(
-  userId: string,
-  role: string,
-): Promise<UserMutationResult> {
-  try {
-    const me = await requirePermission("users.manage");
-    const parsed = roleSchema.safeParse(role);
-    if (!parsed.success) return { ok: false, error: "Invalid role." };
-
-    if (userId === me.id && parsed.data !== "admin") {
-      return { ok: false, error: "You can't change your own role." };
-    }
-
-    const [before] = await db
-      .select({ email: users.email, role: users.role })
-      .from(users)
-      .where(eq(users.id, userId))
-      .limit(1);
-
-    // Never let the last admin be demoted — the team would lock itself out.
-    if (before?.role === "admin" && parsed.data !== "admin") {
-      const [row] = await db
-        .select({ n: count() })
-        .from(users)
-        .where(eq(users.role, "admin"));
-      if ((row?.n ?? 0) <= 1) {
-        return { ok: false, error: "Can't remove the last admin." };
-      }
-    }
-
-    await db.update(users).set({ role: parsed.data }).where(eq(users.id, userId));
-
-    try {
-      revalidatePath("/admin/users");
-    } catch (err) {
-      console.warn("revalidatePath after role change failed:", err);
-    }
-    await logAudit({
-      action: AUDIT_ACTIONS.USER_ROLE_CHANGE,
-      entityType: "user",
-      entityId: userId,
-      entityLabel: before?.email ?? null,
-      actorUserId: me.id,
-      meta: { from: before?.role ?? null, to: parsed.data },
-    });
-    return { ok: true };
-  } catch (err) {
-    return {
-      ok: false,
-      error: err instanceof Error ? err.message : "Unknown error",
-    };
-  }
-}
-
 /**
  * Set a user's full access — role tier + explicit permission set — from the
- * `/admin/access` page. `permissions: null` means "derive from the role preset"
- * (the Admin/Editor/Viewer presets); a non-null array is a Custom grant.
+ * Team page (`/admin/users`). `permissions: null` means "derive from the role
+ * preset" (the Admin/Editor/Viewer presets); a non-null array is a Custom grant.
  *
  * Guardrails: you can't edit your OWN access (no self-escalation), and you can't
  * demote the last admin (the team would lock itself out). Every change is
@@ -218,7 +162,6 @@ export async function updateUserAccess(
       .where(eq(users.id, userId));
 
     try {
-      revalidatePath("/admin/access");
       revalidatePath("/admin/users");
     } catch (err) {
       console.warn("revalidatePath after access change failed:", err);

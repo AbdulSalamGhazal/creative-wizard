@@ -16,7 +16,7 @@ If a rule here conflicts with one of those documents, the documents win — flag
 
 - Next.js (App Router) + TypeScript strict
 - Drizzle ORM + Postgres (Neon)
-- Auth: custom HMAC-signed cookie sessions (`lib/auth-cookie.ts`) + bcrypt passwords (`lib/auth-password.ts`). Users created via `/admin/users`; first admin via `db/create-admin.ts`. NOT Auth.js/Google — those were never wired up. **Authorization is GRANULAR per-user permissions** (`lib/permissions.ts` catalog is the single source of truth) — see the Learned entry. Admins bypass every check; below admin, each capability is individually grantable and managed at `/admin/access`.
+- Auth: custom HMAC-signed cookie sessions (`lib/auth-cookie.ts`) + bcrypt passwords (`lib/auth-password.ts`). Users created via `/admin/users`; first admin via `db/create-admin.ts`. NOT Auth.js/Google — those were never wired up. **Authorization is GRANULAR per-user permissions** (`lib/permissions.ts` catalog is the single source of truth) — see the Learned entry. Admins bypass every check; below admin, each capability is individually grantable and managed on the unified **Team** page (`/admin/users`).
 - Tailwind + shadcn/ui + shadcn charts (Recharts under the hood)
 - papaparse (CSV), Zod (validation)
 - Vercel hosting. Vercel KV is NOT used (upload-validation sessions live in Postgres). **Vercel Blob IS used** for creative thumbnails: uploaded via `POST /api/uploads/thumbnail` (requires `creative.edit`; client downscales→WebP first), stored public, and the returned URL is saved to `creatives.thumbnail_url`. Requires `BLOB_READ_WRITE_TOKEN` (auto-added when a Blob store is connected to the project); the blob host is allow-listed in `next.config.ts` `images.remotePatterns`.
@@ -494,7 +494,7 @@ This app is deployed and in production use. Treat `main` as shippable.
   is GONE. `lib/permissions.ts` is the single source of truth: `PERMISSION_GROUPS`
   (an `as const` catalog of 5 groups / 17 keys) → the `Permission` union +
   `ALL_PERMISSIONS` are derived from it, so any new capability is added in ONE
-  place and every surface (checks, the `/admin/access` UI, nav) follows.
+  place and every surface (checks, the Team UI, nav) follows.
   - **Storage:** `users.role` (`admin` | `editor` | `viewer`, a tier) +
     `users.permissions text[]` NULLABLE (migration 0026, additive). `NULL` →
     derive from the role preset; a non-null array → an explicit ("Custom") grant.
@@ -515,10 +515,15 @@ This app is deployed and in production use. Treat `main` as shippable.
     `can(user, perm)`. Nav derives visibility via `visibleNavItems()` in
     `nav-items.ts` (per-item `perms`, shown if the user holds ANY). Never rely on
     hidden UI for security — the action/route check is the real gate.
-  - **`/admin/access`** (`users.manage`) manages role+permissions per user:
-    preset selector (Admin/Editor/Viewer/Custom) + group checkbox grids + a dirty
-    Save/Discard bar; admin cards render all-checked+disabled; you can't edit your
-    OWN access. `updateUserAccess` in `app/actions/user.ts` enforces the
+  - **The unified Team page** (`/admin/users`, `users.manage`) is the ONE place
+    to add people and manage access — invite form on top, then one
+    `UserAccessCard` per member (`components/user/user-access-card.tsx`) that owns
+    role+permissions AND password reset. The card: preset selector (Admin/Editor/
+    Viewer/Custom) + group checkbox grids + a dirty Save/Discard bar +
+    `AdminSetPasswordButton`; admin cards render all-checked+disabled; you can't
+    edit your OWN access. `updateUserAccess` in `app/actions/user.ts` enforces the
     guardrails (no self-edit, can't demote the last admin) and audits
-    `user.permissions_update` with before/after `{role, permissions}`. The
-    invite/role flows accept `viewer` too.
+    `user.permissions_update` with before/after `{role, permissions}`. The invite
+    flow accepts `viewer` too. (`/admin/access` is a redirect stub → `/admin/users`;
+    the old per-row `UserRoleSelect` + `updateUserRole` were removed — the card's
+    preset selector supersedes them.)

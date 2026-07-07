@@ -15,7 +15,6 @@ describe("visibleNavItems", () => {
     // Everything gated is hidden.
     expect(seen).not.toContain("Uploads");
     expect(seen).not.toContain("Configuration");
-    expect(seen).not.toContain("Access");
     expect(seen).not.toContain("Team");
     expect(seen).not.toContain("Audit log");
   });
@@ -23,7 +22,7 @@ describe("visibleNavItems", () => {
   it("the editor preset unlocks Uploads but no admin items", () => {
     const seen = labels(EDITOR_PRESET);
     expect(seen).toContain("Uploads"); // has upload.import
-    expect(seen).not.toContain("Access"); // users.manage not in preset
+    expect(seen).not.toContain("Team"); // users.manage not in preset
     expect(seen).not.toContain("Configuration");
     expect(seen).not.toContain("Audit log");
   });
@@ -33,11 +32,10 @@ describe("visibleNavItems", () => {
   });
 
   it("a single grant reveals exactly the items it unlocks", () => {
-    expect(labels(["users.manage"])).toContain("Access");
     expect(labels(["users.manage"])).toContain("Team");
     expect(labels(["users.manage"])).not.toContain("Audit log");
     expect(labels(["audit.view"])).toContain("Audit log");
-    expect(labels(["audit.view"])).not.toContain("Access");
+    expect(labels(["audit.view"])).not.toContain("Team");
   });
 
   it("every gated item's perms are real catalog keys (derive integrity)", () => {
