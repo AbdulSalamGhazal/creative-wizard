@@ -1,8 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { DataTable, type DataColumn } from "@/components/ui/data-table";
+import { withDateRange } from "@/lib/url";
 import { seriesColor } from "@/lib/palette";
 import { int, pct, roas, usd } from "@/lib/format";
 import { METRIC_LABEL } from "@/lib/metric-labels";
@@ -28,6 +29,7 @@ export function CampaignCreativesTable({
   creatives: CampaignCreativeRow[];
 }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [sort, setSort] = useState("spend");
   const [dir, setDir] = useState<SortDir>("desc");
   const [order, setOrder] = useState<string[]>([]);
@@ -119,7 +121,15 @@ export function CampaignCreativesTable({
       }}
       order={order}
       onReorder={setOrder}
-      onRowClick={(r) => router.push(`/creatives/${encodeURIComponent(r.name)}`)}
+      onRowClick={(r) =>
+        router.push(
+          withDateRange(
+            `/creatives/${encodeURIComponent(r.name)}`,
+            searchParams.get("from"),
+            searchParams.get("to"),
+          ),
+        )
+      }
       minWidthClass="min-w-[920px]"
     />
   );

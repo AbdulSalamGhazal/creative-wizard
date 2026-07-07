@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { safeDecodeURIComponent, safeInternalPath } from "@/lib/url";
+import {
+  safeDecodeURIComponent,
+  safeInternalPath,
+  withDateRange,
+} from "@/lib/url";
 
 describe("safeDecodeURIComponent", () => {
   it("decodes a normal encoded segment", () => {
@@ -24,6 +28,36 @@ describe("safeDecodeURIComponent", () => {
     expect(safeDecodeURIComponent("50%off")).toBe("50%off");
     expect(safeDecodeURIComponent("%")).toBe("%");
     expect(safeDecodeURIComponent("%E0%A4%A")).toBe("%E0%A4%A");
+  });
+});
+
+describe("withDateRange", () => {
+  const base = "/campaigns/Holiday%20%E2%9E%A4%20Broad";
+
+  it("appends from/to when both are present", () => {
+    expect(withDateRange(base, "2026-01-01", "2026-07-04")).toBe(
+      `${base}?from=2026-01-01&to=2026-07-04`,
+    );
+  });
+
+  it("uses & when the href already has a query string", () => {
+    expect(withDateRange("/creatives/x?view=table", "2026-01-01", "2026-02-01")).toBe(
+      "/creatives/x?view=table&from=2026-01-01&to=2026-02-01",
+    );
+  });
+
+  it("is a no-op when either end is missing (Lifetime / saved-pref)", () => {
+    expect(withDateRange(base, null, null)).toBe(base);
+    expect(withDateRange(base, "2026-01-01", null)).toBe(base);
+    expect(withDateRange(base, null, "2026-07-04")).toBe(base);
+    expect(withDateRange(base, undefined, undefined)).toBe(base);
+    expect(withDateRange(base, "", "")).toBe(base);
+  });
+
+  it("encodes the date values", () => {
+    // Defensive: values are trusted ISO dates, but the helper must not emit raw
+    // delimiters if ever handed something odd.
+    expect(withDateRange("/x", "a&b", "c")).toBe("/x?from=a%26b&to=c");
   });
 });
 

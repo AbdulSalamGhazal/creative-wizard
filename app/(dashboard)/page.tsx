@@ -93,6 +93,8 @@ export default async function DashboardPage({
         filters={filters}
         dimension={dimension}
         dimensionLabel={singlePlatform ? PLATFORM_LABEL[singlePlatform] : undefined}
+        rangeFrom={pickFirst(params.from)}
+        rangeTo={pickFirst(params.to)}
       />
     </PageShell>
   );

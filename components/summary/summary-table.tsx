@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { withDateRange } from "@/lib/url";
 import { PLATFORM_COLOR, PLATFORM_LABEL } from "@/lib/palette";
 import { int, pct, roas, usd } from "@/lib/format";
 import { METRIC_LABEL } from "@/lib/metric-labels";
@@ -155,6 +156,12 @@ export function SummaryTable({
   showRate = true,
   showBlended,
 }: Props) {
+  // Carry the active date range (when explicit in the URL) into each creative
+  // link so the detail page opens on the same window instead of its default.
+  const rangeParams = new URLSearchParams(baseParams);
+  const rangeFrom = rangeParams.get("from");
+  const rangeTo = rangeParams.get("to");
+
   const showTotal =
     showBlended === undefined ? platforms.length >= 2 : showBlended;
   const visibleMetrics = METRIC_COLUMNS.filter(
@@ -478,7 +485,11 @@ export function SummaryTable({
                             className="shrink-0"
                           />
                           <Link
-                            href={`/creatives/${encodeURIComponent(r.name)}`}
+                            href={withDateRange(
+                              `/creatives/${encodeURIComponent(r.name)}`,
+                              rangeFrom,
+                              rangeTo,
+                            )}
                             title={r.name}
                             className={
                               "font-mono text-ink text-xs hover:text-brand transition-colors " +

@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { DataTable, type DataColumn } from "@/components/ui/data-table";
 import { useNavTransition } from "@/lib/nav-progress";
+import { withDateRange } from "@/lib/url";
 import { int, isoDate, pct, roas, usd } from "@/lib/format";
 import { METRIC_LABEL } from "@/lib/metric-labels";
 import { PLATFORM_LABEL } from "@/lib/palette";
@@ -232,7 +233,15 @@ export function PortfolioTable({
         })
       }
       onReorder={(o) => pushParams((p) => p.set("order", o.join(",")))}
-      onRowClick={(r) => router.push(`/campaigns/${encodeURIComponent(r.campaign)}`)}
+      onRowClick={(r) =>
+        router.push(
+          withDateRange(
+            `/campaigns/${encodeURIComponent(r.campaign)}`,
+            searchParams.get("from"),
+            searchParams.get("to"),
+          ),
+        )
+      }
       showTotals
       csvFileName="campaigns"
       minWidthClass="min-w-[1440px]"

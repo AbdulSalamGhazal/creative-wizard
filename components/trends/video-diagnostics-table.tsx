@@ -2,7 +2,9 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { Columns3 } from "lucide-react";
+import { withDateRange } from "@/lib/url";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -69,6 +71,9 @@ export function VideoDiagnosticsTable({
   medianHoldRate: number | null;
   medianCompleteRate: number | null;
 }) {
+  const searchParams = useSearchParams();
+  const rangeFrom = searchParams.get("from");
+  const rangeTo = searchParams.get("to");
   const [visible, setVisible] = useState<Set<Key>>(new Set(DEFAULT_VISIBLE));
   const [sortKey, setSortKey] = useState<string>("spend");
   const [dir, setDir] = useState<"asc" | "desc">("desc");
@@ -102,7 +107,11 @@ export function VideoDiagnosticsTable({
       sortValue: (r) => r.name,
       render: (r) => (
         <Link
-          href={`/creatives/${encodeURIComponent(r.name)}`}
+          href={withDateRange(
+            `/creatives/${encodeURIComponent(r.name)}`,
+            rangeFrom,
+            rangeTo,
+          )}
           className="text-ink hover:text-brand transition-colors truncate block max-w-[240px]"
         >
           {r.name}
@@ -134,7 +143,7 @@ export function VideoDiagnosticsTable({
     }));
 
     return [nameCol, ...metricCols];
-  }, [medianHookRate, medianHoldRate, medianCompleteRate]);
+  }, [medianHookRate, medianHoldRate, medianCompleteRate, rangeFrom, rangeTo]);
 
   const hidden = useMemo(
     () => COLS.filter((c) => !visible.has(c.key)).map((c) => c.key),

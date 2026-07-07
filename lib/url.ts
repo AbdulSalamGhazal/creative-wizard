@@ -21,6 +21,24 @@ export function safeDecodeURIComponent(value: string): string {
 }
 
 /**
+ * Append an active `from`/`to` date range to a same-app destination path so the
+ * range survives a cross-page navigation (a listing → its detail page). A no-op
+ * unless BOTH ends are present — when a page relies on the saved-preference
+ * range (no explicit URL params) the destination independently resolves that
+ * same preference, so there is nothing to carry and nothing to append. Any
+ * existing query string on `href` is preserved.
+ */
+export function withDateRange(
+  href: string,
+  from: string | null | undefined,
+  to: string | null | undefined,
+): string {
+  if (!from || !to) return href;
+  const sep = href.includes("?") ? "&" : "?";
+  return `${href}${sep}from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`;
+}
+
+/**
  * Constrain a user-supplied redirect target (the sign-in `?next=` param) to a
  * same-origin path. Only a value starting with a single "/" passes:
  * "//evil.com" is protocol-relative and "https://evil.com" is absolute — a

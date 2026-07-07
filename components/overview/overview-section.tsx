@@ -56,6 +56,10 @@ interface Props {
   dimension: BreakdownDimension;
   /** Pinned-platform name, shown beside "by campaign". */
   dimensionLabel?: string;
+  /** Explicit URL date range (raw, not resolved) — carried into creative
+   *  links so the detail page opens on the same window. */
+  rangeFrom?: string;
+  rangeTo?: string;
 }
 
 /** Subtract whole days from an ISO YYYY-MM-DD date (UTC). */
@@ -75,6 +79,8 @@ export async function OverviewSection({
   filters,
   dimension,
   dimensionLabel,
+  rangeFrom,
+  rangeTo,
 }: Props) {
   const hasRange = Boolean(filters.from && filters.to);
 
@@ -271,7 +277,7 @@ export async function OverviewSection({
 
       {/* Top movers + funnel rates (full row, half each) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <TopMoversChart rows={moverRows} />
+        <TopMoversChart rows={moverRows} from={rangeFrom} to={rangeTo} />
         <FunnelRates k={k} kd={kd} daily={dailyRates} />
       </div>
 

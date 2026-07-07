@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { withDateRange } from "@/lib/url";
 import {
   CartesianGrid,
   ResponsiveContainer,
@@ -38,6 +39,7 @@ const AXES = Object.keys(M) as Axis[];
  */
 export function VideoScatter({ rows }: { rows: VideoDiagnosticRow[] }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [xKey, setXKey] = useState<Axis>("hookRate");
   const [yKey, setYKey] = useState<Axis>("completeRate");
   const x = M[xKey];
@@ -107,7 +109,14 @@ export function VideoScatter({ rows }: { rows: VideoDiagnosticRow[] }) {
                 fillOpacity={0.6}
                 className="cursor-pointer"
                 onClick={(d: { name?: string }) => {
-                  if (d?.name) router.push(`/creatives/${encodeURIComponent(d.name)}`);
+                  if (d?.name)
+                    router.push(
+                      withDateRange(
+                        `/creatives/${encodeURIComponent(d.name)}`,
+                        searchParams.get("from"),
+                        searchParams.get("to"),
+                      ),
+                    );
                 }}
               />
             </ScatterChart>

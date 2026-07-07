@@ -1,8 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useNavTransition } from "@/lib/nav-progress";
+import { withDateRange } from "@/lib/url";
 import { DataTable, type DataColumn } from "@/components/ui/data-table";
 import { PlatformDot } from "@/components/ui/platform-dot";
 import { PLATFORM_LABEL } from "@/lib/palette";
@@ -167,6 +168,7 @@ function metricColumns<T extends PlatformMixRow>(totals: Totals): DataColumn<T>[
  */
 export function CreativeCampaignsTable({ campaigns, platforms }: Props) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [, startNav] = useNavTransition();
   const [mode, setMode] = useState<Mode>("campaign");
   const [sort, setSort] = useState("spend");
@@ -298,7 +300,13 @@ export function CreativeCampaignsTable({ campaigns, platforms }: Props) {
           onSort={onSort}
           onRowClick={(r) =>
             startNav(() =>
-              router.push(`/campaigns/${encodeURIComponent(r.campaign)}`),
+              router.push(
+                withDateRange(
+                  `/campaigns/${encodeURIComponent(r.campaign)}`,
+                  searchParams.get("from"),
+                  searchParams.get("to"),
+                ),
+              ),
             )
           }
           showTotals

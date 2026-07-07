@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { usdCompact } from "@/lib/format";
+import { withDateRange } from "@/lib/url";
 import type { TopMoverRow } from "@/db/queries/performance";
 
 /**
@@ -8,7 +9,16 @@ import type { TopMoverRow } from "@/db/queries/performance";
  * right from center when spend rose (green) or left when it fell (red), sized
  * by the absolute change. Reads direction + magnitude at a glance.
  */
-export function TopMoversChart({ rows }: { rows: TopMoverRow[] }) {
+export function TopMoversChart({
+  rows,
+  from,
+  to,
+}: {
+  rows: TopMoverRow[];
+  /** Active date range, carried into each creative link when explicit. */
+  from?: string | null;
+  to?: string | null;
+}) {
   const withDelta = rows.map((r) => ({ ...r, abs: r.currentSpend - r.previousSpend }));
   const max = withDelta.reduce((m, r) => Math.max(m, Math.abs(r.abs)), 0);
 
@@ -31,7 +41,11 @@ export function TopMoversChart({ rows }: { rows: TopMoverRow[] }) {
               return (
                 <li key={r.creativeId} className="flex items-center gap-2 text-xs">
                   <Link
-                    href={`/creatives/${encodeURIComponent(r.name)}`}
+                    href={withDateRange(
+                      `/creatives/${encodeURIComponent(r.name)}`,
+                      from,
+                      to,
+                    )}
                     className="w-[34%] shrink-0 truncate text-ink hover:underline"
                     title={r.name}
                   >
