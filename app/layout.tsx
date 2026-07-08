@@ -17,7 +17,8 @@ const THEMES = ["midnight", "contrast", "frost", "paper"];
 const jakarta = Plus_Jakarta_Sans({
   variable: "--ff-jakarta",
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
+  // 800 (extrabold) powers the thick WIZARD wordmark; 400–700 cover the UI.
+  weight: ["400", "500", "600", "700", "800"],
   display: "swap",
 });
 
