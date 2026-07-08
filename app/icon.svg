@@ -1,34 +1,24 @@
 <svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <defs>
-    <linearGradient id="b" x1="10" y1="6" x2="54" y2="48" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#3b82f6"/>
-      <stop offset=".22" stop-color="#06b6d4"/>
-      <stop offset=".44" stop-color="#22c55e"/>
-      <stop offset=".62" stop-color="#eab308"/>
-      <stop offset=".8" stop-color="#f97316"/>
-      <stop offset="1" stop-color="#ec4899"/>
-    </linearGradient>
-    <linearGradient id="a" x1="14" y1="40" x2="48" y2="10" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#22c55e"/>
-      <stop offset=".55" stop-color="#f97316"/>
-      <stop offset="1" stop-color="#ec4899"/>
-    </linearGradient>
-  </defs>
-  <rect width="64" height="64" rx="14" fill="#0f0f15"/>
-  <g transform="translate(5.12 5.12) scale(0.84)">
-    <path d="M24 43 A21 21 0 1 1 36 43" stroke="url(#b)" stroke-width="4.5" stroke-linecap="round"/>
-    <g stroke="url(#b)" stroke-width="3" stroke-linecap="round">
+  <style>
+    /* Single-ink mark that follows the browser/OS scheme — near-black on light
+       tab chrome, near-white on dark — mirroring the in-app logo (text-ink). */
+    svg { color: #14181f; }
+    @media (prefers-color-scheme: dark) { svg { color: #f2ebe5; } }
+  </style>
+  <g transform="translate(5.12 5.12) scale(0.84)" fill="none" stroke="currentColor">
+    <path d="M24 43 A21 21 0 1 1 36 43" stroke-width="4.5" stroke-linecap="round"/>
+    <g stroke-width="3" stroke-linecap="round">
       <path d="M25 49 H35"/>
       <path d="M26.5 53.5 H33.5"/>
     </g>
-    <path d="M28.5 58 q3.5 3 7 0" stroke="url(#b)" stroke-width="3" stroke-linecap="round"/>
-    <rect x="19.5" y="31" width="5" height="10" rx="2" fill="#22c55e"/>
-    <rect x="26.5" y="27" width="5" height="14" rx="2" fill="#06b6d4"/>
-    <rect x="33.5" y="23" width="5" height="18" rx="2" fill="#f59e0b"/>
-    <path d="M15 38 L23 31 L29 35 L45 13" stroke="url(#a)" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
-    <path d="M37 12.5 L46.5 11 L45 20.5" stroke="url(#a)" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
-    <path d="M50 7 l1.5 3.2 3.2 1.5 -3.2 1.5 -1.5 3.2 -1.5 -3.2 -3.2 -1.5 3.2 -1.5z" fill="#fcc419"/>
-    <rect x="53.5" y="20" width="3.4" height="3.4" rx=".8" transform="rotate(20 55.2 21.7)" fill="#ec4899"/>
-    <rect x="44.5" y="3.5" width="2.8" height="2.8" rx=".7" transform="rotate(18 45.9 4.9)" fill="#3b82f6"/>
+    <path d="M28.5 58 q3.5 3 7 0" stroke-width="3" stroke-linecap="round"/>
+    <rect x="19.5" y="31" width="5" height="10" rx="2" fill="currentColor" stroke="none"/>
+    <rect x="26.5" y="27" width="5" height="14" rx="2" fill="currentColor" stroke="none"/>
+    <rect x="33.5" y="23" width="5" height="18" rx="2" fill="currentColor" stroke="none"/>
+    <path d="M15 38 L23 31 L29 35 L45 13" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M37 12.5 L46.5 11 L45 20.5" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M50 7 l1.5 3.2 3.2 1.5 -3.2 1.5 -1.5 3.2 -1.5 -3.2 -3.2 -1.5 3.2 -1.5z" fill="currentColor" stroke="none"/>
+    <rect x="53.5" y="20" width="3.4" height="3.4" rx=".8" transform="rotate(20 55.2 21.7)" fill="currentColor" stroke="none"/>
+    <rect x="44.5" y="3.5" width="2.8" height="2.8" rx=".7" transform="rotate(18 45.9 4.9)" fill="currentColor" stroke="none"/>
   </g>
 </svg>
