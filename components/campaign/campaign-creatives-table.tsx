@@ -70,6 +70,12 @@ export function CampaignCreativesTable({
       sortable: true,
       pinned: true,
       defaultSortDir: "asc",
+      href: (r) =>
+        withDateRange(
+          `/creatives/${encodeURIComponent(r.name)}`,
+          searchParams.get("from"),
+          searchParams.get("to"),
+        ),
       render: (r) => (
         <span className="flex items-center gap-2 min-w-0">
           <span

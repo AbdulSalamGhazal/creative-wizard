@@ -203,7 +203,7 @@ export function CreativeRecordsTable({ rows, title = "All records" }: Props) {
               />
             </div>
 
-            <div className="overflow-x-auto rounded-lg border border-line bg-surface">
+            <div className="max-h-[70vh] overflow-auto rounded-lg border border-line bg-surface">
               <table className="w-full text-sm num min-w-max">
                 <thead>
                   <tr className="text-left text-label text-ink-3 border-b border-line">
@@ -213,7 +213,7 @@ export function CreativeRecordsTable({ rows, title = "All records" }: Props) {
                         <th
                           key={c.key}
                           className={cn(
-                            "font-medium px-3 py-2.5",
+                            "font-medium px-3 py-2.5 sticky top-0 z-10 bg-surface",
                             c.numeric ? "text-right" : "text-left",
                           )}
                         >

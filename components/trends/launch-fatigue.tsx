@@ -443,7 +443,7 @@ export function LaunchFatigueTable({ rows }: { rows: LaunchFatigueViewRow[] }) {
 
   return (
     <div className="space-y-2">
-      <div className="overflow-x-auto rounded-lg border border-line bg-surface">
+      <div className="max-h-[70vh] overflow-auto rounded-lg border border-line bg-surface">
         <table className="w-full text-xs num min-w-max">
           <thead>
             <tr className="text-left text-label text-ink-3 border-b border-line">
@@ -462,7 +462,7 @@ export function LaunchFatigueTable({ rows }: { rows: LaunchFatigueViewRow[] }) {
                     }
                     style={col.resizable ? widthStyle(col.key) : undefined}
                     className={cn(
-                      "relative font-medium px-3 py-2.5",
+                      "relative font-medium px-3 py-2.5 sticky top-0 z-10 bg-surface",
                       col.numeric ? "text-right" : "text-left",
                       (col.key === "fatigue" || isWindow) && "border-l border-line",
                       col.resizable && widths[col.key] ? "" : "whitespace-nowrap",

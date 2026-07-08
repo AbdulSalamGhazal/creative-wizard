@@ -98,10 +98,10 @@ export default async function UploadsPage() {
           </div>
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-line bg-surface">
+        <div className="max-h-[70vh] overflow-auto rounded-lg border border-line bg-surface">
           <table className="w-full text-sm num">
             <thead>
-              <tr className="text-left text-label text-ink-3 border-b border-line">
+              <tr className="text-left text-label text-ink-3 border-b border-line [&>th]:sticky [&>th]:top-0 [&>th]:z-10 [&>th]:bg-surface">
                 <th className="font-medium px-3 py-2.5">Uploaded</th>
                 <th className="font-medium px-3 py-2.5">Platform</th>
                 <th className="font-medium px-3 py-2.5">File</th>

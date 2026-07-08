@@ -14,6 +14,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { DataTable, type DataColumn } from "@/components/ui/data-table";
+import { usePersistentVisible } from "@/components/ui/use-persistent-visible";
 import { int, pct, roas, usd } from "@/lib/format";
 import { METRIC_LABEL } from "@/lib/metric-labels";
 import { StatusBadge } from "@/components/creative/status-badge";
@@ -74,7 +75,10 @@ export function VideoDiagnosticsTable({
   const searchParams = useSearchParams();
   const rangeFrom = searchParams.get("from");
   const rangeTo = searchParams.get("to");
-  const [visible, setVisible] = useState<Set<Key>>(new Set(DEFAULT_VISIBLE));
+  const [visible, setVisible] = usePersistentVisible<Key>(
+    "cw-cols:video-diagnostics",
+    DEFAULT_VISIBLE,
+  );
   const [sortKey, setSortKey] = useState<string>("spend");
   const [dir, setDir] = useState<"asc" | "desc">("desc");
   const [order, setOrder] = useState<string[]>([]);

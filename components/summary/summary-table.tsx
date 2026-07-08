@@ -25,6 +25,8 @@ import {
   type SortDir,
 } from "@/validators/summary";
 import { StatusSquare } from "@/components/creative/status-badge";
+import { DownloadCsvButton } from "@/components/ui/download-csv-button";
+import { rowsToCsv, todayStamp, type CsvColumn } from "@/lib/csv-export";
 import type { PlatformStatus } from "@/lib/creative-status";
 
 interface Props {
@@ -345,8 +347,59 @@ export function SummaryTable({
   }
   const footerTotal = aggregateBlocks(rows.map((r) => r.total));
 
+  // CSV export: flatten the grouped per-platform columns into `<Group> <Metric>`
+  // headers (raw numeric values). Respects the current filters/sort (rows are
+  // already sorted), the visible identity + metric columns, and the visible
+  // platform groups + Blended total in their display order.
+  const csvColumns: CsvColumn<SummaryRow>[] = [
+    { key: "name", label: "Creative", value: (r) => r.name },
+    ...identityCols
+      .filter((c) => c.key !== "name")
+      .map((c) => ({
+        key: c.key,
+        label: c.label,
+        value: (r: SummaryRow) =>
+          c.key === "product"
+            ? r.productName
+            : c.key === "type"
+              ? r.type
+              : c.key === "launch"
+                ? r.launchDate
+                : c.key === "creator"
+                  ? r.creatorName
+                  : null,
+      })),
+    { key: "status", label: "Status", value: (r: SummaryRow) => r.generalStatus },
+    { key: "tags", label: "Tags", value: (r: SummaryRow) => r.tags.join(" | ") },
+    ...orderedGroups.flatMap((g) => {
+      const groupLabel =
+        g === "total"
+          ? "Blended"
+          : (PLATFORM_LABEL[g as keyof typeof PLATFORM_LABEL] ?? g);
+      return visibleMetrics.map((m) => ({
+        key: `${g}:${m.key}`,
+        label: `${groupLabel} ${m.label}`,
+        value: (r: SummaryRow) => {
+          const block =
+            g === "total"
+              ? r.total
+              : r.perPlatform[g as keyof typeof r.perPlatform];
+          return block ? pickMetric(block, m.key) : null;
+        },
+      }));
+    }),
+  ];
+  const csvContent = rowsToCsv(rows, csvColumns);
+
   return (
-    <div className="max-h-[70vh] overflow-auto rounded-lg border border-line bg-surface">
+    <div className="space-y-2">
+      <div className="flex items-center justify-end">
+        <DownloadCsvButton
+          csvContent={csvContent}
+          filename={`summary-${todayStamp()}.csv`}
+        />
+      </div>
+      <div className="max-h-[70vh] overflow-auto rounded-lg border border-line bg-surface">
       <table className="text-xs num min-w-max">
         {/* Two-row header: top row = group banners; bottom = column labels.
             The whole <thead> is sticky so it stays frozen while the body
@@ -602,6 +655,7 @@ export function SummaryTable({
           </tfoot>
         )}
       </table>
+      </div>
     </div>
   );
 }

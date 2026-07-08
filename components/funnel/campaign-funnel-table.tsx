@@ -193,7 +193,7 @@ export function CampaignFunnelTable({ rows }: { rows: CampaignFunnelRow[] }) {
   }
 
   return (
-    <div className="max-h-[60vh] overflow-auto rounded-lg border border-line bg-surface">
+    <div className="max-h-[70vh] overflow-auto rounded-lg border border-line bg-surface">
       <table className="w-full text-sm num">
         <thead>
           <tr className="text-left text-label text-ink-3">

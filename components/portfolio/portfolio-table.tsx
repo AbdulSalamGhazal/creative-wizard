@@ -68,6 +68,8 @@ export function PortfolioTable({
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const rangeFrom = searchParams.get("from");
+  const rangeTo = searchParams.get("to");
 
   const [, startNav] = useNavTransition();
   const pushParams = (mut: (p: URLSearchParams) => void) => {
@@ -208,6 +210,15 @@ export function PortfolioTable({
       render: (r) => renderCell(r, m.key),
       total: () => renderTotal(m.key),
       sortValue: m.sortable ? (r) => sortVal(r, m.key) : undefined,
+      href:
+        m.key === "campaign"
+          ? (r: PortfolioCampaignRow) =>
+              withDateRange(
+                `/campaigns/${encodeURIComponent(r.campaign)}`,
+                rangeFrom,
+                rangeTo,
+              )
+          : undefined,
       csv:
         m.key === "platforms"
           ? (r: PortfolioCampaignRow) => r.platforms.join(" | ")
@@ -215,7 +226,7 @@ export function PortfolioTable({
             ? (r: PortfolioCampaignRow) => CAMPAIGN_STATUS_LABEL[r.status]
             : undefined,
     }));
-  }, [totals]);
+  }, [totals, rangeFrom, rangeTo]);
 
   return (
     <DataTable

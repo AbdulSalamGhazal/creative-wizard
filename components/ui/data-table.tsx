@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { ArrowDown, ArrowUp, ArrowUpDown, GripVertical } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { DownloadCsvButton } from "@/components/ui/download-csv-button";
@@ -33,6 +34,13 @@ export interface DataColumn<T> {
   defaultSortDir?: "asc" | "desc";
   /** Raw value for CSV export. Falls back to `sortValue` when omitted. */
   csv?: (row: T) => string | number | null;
+  /**
+   * Destination for this cell's content as a real `<Link>` (typically the
+   * pinned identity column) so Cmd/Ctrl/middle-click opens a new tab — plain
+   * `onRowClick` (router.push) can't. Left-click still navigates; the link
+   * stops propagation so the row handler doesn't double-fire.
+   */
+  href?: (row: T) => string;
 }
 
 const MIN_W = 64;
@@ -310,7 +318,17 @@ export function DataTable<T>({
                     pinnedCls(c, "z-10 bg-surface group-hover:bg-surface-2/60"),
                   )}
                 >
-                  {c.render(r)}
+                  {c.href ? (
+                    <Link
+                      href={c.href(r)}
+                      onClick={(e) => e.stopPropagation()}
+                      className="block text-inherit no-underline hover:text-inherit"
+                    >
+                      {c.render(r)}
+                    </Link>
+                  ) : (
+                    c.render(r)
+                  )}
                 </td>
               ))}
             </tr>
