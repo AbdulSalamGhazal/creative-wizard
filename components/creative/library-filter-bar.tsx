@@ -7,11 +7,9 @@ import {
   LayoutGrid,
   MonitorSmartphone,
   Package,
-  Search,
   Shapes,
   Table as TableIcon,
   Tag,
-  X,
 } from "lucide-react";
 import { ALL_PLATFORMS, PLATFORM_LABEL } from "@/lib/palette";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -32,6 +30,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  ClearButton,
+  FilterPill,
+  FilterSearch,
+} from "@/components/filters/filter-pill";
+import { FilterSheet } from "@/components/filters/filter-sheet";
 import { cn } from "@/lib/utils";
 import {
   creativeSortValues,
@@ -191,6 +195,14 @@ export function LibraryFilterBar({ products, tags, views, currentUserId, isAdmin
     platforms.length > 0 ||
     selectedTags.length > 0;
 
+  // Sheet badge counts the dimension filters (search sits in the mobile row).
+  const activeCount =
+    (productIds.length > 0 ? 1 : 0) +
+    (types.length > 0 ? 1 : 0) +
+    (statuses.length > 0 ? 1 : 0) +
+    (platforms.length > 0 ? 1 : 0) +
+    (selectedTags.length > 0 ? 1 : 0);
+
   const clearAll = () =>
     update((next) => {
       next.delete("q");
@@ -209,253 +221,261 @@ export function LibraryFilterBar({ products, tags, views, currentUserId, isAdmin
     return `${productIds.length} selected`;
   }, [productIds, products]);
 
+  const views_ = (
+    <ViewsControl
+      views={views}
+      currentUserId={currentUserId}
+      isAdmin={isAdmin}
+      page="creatives"
+      clearLabel="Show all creatives (ignore default)"
+    />
+  );
+
+  // Dimension pills in canonical order (Products → Type → Status → Platforms →
+  // Tags). Rendered inline on desktop and stacked full-width in the mobile Sheet.
+  const dimensionControls = (fullWidth: boolean) => (
+    <>
+      <FilterPill
+        icon={Package}
+        label="Products"
+        value={productLabel}
+        active={productIds.length > 0}
+        fullWidth={fullWidth}
+      >
+        {() => (
+          <DropdownMenuContent align="start" className="w-56">
+            <DropdownMenuLabel>Products</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            {products.length === 0 && (
+              <div className="px-2 py-1.5 text-xs text-ink-3">No products yet</div>
+            )}
+            {products.map((p) => (
+              <DropdownMenuCheckboxItem
+                key={p.id}
+                checked={productIds.includes(p.id)}
+                onCheckedChange={() => toggleMulti("productIds", p.id, productIds)}
+              >
+                {p.name}
+              </DropdownMenuCheckboxItem>
+            ))}
+          </DropdownMenuContent>
+        )}
+      </FilterPill>
+
+      <FilterPill
+        icon={Shapes}
+        label="Types"
+        value={
+          types.length === 0
+            ? "All"
+            : types.length === 1
+              ? (TYPES.find((t) => t.value === types[0])?.label ?? "1")
+              : `${types.length} selected`
+        }
+        active={types.length > 0}
+        fullWidth={fullWidth}
+      >
+        {() => (
+          <DropdownMenuContent align="start" className="w-44">
+            <DropdownMenuLabel>Type</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            {TYPES.map((t) => (
+              <DropdownMenuCheckboxItem
+                key={t.value}
+                checked={types.includes(t.value)}
+                onCheckedChange={() => toggleMulti("types", t.value, types)}
+              >
+                {t.label}
+              </DropdownMenuCheckboxItem>
+            ))}
+          </DropdownMenuContent>
+        )}
+      </FilterPill>
+
+      <FilterPill
+        icon={CircleDot}
+        label="Status"
+        value={
+          statuses.length === 0
+            ? "Any"
+            : statuses.length === 1
+              ? (STATUSES.find((s) => s.value === statuses[0])?.label ?? "1")
+              : `${statuses.length} selected`
+        }
+        active={statuses.length > 0}
+        fullWidth={fullWidth}
+      >
+        {() => (
+          <DropdownMenuContent align="start" className="w-44">
+            <DropdownMenuLabel>Status</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            {STATUSES.map((s) => (
+              <DropdownMenuCheckboxItem
+                key={s.value}
+                checked={statuses.includes(s.value)}
+                onCheckedChange={() => toggleMulti("statuses", s.value, statuses)}
+              >
+                {s.label}
+              </DropdownMenuCheckboxItem>
+            ))}
+          </DropdownMenuContent>
+        )}
+      </FilterPill>
+
+      <FilterPill
+        icon={MonitorSmartphone}
+        label="Platforms"
+        value={
+          platforms.length === 0
+            ? "All"
+            : platforms.length === 1
+              ? (PLATFORMS.find((p) => p.value === platforms[0])?.label ?? "1")
+              : `${platforms.length} selected`
+        }
+        active={platforms.length > 0}
+        fullWidth={fullWidth}
+      >
+        {() => (
+          <DropdownMenuContent align="start" className="w-44">
+            <DropdownMenuLabel>Platform</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            {PLATFORMS.map((p) => (
+              <DropdownMenuCheckboxItem
+                key={p.value}
+                checked={platforms.includes(p.value)}
+                onCheckedChange={() => toggleMulti("platforms", p.value, platforms)}
+              >
+                {p.label}
+              </DropdownMenuCheckboxItem>
+            ))}
+          </DropdownMenuContent>
+        )}
+      </FilterPill>
+
+      <FilterPill
+        icon={Tag}
+        label="Tags"
+        value={
+          selectedTags.length === 0
+            ? "Any"
+            : selectedTags.length === 1
+              ? selectedTags[0]!
+              : `${selectedTags.length} selected`
+        }
+        active={selectedTags.length > 0}
+        fullWidth={fullWidth}
+      >
+        {() => (
+          <DropdownMenuContent align="start" className="w-56">
+            <DropdownMenuLabel>Tags</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            {tags.length === 0 && (
+              <div className="px-2 py-1.5 text-xs text-ink-3">No tags yet</div>
+            )}
+            {tags.map((t) => (
+              <DropdownMenuCheckboxItem
+                key={t}
+                checked={selectedTags.includes(t)}
+                onCheckedChange={() => toggleMulti("tags", t, selectedTags)}
+              >
+                {t}
+              </DropdownMenuCheckboxItem>
+            ))}
+          </DropdownMenuContent>
+        )}
+      </FilterPill>
+    </>
+  );
+
+  const sortControl = (fullWidth: boolean) => (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          className={cn(
+            "inline-flex items-center gap-2 h-8 px-3 rounded-md border border-line bg-surface text-xs text-ink-2 hover:text-ink hover:bg-surface-2 transition-colors",
+            fullWidth && "w-full justify-between",
+          )}
+        >
+          <span className="inline-flex items-center gap-2 min-w-0">
+            <span className="text-ink-3 shrink-0">Sort</span>
+            <span className="text-ink truncate">{SORT_LABEL[sort]}</span>
+          </span>
+          <ChevronDown className="w-3 h-3 text-ink-3 shrink-0" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-52">
+        <DropdownMenuLabel>Sort by</DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        {DROPDOWN_SORTS.map((s) => (
+          <DropdownMenuItem key={s} onSelect={() => setSort(s)}>
+            <span className="flex-1">{SORT_LABEL[s]}</span>
+            {sort === s && <Check className="w-3.5 h-3.5 text-brand" />}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+
+  const viewToggle = (
+    <div className="inline-flex items-center rounded-md border border-line bg-surface h-8 p-0.5 shrink-0">
+      <button
+        type="button"
+        onClick={() => setView("grid")}
+        aria-label="Grid view"
+        className={cn(
+          "h-7 px-2 rounded transition-colors inline-flex items-center justify-center",
+          view === "grid" ? "bg-surface-3 text-ink" : "text-ink-3 hover:text-ink",
+        )}
+      >
+        <LayoutGrid className="w-3.5 h-3.5" />
+      </button>
+      <button
+        type="button"
+        onClick={() => setView("table")}
+        aria-label="Table view"
+        className={cn(
+          "h-7 px-2 rounded transition-colors inline-flex items-center justify-center",
+          view === "table" ? "bg-surface-3 text-ink" : "text-ink-3 hover:text-ink",
+        )}
+      >
+        <TableIcon className="w-3.5 h-3.5" />
+      </button>
+    </div>
+  );
+
+  const search = (fullWidth: boolean) => (
+    <FilterSearch
+      value={qInput}
+      onChange={setQInput}
+      placeholder="Search name, tag, notes…"
+      fullWidth={fullWidth}
+    />
+  );
+
   return (
     <div className="sticky top-14 z-10 -mx-6 px-6 py-3 border-b border-line bg-background/95 backdrop-blur">
-      <div className="flex items-center gap-2 flex-wrap">
-        <ViewsControl
-          views={views}
-          currentUserId={currentUserId}
-          isAdmin={isAdmin}
-          page="creatives"
-          clearLabel="Show all creatives (ignore default)"
-        />
-
-        {/* Search */}
-        <div className="relative">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-ink-3 pointer-events-none" />
-          <input
-            type="search"
-            value={qInput}
-            onChange={(e) => setQInput(e.target.value)}
-            placeholder="Search name, tag, notes…"
-            className={cn(
-              "h-8 pl-8 pr-3 rounded-md border border-line bg-surface text-xs text-ink",
-              "placeholder:text-ink-3 outline-none focus:border-line-2",
-              "w-64",
-            )}
-          />
-        </div>
-
-        {/* Product */}
-        <FilterPill
-          icon={Package}
-          label="Products"
-          value={productLabel}
-          active={productIds.length > 0}
-        >
-          {() => (
-            <DropdownMenuContent align="start" className="w-56">
-              <DropdownMenuLabel>Products</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              {products.length === 0 && (
-                <div className="px-2 py-1.5 text-xs text-ink-3">No products yet</div>
-              )}
-              {products.map((p) => (
-                <DropdownMenuCheckboxItem
-                  key={p.id}
-                  checked={productIds.includes(p.id)}
-                  onCheckedChange={() =>
-                    toggleMulti("productIds", p.id, productIds)
-                  }
-                >
-                  {p.name}
-                </DropdownMenuCheckboxItem>
-              ))}
-            </DropdownMenuContent>
-          )}
-        </FilterPill>
-
-        {/* Type */}
-        <FilterPill
-          icon={Shapes}
-          label="Types"
-          value={
-            types.length === 0
-              ? "All"
-              : types.length === 1
-                ? (TYPES.find((t) => t.value === types[0])?.label ?? "1")
-                : `${types.length} selected`
-          }
-          active={types.length > 0}
-        >
-          {() => (
-            <DropdownMenuContent align="start" className="w-44">
-              <DropdownMenuLabel>Type</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              {TYPES.map((t) => (
-                <DropdownMenuCheckboxItem
-                  key={t.value}
-                  checked={types.includes(t.value)}
-                  onCheckedChange={() => toggleMulti("types", t.value, types)}
-                >
-                  {t.label}
-                </DropdownMenuCheckboxItem>
-              ))}
-            </DropdownMenuContent>
-          )}
-        </FilterPill>
-
-        {/* Status */}
-        <FilterPill
-          icon={CircleDot}
-          label="Status"
-          value={
-            statuses.length === 0
-              ? "Any"
-              : statuses.length === 1
-                ? (STATUSES.find((s) => s.value === statuses[0])?.label ?? "1")
-                : `${statuses.length} selected`
-          }
-          active={statuses.length > 0}
-        >
-          {() => (
-            <DropdownMenuContent align="start" className="w-44">
-              <DropdownMenuLabel>Status</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              {STATUSES.map((s) => (
-                <DropdownMenuCheckboxItem
-                  key={s.value}
-                  checked={statuses.includes(s.value)}
-                  onCheckedChange={() => toggleMulti("statuses", s.value, statuses)}
-                >
-                  {s.label}
-                </DropdownMenuCheckboxItem>
-              ))}
-            </DropdownMenuContent>
-          )}
-        </FilterPill>
-
-        {/* Platform */}
-        <FilterPill
-          icon={MonitorSmartphone}
-          label="Platforms"
-          value={
-            platforms.length === 0
-              ? "All"
-              : platforms.length === 1
-                ? (PLATFORMS.find((p) => p.value === platforms[0])?.label ?? "1")
-                : `${platforms.length} selected`
-          }
-          active={platforms.length > 0}
-        >
-          {() => (
-            <DropdownMenuContent align="start" className="w-44">
-              <DropdownMenuLabel>Platform</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              {PLATFORMS.map((p) => (
-                <DropdownMenuCheckboxItem
-                  key={p.value}
-                  checked={platforms.includes(p.value)}
-                  onCheckedChange={() =>
-                    toggleMulti("platforms", p.value, platforms)
-                  }
-                >
-                  {p.label}
-                </DropdownMenuCheckboxItem>
-              ))}
-            </DropdownMenuContent>
-          )}
-        </FilterPill>
-
-        {/* Tags */}
-        <FilterPill
-          icon={Tag}
-          label="Tags"
-          value={
-            selectedTags.length === 0
-              ? "Any"
-              : selectedTags.length === 1
-                ? selectedTags[0]!
-                : `${selectedTags.length} selected`
-          }
-          active={selectedTags.length > 0}
-        >
-          {() => (
-            <DropdownMenuContent align="start" className="w-56">
-              <DropdownMenuLabel>Tags</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              {tags.length === 0 && (
-                <div className="px-2 py-1.5 text-xs text-ink-3">No tags yet</div>
-              )}
-              {tags.map((t) => (
-                <DropdownMenuCheckboxItem
-                  key={t}
-                  checked={selectedTags.includes(t)}
-                  onCheckedChange={() => toggleMulti("tags", t, selectedTags)}
-                >
-                  {t}
-                </DropdownMenuCheckboxItem>
-              ))}
-            </DropdownMenuContent>
-          )}
-        </FilterPill>
-
+      {/* Desktop / wide */}
+      <div className="hidden lg:flex items-center gap-2 flex-wrap">
+        {views_}
+        {search(false)}
+        {dimensionControls(false)}
         <div className="ml-auto flex items-center gap-2">
-          {filtersActive && (
-            <button
-              type="button"
-              onClick={clearAll}
-              className="inline-flex items-center gap-1 h-8 px-3 rounded-md border border-line text-xs text-ink-3 hover:text-ink hover:bg-surface-2 transition-colors"
-            >
-              <X className="w-3 h-3" />
-              Clear
-            </button>
-          )}
-
-          {/* Sort */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button
-                type="button"
-                className="inline-flex items-center gap-2 h-8 px-3 rounded-md border border-line bg-surface text-xs text-ink-2 hover:text-ink hover:bg-surface-2 transition-colors"
-              >
-                <span className="text-ink-3">Sort</span>
-                <span className="text-ink">{SORT_LABEL[sort]}</span>
-                <ChevronDown className="w-3 h-3 text-ink-3" />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-52">
-              <DropdownMenuLabel>Sort by</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              {DROPDOWN_SORTS.map((s) => (
-                <DropdownMenuItem key={s} onSelect={() => setSort(s)}>
-                  <span className="flex-1">{SORT_LABEL[s]}</span>
-                  {sort === s && <Check className="w-3.5 h-3.5 text-brand" />}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
-
-          {/* View toggle */}
-          <div className="inline-flex items-center rounded-md border border-line bg-surface h-8 p-0.5">
-            <button
-              type="button"
-              onClick={() => setView("grid")}
-              aria-label="Grid view"
-              className={cn(
-                "h-7 px-2 rounded transition-colors inline-flex items-center justify-center",
-                view === "grid"
-                  ? "bg-surface-3 text-ink"
-                  : "text-ink-3 hover:text-ink",
-              )}
-            >
-              <LayoutGrid className="w-3.5 h-3.5" />
-            </button>
-            <button
-              type="button"
-              onClick={() => setView("table")}
-              aria-label="Table view"
-              className={cn(
-                "h-7 px-2 rounded transition-colors inline-flex items-center justify-center",
-                view === "table"
-                  ? "bg-surface-3 text-ink"
-                  : "text-ink-3 hover:text-ink",
-              )}
-            >
-              <TableIcon className="w-3.5 h-3.5" />
-            </button>
-          </div>
+          {filtersActive && <ClearButton onClick={clearAll} />}
+          {sortControl(false)}
+          {viewToggle}
         </div>
+      </div>
+
+      {/* Mobile / tablet: search + view toggle + a single Filters Sheet */}
+      <div className="flex lg:hidden items-center gap-2">
+        <div className="flex-1 min-w-0">{search(true)}</div>
+        {viewToggle}
+        <FilterSheet activeCount={activeCount} onClear={clearAll}>
+          {views_}
+          {dimensionControls(true)}
+          {sortControl(true)}
+        </FilterSheet>
       </div>
     </div>
   );
@@ -464,37 +484,5 @@ export function LibraryFilterBar({ products, tags, views, currentUserId, isAdmin
 function csvParam(v: string | null): string[] {
   if (!v) return [];
   return v.split(",").filter(Boolean);
-}
-
-interface PillProps {
-  icon: React.ComponentType<{ className?: string }>;
-  label: string;
-  value: string;
-  active: boolean;
-  children: () => React.ReactNode;
-}
-
-function FilterPill({ icon: Icon, label, value, active, children }: PillProps) {
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <button
-          type="button"
-          className={cn(
-            "inline-flex items-center gap-2 h-8 px-3 rounded-md border text-xs transition-colors",
-            active
-              ? "border-brand/50 text-ink bg-[var(--brand-soft)]"
-              : "border-line text-ink-2 bg-surface hover:bg-surface-2 hover:text-ink",
-          )}
-        >
-          <Icon className="w-3.5 h-3.5" />
-          <span className="text-ink-3">{label}</span>
-          <span className="text-ink">{value}</span>
-          <ChevronDown className="w-3 h-3 text-ink-3" />
-        </button>
-      </DropdownMenuTrigger>
-      {children()}
-    </DropdownMenu>
-  );
 }
 

@@ -1,27 +1,23 @@
 "use client";
 
-import {
-  Eye,
-  EyeOff,
-  Layers,
-  Package,
-  Shapes,
-  Tag,
-} from "lucide-react";
+import { Layers, Package, Shapes, Tag } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useMemo } from "react";
 import { useNavTransition } from "@/lib/nav-progress";
 import {
-  DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuLabel,
   DropdownMenuSeparator,
-  DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { DateRangePicker } from "@/components/filters/date-range-picker";
+import {
+  ClearButton,
+  ExcludedToggle,
+  FilterPill,
+} from "@/components/filters/filter-pill";
+import { FilterSheet } from "@/components/filters/filter-sheet";
 import { ALL_PLATFORMS, PLATFORM_LABEL } from "@/lib/palette";
-import { cn } from "@/lib/utils";
 
 // Derived from the canonical platform list (lib/palette) — no hand-copied set.
 const PLATFORMS = ALL_PLATFORMS.map((value) => ({
@@ -162,6 +158,13 @@ export function FilterStrip({
     });
   };
 
+  const platformLabel =
+    selectedPlatforms.length === 0
+      ? "All"
+      : selectedPlatforms.length === 1
+        ? (PLATFORMS.find((p) => p.value === selectedPlatforms[0])?.label ?? "")
+        : `${selectedPlatforms.length} selected`;
+
   const filtersActive = !!(
     from ||
     to ||
@@ -172,40 +175,40 @@ export function FilterStrip({
     selectedTags.length > 0
   );
 
-  return (
-    <div className="sticky top-14 z-10 border-b border-line bg-background/95 backdrop-blur">
-      <div className="flex items-center gap-2 px-6 h-12 overflow-x-auto">
-        {/* Date range */}
-        <DateRangePicker
-          from={from}
-          to={to}
-          onChange={applyRange}
-          remember={rememberDate}
-          fallback={
-            defaultFrom && defaultTo
-              ? { from: defaultFrom, to: defaultTo }
-              : undefined
-          }
-        />
+  const activeCount =
+    (from || to ? 1 : 0) +
+    (selectedPlatforms.length > 0 ? 1 : 0) +
+    (productIds.length > 0 ? 1 : 0) +
+    (types.length > 0 ? 1 : 0) +
+    (selectedTags.length > 0 ? 1 : 0) +
+    (includeExcluded ? 1 : 0);
 
-        {/* Platforms */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button type="button">
-              <Chip
-                icon={Layers}
-                label="Platforms"
-                value={
-                  selectedPlatforms.length === 0
-                    ? "All"
-                    : selectedPlatforms.length === 1
-                      ? PLATFORMS.find((p) => p.value === selectedPlatforms[0])?.label ?? ""
-                      : `${selectedPlatforms.length} selected`
-                }
-                active={selectedPlatforms.length > 0}
-              />
-            </button>
-          </DropdownMenuTrigger>
+  // Canonical control order: Date → dimension pills (Platforms, Products, Type,
+  // Tags). Rendered inline on desktop and stacked full-width inside the mobile
+  // Sheet via `fullWidth`.
+  const dimensionControls = (fullWidth: boolean) => (
+    <>
+      <DateRangePicker
+        from={from}
+        to={to}
+        onChange={applyRange}
+        remember={rememberDate}
+        fullWidth={fullWidth}
+        fallback={
+          defaultFrom && defaultTo
+            ? { from: defaultFrom, to: defaultTo }
+            : undefined
+        }
+      />
+
+      <FilterPill
+        icon={Layers}
+        label="Platforms"
+        value={platformLabel}
+        active={selectedPlatforms.length > 0}
+        fullWidth={fullWidth}
+      >
+        {() => (
           <DropdownMenuContent align="start" className="w-48">
             <DropdownMenuLabel>Platforms</DropdownMenuLabel>
             <DropdownMenuSeparator />
@@ -220,20 +223,17 @@ export function FilterStrip({
               </DropdownMenuCheckboxItem>
             ))}
           </DropdownMenuContent>
-        </DropdownMenu>
+        )}
+      </FilterPill>
 
-        {/* Products */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button type="button">
-              <Chip
-                icon={Package}
-                label="Products"
-                value={productLabel}
-                active={productIds.length > 0}
-              />
-            </button>
-          </DropdownMenuTrigger>
+      <FilterPill
+        icon={Package}
+        label="Products"
+        value={productLabel}
+        active={productIds.length > 0}
+        fullWidth={fullWidth}
+      >
+        {() => (
           <DropdownMenuContent align="start" className="w-56 max-h-72 overflow-y-auto">
             <DropdownMenuLabel>Products</DropdownMenuLabel>
             <DropdownMenuSeparator />
@@ -251,21 +251,18 @@ export function FilterStrip({
               </DropdownMenuCheckboxItem>
             ))}
           </DropdownMenuContent>
-        </DropdownMenu>
+        )}
+      </FilterPill>
 
-        {/* Type */}
-        {!hideType && (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button type="button">
-                <Chip
-                  icon={Shapes}
-                  label="Type"
-                  value={typeLabel}
-                  active={types.length > 0}
-                />
-              </button>
-            </DropdownMenuTrigger>
+      {!hideType && (
+        <FilterPill
+          icon={Shapes}
+          label="Type"
+          value={typeLabel}
+          active={types.length > 0}
+          fullWidth={fullWidth}
+        >
+          {() => (
             <DropdownMenuContent align="start" className="w-44">
               <DropdownMenuLabel>Type</DropdownMenuLabel>
               <DropdownMenuSeparator />
@@ -280,21 +277,18 @@ export function FilterStrip({
                 </DropdownMenuCheckboxItem>
               ))}
             </DropdownMenuContent>
-          </DropdownMenu>
-        )}
+          )}
+        </FilterPill>
+      )}
 
-        {/* Tags */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button type="button">
-              <Chip
-                icon={Tag}
-                label="Tags"
-                value={tagLabel}
-                active={selectedTags.length > 0}
-              />
-            </button>
-          </DropdownMenuTrigger>
+      <FilterPill
+        icon={Tag}
+        label="Tags"
+        value={tagLabel}
+        active={selectedTags.length > 0}
+        fullWidth={fullWidth}
+      >
+        {() => (
           <DropdownMenuContent align="start" className="w-56 max-h-72 overflow-y-auto">
             <DropdownMenuLabel>Tags</DropdownMenuLabel>
             <DropdownMenuSeparator />
@@ -312,69 +306,30 @@ export function FilterStrip({
               </DropdownMenuCheckboxItem>
             ))}
           </DropdownMenuContent>
-        </DropdownMenu>
+        )}
+      </FilterPill>
+    </>
+  );
 
+  return (
+    <div className="sticky top-14 z-10 border-b border-line bg-background/95 backdrop-blur">
+      {/* Desktop / wide: one inline row */}
+      <div className="hidden lg:flex items-center gap-2 px-6 h-12 overflow-x-auto">
+        {dimensionControls(false)}
         <div className="ml-auto flex items-center gap-2">
-          <button
-            type="button"
-            onClick={toggleExcluded}
-            className={cn(
-              "inline-flex items-center gap-2 h-8 px-3 rounded-md border text-xs transition-colors",
-              includeExcluded
-                ? "border-warn/40 text-warn bg-warn/10"
-                : "border-line text-ink-3 hover:text-ink hover:bg-surface-2",
-            )}
-            title={
-              includeExcluded
-                ? "Excluded records included in totals"
-                : "Excluded records hidden from totals"
-            }
-          >
-            {includeExcluded ? (
-              <Eye className="w-3.5 h-3.5" />
-            ) : (
-              <EyeOff className="w-3.5 h-3.5" />
-            )}
-            <span>
-              {includeExcluded ? "Excluded shown" : "Excluded hidden"}
-            </span>
-          </button>
-          {filtersActive && (
-            <button
-              type="button"
-              onClick={clearAll}
-              className="h-8 px-3 rounded-md border border-line text-xs text-ink-3 hover:text-ink hover:bg-surface-2 transition-colors"
-            >
-              Clear
-            </button>
-          )}
+          <ExcludedToggle on={includeExcluded} onToggle={toggleExcluded} />
+          {filtersActive && <ClearButton onClick={clearAll} />}
         </div>
       </div>
+
+      {/* Mobile / tablet: collapse into a single Filters Sheet */}
+      <div className="flex lg:hidden items-center gap-2 px-6 h-12">
+        <FilterSheet activeCount={activeCount} onClear={clearAll}>
+          {dimensionControls(true)}
+          <ExcludedToggle on={includeExcluded} onToggle={toggleExcluded} fullWidth />
+        </FilterSheet>
+      </div>
     </div>
-  );
-}
-
-interface ChipProps {
-  icon: React.ComponentType<{ className?: string }>;
-  label: string;
-  value?: string;
-  active?: boolean;
-}
-
-function Chip({ icon: Icon, label, value, active }: ChipProps) {
-  return (
-    <span
-      className={cn(
-        "inline-flex items-center gap-2 h-8 px-3 rounded-md border text-xs transition-colors cursor-default",
-        active
-          ? "border-brand/50 text-ink bg-[var(--brand-soft)]"
-          : "border-line text-ink-2 bg-surface hover:bg-surface-2 hover:text-ink",
-      )}
-    >
-      <Icon className="w-3.5 h-3.5" />
-      <span className="text-ink-3">{label}</span>
-      {value && <span className="text-ink">{value}</span>}
-    </span>
   );
 }
 

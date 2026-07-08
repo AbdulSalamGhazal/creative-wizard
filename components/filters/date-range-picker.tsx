@@ -40,6 +40,7 @@ export function DateRangePicker({
   onChange,
   remember = false,
   fallback,
+  fullWidth = false,
 }: {
   from: string | null;
   to: string | null;
@@ -52,6 +53,8 @@ export function DateRangePicker({
    * stays driven by the raw `from`/`to`.
    */
   fallback?: DateRangeValue;
+  /** Full-width stacked trigger for the mobile filter Sheet. */
+  fullWidth?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const router = useRouter();
@@ -132,12 +135,15 @@ export function DateRangePicker({
             from || to
               ? "border-brand/50 text-ink bg-[var(--brand-soft)]"
               : "border-line text-ink-2 bg-surface hover:bg-surface-2 hover:text-ink",
+            fullWidth && "w-full justify-between",
           )}
         >
-          <CalendarDays className="w-3.5 h-3.5" />
-          <span className="text-ink-3">Date</span>
-          <span className="text-ink">{label}</span>
-          <ChevronDown className="w-3 h-3 text-ink-3" />
+          <span className="inline-flex items-center gap-2 min-w-0">
+            <CalendarDays className="w-3.5 h-3.5 shrink-0" />
+            <span className="text-ink-3 shrink-0">Date</span>
+            <span className="text-ink truncate">{label}</span>
+          </span>
+          <ChevronDown className="w-3 h-3 text-ink-3 shrink-0" />
         </button>
       </PopoverTrigger>
       <PopoverContent align="start" className="p-0 w-auto">

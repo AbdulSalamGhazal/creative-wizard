@@ -68,10 +68,10 @@ export default async function AuditPage({ searchParams }: Props) {
               key={opt.value}
               href={href}
               className={
-                "inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md border text-xs transition-colors " +
+                "inline-flex items-center gap-2 h-8 px-3 rounded-md border text-xs transition-colors " +
                 (active
-                  ? "border-brand/40 bg-brand/10 text-brand"
-                  : "border-line bg-surface text-ink-2 hover:bg-surface-2")
+                  ? "border-brand/50 text-ink bg-[var(--brand-soft)]"
+                  : "border-line bg-surface text-ink-2 hover:bg-surface-2 hover:text-ink")
               }
             >
               {opt.label}

@@ -19,6 +19,7 @@ import { PortfolioFilterBar } from "@/components/portfolio/portfolio-filter-bar"
 import { PortfolioTable } from "@/components/portfolio/portfolio-table";
 import { PageShell } from "@/components/layout/page-shell";
 import { PageHeader } from "@/components/layout/page-header";
+import { FilterBarSkeleton } from "@/components/layout/page-skeletons";
 
 export const dynamic = "force-dynamic";
 
@@ -109,7 +110,7 @@ export default async function CampaignsPage({
         }
       />
 
-      <Suspense fallback={null}>
+      <Suspense fallback={<FilterBarSkeleton />}>
         <PortfolioFilterBar
           defaultFrom={from}
           defaultTo={to}

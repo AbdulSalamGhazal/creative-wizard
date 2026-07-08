@@ -2,15 +2,12 @@
 
 import {
   Activity,
-  ChevronDown,
   Columns3,
   Layers,
   Package,
-  Search,
   Shapes,
   Star,
   Tag,
-  X,
 } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
@@ -22,14 +19,18 @@ import {
 } from "react";
 import { useNavTransition } from "@/lib/nav-progress";
 import {
-  DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuLabel,
   DropdownMenuSeparator,
-  DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { DateRangePicker } from "@/components/filters/date-range-picker";
+import {
+  ClearButton,
+  ExcludedToggle,
+  FilterPill,
+  FilterSearch,
+} from "@/components/filters/filter-pill";
 import { cn } from "@/lib/utils";
 import {
   IDENTITY_COLUMN_KEYS,
@@ -381,6 +382,18 @@ export function SummaryFilterBar({
     statusValues.length > 0 ||
     !!searchParams.get("metricFilters");
 
+  // Sheet badge counts active filters (search lives in the mobile row).
+  const activeCount =
+    (rawPlatforms !== null ? 1 : 0) +
+    (from || to ? 1 : 0) +
+    (productIds.length > 0 ? 1 : 0) +
+    (types.length > 0 ? 1 : 0) +
+    (selectedTags.length > 0 ? 1 : 0) +
+    (rateRatings.length > 0 ? 1 : 0) +
+    (statusValues.length > 0 ? 1 : 0) +
+    (searchParams.get("metricFilters") ? 1 : 0) +
+    (includeExcluded ? 1 : 0);
+
   const clearAll = () =>
     update((next) => {
       [
@@ -456,20 +469,11 @@ export function SummaryFilterBar({
         <span className="w-px h-5 bg-line" aria-hidden />
 
         {/* Search */}
-        <div className="relative">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-ink-3 pointer-events-none" />
-          <input
-            type="search"
-            value={qInput}
-            onChange={(e) => setQInput(e.target.value)}
-            placeholder="Search creative name…"
-            className={cn(
-              "h-8 pl-8 pr-3 rounded-md border border-line bg-surface text-xs text-ink",
-              "placeholder:text-ink-3 outline-none focus:border-line-2",
-              "w-56",
-            )}
-          />
-        </div>
+        <FilterSearch
+          value={qInput}
+          onChange={setQInput}
+          placeholder="Search creative name…"
+        />
 
         {/* Date range */}
         <DateRangePicker
@@ -852,67 +856,11 @@ export function SummaryFilterBar({
             )}
           </FilterPill>
 
-          <button
-            type="button"
-            onClick={toggleExcluded}
-            className={cn(
-              "inline-flex items-center gap-2 h-8 px-3 rounded-md border text-xs transition-colors",
-              includeExcluded
-                ? "border-warn/40 text-warn bg-warn/10"
-                : "border-line text-ink-3 hover:text-ink hover:bg-surface-2",
-            )}
-            title={
-              includeExcluded
-                ? "Excluded records included in totals"
-                : "Excluded records hidden from totals"
-            }
-          >
-            {includeExcluded ? "Excluded shown" : "Excluded hidden"}
-          </button>
-          {filtersActive && (
-            <button
-              type="button"
-              onClick={clearAll}
-              className="inline-flex items-center gap-1 h-8 px-3 rounded-md border border-line text-xs text-ink-3 hover:text-ink hover:bg-surface-2 transition-colors"
-            >
-              <X className="w-3 h-3" />
-              Clear
-            </button>
-          )}
+          <ExcludedToggle on={includeExcluded} onToggle={toggleExcluded} />
+          {filtersActive && <ClearButton onClick={clearAll} />}
         </div>
       </div>
     </div>
   );
 }
 
-interface PillProps {
-  icon: React.ComponentType<{ className?: string }>;
-  label: string;
-  value: string;
-  active: boolean;
-  children: () => React.ReactNode;
-}
-
-function FilterPill({ icon: Icon, label, value, active, children }: PillProps) {
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <button
-          type="button"
-          className={cn(
-            "inline-flex items-center gap-2 h-8 px-3 rounded-md border text-xs transition-colors",
-            active
-              ? "border-brand/50 text-ink bg-[var(--brand-soft)]"
-              : "border-line text-ink-2 bg-surface hover:bg-surface-2 hover:text-ink",
-          )}
-        >
-          <Icon className="w-3.5 h-3.5" />
-          <span className="text-ink-3">{label}</span>
-          <span className="text-ink">{value}</span>
-          <ChevronDown className="w-3 h-3 text-ink-3" />
-        </button>
-      </DropdownMenuTrigger>
-      {children()}
-    </DropdownMenu>
-  );
-}
