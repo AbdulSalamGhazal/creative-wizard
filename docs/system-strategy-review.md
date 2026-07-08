@@ -7,7 +7,7 @@
 ## Part 1 — The system as it is today
 
 ### What it is
-A **multi-tenant creative-performance analytics tool** for paid social (Instagram, Facebook, TikTok, Snapchat), fed by **manual CSV upload**. Strong analytical core: weighted-metric aggregation, a creative library with products/tags/dynamic status, ratings, record exclusion + audit trail, and a rich set of dashboards (Summary, Trends ×5, Funnel, Compare, Campaigns incl. the new **diagnosis** page, Creative detail).
+A **multi-tenant creative-performance analytics tool** for paid social (Instagram, Facebook, TikTok, Snapchat), fed by **manual CSV upload**. Strong analytical core: weighted-metric aggregation, a creative library with products/tags/dynamic status, ratings, record exclusion + audit trail, and a rich set of dashboards (Summary, Trends ×5, Funnel, Compare, Campaigns, Creative detail). *(A planned campaign-diagnosis page was cancelled in 2026-07 — its spec was deleted; references to it in this review describe the analytical direction, not a shipped page.)*
 
 ### Data flow
 `Platform export (CSV) → /uploads validate (5-stage) → commit → performance_records → dashboards`. Everything is **pull-on-page-load**; nothing runs in the background.
@@ -194,7 +194,7 @@ Each: **Problem → Fit → DB → UI/UX → Integrations → Effort/Impact.** O
 
 ## Challenging the assumptions (think bigger)
 
-1. **Your moat is creative diagnosis, not reporting.** The market is crowded with reporting tools and attribution suites; it is *thin* on cross-platform, within-audience **creative diagnosis with narrative insight** — which you already do better than most (campaign diagnosis page, skill-adjusted ROAS, fatigue). Double down there; don't try to become Triple Whale.
+1. **Your moat is creative diagnosis, not reporting.** The market is crowded with reporting tools and attribution suites; it is *thin* on cross-platform, within-audience **creative diagnosis with narrative insight** — which you already do better than most (campaign analytics, skill-adjusted ROAS, launch fatigue). Double down there; don't try to become Triple Whale.
 2. **The manual CSV is both your tax and your moat.** It's the biggest drag, but your validation/exclusion rigor is real quality control. When you add API sync (A1), **keep the validation layer** — "trusted, clean data" can be part of the pitch.
 3. **Be the Snapchat/MENA + Arabic-RTL platform.** Snapchat is a measurement orphan and you're already MENA-native. First-class Snapchat + Arabic client reporting is a defensible wedge no incumbent is chasing.
 4. **"Diagnose AND act" is the unclaimed corner.** Analytics tools won't pause an ad; automation tools won't tell you why. Owning both — *safely*, gated on matured data — is the boldest differentiation.
