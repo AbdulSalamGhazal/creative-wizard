@@ -3,17 +3,17 @@ import { cn } from "@/lib/utils";
 
 /**
  * WIZARD brand logomark — the full-colour `public/logo.png` (transparent
- * background), shown at its original colours. Fills the box the caller sizes
- * via `className` (e.g. `w-10 h-10` in the top bar, `w-14 h-14` on sign-in),
- * scaled to fit with `object-contain` so the artwork never distorts.
+ * background, trimmed to the artwork; intrinsic 385×212), shown at its original
+ * colours. Callers size it by HEIGHT (`h-10 w-auto` in the top bar, `h-16` on
+ * sign-in); `object-contain` keeps the aspect so it never distorts.
  */
 export function LogoMark({ className }: { className?: string }) {
   return (
     <Image
       src="/logo.png"
       alt=""
-      width={500}
-      height={500}
+      width={385}
+      height={212}
       priority
       unoptimized
       className={cn("object-contain", className)}

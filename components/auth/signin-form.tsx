@@ -39,7 +39,7 @@ export function SignInForm({ nextPath }: { nextPath: string }) {
   return (
     <div className="w-full max-w-sm space-y-6">
       <div className="text-center space-y-2">
-        <LogoMark className="w-14 h-14 mx-auto" />
+        <LogoMark className="h-16 w-auto mx-auto" />
         <div>
           <BrandWordmark className="text-4xl" />
           <div className="text-label text-ink-3 mt-2">

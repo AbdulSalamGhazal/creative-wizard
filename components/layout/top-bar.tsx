@@ -34,7 +34,7 @@ export function TopBar({
       <div className="flex items-center justify-between px-6 h-14">
         <div className="flex items-center gap-2.5">
           <MobileNav granted={granted} />
-          <LogoMark className="w-10 h-10 shrink-0" />
+          <LogoMark className="h-10 w-auto shrink-0" />
           <BrandWordmark className="text-2xl leading-none" />
           <AccountSwitcher accounts={accounts} activeId={activeAccountId} />
         </div>
