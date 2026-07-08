@@ -79,6 +79,17 @@ Do not introduce a new dependency without a one-line justification in the PR des
 
 - Make small, reviewable changes. One feature per PR or session.
 - Add a test alongside any non-trivial logic, especially in `csv/` and `db/queries/`.
+- **Two test suites.** `npm test` (or `npx vitest run`) is the pure-unit suite —
+  no DB, no docker, always safe in CI. `npm run test:db` is the **real-database**
+  suite (`tests/db/**`, config `vitest.config.db.ts`): its globalSetup creates a
+  dedicated **`ccms_test`** database on the local docker Postgres and runs the
+  Drizzle migrations, then points `DATABASE_URL` at it. It NEVER touches `ccms`
+  (dev) or prod. The default suite excludes `tests/db/**`, so a machine without
+  docker still runs green. DB tests `vi.mock("@/lib/tenant")` to drive the active
+  account (cookies are unavailable in vitest) and re-seed via
+  `tests/db/fixtures.ts` `resetAndSeed()`; the fixtures pin the weighted-
+  aggregation, `excluded_from_aggregates`, tenancy-isolation, and per-platform
+  status-freshness invariants of `db/queries/*`.
 - When a change touches one of the documents in `docs/`, update the document in the same change.
 - When the user corrects a mistake that could repeat, append a line to the "Learned" section below.
 

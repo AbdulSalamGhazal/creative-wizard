@@ -14,7 +14,8 @@
     "db:studio": "drizzle-kit studio",
     "db:seed": "tsx --env-file=.env.local db/seed.ts",
     "db:create-admin": "tsx db/create-admin.ts",
-    "test": "vitest"
+    "test": "vitest",
+    "test:db": "vitest run --config vitest.config.db.ts"
   },
   "dependencies": {
     "@vercel/blob": "^2.4.0",

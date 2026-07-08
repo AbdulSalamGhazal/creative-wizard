@@ -5,7 +5,10 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["**/*.test.ts"],
-    exclude: ["node_modules", ".next"],
+    // `tests/db/**` is the real-database suite — it needs docker + ccms_test and
+    // runs via `npm run test:db` (vitest.config.db.ts). Keep the default suite
+    // pure-unit so CI/dev without docker stays green.
+    exclude: ["node_modules", ".next", "tests/db/**"],
     setupFiles: ["./vitest.setup.ts"],
   },
   resolve: {
