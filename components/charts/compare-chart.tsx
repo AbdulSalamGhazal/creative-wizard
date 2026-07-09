@@ -22,6 +22,9 @@ import {
 } from "@/components/charts/chart-shell";
 import { smoothColumns } from "@/lib/chart-smooth";
 import { COMPARE_METRIC_LABEL } from "@/validators/compare";
+// EXEMPT from fillDailyGaps: this chart aligns sides by day-INDEX since each
+// side's first data day (deliberate design), so calendar gap-filling would
+// distort the alignment rather than fix it.
 import type { CompareMetric, CompareSeriesPoint } from "@/db/queries/performance";
 import { ChartTooltip } from "@/components/charts/chart-tooltip";
 

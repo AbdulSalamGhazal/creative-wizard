@@ -16,6 +16,8 @@ import { seriesColor } from "@/lib/palette";
 import type { VideoDiagnosticRow, VideoFunnel } from "@/db/queries/trends";
 import { ChartTooltip } from "@/components/charts/chart-tooltip";
 import { ChartHeader, ChartShell, ExpandButton } from "@/components/charts/chart-shell";
+// EXEMPT from fillDailyGaps: the x-axis here is funnel STAGE (2s → 100%), not
+// time — there are no calendar days to fill.
 import { SeriesLegend } from "@/components/charts/series-legend";
 
 type Norm = "impr" | "hook";

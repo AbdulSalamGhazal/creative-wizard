@@ -47,6 +47,7 @@ import {
   voc,
 } from "@/lib/metrics";
 import { computeDelta, prevPeriod, type Delta } from "@/lib/period";
+import { fillDailyGaps } from "@/lib/time-series";
 import { getActiveAccountId } from "@/lib/tenant";
 
 type Platform = (typeof platformEnum)[number];
@@ -620,19 +621,28 @@ export async function campaignDaily(
     .where(detailCond(name, range, acct, includeExcluded))
     .groupBy(performanceRecords.date)
     .orderBy(asc(performanceRecords.date));
-  return rows.map((r) => ({
-    date: r.date,
-    spend: num(r.spend),
-    impressions: num(r.impressions),
-    clicks: num(r.clicks),
-    conversions: num(r.conversions),
-    conversionValue: num(r.conversionValue),
-    cpm: numOrNull(r.cpm),
-    ctr: numOrNull(r.ctr),
-    voc: numOrNull(r.voc),
-    cvr: numOrNull(r.cvr),
-    roas: numOrNull(r.roas),
-  }));
+  // Insert interior no-data days (0 for sums, null for ratios) so the chart
+  // shows a real zero dip instead of skipping the day.
+  return fillDailyGaps(
+    rows.map((r) => ({
+      date: r.date,
+      spend: num(r.spend),
+      impressions: num(r.impressions),
+      clicks: num(r.clicks),
+      conversions: num(r.conversions),
+      conversionValue: num(r.conversionValue),
+      cpm: numOrNull(r.cpm),
+      ctr: numOrNull(r.ctr),
+      voc: numOrNull(r.voc),
+      cvr: numOrNull(r.cvr),
+      roas: numOrNull(r.roas),
+    })),
+    {
+      dateKey: "date",
+      additiveKeys: ["spend", "impressions", "clicks", "conversions", "conversionValue"],
+      ratioKeys: ["cpm", "ctr", "voc", "cvr", "roas"],
+    },
+  );
 }
 
 // =====================================================================
@@ -905,23 +915,46 @@ export async function campaignRecordsByDay(
     .where(detailCond(name, range, acct, includeExcluded))
     .groupBy(performanceRecords.date)
     .orderBy(desc(performanceRecords.date));
-  return rows.map((r) => ({
-    date: r.date,
-    records: num(r.records),
-    spend: num(r.spend),
-    impressions: num(r.impressions),
-    clicks: num(r.clicks),
-    conversions: num(r.conversions),
-    conversionValue: num(r.conversionValue),
-    landingPageViews: num(r.landingPageViews),
-    addToCart: num(r.addToCart),
-    addPayment: num(r.addPayment),
-    videoViews2s: num(r.videoViews2s),
-    videoViews25: num(r.videoViews25),
-    videoViews50: num(r.videoViews50),
-    videoViews75: num(r.videoViews75),
-    videoViews100: num(r.videoViews100),
-  }));
+  // Fill interior no-data days with all-zero rows (everything here is a SUM /
+  // COUNT), then restore this function's newest-first ordering.
+  return fillDailyGaps(
+    rows.map((r) => ({
+      date: r.date,
+      records: num(r.records),
+      spend: num(r.spend),
+      impressions: num(r.impressions),
+      clicks: num(r.clicks),
+      conversions: num(r.conversions),
+      conversionValue: num(r.conversionValue),
+      landingPageViews: num(r.landingPageViews),
+      addToCart: num(r.addToCart),
+      addPayment: num(r.addPayment),
+      videoViews2s: num(r.videoViews2s),
+      videoViews25: num(r.videoViews25),
+      videoViews50: num(r.videoViews50),
+      videoViews75: num(r.videoViews75),
+      videoViews100: num(r.videoViews100),
+    })),
+    {
+      dateKey: "date",
+      additiveKeys: [
+        "records",
+        "spend",
+        "impressions",
+        "clicks",
+        "conversions",
+        "conversionValue",
+        "landingPageViews",
+        "addToCart",
+        "addPayment",
+        "videoViews2s",
+        "videoViews25",
+        "videoViews50",
+        "videoViews75",
+        "videoViews100",
+      ],
+    },
+  ).reverse();
 }
 
 // =====================================================================
@@ -978,22 +1011,39 @@ export async function campaignDailyByCreative(
     .where(detailCond(name, range, acct, includeExcluded))
     .groupBy(performanceRecords.date, creatives.id, creatives.name)
     .orderBy(asc(performanceRecords.date));
-  return rows.map((r) => ({
-    date: r.date,
-    creativeId: r.creativeId,
-    creativeName: r.creativeName,
-    spend: num(r.spend),
-    impressions: num(r.impressions),
-    clicks: num(r.clicks),
-    landingPageViews: num(r.landingPageViews),
-    conversions: num(r.conversions),
-    conversionValue: num(r.conversionValue),
-    cpm: numOrNull(r.cpm),
-    cpc: numOrNull(r.cpc),
-    cpa: numOrNull(r.cpa),
-    ctr: numOrNull(r.ctr),
-    voc: numOrNull(r.voc),
-    cvr: numOrNull(r.cvr),
-    roas: numOrNull(r.roas),
-  }));
+  // Fill interior no-data days PER CREATIVE (each line over its own
+  // first→last span): 0 for sums, null for ratios so the line breaks.
+  return fillDailyGaps(
+    rows.map((r) => ({
+      date: r.date,
+      creativeId: r.creativeId,
+      creativeName: r.creativeName,
+      spend: num(r.spend),
+      impressions: num(r.impressions),
+      clicks: num(r.clicks),
+      landingPageViews: num(r.landingPageViews),
+      conversions: num(r.conversions),
+      conversionValue: num(r.conversionValue),
+      cpm: numOrNull(r.cpm),
+      cpc: numOrNull(r.cpc),
+      cpa: numOrNull(r.cpa),
+      ctr: numOrNull(r.ctr),
+      voc: numOrNull(r.voc),
+      cvr: numOrNull(r.cvr),
+      roas: numOrNull(r.roas),
+    })),
+    {
+      dateKey: "date",
+      groupKey: "creativeId",
+      additiveKeys: [
+        "spend",
+        "impressions",
+        "clicks",
+        "landingPageViews",
+        "conversions",
+        "conversionValue",
+      ],
+      ratioKeys: ["cpm", "cpc", "cpa", "ctr", "voc", "cvr", "roas"],
+    },
+  );
 }

@@ -38,6 +38,7 @@ import {
   prevPeriod,
   type Delta,
 } from "@/lib/period";
+import { fillDailyGaps } from "@/lib/time-series";
 import { getActiveAccountId } from "@/lib/tenant";
 
 type Platform = (typeof platformEnum)[number];
@@ -328,11 +329,16 @@ export async function spendByDatePlatform(
     .groupBy(performanceRecords.date, performanceRecords.platform)
     .orderBy(performanceRecords.date);
 
-  return rows.map((r) => ({
-    date: r.date,
-    platform: r.platform as Platform,
-    spend: Number(r.spend ?? 0),
-  }));
+  // Fill each platform's interior no-data days with spend 0 so stacked/area
+  // consumers draw a real zero instead of skipping the day.
+  return fillDailyGaps(
+    rows.map((r) => ({
+      date: r.date,
+      platform: r.platform as Platform,
+      spend: Number(r.spend ?? 0),
+    })),
+    { dateKey: "date", groupKey: "platform", additiveKeys: ["spend"] },
+  );
 }
 
 export interface DailyMetricRow {
@@ -399,22 +405,39 @@ export async function creativeDailyMetrics(
     .groupBy(performanceRecords.date, performanceRecords.platform)
     .orderBy(performanceRecords.date);
 
-  return rows.map((r) => ({
-    date: r.date,
-    platform: r.platform as Platform,
-    spend: Number(r.spend ?? 0),
-    impressions: Number(r.impressions ?? 0),
-    clicks: Number(r.clicks ?? 0),
-    landingPageViews: Number(r.landingPageViews ?? 0),
-    conversions: num(r.conversions),
-    conversionValue: Number(r.conversionValue ?? 0),
-    cpm: num(r.cpm),
-    ctr: num(r.ctr),
-    voc: num(r.voc),
-    cvr: num(r.cvr),
-    cpa: num(r.cpa),
-    roas: num(r.roas),
-  }));
+  // Fill interior no-data days PER PLATFORM: 0 for sums, null for ratios so
+  // the perf line breaks across the gap instead of inventing a 0%.
+  return fillDailyGaps(
+    rows.map((r) => ({
+      date: r.date,
+      platform: r.platform as Platform,
+      spend: Number(r.spend ?? 0),
+      impressions: Number(r.impressions ?? 0),
+      clicks: Number(r.clicks ?? 0),
+      landingPageViews: Number(r.landingPageViews ?? 0),
+      conversions: num(r.conversions),
+      conversionValue: Number(r.conversionValue ?? 0),
+      cpm: num(r.cpm),
+      ctr: num(r.ctr),
+      voc: num(r.voc),
+      cvr: num(r.cvr),
+      cpa: num(r.cpa),
+      roas: num(r.roas),
+    })),
+    {
+      dateKey: "date",
+      groupKey: "platform",
+      additiveKeys: [
+        "spend",
+        "impressions",
+        "clicks",
+        "landingPageViews",
+        "conversions",
+        "conversionValue",
+      ],
+      ratioKeys: ["cpm", "ctr", "voc", "cvr", "cpa", "roas"],
+    },
+  );
 }
 
 /**
@@ -565,9 +588,19 @@ export async function creativeLeaderboard(
       .where(and(...sparkConditions))
       .groupBy(performanceRecords.creativeId, performanceRecords.date)
       .orderBy(performanceRecords.creativeId, performanceRecords.date);
-    for (const r of sparkRows) {
+    // Fill interior no-spend days with 0 per creative so a sparkline shows the
+    // dip instead of silently compressing the time axis.
+    const sparkFilled = fillDailyGaps(
+      sparkRows.map((r) => ({
+        creativeId: r.creativeId,
+        date: r.date,
+        spend: Number(r.spend ?? 0),
+      })),
+      { dateKey: "date", groupKey: "creativeId", additiveKeys: ["spend"] },
+    );
+    for (const r of sparkFilled) {
       const list = seriesByCreative.get(r.creativeId) ?? [];
-      list.push(Number(r.spend ?? 0));
+      list.push(r.spend);
       seriesByCreative.set(r.creativeId, list);
     }
   }
@@ -805,13 +838,18 @@ export async function dailyFunnelRates(
     .groupBy(performanceRecords.date)
     .orderBy(performanceRecords.date);
 
-  return rows.map((r) => ({
-    date: r.date,
-    cpm: num(r.cpm),
-    ctr: num(r.ctr),
-    voc: num(r.voc),
-    cvr: num(r.cvr),
-  }));
+  // Fill interior no-data days with null rates (undefined, line breaks) — a
+  // fabricated 0% CTR on a day with zero impressions would be a lie.
+  return fillDailyGaps(
+    rows.map((r) => ({
+      date: r.date,
+      cpm: num(r.cpm),
+      ctr: num(r.ctr),
+      voc: num(r.voc),
+      cvr: num(r.cvr),
+    })),
+    { dateKey: "date", additiveKeys: [], ratioKeys: ["cpm", "ctr", "voc", "cvr"] },
+  );
 }
 
 export interface CreativeMetricRow {
@@ -1074,15 +1112,26 @@ export async function metricOverTime(
     .groupBy(performanceRecords.date, dimCol)
     .orderBy(performanceRecords.date);
 
-  return rows.map((r) => ({
-    date: r.date,
-    key: String(r.key),
-    spend: Number(r.spend ?? 0),
-    conversions: num(r.conversions),
-    conversionValue: num(r.conversionValue),
-    cpa: num(r.cpa),
-    roas: num(r.roas),
-  }));
+  // Fill interior no-data days PER DIMENSION KEY (platform/campaign): 0 for
+  // sums, null for ratios so the dashboard line dips to zero / breaks instead
+  // of skipping the day.
+  return fillDailyGaps(
+    rows.map((r) => ({
+      date: r.date,
+      key: String(r.key),
+      spend: Number(r.spend ?? 0),
+      conversions: num(r.conversions),
+      conversionValue: num(r.conversionValue),
+      cpa: num(r.cpa),
+      roas: num(r.roas),
+    })),
+    {
+      dateKey: "date",
+      groupKey: "key",
+      additiveKeys: ["spend", "conversions", "conversionValue"],
+      ratioKeys: ["cpa", "roas"],
+    },
+  );
 }
 
 export interface TypeDimensionSpendRow {
@@ -1308,7 +1357,9 @@ export interface CompareTotalsRow {
   hookRate: number | null;
 }
 
-/** Time-series per creative for the chosen metric. */
+/** Time-series per creative for the chosen metric.
+ *  EXEMPT from fillDailyGaps: the compare chart aligns sides by day-INDEX
+ *  since each side's first data day (deliberate design), not by calendar. */
 export async function compareSeries(
   filters: KpiFilters & { creativeIds: string[]; metric: CompareMetric },
 ): Promise<CompareSeriesPoint[]> {
@@ -1709,6 +1760,8 @@ export async function compareDimensions(): Promise<CompareDimensionRow[]> {
  * One daily series for a Compare side, aggregated across the side's filter
  * (platforms / campaigns / creatives). `value` is the chosen metric per day,
  * weighted via component sums.
+ * EXEMPT from fillDailyGaps: the compare chart aligns sides by day-INDEX since
+ * each side's first data day (deliberate design), not by calendar.
  */
 export async function compareSideSeries(
   filters: KpiFilters & { metric: CompareMetric },

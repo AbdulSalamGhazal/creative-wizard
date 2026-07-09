@@ -160,7 +160,8 @@ export function FunnelTrendChart({
             stroke={m.color}
             strokeWidth={1.8}
             dot={false}
-            connectNulls
+            // No connectNulls: a no-data day carries null rates and the line
+            // must break there rather than plot a fabricated 0%.
             isAnimationActive={false}
           />
         ))}
@@ -175,7 +176,6 @@ export function FunnelTrendChart({
               strokeDasharray="4 3"
               strokeOpacity={0.5}
               dot={false}
-              connectNulls
               isAnimationActive={false}
             />
           ))}

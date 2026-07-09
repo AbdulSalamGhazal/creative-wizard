@@ -265,7 +265,8 @@ export function CampaignCreativeChart({
             stroke={c.color}
             strokeWidth={group ? 2.2 : 1.8}
             dot={false}
-            connectNulls
+            // No connectNulls: a filled gap day carries null ratios and the
+            // line must break there (before a creative's span, too).
             isAnimationActive={false}
           />
         ))}
