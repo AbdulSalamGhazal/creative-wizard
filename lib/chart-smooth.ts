@@ -2,7 +2,8 @@
  * Centered moving average for the named numeric columns of a pivoted chart
  * dataset (one row per date, one column per series). Each point becomes the
  * mean of the non-null values within ±half; null stays null (a gap, not
- * invented) so `connectNulls` still bridges missing days the same way.
+ * invented) so a filled ratio-gap day (fillDailyGaps → null) keeps its line
+ * break, while filled zeros enter the average as real values.
  *
  * Shared by every line chart's "Smooth" toggle so the smoothing is identical.
  */
