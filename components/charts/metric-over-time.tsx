@@ -14,6 +14,7 @@ import { MetricPicker } from "@/components/charts/metric-picker";
 import { SeriesLegend } from "@/components/charts/series-legend";
 import { ChartHeader, ChartShell, ExpandButton, SmoothToggle, GroupToggle } from "@/components/charts/chart-shell";
 import { smoothColumns } from "@/lib/chart-smooth";
+import { fillDailyGaps } from "@/lib/time-series";
 import { int, intCompact, monthDay, roas, usd, usdCompact } from "@/lib/format";
 import { useChartFit, ChartFitToggle } from "@/components/charts/chart-fit";
 import type { MetricOverTimeRow } from "@/db/queries/performance";
@@ -186,7 +187,17 @@ export function MetricOverTimeChart({ rows, keys, dimension, dimensionLabel }: P
         if (id) e[id] = def.pick(r);
       }
     }
-    return [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
+    const sorted = [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
+    // Dates absent from EVERY series (e.g. an account-wide upload pause) would
+    // otherwise vanish from the axis — the per-series query fill only covers
+    // each series' own span. Complete the axis: the grouped total dips to 0 on
+    // additive metrics (null on ratios); ungrouped series stay null (outside
+    // their own spans → lines break).
+    return fillDailyGaps(sorted as Array<Record<string, unknown>>, {
+      dateKey: "date",
+      additiveKeys: group && def.additive ? ["all"] : [],
+      ratioKeys: group ? (def.additive ? [] : ["all"]) : safeKeys.map((k) => k.id),
+    }) as PivotRow[];
   }, [rows, group, shown, safeKeys, idByKey, def]);
 
   const display = useMemo(

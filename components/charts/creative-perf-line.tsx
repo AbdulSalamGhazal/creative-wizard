@@ -22,6 +22,7 @@ import {
   GroupToggle,
 } from "@/components/charts/chart-shell";
 import { smoothColumns } from "@/lib/chart-smooth";
+import { fillDailyGaps } from "@/lib/time-series";
 import { useChartFit, ChartFitToggle } from "@/components/charts/chart-fit";
 import type { DailyMetricRow } from "@/db/queries/performance";
 import { ChartTooltip } from "@/components/charts/chart-tooltip";
@@ -168,7 +169,17 @@ export function CreativePerfLineChart({
       }
     }
     const out = [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
-    return smooth ? smoothColumns(out, lineSpecs.map((l) => l.id)) : out;
+    // Dates absent from EVERY platform (the creative paused everywhere at
+    // once) would otherwise vanish from the axis — the per-platform query fill
+    // only covers each platform's own span. Complete the axis: the grouped
+    // total dips to 0 on additive metrics (null on ratios); ungrouped platform
+    // lines stay null there (outside their spans → they break).
+    const filled = fillDailyGaps(out as Array<Record<string, unknown>>, {
+      dateKey: "date",
+      additiveKeys: group && metric.additive ? ["all"] : [],
+      ratioKeys: group ? (metric.additive ? [] : ["all"]) : [...presentPlatforms],
+    }) as PivotRow[];
+    return smooth ? smoothColumns(filled, lineSpecs.map((l) => l.id)) : filled;
   }, [rows, metric, group, smooth, shown, presentPlatforms, lineSpecs]);
 
   const yValues = useMemo(() => {

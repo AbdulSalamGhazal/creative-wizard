@@ -17,6 +17,7 @@ import { SeriesLegend } from "@/components/charts/series-legend";
 import { ChartHeader, ChartShell, ExpandButton, SmoothToggle, GroupToggle } from "@/components/charts/chart-shell";
 import { useChartFit, ChartFitToggle } from "@/components/charts/chart-fit";
 import { smoothColumns } from "@/lib/chart-smooth";
+import { fillDailyGaps } from "@/lib/time-series";
 import type { CampaignCreativeDailyPoint } from "@/db/queries/campaign";
 import { ChartTooltip } from "@/components/charts/chart-tooltip";
 
@@ -49,6 +50,15 @@ const METRICS: Array<{ key: MetricKey; label: string; kind: Kind }> = [
 ];
 
 const DEFAULT_SHOWN = 6;
+
+/** Metrics that SUM per day — a no-data day is a real 0. Ratios stay null. */
+const ADDITIVE_METRICS = new Set<MetricKey>([
+  "spend",
+  "conversionValue",
+  "conversions",
+  "impressions",
+  "clicks",
+]);
 
 const axisFmt = (kind: Kind) => (v: number) => {
   if (kind === "usd") return usdCompact(v);
@@ -162,7 +172,18 @@ export function CampaignCreativeChart({
       (a.date as string) < (b.date as string) ? -1 : 1,
     );
     const cols = group ? ["all"] : creatives.map((c) => c.creativeId);
-    return smooth ? smoothColumns(rows, cols) : rows;
+    // A campaign-wide pause can fall BETWEEN creatives' spans (rotation), so
+    // no per-creative filled series covers those dates and they'd vanish from
+    // the axis. Complete the date axis here: the grouped campaign-level line
+    // dips to 0 on additive metrics (null on ratios); ungrouped lines stay
+    // null on those days (outside every creative's own span → they break).
+    const additive = ADDITIVE_METRICS.has(metric);
+    const filled = fillDailyGaps(rows as Array<Record<string, unknown>>, {
+      dateKey: "date",
+      additiveKeys: group && additive ? ["all"] : [],
+      ratioKeys: group ? (additive ? [] : ["all"]) : cols,
+    }) as Row[];
+    return smooth ? smoothColumns(filled, cols) : filled;
   }, [points, metric, smooth, creatives, group, shown]);
 
   const toggle = (id: string) =>
