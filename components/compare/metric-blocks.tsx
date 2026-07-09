@@ -72,12 +72,15 @@ export function MetricBlockHeader({
     <div className="flex items-center gap-2">
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
+          {/* The chart's ChartHeader shows the metric label as the title, so the
+              trigger is a compact switcher instead of repeating the label. */}
           <button
             type="button"
-            className="inline-flex items-center gap-1.5 text-sm text-ink hover:text-brand transition-colors"
+            aria-label={`Change metric (currently ${COMPARE_METRIC_LABEL[metric]})`}
+            className="inline-flex items-center gap-1 h-7 px-2.5 rounded-md border border-line text-[11px] font-medium text-ink-2 hover:text-ink hover:bg-surface-2 transition-colors"
           >
-            {COMPARE_METRIC_LABEL[metric]}
-            <ChevronDown className="w-3.5 h-3.5 text-ink-3" />
+            Change
+            <ChevronDown className="w-3 h-3 text-ink-3" />
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="w-44">

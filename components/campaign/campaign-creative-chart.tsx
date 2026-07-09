@@ -14,7 +14,7 @@ import { intCompact, pct, ratio, usd, usdCompact, monthDay } from "@/lib/format"
 import { seriesColor } from "@/lib/palette";
 import { MetricPicker } from "@/components/charts/metric-picker";
 import { SeriesLegend } from "@/components/charts/series-legend";
-import { ChartShell, ExpandButton, SmoothToggle, GroupToggle } from "@/components/charts/chart-shell";
+import { ChartHeader, ChartShell, ExpandButton, SmoothToggle, GroupToggle } from "@/components/charts/chart-shell";
 import { useChartFit, ChartFitToggle } from "@/components/charts/chart-fit";
 import { smoothColumns } from "@/lib/chart-smooth";
 import type { CampaignCreativeDailyPoint } from "@/db/queries/campaign";
@@ -203,21 +203,23 @@ export function CampaignCreativeChart({
   const fit = useChartFit(yValues);
 
   const header = (inFull: boolean, toggleExpand: () => void) => (
-    <div className="flex items-start justify-between flex-wrap gap-3 mb-3">
-      <div className="flex items-center gap-2">
-        <h3 className="text-sm text-ink-2">By creative over time</h3>
+    <ChartHeader
+      title="By creative over time"
+      picker={
         <MetricPicker
           options={METRICS.map((m) => ({ value: m.key, label: m.label }))}
           value={metric}
           onChange={setMetric}
         />
-      </div>
-      <div className="flex items-center gap-2 shrink-0">
-        <GroupToggle on={group} onToggle={() => setGroup((v) => !v)} />
-        <SmoothToggle on={smooth} onToggle={() => setSmooth((v) => !v)} />
-        <ExpandButton inFull={inFull} onClick={toggleExpand} />
-      </div>
-    </div>
+      }
+      controls={
+        <>
+          <GroupToggle on={group} onToggle={() => setGroup((v) => !v)} />
+          <SmoothToggle on={smooth} onToggle={() => setSmooth((v) => !v)} />
+          <ExpandButton inFull={inFull} onClick={toggleExpand} />
+        </>
+      }
+    />
   );
 
   const legend = (

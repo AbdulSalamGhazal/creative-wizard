@@ -15,11 +15,13 @@ import { seriesColor } from "@/lib/palette";
 import { useChartFit, ChartFitToggle } from "@/components/charts/chart-fit";
 import { SeriesLegend } from "@/components/charts/series-legend";
 import {
+  ChartHeader,
   ChartShell,
   ExpandButton,
   SmoothToggle,
 } from "@/components/charts/chart-shell";
 import { smoothColumns } from "@/lib/chart-smooth";
+import { COMPARE_METRIC_LABEL } from "@/validators/compare";
 import type { CompareMetric, CompareSeriesPoint } from "@/db/queries/performance";
 import { ChartTooltip } from "@/components/charts/chart-tooltip";
 
@@ -183,14 +185,17 @@ export function CompareChart({
       }
     >
       {({ inFull, toggleExpand }) => (
-        <div className={inFull ? "flex flex-col h-full gap-3" : "space-y-3"}>
-          <div className="flex items-start justify-between gap-x-4 gap-y-2 flex-wrap">
-            <div className="min-w-0">{header}</div>
-            <div className="flex items-center gap-2 flex-wrap justify-end">
-              <SmoothToggle on={smooth} onToggle={() => setSmooth((v) => !v)} />
-              <ExpandButton inFull={inFull} onClick={toggleExpand} />
-            </div>
-          </div>
+        <div className={inFull ? "flex flex-col h-full" : undefined}>
+          <ChartHeader
+            title={COMPARE_METRIC_LABEL[metric]}
+            picker={header}
+            controls={
+              <>
+                <SmoothToggle on={smooth} onToggle={() => setSmooth((v) => !v)} />
+                <ExpandButton inFull={inFull} onClick={toggleExpand} />
+              </>
+            }
+          />
 
           {data.length === 0 ? (
             <div

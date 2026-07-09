@@ -12,7 +12,7 @@ import {
 } from "recharts";
 import { MetricPicker } from "@/components/charts/metric-picker";
 import { SeriesLegend } from "@/components/charts/series-legend";
-import { ChartShell, ExpandButton, SmoothToggle, GroupToggle } from "@/components/charts/chart-shell";
+import { ChartHeader, ChartShell, ExpandButton, SmoothToggle, GroupToggle } from "@/components/charts/chart-shell";
 import { smoothColumns } from "@/lib/chart-smooth";
 import { int, intCompact, monthDay, roas, usd, usdCompact } from "@/lib/format";
 import { useChartFit, ChartFitToggle } from "@/components/charts/chart-fit";
@@ -222,28 +222,29 @@ export function MetricOverTimeChart({ rows, keys, dimension, dimensionLabel }: P
       }
     >
       {({ inFull, toggleExpand }) => (
-        <div className={inFull ? "flex flex-col h-full gap-3" : "space-y-3"}>
-          {/* Header: metric picker + controls */}
-          <div className="flex items-center justify-between gap-3 flex-wrap">
-            <div className="flex items-center gap-2">
+        <div className={inFull ? "flex flex-col h-full" : undefined}>
+          <ChartHeader
+            title="Performance over time"
+            picker={
               <MetricPicker
                 options={METRICS.map((m) => ({ value: m.value, label: m.label }))}
                 value={metric}
                 onChange={setMetric}
               />
-              <span className="text-sm text-ink-2">over time</span>
-            </div>
-            <div className="flex items-center gap-2">
-              {dimension === "campaign" && (
-                <span className="text-[11px] text-ink-3">
-                  by campaign{dimensionLabel ? ` · ${dimensionLabel}` : ""}
-                </span>
-              )}
-              <GroupToggle on={group} onToggle={() => setGroup((v) => !v)} />
-              <SmoothToggle on={smooth} onToggle={() => setSmooth((v) => !v)} />
-              <ExpandButton inFull={inFull} onClick={toggleExpand} />
-            </div>
-          </div>
+            }
+            controls={
+              <>
+                {dimension === "campaign" && (
+                  <span className="text-[11px] text-ink-3">
+                    by campaign{dimensionLabel ? ` · ${dimensionLabel}` : ""}
+                  </span>
+                )}
+                <GroupToggle on={group} onToggle={() => setGroup((v) => !v)} />
+                <SmoothToggle on={smooth} onToggle={() => setSmooth((v) => !v)} />
+                <ExpandButton inFull={inFull} onClick={toggleExpand} />
+              </>
+            }
+          />
 
           {display.length === 0 ? (
             <div

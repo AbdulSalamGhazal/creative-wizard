@@ -13,7 +13,7 @@ import {
 import { pct, monthDay } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { SeriesLegend } from "@/components/charts/series-legend";
-import { ChartShell, ExpandButton, SmoothToggle } from "@/components/charts/chart-shell";
+import { ChartHeader, ChartShell, ExpandButton, SmoothToggle } from "@/components/charts/chart-shell";
 import { smoothColumns } from "@/lib/chart-smooth";
 import { FUNNEL_METRIC_COLOR } from "@/lib/palette";
 import type { FunnelDailyPoint } from "@/db/queries/funnel";
@@ -95,32 +95,29 @@ export function FunnelTrendChart({
   const fixedAxis = visible.length > 1;
 
   const header = (inFull: boolean, toggleExpand: () => void) => (
-    <div className="flex items-start justify-between flex-wrap gap-3 mb-3">
-      <div>
-        <h3 className="text-sm text-ink-2">Funnel rates over time</h3>
-        <p className="text-[10px] text-ink-3">
-          Click a metric to hide it. Toggle &ldquo;vs prev&rdquo; to overlay the
-          prior period (dashed).
-        </p>
-      </div>
-      <div className="flex items-center gap-2 shrink-0">
-        <SmoothToggle on={smooth} onToggle={() => setSmooth((v) => !v)} />
-        <button
-          type="button"
-          onClick={() => setCompare((v) => !v)}
-          aria-pressed={compare}
-          className={cn(
-            "h-7 px-2.5 rounded-md border text-[11px] font-medium transition-colors",
-            compare
-              ? "border-brand/50 bg-[var(--brand-soft)] text-ink"
-              : "border-line text-ink-2 hover:text-ink hover:bg-surface-2",
-          )}
-        >
-          vs prev period
-        </button>
-        <ExpandButton inFull={inFull} onClick={toggleExpand} />
-      </div>
-    </div>
+    <ChartHeader
+      title="Funnel rates over time"
+      controls={
+        <>
+          <SmoothToggle on={smooth} onToggle={() => setSmooth((v) => !v)} />
+          <button
+            type="button"
+            onClick={() => setCompare((v) => !v)}
+            aria-pressed={compare}
+            title="Overlay the prior period (dashed)"
+            className={cn(
+              "h-7 px-2.5 rounded-md border text-[11px] font-medium transition-colors",
+              compare
+                ? "border-brand/50 bg-[var(--brand-soft)] text-ink"
+                : "border-line text-ink-2 hover:text-ink hover:bg-surface-2",
+            )}
+          >
+            vs prev period
+          </button>
+          <ExpandButton inFull={inFull} onClick={toggleExpand} />
+        </>
+      }
+    />
   );
 
   const legend = (

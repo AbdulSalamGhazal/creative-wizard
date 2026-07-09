@@ -15,6 +15,7 @@ import { int, intCompact, monthDay, pct, roas, usd, usdCompact } from "@/lib/for
 import { MetricPicker } from "@/components/charts/metric-picker";
 import { SeriesLegend } from "@/components/charts/series-legend";
 import {
+  ChartHeader,
   ChartShell,
   ExpandButton,
   SmoothToggle,
@@ -200,20 +201,24 @@ export function CreativePerfLineChart({
       }
     >
       {({ inFull, toggleExpand }) => (
-        <div className={inFull ? "flex flex-col h-full gap-3" : "space-y-3"}>
-          <div className="flex items-start justify-between gap-x-4 gap-y-2 flex-wrap">
-            <h3 className="text-sm font-medium text-ink shrink-0 leading-7">{title}</h3>
-            <div className="flex items-center gap-2 flex-wrap justify-end">
+        <div className={inFull ? "flex flex-col h-full" : undefined}>
+          <ChartHeader
+            title={title}
+            picker={
               <MetricPicker
                 options={METRICS.map((m) => ({ value: m.key, label: m.label }))}
                 value={metricKey}
                 onChange={setMetricKey}
               />
-              <GroupToggle on={group} onToggle={() => setGroup((v) => !v)} />
-              <SmoothToggle on={smooth} onToggle={() => setSmooth((v) => !v)} />
-              <ExpandButton inFull={inFull} onClick={toggleExpand} />
-            </div>
-          </div>
+            }
+            controls={
+              <>
+                <GroupToggle on={group} onToggle={() => setGroup((v) => !v)} />
+                <SmoothToggle on={smooth} onToggle={() => setSmooth((v) => !v)} />
+                <ExpandButton inFull={inFull} onClick={toggleExpand} />
+              </>
+            }
+          />
 
           {data.length === 0 ? (
             <div

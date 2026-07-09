@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils";
 import { seriesColor } from "@/lib/palette";
 import type { VideoDiagnosticRow, VideoFunnel } from "@/db/queries/trends";
 import { ChartTooltip } from "@/components/charts/chart-tooltip";
-import { ChartShell, ExpandButton } from "@/components/charts/chart-shell";
+import { ChartHeader, ChartShell, ExpandButton } from "@/components/charts/chart-shell";
 import { SeriesLegend } from "@/components/charts/series-legend";
 
 type Norm = "impr" | "hook";
@@ -117,29 +117,31 @@ export function VideoRetention({
     >
       {({ inFull, toggleExpand }) => (
         <>
-          <div className="flex items-start justify-between flex-wrap gap-3 mb-3">
-            <div>
-              <h3 className="text-sm text-ink-2">Retention curve</h3>
-              <p className="text-[10px] text-ink-3">
-                {norm === "hook"
-                  ? "Share of 2-second viewers surviving each quartile — holding power."
-                  : "Share of impressions reaching each stage — full reach funnel."}
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <Toggle
-                value={mode}
-                onChange={(v) => setMode(v as Mode)}
-                options={[{ k: "portfolio", label: "Portfolio" }, { k: "byVideo", label: "Top videos" }]}
-              />
-              <Toggle
-                value={norm}
-                onChange={(v) => setNorm(v as Norm)}
-                options={[{ k: "hook", label: "% of 2s" }, { k: "impr", label: "% of impr" }]}
-              />
-              <ExpandButton inFull={inFull} onClick={toggleExpand} />
-            </div>
-          </div>
+          <ChartHeader
+            title="Retention curve"
+            picker={
+              <span
+                className="inline-flex items-center gap-2"
+                title={
+                  norm === "hook"
+                    ? "Share of 2-second viewers surviving each quartile — holding power."
+                    : "Share of impressions reaching each stage — full reach funnel."
+                }
+              >
+                <Toggle
+                  value={mode}
+                  onChange={(v) => setMode(v as Mode)}
+                  options={[{ k: "portfolio", label: "Portfolio" }, { k: "byVideo", label: "Top videos" }]}
+                />
+                <Toggle
+                  value={norm}
+                  onChange={(v) => setNorm(v as Norm)}
+                  options={[{ k: "hook", label: "% of 2s" }, { k: "impr", label: "% of impr" }]}
+                />
+              </span>
+            }
+            controls={<ExpandButton inFull={inFull} onClick={toggleExpand} />}
+          />
 
           {insight && (
             <div className="mb-2 text-[11px] text-ink-2">
