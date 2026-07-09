@@ -165,7 +165,23 @@ export function CompareChart({
   const fit = useChartFit(yValues);
 
   return (
-    <ChartShell ariaLabel={`Compare ${metric} — expanded`}>
+    <ChartShell
+      ariaLabel={`Compare ${metric} — expanded`}
+      legend={
+        creatives.length > 1 ? (
+          <SeriesLegend
+            items={creatives.map((c) => ({
+              key: c.id,
+              label: c.name,
+              color: colorById.get(c.id) ?? seriesColor(0),
+            }))}
+            shown={shown}
+            onToggle={toggle}
+            onShowAll={() => setHidden(new Set())}
+          />
+        ) : undefined
+      }
+    >
       {({ inFull, toggleExpand }) => (
         <div className={inFull ? "flex flex-col h-full gap-3" : "space-y-3"}>
           <div className="flex items-start justify-between gap-x-4 gap-y-2 flex-wrap">
@@ -175,19 +191,6 @@ export function CompareChart({
               <ExpandButton inFull={inFull} onClick={toggleExpand} />
             </div>
           </div>
-
-          {/* Legend — click a side to hide its line. */}
-          {creatives.length > 1 && (
-            <SeriesLegend
-              items={creatives.map((c) => ({
-                key: c.id,
-                label: c.name,
-                color: colorById.get(c.id) ?? seriesColor(0),
-              }))}
-              shown={shown}
-              onToggle={toggle}
-            />
-          )}
 
           {data.length === 0 ? (
             <div

@@ -222,7 +222,6 @@ export function CampaignCreativeChart({
 
   const legend = (
     <SeriesLegend
-      className="mb-2"
       items={creatives.map((c) => ({
         key: c.creativeId,
         label: c.name,
@@ -230,6 +229,7 @@ export function CampaignCreativeChart({
       }))}
       shown={shown}
       onToggle={toggle}
+      onShowAll={() => setShown(new Set(creatives.map((c) => c.creativeId)))}
     />
   );
 
@@ -278,11 +278,10 @@ export function CampaignCreativeChart({
   );
 
   return (
-    <ChartShell ariaLabel="By creative over time — expanded">
+    <ChartShell ariaLabel="By creative over time — expanded" legend={legend}>
       {({ inFull, toggleExpand }) => (
         <>
           {header(inFull, toggleExpand)}
-          {legend}
           <div className={(inFull ? "flex-1 min-h-0" : "h-80") + " relative"}>
             {data.length === 0 ? empty : chart}
             {data.length > 0 && <ChartFitToggle fit={fit} />}

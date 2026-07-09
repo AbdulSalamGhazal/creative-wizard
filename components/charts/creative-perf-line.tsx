@@ -182,7 +182,23 @@ export function CreativePerfLineChart({
   const fit = useChartFit(yValues);
 
   return (
-    <ChartShell ariaLabel={`${title} — expanded`}>
+    <ChartShell
+      ariaLabel={`${title} — expanded`}
+      legend={
+        presentPlatforms.length > 1 ? (
+          <SeriesLegend
+            items={presentPlatforms.map((p) => ({
+              key: p,
+              label: PLATFORM_LABEL[p],
+              color: PLATFORM_COLOR[p],
+            }))}
+            shown={shown}
+            onToggle={toggle}
+            onShowAll={() => setHidden(new Set())}
+          />
+        ) : undefined
+      }
+    >
       {({ inFull, toggleExpand }) => (
         <div className={inFull ? "flex flex-col h-full gap-3" : "space-y-3"}>
           <div className="flex items-start justify-between gap-x-4 gap-y-2 flex-wrap">
@@ -198,19 +214,6 @@ export function CreativePerfLineChart({
               <ExpandButton inFull={inFull} onClick={toggleExpand} />
             </div>
           </div>
-
-          {/* Legend — click a platform to hide it (and drop it from a group). */}
-          {presentPlatforms.length > 1 && (
-            <SeriesLegend
-              items={presentPlatforms.map((p) => ({
-                key: p,
-                label: PLATFORM_LABEL[p],
-                color: PLATFORM_COLOR[p],
-              }))}
-              shown={shown}
-              onToggle={toggle}
-            />
-          )}
 
           {data.length === 0 ? (
             <div

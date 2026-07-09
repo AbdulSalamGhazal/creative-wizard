@@ -98,7 +98,23 @@ export function VideoRetention({
   }, [mode, norm, aggregate, topVideos, stages]);
 
   return (
-    <ChartShell ariaLabel="Retention curve — expanded">
+    <ChartShell
+      ariaLabel="Retention curve — expanded"
+      legend={
+        mode === "byVideo" && topVideos.length > 0 ? (
+          <SeriesLegend
+            items={topVideos.map((v) => ({
+              key: v.creativeId,
+              label: v.name,
+              color: colorOf(v.creativeId),
+            }))}
+            shown={shownSet}
+            onToggle={toggleVideo}
+            onShowAll={() => setHidden(new Set())}
+          />
+        ) : undefined
+      }
+    >
       {({ inFull, toggleExpand }) => (
         <>
           <div className="flex items-start justify-between flex-wrap gap-3 mb-3">
@@ -132,19 +148,6 @@ export function VideoRetention({
                 {insight.from} → {insight.to} (−{insight.drop.toFixed(0)} pts)
               </span>
             </div>
-          )}
-
-          {mode === "byVideo" && topVideos.length > 0 && (
-            <SeriesLegend
-              className="mb-2"
-              items={topVideos.map((v) => ({
-                key: v.creativeId,
-                label: v.name,
-                color: colorOf(v.creativeId),
-              }))}
-              shown={shownSet}
-              onToggle={toggleVideo}
-            />
           )}
 
           <div className={inFull ? "flex-1 min-h-0" : "h-72"}>

@@ -208,7 +208,19 @@ export function MetricOverTimeChart({ rows, keys, dimension, dimensionLabel }: P
   const fit = useChartFit(yValues);
 
   return (
-    <ChartShell ariaLabel="Metric over time — expanded">
+    <ChartShell
+      ariaLabel="Metric over time — expanded"
+      legend={
+        keys.length > 0 ? (
+          <SeriesLegend
+            items={keys.map((k) => ({ key: k.key, label: k.label, color: k.color }))}
+            shown={shown}
+            onToggle={toggle}
+            onShowAll={() => setHidden(new Set())}
+          />
+        ) : undefined
+      }
+    >
       {({ inFull, toggleExpand }) => (
         <div className={inFull ? "flex flex-col h-full gap-3" : "space-y-3"}>
           {/* Header: metric picker + controls */}
@@ -232,15 +244,6 @@ export function MetricOverTimeChart({ rows, keys, dimension, dimensionLabel }: P
               <ExpandButton inFull={inFull} onClick={toggleExpand} />
             </div>
           </div>
-
-          {/* Legend — click a series to hide it */}
-          {keys.length > 0 && (
-            <SeriesLegend
-              items={keys.map((k) => ({ key: k.key, label: k.label, color: k.color }))}
-              shown={shown}
-              onToggle={toggle}
-            />
-          )}
 
           {display.length === 0 ? (
             <div

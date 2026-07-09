@@ -125,10 +125,10 @@ export function FunnelTrendChart({
 
   const legend = (
     <SeriesLegend
-      className="mb-2"
       items={METRICS.map((m) => ({ key: m.key, label: m.label, color: m.color }))}
       shown={shown}
       onToggle={(k) => toggle(k as MetricKey)}
+      onShowAll={() => setShown(new Set(METRICS.map((m) => m.key)))}
     />
   );
 
@@ -193,11 +193,10 @@ export function FunnelTrendChart({
   );
 
   return (
-    <ChartShell ariaLabel="Funnel rates over time — expanded">
+    <ChartShell ariaLabel="Funnel rates over time — expanded" legend={legend}>
       {({ inFull, toggleExpand }) => (
         <>
           {header(inFull, toggleExpand)}
-          {legend}
           <div className={inFull ? "flex-1 min-h-0" : "h-80"}>
             {data.length === 0 ? emptyState : chart}
           </div>
