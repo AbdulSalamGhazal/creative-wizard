@@ -417,7 +417,10 @@ This app is deployed and in production use. Treat `main` as shippable.
     creative-perf-line.
   - **Chart series legend → `components/charts/series-legend.tsx`
     (`SeriesLegend`)** — one toggle-chip legend for show/hide series (funnel rate
-    lines, campaign creative lines).
+    lines, campaign creative lines). It renders BELOW the plot via `ChartShell`'s
+    `legend` slot (in both the inline card and the fullscreen overlay), never in
+    the header zone; a "Show all" reset chip appears (via `onShowAll`) while any
+    series is hidden.
 
 - **Global navigation progress bar.** App Router has no route-change events, and
   same-route filter/date/sort changes navigate via `useTransition` — which keeps

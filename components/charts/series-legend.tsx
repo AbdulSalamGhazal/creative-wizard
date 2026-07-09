@@ -11,13 +11,17 @@ export function SeriesLegend({
   items,
   shown,
   onToggle,
+  onShowAll,
   className,
 }: {
   items: ReadonlyArray<{ key: string; label: string; color: string }>;
   shown: ReadonlySet<string>;
   onToggle: (key: string) => void;
+  /** When set, a "Show all" reset chip appears while any series is hidden. */
+  onShowAll?: () => void;
   className?: string;
 }) {
+  const hasHidden = shown.size < items.length;
   return (
     <div className={cn("flex flex-wrap gap-1.5", className)}>
       {items.map((it) => {
@@ -44,6 +48,17 @@ export function SeriesLegend({
           </button>
         );
       })}
+      {onShowAll && hasHidden && (
+        <button
+          type="button"
+          onClick={onShowAll}
+          aria-label="Show all series"
+          title="Show all series"
+          className="inline-flex items-center h-6 px-2 rounded-md border border-line text-[11px] text-ink-2 hover:text-ink hover:bg-surface-2 transition-colors"
+        >
+          Show all
+        </button>
+      )}
     </div>
   );
 }

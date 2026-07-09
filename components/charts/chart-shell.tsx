@@ -12,9 +12,16 @@ import { Maximize2, X } from "lucide-react";
  */
 export function ChartShell({
   ariaLabel,
+  legend,
   children,
 }: {
   ariaLabel?: string;
+  /**
+   * Series legends render below the plot — do not place SeriesLegend in a
+   * chart's header zone. Passed here, the shell drops it under the plot in both
+   * the inline card and the fullscreen overlay.
+   */
+  legend?: React.ReactNode;
   children: (ctx: {
     inFull: boolean;
     expanded: boolean;
@@ -38,6 +45,7 @@ export function ChartShell({
     <>
       <div className="rounded-lg border border-line bg-surface p-4">
         {children({ inFull: false, expanded, toggleExpand })}
+        {legend && <div className="mt-3">{legend}</div>}
       </div>
       {expanded && (
         <div
@@ -48,6 +56,7 @@ export function ChartShell({
         >
           <div className="flex-1 min-h-0 flex flex-col rounded-lg border border-line bg-surface p-4 shadow-2xl">
             {children({ inFull: true, expanded, toggleExpand })}
+            {legend && <div className="mt-3">{legend}</div>}
           </div>
         </div>
       )}
