@@ -421,6 +421,12 @@ This app is deployed and in production use. Treat `main` as shippable.
     `legend` slot (in both the inline card and the fullscreen overlay), never in
     the header zone; a "Show all" reset chip appears (via `onShowAll`) while any
     series is hidden.
+  - **Chart header → `ChartHeader` in `chart-shell.tsx`** — the one canonical
+    line-chart header row: Title (`text-sm font-medium text-ink`, sentence case)
+    → MetricPicker/segmented control → right-aligned cluster (Group → Smooth →
+    Expand; the Fit toggle stays a conditional in-plot overlay). Never hand-roll
+    a chart header or put loose text/legends in it — every ChartShell chart uses
+    ChartHeader so titles read identically and the plot's top edge never varies.
 
 - **Global navigation progress bar.** App Router has no route-change events, and
   same-route filter/date/sort changes navigate via `useTransition` — which keeps

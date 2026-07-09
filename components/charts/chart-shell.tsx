@@ -64,6 +64,36 @@ export function ChartShell({
   );
 }
 
+/**
+ * The canonical line-chart header row: Title → MetricPicker → right-aligned
+ * control cluster (Group → Smooth → Expand, whichever the chart has). Do not
+ * hand-roll a chart header — every ChartShell chart uses this so titles read
+ * identically everywhere (`text-sm font-medium text-ink`, sentence case) and
+ * the plot's top edge never varies. Series legends do NOT belong here — pass
+ * them to ChartShell's `legend` slot (below the plot).
+ */
+export function ChartHeader({
+  title,
+  picker,
+  controls,
+}: {
+  title: string;
+  /** MetricPicker (or an equivalent segmented control), after the title. */
+  picker?: React.ReactNode;
+  /** Right-aligned cluster: Group → Smooth → Expand. */
+  controls?: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-center gap-3 flex-wrap mb-2">
+      <h3 className="text-sm font-medium text-ink shrink-0">{title}</h3>
+      {picker}
+      {controls && (
+        <div className="ml-auto flex items-center gap-2">{controls}</div>
+      )}
+    </div>
+  );
+}
+
 /** The expand / close icon button — pair with ChartShell's `toggleExpand`. */
 export function ExpandButton({
   inFull,
