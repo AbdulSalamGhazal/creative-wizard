@@ -17,6 +17,14 @@ import {
 } from "@/db/queries/creatives";
 import { listProducts } from "@/db/queries/products";
 import {
+  creativeFirstDay,
+  creativePlatformFirstDays,
+  dataHorizon,
+  platformHorizons,
+  resolveEntityBounds,
+  resolvePlatformBounds,
+} from "@/db/queries/series-bounds";
+import {
   creativeStatusMap,
   statusFor,
   terminatedPlatformsFor,
@@ -123,11 +131,32 @@ export default async function CreativeDetailPage({
   // Dynamic status (general + per-platform) + the manual termination set, both
   // account-scoped. The header renders the general badge, the per-platform
   // rows, and the Terminate / Reactivate levers from these.
-  const [sMap, terminated] = await Promise.all([
-    creativeStatusMap([creative.id]),
-    terminatedPlatformsFor(creative.id),
-  ]);
+  const [sMap, terminated, pHorizons, pFirstDays, horizon, creativeFirst] =
+    await Promise.all([
+      creativeStatusMap([creative.id]),
+      terminatedPlatformsFor(creative.id),
+      platformHorizons(),
+      creativePlatformFirstDays(creative.id),
+      dataHorizon(),
+      creativeFirstDay(creative.id),
+    ]);
   const status = statusFor(sMap, creative.id);
+
+  // Edge-fill bounds. Per-platform lines trail to each platform's own horizon
+  // (a paused channel shows its pause); the grouped total trails to the account
+  // data horizon and leads from the creative's first-ever day.
+  const platformEdges = resolvePlatformBounds({
+    from: range.from,
+    to: range.to,
+    firstDays: pFirstDays,
+    horizons: pHorizons,
+  });
+  const groupBounds = resolveEntityBounds({
+    from: range.from,
+    to: range.to,
+    firstEver: creativeFirst,
+    horizon,
+  });
 
   const [
     kd,
@@ -144,7 +173,7 @@ export default async function CreativeDetailPage({
     kpisWithDelta({ creativeIds: [creative.id], from: range.from, to: range.to }),
     platformMix({ creativeIds: [creative.id], ...range }),
     campaignMix({ creativeIds: [creative.id], ...range }),
-    creativeDailyMetrics({ creativeIds: [creative.id], ...range }),
+    creativeDailyMetrics({ creativeIds: [creative.id], ...range }, platformEdges),
     creativeRecords(creative.id, range),
     listAuditEvents({
       entityType: "creative",
@@ -239,7 +268,12 @@ export default async function CreativeDetailPage({
           />
         </div>
 
-        <CreativePerfLineChart title="Performance over time" rows={dailyRows} />
+        <CreativePerfLineChart
+          title="Performance over time"
+          rows={dailyRows}
+          fillFrom={groupBounds.fillFrom}
+          fillTo={groupBounds.fillTo}
+        />
 
         <div>
           <h3 className="text-sm font-medium text-ink mb-3">Campaigns</h3>

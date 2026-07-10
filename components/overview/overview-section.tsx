@@ -4,6 +4,8 @@ import {
   creativeLeaderboard,
   creativeMetricRows,
   dailyFunnelRates,
+  filteredFirstDay,
+  filteredPlatformFirstDays,
   kpis,
   kpisWithDelta,
   metricOverTime,
@@ -16,6 +18,12 @@ import {
   type KpiFilters,
   type KpisWithDelta,
 } from "@/db/queries/performance";
+import {
+  dataHorizon,
+  platformHorizons,
+  resolveEntityBounds,
+  resolvePlatformBounds,
+} from "@/db/queries/series-bounds";
 import {
   statusFlowBreakdown,
   type StatusFlowScope,
@@ -99,6 +107,39 @@ export async function OverviewSection({
           : undefined,
   });
 
+  // Edge-fill bounds for the over-time chart. The grouped total trails to the
+  // account data horizon and leads from the filter set's first-ever day; the
+  // ungrouped PLATFORM lines each trail to their own platform horizon (campaign
+  // lines keep interior-only fill — a pinned breakout, not an entity total).
+  const [horizon, groupFirst] = await Promise.all([
+    dataHorizon(),
+    filteredFirstDay(filters),
+  ]);
+  const otGroupBounds = resolveEntityBounds({
+    from: filters.from,
+    to: filters.to,
+    firstEver: groupFirst,
+    horizon,
+  });
+  let platformEdges:
+    | {
+        fillFrom: Partial<Record<string, string>>;
+        fillTo: Partial<Record<string, string>>;
+      }
+    | undefined;
+  if (dimension === "platform") {
+    const [pHorizons, pFirst] = await Promise.all([
+      platformHorizons(),
+      filteredPlatformFirstDays(filters),
+    ]);
+    platformEdges = resolvePlatformBounds({
+      from: filters.from,
+      to: filters.to,
+      firstDays: pFirst,
+      horizons: pHorizons,
+    });
+  }
+
   const [
     otRows,
     topRows,
@@ -116,7 +157,7 @@ export async function OverviewSection({
     rows30d,
     rowsLife,
   ] = await Promise.all([
-    metricOverTime(filters, dimension),
+    metricOverTime(filters, dimension, platformEdges),
     creativeLeaderboard(filters),
     productMix(filters),
     typeDimensionSpend(filters, dimension),
@@ -253,6 +294,8 @@ export async function OverviewSection({
         keys={keys}
         dimension={dimension}
         dimensionLabel={dimensionLabel}
+        fillFrom={otGroupBounds.fillFrom}
+        fillTo={otGroupBounds.fillTo}
       />
 
       {/* Three mix graphs in one row */}

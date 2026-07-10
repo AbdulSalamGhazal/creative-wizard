@@ -13,6 +13,11 @@ import {
   campaignRecordsByDay,
   campaignRegistry,
 } from "@/db/queries/campaign";
+import {
+  campaignFirstDay,
+  dataHorizon,
+  resolveEntityBounds,
+} from "@/db/queries/series-bounds";
 import { AnalyticsDateFilter } from "@/components/creative/analytics-date-filter";
 import { CampaignCreativeKpis } from "@/components/campaign/campaign-creative-kpis";
 import { CampaignCreativeChart } from "@/components/campaign/campaign-creative-chart";
@@ -84,13 +89,26 @@ export default async function CampaignDetailPage({
     : [null, null];
 
   const inc = parsed.includeExcluded;
-  const [analytics, creativeRows, daily, records, byDay] = await Promise.all([
-    campaignAnalytics(decoded, range, inc),
-    campaignCreatives(decoded, range, inc),
-    campaignDailyByCreative(decoded, range, inc),
-    campaignRecords(decoded, range, inc),
-    campaignRecordsByDay(decoded, range, inc),
-  ]);
+  const [analytics, creativeRows, daily, records, byDay, horizon, campaignFirst] =
+    await Promise.all([
+      campaignAnalytics(decoded, range, inc),
+      campaignCreatives(decoded, range, inc),
+      campaignDailyByCreative(decoded, range, inc),
+      campaignRecords(decoded, range, inc),
+      campaignRecordsByDay(decoded, range, inc),
+      dataHorizon(),
+      registry ? campaignFirstDay(registry.id) : Promise.resolve(null),
+    ]);
+
+  // Edge-fill bounds for the campaign's GROUP line: trailing zeros to the data
+  // horizon (a paused campaign shows the pause), leading zeros from the window
+  // start only if the campaign existed before it.
+  const chartBounds = resolveEntityBounds({
+    from: range.from,
+    to: range.to,
+    firstEver: campaignFirst,
+    horizon,
+  });
 
   const legendCreatives = creativeRows.map((c) => ({
     creativeId: c.creativeId,
@@ -171,7 +189,12 @@ export default async function CampaignDetailPage({
       <CampaignCreativeKpis analytics={analytics} creatives={creativeRows} />
 
       {/* 2 ─── One line per creative over time ─── */}
-      <CampaignCreativeChart points={daily} creatives={legendCreatives} />
+      <CampaignCreativeChart
+        points={daily}
+        creatives={legendCreatives}
+        fillFrom={chartBounds.fillFrom}
+        fillTo={chartBounds.fillTo}
+      />
 
       {/* 2½ ─── The chart's creatives, tabulated ─── */}
       <div className="space-y-2">

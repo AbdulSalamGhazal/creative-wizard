@@ -72,7 +72,7 @@ export default async function FunnelPage({
   ] = await Promise.all([
     funnelOverview(filters),
     campaignFunnel(filters),
-    funnelDaily(filters),
+    funnelDaily(filters, { fillEdges: true }),
     funnelDaily({ ...filters, from: prev.from, to: prev.to }),
     platformFunnel(filters),
     platformCampaignFunnel(filters),

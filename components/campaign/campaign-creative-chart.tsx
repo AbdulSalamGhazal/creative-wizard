@@ -17,7 +17,7 @@ import { SeriesLegend } from "@/components/charts/series-legend";
 import { ChartHeader, ChartShell, ExpandButton, SmoothToggle, GroupToggle } from "@/components/charts/chart-shell";
 import { useChartFit, ChartFitToggle } from "@/components/charts/chart-fit";
 import { smoothColumns } from "@/lib/chart-smooth";
-import { fillDailyGaps } from "@/lib/time-series";
+import { fillDailyGaps, fillGroupSeries } from "@/lib/time-series";
 import type { CampaignCreativeDailyPoint } from "@/db/queries/campaign";
 import { ChartTooltip } from "@/components/charts/chart-tooltip";
 
@@ -133,9 +133,15 @@ function aggMetric(metric: MetricKey, pts: CampaignCreativeDailyPoint[]): number
 export function CampaignCreativeChart({
   points,
   creatives,
+  fillFrom,
+  fillTo,
 }: {
   points: CampaignCreativeDailyPoint[];
   creatives: Array<{ creativeId: string; name: string }>;
+  /** Edge-fill bounds for the GROUP line (trailing to the data horizon so a
+   *  paused campaign shows zeros; leading from the window start). */
+  fillFrom?: string;
+  fillTo?: string;
 }) {
   const [metric, setMetric] = useState<MetricKey>("spend");
   const [smooth, setSmooth] = useState(false);
@@ -147,18 +153,30 @@ export function CampaignCreativeChart({
   const meta = METRICS.find((m) => m.key === metric)!;
 
   const data = useMemo<Row[]>(() => {
-    const byDate = new Map<string, Row>();
+    const additive = ADDITIVE_METRICS.has(metric);
+    const cols = group ? ["all"] : creatives.map((c) => c.creativeId);
+    let filled: Row[];
     if (group) {
-      // One combined line: aggregate the shown creatives' points per date.
-      const ptsByDate = new Map<string, CampaignCreativeDailyPoint[]>();
-      for (const p of points) {
-        if (!shown.has(p.creativeId)) continue;
-        const arr = ptsByDate.get(p.date);
-        if (arr) arr.push(p);
-        else ptsByDate.set(p.date, [p]);
-      }
-      for (const [date, pts] of ptsByDate) byDate.set(date, { date, all: aggMetric(metric, pts) });
+      // One combined campaign line: aggregate the shown creatives per day, then
+      // fill interior gaps (rotation-safe over the union span) AND the edges so
+      // a currently-paused campaign runs at 0 to the data horizon.
+      const shownPts = points.filter((p) =>
+        shown.has(p.creativeId),
+      ) as unknown as Array<Record<string, unknown>>;
+      filled = fillGroupSeries(shownPts, {
+        dateKey: "date",
+        aggregate: (pts) =>
+          aggMetric(metric, pts as unknown as CampaignCreativeDailyPoint[]),
+        additive,
+        fillFrom,
+        fillTo,
+      }) as Row[];
     } else {
+      // Per-creative lines: pivot to one column per creative and complete the
+      // axis (dates absent from EVERY creative would otherwise vanish). No edge
+      // fill — each line ends where that creative stopped (no zero-tails on N
+      // lines; the axis already shows the days).
+      const byDate = new Map<string, Row>();
       for (const p of points) {
         let row = byDate.get(p.date);
         if (!row) {
@@ -167,24 +185,17 @@ export function CampaignCreativeChart({
         }
         row[p.creativeId] = p[metric];
       }
+      const rows = [...byDate.values()].sort((a, b) =>
+        (a.date as string) < (b.date as string) ? -1 : 1,
+      );
+      filled = fillDailyGaps(rows as Array<Record<string, unknown>>, {
+        dateKey: "date",
+        additiveKeys: [],
+        ratioKeys: cols,
+      }) as Row[];
     }
-    const rows = [...byDate.values()].sort((a, b) =>
-      (a.date as string) < (b.date as string) ? -1 : 1,
-    );
-    const cols = group ? ["all"] : creatives.map((c) => c.creativeId);
-    // A campaign-wide pause can fall BETWEEN creatives' spans (rotation), so
-    // no per-creative filled series covers those dates and they'd vanish from
-    // the axis. Complete the date axis here: the grouped campaign-level line
-    // dips to 0 on additive metrics (null on ratios); ungrouped lines stay
-    // null on those days (outside every creative's own span → they break).
-    const additive = ADDITIVE_METRICS.has(metric);
-    const filled = fillDailyGaps(rows as Array<Record<string, unknown>>, {
-      dateKey: "date",
-      additiveKeys: group && additive ? ["all"] : [],
-      ratioKeys: group ? (additive ? [] : ["all"]) : cols,
-    }) as Row[];
     return smooth ? smoothColumns(filled, cols) : filled;
-  }, [points, metric, smooth, creatives, group, shown]);
+  }, [points, metric, smooth, creatives, group, shown, fillFrom, fillTo]);
 
   const toggle = (id: string) =>
     setShown((prev) => {

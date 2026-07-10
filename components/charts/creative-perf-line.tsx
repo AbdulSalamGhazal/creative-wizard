@@ -22,7 +22,7 @@ import {
   GroupToggle,
 } from "@/components/charts/chart-shell";
 import { smoothColumns } from "@/lib/chart-smooth";
-import { fillDailyGaps } from "@/lib/time-series";
+import { fillDailyGaps, fillGroupSeries } from "@/lib/time-series";
 import { useChartFit, ChartFitToggle } from "@/components/charts/chart-fit";
 import type { DailyMetricRow } from "@/db/queries/performance";
 import { ChartTooltip } from "@/components/charts/chart-tooltip";
@@ -31,6 +31,14 @@ interface Props {
   rows: DailyMetricRow[];
   /** Heading shown inline with the metric pills. */
   title?: string;
+  /**
+   * Grouped-total edge bounds (account data horizon + creative first-ever,
+   * clamped to the window). Draw the "All platforms" line's leading/trailing
+   * pause zeros. Per-platform lines get their own edge fill upstream (in the
+   * query), so these only apply to the grouped line.
+   */
+  fillFrom?: string;
+  fillTo?: string;
 }
 
 type MetricKey =
@@ -105,6 +113,8 @@ interface PivotRow {
 export function CreativePerfLineChart({
   rows,
   title = "Performance over time",
+  fillFrom,
+  fillTo,
 }: Props) {
   const [metricKey, setMetricKey] = useState<MetricKey>("spend");
   const [smooth, setSmooth] = useState(false);
@@ -147,40 +157,46 @@ export function CreativePerfLineChart({
 
   const data = useMemo<PivotRow[]>(() => {
     if (rows.length === 0) return [];
-    const byDate = new Map<string, PivotRow>();
     if (group) {
-      const rowsByDate = new Map<string, DailyMetricRow[]>();
-      for (const r of rows) {
-        if (!shown.has(r.platform)) continue;
-        const arr = rowsByDate.get(r.date);
-        if (arr) arr.push(r);
-        else rowsByDate.set(r.date, [r]);
+      // One rotation-safe line over the union of the shown platforms' days,
+      // trailing to the account data horizon (a paused creative dips to 0) and
+      // leading from its first-ever day. See fillGroupSeries.
+      const shownRows = rows.filter((r) => shown.has(r.platform));
+      const filled = fillGroupSeries(
+        shownRows as unknown as Array<Record<string, unknown>>,
+        {
+          dateKey: "date",
+          aggregate: (pts) =>
+            aggregate(metric, pts as unknown as DailyMetricRow[]),
+          additive: metric.additive,
+          fillFrom,
+          fillTo,
+        },
+      ) as PivotRow[];
+      return smooth ? smoothColumns(filled, ["all"]) : filled;
+    }
+    // Ungrouped: one column per platform. The per-platform rows already carry
+    // their own interior + edge fill (from the query), so pivot them straight;
+    // fillDailyGaps here only completes dates absent from EVERY platform (the
+    // creative paused everywhere at once) — those stay null so the lines break.
+    const byDate = new Map<string, PivotRow>();
+    for (const r of rows) {
+      let e = byDate.get(r.date);
+      if (!e) {
+        e = { date: r.date };
+        for (const p of presentPlatforms) e[p] = null;
+        byDate.set(r.date, e);
       }
-      for (const [date, rs] of rowsByDate) byDate.set(date, { date, all: aggregate(metric, rs) });
-    } else {
-      for (const r of rows) {
-        let e = byDate.get(r.date);
-        if (!e) {
-          e = { date: r.date };
-          for (const p of presentPlatforms) e[p] = null;
-          byDate.set(r.date, e);
-        }
-        e[r.platform] = metric.get(r);
-      }
+      e[r.platform] = metric.get(r);
     }
     const out = [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
-    // Dates absent from EVERY platform (the creative paused everywhere at
-    // once) would otherwise vanish from the axis — the per-platform query fill
-    // only covers each platform's own span. Complete the axis: the grouped
-    // total dips to 0 on additive metrics (null on ratios); ungrouped platform
-    // lines stay null there (outside their spans → they break).
     const filled = fillDailyGaps(out as Array<Record<string, unknown>>, {
       dateKey: "date",
-      additiveKeys: group && metric.additive ? ["all"] : [],
-      ratioKeys: group ? (metric.additive ? [] : ["all"]) : [...presentPlatforms],
+      additiveKeys: [],
+      ratioKeys: [...presentPlatforms],
     }) as PivotRow[];
     return smooth ? smoothColumns(filled, lineSpecs.map((l) => l.id)) : filled;
-  }, [rows, metric, group, smooth, shown, presentPlatforms, lineSpecs]);
+  }, [rows, metric, group, smooth, shown, presentPlatforms, lineSpecs, fillFrom, fillTo]);
 
   const yValues = useMemo(() => {
     const out: number[] = [];

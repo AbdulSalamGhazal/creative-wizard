@@ -229,6 +229,61 @@ async function buildBaseConditions(filters: KpiFilters): Promise<{
 }
 
 /**
+ * First-ever record date for a filter set, UNBOUNDED by the window (the same
+ * conditions minus the date range) — the leading-edge anchor for the dashboard
+ * over-time group line. Null when the filter set has never had a record.
+ */
+export async function filteredFirstDay(
+  filters: KpiFilters,
+): Promise<string | null> {
+  const { conditions, needsCreativeJoin } = await buildBaseConditions({
+    ...filters,
+    from: undefined,
+    to: undefined,
+  });
+  let q = db
+    .select({ min: sql<string | null>`MIN(${performanceRecords.date})` })
+    .from(performanceRecords)
+    .$dynamic();
+  if (needsCreativeJoin) {
+    q = q.innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId));
+  }
+  const [row] = await q.where(and(...conditions));
+  return row?.min ?? null;
+}
+
+/**
+ * First-ever record date PER PLATFORM for a filter set, unbounded by the window
+ * — the per-platform leading anchor for the dashboard's ungrouped platform
+ * lines. A platform absent from the map has no data in the filter set.
+ */
+export async function filteredPlatformFirstDays(
+  filters: KpiFilters,
+): Promise<Partial<Record<Platform, string>>> {
+  const { conditions, needsCreativeJoin } = await buildBaseConditions({
+    ...filters,
+    from: undefined,
+    to: undefined,
+  });
+  let q = db
+    .select({
+      platform: performanceRecords.platform,
+      min: sql<string>`MIN(${performanceRecords.date})`,
+    })
+    .from(performanceRecords)
+    .$dynamic();
+  if (needsCreativeJoin) {
+    q = q.innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId));
+  }
+  const rows = await q
+    .where(and(...conditions))
+    .groupBy(performanceRecords.platform);
+  const out: Partial<Record<Platform, string>> = {};
+  for (const r of rows) out[r.platform as Platform] = r.min;
+  return out;
+}
+
+/**
  * KPI aggregates for the Overview tiles.
  *
  * Honors every dashboard filter via URL searchParams (see tech-spec §8.1).
@@ -363,9 +418,19 @@ export interface DailyMetricRow {
  * per metric per platform per day, so the chart can switch which metric it
  * plots client-side. Ratios are recombined from component sums in SQL (never an
  * average of per-row ratios). Honours the usual filters via buildBaseConditions.
+ *
+ * Pass `edges` (per-platform leading/trailing bounds, already clamped to the
+ * requested window by the caller — see `resolvePlatformBounds` in
+ * db/queries/series-bounds.ts) to also draw a paused platform's trailing zeros
+ * up to THAT platform's own data horizon, and leading zeros back to the window
+ * start for a platform that existed before it. Omit for interior-only fill.
  */
 export async function creativeDailyMetrics(
   filters: KpiFilters,
+  edges?: {
+    fillFrom?: Partial<Record<Platform, string>>;
+    fillTo?: Partial<Record<Platform, string>>;
+  },
 ): Promise<DailyMetricRow[]> {
   const { conditions, needsCreativeJoin, needsTagJoin } =
     await buildBaseConditions(filters);
@@ -436,6 +501,10 @@ export async function creativeDailyMetrics(
         "conversionValue",
       ],
       ratioKeys: ["cpm", "ctr", "voc", "cvr", "cpa", "roas"],
+      fillFrom: edges?.fillFrom
+        ? (p) => edges.fillFrom![p as Platform]
+        : undefined,
+      fillTo: edges?.fillTo ? (p) => edges.fillTo![p as Platform] : undefined,
     },
   );
 }
@@ -1074,6 +1143,10 @@ export interface MetricOverTimeRow {
 export async function metricOverTime(
   filters: KpiFilters,
   dimension: BreakdownDimension,
+  edges?: {
+    fillFrom?: Partial<Record<string, string>>;
+    fillTo?: Partial<Record<string, string>>;
+  },
 ): Promise<MetricOverTimeRow[]> {
   const { conditions, needsCreativeJoin, needsTagJoin } =
     await buildBaseConditions(filters);
@@ -1130,6 +1203,12 @@ export async function metricOverTime(
       groupKey: "key",
       additiveKeys: ["spend", "conversions", "conversionValue"],
       ratioKeys: ["cpa", "roas"],
+      // Per-key edge fill (platform dimension only — see the caller). Each
+      // platform line trails to its own horizon / leads from its own first day.
+      fillFrom: edges?.fillFrom
+        ? (k) => edges.fillFrom![String(k)]
+        : undefined,
+      fillTo: edges?.fillTo ? (k) => edges.fillTo![String(k)] : undefined,
     },
   );
 }

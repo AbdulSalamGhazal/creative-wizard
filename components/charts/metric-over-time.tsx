@@ -14,7 +14,7 @@ import { MetricPicker } from "@/components/charts/metric-picker";
 import { SeriesLegend } from "@/components/charts/series-legend";
 import { ChartHeader, ChartShell, ExpandButton, SmoothToggle, GroupToggle } from "@/components/charts/chart-shell";
 import { smoothColumns } from "@/lib/chart-smooth";
-import { fillDailyGaps } from "@/lib/time-series";
+import { fillDailyGaps, fillGroupSeries } from "@/lib/time-series";
 import { int, intCompact, monthDay, roas, usd, usdCompact } from "@/lib/format";
 import { useChartFit, ChartFitToggle } from "@/components/charts/chart-fit";
 import type { MetricOverTimeRow } from "@/db/queries/performance";
@@ -32,6 +32,14 @@ interface Props {
   dimension: "platform" | "campaign";
   /** Shown next to "by campaign" (e.g. the pinned platform's name). */
   dimensionLabel?: string;
+  /**
+   * Grouped-total edge bounds (account data horizon + filter-set first-ever,
+   * clamped to the window): the "All" line's leading/trailing pause zeros.
+   * Per-dimension lines get their own edge fill upstream (platform dimension);
+   * these apply only to the grouped line.
+   */
+  fillFrom?: string;
+  fillTo?: string;
 }
 
 type MetricKey = "spend" | "revenue" | "conversions" | "cpa" | "roas";
@@ -107,7 +115,14 @@ interface PivotRow {
  * filtered) as separate lines. A dropdown in the header swaps which metric is
  * plotted; the data for every metric is sent up-front so switching is instant.
  */
-export function MetricOverTimeChart({ rows, keys, dimension, dimensionLabel }: Props) {
+export function MetricOverTimeChart({
+  rows,
+  keys,
+  dimension,
+  dimensionLabel,
+  fillFrom,
+  fillTo,
+}: Props) {
   const [metric, setMetric] = useState<MetricKey>("spend");
   const [smooth, setSmooth] = useState(false);
   const [group, setGroup] = useState(false);
@@ -164,41 +179,45 @@ export function MetricOverTimeChart({ rows, keys, dimension, dimensionLabel }: P
 
   const data = useMemo<PivotRow[]>(() => {
     if (rows.length === 0) return [];
-    const byDate = new Map<string, PivotRow>();
     if (group) {
-      // Aggregate the shown series into a single value per date.
-      const rowsByDate = new Map<string, MetricOverTimeRow[]>();
-      for (const r of rows) {
-        if (!shown.has(r.key)) continue;
-        const arr = rowsByDate.get(r.date);
-        if (arr) arr.push(r);
-        else rowsByDate.set(r.date, [r]);
+      // One rotation-safe line over the union of the shown series' days,
+      // trailing to the account data horizon (a paused account dips to 0) and
+      // leading from the filter set's first-ever day. See fillGroupSeries.
+      const shownRows = rows.filter((r) => shown.has(r.key));
+      return fillGroupSeries(
+        shownRows as unknown as Array<Record<string, unknown>>,
+        {
+          dateKey: "date",
+          aggregate: (pts) =>
+            aggregate(def, pts as unknown as MetricOverTimeRow[]),
+          additive: def.additive,
+          fillFrom,
+          fillTo,
+        },
+      ) as PivotRow[];
+    }
+    // Ungrouped: one column per series. The per-series rows already carry their
+    // own interior (+ platform-dimension edge) fill from the query; pivot them
+    // straight. fillDailyGaps here only completes dates absent from EVERY series
+    // (an account-wide pause) — those stay null so the lines break.
+    const byDate = new Map<string, PivotRow>();
+    for (const r of rows) {
+      let e = byDate.get(r.date);
+      if (!e) {
+        e = { date: r.date };
+        for (const k of safeKeys) e[k.id] = null;
+        byDate.set(r.date, e);
       }
-      for (const [date, rs] of rowsByDate) byDate.set(date, { date, all: aggregate(def, rs) });
-    } else {
-      for (const r of rows) {
-        let e = byDate.get(r.date);
-        if (!e) {
-          e = { date: r.date };
-          for (const k of safeKeys) e[k.id] = null;
-          byDate.set(r.date, e);
-        }
-        const id = idByKey.get(r.key);
-        if (id) e[id] = def.pick(r);
-      }
+      const id = idByKey.get(r.key);
+      if (id) e[id] = def.pick(r);
     }
     const sorted = [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
-    // Dates absent from EVERY series (e.g. an account-wide upload pause) would
-    // otherwise vanish from the axis — the per-series query fill only covers
-    // each series' own span. Complete the axis: the grouped total dips to 0 on
-    // additive metrics (null on ratios); ungrouped series stay null (outside
-    // their own spans → lines break).
     return fillDailyGaps(sorted as Array<Record<string, unknown>>, {
       dateKey: "date",
-      additiveKeys: group && def.additive ? ["all"] : [],
-      ratioKeys: group ? (def.additive ? [] : ["all"]) : safeKeys.map((k) => k.id),
+      additiveKeys: [],
+      ratioKeys: safeKeys.map((k) => k.id),
     }) as PivotRow[];
-  }, [rows, group, shown, safeKeys, idByKey, def]);
+  }, [rows, group, shown, safeKeys, idByKey, def, fillFrom, fillTo]);
 
   const display = useMemo(
     () => (smooth ? smoothColumns(data, lineSpecs.map((l) => l.id)) : data),
