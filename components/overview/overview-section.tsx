@@ -107,20 +107,11 @@ export async function OverviewSection({
           : undefined,
   });
 
-  // Edge-fill bounds for the over-time chart. The grouped total trails to the
-  // account data horizon and leads from the filter set's first-ever day; the
-  // ungrouped PLATFORM lines each trail to their own platform horizon (campaign
-  // lines keep interior-only fill — a pinned breakout, not an entity total).
-  const [horizon, groupFirst] = await Promise.all([
-    dataHorizon(),
-    filteredFirstDay(filters),
-  ]);
-  const otGroupBounds = resolveEntityBounds({
-    from: filters.from,
-    to: filters.to,
-    firstEver: groupFirst,
-    horizon,
-  });
+  // Edge-fill bounds for the over-time chart. The ungrouped PLATFORM lines each
+  // trail to their own platform horizon (campaign lines keep interior-only fill
+  // — a pinned breakout, not an entity total). Only these must resolve BEFORE
+  // metricOverTime, because they're its input; the grouped-total bounds only
+  // feed props, so they ride along in the main batch below (no extra hop).
   let platformEdges:
     | {
         fillFrom: Partial<Record<string, string>>;
@@ -156,6 +147,8 @@ export async function OverviewSection({
     rows7d,
     rows30d,
     rowsLife,
+    horizon,
+    groupFirst,
   ] = await Promise.all([
     metricOverTime(filters, dimension, platformEdges),
     creativeLeaderboard(filters),
@@ -190,7 +183,18 @@ export async function OverviewSection({
     creativeDimensionPoints(windowFilters(7), dimension),
     creativeDimensionPoints(windowFilters(30), dimension),
     creativeDimensionPoints(windowFilters(null), dimension),
+    dataHorizon(),
+    filteredFirstDay(filters),
   ]);
+
+  // Grouped-total edge bounds: trail to the account data horizon, lead from the
+  // filter set's first-ever day (both clamped to the window).
+  const otGroupBounds = resolveEntityBounds({
+    from: filters.from,
+    to: filters.to,
+    firstEver: groupFirst,
+    horizon,
+  });
   const k = kd?.current ?? (await kpis(filters));
 
   // Order the over-time lines by total spend; cap campaign lines so the chart
