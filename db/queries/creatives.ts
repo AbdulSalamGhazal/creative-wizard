@@ -344,6 +344,8 @@ export interface CreativeDetail {
   type: CreativeType;
   thumbnailUrl: string | null;
   launchDate: string | null;
+  /** Manual Priority (1..3, 3 = highest); null = unrated. Distinct from Rate. */
+  priority: number | null;
   notes: string | null;
   sourceLink: string | null;
   createdAt: Date;
@@ -364,6 +366,7 @@ export async function getCreativeByName(
       type: creatives.type,
       thumbnailUrl: creatives.thumbnailUrl,
       launchDate: creatives.launchDate,
+      priority: creatives.priority,
       notes: creatives.notes,
       sourceLink: creatives.sourceLink,
       createdAt: creatives.createdAt,

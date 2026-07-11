@@ -203,14 +203,28 @@ This app is deployed and in production use. Treat `main` as shippable.
 - **Creative detail page edits EVERYTHING inline; there is no `/edit` route.**
   The detail header (`components/creative/creative-detail-header.tsx`, a client
   component) is a full editor for name / product / type / status / thumbnail /
-  publish-date / tags, with draft state + a dirty check + an explicit **Save
-  changes** button (not auto-save). Save calls `patchCreative` (partial — only
-  changed fields; renaming is uniqueness-checked and the client follows the new
-  URL). The old `/creatives/[name]/edit` page, `creative-edit-form.tsx`, and the
-  `updateCreative` action were DELETED — don't reintroduce them. Notes stay on
-  their own inline editor (`updateCreativeNotes` via NotesPanel); `patchCreative`
-  never touches notes. Tag editing uses `tag-multi-select.tsx` (a Popover
-  dropdown), and the publish date uses a Calendar popover.
+  publish-date / **priority** / tags, with draft state + a dirty check + an
+  explicit **Save changes** button (not auto-save). Save calls `patchCreative`
+  (partial — only changed fields; renaming is uniqueness-checked and the client
+  follows the new URL). The old `/creatives/[name]/edit` page,
+  `creative-edit-form.tsx`, and the `updateCreative` action were DELETED — don't
+  reintroduce them. Notes stay on their own inline editor (`updateCreativeNotes`
+  via NotesPanel); `patchCreative` never touches notes. Tag editing uses
+  `tag-multi-select.tsx` (a Popover dropdown), and the publish date uses a
+  Calendar popover.
+- **Priority ≠ Rate — two DISTINCT concepts, never conflate the names.**
+  **Priority** (2026-07) is the team's MANUAL importance judgment on a creative:
+  `creatives.priority smallint` NULLABLE, 1..3 (3 = highest), NULL = unrated (a
+  real default state — never a numeric 0, never auto-set). Field/validator/label
+  are all `priority` (`prioritySchema` in `validators/creative.ts`); it's edited
+  inline on the detail header (3 lucide `Star` icons, warn-amber fill) via the
+  normal draft/Save flow and shown ONLY there (no list/summary/CSV/filter — out
+  of scope by decision). Migration 0028 (additive, no index). **Rate** is a
+  totally different, COMPUTED concept — the ROAS-driven performance chips
+  (`rating_rules` / `lib/rating.ts` / Summary "Rate" filter). Rule: **Rate =
+  computed performance; Priority = manual judgment.** The word "rating" must
+  NEVER name the Priority feature, and "stars" is only the UI metaphor (the icon)
+  — it appears nowhere in the schema/code.
 - **Theming = one axis, FOUR THEMES** — two dark (**Midnight** default /
   **Contrast**) + two light (**Frost** cool blue-white / **Paper** warm cream).
   (2026-07: slimmed from eight — Slate/Carbon/Ocean/Sand/Rose were deleted and

@@ -7,6 +7,7 @@ import {
   date,
   boolean,
   integer,
+  smallint,
   bigint,
   numeric,
   jsonb,
@@ -158,6 +159,15 @@ export const creatives = pgTable(
       .notNull()
       .default("draft"),
     launchDate: date("launch_date"),
+    /**
+     * Manual PRIORITY — the team's own judgment of importance, independent of
+     * performance. 1..3 (3 = highest), shown as a 1..3 icon control on the
+     * detail page. NULL = unrated (the default; never a numeric 0, never
+     * auto-set). Distinct from the computed performance "Rate" concept
+     * (rating_rules / lib/rating.ts) — never conflate the two. Detail-page only
+     * for now (not filtered/sorted → no index).
+     */
+    priority: smallint("priority"),
     notes: text("notes"),
     // The creative's source link (e.g. the live post/ad or asset URL).
     // Display-only metadata; not used in aggregation.

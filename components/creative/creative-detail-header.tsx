@@ -10,6 +10,7 @@ import {
   Loader2,
   RotateCcw,
   Save,
+  Star,
   X,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -122,6 +123,7 @@ export function CreativeDetailHeader({
     type: creative.type,
     thumbnailUrl: creative.thumbnailUrl,
     launchDate: creative.launchDate,
+    priority: creative.priority,
     tags: creative.tags,
   });
 
@@ -134,6 +136,7 @@ export function CreativeDetailHeader({
   const [launchDate, setLaunchDate] = useState<string | null>(
     creative.launchDate,
   );
+  const [priority, setPriority] = useState<number | null>(creative.priority);
   const [tags, setTags] = useState<string[]>(creative.tags);
 
   const nameTrimmed = name.trim();
@@ -143,6 +146,7 @@ export function CreativeDetailHeader({
     type !== saved.type ||
     thumbnailUrl !== saved.thumbnailUrl ||
     launchDate !== saved.launchDate ||
+    priority !== saved.priority ||
     !sameSet(tags, saved.tags);
 
   const canSave = dirty && nameTrimmed !== "" && !isPending;
@@ -153,6 +157,7 @@ export function CreativeDetailHeader({
     setType(saved.type);
     setThumbnailUrl(saved.thumbnailUrl);
     setLaunchDate(saved.launchDate);
+    setPriority(saved.priority);
     setTags(saved.tags);
   };
 
@@ -164,6 +169,7 @@ export function CreativeDetailHeader({
     if (type !== saved.type) patch.type = type;
     if (thumbnailUrl !== saved.thumbnailUrl) patch.thumbnailUrl = thumbnailUrl;
     if (launchDate !== saved.launchDate) patch.launchDate = launchDate;
+    if (priority !== saved.priority) patch.priority = priority;
     if (!sameSet(tags, saved.tags)) patch.tags = tags;
 
     startTransition(async () => {
@@ -185,6 +191,7 @@ export function CreativeDetailHeader({
           type,
           thumbnailUrl,
           launchDate,
+          priority,
           tags,
         });
         router.refresh();
@@ -385,6 +392,20 @@ export function CreativeDetailHeader({
             </div>
           </div>
 
+          {/* Priority — the team's manual importance judgment (1–3, 3 =
+           *  highest). NULL = unrated. Distinct from the computed "Rate". */}
+          <div className="space-y-1.5">
+            <label className="text-eyebrow text-ink-3">
+              Priority
+            </label>
+            <PriorityControl
+              value={priority}
+              onChange={setPriority}
+              disabled={locked}
+              readOnly={!canEdit}
+            />
+          </div>
+
           {/* Tags */}
           <div className="space-y-1.5">
             <label className="text-eyebrow text-ink-3">
@@ -399,6 +420,63 @@ export function CreativeDetailHeader({
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Manual PRIORITY control — three `Star` icons (3 = highest), the team's own
+ * judgment of importance, independent of performance (never conflate with the
+ * computed "Rate"). Click an icon to set that priority; click the currently-set
+ * one again to clear back to NULL (unrated — all three empty). A `radiogroup`;
+ * the value participates in the header's draft/dirty/Save flow (not
+ * save-on-click). Read-only viewers see the icons statically (disabled, no
+ * hover/pointer).
+ */
+function PriorityControl({
+  value,
+  onChange,
+  disabled,
+  readOnly,
+}: {
+  value: number | null;
+  onChange: (v: number | null) => void;
+  /** Disabled while a save is in flight OR for read-only viewers. */
+  disabled: boolean;
+  /** True when the user lacks creative.edit — static, no hover/pointer. */
+  readOnly: boolean;
+}) {
+  return (
+    <div role="radiogroup" aria-label="Priority" className="flex items-center gap-1">
+      {[1, 2, 3].map((n) => {
+        const filled = value != null && n <= value;
+        return (
+          <button
+            key={n}
+            type="button"
+            role="radio"
+            aria-checked={value === n}
+            aria-label={`Priority ${n} of 3`}
+            disabled={disabled}
+            onClick={() => onChange(value === n ? null : n)}
+            className={cn(
+              "rounded-sm p-0.5 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-brand",
+              readOnly ? "cursor-default" : "cursor-pointer hover:opacity-80",
+            )}
+          >
+            <Star
+              className={cn(
+                "w-4 h-4",
+                filled ? "text-warn fill-current" : "text-ink-3",
+              )}
+            />
+          </button>
+        );
+      })}
+      {/* Announce the current value (and the cleared "Unrated" state) to SRs. */}
+      <span className="sr-only" aria-live="polite">
+        {value == null ? "Unrated" : `Priority ${value} of 3`}
+      </span>
     </div>
   );
 }

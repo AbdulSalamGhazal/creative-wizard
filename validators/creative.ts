@@ -24,6 +24,18 @@ export const sourceLinkSchema = z.preprocess(
 
 export type SourceLinkInput = z.infer<typeof sourceLinkSchema>;
 
+/**
+ * Manual PRIORITY — the team's own judgment of a creative's importance,
+ * independent of performance. Integer 1..3 (3 = highest), shown as a 1..3 icon
+ * control on the detail page. `null` = unrated (a real, default state — never a
+ * numeric 0, never auto-set). Deliberately DISTINCT from the computed
+ * performance concept in `lib/rating.ts` / `rating_rules` (the ROAS-driven
+ * "Rate"): Rate = computed performance, Priority = the team's manual judgment.
+ */
+export const prioritySchema = z.number().int().min(1).max(3).nullable();
+
+export type PriorityInput = z.infer<typeof prioritySchema>;
+
 export const creativeCreateSchema = z.object({
   name: z.string().min(1).max(255),
   productId: z.string().uuid(),

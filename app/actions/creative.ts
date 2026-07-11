@@ -16,6 +16,7 @@ import {
 import {
   creativeCreateSchema,
   creativeTerminationSchema,
+  prioritySchema,
   sourceLinkSchema,
 } from "@/validators/creative";
 import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
@@ -332,6 +333,8 @@ const creativePatchSchema = z
       .nullable()
       .optional()
       .transform((v) => (v ? v : v === null ? null : undefined)),
+    // Manual Priority (1..3; null = unrated). Sent only when changed.
+    priority: prioritySchema.optional(),
     tags: z.array(z.string().min(1).max(64)).max(50).optional(),
   })
   .refine(
@@ -341,6 +344,7 @@ const creativePatchSchema = z
       d.type !== undefined ||
       d.thumbnailUrl !== undefined ||
       d.launchDate !== undefined ||
+      d.priority !== undefined ||
       d.tags !== undefined,
     { message: "No fields to update." },
   );
@@ -373,6 +377,7 @@ export async function patchCreative(
         type: creatives.type,
         thumbnailUrl: creatives.thumbnailUrl,
         launchDate: creatives.launchDate,
+        priority: creatives.priority,
       })
       .from(creatives)
       .where(and(eq(creatives.accountId, acct), eq(creatives.id, data.id)))
@@ -422,6 +427,7 @@ export async function patchCreative(
     if (data.type !== undefined) set.type = data.type;
     if (data.thumbnailUrl !== undefined) set.thumbnailUrl = data.thumbnailUrl;
     if (data.launchDate !== undefined) set.launchDate = data.launchDate;
+    if (data.priority !== undefined) set.priority = data.priority;
     const hasScalarChange = Object.keys(set).length > 1; // more than updatedAt
 
     await db.transaction(async (tx) => {
@@ -471,6 +477,9 @@ export async function patchCreative(
     }
     if (data.launchDate !== undefined && oldRow.launchDate !== data.launchDate) {
       changes.launchDate = { from: oldRow.launchDate, to: data.launchDate };
+    }
+    if (data.priority !== undefined && oldRow.priority !== data.priority) {
+      changes.priority = { from: oldRow.priority, to: data.priority };
     }
 
     await logAudit({
