@@ -6,7 +6,7 @@ import { eq } from "drizzle-orm";
 import { requireAuth, requirePermission } from "@/lib/auth";
 import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
 import { db } from "@/lib/db";
-import { accounts } from "@/db/schema";
+import { accounts, userAccounts } from "@/db/schema";
 import { ACCOUNT_COOKIE, listAccounts } from "@/lib/tenant";
 import {
   createAccountSchema,
@@ -85,10 +85,22 @@ export async function createAccount(input: unknown): Promise<ActionResult> {
     let n = 2;
     while (existing.has(slug)) slug = `${base}-${n++}`;
 
-    const [row] = await db
-      .insert(accounts)
-      .values({ name: parsed.data.name, slug })
-      .returning({ id: accounts.id });
+    // A restricted (non-all_accounts) creator would otherwise create a brand
+    // they immediately can't see. Grant themselves membership in the same
+    // transaction. Admins / all-accounts users already see every brand.
+    const restricted = user.role !== "admin" && !user.allAccounts;
+    const row = await db.transaction(async (tx) => {
+      const [created] = await tx
+        .insert(accounts)
+        .values({ name: parsed.data.name, slug })
+        .returning({ id: accounts.id });
+      if (restricted && created) {
+        await tx
+          .insert(userAccounts)
+          .values({ userId: user.id, accountId: created.id });
+      }
+      return created;
+    });
 
     // Logged under the admin's CURRENT brand (where they took the action), so
     // it surfaces in the feed they're looking at. The new brand starts empty.
@@ -115,6 +127,11 @@ export async function setStatusWindow(input: unknown): Promise<ActionResult> {
     const parsed = setStatusWindowSchema.safeParse(input);
     if (!parsed.success) {
       return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid window" };
+    }
+    // Membership: can only touch a brand you're allowed to see.
+    const allowed = await listAccounts();
+    if (!allowed.some((a) => a.id === parsed.data.id)) {
+      return { ok: false, error: "Unknown brand" };
     }
     // Capture the old window + brand name first — this config silently changes
     // how every creative's status is derived for the brand, so the before→after
@@ -154,6 +171,11 @@ export async function renameAccount(input: unknown): Promise<ActionResult> {
     const parsed = renameAccountSchema.safeParse(input);
     if (!parsed.success) {
       return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
+    }
+    // Membership: can only rename a brand you're allowed to see.
+    const allowed = await listAccounts();
+    if (!allowed.some((a) => a.id === parsed.data.id)) {
+      return { ok: false, error: "Unknown brand" };
     }
     const [before] = await db
       .select({ name: accounts.name })

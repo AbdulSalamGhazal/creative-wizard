@@ -23,6 +23,10 @@ import {
 import { updateUserAccess } from "@/app/actions/user";
 import { useNavTransition } from "@/lib/nav-progress";
 import { AdminSetPasswordButton } from "@/components/user/admin-set-password-button";
+import {
+  UserBrandsSection,
+  type BrandOption,
+} from "@/components/user/user-brands-section";
 
 type Preset = "admin" | "editor" | "viewer" | "custom";
 
@@ -40,6 +44,10 @@ export interface AccessUser {
   role: "admin" | "editor" | "viewer";
   /** null → derive from the role preset; array → an explicit custom grant. */
   permissions: string[] | null;
+  /** Brand membership: true → every brand (incl. future); false → `accountIds`. */
+  allAccounts: boolean;
+  /** The user's explicit brand memberships (only meaningful when !allAccounts). */
+  accountIds: string[];
   /** Pre-formatted join date shown in the header (optional). */
   joined?: string;
 }
@@ -69,9 +77,12 @@ function classify(checked: Set<string>): Exclude<Preset, "admin"> {
 export function UserAccessCard({
   user,
   isSelf,
+  brands,
 }: {
   user: AccessUser;
   isSelf: boolean;
+  /** The full brand list (a users.manage editor may grant any brand). */
+  brands: BrandOption[];
 }) {
   const initialPreset: Preset =
     user.role === "admin"
@@ -239,6 +250,15 @@ export function UserAccessCard({
           </div>
         ))}
       </div>
+
+      <UserBrandsSection
+        userId={user.id}
+        isSelf={isSelf}
+        isAdmin={user.role === "admin"}
+        brands={brands}
+        initialAllAccounts={user.allAccounts}
+        initialAccountIds={user.accountIds}
+      />
 
       {isSelf ? (
         <div className="border-t border-line px-4 py-2 text-xs text-ink-3">

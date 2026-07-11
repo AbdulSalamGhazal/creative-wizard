@@ -32,6 +32,12 @@ export interface SessionUser {
   role: RoleTier;
   /** Explicit permission set; NULL → derive from `role` (the preset). */
   permissions: string[] | null;
+  /**
+   * Brand membership scope: `true` → every brand (incl. future ones); `false` →
+   * only the brands in `user_accounts`. Admins are always effectively `true`.
+   * See lib/tenant.ts / lib/account-access.ts.
+   */
+  allAccounts: boolean;
 }
 
 /**
@@ -49,6 +55,7 @@ export const auth = cache(async (): Promise<SessionUser | null> => {
       name: users.name,
       role: users.role,
       permissions: users.permissions,
+      allAccounts: users.allAccounts,
     })
     .from(users)
     .where(eq(users.id, userId))

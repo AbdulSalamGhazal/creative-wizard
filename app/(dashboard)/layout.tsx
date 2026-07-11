@@ -5,6 +5,7 @@ import { TopBar } from "@/components/layout/top-bar";
 import { NavProgressBar } from "@/components/layout/nav-progress-bar";
 import { auth, grantedPermissions } from "@/lib/auth";
 import { PermissionsProvider } from "@/components/auth/permissions-context";
+import { NoBrandAccess } from "@/components/layout/no-brand-access";
 import { db } from "@/lib/db";
 import { creatives, products } from "@/db/schema";
 import { eq } from "drizzle-orm";
@@ -21,13 +22,18 @@ export default async function DashboardLayout({
   }
   const granted = grantedPermissions(user);
 
+  // Brand membership is enforced here: a user with zero allowed brands gets the
+  // "No brand access" screen BEFORE any tenant-scoped query runs, so no
+  // forbidden brand's data is ever fetched.
+  const accounts = await listAccounts();
+  if (accounts.length === 0) {
+    return <NoBrandAccess name={user.name} />;
+  }
+
   // One small query feeds the ⌘K palette; capped at 500 names which is
   // more than enough for the team's catalog (and keeps the client bundle
   // shape predictable).
-  const [acct, accounts] = await Promise.all([
-    getActiveAccountId(),
-    listAccounts(),
-  ]);
+  const acct = await getActiveAccountId();
   const creativeOptions = await db
     .select({
       id: creatives.id,

@@ -5,7 +5,7 @@ import { count, eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { requirePermission } from "@/lib/auth";
-import { users } from "@/db/schema";
+import { accounts, userAccounts, users } from "@/db/schema";
 import {
   hashPassword,
   PASSWORD_MIN_LENGTH,
@@ -29,7 +29,37 @@ const inviteSchema = z.object({
   name: z.string().min(1).max(255),
   role: z.enum(["admin", "editor", "viewer"]).default("editor"),
   password: passwordSchema,
+  // Brand membership. `allAccounts` true (default) → every brand incl. future
+  // ones; false → only the listed brands (≥1 required, validated below).
+  allAccounts: z.boolean().default(true),
+  accountIds: z.array(z.string().uuid()).default([]),
 });
+
+const brandsSchema = z.object({
+  userId: z.string().uuid(),
+  allAccounts: z.boolean(),
+  accountIds: z.array(z.string().uuid()).default([]),
+});
+
+/**
+ * Resolve the brands to grant: admins are ALWAYS all-brands; otherwise keep only
+ * ids that name a real account (dedup). Returns the normalized flag + id list,
+ * or an error string when a restricted grant names zero valid brands.
+ */
+async function resolveGrant(
+  role: "admin" | "editor" | "viewer",
+  allAccounts: boolean,
+  accountIds: string[],
+): Promise<{ allAccounts: boolean; accountIds: string[] } | { error: string }> {
+  if (role === "admin" || allAccounts) {
+    return { allAccounts: true, accountIds: [] };
+  }
+  const existing = await db.select({ id: accounts.id }).from(accounts);
+  const valid = new Set(existing.map((r) => r.id));
+  const ids = [...new Set(accountIds.filter((id) => valid.has(id)))];
+  if (ids.length === 0) return { error: "Select at least one brand." };
+  return { allAccounts: false, accountIds: ids };
+}
 
 const setPasswordSchema = z.object({
   userId: z.string().uuid(),
@@ -61,6 +91,13 @@ export async function inviteUser(input: unknown): Promise<UserMutationResult> {
     const { email, name, role, password } = parsed.data;
     const normalizedEmail = email.trim().toLowerCase();
 
+    const grant = await resolveGrant(
+      role,
+      parsed.data.allAccounts,
+      parsed.data.accountIds,
+    );
+    if ("error" in grant) return { ok: false, error: grant.error };
+
     const [existing] = await db
       .select({ id: users.id })
       .from(users)
@@ -71,10 +108,24 @@ export async function inviteUser(input: unknown): Promise<UserMutationResult> {
     }
 
     const hash = await hashPassword(password);
-    const [inserted] = await db
-      .insert(users)
-      .values({ email: normalizedEmail, name, role, passwordHash: hash })
-      .returning({ id: users.id });
+    const inserted = await db.transaction(async (tx) => {
+      const [created] = await tx
+        .insert(users)
+        .values({
+          email: normalizedEmail,
+          name,
+          role,
+          passwordHash: hash,
+          allAccounts: grant.allAccounts,
+        })
+        .returning({ id: users.id });
+      if (created && !grant.allAccounts && grant.accountIds.length) {
+        await tx.insert(userAccounts).values(
+          grant.accountIds.map((accountId) => ({ userId: created.id, accountId })),
+        );
+      }
+      return created;
+    });
 
     try {
       revalidatePath("/admin/users");
@@ -88,7 +139,13 @@ export async function inviteUser(input: unknown): Promise<UserMutationResult> {
         entityId: inserted.id,
         entityLabel: normalizedEmail,
         actorUserId: me.id,
-        meta: { email: normalizedEmail, name, role },
+        meta: {
+          email: normalizedEmail,
+          name,
+          role,
+          allAccounts: grant.allAccounts,
+          accountIds: grant.accountIds,
+        },
       });
     }
     return { ok: true };
@@ -175,6 +232,100 @@ export async function updateUserAccess(
       meta: {
         from: { role: before.role, permissions: before.permissions },
         to: { role, permissions },
+      },
+    });
+    return { ok: true };
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : "Unknown error",
+    };
+  }
+}
+
+/**
+ * Set a user's BRAND membership (WHERE they can work) — the counterpart to
+ * `updateUserAccess` (WHAT they can do). `allAccounts: true` → every brand,
+ * including brands created later; `false` → only `accountIds` (≥1 required).
+ *
+ * Guardrails mirror the access card: you can't change your OWN brand access,
+ * admins are forced all-brands, and the before/after is audited
+ * (`user.brands_update`).
+ */
+export async function updateUserBrands(
+  input: unknown,
+): Promise<UserMutationResult> {
+  try {
+    const me = await requirePermission("users.manage");
+    const parsed = brandsSchema.safeParse(input);
+    if (!parsed.success) {
+      return {
+        ok: false,
+        error: parsed.error.issues[0]?.message ?? "Invalid input",
+      };
+    }
+    const { userId } = parsed.data;
+    if (userId === me.id) {
+      return { ok: false, error: "You can't change your own brand access." };
+    }
+
+    const [target] = await db
+      .select({
+        email: users.email,
+        role: users.role,
+        allAccounts: users.allAccounts,
+      })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+    if (!target) return { ok: false, error: "User not found." };
+
+    const grant = await resolveGrant(
+      target.role as "admin" | "editor" | "viewer",
+      parsed.data.allAccounts,
+      parsed.data.accountIds,
+    );
+    if ("error" in grant) return { ok: false, error: grant.error };
+
+    // Snapshot the current memberships for the audit before/after.
+    const beforeIds = (
+      await db
+        .select({ accountId: userAccounts.accountId })
+        .from(userAccounts)
+        .where(eq(userAccounts.userId, userId))
+    ).map((r) => r.accountId);
+
+    await db.transaction(async (tx) => {
+      await tx
+        .update(users)
+        .set({ allAccounts: grant.allAccounts })
+        .where(eq(users.id, userId));
+      // Full replace: clear then re-insert the exact set (empty for all-brands).
+      await tx.delete(userAccounts).where(eq(userAccounts.userId, userId));
+      if (!grant.allAccounts && grant.accountIds.length) {
+        await tx
+          .insert(userAccounts)
+          .values(grant.accountIds.map((accountId) => ({ userId, accountId })));
+      }
+    });
+
+    try {
+      revalidatePath("/admin/users");
+    } catch (err) {
+      console.warn("revalidatePath after brands change failed:", err);
+    }
+    await logAudit({
+      action: AUDIT_ACTIONS.USER_BRANDS_UPDATE,
+      entityType: "user",
+      entityId: userId,
+      entityLabel: target.email,
+      actorUserId: me.id,
+      meta: {
+        from: { allAccounts: target.allAccounts, accountIds: beforeIds.sort() },
+        to: {
+          allAccounts: grant.allAccounts,
+          accountIds: [...grant.accountIds].sort(),
+        },
       },
     });
     return { ok: true };

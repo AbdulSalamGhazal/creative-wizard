@@ -55,6 +55,14 @@ export const users = pgTable("users", {
    */
   permissions: text("permissions").array(),
   /**
+   * Brand membership scope. `true` (default/legacy) → member of EVERY brand,
+   * including brands created later; `false` → only the brands listed in
+   * `user_accounts`. Admins are ALWAYS effectively `true` (enforced in code,
+   * like the permission bypass). Combined with permissions: permissions say
+   * WHAT a user can do, membership says WHERE. See lib/tenant.ts.
+   */
+  allAccounts: boolean("all_accounts").notNull().default(true),
+  /**
    * The user's remembered default date range, applied on any page that has no
    * explicit from/to in its URL. A preset key (e.g. "30", "lifetime" — kept
    * rolling) or `custom:FROM..TO`. Null until they pick a range. Per-user
@@ -82,6 +90,28 @@ export const accounts = pgTable("accounts", {
   statusWindowHours: integer("status_window_hours").notNull().default(24),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+/**
+ * Brand membership — which brands a RESTRICTED user (`users.all_accounts =
+ * false`) may see. Consulted ONLY when `all_accounts = false`; all-accounts
+ * users and admins ignore it. Global (non-tenant) table, like `users` itself —
+ * no `account_id` default trick. Both FKs cascade so deleting a user or a brand
+ * cleans up its memberships.
+ */
+export const userAccounts = pgTable(
+  "user_accounts",
+  {
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    accountId: uuid("account_id")
+      .notNull()
+      .references(() => accounts.id, { onDelete: "cascade" }),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.userId, t.accountId] }),
+  }),
+);
 
 /** Shared `account_id` column definition for tenant-scoped tables. */
 const accountId = () =>

@@ -78,7 +78,7 @@ export async function resetAndSeed() {
   await db.execute(sql`
     TRUNCATE TABLE
       performance_records, upload_batches, campaigns, creatives,
-      products, accounts, users
+      products, user_accounts, accounts, users
     RESTART IDENTITY CASCADE
   `);
 

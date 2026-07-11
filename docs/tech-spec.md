@@ -45,9 +45,9 @@ A **multi-tenant creative-performance analytics tool** for paid social. It manag
   - `csv/platforms/types.ts` — `INTERNAL_FIELDS`/`FIELD_META`, typed so a new field fails compilation anywhere it isn't described
 - **Navigation feedback:** any component driving route/searchParam changes uses `useNavTransition()` (`lib/nav-progress.ts`) so the global progress bar reflects pending navigation.
 
-## 4. Data model (16 tables)
+## 4. Data model (17 tables)
 
-**Tenancy & people:** `accounts` (brands; `status_window_hours` per brand), `users` (role tier + granular `permissions`, §5).
+**Tenancy & people:** `accounts` (brands; `status_window_hours` per brand), `users` (role tier + granular `permissions` + `all_accounts` brand-membership flag, §5), `user_accounts` (brand membership — the brands a restricted `all_accounts = false` user may see; global join table, both FKs `ON DELETE CASCADE`; consulted only when `all_accounts = false`, §5).
 **Catalog:** `products`, `creatives` (required `product_id`; unique per account; the legacy manual `status` column is dead — status is derived, §4.2), `tags`, `creative_tags` (no `account_id` — scoped transitively via the creative; cascading tag operations MUST be bounded by an account-scoped creatives subquery), `creative_platform_overrides` (manual per-creative×platform termination).
 **Campaigns:** `campaigns` — the registry. `performance_records.campaign_id` is a NOT NULL FK to it; the display name is the built `Campaign ➤ Adset (IG|FB)` string, created only via `buildCampaignName()`.
 **Performance:** `performance_records` — the fact table. **Unique on `(creative_id, platform, campaign_id, date)`.** Carries `excluded_from_aggregates` and a NOT NULL `upload_batch_id`.
@@ -70,8 +70,9 @@ A **multi-tenant creative-performance analytics tool** for paid social. It manag
 
 - **Session cookie:** `<userId>.<issuedAtMs>.<hmac>`, HMAC-SHA256 over `AUTH_SECRET`, `timingSafeEqual`, 30-day server-enforced TTL, future-issued rejection. Changing the format logs every user out — treat as a breaking change.
 - **Tiers:** `admin` bypasses all permission checks. Below admin, access is **granular per-user permissions** from the catalog in `lib/permissions.ts` (~20 permissions in 5 groups: creatives, campaigns, data & uploads, catalog & config, administration). `users.permissions` NULL ⇒ fall back to the role preset (`editor` preset = legacy editor powers; `viewer` = read-only). Enforcement is server-side via `requirePermission()` in every action/route; the UI additionally hides what the user can't do.
-- **Management UI:** the unified **Team** page (`/admin/users`; `/admin/access` redirects there) — per-user preset selector (Admin/Editor/Viewer/Custom) + grouped permission checkboxes derived from the catalog. Guardrails: no self-editing, last admin protected, permission changes audit-logged.
-- Reading dashboards requires only a valid session. Brand switching (`ccms_account` cookie) is open to all signed-in users — **multi-tenancy is an organizational boundary, not a security boundary.**
+- **Brand membership (WHERE, vs. permissions' WHAT):** `users.all_accounts` (default `true` = every brand, **including brands created later**) + the `user_accounts` join table gate which brands a user may see. **Admins are always effectively all-accounts.** Enforced at tenant resolution (`lib/tenant.ts` + pure `lib/account-access.ts`): `listAccounts()` returns only allowed brands (switcher, Brands tab, `setActiveAccount` all follow); `getActiveAccountId()` honors the `ccms_account` cookie only when it names an allowed brand, else falls back to the user's first allowed brand (a forged/stale cookie is not an error); zero allowed brands → the full-page "No brand access" screen (rendered by the dashboard layout before any tenant query). `listAllAccounts()` is the unfiltered list (Team admin + slug/grant checks).
+- **Management UI:** the unified **Team** page (`/admin/users`; `/admin/access` redirects there) — per-user preset selector (Admin/Editor/Viewer/Custom) + grouped permission checkboxes derived from the catalog, plus a **Brands** section (All-brands toggle or per-brand checkboxes; admins forced all-brands). Guardrails: no self-editing (access *and* brands), last admin protected, changes audit-logged (`user.permissions_update`, `user.brands_update`).
+- Reading dashboards requires only a valid session and membership in ≥1 brand. Brand switching (`ccms_account` cookie) is scoped to the user's allowed brands — **brand membership IS a security boundary; permissions gate capabilities within a brand.**
 
 ## 6. CSV ingestion (binding spec: `docs/validation-spec.md` v1.2)
 

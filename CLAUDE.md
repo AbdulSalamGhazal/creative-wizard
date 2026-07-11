@@ -276,14 +276,35 @@ This app is deployed and in production use. Treat `main` as shippable.
   itself) and the sonner toaster are filtered out. A browser web app CANNOT
   silently capture the OS desktop — that needs `getDisplayMedia`, which always
   shows a picker; this DOM-render path is the no-prompt option.
-- **Multi-tenancy = row-level `account_id`, scoped in the query/action layer
-  (NOT a security boundary).** The app manages 2–5 brands from one DB; the
-  active brand is the `ccms_account` cookie, resolved per request by the
-  cache()-deduped `getActiveAccountId()` / `listAccounts()` / `getActiveAccount()`
-  in `lib/tenant.ts` (mirrors `auth()`). Any signed-in user may switch to any
-  brand via the top-bar `AccountSwitcher` (next to the title) or the **Brands**
-  tab under `/admin/catalog`; `setActiveAccount`/`createAccount`/`renameAccount`
-  live in `app/actions/account.ts`. Every tenant table carries `account_id`
+- **Multi-tenancy = row-level `account_id`, scoped in the query/action layer;
+  brand membership IS enforced at tenant resolution (2026-07).** The app manages
+  2–5 brands from one DB; the active brand is the `ccms_account` cookie, resolved
+  per request by the cache()-deduped `getActiveAccountId()` / `listAccounts()` /
+  `getActiveAccount()` in `lib/tenant.ts` (mirrors `auth()`). **Brand membership
+  gates which brands a user may see** (permissions say WHAT, membership says
+  WHERE): `users.all_accounts = true` (default/legacy) → member of EVERY brand,
+  **including brands created later**; `false` → only the brands in the
+  `user_accounts` join table. **Admins are always effectively all-accounts**
+  (code bypass, like the permission bypass). The pure resolution logic lives in
+  `lib/account-access.ts` (`allowedAccountIds` + `resolveActiveAccountId`), fed
+  live data by `lib/tenant.ts`: `listAccounts()` returns only ALLOWED brands (so
+  the `AccountSwitcher`, the **Brands** tab, and `setActiveAccount`'s validation
+  all enforce membership), and `getActiveAccountId()` returns the cookie's brand
+  only when it's ALLOWED — a forged/stale cookie deterministically falls back to
+  the user's first allowed brand (NOT an error), and **zero allowed brands throws
+  `NO_BRAND_ACCESS`**, which the dashboard layout pre-empts with the full-page
+  "No brand access" screen BEFORE any tenant query runs. `listAllAccounts()` is
+  the UNFILTERED list (the Team admin, whose `users.manage` editor may grant any
+  brand; the slug-uniqueness / grant-validation checks). Membership is managed on
+  the **Team** page (`updateUserBrands` / invite in `app/actions/user.ts`, audited
+  `user.brands_update`); `createAccount` auto-grants a restricted creator
+  membership to the new brand in-transaction. `setActiveAccount`/`createAccount`/
+  `renameAccount`/`setStatusWindow` (the last two now gated to an allowed brand)
+  live in `app/actions/account.ts`. The upload validate→commit flow needs no
+  membership change — commit uses the account pinned on the validation session at
+  validate time (allowed then). Migration **0027** (additive: `all_accounts` NOT
+  NULL DEFAULT true + `user_accounts` — existing users keep today's every-brand
+  behavior). Every tenant table carries `account_id`
   (FK → `accounts`, DEFAULT the Urjwan id `00000000-0000-0000-0000-000000000001`):
   products, creatives, tags, performance_records, upload_batches,
   upload_validation_sessions, summary_views, platform_field_mappings,
