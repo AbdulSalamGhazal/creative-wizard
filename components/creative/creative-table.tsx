@@ -12,22 +12,39 @@ import { STATUS_LABEL } from "@/lib/creative-status";
 import { rowsToCsv, todayStamp, type CsvColumn } from "@/lib/csv-export";
 import { isoDate, usd } from "@/lib/format";
 
-const CSV_COLUMNS: CsvColumn<CreativeListRow>[] = [
-  { key: "name", label: "Creative", value: (r) => r.name },
-  { key: "product", label: "Product", value: (r) => r.productName },
-  { key: "type", label: "Type", value: (r) => r.type },
-  { key: "status", label: "Status", value: (r) => STATUS_LABEL[r.status] },
-  { key: "launchDate", label: "Launch date", value: (r) => r.launchDate ?? "" },
-  { key: "spend7d", label: "7d spend (USD)", value: (r) => r.spend7d },
-  { key: "spend30d", label: "30d spend (USD)", value: (r) => r.spend30d },
-  { key: "tags", label: "Tags", value: (r) => r.tags.join("; ") },
-];
-
 const TYPE_LABEL: Record<CreativeListRow["type"], string> = {
   video: "Video",
   image: "Image",
   slides: "Slides",
 };
+
+/**
+ * The Library export carries the creative's FULL data (the on-screen table
+ * still renders its usual subset). Tags stay in ONE cell, comma-separated —
+ * never one column per tag. Fields that can contain commas / quotes / newlines
+ * (tags, notes, links) are quoted by `rowsToCsv` (RFC 4180).
+ */
+export const CSV_COLUMNS: CsvColumn<CreativeListRow>[] = [
+  { key: "name", label: "Creative", value: (r) => r.name },
+  { key: "product", label: "Product", value: (r) => r.productName },
+  { key: "type", label: "Type", value: (r) => TYPE_LABEL[r.type] },
+  { key: "status", label: "Status", value: (r) => STATUS_LABEL[r.status] },
+  // Unrated stays an EMPTY cell — never 0.
+  { key: "priority", label: "Priority", value: (r) => r.priority ?? "" },
+  { key: "launchDate", label: "Launch date", value: (r) => r.launchDate ?? "" },
+  { key: "tags", label: "Tags", value: (r) => r.tags.join(", ") },
+  { key: "sourceLink", label: "Source link", value: (r) => r.sourceLink ?? "" },
+  { key: "notes", label: "Notes", value: (r) => r.notes ?? "" },
+  { key: "spend7d", label: "7d spend (USD)", value: (r) => r.spend7d },
+  { key: "spend30d", label: "30d spend (USD)", value: (r) => r.spend30d },
+  { key: "createdBy", label: "Created by", value: (r) => r.createdByName ?? "" },
+  { key: "createdAt", label: "Created at", value: (r) => isoDate(r.createdAt) },
+  {
+    key: "thumbnailUrl",
+    label: "Thumbnail URL",
+    value: (r) => r.thumbnailUrl ?? "",
+  },
+];
 
 // Sortable columns → their asc/desc URL sort values (validated in
 // validators/creative.ts). Clicking a header cycles desc → asc → default.

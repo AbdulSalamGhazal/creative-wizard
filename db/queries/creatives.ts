@@ -18,6 +18,7 @@ import {
   performanceRecords,
   products,
   tags,
+  users,
   platformEnum,
   type creativeTypeEnum,
 } from "@/db/schema";
@@ -53,6 +54,13 @@ export interface CreativeListRow {
   tags: string[];
   spend7d: number;
   spend30d: number;
+  /** Manual Priority (1..3, 3 = highest); null = unrated. */
+  priority: number | null;
+  notes: string | null;
+  sourceLink: string | null;
+  /** Display name of the creator (joined from `users`), null if unresolvable. */
+  createdByName: string | null;
+  createdAt: Date;
 }
 
 export interface CreativeListResult {
@@ -173,10 +181,20 @@ export async function listCreatives(
       tags: tagsAlias,
       spend7d: spend7Alias,
       spend30d: spendAlias,
+      // Export-only fields (the on-screen table renders the same columns as
+      // before) — the Library CSV exports the creative's full data.
+      priority: creatives.priority,
+      notes: creatives.notes,
+      sourceLink: creatives.sourceLink,
+      createdAt: creatives.createdAt,
+      createdByName: users.name,
       totalMatching: sql<string>`COUNT(*) OVER ()`,
     })
     .from(creatives)
     .innerJoin(products, eq(products.id, creatives.productId))
+    // LEFT join (not inner) so a creative can never drop out of the Library if
+    // its creator row is ever unresolvable. users.id is unique → no fan-out.
+    .leftJoin(users, eq(users.id, creatives.createdByUserId))
     .leftJoin(spend30d, sql`spend_30d.creative_id = ${creatives.id}`)
     .leftJoin(spend7d, sql`spend_7d.creative_id = ${creatives.id}`)
     .leftJoin(tagAgg, eq(tagAgg.creativeId, creatives.id))
@@ -235,6 +253,11 @@ export async function listCreatives(
     tags: r.tags ?? [],
     spend7d: r.spend7d === null ? 0 : Number(r.spend7d),
     spend30d: r.spend30d === null ? 0 : Number(r.spend30d),
+    priority: r.priority,
+    notes: r.notes,
+    sourceLink: r.sourceLink,
+    createdByName: r.createdByName,
+    createdAt: r.createdAt,
   }));
 
   // Status filter runs in JS, AFTER status is attached — the dynamic status
