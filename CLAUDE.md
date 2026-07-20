@@ -59,6 +59,7 @@ Do not introduce a new dependency without a one-line justification in the PR des
 
 - The dashboard must feel polished. Every page has tailored skeletons. Empty states are designed-out, not blank.
 - Use shadcn primitives. Don't reinvent components that exist.
+- Every new route sets a `metadata.title` (matching its sidebar/h1 label); detail routes use `generateMetadata` over a `cache()`-deduped query so the tab title and the page share one fetch. The root layout's `%s · Wizard` template adds the suffix — don't repeat it, and never add a `metadata.icons` key (the tab icon is the `app/icon.png` file convention).
 - Tabular figures (`font-variant-numeric: tabular-nums`) on every number in tables.
 - USD formatting: `Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' })`.
 - Dates: ISO format in tables, friendlier formats in chart tooltips and headers.

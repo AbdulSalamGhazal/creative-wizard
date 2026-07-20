@@ -3,6 +3,8 @@ import { auth } from "@/lib/auth";
 import { safeInternalPath } from "@/lib/url";
 import { SignInForm } from "@/components/auth/signin-form";
 
+export const metadata = { title: "Sign in" };
+
 export default async function SignInPage({
   searchParams,
 }: {

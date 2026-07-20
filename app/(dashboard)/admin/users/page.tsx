@@ -11,6 +11,8 @@ import { PageHeader } from "@/components/layout/page-header";
 
 export const dynamic = "force-dynamic";
 
+export const metadata = { title: "Team" };
+
 /**
  * Team — the single place to add people and manage what they can do. Invite at
  * the top; each member is a card that owns their access (role preset + granular

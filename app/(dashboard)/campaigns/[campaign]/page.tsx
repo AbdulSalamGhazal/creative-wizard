@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Target } from "lucide-react";
@@ -46,6 +47,22 @@ export const dynamic = "force-dynamic";
  *  2. one line per creative over time (any metric, smooth, expand),
  *  3. the raw uploaded rows (per record or grouped by day, sortable, all fields).
  */
+/**
+ * Tab title: "Campaign · <name> · Wizard". `campaignMeta` is cache()-wrapped, so
+ * this shares the page's fetch rather than querying twice. The stored name keeps
+ * its `➤` / `(IG)` decoration — decode the URL param so the tab shows it as
+ * written, not percent-encoded. Unknown campaign → the section name.
+ */
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ campaign: string }>;
+}): Promise<Metadata> {
+  const { campaign } = await params;
+  const meta = await campaignMeta(safeDecodeURIComponent(campaign));
+  return { title: meta ? `Campaign · ${meta.campaign}` : "Campaigns" };
+}
+
 export default async function CampaignDetailPage({
   params,
   searchParams,

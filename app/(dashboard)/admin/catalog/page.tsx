@@ -36,6 +36,8 @@ interface Props {
   searchParams: Promise<{ tab?: string }>;
 }
 
+export const metadata = { title: "Configuration" };
+
 /**
  * Configuration admin — Products, Tags, Platforms, CSV mapping, and the
  * Summary Rate rules under one page, switched via the `?tab=` query param so

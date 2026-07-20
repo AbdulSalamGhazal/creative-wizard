@@ -23,6 +23,8 @@ function pickFirst(value: string | string[] | undefined): string | undefined {
   return value;
 }
 
+export const metadata = { title: "Creatives" };
+
 export default async function CreativesPage({
   searchParams,
 }: {

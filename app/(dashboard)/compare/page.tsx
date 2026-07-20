@@ -51,6 +51,8 @@ function sideSummary(side: CompareSide): string {
   return side.from && side.to ? `${sel} · ${side.from} → ${side.to}` : sel;
 }
 
+export const metadata = { title: "Compare" };
+
 export default async function ComparePage({
   searchParams,
 }: {

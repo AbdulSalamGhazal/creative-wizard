@@ -28,6 +28,8 @@ function pickFirst(v: string | string[] | undefined): string | undefined {
 
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
 
+export const metadata = { title: "Trends · Launches" };
+
 export default async function TrendsLaunchesPage({
   searchParams,
 }: {

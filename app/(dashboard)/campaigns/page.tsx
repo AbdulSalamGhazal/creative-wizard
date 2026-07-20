@@ -28,6 +28,8 @@ function pickFirst(v: string | string[] | undefined): string | undefined {
   return Array.isArray(v) ? v[0] : v;
 }
 
+export const metadata = { title: "Campaigns" };
+
 /**
  * Campaigns — a single rich table, one row per campaign, with the same toolkit
  * as Summary: saved/custom views, URL-driven sort, column visibility, and the

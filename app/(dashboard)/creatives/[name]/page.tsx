@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { auth, can } from "@/lib/auth";
 import { Card, CardContent } from "@/components/ui/card";
@@ -76,6 +77,21 @@ function buildQuery(sp: SearchParams, keys: readonly string[]): string {
     if (first) qs.set(k, first);
   }
   return qs.toString();
+}
+
+/**
+ * Tab title: "Creative · <name> · Wizard". `getCreativeByName` is cache()-wrapped,
+ * so this shares the page's fetch rather than querying twice. An unknown creative
+ * falls back to the section name (the page 404s anyway).
+ */
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ name: string }>;
+}): Promise<Metadata> {
+  const { name } = await params;
+  const creative = await getCreativeByName(safeDecodeURIComponent(name));
+  return { title: creative ? `Creative · ${creative.name}` : "Creatives" };
 }
 
 export default async function CreativeDetailPage({

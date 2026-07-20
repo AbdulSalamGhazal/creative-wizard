@@ -4,6 +4,8 @@ import { UploadForm } from "@/components/upload/upload-form";
 import { PageShell } from "@/components/layout/page-shell";
 import { PageHeader } from "@/components/layout/page-header";
 
+export const metadata = { title: "New upload" };
+
 export default async function NewUploadPage() {
   const user = await auth();
   if (!user || !can(user, "upload.import")) redirect("/uploads");

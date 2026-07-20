@@ -22,6 +22,8 @@ function pickFirst(v: string | string[] | undefined): string | undefined {
   return Array.isArray(v) ? v[0] : v;
 }
 
+export const metadata = { title: "Trends · Video" };
+
 export default async function TrendsVideoPage({
   searchParams,
 }: {

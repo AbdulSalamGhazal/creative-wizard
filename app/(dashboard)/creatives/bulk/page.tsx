@@ -7,6 +7,8 @@ import { PageHeader } from "@/components/layout/page-header";
 
 export const dynamic = "force-dynamic";
 
+export const metadata = { title: "Bulk add creatives" };
+
 export default async function BulkCreativesPage() {
   const user = await auth();
   if (!user || !can(user, "creative.create")) redirect("/creatives");

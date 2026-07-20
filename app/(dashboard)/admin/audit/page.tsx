@@ -28,6 +28,8 @@ interface Props {
   searchParams: Promise<{ category?: string }>;
 }
 
+export const metadata = { title: "Audit log" };
+
 export default async function AuditPage({ searchParams }: Props) {
   await requirePermission("audit.view");
   const { category } = await searchParams;

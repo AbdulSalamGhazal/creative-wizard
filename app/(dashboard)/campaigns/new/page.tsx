@@ -4,6 +4,8 @@ import { CampaignCreateForm } from "@/components/campaign/campaign-create-form";
 import { PageShell } from "@/components/layout/page-shell";
 import { PageHeader } from "@/components/layout/page-header";
 
+export const metadata = { title: "New campaign" };
+
 export default async function NewCampaignPage() {
   const user = await auth();
   if (!user || !can(user, "campaign.create")) redirect("/campaigns");

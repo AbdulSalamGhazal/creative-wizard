@@ -1,3 +1,4 @@
+import { cache } from "react";
 import {
   and,
   asc,
@@ -376,9 +377,14 @@ export interface CreativeDetail {
   tags: string[];
 }
 
-export async function getCreativeByName(
+/**
+ * `cache()`-wrapped so the detail page and its `generateMetadata` (which needs
+ * the name for the tab title) share ONE fetch per request instead of querying
+ * twice. Mirrors the dedupe pattern in lib/tenant.ts / lib/auth.ts.
+ */
+export const getCreativeByName = cache(async (
   name: string,
-): Promise<CreativeDetail | null> {
+): Promise<CreativeDetail | null> => {
   const acct = await getActiveAccountId();
   const [row] = await db
     .select({
@@ -413,7 +419,7 @@ export async function getCreativeByName(
     type: row.type as CreativeType,
     tags: tagRows.map((t) => t.tag),
   };
-}
+});
 
 export interface CreativeDeletionSummary {
   /** Total performance_records that would be hard-deleted with the creative. */

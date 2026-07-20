@@ -44,8 +44,16 @@ const plexMono = IBM_Plex_Mono({
 // next-themes reads the corrected `cw-theme` value.
 const themeMigrationScript = `(function(){try{var k='cw-theme',v=localStorage.getItem(k),m={slate:'midnight',carbon:'midnight',ocean:'midnight',sand:'frost',rose:'frost'},ok={midnight:1,contrast:1,frost:1,paper:1};if(v){if(m[v]){localStorage.setItem(k,m[v]);}else if(!ok[v]){localStorage.setItem(k,'midnight');}}localStorage.removeItem('cw-font');}catch(e){}})();`;
 
+/**
+ * Browser-tab titles. Every page sets its own `metadata.title` (details use
+ * `generateMetadata`), and this template appends the product suffix — so a tab
+ * reads "Creatives · Wizard" or "Creative · URJ_VID_001 · Wizard". `default`
+ * covers any route that sets none. NOTE: the tab ICON comes from the
+ * `app/icon.png` file convention, not from `metadata.icons` — don't add an
+ * `icons` key here or it will override that.
+ */
 export const metadata: Metadata = {
-  title: "WIZARD",
+  title: { template: "%s · Wizard", default: "Wizard" },
   description: "WIZARD — creative performance management",
 };
 

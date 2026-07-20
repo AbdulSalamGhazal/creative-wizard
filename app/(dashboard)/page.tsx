@@ -21,6 +21,8 @@ function pickFirst(value: string | string[] | undefined): string | undefined {
   return value;
 }
 
+export const metadata = { title: "Dashboard" };
+
 export default async function DashboardPage({
   searchParams,
 }: {

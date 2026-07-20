@@ -52,6 +52,8 @@ function entityHref(dim: ChangeDim, key: string, label: string): string {
   }
 }
 
+export const metadata = { title: "Trends · Changes" };
+
 export default async function TrendsOverTimePage({
   searchParams,
 }: {

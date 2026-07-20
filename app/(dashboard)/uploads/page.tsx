@@ -19,6 +19,8 @@ const ROLLBACK_WINDOW_MS = 24 * 60 * 60 * 1000;
 // Always fetch fresh — this page reflects newly-committed batches.
 export const dynamic = "force-dynamic";
 
+export const metadata = { title: "Uploads" };
+
 export default async function UploadsPage() {
   const currentUser = await auth();
   const canImport = currentUser ? can(currentUser, "upload.import") : false;

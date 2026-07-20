@@ -27,6 +27,8 @@ function pickFirst(value: string | string[] | undefined): string | undefined {
   return value;
 }
 
+export const metadata = { title: "Summary" };
+
 export default async function SummaryPage({
   searchParams,
 }: {

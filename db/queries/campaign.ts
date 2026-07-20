@@ -1,3 +1,4 @@
+import { cache } from "react";
 import {
   and,
   asc,
@@ -322,8 +323,16 @@ export async function campaignRegistry(
   return r ? { id: r.id, platform: r.platform as Platform, objective: r.objective } : null;
 }
 
-/** All-time facts for one campaign. Null when the campaign has no records. */
-export async function campaignMeta(name: string): Promise<CampaignMeta | null> {
+/**
+ * All-time facts for one campaign. Null when the campaign has no records.
+ *
+ * `cache()`-wrapped so the detail page and its `generateMetadata` (which needs
+ * the name for the tab title) share ONE fetch per request instead of querying
+ * twice. Mirrors the dedupe pattern in lib/tenant.ts / lib/auth.ts.
+ */
+export const campaignMeta = cache(async (
+  name: string,
+): Promise<CampaignMeta | null> => {
   const acct = await getActiveAccountId();
   const [r] = await db
     .select({
@@ -358,7 +367,7 @@ export async function campaignMeta(name: string): Promise<CampaignMeta | null> {
     firstDate: r.firstDate,
     lastDate: r.lastDate,
   };
-}
+});
 
 export interface CampaignDeletionSummary {
   /** Total performance_records that would be hard-deleted with the campaign. */
