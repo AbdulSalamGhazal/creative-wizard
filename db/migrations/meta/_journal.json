@@ -204,6 +204,13 @@
       "when": 1783768911902,
       "tag": "0028_loving_rumiko_fujikawa",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1784982663256,
+      "tag": "0029_sticky_stepford_cuckoos",
+      "breakpoints": true
     }
   ]
 }

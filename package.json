@@ -18,6 +18,7 @@
     "test:db": "vitest run --config vitest.config.db.ts"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.26.0",
     "@vercel/blob": "^2.4.0",
     "bcryptjs": "^3.0.3",
     "class-variance-authority": "^0.7.1",
@@ -25,6 +26,7 @@
     "cmdk": "^1.1.1",
     "drizzle-orm": "^0.36.4",
     "lucide-react": "^0.468.0",
+    "mcp-handler": "^1.1.0",
     "modern-screenshot": "^4.7.0",
     "next": "15.5.18",
     "next-themes": "^0.4.6",

@@ -74,6 +74,39 @@ export const users = pgTable("users", {
 });
 
 /**
+ * Personal access tokens — a user links their OWN LLM to the read-only MCP
+ * server (`/api/mcp`) with a bearer token that ACTS AS THEM (brand membership +
+ * viewer-level read apply exactly as in the web app). Global table, like
+ * `users` — no `account_id`. The raw secret is NEVER stored: only its SHA-256
+ * (`token_hash`, unique) and a short display `prefix`. See lib/api-token.ts.
+ */
+export const apiTokens = pgTable(
+  "api_tokens",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    /** User-given label so they can tell tokens apart ("Claude Desktop"). */
+    name: varchar("name", { length: 64 }).notNull(),
+    /** SHA-256 hex of the raw secret. Unique so lookup is a single indexed hit. */
+    tokenHash: text("token_hash").notNull().unique(),
+    /** Display-only: `cwz_` + first 8 chars of the secret. NOT sensitive. */
+    prefix: varchar("prefix", { length: 12 }).notNull(),
+    /** Stamped on use (throttled to ≤ once/min) so the list can show recency. */
+    lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    /** Set on revoke; a non-null value rejects the token at verify time. */
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  },
+  (t) => ({
+    userIdx: index("api_tokens_user_idx").on(t.userId),
+  }),
+);
+
+/**
  * Brands / tenants. Global (shared across the app); every tenant-scoped table
  * carries an `account_id` FK to this table. Users are global too — any user can
  * switch to any account via the brand switcher.

@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { KeyRound, LogOut } from "lucide-react";
+import Link from "next/link";
+import { KeyRound, LogOut, Plug } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -57,6 +58,12 @@ export function UserMenu({ user }: Props) {
             </div>
           </DropdownMenuLabel>
           <DropdownMenuSeparator />
+          <DropdownMenuItem asChild>
+            <Link href="/account/api">
+              <Plug className="w-3.5 h-3.5" />
+              API access
+            </Link>
+          </DropdownMenuItem>
           <DropdownMenuItem
             onSelect={(e) => {
               e.preventDefault();

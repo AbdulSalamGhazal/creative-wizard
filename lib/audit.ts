@@ -51,6 +51,10 @@ export const AUDIT_ACTIONS = {
   USER_BRANDS_UPDATE: "user.brands_update",
   USER_PASSWORD_RESET: "user.password_reset",
 
+  // Personal API access tokens (MCP)
+  TOKEN_CREATE: "token.create",
+  TOKEN_REVOKE: "token.revoke",
+
   // Platform header mappings
   MAPPING_ADD: "mapping.add",
   MAPPING_REMOVE: "mapping.remove",
@@ -168,6 +172,8 @@ export const AUDIT_LABELS: Record<AuditAction, string> = {
   "user.permissions_update": "Updated user access",
   "user.brands_update": "Updated brand access",
   "user.password_reset": "Reset user password",
+  "token.create": "Created API token",
+  "token.revoke": "Revoked API token",
   "mapping.add": "Added CSV mapping",
   "mapping.remove": "Removed CSV mapping",
   "auth.signin": "Signed in",
@@ -211,6 +217,8 @@ export const AUDIT_CATEGORIES: Record<AuditAction, AuditEntityType> = {
   "user.permissions_update": "user",
   "user.brands_update": "user",
   "user.password_reset": "user",
+  "token.create": "user",
+  "token.revoke": "user",
   "mapping.add": "mapping",
   "mapping.remove": "mapping",
   "auth.signin": "auth",

@@ -3,8 +3,9 @@ import { cookies } from "next/headers";
 import { asc, eq, inArray } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { accounts, userAccounts } from "@/db/schema";
-import { auth } from "@/lib/auth";
+import { auth, loadUserById, type SessionUser } from "@/lib/auth";
 import { resolveActiveAccountId } from "@/lib/account-access";
+import { getTenantContext, withTenantContext } from "@/lib/tenant-context";
 
 /**
  * Active-brand ("account") resolution + brand-membership enforcement.
@@ -65,10 +66,9 @@ export const listAllAccounts = cache(async (): Promise<Account[]> => {
  * `user_accounts` memberships with the brands that still exist. Empty when the
  * user is signed out or has been stripped of every brand.
  */
-export const allowedAccounts = cache(async (): Promise<Account[]> => {
-  const user = await auth();
-  if (!user) return [];
-
+export async function allowedAccountsForUser(
+  user: Pick<SessionUser, "id" | "role" | "allAccounts">,
+): Promise<Account[]> {
   // Admins and all-accounts users see every brand (correct — the full list may
   // serialize to their client). A RESTRICTED user must NEVER materialize the
   // unfiltered list on their render path: we query ONLY their member brands
@@ -98,6 +98,12 @@ export const allowedAccounts = cache(async (): Promise<Account[]> => {
     .from(accounts)
     .where(inArray(accounts.id, memberAccountIds))
     .orderBy(asc(accounts.createdAt));
+}
+
+/** The signed-in (cookie) user's allowed brands. `cache()`d per request. */
+export const allowedAccounts = cache(async (): Promise<Account[]> => {
+  const user = await auth();
+  return user ? allowedAccountsForUser(user) : [];
 });
 
 /**
@@ -116,6 +122,11 @@ export const listAccounts = cache((): Promise<Account[]> => allowedAccounts());
  * against this up-front so it never surfaces to a real page render.
  */
 export const getActiveAccountId = cache(async (): Promise<string> => {
+  // MCP / cookieless callers set an explicit, already-membership-validated
+  // context via `runWithTenant`; it wins over the cookie path.
+  const override = getTenantContext();
+  if (override) return override.accountId;
+
   const allowed = await listAccounts();
   const jar = await cookies();
   const chosen = jar.get(ACCOUNT_COOKIE)?.value;
@@ -126,6 +137,28 @@ export const getActiveAccountId = cache(async (): Promise<string> => {
   if (id === null) throw new Error(NO_BRAND_ACCESS);
   return id;
 });
+
+/**
+ * Run `fn` with an EXPLICIT active brand + user, bypassing cookies — for the MCP
+ * server, whose requests carry a bearer token, not a session cookie. Validates
+ * that `accountId` is one of `userId`'s ALLOWED brands before entering the
+ * context (so a token can never reach a brand its owner isn't a member of), then
+ * `getActiveAccountId()` / `auth()` transparently read it and every
+ * `db/queries/*` function is tenant-correct with zero changes inside it.
+ */
+export async function runWithTenant<T>(
+  accountId: string,
+  userId: string,
+  fn: () => Promise<T>,
+): Promise<T> {
+  const user = await loadUserById(userId);
+  if (!user) throw new Error("Unknown user for tenant context");
+  const allowed = await allowedAccountsForUser(user);
+  if (!allowed.some((a) => a.id === accountId)) {
+    throw new Error("Account not allowed for this user");
+  }
+  return withTenantContext({ accountId, userId }, fn);
+}
 
 /** The active account record (for the switcher's current selection + chrome). */
 export const getActiveAccount = cache(async (): Promise<Account> => {

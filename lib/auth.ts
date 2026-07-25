@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { users } from "@/db/schema";
 import { readSessionUserId } from "@/lib/auth-cookie";
+import { getTenantContext } from "@/lib/tenant-context";
 import {
   type Permission,
   type RoleTier,
@@ -41,13 +42,13 @@ export interface SessionUser {
 }
 
 /**
- * `cache()` deduplicates within a single request — multiple components on the
- * same page calling `auth()` only hit the DB once.
+ * Load a user into the `SessionUser` shape by id. Shared by `auth()` (cookie
+ * session) and `verifyApiToken()` (MCP bearer token) so both resolve identity
+ * identically. Null when the id no longer exists.
  */
-export const auth = cache(async (): Promise<SessionUser | null> => {
-  const userId = await readSessionUserId();
-  if (!userId) return null;
-
+export async function loadUserById(
+  userId: string,
+): Promise<SessionUser | null> {
   const [row] = await db
     .select({
       id: users.id,
@@ -67,6 +68,22 @@ export const auth = cache(async (): Promise<SessionUser | null> => {
     role: row.role as RoleTier,
     permissions: row.permissions ?? null,
   };
+}
+
+/**
+ * `cache()` deduplicates within a single request — multiple components on the
+ * same page calling `auth()` only hit the DB once.
+ *
+ * MCP note: consults the tenant-context override first (a bearer-authed MCP
+ * request has no cookie), so the token's user is the identity for that request.
+ */
+export const auth = cache(async (): Promise<SessionUser | null> => {
+  const override = getTenantContext();
+  if (override) return loadUserById(override.userId);
+
+  const userId = await readSessionUserId();
+  if (!userId) return null;
+  return loadUserById(userId);
 });
 
 export async function requireAuth(): Promise<SessionUser> {

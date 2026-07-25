@@ -15,6 +15,11 @@ import { verifySessionTokenEdge } from "@/lib/session-edge";
  *
  * Deliberately thin: signature + TTL check only, no DB lookup. Role checks
  * and user existence stay in `auth()`/`requireAuth()` at the page/action layer.
+ *
+ * `/api/mcp` is EXCLUDED from this gate (like `/api/health`): the MCP server has
+ * its OWN auth — a per-user bearer token verified in the route handler
+ * (`verifyApiToken`) — and receives no session cookie. The exclusion is in the
+ * matcher below; it does NOT widen the web app's cookie protection.
  */
 
 const SESSION_COOKIE = "ccms_session";
@@ -45,6 +50,6 @@ export const config = {
   // ROOT-level .svg filename — a nested path like /admin/export.svg still hits
   // auth (the old `.*\.svg$` exempted every .svg-suffixed path app-wide).
   matcher: [
-    "/((?!_next/static|_next/image|signin|api/health|favicon.ico|icon.svg|[^/]*\\.svg$).*)",
+    "/((?!_next/static|_next/image|signin|api/health|api/mcp|favicon.ico|icon.svg|[^/]*\\.svg$).*)",
   ],
 };
