@@ -12,6 +12,8 @@ import { TagsTable } from "@/components/tag/tags-table";
 import { RatingRulesAdmin } from "@/components/rating/rating-rules-admin";
 import { AccountsAdmin } from "@/components/account/accounts-admin";
 import { StatusConfigAdmin } from "@/components/creative/status-config-admin";
+import { StoreFieldsAdmin } from "@/components/store/store-fields-admin";
+import { listStoreFields } from "@/db/queries/store";
 import { PageShell } from "@/components/layout/page-shell";
 import { PageHeader } from "@/components/layout/page-header";
 
@@ -25,6 +27,7 @@ const TABS = [
   { key: "rating", label: "Rate rules", perm: "config.rating" },
   { key: "status", label: "Status", perm: "config.brands" },
   { key: "brands", label: "Brands", perm: "config.brands" },
+  { key: "store_fields", label: "Store fields", perm: "config.store" },
 ] as const satisfies ReadonlyArray<{
   key: string;
   label: string;
@@ -94,6 +97,9 @@ export default async function CatalogAdminPage({ searchParams }: Props) {
           accounts={await listAccounts()}
           activeId={await getActiveAccountId()}
         />
+      )}
+      {active === "store_fields" && (
+        <StoreFieldsAdmin fields={await listStoreFields()} />
       )}
     </PageShell>
   );

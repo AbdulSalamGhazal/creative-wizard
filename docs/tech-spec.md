@@ -45,7 +45,7 @@ A **multi-tenant creative-performance analytics tool** for paid social. It manag
   - `csv/platforms/types.ts` — `INTERNAL_FIELDS`/`FIELD_META`, typed so a new field fails compilation anywhere it isn't described
 - **Navigation feedback:** any component driving route/searchParam changes uses `useNavTransition()` (`lib/nav-progress.ts`) so the global progress bar reflects pending navigation.
 
-## 4. Data model (17 tables)
+## 4. Data model (20 tables)
 
 **Tenancy & people:** `accounts` (brands; `status_window_hours` per brand), `users` (role tier + granular `permissions` + `all_accounts` brand-membership flag, §5), `user_accounts` (brand membership — the brands a restricted `all_accounts = false` user may see; global join table, both FKs `ON DELETE CASCADE`; consulted only when `all_accounts = false`, §5).
 **Catalog:** `products`, `creatives` (required `product_id`; unique per account; the legacy manual `status` column is dead — status is derived, §4.2; `priority smallint` NULLABLE = the team's MANUAL 1–3 importance judgment, 3 = highest, NULL = unrated — detail-page only, distinct from the computed "Rate"/rating concept), `tags`, `creative_tags` (no `account_id` — scoped transitively via the creative; cascading tag operations MUST be bounded by an account-scoped creatives subquery), `creative_platform_overrides` (manual per-creative×platform termination).
@@ -53,6 +53,7 @@ A **multi-tenant creative-performance analytics tool** for paid social. It manag
 **Performance:** `performance_records` — the fact table. **Unique on `(creative_id, platform, campaign_id, date)`.** Carries `excluded_from_aggregates` and a NOT NULL `upload_batch_id`.
 **Ingestion:** `upload_batches`, `upload_validation_sessions` (validate→commit state, 10-min TTL, account pinned at validate time), `platform_field_mappings` (admin-editable CSV header candidates).
 **Config & audit:** `rating_rules` (PK = account_id), `platform_rating_rules` (PK = account_id+platform), `summary_views` (saved views, per-user defaults), `audit_events` (append-only, account-stamped).
+**Store (Salla orders — §Store module):** `store_orders` (grain = one order; core cols `order_id`/`order_date`/`total_amount` SAR + `attributes` jsonb for custom fields; unique `(account_id, order_id)`), `store_order_fields` (config: 3 locked core rows + custom fields, accepted `headers[]` for explicit mapping), `store_upload_batches` (per-upload; drives rollback). All tenant tables; separate from the ads `upload_batches`/`performance_records`.
 
 ### 4.1 Write/delete invariants
 
@@ -81,6 +82,13 @@ A **multi-tenant creative-performance analytics tool** for paid social. It manag
 - **Tenant without cookies:** MCP requests carry no cookie, so `lib/tenant.ts` `runWithTenant(accountId, userId, fn)` sets an `AsyncLocalStorage` override (`lib/tenant-context.ts`) that `getActiveAccountId()`/`auth()` consult FIRST; it validates `accountId` is one of the user's allowed brands before entering — so every `db/queries/*` is tenant-correct with zero changes inside it. Each tool resolves a `brand` arg (name/id) against allowed brands, then runs inside `runWithTenant`.
 - **Tools (10, all read-only, Zod-schema'd, compact JSON with a `{brand, range}` echo, reuse `db/queries/*`):** `list_brands`, `get_kpis`, `list_creatives`, `get_creative`, `list_campaigns`, `get_campaign`, `get_summary`, `get_timeseries`, `get_funnel`, `get_data_freshness`. Descriptions state units (USD), date format (YYYY-MM-DD), and that blended metrics are weighted. Guardrails: 60 calls/min per token, ≤500 rows per list tool (`truncated` flag).
 - **Scope guard:** v1 is STRICTLY read-only — no tool mutates. OAuth 2.1 for claude.ai-web/ChatGPT-web connectors is out of scope (Phase 2); v1 targets header-auth clients. Migration **0029** (additive: `api_tokens`).
+
+## 5c. Store module (manual Salla order uploads)
+
+- **What:** a top-level page `/store` — an upload section over an orders table (SAR). A NEW module, PARALLEL to and independent of the ads pipeline (touches no `csv/`, `upload_batches`, or `performance_records`).
+- **Grain + fields:** one row per order. Exactly THREE core fields — `order_id`/`order_date`/`total_amount` (SAR). Everything else is an admin-defined CUSTOM field (`store_order_fields`: label, type text|number|date, required?, show-in-table?, accepted `headers[]`) whose values live in `store_orders.attributes` jsonb. Core rows are seeded per account (migration 0030 + `createAccount`) and LOCKED by `CORE_KEYS` (`store/fields.ts`): only their label + headers are editable. Config UI = the **Store fields** tab in `/admin/catalog` (`config.store`).
+- **Upload pipeline (`store/`):** own error catalog `store/errors.ts` (S-codes), reuses the shared `csv/parse.ts` engine, EXPLICIT header mapping from `store_order_fields.headers` (case-insensitive after trim — never auto-detected; a required field with no matching header fails fast). Two server actions (no session table): validate → error report OR "N new · M updated" → confirm → `commitStoreUpload` re-validates + writes transactionally (`writeStoreBatch`). **Upsert is a toggle** like the ads upload (default strict insert; on = update existing in place, keeping the row's original `upload_batch_id` so rollback removes only inserts). Rollback ≤24h (`upload.rollback`). Permissions: `store.upload` (+ `upload.upsert` for the toggle). Audit `store.upload_commit`/`store.upload_rollback`/`store.fields_update`.
+- **Orders table:** SERVER-paginated (100/page + total count — order volume reaches 100k+), URL-backed date range + order-id search ONLY (no other filters, deliberate), a totals footer (count + `SUM(total_amount)` over the whole filtered set), custom columns rendered by type, localStorage column visibility, CSV export of the filtered set (≤10k). SAR via `sar()` in `lib/format.ts` (module-local; no USD conversion here — ad-spend blending is a later phase).
 
 ## 6. CSV ingestion (binding spec: `docs/validation-spec.md` v1.2)
 

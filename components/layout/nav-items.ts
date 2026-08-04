@@ -5,6 +5,7 @@ import {
   LineChart,
   Table2,
   Upload,
+  Store,
   SlidersHorizontal,
   Filter,
   Megaphone,
@@ -68,6 +69,14 @@ export const NAV_ITEMS: NavItem[] = [
     icon: Upload,
     group: "primary",
     perms: ["upload.import", "upload.cleanup", "upload.rollback"],
+  },
+  {
+    // Read (the orders table) is open to any brand member, like the other data
+    // pages; the upload + rollback sections inside gate on store.upload.
+    href: "/store",
+    label: "Store",
+    icon: Store,
+    group: "primary",
   },
   {
     href: "/admin/catalog",

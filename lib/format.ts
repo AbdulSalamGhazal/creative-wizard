@@ -38,6 +38,21 @@ const usdCompactFormatter = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 1,
 });
 
+// SAR (Saudi Riyal) — the Store module's ONLY currency. Order/revenue data from
+// Salla is in SAR and is NEVER converted to USD in this module (blending with ad
+// spend is a later phase). en-US locale so grouping/decimals match the rest of
+// the app; the currency code renders as "SAR".
+const sarFormatter = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "SAR",
+});
+const sarCompactFormatter = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "SAR",
+  notation: "compact",
+  maximumFractionDigits: 1,
+});
+
 const intCompactFormatter = new Intl.NumberFormat("en-US", {
   notation: "compact",
   maximumFractionDigits: 1,
@@ -91,6 +106,18 @@ export function usd0(value: number | null | undefined): string {
 export function usd1(value: number | null | undefined): string {
   if (value === null || value === undefined || Number.isNaN(value)) return EM_DASH;
   return usd1Formatter.format(value);
+}
+
+/** SAR currency (e.g. "SAR 1,234.50") — the Store module's only money format. */
+export function sar(value: number | null | undefined): string {
+  if (value === null || value === undefined || Number.isNaN(value)) return EM_DASH;
+  return sarFormatter.format(value);
+}
+
+/** Compact SAR for tight spaces (e.g. "SAR 1.2M"). */
+export function sarCompact(value: number | null | undefined): string {
+  if (value === null || value === undefined || Number.isNaN(value)) return EM_DASH;
+  return sarCompactFormatter.format(value);
 }
 
 /** Compact currency for tight spaces (e.g. "$1.2M", "$8.4K"). */

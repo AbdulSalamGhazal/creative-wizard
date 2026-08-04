@@ -57,6 +57,14 @@ export const PERMISSION_GROUPS = [
     ],
   },
   {
+    key: "store",
+    label: "Store",
+    perms: [
+      { key: "store.upload", label: "Upload & commit store orders" },
+      { key: "config.store", label: "Configure store order fields" },
+    ],
+  },
+  {
     key: "admin",
     label: "Administration",
     perms: [
@@ -104,6 +112,8 @@ export const EDITOR_PRESET: readonly Permission[] = [
   "upload.upsert",
   "upload.cleanup",
   "record.exclude",
+  "store.upload",
+  "config.store",
 ];
 
 /** The `viewer` preset — read-only, no write capabilities. */

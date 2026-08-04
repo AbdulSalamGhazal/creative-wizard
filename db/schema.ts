@@ -605,3 +605,112 @@ export const performanceRecords = pgTable(
     excludedIdx: index("perf_excluded_idx").on(t.excludedFromAggregates),
   }),
 );
+
+// =====================================================================
+// Store module — manual Salla order uploads (NEW; parallel to the ads
+// pipeline above, which it must NOT touch). Grain = one row per order.
+// Currency is SAR throughout; never converted to USD in this module.
+// =====================================================================
+
+export const storeFieldTypeEnum = ["text", "number", "date"] as const;
+
+/**
+ * Config for store-order fields — the THREE core fields (seeded per account,
+ * keys locked by `CORE_KEYS` in store/fields.ts: order_id/order_date/
+ * total_amount) plus admin-defined custom fields. `headers` are the accepted
+ * file headers for EXPLICIT mapping (matched case-insensitively after trim — no
+ * auto-detection). A custom field can be `required`; core fields are always
+ * required. `type` and `key` of core rows are immutable (only label + headers
+ * are editable). Upload validation derives its rules entirely from these rows.
+ */
+export const storeOrderFields = pgTable(
+  "store_order_fields",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    accountId: accountId(),
+    /** Stable slug — the key under which a value lands in `store_orders.attributes`. */
+    key: varchar("key", { length: 48 }).notNull(),
+    label: varchar("label", { length: 64 }).notNull(),
+    type: varchar("type", { length: 8, enum: storeFieldTypeEnum }).notNull(),
+    required: boolean("required").notNull().default(false),
+    showInTable: boolean("show_in_table").notNull().default(true),
+    /** Accepted file headers (case-insensitive, trimmed). Explicit mapping only. */
+    headers: text("headers").array().notNull().default(sql`'{}'::text[]`),
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    accountKeyUnique: uniqueIndex("store_order_fields_account_key_idx").on(
+      t.accountId,
+      t.key,
+    ),
+  }),
+);
+
+/**
+ * One store-order upload. Separate from the ads `upload_batches` (different
+ * domain — no platform). `rowsInserted` drives batch rollback (deletes only
+ * this batch's INSERTED rows); `rowsUpdated` (upsert only) is NOT rollback-able,
+ * same caveat as the ads upsert.
+ */
+export const storeUploadBatches = pgTable(
+  "store_upload_batches",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    accountId: accountId(),
+    fileName: varchar("file_name", { length: 255 }).notNull(),
+    uploadedByUserId: uuid("uploaded_by_user_id")
+      .notNull()
+      .references(() => users.id),
+    rowsInserted: integer("rows_inserted").notNull().default(0),
+    rowsUpdated: integer("rows_updated").notNull().default(0),
+    upsert: boolean("upsert").notNull().default(false),
+    uploadedAt: timestamp("uploaded_at", { withTimezone: true }).notNull().defaultNow(),
+    status: varchar("status", { length: 16 }).notNull().default("active"),
+    rolledBackAt: timestamp("rolled_back_at", { withTimezone: true }),
+    rolledBackByUserId: uuid("rolled_back_by_user_id").references(() => users.id),
+  },
+  (t) => ({
+    accountUploadedIdx: index("store_upload_batches_account_uploaded_idx").on(
+      t.accountId,
+      t.uploadedAt.desc(),
+    ),
+  }),
+);
+
+/**
+ * A store order. Core = exactly three columns (order_id / order_date /
+ * total_amount, SAR); every other attribute lives in `attributes` jsonb keyed
+ * by the custom field's `key`. Unique per `(account_id, order_id)`.
+ * `upload_batch_id` records the batch that INSERTED the row and is NOT changed
+ * on an upsert-update (so a rollback can delete inserts without touching rows
+ * that merely got updated).
+ */
+export const storeOrders = pgTable(
+  "store_orders",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    accountId: accountId(),
+    orderId: varchar("order_id", { length: 64 }).notNull(),
+    orderDate: date("order_date").notNull(),
+    totalAmount: numeric("total_amount", { precision: 12, scale: 2 }).notNull(),
+    attributes: jsonb("attributes").notNull().default(sql`'{}'::jsonb`),
+    uploadBatchId: uuid("upload_batch_id")
+      .notNull()
+      .references(() => storeUploadBatches.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    accountOrderUnique: uniqueIndex("store_orders_account_order_idx").on(
+      t.accountId,
+      t.orderId,
+    ),
+    accountDateIdx: index("store_orders_account_date_idx").on(
+      t.accountId,
+      t.orderDate,
+    ),
+    batchIdx: index("store_orders_batch_idx").on(t.uploadBatchId),
+  }),
+);

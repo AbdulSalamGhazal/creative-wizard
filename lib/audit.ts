@@ -55,6 +55,11 @@ export const AUDIT_ACTIONS = {
   TOKEN_CREATE: "token.create",
   TOKEN_REVOKE: "token.revoke",
 
+  // Store module (Salla orders)
+  STORE_FIELDS_UPDATE: "store.fields_update",
+  STORE_UPLOAD_COMMIT: "store.upload_commit",
+  STORE_UPLOAD_ROLLBACK: "store.upload_rollback",
+
   // Platform header mappings
   MAPPING_ADD: "mapping.add",
   MAPPING_REMOVE: "mapping.remove",
@@ -98,7 +103,8 @@ export type AuditEntityType =
   | "tag"
   | "rating"
   | "account"
-  | "campaign";
+  | "campaign"
+  | "store";
 
 export interface AuditEventInput {
   action: AuditAction;
@@ -174,6 +180,9 @@ export const AUDIT_LABELS: Record<AuditAction, string> = {
   "user.password_reset": "Reset user password",
   "token.create": "Created API token",
   "token.revoke": "Revoked API token",
+  "store.fields_update": "Updated store fields",
+  "store.upload_commit": "Committed store upload",
+  "store.upload_rollback": "Rolled back store upload",
   "mapping.add": "Added CSV mapping",
   "mapping.remove": "Removed CSV mapping",
   "auth.signin": "Signed in",
@@ -219,6 +228,9 @@ export const AUDIT_CATEGORIES: Record<AuditAction, AuditEntityType> = {
   "user.password_reset": "user",
   "token.create": "user",
   "token.revoke": "user",
+  "store.fields_update": "store",
+  "store.upload_commit": "store",
+  "store.upload_rollback": "store",
   "mapping.add": "mapping",
   "mapping.remove": "mapping",
   "auth.signin": "auth",
