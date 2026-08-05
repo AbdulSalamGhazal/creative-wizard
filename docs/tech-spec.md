@@ -85,10 +85,11 @@ A **multi-tenant creative-performance analytics tool** for paid social. It manag
 
 ## 5c. Store module (manual Salla order uploads)
 
-- **What:** a top-level page `/store` — an upload section over an orders table (SAR). A NEW module, PARALLEL to and independent of the ads pipeline (touches no `csv/`, `upload_batches`, or `performance_records`).
+- **What:** a top-level **Store** section (in the sidebar's Store group) split into TWO pages — `/store/uploads` (upload history + `/new` flow) and `/store/orders` (the orders table, SAR). `/store` redirect-stubs to `/store/orders`. A NEW module, PARALLEL to and independent of the ads pipeline (touches no `csv/`, `upload_batches`, or `performance_records`).
 - **Grain + fields:** one row per order. Exactly THREE core fields — `order_id`/`order_date`/`total_amount` (SAR). Everything else is an admin-defined CUSTOM field (`store_order_fields`: label, type text|number|date, required?, show-in-table?, accepted `headers[]`) whose values live in `store_orders.attributes` jsonb. Core rows are seeded per account (migration 0030 + `createAccount`) and LOCKED by `CORE_KEYS` (`store/fields.ts`): only their label + headers are editable. Config UI = the **Store fields** tab in `/admin/catalog` (`config.store`).
+- **Upload pages (mirrors the ads `/uploads` + `/uploads/new` pattern):** `/store/uploads` is the upload HISTORY (recent batches: filename, when, by, counts, upsert flag, rollback while eligible) with a "New upload" button → `/store/uploads/new`, which hosts the full flow (dropzone → validate → error report/summary → confirm) via `StoreUploadPanel`; a successful commit lands back on `/store/uploads` with the new batch (`redirectOnCommit`). Nav item "Upload orders" (`/store/uploads`) prefix-highlights on `/new`.
 - **Upload pipeline (`store/`):** own error catalog `store/errors.ts` (S-codes), reuses the shared `csv/parse.ts` engine, EXPLICIT header mapping from `store_order_fields.headers` (case-insensitive after trim — never auto-detected; a required field with no matching header fails fast). Two server actions (no session table): validate → error report OR "N new · M updated" → confirm → `commitStoreUpload` re-validates + writes transactionally (`writeStoreBatch`). **Upsert is a toggle** like the ads upload (default strict insert; on = update existing in place, keeping the row's original `upload_batch_id` so rollback removes only inserts). Rollback ≤24h (`upload.rollback`). Permissions: `store.upload` (+ `upload.upsert` for the toggle). Audit `store.upload_commit`/`store.upload_rollback`/`store.fields_update`.
-- **Orders table:** SERVER-paginated (100/page + total count — order volume reaches 100k+), URL-backed date range + order-id search ONLY (no other filters, deliberate), a totals footer (count + `SUM(total_amount)` over the whole filtered set), custom columns rendered by type, localStorage column visibility, CSV export of the filtered set (≤10k). SAR via `sar()` in `lib/format.ts` (module-local; no USD conversion here — ad-spend blending is a later phase).
+- **Orders page (`/store/orders`, open to any brand member):** SERVER-paginated (100/page + total count — order volume reaches 100k+), URL-backed date range + order-id search ONLY (no other filters, deliberate), a totals footer (count + `SUM(total_amount)` over the whole filtered set), custom columns rendered by type, localStorage column visibility, CSV export of the filtered set (≤10k). SAR via `sar()` in `lib/format.ts` (module-local; no USD conversion here — ad-spend blending is a later phase).
 
 ## 6. CSV ingestion (binding spec: `docs/validation-spec.md` v1.2)
 
@@ -110,7 +111,12 @@ Five stages — parse → header mapping → row validation → cross-row/file c
 
 ## 9. Routes
 
-`/` (dashboard) · `/summary` · `/creatives` (+ `/new`, `/bulk`, `/[name]`) · `/campaigns` (+ `/new`, `/[campaign]`) · `/funnel` · `/compare` · `/trends/{over-time,by-type,by-tag,launches,video}` · `/uploads` (+ `/new`) · admin: `/admin/catalog` (products/tags/brands), `/admin/users` (Team + Access), `/admin/audit`, `/admin/platforms` (CSV mappings) · `/signin`. (`/admin/products`, `/admin/access`, `/trends` are redirect stubs.)
+The sidebar groups routes into three labeled sections (`NAV_SECTIONS` in `nav-items.ts`): **Ads**, **Store**, **Admin**.
+
+- **Ads:** `/` (dashboard) · `/summary` · `/creatives` (+ `/new`, `/bulk`, `/[name]`) · `/campaigns` (+ `/new`, `/[campaign]`) · `/funnel` · `/compare` · `/trends/{over-time,by-type,by-tag,launches,video}` · `/uploads` (+ `/new`).
+- **Store:** `/store/uploads` (+ `/new`) · `/store/orders`. (`/store` redirect-stubs to `/store/orders`.)
+- **Admin:** `/admin/catalog` (products/tags/brands + Store fields), `/admin/users` (Team + Access), `/admin/audit`, `/admin/platforms` (CSV mappings).
+- `/signin`. Redirect stubs: `/store`, `/admin/products`, `/admin/access`, `/trends`.
 
 ## 10. Deployment & operations
 

@@ -195,7 +195,8 @@ export async function commitStoreUpload(
     });
 
     try {
-      revalidatePath("/store");
+      revalidatePath("/store/uploads");
+      revalidatePath("/store/orders");
     } catch (e) {
       console.warn("revalidatePath after store commit failed:", e);
     }
@@ -264,7 +265,8 @@ export async function rollbackStoreBatch(
     });
 
     try {
-      revalidatePath("/store");
+      revalidatePath("/store/uploads");
+      revalidatePath("/store/orders");
     } catch (e) {
       console.warn("revalidatePath after store rollback failed:", e);
     }

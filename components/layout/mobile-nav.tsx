@@ -14,7 +14,7 @@ import {
 import {
   TRENDS_CHILDREN,
   isActive,
-  visibleNavItems,
+  navSections,
 } from "@/components/layout/nav-items";
 import { cn } from "@/lib/utils";
 
@@ -33,9 +33,7 @@ export function MobileNav({ granted }: { granted: string[] }) {
     setOpen(false);
   }, [pathname]);
 
-  const items = visibleNavItems(granted);
-  const primary = items.filter((i) => i.group === "primary");
-  const admin = items.filter((i) => i.group === "admin");
+  const sections = navSections(granted);
 
   const link = (href: string, label: string, opts?: { child?: boolean }) => (
     <Link
@@ -68,25 +66,26 @@ export function MobileNav({ granted }: { granted: string[] }) {
         <SheetHeader className="border-b border-line">
           <SheetTitle className="text-left">Navigation</SheetTitle>
         </SheetHeader>
-        <nav className="flex-1 overflow-y-auto px-3 py-3 space-y-0.5">
-          {primary.map((item) =>
-            item.children ? (
-              <div key={item.label} className="pt-1">
-                {link(item.href, item.label)}
-                {TRENDS_CHILDREN.map((c) => link(c.href, c.label, { child: true }))}
-              </div>
-            ) : (
-              link(item.href, item.label)
-            ),
-          )}
-          {admin.length > 0 && (
-            <div className="pt-3 mt-2 border-t border-line space-y-0.5">
+        <nav className="flex-1 overflow-y-auto px-3 py-3 space-y-3">
+          {sections.map((section) => (
+            <div key={section.key} className="space-y-0.5">
               <div className="px-3 py-1 text-eyebrow text-ink-3">
-                Admin
+                {section.label}
               </div>
-              {admin.map((item) => link(item.href, item.label))}
+              {section.items.map((item) =>
+                item.children ? (
+                  <div key={item.label}>
+                    {link(item.href, item.label)}
+                    {TRENDS_CHILDREN.map((c) =>
+                      link(c.href, c.label, { child: true }),
+                    )}
+                  </div>
+                ) : (
+                  link(item.href, item.label)
+                ),
+              )}
             </div>
-          )}
+          ))}
         </nav>
       </SheetContent>
     </Sheet>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ChevronLeft, ChevronRight, Columns3, Download, ShoppingBag } from "lucide-react";
 import { toast } from "sonner";
@@ -271,7 +272,11 @@ export function StoreOrdersTable({
             </p>
             {total === 0 && canUpload && (
               <p className="text-xs text-ink-3">
-                Upload your first Salla export above.
+                Upload your first Salla export from{" "}
+                <Link href="/store/uploads/new" className="text-ink-2 underline hover:text-ink">
+                  Store → Upload orders
+                </Link>
+                .
               </p>
             )}
           </div>

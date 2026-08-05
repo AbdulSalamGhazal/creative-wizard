@@ -29,7 +29,13 @@ type Stage =
  * report OR a "N new · M updated" summary → Confirm → transactional commit. The
  * same file is submitted to validate and commit (re-validated server-side).
  */
-export function StoreUploadPanel() {
+export function StoreUploadPanel({
+  redirectOnCommit,
+}: {
+  /** When set, navigate here after a successful commit (e.g. back to the
+   *  upload history) instead of showing the inline success panel. */
+  redirectOnCommit?: string;
+} = {}) {
   const router = useRouter();
   const canUpsert = useCan("upload.upsert");
   const [file, setFile] = useState<File | null>(null);
@@ -67,8 +73,16 @@ export function StoreUploadPanel() {
       setStage({ s: "valid", report: stage.report });
       return;
     }
+    toast.success(
+      `Imported ${res.rowsInserted} new order${res.rowsInserted === 1 ? "" : "s"}` +
+        (res.rowsUpdated > 0 ? ` · updated ${res.rowsUpdated}` : ""),
+    );
+    if (redirectOnCommit) {
+      router.push(redirectOnCommit);
+      router.refresh();
+      return;
+    }
     setStage({ s: "committed", inserted: res.rowsInserted, updated: res.rowsUpdated });
-    toast.success("Orders imported");
     router.refresh();
   }
 

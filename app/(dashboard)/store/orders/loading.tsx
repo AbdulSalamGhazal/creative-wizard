@@ -3,14 +3,11 @@ import {
   FilterBarSkeleton,
   TableSkeleton,
 } from "@/components/layout/page-skeletons";
-import { Skeleton } from "@/components/ui/skeleton";
 
-export default function StoreLoading() {
+export default function StoreOrdersLoading() {
   return (
     <div className="space-y-6">
-      <HeaderSkeleton subtitle />
-      {/* Upload panel placeholder */}
-      <Skeleton className="h-40 w-full rounded-lg" />
+      <HeaderSkeleton eyebrow subtitle />
       <div className="space-y-2">
         <FilterBarSkeleton />
         <TableSkeleton rows={10} wide />

@@ -5,7 +5,8 @@ import {
   LineChart,
   Table2,
   Upload,
-  Store,
+  FileUp,
+  ShoppingBag,
   SlidersHorizontal,
   Filter,
   Megaphone,
@@ -15,20 +16,31 @@ import {
 import type { Permission } from "@/lib/permissions";
 
 /**
- * Single source of truth for the app's primary + admin navigation. Consumed by
- * both the desktop Sidebar (lg+) and the mobile Sheet nav (below lg) so the two
- * can never drift. Keep this data-only (no JSX) so either surface can render it.
+ * Single source of truth for the app's navigation. Consumed by both the desktop
+ * Sidebar (lg+) and the mobile Sheet nav (below lg) so the two can never drift.
+ * Keep this data-only (no JSX) so either surface can render it.
+ *
+ * The nav is grouped into three labeled SECTIONS (see `NAV_SECTIONS`): Ads (the
+ * analytics/ads pages), Store (the Salla order module), and Admin.
  */
 export interface NavChild {
   href: string;
   label: string;
 }
 
+/** The three sidebar sections, in display order. Each gets an eyebrow label. */
+export const NAV_SECTIONS = [
+  { key: "ads", label: "Ads" },
+  { key: "store", label: "Store" },
+  { key: "admin", label: "Admin" },
+] as const;
+export type NavSectionKey = (typeof NAV_SECTIONS)[number]["key"];
+
 export interface NavItem {
   href: string;
   label: string;
   icon: React.ComponentType<{ className?: string }>;
-  group: "primary" | "admin";
+  group: NavSectionKey;
   /** When present, this item is a collapsible section, not a direct link. */
   children?: NavChild[];
   /**
@@ -48,36 +60,49 @@ export const TRENDS_CHILDREN: NavChild[] = [
 ];
 
 export const NAV_ITEMS: NavItem[] = [
-  { href: "/", label: "Dashboard", icon: LayoutDashboard, group: "primary" },
-  { href: "/creatives", label: "Creatives", icon: Images, group: "primary" },
-  { href: "/summary", label: "Summary", icon: Table2, group: "primary" },
-  { href: "/funnel", label: "Funnel", icon: Filter, group: "primary" },
-  { href: "/campaigns", label: "Campaigns", icon: Megaphone, group: "primary" },
+  // ── Ads ──────────────────────────────────────────────────────────────────
+  { href: "/", label: "Dashboard", icon: LayoutDashboard, group: "ads" },
+  { href: "/creatives", label: "Creatives", icon: Images, group: "ads" },
+  { href: "/summary", label: "Summary", icon: Table2, group: "ads" },
+  { href: "/funnel", label: "Funnel", icon: Filter, group: "ads" },
+  { href: "/campaigns", label: "Campaigns", icon: Megaphone, group: "ads" },
   // Trends is a hub, not a page: the href is its first child (used when the
   // desktop rail is collapsed to icons and by the mobile nav's parent link).
   {
     href: "/trends/over-time",
     label: "Trends",
     icon: LineChart,
-    group: "primary",
+    group: "ads",
     children: TRENDS_CHILDREN,
   },
-  { href: "/compare", label: "Compare", icon: GitCompare, group: "primary" },
+  { href: "/compare", label: "Compare", icon: GitCompare, group: "ads" },
   {
     href: "/uploads",
     label: "Uploads",
     icon: Upload,
-    group: "primary",
+    group: "ads",
     perms: ["upload.import", "upload.cleanup", "upload.rollback"],
   },
+
+  // ── Store ────────────────────────────────────────────────────────────────
   {
-    // Read (the orders table) is open to any brand member, like the other data
-    // pages; the upload + rollback sections inside gate on store.upload.
-    href: "/store",
-    label: "Store",
-    icon: Store,
-    group: "primary",
+    // The upload surface (history + new). Prefix-matches /store/uploads/new so
+    // the "Upload orders" item stays highlighted on the new-upload page.
+    href: "/store/uploads",
+    label: "Upload orders",
+    icon: FileUp,
+    group: "store",
+    perms: ["store.upload", "upload.rollback"],
   },
+  {
+    // The orders table — open to any brand member, like the ads data pages.
+    href: "/store/orders",
+    label: "Orders",
+    icon: ShoppingBag,
+    group: "store",
+  },
+
+  // ── Admin ────────────────────────────────────────────────────────────────
   {
     href: "/admin/catalog",
     label: "Configuration",
@@ -117,6 +142,22 @@ export function visibleNavItems(granted: Iterable<string>): NavItem[] {
   return NAV_ITEMS.filter(
     (item) => !item.perms || item.perms.some((p) => set.has(p)),
   );
+}
+
+/**
+ * The visible nav grouped into its sections (label + items), in display order.
+ * Sections with no visible items are dropped. Both navs render from this so the
+ * section grouping lives in ONE place.
+ */
+export function navSections(
+  granted: Iterable<string>,
+): Array<{ key: NavSectionKey; label: string; items: NavItem[] }> {
+  const items = visibleNavItems(granted);
+  return NAV_SECTIONS.map((s) => ({
+    key: s.key,
+    label: s.label,
+    items: items.filter((i) => i.group === s.key),
+  })).filter((s) => s.items.length > 0);
 }
 
 /** Whether a nav href matches the current pathname (exact for "/", prefix else). */

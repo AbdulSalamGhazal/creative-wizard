@@ -172,7 +172,7 @@ export async function deleteStoreField(id: unknown): Promise<FieldMutationResult
 function revalidatePathsSafe() {
   try {
     revalidatePath("/admin/catalog");
-    revalidatePath("/store");
+    revalidatePath("/store/orders");
   } catch (err) {
     console.warn("revalidatePath after store field mutation failed:", err);
   }

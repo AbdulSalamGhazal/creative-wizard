@@ -11,7 +11,7 @@ import {
 import { cn } from "@/lib/utils";
 import {
   isActive,
-  visibleNavItems,
+  navSections,
   type NavItem,
 } from "@/components/layout/nav-items";
 
@@ -43,9 +43,7 @@ export function Sidebar({ granted }: { granted: string[] }) {
       return next;
     });
 
-  const items = visibleNavItems(granted);
-  const primary = items.filter((i) => i.group === "primary");
-  const admin = items.filter((i) => i.group === "admin");
+  const sections = navSections(granted);
 
   return (
     <aside
@@ -58,42 +56,34 @@ export function Sidebar({ granted }: { granted: string[] }) {
         collapsed ? "w-16 px-2" : "w-56 px-4",
       )}
     >
-      <nav className="space-y-0.5 w-full">
-        {primary.map((item) =>
-          item.children ? (
-            <NavGroup
-              key={item.label}
-              item={item}
-              pathname={pathname}
-              collapsed={collapsed}
-            />
-          ) : (
-            <NavLink
-              key={item.href}
-              item={item}
-              active={isActive(pathname, item.href)}
-              collapsed={collapsed}
-            />
-          ),
-        )}
+      <nav className="w-full space-y-5">
+        {sections.map((section) => (
+          <div key={section.key} className="space-y-0.5">
+            {!collapsed && (
+              <div className="px-3 mb-1 text-eyebrow text-ink-3">
+                {section.label}
+              </div>
+            )}
+            {section.items.map((item) =>
+              item.children ? (
+                <NavGroup
+                  key={item.label}
+                  item={item}
+                  pathname={pathname}
+                  collapsed={collapsed}
+                />
+              ) : (
+                <NavLink
+                  key={item.href}
+                  item={item}
+                  active={isActive(pathname, item.href)}
+                  collapsed={collapsed}
+                />
+              ),
+            )}
+          </div>
+        ))}
       </nav>
-      {admin.length > 0 && (
-        <div className="mt-8 pt-4 border-t border-line space-y-0.5 w-full">
-          {!collapsed && (
-            <div className="px-3 mb-1 text-eyebrow text-ink-3">
-              Admin
-            </div>
-          )}
-          {admin.map((item) => (
-            <NavLink
-              key={item.href}
-              item={item}
-              active={isActive(pathname, item.href)}
-              collapsed={collapsed}
-            />
-          ))}
-        </div>
-      )}
       <div className="mt-auto pt-4 border-t border-line w-full">
         <button
           type="button"
