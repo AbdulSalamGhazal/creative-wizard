@@ -60,6 +60,7 @@ export const AUDIT_ACTIONS = {
   STORE_UPLOAD_COMMIT: "store.upload_commit",
   STORE_UPLOAD_ROLLBACK: "store.upload_rollback",
   STORE_BULK_DELETE: "store.bulk_delete",
+  STORE_SOURCE_MAPPING_UPDATE: "store.source_mapping_update",
 
   // Platform header mappings
   MAPPING_ADD: "mapping.add",
@@ -185,6 +186,7 @@ export const AUDIT_LABELS: Record<AuditAction, string> = {
   "store.upload_commit": "Committed store upload",
   "store.upload_rollback": "Rolled back store upload",
   "store.bulk_delete": "Bulk-deleted store orders",
+  "store.source_mapping_update": "Updated store source mapping",
   "mapping.add": "Added CSV mapping",
   "mapping.remove": "Removed CSV mapping",
   "auth.signin": "Signed in",
@@ -234,6 +236,7 @@ export const AUDIT_CATEGORIES: Record<AuditAction, AuditEntityType> = {
   "store.upload_commit": "store",
   "store.upload_rollback": "store",
   "store.bulk_delete": "store",
+  "store.source_mapping_update": "store",
   "mapping.add": "mapping",
   "mapping.remove": "mapping",
   "auth.signin": "auth",

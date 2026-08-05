@@ -13,7 +13,13 @@ import { RatingRulesAdmin } from "@/components/rating/rating-rules-admin";
 import { AccountsAdmin } from "@/components/account/accounts-admin";
 import { StatusConfigAdmin } from "@/components/creative/status-config-admin";
 import { StoreFieldsAdmin } from "@/components/store/store-fields-admin";
+import { StoreSourceMappingAdmin } from "@/components/store/store-source-mapping-admin";
 import { listStoreFields } from "@/db/queries/store";
+import {
+  getStoreSourceFieldKey,
+  listStoreSourceMappings,
+  distinctStoreSourceValues,
+} from "@/db/queries/reconciliation";
 import { PageShell } from "@/components/layout/page-shell";
 import { PageHeader } from "@/components/layout/page-header";
 
@@ -98,9 +104,33 @@ export default async function CatalogAdminPage({ searchParams }: Props) {
           activeId={await getActiveAccountId()}
         />
       )}
-      {active === "store_fields" && (
-        <StoreFieldsAdmin fields={await listStoreFields()} />
-      )}
+      {active === "store_fields" && <StoreFieldsTab />}
     </PageShell>
+  );
+}
+
+/**
+ * The Store tab: field config + the Reconciliation source mapping. Both read the
+ * account's store fields; the mapping section additionally needs the configured
+ * source field, its existing value→platform mappings, and the distinct raw
+ * values present in uploaded orders.
+ */
+async function StoreFieldsTab() {
+  const fields = await listStoreFields();
+  const sourceFieldKey = await getStoreSourceFieldKey();
+  const [mappings, values] = await Promise.all([
+    listStoreSourceMappings(),
+    distinctStoreSourceValues(sourceFieldKey),
+  ]);
+  return (
+    <div className="space-y-10">
+      <StoreFieldsAdmin fields={fields} />
+      <StoreSourceMappingAdmin
+        fields={fields}
+        sourceFieldKey={sourceFieldKey}
+        mappings={mappings}
+        values={values}
+      />
+    </div>
   );
 }

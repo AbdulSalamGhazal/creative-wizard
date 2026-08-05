@@ -588,3 +588,22 @@ This app is deployed and in production use. Treat `main` as shippable.
     flow accepts `viewer` too. (`/admin/access` is a redirect stub → `/admin/users`;
     the old per-row `UserRoleSelect` + `updateUserRole` were removed — the card's
     preset selector supersedes them.)
+
+- **Store → Reconciliation is COUNTS ONLY, by explicit user decision (2026-08).**
+  `/store/reconciliation` compares store ORDER COUNTS vs platform-claimed
+  CONVERSION counts per day — Δ = store − claimed. There is deliberately **no
+  revenue comparison anywhere** on the page (no exchange rate, no revenue delta,
+  no platform revenue): store revenue (SAR) and spend (USD) exist only as
+  optional context columns, hidden by default, and are NEVER diffed against each
+  other. Do **not** add a revenue/ROAS comparison without asking — it was
+  explicitly scoped out. Δ% is warn-tinted by |magnitude| (over- and under-claim
+  are both discrepancies — not good/bad green/red), and "—" when store = 0.
+  **Attribution is EXPLICIT-mapping only** (house rule): each order's source =
+  a configured custom field (`accounts.store_source_field_key`), whose raw values
+  map to a platform (or "not an ad platform") via `store_source_mappings`
+  (unique `(account_id, raw_value)`; unmapped/empty/not-ad → Unattributed). Never
+  auto-match source values. Buckets reconcile by construction (unique mapping →
+  no fan-out → per-platform + unattributed = overview count). Pure Δ/Δ%/lag math
+  lives in `lib/reconciliation.ts`; queries in `db/queries/reconciliation.ts`
+  reuse `sumConversions`/`sumSpend` from `lib/metrics` and the per-platform
+  freshness scan for the "still attributing" lag hint. Migration 0031 (additive).

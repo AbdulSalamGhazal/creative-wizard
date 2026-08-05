@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { platformEnum } from "@/db/schema";
 
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -36,3 +37,25 @@ export const storeCleanupFiltersSchema = z
   );
 
 export type StoreCleanupFilters = z.infer<typeof storeCleanupFiltersSchema>;
+
+/** Set (or clear, with null) the account's reconciliation source field. */
+export const storeSourceFieldSchema = z.object({
+  fieldKey: z.string().trim().min(1).max(48).nullable(),
+});
+
+/**
+ * Assign a raw source value: one of the 4 platforms, "none" ("not an ad
+ * platform" → a row with platform NULL), or "unset" (delete the row → unmapped).
+ */
+export const storeSourceMappingSchema = z.object({
+  rawValue: z.string().trim().min(1).max(128),
+  assignment: z.enum([...platformEnum, "none", "unset"]),
+});
+
+export type StoreSourceMappingInput = z.infer<typeof storeSourceMappingSchema>;
+
+/** URL filters for the Reconciliation page — date range only. */
+export const reconciliationFiltersSchema = z.object({
+  from: z.string().regex(ISO).optional(),
+  to: z.string().regex(ISO).optional(),
+});

@@ -10,6 +10,7 @@ import {
   SlidersHorizontal,
   Filter,
   Megaphone,
+  Scale,
   Users,
   ScrollText,
 } from "lucide-react";
@@ -99,6 +100,14 @@ export const NAV_ITEMS: NavItem[] = [
     href: "/store/orders",
     label: "Orders",
     icon: ShoppingBag,
+    group: "store",
+  },
+  {
+    // Store order counts vs platform-claimed conversions, per day — open to any
+    // signed-in brand member, like the other analytics pages.
+    href: "/store/reconciliation",
+    label: "Reconciliation",
+    icon: Scale,
     group: "store",
   },
 

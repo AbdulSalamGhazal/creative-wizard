@@ -122,6 +122,14 @@ export const accounts = pgTable("accounts", {
    * latest day only, 48h = last two days, …). Per-brand, default 24h.
    */
   statusWindowHours: integer("status_window_hours").notNull().default(24),
+  /**
+   * Which custom store field (`store_order_fields.key`) holds an order's traffic
+   * SOURCE, for the Store → Reconciliation page. NULL = not configured (the
+   * by-platform reconciliation can't attribute orders to platforms yet). The raw
+   * values found in that field's `attributes` are mapped to ad platforms via
+   * `store_source_mappings`.
+   */
+  storeSourceFieldKey: varchar("store_source_field_key", { length: 48 }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -718,5 +726,33 @@ export const storeOrders = pgTable(
       t.orderDate,
     ),
     batchIdx: index("store_orders_batch_idx").on(t.uploadBatchId),
+  }),
+);
+
+/**
+ * Maps a RAW source value (as found in an order's configured source field, see
+ * `accounts.store_source_field_key`) to one of the four ad platforms, or to NULL
+ * = "not an ad platform" (e.g. organic/direct). Drives the Store →
+ * Reconciliation page's by-platform attribution. Mapping is EXPLICIT only — a
+ * raw value with no row here is treated as Unattributed (never auto-matched).
+ * Tenant-scoped (§4.1); unique per `(account_id, raw_value)`.
+ */
+export const storeSourceMappings = pgTable(
+  "store_source_mappings",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    accountId: accountId(),
+    /** The raw value as it appears in the order's source field (verbatim). */
+    rawValue: varchar("raw_value", { length: 128 }).notNull(),
+    /** One of the 4 ad platforms, or NULL = "not an ad platform". */
+    platform: varchar("platform", { length: 16, enum: platformEnum }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    accountRawUnique: uniqueIndex("store_source_mappings_account_raw_idx").on(
+      t.accountId,
+      t.rawValue,
+    ),
   }),
 );
