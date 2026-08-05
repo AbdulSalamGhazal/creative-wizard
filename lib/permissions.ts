@@ -61,6 +61,7 @@ export const PERMISSION_GROUPS = [
     label: "Store",
     perms: [
       { key: "store.upload", label: "Upload & commit store orders" },
+      { key: "store.cleanup", label: "Order cleanup (filtered hard-delete)" },
       { key: "config.store", label: "Configure store order fields" },
     ],
   },
@@ -113,6 +114,7 @@ export const EDITOR_PRESET: readonly Permission[] = [
   "upload.cleanup",
   "record.exclude",
   "store.upload",
+  "store.cleanup",
   "config.store",
 ];
 

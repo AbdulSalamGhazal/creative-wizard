@@ -29,7 +29,6 @@ const createSchema = z.object({
   label: z.string().trim().min(1, "Label is required.").max(64),
   type: z.enum(["text", "number", "date"]),
   required: z.boolean().default(false),
-  showInTable: z.boolean().default(true),
   headers: headersSchema.default([]),
 });
 
@@ -37,7 +36,6 @@ const updateSchema = z.object({
   id: z.string().uuid(),
   label: z.string().trim().min(1).max(64).optional(),
   required: z.boolean().optional(),
-  showInTable: z.boolean().optional(),
   headers: headersSchema.optional(),
 });
 
@@ -58,7 +56,7 @@ export async function createStoreField(input: unknown): Promise<FieldMutationRes
       return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
     }
     const acct = await getActiveAccountId();
-    const { label, type, required, showInTable, headers } = parsed.data;
+    const { label, type, required, headers } = parsed.data;
 
     // Auto-slug the key; ensure it's unique per account (and never collides with a core key).
     const base = slugifyKey(label);
@@ -88,7 +86,6 @@ export async function createStoreField(input: unknown): Promise<FieldMutationRes
       label,
       type,
       required,
-      showInTable,
       headers,
       sortOrder: (max ?? 0) + 1,
     });
@@ -109,7 +106,7 @@ export async function updateStoreField(input: unknown): Promise<FieldMutationRes
       return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
     }
     const acct = await getActiveAccountId();
-    const { id, label, required, showInTable, headers } = parsed.data;
+    const { id, label, required, headers } = parsed.data;
 
     const [row] = await db
       .select({ key: storeOrderFields.key })
@@ -123,10 +120,7 @@ export async function updateStoreField(input: unknown): Promise<FieldMutationRes
     const set: Partial<typeof storeOrderFields.$inferInsert> = { updatedAt: new Date() };
     if (label !== undefined) set.label = label;
     if (headers !== undefined) set.headers = headers;
-    if (!core) {
-      if (required !== undefined) set.required = required;
-      if (showInTable !== undefined) set.showInTable = showInTable;
-    }
+    if (!core && required !== undefined) set.required = required;
     await db
       .update(storeOrderFields)
       .set(set)

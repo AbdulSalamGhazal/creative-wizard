@@ -633,6 +633,12 @@ export const storeOrderFields = pgTable(
     label: varchar("label", { length: 64 }).notNull(),
     type: varchar("type", { length: 8, enum: storeFieldTypeEnum }).notNull(),
     required: boolean("required").notNull().default(false),
+    /**
+     * RETIRED 2026-08 — no longer read anywhere. Every field is now offered in
+     * the Orders table's Columns menu; visibility is each viewer's per-browser
+     * choice. Kept as a dead column (additive-only rule; like `creatives.status`)
+     * for a later cleanup migration. Do NOT reintroduce reads of it.
+     */
     showInTable: boolean("show_in_table").notNull().default(true),
     /** Accepted file headers (case-insensitive, trimmed). Explicit mapping only. */
     headers: text("headers").array().notNull().default(sql`'{}'::text[]`),

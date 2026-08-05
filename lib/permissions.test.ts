@@ -37,7 +37,7 @@ describe("role presets", () => {
 
   it("editor preset matches today's requireEditor behavior exactly", () => {
     // Has: all creative + campaign mutations, import/upsert/cleanup, exclusion,
-    // and the Store module's upload + field config (added 2026-07).
+    // and the Store module's upload + order cleanup + field config (2026-07/08).
     expect([...EDITOR_PRESET].sort()).toEqual(
       [
         "creative.create",
@@ -51,6 +51,7 @@ describe("role presets", () => {
         "upload.cleanup",
         "record.exclude",
         "store.upload",
+        "store.cleanup",
         "config.store",
       ].sort(),
     );

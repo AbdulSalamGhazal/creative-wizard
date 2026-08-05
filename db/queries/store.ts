@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, ilike, inArray, lte, sql, type SQL } from "drizzle-orm";
+import { and, asc, between, desc, eq, gte, ilike, inArray, lte, sql, type SQL } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
   storeOrders,
@@ -27,7 +27,6 @@ export async function listStoreFields(): Promise<StoreField[]> {
       label: storeOrderFields.label,
       type: storeOrderFields.type,
       required: storeOrderFields.required,
-      showInTable: storeOrderFields.showInTable,
       headers: storeOrderFields.headers,
       sortOrder: storeOrderFields.sortOrder,
     })
@@ -40,7 +39,6 @@ export async function listStoreFields(): Promise<StoreField[]> {
     label: r.label,
     type: r.type as StoreFieldType,
     required: r.required,
-    showInTable: r.showInTable,
     headers: r.headers ?? [],
     sortOrder: r.sortOrder,
     core: isCoreKey(r.key),
@@ -197,6 +195,94 @@ export async function existingStoreOrderIds(
     for (const r of rows) found.add(r.orderId);
   }
   return found;
+}
+
+// ── Order cleanup (filtered hard-delete) ─────────────────────────────────────
+
+export interface StoreCleanupMatch {
+  from?: string;
+  to?: string;
+  batchId?: string;
+  orderIds?: string[];
+}
+
+export interface StoreCleanupPreview {
+  /** Matching order count. */
+  orders: number;
+  /** SUM(total_amount) over the matching orders, in SAR. */
+  sumTotal: number;
+  /** order_date span of the matching orders. */
+  from: string | null;
+  to: string | null;
+}
+
+/**
+ * Did the user supply at least one real filter? The account scope is always
+ * present in the SQL conditions, so we check the user-facing fields directly.
+ * Callers MUST treat false as "match nothing" and refuse to delete.
+ */
+function hasAnyStoreCleanupFilter(f: StoreCleanupMatch): boolean {
+  return Boolean(
+    (f.from && f.to) ||
+      f.batchId ||
+      (f.orderIds && f.orderIds.length > 0),
+  );
+}
+
+/**
+ * WHERE conditions shared by preview + delete so they match EXACTLY the same
+ * rows. Always account-scoped. `orderIds` is only turned into an `inArray` when
+ * non-empty (an empty `inArray` is a SQL error — the ads tool hit this once).
+ */
+function buildStoreCleanupConds(f: StoreCleanupMatch, acct: string): SQL[] {
+  const c: SQL[] = [eq(storeOrders.accountId, acct)];
+  if (f.from && f.to) c.push(between(storeOrders.orderDate, f.from, f.to));
+  if (f.batchId) c.push(eq(storeOrders.uploadBatchId, f.batchId));
+  if (f.orderIds && f.orderIds.length > 0) {
+    c.push(inArray(storeOrders.orderId, f.orderIds));
+  }
+  return c;
+}
+
+/** Count + summarize what an order-cleanup selection would remove. Read-only. */
+export async function previewStoreCleanup(
+  f: StoreCleanupMatch,
+): Promise<StoreCleanupPreview> {
+  if (!hasAnyStoreCleanupFilter(f)) {
+    return { orders: 0, sumTotal: 0, from: null, to: null };
+  }
+  const conds = buildStoreCleanupConds(f, await getActiveAccountId());
+  const [row] = await db
+    .select({
+      orders: sql<number>`count(*)::int`,
+      sumTotal: sql<string | null>`COALESCE(SUM(${storeOrders.totalAmount}), 0)`,
+      minDate: sql<string | null>`MIN(${storeOrders.orderDate})`,
+      maxDate: sql<string | null>`MAX(${storeOrders.orderDate})`,
+    })
+    .from(storeOrders)
+    .where(and(...conds));
+  return {
+    orders: Number(row?.orders ?? 0),
+    sumTotal: Number(row?.sumTotal ?? 0),
+    from: row?.minDate ?? null,
+    to: row?.maxDate ?? null,
+  };
+}
+
+/**
+ * Hard-delete every store order matching the selection. Returns the number of
+ * rows removed. Refuses to run with no filter (returns 0) as a last-resort
+ * guard against deleting everything. A sanctioned exit path for `store_orders`
+ * alongside batch rollback (audited at the action layer).
+ */
+export async function deleteStoreOrders(f: StoreCleanupMatch): Promise<number> {
+  if (!hasAnyStoreCleanupFilter(f)) return 0;
+  const conds = buildStoreCleanupConds(f, await getActiveAccountId());
+  const deleted = await db
+    .delete(storeOrders)
+    .where(and(...conds))
+    .returning({ id: storeOrders.id });
+  return deleted.length;
 }
 
 // ── Upload batches ───────────────────────────────────────────────────────────

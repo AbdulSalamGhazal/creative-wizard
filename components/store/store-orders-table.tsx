@@ -6,7 +6,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ChevronLeft, ChevronRight, Columns3, Download, ShoppingBag } from "lucide-react";
 import { toast } from "sonner";
 import { DataTable, type DataColumn } from "@/components/ui/data-table";
-import { usePersistentVisible } from "@/components/ui/use-persistent-visible";
+import { usePersistentHidden } from "@/components/ui/use-persistent-hidden";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -53,20 +53,20 @@ export function StoreOrdersTable({
   const searchParams = useSearchParams();
   const [, startNav] = useNavTransition();
 
-  const customCols = useMemo(
-    () => fields.filter((f) => !f.core && f.showInTable),
-    [fields],
-  );
+  // Every custom field is a column now (the "show in table" toggle was retired
+  // — visibility is each viewer's per-browser choice via the Columns menu).
+  const customCols = useMemo(() => fields.filter((f) => !f.core), [fields]);
   // Hideable columns (order_id is pinned identity → always visible).
   const hideableKeys = useMemo(
     () => ["order_date", "total_amount", ...customCols.map((c) => c.key)],
     [customCols],
   );
-  const [visible, setVisible] = usePersistentVisible(
-    "cw-cols:store-orders",
-    hideableKeys,
+  // Persist what's HIDDEN, not what's visible: a newly-added field isn't in the
+  // stored set, so it shows up by default until the viewer hides it.
+  const [hiddenSet, setHiddenSet] = usePersistentHidden<string>(
+    "cw-cols-hidden:store-orders",
   );
-  const hidden = hideableKeys.filter((k) => !visible.has(k));
+  const hidden = hideableKeys.filter((k) => hiddenSet.has(k));
 
   // Core columns sort server-side (URL); custom columns sort client-side over
   // the current page (acceptable v1). `clientSort` overrides the URL sort.
@@ -235,12 +235,12 @@ export function StoreOrdersTable({
               return (
                 <DropdownMenuCheckboxItem
                   key={k}
-                  checked={visible.has(k)}
+                  checked={!hiddenSet.has(k)}
                   onCheckedChange={(on) =>
-                    setVisible((prev) => {
+                    setHiddenSet((prev) => {
                       const nextSet = new Set(prev);
-                      if (on) nextSet.add(k);
-                      else nextSet.delete(k);
+                      if (on) nextSet.delete(k);
+                      else nextSet.add(k);
                       return nextSet;
                     })
                   }

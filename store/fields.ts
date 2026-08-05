@@ -44,7 +44,6 @@ export function coreFieldRows(accountId: string): Array<{
   label: string;
   type: StoreFieldType;
   required: boolean;
-  showInTable: boolean;
   headers: string[];
   sortOrder: number;
 }> {
@@ -54,7 +53,6 @@ export function coreFieldRows(accountId: string): Array<{
     label: f.label,
     type: f.type,
     required: true,
-    showInTable: true,
     headers: [],
     sortOrder: f.sortOrder,
   }));
@@ -82,7 +80,6 @@ export interface StoreField {
   label: string;
   type: StoreFieldType;
   required: boolean;
-  showInTable: boolean;
   headers: string[];
   sortOrder: number;
   /** Convenience flag; core fields are locked in the config UI + actions. */

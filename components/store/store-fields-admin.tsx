@@ -50,6 +50,8 @@ export function StoreFieldsAdmin({ fields }: { fields: StoreField[] }) {
       <p className="text-xs text-ink-3">
         Headers are matched case-insensitively (after trimming). Mapping is
         explicit — a required field with no matching header fails the upload.
+        Every field is available in the Orders table&rsquo;s Columns menu, where
+        each viewer chooses what to show.
       </p>
     </div>
   );
@@ -117,14 +119,12 @@ function FieldRow({ field }: { field: StoreField }) {
   const [isPending, startTransition] = useNavTransition();
   const [label, setLabel] = useState(field.label);
   const [required, setRequired] = useState(field.required);
-  const [showInTable, setShowInTable] = useState(field.showInTable);
   const [headers, setHeaders] = useState<string[]>(field.headers);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   const dirty =
     label !== field.label ||
     required !== field.required ||
-    showInTable !== field.showInTable ||
     JSON.stringify(headers) !== JSON.stringify(field.headers);
 
   function save() {
@@ -133,7 +133,6 @@ function FieldRow({ field }: { field: StoreField }) {
         id: field.id,
         label: label.trim(),
         required,
-        showInTable,
         headers,
       });
       if (!res.ok) {
@@ -196,17 +195,11 @@ function FieldRow({ field }: { field: StoreField }) {
       {!field.core && (
         <div className="flex flex-wrap items-center gap-4 text-xs text-ink-2">
           <Toggle label="Required" on={required} onToggle={() => setRequired((v) => !v)} disabled={isPending} />
-          <Toggle
-            label="Show in table"
-            on={showInTable}
-            onToggle={() => setShowInTable((v) => !v)}
-            disabled={isPending}
-          />
         </div>
       )}
       {field.core && (
         <p className="text-[11px] text-ink-3">
-          Always required and shown. Only the label + headers are editable.
+          Always required. Only the label + headers are editable.
         </p>
       )}
 
@@ -279,13 +272,12 @@ function NewFieldForm() {
   const [label, setLabel] = useState("");
   const [type, setType] = useState<StoreFieldType>("text");
   const [required, setRequired] = useState(false);
-  const [showInTable, setShowInTable] = useState(true);
   const [headers, setHeaders] = useState<string[]>([]);
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
     startTransition(async () => {
-      const res = await createStoreField({ label: label.trim(), type, required, showInTable, headers });
+      const res = await createStoreField({ label: label.trim(), type, required, headers });
       if (!res.ok) {
         toast.error(res.error ?? "Couldn't create field");
         return;
@@ -294,7 +286,6 @@ function NewFieldForm() {
       setLabel("");
       setType("text");
       setRequired(false);
-      setShowInTable(true);
       setHeaders([]);
       router.refresh();
     });
@@ -335,7 +326,6 @@ function NewFieldForm() {
       </div>
       <div className="flex flex-wrap items-center gap-4 text-xs text-ink-2">
         <Toggle label="Required" on={required} onToggle={() => setRequired((v) => !v)} />
-        <Toggle label="Show in table" on={showInTable} onToggle={() => setShowInTable((v) => !v)} />
       </div>
       <Button type="submit" size="sm" disabled={isPending || !label.trim()}>
         <Plus className="h-3.5 w-3.5" />

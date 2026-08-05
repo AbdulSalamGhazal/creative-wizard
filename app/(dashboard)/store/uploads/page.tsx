@@ -6,6 +6,7 @@ import { listStoreBatches } from "@/db/queries/store";
 import { PageShell } from "@/components/layout/page-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { RecentStoreBatches } from "@/components/store/recent-store-batches";
+import { StoreCleanupTool } from "@/components/store/store-cleanup-tool";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +22,7 @@ export default async function StoreUploadsPage() {
   const user = await auth();
   const canUpload = user ? can(user, "store.upload") : false;
   const canRollback = user ? can(user, "upload.rollback") : false;
+  const canCleanup = user ? can(user, "store.cleanup") : false;
 
   const batches = await listStoreBatches(50);
 
@@ -72,6 +74,23 @@ export default async function StoreUploadsPage() {
             status: b.status,
           }))}
           canRollback={canRollback}
+        />
+      )}
+
+      {(canRollback || canCleanup) && batches.length > 0 && (
+        <p className="text-[11px] text-ink-3">
+          Roll back a batch within 24 h of upload. Beyond that window, use the
+          cleanup tool below to remove orders by date, batch, or ID.
+        </p>
+      )}
+
+      {canCleanup && (
+        <StoreCleanupTool
+          batches={batches.map((b) => ({
+            id: b.id,
+            fileName: b.fileName,
+            uploadedAt: b.uploadedAt.toISOString(),
+          }))}
         />
       )}
     </PageShell>

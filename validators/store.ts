@@ -16,3 +16,23 @@ export const storeOrdersFiltersSchema = z.object({
 });
 
 export type StoreOrdersFilterInput = z.infer<typeof storeOrdersFiltersSchema>;
+
+/**
+ * Filters for the order-cleanup tool (mirror of the ads `cleanupFiltersSchema`).
+ * All present filters combine with AND; at least one must be set — the tool
+ * refuses to match "everything" by accident. `orderIds` accepts an exact id or a
+ * comma-separated list (already split into an array by the client).
+ */
+export const storeCleanupFiltersSchema = z
+  .object({
+    from: z.string().regex(ISO).optional(),
+    to: z.string().regex(ISO).optional(),
+    batchId: z.string().uuid().optional(),
+    orderIds: z.array(z.string().trim().min(1)).default([]),
+  })
+  .refine(
+    (f) => (!!f.from && !!f.to) || !!f.batchId || f.orderIds.length > 0,
+    { message: "Select at least one filter before previewing or deleting." },
+  );
+
+export type StoreCleanupFilters = z.infer<typeof storeCleanupFiltersSchema>;
