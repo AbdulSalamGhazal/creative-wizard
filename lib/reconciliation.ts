@@ -21,6 +21,19 @@ export function reconDeltaPct(
   return (storeOrders - claimed) / storeOrders;
 }
 
+/**
+ * Match rate = claimed / store orders ("platforms claim X% of your orders").
+ * NULL when store orders = 0 (undefined → the UI renders "—"). Can exceed 1
+ * when platforms over-claim — that's signal, not an error; don't clamp.
+ */
+export function reconMatchRate(
+  storeOrders: number,
+  claimed: number,
+): number | null {
+  if (storeOrders === 0) return null;
+  return claimed / storeOrders;
+}
+
 /** |Δ%| at/above this is a "large" discrepancy → warn-tinted. */
 export const RECON_WARN_THRESHOLD = 0.25;
 

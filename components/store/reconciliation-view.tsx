@@ -3,8 +3,9 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Columns3, Download } from "lucide-react";
+import { Columns3, Download, Megaphone, Percent, Scale, ShoppingBag } from "lucide-react";
 import { DataTable, type DataColumn } from "@/components/ui/data-table";
+import { MetricCard } from "@/components/overview/metric-card";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -24,6 +25,7 @@ import {
   reconDelta,
   reconDeltaPct,
   reconDeltaTone,
+  reconMatchRate,
   isWithinAttributionLag,
 } from "@/lib/reconciliation";
 import { cn } from "@/lib/utils";
@@ -326,6 +328,47 @@ export function ReconciliationView({
             CSV
           </Button>
         </div>
+      </div>
+
+      {/* Range summary — counts only, mode-independent (both modes reconcile to
+          the same totals). Match rate = claimed / store orders. */}
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <MetricCard
+          label="Store orders"
+          value={overview.length === 0 ? "—" : int(overviewTotals.orders)}
+          icon={ShoppingBag}
+          hideBreakdown
+          empty={overview.length === 0}
+        />
+        <MetricCard
+          label="Platform conv."
+          value={overview.length === 0 ? "—" : int(overviewTotals.conv)}
+          icon={Megaphone}
+          hideBreakdown
+          empty={overview.length === 0}
+        />
+        <MetricCard
+          label="Δ store − claimed"
+          value={
+            overview.length === 0
+              ? "—"
+              : signed(reconDelta(overviewTotals.orders, overviewTotals.conv))
+          }
+          icon={Scale}
+          hideBreakdown
+          empty={overview.length === 0}
+        />
+        <MetricCard
+          label="Match rate"
+          value={(() => {
+            if (overview.length === 0) return "—";
+            const rate = reconMatchRate(overviewTotals.orders, overviewTotals.conv);
+            return rate === null ? "—" : `${(rate * 100).toFixed(1)}%`;
+          })()}
+          icon={Percent}
+          hideBreakdown
+          empty={overview.length === 0}
+        />
       </div>
 
       {/* Unmapped-values hint */}

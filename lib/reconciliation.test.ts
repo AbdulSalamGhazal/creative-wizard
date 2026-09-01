@@ -3,6 +3,7 @@ import {
   reconDelta,
   reconDeltaPct,
   reconDeltaTone,
+  reconMatchRate,
   isWithinAttributionLag,
   RECON_WARN_THRESHOLD,
 } from "@/lib/reconciliation";
@@ -23,6 +24,17 @@ describe("reconDelta / reconDeltaPct", () => {
     expect(reconDeltaPct(10, 7)).toBeCloseTo(0.3, 6);
     expect(reconDeltaPct(10, 12)).toBeCloseTo(-0.2, 6);
     expect(reconDeltaPct(10, 10)).toBe(0);
+  });
+});
+
+describe("reconMatchRate", () => {
+  it("is claimed / store; null when store = 0", () => {
+    expect(reconMatchRate(10, 7)).toBeCloseTo(0.7, 6);
+    expect(reconMatchRate(0, 5)).toBeNull();
+    expect(reconMatchRate(0, 0)).toBeNull();
+  });
+  it("exceeds 1 on over-claim (not clamped)", () => {
+    expect(reconMatchRate(10, 12)).toBeCloseTo(1.2, 6);
   });
 });
 
