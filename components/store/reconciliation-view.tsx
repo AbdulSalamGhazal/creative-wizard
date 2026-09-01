@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Columns3, Download, Megaphone, Percent, Scale, ShoppingBag } from "lucide-react";
 import { DataTable, type DataColumn } from "@/components/ui/data-table";
-import { MetricCard } from "@/components/overview/metric-card";
+import { MetricCard, type BreakdownBar } from "@/components/overview/metric-card";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -107,6 +107,106 @@ export function ReconciliationView({
     );
     return s;
   }, [overview]);
+
+  // Per-platform totals for by-platform mode (KPI tile breakdowns + table footer).
+  const bpTotals = useMemo(() => {
+    const store: Record<string, number> = {};
+    const claimed: Record<string, number> = {};
+    let unattr = 0;
+    for (const r of byPlatform) {
+      for (const p of platforms) {
+        store[p] = (store[p] ?? 0) + (r.storeByPlatform[p] ?? 0);
+        claimed[p] = (claimed[p] ?? 0) + (r.claimedByPlatform[p] ?? 0);
+      }
+      unattr += r.unattributed;
+    }
+    return { store, claimed, unattr };
+  }, [byPlatform, platforms]);
+
+  // In by-platform mode the KPI tiles break down per platform (the Dashboard
+  // MetricCard bar pattern). Only platforms with data in range get a bar; the
+  // Unattributed bucket rides along on the store-orders and Δ tiles so the bar
+  // sums always reconcile with the headline totals.
+  const tileBars = useMemo((): {
+    orders: BreakdownBar[];
+    conv: BreakdownBar[];
+    delta: BreakdownBar[];
+    match: BreakdownBar[];
+  } | null => {
+    if (mode !== "platform" || byPlatform.length === 0) return null;
+    const UNATTR = { label: "Unattr.", color: "var(--ink-3)" };
+    const active = platforms.filter(
+      (p) => (bpTotals.store[p] ?? 0) > 0 || (bpTotals.claimed[p] ?? 0) > 0,
+    );
+    const totalOrders = Math.max(1, overviewTotals.orders);
+    const totalConv = Math.max(1, overviewTotals.conv);
+
+    const orders: BreakdownBar[] = active.map((p) => ({
+      key: p,
+      label: PLATFORM_LABEL[p],
+      color: PLATFORM_COLOR[p],
+      fraction: (bpTotals.store[p] ?? 0) / totalOrders,
+      display: int(bpTotals.store[p] ?? 0),
+    }));
+    if (bpTotals.unattr > 0) {
+      orders.push({
+        key: "unattr",
+        ...UNATTR,
+        fraction: bpTotals.unattr / totalOrders,
+        display: int(bpTotals.unattr),
+      });
+    }
+
+    const conv: BreakdownBar[] = active.map((p) => ({
+      key: p,
+      label: PLATFORM_LABEL[p],
+      color: PLATFORM_COLOR[p],
+      fraction: (bpTotals.claimed[p] ?? 0) / totalConv,
+      display: int(bpTotals.claimed[p] ?? 0),
+    }));
+
+    const deltas = active.map((p) => ({
+      p,
+      d: reconDelta(bpTotals.store[p] ?? 0, bpTotals.claimed[p] ?? 0),
+    }));
+    const maxAbs = Math.max(
+      1,
+      ...deltas.map((x) => Math.abs(x.d)),
+      bpTotals.unattr,
+    );
+    const delta: BreakdownBar[] = deltas.map(({ p, d }) => ({
+      key: p,
+      label: PLATFORM_LABEL[p],
+      color: PLATFORM_COLOR[p],
+      fraction: Math.abs(d) / maxAbs,
+      display: signed(d),
+    }));
+    if (bpTotals.unattr > 0) {
+      // Unattributed orders have no claiming platform → their Δ contribution
+      // is the full count (keeps Σ bars == the headline Δ).
+      delta.push({
+        key: "unattr",
+        ...UNATTR,
+        fraction: bpTotals.unattr / maxAbs,
+        display: signed(bpTotals.unattr),
+      });
+    }
+
+    const rates = active.map((p) => ({
+      p,
+      r: reconMatchRate(bpTotals.store[p] ?? 0, bpTotals.claimed[p] ?? 0),
+    }));
+    const maxRate = Math.max(1e-9, ...rates.map((x) => x.r ?? 0));
+    const match: BreakdownBar[] = rates.map(({ p, r }) => ({
+      key: p,
+      label: PLATFORM_LABEL[p],
+      color: PLATFORM_COLOR[p],
+      fraction: r === null ? 0 : r / maxRate,
+      display: r === null ? "—" : `${(r * 100).toFixed(1)}%`,
+    }));
+
+    return { orders, conv, delta, match };
+  }, [mode, byPlatform.length, platforms, bpTotals, overviewTotals]);
 
   const columns: DataColumn<ReconOverviewRow>[] = useMemo(() => {
     const t = overviewTotals;
@@ -337,14 +437,16 @@ export function ReconciliationView({
           label="Store orders"
           value={overview.length === 0 ? "—" : int(overviewTotals.orders)}
           icon={ShoppingBag}
-          hideBreakdown
+          bars={tileBars?.orders ?? []}
+          hideBreakdown={!tileBars}
           empty={overview.length === 0}
         />
         <MetricCard
           label="Platform conv."
           value={overview.length === 0 ? "—" : int(overviewTotals.conv)}
           icon={Megaphone}
-          hideBreakdown
+          bars={tileBars?.conv ?? []}
+          hideBreakdown={!tileBars}
           empty={overview.length === 0}
         />
         <MetricCard
@@ -355,7 +457,8 @@ export function ReconciliationView({
               : signed(reconDelta(overviewTotals.orders, overviewTotals.conv))
           }
           icon={Scale}
-          hideBreakdown
+          bars={tileBars?.delta ?? []}
+          hideBreakdown={!tileBars}
           empty={overview.length === 0}
         />
         <MetricCard
@@ -366,7 +469,8 @@ export function ReconciliationView({
             return rate === null ? "—" : `${(rate * 100).toFixed(1)}%`;
           })()}
           icon={Percent}
-          hideBreakdown
+          bars={tileBars?.match ?? []}
+          hideBreakdown={!tileBars}
           empty={overview.length === 0}
         />
       </div>
@@ -408,7 +512,12 @@ export function ReconciliationView({
       ) : byPlatform.length === 0 ? (
         <EmptyState />
       ) : (
-        <ByPlatformTable rows={byPlatform} platforms={platforms} lag={lag} />
+        <ByPlatformTable
+          rows={byPlatform}
+          platforms={platforms}
+          lag={lag}
+          totals={bpTotals}
+        />
       )}
     </div>
   );
@@ -488,25 +597,14 @@ function ByPlatformTable({
   rows,
   platforms,
   lag,
+  totals,
 }: {
   rows: ReconByPlatformRow[];
   platforms: PlatformKey[];
   lag: (day: string) => boolean;
+  /** Range totals (computed once by the parent, shared with the KPI tiles). */
+  totals: { store: Record<string, number>; claimed: Record<string, number>; unattr: number };
 }) {
-  const totals = useMemo(() => {
-    const store: Record<string, number> = {};
-    const claimed: Record<string, number> = {};
-    let unattr = 0;
-    for (const r of rows) {
-      for (const p of platforms) {
-        store[p] = (store[p] ?? 0) + (r.storeByPlatform[p] ?? 0);
-        claimed[p] = (claimed[p] ?? 0) + (r.claimedByPlatform[p] ?? 0);
-      }
-      unattr += r.unattributed;
-    }
-    return { store, claimed, unattr };
-  }, [rows, platforms]);
-
   return (
     <div className="overflow-x-auto rounded-lg border border-line bg-surface">
       <table className="w-full min-w-[760px] border-collapse text-sm num">
