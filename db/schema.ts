@@ -1,4 +1,5 @@
 import {
+  check,
   pgTable,
   uuid,
   text,
@@ -673,6 +674,16 @@ export const exclusionRules = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({
+    // Exactly the kind-matching target column is set (also validated in code
+    // by validateRuleTarget — this is the DB backstop).
+    oneTargetCheck: check(
+      "exclusion_rules_one_target_check",
+      sql`(
+        (${t.kind} = 'campaign_objective' AND ${t.objective} IS NOT NULL AND ${t.campaignId} IS NULL AND ${t.creativeId} IS NULL) OR
+        (${t.kind} = 'campaign' AND ${t.campaignId} IS NOT NULL AND ${t.objective} IS NULL AND ${t.creativeId} IS NULL) OR
+        (${t.kind} = 'creative' AND ${t.creativeId} IS NOT NULL AND ${t.objective} IS NULL AND ${t.campaignId} IS NULL)
+      )`,
+    ),
     // One rule per target per account (partial per kind, since the target
     // column differs by kind).
     accountObjectiveUnique: uniqueIndex("exclusion_rules_account_objective_idx")
