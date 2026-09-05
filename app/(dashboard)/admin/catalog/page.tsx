@@ -22,6 +22,11 @@ import {
 } from "@/db/queries/reconciliation";
 import { PageShell } from "@/components/layout/page-shell";
 import { PageHeader } from "@/components/layout/page-header";
+import { ExclusionRulesAdmin } from "@/components/exclusions/exclusion-rules-admin";
+import { listExclusionRules } from "@/db/queries/exclusion-rules";
+import { asc, eq } from "drizzle-orm";
+import { db } from "@/lib/db";
+import { campaigns, creatives, products } from "@/db/schema";
 
 export const dynamic = "force-dynamic";
 
@@ -34,6 +39,7 @@ const TABS = [
   { key: "status", label: "Status", perm: "config.brands" },
   { key: "brands", label: "Brands", perm: "config.brands" },
   { key: "store_fields", label: "Store fields", perm: "config.store" },
+  { key: "exclusions", label: "Exclusions", perm: "record.exclude" },
 ] as const satisfies ReadonlyArray<{
   key: string;
   label: string;
@@ -105,7 +111,37 @@ export default async function CatalogAdminPage({ searchParams }: Props) {
         />
       )}
       {active === "store_fields" && <StoreFieldsTab />}
+      {active === "exclusions" && <ExclusionsTab />}
     </PageShell>
+  );
+}
+
+/**
+ * The Exclusions tab: rule-based exclusions (record.exclude). Loads the rules
+ * with live counts plus the campaign/creative pickers for the add-rule flow.
+ */
+async function ExclusionsTab() {
+  const acct = await getActiveAccountId();
+  const [rules, ruleCampaigns, ruleCreatives] = await Promise.all([
+    listExclusionRules(),
+    db
+      .select({ id: campaigns.id, name: campaigns.name })
+      .from(campaigns)
+      .where(eq(campaigns.accountId, acct))
+      .orderBy(asc(campaigns.name)),
+    db
+      .select({ id: creatives.id, name: creatives.name, hint: products.name })
+      .from(creatives)
+      .innerJoin(products, eq(products.id, creatives.productId))
+      .where(eq(creatives.accountId, acct))
+      .orderBy(asc(creatives.name)),
+  ]);
+  return (
+    <ExclusionRulesAdmin
+      rules={rules}
+      campaigns={ruleCampaigns}
+      creatives={ruleCreatives}
+    />
   );
 }
 

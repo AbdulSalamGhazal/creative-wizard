@@ -45,7 +45,7 @@ Do not introduce a new dependency without a one-line justification in the PR des
 - Every blended or aggregated metric is computed as a **weighted average via component sums** — never as a mean of per-row ratios. `SUM(clicks) / NULLIF(SUM(impressions), 0)`, never `AVG(clicks::numeric / impressions)`.
 - All derived-metric SQL fragments are imported from `lib/metrics.ts`. Do not open-code them in `db/queries/*`. If the formula needs to change, change it in `lib/metrics.ts` and every dashboard updates.
 - Use `NULLIF(divisor, 0)` so undefined values render as `NULL` → `—` in the UI, not as `0` or `Infinity`.
-- All aggregation queries apply `WHERE excluded_from_aggregates = false` by default. The `?includeExcluded=1` URL param flips this for diagnostic views. Detail pages always show every record with an "Excluded" badge.
+- All aggregation queries apply `WHERE excluded_from_aggregates = false` by default. The shared Excluded toggle (`?includeExcluded=1|0`) flips this per page — the toggle sits on EVERY aggregate surface, and its state is a saved per-user preference (`users.include_excluded`; resolution: explicit URL param → saved pref → hidden, via `resolveIncludeExcluded`). Detail pages always show every record with an "Excluded" badge. **The flag itself has exactly TWO sanctioned writers:** the manual per-record action (`excluded_source='manual'`) and the exclusion-rules engine (`'rule'` + `excluded_rule_id`) — nothing else may flip it.
 
 ## Validation rules (from validation-spec.md)
 
@@ -71,7 +71,7 @@ Do not introduce a new dependency without a one-line justification in the PR des
 - Never write to `performance_records` without a parent `upload_batches` row.
 - Never bypass the validation pipeline. No admin "force import" feature.
 - Never compute a blended metric as `AVG(ratio)` — always `SUM(numerator) / NULLIF(SUM(denominator), 0)`.
-- Never bypass the `excluded_from_aggregates = false` filter in aggregation queries unless the URL explicitly opts in.
+- Never bypass the `excluded_from_aggregates = false` filter in aggregation queries unless the resolved Excluded toggle (URL param or saved user preference) explicitly opts in.
 - Never let a creative be saved without a `product_id`.
 - Never store secrets in code or in client-side bundles.
 - Never modify an uploaded CSV file on disk.
@@ -607,3 +607,23 @@ This app is deployed and in production use. Treat `main` as shippable.
   lives in `lib/reconciliation.ts`; queries in `db/queries/reconciliation.ts`
   reuse `sumConversions`/`sumSpend` from `lib/metrics` and the per-platform
   freshness scan for the "still attributing" lag hint. Migration 0031 (additive).
+
+- **Exclusion provenance (2026-09): the `excluded_from_aggregates` flag has TWO
+  writers and they never overwrite each other.** `excluded_source` says who
+  flipped it — `'manual'` (per-record action) or `'rule'`
+  (`excluded_rule_id` → `exclusion_rules`, the account-global rule engine in
+  `lib/exclusion-rules.ts` + `db/queries/exclusion-rules.ts`; "materialized
+  with provenance" — aggregate queries never special-case rules). Invariants:
+  applying a rule SKIPS already-excluded rows (manual, or another rule's — a
+  row keeps its FIRST rule); un-applying touches ONLY rows with that rule's id;
+  **manual un-exclude REFUSES rule-excluded rows** (the action returns
+  "Excluded by rule «…»" and the row's Re-include button is disabled) — restore
+  them by deactivating the rule in Configuration → Exclusions. Rule mutations
+  reuse `record.exclude` but are always preview-then-confirm with an
+  acknowledgement checkbox, and audited (`exclusion.rule_*`) with the count the
+  engine ACTUALLY flipped. New/upserted uploads are stamped against ACTIVE
+  rules inside the commit transaction; `deleteCreative`/`deleteCampaign` delete
+  rules targeting the entity in-transaction (the FK has no cascade on purpose).
+  The Excluded TOGGLE is per-user (`users.include_excluded`, resolution URL →
+  pref → hidden); the RULES are account-global — pausing one changes everyone's
+  numbers.
