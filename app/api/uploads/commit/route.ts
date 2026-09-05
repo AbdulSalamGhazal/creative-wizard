@@ -17,6 +17,7 @@ import {
   type PerformanceMetricUpdate,
 } from "@/db/queries/performance";
 import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
+import { stampAgainstActiveRules } from "@/db/queries/exclusion-rules";
 
 const bodySchema = z.object({
   token: z.string().uuid(),
@@ -283,6 +284,14 @@ export async function POST(request: NextRequest) {
           .returning({ id: performanceRecords.id });
         inserted += ret.length;
       }
+
+      // Exclusion rules: stamp the freshly-inserted rows against every ACTIVE
+      // rule, inside this transaction, so covered records land already
+      // excluded (source='rule' + rule id). Already-excluded rows are skipped
+      // by the engine, and manual exclusions are never overwritten.
+      await stampAgainstActiveRules(tx, acct, [
+        eq(performanceRecords.uploadBatchId, batch.id),
+      ]);
     }
 
     // Batched in-place update of existing records (full last-value-wins
@@ -300,6 +309,17 @@ export async function POST(request: NextRequest) {
           acct,
           metricUpdates.slice(i, i + CHUNK_SIZE),
         );
+      }
+
+      // Re-stamp the updated rows against active rules too. A row's identity
+      // (creative/platform/campaign/date) can't change on upsert, so this is a
+      // safety net rather than a correction path — but it keeps a record that
+      // somehow sits inside an active rule's scope from surviving un-excluded.
+      const updatedIds = updateRows.map((u) => u.id);
+      for (let i = 0; i < updatedIds.length; i += CHUNK_SIZE) {
+        await stampAgainstActiveRules(tx, acct, [
+          inArray(performanceRecords.id, updatedIds.slice(i, i + CHUNK_SIZE)),
+        ]);
       }
     }
 

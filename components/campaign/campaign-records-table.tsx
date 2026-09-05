@@ -170,6 +170,11 @@ export function CampaignRecordsTable({
             <Badge
               variant="outline"
               className="text-[9px] border-warn/40 text-warn bg-warn/10"
+              title={
+                r.excludedSource === "rule"
+                  ? "Excluded by an exclusion rule — manage it in Configuration → Exclusions."
+                  : undefined
+              }
             >
               Excluded
             </Badge>

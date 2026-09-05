@@ -21,13 +21,15 @@ import { cn } from "@/lib/utils";
 interface Props {
   recordId: number;
   excluded: boolean;
+  /** Exclusion provenance — 'rule' rows can only be restored via the rule. */
+  excludedSource?: "manual" | "rule" | null;
   /** Optional context shown in the dialog header. */
   context?: string;
 }
 
 const REASON_MAX = 200;
 
-export function ExcludeRowAction({ recordId, excluded, context }: Props) {
+export function ExcludeRowAction({ recordId, excluded, excludedSource, context }: Props) {
   const canExclude = useCan("record.exclude");
   const [open, setOpen] = useState(false);
   const [reason, setReason] = useState("");
@@ -74,15 +76,22 @@ export function ExcludeRowAction({ recordId, excluded, context }: Props) {
   };
 
   if (excluded) {
+    // Rule-excluded rows can't be un-excluded here — the rule owns them (the
+    // server refuses too; this just explains it up front).
+    const byRule = excludedSource === "rule";
     return (
       <Button
         type="button"
         variant="ghost"
         size="xs"
         onClick={submitInclude}
-        disabled={isPending}
-        className="text-ink-3 hover:text-ink"
-        title="Re-include in totals"
+        disabled={isPending || byRule}
+        className="text-ink-3 hover:text-ink disabled:opacity-50"
+        title={
+          byRule
+            ? "Excluded by an exclusion rule — deactivate the rule in Configuration → Exclusions to restore it."
+            : "Re-include in totals"
+        }
       >
         <RotateCcw className="w-3 h-3" />
         Re-include

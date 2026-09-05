@@ -33,6 +33,9 @@ export const AUDIT_ACTIONS = {
   // Exclusions
   EXCLUSION_EXCLUDE: "exclusion.exclude",
   EXCLUSION_INCLUDE: "exclusion.include",
+  EXCLUSION_RULE_CREATE: "exclusion.rule_create",
+  EXCLUSION_RULE_TOGGLE: "exclusion.rule_toggle",
+  EXCLUSION_RULE_DELETE: "exclusion.rule_delete",
 
   // Uploads
   UPLOAD_COMMIT: "upload.commit",
@@ -169,6 +172,9 @@ export const AUDIT_LABELS: Record<AuditAction, string> = {
   "campaign.delete": "Deleted campaign",
   "exclusion.exclude": "Excluded record",
   "exclusion.include": "Re-included record",
+  "exclusion.rule_create": "Created exclusion rule",
+  "exclusion.rule_toggle": "Toggled exclusion rule",
+  "exclusion.rule_delete": "Deleted exclusion rule",
   "upload.commit": "Committed upload",
   "upload.rollback": "Rolled back upload",
   "upload.bulk_delete": "Bulk-deleted records",
@@ -219,6 +225,9 @@ export const AUDIT_CATEGORIES: Record<AuditAction, AuditEntityType> = {
   "campaign.delete": "campaign",
   "exclusion.exclude": "exclusion",
   "exclusion.include": "exclusion",
+  "exclusion.rule_create": "exclusion",
+  "exclusion.rule_toggle": "exclusion",
+  "exclusion.rule_delete": "exclusion",
   "upload.commit": "upload",
   "upload.rollback": "upload",
   "upload.bulk_delete": "upload",

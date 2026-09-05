@@ -262,7 +262,11 @@ export function CreativeRecordsTable({ rows, title = "All records" }: Props) {
                           <Badge
                             variant="outline"
                             className="border-warn/40 text-warn bg-warn/10"
-                            title={r.excludedReason ?? undefined}
+                            title={
+                              r.excludedSource === "rule"
+                                ? "Excluded by an exclusion rule — manage it in Configuration → Exclusions."
+                                : r.excludedReason ?? undefined
+                            }
                           >
                             Excluded
                           </Badge>
@@ -272,6 +276,7 @@ export function CreativeRecordsTable({ rows, title = "All records" }: Props) {
                         <ExcludeRowAction
                           recordId={r.id}
                           excluded={r.excludedFromAggregates}
+                          excludedSource={r.excludedSource}
                           context={`${isoDate(r.date)} · ${PLATFORM_LABEL[r.platform]} · ${usd(r.spend)}`}
                         />
                       </td>

@@ -9,6 +9,8 @@ import { creatives, performanceRecords } from "@/db/schema";
 import { excludeSchema } from "@/validators/exclusion";
 import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
 import { getActiveAccountId } from "@/lib/tenant";
+import { ruleDescriptor } from "@/lib/exclusion-rules";
+import { ruleExcludingRecord } from "@/db/queries/exclusion-rules";
 
 const idSchema = z.coerce.number().int().positive();
 
@@ -35,6 +37,7 @@ export async function excludeRecord(
       .update(performanceRecords)
       .set({
         excludedFromAggregates: true,
+        excludedSource: "manual",
         excludedReason: parsed.reason,
         excludedByUserId: user.id,
         excludedAt: new Date(),
@@ -82,10 +85,31 @@ export async function includeRecord(recordId: number): Promise<ActionResult> {
     const id = idSchema.parse(recordId);
     const acct = await getActiveAccountId();
 
+    // A rule-excluded record can't be manually un-excluded — the rule would
+    // just be out of sync with its rows. Point at the rule instead.
+    const blockingRule = await ruleExcludingRecord(id);
+    if (blockingRule) {
+      const label = ruleDescriptor(
+        {
+          kind: blockingRule.kind,
+          objective: blockingRule.objective,
+          campaignId: null,
+          creativeId: null,
+        },
+        blockingRule.targetLabel,
+      );
+      return {
+        ok: false,
+        error: `Excluded by rule «${label}» — deactivate the rule in Configuration → Exclusions.`,
+      };
+    }
+
     const [updated] = await db
       .update(performanceRecords)
       .set({
         excludedFromAggregates: false,
+        excludedSource: null,
+        excludedRuleId: null,
         excludedReason: null,
         excludedByUserId: null,
         excludedAt: null,

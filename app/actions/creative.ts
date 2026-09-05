@@ -20,6 +20,7 @@ import {
   sourceLinkSchema,
 } from "@/validators/creative";
 import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
+import { deleteRulesTargeting } from "@/db/queries/exclusion-rules";
 import { getActiveAccountId } from "@/lib/tenant";
 
 export interface CreativeMutationResult {
@@ -542,6 +543,9 @@ export async function deleteCreative(
       await tx
         .delete(performanceRecords)
         .where(eq(performanceRecords.creativeId, creativeId));
+      // Exclusion rules targeting this creative go with it (their flagged rows
+      // were just deleted, so nothing references the rule anymore).
+      await deleteRulesTargeting(tx, acct, { creativeId });
       // creative_tags cascade on this delete.
       await tx.delete(creatives).where(eq(creatives.id, creativeId));
       return n;

@@ -8,6 +8,7 @@ import { requirePermission } from "@/lib/auth";
 import { campaigns, performanceRecords } from "@/db/schema";
 import { buildCampaignName } from "@/lib/campaign";
 import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
+import { deleteRulesTargeting } from "@/db/queries/exclusion-rules";
 import { getActiveAccountId } from "@/lib/tenant";
 import { createCampaignSchema, updateCampaignSchema } from "@/validators/campaign";
 
@@ -222,6 +223,9 @@ export async function deleteCampaign(
       await tx
         .delete(performanceRecords)
         .where(eq(performanceRecords.campaignId, campaignId));
+      // Exclusion rules targeting this campaign go with it (their flagged rows
+      // were just deleted, so nothing references the rule anymore).
+      await deleteRulesTargeting(tx, acct, { campaignId });
       await tx.delete(campaigns).where(eq(campaigns.id, campaignId));
       return n;
     });

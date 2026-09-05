@@ -814,6 +814,7 @@ export interface CampaignRecordRow {
   videoViews75: number | null;
   videoViews100: number | null;
   excludedFromAggregates: boolean;
+  excludedSource: "manual" | "rule" | null;
 }
 
 export async function campaignRecords(
@@ -842,6 +843,7 @@ export async function campaignRecords(
       videoViews75: performanceRecords.videoViews75,
       videoViews100: performanceRecords.videoViews100,
       excludedFromAggregates: performanceRecords.excludedFromAggregates,
+      excludedSource: performanceRecords.excludedSource,
     })
     .from(performanceRecords)
     .innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId))
@@ -868,6 +870,7 @@ export async function campaignRecords(
     videoViews75: numOrNull(r.videoViews75),
     videoViews100: numOrNull(r.videoViews100),
     excludedFromAggregates: r.excludedFromAggregates,
+    excludedSource: (r.excludedSource ?? null) as "manual" | "rule" | null,
   }));
 }
 
