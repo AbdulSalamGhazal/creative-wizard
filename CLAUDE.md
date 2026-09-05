@@ -638,3 +638,15 @@ This app is deployed and in production use. Treat `main` as shippable.
   campaign carrying one was renamed to "Awareness" (saved campaign-view
   objective filters were swept + deduped too). Never reintroduce the removed
   values.
+
+- **Budget module (2026-09, `/budget`) — raw actuals BY DECISION.** Monthly spend
+  plan (USD, platform → objective) vs actual and ONE monthly revenue target
+  (SAR) vs store actuals. Standing decisions: actual spend deliberately applies
+  **NO exclusion filtering** (raw `performance_records` totals — budget totals
+  may differ from dashboards; never "fix" this); revenue = store FACTS as a
+  monthly total only (no breakdown; claimed-vs-real lives on Reconciliation);
+  the USD↔SAR toggle is display-only (localStorage) but ROAS is ALWAYS computed
+  through the per-brand `accounts.usd_to_sar_rate` (default 3.77). The spend
+  table's Unplanned bucket must reconcile its actual total to the raw month
+  total exactly (harness-pinned). Pacing = current month only, warn-tinted by
+  |deviation| magnitude. Permission `budget.manage`; audit `budget.update`.

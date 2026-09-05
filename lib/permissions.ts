@@ -32,6 +32,7 @@ export const PERMISSION_GROUPS = [
       { key: "campaign.create", label: "Register campaigns" },
       { key: "campaign.edit", label: "Edit campaigns" },
       { key: "campaign.delete", label: "Delete campaigns (removes their records)" },
+      { key: "budget.manage", label: "Manage budget plans" },
     ],
   },
   {
@@ -116,6 +117,7 @@ export const EDITOR_PRESET: readonly Permission[] = [
   "store.upload",
   "store.cleanup",
   "config.store",
+  "budget.manage",
 ];
 
 /** The `viewer` preset — read-only, no write capabilities. */

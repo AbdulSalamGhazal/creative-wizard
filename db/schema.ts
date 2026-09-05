@@ -138,6 +138,14 @@ export const accounts = pgTable("accounts", {
    * `store_source_mappings`.
    */
   storeSourceFieldKey: varchar("store_source_field_key", { length: 48 }),
+  /**
+   * USD→SAR conversion rate for the Budget module's display toggle and its
+   * ROAS-through-rate math (revenue is SAR, spend is USD). Per-brand,
+   * user-editable on /budget (budget.manage). Default 3.77 (the peg).
+   */
+  usdToSarRate: numeric("usd_to_sar_rate", { precision: 8, scale: 4 })
+    .notNull()
+    .default("3.77"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -695,6 +703,61 @@ export const exclusionRules = pgTable(
     accountCreativeUnique: uniqueIndex("exclusion_rules_account_creative_idx")
       .on(t.accountId, t.creativeId)
       .where(sql`${t.kind} = 'creative'`),
+  }),
+);
+
+/**
+ * Budget module (2026-09) — monthly spend plan per platform → objective, in
+ * USD. `month` is always the FIRST of the month. Actuals come straight from
+ * `performance_records` for the month WITHOUT any exclusion filtering (raw
+ * totals — a standing product decision; see tech-spec §Budget). Tenant table
+ * (§4.1 invariants).
+ */
+export const budgetAllocations = pgTable(
+  "budget_allocations",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    accountId: accountId(),
+    /** First day of the planned month (e.g. 2026-09-01). */
+    month: date("month").notNull(),
+    platform: varchar("platform", { length: 16, enum: platformEnum }).notNull(),
+    objective: varchar("objective", { length: 16, enum: campaignObjectiveEnum }).notNull(),
+    /** Planned spend for the month, USD. */
+    plannedSpend: numeric("planned_spend", { precision: 12, scale: 2 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    accountMonthComboUnique: uniqueIndex("budget_allocations_account_month_combo_idx").on(
+      t.accountId,
+      t.month,
+      t.platform,
+      t.objective,
+    ),
+  }),
+);
+
+/**
+ * Month-level budget targets — today just the planned revenue (SAR, matching
+ * the store's currency; never converted). A separate month-grain table so
+ * future month-level targets (e.g. planned orders) slot in without remodeling.
+ */
+export const budgetTargets = pgTable(
+  "budget_targets",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    accountId: accountId(),
+    /** First day of the target month. */
+    month: date("month").notNull(),
+    plannedRevenueSar: numeric("planned_revenue_sar", { precision: 14, scale: 2 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    accountMonthUnique: uniqueIndex("budget_targets_account_month_idx").on(
+      t.accountId,
+      t.month,
+    ),
   }),
 );
 

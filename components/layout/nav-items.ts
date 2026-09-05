@@ -11,6 +11,7 @@ import {
   Filter,
   Megaphone,
   Scale,
+  Wallet,
   Users,
   ScrollText,
 } from "lucide-react";
@@ -67,6 +68,8 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/summary", label: "Summary", icon: Table2, group: "ads" },
   { href: "/funnel", label: "Funnel", icon: Filter, group: "ads" },
   { href: "/campaigns", label: "Campaigns", icon: Megaphone, group: "ads" },
+  // Monthly plan-vs-actual (open to any brand member; editing is permission-gated).
+  { href: "/budget", label: "Budget", icon: Wallet, group: "ads" },
   // Trends is a hub, not a page: the href is its first child (used when the
   // desktop rail is collapsed to icons and by the mobile nav's parent link).
   {

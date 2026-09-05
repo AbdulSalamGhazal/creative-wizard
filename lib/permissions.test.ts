@@ -53,6 +53,7 @@ describe("role presets", () => {
         "store.upload",
         "store.cleanup",
         "config.store",
+        "budget.manage",
       ].sort(),
     );
     // Lacks: rollback, catalog/config, user management, audit (admin-only today).
