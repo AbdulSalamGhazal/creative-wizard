@@ -45,7 +45,7 @@ A **multi-tenant creative-performance analytics tool** for paid social. It manag
   - `csv/platforms/types.ts` — `INTERNAL_FIELDS`/`FIELD_META`, typed so a new field fails compilation anywhere it isn't described
 - **Navigation feedback:** any component driving route/searchParam changes uses `useNavTransition()` (`lib/nav-progress.ts`) so the global progress bar reflects pending navigation.
 
-## 4. Data model (25 tables)
+## 4. Data model (26 tables)
 
 **Tenancy & people:** `accounts` (brands; `status_window_hours` per brand; `usd_to_sar_rate` numeric default 3.77 — the Budget module's per-brand display/ROAS rate), `users` (role tier + granular `permissions` + `all_accounts` brand-membership flag, §5), `user_accounts` (brand membership — the brands a restricted `all_accounts = false` user may see; global join table, both FKs `ON DELETE CASCADE`; consulted only when `all_accounts = false`, §5).
 **Catalog:** `products`, `creatives` (required `product_id`; unique per account; the legacy manual `status` column is dead — status is derived, §4.2; `priority smallint` NULLABLE = the team's MANUAL 1–3 importance judgment, 3 = highest, NULL = unrated — detail-page only, distinct from the computed "Rate"/rating concept), `tags`, `creative_tags` (no `account_id` — scoped transitively via the creative; cascading tag operations MUST be bounded by an account-scoped creatives subquery), `creative_platform_overrides` (manual per-creative×platform termination).

@@ -11,18 +11,24 @@ import {
 import { cn } from "@/lib/utils";
 import {
   isActive,
-  navItemHref,
   navSections,
   type NavItem,
 } from "@/components/layout/nav-items";
+import {
+  useNavLinkProps,
+  type NavLinkProps,
+} from "@/components/layout/use-nav-link";
 
 const STORAGE_KEY = "sidebar-collapsed";
 
 export function Sidebar({ granted }: { granted: string[] }) {
   const pathname = usePathname();
-  // Budget links carry the current ?month= (see navItemHref). The layout wraps
-  // this component in <Suspense> for useSearchParams.
+  // Budget links carry the current ?month= — the href is progressive
+  // enhancement (hence the <Suspense> the layout wraps this in for
+  // useSearchParams); the click handler re-derives it from window.location so
+  // the month survives regardless of hydration timing. See use-nav-link.ts.
   const searchParams = useSearchParams();
+  const linkProps = useNavLinkProps(pathname, searchParams);
   const [collapsed, setCollapsed] = useState(false);
 
   // Restore the persisted collapse preference after mount. Server renders the
@@ -80,7 +86,7 @@ export function Sidebar({ granted }: { granted: string[] }) {
                 <NavLink
                   key={item.href}
                   item={item}
-                  href={navItemHref(item, pathname, searchParams)}
+                  link={linkProps(item)}
                   active={isActive(pathname, item.href, item.exact)}
                   collapsed={collapsed}
                 />
@@ -116,19 +122,20 @@ export function Sidebar({ granted }: { granted: string[] }) {
 
 function NavLink({
   item,
-  href,
+  link,
   active,
   collapsed,
 }: {
   item: NavItem;
-  href: string;
+  link: NavLinkProps;
   active: boolean;
   collapsed: boolean;
 }) {
   const Icon = item.icon;
   return (
     <Link
-      href={href}
+      href={link.href}
+      onClick={link.onClick}
       title={collapsed ? item.label : undefined}
       className={cn(
         "relative flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors",

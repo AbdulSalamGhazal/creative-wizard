@@ -105,6 +105,9 @@ Do not introduce a new dependency without a one-line justification in the PR des
 > sections it touches and correct drift. Docs must stay clean, current, and
 > non-contradictory — the Learned section may add nuance, but the rules sections
 > above it must never state something the Learned section contradicts.
+> **When adding a `pgTable`, update §4's table count in the same commit**
+> (`grep -c '= pgTable(' db/schema.ts` is the source of truth) — that heading has
+> now gone stale twice.
 
 ## Deployment (production) — LIVE
 

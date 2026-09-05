@@ -8,8 +8,6 @@ import { accounts } from "@/db/schema";
 import { requirePermission } from "@/lib/auth";
 import { getActiveAccountId } from "@/lib/tenant";
 import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
-import { CAMPAIGN_OBJECTIVES } from "@/lib/campaign";
-import { platformEnum } from "@/db/schema";
 import {
   daysInMonth,
   monthLabel,
@@ -18,6 +16,7 @@ import {
   validateRate,
   validateWeight,
 } from "@/lib/budget";
+import { MONTH_KEY, planSchema } from "@/validators/budget";
 import { replaceBudgetMonth, copyBudgetMonth } from "@/db/queries/budget";
 
 /**
@@ -25,27 +24,6 @@ import { replaceBudgetMonth, copyBudgetMonth } from "@/db/queries/budget";
  * with the month + a compact diff summary. Any month is editable (no locking —
  * a deliberate decision; the audit trail is the guard).
  */
-
-const MONTH = /^\d{4}-\d{2}$/;
-
-const planSchema = z.object({
-  month: z.string().regex(MONTH),
-  allocations: z
-    .array(
-      z.object({
-        platform: z.enum(platformEnum),
-        objective: z.enum(CAMPAIGN_OBJECTIVES),
-        plannedSpend: z.number().min(0).max(99_999_999),
-      }),
-    )
-    .max(platformEnum.length * CAMPAIGN_OBJECTIVES.length),
-  plannedRevenueSar: z.number().min(0).max(999_999_999_999).nullable(),
-  reserveSpendUsd: z.number().min(0).max(99_999_999).default(0),
-  dayWeights: z
-    .array(z.object({ day: z.number().int().min(1).max(31), weight: z.number() }))
-    .max(31)
-    .default([]),
-});
 
 export interface BudgetActionResult {
   ok: boolean;
@@ -121,7 +99,7 @@ export async function saveBudgetMonth(input: unknown): Promise<BudgetActionResul
 export async function copyBudgetFromLastMonth(input: unknown): Promise<BudgetActionResult> {
   try {
     const user = await requirePermission("budget.manage");
-    const parsed = z.object({ month: z.string().regex(MONTH) }).safeParse(input);
+    const parsed = z.object({ month: z.string().regex(MONTH_KEY) }).safeParse(input);
     if (!parsed.success) return { ok: false, error: "Invalid month." };
     const { month } = parsed.data;
     const from = prevMonthKey(month);

@@ -14,9 +14,12 @@ import {
 import {
   TRENDS_CHILDREN,
   isActive,
-  navItemHref,
   navSections,
 } from "@/components/layout/nav-items";
+import {
+  useNavLinkProps,
+  type NavLinkProps,
+} from "@/components/layout/use-nav-link";
 import { cn } from "@/lib/utils";
 
 /**
@@ -27,9 +30,12 @@ import { cn } from "@/lib/utils";
  */
 export function MobileNav({ granted }: { granted: string[] }) {
   const pathname = usePathname();
-  // Budget links carry the current ?month= (see navItemHref). The TopBar wraps
-  // this component in <Suspense> for useSearchParams.
+  // Budget links carry the current ?month= — the href is progressive
+  // enhancement (hence the <Suspense> the TopBar wraps this in for
+  // useSearchParams); the click handler re-derives it from window.location so
+  // the month survives regardless of hydration timing. See use-nav-link.ts.
   const searchParams = useSearchParams();
+  const linkProps = useNavLinkProps(pathname, searchParams);
   const [open, setOpen] = useState(false);
 
   // Close the sheet whenever the route changes (link tapped).
@@ -42,11 +48,12 @@ export function MobileNav({ granted }: { granted: string[] }) {
   const link = (
     href: string,
     label: string,
-    opts?: { child?: boolean; exact?: boolean; linkHref?: string },
+    opts?: { child?: boolean; exact?: boolean; link?: NavLinkProps },
   ) => (
     <Link
       key={href + label}
-      href={opts?.linkHref ?? href}
+      href={opts?.link?.href ?? href}
+      onClick={opts?.link?.onClick}
       className={cn(
         "block rounded-md px-3 py-2 text-sm transition-colors",
         opts?.child && "ml-3 text-xs",
@@ -91,7 +98,7 @@ export function MobileNav({ granted }: { granted: string[] }) {
                 ) : (
                   link(item.href, item.label, {
                     exact: item.exact,
-                    linkHref: navItemHref(item, pathname, searchParams),
+                    link: linkProps(item),
                   })
                 ),
               )}
