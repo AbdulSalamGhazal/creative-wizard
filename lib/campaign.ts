@@ -3,14 +3,17 @@
  * (db/schema.ts re-exports this as campaignObjectiveEnum) and the create-form
  * dropdown. Client-safe (this module pulls in no server code), so the UI can
  * import it without bundling the schema. Keep "Sales" first — it's the default.
+ *
+ * 2026-09 merge: "Reach&Freq" / "Traffic" / "Video Views" were RETIRED and all
+ * existing campaigns carrying them renamed to "Awareness" (migration 0034);
+ * "Activation" was added new. Do not reintroduce the removed values.
  */
 export const CAMPAIGN_OBJECTIVES = [
   "Sales",
   "Prospecting",
   "Retargeting",
-  "Reach&Freq",
-  "Traffic",
-  "Video Views",
+  "Awareness",
+  "Activation",
 ] as const;
 
 /**

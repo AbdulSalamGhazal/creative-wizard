@@ -630,3 +630,11 @@ This app is deployed and in production use. Treat `main` as shippable.
   The Excluded TOGGLE is per-user (`users.include_excluded`, resolution URL →
   pref → hidden); the RULES are account-global — pausing one changes everyone's
   numbers.
+
+- **Campaign objectives merged 2026-09 (migration 0034):** the vocabulary is
+  exactly **Sales, Prospecting, Retargeting, Awareness, Activation**
+  (`CAMPAIGN_OBJECTIVES` in lib/campaign.ts — everything derives from it).
+  "Reach&Freq", "Traffic" and "Video Views" were RETIRED and every existing
+  campaign carrying one was renamed to "Awareness" (saved campaign-view
+  objective filters were swept + deduped too). Never reintroduce the removed
+  values.

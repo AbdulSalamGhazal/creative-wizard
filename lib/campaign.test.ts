@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildCampaignName, parseCampaignName } from "@/lib/campaign";
+import { buildCampaignName, parseCampaignName, CAMPAIGN_OBJECTIVES } from "@/lib/campaign";
 
 /**
  * buildCampaignName is the single source of truth for the stored campaign-name
@@ -77,5 +77,20 @@ describe("parseCampaignName (inverse)", () => {
       const { campaign, adset } = parseCampaignName(stored, platform);
       expect(buildCampaignName(campaign, adset, platform)).toBe(stored);
     }
+  });
+});
+
+describe("CAMPAIGN_OBJECTIVES", () => {
+  it("is pinned to exactly the five post-merge values (2026-09)", () => {
+    // Reach&Freq / Traffic / Video Views were merged into "Awareness" and must
+    // never be reintroduced; "Activation" was added new. Order matters only for
+    // "Sales" (the default, kept first).
+    expect([...CAMPAIGN_OBJECTIVES]).toEqual([
+      "Sales",
+      "Prospecting",
+      "Retargeting",
+      "Awareness",
+      "Activation",
+    ]);
   });
 });

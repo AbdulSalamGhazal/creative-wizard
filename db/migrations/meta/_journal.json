@@ -239,6 +239,13 @@
       "when": 1788600805673,
       "tag": "0033_exclusion_rules_one_target_check",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1788603545307,
+      "tag": "0034_merge_campaign_objectives",
+      "breakpoints": true
     }
   ]
 }
