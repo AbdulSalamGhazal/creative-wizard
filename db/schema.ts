@@ -18,9 +18,12 @@ import {
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { CAMPAIGN_OBJECTIVES } from "@/lib/campaign";
+import { ALL_PLATFORMS } from "@/lib/palette";
 
 export const roleEnum = ["admin", "editor", "viewer"] as const;
-export const platformEnum = ["instagram", "facebook", "tiktok", "snapchat"] as const;
+// Derived from lib/palette's canonical list (DERIVE, don't re-list — same
+// pattern as campaignObjectiveEnum below).
+export const platformEnum = ALL_PLATFORMS;
 export const creativeTypeEnum = ["video", "slides", "image"] as const;
 export const creativeStatusEnum = ["draft", "active", "paused", "archived"] as const;
 export const productStatusEnum = ["active", "archived"] as const;

@@ -26,6 +26,12 @@ export const PLATFORM_LABEL: Record<PlatformKey, string> = {
   snapchat: "Snapchat",
 };
 
+/**
+ * The CANONICAL platform list. Client-safe single source of truth —
+ * db/schema.ts derives `platformEnum` from THIS (mirroring how
+ * `campaignObjectiveEnum` derives from lib/campaign's CAMPAIGN_OBJECTIVES),
+ * so the two can never drift and client bundles never pull in the schema.
+ */
 export const ALL_PLATFORMS = [
   "instagram",
   "facebook",
