@@ -632,12 +632,15 @@ This app is deployed and in production use. Treat `main` as shippable.
   numbers.
 
 - **Campaign objectives merged 2026-09 (migration 0034):** the vocabulary is
-  exactly **Sales, Prospecting, Retargeting, Awareness, Activation**
-  (`CAMPAIGN_OBJECTIVES` in lib/campaign.ts — everything derives from it).
-  "Reach&Freq", "Traffic" and "Video Views" were RETIRED and every existing
-  campaign carrying one was renamed to "Awareness" (saved campaign-view
-  objective filters were swept + deduped too). Never reintroduce the removed
-  values.
+  exactly **Sales, Prospecting, Retargeting, Awareness, Activation, Special
+  Case** (`CAMPAIGN_OBJECTIVES` in lib/campaign.ts — everything derives from
+  it; "Special Case" was added new, later in 2026-09). "Reach&Freq", "Traffic"
+  and "Video Views" were RETIRED and every existing campaign carrying one was
+  renamed to "Awareness" (saved campaign-view objective filters were swept +
+  deduped too). Never reintroduce the removed values. **Any future objective
+  rename/merge must ALSO sweep `budget_allocations.objective` (and saved
+  views), same as the 0034 migration did for campaigns** — the Budget module
+  stores objective values in its plan rows.
 
 - **Budget module (2026-09, `/budget`) — raw actuals BY DECISION.** Monthly spend
   plan (USD, platform → objective) vs actual and ONE monthly revenue target
