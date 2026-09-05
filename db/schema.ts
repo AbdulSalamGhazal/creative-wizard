@@ -753,6 +753,14 @@ export const budgetTargets = pgTable(
     /** First day of the target month. */
     month: date("month").notNull(),
     plannedRevenueSar: numeric("planned_revenue_sar", { precision: 14, scale: 2 }).notNull(),
+    /**
+     * Contingency spend (USD) on top of the planned allocations. Tracked
+     * against the month's UNPLANNED actual spend; deliberately OUTSIDE the
+     * day-weight curve and pacing (contingency, not scheduled spend).
+     */
+    reserveSpendUsd: numeric("reserve_spend_usd", { precision: 12, scale: 2 })
+      .notNull()
+      .default("0"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -760,6 +768,34 @@ export const budgetTargets = pgTable(
     accountMonthUnique: uniqueIndex("budget_targets_account_month_idx").on(
       t.accountId,
       t.month,
+    ),
+  }),
+);
+
+/**
+ * Day-weight overrides for the Budget plan curve. Only NON-1 weights are
+ * stored — an absent day means weight 1, so a month with no rows is exactly
+ * the linear v1 curve. Weights (code-validated > 0, ≤ 10) normalize into a
+ * fraction-of-month curve that drives BOTH spend and revenue pacing/projection
+ * (one curve — user decision). Tenant table (§4.1).
+ */
+export const budgetDayWeights = pgTable(
+  "budget_day_weights",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    accountId: accountId(),
+    /** First day of the month the weight belongs to. */
+    month: date("month").notNull(),
+    /** Day of month, 1..31 (code-validated ≤ the month's real length). */
+    day: smallint("day").notNull(),
+    weight: numeric("weight", { precision: 6, scale: 2 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    accountMonthDayUnique: uniqueIndex("budget_day_weights_account_month_day_idx").on(
+      t.accountId,
+      t.month,
+      t.day,
     ),
   }),
 );

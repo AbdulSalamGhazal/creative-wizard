@@ -642,14 +642,23 @@ This app is deployed and in production use. Treat `main` as shippable.
   views), same as the 0034 migration did for campaigns** — the Budget module
   stores objective values in its plan rows.
 
-- **Budget module (2026-09, `/budget`) — raw actuals BY DECISION.** Monthly spend
+- **Budget module (2026-09, v2) — raw actuals BY DECISION.** Its own sidebar
+  section of 4 pages (`/budget` Overview · `/budget/plan` · `/budget/daily` ·
+  `/budget/history`) sharing `?month=` (nav links preserve it). Monthly spend
   plan (USD, platform → objective) vs actual and ONE monthly revenue target
-  (SAR) vs store actuals. Standing decisions: actual spend deliberately applies
-  **NO exclusion filtering** (raw `performance_records` totals — budget totals
-  may differ from dashboards; never "fix" this); revenue = store FACTS as a
-  monthly total only (no breakdown; claimed-vs-real lives on Reconciliation);
-  the USD↔SAR toggle is display-only (localStorage) but ROAS is ALWAYS computed
-  through the per-brand `accounts.usd_to_sar_rate` (default 3.77). The spend
-  table's Unplanned bucket must reconcile its actual total to the raw month
-  total exactly (harness-pinned). Pacing = current month only, warn-tinted by
-  |deviation| magnitude. Permission `budget.manage`; audit `budget.update`.
+  (SAR) vs store actuals, paced along a **day-weight curve** (only non-1 day
+  weights stored in `budget_day_weights`; no-overrides ≡ v1 linear, unit-pinned;
+  ONE curve for spend AND revenue; projection = actual ÷ elapsed curve
+  fraction) plus a **reserve budget** (`budget_targets.reserve_spend_usd`,
+  deliberately OUTSIDE the curve; "used" = the month's unplanned actual spend).
+  Standing decisions: actual spend deliberately applies **NO exclusion
+  filtering** anywhere in Budget (raw `performance_records` totals, per-day
+  included — budget totals may differ from dashboards; never "fix" this);
+  revenue = store FACTS as a monthly total only (no breakdown; claimed-vs-real
+  lives on Reconciliation); the USD↔SAR toggle is display-only (localStorage)
+  but ROAS is ALWAYS computed through the per-brand `accounts.usd_to_sar_rate`
+  (default 3.77). The spend table's Unplanned bucket must reconcile its actual
+  total to the raw month total exactly (harness-pinned). Daily renders days
+  past `dataHorizon()` as em-dashes (unknown ≠ 0). Pacing = current month only,
+  warn-tinted by |deviation| magnitude — never green/red. Permission
+  `budget.manage`; audit `budget.update`. Migrations 0035 + 0036 (additive).

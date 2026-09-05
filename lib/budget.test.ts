@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  curveFraction,
+  curveExpected,
+  projectedMonthEnd,
+  dayWeights,
+  mapWeightsToMonth,
+  validateWeight,
   monthStartIso,
   daysInMonth,
   prevMonthKey,
@@ -84,5 +90,52 @@ describe("variance + ROAS-through-rate + rate", () => {
   it("display conversion only applies on the SAR side of the toggle", () => {
     expect(spendInDisplayCurrency(100, "USD", 3.77)).toBe(100);
     expect(spendInDisplayCurrency(100, "SAR", 3.77)).toBeCloseTo(377, 6);
+  });
+});
+
+describe("day-weight curve (v2)", () => {
+  it("no overrides ≡ v1 linear pacing, exactly", () => {
+    for (const day of [1, 10, 15, 30]) {
+      expect(curveFraction("2026-09", {}, day)).toBeCloseTo(day / 30, 10);
+      expect(curveExpected(3000, "2026-09", {}, day)).toBeCloseTo(
+        pacingExpected(3000, day, 30),
+        8,
+      );
+    }
+  });
+
+  it("a 3× payday shifts plan-to-date correctly", () => {
+    // Sept (30 days), day 27 weighted 3 → total weight 32.
+    const ov = { 27: 3 };
+    expect(curveFraction("2026-09", ov, 26)).toBeCloseTo(26 / 32, 10);
+    expect(curveFraction("2026-09", ov, 27)).toBeCloseTo(29 / 32, 10);
+    expect(curveFraction("2026-09", ov, 30)).toBe(1);
+    // Plan-to-date jumps by 3 units of weight across the payday.
+    const before = curveExpected(3200, "2026-09", ov, 26);
+    const after = curveExpected(3200, "2026-09", ov, 27);
+    expect(after - before).toBeCloseTo((3 / 32) * 3200, 6);
+  });
+
+  it("projection divides by the elapsed curve fraction; day-0 edge → null", () => {
+    expect(projectedMonthEnd(1000, "2026-09", {}, 10)).toBeCloseTo(3000, 6);
+    const ov = { 1: 3 }; // front-loaded curve → smaller projection multiplier
+    expect(projectedMonthEnd(1000, "2026-09", ov, 1)).toBeCloseTo(1000 * (32 / 3), 4);
+    expect(projectedMonthEnd(1000, "2026-09", {}, 0)).toBeNull();
+  });
+
+  it("weight bounds: > 0, ≤ 10; invalid overrides fall back to 1", () => {
+    expect(validateWeight(0.5)).toBe(true);
+    expect(validateWeight(10)).toBe(true);
+    expect(validateWeight(0)).toBe(false);
+    expect(validateWeight(10.5)).toBe(false);
+    expect(dayWeights("2026-09", { 5: 0, 6: 99 })[4]).toBe(1); // invalid → 1
+    expect(dayWeights("2026-09", { 5: 0, 6: 99 })[5]).toBe(1);
+  });
+
+  it("copy mapping drops day 31 for shorter months, keeps the rest", () => {
+    const ov = { 15: 2, 31: 3 };
+    expect(mapWeightsToMonth(ov, "2026-09")).toEqual({ 15: 2 }); // 30 days
+    expect(mapWeightsToMonth(ov, "2026-10")).toEqual({ 15: 2, 31: 3 }); // 31 days
+    expect(mapWeightsToMonth(ov, "2026-02")).toEqual({ 15: 2 }); // 28 days
   });
 });

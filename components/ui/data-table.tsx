@@ -57,6 +57,7 @@ export function DataTable<T>({
   onReorder,
   onRowClick,
   rowClassName,
+  rowId,
   showTotals = false,
   minWidthClass = "min-w-[960px]",
   csvFileName,
@@ -74,6 +75,8 @@ export function DataTable<T>({
   onRowClick?: (row: T) => void;
   /** Extra classes per row (e.g. dim excluded rows). */
   rowClassName?: (row: T) => string;
+  /** DOM id per row (fragment anchor targets, e.g. #meta on Budget's plan). */
+  rowId?: (row: T) => string | undefined;
   showTotals?: boolean;
   minWidthClass?: string;
   /** When set, shows a "Download CSV" button that exports the shown columns
@@ -300,6 +303,7 @@ export function DataTable<T>({
           {sorted.map((r) => (
             <tr
               key={rowKey(r)}
+              id={rowId?.(r)}
               onClick={onRowClick ? () => onRowClick(r) : undefined}
               className={cn(
                 "group hover:bg-surface-2/60 transition-colors",

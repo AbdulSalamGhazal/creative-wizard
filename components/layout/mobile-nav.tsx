@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { Menu } from "lucide-react";
 import {
   Sheet,
@@ -14,6 +14,7 @@ import {
 import {
   TRENDS_CHILDREN,
   isActive,
+  navItemHref,
   navSections,
 } from "@/components/layout/nav-items";
 import { cn } from "@/lib/utils";
@@ -26,6 +27,9 @@ import { cn } from "@/lib/utils";
  */
 export function MobileNav({ granted }: { granted: string[] }) {
   const pathname = usePathname();
+  // Budget links carry the current ?month= (see navItemHref). The TopBar wraps
+  // this component in <Suspense> for useSearchParams.
+  const searchParams = useSearchParams();
   const [open, setOpen] = useState(false);
 
   // Close the sheet whenever the route changes (link tapped).
@@ -35,14 +39,18 @@ export function MobileNav({ granted }: { granted: string[] }) {
 
   const sections = navSections(granted);
 
-  const link = (href: string, label: string, opts?: { child?: boolean }) => (
+  const link = (
+    href: string,
+    label: string,
+    opts?: { child?: boolean; exact?: boolean; linkHref?: string },
+  ) => (
     <Link
       key={href + label}
-      href={href}
+      href={opts?.linkHref ?? href}
       className={cn(
         "block rounded-md px-3 py-2 text-sm transition-colors",
         opts?.child && "ml-3 text-xs",
-        isActive(pathname, href)
+        isActive(pathname, href, opts?.exact)
           ? "bg-[var(--brand-soft)] text-ink font-medium"
           : "text-ink-2 hover:bg-surface-2 hover:text-ink",
       )}
@@ -81,7 +89,10 @@ export function MobileNav({ granted }: { granted: string[] }) {
                     )}
                   </div>
                 ) : (
-                  link(item.href, item.label)
+                  link(item.href, item.label, {
+                    exact: item.exact,
+                    linkHref: navItemHref(item, pathname, searchParams),
+                  })
                 ),
               )}
             </div>

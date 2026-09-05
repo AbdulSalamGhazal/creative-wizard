@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { asc } from "drizzle-orm";
 import { Sidebar } from "@/components/layout/sidebar";
@@ -58,7 +59,14 @@ export default async function DashboardLayout({
           granted={granted}
         />
         <div className="flex flex-1">
-          <Sidebar granted={granted} />
+          {/* Suspense: Sidebar reads useSearchParams (Budget month links). */}
+          <Suspense
+            fallback={
+              <aside className="hidden lg:block w-56 shrink-0 border-r border-line" />
+            }
+          >
+            <Sidebar granted={granted} />
+          </Suspense>
           {/* `min-w-0` lets this column shrink to the available width instead
            *  of being forced to its content's intrinsic width — so wide
            *  children (e.g. the Summary table) scroll within their own

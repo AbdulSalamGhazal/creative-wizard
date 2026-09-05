@@ -12,6 +12,9 @@ import {
   Megaphone,
   Scale,
   Wallet,
+  NotebookPen,
+  CalendarDays,
+  History,
   Users,
   ScrollText,
 } from "lucide-react";
@@ -22,17 +25,19 @@ import type { Permission } from "@/lib/permissions";
  * Sidebar (lg+) and the mobile Sheet nav (below lg) so the two can never drift.
  * Keep this data-only (no JSX) so either surface can render it.
  *
- * The nav is grouped into three labeled SECTIONS (see `NAV_SECTIONS`): Ads (the
- * analytics/ads pages), Store (the Salla order module), and Admin.
+ * The nav is grouped into labeled SECTIONS (see `NAV_SECTIONS`): Ads (the
+ * analytics/ads pages), Budget (the monthly plan module), Store (the Salla
+ * order module), and Admin.
  */
 export interface NavChild {
   href: string;
   label: string;
 }
 
-/** The three sidebar sections, in display order. Each gets an eyebrow label. */
+/** The sidebar sections, in display order. Each gets an eyebrow label. */
 export const NAV_SECTIONS = [
   { key: "ads", label: "Ads" },
+  { key: "budget", label: "Budget" },
   { key: "store", label: "Store" },
   { key: "admin", label: "Admin" },
 ] as const;
@@ -45,6 +50,12 @@ export interface NavItem {
   group: NavSectionKey;
   /** When present, this item is a collapsible section, not a direct link. */
   children?: NavChild[];
+  /**
+   * Highlight only on an exact pathname match (no prefix matching). Needed for
+   * an index item whose siblings live under it (e.g. Budget's Overview at
+   * `/budget` next to `/budget/plan`).
+   */
+  exact?: boolean;
   /**
    * Permissions that unlock this item — shown when the user holds AT LEAST ONE.
    * Omit for items every signed-in user may see (the read-only dashboards).
@@ -68,8 +79,6 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/summary", label: "Summary", icon: Table2, group: "ads" },
   { href: "/funnel", label: "Funnel", icon: Filter, group: "ads" },
   { href: "/campaigns", label: "Campaigns", icon: Megaphone, group: "ads" },
-  // Monthly plan-vs-actual (open to any brand member; editing is permission-gated).
-  { href: "/budget", label: "Budget", icon: Wallet, group: "ads" },
   // Trends is a hub, not a page: the href is its first child (used when the
   // desktop rail is collapsed to icons and by the mobile nav's parent link).
   {
@@ -87,6 +96,16 @@ export const NAV_ITEMS: NavItem[] = [
     group: "ads",
     perms: ["upload.import", "upload.cleanup", "upload.rollback"],
   },
+
+  // ── Budget ───────────────────────────────────────────────────────────────
+  // Monthly plan-vs-actual (open to any brand member; editing is permission-
+  // gated behind budget.manage on the Plan page). Overview is the section's
+  // index route, so it matches exactly — otherwise it would stay lit on every
+  // sibling page.
+  { href: "/budget", label: "Overview", icon: Wallet, group: "budget", exact: true },
+  { href: "/budget/plan", label: "Plan", icon: NotebookPen, group: "budget" },
+  { href: "/budget/daily", label: "Daily", icon: CalendarDays, group: "budget" },
+  { href: "/budget/history", label: "History", icon: History, group: "budget" },
 
   // ── Store ────────────────────────────────────────────────────────────────
   {
@@ -173,7 +192,26 @@ export function navSections(
 }
 
 /** Whether a nav href matches the current pathname (exact for "/", prefix else). */
-export function isActive(pathname: string, href: string): boolean {
-  if (href === "/") return pathname === "/";
+export function isActive(pathname: string, href: string, exact?: boolean): boolean {
+  if (href === "/" || exact) return pathname === href;
   return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+const MONTH_PARAM = /^\d{4}-\d{2}$/;
+
+/**
+ * The href a nav item should link to given where the user is. Budget items
+ * carry the current `?month=` while the user is inside the Budget section, so
+ * switching between Overview / Plan / Daily / History never loses the month.
+ * Everything else links plain.
+ */
+export function navItemHref(
+  item: Pick<NavItem, "href" | "group">,
+  pathname: string,
+  search: { get(name: string): string | null } | null,
+): string {
+  if (item.group !== "budget" || !pathname.startsWith("/budget")) return item.href;
+  const month = search?.get("month");
+  if (!month || !MONTH_PARAM.test(month)) return item.href;
+  return `${item.href}?month=${month}`;
 }

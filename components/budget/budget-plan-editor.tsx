@@ -1,18 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Check,
-  ChevronLeft,
-  ChevronRight,
   CopyPlus,
-  Package,
   Pencil,
   Plus,
-  ShoppingBag,
+  RotateCcw,
   Trash2,
-  TrendingUp,
   Wallet,
   X,
 } from "lucide-react";
@@ -35,28 +31,26 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { DataTable, type DataColumn } from "@/components/ui/data-table";
-import { MetricCard } from "@/components/overview/metric-card";
 import { PlatformDot } from "@/components/ui/platform-dot";
 import { ALL_PLATFORMS, PLATFORM_LABEL } from "@/lib/palette";
 import { CAMPAIGN_OBJECTIVES } from "@/lib/campaign";
-import { usd, sar, int, roas } from "@/lib/format";
-import { useNavTransition } from "@/lib/nav-progress";
+import { int, sar, usd } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import {
+  curveExpected,
+  curveFraction,
   daysInMonth,
   elapsedDaysInMonth,
   monthKey,
   monthLabel,
   monthStartIso,
-  nextMonthKey,
   pacingDeviation,
-  pacingExpected,
   pacingTone,
   pacingVerdict,
   prevMonthKey,
-  roasThroughRate,
   spendInDisplayCurrency,
   validateRate,
+  validateWeight,
   variance,
   variancePct,
 } from "@/lib/budget";
@@ -66,9 +60,13 @@ import {
   setUsdToSarRate,
 } from "@/app/actions/budget";
 import type { BudgetMonthData } from "@/db/queries/budget";
-
-type Currency = "USD" | "SAR";
-const CURRENCY_KEY = "cw-budget-currency";
+import {
+  BudgetMonthBar,
+  CurrencyToggle,
+  formatSpend,
+  platformAnchorId,
+  useBudgetCurrency,
+} from "@/components/budget/budget-shared";
 
 interface SpendRow {
   key: string;
@@ -80,13 +78,19 @@ interface SpendRow {
   unplanned: boolean;
 }
 
+const WEIGHT_STEP = 0.5;
+const WEIGHT_MIN = 0.5;
+const WEIGHT_MAX = 10;
+
 /**
- * The Budget page body. Spend is USD natively; the toggle converts DISPLAY
- * through the per-brand rate. ROAS always goes through the rate regardless of
- * the toggle. Actuals are raw month totals (no exclusion filtering — standing
- * decision). Pacing applies to the CURRENT month only.
+ * The Plan page body — v1's Budget editor relocated intact (allocations table
+ * with draft/dirty/save, copy-from-last-month, revenue target, rate, currency
+ * toggle), plus v2's day-curve calendar editor and the reserve budget. Spend is
+ * USD natively; the toggle converts DISPLAY through the per-brand rate. Actuals
+ * are raw month totals (no exclusion filtering — standing decision). Pacing is
+ * curve-based (current month only).
  */
-export function BudgetView({
+export function BudgetPlanEditor({
   month,
   today,
   data,
@@ -98,30 +102,11 @@ export function BudgetView({
   canManage: boolean;
 }) {
   const router = useRouter();
-  const [, startNav] = useNavTransition();
   const [isPending, setIsPending] = useState(false);
 
-  // ── Display currency (per-user, display-only → localStorage) ───────────────
-  const [currency, setCurrency] = useState<Currency>("USD");
-  useEffect(() => {
-    try {
-      const stored = localStorage.getItem(CURRENCY_KEY);
-      if (stored === "SAR" || stored === "USD") setCurrency(stored);
-    } catch {
-      /* keep USD */
-    }
-  }, []);
-  const pickCurrency = (c: Currency) => {
-    setCurrency(c);
-    try {
-      localStorage.setItem(CURRENCY_KEY, c);
-    } catch {
-      /* ignore */
-    }
-  };
+  const [currency, pickCurrency] = useBudgetCurrency();
   const rate = data.usdToSarRate;
-  const fmtSpend = (usdAmount: number) =>
-    currency === "SAR" ? sar(spendInDisplayCurrency(usdAmount, "SAR", rate)) : usd(usdAmount);
+  const fmtSpend = (usdAmount: number) => formatSpend(usdAmount, currency, rate);
 
   // ── Month math ─────────────────────────────────────────────────────────────
   const isCurrentMonth = monthKey(today) === month;
@@ -132,6 +117,9 @@ export function BudgetView({
   const [editing, setEditing] = useState(false);
   const [drafts, setDrafts] = useState<Map<string, string>>(new Map());
   const [revenueDraft, setRevenueDraft] = useState<string>("");
+  const [reserveDraft, setReserveDraft] = useState<string>("");
+  const [weightsDraft, setWeightsDraft] = useState<Record<number, number>>({});
+  const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const [addPlatform, setAddPlatform] = useState<string>("");
   const [addObjective, setAddObjective] = useState<string>("");
   const [copyConfirm, setCopyConfirm] = useState(false);
@@ -143,12 +131,18 @@ export function BudgetView({
       new Map(data.allocations.map((a) => [comboKey(a.platform, a.objective), String(a.plannedSpend)])),
     );
     setRevenueDraft(data.plannedRevenueSar === null ? "" : String(data.plannedRevenueSar));
+    setReserveDraft(data.reserveSpendUsd > 0 ? String(data.reserveSpendUsd) : "");
+    setWeightsDraft({ ...data.dayWeightOverrides });
+    setSelectedDay(null);
     setEditing(true);
   };
   const stopEditing = () => {
     setEditing(false);
     setDrafts(new Map());
     setRevenueDraft("");
+    setReserveDraft("");
+    setWeightsDraft({});
+    setSelectedDay(null);
   };
   const dirty = useMemo(() => {
     if (!editing) return false;
@@ -160,8 +154,21 @@ export function BudgetView({
       if (!orig.has(k) || Number(v || 0) !== orig.get(k)) return true;
     }
     const origRev = data.plannedRevenueSar === null ? "" : String(data.plannedRevenueSar);
-    return revenueDraft.trim() !== origRev;
-  }, [editing, drafts, revenueDraft, data]);
+    if (revenueDraft.trim() !== origRev) return true;
+    if (Number(reserveDraft || 0) !== data.reserveSpendUsd) return true;
+    // Weights: compare only the meaningful (non-1) overrides.
+    const clean = (o: Record<number, number>) =>
+      Object.entries(o)
+        .filter(([, w]) => w !== 1)
+        .sort(([a], [b]) => Number(a) - Number(b))
+        .map(([d, w]) => `${d}:${w}`)
+        .join(",");
+    return clean(weightsDraft) !== clean(data.dayWeightOverrides);
+  }, [editing, drafts, revenueDraft, reserveDraft, weightsDraft, data]);
+
+  // The curve the page is showing: the draft while editing (live preview), the
+  // stored overrides otherwise.
+  const activeWeights = editing ? weightsDraft : data.dayWeightOverrides;
 
   // ── Spend rows: plan ∪ actual, grouped platform → objective ────────────────
   const planned = editing
@@ -217,22 +224,9 @@ export function BudgetView({
     };
   }, [rows]);
 
-  // ── Headline numbers ───────────────────────────────────────────────────────
-  const actualRoas = roasThroughRate(data.actualRevenueSar, totals.actual, rate);
-  const targetRoas =
-    data.plannedRevenueSar !== null && totals.planned > 0
-      ? roasThroughRate(data.plannedRevenueSar, totals.planned, rate)
-      : null;
   const spendDeviation = isCurrentMonth
-    ? pacingDeviation(totals.actual, pacingExpected(totals.planned, elapsed, totalDays))
+    ? pacingDeviation(totals.actual, curveExpected(totals.planned, month, activeWeights, elapsed))
     : null;
-  const revenueDeviation =
-    isCurrentMonth && data.plannedRevenueSar !== null
-      ? pacingDeviation(
-          data.actualRevenueSar,
-          pacingExpected(data.plannedRevenueSar, elapsed, totalDays),
-        )
-      : null;
 
   const setDraft = (key: string, value: string) =>
     setDrafts((prev) => new Map(prev).set(key, value));
@@ -245,7 +239,7 @@ export function BudgetView({
 
   // ── Table columns ──────────────────────────────────────────────────────────
   const pacingCell = (r: SpendRow) => {
-    const dev = pacingDeviation(r.actual, pacingExpected(r.planned, elapsed, totalDays));
+    const dev = pacingDeviation(r.actual, curveExpected(r.planned, month, activeWeights, elapsed));
     return (
       <span className={cn("num text-xs", pacingTone(dev) === "warn" ? "text-warn" : "text-ink-3")}>
         {pacingVerdict(dev)}
@@ -328,7 +322,7 @@ export function BudgetView({
               render: pacingCell,
               csv: (r: SpendRow) =>
                 pacingVerdict(
-                  pacingDeviation(r.actual, pacingExpected(r.planned, elapsed, totalDays)),
+                  pacingDeviation(r.actual, curveExpected(r.planned, month, activeWeights, elapsed)),
                 ),
               total: () => (
                 <span
@@ -395,7 +389,7 @@ export function BudgetView({
     ];
     return cols;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currency, rate, editing, drafts, totals, isCurrentMonth, elapsed, totalDays, spendDeviation]);
+  }, [currency, rate, editing, drafts, totals, isCurrentMonth, elapsed, activeWeights, spendDeviation]);
 
   // ── Actions ────────────────────────────────────────────────────────────────
   const save = async () => {
@@ -410,6 +404,10 @@ export function BudgetView({
         month,
         allocations,
         plannedRevenueSar: rev === "" ? null : Number(rev),
+        reserveSpendUsd: Number(reserveDraft || 0),
+        dayWeights: Object.entries(weightsDraft)
+          .filter(([, w]) => w !== 1)
+          .map(([d, w]) => ({ day: Number(d), weight: w })),
       });
       if (!res.ok) {
         toast.error(res.error ?? "Could not save the plan");
@@ -463,7 +461,6 @@ export function BudgetView({
   };
 
   const hasPlan = data.allocations.length > 0 || data.plannedRevenueSar !== null;
-  const monthQ = (m: string) => startNav(() => router.replace(`/budget?month=${m}`, { scroll: false }));
 
   const addDraftRow = () => {
     if (!addPlatform || !addObjective) return;
@@ -477,168 +474,99 @@ export function BudgetView({
     setAddObjective("");
   };
 
+  // ── Day-weight editing ─────────────────────────────────────────────────────
+  const weightOf = (day: number) => {
+    const w = activeWeights[day];
+    return w !== undefined && validateWeight(w) ? w : 1;
+  };
+  const setWeight = (day: number, weight: number) => {
+    setWeightsDraft((prev) => {
+      const next = { ...prev };
+      if (weight === 1) delete next[day]; // weight 1 = no override
+      else next[day] = weight;
+      return next;
+    });
+  };
+  const bump = (day: number, delta: number) => {
+    const next = Math.round((weightOf(day) + delta) * 2) / 2;
+    setWeight(day, Math.min(WEIGHT_MAX, Math.max(WEIGHT_MIN, next)));
+  };
+  const overrideCount = Object.values(activeWeights).filter(
+    (w) => w !== 1 && validateWeight(w),
+  ).length;
+
   return (
     <div className="space-y-4">
-      {/* Month nav + controls */}
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-1">
-          <Button type="button" variant="outline" size="xs" onClick={() => monthQ(prevMonthKey(month))} aria-label="Previous month">
-            <ChevronLeft className="h-3.5 w-3.5" />
-          </Button>
-          <span className="min-w-[10rem] text-center font-display text-lg">{monthLabel(month)}</span>
-          <Button type="button" variant="outline" size="xs" onClick={() => monthQ(nextMonthKey(month))} aria-label="Next month">
-            <ChevronRight className="h-3.5 w-3.5" />
-          </Button>
-          {!isCurrentMonth && (
-            <Button type="button" variant="ghost" size="xs" onClick={() => monthQ(monthKey(today))}>
-              Today
-            </Button>
-          )}
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          {/* Rate (display + inline edit) */}
-          <span className="text-[11px] text-ink-3 num">
-            1 USD ={" "}
-            {rateDraft === null ? (
-              <>
-                {rate.toFixed(2)} SAR
-                {canManage && (
-                  <button
-                    type="button"
-                    onClick={() => setRateDraft(String(rate))}
-                    className="ml-1 text-ink-3 hover:text-ink"
-                    aria-label="Edit rate"
-                  >
-                    <Pencil className="inline h-3 w-3" />
-                  </button>
-                )}
-              </>
-            ) : (
-              <span className="inline-flex items-center gap-1">
-                <Input
-                  value={rateDraft}
-                  onChange={(e) => setRateDraft(e.target.value.replace(/[^0-9.]/g, ""))}
-                  className="h-6 w-20 text-right num"
-                  aria-label="USD to SAR rate"
-                />
-                <button type="button" onClick={saveRate} disabled={isPending} className="text-pos" aria-label="Save rate">
-                  <Check className="h-3.5 w-3.5" />
+      <BudgetMonthBar month={month} today={today}>
+        {/* Rate (display + inline edit) */}
+        <span className="text-[11px] text-ink-3 num">
+          1 USD ={" "}
+          {rateDraft === null ? (
+            <>
+              {rate.toFixed(2)} SAR
+              {canManage && (
+                <button
+                  type="button"
+                  onClick={() => setRateDraft(String(rate))}
+                  className="ml-1 text-ink-3 hover:text-ink"
+                  aria-label="Edit rate"
+                >
+                  <Pencil className="inline h-3 w-3" />
                 </button>
-                <button type="button" onClick={() => setRateDraft(null)} className="text-ink-3" aria-label="Cancel rate edit">
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              </span>
-            )}
-          </span>
-
-          {/* Currency toggle */}
-          <div className="inline-flex rounded-md border border-line bg-surface p-0.5">
-            {(["USD", "SAR"] as const).map((c) => (
-              <button
-                key={c}
-                type="button"
-                onClick={() => pickCurrency(c)}
-                className={cn(
-                  "rounded px-2.5 py-1 text-xs transition-colors",
-                  currency === c ? "bg-surface-2 text-ink" : "text-ink-2 hover:text-ink",
-                )}
-              >
-                {c}
+              )}
+            </>
+          ) : (
+            <span className="inline-flex items-center gap-1">
+              <Input
+                value={rateDraft}
+                onChange={(e) => setRateDraft(e.target.value.replace(/[^0-9.]/g, ""))}
+                className="h-6 w-20 text-right num"
+                aria-label="USD to SAR rate"
+              />
+              <button type="button" onClick={saveRate} disabled={isPending} className="text-pos" aria-label="Save rate">
+                <Check className="h-3.5 w-3.5" />
               </button>
-            ))}
-          </div>
-
-          {canManage && !editing && (
-            <>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={!data.prevMonthHasPlan || isPending}
-                title={data.prevMonthHasPlan ? undefined : `${monthLabel(prevMonthKey(month))} has no plan to copy.`}
-                onClick={() => (hasPlan ? setCopyConfirm(true) : void doCopy())}
-              >
-                <CopyPlus className="h-3.5 w-3.5" />
-                Copy from last month
-              </Button>
-              <Button type="button" size="sm" onClick={startEditing}>
-                <Pencil className="h-3.5 w-3.5" />
-                Edit plan
-              </Button>
-            </>
+              <button type="button" onClick={() => setRateDraft(null)} className="text-ink-3" aria-label="Cancel rate edit">
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </span>
           )}
-          {editing && (
-            <>
-              <Button type="button" variant="ghost" size="sm" onClick={stopEditing} disabled={isPending}>
-                Discard
-              </Button>
-              <Button type="button" size="sm" onClick={save} disabled={!dirty || isPending}>
-                Save plan
-              </Button>
-            </>
-          )}
-        </div>
-      </div>
+        </span>
 
-      {/* KPI tiles */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <MetricCard
-          label="Actual spend"
-          value={fmtSpend(totals.actual)}
-          icon={Wallet}
-          bars={[]}
-          emptyText={`Plan: ${totals.planned > 0 ? fmtSpend(totals.planned) : "—"}`}
-        />
-        <MetricCard
-          label="Actual revenue"
-          value={sar(data.actualRevenueSar)}
-          icon={ShoppingBag}
-          bars={[]}
-          emptyText={`Plan: ${data.plannedRevenueSar !== null ? sar(data.plannedRevenueSar) : "—"}`}
-        />
-        <MetricCard
-          label="ROAS (via rate)"
-          value={actualRoas === null ? "—" : roas(actualRoas)}
-          icon={TrendingUp}
-          bars={[]}
-          emptyText={
-            !validateRate(rate)
-              ? "Set a USD→SAR rate to compute ROAS."
-              : `Target: ${targetRoas === null ? "—" : roas(targetRoas)}`
-          }
-        />
-        <MetricCard
-          label="Actual orders"
-          value={int(data.actualOrders)}
-          icon={Package}
-          bars={[]}
-          emptyText="Context only — no plan."
-        />
-      </div>
+        <CurrencyToggle currency={currency} onChange={pickCurrency} />
 
-      {/* Pacing verdict line (current month only) */}
-      {isCurrentMonth && (
-        <p className="text-xs text-ink-3">
-          Day {elapsed} of {totalDays}
-          {" · "}
-          spend{" "}
-          <span className={pacingTone(spendDeviation) === "warn" ? "text-warn" : "text-ink-2"}>
-            {spendDeviation === null ? "— no plan" : `${pacingVerdict(spendDeviation)} vs plan`}
-          </span>
-          {data.plannedRevenueSar !== null && (
-            <>
-              {" · "}
-              revenue{" "}
-              <span className={pacingTone(revenueDeviation) === "warn" ? "text-warn" : "text-ink-2"}>
-                {revenueDeviation === null ? "—" : `${pacingVerdict(revenueDeviation)} vs plan`}
-              </span>
-            </>
-          )}
-        </p>
-      )}
+        {canManage && !editing && (
+          <>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={!data.prevMonthHasPlan || isPending}
+              title={data.prevMonthHasPlan ? undefined : `${monthLabel(prevMonthKey(month))} has no plan to copy.`}
+              onClick={() => (hasPlan ? setCopyConfirm(true) : void doCopy())}
+            >
+              <CopyPlus className="h-3.5 w-3.5" />
+              Copy from last month
+            </Button>
+            <Button type="button" size="sm" onClick={startEditing}>
+              <Pencil className="h-3.5 w-3.5" />
+              Edit plan
+            </Button>
+          </>
+        )}
+        {editing && (
+          <>
+            <Button type="button" variant="ghost" size="sm" onClick={stopEditing} disabled={isPending}>
+              Discard
+            </Button>
+            <Button type="button" size="sm" onClick={save} disabled={!dirty || isPending}>
+              Save plan
+            </Button>
+          </>
+        )}
+      </BudgetMonthBar>
 
-      {/* Revenue block */}
+      {/* Revenue target + reserve */}
       <div className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-lg border border-line bg-surface px-4 py-3 text-sm">
         <span className="text-label text-ink-3">Revenue target (SAR)</span>
         {editing ? (
@@ -654,23 +582,42 @@ export function BudgetView({
             {data.plannedRevenueSar !== null ? sar(data.plannedRevenueSar) : "—"}
           </span>
         )}
-        <span className="text-ink-3">
-          actual <span className="num tabular-nums text-ink">{sar(data.actualRevenueSar)}</span>
-        </span>
-        <span className="text-ink-3">
-          orders <span className="num tabular-nums text-ink">{int(data.actualOrders)}</span>
-        </span>
-        {isCurrentMonth && data.plannedRevenueSar !== null && (
-          <span
-            className={cn(
-              "num text-xs",
-              pacingTone(revenueDeviation) === "warn" ? "text-warn" : "text-ink-3",
-            )}
-          >
-            {revenueDeviation === null ? "—" : pacingVerdict(revenueDeviation)}
+        <span className="text-label text-ink-3">Reserve (USD)</span>
+        {editing ? (
+          <Input
+            value={reserveDraft}
+            onChange={(e) => setReserveDraft(e.target.value.replace(/[^0-9.]/g, ""))}
+            placeholder="0"
+            className="h-8 w-28 text-right num"
+            aria-label="Reserve spend (USD)"
+          />
+        ) : (
+          <span className="num tabular-nums text-ink">
+            {data.reserveSpendUsd > 0 ? usd(data.reserveSpendUsd) : "—"}
           </span>
         )}
+        <span className="text-[11px] text-ink-3">
+          Contingency on top of the plan — excluded from pacing.
+        </span>
       </div>
+
+      {/* Day-weight curve */}
+      <DayCurveEditor
+        month={month}
+        totalDays={totalDays}
+        weights={activeWeights}
+        weightOf={weightOf}
+        editing={editing}
+        selectedDay={selectedDay}
+        onSelectDay={setSelectedDay}
+        onBump={bump}
+        onSetWeight={setWeight}
+        onResetAll={() => {
+          setWeightsDraft({});
+          setSelectedDay(null);
+        }}
+        overrideCount={overrideCount}
+      />
 
       {/* Empty-plan hint */}
       {!hasPlan && !editing && (
@@ -725,17 +672,18 @@ export function BudgetView({
         </div>
       )}
 
-      {/* Spend table */}
+      {/* Spend table — platform rows carry anchor ids for Overview's cards */}
       <DataTable<SpendRow>
         columns={columns}
         rows={rows}
         rowKey={(r) => r.key}
+        rowId={(r) => (r.kind === "platform" ? platformAnchorId(r.platform) : undefined)}
         showTotals={rows.length > 0}
         minWidthClass="min-w-[720px]"
         csvFileName={`budget-${month}-${currency.toLowerCase()}`}
         rowClassName={(r) =>
           cn(
-            r.kind === "platform" && "bg-surface-2/50 font-medium",
+            r.kind === "platform" && "bg-surface-2/50 font-medium scroll-mt-24",
             r.unplanned && "opacity-60",
           )
         }
@@ -754,8 +702,8 @@ export function BudgetView({
             <DialogTitle>Replace this month&rsquo;s plan?</DialogTitle>
             <DialogDescription>
               {monthLabel(month)} already has a plan. Copying from{" "}
-              {monthLabel(prevMonthKey(month))} replaces it entirely (allocations
-              and the revenue target).
+              {monthLabel(prevMonthKey(month))} replaces it entirely (allocations,
+              the revenue target, the reserve, and the day-weight curve).
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -768,6 +716,158 @@ export function BudgetView({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+/**
+ * The day-weight calendar: a weekday-aligned grid of the month's days, each
+ * showing its weight when overridden (paydays pop). In edit mode, clicking a
+ * day selects it and a stepper adjusts its weight in 0.5 steps (weight 1 = no
+ * override, deleted on save). The preview line shows the cumulative plan curve
+ * the weights produce vs the linear baseline.
+ */
+function DayCurveEditor({
+  month,
+  totalDays,
+  weights,
+  weightOf,
+  editing,
+  selectedDay,
+  onSelectDay,
+  onBump,
+  onSetWeight,
+  onResetAll,
+  overrideCount,
+}: {
+  month: string;
+  totalDays: number;
+  weights: Record<number, number>;
+  weightOf: (day: number) => number;
+  editing: boolean;
+  selectedDay: number | null;
+  onSelectDay: (day: number | null) => void;
+  onBump: (day: number, delta: number) => void;
+  onSetWeight: (day: number, weight: number) => void;
+  onResetAll: () => void;
+  overrideCount: number;
+}) {
+  // Sunday-first weekday of day 1, for calendar alignment.
+  const startIso = monthStartIso(month);
+  const firstWeekday = new Date(`${startIso}T00:00:00Z`).getUTCDay();
+
+  // Cumulative preview: the weighted curve vs the linear diagonal, as an SVG
+  // polyline over [0..1]² (x = day share, y = cumulative plan share).
+  const W = 260;
+  const H = 64;
+  const pts = (frac: (d: number) => number) =>
+    [
+      `0,${H}`,
+      ...Array.from({ length: totalDays }, (_, i) => {
+        const x = ((i + 1) / totalDays) * W;
+        const y = H - frac(i + 1) * H;
+        return `${x.toFixed(1)},${y.toFixed(1)}`;
+      }),
+    ].join(" ");
+
+  return (
+    <div className="rounded-lg border border-line bg-surface p-4 space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h3 className="text-sm font-medium text-ink">Plan curve</h3>
+          <p className="text-[11px] text-ink-3">
+            {overrideCount === 0
+              ? "All days weighted 1 — plan-to-date is spread evenly (linear)."
+              : `${overrideCount} weighted day${overrideCount === 1 ? "" : "s"} — paydays get a bigger share of the plan.`}
+            {editing && " Click a day to adjust its weight."}
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          {/* Live preview */}
+          <svg
+            viewBox={`0 0 ${W} ${H}`}
+            className="h-12 w-48 shrink-0"
+            aria-label="Cumulative plan curve preview"
+            role="img"
+          >
+            <line x1={0} y1={H} x2={W} y2={0} stroke="var(--line-2)" strokeDasharray="3 3" />
+            <polyline
+              points={pts((d) => curveFraction(month, weights, d))}
+              fill="none"
+              stroke="var(--brand)"
+              strokeWidth={1.8}
+            />
+          </svg>
+          {editing && (
+            <Button type="button" variant="outline" size="xs" onClick={onResetAll} disabled={overrideCount === 0}>
+              <RotateCcw className="h-3 w-3" />
+              Reset all to 1
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {/* Calendar grid */}
+      <div className="grid grid-cols-7 gap-1 max-w-md">
+        {["S", "M", "T", "W", "T", "F", "S"].map((d, i) => (
+          <div key={`${d}${i}`} className="text-center text-[10px] text-ink-3">
+            {d}
+          </div>
+        ))}
+        {Array.from({ length: firstWeekday }, (_, i) => (
+          <div key={`pad${i}`} />
+        ))}
+        {Array.from({ length: totalDays }, (_, i) => {
+          const day = i + 1;
+          const w = weightOf(day);
+          const overridden = w !== 1;
+          const selected = editing && selectedDay === day;
+          return (
+            <button
+              key={day}
+              type="button"
+              disabled={!editing}
+              onClick={() => onSelectDay(selected ? null : day)}
+              title={overridden ? `Weighted day ×${w}` : undefined}
+              aria-label={`Day ${day}, weight ${w}`}
+              className={cn(
+                "flex h-9 flex-col items-center justify-center rounded-md border text-[11px] num transition-colors",
+                overridden
+                  ? "border-brand/50 bg-[var(--brand-soft)] text-ink"
+                  : "border-line text-ink-2",
+                editing && "hover:border-brand/60 cursor-pointer",
+                !editing && "cursor-default",
+                selected && "ring-2 ring-[var(--brand)]",
+              )}
+            >
+              <span>{day}</span>
+              {overridden && <span className="text-[9px] leading-none text-ink-3">×{w}</span>}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Weight stepper for the selected day */}
+      {editing && selectedDay !== null && (
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          <span className="text-label text-ink-3">Day {selectedDay}</span>
+          <Button type="button" variant="outline" size="xs" onClick={() => onBump(selectedDay, -WEIGHT_STEP)} aria-label="Decrease weight">
+            −
+          </Button>
+          <span className="num tabular-nums w-10 text-center">×{weightOf(selectedDay)}</span>
+          <Button type="button" variant="outline" size="xs" onClick={() => onBump(selectedDay, WEIGHT_STEP)} aria-label="Increase weight">
+            +
+          </Button>
+          {weightOf(selectedDay) !== 1 && (
+            <Button type="button" variant="ghost" size="xs" onClick={() => onSetWeight(selectedDay, 1)}>
+              Reset to 1
+            </Button>
+          )}
+          <span className="text-[11px] text-ink-3">
+            0.5–10, step 0.5. Weight 1 means a normal day.
+          </span>
+        </div>
+      )}
     </div>
   );
 }

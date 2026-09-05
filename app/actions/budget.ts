@@ -10,7 +10,14 @@ import { getActiveAccountId } from "@/lib/tenant";
 import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
 import { CAMPAIGN_OBJECTIVES } from "@/lib/campaign";
 import { platformEnum } from "@/db/schema";
-import { monthLabel, monthStartIso, prevMonthKey, validateRate } from "@/lib/budget";
+import {
+  daysInMonth,
+  monthLabel,
+  monthStartIso,
+  prevMonthKey,
+  validateRate,
+  validateWeight,
+} from "@/lib/budget";
 import { replaceBudgetMonth, copyBudgetMonth } from "@/db/queries/budget";
 
 /**
@@ -33,6 +40,11 @@ const planSchema = z.object({
     )
     .max(platformEnum.length * CAMPAIGN_OBJECTIVES.length),
   plannedRevenueSar: z.number().min(0).max(999_999_999_999).nullable(),
+  reserveSpendUsd: z.number().min(0).max(99_999_999).default(0),
+  dayWeights: z
+    .array(z.object({ day: z.number().int().min(1).max(31), weight: z.number() }))
+    .max(31)
+    .default([]),
 });
 
 export interface BudgetActionResult {
@@ -48,7 +60,23 @@ export async function saveBudgetMonth(input: unknown): Promise<BudgetActionResul
     if (!parsed.success) {
       return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid plan" };
     }
-    const { month, allocations, plannedRevenueSar } = parsed.data;
+    const { month, allocations, plannedRevenueSar, reserveSpendUsd, dayWeights } = parsed.data;
+
+    // Weights: within the month's real length and the allowed bounds. Weight 1
+    // rows are simply not persisted (absent = 1).
+    const monthDays = daysInMonth(monthStartIso(month));
+    for (const w of dayWeights) {
+      if (w.day > monthDays) {
+        return { ok: false, error: `Day ${w.day} doesn't exist in ${monthLabel(month)}.` };
+      }
+      if (w.weight !== 1 && !validateWeight(w.weight)) {
+        return { ok: false, error: "Weights must be greater than 0 and at most 10." };
+      }
+    }
+    const weightDays = new Set(dayWeights.map((w) => w.day));
+    if (weightDays.size !== dayWeights.length) {
+      return { ok: false, error: "Duplicate day weight." };
+    }
 
     // One row per platform×objective (the unique index would refuse anyway —
     // catch it here with a friendlier message).
@@ -59,7 +87,12 @@ export async function saveBudgetMonth(input: unknown): Promise<BudgetActionResul
 
     const acct = await getActiveAccountId();
     await db.transaction((tx) =>
-      replaceBudgetMonth(tx, acct, month, { allocations, plannedRevenueSar }),
+      replaceBudgetMonth(tx, acct, month, {
+        allocations,
+        plannedRevenueSar,
+        reserveSpendUsd,
+        dayWeights: Object.fromEntries(dayWeights.map((w) => [w.day, w.weight])),
+      }),
     );
 
     revalidateBudget();
@@ -75,6 +108,8 @@ export async function saveBudgetMonth(input: unknown): Promise<BudgetActionResul
         allocations: allocations.length,
         plannedSpendTotal: allocations.reduce((s, a) => s + a.plannedSpend, 0),
         plannedRevenueSar,
+        reserveSpendUsd,
+        weightOverrides: dayWeights.filter((w) => w.weight !== 1).length,
       },
     });
     return { ok: true };
@@ -143,6 +178,9 @@ export async function setUsdToSarRate(input: unknown): Promise<BudgetActionResul
 function revalidateBudget() {
   try {
     revalidatePath("/budget");
+    revalidatePath("/budget/plan");
+    revalidatePath("/budget/daily");
+    revalidatePath("/budget/history");
   } catch (err) {
     console.warn("revalidatePath after budget change failed:", err);
   }

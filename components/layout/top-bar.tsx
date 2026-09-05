@@ -1,3 +1,5 @@
+import { Suspense } from "react";
+import { Menu } from "lucide-react";
 import type { SessionUser } from "@/lib/auth";
 import { UserMenu } from "@/components/auth/user-menu";
 import { CommandPalette } from "@/components/layout/command-palette";
@@ -33,7 +35,20 @@ export function TopBar({
     <header className="border-b border-line sticky top-0 z-20 bg-background">
       <div className="flex items-center justify-between px-6 h-14">
         <div className="flex items-center gap-2.5">
-          <MobileNav granted={granted} />
+          {/* Suspense: MobileNav reads useSearchParams (Budget month links). */}
+          <Suspense
+            fallback={
+              <button
+                type="button"
+                aria-label="Open navigation menu"
+                className="lg:hidden inline-flex items-center justify-center h-9 w-9 rounded-md border border-line text-ink-2"
+              >
+                <Menu className="w-4.5 h-4.5" />
+              </button>
+            }
+          >
+            <MobileNav granted={granted} />
+          </Suspense>
           <LogoMark className="h-10 w-auto shrink-0" />
           <BrandWordmark className="text-2xl leading-none" />
           <AccountSwitcher accounts={accounts} activeId={activeAccountId} />

@@ -4,7 +4,8 @@ import { PageHeader } from "@/components/layout/page-header";
 import { todayIso } from "@/lib/date-presets";
 import { monthKey } from "@/lib/budget";
 import { getBudgetMonth } from "@/db/queries/budget";
-import { BudgetView } from "@/components/budget/budget-view";
+import { dataHorizon } from "@/db/queries/series-bounds";
+import { BudgetOverview } from "@/components/budget/budget-overview";
 
 export const dynamic = "force-dynamic";
 
@@ -13,12 +14,13 @@ export const metadata = { title: "Budget" };
 const MONTH = /^\d{4}-\d{2}$/;
 
 /**
- * Budget — monthly spend plan (USD, per platform → objective) vs actual, and a
- * single monthly revenue target (SAR) vs the store's actuals. Actuals are RAW
- * (no exclusion filtering — standing decision, see db/queries/budget.ts).
- * Viewing is open to any signed-in brand member; editing needs budget.manage.
+ * Budget Overview — the month's read-only verdict: plan vs actual with curve-
+ * based pacing and month-end projections, the reserve line, and per-platform
+ * cards linking into the Plan editor. Actuals are RAW (no exclusion filtering
+ * — standing decision, see db/queries/budget.ts). Viewing is open to any
+ * signed-in brand member; editing lives on /budget/plan behind budget.manage.
  */
-export default async function BudgetPage({
+export default async function BudgetOverviewPage({
   searchParams,
 }: {
   searchParams: Promise<{ month?: string }>;
@@ -29,16 +31,22 @@ export default async function BudgetPage({
 
   const user = await auth();
   const canManage = user ? can(user, "budget.manage") : false;
-  const data = await getBudgetMonth(month);
+  const [data, horizon] = await Promise.all([getBudgetMonth(month), dataHorizon()]);
 
   return (
     <PageShell>
       <PageHeader
-        eyebrow="Ads"
+        eyebrow="Budget"
         title="Budget"
-        subtitle="Monthly spend plan vs actual by platform and objective, and the month's revenue target. Actuals are raw totals (exclusions don't apply here)."
+        subtitle="The month at a glance — spend and revenue vs plan, paced along the day-weight curve, with a month-end projection. Actuals are raw totals (exclusions don't apply here)."
       />
-      <BudgetView month={month} today={today} data={data} canManage={canManage} />
+      <BudgetOverview
+        month={month}
+        today={today}
+        data={data}
+        horizon={horizon}
+        canManage={canManage}
+      />
     </PageShell>
   );
 }

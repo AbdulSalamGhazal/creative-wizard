@@ -1,4 +1,4 @@
-import type { ComponentType } from "react";
+import type { ComponentType, ReactNode } from "react";
 import { DeltaBadge } from "@/components/kpi/delta-badge";
 import type { Delta } from "@/lib/period";
 
@@ -36,7 +36,9 @@ export function MetricCard({
   delta?: Delta;
   /** Lower-is-better metric (e.g. CPA) → flip the badge color semantics. */
   deltaInverted?: boolean;
-  emptyText?: string;
+  /** Subline under the headline when there are no bars (string or rich node —
+   *  Budget stacks a plan line + a projection line here). */
+  emptyText?: ReactNode;
   /** Render only the headline + delta (no per-dimension breakdown). */
   hideBreakdown?: boolean;
   /**

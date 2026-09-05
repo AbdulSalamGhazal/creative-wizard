@@ -253,6 +253,13 @@
       "when": 1788622217057,
       "tag": "0035_budget_module",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1788625194065,
+      "tag": "0036_budget_day_weights_reserve",
+      "breakpoints": true
     }
   ]
 }

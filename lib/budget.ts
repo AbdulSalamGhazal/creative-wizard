@@ -135,3 +135,88 @@ export function spendInDisplayCurrency(
 ): number {
   return currency === "SAR" ? usd * rate : usd;
 }
+
+// ── Day-weight plan curve (v2) ───────────────────────────────────────────────
+// Only OVERRIDDEN days are stored (absent day = weight 1), so a month with no
+// overrides normalizes to exactly the linear v1 curve. ONE curve drives both
+// spend and revenue pacing/projection (user decision). The reserve budget is
+// deliberately OUTSIDE the curve — contingency, not scheduled spend.
+
+/** A day weight must be a positive number, at most 10. */
+export function validateWeight(weight: number): boolean {
+  return Number.isFinite(weight) && weight > 0 && weight <= 10;
+}
+
+/** Per-day weight array (index 0 = day 1) for the month; absent day → 1. */
+export function dayWeights(
+  monthIso: string,
+  overrides: Record<number, number>,
+): number[] {
+  const total = daysInMonth(monthStartIso(monthIso));
+  return Array.from({ length: total }, (_, i) => {
+    const w = overrides[i + 1];
+    return w !== undefined && validateWeight(w) ? w : 1;
+  });
+}
+
+/**
+ * Fraction of the month's curve elapsed through `throughDay` (inclusive):
+ * Σweights(1..day) ÷ Σweights(all). Clamped; 0 when throughDay < 1. With no
+ * overrides this is exactly day ÷ daysInMonth — v1's linear pacing.
+ */
+export function curveFraction(
+  monthIso: string,
+  overrides: Record<number, number>,
+  throughDay: number,
+): number {
+  const weights = dayWeights(monthIso, overrides);
+  const total = weights.reduce((s, w) => s + w, 0);
+  if (total <= 0) return 0;
+  const upTo = Math.max(0, Math.min(weights.length, Math.floor(throughDay)));
+  const partial = weights.slice(0, upTo).reduce((s, w) => s + w, 0);
+  return partial / total;
+}
+
+/** Plan-to-date through the curve — replaces linear `pacingExpected` in Budget. */
+export function curveExpected(
+  planned: number,
+  monthIso: string,
+  overrides: Record<number, number>,
+  throughDay: number,
+): number {
+  return planned * curveFraction(monthIso, overrides, throughDay);
+}
+
+/**
+ * Curve-aware month-end projection: actual-to-date ÷ elapsed curve fraction.
+ * NULL when the fraction is 0 (e.g. day-1 edge with a zero-weight start) —
+ * the UI renders "—" instead of dividing by zero.
+ */
+export function projectedMonthEnd(
+  actualToDate: number,
+  monthIso: string,
+  overrides: Record<number, number>,
+  throughDay: number,
+): number | null {
+  const fraction = curveFraction(monthIso, overrides, throughDay);
+  if (fraction <= 0) return null;
+  return actualToDate / fraction;
+}
+
+/**
+ * Map a month's weight overrides onto another month for Copy-from-last-month:
+ * day numbers carry over; days past the target month's length (e.g. day 31 →
+ * a 30-day month) are dropped.
+ */
+export function mapWeightsToMonth(
+  overrides: Record<number, number>,
+  targetMonthIso: string,
+): Record<number, number> {
+  const limit = daysInMonth(monthStartIso(targetMonthIso));
+  const out: Record<number, number> = {};
+  for (const [dayStr, weight] of Object.entries(overrides)) {
+    const day = Number(dayStr);
+    if (day >= 1 && day <= limit) out[day] = weight;
+  }
+  return out;
+}
