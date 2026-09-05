@@ -14,6 +14,7 @@ export const CAMPAIGN_OBJECTIVES = [
   "Retargeting",
   "Awareness",
   "Activation",
+  "Special Case",
 ] as const;
 
 /**

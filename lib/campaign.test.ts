@@ -81,16 +81,17 @@ describe("parseCampaignName (inverse)", () => {
 });
 
 describe("CAMPAIGN_OBJECTIVES", () => {
-  it("is pinned to exactly the five post-merge values (2026-09)", () => {
-    // Reach&Freq / Traffic / Video Views were merged into "Awareness" and must
-    // never be reintroduced; "Activation" was added new. Order matters only for
-    // "Sales" (the default, kept first).
+  it("is pinned to exactly the six current values", () => {
+    // Reach&Freq / Traffic / Video Views were merged into "Awareness" (2026-09)
+    // and must never be reintroduced; "Activation" and "Special Case" were
+    // added new. Order matters only for "Sales" (the default, kept first).
     expect([...CAMPAIGN_OBJECTIVES]).toEqual([
       "Sales",
       "Prospecting",
       "Retargeting",
       "Awareness",
       "Activation",
+      "Special Case",
     ]);
   });
 });
