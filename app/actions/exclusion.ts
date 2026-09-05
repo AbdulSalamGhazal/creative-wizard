@@ -33,11 +33,28 @@ export async function excludeRecord(
     const parsed = excludeSchema.parse({ reason });
     const acct = await getActiveAccountId();
 
+    // Guard the already-excluded case (manual re-exclude would silently
+    // overwrite provenance — a rule row would flip to 'manual' and detach
+    // from its rule, breaking unapply).
+    const [current] = await db
+      .select({ excluded: performanceRecords.excludedFromAggregates })
+      .from(performanceRecords)
+      .where(
+        and(
+          eq(performanceRecords.accountId, acct),
+          eq(performanceRecords.id, id),
+        ),
+      )
+      .limit(1);
+    if (!current) return { ok: false, error: "Record not found" };
+    if (current.excluded) return { ok: false, error: "Already excluded." };
+
     const [updated] = await db
       .update(performanceRecords)
       .set({
         excludedFromAggregates: true,
         excludedSource: "manual",
+        excludedRuleId: null,
         excludedReason: parsed.reason,
         excludedByUserId: user.id,
         excludedAt: new Date(),

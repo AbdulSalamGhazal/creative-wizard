@@ -360,9 +360,10 @@ export function ExclusionRulesAdmin({
                     </>
                   ) : (
                     <>
-                      This restores <b>{int(pending.preview.records)} records</b>{" "}
-                      the rule currently excludes back into every aggregate, for
-                      everyone.
+                      This releases <b>{int(pending.preview.records)} records</b>{" "}
+                      from this rule. Rows another active rule also covers stay
+                      excluded (re-stamped by that rule); the rest return to
+                      every aggregate, for everyone.
                       {pending.mode === "delete" &&
                         " The rule itself is removed — future uploads won't be stamped."}{" "}
                       Manual exclusions stay excluded.

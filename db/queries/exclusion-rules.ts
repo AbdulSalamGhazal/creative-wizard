@@ -1,4 +1,4 @@
-import { and, desc, eq, sql, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, sql, type SQL } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
   campaigns,
@@ -114,6 +114,10 @@ export async function unapplyRule(
       and(
         eq(performanceRecords.accountId, acct),
         eq(performanceRecords.excludedRuleId, ruleId),
+        // Belt and braces: only rows still marked as rule-excluded. If a row
+        // somehow drifted to source='manual' while carrying this rule's id,
+        // un-applying the rule must not un-exclude it.
+        eq(performanceRecords.excludedSource, "rule"),
       ),
     )
     .returning({ id: performanceRecords.id });
@@ -231,12 +235,33 @@ export async function listExclusionRules(): Promise<ExclusionRuleRow[]> {
   }));
 }
 
-/** Active rules for ONE account, by explicit id (commit route runs pre-auth-context). */
+/**
+ * Active rules for ONE account, by explicit id (commit route runs
+ * pre-auth-context). Ordered by created_at so multi-rule sweeps stamp
+ * deterministically (first-created rule wins an overlap).
+ */
 export async function activeRulesFor(exec: Exec, accountId: string) {
   return exec
     .select()
     .from(exclusionRules)
-    .where(and(eq(exclusionRules.accountId, accountId), eq(exclusionRules.active, true)));
+    .where(and(eq(exclusionRules.accountId, accountId), eq(exclusionRules.active, true)))
+    .orderBy(asc(exclusionRules.createdAt));
+}
+
+/**
+ * Re-sweep every remaining ACTIVE rule (created_at order) — called inside the
+ * removal transaction after a rule is deactivated/deleted, so a row that was
+ * covered by BOTH the removed rule and a surviving one stays excluded (it gets
+ * re-stamped by the surviving rule instead of silently returning to totals).
+ * Returns the number of rows re-stamped.
+ */
+export async function resweepActiveRules(exec: Exec, accountId: string): Promise<number> {
+  const rules = await activeRulesFor(exec, accountId);
+  let total = 0;
+  for (const rule of rules) {
+    total += await applyRule(exec, rule, accountId);
+  }
+  return total;
 }
 
 /**

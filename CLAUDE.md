@@ -615,7 +615,10 @@ This app is deployed and in production use. Treat `main` as shippable.
   `lib/exclusion-rules.ts` + `db/queries/exclusion-rules.ts`; "materialized
   with provenance" — aggregate queries never special-case rules). Invariants:
   applying a rule SKIPS already-excluded rows (manual, or another rule's — a
-  row keeps its FIRST rule); un-applying touches ONLY rows with that rule's id;
+  row keeps its FIRST rule, created_at order); un-applying touches ONLY rows
+  with that rule's id AND `excluded_source='rule'`, and the removal transaction
+  then RE-SWEEPS the remaining active rules, so a row covered by two rules stays
+  excluded (re-stamped by the survivor) instead of silently returning to totals;
   **manual un-exclude REFUSES rule-excluded rows** (the action returns
   "Excluded by rule «…»" and the row's Re-include button is disabled) — restore
   them by deactivating the rule in Configuration → Exclusions. Rule mutations

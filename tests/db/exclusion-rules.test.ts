@@ -16,6 +16,7 @@ import { exclusionRules, performanceRecords } from "@/db/schema";
 import {
   applyRule,
   unapplyRule,
+  resweepActiveRules,
   previewRuleApply,
   previewRuleUnapply,
   stampAgainstActiveRules,
@@ -184,6 +185,59 @@ describe("exclusion rules engine — apply/unapply with provenance", () => {
 
     setAccount(ACCOUNT_B);
     expect((await previewRuleUnapply(rule.id)).records).toBe(0); // B can't even see it
+  });
+
+  it("a drifted manual row (rule id still set) survives unapplyRule — manual always wins", async () => {
+    // Pins the rule-then-direct-manual sequence: if a rule-excluded row ever
+    // drifts to source='manual' (e.g. a historic write path), removing the
+    // rule must NOT un-exclude it — unapply only touches source='rule' rows.
+    const rule = await insertRule({ kind: "campaign", campaignId: CAMPAIGN_1 });
+    await applyRule(db, rule, ACCOUNT_A); // camp1's 2 open rows
+
+    const [drifted] = await db
+      .update(performanceRecords)
+      .set({ excludedSource: "manual" })
+      .where(
+        and(
+          eq(performanceRecords.accountId, ACCOUNT_A),
+          eq(performanceRecords.excludedRuleId, rule.id),
+        ),
+      )
+      .returning({ id: performanceRecords.id });
+    // (that set BOTH rows to manual; re-point one back to 'rule')
+    await db
+      .update(performanceRecords)
+      .set({ excludedSource: "rule" })
+      .where(eq(performanceRecords.id, drifted!.id));
+
+    const restored = await unapplyRule(db, rule.id, ACCOUNT_A);
+    expect(restored).toBe(1); // only the still-'rule' row
+
+    const rows = await flagsFor(ACCOUNT_A);
+    const manualDrift = rows.find((r) => r.source === "manual" && r.ruleId === rule.id);
+    expect(manualDrift).toBeDefined();
+    expect(manualDrift!.excluded).toBe(true); // survived the rule's removal
+  });
+
+  it("removing rule A re-sweeps: overlapping rows get re-stamped by rule B, not released", async () => {
+    // Row matched by A (campaign) AND B (objective). Mimics
+    // deleteExclusionRule's transaction: unapply A → delete A → resweep.
+    const ruleA = await insertRule({ kind: "campaign", campaignId: CAMPAIGN_1 });
+    await applyRule(db, ruleA, ACCOUNT_A); // camp1's rows stamped by A (first)
+    const ruleB = await insertRule({ kind: "campaign_objective", objective: "Sales" });
+    await applyRule(db, ruleB, ACCOUNT_A); // camp2's row only
+
+    await db.transaction(async (tx) => {
+      await unapplyRule(tx, ruleA.id, ACCOUNT_A);
+      await tx.delete(exclusionRules).where(eq(exclusionRules.id, ruleA.id));
+      await resweepActiveRules(tx, ACCOUNT_A);
+    });
+
+    const rows = await flagsFor(ACCOUNT_A);
+    const camp1Rows = rows.filter((r) => r.campaignId === CAMPAIGN_1 && r.ruleId !== null);
+    expect(camp1Rows.length).toBeGreaterThan(0);
+    // Still excluded — now stamped by B, the surviving rule.
+    expect(camp1Rows.every((r) => r.excluded && r.ruleId === ruleB.id)).toBe(true);
   });
 
   it("deleteRulesTargeting removes a deleted entity's rules (deleteCampaign path)", async () => {

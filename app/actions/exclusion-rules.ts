@@ -17,6 +17,7 @@ import {
 import {
   applyRule,
   unapplyRule,
+  resweepActiveRules,
   previewRuleApply,
   previewRuleUnapply,
   getRule,
@@ -169,9 +170,11 @@ export async function toggleExclusionRule(input: unknown): Promise<RuleMutationR
         .update(exclusionRules)
         .set({ active })
         .where(and(eq(exclusionRules.accountId, acct), eq(exclusionRules.id, id)));
-      return active
-        ? applyRule(tx, rule, acct)
-        : unapplyRule(tx, id, acct);
+      if (active) return applyRule(tx, rule, acct);
+      const restored = await unapplyRule(tx, id, acct);
+      // Rows also covered by another active rule get re-stamped, not released.
+      const restamped = await resweepActiveRules(tx, acct);
+      return restored - restamped;
     });
 
     revalidateEverything();
@@ -204,7 +207,9 @@ export async function deleteExclusionRule(input: unknown): Promise<RuleMutationR
       await tx
         .delete(exclusionRules)
         .where(and(eq(exclusionRules.accountId, acct), eq(exclusionRules.id, rule.id)));
-      return restored;
+      // Rows also covered by another active rule get re-stamped, not released.
+      const restamped = await resweepActiveRules(tx, acct);
+      return restored - restamped;
     });
 
     revalidateEverything();
