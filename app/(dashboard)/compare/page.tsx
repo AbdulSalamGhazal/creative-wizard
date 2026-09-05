@@ -15,6 +15,7 @@ import { CompareChart } from "@/components/charts/compare-chart";
 import { CompareTotalsTable } from "@/components/compare/compare-totals-table";
 import { PageShell } from "@/components/layout/page-shell";
 import { PageHeader } from "@/components/layout/page-header";
+import { resolveIncludeExcluded } from "@/db/queries/user-prefs";
 import {
   compareFiltersSchema,
   sideIsEmpty,
@@ -32,11 +33,13 @@ function pickFirst(v: string | string[] | undefined): string | undefined {
 function sideFilter(
   side: CompareSide,
   range: { from: string; to: string },
+  includeExcluded: boolean,
 ): KpiFilters {
   return {
     platforms: side.platforms.length ? side.platforms : undefined,
     campaignNames: side.campaigns.length ? side.campaigns : undefined,
     creativeIds: side.creatives.length ? side.creatives : undefined,
+    includeExcluded,
     ...range,
   };
 }
@@ -83,12 +86,19 @@ export default async function ComparePage({
 
   const dimensions = await compareDimensions();
 
+  // Effective Excluded state: URL param wins, else the user's saved default.
+  const includeExcluded = await resolveIncludeExcluded(
+    pickFirst(params.includeExcluded),
+  );
+
   // Each side runs over its own window when set, else the shared one (the
   // validator guarantees the shared from/to are always concrete).
   const sharedRange = { from: parsed.from, to: parsed.to };
   const effRange = (s: CompareSide) =>
     s.from && s.to ? { from: s.from, to: s.to } : sharedRange;
-  const sideFilters = parsed.sides.map((s) => sideFilter(s, effRange(s)));
+  const sideFilters = parsed.sides.map((s) =>
+    sideFilter(s, effRange(s), includeExcluded),
+  );
 
   const totals = await Promise.all(sideFilters.map((f) => kpis(f)));
 
@@ -138,6 +148,7 @@ export default async function ComparePage({
         sides={parsed.sides}
         from={parsed.from ?? null}
         to={parsed.to ?? null}
+        includeExcluded={includeExcluded}
       />
 
       {/* One chart block per metric — the chart owns its card (ChartShell),

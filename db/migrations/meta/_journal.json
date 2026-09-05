@@ -225,6 +225,13 @@
       "when": 1785962081078,
       "tag": "0031_store_source_mapping",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1788597722276,
+      "tag": "0032_exclusion_rules_and_prefs",
+      "breakpoints": true
     }
   ]
 }

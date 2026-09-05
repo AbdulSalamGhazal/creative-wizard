@@ -46,8 +46,9 @@ import { PageShell } from "@/components/layout/page-shell";
 import { int, roas, usd, usd0 } from "@/lib/format";
 import { computeDelta } from "@/lib/period";
 import { defaultDateRange, presetLabel } from "@/lib/date-presets";
-import { resolvePreferredRange } from "@/db/queries/user-prefs";
+import { resolvePreferredRange, resolveIncludeExcluded } from "@/db/queries/user-prefs";
 import { safeDecodeURIComponent } from "@/lib/url";
+import { ExcludedParamToggle } from "@/components/filters/excluded-param-toggle";
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -62,6 +63,7 @@ const FILTER_KEYS = [
   "tags",
   "sort",
   "view",
+  "includeExcluded",
 ] as const;
 
 type SearchParams = Record<string, string | string[] | undefined>;
@@ -114,6 +116,9 @@ export default async function CreativeDetailPage({
   const eff = await resolvePreferredRange(from, to, defaultDateRange());
   const range = { from: eff.from, to: eff.to };
   const rangeLabel = presetLabel(eff.from, eff.to);
+  // Effective Excluded state for the analytics aggregates (records table below
+  // always shows every row, badge included — this only governs aggregates).
+  const inc = await resolveIncludeExcluded(pickFirst(sp.includeExcluded));
 
   // Rebuild the Library's filtered/sorted sequence so the pager matches it.
   const navParsed = creativeListFiltersSchema.parse({
@@ -186,10 +191,18 @@ export default async function CreativeDetailPage({
     products,
     navList,
   ] = await Promise.all([
-    kpisWithDelta({ creativeIds: [creative.id], from: range.from, to: range.to }),
-    platformMix({ creativeIds: [creative.id], ...range }),
-    campaignMix({ creativeIds: [creative.id], ...range }),
-    creativeDailyMetrics({ creativeIds: [creative.id], ...range }, platformEdges),
+    kpisWithDelta({
+      creativeIds: [creative.id],
+      from: range.from,
+      to: range.to,
+      includeExcluded: inc,
+    }),
+    platformMix({ creativeIds: [creative.id], ...range, includeExcluded: inc }),
+    campaignMix({ creativeIds: [creative.id], ...range, includeExcluded: inc }),
+    creativeDailyMetrics(
+      { creativeIds: [creative.id], ...range, includeExcluded: inc },
+      platformEdges,
+    ),
     creativeRecords(creative.id, range),
     listAuditEvents({
       entityType: "creative",
@@ -262,12 +275,15 @@ export default async function CreativeDetailPage({
               {rangeLabel} · across platforms
             </p>
           </div>
-          <AnalyticsDateFilter
-            from={from ?? null}
-            to={to ?? null}
-            defaultFrom={eff.from}
-            defaultTo={eff.to}
-          />
+          <div className="flex items-center gap-2">
+            <ExcludedParamToggle on={inc} />
+            <AnalyticsDateFilter
+              from={from ?? null}
+              to={to ?? null}
+              defaultFrom={eff.from}
+              defaultTo={eff.to}
+            />
+          </div>
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">

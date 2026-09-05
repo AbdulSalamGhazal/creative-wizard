@@ -41,6 +41,8 @@ export interface CreativeListFilters {
   tags?: string[];
   sort: CreativeSort;
   limit?: number;
+  /** Count excluded records into the 7d/30d spend windows (default: hidden). */
+  includeExcluded?: boolean;
 }
 
 export interface CreativeListRow {
@@ -92,8 +94,10 @@ export async function listCreatives(
   const spendWindowCte = (alias: string, days: number) => {
     const conds: SQL[] = [
       sql`${performanceRecords.date} >= CURRENT_DATE - ${sql.raw(`INTERVAL '${days} days'`)}`,
-      eq(performanceRecords.excludedFromAggregates, false),
     ];
+    if (!filters.includeExcluded) {
+      conds.push(eq(performanceRecords.excludedFromAggregates, false));
+    }
     if (filters.platforms && filters.platforms.length > 0) {
       conds.push(inArray(performanceRecords.platform, filters.platforms));
     }
@@ -509,6 +513,7 @@ export interface CreativeRecordRow {
   videoViews75: number | null;
   videoViews100: number | null;
   excludedFromAggregates: boolean;
+  excludedSource: "manual" | "rule" | null;
   excludedReason: string | null;
   excludedAt: Date | null;
 }
@@ -544,6 +549,7 @@ export async function creativeRecords(
       videoViews75: performanceRecords.videoViews75,
       videoViews100: performanceRecords.videoViews100,
       excludedFromAggregates: performanceRecords.excludedFromAggregates,
+      excludedSource: performanceRecords.excludedSource,
       excludedReason: performanceRecords.excludedReason,
       excludedAt: performanceRecords.excludedAt,
     })
@@ -579,6 +585,7 @@ export async function creativeRecords(
     videoViews75: r.videoViews75,
     videoViews100: r.videoViews100,
     excludedFromAggregates: r.excludedFromAggregates,
+    excludedSource: r.excludedSource ?? null,
     excludedReason: r.excludedReason,
     excludedAt: r.excludedAt,
   }));

@@ -70,6 +70,13 @@ export const users = pgTable("users", {
    * (global, across brands).
    */
   preferredDateRange: text("preferred_date_range"),
+  /**
+   * The user's remembered Excluded-toggle state (`includeExcluded`), applied on
+   * any page whose URL doesn't carry an explicit `includeExcluded` param.
+   * NULL = never chose → hidden (the safe default). Mirrors
+   * `preferredDateRange`; resolution: URL param → this → hidden.
+   */
+  includeExcluded: boolean("include_excluded"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -591,6 +598,19 @@ export const performanceRecords = pgTable(
     excludedReason: text("excluded_reason"),
     excludedByUserId: uuid("excluded_by_user_id").references(() => users.id),
     excludedAt: timestamp("excluded_at", { withTimezone: true }),
+    /**
+     * Exclusion provenance (2026-09). Who flipped `excluded_from_aggregates`:
+     * 'manual' (the per-record action) or 'rule' (the exclusion-rules engine,
+     * `excluded_rule_id` says which). NULL only when not excluded. The two
+     * writers never overwrite each other: a rule skips already-excluded rows,
+     * and manual un-exclude refuses rows with source='rule'. FK has NO cascade
+     * on purpose — rule deactivation/deletion un-applies its rows in code first.
+     */
+    excludedSource: varchar("excluded_source", {
+      length: 8,
+      enum: ["manual", "rule"],
+    }),
+    excludedRuleId: uuid("excluded_rule_id").references(() => exclusionRules.id),
   },
   (t) => ({
     // Unique on the FULL dedup key. The same creative can run on the same
@@ -611,6 +631,59 @@ export const performanceRecords = pgTable(
     platformDateIdx: index("perf_platform_date_idx").on(t.platform, t.date),
     batchIdx: index("perf_upload_batch_idx").on(t.uploadBatchId),
     excludedIdx: index("perf_excluded_idx").on(t.excludedFromAggregates),
+    excludedRuleIdx: index("perf_excluded_rule_idx").on(t.excludedRuleId),
+  }),
+);
+
+export const exclusionRuleKindEnum = [
+  "campaign_objective",
+  "campaign",
+  "creative",
+] as const;
+export type ExclusionRuleKind = (typeof exclusionRuleKindEnum)[number];
+
+/**
+ * Rule-based exclusions (2026-09) — account-global config rows that flip
+ * `performance_records.excluded_from_aggregates` for everything matching the
+ * rule ("materialized with provenance": the engine in lib/exclusion-rules.ts
+ * stamps `excluded_source='rule'` + `excluded_rule_id`; aggregate queries stay
+ * untouched). Exactly ONE target column is set, matching `kind` (validated in
+ * code; enforced-ish by the per-kind partial unique indexes). `active` is a
+ * GLOBAL switch — deactivating un-applies the rule for every user. Newly
+ * imported records are stamped against active rules inside the commit
+ * transaction. Deleting a targeted campaign/creative deletes its rules.
+ */
+export const exclusionRules = pgTable(
+  "exclusion_rules",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    accountId: accountId(),
+    kind: varchar("kind", { length: 24, enum: exclusionRuleKindEnum }).notNull(),
+    /** kind='campaign_objective' → which objective. */
+    objective: varchar("objective", { length: 16, enum: campaignObjectiveEnum }),
+    /** kind='campaign' → which campaign. */
+    campaignId: uuid("campaign_id").references(() => campaigns.id),
+    /** kind='creative' → which creative. */
+    creativeId: uuid("creative_id").references(() => creatives.id),
+    active: boolean("active").notNull().default(true),
+    note: varchar("note", { length: 200 }),
+    createdByUserId: uuid("created_by_user_id")
+      .notNull()
+      .references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    // One rule per target per account (partial per kind, since the target
+    // column differs by kind).
+    accountObjectiveUnique: uniqueIndex("exclusion_rules_account_objective_idx")
+      .on(t.accountId, t.objective)
+      .where(sql`${t.kind} = 'campaign_objective'`),
+    accountCampaignUnique: uniqueIndex("exclusion_rules_account_campaign_idx")
+      .on(t.accountId, t.campaignId)
+      .where(sql`${t.kind} = 'campaign'`),
+    accountCreativeUnique: uniqueIndex("exclusion_rules_account_creative_idx")
+      .on(t.accountId, t.creativeId)
+      .where(sql`${t.kind} = 'creative'`),
   }),
 );
 

@@ -18,6 +18,7 @@ import {
 } from "@/lib/launch-fatigue";
 import { dashboardFiltersSchema } from "@/validators/filters";
 import { LIFETIME_FLOOR, presetLabel, todayIso } from "@/lib/date-presets";
+import { resolveIncludeExcluded } from "@/db/queries/user-prefs";
 
 export const dynamic = "force-dynamic";
 
@@ -46,6 +47,11 @@ export default async function TrendsLaunchesPage({
     includeExcluded: pickFirst(params.includeExcluded),
   });
 
+  // Effective Excluded state: URL param wins, else the user's saved default.
+  const includeExcluded = await resolveIncludeExcluded(
+    pickFirst(params.includeExcluded),
+  );
+
   // The date filter here is a LAUNCH cohort (which creatives launched in the
   // window), not a performance window — only apply it when both ends are real.
   const rawFrom = pickFirst(params.from);
@@ -61,7 +67,7 @@ export default async function TrendsLaunchesPage({
     productIds: parsed.productIds.length > 0 ? parsed.productIds : undefined,
     types: parsed.types.length > 0 ? parsed.types : undefined,
     tags: parsed.tags.length > 0 ? parsed.tags : undefined,
-    includeExcluded: parsed.includeExcluded,
+    includeExcluded,
   };
 
   const [raw, products, tags] = await Promise.all([
@@ -136,6 +142,7 @@ export default async function TrendsLaunchesPage({
     <PageShell
       filterStrip={
         <FilterStrip
+          includeExcludedDefault={includeExcluded}
           products={products}
           tags={tags}
           defaultFrom={LIFETIME_FLOOR}

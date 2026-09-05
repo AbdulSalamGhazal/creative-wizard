@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { users } from "@/db/schema";
 import { auth } from "@/lib/auth";
+import { resolveIncludeExcludedValue } from "@/lib/exclusion-rules";
 import {
   decodePreferredRange,
   todayIso,
@@ -49,4 +50,31 @@ export async function resolvePreferredRange(
     return { from, to };
   }
   return (await getPreferredRange()) ?? fallback;
+}
+
+/**
+ * The signed-in user's remembered Excluded-toggle state, or null when they
+ * never chose. `cache()`-deduped per request.
+ */
+export const getIncludeExcludedPref = cache(async (): Promise<boolean | null> => {
+  const user = await auth();
+  if (!user) return null;
+  const [row] = await db
+    .select({ pref: users.includeExcluded })
+    .from(users)
+    .where(eq(users.id, user.id))
+    .limit(1);
+  return row?.pref ?? null;
+});
+
+/**
+ * Effective Excluded-toggle state for a page: the explicit URL param wins
+ * ("1" → shown, "0" → hidden), otherwise the user's remembered choice,
+ * otherwise hidden (the safe default). Pass the RAW search param — same
+ * caveat as `resolvePreferredRange`.
+ */
+export async function resolveIncludeExcluded(
+  raw: string | null | undefined,
+): Promise<boolean> {
+  return resolveIncludeExcludedValue(raw, await getIncludeExcludedPref());
 }

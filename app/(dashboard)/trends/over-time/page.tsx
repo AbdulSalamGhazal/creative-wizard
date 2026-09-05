@@ -9,7 +9,7 @@ import {
   type KpiFilters,
 } from "@/db/queries/performance";
 import { defaultDateRange } from "@/lib/date-presets";
-import { resolvePreferredRange } from "@/db/queries/user-prefs";
+import { resolvePreferredRange, resolveIncludeExcluded } from "@/db/queries/user-prefs";
 import { listProducts } from "@/db/queries/products";
 import { listAllTags } from "@/db/queries/creatives";
 import { FilterStrip } from "@/components/filters/filter-strip";
@@ -69,6 +69,11 @@ export default async function TrendsOverTimePage({
     tags: pickFirst(params.tags),
     includeExcluded: pickFirst(params.includeExcluded),
   });
+
+  // Effective Excluded state: URL param wins, else the user's saved default.
+  const includeExcluded = await resolveIncludeExcluded(
+    pickFirst(params.includeExcluded),
+  );
   const dim = changeDimSchema.parse(pickFirst(params.dim));
 
   const range = await resolvePreferredRange(
@@ -86,7 +91,7 @@ export default async function TrendsOverTimePage({
     platforms: parsed.platforms.length > 0 ? parsed.platforms : undefined,
     types: parsed.types.length > 0 ? parsed.types : undefined,
     tags: parsed.tags.length > 0 ? parsed.tags : undefined,
-    includeExcluded: parsed.includeExcluded,
+    includeExcluded,
   };
 
   const [k, breakdown, products, tags] = await Promise.all([
@@ -150,6 +155,7 @@ export default async function TrendsOverTimePage({
     <PageShell
       filterStrip={
         <FilterStrip
+          includeExcludedDefault={includeExcluded}
           products={products}
           tags={tags}
           defaultFrom={from}

@@ -37,7 +37,8 @@ import { safeDecodeURIComponent } from "@/lib/url";
 import { PageShell } from "@/components/layout/page-shell";
 import { isoDate, int } from "@/lib/format";
 import { defaultDateRange, presetLabel } from "@/lib/date-presets";
-import { resolvePreferredRange } from "@/db/queries/user-prefs";
+import { resolvePreferredRange, resolveIncludeExcluded } from "@/db/queries/user-prefs";
+import { ExcludedParamToggle } from "@/components/filters/excluded-param-toggle";
 
 export const dynamic = "force-dynamic";
 
@@ -105,7 +106,8 @@ export default async function CampaignDetailPage({
       ])
     : [null, null];
 
-  const inc = parsed.includeExcluded;
+  // Effective Excluded state: URL param wins, else the user's saved default.
+  const inc = await resolveIncludeExcluded(sp.includeExcluded);
   const [analytics, creativeRows, daily, records, byDay, horizon, campaignFirst] =
     await Promise.all([
       campaignAnalytics(decoded, range, inc),
@@ -155,6 +157,7 @@ export default async function CampaignDetailPage({
                 objective={registry.objective}
               />
             )}
+            <ExcludedParamToggle on={inc} />
             <AnalyticsDateFilter
               from={parsed.from ?? null}
               to={parsed.to ?? null}

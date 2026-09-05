@@ -46,8 +46,11 @@ import {
 import { CREATIVE_STATUSES, STATUS_LABEL } from "@/lib/creative-status";
 import { ViewsControl } from "@/components/summary/views-control";
 import type { SummaryViewRow } from "@/db/queries/summary-views";
+import { ExcludedParamToggle } from "@/components/filters/excluded-param-toggle";
 
 interface Props {
+  /** Effective Excluded-toggle state (URL param → saved pref → hidden). */
+  includeExcluded: boolean;
   products: Array<{ id: string; name: string }>;
   tags: string[];
   views: SummaryViewRow[];
@@ -104,7 +107,7 @@ const DROPDOWN_SORTS: CreativeSort[] = [
   "created-desc",
 ];
 
-export function LibraryFilterBar({ products, tags, views, currentUserId, isAdmin }: Props) {
+export function LibraryFilterBar({ products, tags, views, currentUserId, isAdmin, includeExcluded }: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -461,6 +464,7 @@ export function LibraryFilterBar({ products, tags, views, currentUserId, isAdmin
         {search(false)}
         {dimensionControls(false)}
         <div className="ml-auto flex items-center gap-2">
+          <ExcludedParamToggle on={includeExcluded} />
           {filtersActive && <ClearButton onClick={clearAll} />}
           {sortControl(false)}
           {viewToggle}
@@ -475,6 +479,7 @@ export function LibraryFilterBar({ products, tags, views, currentUserId, isAdmin
           {views_}
           {dimensionControls(true)}
           {sortControl(true)}
+          <ExcludedParamToggle on={includeExcluded} fullWidth />
         </FilterSheet>
       </div>
     </div>

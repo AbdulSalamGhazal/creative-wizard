@@ -6,7 +6,7 @@ import {
   type PortfolioFilters,
 } from "@/db/queries/portfolio";
 import { portfolioFiltersSchema } from "@/validators/portfolio";
-import { getPreferredRange } from "@/db/queries/user-prefs";
+import { getPreferredRange, resolveIncludeExcluded } from "@/db/queries/user-prefs";
 import {
   getDefaultSummaryView,
   listSummaryViews,
@@ -68,6 +68,11 @@ export default async function CampaignsPage({
     order: pickFirst(params.order),
   });
 
+  // Effective Excluded state: URL param wins, else the user's saved default.
+  const includeExcluded = await resolveIncludeExcluded(
+    pickFirst(params.includeExcluded),
+  );
+
   // Explicit URL range wins; otherwise the saved default; otherwise last-7.
   const range =
     rawFrom && rawTo
@@ -83,7 +88,7 @@ export default async function CampaignsPage({
     objectives: parsed.objectives.length > 0 ? parsed.objectives : undefined,
     statuses: parsed.statuses.length > 0 ? parsed.statuses : undefined,
     q: parsed.q,
-    includeExcluded: parsed.includeExcluded,
+    includeExcluded,
   };
 
   const [campaigns, views] = await Promise.all([
@@ -114,6 +119,7 @@ export default async function CampaignsPage({
 
       <Suspense fallback={<FilterBarSkeleton />}>
         <PortfolioFilterBar
+          includeExcludedDefault={includeExcluded}
           defaultFrom={from}
           defaultTo={to}
           views={views}

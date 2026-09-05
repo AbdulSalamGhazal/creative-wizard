@@ -18,6 +18,7 @@ import {
 } from "@/components/filters/filter-pill";
 import { FilterSheet } from "@/components/filters/filter-sheet";
 import { ALL_PLATFORMS, PLATFORM_LABEL } from "@/lib/palette";
+import { setIncludeExcludedPref } from "@/app/actions/user-prefs";
 
 // Derived from the canonical platform list (lib/palette) — no hand-copied set.
 const PLATFORMS = ALL_PLATFORMS.map((value) => ({
@@ -44,6 +45,8 @@ interface FilterStripProps {
   /** Persist the picked range as the user's global default. Off for pages where
    *  the date means something page-specific (e.g. Launches = launch cohort). */
   rememberDate?: boolean;
+  /** The user's saved Excluded-toggle default (URL param overrides it). */
+  includeExcludedDefault?: boolean;
 }
 
 function csv(v: string | null): string[] {
@@ -53,6 +56,7 @@ function csv(v: string | null): string[] {
 export function FilterStrip({
   products = [],
   tags = [],
+  includeExcludedDefault,
   hideType = false,
   defaultFrom,
   defaultTo,
@@ -66,7 +70,13 @@ export function FilterStrip({
   const from = searchParams.get("from");
   const to = searchParams.get("to");
   const platformsParam = searchParams.get("platforms");
-  const includeExcluded = searchParams.get("includeExcluded") === "1";
+  // Effective Excluded state: explicit URL param wins, else the saved
+  // per-user preference the server resolved into `includeExcludedDefault`.
+  const rawIncludeExcluded = searchParams.get("includeExcluded");
+  const includeExcluded =
+    rawIncludeExcluded !== null
+      ? rawIncludeExcluded === "1"
+      : (includeExcludedDefault ?? false);
   const productIds = csv(searchParams.get("productIds"));
   const types = csv(searchParams.get("types"));
   const selectedTags = csv(searchParams.get("tags"));
@@ -140,9 +150,10 @@ export function FilterStrip({
         : `${selectedTags.length} selected`;
 
   const toggleExcluded = () => {
+    const nextOn = !includeExcluded;
+    void setIncludeExcludedPref(nextOn); // remember as this user's default
     update((next) => {
-      if (includeExcluded) next.delete("includeExcluded");
-      else next.set("includeExcluded", "1");
+      next.set("includeExcluded", nextOn ? "1" : "0");
     });
   };
 

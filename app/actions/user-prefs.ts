@@ -28,3 +28,21 @@ export async function setPreferredRange(value: string): Promise<void> {
     // Remembering the range is best-effort; a failure must not break the pick.
   }
 }
+
+/**
+ * Persist the user's Excluded-toggle choice as their default (mirrors
+ * `setPreferredRange`). Applied on any page whose URL has no explicit
+ * `includeExcluded` param; an explicit param always wins. Best-effort.
+ */
+export async function setIncludeExcludedPref(on: boolean): Promise<void> {
+  try {
+    const user = await requireAuth();
+    await db
+      .update(users)
+      .set({ includeExcluded: on })
+      .where(eq(users.id, user.id));
+    revalidatePath("/", "layout");
+  } catch {
+    // Remembering the toggle is best-effort; a failure must not break it.
+  }
+}

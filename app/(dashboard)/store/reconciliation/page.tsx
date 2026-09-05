@@ -13,6 +13,7 @@ import {
   type ReconPlatform,
 } from "@/db/queries/reconciliation";
 import { ReconciliationView } from "@/components/store/reconciliation-view";
+import { resolveIncludeExcluded } from "@/db/queries/user-prefs";
 
 export const dynamic = "force-dynamic";
 
@@ -41,10 +42,13 @@ export default async function ReconciliationPage({
   const user = await auth();
   const canConfig = user ? can(user, "config.store") : false;
 
+  // Effective Excluded state for the ads side (URL param → saved pref → hidden).
+  const includeExcluded = await resolveIncludeExcluded(pick(sp.includeExcluded));
+
   const sourceFieldKey = await getStoreSourceFieldKey();
   const [overview, byPlatform, horizons, mappings, values] = await Promise.all([
-    reconciliationOverview(f.from, f.to),
-    reconciliationByPlatform(sourceFieldKey, f.from, f.to),
+    reconciliationOverview(f.from, f.to, includeExcluded),
+    reconciliationByPlatform(sourceFieldKey, f.from, f.to, includeExcluded),
     platformDataHorizons(),
     listStoreSourceMappings(),
     distinctStoreSourceValues(sourceFieldKey),
@@ -68,6 +72,7 @@ export default async function ReconciliationPage({
       <ReconciliationView
         from={f.from ?? null}
         to={f.to ?? null}
+        includeExcluded={includeExcluded}
         overview={overview}
         byPlatform={byPlatform}
         platforms={[...platformEnum] as ReconPlatform[]}

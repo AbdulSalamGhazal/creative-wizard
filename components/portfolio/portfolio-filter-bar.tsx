@@ -29,6 +29,7 @@ import { CAMPAIGN_TABLE_COLUMNS } from "@/components/portfolio/portfolio-table";
 import type { SummaryViewRow } from "@/db/queries/summary-views";
 import { CAMPAIGN_OBJECTIVES } from "@/lib/campaign";
 import { CAMPAIGN_STATUSES, CAMPAIGN_STATUS_LABEL } from "@/lib/campaign-status";
+import { setIncludeExcludedPref } from "@/app/actions/user-prefs";
 
 const PLATFORMS = [
   { value: "instagram", label: "Instagram" },
@@ -47,6 +48,7 @@ export function PortfolioFilterBar({
   views,
   currentUserId,
   isAdmin,
+  includeExcludedDefault,
 }: {
   /** Effective default range (user's saved choice) for the picker label. */
   defaultFrom?: string;
@@ -54,6 +56,8 @@ export function PortfolioFilterBar({
   views: SummaryViewRow[];
   currentUserId: string;
   isAdmin: boolean;
+  /** The user's saved Excluded-toggle default (URL param overrides it). */
+  includeExcludedDefault?: boolean;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -62,7 +66,13 @@ export function PortfolioFilterBar({
 
   const from = searchParams.get("from");
   const to = searchParams.get("to");
-  const includeExcluded = searchParams.get("includeExcluded") === "1";
+  // Effective Excluded state: explicit URL param wins, else the saved
+  // per-user preference the server resolved into `includeExcludedDefault`.
+  const rawIncludeExcluded = searchParams.get("includeExcluded");
+  const includeExcluded =
+    rawIncludeExcluded !== null
+      ? rawIncludeExcluded === "1"
+      : (includeExcludedDefault ?? false);
   const platforms = useMemo(
     () => csv(searchParams.get("platforms")),
     [searchParams],
@@ -150,11 +160,13 @@ export function PortfolioFilterBar({
     });
   };
 
-  const toggleExcluded = () =>
+  const toggleExcluded = () => {
+    const nextOn = !includeExcluded;
+    void setIncludeExcludedPref(nextOn); // remember as this user's default
     update((next) => {
-      if (includeExcluded) next.delete("includeExcluded");
-      else next.set("includeExcluded", "1");
+      next.set("includeExcluded", nextOn ? "1" : "0");
     });
+  };
 
   const filtersActive =
     !!from ||

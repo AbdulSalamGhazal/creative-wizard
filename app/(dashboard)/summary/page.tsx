@@ -9,7 +9,7 @@ import {
   listSummaryViews,
 } from "@/db/queries/summary-views";
 import { summaryFiltersSchema } from "@/validators/summary";
-import { resolvePreferredRange } from "@/db/queries/user-prefs";
+import { resolvePreferredRange, resolveIncludeExcluded } from "@/db/queries/user-prefs";
 import { LIFETIME_FLOOR, presetLabel, todayIso } from "@/lib/date-presets";
 import { platformEnum } from "@/db/schema";
 import { requireAuth } from "@/lib/auth";
@@ -69,6 +69,11 @@ export default async function SummaryPage({
     status: pickFirst(params.status),
   });
 
+  // Effective Excluded state: URL param wins, else the user's saved default.
+  const includeExcluded = await resolveIncludeExcluded(
+    pickFirst(params.includeExcluded),
+  );
+
   // An explicit, valid URL range wins; otherwise the user's saved default;
   // otherwise all-time (Lifetime). RAW params (not the validator-defaulted
   // parsed.from/to) so the saved preference isn't masked.
@@ -106,7 +111,7 @@ export default async function SummaryPage({
       types: parsed.types.length > 0 ? parsed.types : undefined,
       tags: parsed.tags.length > 0 ? parsed.tags : undefined,
       creatorIds: parsed.creatorIds.length > 0 ? parsed.creatorIds : undefined,
-      includeExcluded: parsed.includeExcluded,
+      includeExcluded,
       sort: parsed.sort,
       dir: parsed.dir,
       metricFilters:
@@ -137,6 +142,7 @@ export default async function SummaryPage({
   return (
     <PageShell>
       <SummaryFilterBar
+          includeExcludedDefault={includeExcluded}
         products={products}
         tags={tags}
         effectivePlatforms={selectedPlatforms}

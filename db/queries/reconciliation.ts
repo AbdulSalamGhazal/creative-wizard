@@ -14,8 +14,9 @@ import { sumConversions, sumSpend } from "@/lib/metrics";
  * `store_orders`) against platform-claimed CONVERSIONS (from
  * `performance_records`) per day. COUNTS ONLY — no revenue is ever compared;
  * store revenue (SAR) and spend (USD) are surfaced only as optional context
- * columns, never diffed. Account-scoped (§4.1); the ads side always respects
- * `excluded_from_aggregates = false`, like every other aggregation.
+ * columns, never diffed. Account-scoped (§4.1); the ads side hides
+ * `excluded_from_aggregates` rows by default, honoring the shared Excluded
+ * toggle via `includeExcluded` like every other aggregation.
  */
 
 export type ReconPlatform = (typeof platformEnum)[number];
@@ -121,11 +122,16 @@ function storeConds(acct: string, from?: string, to?: string) {
   return c;
 }
 
-function adsConds(acct: string, from?: string, to?: string) {
-  const c = [
-    eq(performanceRecords.accountId, acct),
-    eq(performanceRecords.excludedFromAggregates, false),
-  ];
+function adsConds(
+  acct: string,
+  from?: string,
+  to?: string,
+  includeExcluded?: boolean,
+) {
+  const c = [eq(performanceRecords.accountId, acct)];
+  if (!includeExcluded) {
+    c.push(eq(performanceRecords.excludedFromAggregates, false));
+  }
   if (from) c.push(gte(performanceRecords.date, from));
   if (to) c.push(lte(performanceRecords.date, to));
   return c;
@@ -139,6 +145,7 @@ function adsConds(acct: string, from?: string, to?: string) {
 export async function reconciliationOverview(
   from?: string,
   to?: string,
+  includeExcluded?: boolean,
 ): Promise<ReconOverviewRow[]> {
   const acct = await getActiveAccountId();
   const [storeRows, adsRows] = await Promise.all([
@@ -158,7 +165,7 @@ export async function reconciliationOverview(
         spend: sumSpend,
       })
       .from(performanceRecords)
-      .where(and(...adsConds(acct, from, to)))
+      .where(and(...adsConds(acct, from, to, includeExcluded)))
       .groupBy(performanceRecords.date),
   ]);
 
@@ -204,6 +211,7 @@ export async function reconciliationByPlatform(
   sourceFieldKey: string | null,
   from?: string,
   to?: string,
+  includeExcluded?: boolean,
 ): Promise<ReconByPlatformRow[]> {
   const acct = await getActiveAccountId();
   if (!sourceFieldKey) return [];
@@ -238,7 +246,7 @@ export async function reconciliationByPlatform(
         conv: sumConversions,
       })
       .from(performanceRecords)
-      .where(and(...adsConds(acct, from, to)))
+      .where(and(...adsConds(acct, from, to, includeExcluded)))
       .groupBy(performanceRecords.date, performanceRecords.platform),
   ]);
 

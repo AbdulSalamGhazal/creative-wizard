@@ -29,6 +29,7 @@ import {
   isWithinAttributionLag,
 } from "@/lib/reconciliation";
 import { cn } from "@/lib/utils";
+import { ExcludedParamToggle } from "@/components/filters/excluded-param-toggle";
 import type {
   ReconOverviewRow,
   ReconByPlatformRow,
@@ -40,6 +41,8 @@ type PlatformKey = keyof typeof PLATFORM_COLOR;
 interface Props {
   from: string | null;
   to: string | null;
+  /** Effective Excluded state for the ads side (URL → saved pref → hidden). */
+  includeExcluded: boolean;
   overview: ReconOverviewRow[];
   byPlatform: ReconByPlatformRow[];
   platforms: PlatformKey[];
@@ -66,6 +69,7 @@ function pctText(pct: number | null): string {
 export function ReconciliationView({
   from,
   to,
+  includeExcluded,
   overview,
   byPlatform,
   platforms,
@@ -390,6 +394,7 @@ export function ReconciliationView({
       <div className="sticky top-14 z-10 -mx-6 flex flex-wrap items-center justify-between gap-2 bg-bg/80 px-6 py-2 backdrop-blur">
         <DateRangePicker from={from} to={to} onChange={setRange} />
         <div className="flex items-center gap-2">
+          <ExcludedParamToggle on={includeExcluded} />
           <ModeToggle mode={mode} onChange={setMode} />
           {mode === "overview" && (
             <DropdownMenu>

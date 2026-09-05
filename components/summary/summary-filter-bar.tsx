@@ -56,6 +56,7 @@ import { platformEnum, creativeTypeEnum } from "@/db/schema";
 import { MetricFilterControl } from "@/components/summary/metric-filter";
 import { ViewsControl } from "@/components/summary/views-control";
 import type { SummaryViewRow } from "@/db/queries/summary-views";
+import { setIncludeExcludedPref } from "@/app/actions/user-prefs";
 
 interface Props {
   products: Array<{ id: string; name: string }>;
@@ -69,6 +70,8 @@ interface Props {
   /** Effective default range (user's saved choice) for the picker label. */
   defaultFrom?: string;
   defaultTo?: string;
+  /** The user's saved Excluded-toggle default (URL param overrides it). */
+  includeExcludedDefault?: boolean;
 }
 
 // Derived from the canonical enums so the option lists can never drift from the
@@ -132,6 +135,7 @@ export function SummaryFilterBar({
   isAdmin,
   defaultFrom,
   defaultTo,
+  includeExcludedDefault,
 }: Props) {
   const router = useRouter();
   const pathname = usePathname();
@@ -152,7 +156,13 @@ export function SummaryFilterBar({
   const productIds = csv(searchParams.get("productIds"));
   const types = csv(searchParams.get("types"));
   const selectedTags = csv(searchParams.get("tags"));
-  const includeExcluded = searchParams.get("includeExcluded") === "1";
+  // Effective Excluded state: explicit URL param wins, else the saved
+  // per-user preference the server resolved into `includeExcludedDefault`.
+  const rawIncludeExcluded = searchParams.get("includeExcluded");
+  const includeExcluded =
+    rawIncludeExcluded !== null
+      ? rawIncludeExcluded === "1"
+      : (includeExcludedDefault ?? false);
   const hiddenIdentity = csv(searchParams.get("hideIdentity")).filter(
     (k): k is IdentityColumnKey =>
       (IDENTITY_COLUMN_KEYS as readonly string[]).includes(k),
@@ -324,9 +334,10 @@ export function SummaryFilterBar({
   };
 
   const toggleExcluded = () => {
+    const nextOn = !includeExcluded;
+    void setIncludeExcludedPref(nextOn); // remember as this user's default
     update((next) => {
-      if (includeExcluded) next.delete("includeExcluded");
-      else next.set("includeExcluded", "1");
+      next.set("includeExcluded", nextOn ? "1" : "0");
     });
   };
 

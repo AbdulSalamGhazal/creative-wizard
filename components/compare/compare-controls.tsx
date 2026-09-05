@@ -22,10 +22,13 @@ import { PLATFORM_COLOR, PLATFORM_LABEL } from "@/lib/palette";
 import { cn } from "@/lib/utils";
 import type { CompareDimensionRow } from "@/db/queries/performance";
 import type { CompareSide, SideKey } from "@/validators/compare";
+import { ExcludedParamToggle } from "@/components/filters/excluded-param-toggle";
 
 type Platform = CompareDimensionRow["platform"];
 
 interface Props {
+  /** Effective Excluded-toggle state (URL param → saved pref → hidden). */
+  includeExcluded: boolean;
   dimensions: CompareDimensionRow[];
   sides: CompareSide[];
   /** Shared (default) window — applies to sides without their own. */
@@ -40,7 +43,7 @@ function toggle(arr: string[], v: string): string[] {
   return arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v];
 }
 
-export function CompareControls({ dimensions, sides, from, to }: Props) {
+export function CompareControls({ dimensions, sides, from, to, includeExcluded }: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -87,6 +90,7 @@ export function CompareControls({ dimensions, sides, from, to }: Props) {
     <div className="space-y-3">
       <div className="flex items-center gap-2 flex-wrap">
         <DateRangePicker from={from} to={to} onChange={setRange} />
+        <ExcludedParamToggle on={includeExcluded} />
         <span className="text-[11px] text-ink-3">
           Shared window — sides without their own window follow it.
         </span>

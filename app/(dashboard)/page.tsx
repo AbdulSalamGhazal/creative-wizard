@@ -3,7 +3,7 @@ import { PageShell } from "@/components/layout/page-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { type KpiFilters } from "@/db/queries/performance";
 import { defaultDateRange } from "@/lib/date-presets";
-import { resolvePreferredRange } from "@/db/queries/user-prefs";
+import { resolvePreferredRange, resolveIncludeExcluded } from "@/db/queries/user-prefs";
 import { listProducts } from "@/db/queries/products";
 import { listAllTags } from "@/db/queries/creatives";
 import { DashboardMetrics } from "@/components/overview/dashboard-metrics";
@@ -39,6 +39,11 @@ export default async function DashboardPage({
     includeExcluded: pickFirst(params.includeExcluded),
   });
 
+  // Effective Excluded state: URL param wins, else the user's saved default.
+  const includeExcluded = await resolveIncludeExcluded(
+    pickFirst(params.includeExcluded),
+  );
+
   const range = await resolvePreferredRange(
     pickFirst(params.from),
     pickFirst(params.to),
@@ -54,7 +59,7 @@ export default async function DashboardPage({
     platforms: parsed.platforms.length > 0 ? parsed.platforms : undefined,
     types: parsed.types.length > 0 ? parsed.types : undefined,
     tags: parsed.tags.length > 0 ? parsed.tags : undefined,
-    includeExcluded: parsed.includeExcluded,
+    includeExcluded,
   };
 
   // When the view is pinned to exactly ONE platform, the metric breakdowns
@@ -72,6 +77,7 @@ export default async function DashboardPage({
     <PageShell
       filterStrip={
         <FilterStrip
+          includeExcludedDefault={includeExcluded}
           products={products}
           tags={tags}
           defaultFrom={from}
@@ -84,7 +90,7 @@ export default async function DashboardPage({
         rightSlot={
           <Badge variant="outline" className="text-ink-3">
             {from} → {to} · {platformsBadge} ·{" "}
-            {parsed.includeExcluded ? "excluded shown" : "excluded hidden"}
+            {includeExcluded ? "excluded shown" : "excluded hidden"}
           </Badge>
         }
       />

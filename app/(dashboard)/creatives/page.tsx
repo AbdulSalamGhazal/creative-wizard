@@ -13,6 +13,7 @@ import { LibraryFilterBar } from "@/components/creative/library-filter-bar";
 import { PageShell } from "@/components/layout/page-shell";
 import { CreativeGrid } from "@/components/creative/creative-grid";
 import { CreativeTable } from "@/components/creative/creative-table";
+import { resolveIncludeExcluded } from "@/db/queries/user-prefs";
 
 export const dynamic = "force-dynamic";
 
@@ -52,6 +53,12 @@ export default async function CreativesPage({
     view: pickFirst(params.view),
   });
 
+  // Effective Excluded state: URL param wins, else the user's saved default.
+  // Governs the 7d/30d spend columns only (the list itself isn't an aggregate).
+  const includeExcluded = await resolveIncludeExcluded(
+    pickFirst(params.includeExcluded),
+  );
+
   const [listResult, breakdown, products, allTags, views] = await Promise.all([
     listCreatives({
       q: parsed.q,
@@ -61,6 +68,7 @@ export default async function CreativesPage({
       platforms: parsed.platforms.length > 0 ? parsed.platforms : undefined,
       tags: parsed.tags.length > 0 ? parsed.tags : undefined,
       sort: parsed.sort,
+      includeExcluded,
     }),
     creativeStatusBreakdown(),
     listProducts(),
@@ -80,6 +88,7 @@ export default async function CreativesPage({
     ["tags", parsed.tags.join(",")],
     ["sort", parsed.sort],
     ["view", parsed.view],
+    ["includeExcluded", includeExcluded ? "1" : ""],
   ];
   for (const [key, val] of ctxEntries) {
     if (val) ctxParams.set(key, val);
@@ -95,6 +104,7 @@ export default async function CreativesPage({
       <LibraryFilterBar
         products={products}
         tags={allTags}
+        includeExcluded={includeExcluded}
         views={views}
         currentUserId={user.id}
         isAdmin={user.role === "admin"}

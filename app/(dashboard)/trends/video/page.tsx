@@ -2,7 +2,7 @@ import { Badge } from "@/components/ui/badge";
 import { PageShell } from "@/components/layout/page-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { defaultDateRange } from "@/lib/date-presets";
-import { resolvePreferredRange } from "@/db/queries/user-prefs";
+import { resolvePreferredRange, resolveIncludeExcluded } from "@/db/queries/user-prefs";
 import { videoDiagnostics } from "@/db/queries/trends";
 import { listProducts } from "@/db/queries/products";
 import { listAllTags } from "@/db/queries/creatives";
@@ -38,6 +38,11 @@ export default async function TrendsVideoPage({
     includeExcluded: pickFirst(params.includeExcluded),
   });
 
+  // Effective Excluded state: URL param wins, else the user's saved default.
+  const includeExcluded = await resolveIncludeExcluded(
+    pickFirst(params.includeExcluded),
+  );
+
   const range = await resolvePreferredRange(
     pickFirst(params.from),
     pickFirst(params.to),
@@ -56,7 +61,7 @@ export default async function TrendsVideoPage({
       to,
       platforms: parsed.platforms.length > 0 ? parsed.platforms : undefined,
       productIds: parsed.productIds.length > 0 ? parsed.productIds : undefined,
-      includeExcluded: parsed.includeExcluded,
+      includeExcluded,
     }),
     listProducts(),
     listAllTags(),
@@ -66,6 +71,7 @@ export default async function TrendsVideoPage({
     <PageShell
       filterStrip={
         <FilterStrip
+          includeExcludedDefault={includeExcluded}
           products={products}
           tags={tags}
           hideType
