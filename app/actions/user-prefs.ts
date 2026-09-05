@@ -36,6 +36,8 @@ export async function setPreferredRange(value: string): Promise<void> {
  */
 export async function setIncludeExcludedPref(on: boolean): Promise<void> {
   try {
+    // Server actions receive untrusted input — only store a real boolean.
+    if (typeof on !== "boolean") return;
     const user = await requireAuth();
     await db
       .update(users)

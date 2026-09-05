@@ -40,11 +40,18 @@ beforeAll(async () => {
   await db.insert(userAccounts).values({ userId: RESTRICTED_ID, accountId: ACCOUNT_A });
 });
 
+/** The shape every registered MCP tool callback returns. */
+interface ToolResult {
+  content: { text: string }[];
+  isError?: boolean;
+}
+type ToolCallback = (args: unknown, extra: unknown) => Promise<ToolResult>;
+
 /** Capture the registered tool callbacks without a real MCP server. */
-function loadTools(): Map<string, (args: any, extra: any) => Promise<any>> {
-  const tools = new Map<string, (args: any, extra: any) => Promise<any>>();
+function loadTools(): Map<string, ToolCallback> {
+  const tools = new Map<string, ToolCallback>();
   const stub = {
-    registerTool: (name: string, _cfg: unknown, cb: (a: any, e: any) => Promise<any>) => {
+    registerTool: (name: string, _cfg: unknown, cb: ToolCallback) => {
       tools.set(name, cb);
     },
   };
@@ -120,7 +127,7 @@ describe("MCP tools — brand scoping for a restricted user", () => {
       { user: restricted, tokenId: "t" },
       () => tools.get("list_brands")!({}, {}),
     );
-    const out = JSON.parse(res.content[0].text);
+    const out = JSON.parse(res.content[0]!.text);
     expect(out.brands.map((b: { id: string }) => b.id)).toEqual([ACCOUNT_A]);
   });
 
@@ -143,7 +150,7 @@ describe("MCP tools — brand scoping for a restricted user", () => {
       () => tools.get("get_kpis")!({ brand: "Account B" }, {}),
     );
     expect(res.isError).toBe(true);
-    expect(res.content[0].text).toMatch(/Unknown brand|allowed brands/i);
+    expect(res.content[0]!.text).toMatch(/Unknown brand|allowed brands/i);
   });
 
   it("allowedAccountsForUser mirrors the scoping (belt-and-braces)", async () => {
