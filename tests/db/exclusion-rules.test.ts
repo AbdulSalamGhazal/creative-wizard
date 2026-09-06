@@ -21,7 +21,10 @@ import {
   previewRuleUnapply,
   stampAgainstActiveRules,
   deleteRulesTargeting,
+  releaseStaleObjectiveStamps,
+  listExclusionRules,
 } from "@/db/queries/exclusion-rules";
+import { campaigns } from "@/db/schema";
 import { resetAndSeed, CAMPAIGN_1, CAMPAIGN_2, CREATIVE_1 } from "./fixtures";
 
 // Fixture literals (fixtures.ts doesn't export these).
@@ -258,3 +261,118 @@ describe("exclusion rules engine — apply/unapply with provenance", () => {
     expect(left.map((r) => r.id)).toEqual([other.id]); // the creative rule survives
   });
 });
+
+/**
+ * Editing a campaign's OBJECTIVE changes which `campaign_objective` rules cover
+ * its records. `applyRule` only ever ADDS stamps, so without an explicit
+ * release the flags go stale the moment someone re-classifies a campaign. These
+ * pin the release + re-sweep pair `updateCampaign` runs in its transaction.
+ */
+describe("campaign objective edits re-derive exclusion stamps", () => {
+  // Rows the FIXTURES ship already excluded (source is not 'rule'): the engine
+  // must neither claim nor release these, so assertions look past them.
+  let preExcluded = new Set<number>();
+  beforeEach(async () => {
+    preExcluded = new Set(
+      (await flagsFor(ACCOUNT_A)).filter((r) => r.excluded).map((r) => r.id),
+    );
+  });
+
+  /** What updateCampaign does transactionally when the objective changes. */
+  async function moveObjective(campaignId: string, to: "Sales" | "Awareness") {
+    return db.transaction(async (tx) => {
+      await tx
+        .update(campaigns)
+        .set({ objective: to })
+        .where(eq(campaigns.id, campaignId));
+      const released = await releaseStaleObjectiveStamps(tx, ACCOUNT_A, campaignId, to);
+      const restamped = await resweepActiveRules(tx, ACCOUNT_A);
+      return { released, restamped };
+    });
+  }
+
+  it("moving INTO an excluded objective excludes the campaign's historical rows", async () => {
+    // Rule excludes Awareness; both fixture campaigns are Sales, so it starts empty.
+    const rule = await insertRule({ kind: "campaign_objective", objective: "Awareness" });
+    expect(await applyRule(db, rule, ACCOUNT_A)).toBe(0);
+
+    const { restamped } = await moveObjective(CAMPAIGN_1, "Awareness");
+    expect(restamped).toBeGreaterThan(0);
+
+    const rows = await flagsFor(ACCOUNT_A);
+    // The fixtures carry one PRE-excluded row on this campaign; a rule never
+    // overwrites an existing exclusion, so judge only the rows it could claim.
+    const moved = rows.filter((r) => r.campaignId === CAMPAIGN_1 && !preExcluded.has(r.id));
+    expect(moved.length).toBeGreaterThan(0);
+    expect(moved.every((r) => r.excluded && r.source === "rule" && r.ruleId === rule.id)).toBe(true);
+    // The campaign that did NOT move is untouched.
+    expect(rows.filter((r) => r.campaignId === CAMPAIGN_2).every((r) => !r.excluded)).toBe(true);
+  });
+
+  it("moving OUT of an excluded objective releases the rule-stamped rows", async () => {
+    const rule = await insertRule({ kind: "campaign_objective", objective: "Sales" });
+    const flipped = await applyRule(db, rule, ACCOUNT_A);
+    expect(flipped).toBeGreaterThan(0);
+
+    const { released } = await moveObjective(CAMPAIGN_1, "Awareness");
+    expect(released).toBeGreaterThan(0);
+
+    const rows = await flagsFor(ACCOUNT_A);
+    const moved = rows.filter((r) => r.campaignId === CAMPAIGN_1 && !preExcluded.has(r.id));
+    expect(moved.every((r) => !r.excluded && r.source === null && r.ruleId === null)).toBe(true);
+    // CAMPAIGN_2 is still Sales, so the rule still covers it.
+    const stayed = rows.filter((r) => r.campaignId === CAMPAIGN_2);
+    expect(stayed.every((r) => r.excluded && r.ruleId === rule.id)).toBe(true);
+  });
+
+  it("a MANUAL exclusion on the moved campaign survives the release", async () => {
+    const rule = await insertRule({ kind: "campaign_objective", objective: "Sales" });
+    await applyRule(db, rule, ACCOUNT_A);
+
+    // Re-stamp one of the campaign's rows as a manual exclusion.
+    const [target] = (await flagsFor(ACCOUNT_A)).filter((r) => r.campaignId === CAMPAIGN_1);
+    await db
+      .update(performanceRecords)
+      .set({ excludedSource: "manual", excludedRuleId: null })
+      .where(eq(performanceRecords.id, target!.id));
+
+    await moveObjective(CAMPAIGN_1, "Awareness");
+
+    const [after] = await db
+      .select({
+        excluded: performanceRecords.excludedFromAggregates,
+        source: performanceRecords.excludedSource,
+      })
+      .from(performanceRecords)
+      .where(eq(performanceRecords.id, target!.id));
+    expect(after!.excluded).toBe(true); // manual exclusions are never released
+    expect(after!.source).toBe("manual");
+  });
+
+  it("an UNRELATED rule's rows are never touched by an objective edit", async () => {
+    // A creative rule covering CAMPAIGN_2's rows via CREATIVE_1.
+    const creativeRule = await insertRule({ kind: "creative", creativeId: CREATIVE_1 });
+    await applyRule(db, creativeRule, ACCOUNT_A);
+    const before = (await flagsFor(ACCOUNT_A)).filter((r) => r.ruleId === creativeRule.id);
+    expect(before.length).toBeGreaterThan(0);
+
+    await moveObjective(CAMPAIGN_1, "Awareness");
+
+    const after = (await flagsFor(ACCOUNT_A)).filter((r) => r.ruleId === creativeRule.id);
+    // Same rows, still stamped by the creative rule.
+    expect(after.map((r) => r.id).sort()).toEqual(before.map((r) => r.id).sort());
+    expect(after.every((r) => r.excluded && r.source === "rule")).toBe(true);
+  });
+
+  it("the rules page's live count follows the edit", async () => {
+    const rule = await insertRule({ kind: "campaign_objective", objective: "Awareness" });
+    const emptyList = await listExclusionRules();
+    expect(emptyList.find((r) => r.id === rule.id)?.excludedCount ?? 0).toBe(0);
+
+    await moveObjective(CAMPAIGN_1, "Awareness");
+
+    const list = await listExclusionRules();
+    expect(list.find((r) => r.id === rule.id)!.excludedCount).toBeGreaterThan(0);
+  });
+});
+

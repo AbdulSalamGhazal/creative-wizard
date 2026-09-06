@@ -249,6 +249,50 @@ export async function activeRulesFor(exec: Exec, accountId: string) {
 }
 
 /**
+ * Release a campaign's rows that were stamped by a `campaign_objective` rule
+ * which NO LONGER matches — i.e. after the campaign's objective was edited.
+ *
+ * Without this, editing a campaign out of an excluded objective leaves its
+ * historical rows flagged forever: `applyRule` only ever ADDS stamps, and
+ * nothing re-evaluated the old ones. Scoped to this campaign, to objective
+ * rules whose objective differs from the new one, and — like `unapplyRule` —
+ * guarded by `excluded_source='rule'` so a MANUAL exclusion on the same row is
+ * never cleared. Callers follow this with `resweepActiveRules` so a row the new
+ * objective (or any other rule) still covers is immediately re-stamped.
+ *
+ * Returns the number of rows released.
+ */
+export async function releaseStaleObjectiveStamps(
+  exec: Exec,
+  acct: string,
+  campaignId: string,
+  newObjective: string,
+): Promise<number> {
+  const released = await exec
+    .update(performanceRecords)
+    .set({
+      excludedFromAggregates: false,
+      excludedSource: null,
+      excludedRuleId: null,
+    })
+    .where(
+      and(
+        eq(performanceRecords.accountId, acct),
+        eq(performanceRecords.campaignId, campaignId),
+        eq(performanceRecords.excludedSource, "rule"),
+        sql`${performanceRecords.excludedRuleId} IN (
+          SELECT ${exclusionRules.id} FROM ${exclusionRules}
+          WHERE ${exclusionRules.accountId} = ${acct}
+            AND ${exclusionRules.kind} = 'campaign_objective'
+            AND ${exclusionRules.objective} IS DISTINCT FROM ${newObjective}
+        )`,
+      ),
+    )
+    .returning({ id: performanceRecords.id });
+  return released.length;
+}
+
+/**
  * Re-sweep every remaining ACTIVE rule (created_at order) — called inside the
  * removal transaction after a rule is deactivated/deleted, so a row that was
  * covered by BOTH the removed rule and a surviving one stays excluded (it gets

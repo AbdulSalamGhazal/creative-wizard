@@ -8,7 +8,11 @@ import { requirePermission } from "@/lib/auth";
 import { campaigns, performanceRecords } from "@/db/schema";
 import { buildCampaignName } from "@/lib/campaign";
 import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
-import { deleteRulesTargeting } from "@/db/queries/exclusion-rules";
+import {
+  deleteRulesTargeting,
+  releaseStaleObjectiveStamps,
+  resweepActiveRules,
+} from "@/db/queries/exclusion-rules";
 import { getActiveAccountId } from "@/lib/tenant";
 import { createCampaignSchema, updateCampaignSchema } from "@/validators/campaign";
 
@@ -123,7 +127,11 @@ export async function updateCampaign(input: unknown): Promise<CampaignMutationRe
 
     // The id must exist AND belong to the active account — don't trust the caller.
     const [current] = await db
-      .select({ id: campaigns.id, name: campaigns.name })
+      .select({
+        id: campaigns.id,
+        name: campaigns.name,
+        objective: campaigns.objective,
+      })
       .from(campaigns)
       .where(and(eq(campaigns.id, id), eq(campaigns.accountId, acct)))
       .limit(1);
@@ -149,10 +157,27 @@ export async function updateCampaign(input: unknown): Promise<CampaignMutationRe
       }
     }
 
-    await db
-      .update(campaigns)
-      .set({ name, platform, objective })
-      .where(and(eq(campaigns.id, id), eq(campaigns.accountId, acct)));
+    // An objective edit changes which `campaign_objective` rules cover this
+    // campaign's records, so the materialized flags must be re-derived in the
+    // SAME transaction as the write — otherwise the rules page and every
+    // aggregate disagree with the rules until someone toggles a rule by hand.
+    // Release this campaign's stamps from objective rules that no longer match,
+    // then re-sweep so the new objective (or any other active rule) re-stamps.
+    const objectiveChanged = objective !== current.objective;
+    let exclusionsReleased = 0;
+    let exclusionsRestamped = 0;
+
+    await db.transaction(async (tx) => {
+      await tx
+        .update(campaigns)
+        .set({ name, platform, objective })
+        .where(and(eq(campaigns.id, id), eq(campaigns.accountId, acct)));
+
+      if (objectiveChanged) {
+        exclusionsReleased = await releaseStaleObjectiveStamps(tx, acct, id, objective);
+        exclusionsRestamped = await resweepActiveRules(tx, acct);
+      }
+    });
 
     try {
       revalidatePath("/campaigns");
@@ -174,6 +199,10 @@ export async function updateCampaign(input: unknown): Promise<CampaignMutationRe
         platform,
         objective,
         renamedFrom: name !== current.name ? current.name : undefined,
+        objectiveChangedFrom: objectiveChanged ? current.objective : undefined,
+        // Exclusion rows re-derived by this edit (omitted when nothing moved).
+        exclusionsReleased: exclusionsReleased || undefined,
+        exclusionsRestamped: exclusionsRestamped || undefined,
       },
     });
     return { ok: true, name };
