@@ -505,8 +505,8 @@ This app is deployed and in production use. Treat `main` as shippable.
     **Nav is one source:** `components/layout/nav-items.ts`
     (`NAV_ITEMS`/`isActive`/`navSections`) drives BOTH the desktop `Sidebar` and
     the mobile `MobileNav` (hamburger + Sheet, `lg:hidden`, in the TopBar). Items
-    carry a `group` (`ads`|`store`|`admin`); `navSections()` buckets the visible
-    items into the three labeled `NAV_SECTIONS` so both navs render the same
+    carry a `group` (`ads`|`budget`|`store`|`admin`); `navSections()` buckets the
+    visible items into the four labeled `NAV_SECTIONS` so both navs render the same
     eyebrow-labelled sections — restructure grouping there, never per-surface.
   - **`middleware.ts`** is the real auth boundary (Edge Web-Crypto HMAC verify of
     the `ccms_session` cookie); the dashboard layout check is now belt-and-braces.
@@ -556,7 +556,7 @@ This app is deployed and in production use. Treat `main` as shippable.
 - **Authorization is GRANULAR per-user permissions (2026-07) — DERIVE from the
   catalog, never re-list.** The old two-tier `requireEditor`/`requireAdmin` model
   is GONE. `lib/permissions.ts` is the single source of truth: `PERMISSION_GROUPS`
-  (an `as const` catalog of 5 groups / 17 keys) → the `Permission` union +
+  (an `as const` catalog of 6 groups / 22 keys) → the `Permission` union +
   `ALL_PERMISSIONS` are derived from it, so any new capability is added in ONE
   place and every surface (checks, the Team UI, nav) follows.
   - **Storage:** `users.role` (`admin` | `editor` | `viewer`, a tier) +
@@ -717,4 +717,26 @@ This app is deployed and in production use. Treat `main` as shippable.
   creative). Code identifiers for the Ads page (`SummaryTable`,
   `listCreativeSummary`, `validators/summary`) likewise keep the "summary"
   name — the route did not move.
+
+- **Campaign OBJECTIVE edits must re-derive exclusion stamps (2026-09).** The
+  rules engine only ever ADDS stamps (`applyRule` skips already-excluded rows),
+  so nothing re-evaluated existing ones when a campaign was re-classified.
+  `updateCampaign` now runs, in ONE transaction with the write and only when the
+  objective actually changed: `releaseStaleObjectiveStamps` (drops THIS
+  campaign's stamps from `campaign_objective` rules that no longer match,
+  guarded by `excluded_source='rule'` so manual exclusions survive) then
+  `resweepActiveRules`. Any future edit path that can change a campaign's
+  objective must do the same, or the rules page and every aggregate silently
+  disagree with the rules.
+
+- **Store upsert PATCHES `attributes`; it does not replace them (2026-09).** A
+  store export is often a partial view of the order, so the pipeline reports
+  which configured custom fields actually had a mapped COLUMN in the file and
+  `writeStoreBatch` uses that: column PRESENT + value → set the key; column
+  PRESENT + blank → REMOVE the key (explicit clears still work); column ABSENT →
+  leave the stored value untouched. Never go back to writing the whole object on
+  an update — that wiped every custom value whose column wasn't in that file.
+  Note the drizzle trap: an array inside a raw `sql` template expands to
+  `($1,$2)` (a row expression), so the cleared-keys list is bound as ONE
+  `text[]` literal.
 
