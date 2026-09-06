@@ -339,7 +339,7 @@ export async function POST(request: NextRequest) {
   // doesn't mask the successful commit.
   try {
     revalidatePath("/");
-    revalidatePath("/creatives");
+    revalidatePath("/library");
     revalidatePath("/uploads");
   } catch (err) {
     console.warn("revalidatePath after commit failed:", err);

@@ -10,7 +10,7 @@ describe("visibleNavItems", () => {
     const seen = labels([]);
     // The always-visible dashboards have no `perms` gate.
     expect(seen).toContain("Dashboard");
-    expect(seen).toContain("Creatives");
+    expect(seen).toContain("Library");
     expect(seen).toContain("Campaigns");
     // Everything gated is hidden.
     expect(seen).not.toContain("Uploads");

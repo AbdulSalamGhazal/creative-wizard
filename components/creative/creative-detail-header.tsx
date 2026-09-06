@@ -182,7 +182,7 @@ export function CreativeDetailHeader({
       toast.success("Changes saved");
       if (newName !== saved.name) {
         // The detail URL is keyed on the name — follow the rename.
-        router.replace(`/creatives/${encodeURIComponent(newName)}`);
+        router.replace(`/library/${encodeURIComponent(newName)}`);
         router.refresh();
       } else {
         setSaved({

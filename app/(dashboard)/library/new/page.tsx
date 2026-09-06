@@ -10,13 +10,13 @@ export const metadata = { title: "New creative" };
 
 export default async function NewCreativePage() {
   const user = await auth();
-  if (!user || !can(user, "creative.create")) redirect("/creatives");
+  if (!user || !can(user, "creative.create")) redirect("/library");
   const [products, allAngles] = await Promise.all([listProducts(), listAllAngles()]);
 
   return (
     <PageShell width="form">
       <PageHeader
-        backLink={{ href: "/creatives", label: "Back to library" }}
+        backLink={{ href: "/library", label: "Back to library" }}
         title="New creative"
         subtitle="Names are case- and whitespace-sensitive — match your ad platform exactly so performance rows import cleanly."
       />

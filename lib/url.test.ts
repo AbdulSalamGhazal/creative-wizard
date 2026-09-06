@@ -41,8 +41,8 @@ describe("withDateRange", () => {
   });
 
   it("uses & when the href already has a query string", () => {
-    expect(withDateRange("/creatives/x?view=table", "2026-01-01", "2026-02-01")).toBe(
-      "/creatives/x?view=table&from=2026-01-01&to=2026-02-01",
+    expect(withDateRange("/library/x?view=table", "2026-01-01", "2026-02-01")).toBe(
+      "/library/x?view=table&from=2026-01-01&to=2026-02-01",
     );
   });
 
@@ -64,7 +64,7 @@ describe("withDateRange", () => {
 describe("safeInternalPath", () => {
   it("passes a normal same-origin path through", () => {
     expect(safeInternalPath("/summary")).toBe("/summary");
-    expect(safeInternalPath("/creatives?view=table")).toBe("/creatives?view=table");
+    expect(safeInternalPath("/library?view=table")).toBe("/library?view=table");
   });
 
   it("falls back for off-origin / protocol-relative / backslash targets", () => {

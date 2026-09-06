@@ -53,7 +53,7 @@ export function BulkCreativeImport({ products }: Props) {
         return;
       }
       toast.success(`Created ${res.created ?? 0} creatives`);
-      router.push("/creatives");
+      router.push("/library");
       router.refresh();
     });
   };

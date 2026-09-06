@@ -164,7 +164,7 @@ export function AngleRollupTable({ rows }: { rows: AngleRollupRow[] }) {
       sortValue: (r) => r.angle,
       render: (r) => (
         <Link
-          href={`/creatives?angles=${encodeURIComponent(r.angle)}`}
+          href={`/library?angles=${encodeURIComponent(r.angle)}`}
           className="inline-flex items-center gap-1.5 text-ink hover:text-brand transition-colors"
         >
           <Hash className="w-3 h-3 text-ink-3" />

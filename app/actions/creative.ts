@@ -118,7 +118,7 @@ export async function createCreative(
     });
 
     try {
-      revalidatePath("/creatives");
+      revalidatePath("/library");
     } catch (err) {
       console.warn("revalidatePath after create failed:", err);
     }
@@ -158,7 +158,7 @@ export async function updateCreativeNotes(
       .where(and(eq(creatives.accountId, acct), eq(creatives.id, creativeId)))
       .returning({ id: creatives.id, name: creatives.name });
     try {
-      revalidatePath("/creatives");
+      revalidatePath("/library");
     } catch (err) {
       console.warn("revalidatePath after notes update failed:", err);
     }
@@ -209,8 +209,8 @@ export async function updateCreativeSourceLink(
     if (!updated) return { ok: false, error: "Creative not found." };
 
     try {
-      revalidatePath("/creatives");
-      revalidatePath(`/creatives/${encodeURIComponent(updated.name)}`);
+      revalidatePath("/library");
+      revalidatePath(`/library/${encodeURIComponent(updated.name)}`);
     } catch (err) {
       console.warn("revalidatePath after source-link update failed:", err);
     }
@@ -284,8 +284,8 @@ export async function setCreativeTermination(
     }
 
     try {
-      revalidatePath("/creatives");
-      revalidatePath(`/creatives/${encodeURIComponent(target.name)}`);
+      revalidatePath("/library");
+      revalidatePath(`/library/${encodeURIComponent(target.name)}`);
     } catch (err) {
       console.warn("revalidatePath after termination change failed:", err);
     }
@@ -451,10 +451,10 @@ export async function patchCreative(
 
     const newName = data.name ?? oldRow.name;
     try {
-      revalidatePath("/creatives");
-      revalidatePath(`/creatives/${encodeURIComponent(oldRow.name)}`);
+      revalidatePath("/library");
+      revalidatePath(`/library/${encodeURIComponent(oldRow.name)}`);
       if (newName !== oldRow.name) {
-        revalidatePath(`/creatives/${encodeURIComponent(newName)}`);
+        revalidatePath(`/library/${encodeURIComponent(newName)}`);
       }
     } catch (err) {
       console.warn("revalidatePath after patch failed:", err);
@@ -552,8 +552,8 @@ export async function deleteCreative(
     });
 
     try {
-      revalidatePath("/creatives");
-      revalidatePath(`/creatives/${encodeURIComponent(target.name)}`);
+      revalidatePath("/library");
+      revalidatePath(`/library/${encodeURIComponent(target.name)}`);
     } catch (err) {
       console.warn("revalidatePath after delete failed:", err);
     }

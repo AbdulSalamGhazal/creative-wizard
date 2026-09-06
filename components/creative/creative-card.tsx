@@ -40,7 +40,7 @@ export function CreativeCard({
 
   return (
     <Link
-      href={`/creatives/${encodeURIComponent(row.name)}${listCtx ? `?${listCtx}` : ""}`}
+      href={`/library/${encodeURIComponent(row.name)}${listCtx ? `?${listCtx}` : ""}`}
       className={cn(
         "group block rounded-lg border bg-surface text-left transition-all duration-200",
         "hover:-translate-y-0.5 hover:border-line-2",

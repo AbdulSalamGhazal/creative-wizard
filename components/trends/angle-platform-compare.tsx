@@ -211,7 +211,7 @@ function MetricRow({
                     return (
                       <Link
                         key={t.angle}
-                        href={`/creatives?angles=${encodeURIComponent(t.angle)}`}
+                        href={`/library?angles=${encodeURIComponent(t.angle)}`}
                         className="group block"
                       >
                         <div className="flex items-center justify-between gap-2 text-[11px]">

@@ -21,7 +21,7 @@ const nameSchema = z.string().trim().min(1, "Name is required").max(64);
 function revalidate() {
   try {
     revalidatePath("/admin/catalog");
-    revalidatePath("/creatives");
+    revalidatePath("/library");
   } catch (err) {
     console.warn("revalidatePath after angle mutation failed:", err);
   }

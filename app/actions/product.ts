@@ -87,7 +87,7 @@ export async function createProduct(input: unknown): Promise<ProductMutationResu
 
     try {
       revalidatePath("/admin/products");
-      revalidatePath("/creatives");
+      revalidatePath("/library");
     } catch (err) {
       console.warn("revalidatePath after product create failed:", err);
     }
@@ -126,7 +126,7 @@ export async function archiveProduct(productId: string): Promise<ProductMutation
 
     try {
       revalidatePath("/admin/products");
-      revalidatePath("/creatives");
+      revalidatePath("/library");
     } catch (err) {
       console.warn("revalidatePath after archive failed:", err);
     }
@@ -158,7 +158,7 @@ export async function restoreProduct(productId: string): Promise<ProductMutation
       .where(and(eq(products.accountId, acct), eq(products.id, productId)));
     try {
       revalidatePath("/admin/products");
-      revalidatePath("/creatives");
+      revalidatePath("/library");
     } catch (err) {
       console.warn("revalidatePath after restore failed:", err);
     }

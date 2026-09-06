@@ -11,13 +11,13 @@ export const metadata = { title: "Bulk add creatives" };
 
 export default async function BulkCreativesPage() {
   const user = await auth();
-  if (!user || !can(user, "creative.create")) redirect("/creatives");
+  if (!user || !can(user, "creative.create")) redirect("/library");
   const products = await listProducts();
 
   return (
     <PageShell width="import">
       <PageHeader
-        backLink={{ href: "/creatives", label: "Back to library" }}
+        backLink={{ href: "/library", label: "Back to library" }}
         title="Bulk add creatives"
         subtitle="Rows are validated against your catalog — nothing is created unless every row is clean."
       />

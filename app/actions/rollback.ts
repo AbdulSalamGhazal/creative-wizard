@@ -74,7 +74,7 @@ export async function rollbackBatch(batchId: string): Promise<RollbackResult> {
 
     try {
       revalidatePath("/");
-      revalidatePath("/creatives");
+      revalidatePath("/library");
       revalidatePath("/uploads");
     } catch (err) {
       console.warn("revalidatePath after rollback failed:", err);

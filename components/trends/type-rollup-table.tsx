@@ -104,7 +104,7 @@ export function TypeRollupTable({
                     >
                       <td className="px-3 py-2.5 pl-6">
                         <Link
-                          href={`/creatives?types=${r.type}&platforms=${platform}`}
+                          href={`/library?types=${r.type}&platforms=${platform}`}
                           className="inline-flex items-center gap-1.5 text-ink hover:text-brand transition-colors"
                         >
                           <span
@@ -123,7 +123,7 @@ export function TypeRollupTable({
                 <tr key={r.type} className="hover:bg-surface-2/60 transition-colors">
                   <td className="px-3 py-2.5">
                     <Link
-                      href={`/creatives?types=${r.type}`}
+                      href={`/library?types=${r.type}`}
                       className="inline-flex items-center gap-1.5 text-ink hover:text-brand transition-colors"
                     >
                       <span

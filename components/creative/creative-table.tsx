@@ -207,7 +207,7 @@ export function CreativeTable({
                   className={`px-3 py-2.5 ${widths.name ? "" : "whitespace-nowrap"}`}
                 >
                   <Link
-                    href={`/creatives/${encodeURIComponent(r.name)}${listCtx ? `?${listCtx}` : ""}`}
+                    href={`/library/${encodeURIComponent(r.name)}${listCtx ? `?${listCtx}` : ""}`}
                     title={r.name}
                     className={
                       "font-mono text-ink text-xs hover:text-brand transition-colors " +

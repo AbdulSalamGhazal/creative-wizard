@@ -85,7 +85,7 @@ export default async function TrendsLaunchesPage({
       launchDate: r.launchDate,
       derived: r.derived,
       daysSinceLaunch: r.daysSinceLaunch,
-      href: `/creatives/${encodeURIComponent(r.name)}`,
+      href: `/library/${encodeURIComponent(r.name)}`,
       assessment: assessFatigue(r.w1, r.w2, r.w3),
     }))
     .sort((a, b) => {

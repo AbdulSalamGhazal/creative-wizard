@@ -112,7 +112,7 @@ export function VideoDiagnosticsTable({
       render: (r) => (
         <Link
           href={withDateRange(
-            `/creatives/${encodeURIComponent(r.name)}`,
+            `/library/${encodeURIComponent(r.name)}`,
             rangeFrom,
             rangeTo,
           )}

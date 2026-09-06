@@ -47,9 +47,9 @@ export const metadata = { title: "Configuration" };
  * audit-log context.
  */
 const MOVED_TABS: Record<string, string> = {
-  products: "/creatives?tab=products",
-  angles: "/creatives?tab=angles",
-  tags: "/creatives?tab=angles", // pre-rename bookmarks (tag → angle, 2026-09)
+  products: "/library?tab=products",
+  angles: "/library?tab=angles",
+  tags: "/library?tab=angles", // pre-rename bookmarks (tag → angle, 2026-09)
   platforms: "/uploads?tab=mapping", // merged into CSV mapping
   mapping: "/uploads?tab=mapping",
   store_fields: "/store/uploads?tab=fields",

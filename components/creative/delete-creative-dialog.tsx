@@ -54,7 +54,7 @@ export function DeleteCreativeDialog({
           : `Deleted “${creativeName}”`,
       );
       setOpen(false);
-      router.push("/creatives");
+      router.push("/library");
       router.refresh();
     });
   };

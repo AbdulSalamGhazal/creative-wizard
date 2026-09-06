@@ -173,14 +173,14 @@ async function revalidateAffectedPaths(creativeId: string): Promise<string | nul
   // use it as the audit entity label without re-querying.
   try {
     revalidatePath("/");
-    revalidatePath("/creatives");
+    revalidatePath("/library");
     const [c] = await db
       .select({ name: creatives.name })
       .from(creatives)
       .where(eq(creatives.id, creativeId))
       .limit(1);
     if (c) {
-      revalidatePath(`/creatives/${encodeURIComponent(c.name)}`);
+      revalidatePath(`/library/${encodeURIComponent(c.name)}`);
       return c.name;
     }
     return null;

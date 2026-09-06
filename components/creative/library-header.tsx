@@ -14,19 +14,18 @@ export function LibraryHeader({
 }) {
   return (
     <PageHeader
-      eyebrow="Library"
-      title="Creatives"
+      title="Library"
       rightSlot={
         canCreate ? (
           <div className="flex items-center gap-2">
             <Button asChild variant="outline">
-              <Link href="/creatives/bulk">
+              <Link href="/library/bulk">
                 <Upload className="w-4 h-4" />
                 Bulk import
               </Link>
             </Button>
             <Button asChild>
-              <Link href="/creatives/new">
+              <Link href="/library/new">
                 <Plus className="w-4 h-4" />
                 New creative
               </Link>

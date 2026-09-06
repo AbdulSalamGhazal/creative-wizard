@@ -47,7 +47,7 @@ const themeMigrationScript = `(function(){try{var k='cw-theme',v=localStorage.ge
 /**
  * Browser-tab titles. Every page sets its own `metadata.title` (details use
  * `generateMetadata`), and this template appends the product suffix — so a tab
- * reads "Creatives · Wizard" or "Creative · URJ_VID_001 · Wizard". `default`
+ * reads "Library · Wizard" or "Creative · URJ_VID_001 · Wizard". `default`
  * covers any route that sets none. NOTE: the tab ICON comes from the
  * `app/icon.png` file convention, not from `metadata.icons` — don't add an
  * `icons` key here or it will override that.

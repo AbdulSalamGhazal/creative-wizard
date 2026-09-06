@@ -68,7 +68,7 @@ export async function runCleanup(input: unknown): Promise<CleanupResult> {
 
     try {
       revalidatePath("/");
-      revalidatePath("/creatives");
+      revalidatePath("/library");
       revalidatePath("/summary");
       revalidatePath("/uploads");
     } catch (err) {

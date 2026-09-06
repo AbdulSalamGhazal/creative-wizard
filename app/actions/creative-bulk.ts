@@ -331,7 +331,7 @@ export async function commitBulkCreatives(
     });
 
     try {
-      revalidatePath("/creatives");
+      revalidatePath("/library");
     } catch (err) {
       console.warn("revalidatePath after bulk create failed:", err);
     }

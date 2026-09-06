@@ -76,14 +76,14 @@ function entityHref(row: AuditFeedRow): string | null {
     case "creative":
       // entityLabel is the creative name we stored at write time.
       return row.entityLabel
-        ? `/creatives/${encodeURIComponent(row.entityLabel)}`
+        ? `/library/${encodeURIComponent(row.entityLabel)}`
         : null;
     case "upload":
       return "/uploads";
     case "product":
-      return "/creatives?tab=products";
+      return "/library?tab=products";
     case "angle":
-      return "/creatives?tab=angles";
+      return "/library?tab=angles";
     case "user":
       return "/admin/users";
     case "mapping":

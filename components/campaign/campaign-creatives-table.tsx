@@ -72,7 +72,7 @@ export function CampaignCreativesTable({
       defaultSortDir: "asc",
       href: (r) =>
         withDateRange(
-          `/creatives/${encodeURIComponent(r.name)}`,
+          `/library/${encodeURIComponent(r.name)}`,
           searchParams.get("from"),
           searchParams.get("to"),
         ),
@@ -130,7 +130,7 @@ export function CampaignCreativesTable({
       onRowClick={(r) =>
         router.push(
           withDateRange(
-            `/creatives/${encodeURIComponent(r.name)}`,
+            `/library/${encodeURIComponent(r.name)}`,
             searchParams.get("from"),
             searchParams.get("to"),
           ),

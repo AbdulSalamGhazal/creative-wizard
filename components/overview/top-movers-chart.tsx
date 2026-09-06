@@ -42,7 +42,7 @@ export function TopMoversChart({
                 <li key={r.creativeId} className="flex items-center gap-2 text-xs">
                   <Link
                     href={withDateRange(
-                      `/creatives/${encodeURIComponent(r.name)}`,
+                      `/library/${encodeURIComponent(r.name)}`,
                       from,
                       to,
                     )}

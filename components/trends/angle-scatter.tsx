@@ -129,7 +129,7 @@ export function AngleScatter({ rows }: { rows: AngleRollupRow[] }) {
                 fillOpacity={0.65}
                 className="cursor-pointer"
                 onClick={(d: { angle?: string }) => {
-                  if (d?.angle) router.push(`/creatives?angles=${encodeURIComponent(d.angle)}`);
+                  if (d?.angle) router.push(`/library?angles=${encodeURIComponent(d.angle)}`);
                 }}
               />
             </ScatterChart>

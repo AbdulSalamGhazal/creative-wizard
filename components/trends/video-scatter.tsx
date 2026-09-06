@@ -112,7 +112,7 @@ export function VideoScatter({ rows }: { rows: VideoDiagnosticRow[] }) {
                   if (d?.name)
                     router.push(
                       withDateRange(
-                        `/creatives/${encodeURIComponent(d.name)}`,
+                        `/library/${encodeURIComponent(d.name)}`,
                         searchParams.get("from"),
                         searchParams.get("to"),
                       ),

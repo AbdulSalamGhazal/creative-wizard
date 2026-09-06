@@ -75,7 +75,7 @@ export function CreativeCreateForm({ products, allAngles }: Props) {
         return;
       }
       toast.success(`Created ${res.name}`);
-      router.push(`/creatives/${encodeURIComponent(res.name!)}`);
+      router.push(`/library/${encodeURIComponent(res.name!)}`);
       router.refresh();
     });
   };

@@ -539,7 +539,7 @@ export function SummaryTable({
                           />
                           <Link
                             href={withDateRange(
-                              `/creatives/${encodeURIComponent(r.name)}`,
+                              `/library/${encodeURIComponent(r.name)}`,
                               rangeFrom,
                               rangeTo,
                             )}

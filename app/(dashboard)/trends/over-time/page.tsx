@@ -48,7 +48,7 @@ function entityHref(dim: ChangeDim, key: string, label: string): string {
     case "campaign":
       return `/campaigns/${encodeURIComponent(key)}`;
     case "creative":
-      return `/creatives/${encodeURIComponent(label)}`;
+      return `/library/${encodeURIComponent(label)}`;
   }
 }
 

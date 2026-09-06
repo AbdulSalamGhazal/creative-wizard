@@ -47,8 +47,8 @@ interface Props {
 
 const PAGES = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/creatives", label: "Creatives library", icon: Images },
-  { href: "/creatives/new", label: "New creative", icon: Plus },
+  { href: "/library", label: "Library", icon: Images },
+  { href: "/library/new", label: "New creative", icon: Plus },
   { href: "/summary", label: "Summary — per-platform grid", icon: Table2 },
   { href: "/funnel", label: "Funnel — CPM / CTR / VOC / CvR by campaign", icon: Filter },
   { href: "/campaigns", label: "Campaigns — full campaign analysis", icon: Megaphone },
@@ -60,8 +60,8 @@ const PAGES = [
   { href: "/compare", label: "Compare creatives", icon: GitCompare },
   { href: "/uploads", label: "Upload history", icon: Upload },
   { href: "/uploads/new", label: "New upload", icon: Upload },
-  { href: "/creatives?tab=products", label: "Library · Products", icon: Package },
-  { href: "/creatives?tab=angles", label: "Library · Angles", icon: Hash },
+  { href: "/library?tab=products", label: "Library · Products", icon: Package },
+  { href: "/library?tab=angles", label: "Library · Angles", icon: Hash },
   { href: "/uploads?tab=mapping", label: "Uploads · CSV mapping", icon: Settings },
   { href: "/admin/catalog?tab=rating", label: "Configuration · Rate rules", icon: Star },
   { href: "/admin/users", label: "Team", icon: Users },
@@ -139,7 +139,7 @@ export function CommandPalette({ creatives, showTrigger = true }: Props) {
                     // Use a search-friendly value with both name and product so
                     // typing either narrows in.
                     value={`${c.name} ${c.productName}`}
-                    onSelect={() => go(`/creatives/${encodeURIComponent(c.name)}`)}
+                    onSelect={() => go(`/library/${encodeURIComponent(c.name)}`)}
                   >
                     <Images className="w-3.5 h-3.5" />
                     <span className="font-mono text-xs">{c.name}</span>

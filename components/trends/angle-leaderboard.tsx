@@ -81,7 +81,7 @@ export function AngleLeaderboard({ rows }: { rows: AngleRollupRow[] }) {
             return (
               <Link
                 key={r.angle}
-                href={`/creatives?angles=${encodeURIComponent(r.angle)}`}
+                href={`/library?angles=${encodeURIComponent(r.angle)}`}
                 className="group flex items-center gap-2 text-xs"
               >
                 <span className="w-4 text-right text-ink-3 tabular-nums">{i + 1}</span>
