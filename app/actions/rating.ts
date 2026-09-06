@@ -29,7 +29,7 @@ export interface RatingRulesResult {
 }
 
 /**
- * Update the global rating rules (the Summary Rate column config). Admin only.
+ * Update the global rating rules (the Ads page's Rate column config). Admin only.
  * Upserts the singleton row so it works even if the seed never ran. Audit-logs
  * the before/after so threshold changes are traceable.
  */

@@ -76,7 +76,7 @@ export const NAV_ITEMS: NavItem[] = [
   // ── Ads ──────────────────────────────────────────────────────────────────
   { href: "/", label: "Dashboard", icon: LayoutDashboard, group: "ads" },
   { href: "/library", label: "Library", icon: Images, group: "ads" },
-  { href: "/summary", label: "Summary", icon: Table2, group: "ads" },
+  { href: "/summary", label: "Ads", icon: Table2, group: "ads" },
   { href: "/funnel", label: "Funnel", icon: Filter, group: "ads" },
   { href: "/campaigns", label: "Campaigns", icon: Megaphone, group: "ads" },
   // Trends is a hub, not a page: the href is its first child (used when the

@@ -31,7 +31,7 @@ const summarize = (r: RatingRules) =>
   `Good ≥ ${r.goodRoas}× · Decent ≥ ${r.decentRoas}× · min ${usd(r.minSpend)}`;
 
 /**
- * Admin editor for the Summary Rate column. A default config applies to the
+ * Admin editor for the Ads page's Rate column. A default config applies to the
  * blended total and any platform without an override; each platform can be
  * given its own thresholds.
  */
@@ -41,7 +41,7 @@ export function RatingRulesAdmin({ config }: { config: RatingConfig }) {
       <div>
         <h2 className="text-sm font-medium text-ink">Rate rules</h2>
         <p className="text-xs text-ink-2 mt-1">
-          Drives the <span className="text-ink">Rate</span> column on Summary.
+          Drives the <span className="text-ink">Rate</span> column on Ads.
           The default applies to the blended total and any platform without its
           own override below.
         </p>

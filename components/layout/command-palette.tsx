@@ -49,7 +49,7 @@ const PAGES = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/library", label: "Library", icon: Images },
   { href: "/library/new", label: "New creative", icon: Plus },
-  { href: "/summary", label: "Summary — per-platform grid", icon: Table2 },
+  { href: "/summary", label: "Ads — per-platform grid", icon: Table2 },
   { href: "/funnel", label: "Funnel — CPM / CTR / VOC / CvR by campaign", icon: Filter },
   { href: "/campaigns", label: "Campaigns — full campaign analysis", icon: Megaphone },
   { href: "/trends/over-time", label: "Trends · Changes", icon: LineChart },

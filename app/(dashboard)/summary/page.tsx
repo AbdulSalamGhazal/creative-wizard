@@ -27,7 +27,7 @@ function pickFirst(value: string | string[] | undefined): string | undefined {
   return value;
 }
 
-export const metadata = { title: "Summary" };
+export const metadata = { title: "Ads" };
 
 export default async function SummaryPage({
   searchParams,
@@ -154,7 +154,7 @@ export default async function SummaryPage({
       />
 
       <PageHeader
-        title="Summary"
+        title="Ads"
         subtitle={
           <>
             {int(rows.length)} creative{rows.length === 1 ? "" : "s"}
