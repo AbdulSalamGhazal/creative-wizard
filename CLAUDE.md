@@ -38,7 +38,7 @@ Do not introduce a new dependency without a one-line justification in the PR des
 - Every column used in a filter, join, or sort needs an index. Declare it in the schema file alongside the column.
 - When adding a new dashboard query, check whether existing indexes cover it; add one if not.
 - `performance_records` is **unique** on `(creative_id, platform, campaign_id, date)` — the same creative can run on the same platform/date across different campaigns (distinct rows), but not the same campaign twice. (`campaign_id` is the FK to the campaigns registry; the old `campaign_name` text column is gone — see the Learned section.) Validation is still the only **entry** path. There are four sanctioned **exit** paths (each gated by a granular permission — see the Learned entry; admins always pass): (1) batch rollback within 24 h (`upload.rollback`), (2) the record-cleanup tool on `/uploads` (filtered hard-delete, `upload.cleanup`, preview-then-confirm, audit-logged via `upload.bulk_delete`), (3) deleting a creative (`deleteCreative` in `app/actions/creative.ts`) — which removes that creative's records inside a transaction because `performance_records.creative_id` has NO `ON DELETE CASCADE`, then deletes the creative (its `creative_angles` cascade). `creative.delete`, confirm-with-record-summary, audit-logged via `creative.delete`, and (4) deleting a campaign (`deleteCampaign` in `app/actions/campaign.ts`) — the campaign detail page's danger zone; because `performance_records.campaign_id` also has NO `ON DELETE CASCADE`, it removes the campaign's records inside a transaction, then drops the `campaigns` row. The CREATIVES that ran in the campaign are KEPT (only their records for that campaign go); confirm-with-record-summary (`campaignDeletionSummary`), `campaign.delete`, audit-logged via `campaign.delete`. No other code should delete from `performance_records`.
-- Every creative has a required `product_id`. Products live in their own table and are managed in `/admin/catalog?tab=products`. Never let a creative be saved without one.
+- Every creative has a required `product_id`. Products live in their own table and are managed on the Library's **Products** tab (`/library?tab=products`). Never let a creative be saved without one.
 
 ## Aggregation rules (CRITICAL)
 
@@ -60,7 +60,7 @@ Do not introduce a new dependency without a one-line justification in the PR des
 - The dashboard must feel polished. Every page has tailored skeletons. Empty states are designed-out, not blank.
 - Use shadcn primitives. Don't reinvent components that exist.
 - Every new route sets a `metadata.title` (matching its sidebar/h1 label); detail routes use `generateMetadata` over a `cache()`-deduped query so the tab title and the page share one fetch. The root layout's `%s · Wizard` template adds the suffix — don't repeat it, and never add a `metadata.icons` key (the tab icon is the `app/icon.png` file convention).
-- **Store module (2026-07) — a **Store** sidebar section split into `/store/uploads` (upload history + `/new` flow) and `/store/orders` (orders table); `/store` redirects to `/store/orders`. Manual Salla order uploads, PARALLEL to the ads pipeline (never touch `csv/`, `upload_batches`, `performance_records` for it).** Own error catalog `store/errors.ts` (S-codes; reuses `csv/parse.ts` for parsing only), EXPLICIT header mapping from `store_order_fields.headers` (case-insensitive trim, no auto-detect). Grain = one order (`store_orders`); exactly 3 CORE fields (`order_id`/`order_date`/`total_amount`) locked by `CORE_KEYS` in `store/fields.ts` — only label + headers editable, seeded per account (migration 0030 + `createAccount`). Custom fields → `attributes` jsonb. Upsert toggle like the ads upload; rollback deletes a batch's INSERTS only (updates keep their original `upload_batch_id`). **Currency is SAR, module-local (`sar()` in `lib/format.ts`) — NEVER convert to USD here** (ad-spend blending is a later phase). Config = **Store fields** tab in `/admin/catalog` (`config.store`); upload = `store.upload`. Migration 0030 (additive: `store_orders`/`store_order_fields`/`store_upload_batches` + core seed). Orders table is server-paginated (100/page) — never an unbounded query. **Every defined field is offered in the Orders Columns menu** (viewer's per-browser choice, persisted as a HIDDEN-key set so new fields default visible); the per-field `show_in_table` toggle was RETIRED 2026-08 (column kept dead, no longer read — like `creatives.status`; don't reintroduce reads). **Sanctioned `store_orders` delete paths = batch rollback + the order-cleanup tool** (`/store/uploads`, `store.cleanup`, in the editor preset): filtered hard-delete (date range / batch / order-id[s], ≥1 required), preview → type-DELETE-to-confirm → account-scoped transactional delete, audited `store.bulk_delete` (count from the actual DELETE, never an empty `inArray`) — mirrors the ads `upload.cleanup` tool. No other code deletes from `store_orders`.
+- **Store module (2026-07) — a **Store** sidebar section split into `/store/uploads` (upload history + `/new` flow) and `/store/orders` (orders table); `/store` redirects to `/store/orders`. Manual Salla order uploads, PARALLEL to the ads pipeline (never touch `csv/`, `upload_batches`, `performance_records` for it).** Own error catalog `store/errors.ts` (S-codes; reuses `csv/parse.ts` for parsing only), EXPLICIT header mapping from `store_order_fields.headers` (case-insensitive trim, no auto-detect). Grain = one order (`store_orders`); exactly 3 CORE fields (`order_id`/`order_date`/`total_amount`) locked by `CORE_KEYS` in `store/fields.ts` — only label + headers editable, seeded per account (migration 0030 + `createAccount`). Custom fields → `attributes` jsonb. Upsert toggle like the ads upload; rollback deletes a batch's INSERTS only (updates keep their original `upload_batch_id`). **Currency is SAR, module-local (`sar()` in `lib/format.ts`) — NEVER convert to USD here** (ad-spend blending is a later phase). Config = the **Order fields** tab on `/store/uploads` (`config.store`); upload = `store.upload`. Migration 0030 (additive: `store_orders`/`store_order_fields`/`store_upload_batches` + core seed). Orders table is server-paginated (100/page) — never an unbounded query. **Every defined field is offered in the Orders Columns menu** (viewer's per-browser choice, persisted as a HIDDEN-key set so new fields default visible); the per-field `show_in_table` toggle was RETIRED 2026-08 (column kept dead, no longer read — like `creatives.status`; don't reintroduce reads). **Sanctioned `store_orders` delete paths = batch rollback + the order-cleanup tool** (`/store/uploads`, `store.cleanup`, in the editor preset): filtered hard-delete (date range / batch / order-id[s], ≥1 required), preview → type-DELETE-to-confirm → account-scoped transactional delete, audited `store.bulk_delete` (count from the actual DELETE, never an empty `inArray`) — mirrors the ads `upload.cleanup` tool. No other code deletes from `store_orders`.
 - **MCP server (2026-07) — `/api/mcp/mcp`, bearer-authed, strictly READ-ONLY.** A remote MCP server (`mcp-handler`, route `app/api/mcp/[transport]/route.ts`) lets each user connect their own LLM to read-only analytics. Auth = personal access tokens (`api_tokens`; `lib/api-token.ts` — SHA-256 stored, raw `cwz_…` shown once, constant-time verify, revoke); `/api/mcp` is EXCLUDED from `middleware.ts` (its own bearer gate). Cookieless tenancy: `runWithTenant(accountId, userId, fn)` (`lib/tenant.ts` + `lib/tenant-context.ts` ALS) that `getActiveAccountId()`/`auth()` consult first — validates the account is ALLOWED for the user. **Add a tool ONLY via the registered-tool pattern in `lib/mcp/tools.ts`: a Zod input schema + `withBrand` + reuse a `db/queries/*` fn (never raw SQL), compact JSON out with a `{brand,range}` echo. NEVER add a mutating tool** (v1 is read-only; the whole design assumes it). Endpoint is `/api/mcp/mcp` (mcp-handler appends the transport segment to the `/api/mcp` basePath), not `/api/mcp`. Migration 0029 (additive `api_tokens`). OAuth 2.1 web-connector flow is a deliberate Phase-2 non-goal.
 - Tabular figures (`font-variant-numeric: tabular-nums`) on every number in tables.
 - USD formatting: `Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' })`.
@@ -212,7 +212,7 @@ This app is deployed and in production use. Treat `main` as shippable.
   publish-date / **priority** / angles, with draft state + a dirty check + an
   explicit **Save changes** button (not auto-save). Save calls `patchCreative`
   (partial — only changed fields; renaming is uniqueness-checked and the client
-  follows the new URL). The old `/creatives/[name]/edit` page,
+  follows the new URL). The old `/library/[name]/edit` page,
   `creative-edit-form.tsx`, and the `updateCreative` action were DELETED — don't
   reintroduce them. Notes stay on their own inline editor (`updateCreativeNotes`
   via NotesPanel); `patchCreative` never touches notes. Angle editing uses
@@ -417,7 +417,7 @@ This app is deployed and in production use. Treat `main` as shippable.
   dropdown, platforms-readiness card) **derives** from `FIELD_LIST`/`FIELD_META`
   — do NOT re-list fields in those components. This was a real bug: those three
   UI components each kept their OWN hand-copied field list, so a new field
-  landed in the pipeline but never showed in Configuration → CSV mapping. Fixed
+  landed in the pipeline but never showed in the CSV-mapping surface. Fixed
   by making them read `FIELD_LIST`; the `Record<InternalField, …>` types on
   `FIELD_META` and every adapter `headerMap` now make the compiler REJECT any
   field that isn't described everywhere (verified by injecting a probe field →
@@ -624,7 +624,7 @@ This app is deployed and in production use. Treat `main` as shippable.
   excluded (re-stamped by the survivor) instead of silently returning to totals;
   **manual un-exclude REFUSES rule-excluded rows** (the action returns
   "Excluded by rule «…»" and the row's Re-include button is disabled) — restore
-  them by deactivating the rule in Configuration → Exclusions. Rule mutations
+  them by deactivating the rule in Configuration → Exclusions (still there). Rule mutations
   reuse `record.exclude` but are always preview-then-confirm with an
   acknowledgement checkbox, and audited (`exclusion.rule_*`) with the count the
   engine ACTUALLY flipped. New/upserted uploads are stamped against ACTIVE
@@ -685,4 +685,36 @@ This app is deployed and in production use. Treat `main` as shippable.
   account-scoped-cascade invariant carries over verbatim: `creative_angles` has
   no `account_id`, so angle rename/delete cascades MUST be bounded by a
   `creatives WHERE account_id` subquery.
+
+- **2026-09 IA pass — page names, routes, and where settings live.** The
+  sidebar's Ads group reads **Dashboard · Library · Ads · Funnel · Campaigns ·
+  Trends · Compare · Upload ads** (order unchanged). Three renames, and only
+  ONE of them moved a URL:
+  - **Library** — the Creatives page; the route really moved, `/creatives` →
+    **`/library`** (`/creatives` and `/creatives/[name]` stay as PERMANENT
+    redirects that preserve query params, so shared filter links and the
+    detail pager's list-context still work).
+  - **Ads** — `/summary` KEPT its URL (saved views hang off it); only its
+    labels changed. The sidebar SECTION is also called "Ads" — that repetition
+    is deliberate and user-approved.
+  - **Upload ads** — `/uploads` KEPT its URL; labels only, symmetric with
+    Store's "Upload orders".
+  **Settings now live with what they configure**, as in-page tab rows built on
+  the shared `components/layout/page-tabs.tsx` (which renders nothing when only
+  one tab survives permission filtering): Library = *Creatives | Products |
+  Angles*, `/uploads` = *History | CSV mapping* (the old **Platforms** tab is
+  MERGED in as the mapping surface's readiness header), `/store/uploads` =
+  *History | Order fields* (fields + the Reconciliation source mapping).
+  Configuration (`/admin/catalog`) keeps exactly **Rate rules | Status | Brands
+  | Exclusions**. Permissions are UNCHANGED — the same key gates each tab
+  (`catalog.products`, `catalog.angles`, `config.mappings`, `config.store`).
+  Every retired `?tab=` value redirects to its new home (including `tab=tags`,
+  for bookmarks predating the tag→angle rename), and `/admin/products` /
+  `/admin/platforms` re-point. Two things deliberately did NOT follow the
+  Library rename: saved views' internal `page` key stays `"creatives"`
+  (invisible plumbing — changing it would orphan every saved Library view), and
+  the MCP tools stay `list_creatives`/`get_creative` (the ENTITY is still a
+  creative). Code identifiers for the Ads page (`SummaryTable`,
+  `listCreativeSummary`, `validators/summary`) likewise keep the "summary"
+  name — the route did not move.
 
