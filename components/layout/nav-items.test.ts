@@ -13,15 +13,15 @@ describe("visibleNavItems", () => {
     expect(seen).toContain("Library");
     expect(seen).toContain("Campaigns");
     // Everything gated is hidden.
-    expect(seen).not.toContain("Uploads");
+    expect(seen).not.toContain("Upload ads");
     expect(seen).not.toContain("Configuration");
     expect(seen).not.toContain("Team");
     expect(seen).not.toContain("Audit log");
   });
 
-  it("the editor preset unlocks Uploads but no admin items", () => {
+  it("the editor preset unlocks Upload ads but no admin items", () => {
     const seen = labels(EDITOR_PRESET);
-    expect(seen).toContain("Uploads"); // has upload.import
+    expect(seen).toContain("Upload ads"); // has upload.import
     expect(seen).not.toContain("Team"); // users.manage not in preset
     expect(seen).not.toContain("Configuration");
     expect(seen).not.toContain("Audit log");

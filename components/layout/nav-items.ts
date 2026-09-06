@@ -91,7 +91,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/compare", label: "Compare", icon: GitCompare, group: "ads" },
   {
     href: "/uploads",
-    label: "Uploads",
+    label: "Upload ads",
     icon: Upload,
     group: "ads",
     perms: ["upload.import", "upload.cleanup", "upload.rollback"],

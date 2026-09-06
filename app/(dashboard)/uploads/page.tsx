@@ -21,7 +21,7 @@ const ROLLBACK_WINDOW_MS = 24 * 60 * 60 * 1000;
 // Always fetch fresh — this page reflects newly-committed batches.
 export const dynamic = "force-dynamic";
 
-export const metadata = { title: "Uploads" };
+export const metadata = { title: "Upload ads" };
 
 /**
  * CSV mapping (with the platform-readiness cards merged into it) moved here
@@ -56,7 +56,7 @@ export default async function UploadsPage({
     return (
       <PageShell>
         <PageHeader
-          eyebrow="Uploads"
+          eyebrow="Ads"
           title="CSV mapping"
           subtitle="Which column headers each platform's export uses for every internal field. Matching is case-insensitive and whitespace-trimmed."
         />
@@ -108,8 +108,8 @@ export default async function UploadsPage({
   return (
     <PageShell>
       <PageHeader
-        eyebrow="Uploads"
-        title="Upload history"
+        eyebrow="Ads"
+        title="Upload ads"
         subtitle={`${rows.length} ${rows.length === 1 ? "batch" : "batches"}.`}
         rightSlot={
           canImport ? (
