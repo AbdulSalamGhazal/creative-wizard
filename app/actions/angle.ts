@@ -9,6 +9,7 @@ import { creatives, creativeAngles, angles } from "@/db/schema";
 import { getAngle } from "@/db/queries/angles";
 import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
 import { getActiveAccountId } from "@/lib/tenant";
+import { actionError } from "@/lib/action-error";
 
 export interface AngleMutationResult {
   ok: boolean;
@@ -66,7 +67,7 @@ export async function createAngle(input: unknown): Promise<AngleMutationResult> 
     }
     return { ok: true };
   } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : "Unknown error" };
+    return { ok: false, error: actionError(err, "angle") };
   }
 }
 
@@ -130,7 +131,7 @@ export async function renameAngle(
     });
     return { ok: true };
   } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : "Unknown error" };
+    return { ok: false, error: actionError(err, "angle") };
   }
 }
 
@@ -177,6 +178,6 @@ export async function deleteAngle(id: string): Promise<AngleMutationResult> {
     });
     return { ok: true };
   } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : "Unknown error" };
+    return { ok: false, error: actionError(err, "angle") };
   }
 }

@@ -5,6 +5,7 @@ import { z } from "zod";
 import { requireAuth } from "@/lib/auth";
 import { createApiToken, revokeApiToken } from "@/lib/api-token";
 import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
+import { actionError } from "@/lib/action-error";
 
 /**
  * Self-serve personal API tokens for the MCP server. EVERY user manages their
@@ -54,7 +55,7 @@ export async function createApiTokenAction(
     }
     return { ok: true, token: raw, prefix: row.prefix };
   } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : "Unknown error" };
+    return { ok: false, error: actionError(err, "api_token") };
   }
 }
 
@@ -85,6 +86,6 @@ export async function revokeApiTokenAction(
     }
     return { ok: true };
   } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : "Unknown error" };
+    return { ok: false, error: actionError(err, "api_token") };
   }
 }

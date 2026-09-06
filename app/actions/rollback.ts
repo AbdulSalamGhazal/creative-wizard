@@ -7,6 +7,7 @@ import { requirePermission } from "@/lib/auth";
 import { performanceRecords, uploadBatches } from "@/db/schema";
 import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
 import { getActiveAccountId } from "@/lib/tenant";
+import { actionError } from "@/lib/action-error";
 
 const ROLLBACK_WINDOW_MS = 24 * 60 * 60 * 1000;
 
@@ -100,6 +101,6 @@ export async function rollbackBatch(batchId: string): Promise<RollbackResult> {
 
     return { ok: true };
   } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : "Unknown error" };
+    return { ok: false, error: actionError(err, "rollback") };
   }
 }

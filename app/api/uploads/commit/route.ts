@@ -4,6 +4,7 @@ import { and, eq, inArray, lt } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { can, requirePermission } from "@/lib/auth";
+import { allowedAccountsForUser } from "@/lib/tenant";
 import {
   campaigns,
   creatives,
@@ -127,6 +128,15 @@ export async function POST(request: NextRequest) {
       { error: "Payload has no rows to commit." },
       { status: 422 },
     );
+  }
+
+  // The session pins the account it was validated under, but a caller could
+  // POST someone else's session token: the id is a bearer secret and nothing
+  // downstream re-checks WHO is committing. Re-verify membership here, so a
+  // restricted user can never write into a brand they don't belong to.
+  const allowed = await allowedAccountsForUser(user);
+  if (!allowed.some((a) => a.id === session.accountId)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   // Scope every write to the account the session was validated under — NOT the

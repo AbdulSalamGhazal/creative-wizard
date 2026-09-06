@@ -13,6 +13,7 @@ import {
   ratingRulesSchema,
 } from "@/validators/rating";
 import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
+import { actionError } from "@/lib/action-error";
 
 function revalidateRating() {
   try {
@@ -91,7 +92,7 @@ export async function updateRatingRules(
   } catch (err) {
     return {
       ok: false,
-      error: err instanceof Error ? err.message : "Unknown error",
+      error: actionError(err, "rating"),
     };
   }
 }
@@ -151,7 +152,7 @@ export async function updatePlatformRatingRules(
   } catch (err) {
     return {
       ok: false,
-      error: err instanceof Error ? err.message : "Unknown error",
+      error: actionError(err, "rating"),
     };
   }
 }
@@ -191,7 +192,7 @@ export async function clearPlatformRatingRules(
   } catch (err) {
     return {
       ok: false,
-      error: err instanceof Error ? err.message : "Unknown error",
+      error: actionError(err, "rating"),
     };
   }
 }

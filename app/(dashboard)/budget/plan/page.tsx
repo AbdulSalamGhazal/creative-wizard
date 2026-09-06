@@ -10,7 +10,9 @@ export const dynamic = "force-dynamic";
 
 export const metadata = { title: "Budget plan" };
 
-const MONTH = /^\d{4}-\d{2}$/;
+// Month 01-12 only — `2026-13` would otherwise sail through and produce a
+// nonsense month rather than falling back to the current one.
+const MONTH = /^\d{4}-(0[1-9]|1[0-2])$/;
 
 /**
  * Budget Plan — the month's editor: USD allocations per platform → objective,

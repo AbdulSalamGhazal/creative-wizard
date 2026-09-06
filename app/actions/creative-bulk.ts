@@ -13,6 +13,7 @@ import {
 import { parseFile } from "@/csv/parse";
 import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
 import { getActiveAccountId } from "@/lib/tenant";
+import { actionError } from "@/lib/action-error";
 
 /**
  * Bulk-create creatives from a CSV/XLSX upload.
@@ -273,7 +274,7 @@ export async function previewBulkCreatives(formData: FormData): Promise<BulkPrev
   } catch (err) {
     return {
       ok: false,
-      error: err instanceof Error ? err.message : "Unknown error",
+      error: actionError(err, "previewBulkCreatives"),
       rows: [],
       total: 0,
       validCount: 0,
@@ -347,13 +348,15 @@ export async function commitBulkCreatives(
 
     return { ok: true, created: normalized.length };
   } catch (err) {
-    // A unique-violation race (name taken between preview + commit) lands here.
-    const msg = err instanceof Error ? err.message : "Unknown error";
+    // A unique-violation race (name taken between preview + commit) lands
+    // here and keeps its own actionable message; anything else is
+    // generalized rather than forwarding raw driver text to the client.
+    const msg = err instanceof Error ? err.message : "";
     return {
       ok: false,
       error: /unique|duplicate/i.test(msg)
         ? "A creative name in the batch was just taken by someone else. Re-validate and retry."
-        : msg,
+        : actionError(err, "commitBulkCreatives"),
     };
   }
 }

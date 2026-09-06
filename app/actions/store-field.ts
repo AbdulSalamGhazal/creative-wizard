@@ -9,6 +9,7 @@ import { getActiveAccountId } from "@/lib/tenant";
 import { accounts, storeOrderFields } from "@/db/schema";
 import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
 import { isCoreKey, slugifyKey } from "@/store/fields";
+import { actionError } from "@/lib/action-error";
 
 /**
  * Admin config for store-order fields (`config.store`). CORE fields
@@ -94,7 +95,7 @@ export async function createStoreField(input: unknown): Promise<FieldMutationRes
     await audit(me.id, { op: "create", key, label, type, required });
     return { ok: true };
   } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : "Unknown error" };
+    return { ok: false, error: actionError(err, "store_field") };
   }
 }
 
@@ -130,7 +131,7 @@ export async function updateStoreField(input: unknown): Promise<FieldMutationRes
     await audit(me.id, { op: "update", key: row.key, core });
     return { ok: true };
   } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : "Unknown error" };
+    return { ok: false, error: actionError(err, "store_field") };
   }
 }
 
@@ -178,7 +179,7 @@ export async function deleteStoreField(id: unknown): Promise<FieldMutationResult
     });
     return { ok: true };
   } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : "Unknown error" };
+    return { ok: false, error: actionError(err, "store_field") };
   }
 }
 

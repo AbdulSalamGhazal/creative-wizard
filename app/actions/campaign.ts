@@ -15,6 +15,7 @@ import {
 } from "@/db/queries/exclusion-rules";
 import { getActiveAccountId } from "@/lib/tenant";
 import { createCampaignSchema, updateCampaignSchema } from "@/validators/campaign";
+import { actionError } from "@/lib/action-error";
 
 export interface CampaignMutationResult {
   ok: boolean;
@@ -91,7 +92,7 @@ export async function createCampaign(input: unknown): Promise<CampaignMutationRe
     }
     return { ok: true, name };
   } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : "Unknown error" };
+    return { ok: false, error: actionError(err, "campaign") };
   }
 }
 
@@ -207,7 +208,7 @@ export async function updateCampaign(input: unknown): Promise<CampaignMutationRe
     });
     return { ok: true, name };
   } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : "Unknown error" };
+    return { ok: false, error: actionError(err, "campaign") };
   }
 }
 
@@ -277,6 +278,6 @@ export async function deleteCampaign(
 
     return { ok: true, recordsDeleted };
   } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : "Unknown error" };
+    return { ok: false, error: actionError(err, "campaign") };
   }
 }

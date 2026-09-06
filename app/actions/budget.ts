@@ -18,6 +18,7 @@ import {
 } from "@/lib/budget";
 import { MONTH_KEY, planSchema } from "@/validators/budget";
 import { replaceBudgetMonth, copyBudgetMonth } from "@/db/queries/budget";
+import { actionError } from "@/lib/action-error";
 
 /**
  * Budget mutations — permission `budget.manage`, all audited `budget.update`
@@ -165,5 +166,5 @@ function revalidateBudget() {
 }
 
 function errMsg(err: unknown): string {
-  return err instanceof Error ? err.message : "Unknown error";
+  return actionError(err, "budget");
 }

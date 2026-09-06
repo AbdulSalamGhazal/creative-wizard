@@ -9,6 +9,7 @@ import { getSummaryView } from "@/db/queries/summary-views";
 import { createSummaryViewSchema } from "@/validators/summary-view";
 import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
 import { getActiveAccountId } from "@/lib/tenant";
+import { actionError } from "@/lib/action-error";
 
 export interface ViewMutationResult {
   ok: boolean;
@@ -75,7 +76,7 @@ export async function createSummaryView(
   } catch (err) {
     return {
       ok: false,
-      error: err instanceof Error ? err.message : "Unknown error",
+      error: actionError(err, "summary_view"),
     };
   }
 }
@@ -118,7 +119,7 @@ export async function deleteSummaryView(
   } catch (err) {
     return {
       ok: false,
-      error: err instanceof Error ? err.message : "Unknown error",
+      error: actionError(err, "summary_view"),
     };
   }
 }
@@ -185,7 +186,7 @@ export async function setDefaultView(id: string): Promise<ViewMutationResult> {
   } catch (err) {
     return {
       ok: false,
-      error: err instanceof Error ? err.message : "Unknown error",
+      error: actionError(err, "summary_view"),
     };
   }
 }

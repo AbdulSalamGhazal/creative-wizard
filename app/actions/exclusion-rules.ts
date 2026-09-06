@@ -23,6 +23,7 @@ import {
   getRule,
   type RuleImpactPreview,
 } from "@/db/queries/exclusion-rules";
+import { actionError } from "@/lib/action-error";
 
 /**
  * Exclusion-rule mutations. Reuses `record.exclude` (a rule is bulk exclusion),
@@ -254,5 +255,5 @@ function revalidateEverything() {
 }
 
 function errMsg(err: unknown): string {
-  return err instanceof Error ? err.message : "Unknown error";
+  return actionError(err, "exclusion_rules");
 }

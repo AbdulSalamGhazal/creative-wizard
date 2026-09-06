@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { planSchema, WEIGHT_MAX, WEIGHT_MIN } from "@/validators/budget";
+import { MONTH_KEY, planSchema, WEIGHT_MAX, WEIGHT_MIN } from "@/validators/budget";
 
 const base = {
   month: "2026-09",
@@ -41,6 +41,18 @@ describe("planSchema day-weight bounds", () => {
     if (res.success) {
       expect(res.data.dayWeights).toEqual([]);
       expect(res.data.reserveSpendUsd).toBe(0);
+    }
+  });
+});
+
+describe("MONTH_KEY", () => {
+  it("accepts real months and rejects impossible ones", () => {
+    for (const m of ["2026-01", "2026-09", "2026-12"]) {
+      expect(MONTH_KEY.test(m), `${m} should be valid`).toBe(true);
+    }
+    // `2026-13` used to pass `\d{2}` and produce a nonsense month downstream.
+    for (const m of ["2026-00", "2026-13", "2026-99", "2026-1", "26-01", "2026-ab"]) {
+      expect(MONTH_KEY.test(m), `${m} should be rejected`).toBe(false);
     }
   });
 });

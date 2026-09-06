@@ -15,6 +15,7 @@ import {
   setActiveAccountSchema,
   setStatusWindowSchema,
 } from "@/validators/account";
+import { actionError } from "@/lib/action-error";
 
 const COOKIE_MAX_AGE = 365 * 24 * 60 * 60; // 1 year
 
@@ -64,7 +65,7 @@ export async function setActiveAccount(input: unknown): Promise<ActionResult> {
     revalidatePath("/", "layout");
     return { ok: true };
   } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : "Unknown error" };
+    return { ok: false, error: actionError(err, "account") };
   }
 }
 
@@ -122,7 +123,7 @@ export async function createAccount(input: unknown): Promise<ActionResult> {
     revalidatePath("/", "layout");
     return { ok: true, id: row?.id };
   } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : "Unknown error" };
+    return { ok: false, error: actionError(err, "account") };
   }
 }
 
@@ -166,7 +167,7 @@ export async function setStatusWindow(input: unknown): Promise<ActionResult> {
     revalidatePath("/", "layout");
     return { ok: true };
   } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : "Unknown error" };
+    return { ok: false, error: actionError(err, "account") };
   }
 }
 
@@ -207,6 +208,6 @@ export async function renameAccount(input: unknown): Promise<ActionResult> {
     revalidatePath("/", "layout");
     return { ok: true };
   } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : "Unknown error" };
+    return { ok: false, error: actionError(err, "account") };
   }
 }

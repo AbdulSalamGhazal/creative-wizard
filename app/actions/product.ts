@@ -8,6 +8,7 @@ import { requirePermission } from "@/lib/auth";
 import { products } from "@/db/schema";
 import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
 import { getActiveAccountId } from "@/lib/tenant";
+import { actionError } from "@/lib/action-error";
 
 export interface ProductMutationResult {
   ok: boolean;
@@ -103,7 +104,7 @@ export async function createProduct(input: unknown): Promise<ProductMutationResu
     }
     return { ok: true };
   } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : "Unknown error" };
+    return { ok: false, error: actionError(err, "product") };
   }
 }
 
@@ -139,7 +140,7 @@ export async function archiveProduct(productId: string): Promise<ProductMutation
     });
     return { ok: true };
   } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : "Unknown error" };
+    return { ok: false, error: actionError(err, "product") };
   }
 }
 
@@ -171,6 +172,6 @@ export async function restoreProduct(productId: string): Promise<ProductMutation
     });
     return { ok: true };
   } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : "Unknown error" };
+    return { ok: false, error: actionError(err, "product") };
   }
 }

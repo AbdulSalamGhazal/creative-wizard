@@ -22,6 +22,7 @@ import {
 import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
 import { deleteRulesTargeting } from "@/db/queries/exclusion-rules";
 import { getActiveAccountId } from "@/lib/tenant";
+import { actionError } from "@/lib/action-error";
 
 export interface CreativeMutationResult {
   ok: boolean;
@@ -138,7 +139,7 @@ export async function createCreative(
 
     return { ok: true, name: inserted.name };
   } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : "Unknown error" };
+    return { ok: false, error: actionError(err, "creative") };
   }
 }
 
@@ -174,7 +175,7 @@ export async function updateCreativeNotes(
     }
     return { ok: true };
   } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : "Unknown error" };
+    return { ok: false, error: actionError(err, "creative") };
   }
 }
 
@@ -226,7 +227,7 @@ export async function updateCreativeSourceLink(
 
     return { ok: true };
   } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : "Unknown error" };
+    return { ok: false, error: actionError(err, "creative") };
   }
 }
 
@@ -303,7 +304,7 @@ export async function setCreativeTermination(
   } catch (err) {
     return {
       ok: false,
-      error: err instanceof Error ? err.message : "Unknown error",
+      error: actionError(err, "creative"),
     };
   }
 }
@@ -500,7 +501,7 @@ export async function patchCreative(
   } catch (err) {
     return {
       ok: false,
-      error: err instanceof Error ? err.message : "Unknown error",
+      error: actionError(err, "creative"),
     };
   }
 }
@@ -571,7 +572,7 @@ export async function deleteCreative(
   } catch (err) {
     return {
       ok: false,
-      error: err instanceof Error ? err.message : "Unknown error",
+      error: actionError(err, "creative"),
     };
   }
 }

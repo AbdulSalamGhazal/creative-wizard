@@ -12,6 +12,7 @@ import {
   storeSourceFieldSchema,
   storeSourceMappingSchema,
 } from "@/validators/store";
+import { actionError } from "@/lib/action-error";
 
 /**
  * Config for the Store → Reconciliation source mapping (permission
@@ -69,7 +70,7 @@ export async function setStoreSourceField(
     });
     return { ok: true };
   } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : "Unknown error" };
+    return { ok: false, error: actionError(err, "store_source") };
   }
 }
 
@@ -118,6 +119,6 @@ export async function setStoreSourceMapping(
     });
     return { ok: true };
   } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : "Unknown error" };
+    return { ok: false, error: actionError(err, "store_source") };
   }
 }

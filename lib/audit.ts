@@ -72,6 +72,7 @@ export const AUDIT_ACTIONS = {
   // Auth
   AUTH_SIGNIN: "auth.signin",
   AUTH_SIGNIN_FAILED: "auth.signin_failed",
+  AUTH_SIGNIN_THROTTLED: "auth.signin_throttled",
   AUTH_SIGNOUT: "auth.signout",
   AUTH_PASSWORD_CHANGE: "auth.password_change",
 
@@ -222,6 +223,7 @@ export const AUDIT_LABELS: Record<AuditAction, string> = {
   "mapping.remove": "Removed CSV mapping",
   "auth.signin": "Signed in",
   "auth.signin_failed": "Failed sign-in",
+  "auth.signin_throttled": "Sign-in throttled",
   "auth.signout": "Signed out",
   "auth.password_change": "Changed password",
   "view.create": "Saved a view",
@@ -276,6 +278,7 @@ export const AUDIT_CATEGORIES: Record<AuditAction, AuditEntityType> = {
   "mapping.remove": "mapping",
   "auth.signin": "auth",
   "auth.signin_failed": "auth",
+  "auth.signin_throttled": "auth",
   "auth.signout": "auth",
   "auth.password_change": "auth",
   "view.create": "view",

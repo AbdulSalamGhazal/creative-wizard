@@ -7,7 +7,8 @@ import { CAMPAIGN_OBJECTIVES } from "@/lib/campaign";
  * the standing currency decisions).
  */
 
-export const MONTH_KEY = /^\d{4}-\d{2}$/;
+/** `YYYY-MM` with a REAL month (01-12) — `2026-13` is not a month. */
+export const MONTH_KEY = /^\d{4}-(0[1-9]|1[0-2])$/;
 
 /**
  * Day-weight bounds — these MIRROR the Plan editor's clamp (0.5 step, 0.5..10)

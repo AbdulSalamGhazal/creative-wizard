@@ -13,6 +13,7 @@ import {
 } from "@/lib/auth-password";
 import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
 import { isPermission } from "@/lib/permissions";
+import { actionError } from "@/lib/action-error";
 
 export interface UserMutationResult {
   ok: boolean;
@@ -152,7 +153,7 @@ export async function inviteUser(input: unknown): Promise<UserMutationResult> {
   } catch (err) {
     return {
       ok: false,
-      error: err instanceof Error ? err.message : "Unknown error",
+      error: actionError(err, "user"),
     };
   }
 }
@@ -238,7 +239,7 @@ export async function updateUserAccess(
   } catch (err) {
     return {
       ok: false,
-      error: err instanceof Error ? err.message : "Unknown error",
+      error: actionError(err, "user"),
     };
   }
 }
@@ -332,7 +333,7 @@ export async function updateUserBrands(
   } catch (err) {
     return {
       ok: false,
-      error: err instanceof Error ? err.message : "Unknown error",
+      error: actionError(err, "user"),
     };
   }
 }
@@ -378,7 +379,7 @@ export async function adminSetPassword(input: unknown): Promise<UserMutationResu
   } catch (err) {
     return {
       ok: false,
-      error: err instanceof Error ? err.message : "Unknown error",
+      error: actionError(err, "user"),
     };
   }
 }

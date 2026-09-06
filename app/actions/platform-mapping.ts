@@ -9,6 +9,7 @@ import { platformFieldMappings, platformEnum } from "@/db/schema";
 import { INTERNAL_FIELDS } from "@/csv/platforms/types";
 import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
 import { getActiveAccountId } from "@/lib/tenant";
+import { actionError } from "@/lib/action-error";
 
 const inputSchema = z.object({
   platform: z.enum(platformEnum),
@@ -85,7 +86,7 @@ export async function addHeaderMapping(input: unknown): Promise<MutationResult> 
     }
     return { ok: true };
   } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : "Unknown error" };
+    return { ok: false, error: actionError(err, "platform_mapping") };
   }
 }
 
@@ -135,7 +136,7 @@ export async function removeHeaderMapping(id: string): Promise<MutationResult> {
     }
     return { ok: true };
   } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : "Unknown error" };
+    return { ok: false, error: actionError(err, "platform_mapping") };
   }
 }
 

@@ -14,6 +14,7 @@ import {
 } from "@/lib/auth-password";
 import { auth, requireAuth } from "@/lib/auth";
 import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
+import { actionError } from "@/lib/action-error";
 
 const signInSchema = z.object({
   email: z.string().email().max(255),
@@ -188,6 +189,6 @@ export async function changePassword(input: unknown): Promise<ChangePasswordResu
 
     return { ok: true };
   } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : "Unknown error" };
+    return { ok: false, error: actionError(err, "session") };
   }
 }

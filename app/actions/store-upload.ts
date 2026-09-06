@@ -17,6 +17,7 @@ import { parseStoreFile } from "@/store/parse";
 import { runStorePipeline, type StoreParsedRow } from "@/store/pipeline";
 import { type StoreValidationError } from "@/store/errors";
 import type { StoreField } from "@/store/fields";
+import { actionError } from "@/lib/action-error";
 
 /**
  * Store-order upload flow — parallel to the ads pipeline, but a self-contained
@@ -159,7 +160,7 @@ export async function validateStoreUpload(
         {
           code: "S002",
           severity: "FATAL",
-          message: err instanceof Error ? err.message : "Upload failed.",
+          message: actionError(err, "validateStoreUpload"),
         },
       ],
       warnings: [],
@@ -229,7 +230,7 @@ export async function commitStoreUpload(
       batchId,
     };
   } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : "Commit failed." };
+    return { ok: false, error: actionError(err, "commitStoreUpload") };
   }
 }
 
@@ -288,6 +289,6 @@ export async function rollbackStoreBatch(
     });
     return { ok: true };
   } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : "Rollback failed." };
+    return { ok: false, error: actionError(err, "store_upload") };
   }
 }

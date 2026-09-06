@@ -5,6 +5,7 @@ import { storeOrdersForExport, listStoreFields } from "@/db/queries/store";
 import { storeOrdersFiltersSchema } from "@/validators/store";
 import { rowsToCsv, type CsvColumn } from "@/lib/csv-export";
 import type { StoreOrderRow } from "@/db/queries/store";
+import { actionError } from "@/lib/action-error";
 
 /**
  * Build the CSV for the currently-filtered orders (capped at 10k rows). Runs on
@@ -39,6 +40,6 @@ export async function exportStoreOrders(
 
     return { ok: true, csv: rowsToCsv(rows, columns), truncated };
   } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : "Export failed." };
+    return { ok: false, error: actionError(err, "store_export") };
   }
 }

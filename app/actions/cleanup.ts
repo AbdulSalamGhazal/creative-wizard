@@ -9,6 +9,7 @@ import {
 } from "@/db/queries/cleanup";
 import { cleanupFiltersSchema } from "@/validators/cleanup";
 import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
+import { actionError } from "@/lib/action-error";
 
 export interface PreviewResult {
   ok: boolean;
@@ -38,7 +39,7 @@ export async function previewCleanupAction(
     const preview = await previewCleanup(parsed.data);
     return { ok: true, preview };
   } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : "Unknown error" };
+    return { ok: false, error: actionError(err, "cleanup") };
   }
 }
 
@@ -99,6 +100,6 @@ export async function runCleanup(input: unknown): Promise<CleanupResult> {
 
     return { ok: true, deleted };
   } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : "Unknown error" };
+    return { ok: false, error: actionError(err, "cleanup") };
   }
 }

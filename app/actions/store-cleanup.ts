@@ -9,6 +9,7 @@ import {
 } from "@/db/queries/store";
 import { storeCleanupFiltersSchema } from "@/validators/store";
 import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
+import { actionError } from "@/lib/action-error";
 
 /**
  * Order-cleanup actions — the Store-module twin of the ads `cleanup.ts`. A
@@ -42,7 +43,7 @@ export async function previewStoreCleanupAction(
     const preview = await previewStoreCleanup(parsed.data);
     return { ok: true, preview };
   } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : "Unknown error" };
+    return { ok: false, error: actionError(err, "store_cleanup") };
   }
 }
 
@@ -93,6 +94,6 @@ export async function runStoreCleanup(input: unknown): Promise<StoreCleanupResul
 
     return { ok: true, deleted };
   } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : "Unknown error" };
+    return { ok: false, error: actionError(err, "store_cleanup") };
   }
 }
