@@ -1,4 +1,4 @@
-import { and, asc, between, desc, eq, inArray, sql, type SQL } from "drizzle-orm";
+import { and, asc, between, desc, eq, inArray, isNotNull, sql, type SQL } from "drizzle-orm";
 import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import { db } from "@/lib/db";
 import {
@@ -10,6 +10,7 @@ import {
   platformEnum,
   creativeStatusEnum,
   creativeTypeEnum,
+  uploadBatches,
 } from "@/db/schema";
 import { creativeStatusMap, statusFor } from "@/db/queries/creative-status";
 import type { CreativeStatus } from "@/lib/creative-status";
@@ -2216,7 +2217,10 @@ export async function bulkUpdateMetricValues(
       video_views_50 = v.video_views_50,
       video_views_75 = v.video_views_75,
       video_views_100 = v.video_views_100,
-      raw_payload = v.raw_payload
+      raw_payload = v.raw_payload,
+      -- Marks the row as REVISED since its import. Rollback reads this to warn
+      -- that deleting the batch also discards a later upload's values.
+      updated_at = now()
     FROM (VALUES ${sql.join(tuples, sql`, `)}) AS v(
       id, spend, impressions, clicks, conversions, conversion_value,
       landing_page_views, add_to_cart, add_payment, video_views_2s,
@@ -2227,4 +2231,36 @@ export async function bulkUpdateMetricValues(
     RETURNING p.id
   `);
   return rows.length;
+}
+
+/**
+ * How many of a batch's rows a LATER upload has revised since the batch landed
+ * (`updated_at > uploaded_at`). Rolling the batch back deletes those rows
+ * outright, discarding the newer values with them — the confirm dialog surfaces
+ * this count so it's a decision, not a surprise. NULL `updated_at` means the row
+ * was never overwritten, so it can't be one of these.
+ */
+export async function batchRowsUpdatedSince(
+  accountId: string,
+  batchId: string,
+): Promise<number> {
+  const [row] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(performanceRecords)
+    .where(
+      and(
+        eq(performanceRecords.accountId, accountId),
+        eq(performanceRecords.uploadBatchId, batchId),
+        isNotNull(performanceRecords.updatedAt),
+        // Compared INSIDE SQL against the batch's stored timestamp: reading
+        // uploaded_at into JS truncates Postgres microseconds to milliseconds,
+        // which would make a freshly-imported row look "later" than its own
+        // batch and report a phantom revision.
+        sql`${performanceRecords.updatedAt} > (
+          SELECT ${uploadBatches.uploadedAt} FROM ${uploadBatches}
+          WHERE ${uploadBatches.id} = ${batchId}
+        )`,
+      ),
+    );
+  return Number(row?.n ?? 0);
 }

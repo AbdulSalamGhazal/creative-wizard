@@ -2,7 +2,8 @@ import Link from "next/link";
 import { Plus, FileUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { auth, can } from "@/lib/auth";
-import { listStoreBatches } from "@/db/queries/store";
+import { listStoreBatches, storeBatchRowsUpdatedSince } from "@/db/queries/store";
+import { getActiveAccountId } from "@/lib/tenant";
 import { PageShell } from "@/components/layout/page-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { PageTabs, type PageTab } from "@/components/layout/page-tabs";
@@ -65,6 +66,25 @@ export default async function StoreUploadsPage({
   }
 
   const batches = await listStoreBatches(50);
+  // How many of each rollback-eligible batch's inserted orders a LATER upsert
+  // has revised — surfaced in the rollback confirm.
+  const acct = await getActiveAccountId();
+  const ROLLBACK_WINDOW_MS = 24 * 60 * 60 * 1000;
+  const updatedSince = new Map<string, number>(
+    await Promise.all(
+      batches
+        .filter(
+          (b) =>
+            canRollback &&
+            b.status === "active" &&
+            Date.now() - b.uploadedAt.getTime() < ROLLBACK_WINDOW_MS,
+        )
+        .map(
+          async (b) =>
+            [b.id, await storeBatchRowsUpdatedSince(acct, b.id)] as const,
+        ),
+    ),
+  );
 
   return (
     <PageShell>
@@ -114,6 +134,7 @@ export default async function StoreUploadsPage({
             rowsUpdated: b.rowsUpdated,
             upsert: b.upsert,
             status: b.status,
+            updatedSince: updatedSince.get(b.id) ?? 0,
           }))}
           canRollback={canRollback}
         />

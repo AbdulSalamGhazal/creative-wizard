@@ -623,6 +623,13 @@ export const performanceRecords = pgTable(
       enum: ["manual", "rule"],
     }),
     excludedRuleId: uuid("excluded_rule_id").references(() => exclusionRules.id),
+    /**
+     * Set ONLY by the upsert UPDATE path (`bulkUpdateMetricValues`). NULL means
+     * "never overwritten since import", so a rollback can tell which of a
+     * batch's rows a LATER upload has since revised — deleting those throws
+     * away the newer values too, which the confirm dialog warns about.
+     */
+    updatedAt: timestamp("updated_at", { withTimezone: true }),
   },
   (t) => ({
     // Unique on the FULL dedup key. The same creative can run on the same

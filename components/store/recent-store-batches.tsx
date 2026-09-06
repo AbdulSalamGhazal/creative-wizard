@@ -12,6 +12,8 @@ export interface StoreBatchDisplay {
   rowsUpdated: number;
   upsert: boolean;
   status: string;
+  /** Inserted orders a LATER upsert has revised since (0 = none). */
+  updatedSince?: number;
 }
 
 /** The last N store upload batches with a rollback button while eligible. */
@@ -76,6 +78,7 @@ export function RecentStoreBatches({
                         batchId={b.id}
                         fileName={b.fileName}
                         rowsInserted={b.rowsInserted}
+                        updatedSince={b.updatedSince ?? 0}
                       />
                     )}
                   </td>

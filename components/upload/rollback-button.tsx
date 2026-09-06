@@ -19,9 +19,16 @@ interface Props {
   batchId: string;
   fileName: string;
   rowCount: number;
+  /** Rows a LATER upsert has revised since this batch landed (0 = none). */
+  updatedSince?: number;
 }
 
-export function RollbackButton({ batchId, fileName, rowCount }: Props) {
+export function RollbackButton({
+  batchId,
+  fileName,
+  rowCount,
+  updatedSince = 0,
+}: Props) {
   const [open, setOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -78,6 +85,16 @@ export function RollbackButton({ batchId, fileName, rowCount }: Props) {
         {error && (
           <div className="rounded-md border border-neg/30 bg-neg/5 px-3 py-2 text-xs text-ink">
             {error}
+          </div>
+        )}
+        {/* A LATER upload has revised some of these rows. Rolling back deletes
+            them outright, so those newer values go too — warn, don't block. */}
+        {updatedSince > 0 && (
+          <div className="rounded-md border border-warn/40 bg-warn/10 px-3 py-2.5 text-xs text-ink">
+            <span className="font-medium">
+              {updatedSince} of these rows were updated by a later upload
+            </span>{" "}
+            — rolling back deletes the newer values too.
           </div>
         )}
 

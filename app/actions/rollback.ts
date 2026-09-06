@@ -52,15 +52,19 @@ export async function rollbackBatch(batchId: string): Promise<RollbackResult> {
       };
     }
 
-    await db.transaction(async (tx) => {
-      await tx
+    const deleted = await db.transaction(async (tx) => {
+      // Count what was ACTUALLY removed rather than trusting the batch's
+      // recorded rowsImported — the two diverge whenever rows were deleted by
+      // the cleanup tool or a creative/campaign delete after the import.
+      const rows = await tx
         .delete(performanceRecords)
         .where(
           and(
             eq(performanceRecords.accountId, acct),
             eq(performanceRecords.uploadBatchId, batchId),
           ),
-        );
+        )
+        .returning({ id: performanceRecords.id });
 
       await tx
         .update(uploadBatches)
@@ -70,6 +74,7 @@ export async function rollbackBatch(batchId: string): Promise<RollbackResult> {
           rolledBackByUserId: user.id,
         })
         .where(and(eq(uploadBatches.accountId, acct), eq(uploadBatches.id, batchId)));
+      return rows.length;
     });
 
     try {
@@ -88,7 +93,7 @@ export async function rollbackBatch(batchId: string): Promise<RollbackResult> {
       actorUserId: user.id,
       meta: {
         platform: batch.platform,
-        rowsDeleted: batch.rowsImported,
+        rowsDeleted: deleted,
         uploadedAt: batch.uploadedAt,
       },
     });

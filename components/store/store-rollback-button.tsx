@@ -26,10 +26,13 @@ export function StoreRollbackButton({
   batchId,
   fileName,
   rowsInserted,
+  updatedSince = 0,
 }: {
   batchId: string;
   fileName: string;
   rowsInserted: number;
+  /** Inserted orders a LATER upsert has revised since (0 = none). */
+  updatedSince?: number;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -79,6 +82,17 @@ export function StoreRollbackButton({
               Orders it updated are NOT reverted. This can&apos;t be undone.
             </DialogDescription>
           </DialogHeader>
+          {/* A LATER upload has revised some of these orders. Rolling back
+              deletes them outright, so those newer values go too — warn,
+              don't block. */}
+          {updatedSince > 0 && (
+            <div className="rounded-md border border-warn/40 bg-warn/10 px-3 py-2.5 text-xs text-ink">
+              <span className="font-medium">
+                {updatedSince} of these orders were updated by a later upload
+              </span>{" "}
+              — rolling back deletes the newer values too.
+            </div>
+          )}
           <label className="flex items-start gap-2.5 rounded-md px-1 py-1 text-sm">
             <Checkbox
               checked={ack}

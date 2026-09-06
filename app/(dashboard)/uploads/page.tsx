@@ -11,6 +11,7 @@ import { getActiveAccountId } from "@/lib/tenant";
 import { RollbackButton } from "@/components/upload/rollback-button";
 import { CleanupTool } from "@/components/cleanup/cleanup-tool";
 import { listAccountCampaigns } from "@/db/queries/cleanup";
+import { batchRowsUpdatedSince } from "@/db/queries/performance";
 import { PageShell } from "@/components/layout/page-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { PageTabs, type PageTab } from "@/components/layout/page-tabs";
@@ -82,6 +83,26 @@ export default async function UploadsPage({
     .where(eq(uploadBatches.accountId, acct))
     .orderBy(desc(uploadBatches.uploadedAt))
     .limit(50);
+
+  // How many of each rollback-eligible batch's rows a LATER upload has revised.
+  // Only batches still inside the window can be rolled back, so only those are
+  // worth the count.
+  const rollbackWindowMs = ROLLBACK_WINDOW_MS;
+  const updatedSinceByBatch = new Map<string, number>(
+    await Promise.all(
+      rows
+        .filter(
+          (r) =>
+            canRollback &&
+            r.status === "active" &&
+            Date.now() - r.uploadedAt.getTime() < rollbackWindowMs,
+        )
+        .map(
+          async (r) =>
+            [r.id, await batchRowsUpdatedSince(acct, r.id)] as const,
+        ),
+    ),
+  );
 
   // Filter options for the cleanup tool (fetched for editors + admins).
   const [cleanupProducts, cleanupCreatives, cleanupCampaigns] = canCleanup
@@ -183,6 +204,7 @@ export default async function UploadsPage({
                           batchId={r.id}
                           fileName={r.fileName}
                           rowCount={r.rowsImported}
+                          updatedSince={updatedSinceByBatch.get(r.id) ?? 0}
                         />
                       )}
                     </td>

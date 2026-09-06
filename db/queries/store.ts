@@ -421,3 +421,34 @@ export async function listStoreBatches(limit = 10): Promise<StoreBatchRow[]> {
     .limit(limit);
   return rows;
 }
+
+/**
+ * How many of a batch's INSERTED orders a later upsert has revised since the
+ * batch landed (`updated_at > uploaded_at`). Rolling back deletes those rows,
+ * discarding the newer values — the confirm dialog surfaces the count so it's a
+ * decision rather than a surprise. (Rows the batch merely UPDATED keep their
+ * original batch id and are never deleted by a rollback, so they're out of
+ * scope by construction.)
+ */
+export async function storeBatchRowsUpdatedSince(
+  accountId: string,
+  batchId: string,
+): Promise<number> {
+  const [row] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(storeOrders)
+    .where(
+      and(
+        eq(storeOrders.accountId, accountId),
+        eq(storeOrders.uploadBatchId, batchId),
+        // Compared INSIDE SQL against the batch's stored timestamp — a JS
+        // round-trip truncates microseconds and would report every freshly
+        // inserted order as already revised.
+        sql`${storeOrders.updatedAt} > (
+          SELECT ${storeUploadBatches.uploadedAt} FROM ${storeUploadBatches}
+          WHERE ${storeUploadBatches.id} = ${batchId}
+        )`,
+      ),
+    );
+  return Number(row?.n ?? 0);
+}
