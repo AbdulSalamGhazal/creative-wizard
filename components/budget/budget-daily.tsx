@@ -43,8 +43,13 @@ interface DailyTableRow {
   day: number;
   date: string;
   weight: number;
-  /** Within the data horizon — actual figures are real (possibly genuinely 0). */
-  known: boolean;
+  /**
+   * Within each side's OWN data horizon — actuals are real (possibly a genuine
+   * 0). Ads and store uploads arrive separately, so a day can be known for
+   * revenue but not yet for spend.
+   */
+  spendKnown: boolean;
+  revenueKnown: boolean;
   spend: number;
   cumSpend: number;
   planToDate: number;
@@ -67,12 +72,14 @@ export function BudgetDaily({
   data,
   daily,
   horizon,
+  storeHorizon,
 }: {
   month: string; // YYYY-MM
   today: string; // ISO date
   data: BudgetMonthData;
   daily: BudgetDailyRow[];
   horizon: string | null;
+  storeHorizon: string | null;
 }) {
   const [currency, pickCurrency] = useBudgetCurrency();
   const rate = data.usdToSarRate;
@@ -81,6 +88,7 @@ export function BudgetDaily({
   const ov = data.dayWeightOverrides;
   const totalDays = daily.length;
   const horizonDay = horizonDayInMonth(month, horizon, totalDays);
+  const storeHorizonDay = horizonDayInMonth(month, storeHorizon, totalDays);
   const plannedSpend = data.allocations.reduce((s, a) => s + a.plannedSpend, 0);
   const plannedRevenue = data.plannedRevenueSar;
 
@@ -88,11 +96,12 @@ export function BudgetDaily({
     let cumSpend = 0;
     let cumRevenue = 0;
     return daily.map((d) => {
-      const known = d.day <= horizonDay;
-      if (known) {
-        cumSpend += d.spend;
-        cumRevenue += d.revenueSar;
-      }
+      // Each cumulative total advances only while ITS side is known, so an
+      // unuploaded pipeline can't drag the other one's running total.
+      const spendKnown = d.day <= horizonDay;
+      const revenueKnown = d.day <= storeHorizonDay;
+      if (spendKnown) cumSpend += d.spend;
+      if (revenueKnown) cumRevenue += d.revenueSar;
       const planToDate = curveExpected(plannedSpend, month, ov, d.day);
       const targetToDate =
         plannedRevenue !== null ? curveExpected(plannedRevenue, month, ov, d.day) : null;
@@ -101,21 +110,27 @@ export function BudgetDaily({
         day: d.day,
         date: d.date,
         weight: w !== undefined && validateWeight(w) ? w : 1,
-        known,
+        spendKnown,
+        revenueKnown,
         spend: d.spend,
         cumSpend,
         planToDate,
-        spendDev: known && plannedSpend > 0 ? pacingDeviation(cumSpend, planToDate) : null,
+        spendDev:
+          spendKnown && plannedSpend > 0 ? pacingDeviation(cumSpend, planToDate) : null,
         revenueSar: d.revenueSar,
         cumRevenueSar: cumRevenue,
         targetToDate,
         revenueDev:
-          known && targetToDate !== null ? pacingDeviation(cumRevenue, targetToDate) : null,
+          revenueKnown && targetToDate !== null
+            ? pacingDeviation(cumRevenue, targetToDate)
+            : null,
       };
     });
-  }, [daily, horizonDay, plannedSpend, plannedRevenue, month, ov]);
+  }, [daily, horizonDay, storeHorizonDay, plannedSpend, plannedRevenue, month, ov]);
 
-  const last = rows.filter((r) => r.known).at(-1);
+  // Each side's last KNOWN row — the footer totals read from these separately.
+  const lastSpend = rows.filter((r) => r.spendKnown).at(-1);
+  const lastRevenue = rows.filter((r) => r.revenueKnown).at(-1);
 
   // ── Cumulative chart ───────────────────────────────────────────────────────
   const [metric, setMetric] = useState<Metric>("spend");
@@ -138,7 +153,7 @@ export function BudgetDaily({
       rows.map((r) => ({
         day: r.day,
         // Actual stops at the horizon (null → the line ends, not zero).
-        actual: r.known
+        actual: (metric === "spend" ? r.spendKnown : r.revenueKnown)
           ? metric === "spend"
             ? spendInDisplayCurrency(r.cumSpend, currency, rate)
             : r.cumRevenueSar
@@ -192,11 +207,12 @@ export function BudgetDaily({
         label: `Spend (${currency})`,
         align: "right",
         render: (r) =>
-          r.known ? <span className="num tabular-nums">{fmtSpend(r.spend)}</span> : dash,
-        csv: (r) => (r.known ? spendInDisplayCurrency(r.spend, currency, rate).toFixed(2) : ""),
+          r.spendKnown ? <span className="num tabular-nums">{fmtSpend(r.spend)}</span> : dash,
+        csv: (r) =>
+          r.spendKnown ? spendInDisplayCurrency(r.spend, currency, rate).toFixed(2) : "",
         total: () =>
-          last ? (
-            <span className="num tabular-nums font-semibold">{fmtSpend(last.cumSpend)}</span>
+          lastSpend ? (
+            <span className="num tabular-nums font-semibold">{fmtSpend(lastSpend.cumSpend)}</span>
           ) : (
             dash
           ),
@@ -206,9 +222,9 @@ export function BudgetDaily({
         label: `Cumulative (${currency})`,
         align: "right",
         render: (r) =>
-          r.known ? <span className="num tabular-nums">{fmtSpend(r.cumSpend)}</span> : dash,
+          r.spendKnown ? <span className="num tabular-nums">{fmtSpend(r.cumSpend)}</span> : dash,
         csv: (r) =>
-          r.known ? spendInDisplayCurrency(r.cumSpend, currency, rate).toFixed(2) : "",
+          r.spendKnown ? spendInDisplayCurrency(r.cumSpend, currency, rate).toFixed(2) : "",
       },
       {
         key: "plan_to_date",
@@ -235,20 +251,20 @@ export function BudgetDaily({
         key: "spend_dev",
         label: "Spend deviation",
         align: "right",
-        render: (r) => (r.known ? devCell(r.spendDev) : dash),
-        csv: (r) => (r.known ? pacingVerdict(r.spendDev) : ""),
-        total: () => (last ? devCell(last.spendDev) : dash),
+        render: (r) => (r.spendKnown ? devCell(r.spendDev) : dash),
+        csv: (r) => (r.spendKnown ? pacingVerdict(r.spendDev) : ""),
+        total: () => (lastSpend ? devCell(lastSpend.spendDev) : dash),
       },
       {
         key: "revenue",
         label: "Revenue (SAR)",
         align: "right",
         render: (r) =>
-          r.known ? <span className="num tabular-nums">{sar(r.revenueSar)}</span> : dash,
-        csv: (r) => (r.known ? r.revenueSar.toFixed(2) : ""),
+          r.revenueKnown ? <span className="num tabular-nums">{sar(r.revenueSar)}</span> : dash,
+        csv: (r) => (r.revenueKnown ? r.revenueSar.toFixed(2) : ""),
         total: () =>
-          last ? (
-            <span className="num tabular-nums font-semibold">{sar(last.cumRevenueSar)}</span>
+          lastRevenue ? (
+            <span className="num tabular-nums font-semibold">{sar(lastRevenue.cumRevenueSar)}</span>
           ) : (
             dash
           ),
@@ -258,8 +274,8 @@ export function BudgetDaily({
         label: "Cumulative (SAR)",
         align: "right",
         render: (r) =>
-          r.known ? <span className="num tabular-nums">{sar(r.cumRevenueSar)}</span> : dash,
-        csv: (r) => (r.known ? r.cumRevenueSar.toFixed(2) : ""),
+          r.revenueKnown ? <span className="num tabular-nums">{sar(r.cumRevenueSar)}</span> : dash,
+        csv: (r) => (r.revenueKnown ? r.cumRevenueSar.toFixed(2) : ""),
       },
       {
         key: "target_to_date",
@@ -283,13 +299,13 @@ export function BudgetDaily({
         key: "revenue_dev",
         label: "Revenue deviation",
         align: "right",
-        render: (r) => (r.known ? devCell(r.revenueDev) : dash),
-        csv: (r) => (r.known ? pacingVerdict(r.revenueDev) : ""),
-        total: () => (last ? devCell(last.revenueDev) : dash),
+        render: (r) => (r.revenueKnown ? devCell(r.revenueDev) : dash),
+        csv: (r) => (r.revenueKnown ? pacingVerdict(r.revenueDev) : ""),
+        total: () => (lastRevenue ? devCell(lastRevenue.revenueDev) : dash),
       },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [currency, rate, plannedSpend, plannedRevenue, last],
+    [currency, rate, plannedSpend, plannedRevenue, lastSpend, lastRevenue],
   );
 
   return (
@@ -409,7 +425,7 @@ export function BudgetDaily({
         rowClassName={(r) => cn(r.weight > 1 && "bg-[var(--brand-soft)]/40")}
       />
 
-      <HorizonNote horizon={horizon} />
+      <HorizonNote horizon={horizon} storeHorizon={storeHorizon} />
     </div>
   );
 }

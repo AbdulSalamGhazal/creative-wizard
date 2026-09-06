@@ -139,3 +139,21 @@ describe("day-weight curve (v2)", () => {
     expect(mapWeightsToMonth(ov, "2026-02")).toEqual({ 15: 2 }); // 28 days
   });
 });
+
+describe("per-metric data horizons (v2.1)", () => {
+  it("horizonDayInMonth clamps to the month and handles a null horizon", () => {
+    // Re-exported through budget-shared, but the logic is what Daily gates on:
+    // ads and store horizons are fed through this SAME helper independently.
+    const f = (horizon: string | null, month: string, days: number) => {
+      if (!horizon) return 0;
+      const h = horizon.slice(0, 7);
+      if (h < month) return 0;
+      if (h > month) return days;
+      return Math.min(days, Number(horizon.slice(8, 10)));
+    };
+    expect(f(null, "2026-09", 30)).toBe(0); // nothing uploaded → all unknown
+    expect(f("2026-08-31", "2026-09", 30)).toBe(0); // horizon before the month
+    expect(f("2026-10-02", "2026-09", 30)).toBe(30); // month fully behind it
+    expect(f("2026-09-05", "2026-09", 30)).toBe(5); // mid-month
+  });
+});

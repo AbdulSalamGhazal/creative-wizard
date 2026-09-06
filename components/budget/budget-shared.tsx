@@ -186,18 +186,34 @@ export function horizonDayInMonth(
   return Math.min(totalDays, Number(horizon.slice(8, 10)));
 }
 
-/** The shared "data through …" note (Overview + Daily). */
-export function HorizonNote({ horizon }: { horizon: string | null }) {
-  if (!horizon) return null;
-  const label = new Date(`${horizon}T00:00:00Z`).toLocaleDateString("en-US", {
+const horizonLabel = (iso: string) =>
+  new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
     year: "numeric",
     timeZone: "UTC",
   });
+
+/**
+ * The shared "data through …" note (Overview + Daily). Ads and store uploads
+ * arrive separately, so pass `storeHorizon` wherever BOTH sides are shown
+ * (Daily) — the two dates are genuinely different and a single date would
+ * misdescribe one of them.
+ */
+export function HorizonNote({
+  horizon,
+  storeHorizon,
+}: {
+  horizon: string | null;
+  storeHorizon?: string | null;
+}) {
+  if (!horizon && !storeHorizon) return null;
   return (
     <p className="text-[11px] text-ink-3">
-      Ad data through {label} — later days aren&rsquo;t zero, just not uploaded yet.
+      {horizon && <>Ad data through {horizonLabel(horizon)}</>}
+      {horizon && storeHorizon !== undefined && storeHorizon && " · "}
+      {storeHorizon && <>store data through {horizonLabel(storeHorizon)}</>}
+      {" — later days aren’t zero, just not uploaded yet."}
     </p>
   );
 }

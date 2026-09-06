@@ -3,7 +3,7 @@ import { PageHeader } from "@/components/layout/page-header";
 import { todayIso } from "@/lib/date-presets";
 import { monthKey } from "@/lib/budget";
 import { budgetDailySeries, getBudgetMonth } from "@/db/queries/budget";
-import { dataHorizon } from "@/db/queries/series-bounds";
+import { dataHorizon, storeDataHorizon } from "@/db/queries/series-bounds";
 import { BudgetDaily } from "@/components/budget/budget-daily";
 
 export const dynamic = "force-dynamic";
@@ -27,10 +27,14 @@ export default async function BudgetDailyPage({
   const today = todayIso();
   const month = sp.month && MONTH.test(sp.month) ? sp.month : monthKey(today);
 
-  const [data, daily, horizon] = await Promise.all([
+  // Ads and store data are uploaded separately, so each side is gated by its
+  // OWN horizon — otherwise a brand with orders but no ad exports (or the
+  // reverse) sees an all-dashes page despite having real data.
+  const [data, daily, horizon, storeHorizon] = await Promise.all([
     getBudgetMonth(month),
     budgetDailySeries(month),
     dataHorizon(),
+    storeDataHorizon(),
   ]);
 
   return (
@@ -40,7 +44,14 @@ export default async function BudgetDailyPage({
         title="Daily"
         subtitle="Each day's spend and store revenue against the plan curve — cumulative actual vs plan-to-date, with weighted (payday) days marked."
       />
-      <BudgetDaily month={month} today={today} data={data} daily={daily} horizon={horizon} />
+      <BudgetDaily
+        month={month}
+        today={today}
+        data={data}
+        daily={daily}
+        horizon={horizon}
+        storeHorizon={storeHorizon}
+      />
     </PageShell>
   );
 }

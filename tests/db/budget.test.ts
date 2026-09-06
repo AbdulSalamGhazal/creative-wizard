@@ -278,3 +278,71 @@ describe("budget v2 — day weights, reserve, daily series, history", () => {
     expect(feb.plannedRevenueSar).toBeNull();
   });
 });
+
+/**
+ * Ads and store data are uploaded separately, so Budget Daily gates each side
+ * by its OWN horizon. Before this, one shared ads horizon blanked out real
+ * revenue for a brand that had orders but no ad exports yet.
+ */
+describe("budget daily — per-metric data horizons", () => {
+  it("store horizon is independent of the ads horizon and account-scoped", async () => {
+    const { dataHorizon, storeDataHorizon } = await import("@/db/queries/series-bounds");
+    await db.insert(users).values({
+      id: UPLOADER,
+      email: "horizon-uploader@test.local",
+      name: "Uploader",
+      role: "editor",
+    });
+    await writeStoreBatch({
+      accountId: ACCOUNT_A,
+      fileName: "later.csv",
+      uploadedByUserId: UPLOADER,
+      upsert: false,
+      // Deliberately LATER than the fixtures' newest performance record.
+      inserts: [{ orderId: "H1", orderDate: "2026-05-20", totalAmount: "300.00", attributes: {} }],
+      updates: [],
+    });
+
+    const ads = await dataHorizon();
+    const store = await storeDataHorizon();
+    expect(store).toBe("2026-05-20");
+    expect(ads).not.toBe(store); // genuinely different freshness
+    // Account B has no orders at all → null, not A's date.
+    setAccount(ACCOUNT_B);
+    expect(await storeDataHorizon()).toBeNull();
+  });
+
+  it("Daily's month revenue total equals the Overview tile for the same month", async () => {
+    await db.insert(users).values({
+      id: UPLOADER,
+      email: "horizon-uploader@test.local",
+      name: "Uploader",
+      role: "editor",
+    });
+    await writeStoreBatch({
+      accountId: ACCOUNT_A,
+      fileName: "jan.csv",
+      uploadedByUserId: UPLOADER,
+      upsert: false,
+      inserts: [
+        { orderId: "T1", orderDate: "2026-01-05", totalAmount: "150.00", attributes: {} },
+        { orderId: "T2", orderDate: "2026-01-20", totalAmount: "250.50", attributes: {} },
+      ],
+      updates: [],
+    });
+
+    const { storeDataHorizon } = await import("@/db/queries/series-bounds");
+    const daily = await budgetDailySeries(MONTH);
+    const overview = await getBudgetMonth(MONTH);
+    const storeHorizon = await storeDataHorizon();
+
+    // Sum the Daily rows the page would treat as KNOWN for revenue — i.e.
+    // gated by the STORE horizon, not the ads one.
+    const storeHorizonDay = Number(storeHorizon!.slice(8, 10));
+    const dailyRevenue = daily
+      .filter((d) => d.day <= storeHorizonDay)
+      .reduce((s, d) => s + d.revenueSar, 0);
+    expect(dailyRevenue).toBeCloseTo(overview.actualRevenueSar, 2);
+    expect(dailyRevenue).toBeCloseTo(400.5, 2);
+  });
+});

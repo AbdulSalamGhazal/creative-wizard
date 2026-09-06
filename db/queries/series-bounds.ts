@@ -1,7 +1,7 @@
 import { cache } from "react";
 import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { performanceRecords, platformEnum } from "@/db/schema";
+import { performanceRecords, platformEnum, storeOrders } from "@/db/schema";
 import { getActiveAccountId } from "@/lib/tenant";
 
 type Platform = (typeof platformEnum)[number];
@@ -25,6 +25,25 @@ export const dataHorizon = cache(async (): Promise<string | null> => {
     .select({ max: sql<string | null>`MAX(${performanceRecords.date})` })
     .from(performanceRecords)
     .where(eq(performanceRecords.accountId, acct));
+  return row?.max ?? null;
+});
+
+/**
+ * Latest STORE order date for the active account — the store module's own data
+ * horizon, independent of the ads one.
+ *
+ * The two pipelines are uploaded separately, so their freshness differs: a
+ * brand can have this month's orders but no ad exports yet, or vice versa.
+ * Anything showing both sides per day (Budget Daily) must gate each side by
+ * its OWN horizon, or one empty pipeline blanks out the other's real data.
+ * `cache()`-wrapped like `dataHorizon` so one page pays for one lookup.
+ */
+export const storeDataHorizon = cache(async (): Promise<string | null> => {
+  const acct = await getActiveAccountId();
+  const [row] = await db
+    .select({ max: sql<string | null>`MAX(${storeOrders.orderDate})` })
+    .from(storeOrders)
+    .where(eq(storeOrders.accountId, acct));
   return row?.max ?? null;
 });
 
