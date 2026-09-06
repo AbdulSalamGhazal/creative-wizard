@@ -36,7 +36,14 @@ import type { StoreField, StoreFieldType } from "@/store/fields";
  * locked (System field) — only their label + accepted headers are editable.
  * Custom fields are fully editable and deletable (deleting keeps existing data).
  */
-export function StoreFieldsAdmin({ fields }: { fields: StoreField[] }) {
+export function StoreFieldsAdmin({
+  fields,
+  sourceFieldKey,
+}: {
+  fields: StoreField[];
+  /** The field Reconciliation reads order sources from, if configured. */
+  sourceFieldKey?: string | null;
+}) {
   return (
     <div className="max-w-3xl space-y-4">
       <div className="rounded-lg border border-line bg-surface p-4">
@@ -44,7 +51,7 @@ export function StoreFieldsAdmin({ fields }: { fields: StoreField[] }) {
       </div>
       <div className="divide-y divide-line rounded-lg border border-line bg-surface">
         {fields.map((f) => (
-          <FieldRow key={f.id} field={f} />
+          <FieldRow key={f.id} field={f} isSourceField={f.key === sourceFieldKey} />
         ))}
       </div>
       <p className="text-xs text-ink-3">
@@ -114,7 +121,13 @@ function HeadersEditor({
   );
 }
 
-function FieldRow({ field }: { field: StoreField }) {
+function FieldRow({
+  field,
+  isSourceField,
+}: {
+  field: StoreField;
+  isSourceField: boolean;
+}) {
   const router = useRouter();
   const [isPending, startTransition] = useNavTransition();
   const [label, setLabel] = useState(field.label);
@@ -221,6 +234,18 @@ function FieldRow({ field }: { field: StoreField }) {
               can re-add a field with the same name later.
             </DialogDescription>
           </DialogHeader>
+          {/* Deleting the configured source field also clears the pointer, so
+              by-platform Reconciliation stops attributing until it's re-set. */}
+          {isSourceField && (
+            <p className="rounded-md border border-warn/30 bg-warn/5 px-3 py-2 text-xs text-ink-2">
+              <span className="font-medium text-ink">
+                This is Reconciliation&rsquo;s source field.
+              </span>{" "}
+              Deleting it clears that setting, so Reconciliation&rsquo;s
+              by-platform mode will need reconfiguring before it can attribute
+              orders again.
+            </p>
+          )}
           <DialogFooter>
             <Button type="button" variant="ghost" onClick={() => setConfirmDelete(false)} disabled={isPending}>
               Cancel

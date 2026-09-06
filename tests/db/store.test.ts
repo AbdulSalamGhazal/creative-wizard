@@ -268,3 +268,86 @@ describe("store upsert — attributes patch semantics", () => {
   });
 });
 
+
+/**
+ * Reconciliation's by-platform mode reads order sources from ONE configured
+ * field. Deleting that field used to leave `accounts.store_source_field_key`
+ * pointing at a key that no longer exists — by-platform then attributed
+ * everything to Unattributed with no hint why.
+ */
+describe("store field delete clears the Reconciliation source pointer", () => {
+  it("NULLs store_source_field_key when the deleted field is the configured one", async () => {
+    const { storeOrderFields, accounts } = await import("@/db/schema");
+    const [field] = await db
+      .insert(storeOrderFields)
+      .values({
+        accountId: ACCOUNT_A,
+        key: "utm_source",
+        label: "UTM source",
+        type: "text",
+        headers: ["utm_source"],
+      })
+      .returning({ id: storeOrderFields.id, key: storeOrderFields.key });
+    await db
+      .update(accounts)
+      .set({ storeSourceFieldKey: field!.key })
+      .where(eq(accounts.id, ACCOUNT_A));
+
+    // What deleteStoreField does transactionally.
+    await db.transaction(async (tx) => {
+      await tx.delete(storeOrderFields).where(eq(storeOrderFields.id, field!.id));
+      await tx
+        .update(accounts)
+        .set({ storeSourceFieldKey: null })
+        .where(and(eq(accounts.id, ACCOUNT_A), eq(accounts.storeSourceFieldKey, field!.key)));
+    });
+
+    const [acct] = await db
+      .select({ key: accounts.storeSourceFieldKey })
+      .from(accounts)
+      .where(eq(accounts.id, ACCOUNT_A));
+    expect(acct!.key).toBeNull();
+  });
+
+  it("leaves the pointer alone when a DIFFERENT field is deleted", async () => {
+    const { storeOrderFields, accounts } = await import("@/db/schema");
+    const [keep] = await db
+      .insert(storeOrderFields)
+      .values({
+        accountId: ACCOUNT_A,
+        key: "src_keep",
+        label: "Source",
+        type: "text",
+        headers: ["src"],
+      })
+      .returning({ key: storeOrderFields.key });
+    const [other] = await db
+      .insert(storeOrderFields)
+      .values({
+        accountId: ACCOUNT_A,
+        key: "other_field",
+        label: "Other",
+        type: "text",
+        headers: ["other"],
+      })
+      .returning({ id: storeOrderFields.id, key: storeOrderFields.key });
+    await db
+      .update(accounts)
+      .set({ storeSourceFieldKey: keep!.key })
+      .where(eq(accounts.id, ACCOUNT_A));
+
+    await db.transaction(async (tx) => {
+      await tx.delete(storeOrderFields).where(eq(storeOrderFields.id, other!.id));
+      await tx
+        .update(accounts)
+        .set({ storeSourceFieldKey: null })
+        .where(and(eq(accounts.id, ACCOUNT_A), eq(accounts.storeSourceFieldKey, other!.key)));
+    });
+
+    const [acct] = await db
+      .select({ key: accounts.storeSourceFieldKey })
+      .from(accounts)
+      .where(eq(accounts.id, ACCOUNT_A));
+    expect(acct!.key).toBe("src_keep"); // untouched
+  });
+});

@@ -6,7 +6,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { requirePermission } from "@/lib/auth";
 import { getActiveAccountId } from "@/lib/tenant";
-import { storeOrderFields } from "@/db/schema";
+import { accounts, storeOrderFields } from "@/db/schema";
 import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
 import { isCoreKey, slugifyKey } from "@/store/fields";
 
@@ -151,12 +151,31 @@ export async function deleteStoreField(id: unknown): Promise<FieldMutationResult
       return { ok: false, error: "System fields can't be deleted." };
     }
 
-    await db
-      .delete(storeOrderFields)
-      .where(and(eq(storeOrderFields.accountId, acct), eq(storeOrderFields.id, parsed.data)));
+    // Reconciliation's by-platform mode reads its source values from ONE
+    // configured field (`accounts.store_source_field_key`). Deleting that field
+    // without clearing the pointer leaves the account referencing a key that no
+    // longer exists — by-platform silently attributes everything to
+    // Unattributed with no hint why. Clear it in the SAME transaction.
+    let clearedSourceField = false;
+    await db.transaction(async (tx) => {
+      await tx
+        .delete(storeOrderFields)
+        .where(and(eq(storeOrderFields.accountId, acct), eq(storeOrderFields.id, parsed.data)));
+
+      const cleared = await tx
+        .update(accounts)
+        .set({ storeSourceFieldKey: null })
+        .where(and(eq(accounts.id, acct), eq(accounts.storeSourceFieldKey, row.key)))
+        .returning({ id: accounts.id });
+      clearedSourceField = cleared.length > 0;
+    });
 
     revalidatePathsSafe();
-    await audit(me.id, { op: "delete", key: row.key });
+    await audit(me.id, {
+      op: "delete",
+      key: row.key,
+      clearedSourceField: clearedSourceField || undefined,
+    });
     return { ok: true };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : "Unknown error" };
@@ -165,8 +184,9 @@ export async function deleteStoreField(id: unknown): Promise<FieldMutationResult
 
 function revalidatePathsSafe() {
   try {
-    revalidatePath("/admin/catalog");
+    revalidatePath("/store/uploads");
     revalidatePath("/store/orders");
+    revalidatePath("/store/reconciliation");
   } catch (err) {
     console.warn("revalidatePath after store field mutation failed:", err);
   }

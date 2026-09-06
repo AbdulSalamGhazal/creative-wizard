@@ -155,7 +155,7 @@ async function OrderFieldsTab() {
   ]);
   return (
     <div className="space-y-10">
-      <StoreFieldsAdmin fields={fields} />
+      <StoreFieldsAdmin fields={fields} sourceFieldKey={sourceFieldKey} />
       <StoreSourceMappingAdmin
         fields={fields}
         sourceFieldKey={sourceFieldKey}
