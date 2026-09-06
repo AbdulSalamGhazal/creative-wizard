@@ -4,16 +4,20 @@ import { PlatformDot } from "@/components/ui/platform-dot";
 import { MappingAddForm } from "@/components/platform/mapping-add-form";
 import { MappingRemoveButton } from "@/components/platform/mapping-remove-button";
 import { FIELD_LIST, type InternalField } from "@/csv/platforms/types";
+import { PlatformsAdmin } from "@/components/platform/platforms-admin";
 
 /**
- * CSV column-mapping section — the body of the former /admin/platforms page,
- * now hosted inside the merged Catalog tab.
+ * The CSV-mapping surface: per-platform readiness up top (the former separate
+ * "Platforms" tab, merged in during the 2026-09 IA pass) followed by the
+ * per-platform header editors it summarises. Lives on the Uploads page —
+ * mapping is upload configuration, so it sits with the uploads it governs.
  */
 export async function MappingsAdmin() {
   const rows = await listAllMappings();
 
   return (
     <div className="space-y-8">
+      <PlatformsAdmin />
 
       {ALL_PLATFORMS.map((platform) => {
         const platformRows = rows.filter((r) => r.platform === platform);

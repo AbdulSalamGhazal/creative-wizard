@@ -2,24 +2,11 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { auth, can } from "@/lib/auth";
 import type { Permission } from "@/lib/permissions";
-import { listAngles } from "@/db/queries/angles";
 import { getRatingConfig } from "@/db/queries/rating";
 import { getActiveAccountId, listAccounts } from "@/lib/tenant";
-import { ProductsAdmin } from "@/components/product/products-admin";
-import { PlatformsAdmin } from "@/components/platform/platforms-admin";
-import { MappingsAdmin } from "@/components/platform/mappings-admin";
-import { AnglesTable } from "@/components/angle/angles-table";
 import { RatingRulesAdmin } from "@/components/rating/rating-rules-admin";
 import { AccountsAdmin } from "@/components/account/accounts-admin";
 import { StatusConfigAdmin } from "@/components/creative/status-config-admin";
-import { StoreFieldsAdmin } from "@/components/store/store-fields-admin";
-import { StoreSourceMappingAdmin } from "@/components/store/store-source-mapping-admin";
-import { listStoreFields } from "@/db/queries/store";
-import {
-  getStoreSourceFieldKey,
-  listStoreSourceMappings,
-  distinctStoreSourceValues,
-} from "@/db/queries/reconciliation";
 import { PageShell } from "@/components/layout/page-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { ExclusionRulesAdmin } from "@/components/exclusions/exclusion-rules-admin";
@@ -31,14 +18,9 @@ import { campaigns, creatives, products } from "@/db/schema";
 export const dynamic = "force-dynamic";
 
 const TABS = [
-  { key: "products", label: "Products", perm: "catalog.products" },
-  { key: "angles", label: "Angles", perm: "catalog.angles" },
-  { key: "platforms", label: "Platforms", perm: "config.mappings" },
-  { key: "mapping", label: "CSV mapping", perm: "config.mappings" },
   { key: "rating", label: "Rate rules", perm: "config.rating" },
   { key: "status", label: "Status", perm: "config.brands" },
   { key: "brands", label: "Brands", perm: "config.brands" },
-  { key: "store_fields", label: "Store fields", perm: "config.store" },
   { key: "exclusions", label: "Exclusions", perm: "record.exclude" },
 ] as const satisfies ReadonlyArray<{
   key: string;
@@ -54,10 +36,24 @@ interface Props {
 export const metadata = { title: "Configuration" };
 
 /**
- * Configuration admin — Products, Angles, Platforms, CSV mapping, and the
- * Summary Rate rules under one page, switched via the `?tab=` query param so
- * each section stays server-rendered.
+ * Configuration admin — the settings with no more natural home: Rate rules,
+ * Status, Brands and Exclusions, switched via the `?tab=` query param so each
+ * section stays server-rendered.
+ *
+ * The 2026-09 IA pass moved the rest out to the surfaces they describe:
+ * Products/Angles → the Library, CSV mapping (with Platforms merged in) → the
+ * ads Uploads page, Store fields → Store uploads. MOVED_TABS keeps every old
+ * `?tab=` URL working — those links are in people's bookmarks and in older
+ * audit-log context.
  */
+const MOVED_TABS: Record<string, string> = {
+  products: "/creatives?tab=products",
+  angles: "/creatives?tab=angles",
+  tags: "/creatives?tab=angles", // pre-rename bookmarks (tag → angle, 2026-09)
+  platforms: "/uploads?tab=mapping", // merged into CSV mapping
+  mapping: "/uploads?tab=mapping",
+  store_fields: "/store/uploads?tab=fields",
+};
 export default async function CatalogAdminPage({ searchParams }: Props) {
   const user = await auth();
   // Only the tabs this user is allowed to configure.
@@ -65,6 +61,9 @@ export default async function CatalogAdminPage({ searchParams }: Props) {
   if (tabs.length === 0) notFound();
 
   const { tab } = await searchParams;
+  // A tab that moved: send the caller to its new home rather than silently
+  // dropping them on Rate rules.
+  if (tab && MOVED_TABS[tab]) redirect(MOVED_TABS[tab]!);
   const requested = tabs.find((t) => t.key === tab);
   // Redirect an unpermitted/unknown tab to the first one they can see.
   if (!requested) redirect(`/admin/catalog?tab=${tabs[0]!.key}`);
@@ -96,10 +95,6 @@ export default async function CatalogAdminPage({ searchParams }: Props) {
         })}
       </div>
 
-      {active === "products" && <ProductsAdmin />}
-      {active === "angles" && <AnglesTable rows={await listAngles()} />}
-      {active === "platforms" && <PlatformsAdmin />}
-      {active === "mapping" && <MappingsAdmin />}
       {active === "rating" && <RatingRulesAdmin config={await getRatingConfig()} />}
       {active === "status" && (
         <StatusConfigAdmin brands={await listAccounts()} />
@@ -110,7 +105,6 @@ export default async function CatalogAdminPage({ searchParams }: Props) {
           activeId={await getActiveAccountId()}
         />
       )}
-      {active === "store_fields" && <StoreFieldsTab />}
       {active === "exclusions" && <ExclusionsTab />}
     </PageShell>
   );
@@ -142,31 +136,5 @@ async function ExclusionsTab() {
       campaigns={ruleCampaigns}
       creatives={ruleCreatives}
     />
-  );
-}
-
-/**
- * The Store tab: field config + the Reconciliation source mapping. Both read the
- * account's store fields; the mapping section additionally needs the configured
- * source field, its existing value→platform mappings, and the distinct raw
- * values present in uploaded orders.
- */
-async function StoreFieldsTab() {
-  const fields = await listStoreFields();
-  const sourceFieldKey = await getStoreSourceFieldKey();
-  const [mappings, values] = await Promise.all([
-    listStoreSourceMappings(),
-    distinctStoreSourceValues(sourceFieldKey),
-  ]);
-  return (
-    <div className="space-y-10">
-      <StoreFieldsAdmin fields={fields} />
-      <StoreSourceMappingAdmin
-        fields={fields}
-        sourceFieldKey={sourceFieldKey}
-        mappings={mappings}
-        values={values}
-      />
-    </div>
   );
 }

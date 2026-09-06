@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 
-// CSV column mapping moved into the merged Catalog tab.
+// CSV column mapping (with platform readiness merged in) moved to the ads
+// Uploads page in the 2026-09 IA pass.
 export default function PlatformsAdminRedirect() {
-  redirect("/admin/catalog?tab=mapping");
+  redirect("/uploads?tab=mapping");
 }

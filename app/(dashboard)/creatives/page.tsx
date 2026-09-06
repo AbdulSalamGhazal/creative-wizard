@@ -1,5 +1,10 @@
 import { redirect } from "next/navigation";
 import { listCreatives, listAllAngles } from "@/db/queries/creatives";
+import { listAngles } from "@/db/queries/angles";
+import { ProductsAdmin } from "@/components/product/products-admin";
+import { AnglesTable } from "@/components/angle/angles-table";
+import { PageTabs, type PageTab } from "@/components/layout/page-tabs";
+import type { Permission } from "@/lib/permissions";
 import { creativeStatusBreakdown } from "@/db/queries/creative-status";
 import { listProducts } from "@/db/queries/products";
 import {
@@ -26,6 +31,24 @@ function pickFirst(value: string | string[] | undefined): string | undefined {
 
 export const metadata = { title: "Creatives" };
 
+/**
+ * The page's tab row. Products and Angles are the vocabulary-management
+ * surfaces relocated from Configuration in the 2026-09 IA pass: they describe
+ * creatives, so they now live with them instead of in a separate admin page.
+ * Each is gated by the same permission it always was, so the tab is invisible
+ * (and its content unreachable) without it. Creatives is always present.
+ */
+const TABS = [
+  { key: "creatives", label: "Creatives", perm: null },
+  { key: "products", label: "Products", perm: "catalog.products" },
+  { key: "angles", label: "Angles", perm: "catalog.angles" },
+] as const satisfies ReadonlyArray<{
+  key: string;
+  label: string;
+  perm: Permission | null;
+}>;
+type TabKey = (typeof TABS)[number]["key"];
+
 export default async function CreativesPage({
   searchParams,
 }: {
@@ -33,6 +56,36 @@ export default async function CreativesPage({
 }) {
   const params = await searchParams;
   const user = await requireAuth();
+
+  // The Creatives tab links to the BARE route on purpose: `?tab=creatives`
+  // would count as a param and suppress the default-view redirect below.
+  const tabs: PageTab[] = TABS.filter((t) => !t.perm || can(user, t.perm)).map(
+    (t) => ({
+      key: t.key,
+      label: t.label,
+      href: t.key === "creatives" ? "/creatives" : `/creatives?tab=${t.key}`,
+    }),
+  );
+  const requestedTab = pickFirst(params.tab);
+  const activeTab: TabKey = tabs.some((t) => t.key === requestedTab)
+    ? (requestedTab as TabKey)
+    : "creatives";
+
+  // Products / Angles are self-contained admin surfaces — return before the
+  // listing's queries so switching tabs doesn't pay for the creative list.
+  if (activeTab !== "creatives") {
+    return (
+      <PageShell>
+        <LibraryHeader
+          breakdown={await creativeStatusBreakdown()}
+          canCreate={can(user, "creative.create")}
+        />
+        <PageTabs tabs={tabs} active={activeTab} />
+        {activeTab === "products" && <ProductsAdmin />}
+        {activeTab === "angles" && <AnglesTable rows={await listAngles()} />}
+      </PageShell>
+    );
+  }
 
   // Bare /creatives (no params) lands on the caller's own default view, if set.
   if (Object.keys(params).length === 0) {
@@ -101,6 +154,7 @@ export default async function CreativesPage({
         breakdown={breakdown}
         canCreate={can(user, "creative.create")}
       />
+      <PageTabs tabs={tabs} active={activeTab} />
       <LibraryFilterBar
         products={products}
         angles={allAngles}

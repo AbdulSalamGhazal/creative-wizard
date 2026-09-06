@@ -13,6 +13,8 @@ import { CleanupTool } from "@/components/cleanup/cleanup-tool";
 import { listAccountCampaigns } from "@/db/queries/cleanup";
 import { PageShell } from "@/components/layout/page-shell";
 import { PageHeader } from "@/components/layout/page-header";
+import { PageTabs, type PageTab } from "@/components/layout/page-tabs";
+import { MappingsAdmin } from "@/components/platform/mappings-admin";
 
 const ROLLBACK_WINDOW_MS = 24 * 60 * 60 * 1000;
 
@@ -21,11 +23,48 @@ export const dynamic = "force-dynamic";
 
 export const metadata = { title: "Uploads" };
 
-export default async function UploadsPage() {
+/**
+ * CSV mapping (with the platform-readiness cards merged into it) moved here
+ * from Configuration in the 2026-09 IA pass: header mapping is upload
+ * configuration, so it belongs with the uploads it governs. `config.mappings`
+ * gates the tab exactly as it gated the old Configuration tab.
+ */
+const TAB_HISTORY = "history";
+const TAB_MAPPING = "mapping";
+
+export default async function UploadsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tab?: string }>;
+}) {
   const currentUser = await auth();
   const canImport = currentUser ? can(currentUser, "upload.import") : false;
   const canRollback = currentUser ? can(currentUser, "upload.rollback") : false;
   const canCleanup = currentUser ? can(currentUser, "upload.cleanup") : false;
+  const canMap = currentUser ? can(currentUser, "config.mappings") : false;
+
+  const tabs: PageTab[] = [
+    { key: TAB_HISTORY, label: "History", href: "/uploads" },
+    ...(canMap
+      ? [{ key: TAB_MAPPING, label: "CSV mapping", href: `/uploads?tab=${TAB_MAPPING}` }]
+      : []),
+  ];
+  const { tab } = await searchParams;
+  const activeTab = canMap && tab === TAB_MAPPING ? TAB_MAPPING : TAB_HISTORY;
+
+  if (activeTab === TAB_MAPPING) {
+    return (
+      <PageShell>
+        <PageHeader
+          eyebrow="Uploads"
+          title="CSV mapping"
+          subtitle="Which column headers each platform's export uses for every internal field. Matching is case-insensitive and whitespace-trimmed."
+        />
+        <PageTabs tabs={tabs} active={activeTab} />
+        <MappingsAdmin />
+      </PageShell>
+    );
+  }
 
   const acct = await getActiveAccountId();
   const rows = await db
@@ -83,6 +122,8 @@ export default async function UploadsPage() {
           ) : undefined
         }
       />
+
+      <PageTabs tabs={tabs} active={activeTab} />
 
       {rows.length === 0 ? (
         <div className="rounded-lg border border-dashed border-line bg-surface px-6 py-16 text-center">

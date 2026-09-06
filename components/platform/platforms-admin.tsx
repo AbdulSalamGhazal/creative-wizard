@@ -1,5 +1,3 @@
-import Link from "next/link";
-import { ArrowRight } from "lucide-react";
 import {
   listAllMappings,
   platformRecordCounts,
@@ -20,9 +18,14 @@ const REQUIRED_FIELDS = INTERNAL_FIELDS.filter((f) => FIELD_META[f].required);
 const ALL_FIELDS = INTERNAL_FIELDS;
 
 /**
- * Platforms overview — the supported ad channels (a fixed set: adding a new
+ * Platform readiness — the supported ad channels (a fixed set: adding a new
  * one is a code-level change) with each platform's CSV-mapping readiness and
- * how much data it currently holds. Drill into CSV mapping to edit headers.
+ * how much data it currently holds.
+ *
+ * This was its own Configuration tab until the 2026-09 IA pass; it is now the
+ * header section of the CSV-mapping surface on the Uploads page, directly
+ * above the per-platform header editors it summarises. (The old "Configure CSV
+ * mapping" link went with it — it would now point at the same page.)
  */
 export async function PlatformsAdmin() {
   const [mappings, records] = await Promise.all([
@@ -98,14 +101,6 @@ export async function PlatformsAdmin() {
                   <div className="text-ink num mt-0.5">{int(recordCount)}</div>
                 </div>
               </div>
-
-              <Link
-                href="/admin/catalog?tab=mapping"
-                className="inline-flex items-center gap-1 text-xs text-ink-2 hover:text-brand transition-colors"
-              >
-                Configure CSV mapping
-                <ArrowRight className="w-3 h-3" />
-              </Link>
             </div>
           );
         })}

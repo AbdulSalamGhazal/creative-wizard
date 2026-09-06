@@ -488,7 +488,7 @@ export function ReconciliationView({
           as Unattributed.{" "}
           {canConfig ? (
             <Link
-              href="/admin/catalog?tab=store_fields"
+              href="/store/uploads?tab=fields"
               className="underline hover:text-ink"
             >
               Configure
@@ -587,7 +587,7 @@ function NotConfigured({ canConfig }: { canConfig: boolean }) {
       </p>
       {canConfig && (
         <Link
-          href="/admin/catalog?tab=store_fields"
+          href="/store/uploads?tab=fields"
           className="mt-1 text-xs text-ink-2 underline hover:text-ink"
         >
           Configure in Configuration → Store

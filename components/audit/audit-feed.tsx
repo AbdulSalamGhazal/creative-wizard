@@ -81,13 +81,13 @@ function entityHref(row: AuditFeedRow): string | null {
     case "upload":
       return "/uploads";
     case "product":
-      return "/admin/catalog?tab=products";
+      return "/creatives?tab=products";
     case "angle":
-      return "/admin/catalog?tab=angles";
+      return "/creatives?tab=angles";
     case "user":
       return "/admin/users";
     case "mapping":
-      return "/admin/catalog?tab=mapping";
+      return "/uploads?tab=mapping";
     default:
       return null;
   }

@@ -5,6 +5,15 @@ import { auth, can } from "@/lib/auth";
 import { listStoreBatches } from "@/db/queries/store";
 import { PageShell } from "@/components/layout/page-shell";
 import { PageHeader } from "@/components/layout/page-header";
+import { PageTabs, type PageTab } from "@/components/layout/page-tabs";
+import { StoreFieldsAdmin } from "@/components/store/store-fields-admin";
+import { StoreSourceMappingAdmin } from "@/components/store/store-source-mapping-admin";
+import { listStoreFields } from "@/db/queries/store";
+import {
+  getStoreSourceFieldKey,
+  listStoreSourceMappings,
+  distinctStoreSourceValues,
+} from "@/db/queries/reconciliation";
 import { RecentStoreBatches } from "@/components/store/recent-store-batches";
 import { StoreCleanupTool } from "@/components/store/store-cleanup-tool";
 
@@ -18,11 +27,42 @@ export const metadata = { title: "Store uploads" };
  * flow itself lives on /store/uploads/new. Gated by `store.upload` /
  * `upload.rollback` (the nav item is too).
  */
-export default async function StoreUploadsPage() {
+const TAB_HISTORY = "history";
+const TAB_FIELDS = "fields";
+
+export default async function StoreUploadsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tab?: string }>;
+}) {
   const user = await auth();
   const canUpload = user ? can(user, "store.upload") : false;
   const canRollback = user ? can(user, "upload.rollback") : false;
   const canCleanup = user ? can(user, "store.cleanup") : false;
+  const canFields = user ? can(user, "config.store") : false;
+
+  const tabs: PageTab[] = [
+    { key: TAB_HISTORY, label: "History", href: "/store/uploads" },
+    ...(canFields
+      ? [{ key: TAB_FIELDS, label: "Order fields", href: `/store/uploads?tab=${TAB_FIELDS}` }]
+      : []),
+  ];
+  const { tab } = await searchParams;
+  const activeTab = canFields && tab === TAB_FIELDS ? TAB_FIELDS : TAB_HISTORY;
+
+  if (activeTab === TAB_FIELDS) {
+    return (
+      <PageShell>
+        <PageHeader
+          eyebrow="Store"
+          title="Order fields"
+          subtitle="The fields an order export can carry, and which raw source values map to which ad platform for Reconciliation."
+        />
+        <PageTabs tabs={tabs} active={activeTab} />
+        <OrderFieldsTab />
+      </PageShell>
+    );
+  }
 
   const batches = await listStoreBatches(50);
 
@@ -43,6 +83,8 @@ export default async function StoreUploadsPage() {
           ) : undefined
         }
       />
+
+      <PageTabs tabs={tabs} active={activeTab} />
 
       {batches.length === 0 ? (
         <div className="rounded-lg border border-dashed border-line bg-surface px-6 py-16 text-center">
@@ -94,5 +136,32 @@ export default async function StoreUploadsPage() {
         />
       )}
     </PageShell>
+  );
+}
+
+/**
+ * Field config + the Reconciliation source mapping — moved here from
+ * Configuration in the 2026-09 IA pass so order configuration sits with order
+ * uploads. Both read the account's store fields; the mapping section
+ * additionally needs the configured source field, its existing value→platform
+ * mappings, and the distinct raw values present in uploaded orders.
+ */
+async function OrderFieldsTab() {
+  const fields = await listStoreFields();
+  const sourceFieldKey = await getStoreSourceFieldKey();
+  const [mappings, values] = await Promise.all([
+    listStoreSourceMappings(),
+    distinctStoreSourceValues(sourceFieldKey),
+  ]);
+  return (
+    <div className="space-y-10">
+      <StoreFieldsAdmin fields={fields} />
+      <StoreSourceMappingAdmin
+        fields={fields}
+        sourceFieldKey={sourceFieldKey}
+        mappings={mappings}
+        values={values}
+      />
+    </div>
   );
 }

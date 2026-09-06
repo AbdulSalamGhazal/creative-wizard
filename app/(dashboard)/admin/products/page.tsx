@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 
-// Products admin moved into the merged Catalog tab.
+// Products admin moved to the Library in the 2026-09 IA pass.
 export default function ProductsAdminRedirect() {
-  redirect("/admin/catalog?tab=products");
+  redirect("/creatives?tab=products");
 }
