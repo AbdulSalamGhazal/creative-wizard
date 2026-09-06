@@ -5,7 +5,7 @@ import { defaultDateRange } from "@/lib/date-presets";
 import { resolvePreferredRange, resolveIncludeExcluded } from "@/db/queries/user-prefs";
 import { videoDiagnostics } from "@/db/queries/trends";
 import { listProducts } from "@/db/queries/products";
-import { listAllTags } from "@/db/queries/creatives";
+import { listAllAngles } from "@/db/queries/creatives";
 import { FilterStrip } from "@/components/filters/filter-strip";
 import { VideoDiagnosticsTable } from "@/components/trends/video-diagnostics-table";
 import { VideoRetention } from "@/components/trends/video-retention";
@@ -54,7 +54,7 @@ export default async function TrendsVideoPage({
   const [
     { rows, aggregate, videoCount, medianHookRate, medianHoldRate, medianCompleteRate },
     products,
-    tags,
+    angles,
   ] = await Promise.all([
     videoDiagnostics({
       from,
@@ -64,7 +64,7 @@ export default async function TrendsVideoPage({
       includeExcluded,
     }),
     listProducts(),
-    listAllTags(),
+    listAllAngles(),
   ]);
 
   return (
@@ -73,7 +73,7 @@ export default async function TrendsVideoPage({
         <FilterStrip
           includeExcludedDefault={includeExcluded}
           products={products}
-          tags={tags}
+          angles={angles}
           hideType
           defaultFrom={from}
           defaultTo={to}

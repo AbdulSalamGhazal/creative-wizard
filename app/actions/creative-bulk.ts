@@ -6,7 +6,7 @@ import { db } from "@/lib/db";
 import { requirePermission } from "@/lib/auth";
 import {
   creatives,
-  creativeTags,
+  creativeAngles,
   creativeTypeEnum,
   products,
 } from "@/db/schema";
@@ -18,7 +18,7 @@ import { getActiveAccountId } from "@/lib/tenant";
  * Bulk-create creatives from a CSV/XLSX upload.
  *
  * Shape per row: name (required), product (required — must match an existing
- * product by name), type, launch_date, tags, notes. Validation is
+ * product by name), type, launch_date, angles, notes. Validation is
  * all-or-nothing: the file previews with per-row errors and nothing is written
  * unless every row is valid (mirrors the performance-CSV philosophy, though
  * this is a separate, simpler pipeline — creatives, not performance records).
@@ -32,7 +32,7 @@ export interface BulkRowResult {
   productName: string;
   type: string;
   launchDate: string | null;
-  tags: string[];
+  angles: string[];
   ok: boolean;
   errors: string[];
 }
@@ -60,7 +60,7 @@ const HEADER_MAP: Record<string, string[]> = {
   product: ["product", "product name"],
   type: ["type", "creative type"],
   launchDate: ["launch_date", "launch date", "launchdate", "launched"],
-  tags: ["tags", "tag"],
+  angles: ["angles", "angle"],
   notes: ["notes", "note"],
 };
 
@@ -103,7 +103,7 @@ interface NormalizedRow {
   productId: string;
   type: CreativeType;
   launchDate: string | null;
-  tags: string[];
+  angles: string[];
   notes: string | null;
 }
 
@@ -138,7 +138,7 @@ async function build(formData: FormData): Promise<BuildResult> {
     product: indexFor(parsed.header, "product"),
     type: indexFor(parsed.header, "type"),
     launchDate: indexFor(parsed.header, "launchDate"),
-    tags: indexFor(parsed.header, "tags"),
+    angles: indexFor(parsed.header, "angles"),
     notes: indexFor(parsed.header, "notes"),
   };
   if (idx.name === -1 || idx.product === -1) {
@@ -186,7 +186,7 @@ async function build(formData: FormData): Promise<BuildResult> {
     const productName = cell(row, idx.product);
     const typeRaw = cell(row, idx.type).toLowerCase();
     const launchRaw = cell(row, idx.launchDate);
-    const tagsRaw = cell(row, idx.tags);
+    const anglesRaw = cell(row, idx.angles);
 
     // name
     if (!name) errors.push("Name is required.");
@@ -213,16 +213,16 @@ async function build(formData: FormData): Promise<BuildResult> {
     const launch = parseLaunch(launchRaw);
     if (!launch.ok) errors.push(`Invalid launch date "${launchRaw}".`);
 
-    // tags
-    const tags = Array.from(
+    // angles
+    const angles = Array.from(
       new Set(
-        tagsRaw
+        anglesRaw
           .split(/[;,]/)
           .map((t) => t.trim())
           .filter(Boolean),
       ),
     );
-    if (tags.some((t) => t.length > 64)) errors.push("A tag exceeds 64 characters.");
+    if (angles.some((t) => t.length > 64)) errors.push("An angle exceeds 64 characters.");
 
     const ok = errors.length === 0;
     if (ok && name) seenInFile.add(name);
@@ -233,7 +233,7 @@ async function build(formData: FormData): Promise<BuildResult> {
       productName,
       type,
       launchDate: launch.value,
-      tags,
+      angles,
       ok,
       errors,
     });
@@ -245,7 +245,7 @@ async function build(formData: FormData): Promise<BuildResult> {
         productId,
         type,
         launchDate: launch.value,
-        tags,
+        angles,
         notes: idx.notes >= 0 ? cell(row, idx.notes) || null : null,
       });
     }
@@ -285,7 +285,7 @@ export async function previewBulkCreatives(formData: FormData): Promise<BulkPrev
 
 /**
  * Commit a bulk file. Re-validates server-side (never trusts the client) and
- * inserts every creative + its tags in a single transaction. All-or-nothing:
+ * inserts every creative + its angles in a single transaction. All-or-nothing:
  * any invalid row, or a name collision that snuck in since preview, aborts the
  * whole batch.
  */
@@ -321,10 +321,10 @@ export async function commitBulkCreatives(
           })
           .returning({ id: creatives.id });
         if (!inserted) throw new Error(`Failed to insert "${r.name}".`);
-        if (r.tags.length > 0) {
+        if (r.angles.length > 0) {
           await tx
-            .insert(creativeTags)
-            .values(r.tags.map((tag) => ({ creativeId: inserted.id, tag })))
+            .insert(creativeAngles)
+            .values(r.angles.map((angle) => ({ creativeId: inserted.id, angle })))
             .onConflictDoNothing();
         }
       }

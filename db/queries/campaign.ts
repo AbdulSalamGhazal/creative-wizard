@@ -14,7 +14,7 @@ import { db } from "@/lib/db";
 import {
   campaigns,
   creatives,
-  creativeTags,
+  creativeAngles,
   creativeTypeEnum,
   performanceRecords,
   platformEnum,
@@ -71,7 +71,7 @@ export interface CampaignFilters extends Range {
   platforms?: Platform[];
   productIds?: string[];
   types?: CreativeType[];
-  tags?: string[];
+  angles?: string[];
   includeExcluded?: boolean;
 }
 
@@ -105,11 +105,11 @@ function listConds(f: CampaignFilters, acct: string): SQL[] {
   if (f.types && f.types.length > 0) {
     c.push(inArray(creatives.type, f.types));
   }
-  if (f.tags && f.tags.length > 0) {
+  if (f.angles && f.angles.length > 0) {
     c.push(
-      sql`EXISTS (SELECT 1 FROM ${creativeTags} ct
+      sql`EXISTS (SELECT 1 FROM ${creativeAngles} ct
                   WHERE ct.creative_id = ${creatives.id}
-                    AND ct.tag IN ${f.tags})`,
+                    AND ct.angle IN ${f.angles})`,
     );
   }
   return c;

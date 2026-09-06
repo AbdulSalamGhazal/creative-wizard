@@ -15,7 +15,7 @@ import {
 } from "recharts";
 import { int, pct, roas, usd, usdCompact } from "@/lib/format";
 import { MetricPicker } from "@/components/charts/metric-picker";
-import type { TagRollupRow } from "@/db/queries/trends";
+import type { AngleRollupRow } from "@/db/queries/trends";
 import { ChartTooltip } from "@/components/charts/chart-tooltip";
 
 type YMetric = "cpa" | "roas" | "cvr";
@@ -26,12 +26,12 @@ const Y: Record<YMetric, { label: string; fmt: (v: number | null) => string; tic
 };
 
 /**
- * Each dot is a tag: X = spend, Y = the chosen efficiency metric, bubble =
- * number of creatives carrying the tag. Spot the efficient tags vs the
+ * Each dot is an angle: X = spend, Y = the chosen efficiency metric, bubble =
+ * number of creatives carrying the angle. Spot the efficient angles vs the
  * big-spend-but-mediocre ones at a glance. Click a dot to open the Library
- * filtered to that tag.
+ * filtered to that angle.
  */
-export function TagScatter({ rows }: { rows: TagRollupRow[] }) {
+export function AngleScatter({ rows }: { rows: AngleRollupRow[] }) {
   const router = useRouter();
   const [metric, setMetric] = useState<YMetric>("roas");
   const y = Y[metric];
@@ -44,7 +44,7 @@ export function TagScatter({ rows }: { rows: TagRollupRow[] }) {
           x: r.spend,
           y: r[metric] as number,
           z: Math.max(r.creatives, 1),
-          tag: r.tag,
+          angle: r.angle,
           creatives: r.creatives,
           cpa: r.cpa,
           roas: r.roas,
@@ -58,7 +58,7 @@ export function TagScatter({ rows }: { rows: TagRollupRow[] }) {
         <div>
           <h3 className="text-sm text-ink-2">Spend vs {y.label}</h3>
           <p className="text-[10px] text-ink-3">
-            Each dot is a tag · bubble = creatives · click to open the Library
+            Each dot is an angle · bubble = creatives · click to open the Library
           </p>
         </div>
         <MetricPicker
@@ -71,7 +71,7 @@ export function TagScatter({ rows }: { rows: TagRollupRow[] }) {
 
       {data.length === 0 ? (
         <div className="h-72 flex items-center justify-center text-ink-3 text-sm border border-dashed border-line rounded-lg">
-          No tags to plot in this window.
+          No angles to plot in this window.
         </div>
       ) : (
         <div className="h-72">
@@ -109,11 +109,11 @@ export function TagScatter({ rows }: { rows: TagRollupRow[] }) {
                 content={({ active, payload }) => {
                   if (!active || !payload || payload.length === 0) return null;
                   const p = payload[0]?.payload as {
-                    tag: string; x: number; creatives: number; cpa: number | null; roas: number | null;
+                    angle: string; x: number; creatives: number; cpa: number | null; roas: number | null;
                   };
                   return (
                     <ChartTooltip className="max-w-xs">
-                      <div className="text-ink font-medium mb-1 truncate">#{p.tag}</div>
+                      <div className="text-ink font-medium mb-1 truncate">#{p.angle}</div>
                       <Row label="Spend" value={usd(p.x)} />
                       <Row label="Creatives" value={int(p.creatives)} />
                       <Row label="CPA" value={p.cpa === null ? "—" : usd(p.cpa)} />
@@ -128,8 +128,8 @@ export function TagScatter({ rows }: { rows: TagRollupRow[] }) {
                 fill="var(--brand)"
                 fillOpacity={0.65}
                 className="cursor-pointer"
-                onClick={(d: { tag?: string }) => {
-                  if (d?.tag) router.push(`/creatives?tags=${encodeURIComponent(d.tag)}`);
+                onClick={(d: { angle?: string }) => {
+                  if (d?.angle) router.push(`/creatives?angles=${encodeURIComponent(d.angle)}`);
                 }}
               />
             </ScatterChart>

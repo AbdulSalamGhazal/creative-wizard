@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import {
   campaigns,
   creatives,
-  creativeTags,
+  creativeAngles,
   performanceRecords,
   products,
   platformEnum,
@@ -57,7 +57,7 @@ export interface KpiFilters {
   /** No longer applied — the dynamic status can't be a SQL WHERE. Kept so
    *  existing callers that still pass it don't break. */
   statuses?: FrozenStatus[];
-  tags?: string[];
+  angles?: string[];
   creativeIds?: string[];
   /** Combined "Campaign ➤ Adset" values to include (used by Compare sides). */
   campaignNames?: string[];
@@ -121,8 +121,8 @@ export interface TypeMixRow {
   conversions: number | null;
 }
 
-export interface TagMixRow {
-  tag: string;
+export interface AngleMixRow {
+  angle: string;
   spend: number;
   impressions: number;
   conversions: number | null;
@@ -157,7 +157,7 @@ const num = (v: unknown): number | null =>
 async function buildBaseConditions(filters: KpiFilters): Promise<{
   conditions: SQL[];
   needsCreativeJoin: boolean;
-  needsTagJoin: boolean;
+  needsAngleJoin: boolean;
 }> {
   const acct = await getActiveAccountId();
   const conditions: SQL[] = [eq(performanceRecords.accountId, acct)];
@@ -209,22 +209,22 @@ async function buildBaseConditions(filters: KpiFilters): Promise<{
     }
   }
 
-  // Tag filter via a correlated EXISTS, NOT a JOIN. A creative can carry several
-  // tags, so JOINing creative_tags fans out its performance rows (one copy per
-  // matching tag) and inflates every SUM — e.g. a 2-tag creative filtered by
-  // both tags would double its spend. EXISTS matches each row at most once.
-  if (filters.tags && filters.tags.length > 0) {
+  // Angle filter via a correlated EXISTS, NOT a JOIN. A creative can carry several
+  // angles, so JOINing creative_angles fans out its performance rows (one copy per
+  // matching angle) and inflates every SUM — e.g. a 2-angle creative filtered by
+  // both angles would double its spend. EXISTS matches each row at most once.
+  if (filters.angles && filters.angles.length > 0) {
     conditions.push(
-      sql`EXISTS (SELECT 1 FROM ${creativeTags} WHERE ${creativeTags.creativeId} = ${performanceRecords.creativeId} AND ${inArray(creativeTags.tag, filters.tags)})`,
+      sql`EXISTS (SELECT 1 FROM ${creativeAngles} WHERE ${creativeAngles.creativeId} = ${performanceRecords.creativeId} AND ${inArray(creativeAngles.angle, filters.angles)})`,
     );
   }
 
   return {
     conditions,
     needsCreativeJoin: needsCreativeJoin ?? false,
-    // Tags are handled via EXISTS above (no join → no fan-out). Always false now;
-    // the callers' `if (needsTagJoin) innerJoin(creativeTags)` blocks never fire.
-    needsTagJoin: false,
+    // Angles are handled via EXISTS above (no join → no fan-out). Always false now;
+    // the callers' `if (needsAngleJoin) innerJoin(creativeAngles)` blocks never fire.
+    needsAngleJoin: false,
   };
 }
 
@@ -293,7 +293,7 @@ export async function filteredPlatformFirstDays(
  * filter for diagnostic views.
  */
 export async function kpis(filters: KpiFilters): Promise<Kpis> {
-  const { conditions, needsCreativeJoin, needsTagJoin } =
+  const { conditions, needsCreativeJoin, needsAngleJoin } =
     await buildBaseConditions(filters);
 
   let q = db
@@ -317,13 +317,13 @@ export async function kpis(filters: KpiFilters): Promise<Kpis> {
     .from(performanceRecords)
     .$dynamic();
 
-  if (needsCreativeJoin || needsTagJoin) {
+  if (needsCreativeJoin || needsAngleJoin) {
     q = q.innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId));
   }
-  if (needsTagJoin) {
+  if (needsAngleJoin) {
     q = q.innerJoin(
-      creativeTags,
-      eq(creativeTags.creativeId, performanceRecords.creativeId),
+      creativeAngles,
+      eq(creativeAngles.creativeId, performanceRecords.creativeId),
     );
   }
 
@@ -357,7 +357,7 @@ export async function kpis(filters: KpiFilters): Promise<Kpis> {
 export async function spendByDatePlatform(
   filters: KpiFilters,
 ): Promise<SpendByDatePlatform[]> {
-  const { conditions, needsCreativeJoin, needsTagJoin } =
+  const { conditions, needsCreativeJoin, needsAngleJoin } =
     await buildBaseConditions(filters);
 
   let q = db
@@ -369,13 +369,13 @@ export async function spendByDatePlatform(
     .from(performanceRecords)
     .$dynamic();
 
-  if (needsCreativeJoin || needsTagJoin) {
+  if (needsCreativeJoin || needsAngleJoin) {
     q = q.innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId));
   }
-  if (needsTagJoin) {
+  if (needsAngleJoin) {
     q = q.innerJoin(
-      creativeTags,
-      eq(creativeTags.creativeId, performanceRecords.creativeId),
+      creativeAngles,
+      eq(creativeAngles.creativeId, performanceRecords.creativeId),
     );
   }
 
@@ -432,7 +432,7 @@ export async function creativeDailyMetrics(
     fillTo?: Partial<Record<Platform, string>>;
   },
 ): Promise<DailyMetricRow[]> {
-  const { conditions, needsCreativeJoin, needsTagJoin } =
+  const { conditions, needsCreativeJoin, needsAngleJoin } =
     await buildBaseConditions(filters);
 
   let q = db
@@ -455,13 +455,13 @@ export async function creativeDailyMetrics(
     .from(performanceRecords)
     .$dynamic();
 
-  if (needsCreativeJoin || needsTagJoin) {
+  if (needsCreativeJoin || needsAngleJoin) {
     q = q.innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId));
   }
-  if (needsTagJoin) {
+  if (needsAngleJoin) {
     q = q.innerJoin(
-      creativeTags,
-      eq(creativeTags.creativeId, performanceRecords.creativeId),
+      creativeAngles,
+      eq(creativeAngles.creativeId, performanceRecords.creativeId),
     );
   }
 
@@ -522,7 +522,7 @@ export async function creativeLeaderboard(
   filters: KpiFilters,
   minSpend = 300,
 ): Promise<LeaderboardRow[]> {
-  const { conditions, needsTagJoin } = await buildBaseConditions(filters);
+  const { conditions, needsAngleJoin } = await buildBaseConditions(filters);
 
   let q = db
     .select({
@@ -547,10 +547,10 @@ export async function creativeLeaderboard(
     .innerJoin(products, eq(products.id, creatives.productId))
     .$dynamic();
 
-  if (needsTagJoin) {
+  if (needsAngleJoin) {
     q = q.innerJoin(
-      creativeTags,
-      eq(creativeTags.creativeId, performanceRecords.creativeId),
+      creativeAngles,
+      eq(creativeAngles.creativeId, performanceRecords.creativeId),
     );
   }
 
@@ -610,7 +610,7 @@ export async function creativeLeaderboard(
   if (poolIds.length > 0) {
     // Mirror the base query's record-level scope so the sparkline can't diverge
     // from the aggregate: account (defense-in-depth), date, excluded, platform,
-    // and campaign. (Creative-level filters — product/type/tag — are already
+    // and campaign. (Creative-level filters — product/type/angle — are already
     // baked into poolIds, which is a subset of the filtered `base`.)
     const acct = await getActiveAccountId();
     const sparkConditions: SQL[] = [
@@ -689,7 +689,7 @@ export async function creativeLeaderboard(
 export async function platformMix(
   filters: KpiFilters,
 ): Promise<PlatformMixRow[]> {
-  const { conditions, needsCreativeJoin, needsTagJoin } =
+  const { conditions, needsCreativeJoin, needsAngleJoin } =
     await buildBaseConditions(filters);
 
   let q = db
@@ -711,13 +711,13 @@ export async function platformMix(
     .from(performanceRecords)
     .$dynamic();
 
-  if (needsCreativeJoin || needsTagJoin) {
+  if (needsCreativeJoin || needsAngleJoin) {
     q = q.innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId));
   }
-  if (needsTagJoin) {
+  if (needsAngleJoin) {
     q = q.innerJoin(
-      creativeTags,
-      eq(creativeTags.creativeId, performanceRecords.creativeId),
+      creativeAngles,
+      eq(creativeAngles.creativeId, performanceRecords.creativeId),
     );
   }
 
@@ -757,7 +757,7 @@ export interface CampaignMixRow extends PlatformMixRow {
 export async function campaignMix(
   filters: KpiFilters,
 ): Promise<CampaignMixRow[]> {
-  const { conditions, needsCreativeJoin, needsTagJoin } =
+  const { conditions, needsCreativeJoin, needsAngleJoin } =
     await buildBaseConditions(filters);
 
   let q = db
@@ -781,13 +781,13 @@ export async function campaignMix(
     .innerJoin(campaigns, eq(campaigns.id, performanceRecords.campaignId))
     .$dynamic();
 
-  if (needsCreativeJoin || needsTagJoin) {
+  if (needsCreativeJoin || needsAngleJoin) {
     q = q.innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId));
   }
-  if (needsTagJoin) {
+  if (needsAngleJoin) {
     q = q.innerJoin(
-      creativeTags,
-      eq(creativeTags.creativeId, performanceRecords.creativeId),
+      creativeAngles,
+      eq(creativeAngles.creativeId, performanceRecords.creativeId),
     );
   }
 
@@ -831,7 +831,7 @@ export interface CreativePoint {
 export async function creativePoints(
   filters: KpiFilters,
 ): Promise<CreativePoint[]> {
-  const { conditions, needsTagJoin } = await buildBaseConditions(filters);
+  const { conditions, needsAngleJoin } = await buildBaseConditions(filters);
 
   let q = db
     .select({
@@ -845,10 +845,10 @@ export async function creativePoints(
     .innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId))
     .$dynamic();
 
-  if (needsTagJoin) {
+  if (needsAngleJoin) {
     q = q.innerJoin(
-      creativeTags,
-      eq(creativeTags.creativeId, performanceRecords.creativeId),
+      creativeAngles,
+      eq(creativeAngles.creativeId, performanceRecords.creativeId),
     );
   }
 
@@ -884,7 +884,7 @@ export interface DailyRatesRow {
 export async function dailyFunnelRates(
   filters: KpiFilters,
 ): Promise<DailyRatesRow[]> {
-  const { conditions, needsCreativeJoin, needsTagJoin } =
+  const { conditions, needsCreativeJoin, needsAngleJoin } =
     await buildBaseConditions(filters);
 
   let q = db
@@ -892,13 +892,13 @@ export async function dailyFunnelRates(
     .from(performanceRecords)
     .$dynamic();
 
-  if (needsCreativeJoin || needsTagJoin) {
+  if (needsCreativeJoin || needsAngleJoin) {
     q = q.innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId));
   }
-  if (needsTagJoin) {
+  if (needsAngleJoin) {
     q = q.innerJoin(
-      creativeTags,
-      eq(creativeTags.creativeId, performanceRecords.creativeId),
+      creativeAngles,
+      eq(creativeAngles.creativeId, performanceRecords.creativeId),
     );
   }
 
@@ -944,7 +944,7 @@ export interface CreativeMetricRow {
 export async function creativeMetricRows(
   filters: KpiFilters,
 ): Promise<CreativeMetricRow[]> {
-  const { conditions, needsCreativeJoin, needsTagJoin } =
+  const { conditions, needsCreativeJoin, needsAngleJoin } =
     await buildBaseConditions(filters);
 
   let q = db
@@ -963,13 +963,13 @@ export async function creativeMetricRows(
     .from(performanceRecords)
     .$dynamic();
 
-  if (needsCreativeJoin || needsTagJoin) {
+  if (needsCreativeJoin || needsAngleJoin) {
     q = q.innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId));
   }
-  if (needsTagJoin) {
+  if (needsAngleJoin) {
     q = q.innerJoin(
-      creativeTags,
-      eq(creativeTags.creativeId, performanceRecords.creativeId),
+      creativeAngles,
+      eq(creativeAngles.creativeId, performanceRecords.creativeId),
     );
   }
 
@@ -1009,7 +1009,7 @@ export async function creativeDimensionPoints(
   filters: KpiFilters,
   dimension: "platform" | "campaign",
 ): Promise<CreativeDimensionPoint[]> {
-  const { conditions, needsCreativeJoin, needsTagJoin } =
+  const { conditions, needsCreativeJoin, needsAngleJoin } =
     await buildBaseConditions(filters);
 
   const dimCol: AnyPgColumn =
@@ -1025,16 +1025,16 @@ export async function creativeDimensionPoints(
     .from(performanceRecords)
     .$dynamic();
 
-  if (needsCreativeJoin || needsTagJoin) {
+  if (needsCreativeJoin || needsAngleJoin) {
     q = q.innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId));
   }
   if (dimension === "campaign") {
     q = q.innerJoin(campaigns, eq(campaigns.id, performanceRecords.campaignId));
   }
-  if (needsTagJoin) {
+  if (needsAngleJoin) {
     q = q.innerJoin(
-      creativeTags,
-      eq(creativeTags.creativeId, performanceRecords.creativeId),
+      creativeAngles,
+      eq(creativeAngles.creativeId, performanceRecords.creativeId),
     );
   }
 
@@ -1077,7 +1077,7 @@ export async function metricBreakdown(
   filters: KpiFilters,
   dimension: BreakdownDimension,
 ): Promise<MetricBreakdownRow[]> {
-  const { conditions, needsCreativeJoin, needsTagJoin } =
+  const { conditions, needsCreativeJoin, needsAngleJoin } =
     await buildBaseConditions(filters);
 
   const dimCol: AnyPgColumn =
@@ -1095,16 +1095,16 @@ export async function metricBreakdown(
     .from(performanceRecords)
     .$dynamic();
 
-  if (needsCreativeJoin || needsTagJoin) {
+  if (needsCreativeJoin || needsAngleJoin) {
     q = q.innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId));
   }
   if (dimension === "campaign") {
     q = q.innerJoin(campaigns, eq(campaigns.id, performanceRecords.campaignId));
   }
-  if (needsTagJoin) {
+  if (needsAngleJoin) {
     q = q.innerJoin(
-      creativeTags,
-      eq(creativeTags.creativeId, performanceRecords.creativeId),
+      creativeAngles,
+      eq(creativeAngles.creativeId, performanceRecords.creativeId),
     );
   }
 
@@ -1148,7 +1148,7 @@ export async function metricOverTime(
     fillTo?: Partial<Record<string, string>>;
   },
 ): Promise<MetricOverTimeRow[]> {
-  const { conditions, needsCreativeJoin, needsTagJoin } =
+  const { conditions, needsCreativeJoin, needsAngleJoin } =
     await buildBaseConditions(filters);
 
   const dimCol: AnyPgColumn =
@@ -1167,16 +1167,16 @@ export async function metricOverTime(
     .from(performanceRecords)
     .$dynamic();
 
-  if (needsCreativeJoin || needsTagJoin) {
+  if (needsCreativeJoin || needsAngleJoin) {
     q = q.innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId));
   }
   if (dimension === "campaign") {
     q = q.innerJoin(campaigns, eq(campaigns.id, performanceRecords.campaignId));
   }
-  if (needsTagJoin) {
+  if (needsAngleJoin) {
     q = q.innerJoin(
-      creativeTags,
-      eq(creativeTags.creativeId, performanceRecords.creativeId),
+      creativeAngles,
+      eq(creativeAngles.creativeId, performanceRecords.creativeId),
     );
   }
 
@@ -1229,7 +1229,7 @@ export async function typeDimensionSpend(
   filters: KpiFilters,
   dimension: BreakdownDimension,
 ): Promise<TypeDimensionSpendRow[]> {
-  const { conditions, needsTagJoin } = await buildBaseConditions(filters);
+  const { conditions, needsAngleJoin } = await buildBaseConditions(filters);
 
   const dimCol: AnyPgColumn =
     dimension === "platform" ? performanceRecords.platform : campaigns.name;
@@ -1247,10 +1247,10 @@ export async function typeDimensionSpend(
   if (dimension === "campaign") {
     q = q.innerJoin(campaigns, eq(campaigns.id, performanceRecords.campaignId));
   }
-  if (needsTagJoin) {
+  if (needsAngleJoin) {
     q = q.innerJoin(
-      creativeTags,
-      eq(creativeTags.creativeId, performanceRecords.creativeId),
+      creativeAngles,
+      eq(creativeAngles.creativeId, performanceRecords.creativeId),
     );
   }
 
@@ -1273,7 +1273,7 @@ export async function typeDimensionSpend(
 export async function productMix(
   filters: KpiFilters,
 ): Promise<ProductMixRow[]> {
-  const { conditions, needsTagJoin } = await buildBaseConditions(filters);
+  const { conditions, needsAngleJoin } = await buildBaseConditions(filters);
 
   let q = db
     .select({
@@ -1288,10 +1288,10 @@ export async function productMix(
     .innerJoin(products, eq(products.id, creatives.productId))
     .$dynamic();
 
-  if (needsTagJoin) {
+  if (needsAngleJoin) {
     q = q.innerJoin(
-      creativeTags,
-      eq(creativeTags.creativeId, performanceRecords.creativeId),
+      creativeAngles,
+      eq(creativeAngles.creativeId, performanceRecords.creativeId),
     );
   }
 
@@ -1314,7 +1314,7 @@ export async function productMix(
  * type-mix donut. Always joins creatives for the `type` column.
  */
 export async function typeMix(filters: KpiFilters): Promise<TypeMixRow[]> {
-  const { conditions, needsTagJoin } = await buildBaseConditions(filters);
+  const { conditions, needsAngleJoin } = await buildBaseConditions(filters);
 
   let q = db
     .select({
@@ -1327,10 +1327,10 @@ export async function typeMix(filters: KpiFilters): Promise<TypeMixRow[]> {
     .innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId))
     .$dynamic();
 
-  if (needsTagJoin) {
+  if (needsAngleJoin) {
     q = q.innerJoin(
-      creativeTags,
-      eq(creativeTags.creativeId, performanceRecords.creativeId),
+      creativeAngles,
+      eq(creativeAngles.creativeId, performanceRecords.creativeId),
     );
   }
 
@@ -1348,11 +1348,11 @@ export async function typeMix(filters: KpiFilters): Promise<TypeMixRow[]> {
 }
 
 /**
- * Spend per tag for the Overview tag-mix donut. Joins creative_tags, so a
- * creative's spend counts toward each tag it carries (intentional fan-out
- * — the same semantics as the Trends "By tag" rollup).
+ * Spend per angle for the Overview angle-mix donut. Joins creative_angles, so a
+ * creative's spend counts toward each angle it carries (intentional fan-out
+ * — the same semantics as the Trends "By angle" rollup).
  */
-export async function tagMix(filters: KpiFilters): Promise<TagMixRow[]> {
+export async function angleMix(filters: KpiFilters): Promise<AngleMixRow[]> {
   const acct = await getActiveAccountId();
   const conditions: SQL[] = [eq(performanceRecords.accountId, acct)];
   if (filters.from && filters.to) {
@@ -1374,28 +1374,28 @@ export async function tagMix(filters: KpiFilters): Promise<TagMixRow[]> {
     conditions.push(inArray(creatives.type, filters.types));
   }
   // NOTE: `filters.statuses` is no longer applied — status is dynamic now.
-  // When a tag filter is set we still group by tag; the filter narrows which
-  // tags appear.
-  if (filters.tags && filters.tags.length > 0) {
-    conditions.push(inArray(creativeTags.tag, filters.tags));
+  // When an angle filter is set we still group by angle; the filter narrows which
+  // angles appear.
+  if (filters.angles && filters.angles.length > 0) {
+    conditions.push(inArray(creativeAngles.angle, filters.angles));
   }
 
   const rows = await db
     .select({
-      tag: creativeTags.tag,
+      angle: creativeAngles.angle,
       spend: sumSpend,
       impressions: sumImpressions,
       conversions: sumConversions,
     })
     .from(performanceRecords)
     .innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId))
-    .innerJoin(creativeTags, eq(creativeTags.creativeId, creatives.id))
+    .innerJoin(creativeAngles, eq(creativeAngles.creativeId, creatives.id))
     .where(and(...conditions))
-    .groupBy(creativeTags.tag)
+    .groupBy(creativeAngles.angle)
     .orderBy(desc(sumSpend));
 
   return rows.map((r) => ({
-    tag: r.tag,
+    angle: r.angle,
     spend: Number(r.spend ?? 0),
     impressions: Number(r.impressions ?? 0),
     conversions: num(r.conversions),
@@ -1443,7 +1443,7 @@ export async function compareSeries(
   filters: KpiFilters & { creativeIds: string[]; metric: CompareMetric },
 ): Promise<CompareSeriesPoint[]> {
   if (filters.creativeIds.length === 0) return [];
-  const { conditions, needsCreativeJoin, needsTagJoin } =
+  const { conditions, needsCreativeJoin, needsAngleJoin } =
     await buildBaseConditions(filters);
 
   const metricSql = metricForCompare(filters.metric);
@@ -1457,13 +1457,13 @@ export async function compareSeries(
     .from(performanceRecords)
     .$dynamic();
 
-  if (needsCreativeJoin || needsTagJoin) {
+  if (needsCreativeJoin || needsAngleJoin) {
     q = q.innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId));
   }
-  if (needsTagJoin) {
+  if (needsAngleJoin) {
     q = q.innerJoin(
-      creativeTags,
-      eq(creativeTags.creativeId, performanceRecords.creativeId),
+      creativeAngles,
+      eq(creativeAngles.creativeId, performanceRecords.creativeId),
     );
   }
 
@@ -1511,7 +1511,7 @@ export async function compareTotals(
   filters: KpiFilters & { creativeIds: string[] },
 ): Promise<CompareTotalsRow[]> {
   if (filters.creativeIds.length === 0) return [];
-  const { conditions, needsTagJoin } = await buildBaseConditions(filters);
+  const { conditions, needsAngleJoin } = await buildBaseConditions(filters);
 
   let q = db
     .select({
@@ -1533,10 +1533,10 @@ export async function compareTotals(
     .innerJoin(products, eq(products.id, creatives.productId))
     .$dynamic();
 
-  if (needsTagJoin) {
+  if (needsAngleJoin) {
     q = q.innerJoin(
-      creativeTags,
-      eq(creativeTags.creativeId, performanceRecords.creativeId),
+      creativeAngles,
+      eq(creativeAngles.creativeId, performanceRecords.creativeId),
     );
   }
 
@@ -1750,7 +1750,7 @@ interface SpendPerCreativeRow {
 async function spendPerCreative(
   filters: KpiFilters,
 ): Promise<SpendPerCreativeRow[]> {
-  const { conditions, needsTagJoin } = await buildBaseConditions(filters);
+  const { conditions, needsAngleJoin } = await buildBaseConditions(filters);
 
   let q = db
     .select({
@@ -1765,10 +1765,10 @@ async function spendPerCreative(
     .innerJoin(products, eq(products.id, creatives.productId))
     .$dynamic();
 
-  if (needsTagJoin) {
+  if (needsAngleJoin) {
     q = q.innerJoin(
-      creativeTags,
-      eq(creativeTags.creativeId, performanceRecords.creativeId),
+      creativeAngles,
+      eq(creativeAngles.creativeId, performanceRecords.creativeId),
     );
   }
 
@@ -1906,7 +1906,7 @@ export async function changeBreakdown(
 }> {
   const prev = prevPeriod(filters.from, filters.to);
   // Span both windows; the per-window split happens in the FILTER clauses.
-  const { conditions, needsCreativeJoin, needsTagJoin } =
+  const { conditions, needsCreativeJoin, needsAngleJoin } =
     await buildBaseConditions({ ...filters, from: prev.from, to: filters.to });
 
   const inCur = sql`${performanceRecords.date} BETWEEN ${filters.from} AND ${filters.to}`;
@@ -1950,7 +1950,7 @@ export async function changeBreakdown(
     .from(performanceRecords)
     .$dynamic();
 
-  const joinCreatives = dim === "creative" || needsCreativeJoin || needsTagJoin;
+  const joinCreatives = dim === "creative" || needsCreativeJoin || needsAngleJoin;
   if (joinCreatives) {
     q = q.innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId));
   }
@@ -1960,10 +1960,10 @@ export async function changeBreakdown(
   if (dim === "creative") {
     q = q.innerJoin(products, eq(products.id, creatives.productId));
   }
-  if (needsTagJoin) {
+  if (needsAngleJoin) {
     q = q.innerJoin(
-      creativeTags,
-      eq(creativeTags.creativeId, performanceRecords.creativeId),
+      creativeAngles,
+      eq(creativeAngles.creativeId, performanceRecords.creativeId),
     );
   }
 
@@ -2011,7 +2011,7 @@ export interface LaunchFatigueFilters {
   platforms?: Platform[];
   productIds?: string[];
   types?: CreativeType[];
-  tags?: string[];
+  angles?: string[];
   includeExcluded?: boolean;
 }
 
@@ -2054,9 +2054,9 @@ export async function launchFatigue(
   if (f.types?.length) creativeConds.push(sql`c.type IN (${inList(f.types)})`);
   if (f.productIds?.length)
     creativeConds.push(sql`c.product_id IN (${inList(f.productIds)})`);
-  if (f.tags?.length)
+  if (f.angles?.length)
     creativeConds.push(
-      sql`EXISTS (SELECT 1 FROM creative_tags ct WHERE ct.creative_id = c.id AND ct.tag IN (${inList(f.tags)}))`,
+      sql`EXISTS (SELECT 1 FROM creative_angles ct WHERE ct.creative_id = c.id AND ct.angle IN (${inList(f.angles)}))`,
     );
   const creativeWhere = creativeConds.length
     ? sql` AND ${sql.join(creativeConds, sql` AND `)}`

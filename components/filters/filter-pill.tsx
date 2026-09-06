@@ -32,7 +32,7 @@ interface FilterPillProps {
   children: () => React.ReactNode;
 }
 
-/** A dropdown-backed filter pill (Platforms, Products, Type, Tags, Status…). */
+/** A dropdown-backed filter pill (Platforms, Products, Type, Angles, Status…). */
 export function FilterPill({
   icon: Icon,
   label,

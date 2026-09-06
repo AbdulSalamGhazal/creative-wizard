@@ -18,7 +18,7 @@ export type CreateCampaignInput = z.infer<typeof createCampaignSchema>;
 
 /**
  * Edit an existing campaign. Same fields as create (the stored name is rebuilt
- * from Campaign + Ad Set + Platform so it stays consistent with the tag format),
+ * from Campaign + Ad Set + Platform so it stays consistent with the angle format),
  * plus the campaign id to identify the row. Renaming is allowed but must stay
  * unique per account — the action enforces it.
  */

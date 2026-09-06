@@ -155,7 +155,7 @@ export function DeleteCreativeDialog({
             ) : (
               <>
                 This creative has no performance records. Only the creative and
-                its tags will be removed — no other creative is affected.
+                its angles will be removed — no other creative is affected.
               </>
             )}
           </p>

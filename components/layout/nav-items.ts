@@ -66,7 +66,7 @@ export interface NavItem {
 
 export const TRENDS_CHILDREN: NavChild[] = [
   { href: "/trends/over-time", label: "Changes" },
-  { href: "/trends/by-tag", label: "Tags" },
+  { href: "/trends/by-angle", label: "Angles" },
   { href: "/trends/by-type", label: "Types" },
   { href: "/trends/launches", label: "Launches" },
   { href: "/trends/video", label: "Video" },
@@ -141,7 +141,7 @@ export const NAV_ITEMS: NavItem[] = [
     group: "admin",
     perms: [
       "catalog.products",
-      "catalog.tags",
+      "catalog.angles",
       "config.rating",
       "config.mappings",
       "config.brands",

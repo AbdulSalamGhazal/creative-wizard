@@ -8,7 +8,7 @@ import { requirePermission } from "@/lib/auth";
 import {
   creatives,
   creativePlatformOverrides,
-  creativeTags,
+  creativeAngles,
   creativeTypeEnum,
   performanceRecords,
   products,
@@ -86,7 +86,7 @@ export async function createCreative(
       };
     }
 
-    // One transaction for creative + tags — a tag-insert failure must not
+    // One transaction for creative + angles — an angle-insert failure must not
     // leave an orphaned creative behind (same pattern as patchCreative).
     const inserted = await db.transaction(async (tx) => {
       const [row] = await tx
@@ -108,10 +108,10 @@ export async function createCreative(
         .returning({ id: creatives.id, name: creatives.name });
       if (!row) throw new Error("Insert failed.");
 
-      if (data.tags.length > 0) {
+      if (data.angles.length > 0) {
         await tx
-          .insert(creativeTags)
-          .values(data.tags.map((tag) => ({ creativeId: row.id, tag })))
+          .insert(creativeAngles)
+          .values(data.angles.map((angle) => ({ creativeId: row.id, angle })))
           .onConflictDoNothing();
       }
       return row;
@@ -132,7 +132,7 @@ export async function createCreative(
       meta: {
         productId: data.productId,
         type: data.type,
-        tags: data.tags,
+        angles: data.angles,
       },
     });
 
@@ -310,10 +310,10 @@ export async function setCreativeTermination(
 
 /**
  * Inline edit from the creative detail page — the single save path for every
- * editable field (name / product / type / thumbnail / launch date / tags).
+ * editable field (name / product / type / thumbnail / launch date / angles).
  * Status is NOT here — it's derived dynamically, with per-platform termination
  * as the only manual lever (see setCreativeTermination). Every field is
- * optional; only the fields actually present in the payload are written. Tags, when provided, replace the whole set (wipe +
+ * optional; only the fields actually present in the payload are written. Angles, when provided, replace the whole set (wipe +
  * reinsert in one transaction). Renaming is validated for uniqueness, exactly
  * like the old full-edit form — the detail page now edits everything in place,
  * so there is no separate `/edit` route.
@@ -336,7 +336,7 @@ const creativePatchSchema = z
       .transform((v) => (v ? v : v === null ? null : undefined)),
     // Manual Priority (1..3; null = unrated). Sent only when changed.
     priority: prioritySchema.optional(),
-    tags: z.array(z.string().min(1).max(64)).max(50).optional(),
+    angles: z.array(z.string().min(1).max(64)).max(50).optional(),
   })
   .refine(
     (d) =>
@@ -346,7 +346,7 @@ const creativePatchSchema = z
       d.thumbnailUrl !== undefined ||
       d.launchDate !== undefined ||
       d.priority !== undefined ||
-      d.tags !== undefined,
+      d.angles !== undefined,
     { message: "No fields to update." },
   );
 
@@ -438,12 +438,12 @@ export async function patchCreative(
           .set(set)
           .where(and(eq(creatives.accountId, acct), eq(creatives.id, data.id)));
       }
-      if (data.tags !== undefined) {
-        await tx.delete(creativeTags).where(eq(creativeTags.creativeId, data.id));
-        if (data.tags.length > 0) {
+      if (data.angles !== undefined) {
+        await tx.delete(creativeAngles).where(eq(creativeAngles.creativeId, data.id));
+        if (data.angles.length > 0) {
           await tx
-            .insert(creativeTags)
-            .values(data.tags.map((tag) => ({ creativeId: data.id, tag })))
+            .insert(creativeAngles)
+            .values(data.angles.map((angle) => ({ creativeId: data.id, angle })))
             .onConflictDoNothing();
         }
       }
@@ -491,7 +491,7 @@ export async function patchCreative(
       actorUserId: user.id,
       meta: {
         changes,
-        ...(data.tags !== undefined ? { tagsCount: data.tags.length } : {}),
+        ...(data.angles !== undefined ? { anglesCount: data.angles.length } : {}),
         inline: true,
       },
     });
@@ -508,7 +508,7 @@ export async function patchCreative(
 /**
  * Hard-delete a creative and everything attached to it. `performance_records`
  * is FK'd to exactly one creative with NO `ON DELETE CASCADE`, so those rows
- * are removed explicitly first (inside the transaction); `creative_tags`
+ * are removed explicitly first (inside the transaction); `creative_angles`
  * cascades. The audit row survives (it stores a label, not an FK), so the
  * deletion stays visible in the activity feed.
  *
@@ -546,7 +546,7 @@ export async function deleteCreative(
       // Exclusion rules targeting this creative go with it (their flagged rows
       // were just deleted, so nothing references the rule anymore).
       await deleteRulesTargeting(tx, acct, { creativeId });
-      // creative_tags cascade on this delete.
+      // creative_angles cascade on this delete.
       await tx.delete(creatives).where(eq(creatives.id, creativeId));
       return n;
     });

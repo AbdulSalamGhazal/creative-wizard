@@ -1,16 +1,16 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { swatchColor } from "@/lib/palette";
 import { usd } from "@/lib/format";
-import type { TagMixRow } from "@/db/queries/performance";
+import type { AngleMixRow } from "@/db/queries/performance";
 
 const LIMIT = 8;
 
 /**
- * Top tags by spend as a ranked horizontal-bar leaderboard. A donut is wrong
- * for tags — a creative can carry several, so the slices overlap and never sum
+ * Top angles by spend as a ranked horizontal-bar leaderboard. A donut is wrong
+ * for angles — a creative can carry several, so the slices overlap and never sum
  * to a meaningful whole. Ranked bars compare magnitudes honestly.
  */
-export function TagLeaderboard({ rows }: { rows: TagMixRow[] }) {
+export function AngleLeaderboard({ rows }: { rows: AngleMixRow[] }) {
   const sorted = [...rows]
     .filter((r) => r.spend > 0)
     .sort((a, b) => b.spend - a.spend)
@@ -20,20 +20,20 @@ export function TagLeaderboard({ rows }: { rows: TagMixRow[] }) {
   return (
     <Card className="h-full flex flex-col">
       <CardHeader>
-        <CardTitle className="text-sm">Tag mix</CardTitle>
+        <CardTitle className="text-sm">Angle mix</CardTitle>
       </CardHeader>
       <CardContent className="flex-1 flex flex-col">
         {sorted.length === 0 ? (
           <div className="flex-1 flex items-center justify-center text-ink-3 text-sm">
-            No tagged spend in this window.
+            No spend on any angle in this window.
           </div>
         ) : (
           <ul className="flex-1 flex flex-col justify-around gap-2.5">
             {sorted.map((r) => (
-              <li key={r.tag} className="space-y-1">
+              <li key={r.angle} className="space-y-1">
                 <div className="flex items-center justify-between gap-2 text-xs">
-                  <span className="truncate text-ink-2" title={r.tag}>
-                    {r.tag}
+                  <span className="truncate text-ink-2" title={r.angle}>
+                    {r.angle}
                   </span>
                   <span className="num text-ink shrink-0">{usd(r.spend)}</span>
                 </div>
@@ -42,7 +42,7 @@ export function TagLeaderboard({ rows }: { rows: TagMixRow[] }) {
                     className="h-full rounded-full"
                     style={{
                       width: `${max > 0 ? (r.spend / max) * 100 : 0}%`,
-                      background: swatchColor(r.tag),
+                      background: swatchColor(r.angle),
                     }}
                   />
                 </div>

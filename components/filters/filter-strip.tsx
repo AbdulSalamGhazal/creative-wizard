@@ -35,8 +35,8 @@ const TYPES = [
 interface FilterStripProps {
   /** Product options for the Products filter. Empty → dropdown shows a hint. */
   products?: Array<{ id: string; name: string }>;
-  /** Tag options for the Tags filter. */
-  tags?: string[];
+  /** Angle options for the Angles filter. */
+  angles?: string[];
   /** Hide the Type filter — e.g. on the video-only diagnostics page. */
   hideType?: boolean;
   /** The effective default range (user's saved choice) for the picker label. */
@@ -55,7 +55,7 @@ function csv(v: string | null): string[] {
 
 export function FilterStrip({
   products = [],
-  tags = [],
+  angles = [],
   includeExcludedDefault,
   hideType = false,
   defaultFrom,
@@ -79,7 +79,7 @@ export function FilterStrip({
       : (includeExcludedDefault ?? false);
   const productIds = csv(searchParams.get("productIds"));
   const types = csv(searchParams.get("types"));
-  const selectedTags = csv(searchParams.get("tags"));
+  const selectedAngles = csv(searchParams.get("angles"));
 
   const selectedPlatforms = useMemo(
     () => (platformsParam ? platformsParam.split(",").filter(Boolean) : []),
@@ -142,12 +142,12 @@ export function FilterStrip({
       : types.length === 1
         ? (TYPES.find((t) => t.value === types[0])?.label ?? "1")
         : `${types.length} selected`;
-  const tagLabel =
-    selectedTags.length === 0
+  const angleLabel =
+    selectedAngles.length === 0
       ? "Any"
-      : selectedTags.length === 1
-        ? selectedTags[0]!
-        : `${selectedTags.length} selected`;
+      : selectedAngles.length === 1
+        ? selectedAngles[0]!
+        : `${selectedAngles.length} selected`;
 
   const toggleExcluded = () => {
     const nextOn = !includeExcluded;
@@ -165,7 +165,7 @@ export function FilterStrip({
       next.delete("includeExcluded");
       next.delete("productIds");
       next.delete("types");
-      next.delete("tags");
+      next.delete("angles");
     });
   };
 
@@ -183,7 +183,7 @@ export function FilterStrip({
     includeExcluded ||
     productIds.length > 0 ||
     types.length > 0 ||
-    selectedTags.length > 0
+    selectedAngles.length > 0
   );
 
   const activeCount =
@@ -191,11 +191,11 @@ export function FilterStrip({
     (selectedPlatforms.length > 0 ? 1 : 0) +
     (productIds.length > 0 ? 1 : 0) +
     (types.length > 0 ? 1 : 0) +
-    (selectedTags.length > 0 ? 1 : 0) +
+    (selectedAngles.length > 0 ? 1 : 0) +
     (includeExcluded ? 1 : 0);
 
   // Canonical control order: Date → dimension pills (Platforms, Products, Type,
-  // Tags). Rendered inline on desktop and stacked full-width inside the mobile
+  // Angles). Rendered inline on desktop and stacked full-width inside the mobile
   // Sheet via `fullWidth`.
   const dimensionControls = (fullWidth: boolean) => (
     <>
@@ -294,23 +294,23 @@ export function FilterStrip({
 
       <FilterPill
         icon={Tag}
-        label="Tags"
-        value={tagLabel}
-        active={selectedTags.length > 0}
+        label="Angles"
+        value={angleLabel}
+        active={selectedAngles.length > 0}
         fullWidth={fullWidth}
       >
         {() => (
           <DropdownMenuContent align="start" className="w-56 max-h-72 overflow-y-auto">
-            <DropdownMenuLabel>Tags</DropdownMenuLabel>
+            <DropdownMenuLabel>Angles</DropdownMenuLabel>
             <DropdownMenuSeparator />
-            {tags.length === 0 && (
-              <div className="px-2 py-1.5 text-xs text-ink-3">No tags yet</div>
+            {angles.length === 0 && (
+              <div className="px-2 py-1.5 text-xs text-ink-3">No angles yet</div>
             )}
-            {tags.map((t) => (
+            {angles.map((t) => (
               <DropdownMenuCheckboxItem
                 key={t}
-                checked={selectedTags.includes(t)}
-                onCheckedChange={() => toggleMulti("tags", t, selectedTags)}
+                checked={selectedAngles.includes(t)}
+                onCheckedChange={() => toggleMulti("angles", t, selectedAngles)}
                 onSelect={(e) => e.preventDefault()}
               >
                 {t}

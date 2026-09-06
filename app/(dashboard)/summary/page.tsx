@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { int } from "@/lib/format";
-import { listAllTags } from "@/db/queries/creatives";
+import { listAllAngles } from "@/db/queries/creatives";
 import { listProducts } from "@/db/queries/products";
 import { listCreativeSummary } from "@/db/queries/summary";
 import { getRatingConfig } from "@/db/queries/rating";
@@ -55,7 +55,7 @@ export default async function SummaryPage({
     productIds: pickFirst(params.productIds),
     platforms: pickFirst(params.platforms),
     types: pickFirst(params.types),
-    tags: pickFirst(params.tags),
+    angles: pickFirst(params.angles),
     creatorIds: pickFirst(params.creatorIds),
     includeExcluded: pickFirst(params.includeExcluded),
     sort: pickFirst(params.sort),
@@ -99,7 +99,7 @@ export default async function SummaryPage({
   const [
     { rows, platforms: selectedPlatforms, effectiveSort },
     products,
-    tags,
+    angles,
     views,
   ] = await Promise.all([
     listCreativeSummary({
@@ -109,7 +109,7 @@ export default async function SummaryPage({
       productIds: parsed.productIds.length > 0 ? parsed.productIds : undefined,
       platforms: effectivePlatforms.length > 0 ? effectivePlatforms : undefined,
       types: parsed.types.length > 0 ? parsed.types : undefined,
-      tags: parsed.tags.length > 0 ? parsed.tags : undefined,
+      angles: parsed.angles.length > 0 ? parsed.angles : undefined,
       creatorIds: parsed.creatorIds.length > 0 ? parsed.creatorIds : undefined,
       includeExcluded,
       sort: parsed.sort,
@@ -121,7 +121,7 @@ export default async function SummaryPage({
       ratingConfig,
     }),
     listProducts(),
-    listAllTags(),
+    listAllAngles(),
     listSummaryViews(user.id, "summary"),
   ]);
 
@@ -144,7 +144,7 @@ export default async function SummaryPage({
       <SummaryFilterBar
           includeExcludedDefault={includeExcluded}
         products={products}
-        tags={tags}
+        angles={angles}
         effectivePlatforms={selectedPlatforms}
         views={views}
         currentUserId={user.id}

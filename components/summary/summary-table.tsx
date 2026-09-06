@@ -370,7 +370,7 @@ export function SummaryTable({
                   : null,
       })),
     { key: "status", label: "Status", value: (r: SummaryRow) => r.generalStatus },
-    { key: "tags", label: "Tags", value: (r: SummaryRow) => r.tags.join(" | ") },
+    { key: "angles", label: "Angles", value: (r: SummaryRow) => r.angles.join(" | ") },
     ...orderedGroups.flatMap((g) => {
       const groupLabel =
         g === "total"

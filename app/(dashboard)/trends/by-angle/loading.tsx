@@ -5,7 +5,7 @@ import {
   TableSkeleton,
 } from "@/components/layout/page-skeletons";
 
-export default function TrendsByTagLoading() {
+export default function TrendsByAngleLoading() {
   return (
     <div className="space-y-6">
       <FilterStripSkeleton />

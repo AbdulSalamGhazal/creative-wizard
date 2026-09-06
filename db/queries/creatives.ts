@@ -15,10 +15,10 @@ import { db } from "@/lib/db";
 import {
   campaigns,
   creatives,
-  creativeTags,
+  creativeAngles,
   performanceRecords,
   products,
-  tags,
+  angles,
   users,
   platformEnum,
   type creativeTypeEnum,
@@ -38,7 +38,7 @@ export interface CreativeListFilters {
   statuses?: CreativeStatus[] | undefined;
   /** Keep only creatives with ≥1 performance record on these platforms. */
   platforms?: Platform[];
-  tags?: string[];
+  angles?: string[];
   sort: CreativeSort;
   limit?: number;
   /** Count excluded records into the 7d/30d spend windows (default: hidden). */
@@ -54,7 +54,7 @@ export interface CreativeListRow {
   status: CreativeStatus;
   thumbnailUrl: string | null;
   launchDate: string | null;
-  tags: string[];
+  angles: string[];
   spend7d: number;
   spend30d: number;
   /** Manual Priority (1..3, 3 = highest); null = unrated. */
@@ -73,12 +73,12 @@ export interface CreativeListResult {
 
 
 /**
- * Library list with all filter support. Uses two CTEs (spend_30d, tag_agg) so
- * the 30-day spend and tag list join per-creative without fan-out. The
+ * Library list with all filter support. Uses two CTEs (spend_30d, angle_agg) so
+ * the 30-day spend and angle list join per-creative without fan-out. The
  * `total_matching` column comes from a window count so the caller can render
  * "Showing N of M" without a second query.
  *
- * Search (q) is ILIKE across name, notes, and joined tags. For the seeded
+ * Search (q) is ILIKE across name, notes, and joined angles. For the seeded
  * dataset (< 10 rows) this is fine; revisit pg_trgm + GIN once N > 10k or
  * p95 > 100 ms.
  */
@@ -115,16 +115,16 @@ export async function listCreatives(
   const spend30d = spendWindowCte("spend_30d", 30);
   const spend7d = spendWindowCte("spend_7d", 7);
 
-  const tagAgg = db.$with("tag_agg").as(
+  const angleAgg = db.$with("angle_agg").as(
     db
       .select({
-        creativeId: creativeTags.creativeId,
-        tags: sql<string[]>`array_agg(${creativeTags.tag} ORDER BY ${creativeTags.tag})`.as(
-          "tags",
+        creativeId: creativeAngles.creativeId,
+        angles: sql<string[]>`array_agg(${creativeAngles.angle} ORDER BY ${creativeAngles.angle})`.as(
+          "angles",
         ),
       })
-      .from(creativeTags)
-      .groupBy(creativeTags.creativeId),
+      .from(creativeAngles)
+      .groupBy(creativeAngles.creativeId),
   );
 
   const acct = await getActiveAccountId();
@@ -136,9 +136,9 @@ export async function listCreatives(
       or(
         ilike(creatives.name, pattern),
         ilike(creatives.notes, pattern),
-        sql`EXISTS (SELECT 1 FROM ${creativeTags} ct
+        sql`EXISTS (SELECT 1 FROM ${creativeAngles} ct
                     WHERE ct.creative_id = ${creatives.id}
-                      AND ct.tag ILIKE ${pattern})`,
+                      AND ct.angle ILIKE ${pattern})`,
       )!,
     );
   }
@@ -150,11 +150,11 @@ export async function listCreatives(
   }
   // NOTE: status is no longer a DB column we read — it's derived dynamically
   // (see creativeStatusMap below) and filtered in JS after attaching.
-  if (filters.tags && filters.tags.length > 0) {
+  if (filters.angles && filters.angles.length > 0) {
     conditions.push(
-      sql`EXISTS (SELECT 1 FROM ${creativeTags} ct
+      sql`EXISTS (SELECT 1 FROM ${creativeAngles} ct
                   WHERE ct.creative_id = ${creatives.id}
-                    AND ct.tag IN ${filters.tags})`,
+                    AND ct.angle IN ${filters.angles})`,
     );
   }
   // The platform filter NEVER narrows the list (one platform or several). It
@@ -171,10 +171,10 @@ export async function listCreatives(
   // `spend`, so unqualified refs are ambiguous once both are joined.
   const spendAlias = sql<string | null>`spend_30d.spend`.as("spend_30d");
   const spend7Alias = sql<string | null>`spend_7d.spend`.as("spend_7d");
-  const tagsAlias = sql<string[] | null>`${tagAgg.tags}`.as("tag_list");
+  const anglesAlias = sql<string[] | null>`${angleAgg.angles}`.as("angle_list");
 
   const baseQuery = db
-    .with(spend30d, spend7d, tagAgg)
+    .with(spend30d, spend7d, angleAgg)
     .select({
       id: creatives.id,
       name: creatives.name,
@@ -183,7 +183,7 @@ export async function listCreatives(
       type: creatives.type,
       thumbnailUrl: creatives.thumbnailUrl,
       launchDate: creatives.launchDate,
-      tags: tagsAlias,
+      angles: anglesAlias,
       spend7d: spend7Alias,
       spend30d: spendAlias,
       // Export-only fields (the on-screen table renders the same columns as
@@ -202,7 +202,7 @@ export async function listCreatives(
     .leftJoin(users, eq(users.id, creatives.createdByUserId))
     .leftJoin(spend30d, sql`spend_30d.creative_id = ${creatives.id}`)
     .leftJoin(spend7d, sql`spend_7d.creative_id = ${creatives.id}`)
-    .leftJoin(tagAgg, eq(tagAgg.creativeId, creatives.id))
+    .leftJoin(angleAgg, eq(angleAgg.creativeId, creatives.id))
     .where(conditions.length > 0 ? and(...conditions) : undefined)
     .orderBy(...orderBy);
 
@@ -255,7 +255,7 @@ export async function listCreatives(
     status: effectiveStatus(r.id),
     thumbnailUrl: r.thumbnailUrl,
     launchDate: r.launchDate,
-    tags: r.tags ?? [],
+    angles: r.angles ?? [],
     spend7d: r.spend7d === null ? 0 : Number(r.spend7d),
     spend30d: r.spend30d === null ? 0 : Number(r.spend30d),
     priority: r.priority,
@@ -324,18 +324,18 @@ function orderByForSort(sort: CreativeSort): SQL[] {
     case "status-asc":
     case "status-desc":
       return [asc(creatives.name)];
-    case "tag-asc":
-      // First tag alphabetically (MIN over the creative's tags); untagged
-      // creatives sort last.
+    case "angle-asc":
+      // First angle alphabetically (MIN over the creative's angles); creatives
+      // with no angles sort last.
       return [
-        sql`(SELECT MIN(${creativeTags.tag}) FROM ${creativeTags}
-             WHERE ${creativeTags.creativeId} = ${creatives.id}) ASC NULLS LAST`,
+        sql`(SELECT MIN(${creativeAngles.angle}) FROM ${creativeAngles}
+             WHERE ${creativeAngles.creativeId} = ${creatives.id}) ASC NULLS LAST`,
         asc(creatives.name),
       ];
-    case "tag-desc":
+    case "angle-desc":
       return [
-        sql`(SELECT MIN(${creativeTags.tag}) FROM ${creativeTags}
-             WHERE ${creativeTags.creativeId} = ${creatives.id}) DESC NULLS LAST`,
+        sql`(SELECT MIN(${creativeAngles.angle}) FROM ${creativeAngles}
+             WHERE ${creativeAngles.creativeId} = ${creatives.id}) DESC NULLS LAST`,
         asc(creatives.name),
       ];
     case "spend7-desc":
@@ -378,7 +378,7 @@ export interface CreativeDetail {
   sourceLink: string | null;
   createdAt: Date;
   updatedAt: Date;
-  tags: string[];
+  angles: string[];
 }
 
 /**
@@ -412,16 +412,16 @@ export const getCreativeByName = cache(async (
 
   if (!row) return null;
 
-  const tagRows = await db
-    .select({ tag: creativeTags.tag })
-    .from(creativeTags)
-    .where(eq(creativeTags.creativeId, row.id))
-    .orderBy(asc(creativeTags.tag));
+  const angleRows = await db
+    .select({ angle: creativeAngles.angle })
+    .from(creativeAngles)
+    .where(eq(creativeAngles.creativeId, row.id))
+    .orderBy(asc(creativeAngles.angle));
 
   return {
     ...row,
     type: row.type as CreativeType,
-    tags: tagRows.map((t) => t.tag),
+    angles: angleRows.map((t) => t.angle),
   };
 });
 
@@ -442,7 +442,7 @@ export interface CreativeDeletionSummary {
  * to exactly one creative and has NO `ON DELETE CASCADE`, so the delete action
  * removes these rows explicitly inside a transaction — they belong to this
  * creative alone and cannot be attached to any other. Powers the delete
- * confirmation dialog so the user sees exactly what disappears. (Tags DO
+ * confirmation dialog so the user sees exactly what disappears. (Angles DO
  * cascade and aren't counted here.)
  */
 export async function creativeDeletionSummary(
@@ -592,27 +592,27 @@ export async function creativeRecords(
 }
 
 /**
- * Tag list for filter dropdowns + creative-form suggestions. Union of the
- * managed vocabulary (`tags`) and any tags currently in use on creatives —
- * so a freshly-added vocabulary tag is selectable immediately, and any
+ * Angle list for filter dropdowns + creative-form suggestions. Union of the
+ * managed vocabulary (`angles`) and any angles currently in use on creatives —
+ * so a freshly-added vocabulary angle is selectable immediately, and any
  * legacy ad-hoc assignment still appears until it's curated.
  */
-export async function listAllTags(): Promise<string[]> {
+export async function listAllAngles(): Promise<string[]> {
   const acct = await getActiveAccountId();
   const rows = await db
     .select({
-      tag: sql<string>`t`,
+      angle: sql<string>`t`,
     })
     .from(
       sql`(
-        SELECT ${tags.name} AS t FROM ${tags} WHERE ${tags.accountId} = ${acct}
+        SELECT ${angles.name} AS t FROM ${angles} WHERE ${angles.accountId} = ${acct}
         UNION
-        SELECT ${creativeTags.tag} AS t FROM ${creativeTags}
-          JOIN ${creatives} ON ${creatives.id} = ${creativeTags.creativeId}
+        SELECT ${creativeAngles.angle} AS t FROM ${creativeAngles}
+          JOIN ${creatives} ON ${creatives.id} = ${creativeAngles.creativeId}
           WHERE ${creatives.accountId} = ${acct}
       ) AS u`,
     )
     .orderBy(sql`t`);
-  return rows.map((r) => r.tag);
+  return rows.map((r) => r.angle);
 }
 

@@ -2,13 +2,13 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { auth, can } from "@/lib/auth";
 import type { Permission } from "@/lib/permissions";
-import { listTags } from "@/db/queries/tags";
+import { listAngles } from "@/db/queries/angles";
 import { getRatingConfig } from "@/db/queries/rating";
 import { getActiveAccountId, listAccounts } from "@/lib/tenant";
 import { ProductsAdmin } from "@/components/product/products-admin";
 import { PlatformsAdmin } from "@/components/platform/platforms-admin";
 import { MappingsAdmin } from "@/components/platform/mappings-admin";
-import { TagsTable } from "@/components/tag/tags-table";
+import { AnglesTable } from "@/components/angle/angles-table";
 import { RatingRulesAdmin } from "@/components/rating/rating-rules-admin";
 import { AccountsAdmin } from "@/components/account/accounts-admin";
 import { StatusConfigAdmin } from "@/components/creative/status-config-admin";
@@ -32,7 +32,7 @@ export const dynamic = "force-dynamic";
 
 const TABS = [
   { key: "products", label: "Products", perm: "catalog.products" },
-  { key: "tags", label: "Tags", perm: "catalog.tags" },
+  { key: "angles", label: "Angles", perm: "catalog.angles" },
   { key: "platforms", label: "Platforms", perm: "config.mappings" },
   { key: "mapping", label: "CSV mapping", perm: "config.mappings" },
   { key: "rating", label: "Rate rules", perm: "config.rating" },
@@ -54,7 +54,7 @@ interface Props {
 export const metadata = { title: "Configuration" };
 
 /**
- * Configuration admin — Products, Tags, Platforms, CSV mapping, and the
+ * Configuration admin — Products, Angles, Platforms, CSV mapping, and the
  * Summary Rate rules under one page, switched via the `?tab=` query param so
  * each section stays server-rendered.
  */
@@ -97,7 +97,7 @@ export default async function CatalogAdminPage({ searchParams }: Props) {
       </div>
 
       {active === "products" && <ProductsAdmin />}
-      {active === "tags" && <TagsTable rows={await listTags()} />}
+      {active === "angles" && <AnglesTable rows={await listAngles()} />}
       {active === "platforms" && <PlatformsAdmin />}
       {active === "mapping" && <MappingsAdmin />}
       {active === "rating" && <RatingRulesAdmin config={await getRatingConfig()} />}

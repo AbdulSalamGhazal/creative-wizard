@@ -35,7 +35,7 @@ interface SideOption {
 
 interface Props {
   rows: CompareSeriesPoint[];
-  /** One entry per side; `id` matches the rows' creativeId tag. */
+  /** One entry per side; `id` matches the rows' creativeId angle. */
   creatives: SideOption[];
   metric: CompareMetric;
   /**

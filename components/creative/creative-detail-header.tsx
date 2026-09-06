@@ -38,7 +38,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { ThumbnailUpload } from "@/components/creative/thumbnail-upload";
-import { TagMultiSelect } from "@/components/creative/tag-multi-select";
+import { AngleMultiSelect } from "@/components/creative/angle-multi-select";
 import { StatusBadge } from "@/components/creative/status-badge";
 import { SourceLinkControl } from "@/components/creative/source-link-control";
 import {
@@ -94,7 +94,7 @@ export function CreativeDetailHeader({
   creative,
   status,
   terminated,
-  allTags,
+  allAngles,
   products,
 }: {
   creative: CreativeDetail;
@@ -102,7 +102,7 @@ export function CreativeDetailHeader({
   status: CreativeStatusResult;
   /** Platforms this creative is manually terminated on. */
   terminated: Platform[];
-  allTags: string[];
+  allAngles: string[];
   products: Array<{ id: string; name: string }>;
 }) {
   const router = useRouter();
@@ -124,7 +124,7 @@ export function CreativeDetailHeader({
     thumbnailUrl: creative.thumbnailUrl,
     launchDate: creative.launchDate,
     priority: creative.priority,
-    tags: creative.tags,
+    angles: creative.angles,
   });
 
   const [name, setName] = useState(creative.name);
@@ -137,7 +137,7 @@ export function CreativeDetailHeader({
     creative.launchDate,
   );
   const [priority, setPriority] = useState<number | null>(creative.priority);
-  const [tags, setTags] = useState<string[]>(creative.tags);
+  const [angles, setAngles] = useState<string[]>(creative.angles);
 
   const nameTrimmed = name.trim();
   const dirty =
@@ -147,7 +147,7 @@ export function CreativeDetailHeader({
     thumbnailUrl !== saved.thumbnailUrl ||
     launchDate !== saved.launchDate ||
     priority !== saved.priority ||
-    !sameSet(tags, saved.tags);
+    !sameSet(angles, saved.angles);
 
   const canSave = dirty && nameTrimmed !== "" && !isPending;
 
@@ -158,7 +158,7 @@ export function CreativeDetailHeader({
     setThumbnailUrl(saved.thumbnailUrl);
     setLaunchDate(saved.launchDate);
     setPriority(saved.priority);
-    setTags(saved.tags);
+    setAngles(saved.angles);
   };
 
   const onSave = () => {
@@ -170,7 +170,7 @@ export function CreativeDetailHeader({
     if (thumbnailUrl !== saved.thumbnailUrl) patch.thumbnailUrl = thumbnailUrl;
     if (launchDate !== saved.launchDate) patch.launchDate = launchDate;
     if (priority !== saved.priority) patch.priority = priority;
-    if (!sameSet(tags, saved.tags)) patch.tags = tags;
+    if (!sameSet(angles, saved.angles)) patch.angles = angles;
 
     startTransition(async () => {
       const res = await patchCreative(patch);
@@ -192,7 +192,7 @@ export function CreativeDetailHeader({
           thumbnailUrl,
           launchDate,
           priority,
-          tags,
+          angles,
         });
         router.refresh();
       }
@@ -406,15 +406,15 @@ export function CreativeDetailHeader({
             />
           </div>
 
-          {/* Tags */}
+          {/* Angles */}
           <div className="space-y-1.5">
             <label className="text-eyebrow text-ink-3">
-              Tags
+              Angles
             </label>
-            <TagMultiSelect
-              value={tags}
-              onChange={setTags}
-              allTags={allTags}
+            <AngleMultiSelect
+              value={angles}
+              onChange={setAngles}
+              allAngles={allAngles}
               disabled={locked}
             />
           </div>

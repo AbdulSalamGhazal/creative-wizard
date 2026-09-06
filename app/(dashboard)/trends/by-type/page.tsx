@@ -5,7 +5,7 @@ import { defaultDateRange } from "@/lib/date-presets";
 import { resolvePreferredRange, resolveIncludeExcluded } from "@/db/queries/user-prefs";
 import { typeRollup, type TypeRollupRow } from "@/db/queries/trends";
 import { listProducts } from "@/db/queries/products";
-import { listAllTags } from "@/db/queries/creatives";
+import { listAllAngles } from "@/db/queries/creatives";
 import { FilterStrip } from "@/components/filters/filter-strip";
 import { TypePlatformChart } from "@/components/trends/type-platform-chart";
 import { TypeRollupTable } from "@/components/trends/type-rollup-table";
@@ -59,11 +59,11 @@ export default async function TrendsByTypePage({
     includeExcluded,
   };
 
-  const [byType, byTypePlatform, products, tags] = await Promise.all([
+  const [byType, byTypePlatform, products, angles] = await Promise.all([
     typeRollup(filters, { byPlatform: false }),
     typeRollup(filters, { byPlatform: true }),
     listProducts(),
-    listAllTags(),
+    listAllAngles(),
   ]);
 
   const totalSpend = byType.reduce((s, r) => s + r.spend, 0);
@@ -74,7 +74,7 @@ export default async function TrendsByTypePage({
         <FilterStrip
           includeExcludedDefault={includeExcluded}
           products={products}
-          tags={tags}
+          angles={angles}
           defaultFrom={from}
           defaultTo={to}
         />

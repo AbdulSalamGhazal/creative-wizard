@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { listProducts } from "@/db/queries/products";
-import { listAllTags } from "@/db/queries/creatives";
+import { listAllAngles } from "@/db/queries/creatives";
 import { auth, can } from "@/lib/auth";
 import { CreativeCreateForm } from "@/components/creative/creative-create-form";
 import { PageShell } from "@/components/layout/page-shell";
@@ -11,7 +11,7 @@ export const metadata = { title: "New creative" };
 export default async function NewCreativePage() {
   const user = await auth();
   if (!user || !can(user, "creative.create")) redirect("/creatives");
-  const [products, allTags] = await Promise.all([listProducts(), listAllTags()]);
+  const [products, allAngles] = await Promise.all([listProducts(), listAllAngles()]);
 
   return (
     <PageShell width="form">
@@ -21,7 +21,7 @@ export default async function NewCreativePage() {
         subtitle="Names are case- and whitespace-sensitive — match your ad platform exactly so performance rows import cleanly."
       />
 
-      <CreativeCreateForm products={products} allTags={allTags} />
+      <CreativeCreateForm products={products} allAngles={allAngles} />
     </PageShell>
   );
 }

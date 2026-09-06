@@ -60,7 +60,7 @@ import { setIncludeExcludedPref } from "@/app/actions/user-prefs";
 
 interface Props {
   products: Array<{ id: string; name: string }>;
-  tags: string[];
+  angles: string[];
   /** Effective platforms shown in the table — feeds the metric-filter + rate scope pickers. */
   effectivePlatforms: string[];
   /** Saved views for the Views control. */
@@ -128,7 +128,7 @@ function csv(v: string | null): string[] {
 
 export function SummaryFilterBar({
   products,
-  tags,
+  angles,
   effectivePlatforms,
   views,
   currentUserId,
@@ -155,7 +155,7 @@ export function SummaryFilterBar({
         : csv(rawPlatforms).slice(0, MAX_PLATFORMS);
   const productIds = csv(searchParams.get("productIds"));
   const types = csv(searchParams.get("types"));
-  const selectedTags = csv(searchParams.get("tags"));
+  const selectedAngles = csv(searchParams.get("angles"));
   // Effective Excluded state: explicit URL param wins, else the saved
   // per-user preference the server resolved into `includeExcludedDefault`.
   const rawIncludeExcluded = searchParams.get("includeExcluded");
@@ -381,7 +381,7 @@ export function SummaryFilterBar({
     urlQ.length > 0 ||
     productIds.length > 0 ||
     types.length > 0 ||
-    selectedTags.length > 0 ||
+    selectedAngles.length > 0 ||
     // A platform filter is "active" only when the URL explicitly sets it — the
     // default (no param) resolves `platforms` to all 5, so `platforms.length`
     // would otherwise be permanently truthy and pin the "Clear" button on.
@@ -399,7 +399,7 @@ export function SummaryFilterBar({
     (from || to ? 1 : 0) +
     (productIds.length > 0 ? 1 : 0) +
     (types.length > 0 ? 1 : 0) +
-    (selectedTags.length > 0 ? 1 : 0) +
+    (selectedAngles.length > 0 ? 1 : 0) +
     (rateRatings.length > 0 ? 1 : 0) +
     (statusValues.length > 0 ? 1 : 0) +
     (searchParams.get("metricFilters") ? 1 : 0) +
@@ -411,7 +411,7 @@ export function SummaryFilterBar({
         "q",
         "productIds",
         "types",
-        "tags",
+        "angles",
         "creatorIds",
         "platforms",
         "from",
@@ -617,31 +617,31 @@ export function SummaryFilterBar({
           )}
         </FilterPill>
 
-        {/* Tags */}
+        {/* Angles */}
         <FilterPill
           icon={Tag}
-          label="Tags"
+          label="Angles"
           value={
-            selectedTags.length === 0
+            selectedAngles.length === 0
               ? "Any"
-              : selectedTags.length === 1
-                ? selectedTags[0]!
-                : `${selectedTags.length} selected`
+              : selectedAngles.length === 1
+                ? selectedAngles[0]!
+                : `${selectedAngles.length} selected`
           }
-          active={selectedTags.length > 0}
+          active={selectedAngles.length > 0}
         >
           {() => (
             <DropdownMenuContent align="start" className="w-56 max-h-72 overflow-y-auto">
-              <DropdownMenuLabel>Tags</DropdownMenuLabel>
+              <DropdownMenuLabel>Angles</DropdownMenuLabel>
               <DropdownMenuSeparator />
-              {tags.length === 0 && (
-                <div className="px-2 py-1.5 text-xs text-ink-3">No tags yet</div>
+              {angles.length === 0 && (
+                <div className="px-2 py-1.5 text-xs text-ink-3">No angles yet</div>
               )}
-              {tags.map((t) => (
+              {angles.map((t) => (
                 <DropdownMenuCheckboxItem
                   key={t}
-                  checked={selectedTags.includes(t)}
-                  onCheckedChange={() => toggleMulti("tags", t, selectedTags)}
+                  checked={selectedAngles.includes(t)}
+                  onCheckedChange={() => toggleMulti("angles", t, selectedAngles)}
                   onSelect={(e) => e.preventDefault()}
                 >
                   {t}

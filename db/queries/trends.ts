@@ -2,7 +2,7 @@ import { and, between, desc, eq, inArray, sql, type SQL } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
   creatives,
-  creativeTags,
+  creativeAngles,
   performanceRecords,
   platformEnum,
   products,
@@ -51,11 +51,11 @@ export interface TrendsFilters {
 }
 
 // =====================================================================
-// By tag
+// By angle
 // =====================================================================
 
-/** The metric set surfaced per tag (current window or the prior one). */
-export interface TagMetrics {
+/** The metric set surfaced per angle (current window or the prior one). */
+export interface AngleMetrics {
   creatives: number;
   // additive
   spend: number;
@@ -77,17 +77,17 @@ export interface TagMetrics {
   aov: number | null;
 }
 
-export interface TagRollupRow extends TagMetrics {
-  tag: string;
+export interface AngleRollupRow extends AngleMetrics {
+  angle: string;
   landingPageViews: number;
   /**
    * The same metrics for the immediately-prior equal-length window — powers
    * the table's "Vs prev" view. Null when unbounded (no range to compare).
    */
-  prev: TagMetrics | null;
+  prev: AngleMetrics | null;
 }
 
-interface TagAgg {
+interface AngleAgg {
   spend: number;
   impressions: number;
   clicks: number;
@@ -108,9 +108,9 @@ interface TagAgg {
   creatives: number;
 }
 
-/** Raw per-tag aggregates for one window. Fan-out by tag is intentional —
- *  a creative's spend counts toward each tag it carries. */
-async function tagAggregates(f: TrendsFilters): Promise<Map<string, TagAgg>> {
+/** Raw per-angle aggregates for one window. Fan-out by angle is intentional —
+ *  a creative's spend counts toward each angle it carries. */
+async function angleAggregates(f: TrendsFilters): Promise<Map<string, AngleAgg>> {
   const acct = await getActiveAccountId();
   const conds: SQL[] = [eq(performanceRecords.accountId, acct)];
   if (f.from && f.to) conds.push(between(performanceRecords.date, f.from, f.to));
@@ -124,7 +124,7 @@ async function tagAggregates(f: TrendsFilters): Promise<Map<string, TagAgg>> {
 
   const rows = await db
     .select({
-      tag: creativeTags.tag,
+      angle: creativeAngles.angle,
       creatives: sql<number>`COUNT(DISTINCT ${creatives.id})`,
       spend: sumSpend,
       impressions: sumImpressions,
@@ -146,13 +146,13 @@ async function tagAggregates(f: TrendsFilters): Promise<Map<string, TagAgg>> {
     })
     .from(performanceRecords)
     .innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId))
-    .innerJoin(creativeTags, eq(creativeTags.creativeId, creatives.id))
+    .innerJoin(creativeAngles, eq(creativeAngles.creativeId, creatives.id))
     .where(conds.length > 0 ? and(...conds) : undefined)
-    .groupBy(creativeTags.tag);
+    .groupBy(creativeAngles.angle);
 
-  const map = new Map<string, TagAgg>();
+  const map = new Map<string, AngleAgg>();
   for (const r of rows) {
-    map.set(r.tag, {
+    map.set(r.angle, {
       spend: num(r.spend),
       impressions: num(r.impressions),
       clicks: num(r.clicks),
@@ -177,7 +177,7 @@ async function tagAggregates(f: TrendsFilters): Promise<Map<string, TagAgg>> {
 }
 
 /** Project a per-window aggregate to the surfaced metric set. */
-function toTagMetrics(a: TagAgg): TagMetrics {
+function toAngleMetrics(a: AngleAgg): AngleMetrics {
   return {
     creatives: a.creatives,
     spend: a.spend,
@@ -200,28 +200,28 @@ function toTagMetrics(a: TagAgg): TagMetrics {
 }
 
 /**
- * Per-tag rollup for Trends → By tag. Weighted metrics per tag, plus the same
+ * Per-angle rollup for Trends → By angle. Weighted metrics per angle, plus the same
  * metrics for the immediately-prior equal-length window (when a date range is
  * set) so the table can render its rank / vs-average / vs-previous views.
  */
-export async function tagRollup(f: TrendsFilters): Promise<TagRollupRow[]> {
+export async function angleRollup(f: TrendsFilters): Promise<AngleRollupRow[]> {
   const bounded = Boolean(f.from && f.to);
-  const current = await tagAggregates(f);
+  const current = await angleAggregates(f);
 
-  let prevMap = new Map<string, TagAgg>();
+  let prevMap = new Map<string, AngleAgg>();
   if (bounded) {
     const prev = prevPeriod(f.from!, f.to!);
-    prevMap = await tagAggregates({ ...f, from: prev.from, to: prev.to });
+    prevMap = await angleAggregates({ ...f, from: prev.from, to: prev.to });
   }
 
-  const rows: TagRollupRow[] = [];
-  for (const [tag, c] of current) {
-    const p = prevMap.get(tag);
+  const rows: AngleRollupRow[] = [];
+  for (const [angle, c] of current) {
+    const p = prevMap.get(angle);
     rows.push({
-      tag,
-      ...toTagMetrics(c),
+      angle,
+      ...toAngleMetrics(c),
       landingPageViews: c.landingPageViews,
-      prev: p ? toTagMetrics(p) : null,
+      prev: p ? toAngleMetrics(p) : null,
     });
   }
   rows.sort((a, b) => b.spend - a.spend);
@@ -229,20 +229,20 @@ export async function tagRollup(f: TrendsFilters): Promise<TagRollupRow[]> {
 }
 
 // =====================================================================
-// By tag × platform — powers the platform-comparison section
+// By angle × platform — powers the platform-comparison section
 // =====================================================================
 
-export interface TagPlatformRow extends TagMetrics {
+export interface AnglePlatformRow extends AngleMetrics {
   platform: Platform;
-  tag: string;
+  angle: string;
 }
 
 /**
- * Tag metrics broken out per platform (group by platform, tag). Same fan-out
- * as the blended rollup — a creative's spend counts toward each tag it carries
- * — but kept per platform so the UI can rank the top tags within each channel.
+ * Angle metrics broken out per platform (group by platform, angle). Same fan-out
+ * as the blended rollup — a creative's spend counts toward each angle it carries
+ * — but kept per platform so the UI can rank the top angles within each channel.
  */
-export async function tagByPlatform(f: TrendsFilters): Promise<TagPlatformRow[]> {
+export async function angleByPlatform(f: TrendsFilters): Promise<AnglePlatformRow[]> {
   const acct = await getActiveAccountId();
   const conds: SQL[] = [eq(performanceRecords.accountId, acct)];
   if (f.from && f.to) conds.push(between(performanceRecords.date, f.from, f.to));
@@ -257,7 +257,7 @@ export async function tagByPlatform(f: TrendsFilters): Promise<TagPlatformRow[]>
   const rows = await db
     .select({
       platform: performanceRecords.platform,
-      tag: creativeTags.tag,
+      angle: creativeAngles.angle,
       creatives: sql<number>`COUNT(DISTINCT ${creatives.id})`,
       spend: sumSpend,
       impressions: sumImpressions,
@@ -278,13 +278,13 @@ export async function tagByPlatform(f: TrendsFilters): Promise<TagPlatformRow[]>
     })
     .from(performanceRecords)
     .innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId))
-    .innerJoin(creativeTags, eq(creativeTags.creativeId, creatives.id))
+    .innerJoin(creativeAngles, eq(creativeAngles.creativeId, creatives.id))
     .where(conds.length > 0 ? and(...conds) : undefined)
-    .groupBy(performanceRecords.platform, creativeTags.tag);
+    .groupBy(performanceRecords.platform, creativeAngles.angle);
 
   return rows.map((r) => ({
     platform: r.platform as Platform,
-    tag: r.tag,
+    angle: r.angle,
     creatives: num(r.creatives),
     spend: num(r.spend),
     impressions: num(r.impressions),

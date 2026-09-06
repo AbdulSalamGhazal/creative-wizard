@@ -306,7 +306,7 @@ export const summaryFiltersSchema = z.object({
     arr.slice(0, MAX_PLATFORMS),
   ),
   types: csvEnum(creativeTypeEnum),
-  tags: csv(),
+  angles: csv(),
   creatorIds: csv(),
   includeExcluded: z
     .string()

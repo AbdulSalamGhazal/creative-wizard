@@ -7,7 +7,7 @@ import { rowsToCsv, type CsvColumn } from "@/lib/csv-export";
  * escaping has to be RFC 4180-correct: any field containing a comma, a double
  * quote, or a newline is wrapped in quotes, and inner quotes are doubled.
  * These cases matter most for the Library export, whose cells carry
- * comma-joined tags, free-text notes (commas + quotes + line breaks), and URLs.
+ * comma-joined angles, free-text notes (commas + quotes + line breaks), and URLs.
  *
  * Each case asserts the raw bytes AND round-trips through a real parser
  * (papaparse) to prove the value survives as exactly ONE cell.
@@ -63,11 +63,11 @@ describe("rowsToCsv — RFC 4180 escaping", () => {
     expect(rows[1]).toEqual([note, "after"]);
   });
 
-  it("keeps a comma-joined tag list as a single cell", () => {
-    const tags = ["launch", "ugc", "q4"];
-    const csv = rowsToCsv([{ a: tags.join(", "), b: "after" }], COLS);
+  it("keeps a comma-joined angle list as a single cell", () => {
+    const angles = ["launch", "ugc", "q4"];
+    const csv = rowsToCsv([{ a: angles.join(", "), b: "after" }], COLS);
     const rows = parse(csv);
-    expect(rows[1]).toHaveLength(2); // NOT one column per tag
+    expect(rows[1]).toHaveLength(2); // NOT one column per angle
     expect(rows[1]![0]).toBe("launch, ugc, q4");
     expect(rows[1]![1]).toBe("after");
   });

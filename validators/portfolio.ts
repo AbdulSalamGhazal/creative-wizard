@@ -8,7 +8,7 @@ import { defaultDateRange } from "@/lib/date-presets";
  *
  * Distinct from the global dashboard filters — this surface is portfolio
  * altitude: date range, platform + objective multi-select, and a campaign-name
- * search. No product/type/tag (those live on the creative surfaces). A bad value
+ * search. No product/type/angle (those live on the creative surfaces). A bad value
  * drops the filter rather than throwing.
  */
 

@@ -62,6 +62,20 @@ export function McpConnectPanel() {
         </p>
       </div>
       <div className="space-y-4 p-4">
+        {/* Renaming a tool's field is a breaking change for already-connected
+            clients, so it's called out here as well as in every affected tool
+            description. */}
+        <p className="rounded-md border border-warn/30 bg-warn/5 px-3 py-2 text-[11px] text-ink-2">
+          <span className="font-medium text-ink">Breaking change (Sep 2026):</span>{" "}
+          the creative-labeling concept &ldquo;tag&rdquo; is now
+          &ldquo;angle&rdquo;. In <code className="font-mono">list_creatives</code>,{" "}
+          <code className="font-mono">get_creative</code>,{" "}
+          <code className="font-mono">get_summary</code> and{" "}
+          <code className="font-mono">get_overview</code>, the{" "}
+          <code className="font-mono">tags</code> field and filter are now{" "}
+          <code className="font-mono">angles</code>. Update any saved prompts —{" "}
+          <code className="font-mono">tags</code> is no longer accepted.
+        </p>
         {SNIPPETS.map((s) => (
           <Snippet key={s.label} {...s} />
         ))}

@@ -10,7 +10,7 @@ import {
   kpisWithDelta,
   metricOverTime,
   productMix,
-  tagMix,
+  angleMix,
   topMovers,
   typeDimensionSpend,
   type BreakdownDimension,
@@ -42,7 +42,7 @@ import {
 import { TopCreativesTable } from "@/components/charts/top-creatives";
 import { ProductMixDonut } from "@/components/charts/product-mix";
 import { TypeMixBars } from "@/components/charts/type-mix-bars";
-import { TagLeaderboard } from "@/components/charts/tag-leaderboard";
+import { AngleLeaderboard } from "@/components/charts/angle-leaderboard";
 import { TopMoversChart } from "@/components/overview/top-movers-chart";
 import { StatusFlowGrid } from "@/components/overview/status-flow-grid";
 import { FunnelRates } from "@/components/overview/funnel-rates";
@@ -57,7 +57,7 @@ import { PLATFORM_COLOR, PLATFORM_LABEL, swatchColor } from "@/lib/palette";
 const CAMPAIGN_LINE_LIMIT = 6;
 
 interface Props {
-  /** Base filters from the URL (date / product / type / tag / excluded). */
+  /** Base filters from the URL (date / product / type / angle / excluded). */
   filters: KpiFilters;
   /** Over-time breakdown dimension: platform, or campaign when one platform
    *  is pinned. */
@@ -80,7 +80,7 @@ function isoMinusDays(iso: string, days: number): string {
 /**
  * The lower Dashboard block: a metric-over-time line chart (metric picker in
  * its header, broken down by platform — or campaign when pinned to one), a row
- * of three mix graphs (Product donut · Type composition · Tag leaderboard),
+ * of three mix graphs (Product donut · Type composition · Angle leaderboard),
  * and the top-creatives table.
  */
 export async function OverviewSection({
@@ -136,7 +136,7 @@ export async function OverviewSection({
     topRows,
     productMixRows,
     typeRows,
-    tagMixRows,
+    angleMixRows,
     moverRows,
     statusScopes,
     kd,
@@ -154,7 +154,7 @@ export async function OverviewSection({
     creativeLeaderboard(filters),
     productMix(filters),
     typeDimensionSpend(filters, dimension),
-    tagMix(filters),
+    angleMix(filters),
     hasRange
       ? topMovers(filters as KpiFilters & { from: string; to: string }, 12)
       : Promise.resolve([]),
@@ -165,7 +165,7 @@ export async function OverviewSection({
             to: filters.to!,
             productIds: filters.productIds,
             types: filters.types,
-            tags: filters.tags,
+            angles: filters.angles,
           },
           dimension,
           dimension === "campaign" && filters.platforms?.length === 1
@@ -319,7 +319,7 @@ export async function OverviewSection({
           dimension={dimension}
           dimensionLabel={dimensionLabel}
         />
-        <TagLeaderboard rows={tagMixRows} />
+        <AngleLeaderboard rows={angleMixRows} />
       </div>
 
       {/* Top movers + funnel rates (full row, half each) */}

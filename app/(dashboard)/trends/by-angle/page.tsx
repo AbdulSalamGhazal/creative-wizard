@@ -1,29 +1,31 @@
 import { Badge } from "@/components/ui/badge";
 import { PageShell } from "@/components/layout/page-shell";
 import { PageHeader } from "@/components/layout/page-header";
-import { type KpiFilters } from "@/db/queries/performance";
 import { defaultDateRange } from "@/lib/date-presets";
 import { resolvePreferredRange, resolveIncludeExcluded } from "@/db/queries/user-prefs";
+import { angleRollup, angleByPlatform } from "@/db/queries/trends";
 import { listProducts } from "@/db/queries/products";
 import { listAllAngles } from "@/db/queries/creatives";
-import { DashboardMetrics } from "@/components/overview/dashboard-metrics";
-import { OverviewSection } from "@/components/overview/overview-section";
 import { FilterStrip } from "@/components/filters/filter-strip";
+import { AngleRollupTable } from "@/components/trends/angle-rollup-table";
+import { AngleScatter } from "@/components/trends/angle-scatter";
+import { AngleLeaderboard } from "@/components/trends/angle-leaderboard";
+import { AnglePlatformCompare } from "@/components/trends/angle-platform-compare";
 import { dashboardFiltersSchema } from "@/validators/filters";
-import { PLATFORM_LABEL } from "@/lib/palette";
+import { periodCaption } from "@/lib/period";
+
+export const dynamic = "force-dynamic";
 
 const TRAILING_DAYS_DEFAULT = 30;
 
 type SearchParams = Record<string, string | string[] | undefined>;
-
-function pickFirst(value: string | string[] | undefined): string | undefined {
-  if (Array.isArray(value)) return value[0];
-  return value;
+function pickFirst(v: string | string[] | undefined): string | undefined {
+  return Array.isArray(v) ? v[0] : v;
 }
 
-export const metadata = { title: "Dashboard" };
+export const metadata = { title: "Trends · Angles" };
 
-export default async function DashboardPage({
+export default async function TrendsByAnglePage({
   searchParams,
 }: {
   searchParams: Promise<SearchParams>;
@@ -34,8 +36,6 @@ export default async function DashboardPage({
     to: pickFirst(params.to),
     productIds: pickFirst(params.productIds),
     platforms: pickFirst(params.platforms),
-    types: pickFirst(params.types),
-    angles: pickFirst(params.angles),
     includeExcluded: pickFirst(params.includeExcluded),
   });
 
@@ -52,26 +52,20 @@ export default async function DashboardPage({
   const from = range.from;
   const to = range.to;
 
-  const filters: KpiFilters = {
+  const filters = {
     from,
     to,
-    productIds: parsed.productIds,
     platforms: parsed.platforms.length > 0 ? parsed.platforms : undefined,
-    types: parsed.types.length > 0 ? parsed.types : undefined,
-    angles: parsed.angles.length > 0 ? parsed.angles : undefined,
+    productIds: parsed.productIds.length > 0 ? parsed.productIds : undefined,
     includeExcluded,
   };
 
-  // When the view is pinned to exactly ONE platform, the metric breakdowns
-  // drill one level deeper — by campaign within that platform. Otherwise they
-  // break down by platform.
-  const singlePlatform = parsed.platforms.length === 1 ? parsed.platforms[0] : null;
-  const dimension = singlePlatform ? "campaign" : "platform";
-
-  const platformsBadge =
-    parsed.platforms.length > 0 ? parsed.platforms.join(", ") : "all platforms";
-
-  const [products, angles] = await Promise.all([listProducts(), listAllAngles()]);
+  const [rows, platformRows, products, angles] = await Promise.all([
+    angleRollup(filters),
+    angleByPlatform(filters),
+    listProducts(),
+    listAllAngles(),
+  ]);
 
   return (
     <PageShell
@@ -86,24 +80,32 @@ export default async function DashboardPage({
       }
     >
       <PageHeader
-        title="Dashboard"
+        backLink={{ href: "/trends", label: "Trends" }}
+        title="Angles"
+        subtitle={
+          <>
+            A creative counts toward every angle it carries. Spend Δ is{" "}
+            {periodCaption(from, to)}.
+          </>
+        }
         rightSlot={
           <Badge variant="outline" className="text-ink-3">
-            {from} → {to} · {platformsBadge} ·{" "}
-            {includeExcluded ? "excluded shown" : "excluded hidden"}
+            {from} → {to}
           </Badge>
         }
       />
 
-      <DashboardMetrics filters={filters} dimension={dimension} />
+      {/* Graphs: efficiency scatter + ranked leaderboard */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <AngleScatter rows={rows} />
+        <AngleLeaderboard rows={rows} />
+      </div>
 
-      <OverviewSection
-        filters={filters}
-        dimension={dimension}
-        dimensionLabel={singlePlatform ? PLATFORM_LABEL[singlePlatform] : undefined}
-        rangeFrom={pickFirst(params.from)}
-        rangeTo={pickFirst(params.to)}
-      />
+      {/* Platform comparison — top angles per channel for a chosen metric */}
+      <AnglePlatformCompare rows={platformRows} />
+
+      {/* Full rollup — sortable, with a column selector */}
+      <AngleRollupTable rows={rows} />
     </PageShell>
   );
 }

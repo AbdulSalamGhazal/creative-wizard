@@ -4,7 +4,7 @@ import {
   campaigns,
   creativePlatformOverrides,
   creatives,
-  creativeTags,
+  creativeAngles,
   performanceRecords,
   platformEnum,
 } from "@/db/schema";
@@ -252,10 +252,10 @@ export interface StatusTransitionFilters {
    *  here). */
   productIds?: string[];
   types?: Array<"video" | "image" | "slides">;
-  tags?: string[];
+  angles?: string[];
 }
 
-/** Creative IDs matching the product/type/tag filters (account-scoped), or
+/** Creative IDs matching the product/type/angle filters (account-scoped), or
  *  undefined when none of those filters are set (→ whole brand). */
 async function statusRestrictIds(
   filters: StatusTransitionFilters,
@@ -263,7 +263,7 @@ async function statusRestrictIds(
   const hasAttr =
     (filters.productIds && filters.productIds.length > 0) ||
     (filters.types && filters.types.length > 0) ||
-    (filters.tags && filters.tags.length > 0);
+    (filters.angles && filters.angles.length > 0);
   if (!hasAttr) return undefined;
 
   const acct = await getActiveAccountId();
@@ -274,9 +274,9 @@ async function statusRestrictIds(
   if (filters.types && filters.types.length > 0) {
     conds.push(inArray(creatives.type, filters.types));
   }
-  if (filters.tags && filters.tags.length > 0) {
+  if (filters.angles && filters.angles.length > 0) {
     conds.push(
-      sql`EXISTS (SELECT 1 FROM ${creativeTags} WHERE ${creativeTags.creativeId} = ${creatives.id} AND ${inArray(creativeTags.tag, filters.tags)})`,
+      sql`EXISTS (SELECT 1 FROM ${creativeAngles} WHERE ${creativeAngles.creativeId} = ${creatives.id} AND ${inArray(creativeAngles.angle, filters.angles)})`,
     );
   }
   const rows = await db.select({ id: creatives.id }).from(creatives).where(and(...conds));

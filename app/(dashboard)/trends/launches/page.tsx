@@ -3,7 +3,7 @@ import { PageShell } from "@/components/layout/page-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { launchFatigue, type LaunchFatigueFilters } from "@/db/queries/performance";
 import { listProducts } from "@/db/queries/products";
-import { listAllTags } from "@/db/queries/creatives";
+import { listAllAngles } from "@/db/queries/creatives";
 import { FilterStrip } from "@/components/filters/filter-strip";
 import {
   LaunchFatigueSummary,
@@ -43,7 +43,7 @@ export default async function TrendsLaunchesPage({
     productIds: pickFirst(params.productIds),
     platforms: pickFirst(params.platforms),
     types: pickFirst(params.types),
-    tags: pickFirst(params.tags),
+    angles: pickFirst(params.angles),
     includeExcluded: pickFirst(params.includeExcluded),
   });
 
@@ -66,14 +66,14 @@ export default async function TrendsLaunchesPage({
     platforms: parsed.platforms.length > 0 ? parsed.platforms : undefined,
     productIds: parsed.productIds.length > 0 ? parsed.productIds : undefined,
     types: parsed.types.length > 0 ? parsed.types : undefined,
-    tags: parsed.tags.length > 0 ? parsed.tags : undefined,
+    angles: parsed.angles.length > 0 ? parsed.angles : undefined,
     includeExcluded,
   };
 
-  const [raw, products, tags] = await Promise.all([
+  const [raw, products, angles] = await Promise.all([
     launchFatigue(filters),
     listProducts(),
-    listAllTags(),
+    listAllAngles(),
   ]);
 
   const rows: LaunchFatigueViewRow[] = raw
@@ -144,7 +144,7 @@ export default async function TrendsLaunchesPage({
         <FilterStrip
           includeExcludedDefault={includeExcluded}
           products={products}
-          tags={tags}
+          angles={angles}
           defaultFrom={LIFETIME_FLOOR}
           defaultTo={todayIso()}
           rememberDate={false}

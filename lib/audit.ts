@@ -80,10 +80,10 @@ export const AUDIT_ACTIONS = {
   VIEW_DELETE: "view.delete",
   VIEW_SET_DEFAULT: "view.set_default",
 
-  // Tags (vocabulary)
-  TAG_CREATE: "tag.create",
-  TAG_RENAME: "tag.rename",
-  TAG_DELETE: "tag.delete",
+  // Angles (vocabulary)
+  ANGLE_CREATE: "angle.create",
+  ANGLE_RENAME: "angle.rename",
+  ANGLE_DELETE: "angle.delete",
 
   // Rating rules (Summary rate config)
   RATING_UPDATE: "rating.update",
@@ -108,6 +108,8 @@ export type AuditEntityType =
   | "mapping"
   | "auth"
   | "view"
+  | "angle"
+  // Legacy: rows written before the 2026-09 tag → angle rename carry this.
   | "tag"
   | "rating"
   | "account"
@@ -163,6 +165,25 @@ export async function logAudit(input: AuditEventInput): Promise<number | null> {
 }
 
 /** Pretty labels for the feed UI. Keep in sync with AUDIT_ACTIONS. */
+/**
+ * Actions retired by a RENAME. `audit_events` is append-only — historical rows
+ * keep the exact string they were written with, and are shown with their
+ * ORIGINAL wording so the log stays a faithful record of what happened at the
+ * time. 2026-09: the "tag" concept became "angle" (`tag.*` → `angle.*`); these
+ * entries are read-only history and nothing new is ever written with them.
+ */
+export const LEGACY_AUDIT_LABELS: Record<string, string> = {
+  "tag.create": "Created tag",
+  "tag.rename": "Renamed tag",
+  "tag.delete": "Deleted tag",
+};
+
+export const LEGACY_AUDIT_CATEGORIES: Record<string, AuditEntityType> = {
+  "tag.create": "tag",
+  "tag.rename": "tag",
+  "tag.delete": "tag",
+};
+
 export const AUDIT_LABELS: Record<AuditAction, string> = {
   "creative.create": "Created creative",
   "creative.bulk_create": "Bulk-created creatives",
@@ -206,9 +227,9 @@ export const AUDIT_LABELS: Record<AuditAction, string> = {
   "view.create": "Saved a view",
   "view.delete": "Deleted a view",
   "view.set_default": "Changed default view",
-  "tag.create": "Created tag",
-  "tag.rename": "Renamed tag",
-  "tag.delete": "Deleted tag",
+  "angle.create": "Created angle",
+  "angle.rename": "Renamed angle",
+  "angle.delete": "Deleted angle",
   "rating.update": "Updated rating rules",
   "budget.update": "Updated budget plan",
   "account.create": "Created brand",
@@ -260,12 +281,28 @@ export const AUDIT_CATEGORIES: Record<AuditAction, AuditEntityType> = {
   "view.create": "view",
   "view.delete": "view",
   "view.set_default": "view",
-  "tag.create": "tag",
-  "tag.rename": "tag",
-  "tag.delete": "tag",
+  "angle.create": "angle",
+  "angle.rename": "angle",
+  "angle.delete": "angle",
   "rating.update": "rating",
   "budget.update": "budget",
   "account.create": "account",
   "account.rename": "account",
   "account.window_update": "account",
 };
+
+/** Human label for an audit action, including retired (renamed) ones. */
+export function auditLabel(action: string): string {
+  return (
+    AUDIT_LABELS[action as AuditAction] ?? LEGACY_AUDIT_LABELS[action] ?? action
+  );
+}
+
+/** Category for an audit action, including retired (renamed) ones. */
+export function auditCategory(action: string): AuditEntityType | null {
+  return (
+    AUDIT_CATEGORIES[action as AuditAction] ??
+    LEGACY_AUDIT_CATEGORIES[action] ??
+    null
+  );
+}

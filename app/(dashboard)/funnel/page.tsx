@@ -11,7 +11,7 @@ import {
   platformCampaignFunnel,
 } from "@/db/queries/funnel";
 import { listProducts } from "@/db/queries/products";
-import { listAllTags } from "@/db/queries/creatives";
+import { listAllAngles } from "@/db/queries/creatives";
 import { FilterStrip } from "@/components/filters/filter-strip";
 import { FunnelRateTiles } from "@/components/funnel/funnel-rate-tiles";
 import { FunnelStages } from "@/components/funnel/funnel-stages";
@@ -75,7 +75,7 @@ export default async function FunnelPage({
     byPlatform,
     byPlatformCampaign,
     products,
-    tags,
+    angles,
   ] = await Promise.all([
     funnelOverview(filters),
     campaignFunnel(filters),
@@ -84,7 +84,7 @@ export default async function FunnelPage({
     platformFunnel(filters),
     platformCampaignFunnel(filters),
     listProducts(),
-    listAllTags(),
+    listAllAngles(),
   ]);
 
   return (
@@ -93,7 +93,7 @@ export default async function FunnelPage({
         <FilterStrip
           includeExcludedDefault={includeExcluded}
           products={products}
-          tags={tags}
+          angles={angles}
           defaultFrom={from}
           defaultTo={to}
         />

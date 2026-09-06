@@ -13,7 +13,7 @@ import type { PgColumn } from "drizzle-orm/pg-core";
 import { db } from "@/lib/db";
 import {
   creatives,
-  creativeTags,
+  creativeAngles,
   creativeTypeEnum,
   performanceRecords,
   platformEnum,
@@ -80,7 +80,7 @@ export interface SummaryFilterInput {
   /** Platforms to render columns for. Capped to ≤3 by the validator. */
   platforms?: Platform[];
   types?: CreativeType[];
-  tags?: string[];
+  angles?: string[];
   creatorIds?: string[];
   includeExcluded?: boolean;
   sort?: string;
@@ -128,7 +128,7 @@ export interface SummaryRow {
   creatorEmail: string | null;
   /** Manual launch date (`creatives.launch_date`), null when not set. */
   launchDate: string | null;
-  tags: string[];
+  angles: string[];
   /** One entry per selected platform; key is the platform string. */
   perPlatform: Partial<Record<Platform, PlatformMetricBlock>>;
   /**
@@ -442,12 +442,12 @@ function passesMetricFilters(
  *   - `excluded_from_aggregates = false` (default) likewise lives on the
  *     JOIN so excluded rows fall out of the sums without dropping the
  *     creative entirely.
- *   - Creative-side filters (product, type, status, creator, tags,
+ *   - Creative-side filters (product, type, status, creator, angles,
  *     search-q) go in the WHERE clause where they should.
  *
- * Tags are loaded in a separate small query and merged in JS to avoid the
- * row-explosion from joining `creative_tags` (which would multiply rows
- * by the number of tags per creative and inflate every SUM).
+ * Angles are loaded in a separate small query and merged in JS to avoid the
+ * row-explosion from joining `creative_angles` (which would multiply rows
+ * by the number of angles per creative and inflate every SUM).
  */
 export async function listCreativeSummary(
   filters: SummaryFilterInput,
@@ -496,15 +496,22 @@ export async function listCreativeSummary(
   if (filters.creatorIds && filters.creatorIds.length > 0) {
     whereConds.push(inArray(creatives.createdByUserId, filters.creatorIds));
   }
-  if (filters.tags && filters.tags.length > 0) {
-    // Restrict to creatives that have at least one of the named tags.
+  if (filters.angles && filters.angles.length > 0) {
+    // Restrict to creatives that have at least one of the named angles.
     // EXISTS keeps it as a row-level predicate so we don't fan-out on the
     // join (which would inflate aggregates).
+    //
+    // `IN ${array}`, not `= ANY(${array})`: drizzle expands an array in a raw
+    // sql template into individual params, so ANY() received `ANY(($1,$2))` —
+    // a row expression, not an array — and Postgres rejected the whole query
+    // ("malformed array literal" / "op ANY/ALL requires array on right side").
+    // The filter therefore never worked; it errored. (Pre-existing bug, found
+    // while renaming tag → angle — the Library's filter already used IN.)
     whereConds.push(
       sql`EXISTS (
-        SELECT 1 FROM ${creativeTags}
-        WHERE ${creativeTags.creativeId} = ${creatives.id}
-          AND ${creativeTags.tag} = ANY(${filters.tags})
+        SELECT 1 FROM ${creativeAngles} ca
+        WHERE ca.creative_id = ${creatives.id}
+          AND ca.angle IN ${filters.angles}
       )`,
     );
   }
@@ -616,21 +623,21 @@ export async function listCreativeSummary(
     return { rows: [], platforms: selectedPlatforms, effectiveSort: resolved };
   }
 
-  // Tags — second query, merged in JS.
+  // Angles — second query, merged in JS.
   const ids = rawRows.map((r) => (r as unknown as { creativeId: string }).creativeId);
-  const tagRows = await db
+  const angleRows = await db
     .select({
-      creativeId: creativeTags.creativeId,
-      tag: creativeTags.tag,
+      creativeId: creativeAngles.creativeId,
+      angle: creativeAngles.angle,
     })
-    .from(creativeTags)
-    .where(inArray(creativeTags.creativeId, ids))
-    .orderBy(asc(creativeTags.tag));
-  const tagsByCreative = new Map<string, string[]>();
-  for (const t of tagRows) {
-    const list = tagsByCreative.get(t.creativeId) ?? [];
-    list.push(t.tag);
-    tagsByCreative.set(t.creativeId, list);
+    .from(creativeAngles)
+    .where(inArray(creativeAngles.creativeId, ids))
+    .orderBy(asc(creativeAngles.angle));
+  const anglesByCreative = new Map<string, string[]>();
+  for (const t of angleRows) {
+    const list = anglesByCreative.get(t.creativeId) ?? [];
+    list.push(t.angle);
+    anglesByCreative.set(t.creativeId, list);
   }
 
   // Dynamic status (general + per-platform), keyed by creativeId. Account-scoped
@@ -674,7 +681,7 @@ export async function listCreativeSummary(
       creatorName: (r.creatorName as string | null) ?? null,
       creatorEmail: (r.creatorEmail as string | null) ?? null,
       launchDate: (r.launchDate as string | null) ?? null,
-      tags: tagsByCreative.get(r.creativeId as string) ?? [],
+      angles: anglesByCreative.get(r.creativeId as string) ?? [],
       perPlatform,
       total: {
         spend: num(r.totalSpend),

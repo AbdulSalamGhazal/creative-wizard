@@ -11,6 +11,9 @@ vi.mock("@/lib/tenant", () => ({
 
 import { getActiveAccountId } from "@/lib/tenant";
 import { listCreativeSummary } from "@/db/queries/summary";
+import { db } from "@/lib/db";
+import { creativeAngles, creatives } from "@/db/schema";
+import { eq } from "drizzle-orm";
 import { resetAndSeed } from "./fixtures";
 
 beforeAll(async () => {
@@ -30,6 +33,42 @@ describe("listCreativeSummary()", () => {
     // Blended total = weighted across the two selected platforms.
     expect(c1?.total.spend).toBeCloseTo(400, 4);
     expect(c1?.total.roas).toBeCloseTo(5, 4); // 2000 / 400
+  });
+
+  it("respects the angles filter (regression: it used to ERROR, not filter)", async () => {
+    // `= ANY(${array})` in a raw drizzle sql template expands to `ANY(($1,$2))`
+    // — a row expression, not an array — so Postgres rejected the whole query
+    // and the filter silently produced nothing. Pinning the working `IN` form.
+    const [c1] = await db
+      .select({ id: creatives.id })
+      .from(creatives)
+      .where(eq(creatives.name, "A-Creative-1"))
+      .limit(1);
+    await db
+      .insert(creativeAngles)
+      .values({ creativeId: c1!.id, angle: "ugc" })
+      .onConflictDoNothing();
+
+    // One angle (the case that raised "malformed array literal").
+    const one = await listCreativeSummary({
+      platforms: ["instagram", "facebook"],
+      angles: ["ugc"],
+    });
+    expect(one.rows.map((r) => r.name)).toEqual(["A-Creative-1"]);
+
+    // Two angles (the case that raised "op ANY/ALL requires array on right side").
+    const two = await listCreativeSummary({
+      platforms: ["instagram", "facebook"],
+      angles: ["ugc", "does-not-exist"],
+    });
+    expect(two.rows.map((r) => r.name)).toEqual(["A-Creative-1"]);
+
+    // A non-matching angle narrows to nothing rather than erroring.
+    const none = await listCreativeSummary({
+      platforms: ["instagram", "facebook"],
+      angles: ["no-such-angle"],
+    });
+    expect(none.rows).toHaveLength(0);
   });
 
   it("respects the type filter", async () => {

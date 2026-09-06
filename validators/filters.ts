@@ -40,7 +40,7 @@ export const dashboardFiltersSchema = z.object({
   // The OLD manual `statuses` filter was retired — status is DERIVED now and
   // can't be a SQL WHERE on the aggregate views. The Library/Summary status
   // filters live in their own validators and are unaffected.
-  tags: z
+  angles: z
     .string()
     .optional()
     .transform((s) => (s ? s.split(",").filter(Boolean) : [])),

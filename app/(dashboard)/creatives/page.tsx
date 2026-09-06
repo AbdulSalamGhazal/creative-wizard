@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { listCreatives, listAllTags } from "@/db/queries/creatives";
+import { listCreatives, listAllAngles } from "@/db/queries/creatives";
 import { creativeStatusBreakdown } from "@/db/queries/creative-status";
 import { listProducts } from "@/db/queries/products";
 import {
@@ -48,7 +48,7 @@ export default async function CreativesPage({
     types: pickFirst(params.types),
     statuses: pickFirst(params.statuses),
     platforms: pickFirst(params.platforms),
-    tags: pickFirst(params.tags),
+    angles: pickFirst(params.angles),
     sort: pickFirst(params.sort),
     view: pickFirst(params.view),
   });
@@ -59,20 +59,20 @@ export default async function CreativesPage({
     pickFirst(params.includeExcluded),
   );
 
-  const [listResult, breakdown, products, allTags, views] = await Promise.all([
+  const [listResult, breakdown, products, allAngles, views] = await Promise.all([
     listCreatives({
       q: parsed.q,
       productIds: parsed.productIds.length > 0 ? parsed.productIds : undefined,
       types: parsed.types.length > 0 ? parsed.types : undefined,
       statuses: parsed.statuses.length > 0 ? parsed.statuses : undefined,
       platforms: parsed.platforms.length > 0 ? parsed.platforms : undefined,
-      tags: parsed.tags.length > 0 ? parsed.tags : undefined,
+      angles: parsed.angles.length > 0 ? parsed.angles : undefined,
       sort: parsed.sort,
       includeExcluded,
     }),
     creativeStatusBreakdown(),
     listProducts(),
-    listAllTags(),
+    listAllAngles(),
     listSummaryViews(user.id, "creatives"),
   ]);
 
@@ -85,7 +85,7 @@ export default async function CreativesPage({
     ["types", parsed.types.join(",")],
     ["statuses", parsed.statuses.join(",")],
     ["platforms", parsed.platforms.join(",")],
-    ["tags", parsed.tags.join(",")],
+    ["angles", parsed.angles.join(",")],
     ["sort", parsed.sort],
     ["view", parsed.view],
     ["includeExcluded", includeExcluded ? "1" : ""],
@@ -103,7 +103,7 @@ export default async function CreativesPage({
       />
       <LibraryFilterBar
         products={products}
-        tags={allTags}
+        angles={allAngles}
         includeExcluded={includeExcluded}
         views={views}
         currentUserId={user.id}

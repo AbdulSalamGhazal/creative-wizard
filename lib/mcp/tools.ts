@@ -55,6 +55,16 @@ const ISO = /^\d{4}-\d{2}-\d{2}$/;
 const CONVENTIONS =
   "Money is USD. Dates are YYYY-MM-DD. Blended metrics (CTR, ROAS, CPA, CvR, VOC, CPM) are weighted from component sums, never averaged.";
 
+/**
+ * BREAKING CHANGE (2026-09): the creative-labeling concept "tag" was renamed
+ * "angle" everywhere, so the `tags` field and `tags` filter are now `angles`.
+ * There is no back-compat alias — a caller still sending `tags` gets a schema
+ * error rather than a silently ignored filter. Appended to the description of
+ * every tool whose shape changed so an already-connected client sees it.
+ */
+const ANGLES_RENAME =
+  "BREAKING (2026-09): the former `tags` field/filter is now `angles` — `tags` is no longer accepted.";
+
 // Shared input fields (Zod raw-shape fragments).
 const brandField = z
   .string()
@@ -84,7 +94,7 @@ const productIdsField = z
   .array(z.string())
   .optional()
   .describe("Restrict to these product ids.");
-const tagsField = z.array(z.string()).optional().describe("Restrict to these tags.");
+const anglesField = z.array(z.string()).optional().describe("Restrict to these angles.");
 
 function rangeEcho(from?: string, to?: string): RangeEcho {
   return { from: from ?? null, to: to ?? null };
@@ -125,7 +135,7 @@ export function registerMcpTools(server: McpServer): void {
   server.registerTool(
     "get_kpis",
     {
-      description: `Headline KPIs for a date range — spend, conversions, revenue, CPA, ROAS, CTR, CvR, CPM — plus a per-platform split. Mirrors the dashboard tiles. ${CONVENTIONS}`,
+      description: `Headline KPIs for a date range — spend, conversions, revenue, CPA, ROAS, CTR, CvR, CPM — plus a per-platform split. Mirrors the dashboard tiles. ${CONVENTIONS} ${ANGLES_RENAME}`,
       inputSchema: {
         brand: brandField,
         from: fromField,
@@ -133,7 +143,7 @@ export function registerMcpTools(server: McpServer): void {
         platforms: platformsField,
         productIds: productIdsField,
         types: typesField,
-        tags: tagsField,
+        angles: anglesField,
       },
     },
     async (args) =>
@@ -144,7 +154,7 @@ export function registerMcpTools(server: McpServer): void {
           platforms: args.platforms,
           productIds: args.productIds,
           types: args.types,
-          tags: args.tags,
+          angles: args.angles,
         };
         const [k, mix] = await Promise.all([kpis(filters), platformMix(filters)]);
         return ok(brand, rangeEcho(args.from, args.to), {
@@ -179,7 +189,7 @@ export function registerMcpTools(server: McpServer): void {
   server.registerTool(
     "list_creatives",
     {
-      description: `List creatives (the Library) with derived status, priority (1-3, null = unrated), tags, and 7d/30d spend. Filterable by status, type, product, tags, and search. Capped at 500 rows (\`truncated\` flag). ${CONVENTIONS}`,
+      description: `List creatives (the Library) with derived status, priority (1-3, null = unrated), angles, and 7d/30d spend. Filterable by status, type, product, angles, and search. Capped at 500 rows (\`truncated\` flag). ${CONVENTIONS} ${ANGLES_RENAME}`,
       inputSchema: {
         brand: brandField,
         status: z
@@ -188,8 +198,8 @@ export function registerMcpTools(server: McpServer): void {
           .describe("Restrict to these derived statuses."),
         types: typesField,
         productIds: productIdsField,
-        tags: tagsField,
-        q: z.string().optional().describe("Search name/notes/tags (substring)."),
+        angles: anglesField,
+        q: z.string().optional().describe("Search name/notes/angles (substring)."),
         platforms: platformsField,
       },
     },
@@ -199,7 +209,7 @@ export function registerMcpTools(server: McpServer): void {
           statuses: args.status,
           types: args.types,
           productIds: args.productIds,
-          tags: args.tags,
+          angles: args.angles,
           q: args.q,
           platforms: args.platforms,
           sort: "spend-desc",
@@ -216,7 +226,7 @@ export function registerMcpTools(server: McpServer): void {
             type: c.type,
             status: c.status,
             priority: c.priority,
-            tags: c.tags,
+            angles: c.angles,
             spend7d: r2(c.spend7d),
             spend30d: r2(c.spend30d),
             launchDate: c.launchDate,
@@ -229,7 +239,7 @@ export function registerMcpTools(server: McpServer): void {
   server.registerTool(
     "get_creative",
     {
-      description: `One creative in depth: fields, tags, per-platform status, and its per-campaign performance breakdown (all-time unless a range is given). ${CONVENTIONS}`,
+      description: `One creative in depth: fields, angles, per-platform status, and its per-campaign performance breakdown (all-time unless a range is given). ${CONVENTIONS} ${ANGLES_RENAME}`,
       inputSchema: {
         brand: brandField,
         name: z.string().describe("Exact creative name."),
@@ -253,7 +263,7 @@ export function registerMcpTools(server: McpServer): void {
             product: creative.productName,
             type: creative.type,
             priority: creative.priority,
-            tags: creative.tags,
+            angles: creative.angles,
             launchDate: creative.launchDate,
             sourceLink: creative.sourceLink,
             status: status.general,
@@ -372,14 +382,14 @@ export function registerMcpTools(server: McpServer): void {
   server.registerTool(
     "get_summary",
     {
-      description: `The Summary table: per creative, a blended TOTAL block plus a per-platform breakdown, for a range. At most 5 platform columns. Capped at 500 rows. ${CONVENTIONS}`,
+      description: `The Summary table: per creative, a blended TOTAL block plus a per-platform breakdown, for a range. At most 5 platform columns. Capped at 500 rows. ${CONVENTIONS} ${ANGLES_RENAME}`,
       inputSchema: {
         brand: brandField,
         from: fromField,
         to: toField,
         platforms: platformsField,
         types: typesField,
-        tags: tagsField,
+        angles: anglesField,
         q: z.string().optional().describe("Search creatives (substring)."),
       },
     },
@@ -392,7 +402,7 @@ export function registerMcpTools(server: McpServer): void {
           q: args.q,
           platforms: args.platforms,
           types: args.types,
-          tags: args.tags,
+          angles: args.angles,
           ratingConfig,
         });
         const { rows, truncated } = capRows(result.rows);

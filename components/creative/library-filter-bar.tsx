@@ -52,7 +52,7 @@ interface Props {
   /** Effective Excluded-toggle state (URL param → saved pref → hidden). */
   includeExcluded: boolean;
   products: Array<{ id: string; name: string }>;
-  tags: string[];
+  angles: string[];
   views: SummaryViewRow[];
   currentUserId: string;
   isAdmin: boolean;
@@ -87,8 +87,8 @@ const SORT_LABEL: Record<CreativeSort, string> = {
   "type-desc": "Type Z→A",
   "status-asc": "Status A→Z",
   "status-desc": "Status Z→A",
-  "tag-asc": "First tag A→Z",
-  "tag-desc": "First tag Z→A",
+  "angle-asc": "First angle A→Z",
+  "angle-desc": "First angle Z→A",
   "spend7-desc": "7-day spend (high→low)",
   "spend7-asc": "7-day spend (low→high)",
   "spend-desc": "30-day spend (high→low)",
@@ -107,7 +107,7 @@ const DROPDOWN_SORTS: CreativeSort[] = [
   "created-desc",
 ];
 
-export function LibraryFilterBar({ products, tags, views, currentUserId, isAdmin, includeExcluded }: Props) {
+export function LibraryFilterBar({ products, angles, views, currentUserId, isAdmin, includeExcluded }: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -117,7 +117,7 @@ export function LibraryFilterBar({ products, tags, views, currentUserId, isAdmin
   const types = csvParam(searchParams.get("types"));
   const statuses = csvParam(searchParams.get("statuses"));
   const platforms = csvParam(searchParams.get("platforms"));
-  const selectedTags = csvParam(searchParams.get("tags"));
+  const selectedAngles = csvParam(searchParams.get("angles"));
   const sortParam = (searchParams.get("sort") ?? "launched-desc") as CreativeSort;
   const sort = creativeSortValues.includes(sortParam) ? sortParam : "launched-desc";
   const viewParam = (searchParams.get("view") ?? "table") as CreativeView;
@@ -196,7 +196,7 @@ export function LibraryFilterBar({ products, tags, views, currentUserId, isAdmin
     types.length > 0 ||
     statuses.length > 0 ||
     platforms.length > 0 ||
-    selectedTags.length > 0;
+    selectedAngles.length > 0;
 
   // Sheet badge counts the dimension filters (search sits in the mobile row).
   const activeCount =
@@ -204,7 +204,7 @@ export function LibraryFilterBar({ products, tags, views, currentUserId, isAdmin
     (types.length > 0 ? 1 : 0) +
     (statuses.length > 0 ? 1 : 0) +
     (platforms.length > 0 ? 1 : 0) +
-    (selectedTags.length > 0 ? 1 : 0);
+    (selectedAngles.length > 0 ? 1 : 0);
 
   const clearAll = () =>
     update((next) => {
@@ -213,7 +213,7 @@ export function LibraryFilterBar({ products, tags, views, currentUserId, isAdmin
       next.delete("types");
       next.delete("statuses");
       next.delete("platforms");
-      next.delete("tags");
+      next.delete("angles");
     });
 
   const productLabel = useMemo(() => {
@@ -235,7 +235,7 @@ export function LibraryFilterBar({ products, tags, views, currentUserId, isAdmin
   );
 
   // Dimension pills in canonical order (Products → Type → Status → Platforms →
-  // Tags). Rendered inline on desktop and stacked full-width in the mobile Sheet.
+  // Angles). Rendered inline on desktop and stacked full-width in the mobile Sheet.
   const dimensionControls = (fullWidth: boolean) => (
     <>
       <FilterPill
@@ -357,29 +357,29 @@ export function LibraryFilterBar({ products, tags, views, currentUserId, isAdmin
 
       <FilterPill
         icon={Tag}
-        label="Tags"
+        label="Angles"
         value={
-          selectedTags.length === 0
+          selectedAngles.length === 0
             ? "Any"
-            : selectedTags.length === 1
-              ? selectedTags[0]!
-              : `${selectedTags.length} selected`
+            : selectedAngles.length === 1
+              ? selectedAngles[0]!
+              : `${selectedAngles.length} selected`
         }
-        active={selectedTags.length > 0}
+        active={selectedAngles.length > 0}
         fullWidth={fullWidth}
       >
         {() => (
           <DropdownMenuContent align="start" className="w-56">
-            <DropdownMenuLabel>Tags</DropdownMenuLabel>
+            <DropdownMenuLabel>Angles</DropdownMenuLabel>
             <DropdownMenuSeparator />
-            {tags.length === 0 && (
-              <div className="px-2 py-1.5 text-xs text-ink-3">No tags yet</div>
+            {angles.length === 0 && (
+              <div className="px-2 py-1.5 text-xs text-ink-3">No angles yet</div>
             )}
-            {tags.map((t) => (
+            {angles.map((t) => (
               <DropdownMenuCheckboxItem
                 key={t}
-                checked={selectedTags.includes(t)}
-                onCheckedChange={() => toggleMulti("tags", t, selectedTags)}
+                checked={selectedAngles.includes(t)}
+                onCheckedChange={() => toggleMulti("angles", t, selectedAngles)}
               >
                 {t}
               </DropdownMenuCheckboxItem>
@@ -451,7 +451,7 @@ export function LibraryFilterBar({ products, tags, views, currentUserId, isAdmin
     <FilterSearch
       value={qInput}
       onChange={setQInput}
-      placeholder="Search name, tag, notes…"
+      placeholder="Search name, angle, notes…"
       fullWidth={fullWidth}
     />
   );

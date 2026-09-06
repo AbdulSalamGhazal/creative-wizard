@@ -16,29 +16,29 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { isoDate } from "@/lib/format";
-import { createTag, deleteTag, renameTag } from "@/app/actions/tag";
-import type { TagRow } from "@/db/queries/tags";
+import { createAngle, deleteAngle, renameAngle } from "@/app/actions/angle";
+import type { AngleRow } from "@/db/queries/angles";
 
 /**
- * Tag vocabulary admin. Add a tag, rename it inline (cascades to every
- * tagged creative), or delete it (removes the assignment everywhere).
+ * Angle vocabulary admin. Add an angle, rename it inline (cascades to every
+ * creative carrying it), or delete it (removes the assignment everywhere).
  */
-export function TagsTable({ rows }: { rows: TagRow[] }) {
+export function AnglesTable({ rows }: { rows: AngleRow[] }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
   const [newName, setNewName] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
-  const [deleting, setDeleting] = useState<TagRow | null>(null);
+  const [deleting, setDeleting] = useState<AngleRow | null>(null);
 
   const add = () => {
     const name = newName.trim();
     if (!name) return;
     startTransition(async () => {
-      const res = await createTag({ name });
+      const res = await createAngle({ name });
       if (!res.ok) {
-        toast.error(res.error ?? "Could not add tag");
+        toast.error(res.error ?? "Could not add angle");
         return;
       }
       toast.success(`Added “${name}”`);
@@ -47,7 +47,7 @@ export function TagsTable({ rows }: { rows: TagRow[] }) {
     });
   };
 
-  const beginEdit = (row: TagRow) => {
+  const beginEdit = (row: AngleRow) => {
     setEditingId(row.id);
     setEditValue(row.name);
   };
@@ -59,9 +59,9 @@ export function TagsTable({ rows }: { rows: TagRow[] }) {
     const next = editValue.trim();
     if (!next) return;
     startTransition(async () => {
-      const res = await renameTag(id, next);
+      const res = await renameAngle(id, next);
       if (!res.ok) {
-        toast.error(res.error ?? "Could not rename tag");
+        toast.error(res.error ?? "Could not rename angle");
         return;
       }
       toast.success(`Renamed to “${next}”`);
@@ -74,9 +74,9 @@ export function TagsTable({ rows }: { rows: TagRow[] }) {
     const row = deleting;
     if (!row) return;
     startTransition(async () => {
-      const res = await deleteTag(row.id);
+      const res = await deleteAngle(row.id);
       if (!res.ok) {
-        toast.error(res.error ?? "Could not delete tag");
+        toast.error(res.error ?? "Could not delete angle");
         return;
       }
       toast.success(`Deleted “${row.name}”`);
@@ -99,28 +99,28 @@ export function TagsTable({ rows }: { rows: TagRow[] }) {
             <Input
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
-              placeholder="New tag name"
+              placeholder="New angle name"
               maxLength={64}
             />
           </div>
           <Button type="submit" disabled={isPending || !newName.trim()}>
             <Plus className="w-4 h-4" />
-            Add tag
+            Add angle
           </Button>
         </form>
       </div>
 
       {rows.length === 0 ? (
         <div className="rounded-lg border border-dashed border-line bg-surface px-6 py-10 text-center text-ink-3 text-sm">
-          No tags yet. Add one above, or tags get created when you tag a
-          creative.
+          No angles yet. Add one above, or angles get created when you assign
+          one to a creative.
         </div>
       ) : (
         <div className="overflow-x-auto rounded-lg border border-line bg-surface">
           <table className="w-full text-sm num">
             <thead>
               <tr className="text-left text-label text-ink-3 border-b border-line">
-                <th className="font-medium px-3 py-2.5">Tag</th>
+                <th className="font-medium px-3 py-2.5">Angle</th>
                 <th className="font-medium px-3 py-2.5 text-right">Creatives</th>
                 <th className="font-medium px-3 py-2.5">Added</th>
                 <th className="font-medium px-3 py-2.5 text-right"></th>
@@ -197,7 +197,7 @@ export function TagsTable({ rows }: { rows: TagRow[] }) {
                             type="button"
                             variant="ghost"
                             size="xs"
-                            aria-label={`Delete tag ${r.name}`}
+                            aria-label={`Delete angle ${r.name}`}
                             onClick={() => setDeleting(r)}
                             disabled={isPending}
                             className="text-ink-3 hover:text-neg"
@@ -224,7 +224,7 @@ export function TagsTable({ rows }: { rows: TagRow[] }) {
       >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Delete this tag?</DialogTitle>
+            <DialogTitle>Delete this angle?</DialogTitle>
             <DialogDescription>
               {deleting && deleting.usage > 0 ? (
                 <>
@@ -252,7 +252,7 @@ export function TagsTable({ rows }: { rows: TagRow[] }) {
               onClick={confirmDelete}
               disabled={isPending}
             >
-              {isPending ? "Deleting…" : "Delete tag"}
+              {isPending ? "Deleting…" : "Delete angle"}
             </Button>
           </DialogFooter>
         </DialogContent>

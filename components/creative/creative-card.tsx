@@ -35,8 +35,8 @@ export function CreativeCard({
   // had; "terminated" keeps the dimmed treatment the old `archived` had.
   const isNew = row.status === "new";
   const isTerminated = row.status === "terminated";
-  const visibleTags = row.tags.slice(0, 2);
-  const overflow = row.tags.length - visibleTags.length;
+  const visibleAngles = row.angles.slice(0, 2);
+  const overflow = row.angles.length - visibleAngles.length;
 
   return (
     <Link
@@ -107,9 +107,9 @@ export function CreativeCard({
         </div>
         <div className="mt-0.5 text-xs text-ink-3 truncate">{row.productName}</div>
 
-        {/* Tags */}
+        {/* Angles */}
         <div className="mt-2 flex items-center gap-1 flex-wrap min-h-[20px]">
-          {visibleTags.map((t) => (
+          {visibleAngles.map((t) => (
             <span
               key={t}
               className="inline-flex items-center h-5 px-1.5 rounded text-[10px] bg-surface-2 border border-line text-ink-2"

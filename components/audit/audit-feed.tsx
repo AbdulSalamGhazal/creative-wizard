@@ -10,7 +10,7 @@ import {
   Package,
   ShieldAlert,
   SlidersHorizontal,
-  Tags,
+  Tags as AnglesIcon,
   Trash2,
   Upload,
   UserPlus,
@@ -18,7 +18,7 @@ import {
   ListFilter,
 } from "lucide-react";
 import {
-  AUDIT_LABELS,
+  auditLabel,
   type AuditAction,
   type AuditEntityType,
 } from "@/lib/audit";
@@ -82,8 +82,8 @@ function entityHref(row: AuditFeedRow): string | null {
       return "/uploads";
     case "product":
       return "/admin/catalog?tab=products";
-    case "tag":
-      return "/admin/catalog?tab=tags";
+    case "angle":
+      return "/admin/catalog?tab=angles";
     case "user":
       return "/admin/users";
     case "mapping":
@@ -112,9 +112,9 @@ function ActionIcon({ action }: { action: AuditAction }) {
     "user.password_reset": ShieldAlert,
     "mapping.add": Layers3,
     "mapping.remove": Layers3,
-    "tag.create": Tags,
-    "tag.rename": Tags,
-    "tag.delete": Tags,
+    "angle.create": AnglesIcon,
+    "angle.rename": AnglesIcon,
+    "angle.delete": AnglesIcon,
     "rating.update": SlidersHorizontal,
     "auth.signin": LogIn,
     "auth.signin_failed": ShieldAlert,
@@ -161,8 +161,8 @@ function metaSummary(row: AuditFeedRow): string | null {
   switch (row.action) {
     case "creative.create": {
       const type = m.type as string | undefined;
-      const tags = (m.tags as string[] | undefined) ?? [];
-      return join([type, tags.length ? plural(tags.length, "tag") : null]);
+      const angles = (m.angles as string[] | undefined) ?? [];
+      return join([type, angles.length ? plural(angles.length, "angle") : null]);
     }
     case "creative.bulk_create": {
       const count = m.count as number | undefined;
@@ -182,8 +182,8 @@ function metaSummary(row: AuditFeedRow): string | null {
       const changes =
         (m.changes as Record<string, { from: unknown; to: unknown }> | undefined) ?? {};
       const parts = Object.entries(changes).map(([k, v]) => describeChange(k, v));
-      const tagsCount = m.tagsCount as number | undefined;
-      if (tagsCount !== undefined) parts.push(`tags set (${tagsCount})`);
+      const anglesCount = m.anglesCount as number | undefined;
+      if (anglesCount !== undefined) parts.push(`angles set (${anglesCount})`);
       return parts.length ? parts.join(" · ") : null;
     }
     case "creative.notes_update": {
@@ -292,12 +292,12 @@ function metaSummary(row: AuditFeedRow): string | null {
         reason ? `(${reason.replace(/_/g, " ")})` : null,
       ]);
     }
-    case "tag.rename": {
+    case "angle.rename": {
       const from = m.from as string | undefined;
       const to = m.to as string | undefined;
       return from && to ? `${from} → ${to}` : null;
     }
-    case "tag.delete": {
+    case "angle.delete": {
       const n = m.removedFromCreatives as number | undefined;
       return n !== undefined ? `removed from ${plural(n, "creative")}` : null;
     }
@@ -388,7 +388,7 @@ export function AuditFeed({ rows, compact = false }: Props) {
                   className={`inline-flex items-center gap-1 h-5 px-1.5 rounded text-[10px] border ${categoryColor(category)}`}
                 >
                   <ActionIcon action={row.action} />
-                  {AUDIT_LABELS[row.action] ?? row.action}
+                  {auditLabel(row.action)}
                 </span>
                 {row.entityLabel &&
                   (href ? (

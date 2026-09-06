@@ -15,8 +15,8 @@ import {
   users,
   products,
   creatives,
-  creativeTags,
-  tags,
+  creativeAngles,
+  angles,
   ratingRules,
   platformFieldMappings,
   campaigns,
@@ -191,37 +191,37 @@ async function main() {
   }
   console.log("  platform field mappings:", mappingsInserted, "inserted");
 
-  // ---------- Tags ----------
-  const tagAssignments: Array<{ creativeName: string; tag: string }> = [
-    { creativeName: "URJ_VID_001", tag: "launch" },
-    { creativeName: "URJ_VID_001", tag: "ugc" },
-    { creativeName: "URJ_VID_002", tag: "ugc" },
-    { creativeName: "URJ_VID_002", tag: "cold-traffic" },
-    { creativeName: "URJ_IMG_010", tag: "evergreen" },
-    { creativeName: "URJ_SLD_020", tag: "evergreen" },
-    { creativeName: "URJ_SLD_020", tag: "retargeting" },
+  // ---------- Angles ----------
+  const angleAssignments: Array<{ creativeName: string; angle: string }> = [
+    { creativeName: "URJ_VID_001", angle: "launch" },
+    { creativeName: "URJ_VID_001", angle: "ugc" },
+    { creativeName: "URJ_VID_002", angle: "ugc" },
+    { creativeName: "URJ_VID_002", angle: "cold-traffic" },
+    { creativeName: "URJ_IMG_010", angle: "evergreen" },
+    { creativeName: "URJ_SLD_020", angle: "evergreen" },
+    { creativeName: "URJ_SLD_020", angle: "retargeting" },
   ];
-  for (const t of tagAssignments) {
+  for (const t of angleAssignments) {
     const cid = creativeByName.get(t.creativeName);
     if (!cid) continue;
     await db
-      .insert(creativeTags)
-      .values({ creativeId: cid, tag: t.tag })
+      .insert(creativeAngles)
+      .values({ creativeId: cid, angle: t.angle })
       .onConflictDoNothing();
   }
-  console.log("  tag assignments:", tagAssignments.length);
+  console.log("  angle assignments:", angleAssignments.length);
 
-  // ---------- Tag vocabulary (backfill from assignments) ----------
-  // Seed the managed vocabulary from whatever tags are in use so the
-  // Catalog → Tags admin starts populated. Idempotent.
-  const distinctTags = [...new Set(tagAssignments.map((t) => t.tag))];
-  for (const name of distinctTags) {
+  // ---------- Angle vocabulary (backfill from assignments) ----------
+  // Seed the managed vocabulary from whatever angles are in use so the
+  // Catalog → Angles admin starts populated. Idempotent.
+  const distinctAngles = [...new Set(angleAssignments.map((t) => t.angle))];
+  for (const name of distinctAngles) {
     await db
-      .insert(tags)
+      .insert(angles)
       .values({ name, createdByUserId: adminId })
-      .onConflictDoNothing({ target: tags.name });
+      .onConflictDoNothing({ target: angles.name });
   }
-  console.log("  tag vocabulary:", distinctTags.length);
+  console.log("  angle vocabulary:", distinctAngles.length);
 
   // ---------- Upload batch + performance records ----------
   // One synthetic batch covering both platforms over the last 30 days.

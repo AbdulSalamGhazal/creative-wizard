@@ -13,7 +13,7 @@ import {
   creativeDeletionSummary,
   creativeRecords,
   getCreativeByName,
-  listAllTags,
+  listAllAngles,
   listCreatives,
 } from "@/db/queries/creatives";
 import { listProducts } from "@/db/queries/products";
@@ -60,7 +60,7 @@ const FILTER_KEYS = [
   "types",
   "statuses",
   "platforms",
-  "tags",
+  "angles",
   "sort",
   "view",
   "includeExcluded",
@@ -127,7 +127,7 @@ export default async function CreativeDetailPage({
     types: pickFirst(sp.types),
     statuses: pickFirst(sp.statuses),
     platforms: pickFirst(sp.platforms),
-    tags: pickFirst(sp.tags),
+    angles: pickFirst(sp.angles),
     sort: pickFirst(sp.sort),
     view: pickFirst(sp.view),
   });
@@ -137,7 +137,7 @@ export default async function CreativeDetailPage({
     types: navParsed.types.length > 0 ? navParsed.types : undefined,
     statuses: navParsed.statuses.length > 0 ? navParsed.statuses : undefined,
     platforms: navParsed.platforms.length > 0 ? navParsed.platforms : undefined,
-    tags: navParsed.tags.length > 0 ? navParsed.tags : undefined,
+    angles: navParsed.angles.length > 0 ? navParsed.angles : undefined,
     sort: navParsed.sort,
   };
 
@@ -187,7 +187,7 @@ export default async function CreativeDetailPage({
     records,
     activity,
     deletionSummary,
-    allTags,
+    allAngles,
     products,
     navList,
   ] = await Promise.all([
@@ -210,7 +210,7 @@ export default async function CreativeDetailPage({
       limit: 25,
     }),
     creativeDeletionSummary(creative.id),
-    listAllTags(),
+    listAllAngles(),
     listProducts(),
     // Reuse listCreatives so the pager order is byte-for-byte the Library's.
     // (Returns names + a little extra; fine at this scale — revisit with a
@@ -260,7 +260,7 @@ export default async function CreativeDetailPage({
           creative={creative}
           status={status}
           terminated={terminated}
-          allTags={allTags}
+          allAngles={allAngles}
           products={products}
         />
         <NotesPanel creativeId={creative.id} initialNotes={creative.notes} />
@@ -339,7 +339,7 @@ export default async function CreativeDetailPage({
             <div>
               <h2 className="text-sm font-medium text-ink">Delete this creative</h2>
               <p className="text-xs text-ink-3 mt-0.5 max-w-xl">
-                Permanently removes the creative, its tags, and all{" "}
+                Permanently removes the creative, its angles, and all{" "}
                 {int(deletionSummary.records)} of its performance
                 records. This can&apos;t be undone and affects no other creative.
               </p>

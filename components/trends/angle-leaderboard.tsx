@@ -5,7 +5,7 @@ import Link from "next/link";
 import { int, pct, roas, usd } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { MetricPicker } from "@/components/charts/metric-picker";
-import type { TagRollupRow } from "@/db/queries/trends";
+import type { AngleRollupRow } from "@/db/queries/trends";
 
 type MetricKey =
   | "spend" | "conversions" | "revenue" | "roas"
@@ -33,17 +33,17 @@ const METRICS: MetricDef[] = [
 const TOP_N = 10;
 
 /**
- * Ranked tag leaderboard for a selectable metric. Bars are proportional to
+ * Ranked angle leaderboard for a selectable metric. Bars are proportional to
  * magnitude; the ranking respects metric direction (CPA/CPM rank lowest-first).
- * Each tag links to the filtered Library.
+ * Each angle links to the filtered Library.
  */
-export function TagLeaderboard({ rows }: { rows: TagRollupRow[] }) {
+export function AngleLeaderboard({ rows }: { rows: AngleRollupRow[] }) {
   const [metricKey, setMetricKey] = useState<MetricKey>("spend");
   const metric = METRICS.find((m) => m.key === metricKey)!;
 
   const ranked = useMemo(() => {
     const withVal = rows
-      .map((r) => ({ tag: r.tag, creatives: r.creatives, value: r[metricKey] as number | null }))
+      .map((r) => ({ angle: r.angle, creatives: r.creatives, value: r[metricKey] as number | null }))
       .filter((r) => r.value !== null && (metric.lower ? r.value > 0 : r.value >= 0));
     withVal.sort((a, b) =>
       metric.lower ? (a.value as number) - (b.value as number) : (b.value as number) - (a.value as number),
@@ -58,10 +58,10 @@ export function TagLeaderboard({ rows }: { rows: TagRollupRow[] }) {
       <div className="flex items-center justify-between flex-wrap gap-3 mb-3">
         <div>
           <h3 className="text-sm text-ink-2">
-            Top tags by {metric.label}
+            Top angles by {metric.label}
             {metric.lower && <span className="text-ink-3"> · lower is better</span>}
           </h3>
-          <p className="text-[10px] text-ink-3">Ranked across all tags in this window</p>
+          <p className="text-[10px] text-ink-3">Ranked across all angles in this window</p>
         </div>
         <MetricPicker
           options={METRICS.map((m) => ({ value: m.key, label: m.label }))}
@@ -72,7 +72,7 @@ export function TagLeaderboard({ rows }: { rows: TagRollupRow[] }) {
 
       {ranked.top.length === 0 ? (
         <div className="h-72 flex items-center justify-center text-ink-3 text-sm border border-dashed border-line rounded-lg">
-          No tags with {metric.label} in this window.
+          No angles with {metric.label} in this window.
         </div>
       ) : (
         <div className="space-y-1.5">
@@ -80,13 +80,13 @@ export function TagLeaderboard({ rows }: { rows: TagRollupRow[] }) {
             const w = Math.max((Math.abs(r.value as number) / ranked.max) * 100, 2);
             return (
               <Link
-                key={r.tag}
-                href={`/creatives?tags=${encodeURIComponent(r.tag)}`}
+                key={r.angle}
+                href={`/creatives?angles=${encodeURIComponent(r.angle)}`}
                 className="group flex items-center gap-2 text-xs"
               >
                 <span className="w-4 text-right text-ink-3 tabular-nums">{i + 1}</span>
                 <span className="w-32 shrink-0 truncate text-ink group-hover:text-brand transition-colors">
-                  #{r.tag}
+                  #{r.angle}
                 </span>
                 <div className="flex-1 h-4 rounded bg-surface-2 overflow-hidden">
                   <div

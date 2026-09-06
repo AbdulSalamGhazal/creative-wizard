@@ -18,7 +18,7 @@ import { int, pct, roas, usd } from "@/lib/format";
 import { METRIC_LABEL } from "@/lib/metric-labels";
 import { computeDelta, type Delta } from "@/lib/period";
 import { cn } from "@/lib/utils";
-import type { TagMetrics, TagRollupRow } from "@/db/queries/trends";
+import type { AngleMetrics, AngleRollupRow } from "@/db/queries/trends";
 
 type Num = number | null;
 const DASH = "—";
@@ -27,7 +27,7 @@ const fPct = (v: Num) => (v === null ? DASH : pct(v));
 const fRatio = (v: Num) => roas(v);
 const fInt = (v: Num) => (v === null ? DASH : int(v));
 
-type Key = keyof TagMetrics;
+type Key = keyof AngleMetrics;
 
 interface Col {
   key: Key;
@@ -37,7 +37,7 @@ interface Col {
   lower?: boolean;
 }
 
-// Every numeric column (Tag is the row label, shown separately).
+// Every numeric column (Angle is the row label, shown separately).
 const COLS: Col[] = [
   { key: "creatives", label: "Creatives", fmt: fInt },
   { key: "spend", label: "Spend", fmt: fUsd },
@@ -73,9 +73,9 @@ const MODES: { k: Mode; label: string }[] = [
 
 const ABSENT: Delta = { pct: null, mode: "absent" };
 
-export function TagRollupTable({ rows }: { rows: TagRollupRow[] }) {
+export function AngleRollupTable({ rows }: { rows: AngleRollupRow[] }) {
   const [visible, setVisible] = usePersistentVisible<Key>(
-    "cw-cols:tag-rollup",
+    "cw-cols:angle-rollup",
     DEFAULT_VISIBLE,
   );
   const [sortKey, setSortKey] = useState<string>("spend");
@@ -83,17 +83,17 @@ export function TagRollupTable({ rows }: { rows: TagRollupRow[] }) {
   const [order, setOrder] = useState<string[]>([]);
   const [mode, setMode] = useState<Mode>("values");
 
-  // Per-column rank maps (good direction) and cross-tag averages.
+  // Per-column rank maps (good direction) and cross-angle averages.
   const { rankMaps, avgs } = useMemo(() => {
     const rankMaps: Record<string, Map<string, number>> = {};
     const avgs: Record<string, number | null> = {};
     for (const c of COLS) {
       const vals = rows
-        .map((r) => ({ tag: r.tag, v: r[c.key] as Num }))
-        .filter((x): x is { tag: string; v: number } => x.v !== null);
+        .map((r) => ({ angle: r.angle, v: r[c.key] as Num }))
+        .filter((x): x is { angle: string; v: number } => x.v !== null);
       const s = [...vals].sort((a, b) => (c.lower ? a.v - b.v : b.v - a.v));
       const m = new Map<string, number>();
-      s.forEach((x, i) => m.set(x.tag, i + 1));
+      s.forEach((x, i) => m.set(x.angle, i + 1));
       rankMaps[c.key] = m;
       avgs[c.key] = vals.length ? vals.reduce((s, x) => s + x.v, 0) / vals.length : null;
     }
@@ -109,12 +109,12 @@ export function TagRollupTable({ rows }: { rows: TagRollupRow[] }) {
     });
 
   // Every mode keeps the value visible; non-default modes append an indicator.
-  const cell = (r: TagRollupRow, c: Col) => {
+  const cell = (r: AngleRollupRow, c: Col) => {
     const v = r[c.key] as Num;
     const value = <span className="text-ink">{c.fmt(v)}</span>;
     if (mode === "values") return value;
     if (mode === "rank") {
-      const rk = rankMaps[c.key]?.get(r.tag);
+      const rk = rankMaps[c.key]?.get(r.angle);
       return (
         <>
           {value}
@@ -153,26 +153,26 @@ export function TagRollupTable({ rows }: { rows: TagRollupRow[] }) {
     );
   };
 
-  const columns = useMemo<DataColumn<TagRollupRow>[]>(() => {
-    const tagCol: DataColumn<TagRollupRow> = {
-      key: "tag",
-      label: "Tag",
+  const columns = useMemo<DataColumn<AngleRollupRow>[]>(() => {
+    const angleCol: DataColumn<AngleRollupRow> = {
+      key: "angle",
+      label: "Angle",
       align: "left",
       sortable: true,
       pinned: true,
       defaultSortDir: "asc",
-      sortValue: (r) => r.tag,
+      sortValue: (r) => r.angle,
       render: (r) => (
         <Link
-          href={`/creatives?tags=${encodeURIComponent(r.tag)}`}
+          href={`/creatives?angles=${encodeURIComponent(r.angle)}`}
           className="inline-flex items-center gap-1.5 text-ink hover:text-brand transition-colors"
         >
           <Hash className="w-3 h-3 text-ink-3" />
-          {r.tag}
+          {r.angle}
         </Link>
       ),
     };
-    const metricCols: DataColumn<TagRollupRow>[] = COLS.map((c) => ({
+    const metricCols: DataColumn<AngleRollupRow>[] = COLS.map((c) => ({
       key: c.key,
       label: c.label,
       align: "right",
@@ -182,7 +182,7 @@ export function TagRollupTable({ rows }: { rows: TagRollupRow[] }) {
         <span className="inline-flex items-center justify-end gap-1.5">{cell(r, c)}</span>
       ),
     }));
-    return [tagCol, ...metricCols];
+    return [angleCol, ...metricCols];
     // cell() closes over mode/rankMaps/avgs.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, rankMaps, avgs]);
@@ -193,8 +193,8 @@ export function TagRollupTable({ rows }: { rows: TagRollupRow[] }) {
   );
 
   const modeHint =
-    mode === "rank" ? "Each cell is the tag's rank among all tags for that metric."
-    : mode === "avg" ? "Each cell is the delta vs the average tag this period."
+    mode === "rank" ? "Each cell is the angle's rank among all angles for that metric."
+    : mode === "avg" ? "Each cell is the delta vs the average angle this period."
     : mode === "prev" ? "Each cell is the delta vs the previous period."
     : null;
 
@@ -246,7 +246,7 @@ export function TagRollupTable({ rows }: { rows: TagRollupRow[] }) {
       <DataTable
         columns={columns}
         rows={rows}
-        rowKey={(r) => r.tag}
+        rowKey={(r) => r.angle}
         sort={sortKey}
         dir={dir}
         hidden={hidden}
@@ -256,11 +256,11 @@ export function TagRollupTable({ rows }: { rows: TagRollupRow[] }) {
           setDir(d);
         }}
         onReorder={setOrder}
-        csvFileName="by-tag"
+        csvFileName="by-angle"
         minWidthClass="min-w-[760px]"
         empty={
           <div className="rounded-lg border border-dashed border-line bg-surface px-6 py-12 text-center">
-            <p className="text-ink-2 text-sm">No tagged creatives in this window.</p>
+            <p className="text-ink-2 text-sm">No creatives carry an angle in this window.</p>
           </div>
         }
       />

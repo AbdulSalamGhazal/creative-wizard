@@ -44,7 +44,7 @@ export const creativeCreateSchema = z.object({
   launchDate: z.string().date().optional(),
   notes: z.string().optional(),
   sourceLink: sourceLinkSchema,
-  tags: z.array(z.string().min(1).max(64)).default([]),
+  angles: z.array(z.string().min(1).max(64)).default([]),
 });
 
 export type CreativeCreateInput = z.infer<typeof creativeCreateSchema>;
@@ -101,8 +101,8 @@ export const creativeSortValues = [
   "type-desc",
   "status-asc",
   "status-desc",
-  "tag-asc",
-  "tag-desc",
+  "angle-asc",
+  "angle-desc",
   "spend7-desc",
   "spend7-asc",
   "spend-desc",
@@ -126,7 +126,7 @@ export const creativeListFiltersSchema = z.object({
   statuses: csvEnum(CREATIVE_STATUSES),
   // Keep only creatives with performance data on the selected platform(s).
   platforms: csvEnum(platformEnum),
-  tags: csvString(),
+  angles: csvString(),
   sort: z.enum(creativeSortValues).catch("launched-desc"),
   // Table is the default view; "grid" is the opt-in (carried as ?view=grid).
   view: z.enum(creativeViewValues).catch("table"),

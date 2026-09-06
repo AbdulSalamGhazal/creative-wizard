@@ -11,7 +11,7 @@ import {
 import { defaultDateRange } from "@/lib/date-presets";
 import { resolvePreferredRange, resolveIncludeExcluded } from "@/db/queries/user-prefs";
 import { listProducts } from "@/db/queries/products";
-import { listAllTags } from "@/db/queries/creatives";
+import { listAllAngles } from "@/db/queries/creatives";
 import { FilterStrip } from "@/components/filters/filter-strip";
 import { DeltaBadge } from "@/components/kpi/delta-badge";
 import {
@@ -66,7 +66,7 @@ export default async function TrendsOverTimePage({
     productIds: pickFirst(params.productIds),
     platforms: pickFirst(params.platforms),
     types: pickFirst(params.types),
-    tags: pickFirst(params.tags),
+    angles: pickFirst(params.angles),
     includeExcluded: pickFirst(params.includeExcluded),
   });
 
@@ -90,15 +90,15 @@ export default async function TrendsOverTimePage({
     productIds: parsed.productIds,
     platforms: parsed.platforms.length > 0 ? parsed.platforms : undefined,
     types: parsed.types.length > 0 ? parsed.types : undefined,
-    tags: parsed.tags.length > 0 ? parsed.tags : undefined,
+    angles: parsed.angles.length > 0 ? parsed.angles : undefined,
     includeExcluded,
   };
 
-  const [k, breakdown, products, tags] = await Promise.all([
+  const [k, breakdown, products, angles] = await Promise.all([
     kpisWithDelta(filters),
     changeBreakdown(filters, dim),
     listProducts(),
-    listAllTags(),
+    listAllAngles(),
   ]);
 
   // Assess + sort: loudest problems first, then by spend weight within a tier.
@@ -157,7 +157,7 @@ export default async function TrendsOverTimePage({
         <FilterStrip
           includeExcludedDefault={includeExcluded}
           products={products}
-          tags={tags}
+          angles={angles}
           defaultFrom={from}
           defaultTo={to}
         />

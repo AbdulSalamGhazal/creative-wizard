@@ -20,7 +20,7 @@ export const PERMISSION_GROUPS = [
       {
         key: "creative.edit",
         label:
-          "Edit creatives (fields, tags, notes, thumbnail, terminate/reactivate)",
+          "Edit creatives (fields, angles, notes, thumbnail, terminate/reactivate)",
       },
       { key: "creative.delete", label: "Delete creatives (removes their records)" },
     ],
@@ -51,7 +51,7 @@ export const PERMISSION_GROUPS = [
     label: "Catalog & config",
     perms: [
       { key: "catalog.products", label: "Manage products" },
-      { key: "catalog.tags", label: "Manage tags" },
+      { key: "catalog.angles", label: "Manage angles" },
       { key: "config.rating", label: "Edit rating rules" },
       { key: "config.mappings", label: "Edit CSV mappings" },
       { key: "config.brands", label: "Manage brands & status window" },

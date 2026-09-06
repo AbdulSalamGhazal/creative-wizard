@@ -61,7 +61,7 @@ export function BulkCreativeImport({ products }: Props) {
   const downloadTemplate = () => {
     const sampleProduct = products[0] ?? "Your Product";
     const lines = [
-      "name,product,type,launch_date,tags",
+      "name,product,type,launch_date,angles",
       `URJ_VID_100,${sampleProduct},video,2026-05-01,launch;ugc`,
       `URJ_IMG_101,${sampleProduct},image,,evergreen`,
     ];
@@ -93,7 +93,7 @@ export function BulkCreativeImport({ products }: Props) {
           <li><span className="font-mono text-ink">product</span> — required, must match a product</li>
           <li><span className="font-mono text-ink">type</span> — video / image / slides (default video)</li>
           <li><span className="font-mono text-ink">launch_date</span> — optional (YYYY-MM-DD or DD/MM/YYYY)</li>
-          <li><span className="font-mono text-ink">tags</span> — optional, <code>;</code> or <code>,</code> separated</li>
+          <li><span className="font-mono text-ink">angles</span> — optional, <code>;</code> or <code>,</code> separated</li>
         </ul>
         {products.length > 0 && (
           <p className="text-[11px] text-ink-3">
@@ -135,7 +135,7 @@ export function BulkCreativeImport({ products }: Props) {
                   <th className="font-medium px-3 py-2">Name</th>
                   <th className="font-medium px-3 py-2">Product</th>
                   <th className="font-medium px-3 py-2">Type</th>
-                  <th className="font-medium px-3 py-2">Tags / issue</th>
+                  <th className="font-medium px-3 py-2">Angles / issue</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">
@@ -158,7 +158,7 @@ export function BulkCreativeImport({ products }: Props) {
                     <td className="px-3 py-2 text-ink-2 capitalize">{r.type}</td>
                     <td className="px-3 py-2">
                       {r.ok ? (
-                        <span className="text-ink-3">{r.tags.join(", ") || "—"}</span>
+                        <span className="text-ink-3">{r.angles.join(", ") || "—"}</span>
                       ) : (
                         <span className="text-neg">{r.errors.join(" ")}</span>
                       )}

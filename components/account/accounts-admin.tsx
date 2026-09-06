@@ -21,7 +21,7 @@ interface AccountRow {
 
 /**
  * Brand (account) admin. Create a new brand — it starts completely empty (no
- * creatives / products / tags / performance) — or rename an existing one. The
+ * creatives / products / angles / performance) — or rename an existing one. The
  * active brand is badged; switching here writes the same `ccms_account` cookie
  * as the top-bar switcher. There is intentionally no delete: a brand owns data
  * and removing it is a destructive operation better done deliberately at the DB.
@@ -114,7 +114,7 @@ export function AccountsAdmin({
           </Button>
         </form>
         <p className="text-ink-3 text-xs mt-2">
-          A new brand starts empty — its own creatives, products, tags,
+          A new brand starts empty — its own creatives, products, angles,
           performance data, CSV mappings, and rate config, fully isolated.
         </p>
       </div>

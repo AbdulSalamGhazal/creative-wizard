@@ -260,6 +260,13 @@
       "when": 1788625194065,
       "tag": "0036_budget_day_weights_reserve",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1788625195065,
+      "tag": "0037_rename_tags_to_angles",
+      "breakpoints": true
     }
   ]
 }

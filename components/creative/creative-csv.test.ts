@@ -5,9 +5,9 @@ import { rowsToCsv } from "@/lib/csv-export";
 import type { CreativeListRow } from "@/db/queries/creatives";
 
 /**
- * The Library export must carry the creative's FULL data, with tags in ONE
+ * The Library export must carry the creative's FULL data, with angles in ONE
  * comma-separated cell. This runs the REAL production column set against
- * realistic rows (a note with commas, quotes AND a line break; several tags; an
+ * realistic rows (a note with commas, quotes AND a line break; several angles; an
  * unrated priority) and round-trips through a parser, so column order, headers
  * and one-cell semantics are all pinned.
  */
@@ -21,7 +21,7 @@ const base: CreativeListRow = {
   status: "active",
   thumbnailUrl: "https://blob.example/thumb.webp",
   launchDate: "2026-04-17",
-  tags: ["launch", "ugc", "q4"],
+  angles: ["launch", "ugc", "q4"],
   spend7d: 1234.5,
   spend30d: 6789,
   priority: 2,
@@ -48,7 +48,7 @@ describe("Library CSV export columns", () => {
       "Status",
       "Priority",
       "Launch date",
-      "Tags",
+      "Angles",
       "Source link",
       "Notes",
       "7d spend (USD)",
@@ -59,7 +59,7 @@ describe("Library CSV export columns", () => {
     ]);
   });
 
-  it("renders a row with tags as ONE comma-separated cell and a multiline note intact", () => {
+  it("renders a row with angles as ONE comma-separated cell and a multiline note intact", () => {
     const rows = parse(rowsToCsv([base], CSV_COLUMNS));
     expect(rows).toHaveLength(2); // header + exactly one record
     expect(rows[1]).toEqual([
@@ -89,7 +89,7 @@ describe("Library CSV export columns", () => {
       thumbnailUrl: null,
       launchDate: null,
       createdByName: null,
-      tags: [],
+      angles: [],
     };
     const rows = parse(rowsToCsv([unrated], CSV_COLUMNS));
     const byCol = Object.fromEntries(
@@ -100,7 +100,7 @@ describe("Library CSV export columns", () => {
     expect(byCol["Notes"]).toBe("");
     expect(byCol["Source link"]).toBe("");
     expect(byCol["Launch date"]).toBe("");
-    expect(byCol["Tags"]).toBe("");
+    expect(byCol["Angles"]).toBe("");
     expect(byCol["Created by"]).toBe("");
     expect(byCol["Thumbnail URL"]).toBe("");
   });

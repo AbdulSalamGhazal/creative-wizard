@@ -60,7 +60,7 @@ describe("role presets", () => {
     for (const denied of [
       "upload.rollback",
       "catalog.products",
-      "catalog.tags",
+      "catalog.angles",
       "config.rating",
       "config.mappings",
       "config.brands",

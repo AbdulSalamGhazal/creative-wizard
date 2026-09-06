@@ -48,7 +48,7 @@ A **multi-tenant creative-performance analytics tool** for paid social. It manag
 ## 4. Data model (26 tables)
 
 **Tenancy & people:** `accounts` (brands; `status_window_hours` per brand; `usd_to_sar_rate` numeric default 3.77 — the Budget module's per-brand display/ROAS rate), `users` (role tier + granular `permissions` + `all_accounts` brand-membership flag, §5), `user_accounts` (brand membership — the brands a restricted `all_accounts = false` user may see; global join table, both FKs `ON DELETE CASCADE`; consulted only when `all_accounts = false`, §5).
-**Catalog:** `products`, `creatives` (required `product_id`; unique per account; the legacy manual `status` column is dead — status is derived, §4.2; `priority smallint` NULLABLE = the team's MANUAL 1–3 importance judgment, 3 = highest, NULL = unrated — detail-page only, distinct from the computed "Rate"/rating concept), `tags`, `creative_tags` (no `account_id` — scoped transitively via the creative; cascading tag operations MUST be bounded by an account-scoped creatives subquery), `creative_platform_overrides` (manual per-creative×platform termination).
+**Catalog:** `products`, `creatives` (required `product_id`; unique per account; the legacy manual `status` column is dead — status is derived, §4.2; `priority smallint` NULLABLE = the team's MANUAL 1–3 importance judgment, 3 = highest, NULL = unrated — detail-page only, distinct from the computed "Rate"/rating concept), `angles`, `creative_angles` (no `account_id` — scoped transitively via the creative; cascading angle operations MUST be bounded by an account-scoped creatives subquery), `creative_platform_overrides` (manual per-creative×platform termination).
 **Campaigns:** `campaigns` — the registry. `performance_records.campaign_id` is a NOT NULL FK to it; the display name is the built `Campaign ➤ Adset (IG|FB)` string, created only via `buildCampaignName()`.
 **Performance:** `performance_records` — the fact table. **Unique on `(creative_id, platform, campaign_id, date)`.** Carries `excluded_from_aggregates` with provenance (`excluded_source` 'manual'|'rule' + `excluded_rule_id`, 2026-09) and a NOT NULL `upload_batch_id`.
 **Exclusion rules:** `exclusion_rules` (2026-09) — account-global rules (kind = campaign objective | campaign | creative, exactly one target column set; `active` switch; per-kind partial unique indexes) that MATERIALIZE into the `performance_records` flag via the engine (`lib/exclusion-rules.ts` + `db/queries/exclusion-rules.ts`) — aggregate queries never change. `users.include_excluded` (nullable) stores each user's remembered Excluded-toggle default.
@@ -133,10 +133,10 @@ Five stages — parse → header mapping → row validation → cross-row/file c
 
 The sidebar groups routes into four labeled sections (`NAV_SECTIONS` in `nav-items.ts`): **Ads**, **Budget**, **Store**, **Admin**.
 
-- **Ads:** `/` (dashboard) · `/summary` · `/creatives` (+ `/new`, `/bulk`, `/[name]`) · `/campaigns` (+ `/new`, `/[campaign]`) · `/funnel` · `/compare` · `/trends/{over-time,by-type,by-tag,launches,video}` · `/uploads` (+ `/new`).
+- **Ads:** `/` (dashboard) · `/summary` · `/creatives` (+ `/new`, `/bulk`, `/[name]`) · `/campaigns` (+ `/new`, `/[campaign]`) · `/funnel` · `/compare` · `/trends/{over-time,by-type,by-angle,launches,video}` · `/uploads` (+ `/new`).
 - **Budget:** `/budget` (Overview) · `/budget/plan` · `/budget/daily` · `/budget/history` — all but History take `?month=YYYY-MM`, preserved across the section's nav links.
 - **Store:** `/store/uploads` (+ `/new`) · `/store/orders` · `/store/reconciliation`. (`/store` redirect-stubs to `/store/orders`.)
-- **Admin:** `/admin/catalog` (products/tags/brands + Store fields), `/admin/users` (Team + Access), `/admin/audit`, `/admin/platforms` (CSV mappings).
+- **Admin:** `/admin/catalog` (products/angles/brands + Store fields), `/admin/users` (Team + Access), `/admin/audit`, `/admin/platforms` (CSV mappings).
 - `/signin`. Redirect stubs: `/store`, `/admin/products`, `/admin/access`, `/trends`.
 
 ## 10. Deployment & operations

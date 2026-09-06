@@ -278,17 +278,17 @@ export const campaigns = pgTable(
   }),
 );
 
-export const creativeTags = pgTable(
-  "creative_tags",
+export const creativeAngles = pgTable(
+  "creative_angles",
   {
     creativeId: uuid("creative_id")
       .notNull()
       .references(() => creatives.id, { onDelete: "cascade" }),
-    tag: varchar("tag", { length: 64 }).notNull(),
+    angle: varchar("angle", { length: 64 }).notNull(),
   },
   (t) => ({
-    pk: primaryKey({ columns: [t.creativeId, t.tag] }),
-    tagIdx: index("creative_tags_tag_idx").on(t.tag),
+    pk: primaryKey({ columns: [t.creativeId, t.angle] }),
+    angleIdx: index("creative_angles_angle_idx").on(t.angle),
   }),
 );
 
@@ -320,13 +320,13 @@ export const creativePlatformOverrides = pgTable(
 );
 
 /**
- * Tag vocabulary — the managed set of tags, like products. Creatives still
- * store their assignments in `creative_tags` (by string); this table is the
- * canonical list admins curate. Renaming a tag here cascades to
- * `creative_tags`; deleting removes the assignments too.
+ * Angle vocabulary — the managed set of angles, like products. Creatives still
+ * store their assignments in `creative_angles` (by string); this table is the
+ * canonical list admins curate. Renaming an angle here cascades to
+ * `creative_angles`; deleting removes the assignments too.
  */
-export const tags = pgTable(
-  "tags",
+export const angles = pgTable(
+  "angles",
   {
     id: uuid("id").primaryKey().defaultRandom(),
     accountId: accountId(),
@@ -337,7 +337,7 @@ export const tags = pgTable(
       .defaultNow(),
   },
   (t) => ({
-    accountNameIdx: uniqueIndex("tags_account_name_idx").on(t.accountId, t.name),
+    accountNameIdx: uniqueIndex("angles_account_name_idx").on(t.accountId, t.name),
   }),
 );
 

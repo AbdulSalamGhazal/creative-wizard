@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 import { int, pct, roas, usd } from "@/lib/format";
 import { ALL_PLATFORMS, PLATFORM_COLOR, PLATFORM_LABEL } from "@/lib/palette";
 import { PlatformDot } from "@/components/ui/platform-dot";
-import type { TagPlatformRow } from "@/db/queries/trends";
+import type { AnglePlatformRow } from "@/db/queries/trends";
 
 type MetricKey =
   | "spend" | "conversions" | "revenue" | "roas"
@@ -49,18 +49,18 @@ const LG_COLS: Record<number, string> = {
 
 interface PlatformColumn {
   platform: (typeof ALL_PLATFORMS)[number];
-  top: Array<{ tag: string; v: number }>;
+  top: Array<{ angle: string; v: number }>;
   min: number;
   max: number;
 }
 
 /**
  * Build the per-platform top-N columns for one metric. Only platforms that
- * carry tagged data appear. `min`/`max` are over each platform's own displayed
- * tags so the bars can be min–max scaled within the column.
+ * carry angle data appear. `min`/`max` are over each platform's own displayed
+ * angles so the bars can be min–max scaled within the column.
  */
-function buildColumns(rows: TagPlatformRow[], metric: MetricDef): PlatformColumn[] {
-  const byPlatform = new Map<string, TagPlatformRow[]>();
+function buildColumns(rows: AnglePlatformRow[], metric: MetricDef): PlatformColumn[] {
+  const byPlatform = new Map<string, AnglePlatformRow[]>();
   for (const r of rows) {
     const list = byPlatform.get(r.platform) ?? [];
     list.push(r);
@@ -69,8 +69,8 @@ function buildColumns(rows: TagPlatformRow[], metric: MetricDef): PlatformColumn
   return ALL_PLATFORMS.filter((p) => byPlatform.has(p)).map((p) => {
     const vals = byPlatform
       .get(p)!
-      .map((r) => ({ tag: r.tag, v: r[metric.key] as number | null }))
-      .filter((x): x is { tag: string; v: number } => x.v !== null);
+      .map((r) => ({ angle: r.angle, v: r[metric.key] as number | null }))
+      .filter((x): x is { angle: string; v: number } => x.v !== null);
     vals.sort((a, b) => (metric.lower ? a.v - b.v : b.v - a.v));
     const top = vals.slice(0, TOP_N);
     const nums = top.map((t) => t.v);
@@ -85,7 +85,7 @@ function buildColumns(rows: TagPlatformRow[], metric: MetricDef): PlatformColumn
 
 /**
  * Min–max scale a value to a [MIN_BAR, 100] bar width. When every displayed
- * tag shares the same value (or there's only one) the spread is undefined, so
+ * angle shares the same value (or there's only one) the spread is undefined, so
  * everything renders full — there's no relative difference to show.
  */
 function barWidth(v: number, min: number, max: number): number {
@@ -94,14 +94,14 @@ function barWidth(v: number, min: number, max: number): number {
 }
 
 /**
- * Platform comparison — the top tags within each channel, for one or more
+ * Platform comparison — the top angles within each channel, for one or more
  * chosen metrics. Each selected metric renders its own full-width row of
  * platform columns (Instagram vs Facebook vs TikTok vs Snapchat). Bars are
- * min–max scaled *within* each platform so tags whose absolute values sit very
+ * min–max scaled *within* each platform so angles whose absolute values sit very
  * close together still separate visually; the printed figure is always the
- * real value. A platform with no tagged data simply doesn't appear.
+ * real value. A platform with no angle data simply doesn't appear.
  */
-export function TagPlatformCompare({ rows }: { rows: TagPlatformRow[] }) {
+export function AnglePlatformCompare({ rows }: { rows: AnglePlatformRow[] }) {
   const [selected, setSelected] = useState<MetricKey[]>(["spend"]);
 
   // Render rows in selection order so a newly-picked metric appends below.
@@ -128,7 +128,7 @@ export function TagPlatformCompare({ rows }: { rows: TagPlatformRow[] }) {
         <div>
           <h3 className="text-sm text-ink-2">Platform comparison</h3>
           <p className="text-[10px] text-ink-3">
-            Top {TOP_N} tags within each platform · bars min–max scaled per
+            Top {TOP_N} angles within each platform · bars min–max scaled per
             platform · pick one or more metrics to stack rows
           </p>
         </div>
@@ -168,7 +168,7 @@ function MetricRow({
   rows,
   metric,
 }: {
-  rows: TagPlatformRow[];
+  rows: AnglePlatformRow[];
   metric: MetricDef;
 }) {
   const columns = useMemo(() => buildColumns(rows, metric), [rows, metric]);
@@ -185,7 +185,7 @@ function MetricRow({
 
       {columns.length === 0 ? (
         <div className="h-20 flex items-center justify-center text-ink-3 text-sm border border-dashed border-line rounded-lg">
-          No tagged platform data in this window.
+          No per-platform angle data in this window.
         </div>
       ) : (
         <div className={cn("grid grid-cols-1 sm:grid-cols-2 gap-3", lgCols)}>
@@ -210,8 +210,8 @@ function MetricRow({
                     const w = barWidth(t.v, col.min, col.max);
                     return (
                       <Link
-                        key={t.tag}
-                        href={`/creatives?tags=${encodeURIComponent(t.tag)}`}
+                        key={t.angle}
+                        href={`/creatives?angles=${encodeURIComponent(t.angle)}`}
                         className="group block"
                       >
                         <div className="flex items-center justify-between gap-2 text-[11px]">
@@ -220,7 +220,7 @@ function MetricRow({
                               {i + 1}
                             </span>
                             <span className="truncate text-ink group-hover:text-brand transition-colors">
-                              {t.tag}
+                              {t.angle}
                             </span>
                           </span>
                           <span className="tabular-nums text-ink-2 shrink-0">

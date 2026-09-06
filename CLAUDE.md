@@ -37,7 +37,7 @@ Do not introduce a new dependency without a one-line justification in the PR des
 - Schema changes go through Drizzle migrations. Never edit a generated migration; create a new one.
 - Every column used in a filter, join, or sort needs an index. Declare it in the schema file alongside the column.
 - When adding a new dashboard query, check whether existing indexes cover it; add one if not.
-- `performance_records` is **unique** on `(creative_id, platform, campaign_id, date)` — the same creative can run on the same platform/date across different campaigns (distinct rows), but not the same campaign twice. (`campaign_id` is the FK to the campaigns registry; the old `campaign_name` text column is gone — see the Learned section.) Validation is still the only **entry** path. There are four sanctioned **exit** paths (each gated by a granular permission — see the Learned entry; admins always pass): (1) batch rollback within 24 h (`upload.rollback`), (2) the record-cleanup tool on `/uploads` (filtered hard-delete, `upload.cleanup`, preview-then-confirm, audit-logged via `upload.bulk_delete`), (3) deleting a creative (`deleteCreative` in `app/actions/creative.ts`) — which removes that creative's records inside a transaction because `performance_records.creative_id` has NO `ON DELETE CASCADE`, then deletes the creative (its `creative_tags` cascade). `creative.delete`, confirm-with-record-summary, audit-logged via `creative.delete`, and (4) deleting a campaign (`deleteCampaign` in `app/actions/campaign.ts`) — the campaign detail page's danger zone; because `performance_records.campaign_id` also has NO `ON DELETE CASCADE`, it removes the campaign's records inside a transaction, then drops the `campaigns` row. The CREATIVES that ran in the campaign are KEPT (only their records for that campaign go); confirm-with-record-summary (`campaignDeletionSummary`), `campaign.delete`, audit-logged via `campaign.delete`. No other code should delete from `performance_records`.
+- `performance_records` is **unique** on `(creative_id, platform, campaign_id, date)` — the same creative can run on the same platform/date across different campaigns (distinct rows), but not the same campaign twice. (`campaign_id` is the FK to the campaigns registry; the old `campaign_name` text column is gone — see the Learned section.) Validation is still the only **entry** path. There are four sanctioned **exit** paths (each gated by a granular permission — see the Learned entry; admins always pass): (1) batch rollback within 24 h (`upload.rollback`), (2) the record-cleanup tool on `/uploads` (filtered hard-delete, `upload.cleanup`, preview-then-confirm, audit-logged via `upload.bulk_delete`), (3) deleting a creative (`deleteCreative` in `app/actions/creative.ts`) — which removes that creative's records inside a transaction because `performance_records.creative_id` has NO `ON DELETE CASCADE`, then deletes the creative (its `creative_angles` cascade). `creative.delete`, confirm-with-record-summary, audit-logged via `creative.delete`, and (4) deleting a campaign (`deleteCampaign` in `app/actions/campaign.ts`) — the campaign detail page's danger zone; because `performance_records.campaign_id` also has NO `ON DELETE CASCADE`, it removes the campaign's records inside a transaction, then drops the `campaigns` row. The CREATIVES that ran in the campaign are KEPT (only their records for that campaign go); confirm-with-record-summary (`campaignDeletionSummary`), `campaign.delete`, audit-logged via `campaign.delete`. No other code should delete from `performance_records`.
 - Every creative has a required `product_id`. Products live in their own table and are managed in `/admin/catalog?tab=products`. Never let a creative be saved without one.
 
 ## Aggregation rules (CRITICAL)
@@ -209,14 +209,14 @@ This app is deployed and in production use. Treat `main` as shippable.
 - **Creative detail page edits EVERYTHING inline; there is no `/edit` route.**
   The detail header (`components/creative/creative-detail-header.tsx`, a client
   component) is a full editor for name / product / type / status / thumbnail /
-  publish-date / **priority** / tags, with draft state + a dirty check + an
+  publish-date / **priority** / angles, with draft state + a dirty check + an
   explicit **Save changes** button (not auto-save). Save calls `patchCreative`
   (partial — only changed fields; renaming is uniqueness-checked and the client
   follows the new URL). The old `/creatives/[name]/edit` page,
   `creative-edit-form.tsx`, and the `updateCreative` action were DELETED — don't
   reintroduce them. Notes stay on their own inline editor (`updateCreativeNotes`
-  via NotesPanel); `patchCreative` never touches notes. Tag editing uses
-  `tag-multi-select.tsx` (a Popover dropdown), and the publish date uses a
+  via NotesPanel); `patchCreative` never touches notes. Angle editing uses
+  `angle-multi-select.tsx` (a Popover dropdown), and the publish date uses a
   Calendar popover.
 - **Priority ≠ Rate — two DISTINCT concepts, never conflate the names.**
   **Priority** (2026-07) is the team's MANUAL importance judgment on a creative:
@@ -326,12 +326,12 @@ This app is deployed and in production use. Treat `main` as shippable.
   NULL DEFAULT true + `user_accounts` — existing users keep today's every-brand
   behavior). Every tenant table carries `account_id`
   (FK → `accounts`, DEFAULT the Urjwan id `00000000-0000-0000-0000-000000000001`):
-  products, creatives, tags, performance_records, upload_batches,
+  products, creatives, angles, performance_records, upload_batches,
   upload_validation_sessions, summary_views, platform_field_mappings,
   audit_events, rating_rules (PK = account_id), platform_rating_rules
-  (PK = (account_id, platform)). `creative_tags` has NO `account_id` — it's
-  scoped transitively via its creative, so tag rename/delete **cascades must be
-  bounded by a `creatives WHERE account_id` subquery** (else a shared tag string
+  (PK = (account_id, platform)). `creative_angles` has NO `account_id` — it's
+  scoped transitively via its creative, so angle rename/delete **cascades must be
+  bounded by a `creatives WHERE account_id` subquery** (else a shared angle string
   hits other brands). Reads: every `db/queries/*` condition-builder injects one
   `eq(table.accountId, await getActiveAccountId())`; writes: actions/routes stamp
   `accountId` on inserts and scope updates/deletes. The upload pipeline stores
@@ -403,7 +403,7 @@ This app is deployed and in production use. Treat `main` as shippable.
   attaching status), same as Library/Summary creative-status filters.
 - **Deleting a creative is a hard delete** (`deleteCreative`). It removes the
   creative's `performance_records` first (no cascade on that FK), then the
-  creative (tags cascade). The confirm dialog
+  creative (angles cascade). The confirm dialog
   (`components/creative/delete-creative-dialog.tsx`) shows the exact record
   count + per-platform breakdown + date range from `creativeDeletionSummary`,
   and an acknowledgement checkbox gates the destructive button. The audit row
@@ -437,7 +437,7 @@ This app is deployed and in production use. Treat `main` as shippable.
     consumer owns sort/order/hidden state and backs it with the URL (for saved
     views — see the campaigns table) **or** local state (detail tables). On it:
     the **Campaigns** table (`portfolio-table.tsx`, URL-backed + views),
-    **By-tag** (`tag-rollup-table.tsx`), **Video** (`video-diagnostics-table.tsx`),
+    **By-angle** (`angle-rollup-table.tsx`), **Video** (`video-diagnostics-table.tsx`),
     the **campaign row-data** table (`campaign-records-table.tsx`), and the
     creative-detail **campaigns/platform** table (`creative-campaigns-table.tsx`,
     local sort + a By campaign / By platform mode toggle; totals derived from
@@ -665,3 +665,24 @@ This app is deployed and in production use. Treat `main` as shippable.
   past `dataHorizon()` as em-dashes (unknown ≠ 0). Pacing = current month only,
   warn-tinted by |deviation| magnitude — never green/red. Permission
   `budget.manage`; audit `budget.update`. Migrations 0035 + 0036 (additive).
+
+- **2026-09: "tag" → "angle" at ALL layers — DB, URL params, code, UI, MCP.**
+  The creative-labeling concept is called an **angle** now. Tables `tags` /
+  `creative_tags` became `angles` / `creative_angles` (column `tag` → `angle`),
+  the permission key `catalog.tags` became `catalog.angles`, the `?tags=` filter
+  param became `?angles=`, `/trends/by-tag` became `/trends/by-angle` (old route
+  kept as a redirect stub), and the MCP `tags` field/filter became `angles` (a
+  BREAKING change for connected clients — no alias, called out in the tool
+  descriptions and the connect panel). Migration **0037** is a hand-written
+  RENAME (never regenerate it — `drizzle-kit generate` emits DROP+CREATE and
+  would destroy every assignment) that also sweeps the stored strings in
+  `users.permissions` and `summary_views.query`. **Never reintroduce "tag" for
+  this concept.** Two things deliberately keep the old word: historical
+  `audit_events` rows keep their `tag.*` action strings (append-only; rendered
+  with their original wording via `LEGACY_AUDIT_LABELS` in `lib/audit.ts`), and
+  the campaign-name **platform tag** (`PLATFORM_TAG` in `lib/campaign.ts`, the
+  ` (IG)`/` (FB)` suffix) is a different concept that keeps its name. The
+  account-scoped-cascade invariant carries over verbatim: `creative_angles` has
+  no `account_id`, so angle rename/delete cascades MUST be bounded by a
+  `creatives WHERE account_id` subquery.
+

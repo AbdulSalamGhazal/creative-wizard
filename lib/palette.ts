@@ -87,7 +87,7 @@ export function productColor(name: string): string {
   return PRODUCT_COLORS[hashString(name) % PRODUCT_COLORS.length]!;
 }
 
-/** Deterministic flat color for an arbitrary label (e.g. tags). */
+/** Deterministic flat color for an arbitrary label (e.g. angles). */
 export function swatchColor(name: string): string {
   return PRODUCT_COLORS[hashString(name) % PRODUCT_COLORS.length]!;
 }

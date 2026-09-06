@@ -5,16 +5,16 @@ import { Plus } from "lucide-react";
 import { Input } from "@/components/ui/input";
 
 interface Props {
-  /** Current tag input string (comma-separated). */
+  /** Current angle input string (comma-separated). */
   value: string;
   onChange: (next: string) => void;
-  /** All tags that already exist on any creative. */
-  allTags: string[];
+  /** All angles that already exist on any creative. */
+  allAngles: string[];
   placeholder?: string;
   disabled?: boolean;
 }
 
-function parseTags(s: string): string[] {
+function parseAngles(s: string): string[] {
   return s
     .split(",")
     .map((t) => t.trim())
@@ -22,30 +22,30 @@ function parseTags(s: string): string[] {
 }
 
 /**
- * Tag editor with autocomplete-by-click. Stays a comma-separated text input
- * so users can paste a list, but renders the existing-tag library as
- * clickable suggestions; one click appends. Tags already in the input are
+ * Angle editor with autocomplete-by-click. Stays a comma-separated text input
+ * so users can paste a list, but renders the existing-angle library as
+ * clickable suggestions; one click appends. Angles already in the input are
  * shown disabled so the user knows what's in vs. out.
  */
-export function TagInput({
+export function AngleInput({
   value,
   onChange,
-  allTags,
+  allAngles,
   placeholder = "launch, ugc, cold-traffic",
   disabled,
 }: Props) {
-  const selected = useMemo(() => new Set(parseTags(value)), [value]);
+  const selected = useMemo(() => new Set(parseAngles(value)), [value]);
 
-  const addTag = (tag: string) => {
-    if (selected.has(tag)) return;
-    const existing = parseTags(value);
-    const next = [...existing, tag].join(", ");
+  const addAngle = (angle: string) => {
+    if (selected.has(angle)) return;
+    const existing = parseAngles(value);
+    const next = [...existing, angle].join(", ");
     onChange(next);
   };
 
   const suggestions = useMemo(
-    () => allTags.filter((t) => !selected.has(t)).sort(),
-    [allTags, selected],
+    () => allAngles.filter((t) => !selected.has(t)).sort(),
+    [allAngles, selected],
   );
 
   return (
@@ -56,20 +56,20 @@ export function TagInput({
         placeholder={placeholder}
         disabled={disabled}
       />
-      {allTags.length > 0 && (
+      {allAngles.length > 0 && (
         <div className="space-y-1.5">
           <div className="text-eyebrow text-ink-3">
             From your library
           </div>
           <div className="flex flex-wrap gap-1.5">
-            {allTags.map((tag) => {
-              const isSelected = selected.has(tag);
+            {allAngles.map((angle) => {
+              const isSelected = selected.has(angle);
               return (
                 <button
-                  key={tag}
+                  key={angle}
                   type="button"
                   disabled={disabled || isSelected}
-                  onClick={() => addTag(tag)}
+                  onClick={() => addAngle(angle)}
                   className={
                     isSelected
                       ? "inline-flex items-center gap-1 h-6 px-2 rounded text-[11px] bg-surface-2 border border-line text-ink-3 cursor-not-allowed opacity-70"
@@ -77,7 +77,7 @@ export function TagInput({
                   }
                 >
                   {!isSelected && <Plus className="w-2.5 h-2.5" />}
-                  <span>{tag}</span>
+                  <span>{angle}</span>
                 </button>
               );
             })}

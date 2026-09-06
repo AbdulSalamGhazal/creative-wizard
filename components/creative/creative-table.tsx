@@ -20,9 +20,9 @@ const TYPE_LABEL: Record<CreativeListRow["type"], string> = {
 
 /**
  * The Library export carries the creative's FULL data (the on-screen table
- * still renders its usual subset). Tags stay in ONE cell, comma-separated —
- * never one column per tag. Fields that can contain commas / quotes / newlines
- * (tags, notes, links) are quoted by `rowsToCsv` (RFC 4180).
+ * still renders its usual subset). Angles stay in ONE cell, comma-separated —
+ * never one column per angle. Fields that can contain commas / quotes / newlines
+ * (angles, notes, links) are quoted by `rowsToCsv` (RFC 4180).
  */
 export const CSV_COLUMNS: CsvColumn<CreativeListRow>[] = [
   { key: "name", label: "Creative", value: (r) => r.name },
@@ -32,7 +32,7 @@ export const CSV_COLUMNS: CsvColumn<CreativeListRow>[] = [
   // Unrated stays an EMPTY cell — never 0.
   { key: "priority", label: "Priority", value: (r) => r.priority ?? "" },
   { key: "launchDate", label: "Launch date", value: (r) => r.launchDate ?? "" },
-  { key: "tags", label: "Tags", value: (r) => r.tags.join(", ") },
+  { key: "angles", label: "Angles", value: (r) => r.angles.join(", ") },
   { key: "sourceLink", label: "Source link", value: (r) => r.sourceLink ?? "" },
   { key: "notes", label: "Notes", value: (r) => r.notes ?? "" },
   { key: "spend7d", label: "7d spend (USD)", value: (r) => r.spend7d },
@@ -54,7 +54,7 @@ const SORTS = {
   product: { asc: "product-asc", desc: "product-desc" },
   type: { asc: "type-asc", desc: "type-desc" },
   status: { asc: "status-asc", desc: "status-desc" },
-  tag: { asc: "tag-asc", desc: "tag-desc" },
+  angle: { asc: "angle-asc", desc: "angle-desc" },
   launched: { asc: "launched-asc", desc: "launched-desc" },
   spend7: { asc: "spend7-asc", desc: "spend7-desc" },
   spend30: { asc: "spend-asc", desc: "spend-desc" },
@@ -193,7 +193,7 @@ export function CreativeTable({
               <SortableTh label="Launch date" state={sortState("launched")} />
               <SortableTh label="7d spend" state={sortState("spend7")} numeric />
               <SortableTh label="30d spend" state={sortState("spend30")} numeric />
-              <SortableTh label="Tags" state={sortState("tag")} />
+              <SortableTh label="Angles" state={sortState("angle")} />
             </tr>
           </thead>
           <tbody className="divide-y divide-line">
@@ -238,11 +238,11 @@ export function CreativeTable({
                   {r.spend30d > 0 ? usd(r.spend30d) : "—"}
                 </td>
                 <td className="px-3 py-2.5 text-ink-2">
-                  {r.tags.length === 0 ? (
+                  {r.angles.length === 0 ? (
                     <span className="text-ink-3">—</span>
                   ) : (
                     <div className="flex items-center gap-1 flex-wrap">
-                      {r.tags.slice(0, 3).map((t) => (
+                      {r.angles.slice(0, 3).map((t) => (
                         <span
                           key={t}
                           className="inline-flex items-center h-5 px-1.5 rounded text-[10px] bg-surface-2 border border-line text-ink-2"
@@ -250,9 +250,9 @@ export function CreativeTable({
                           {t}
                         </span>
                       ))}
-                      {r.tags.length > 3 && (
+                      {r.angles.length > 3 && (
                         <span className="text-[10px] text-ink-3">
-                          +{r.tags.length - 3}
+                          +{r.angles.length - 3}
                         </span>
                       )}
                     </div>

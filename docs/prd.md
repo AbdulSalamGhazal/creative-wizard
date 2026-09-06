@@ -49,8 +49,8 @@ The system serves the Urjwan marketing team — managing campaigns across **Meta
 ## 2. Goals
 
 - **G1.** Reduce manual reporting time from hours per week to minutes by automating CSV ingestion and aggregation.
-- **G2.** Enable creative performance comparisons across platforms, dates, tags, and **products** through a unified, best-in-class analytics dashboard.
-- **G3.** Centralize creative metadata (product, thumbnail, tags, notes) alongside performance data so the team can decide what to scale, kill, or iterate on without leaving the tool.
+- **G2.** Enable creative performance comparisons across platforms, dates, angles, and **products** through a unified, best-in-class analytics dashboard.
+- **G3.** Centralize creative metadata (product, thumbnail, angles, notes) alongside performance data so the team can decide what to scale, kill, or iterate on without leaving the tool.
 - **G4.** Enforce strict data integrity — every row in every upload must reference a registered creative, with no exceptions, no silent stubs, no partial imports.
 - **G5.** Deliver a visually impressive, fluid analytical experience the team enjoys using daily.
 - **G6.** Compute every aggregated and blended metric correctly — weighted by component sum, never an average of per-row ratios — with explicit support for excluding anomalous data points from aggregates.
@@ -64,7 +64,7 @@ Authenticated access via **Google Workspace SSO**, restricted to the Urjwan work
 | Role       | Permissions                                                                                                                |
 | ---------- | -------------------------------------------------------------------------------------------------------------------------- |
 | **Admin**  | Full access. Manage users, manage products, delete data, edit any record, upload CSVs, roll back uploads, exclude records. |
-| **Editor** | Upload CSVs, create/edit creatives, manage tags, view all analytics. Default role for team members.                       |
+| **Editor** | Upload CSVs, create/edit creatives, manage angles, view all analytics. Default role for team members.                       |
 | **Viewer** | (Future, not v1) Read-only access to dashboards.                                                                           |
 
 The first user (Salam) is bootstrapped as Admin. Admin invites additional users by email.
@@ -97,7 +97,7 @@ A persistent registry of every creative the team launches.
 - `product_id` — required, the product this creative promotes
 - `type` — one of: `video`, `slides`, `image`
 - `thumbnail_url` — manually uploaded image, max 2 MB
-- `tags` — free-form, multi-select
+- `angles` — free-form, multi-select
 - `notes` — rich text
 - `status` — `draft` / `active` / `paused` / `archived`
 - `launch_date`
@@ -109,8 +109,8 @@ A persistent registry of every creative the team launches.
 
 - **Grid view** with thumbnails (default)
 - **Table view** with sortable columns
-- **Filters:** product, type, status, tag, launch date, creator
-- **Search:** by name, tag, or notes
+- **Filters:** product, type, status, angle, launch date, creator
+- **Search:** by name, angle, or notes
 
 **Creating creatives:**
 
@@ -136,7 +136,7 @@ A simple registry of the products Urjwan sells, used to attribute creatives.
 - Archived products remain attached to their existing creatives and historical records but are hidden from the "new creative" picker.
 - Products cannot be hard-deleted while any creative references them (archive instead).
 
-**Why a separate entity:** Products are referenced from many creatives and need their own management UX, naming consistency, and analytical filter. They are not just a tag.
+**Why a separate entity:** Products are referenced from many creatives and need their own management UX, naming consistency, and analytical filter. They are not just a angle.
 
 ### 5.3 CSV Upload & Validation
 
@@ -169,7 +169,7 @@ The analytical layer is the primary user-facing surface and must be **visually p
 
 **B. Creative Detail Page** (per creative)
 
-- Header: thumbnail, name, product, type, tags, status, launch date
+- Header: thumbnail, name, product, type, angles, status, launch date
 - All-time KPIs across platforms
 - Performance over time — multi-line chart, one line per platform
 - Per-platform breakdown table
@@ -193,7 +193,7 @@ The analytical layer is the primary user-facing surface and must be **visually p
 - **Products** (multi-select) — NEW
 - Platforms (multi-select)
 - Creative types (multi-select)
-- Tags (multi-select)
+- Angles (multi-select)
 - Status (multi-select)
 - Excluded records — toggle to include them in the view (off by default)
 
@@ -263,8 +263,8 @@ Creative
   status, launch_date, notes, created_by_user_id,
   created_at, updated_at
 
-CreativeTag
-  creative_id, tag           -- composite key
+CreativeAngle
+  creative_id, angle           -- composite key
 
 UploadBatch
   id, platform, file_name, uploaded_by_user_id, uploaded_at,

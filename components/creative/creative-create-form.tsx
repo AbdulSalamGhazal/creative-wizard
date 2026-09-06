@@ -15,12 +15,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { createCreative } from "@/app/actions/creative";
-import { TagInput } from "@/components/creative/tag-input";
+import { AngleInput } from "@/components/creative/angle-input";
 import { ThumbnailUpload } from "@/components/creative/thumbnail-upload";
 
 interface Props {
   products: Array<{ id: string; name: string }>;
-  allTags: string[];
+  allAngles: string[];
 }
 
 const TYPES = [
@@ -29,14 +29,14 @@ const TYPES = [
   { value: "slides", label: "Slides" },
 ] as const;
 
-export function CreativeCreateForm({ products, allTags }: Props) {
+export function CreativeCreateForm({ products, allAngles }: Props) {
   const router = useRouter();
   const [name, setName] = useState("");
   // No defaults — force a deliberate pick so a left-on-default value can't slip through.
   const [productId, setProductId] = useState<string>("");
   const [type, setType] = useState<"" | "video" | "image" | "slides">("");
   const [launchDate, setLaunchDate] = useState("");
-  const [tagsInput, setTagsInput] = useState("");
+  const [anglesInput, setAnglesInput] = useState("");
   const [notes, setNotes] = useState("");
   const [sourceLink, setSourceLink] = useState("");
   const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
@@ -53,7 +53,7 @@ export function CreativeCreateForm({ products, allTags }: Props) {
     // until these are set, so this only ever no-ops a stray submit.
     if (!name.trim() || !productId || !type) return;
 
-    const tags = tagsInput
+    const angles = anglesInput
       .split(",")
       .map((t) => t.trim())
       .filter(Boolean);
@@ -67,7 +67,7 @@ export function CreativeCreateForm({ products, allTags }: Props) {
         notes: notes.trim() || undefined,
         thumbnailUrl: thumbnailUrl || undefined,
         sourceLink: sourceLink.trim() || undefined,
-        tags,
+        angles,
       });
       if (!res.ok) {
         setError(res.error ?? "Failed to create");
@@ -155,14 +155,14 @@ export function CreativeCreateForm({ products, allTags }: Props) {
       </Field>
 
       <Field
-        label="Tags"
+        label="Angles"
         hint="Comma-separated."
-        error={fieldErrors.tags}
+        error={fieldErrors.angles}
       >
-        <TagInput
-          value={tagsInput}
-          onChange={setTagsInput}
-          allTags={allTags}
+        <AngleInput
+          value={anglesInput}
+          onChange={setAnglesInput}
+          allAngles={allAngles}
         />
       </Field>
 
