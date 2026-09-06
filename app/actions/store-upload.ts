@@ -42,6 +42,8 @@ export type StoreUploadReport =
         updatedCount: number;
         upsert: boolean;
         ignoredColumns: string[];
+        /** Configured custom fields with no column in this file. */
+        absentFieldLabels: string[];
       };
       warnings: StoreValidationError[];
     };
@@ -102,6 +104,8 @@ async function validate(input: FileInput): Promise<
       newCount: number;
       updatedCount: number;
       ignoredColumns: string[];
+      presentFieldKeys: string[];
+      absentFieldLabels: string[];
       warnings: StoreValidationError[];
     }
 > {
@@ -144,6 +148,7 @@ export async function validateStoreUpload(
         updatedCount: res.updatedCount,
         upsert: input.upsert,
         ignoredColumns: res.ignoredColumns,
+        absentFieldLabels: res.absentFieldLabels,
       },
       warnings: res.warnings,
     };
@@ -192,6 +197,9 @@ export async function commitStoreUpload(
       upsert: input.upsert,
       inserts,
       updates,
+      // Only these fields had a column in the file; everything else keeps its
+      // stored value on an upsert update.
+      presentFieldKeys: res.presentFieldKeys,
     });
 
     try {

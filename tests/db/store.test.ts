@@ -1,5 +1,5 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { ACCOUNT_A, ACCOUNT_B } from "./config";
 
 vi.mock("@/lib/tenant", () => ({
@@ -139,3 +139,132 @@ describe("store — upsert updates in place; rollback deletes inserts only", () 
     expect(ids).not.toContain("O4"); // inserted row removed
   });
 });
+
+/**
+ * Upsert updates PATCH `attributes`. A store export is frequently a partial
+ * view of the order (one team's columns), and the previous replace-the-object
+ * behaviour silently wiped every custom value whose column wasn't in that file.
+ */
+describe("store upsert — attributes patch semantics", () => {
+  const ATTRS = { source: "instagram", coupon: "SAVE10", city: "Riyadh" };
+
+  // This file resets once in beforeAll, so clear only THIS block's rows
+  // between tests rather than disturbing the shared fixture state.
+  beforeEach(async () => {
+    await db
+      .delete(storeOrders)
+      .where(
+        and(
+          eq(storeOrders.accountId, ACCOUNT_A),
+          inArray(storeOrders.orderId, ["P1", "P2"]),
+        ),
+      );
+  });
+
+  async function seedOne() {
+    await db
+      .insert(users)
+      .values({
+        id: UPLOADER,
+        email: "patch-uploader@test.local",
+        name: "Uploader",
+        role: "editor",
+      })
+      .onConflictDoNothing();
+    await writeStoreBatch({
+      accountId: ACCOUNT_A,
+      fileName: "seed.csv",
+      uploadedByUserId: UPLOADER,
+      upsert: false,
+      inserts: [wr("P1", "2026-03-01", "100.00", ATTRS)],
+      updates: [],
+    });
+  }
+
+  const attrsOf = async (orderId: string) => {
+    const [row] = await db
+      .select({ attributes: storeOrders.attributes })
+      .from(storeOrders)
+      .where(and(eq(storeOrders.accountId, ACCOUNT_A), eq(storeOrders.orderId, orderId)));
+    return row!.attributes as Record<string, unknown>;
+  };
+
+  it("a column ABSENT from the file leaves its stored value untouched", async () => {
+    await seedOne();
+    // File carries only `source` — coupon/city have no column at all.
+    await writeStoreBatch({
+      accountId: ACCOUNT_A,
+      fileName: "partial.csv",
+      uploadedByUserId: UPLOADER,
+      upsert: true,
+      inserts: [],
+      updates: [wr("P1", "2026-03-02", "150.00", { source: "facebook" })],
+      presentFieldKeys: ["source"],
+    });
+    expect(await attrsOf("P1")).toEqual({
+      source: "facebook", // present + value → overwritten
+      coupon: "SAVE10", // absent column → kept
+      city: "Riyadh", // absent column → kept
+    });
+  });
+
+  it("a column PRESENT but BLANK clears the key (an explicit clear still works)", async () => {
+    await seedOne();
+    // coupon HAS a column; this row left it blank, so the pipeline omits the
+    // key — that is an instruction to clear, not an absence of instruction.
+    await writeStoreBatch({
+      accountId: ACCOUNT_A,
+      fileName: "clear.csv",
+      uploadedByUserId: UPLOADER,
+      upsert: true,
+      inserts: [],
+      updates: [wr("P1", "2026-03-02", "150.00", { source: "instagram" })],
+      presentFieldKeys: ["source", "coupon"],
+    });
+    const after = await attrsOf("P1");
+    expect(after).not.toHaveProperty("coupon"); // cleared
+    expect(after.source).toBe("instagram");
+    expect(after.city).toBe("Riyadh"); // still absent from the file → kept
+  });
+
+  it("a column PRESENT with a value overwrites", async () => {
+    await seedOne();
+    await writeStoreBatch({
+      accountId: ACCOUNT_A,
+      fileName: "over.csv",
+      uploadedByUserId: UPLOADER,
+      upsert: true,
+      inserts: [],
+      updates: [wr("P1", "2026-03-02", "150.00", { coupon: "NEW99" })],
+      presentFieldKeys: ["coupon"],
+    });
+    const after = await attrsOf("P1");
+    expect(after.coupon).toBe("NEW99");
+    expect(after.source).toBe("instagram"); // untouched
+  });
+
+  it("core columns still update, and the INSERT path is unchanged", async () => {
+    await seedOne();
+    await writeStoreBatch({
+      accountId: ACCOUNT_A,
+      fileName: "mixed.csv",
+      uploadedByUserId: UPLOADER,
+      upsert: true,
+      inserts: [wr("P2", "2026-03-05", "42.00", { source: "tiktok" })],
+      updates: [wr("P1", "2026-03-09", "999.00", { source: "snapchat" })],
+      presentFieldKeys: ["source"],
+    });
+    const [updated] = await db
+      .select({
+        date: storeOrders.orderDate,
+        amount: storeOrders.totalAmount,
+      })
+      .from(storeOrders)
+      .where(and(eq(storeOrders.accountId, ACCOUNT_A), eq(storeOrders.orderId, "P1")));
+    expect(updated!.date).toBe("2026-03-09");
+    expect(Number(updated!.amount)).toBeCloseTo(999, 2);
+    // Inserts write the whole object verbatim — no patching involved.
+    expect(await attrsOf("P2")).toEqual({ source: "tiktok" });
+  });
+});
+

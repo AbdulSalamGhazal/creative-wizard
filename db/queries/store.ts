@@ -318,6 +318,14 @@ export async function writeStoreBatch(opts: {
   upsert: boolean;
   inserts: StoreWriteRow[];
   updates: StoreWriteRow[];
+  /**
+   * Configured custom fields that had a mapped COLUMN in this file. Anything
+   * not listed here had no column at all, so the file says nothing about it
+   * and its stored value must survive the update untouched. Omitted (or empty)
+   * = treat every key in the row as authoritative, i.e. the old
+   * replace-the-whole-object behaviour.
+   */
+  presentFieldKeys?: string[];
 }): Promise<{ batchId: string; rowsInserted: number; rowsUpdated: number }> {
   const CHUNK = 500;
   return db.transaction(async (tx) => {
@@ -348,13 +356,36 @@ export async function writeStoreBatch(opts: {
       );
     }
 
+    // Upsert updates PATCH attributes rather than replacing them. A store
+    // export is often a partial view (one team's columns), so replacing wiped
+    // every custom value whose column simply wasn't in that file. Semantics:
+    //   column PRESENT + value  → set the key
+    //   column PRESENT + blank  → REMOVE the key (an explicit clear still works)
+    //   column ABSENT           → leave the key exactly as it is
+    // Core columns (date, amount) are unconditional as before.
+    const present = opts.presentFieldKeys;
     for (const r of opts.updates) {
+      // Keys the file HAS a column for but left blank on this row → clear.
+      const cleared = present
+        ? present.filter((k) => !(k in r.attributes))
+        : [];
+      // Bound as ONE text[] literal, not as a JS array: drizzle expands an
+      // array in a raw sql template into `($1,$2)` — a row expression, which
+      // is a syntax error here (and `()` when nothing is cleared).
+      const clearedLiteral = `{${cleared
+        .map((k) => `"${k.replace(/(["\\])/g, "\\$1")}"`)
+        .join(",")}}`;
+      const attributes = present
+        ? // `- text[]` drops the cleared keys, `||` merges the new values in;
+          // everything else in the stored object is carried through untouched.
+          sql`COALESCE(${storeOrders.attributes}, '{}'::jsonb) - ${clearedLiteral}::text[] || ${JSON.stringify(r.attributes)}::jsonb`
+        : r.attributes;
       await tx
         .update(storeOrders)
         .set({
           orderDate: r.orderDate,
           totalAmount: r.totalAmount,
-          attributes: r.attributes,
+          attributes,
           updatedAt: new Date(),
         })
         .where(

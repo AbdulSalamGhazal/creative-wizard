@@ -41,6 +41,15 @@ export type StorePipelineResult =
       updatedCount: number;
       /** File columns that no field maps to (ignored, reported as info). */
       ignoredColumns: string[];
+      /**
+       * Configured CUSTOM fields that DO have a mapped column in this file.
+       * The commit path needs this to tell "blank cell = clear the value" from
+       * "column absent = leave the existing value alone" — an absent column
+       * carries no instruction, so it must not wipe data on an upsert.
+       */
+      presentFieldKeys: string[];
+      /** Configured custom fields with NO column here (reported as info). */
+      absentFieldLabels: string[];
       warnings: StoreValidationError[];
     }
   | { ok: false; errors: StoreValidationError[]; warnings: StoreValidationError[] };
@@ -262,5 +271,18 @@ export function runStorePipeline(input: StorePipelineInput): StorePipelineResult
   }
 
   if (errors.length > 0) return { ok: false, errors, warnings };
-  return { ok: true, rows: accepted, newCount, updatedCount, ignoredColumns, warnings };
+  const presentFieldKeys = customFields.map((f) => f.key);
+  const absentFieldLabels = input.fields
+    .filter((f) => !f.core && !fieldIndex.has(f.key))
+    .map((f) => f.label);
+  return {
+    ok: true,
+    rows: accepted,
+    newCount,
+    updatedCount,
+    ignoredColumns,
+    presentFieldKeys,
+    absentFieldLabels,
+    warnings,
+  };
 }

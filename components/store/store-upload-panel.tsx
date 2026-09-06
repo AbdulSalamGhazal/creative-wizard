@@ -168,6 +168,21 @@ export function StoreUploadPanel({
               · {int(stage.report.summary.total)} rows valid
             </span>
           </div>
+          {/* Upsert PATCHES attributes: a field with no column in this file
+              keeps whatever the order already had. Say so, because the
+              alternative reading ("my values were wiped") is the scary one. */}
+          {stage.report.summary.upsert &&
+            stage.report.summary.absentFieldLabels.length > 0 && (
+              <p className="mt-1.5 text-[11px] text-ink-3">
+                {int(stage.report.summary.absentFieldLabels.length)} configured
+                field
+                {stage.report.summary.absentFieldLabels.length === 1 ? "" : "s"}{" "}
+                not in this file — existing values on updated orders are kept:{" "}
+                <span className="font-mono">
+                  {stage.report.summary.absentFieldLabels.join(", ")}
+                </span>
+              </p>
+            )}
           {stage.report.summary.ignoredColumns.length > 0 && (
             <p className="mt-1.5 text-[11px] text-ink-3">
               Ignored columns:{" "}
