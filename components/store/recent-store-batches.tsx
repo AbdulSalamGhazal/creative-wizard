@@ -1,4 +1,4 @@
-import { isoDate } from "@/lib/format";
+import { int, isoDate } from "@/lib/format";
 import { StoreRollbackButton } from "@/components/store/store-rollback-button";
 
 const ROLLBACK_WINDOW_MS = 24 * 60 * 60 * 1000;
@@ -29,10 +29,10 @@ export function RecentStoreBatches({
       <div className="border-b border-line px-4 py-2.5 text-sm font-medium text-ink">
         Recent uploads
       </div>
-      <div className="overflow-x-auto">
+      <div className="max-h-[70vh] overflow-auto">
         <table className="w-full min-w-[640px] text-xs">
           <thead>
-            <tr className="text-left text-ink-3">
+            <tr className="text-left text-label text-ink-3 border-b border-line [&>th]:sticky [&>th]:top-0 [&>th]:z-10 [&>th]:bg-surface">
               <th className="px-4 py-2 font-medium">Uploaded</th>
               <th className="px-4 py-2 font-medium">File</th>
               <th className="px-4 py-2 font-medium">By</th>
@@ -49,16 +49,19 @@ export function RecentStoreBatches({
                 b.rowsInserted > 0 &&
                 Date.now() - Date.parse(b.uploadedAt) < ROLLBACK_WINDOW_MS;
               return (
-                <tr key={b.id} className="text-ink-2">
+                <tr
+                  key={b.id}
+                  className="text-ink-2 hover:bg-surface-2/60 transition-colors"
+                >
                   <td className="px-4 py-2 num whitespace-nowrap">
                     {isoDate(b.uploadedAt)}
                   </td>
                   <td className="px-4 py-2 font-mono text-ink">{b.fileName}</td>
                   <td className="px-4 py-2">{b.uploadedByName ?? "—"}</td>
                   <td className="px-4 py-2 text-right num whitespace-nowrap">
-                    {b.rowsInserted} new
+                    {int(b.rowsInserted)} new
                     {b.rowsUpdated > 0 && (
-                      <span className="text-ink-3"> · {b.rowsUpdated} upd</span>
+                      <span className="text-ink-3"> · {int(b.rowsUpdated)} upd</span>
                     )}
                   </td>
                   <td className="px-4 py-2">

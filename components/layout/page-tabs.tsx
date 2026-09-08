@@ -1,4 +1,8 @@
+"use client";
+
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useNavTransition } from "@/lib/nav-progress";
 
 export interface PageTab {
   key: string;
@@ -24,6 +28,8 @@ export function PageTabs({
   tabs: readonly PageTab[];
   active: string;
 }) {
+  const router = useRouter();
+  const [, startNav] = useNavTransition();
   if (tabs.length < 2) return null;
   return (
     <div className="flex items-center gap-1 border-b border-line">
@@ -34,6 +40,22 @@ export function PageTabs({
             key={t.key}
             href={t.href}
             scroll={false}
+            // Through the nav transition so the progress bar shows: a tab
+            // switch re-renders a whole server page and otherwise looks inert.
+            onClick={(e) => {
+              if (
+                e.defaultPrevented ||
+                e.metaKey ||
+                e.ctrlKey ||
+                e.shiftKey ||
+                e.altKey ||
+                e.button !== 0
+              ) {
+                return;
+              }
+              e.preventDefault();
+              startNav(() => router.push(t.href, { scroll: false }));
+            }}
             className={
               "relative px-3 py-2 text-sm transition-colors -mb-px border-b-2 " +
               (isActive

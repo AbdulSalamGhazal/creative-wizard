@@ -532,6 +532,8 @@ function DayCell({ day, isLag }: { day: string; isLag: boolean }) {
       {isLag && (
         <span
           className="h-1.5 w-1.5 rounded-full bg-ink-3/60"
+          role="img"
+          aria-label="Still attributing — within 7 days of the latest ads data, so a store &gt; claimed gap here may not be a real discrepancy."
           title="Platform data may still be attributing (within 7 days of the latest ads data) — a store &gt; claimed gap here may not be a real discrepancy."
         />
       )}

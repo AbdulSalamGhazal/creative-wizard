@@ -36,7 +36,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import { int, isoDate } from "@/lib/format";
+import { int, isoDate, plural } from "@/lib/format";
 import { useNavTransition } from "@/lib/nav-progress";
 import { CAMPAIGN_OBJECTIVES } from "@/lib/campaign";
 import type { ExclusionRuleKind } from "@/lib/exclusion-rules";
@@ -342,7 +342,7 @@ export function ExclusionRulesAdmin({
                   {pending.mode === "create" || pending.mode === "activate" ? (
                     <>
                       This will exclude{" "}
-                      <b>{int(pending.preview.records)} records</b> across{" "}
+                      <b>{plural(pending.preview.records, "record")}</b> across{" "}
                       {int(pending.preview.campaigns)} campaign
                       {pending.preview.campaigns === 1 ? "" : "s"} /{" "}
                       {int(pending.preview.creatives)} creative
@@ -360,7 +360,7 @@ export function ExclusionRulesAdmin({
                     </>
                   ) : (
                     <>
-                      This releases <b>{int(pending.preview.records)} records</b>{" "}
+                      This releases <b>{plural(pending.preview.records, "record")}</b>{" "}
                       from this rule. Rows another active rule also covers stay
                       excluded (re-stamped by that rule); the rest return to
                       every aggregate, for everyone.
@@ -436,7 +436,7 @@ function TargetPicker({
           <ChevronDown className="h-3.5 w-3.5 shrink-0 text-ink-3" />
         </button>
       </PopoverTrigger>
-      <PopoverContent align="start" className="w-96 p-0">
+      <PopoverContent align="start" className="w-[min(24rem,calc(100vw-2rem))] p-0">
         <Command
           filter={(v, search) => (v.toLowerCase().includes(search.toLowerCase()) ? 1 : 0)}
         >

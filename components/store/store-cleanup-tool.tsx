@@ -20,7 +20,7 @@ import {
   runStoreCleanup,
 } from "@/app/actions/store-cleanup";
 import type { StoreCleanupPreview } from "@/db/queries/store";
-import { sar, int, isoDate } from "@/lib/format";
+import { sar, int, isoDate, plural } from "@/lib/format";
 import { defaultDateRange } from "@/lib/date-presets";
 import { cn } from "@/lib/utils";
 import { pillClass } from "@/components/filters/filter-pill";
@@ -255,7 +255,7 @@ export function StoreCleanupTool({ batches }: { batches: CleanupBatch[] }) {
                   disabled={!confirmed || isPending}
                 >
                   <Trash2 className="w-3.5 h-3.5" />
-                  {isPending ? "Deleting…" : `Delete ${int(preview.orders)} orders`}
+                  {isPending ? "Deleting…" : `Delete ${plural(preview.orders, "order")}`}
                 </Button>
               </div>
             </>

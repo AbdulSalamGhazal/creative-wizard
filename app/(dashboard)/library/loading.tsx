@@ -1,6 +1,7 @@
 import {
   HeaderSkeleton,
   FilterBarSkeleton,
+  TabRowSkeleton,
   TableSkeleton,
 } from "@/components/layout/page-skeletons";
 
@@ -11,6 +12,7 @@ export default function CreativesLoading() {
   return (
     <div className="space-y-6">
       <HeaderSkeleton eyebrow subtitle right />
+      <TabRowSkeleton tabs={3} />
       <FilterBarSkeleton />
       <TableSkeleton rows={8} wide />
     </div>

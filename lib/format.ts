@@ -104,6 +104,19 @@ export function signedPct(value: number | null | undefined, dp = 1): string {
   return value > 0 ? `+${body}` : `−${body}`;
 }
 
+/**
+ * `12 records` / `1 record`. Several confirm dialogs hard-coded the plural and
+ * read "1 orders" / "1 rows" / "1 records" on the (very common) single-row case.
+ * Pass `pluralForm` for irregulars.
+ */
+export function plural(
+  count: number,
+  singular: string,
+  pluralForm = `${singular}s`,
+): string {
+  return `${int(count)} ${count === 1 ? singular : pluralForm}`;
+}
+
 export function num(value: number | null | undefined): string {
   if (value === null || value === undefined || Number.isNaN(value)) return EM_DASH;
   return upTo2Formatter.format(value);

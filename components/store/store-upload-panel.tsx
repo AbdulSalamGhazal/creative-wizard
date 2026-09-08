@@ -15,6 +15,7 @@ import {
   commitStoreUpload,
   type StoreUploadReport,
 } from "@/app/actions/store-upload";
+import { useNavTransition } from "@/lib/nav-progress";
 
 type Stage =
   | { s: "idle" }
@@ -37,6 +38,7 @@ export function StoreUploadPanel({
   redirectOnCommit?: string;
 } = {}) {
   const router = useRouter();
+  const [, startNav] = useNavTransition();
   const canUpsert = useCan("upload.upsert");
   const [file, setFile] = useState<File | null>(null);
   const [upsert, setUpsert] = useState(false);
@@ -78,7 +80,7 @@ export function StoreUploadPanel({
         (res.rowsUpdated > 0 ? ` · updated ${res.rowsUpdated}` : ""),
     );
     if (redirectOnCommit) {
-      router.push(redirectOnCommit);
+      startNav(() => router.push(redirectOnCommit));
       router.refresh();
       return;
     }

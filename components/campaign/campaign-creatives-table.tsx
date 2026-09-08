@@ -8,6 +8,7 @@ import { seriesColor } from "@/lib/palette";
 import { int, pct, roas, usd } from "@/lib/format";
 import { METRIC_LABEL } from "@/lib/metric-labels";
 import type { CampaignCreativeRow } from "@/db/queries/campaign";
+import { useNavTransition } from "@/lib/nav-progress";
 
 /**
  * Per-creative summary for one campaign — the chart's series, tabulated. Each
@@ -29,6 +30,7 @@ export function CampaignCreativesTable({
   creatives: CampaignCreativeRow[];
 }) {
   const router = useRouter();
+  const [, startNav] = useNavTransition();
   const searchParams = useSearchParams();
   const [sort, setSort] = useState("spend");
   const [dir, setDir] = useState<SortDir>("desc");
@@ -128,13 +130,13 @@ export function CampaignCreativesTable({
       order={order}
       onReorder={setOrder}
       onRowClick={(r) =>
-        router.push(
+        startNav(() => router.push(
           withDateRange(
             `/library/${encodeURIComponent(r.name)}`,
             searchParams.get("from"),
             searchParams.get("to"),
           ),
-        )
+        ))
       }
       minWidthClass="min-w-[920px]"
     />

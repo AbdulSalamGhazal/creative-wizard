@@ -135,6 +135,8 @@ export function UserBrandsSection({
               <button
                 key={b.id}
                 type="button"
+                role="checkbox"
+                aria-checked={on}
                 onClick={() => toggle(b.id)}
                 disabled={locked}
                 className={cn(

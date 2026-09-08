@@ -29,7 +29,7 @@ import { Input } from "@/components/ui/input";
 import { DateRangePicker } from "@/components/filters/date-range-picker";
 import { previewCleanupAction, runCleanup } from "@/app/actions/cleanup";
 import type { CleanupPreview } from "@/db/queries/cleanup";
-import { usd, int } from "@/lib/format";
+import { usd, int, plural } from "@/lib/format";
 import { defaultDateRange } from "@/lib/date-presets";
 import { cn } from "@/lib/utils";
 import { pillClass } from "@/components/filters/filter-pill";
@@ -120,7 +120,7 @@ export function CleanupTool({ products, creatives, campaigns }: Props) {
         toast.error(res.error ?? "Delete failed");
         return;
       }
-      toast.success(`Deleted ${res.deleted ?? 0} records`);
+      toast.success(`Deleted ${plural(res.deleted ?? 0, "record")}`);
       // Reset the whole form.
       setPlatforms([]);
       setFrom(null);
@@ -390,7 +390,7 @@ export function CleanupTool({ products, creatives, campaigns }: Props) {
                   disabled={!confirmed || isPending}
                 >
                   <Trash2 className="w-3.5 h-3.5" />
-                  {isPending ? "Deleting…" : `Delete ${int(preview.rows)} rows`}
+                  {isPending ? "Deleting…" : `Delete ${plural(preview.rows, "row")}`}
                 </Button>
               </div>
             </>

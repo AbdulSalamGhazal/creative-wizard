@@ -33,6 +33,17 @@ interface HeaderSkeletonProps {
 }
 
 /** PageHeader placeholder — eyebrow/back + title + optional subtitle + right slot. */
+/** The in-page tab row (Library, Upload ads, Upload orders). */
+export function TabRowSkeleton({ tabs = 2 }: { tabs?: number }) {
+  return (
+    <div className="flex items-center gap-4 border-b border-line pb-2">
+      {Array.from({ length: tabs }).map((_, i) => (
+        <Skeleton key={i} className="h-4 w-20" />
+      ))}
+    </div>
+  );
+}
+
 export function HeaderSkeleton({
   eyebrow,
   back,

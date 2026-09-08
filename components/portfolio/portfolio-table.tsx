@@ -245,13 +245,13 @@ export function PortfolioTable({
       }
       onReorder={(o) => pushParams((p) => p.set("order", o.join(",")))}
       onRowClick={(r) =>
-        router.push(
+        startNav(() => router.push(
           withDateRange(
             `/campaigns/${encodeURIComponent(r.campaign)}`,
             searchParams.get("from"),
             searchParams.get("to"),
           ),
-        )
+        ))
       }
       showTotals
       csvFileName="campaigns"

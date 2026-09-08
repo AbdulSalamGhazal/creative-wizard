@@ -219,6 +219,11 @@ export function UserAccessCard({
                   <button
                     key={perm.key}
                     type="button"
+                    // The visual is a custom checkbox (the inner span is
+                    // aria-hidden), so the semantics have to be stated here or
+                    // a screen reader just hears "button".
+                    role="checkbox"
+                    aria-checked={on}
                     onClick={() => toggle(perm.key)}
                     disabled={locked}
                     className={cn(
