@@ -4,6 +4,7 @@ import { Sparkline } from "@/components/charts/sparkline";
 import { computeDelta, type Delta } from "@/lib/period";
 import { pct, usd, pct1 } from "@/lib/format";
 import { FUNNEL_METRIC_COLOR } from "@/lib/palette";
+import { displayValueFontSize } from "@/components/overview/metric-card";
 import type { DailyRatesRow, Kpis, KpisWithDelta } from "@/db/queries/performance";
 
 type RateKey = "cpm" | "ctr" | "voc" | "cvr";
@@ -76,7 +77,7 @@ export function FunnelRates({
           return (
             <div
               key={r.key}
-              className="rounded-xl bg-surface-2/60 px-4 py-4 flex flex-col gap-3"
+              className="@container min-w-0 rounded-xl bg-surface-2/60 px-4 py-4 flex flex-col gap-3"
             >
               <div className="flex items-center justify-between gap-2">
                 <span className="inline-flex items-center gap-1.5 text-xs font-semibold tracking-wide text-ink-2">
@@ -88,7 +89,10 @@ export function FunnelRates({
                 </span>
                 {r.delta ? <Trend delta={r.delta} inverted={r.inverted} /> : null}
               </div>
-              <span className="font-display text-[3rem] leading-[0.95] num text-ink">
+              <span
+                className="font-display leading-[0.95] num text-ink"
+                style={{ fontSize: displayValueFontSize(r.value, "3rem") }}
+              >
                 {r.value}
               </span>
               <Sparkline

@@ -13,6 +13,26 @@ export interface BreakdownBar {
 }
 
 /**
+ * A headline figure's size: `max` normally, stepped down only as far as the
+ * card is actually too narrow for the string. A wide figure — `SAR 999,999.00`
+ * in Budget's SAR mode — needs ~216px at 2.6rem, but a two-column card at 375px
+ * offers ~124px, so it used to clip.
+ *
+ * `100cqi` is the card's own content width, so the caller must give the card
+ * `@container` (the query box already excludes its padding). The divisor is the
+ * string's width in ems: Instrument Serif has no tabular figures, so glyphs vary
+ * (a `1` is 0.25em, a `%` 0.59em), and 0.42em/char is an upper bound for the
+ * long, digit-and-separator-heavy strings that are the only ones at risk —
+ * short wide ones like `0%` average more but are nowhere near filling a card.
+ * Because it's a `min()`, anything that already fits still renders at exactly
+ * `max`: every value that wasn't clipping is pixel-identical, at every width.
+ */
+export function displayValueFontSize(value: string, max = "2.6rem"): string {
+  const ems = Math.max(1, value.length) * 0.42;
+  return `min(${max}, 100cqi / ${ems.toFixed(2)})`;
+}
+
+/**
  * One Dashboard metric: a large headline figure with an icon, and a compact
  * per-dimension breakdown below it (labeled bars). Presentational only — all
  * metric math + bar fractions are computed by the caller.
@@ -55,7 +75,7 @@ export function MetricCard({
   empty?: boolean;
 }) {
   return (
-    <div className="rounded-xl border border-line bg-surface p-4 flex flex-col gap-3.5">
+    <div className="@container min-w-0 rounded-xl border border-line bg-surface p-4 flex flex-col gap-3.5">
       {/* Headline */}
       <div>
         <div className="flex items-center justify-between gap-2">
@@ -67,7 +87,10 @@ export function MetricCard({
             <DeltaBadge delta={delta} inverted={deltaInverted} />
           ) : null}
         </div>
-        <div className="font-display text-[2.6rem] leading-none num text-ink mt-2 whitespace-nowrap">
+        <div
+          className="font-display leading-none num text-ink mt-2 whitespace-nowrap"
+          style={{ fontSize: displayValueFontSize(value) }}
+        >
           {value}
         </div>
       </div>
