@@ -9,19 +9,36 @@ import { PageHeader } from "@/components/layout/page-header";
 
 export const dynamic = "force-dynamic";
 
+/**
+ * One label per audit entity type. Typed as a FULL Record, so adding a new
+ * entity type to `AuditEntityType` fails compilation until it's labelled here —
+ * the old hand-kept array had silently fallen three categories behind
+ * (campaign, store, budget were unreachable in the filter).
+ */
+const CATEGORY_LABELS: Record<AuditEntityType, string> = {
+  creative: "Creatives",
+  campaign: "Campaigns",
+  product: "Products",
+  angle: "Angles",
+  // Legacy: rows written before the 2026-09 tag → angle rename.
+  tag: "Tags (legacy)",
+  upload: "Ad uploads",
+  store: "Store",
+  budget: "Budget",
+  exclusion: "Exclusions",
+  user: "Users",
+  mapping: "CSV mapping",
+  auth: "Auth",
+  view: "Views",
+  rating: "Rating rules",
+  account: "Brands",
+};
+
 const CATEGORY_OPTIONS: Array<{ value: AuditEntityType | "all"; label: string }> = [
   { value: "all", label: "All activity" },
-  { value: "creative", label: "Creatives" },
-  { value: "upload", label: "Uploads" },
-  { value: "exclusion", label: "Exclusions" },
-  { value: "user", label: "Users" },
-  { value: "product", label: "Products" },
-  { value: "angle", label: "Angles" },
-  { value: "mapping", label: "CSV mapping" },
-  { value: "auth", label: "Auth" },
-  { value: "view", label: "Views" },
-  { value: "rating", label: "Rating rules" },
-  { value: "account", label: "Brands" },
+  ...(Object.entries(CATEGORY_LABELS) as Array<[AuditEntityType, string]>).map(
+    ([value, label]) => ({ value, label }),
+  ),
 ];
 
 interface Props {

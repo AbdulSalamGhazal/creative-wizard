@@ -71,6 +71,20 @@ export function usd(value: number | null | undefined): string {
   return usdFormatter.format(value);
 }
 
+const upTo2Formatter = new Intl.NumberFormat("en-US", {
+  maximumFractionDigits: 2,
+});
+
+/**
+ * A plain number with up to 2 decimals — grouped, trailing zeros dropped.
+ * For values whose precision the app doesn't control (Store's custom numeric
+ * fields), where `int()` would silently round 12.5 to 13.
+ */
+export function num(value: number | null | undefined): string {
+  if (value === null || value === undefined || Number.isNaN(value)) return EM_DASH;
+  return upTo2Formatter.format(value);
+}
+
 export function int(value: number | null | undefined): string {
   if (value === null || value === undefined || Number.isNaN(value)) return EM_DASH;
   return intFormatter.format(value);

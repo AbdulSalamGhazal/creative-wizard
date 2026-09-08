@@ -10,7 +10,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { intCompact, pct, ratio, usd, usdCompact, monthDay } from "@/lib/format";
+import { intCompact, pct, roas, usd, usdCompact, monthDay } from "@/lib/format";
 import { seriesColor } from "@/lib/palette";
 import { MetricPicker } from "@/components/charts/metric-picker";
 import { SeriesLegend } from "@/components/charts/series-legend";
@@ -64,13 +64,13 @@ const axisFmt = (kind: Kind) => (v: number) => {
   if (kind === "usd") return usdCompact(v);
   if (kind === "int") return intCompact(v);
   if (kind === "pct") return `${(v * 100).toFixed(0)}%`;
-  return `${v.toFixed(1)}×`;
+  return roas(v);
 };
 const cellFmt = (kind: Kind, v: number | null) => {
   if (kind === "usd") return usd(v);
   if (kind === "int") return v === null ? "—" : intCompact(v);
   if (kind === "pct") return pct(v);
-  return ratio(v);
+  return roas(v);
 };
 
 interface Row {
@@ -210,7 +210,8 @@ export function CampaignCreativeChart({
     () => new Map(creatives.map((c, i) => [c.creativeId, seriesColor(i)])),
     [creatives],
   );
-  const color = (id: string) => colorOf.get(id) ?? "#888";
+  // Themed fallback — a hex grey ignores the light themes entirely.
+  const color = (id: string) => colorOf.get(id) ?? "var(--ink-3)";
 
   const visible = creatives
     .filter((c) => shown.has(c.creativeId))

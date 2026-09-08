@@ -391,7 +391,7 @@ export function ReconciliationView({
   return (
     <div className="space-y-4">
       {/* Filter + controls bar */}
-      <div className="sticky top-14 z-10 -mx-6 flex flex-wrap items-center justify-between gap-2 bg-bg/80 px-6 py-2 backdrop-blur">
+      <div className="sticky top-14 z-10 -mx-6 flex flex-wrap items-center justify-between gap-2 border-b border-line bg-background/95 px-6 py-2 backdrop-blur">
         <DateRangePicker from={from} to={to} onChange={setRange} />
         <div className="flex items-center gap-2">
           <ExcludedParamToggle on={includeExcluded} />
@@ -590,7 +590,7 @@ function NotConfigured({ canConfig }: { canConfig: boolean }) {
           href="/store/uploads?tab=fields"
           className="mt-1 text-xs text-ink-2 underline hover:text-ink"
         >
-          Configure in Configuration → Store
+          Configure in Upload orders → Order fields
         </Link>
       )}
     </div>

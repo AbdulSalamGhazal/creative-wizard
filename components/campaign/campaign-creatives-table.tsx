@@ -91,7 +91,7 @@ export function CampaignCreativesTable({
     { key: "spend", label: "Spend", align: "right", sortable: true, render: (r) => usd(r.spend) },
     { key: "impressions", label: METRIC_LABEL.impressions, align: "right", sortable: true, render: (r) => int(r.impressions) },
     { key: "clicks", label: "Clicks", align: "right", sortable: true, render: (r) => int(r.clicks) },
-    { key: "conversions", label: "Orders", align: "right", sortable: true, render: (r) => int(r.conversions) },
+    { key: "conversions", label: METRIC_LABEL.conversions, align: "right", sortable: true, render: (r) => int(r.conversions) },
     { key: "conversionValue", label: METRIC_LABEL.revenue, align: "right", sortable: true, render: (r) => usd(r.conversionValue) },
     { key: "ctr", label: "CTR", align: "right", sortable: true, render: (r) => fPct(r.ctr) },
     { key: "cvr", label: "CvR", align: "right", sortable: true, render: (r) => fPct(r.cvr) },

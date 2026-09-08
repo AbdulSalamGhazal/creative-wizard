@@ -20,7 +20,7 @@ import { StoreCleanupTool } from "@/components/store/store-cleanup-tool";
 
 export const dynamic = "force-dynamic";
 
-export const metadata = { title: "Store uploads" };
+export const metadata = { title: "Upload orders" };
 
 /**
  * Order uploads — the store upload HISTORY (batches: file, when, by, counts,
@@ -90,7 +90,7 @@ export default async function StoreUploadsPage({
     <PageShell>
       <PageHeader
         eyebrow="Store"
-        title="Order uploads"
+        title="Upload orders"
         subtitle={`${batches.length} ${batches.length === 1 ? "batch" : "batches"}.`}
         rightSlot={
           canUpload ? (

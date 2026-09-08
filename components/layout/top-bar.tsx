@@ -54,7 +54,7 @@ export function TopBar({
           <AccountSwitcher accounts={accounts} activeId={activeAccountId} />
         </div>
         <div className="flex items-center gap-3">
-          <CommandPalette creatives={creatives} />
+          <CommandPalette creatives={creatives} granted={granted} />
           <ScreenshotButton />
           <ThemeToggle />
           <UserMenu

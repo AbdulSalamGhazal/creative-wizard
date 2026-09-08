@@ -16,7 +16,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { sar, isoDate, int } from "@/lib/format";
+import { sar, isoDate, int, num } from "@/lib/format";
 import { downloadCsv, todayStamp } from "@/lib/csv-export";
 import { useNavTransition } from "@/lib/nav-progress";
 import { exportStoreOrders } from "@/app/actions/store-export";
@@ -123,7 +123,7 @@ export function StoreOrdersTable({
               return v === undefined || v === null ? (
                 "—"
               ) : (
-                <span className="num tabular-nums">{int(Number(v))}</span>
+                <span className="num tabular-nums">{num(Number(v))}</span>
               );
             },
             sortValue: (r) => {
@@ -226,12 +226,10 @@ export function StoreOrdersTable({
               Order ID
             </DropdownMenuCheckboxItem>
             {hideableKeys.map((k) => {
-              const label =
-                k === "order_date"
-                  ? "Date"
-                  : k === "total_amount"
-                    ? "Total (SAR)"
-                    : (customCols.find((c) => c.key === k)?.label ?? k);
+              // Read the label off the column definition — the menu used to
+              // re-derive it, so a renamed column showed one name in the header
+              // and another in this list.
+              const label = columns.find((c) => c.key === k)?.label ?? k;
               return (
                 <DropdownMenuCheckboxItem
                   key={k}

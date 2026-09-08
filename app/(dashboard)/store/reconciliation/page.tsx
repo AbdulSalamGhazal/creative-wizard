@@ -25,7 +25,7 @@ function pick(v: string | string[] | undefined): string | undefined {
 /**
  * Store → Reconciliation. Compares store ORDER COUNTS vs platform-claimed
  * CONVERSIONS per day — counts only, never revenue. Read-open to any signed-in
- * user; the source mapping is configured in Configuration → Store.
+ * user; the source mapping is configured in Upload orders → Order fields.
  */
 export default async function ReconciliationPage({
   searchParams,

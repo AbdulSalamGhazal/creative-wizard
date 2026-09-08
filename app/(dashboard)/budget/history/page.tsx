@@ -5,7 +5,7 @@ import { BudgetHistory } from "@/components/budget/budget-history";
 
 export const dynamic = "force-dynamic";
 
-export const metadata = { title: "Budget history" };
+export const metadata = { title: "History" };
 
 /**
  * Budget History — every month with a plan or actuals, newest first: planned

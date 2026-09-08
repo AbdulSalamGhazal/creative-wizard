@@ -31,7 +31,7 @@ const COLS_META: Array<{
   { key: "spend", label: "Spend", align: "right", sortable: true },
   { key: "impressions", label: METRIC_LABEL.impressions, align: "right", sortable: true },
   { key: "clicks", label: "Clicks", align: "right", sortable: true },
-  { key: "orders", label: "Orders", align: "right", sortable: true },
+  { key: "orders", label: METRIC_LABEL.conversions, align: "right", sortable: true },
   { key: "revenue", label: METRIC_LABEL.revenue, align: "right", sortable: true },
   { key: "cpa", label: "CPA", align: "right", sortable: true },
   { key: "roas", label: "ROAS", align: "right", sortable: true },

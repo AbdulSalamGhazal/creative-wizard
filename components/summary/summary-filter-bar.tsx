@@ -31,6 +31,7 @@ import {
   FilterPill,
   FilterSearch,
 } from "@/components/filters/filter-pill";
+import { FilterSheet } from "@/components/filters/filter-sheet";
 import { cn } from "@/lib/utils";
 import {
   IDENTITY_COLUMN_KEYS,
@@ -467,40 +468,14 @@ export function SummaryFilterBar({
       ? "Any"
       : `${statusScope === "total" ? "Total" : PLATFORM_LABEL[statusScope as keyof typeof PLATFORM_LABEL] ?? statusScope} · ${statusValues.length}`;
 
-  return (
-    <div className="sticky top-14 z-10 -mx-6 px-6 py-3 border-b border-line bg-background/95 backdrop-blur">
-      <div className="flex items-center gap-2 flex-wrap">
-        {/* Saved views */}
-        <ViewsControl
-          views={views}
-          currentUserId={currentUserId}
-          isAdmin={isAdmin}
-        />
-
-        <span className="w-px h-5 bg-line" aria-hidden />
-
-        {/* Search */}
-        <FilterSearch
-          value={qInput}
-          onChange={setQInput}
-          placeholder="Search creative name…"
-        />
-
-        {/* Date range */}
-        <DateRangePicker
-          from={from}
-          to={to}
-          onChange={applyRange}
-          remember
-          fallback={
-            defaultFrom && defaultTo
-              ? { from: defaultFrom, to: defaultTo }
-              : undefined
-          }
-        />
-
+  // Dimension pills + the Columns pill, rendered inline on desktop and stacked
+  // full-width inside the mobile Sheet — the same pattern (and the same
+  // canonical ordering) the Library bar uses, so the two read identically.
+  const dimensionControls = (inSheet: boolean) => (
+    <>
         {/* Platforms — select any number */}
         <FilterPill
+          fullWidth={inSheet}
           icon={Layers}
           label="Platforms"
           value={
@@ -556,6 +531,7 @@ export function SummaryFilterBar({
 
         {/* Product */}
         <FilterPill
+          fullWidth={inSheet}
           icon={Package}
           label="Products"
           value={productLabel}
@@ -588,6 +564,7 @@ export function SummaryFilterBar({
 
         {/* Type */}
         <FilterPill
+          fullWidth={inSheet}
           icon={Shapes}
           label="Types"
           value={
@@ -619,6 +596,7 @@ export function SummaryFilterBar({
 
         {/* Angles */}
         <FilterPill
+          fullWidth={inSheet}
           icon={Tag}
           label="Angles"
           value={
@@ -653,6 +631,7 @@ export function SummaryFilterBar({
 
         {/* Rate filter — keep only creatives at a given rating, on a chosen scope */}
         <FilterPill
+          fullWidth={inSheet}
           icon={Star}
           label="Rate"
           value={rateLabel}
@@ -717,6 +696,7 @@ export function SummaryFilterBar({
         {/* Dynamic-status filter — keep only creatives at a given live status,
             on a chosen scope (general roll-up or one platform). */}
         <FilterPill
+          fullWidth={inSheet}
           icon={Activity}
           label="Live status"
           value={statusLabel}
@@ -782,10 +762,14 @@ export function SummaryFilterBar({
 
         {/* Numeric metric filters (ROAS ≥ 2, Spend ≥ 500, …) */}
         <MetricFilterControl platforms={effectivePlatforms} />
+    </>
+  );
 
-        <div className="ml-auto flex items-center gap-2">
+  const columnsControl = (inSheet: boolean) => (
+    <>
           {/* Columns visibility — opt-out (URL only lists hidden columns) */}
           <FilterPill
+            fullWidth={inSheet}
             icon={Columns3}
             label="Columns"
             value={
@@ -867,11 +851,65 @@ export function SummaryFilterBar({
             )}
           </FilterPill>
 
+    </>
+  );
+
+  return (
+    <div className="sticky top-14 z-10 -mx-6 px-6 py-3 border-b border-line bg-background/95 backdrop-blur">
+      {/* Desktop: everything inline */}
+      <div className="hidden lg:flex items-center gap-2 flex-wrap">
+        <ViewsControl views={views} currentUserId={currentUserId} isAdmin={isAdmin} />
+        <span className="w-px h-5 bg-line" aria-hidden />
+        <FilterSearch
+          value={qInput}
+          onChange={setQInput}
+          placeholder="Search creative name…"
+        />
+        <DateRangePicker
+          from={from}
+          to={to}
+          onChange={applyRange}
+          remember
+          fallback={
+            defaultFrom && defaultTo ? { from: defaultFrom, to: defaultTo } : undefined
+          }
+        />
+        {dimensionControls(false)}
+        <div className="ml-auto flex items-center gap-2">
+          {columnsControl(false)}
           <ExcludedToggle on={includeExcluded} onToggle={toggleExcluded} />
           {filtersActive && <ClearButton onClick={clearAll} />}
         </div>
       </div>
+
+      {/* Mobile / tablet: search stays inline, everything else collapses into a
+          single Filters Sheet. This was lost in the filter-convergence pass —
+          the bar computed activeCount but rendered no Sheet at all, so below
+          `lg` the page had no way to filter. */}
+      <div className="flex lg:hidden items-center gap-2">
+        <div className="flex-1 min-w-0">
+          <FilterSearch
+            value={qInput}
+            onChange={setQInput}
+            placeholder="Search creative name…"
+          />
+        </div>
+        <FilterSheet activeCount={activeCount} onClear={clearAll}>
+          <ViewsControl views={views} currentUserId={currentUserId} isAdmin={isAdmin} />
+          <DateRangePicker
+            from={from}
+            to={to}
+            onChange={applyRange}
+            remember
+            fallback={
+              defaultFrom && defaultTo ? { from: defaultFrom, to: defaultTo } : undefined
+            }
+          />
+          {dimensionControls(true)}
+          {columnsControl(true)}
+          <ExcludedToggle on={includeExcluded} onToggle={toggleExcluded} fullWidth />
+        </FilterSheet>
+      </div>
     </div>
   );
 }
-

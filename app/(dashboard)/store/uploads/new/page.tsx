@@ -19,7 +19,7 @@ export default async function NewStoreUploadPage() {
     <PageShell width="import">
       <PageHeader
         eyebrow="Store"
-        backLink={{ href: "/store/uploads", label: "Back to order uploads" }}
+        backLink={{ href: "/store/uploads", label: "Back to upload orders" }}
         title="New order upload"
         subtitle="Every file is validated first — nothing is imported unless all rows check out. Amounts are in SAR."
       />
