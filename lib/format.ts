@@ -92,8 +92,11 @@ export function pct1(value: number | null | undefined, dp = 1): string {
  */
 export function signedPct(value: number | null | undefined, dp = 1): string {
   if (value === null || value === undefined || Number.isNaN(value)) return EM_DASH;
-  const body = `${Math.abs(value * 100).toFixed(dp)}%`;
-  if (Number(value.toFixed(10)) === 0) return body;
+  const magnitude = Math.abs(value * 100).toFixed(dp);
+  const body = `${magnitude}%`;
+  // Judge zero by what will be SHOWN, not by the raw value: 0.00004 renders as
+  // "0.0%", and "+0.0%" claims a change the reader can't see.
+  if (Number(magnitude) === 0) return body;
   return value > 0 ? `+${body}` : `−${body}`;
 }
 

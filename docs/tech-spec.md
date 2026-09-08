@@ -33,7 +33,7 @@ A **multi-tenant creative-performance analytics tool** for paid social. It manag
 ## 3. Architecture
 
 - **Server Components by default.** `"use client"` only for interactivity. Pages compose one view; **all data fetching lives in `db/queries/*`** (account-scoped), never inline in pages.
-- **Mutations are Server Actions** (`app/actions/*` — ~16 files). There is **no REST API surface** except: `POST /api/uploads/validate`, `POST /api/uploads/commit`, `POST /api/uploads/thumbnail` (file uploads need routes), `GET /api/health` (public health check: 200 ok / 503 degraded), and the **MCP server** at `/api/mcp/mcp` (bearer-authed, read-only — see §MCP server).
+- **Mutations are Server Actions** (`app/actions/*` — 24 files). There is **no REST API surface** except: `POST /api/uploads/validate`, `POST /api/uploads/commit`, `POST /api/uploads/thumbnail` (file uploads need routes), `GET /api/health` (public health check: 200 ok / 503 degraded), and the **MCP server** at `/api/mcp/mcp` (bearer-authed, read-only — see §MCP server).
 - **Auth boundary:** `middleware.ts` verifies the session cookie signature/TTL at the Edge for every route except `/signin`, `/api/health`, **`/api/mcp`** (its own bearer auth), `_next`, and root-level static assets. The dashboard layout re-checks and role/permission gates apply per action (defense in depth). A drift-pin test asserts the middleware's Web Crypto verifier accepts tokens signed by `lib/auth-cookie.ts`.
 - **Single sources of truth in `lib/`** — never open-code these elsewhere:
   - `lib/metrics.ts` — every derived-metric SQL fragment (see §7)
@@ -147,6 +147,7 @@ The sidebar groups routes into four labeled sections (`NAV_SECTIONS` in `nav-ite
 - **Budget:** `/budget` (Overview) · `/budget/plan` · `/budget/daily` · `/budget/history` — all but History take `?month=YYYY-MM`, preserved across the section's nav links.
 - **Store:** `/store/uploads` (+ `/new`) · `/store/orders` · `/store/reconciliation`. (`/store` redirect-stubs to `/store/orders`.)
 - **Admin:** `/admin/catalog` (Rate rules / Status / Brands / Exclusions), `/admin/users` (Team + Access), `/admin/audit`.
+- **Account:** `/account/api` — self-serve personal access tokens for the MCP server (every signed-in user; no permission key).
 - `/signin`. Redirect stubs: `/store`, `/admin/access`, `/trends`, plus the 2026-09 IA moves — `/creatives` → `/library` and `/creatives/[name]` → `/library/[name]` (PERMANENT, query params preserved), `/admin/products` → `/library?tab=products`, `/admin/platforms` → `/uploads?tab=mapping`, and every retired `/admin/catalog?tab=` value (`products`, `angles`, `tags`, `platforms`, `mapping`, `store_fields`) → its new home.
 
 ### 9.1 Page names vs routes (2026-09 IA pass)
@@ -171,9 +172,12 @@ Some pages are labelled differently from their route — the URL stayed put so b
 
 ## 11. Testing
 
-- **Unit tests (vitest, co-located):** 174 tests / 16 files as of v2.0 — CSV pipeline + cross-platform checks, metrics fragments (SUM/NULLIF shape), creative/campaign status derivation, auth-cookie (incl. the middleware drift-pin), permissions catalog, campaign-name builder, formats/urls/date-presets. `npm test` (watch) / `npx vitest run`.
-- **Known gap:** `db/queries/*` has no DB-backed tests yet; a `ccms_test`-database harness (`npm run test:db`) is the planned next investment.
-- Rule: a test accompanies any non-trivial logic, especially in `csv/` and `db/queries/`.
+Two suites, two configs. Both must be green before a change ships.
+
+- **Unit suite — `npx vitest run` (or `npm test` to watch):** 315 tests / 34 files. No DB, no docker, always safe in CI. Covers the CSV pipeline + cross-platform adapters, metrics fragments (SUM/NULLIF shape), creative/campaign status derivation, auth-cookie (incl. the middleware drift-pin), permissions catalog, account access + tenant context, campaign-name builder, rating banding, period math, and the `lib/format` / `lib/url` / date-preset helpers. `vitest.config.ts` EXCLUDES `tests/db/**`, so a machine without docker still runs green.
+- **Database suite — `npm run test:db`:** 124 tests / 19 files, config `vitest.config.db.ts`. Its globalSetup creates a dedicated **`ccms_test`** database on the local docker Postgres, runs the Drizzle migrations, and repoints `DATABASE_URL` at it — it never touches `ccms` (dev) or prod. Tests `vi.mock("@/lib/tenant")` to drive the active brand (cookies don't exist under vitest) and re-seed through `tests/db/fixtures.ts` `resetAndSeed()`.
+  Coverage by file: `creatives` · `summary` · `performance` · `trends` · `portfolio` (incl. the derived-status post-filter, which can't be a SQL WHERE) · `angles` · `status` · `status-cache` (counts round-trips to pin the shared `brandStatusInputs()` scan) · `budget` · `store` · `reconciliation` · `exclusion-rules` · `cleanup` · `store-cleanup` · `user-accounts` · `mcp` · `security` · `edge-gaps` · `time-series-gaps`. Between them they pin the weighted-aggregation rule (component sums, never `AVG(ratio)`), the `excluded_from_aggregates` default and opt-in, brand isolation on every query, and per-platform status freshness.
+- Rule: a test accompanies any non-trivial logic, especially in `csv/` and `db/queries/`. A new `db/queries/*` function gets a DB test that asserts its math AND its account scoping.
 
 ## 12. Changelog
 
