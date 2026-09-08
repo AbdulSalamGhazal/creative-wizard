@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { and, between, desc, eq, inArray, sql, type SQL } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
@@ -20,30 +21,76 @@ import {
 } from "@/lib/creative-status";
 
 /**
- * Dynamic creative status (general + per-platform) for a set of creatives, or
- * for every creative in the active brand when `creativeIds` is omitted. Returns
- * a Map keyed by creativeId. A creative ABSENT from the map has never spent and
- * isn't terminated → treat as "new" (see {@link statusFor}).
+ * The RAW datasets every status derivation needs, fetched ONCE per request.
  *
- * Each platform's "Active" window is anchored to that platform's own latest
- * data day (uploads are per-platform), so a stale channel can't mislabel a
- * still-running creative. Everything is scoped to the active account.
+ * Status is derived on nearly every page, and each consumer used to run its own
+ * three scans of `performance_records` — the dashboard alone paid for several
+ * copies of the same data. `lib/db.ts` holds ONE connection per instance, so
+ * those queries were serial: the win here is issuing fewer of them, not running
+ * them in parallel.
+ *
+ * Deliberately UNRESTRICTED (whole brand): an id-restricted variant couldn't be
+ * shared between callers, and restricting was itself costly — callers passed
+ * hundreds of ids into an `IN (…)` list to fetch a subset of a scan the request
+ * had usually already done. Restriction is now a JS filter over this result.
+ *
+ * `cache()` is per-REQUEST (React clears it between requests), so this never
+ * serves one brand's rows to another: the memo lives and dies inside a single
+ * server render, and the account is resolved inside it.
  */
-export async function creativeStatusMap(
-  creativeIds?: string[],
-  opts?: { asOf?: string },
-): Promise<Map<string, CreativeStatusResult>> {
-  if (creativeIds && creativeIds.length === 0) return new Map();
-  const restrict = Boolean(creativeIds && creativeIds.length > 0);
-  const asOf = opts?.asOf; // point-in-time: status as it stood on this ISO date
+export interface BrandStatusInputs {
+  /** Brand's Active window in whole days (from `accounts.status_window_hours`). */
+  windowDays: number;
+  /** Last real-spend day per (creative, platform) — spend > 0, non-excluded. */
+  activity: Array<{ creativeId: string; platform: string; lastDate: string }>;
+  /** Each platform's own latest spend day — the per-channel freshness anchor. */
+  latestDayByPlatform: Partial<Record<Platform, string>>;
+  /** Manual per-(creative, platform) terminations. */
+  overrides: Array<{ creativeId: string; platform: string }>;
+}
 
+/**
+ * Each platform's latest SPEND day for the brand. Split out and cached on its
+ * own because BOTH creative and campaign status anchor to it — the two activity
+ * scans group differently (by creative vs by campaign) and can't be merged, but
+ * this freshness scan is identical for both and now runs once per request.
+ */
+export const platformSpendFreshness = cache(
+  async (): Promise<Partial<Record<Platform, string>>> => {
+    const acct = await getActiveAccountId();
+    const rows = await db
+      .select({
+        platform: performanceRecords.platform,
+        lastDate: sql<string>`MAX(${performanceRecords.date})`,
+      })
+      .from(performanceRecords)
+      .where(
+        and(
+          eq(performanceRecords.accountId, acct),
+          eq(performanceRecords.excludedFromAggregates, false),
+          sql`${performanceRecords.spend} > 0`,
+        ),
+      )
+      .groupBy(performanceRecords.platform);
+    const out: Partial<Record<Platform, string>> = {};
+    for (const r of rows) out[r.platform as Platform] = r.lastDate;
+    return out;
+  },
+);
+
+/**
+ * The three status datasets for the active brand, once per request.
+ *
+ * NEVER add another direct status scan alongside this — derive from it. (The
+ * `asOf` point-in-time variant is the one sanctioned exception: it reconstructs
+ * a past day, so it can't read today's cached numbers.)
+ */
+export const brandStatusInputs = cache(async (): Promise<BrandStatusInputs> => {
   const [acct, windowHours] = await Promise.all([
     getActiveAccountId(),
     getActiveStatusWindowHours(),
   ]);
-  const windowDays = hoursToWindowDays(windowHours);
 
-  // Per-(creative, platform) last real-spend date (spend > 0, non-excluded).
   const activity = await db
     .select({
       creativeId: performanceRecords.creativeId,
@@ -56,17 +103,119 @@ export async function creativeStatusMap(
         eq(performanceRecords.accountId, acct),
         eq(performanceRecords.excludedFromAggregates, false),
         sql`${performanceRecords.spend} > 0`,
-        ...(asOf ? [sql`${performanceRecords.date} <= ${asOf}`] : []),
-        ...(restrict
-          ? [inArray(performanceRecords.creativeId, creativeIds!)]
-          : []),
       ),
     )
     .groupBy(performanceRecords.creativeId, performanceRecords.platform);
 
-  // Each platform's latest SPEND day in the brand (the freshness anchor) — as of
-  // `asOf` when reconstructing a point-in-time snapshot. Matches the activity
-  // query's `spend > 0` so a trailing $0 day can't mislabel a recent spender.
+  const latestDayByPlatform = await platformSpendFreshness();
+
+  const overrides = await db
+    .select({
+      creativeId: creativePlatformOverrides.creativeId,
+      platform: creativePlatformOverrides.platform,
+    })
+    .from(creativePlatformOverrides)
+    .where(eq(creativePlatformOverrides.accountId, acct));
+
+  return {
+    windowDays: hoursToWindowDays(windowHours),
+    activity,
+    latestDayByPlatform,
+    overrides,
+  };
+});
+
+/** Assemble a status map from raw rows + context, filtered to `keep` if given. */
+function buildStatusMap(
+  activity: BrandStatusInputs["activity"],
+  overrides: BrandStatusInputs["overrides"],
+  ctx: { latestDayByPlatform: Partial<Record<Platform, string>>; windowDays: number },
+  keep: Set<string> | null,
+): Map<string, CreativeStatusResult> {
+  const inputs = new Map<string, CreativeStatusInput>();
+  const ensure = (id: string): CreativeStatusInput => {
+    let e = inputs.get(id);
+    if (!e) {
+      e = { lastSpendByPlatform: {}, terminatedPlatforms: [] };
+      inputs.set(id, e);
+    }
+    return e;
+  };
+  for (const a of activity) {
+    if (keep && !keep.has(a.creativeId)) continue;
+    ensure(a.creativeId).lastSpendByPlatform[a.platform as Platform] = a.lastDate;
+  }
+  for (const o of overrides) {
+    if (keep && !keep.has(o.creativeId)) continue;
+    ensure(o.creativeId).terminatedPlatforms.push(o.platform as Platform);
+  }
+  const out = new Map<string, CreativeStatusResult>();
+  for (const [id, input] of inputs) out.set(id, deriveCreativeStatus(input, ctx));
+  return out;
+}
+
+/**
+ * Dynamic creative status (general + per-platform) for a set of creatives, or
+ * for every creative in the active brand when `creativeIds` is omitted. Returns
+ * a Map keyed by creativeId. A creative ABSENT from the map has never spent and
+ * isn't terminated → treat as "new" (see {@link statusFor}).
+ *
+ * Each platform's "Active" window is anchored to that platform's own latest
+ * data day (uploads are per-platform), so a stale channel can't mislabel a
+ * still-running creative. Everything is scoped to the active account.
+ *
+ * Without `asOf` this derives from {@link brandStatusInputs} — the scans happen
+ * once per request no matter how many callers ask. `creativeIds` is a filter on
+ * the RESULT; callers that only look rows up by id can omit it entirely.
+ */
+export async function creativeStatusMap(
+  creativeIds?: string[],
+  opts?: { asOf?: string },
+): Promise<Map<string, CreativeStatusResult>> {
+  if (creativeIds && creativeIds.length === 0) return new Map();
+  const keep = creativeIds && creativeIds.length > 0 ? new Set(creativeIds) : null;
+
+  if (!opts?.asOf) {
+    const { windowDays, activity, latestDayByPlatform, overrides } =
+      await brandStatusInputs();
+    return buildStatusMap(activity, overrides, { latestDayByPlatform, windowDays }, keep);
+  }
+
+  // Point-in-time: reconstructs a PAST day, so it can't read today's cached
+  // numbers and keeps its own (date-bounded) queries.
+  return creativeStatusMapAsOf(creativeIds, opts.asOf);
+}
+
+/** The `asOf` path: same derivation, but every scan is bounded by the date. */
+async function creativeStatusMapAsOf(
+  creativeIds: string[] | undefined,
+  asOf: string,
+): Promise<Map<string, CreativeStatusResult>> {
+  const restrict = Boolean(creativeIds && creativeIds.length > 0);
+  const [acct, windowHours] = await Promise.all([
+    getActiveAccountId(),
+    getActiveStatusWindowHours(),
+  ]);
+  const windowDays = hoursToWindowDays(windowHours);
+
+  const activity = await db
+    .select({
+      creativeId: performanceRecords.creativeId,
+      platform: performanceRecords.platform,
+      lastDate: sql<string>`MAX(${performanceRecords.date})`,
+    })
+    .from(performanceRecords)
+    .where(
+      and(
+        eq(performanceRecords.accountId, acct),
+        eq(performanceRecords.excludedFromAggregates, false),
+        sql`${performanceRecords.spend} > 0`,
+        sql`${performanceRecords.date} <= ${asOf}`,
+        ...(restrict ? [inArray(performanceRecords.creativeId, creativeIds!)] : []),
+      ),
+    )
+    .groupBy(performanceRecords.creativeId, performanceRecords.platform);
+
   const freshness = await db
     .select({
       platform: performanceRecords.platform,
@@ -78,12 +227,11 @@ export async function creativeStatusMap(
         eq(performanceRecords.accountId, acct),
         eq(performanceRecords.excludedFromAggregates, false),
         sql`${performanceRecords.spend} > 0`,
-        ...(asOf ? [sql`${performanceRecords.date} <= ${asOf}`] : []),
+        sql`${performanceRecords.date} <= ${asOf}`,
       ),
     )
     .groupBy(performanceRecords.platform);
 
-  // Manual terminations (only those applied on or before `asOf`).
   const overrides = await db
     .select({
       creativeId: creativePlatformOverrides.creativeId,
@@ -93,9 +241,7 @@ export async function creativeStatusMap(
     .where(
       and(
         eq(creativePlatformOverrides.accountId, acct),
-        ...(asOf
-          ? [sql`${creativePlatformOverrides.terminatedAt}::date <= ${asOf}`]
-          : []),
+        sql`${creativePlatformOverrides.terminatedAt}::date <= ${asOf}`,
         ...(restrict
           ? [inArray(creativePlatformOverrides.creativeId, creativeIds!)]
           : []),
@@ -104,27 +250,7 @@ export async function creativeStatusMap(
 
   const latestDayByPlatform: Partial<Record<Platform, string>> = {};
   for (const f of freshness) latestDayByPlatform[f.platform as Platform] = f.lastDate;
-
-  const inputs = new Map<string, CreativeStatusInput>();
-  const ensure = (id: string): CreativeStatusInput => {
-    let e = inputs.get(id);
-    if (!e) {
-      e = { lastSpendByPlatform: {}, terminatedPlatforms: [] };
-      inputs.set(id, e);
-    }
-    return e;
-  };
-  for (const a of activity) {
-    ensure(a.creativeId).lastSpendByPlatform[a.platform as Platform] = a.lastDate;
-  }
-  for (const o of overrides) {
-    ensure(o.creativeId).terminatedPlatforms.push(o.platform as Platform);
-  }
-
-  const ctx = { latestDayByPlatform, windowDays };
-  const out = new Map<string, CreativeStatusResult>();
-  for (const [id, input] of inputs) out.set(id, deriveCreativeStatus(input, ctx));
-  return out;
+  return buildStatusMap(activity, overrides, { latestDayByPlatform, windowDays }, null);
 }
 
 /** Look up a creative's status, defaulting to "new" when absent from the map. */

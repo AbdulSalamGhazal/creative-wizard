@@ -641,9 +641,10 @@ export async function listCreativeSummary(
   }
 
   // Dynamic status (general + per-platform), keyed by creativeId. Account-scoped
-  // internally; restricted to the visible creatives so the status query matches
-  // the page. A creative absent from the map = "new" (see statusFor).
-  const sMap = await creativeStatusMap(ids);
+  // internally, from the request's shared status inputs. The map covers the
+  // whole brand and every read is a keyed lookup, so it needs no id list.
+  // A creative absent from the map = "new" (see statusFor).
+  const sMap = await creativeStatusMap();
 
   // Reshape — pull each row's per-platform fields into a nested block.
   const rows: SummaryRow[] = rawRows.map((row) => {

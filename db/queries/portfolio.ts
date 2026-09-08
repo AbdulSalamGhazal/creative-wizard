@@ -180,7 +180,7 @@ export async function portfolioCampaigns(
   // Attach dynamic status (computed over ALL data — current liveness, not the
   // range) and apply the status filter here: a derived value can't be a SQL
   // WHERE, so it's filtered in the query layer (like Library/Summary status).
-  const statusMap = await campaignStatusMap(base.map((b) => b.campaignId));
+  const statusMap = await campaignStatusMap();
   const rowsWithStatus: PortfolioCampaignRow[] = base.map((b) => ({
     ...b,
     status: campaignStatusFor(statusMap, b.campaignId),

@@ -1,9 +1,45 @@
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { cache } from "react";
+import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { performanceRecords } from "@/db/schema";
 import { getActiveAccountId, getActiveStatusWindowHours } from "@/lib/tenant";
 import { hoursToWindowDays } from "@/lib/creative-status";
+import { platformSpendFreshness } from "@/db/queries/creative-status";
 import { deriveCampaignStatus, type CampaignStatus } from "@/lib/campaign-status";
+
+/**
+ * Per-(campaign, platform) last real-spend day for the brand, once per request.
+ *
+ * Cached and UNRESTRICTED for the same reason as the creative equivalent: the
+ * id-restricted form couldn't be shared, and an `IN (…)` list of every visible
+ * campaign cost more than scanning. Restriction is a JS filter downstream.
+ *
+ * This can't merge with `brandStatusInputs`'s activity scan — that one groups by
+ * creative, this one by campaign — but the platform FRESHNESS anchor is
+ * identical, so both read it from `platformSpendFreshness()`.
+ */
+const brandCampaignActivity = cache(
+  async (): Promise<
+    Array<{ campaignId: string | null; platform: string; lastDate: string }>
+  > => {
+    const acct = await getActiveAccountId();
+    return db
+      .select({
+        campaignId: performanceRecords.campaignId,
+        platform: performanceRecords.platform,
+        lastDate: sql<string>`MAX(${performanceRecords.date})`,
+      })
+      .from(performanceRecords)
+      .where(
+        and(
+          eq(performanceRecords.accountId, acct),
+          eq(performanceRecords.excludedFromAggregates, false),
+          sql`${performanceRecords.spend} > 0`,
+        ),
+      )
+      .groupBy(performanceRecords.campaignId, performanceRecords.platform);
+  },
+);
 
 /**
  * Dynamic campaign status (active/inactive) for a set of campaigns, or every
@@ -20,54 +56,14 @@ export async function campaignStatusMap(
   campaignIds?: string[],
 ): Promise<Map<string, CampaignStatus>> {
   if (campaignIds && campaignIds.length === 0) return new Map();
-  const restrict = Boolean(campaignIds && campaignIds.length > 0);
+  const keep = campaignIds && campaignIds.length > 0 ? new Set(campaignIds) : null;
 
-  const [acct, windowHours] = await Promise.all([
-    getActiveAccountId(),
+  const [windowHours, activity, latestByPlatform] = await Promise.all([
     getActiveStatusWindowHours(),
+    brandCampaignActivity(),
+    platformSpendFreshness(),
   ]);
   const windowDays = hoursToWindowDays(windowHours);
-
-  // Per-campaign last real-spend day (+ its platform), spend > 0, non-excluded.
-  const activity = await db
-    .select({
-      campaignId: performanceRecords.campaignId,
-      platform: performanceRecords.platform,
-      lastDate: sql<string>`MAX(${performanceRecords.date})`,
-    })
-    .from(performanceRecords)
-    .where(
-      and(
-        eq(performanceRecords.accountId, acct),
-        eq(performanceRecords.excludedFromAggregates, false),
-        sql`${performanceRecords.spend} > 0`,
-        ...(restrict
-          ? [inArray(performanceRecords.campaignId, campaignIds!)]
-          : []),
-      ),
-    )
-    .groupBy(performanceRecords.campaignId, performanceRecords.platform);
-
-  // Each platform's latest SPEND day in the brand (the freshness anchor). Matches
-  // the activity query's spend > 0 so a trailing $0 day can't flip a live
-  // campaign to inactive.
-  const freshness = await db
-    .select({
-      platform: performanceRecords.platform,
-      lastDate: sql<string>`MAX(${performanceRecords.date})`,
-    })
-    .from(performanceRecords)
-    .where(
-      and(
-        eq(performanceRecords.accountId, acct),
-        eq(performanceRecords.excludedFromAggregates, false),
-        sql`${performanceRecords.spend} > 0`,
-      ),
-    )
-    .groupBy(performanceRecords.platform);
-
-  const latestByPlatform = new Map<string, string>();
-  for (const f of freshness) latestByPlatform.set(f.platform, f.lastDate);
 
   // Roll up per (campaign × platform): a campaign is Active if it's active on
   // ANY platform it ran on (mirrors the creative-status general roll-up). This
@@ -77,9 +73,10 @@ export async function campaignStatusMap(
   const out = new Map<string, CampaignStatus>();
   for (const a of activity) {
     if (!a.campaignId) continue;
+    if (keep && !keep.has(a.campaignId)) continue;
     const status = deriveCampaignStatus({
       lastSpendDay: a.lastDate,
-      platformLatestDay: latestByPlatform.get(a.platform) ?? null,
+      platformLatestDay: latestByPlatform[a.platform as keyof typeof latestByPlatform] ?? null,
       windowDays,
     });
     if (status === "active" || !out.has(a.campaignId)) {

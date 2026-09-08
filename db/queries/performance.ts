@@ -604,7 +604,7 @@ export async function creativeLeaderboard(
       .forEach((r) => pool.add(r.creativeId));
   }
 
-  const sMap = await creativeStatusMap(base.map((r) => r.creativeId));
+  const sMap = await creativeStatusMap();
 
   const seriesByCreative = new Map<string, number[]>();
   const poolIds = [...pool];
@@ -1706,7 +1706,7 @@ export async function topMovers(
   }
 
   // Derive the dynamic general status once for the union of current + prior ids.
-  const sMap = await creativeStatusMap([...allIds]);
+  const sMap = await creativeStatusMap();
 
   const rows: TopMoverRow[] = [];
   for (const id of allIds) {

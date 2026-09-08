@@ -220,7 +220,10 @@ export async function listCreatives(
     : baseQuery);
 
   // Attach the dynamic, derived status to every row (account-scoped, batched).
-  const statusMap = await creativeStatusMap(rows.map((r) => r.id));
+  // No id list: the map is derived from the request's shared status inputs,
+  // and every read below is a keyed lookup — passing hundreds of ids only
+  // added an `IN (…)` list (and, before the shared inputs, a whole extra scan).
+  const statusMap = await creativeStatusMap();
 
   // The shown status is scoped to the SELECTED platforms — for one or several,
   // roll up over just those platforms with the same precedence as the general
