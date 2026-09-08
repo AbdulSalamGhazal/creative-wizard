@@ -18,8 +18,8 @@ import {
 import { DateRangePicker } from "@/components/filters/date-range-picker";
 import { PlatformDot } from "@/components/ui/platform-dot";
 import { PLATFORM_COLOR, PLATFORM_LABEL } from "@/lib/palette";
-import { sar, usd, isoDate, int } from "@/lib/format";
-import { downloadCsv, todayStamp } from "@/lib/csv-export";
+import { sar, usd, isoDate, int, pct1, signedPct } from "@/lib/format";
+import { downloadCsv, todayStamp, matrixToCsv } from "@/lib/csv-export";
 import { useNavTransition } from "@/lib/nav-progress";
 import {
   reconDelta,
@@ -29,6 +29,7 @@ import {
   isWithinAttributionLag,
 } from "@/lib/reconciliation";
 import { cn } from "@/lib/utils";
+import { SegmentedControl } from "@/components/ui/segmented-control";
 import { ExcludedParamToggle } from "@/components/filters/excluded-param-toggle";
 import type {
   ReconOverviewRow,
@@ -60,11 +61,7 @@ function signed(n: number): string {
   if (n < 0) return `−${int(Math.abs(n))}`;
   return "0";
 }
-function pctText(pct: number | null): string {
-  if (pct === null) return "—";
-  const v = (pct * 100).toFixed(1);
-  return `${pct > 0 ? "+" : ""}${v}%`;
-}
+const pctText = (pct: number | null) => signedPct(pct);
 
 export function ReconciliationView({
   from,
@@ -206,7 +203,7 @@ export function ReconciliationView({
       label: PLATFORM_LABEL[p],
       color: PLATFORM_COLOR[p],
       fraction: r === null ? 0 : r / maxRate,
-      display: r === null ? "—" : `${(r * 100).toFixed(1)}%`,
+      display: pct1(r),
     }));
 
     return { orders, conv, delta, match };
@@ -365,7 +362,7 @@ export function ReconciliationView({
           r.spend,
         ];
       });
-      downloadCsv(`reconciliation-overview-${todayStamp()}.csv`, toCsv(head, lines));
+      downloadCsv(`reconciliation-overview-${todayStamp()}.csv`, matrixToCsv(head, lines));
     } else {
       const head = ["Day"];
       for (const p of platforms) {
@@ -382,7 +379,7 @@ export function ReconciliationView({
         cells.push(r.unattributed);
         return cells;
       });
-      downloadCsv(`reconciliation-by-platform-${todayStamp()}.csv`, toCsv(head, lines));
+      downloadCsv(`reconciliation-by-platform-${todayStamp()}.csv`, matrixToCsv(head, lines));
     }
   }
 
@@ -471,7 +468,7 @@ export function ReconciliationView({
           value={(() => {
             if (overview.length === 0) return "—";
             const rate = reconMatchRate(overviewTotals.orders, overviewTotals.conv);
-            return rate === null ? "—" : `${(rate * 100).toFixed(1)}%`;
+            return pct1(rate);
           })()}
           icon={Percent}
           bars={tileBars?.match ?? []}
@@ -543,26 +540,16 @@ function DayCell({ day, isLag }: { day: string; isLag: boolean }) {
 }
 
 function ModeToggle({ mode, onChange }: { mode: Mode; onChange: (m: Mode) => void }) {
-  const opts: Array<{ k: Mode; label: string }> = [
-    { k: "overview", label: "Overview" },
-    { k: "platform", label: "By platform" },
-  ];
   return (
-    <div className="inline-flex rounded-md border border-line bg-surface p-0.5">
-      {opts.map((o) => (
-        <button
-          key={o.k}
-          type="button"
-          onClick={() => onChange(o.k)}
-          className={cn(
-            "rounded px-2.5 py-1 text-xs transition-colors",
-            mode === o.k ? "bg-surface-2 text-ink" : "text-ink-2 hover:text-ink",
-          )}
-        >
-          {o.label}
-        </button>
-      ))}
-    </div>
+    <SegmentedControl<Mode>
+      ariaLabel="Reconciliation mode"
+      value={mode}
+      onChange={onChange}
+      options={[
+        { value: "overview", label: "Overview" },
+        { value: "platform", label: "By platform" },
+      ]}
+    />
   );
 }
 
@@ -710,10 +697,3 @@ function GroupCells({ orders, claimed }: { orders: number; claimed: number }) {
   );
 }
 
-function toCsv(head: string[], rows: (string | number)[][]): string {
-  const esc = (v: string | number) => {
-    const s = String(v);
-    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-  };
-  return [head, ...rows].map((r) => r.map(esc).join(",")).join("\n");
-}

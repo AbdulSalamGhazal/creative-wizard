@@ -80,6 +80,30 @@ const upTo2Formatter = new Intl.NumberFormat("en-US", {
  * For values whose precision the app doesn't control (Store's custom numeric
  * fields), where `int()` would silently round 12.5 to 13.
  */
+/**
+ * A percentage to `dp` decimals — `12.3%`. Unsigned; use {@link signedPct} when
+ * the direction of the change is the point.
+ */
+export function pct1(value: number | null | undefined, dp = 1): string {
+  if (value === null || value === undefined || Number.isNaN(value)) return EM_DASH;
+  return `${(value * 100).toFixed(dp)}%`;
+}
+
+/**
+ * A SIGNED percentage — `+12.3%` / `−8.0%` — for deltas and variances.
+ *
+ * The minus is U+2212 MINUS SIGN, not a hyphen: at the small, tabular sizes
+ * these render at, a hyphen is visually indistinguishable from nothing.
+ * Five surfaces had open-coded this with subtly different rules (some emitted a
+ * bare "-", some showed "+0.0%" for zero).
+ */
+export function signedPct(value: number | null | undefined, dp = 1): string {
+  if (value === null || value === undefined || Number.isNaN(value)) return EM_DASH;
+  const body = `${Math.abs(value * 100).toFixed(dp)}%`;
+  if (Number(value.toFixed(10)) === 0) return body;
+  return value > 0 ? `+${body}` : `−${body}`;
+}
+
 export function num(value: number | null | undefined): string {
   if (value === null || value === undefined || Number.isNaN(value)) return EM_DASH;
   return upTo2Formatter.format(value);
@@ -155,6 +179,19 @@ export function monthDay(value: Date | string | null | undefined): string {
   const d = typeof value === "string" ? new Date(value) : value;
   if (Number.isNaN(d.getTime())) return EM_DASH;
   return monthDayFormatter.format(d);
+}
+
+const longDateFormatter = new Intl.DateTimeFormat("en-US", {
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+  timeZone: "UTC",
+});
+
+/** "Sep 5, 2026" from an ISO date — UTC-pinned like every other date helper. */
+export function longDate(iso: string | null | undefined): string {
+  if (!iso) return EM_DASH;
+  return longDateFormatter.format(new Date(`${iso.slice(0, 10)}T00:00:00Z`));
 }
 
 export function isoDate(value: Date | string | null | undefined): string {

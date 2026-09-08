@@ -5,7 +5,7 @@ import { ArrowRight, Package, ShoppingBag, TrendingUp, Wallet } from "lucide-rea
 import { MetricCard } from "@/components/overview/metric-card";
 import { PlatformDot } from "@/components/ui/platform-dot";
 import { ALL_PLATFORMS, PLATFORM_LABEL } from "@/lib/palette";
-import { int, roas, sar } from "@/lib/format";
+import { int, roas, sar, signedPct } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import {
   curveExpected,
@@ -105,12 +105,12 @@ export function BudgetOverview({
     return (
       <span
         className={cn(
-          "not-italic block",
+          "block",
           pacingTone(pct) === "warn" ? "text-warn" : "text-ink-3",
         )}
       >
         Projected: {fmt(projected)}
-        {pct !== null && ` (${pct > 0 ? "+" : ""}${(pct * 100).toFixed(0)}% vs plan)`}
+        {pct !== null && ` (${signedPct(pct, 0)} vs plan)`}
         {reserveNote && ` · ${reserveNote}`}
       </span>
     );
@@ -166,10 +166,10 @@ export function BudgetOverview({
           label="Actual spend"
           value={fmtSpend(totalActual)}
           icon={Wallet}
-          bars={[]}
-          emptyText={
+          hideBreakdown
+          footer={
             <>
-              <span className="not-italic block">
+              <span className="block">
                 Plan: {totalPlanned > 0 ? fmtSpend(totalPlanned) : "—"}
               </span>
               {totalPlanned > 0 || totalActual > 0
@@ -182,10 +182,10 @@ export function BudgetOverview({
           label="Actual revenue"
           value={sar(data.actualRevenueSar)}
           icon={ShoppingBag}
-          bars={[]}
-          emptyText={
+          hideBreakdown
+          footer={
             <>
-              <span className="not-italic block">
+              <span className="block">
                 Plan: {data.plannedRevenueSar !== null ? sar(data.plannedRevenueSar) : "—"}
               </span>
               {data.plannedRevenueSar !== null
@@ -198,8 +198,8 @@ export function BudgetOverview({
           label="ROAS (via rate)"
           value={actualRoas === null ? "—" : roas(actualRoas)}
           icon={TrendingUp}
-          bars={[]}
-          emptyText={
+          hideBreakdown
+          footer={
             !validateRate(rate)
               ? "Set a USD→SAR rate to compute ROAS."
               : `Target: ${targetRoas === null ? "—" : roas(targetRoas)}`
@@ -209,8 +209,8 @@ export function BudgetOverview({
           label="Actual orders"
           value={int(data.actualOrders)}
           icon={Package}
-          bars={[]}
-          emptyText="Context only — no plan."
+          hideBreakdown
+          footer="Context only — no plan."
         />
       </div>
 

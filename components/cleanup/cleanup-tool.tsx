@@ -32,6 +32,7 @@ import type { CleanupPreview } from "@/db/queries/cleanup";
 import { usd, int } from "@/lib/format";
 import { defaultDateRange } from "@/lib/date-presets";
 import { cn } from "@/lib/utils";
+import { pillClass } from "@/components/filters/filter-pill";
 
 type Platform = "instagram" | "facebook" | "tiktok" | "snapchat";
 
@@ -171,7 +172,7 @@ export function CleanupTool({ products, creatives, campaigns }: Props) {
         {/* Platforms */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button type="button" className={pill(platforms.length > 0)}>
+            <button type="button" className={pillClass(platforms.length > 0)}>
               <span className="text-ink-3">Platforms</span>
               <span className="text-ink">
                 {platforms.length === 0 ? "Any" : `${platforms.length} selected`}
@@ -209,7 +210,7 @@ export function CleanupTool({ products, creatives, campaigns }: Props) {
         {/* Products */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button type="button" className={pill(productIds.length > 0)}>
+            <button type="button" className={pillClass(productIds.length > 0)}>
               <span className="text-ink-3">Products</span>
               <span className="text-ink">{productLabel}</span>
               <ChevronDown className="w-3 h-3 text-ink-3" />
@@ -234,7 +235,7 @@ export function CleanupTool({ products, creatives, campaigns }: Props) {
         {/* Creatives (searchable) */}
         <Popover>
           <PopoverTrigger asChild>
-            <button type="button" className={pill(creativeIds.length > 0)}>
+            <button type="button" className={pillClass(creativeIds.length > 0)}>
               <span className="text-ink-3">Creatives</span>
               <span className="text-ink">{creativeLabel}</span>
               <ChevronDown className="w-3 h-3 text-ink-3" />
@@ -280,7 +281,7 @@ export function CleanupTool({ products, creatives, campaigns }: Props) {
         {/* Campaigns (searchable) */}
         <Popover>
           <PopoverTrigger asChild>
-            <button type="button" className={pill(campaignNames.length > 0)}>
+            <button type="button" className={pillClass(campaignNames.length > 0)}>
               <span className="text-ink-3">Campaigns</span>
               <span className="text-ink max-w-[160px] truncate">
                 {campaignLabel}
@@ -400,11 +401,4 @@ export function CleanupTool({ products, creatives, campaigns }: Props) {
   );
 }
 
-function pill(active: boolean): string {
-  return cn(
-    "inline-flex items-center gap-2 h-8 px-3 rounded-md border text-xs transition-colors",
-    active
-      ? "border-brand/50 text-ink bg-[var(--brand-soft)]"
-      : "border-line text-ink-2 bg-surface hover:bg-surface-2 hover:text-ink",
-  );
-}
+

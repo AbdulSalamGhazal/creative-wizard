@@ -22,6 +22,15 @@ const pillActive = "border-brand/50 text-ink bg-[var(--brand-soft)]";
 const pillIdle =
   "border-line text-ink-2 bg-surface hover:bg-surface-2 hover:text-ink";
 
+/**
+ * The pill's class recipe, for surfaces that need the LOOK without the
+ * dropdown machinery — the two cleanup tools each kept a byte-identical private
+ * copy, which is exactly how the look drifts.
+ */
+export function pillClass(active: boolean, className?: string): string {
+  return cn(pillBase, active ? pillActive : pillIdle, className);
+}
+
 interface FilterPillProps {
   icon: React.ComponentType<{ className?: string }>;
   label: string;

@@ -3,10 +3,11 @@
 import { useMemo } from "react";
 import { History } from "lucide-react";
 import { DataTable, type DataColumn } from "@/components/ui/data-table";
-import { roas as fmtRoas, sar } from "@/lib/format";
+import { roas as fmtRoas, sar, signedPct } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import {
   monthLabel,
+  pacingTone,
   roasThroughRate,
   spendInDisplayCurrency,
   variancePct,
@@ -49,10 +50,12 @@ export function BudgetHistory({
     <span
       className={cn(
         "num tabular-nums text-xs",
-        pct !== null && Math.abs(pct) >= 0.15 ? "text-warn" : "text-ink-3",
+        // Same magnitude threshold the rest of Budget pacing uses — a second
+        // hard-coded 0.15 here would drift the moment that one changes.
+        pacingTone(pct) === "warn" ? "text-warn" : "text-ink-3",
       )}
     >
-      {pct === null ? "—" : `${pct > 0 ? "+" : ""}${(pct * 100).toFixed(1)}%`}
+      {signedPct(pct)}
     </span>
   );
 

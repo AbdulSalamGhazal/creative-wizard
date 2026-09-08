@@ -32,6 +32,18 @@ export function rowsToCsv<T>(rows: T[], columns: CsvColumn<T>[]): string {
   return `﻿${header}\n${body}\n`;
 }
 
+/**
+ * CSV from a header row + already-formatted cells, for tables whose columns are
+ * built dynamically (Reconciliation's by-platform mode has a column per
+ * platform). `rowsToCsv` needs a static column list; this doesn't.
+ */
+export function matrixToCsv(
+  head: string[],
+  rows: Array<Array<string | number>>,
+): string {
+  return [head, ...rows].map((r) => r.map(escapeCell).join(",")).join("\n");
+}
+
 export function downloadCsv(filename: string, content: string): void {
   const blob = new Blob([content], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);

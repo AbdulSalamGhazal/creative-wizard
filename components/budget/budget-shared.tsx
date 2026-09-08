@@ -11,10 +11,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { sar, usd } from "@/lib/format";
+import { longDate, sar, usd } from "@/lib/format";
 import { monthKey, nextMonthKey, prevMonthKey, spendInDisplayCurrency } from "@/lib/budget";
 import { useNavTransition } from "@/lib/nav-progress";
 import { cn } from "@/lib/utils";
+import { SegmentedControl } from "@/components/ui/segmented-control";
 
 /**
  * Shared client-side plumbing for the four Budget pages: the month bar (with a
@@ -64,21 +65,15 @@ export function CurrencyToggle({
   onChange: (c: BudgetCurrency) => void;
 }) {
   return (
-    <div className="inline-flex rounded-md border border-line bg-surface p-0.5">
-      {(["USD", "SAR"] as const).map((c) => (
-        <button
-          key={c}
-          type="button"
-          onClick={() => onChange(c)}
-          className={cn(
-            "rounded px-2.5 py-1 text-xs transition-colors",
-            currency === c ? "bg-surface-2 text-ink" : "text-ink-2 hover:text-ink",
-          )}
-        >
-          {c}
-        </button>
-      ))}
-    </div>
+    <SegmentedControl<BudgetCurrency>
+      ariaLabel="Display currency"
+      value={currency}
+      onChange={onChange}
+      options={[
+        { value: "USD", label: "USD" },
+        { value: "SAR", label: "SAR" },
+      ]}
+    />
   );
 }
 
@@ -186,13 +181,7 @@ export function horizonDayInMonth(
   return Math.min(totalDays, Number(horizon.slice(8, 10)));
 }
 
-const horizonLabel = (iso: string) =>
-  new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    timeZone: "UTC",
-  });
+
 
 /**
  * The shared "data through …" note (Overview + Daily). Ads and store uploads
@@ -210,9 +199,9 @@ export function HorizonNote({
   if (!horizon && !storeHorizon) return null;
   return (
     <p className="text-[11px] text-ink-3">
-      {horizon && <>Ad data through {horizonLabel(horizon)}</>}
+      {horizon && <>Ad data through {longDate(horizon)}</>}
       {horizon && storeHorizon !== undefined && storeHorizon && " · "}
-      {storeHorizon && <>store data through {horizonLabel(storeHorizon)}</>}
+      {storeHorizon && <>store data through {longDate(storeHorizon)}</>}
       {" — later days aren’t zero, just not uploaded yet."}
     </p>
   );

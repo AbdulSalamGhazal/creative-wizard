@@ -2,7 +2,7 @@ import { ArrowDownRight, ArrowUpRight } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Sparkline } from "@/components/charts/sparkline";
 import { computeDelta, type Delta } from "@/lib/period";
-import { pct, usd } from "@/lib/format";
+import { pct, usd, pct1 } from "@/lib/format";
 import { FUNNEL_METRIC_COLOR } from "@/lib/palette";
 import type { DailyRatesRow, Kpis, KpisWithDelta } from "@/db/queries/performance";
 
@@ -123,7 +123,7 @@ function Trend({ delta, inverted }: { delta: Delta; inverted?: boolean }) {
     >
       <Icon className="w-4 h-4" />
       {up ? "+" : ""}
-      {(p * 100).toFixed(1)}%
+      {pct1(p)}
     </span>
   );
 }

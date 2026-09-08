@@ -1,5 +1,6 @@
 import { ArrowDownRight, ArrowUpRight, Sparkles } from "lucide-react";
 import type { Delta } from "@/lib/period";
+import { signedPct } from "@/lib/format";
 
 /**
  * Renders a single period-over-period delta as a small inline badge.
@@ -60,8 +61,7 @@ export function DeltaBadge({
   const color = good
     ? "border-pos/40 bg-pos/10 text-pos"
     : "border-neg/40 bg-neg/10 text-neg";
-  const sign = up ? "+" : "";
-  const formatted = `${sign}${(pct * 100).toFixed(1)}%`;
+  const formatted = signedPct(pct);
 
   return (
     <span

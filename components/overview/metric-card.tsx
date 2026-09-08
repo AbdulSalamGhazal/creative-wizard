@@ -25,6 +25,7 @@ export function MetricCard({
   delta,
   deltaInverted = false,
   emptyText = "No data in range.",
+  footer,
   hideBreakdown = false,
   empty = false,
 }: {
@@ -39,6 +40,12 @@ export function MetricCard({
   /** Subline under the headline when there are no bars (string or rich node —
    *  Budget stacks a plan line + a projection line here). */
   emptyText?: ReactNode;
+  /**
+   * A caption under the card — a projection, a plan line, anything that isn't
+   * the breakdown. Budget used to smuggle these through `emptyText`, which only
+   * renders when `bars` is empty and is styled as an italic "no data" note.
+   */
+  footer?: ReactNode;
   /** Render only the headline + delta (no per-dimension breakdown). */
   hideBreakdown?: boolean;
   /**
@@ -98,6 +105,7 @@ export function MetricCard({
           ))}
         </ul>
       )}
+      {footer && <div className="text-[11px] text-ink-3">{footer}</div>}
     </div>
   );
 }

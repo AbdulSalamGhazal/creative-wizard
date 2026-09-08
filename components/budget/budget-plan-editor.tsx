@@ -34,7 +34,7 @@ import { DataTable, type DataColumn } from "@/components/ui/data-table";
 import { PlatformDot } from "@/components/ui/platform-dot";
 import { ALL_PLATFORMS, PLATFORM_LABEL } from "@/lib/palette";
 import { CAMPAIGN_OBJECTIVES } from "@/lib/campaign";
-import { int, sar, usd } from "@/lib/format";
+import { int, sar, usd, signedPct } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import {
   curveExpected,
@@ -369,7 +369,7 @@ export function BudgetPlanEditor({
           const pct = variancePct(r.actual, r.planned);
           return (
             <span className="num tabular-nums text-ink-3">
-              {pct === null ? "—" : `${pct > 0 ? "+" : ""}${(pct * 100).toFixed(1)}%`}
+              {signedPct(pct)}
             </span>
           );
         },
@@ -381,7 +381,7 @@ export function BudgetPlanEditor({
           const pct = variancePct(totals.actual, totals.planned);
           return (
             <span className="num tabular-nums font-semibold text-ink-3">
-              {pct === null ? "—" : `${pct > 0 ? "+" : ""}${(pct * 100).toFixed(1)}%`}
+              {signedPct(pct)}
             </span>
           );
         },

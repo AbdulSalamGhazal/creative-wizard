@@ -23,6 +23,7 @@ import type { StoreCleanupPreview } from "@/db/queries/store";
 import { sar, int, isoDate } from "@/lib/format";
 import { defaultDateRange } from "@/lib/date-presets";
 import { cn } from "@/lib/utils";
+import { pillClass } from "@/components/filters/filter-pill";
 
 export interface CleanupBatch {
   id: string;
@@ -145,7 +146,7 @@ export function StoreCleanupTool({ batches }: { batches: CleanupBatch[] }) {
         {/* Upload batch (single select) */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button type="button" className={pill(batchId !== null)}>
+            <button type="button" className={pillClass(batchId !== null)}>
               <span className="text-ink-3">Batch</span>
               <span className="text-ink max-w-[180px] truncate">{batchLabel}</span>
               <ChevronDown className="w-3 h-3 text-ink-3 shrink-0" />
@@ -265,11 +266,4 @@ export function StoreCleanupTool({ batches }: { batches: CleanupBatch[] }) {
   );
 }
 
-function pill(active: boolean): string {
-  return cn(
-    "inline-flex items-center gap-2 h-8 px-3 rounded-md border text-xs transition-colors",
-    active
-      ? "border-brand/50 text-ink bg-[var(--brand-soft)]"
-      : "border-line text-ink-2 bg-surface hover:bg-surface-2 hover:text-ink",
-  );
-}
+

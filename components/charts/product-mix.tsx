@@ -3,7 +3,7 @@
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import { useMemo } from "react";
 import { productColor } from "@/lib/palette";
-import { usd, usdCompact } from "@/lib/format";
+import { usd, usdCompact, pct1 } from "@/lib/format";
 import { ChartTooltip } from "@/components/charts/chart-tooltip";
 import type { ProductMixRow } from "@/db/queries/performance";
 
@@ -79,7 +79,7 @@ export function ProductMixDonut({ rows }: Props) {
               {d.productName}
             </span>
             <span className="text-ink num shrink-0">
-              {(d.share * 100).toFixed(1)}%
+              {pct1(d.share)}
             </span>
           </li>
         ))}
@@ -123,7 +123,7 @@ function DonutTooltip({
       <div className="flex items-baseline gap-3">
         <span className="text-ink-3">Share</span>
         <span className="ml-auto text-ink num">
-          {(entry.share * 100).toFixed(1)}%
+          {pct1(entry.share)}
         </span>
       </div>
     </ChartTooltip>
