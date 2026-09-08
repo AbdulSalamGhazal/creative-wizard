@@ -91,8 +91,12 @@ export async function listCreatives(
   // (without it they summed every platform). The interval is inlined from a
   // trusted integer; account isolation comes from the creative_id join to the
   // account-scoped `creatives`.
-  const spendWindowCte = (alias: string, days: number) => {
+  const spendWindowCte = (alias: string, days: number, acct: string) => {
     const conds: SQL[] = [
+      // Account is already enforced by the creative_id join to the
+      // account-scoped `creatives`; stating it HERE too lets the CTE use the
+      // (account_id, …) index instead of scanning every brand's rows first.
+      eq(performanceRecords.accountId, acct),
       sql`${performanceRecords.date} >= CURRENT_DATE - ${sql.raw(`INTERVAL '${days} days'`)}`,
     ];
     if (!filters.includeExcluded) {
@@ -112,8 +116,9 @@ export async function listCreatives(
         .groupBy(performanceRecords.creativeId),
     );
   };
-  const spend30d = spendWindowCte("spend_30d", 30);
-  const spend7d = spendWindowCte("spend_7d", 7);
+  const acct = await getActiveAccountId();
+  const spend30d = spendWindowCte("spend_30d", 30, acct);
+  const spend7d = spendWindowCte("spend_7d", 7, acct);
 
   const angleAgg = db.$with("angle_agg").as(
     db
@@ -127,7 +132,6 @@ export async function listCreatives(
       .groupBy(creativeAngles.creativeId),
   );
 
-  const acct = await getActiveAccountId();
   const conditions: SQL[] = [eq(creatives.accountId, acct)];
 
   if (filters.q) {

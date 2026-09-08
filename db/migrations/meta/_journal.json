@@ -274,6 +274,13 @@
       "when": 1788625196065,
       "tag": "0038_perf_updated_at",
       "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1788849966948,
+      "tag": "0039_perf_indexes",
+      "breakpoints": true
     }
   ]
 }

@@ -646,11 +646,22 @@ export const performanceRecords = pgTable(
       t.campaignId,
       t.date,
     ),
-    dateIdx: index("perf_date_idx").on(t.date),
     platformDateIdx: index("perf_platform_date_idx").on(t.platform, t.date),
     batchIdx: index("perf_upload_batch_idx").on(t.uploadBatchId),
-    excludedIdx: index("perf_excluded_idx").on(t.excludedFromAggregates),
     excludedRuleIdx: index("perf_excluded_rule_idx").on(t.excludedRuleId),
+    // PARTIAL indexes matching the shape nearly every read has: account-scoped,
+    // non-excluded, real spend. The predicate is the aggregate default (see the
+    // Aggregation rules) and the status scans' `spend > 0`, so the index holds
+    // only rows those queries can return — much smaller than the full table,
+    // and it covers the ORDER BY without a sort.
+    accountPlatformDateActiveIdx: index("perf_account_platform_date_active_idx")
+      .on(t.accountId, t.platform, t.date.desc())
+      .where(sql`${t.spend} > 0 AND ${t.excludedFromAggregates} = false`),
+    accountCreativePlatformDateActiveIdx: index(
+      "perf_account_creative_platform_date_active_idx",
+    )
+      .on(t.accountId, t.creativeId, t.platform, t.date)
+      .where(sql`${t.spend} > 0 AND ${t.excludedFromAggregates} = false`),
   }),
 );
 
@@ -919,6 +930,12 @@ export const storeOrders = pgTable(
       t.orderDate,
     ),
     batchIdx: index("store_orders_batch_idx").on(t.uploadBatchId),
+    // The Orders page searches order_id by SUBSTRING (ILIKE %…%), which no
+    // b-tree can serve. A pg_trgm GIN index makes it an index scan.
+    orderIdTrgmIdx: index("store_orders_order_id_trgm_idx").using(
+      "gin",
+      sql`${t.orderId} gin_trgm_ops`,
+    ),
   }),
 );
 
