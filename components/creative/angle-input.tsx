@@ -43,11 +43,6 @@ export function AngleInput({
     onChange(next);
   };
 
-  const suggestions = useMemo(
-    () => allAngles.filter((t) => !selected.has(t)).sort(),
-    [allAngles, selected],
-  );
-
   return (
     <div className="space-y-2">
       <Input

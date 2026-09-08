@@ -4,7 +4,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 // (input guard → write shape) is what's under test.
 const setMock = vi.fn().mockReturnThis();
 const whereMock = vi.fn().mockResolvedValue(undefined);
-const updateMock = vi.fn((_table: unknown) => ({ set: setMock, where: whereMock }));
+// Accepts (and ignores) the table argument drizzle passes.
+const updateMock = vi.fn((...args: unknown[]) => {
+  void args;
+  return { set: setMock, where: whereMock };
+});
 vi.mock("@/lib/db", () => ({ db: { update: (t: unknown) => updateMock(t) } }));
 vi.mock("@/lib/auth", () => ({
   requireAuth: vi.fn(async () => ({ id: "user-1" })),

@@ -301,11 +301,3 @@ export function auditLabel(action: string): string {
   );
 }
 
-/** Category for an audit action, including retired (renamed) ones. */
-export function auditCategory(action: string): AuditEntityType | null {
-  return (
-    AUDIT_CATEGORIES[action as AuditAction] ??
-    LEGACY_AUDIT_CATEGORIES[action] ??
-    null
-  );
-}

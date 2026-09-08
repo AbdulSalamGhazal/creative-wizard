@@ -59,7 +59,7 @@ export async function listAllMappings(): Promise<MappingRow[]> {
   }));
 }
 
-export async function listMappingsForPlatform(
+async function listMappingsForPlatform(
   platform: Platform,
 ): Promise<MappingRow[]> {
   const acct = await getActiveAccountId();

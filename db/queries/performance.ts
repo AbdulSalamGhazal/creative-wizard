@@ -33,9 +33,7 @@ import {
   voc,
 } from "@/lib/metrics";
 import {
-  addDays,
   computeDelta,
-  dayCount,
   prevPeriod,
   type Delta,
 } from "@/lib/period";
@@ -348,53 +346,6 @@ export async function kpis(filters: KpiFilters): Promise<Kpis> {
     hookRate: num(row?.hookRate),
     holdRate: num(row?.holdRate),
   };
-}
-
-/**
- * Spend per (date, platform) for the Spend-over-time stacked area chart.
- * Returns one row per (date, platform) that has at least one performance
- * record after filtering. JS-side pivot is the caller's responsibility.
- */
-export async function spendByDatePlatform(
-  filters: KpiFilters,
-): Promise<SpendByDatePlatform[]> {
-  const { conditions, needsCreativeJoin, needsAngleJoin } =
-    await buildBaseConditions(filters);
-
-  let q = db
-    .select({
-      date: performanceRecords.date,
-      platform: performanceRecords.platform,
-      spend: sumSpend,
-    })
-    .from(performanceRecords)
-    .$dynamic();
-
-  if (needsCreativeJoin || needsAngleJoin) {
-    q = q.innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId));
-  }
-  if (needsAngleJoin) {
-    q = q.innerJoin(
-      creativeAngles,
-      eq(creativeAngles.creativeId, performanceRecords.creativeId),
-    );
-  }
-
-  const rows = await q
-    .where(and(...conditions))
-    .groupBy(performanceRecords.date, performanceRecords.platform)
-    .orderBy(performanceRecords.date);
-
-  // Fill each platform's interior no-data days with spend 0 so stacked/area
-  // consumers draw a real zero instead of skipping the day.
-  return fillDailyGaps(
-    rows.map((r) => ({
-      date: r.date,
-      platform: r.platform as Platform,
-      spend: Number(r.spend ?? 0),
-    })),
-    { dateKey: "date", groupKey: "platform", additiveKeys: ["spend"] },
-  );
 }
 
 export interface DailyMetricRow {
@@ -821,52 +772,6 @@ export interface CreativePoint {
   spend: number;
   roas: number | null;
   conversions: number | null;
-}
-
-/**
- * One lean row per creative (spend / ROAS / conversions) for the Dashboard's
- * spend-vs-ROAS scatter and rating distribution. Ordered by spend desc; only
- * creatives with spend in the window. No product join / sparkline (unlike
- * topCreatives) so it stays cheap across the whole library.
- */
-export async function creativePoints(
-  filters: KpiFilters,
-): Promise<CreativePoint[]> {
-  const { conditions, needsAngleJoin } = await buildBaseConditions(filters);
-
-  let q = db
-    .select({
-      creativeId: creatives.id,
-      name: creatives.name,
-      spend: sumSpend,
-      roas,
-      conversions: sumConversions,
-    })
-    .from(performanceRecords)
-    .innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId))
-    .$dynamic();
-
-  if (needsAngleJoin) {
-    q = q.innerJoin(
-      creativeAngles,
-      eq(creativeAngles.creativeId, performanceRecords.creativeId),
-    );
-  }
-
-  const rows = await q
-    .where(and(...conditions))
-    .groupBy(creatives.id, creatives.name)
-    .orderBy(desc(sumSpend));
-
-  return rows
-    .map((r) => ({
-      creativeId: r.creativeId,
-      name: r.name,
-      spend: Number(r.spend ?? 0),
-      roas: num(r.roas),
-      conversions: num(r.conversions),
-    }))
-    .filter((r) => r.spend > 0);
 }
 
 export interface DailyRatesRow {
@@ -1311,44 +1216,6 @@ export async function productMix(
 }
 
 /**
- * Spend per creative type (video / image / slides) for the Overview
- * type-mix donut. Always joins creatives for the `type` column.
- */
-export async function typeMix(filters: KpiFilters): Promise<TypeMixRow[]> {
-  const { conditions, needsAngleJoin } = await buildBaseConditions(filters);
-
-  let q = db
-    .select({
-      type: creatives.type,
-      spend: sumSpend,
-      impressions: sumImpressions,
-      conversions: sumConversions,
-    })
-    .from(performanceRecords)
-    .innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId))
-    .$dynamic();
-
-  if (needsAngleJoin) {
-    q = q.innerJoin(
-      creativeAngles,
-      eq(creativeAngles.creativeId, performanceRecords.creativeId),
-    );
-  }
-
-  const rows = await q
-    .where(and(...conditions))
-    .groupBy(creatives.type)
-    .orderBy(desc(sumSpend));
-
-  return rows.map((r) => ({
-    type: r.type as CreativeType,
-    spend: Number(r.spend ?? 0),
-    impressions: Number(r.impressions ?? 0),
-    conversions: num(r.conversions),
-  }));
-}
-
-/**
  * Spend per angle for the Overview angle-mix donut. Joins creative_angles, so a
  * creative's spend counts toward each angle it carries (intentional fan-out
  * — the same semantics as the Trends "By angle" rollup).
@@ -1435,49 +1302,6 @@ export interface CompareTotalsRow {
   cpa: number | null;
   roas: number | null;
   hookRate: number | null;
-}
-
-/** Time-series per creative for the chosen metric.
- *  EXEMPT from fillDailyGaps: the compare chart aligns sides by day-INDEX
- *  since each side's first data day (deliberate design), not by calendar. */
-export async function compareSeries(
-  filters: KpiFilters & { creativeIds: string[]; metric: CompareMetric },
-): Promise<CompareSeriesPoint[]> {
-  if (filters.creativeIds.length === 0) return [];
-  const { conditions, needsCreativeJoin, needsAngleJoin } =
-    await buildBaseConditions(filters);
-
-  const metricSql = metricForCompare(filters.metric);
-
-  let q = db
-    .select({
-      creativeId: performanceRecords.creativeId,
-      date: performanceRecords.date,
-      value: metricSql,
-    })
-    .from(performanceRecords)
-    .$dynamic();
-
-  if (needsCreativeJoin || needsAngleJoin) {
-    q = q.innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId));
-  }
-  if (needsAngleJoin) {
-    q = q.innerJoin(
-      creativeAngles,
-      eq(creativeAngles.creativeId, performanceRecords.creativeId),
-    );
-  }
-
-  const rows = await q
-    .where(and(...conditions))
-    .groupBy(performanceRecords.creativeId, performanceRecords.date)
-    .orderBy(performanceRecords.date);
-
-  return rows.map((r) => ({
-    creativeId: r.creativeId,
-    date: r.date,
-    value: r.value === null || r.value === undefined ? null : Number(r.value),
-  }));
 }
 
 function metricForCompare(m: CompareMetric): SQL<number> {

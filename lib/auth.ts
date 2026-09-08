@@ -16,9 +16,8 @@ import {
  * The session cookie carries a user id. `auth()` reads it, validates the HMAC
  * signature, and looks the user up (including their permission set).
  * `requireAuth` throws on a missing session; `requirePermission(perm)` throws
- * when the user lacks a capability; `requireAdmin` throws for non-admins — the
- * caller (a Server Action or Route Handler) should catch these and return
- * 401/403.
+ * when the user lacks a capability — the caller (a Server Action or Route
+ * Handler) should catch these and return 401/403.
  *
  * Authorization is GRANULAR: `users.role` is a coarse tier (admin bypasses
  * everything; editor/viewer are fallback presets) and `users.permissions` is an
@@ -89,12 +88,6 @@ export const auth = cache(async (): Promise<SessionUser | null> => {
 export async function requireAuth(): Promise<SessionUser> {
   const user = await auth();
   if (!user) throw new Error("Unauthorized");
-  return user;
-}
-
-export async function requireAdmin(): Promise<SessionUser> {
-  const user = await requireAuth();
-  if (user.role !== "admin") throw new Error("Admin role required");
   return user;
 }
 

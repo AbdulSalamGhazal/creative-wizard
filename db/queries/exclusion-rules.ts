@@ -240,7 +240,7 @@ export async function listExclusionRules(): Promise<ExclusionRuleRow[]> {
  * pre-auth-context). Ordered by created_at so multi-rule sweeps stamp
  * deterministically (first-created rule wins an overlap).
  */
-export async function activeRulesFor(exec: Exec, accountId: string) {
+async function activeRulesFor(exec: Exec, accountId: string) {
   return exec
     .select()
     .from(exclusionRules)

@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { auth, can } from "@/lib/auth";
-import { Card, CardContent } from "@/components/ui/card";
 import { DollarSign, Target, Banknote, Receipt, TrendingUp } from "lucide-react";
 import {
   campaignMix,

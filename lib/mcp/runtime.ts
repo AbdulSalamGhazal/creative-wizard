@@ -63,7 +63,7 @@ export function rateLimitOk(tokenId: string): boolean {
  * an unknown/omitted value errors with the list of allowed brand names so the
  * LLM can retry. A user can NEVER reach a brand they aren't a member of.
  */
-export async function resolveBrand(
+async function resolveBrand(
   user: SessionUser,
   brand: string | undefined,
 ): Promise<Account> {

@@ -3,25 +3,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  Filter,
-  GitCompare,
   Hash,
   Images,
-  LayoutDashboard,
-  LineChart,
-  Megaphone,
   Package,
   Plus,
-  Rocket,
-  ScrollText,
   Search,
   Settings,
-  Shapes,
   Star,
-  Table2,
   Upload,
-  Users,
-  Video,
 } from "lucide-react";
 import {
   CommandDialog,

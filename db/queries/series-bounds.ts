@@ -127,12 +127,12 @@ export async function creativeFirstDay(
 }
 
 /** ISO min/max helpers — YYYY-MM-DD sorts lexicographically. Null = "unbounded". */
-export function isoMin(a: string | null, b: string | null): string | null {
+function isoMin(a: string | null, b: string | null): string | null {
   if (a === null) return b;
   if (b === null) return a;
   return a < b ? a : b;
 }
-export function isoMax(a: string | null, b: string | null): string | null {
+function isoMax(a: string | null, b: string | null): string | null {
   if (a === null) return b;
   if (b === null) return a;
   return a > b ? a : b;

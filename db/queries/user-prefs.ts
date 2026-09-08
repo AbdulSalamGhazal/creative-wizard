@@ -56,7 +56,7 @@ export async function resolvePreferredRange(
  * The signed-in user's remembered Excluded-toggle state, or null when they
  * never chose. `cache()`-deduped per request.
  */
-export const getIncludeExcludedPref = cache(async (): Promise<boolean | null> => {
+const getIncludeExcludedPref = cache(async (): Promise<boolean | null> => {
   const user = await auth();
   if (!user) return null;
   const [row] = await db

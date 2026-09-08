@@ -1,5 +1,5 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { ACCOUNT_A, ACCOUNT_B } from "./config";
+import { ACCOUNT_A } from "./config";
 
 vi.mock("@/lib/tenant", () => ({
   ACCOUNT_COOKIE: "ccms_account",

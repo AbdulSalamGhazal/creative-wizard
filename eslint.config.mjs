@@ -18,6 +18,8 @@ const eslintConfig = [
       "out/**",
       "build/**",
       "next-env.d.ts",
+      // Scratch analysis scripts — not application code, not shipped.
+      "analysis/**",
     ],
   },
 ];

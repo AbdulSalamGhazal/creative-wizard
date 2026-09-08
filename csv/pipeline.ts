@@ -441,7 +441,7 @@ function isEmptyMarker(s: string): boolean {
 }
 
 /** Parse `"1,234.56"` / `"$1,234"` / `"1234 USD"` to 1234.56. Returns null on failure. */
-export function parseNumber(raw: string): number | null {
+function parseNumber(raw: string): number | null {
   if (isEmptyMarker(raw)) return null;
   let cleaned = raw.trim();
   // strip leading currency symbols
@@ -470,7 +470,7 @@ const MONTHS: Record<string, number> = {
  * are unambiguous regardless of order — the wrong interpretation simply
  * fails the calendar-validity check and the next format is tried.
  */
-export function parseDate(raw: string, formats: DateFormat[]): string | null {
+function parseDate(raw: string, formats: DateFormat[]): string | null {
   const s = raw.trim();
   const slashOrDashOrDot = /^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})$/;
   for (const fmt of formats) {

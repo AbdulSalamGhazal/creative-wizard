@@ -14,7 +14,6 @@ import {
 import { longDate, sar, usd } from "@/lib/format";
 import { monthKey, nextMonthKey, prevMonthKey, spendInDisplayCurrency } from "@/lib/budget";
 import { useNavTransition } from "@/lib/nav-progress";
-import { cn } from "@/lib/utils";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 
 /**

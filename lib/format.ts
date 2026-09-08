@@ -24,13 +24,6 @@ const usd0Formatter = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 0,
 });
 
-const usd1Formatter = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "USD",
-  minimumFractionDigits: 1,
-  maximumFractionDigits: 1,
-});
-
 const usdCompactFormatter = new Intl.NumberFormat("en-US", {
   style: "currency",
   currency: "USD",
@@ -151,12 +144,6 @@ export function roas(value: number | null | undefined): string {
 export function usd0(value: number | null | undefined): string {
   if (value === null || value === undefined || Number.isNaN(value)) return EM_DASH;
   return usd0Formatter.format(value);
-}
-
-/** Currency with one decimal (e.g. "$12.3"). */
-export function usd1(value: number | null | undefined): string {
-  if (value === null || value === undefined || Number.isNaN(value)) return EM_DASH;
-  return usd1Formatter.format(value);
 }
 
 /** SAR currency (e.g. "SAR 1,234.50") — the Store module's only money format. */
