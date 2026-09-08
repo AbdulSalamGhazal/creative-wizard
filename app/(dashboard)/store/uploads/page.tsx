@@ -168,12 +168,17 @@ export default async function StoreUploadsPage({
  * mappings, and the distinct raw values present in uploaded orders.
  */
 async function OrderFieldsTab() {
-  const fields = await listStoreFields();
-  const sourceFieldKey = await getStoreSourceFieldKey();
-  const [mappings, values] = await Promise.all([
+  // `fields` and the source-field key are independent of each other; only the
+  // distinct-values scan depends on the key, so it waits and the rest doesn't.
+  const [fields, sourceFieldKey, mappings] = await Promise.all([
+    listStoreFields(),
+    getStoreSourceFieldKey(),
     listStoreSourceMappings(),
-    distinctStoreSourceValues(sourceFieldKey),
   ]);
+  // The FULL distinct scan lives here and only here: this tab is where the
+  // mapping UI has to list every raw value the brand has ever uploaded.
+  // Reconciliation derives its banner from its own date-bounded scan instead.
+  const values = await distinctStoreSourceValues(sourceFieldKey);
   return (
     <div className="space-y-10">
       <StoreFieldsAdmin fields={fields} sourceFieldKey={sourceFieldKey} />

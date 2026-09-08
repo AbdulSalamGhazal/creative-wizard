@@ -34,6 +34,18 @@ export interface ReconOverviewRow {
   spend: number;
 }
 
+/**
+ * The by-platform scan's output: the per-day rows, plus the DISTINCT raw source
+ * values in range that no mapping covers. The unmapped set falls out of the
+ * same scan, so the page no longer runs a separate unbounded DISTINCT over
+ * every order the brand has ever had just to decide whether to show a banner.
+ */
+export interface ReconByPlatformResult {
+  rows: ReconByPlatformRow[];
+  /** Distinct non-empty raw values in range with no `store_source_mappings` row. */
+  unmappedValues: string[];
+}
+
 export interface ReconByPlatformRow {
   day: string;
   /** platform → store-order count whose source maps to it. */
@@ -212,9 +224,9 @@ export async function reconciliationByPlatform(
   from?: string,
   to?: string,
   includeExcluded?: boolean,
-): Promise<ReconByPlatformRow[]> {
+): Promise<ReconByPlatformResult> {
   const acct = await getActiveAccountId();
-  if (!sourceFieldKey) return [];
+  if (!sourceFieldKey) return { rows: [], unmappedValues: [] };
 
   // COALESCE(mapping.platform, sentinel): a value mapped to "not an ad platform"
   // (platform NULL) and an unmapped value both fall through to Unattributed.
@@ -224,6 +236,14 @@ export async function reconciliationByPlatform(
       .select({
         day: storeOrders.orderDate,
         bucket: bucketExpr,
+        // The raw value, but ONLY when nothing maps it — that's exactly the set
+        // the "unmapped values" banner is about. Mapped rows carry NULL, so
+        // their grouping is unchanged; unmapped ones split by value, of which
+        // there are only ever a handful. This replaces a separate unbounded
+        // DISTINCT scan of every order the brand has ever had.
+        unmappedValue: sql<
+          string | null
+        >`CASE WHEN ${storeSourceMappings.rawValue} IS NULL THEN NULLIF(${storeOrders.attributes} ->> ${sourceFieldKey}, '') END`,
         n: sql<number>`count(*)::int`,
       })
       .from(storeOrders)
@@ -235,10 +255,10 @@ export async function reconciliationByPlatform(
         ),
       )
       .where(and(...storeConds(acct, from, to)))
-      // GROUP BY ordinal (day, bucket) — see distinctStoreSourceValues: the
-      // COALESCE(platform, …) bucket expression carries a bind param drizzle
-      // would re-serialize, breaking GROUP BY matching.
-      .groupBy(sql`1, 2`),
+      // GROUP BY ordinal (day, bucket, unmapped value) — see
+      // distinctStoreSourceValues: these derived expressions carry bind params
+      // drizzle would re-serialize, breaking GROUP BY matching.
+      .groupBy(sql`1, 2, 3`),
     db
       .select({
         day: performanceRecords.date,
@@ -266,19 +286,24 @@ export async function reconciliationByPlatform(
     return row;
   };
 
+  const unmapped = new Set<string>();
   for (const r of storeRows) {
     const row = ensure(r.day);
     const n = Number(r.n);
     row.storeOrders += n;
     if (r.bucket === UNATTRIBUTED) row.unattributed += n;
     else row.storeByPlatform[r.bucket] = (row.storeByPlatform[r.bucket] ?? 0) + n;
+    if (r.unmappedValue) unmapped.add(r.unmappedValue);
   }
   for (const r of adsRows) {
     const row = ensure(r.day);
     row.claimedByPlatform[r.platform] =
       (row.claimedByPlatform[r.platform] ?? 0) + Number(r.conv ?? 0);
   }
-  return [...byDay.values()].sort((a, b) => (a.day < b.day ? 1 : -1));
+  return {
+    rows: [...byDay.values()].sort((a, b) => (a.day < b.day ? 1 : -1)),
+    unmappedValues: [...unmapped].sort(),
+  };
 }
 
 /**

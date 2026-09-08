@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { platformRatingRules, ratingRules } from "@/db/schema";
@@ -40,7 +41,11 @@ export async function getRatingRules(): Promise<RatingRules> {
  * per-platform override. Platforms without an override row simply fall back to
  * the default at resolution time (lib/rating#rulesForScope).
  */
-export async function getRatingConfig(): Promise<RatingConfig> {
+/**
+ * Cached per request: the Rate column, the rate sort and the rate filter all
+ * want the same config, and it changes only when an admin edits the rules.
+ */
+export const getRatingConfig = cache(async (): Promise<RatingConfig> => {
   const acct = await getActiveAccountId();
   const [def, overrides] = await Promise.all([
     getRatingRules(),
@@ -64,4 +69,4 @@ export async function getRatingConfig(): Promise<RatingConfig> {
     };
   }
   return { default: def, byPlatform };
-}
+});

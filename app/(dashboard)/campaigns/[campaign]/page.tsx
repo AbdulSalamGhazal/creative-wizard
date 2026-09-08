@@ -96,13 +96,15 @@ export default async function CampaignDetailPage({
   const registry = await campaignRegistry(decoded);
   const nameParts = registry ? parseCampaignName(decoded, registry.platform) : null;
   // Status (current liveness) + deletion summary (what the danger zone removes),
-  // fetched in parallel — both keyed on the registry id.
+  // fetched in parallel — both keyed on the registry id. The deletion summary
+  // is ONLY rendered inside the `canDelete` danger zone, so a viewer who can
+  // never see it no longer pays for the count.
   const [campaignStatus, deletionSummary] = registry
     ? await Promise.all([
         campaignStatusMap([registry.id]).then((m) =>
           campaignStatusFor(m, registry.id),
         ),
-        campaignDeletionSummary(registry.id),
+        canDelete ? campaignDeletionSummary(registry.id) : Promise.resolve(null),
       ])
     : [null, null];
 

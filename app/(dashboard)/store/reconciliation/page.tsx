@@ -8,7 +8,6 @@ import {
   reconciliationByPlatform,
   getStoreSourceFieldKey,
   listStoreSourceMappings,
-  distinctStoreSourceValues,
   platformDataHorizons,
   type ReconPlatform,
 } from "@/db/queries/reconciliation";
@@ -39,23 +38,30 @@ export default async function ReconciliationPage({
     to: pick(sp.to),
   });
 
+  // `lib/db.ts` holds ONE connection per instance, so these run serially
+  // regardless — the point of batching is that nothing sits behind an await
+  // it doesn't actually depend on. `includeExcluded` and the source field key
+  // ARE inputs to the scans below, so they're resolved first, together.
   const user = await auth();
   const canConfig = user ? can(user, "config.store") : false;
 
-  // Effective Excluded state for the ads side (URL param → saved pref → hidden).
-  const includeExcluded = await resolveIncludeExcluded(pick(sp.includeExcluded));
+  const [includeExcluded, sourceFieldKey] = await Promise.all([
+    // Effective Excluded state for the ads side (URL param → saved pref → hidden).
+    resolveIncludeExcluded(pick(sp.includeExcluded)),
+    getStoreSourceFieldKey(),
+  ]);
 
-  const sourceFieldKey = await getStoreSourceFieldKey();
-  const [overview, byPlatform, horizons, mappings, values] = await Promise.all([
+  const [overview, byPlatformResult, horizons] = await Promise.all([
     reconciliationOverview(f.from, f.to, includeExcluded),
     reconciliationByPlatform(sourceFieldKey, f.from, f.to, includeExcluded),
     platformDataHorizons(),
-    listStoreSourceMappings(),
-    distinctStoreSourceValues(sourceFieldKey),
   ]);
+  const byPlatform = byPlatformResult.rows;
 
-  const mapped = new Set(mappings.map((m) => m.rawValue));
-  const unmappedCount = values.filter((v) => !mapped.has(v.value)).length;
+  // The unmapped-values banner reads the set the by-platform scan already
+  // produced. It used to run a separate DISTINCT over every order the brand had
+  // ever uploaded — unbounded, and only ever used to render a count.
+  const unmappedCount = byPlatformResult.unmappedValues.length;
 
   const horizonDays = Object.values(horizons).filter(Boolean) as string[];
   const maxHorizon = horizonDays.length

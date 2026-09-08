@@ -363,37 +363,42 @@ export async function writeStoreBatch(opts: {
     //   column PRESENT + blank  → REMOVE the key (an explicit clear still works)
     //   column ABSENT           → leave the key exactly as it is
     // Core columns (date, amount) are unconditional as before.
+    //
+    // One UPDATE … FROM (VALUES …) per chunk instead of one statement per row,
+    // mirroring the ads `bulkUpdateMetricValues`. A 5k-row upsert was 5k
+    // sequential round-trips on a single connection; the patch is built PER ROW
+    // into the VALUES set, so the semantics above are unchanged.
     const present = opts.presentFieldKeys;
-    for (const r of opts.updates) {
-      // Keys the file HAS a column for but left blank on this row → clear.
-      const cleared = present
-        ? present.filter((k) => !(k in r.attributes))
-        : [];
-      // Bound as ONE text[] literal, not as a JS array: drizzle expands an
-      // array in a raw sql template into `($1,$2)` — a row expression, which
-      // is a syntax error here (and `()` when nothing is cleared).
-      const clearedLiteral = `{${cleared
-        .map((k) => `"${k.replace(/(["\\])/g, "\\$1")}"`)
-        .join(",")}}`;
-      const attributes = present
-        ? // `- text[]` drops the cleared keys, `||` merges the new values in;
-          // everything else in the stored object is carried through untouched.
-          sql`COALESCE(${storeOrders.attributes}, '{}'::jsonb) - ${clearedLiteral}::text[] || ${JSON.stringify(r.attributes)}::jsonb`
-        : r.attributes;
-      await tx
-        .update(storeOrders)
-        .set({
-          orderDate: r.orderDate,
-          totalAmount: r.totalAmount,
-          attributes,
-          updatedAt: new Date(),
-        })
-        .where(
-          and(
-            eq(storeOrders.accountId, opts.accountId),
-            eq(storeOrders.orderId, r.orderId),
-          ),
-        );
+    for (let i = 0; i < opts.updates.length; i += CHUNK) {
+      const chunk = opts.updates.slice(i, i + CHUNK);
+      const tuples = chunk.map((r) => {
+        // Keys the file HAS a column for but left blank on this row → clear.
+        const cleared = present ? present.filter((k) => !(k in r.attributes)) : [];
+        // Bound as ONE text[] literal, not as a JS array: drizzle expands an
+        // array in a raw sql template into `($1,$2)` — a row expression, which
+        // is a syntax error here (and `()` when nothing is cleared).
+        const clearedLiteral = `{${cleared
+          .map((k) => `"${k.replace(/(["\\])/g, "\\$1")}"`)
+          .join(",")}}`;
+        return sql`(${r.orderId}::text, ${r.orderDate}::date, ${r.totalAmount}::numeric, ${clearedLiteral}::text[], ${JSON.stringify(r.attributes)}::jsonb)`;
+      });
+      await tx.execute(sql`
+        UPDATE store_orders AS o SET
+          order_date = v.order_date,
+          total_amount = v.total_amount,
+          attributes = ${
+            present
+              ? // `- text[]` drops the cleared keys, `||` merges the new values
+                // in; everything else in the stored object carries through.
+                sql`COALESCE(o.attributes, '{}'::jsonb) - v.cleared || v.patch`
+              : sql`v.patch`
+          },
+          updated_at = now()
+        FROM (VALUES ${sql.join(tuples, sql`, `)}) AS v(
+          order_id, order_date, total_amount, cleared, patch
+        )
+        WHERE o.order_id = v.order_id AND o.account_id = ${opts.accountId}
+      `);
     }
 
     return { batchId: bid, rowsInserted: opts.inserts.length, rowsUpdated: opts.updates.length };

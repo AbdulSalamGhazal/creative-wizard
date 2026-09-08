@@ -129,7 +129,7 @@ describe("reconciliation — overview Δ, by-platform buckets, scoping", () => {
   });
 
   it("by-platform buckets reconcile: 5 IG + 3 FB + 2 unattributed = 10", async () => {
-    const rows = await reconciliationByPlatform("source", D, D);
+    const rows = (await reconciliationByPlatform("source", D, D)).rows;
     expect(rows).toHaveLength(1);
     const r = rows[0]!;
     expect(r.storeByPlatform.instagram).toBe(5);
@@ -143,13 +143,54 @@ describe("reconciliation — overview Δ, by-platform buckets, scoping", () => {
     expect(r.storeOrders).toBe(10);
   });
 
+  /**
+   * The unmapped-values banner now reads the set the by-platform scan already
+   * produced, instead of a separate unbounded DISTINCT over every order the
+   * brand ever uploaded. These pin the count logic the banner renders.
+   */
+  it("reports the DISTINCT unmapped raw values from the same scan", async () => {
+    const res = await reconciliationByPlatform("source", D, D);
+    // The fixture maps instagram + facebook; "newsletter" has no mapping row.
+    expect(res.unmappedValues).toEqual(["newsletter"]);
+  });
+
+  it("a value mapped to 'not an ad platform' is NOT unmapped", async () => {
+    // platform NULL = "this source isn't an ad platform" — a deliberate
+    // mapping. It still lands in Unattributed, but there is nothing to fix,
+    // so it must not raise the banner.
+    await db.insert(storeSourceMappings).values({
+      accountId: ACCOUNT_A,
+      rawValue: "newsletter",
+      platform: null,
+    });
+    const res = await reconciliationByPlatform("source", D, D);
+    expect(res.unmappedValues).toEqual([]);
+    expect(res.rows[0]!.unattributed).toBe(2); // still unattributed…
+
+    // This file seeds once (beforeAll), so undo the mapping for the tests below.
+    await db
+      .delete(storeSourceMappings)
+      .where(
+        and(
+          eq(storeSourceMappings.accountId, ACCOUNT_A),
+          eq(storeSourceMappings.rawValue, "newsletter"),
+        ),
+      );
+  });
+
+  it("no source field configured → no rows and nothing unmapped", async () => {
+    const res = await reconciliationByPlatform(null, D, D);
+    expect(res.rows).toEqual([]);
+    expect(res.unmappedValues).toEqual([]);
+  });
+
   it("a mapping change moves orders between buckets", async () => {
     await db.insert(storeSourceMappings).values({
       accountId: ACCOUNT_A,
       rawValue: "newsletter",
       platform: "tiktok",
     });
-    const r = (await reconciliationByPlatform("source", D, D))[0]!;
+    const r = (await reconciliationByPlatform("source", D, D)).rows[0]!;
     expect(r.storeByPlatform.tiktok).toBe(2);
     expect(r.unattributed).toBe(0);
     // cleanup so other tests see the original state
@@ -166,7 +207,7 @@ describe("reconciliation — overview Δ, by-platform buckets, scoping", () => {
 
   it("is account-scoped — A's mappings never attribute B's identical value", async () => {
     setAccount(ACCOUNT_B);
-    const r = (await reconciliationByPlatform("source", D, D))[0]!;
+    const r = (await reconciliationByPlatform("source", D, D)).rows[0]!;
     // B has no mapping for ig_ad → its lone order is Unattributed, not Instagram.
     expect(r.storeByPlatform.instagram ?? 0).toBe(0);
     expect(r.unattributed).toBe(1);

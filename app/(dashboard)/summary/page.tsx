@@ -69,19 +69,24 @@ export default async function SummaryPage({
     status: pickFirst(params.status),
   });
 
-  // Effective Excluded state: URL param wins, else the user's saved default.
-  const includeExcluded = await resolveIncludeExcluded(
-    pickFirst(params.includeExcluded),
-  );
-
-  // An explicit, valid URL range wins; otherwise the user's saved default;
-  // otherwise all-time (Lifetime). RAW params (not the validator-defaulted
-  // parsed.from/to) so the saved preference isn't masked.
-  const range = await resolvePreferredRange(
-    pickFirst(params.from),
-    pickFirst(params.to),
-    { from: LIFETIME_FLOOR, to: todayIso() },
-  );
+  // Three independent preference reads that used to await one after another,
+  // each waiting on a result it never used. (`lib/db.ts` holds ONE connection,
+  // so they still execute serially — the win is not stalling on unrelated
+  // round-trips, and `getRatingConfig` is now cached per request.)
+  //   · Excluded state: URL param wins, else the user's saved default.
+  //   · Range: an explicit valid URL range wins; else the saved default; else
+  //     all-time (Lifetime). RAW params (not the validator-defaulted
+  //     parsed.from/to) so the saved preference isn't masked.
+  //   · Rating config: feeds the Rate column and the rate sort/filter, so it
+  //     has to be resolved before the summary query that consumes it.
+  const [includeExcluded, range, ratingConfig] = await Promise.all([
+    resolveIncludeExcluded(pickFirst(params.includeExcluded)),
+    resolvePreferredRange(pickFirst(params.from), pickFirst(params.to), {
+      from: LIFETIME_FLOOR,
+      to: todayIso(),
+    }),
+    getRatingConfig(),
+  ]);
 
   // Platform default: NO `platforms` param at all → all platforms (the default
   // landing view). An explicit `platforms=none` sentinel (the user deselected
@@ -90,10 +95,6 @@ export default async function SummaryPage({
     pickFirst(params.platforms) === undefined
       ? [...platformEnum]
       : parsed.platforms;
-
-  // Rating config (default + per-platform overrides) feeds the Rate column and
-  // the rate sort/filter, so fetch it first and hand it to the summary query.
-  const ratingConfig = await getRatingConfig();
 
   // Filter dropdowns + the query run in parallel.
   const [
