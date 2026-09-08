@@ -850,7 +850,6 @@ export function SummaryFilterBar({
               </DropdownMenuContent>
             )}
           </FilterPill>
-
     </>
   );
 
