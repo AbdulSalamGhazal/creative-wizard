@@ -740,3 +740,18 @@ This app is deployed and in production use. Treat `main` as shippable.
   `($1,$2)` (a row expression), so the cleared-keys list is bound as ONE
   `text[]` literal.
 
+- **Status maps derive from the request's cached `brandStatusInputs()` — never
+  add another status scan (2026-09 perf pass).** Status is computed on nearly
+  every page and each consumer used to run its own three scans of
+  `performance_records`. `brandStatusInputs()` (React `cache()`, per request, in
+  `db/queries/creative-status.ts`) now fetches per-creative activity,
+  per-platform freshness and overrides ONCE, unrestricted; every status map is
+  derived from it in JS. Campaign status keeps its own activity scan (it groups
+  by campaign, not creative) but shares `platformSpendFreshness()`. The `asOf`
+  point-in-time variant is the ONE sanctioned exception — it reconstructs a past
+  day and can't read today's numbers. Corollary: **don't narrow a shared scan
+  with a big `IN (…)`** — pass no ids and filter the map in JS. Remember
+  `lib/db.ts` is `max: 1`, so `Promise.all` is serial: fewer queries is the only
+  lever, not more concurrency. `tests/db/status-cache.test.ts` pins this by
+  counting round-trips.
+
