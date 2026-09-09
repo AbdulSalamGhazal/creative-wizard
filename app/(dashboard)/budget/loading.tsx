@@ -1,11 +1,12 @@
 import {
   HeaderSkeleton,
   KpiRowSkeleton,
+  TableSkeleton,
 } from "@/components/layout/page-skeletons";
 import { Skeleton } from "@/components/ui/skeleton";
 
 /** Mirrors the Overview's real order: month bar → KPI tiles → the reserve and
- *  revenue lines → the per-platform cards. */
+ *  revenue lines → the per-platform cards → the allocation check. */
 export default function Loading() {
   return (
     <div className="space-y-6">
@@ -18,6 +19,10 @@ export default function Loading() {
         <Skeleton className="h-20 rounded-lg" />
         <Skeleton className="h-20 rounded-lg" />
         <Skeleton className="h-20 rounded-lg" />
+      </div>
+      <div className="space-y-2">
+        <Skeleton className="h-4 w-40 rounded" />
+        <TableSkeleton rows={6} wide />
       </div>
     </div>
   );

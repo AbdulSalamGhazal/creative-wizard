@@ -1,10 +1,11 @@
 import { z } from "zod";
 import { platformEnum } from "@/db/schema";
-import { CAMPAIGN_OBJECTIVES } from "@/lib/campaign";
+import { BUDGET_OBJECTIVES, mergeAllocationsToBuckets } from "@/lib/budget";
 
 /**
  * Budget module input schemas. Spend is USD, revenue SAR (see lib/budget.ts for
- * the standing currency decisions).
+ * the standing currency decisions). Allocations are keyed by Budget's OWN
+ * objective buckets (`BUDGET_OBJECTIVES`), not the campaign vocabulary.
  */
 
 /** `YYYY-MM` with a REAL month (01-12) — `2026-13` is not a month. */
@@ -27,11 +28,11 @@ export const planSchema = z.object({
     .array(
       z.object({
         platform: z.enum(platformEnum),
-        objective: z.enum(CAMPAIGN_OBJECTIVES),
+        objective: z.enum(BUDGET_OBJECTIVES),
         plannedSpend: z.number().min(0).max(99_999_999),
       }),
     )
-    .max(platformEnum.length * CAMPAIGN_OBJECTIVES.length),
+    .max(platformEnum.length * BUDGET_OBJECTIVES.length),
   plannedRevenueSar: z.number().min(0).max(999_999_999_999).nullable(),
   /** Contingency USD on top of the plan — outside the pacing curve. */
   reserveSpendUsd: z.number().min(0).max(99_999_999).default(0),
@@ -92,14 +93,22 @@ export const storedSnapshotSchema = z.object({
 
 export type BudgetPlanSnapshot = z.infer<typeof storedSnapshotSchema>;
 
-/** The snapshot re-shaped as a `planSchema` input, for validation + restore. */
+/**
+ * The snapshot re-shaped as a `planSchema` input, for validation + restore.
+ *
+ * Allocations are folded onto Budget's objective buckets on the way through: a
+ * snapshot taken before the 2026-09 bucket change carries campaign objectives
+ * (Sales, Prospecting, …), and restoring one must bring the money back as
+ * "Other" rather than failing validation. Rows that collapse together are
+ * SUMMED, so the restored month's planned total matches the snapshot's.
+ */
 export function snapshotToPlanInput(
   snapshot: BudgetPlanSnapshot,
   month: string,
 ): unknown {
   return {
     month,
-    allocations: snapshot.allocations,
+    allocations: mergeAllocationsToBuckets(snapshot.allocations),
     plannedRevenueSar: snapshot.plannedRevenueSar,
     reserveSpendUsd: snapshot.reserveSpendUsd,
     dayWeights: Object.entries(snapshot.dayWeights).map(([day, weight]) => ({

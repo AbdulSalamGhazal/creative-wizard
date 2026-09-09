@@ -642,14 +642,18 @@ This app is deployed and in production use. Treat `main` as shippable.
   renamed to "Awareness" (saved campaign-view objective filters were swept +
   deduped too). Never reintroduce the removed values. **Any future objective
   rename/merge must ALSO sweep `budget_allocations.objective` (and saved
-  views), same as the 0034 migration did for campaigns** — the Budget module
-  stores objective values in its plan rows.
+  views)** — this was true until 2026-09. **Superseded: `budget_allocations`
+  now stores BUDGET BUCKETS, not campaign objectives** (see the Budget bullet's
+  objective-bucket entry). A campaign-objective rename touches
+  `toBudgetObjective` in lib/budget.ts and nothing else in Budget; saved views
+  still need the sweep.
 
 - **Budget module (2026-09, v2) — raw actuals BY DECISION.** Its own sidebar
-  section of 3 pages (`/budget` Overview · `/budget/plan` · `/budget/pacing`)
-  sharing `?month=` (nav links preserve it). The old **Daily** and **History**
-  pages MERGED into Pacing and are permanent redirects to it (History pins
-  `?granularity=monthly`) — don't reintroduce them. Monthly spend
+  section of 3 pages (`/budget` Overview · `/budget/plan` · `/budget/pacing`);
+  Overview and Plan share `?month=` (nav links preserve it), Pacing takes a date
+  range. The old **Daily** and **History** pages MERGED into Pacing and are
+  permanent redirects to it (History asks for the last 12 months grouped by
+  month) — don't reintroduce them. Monthly spend
   plan (USD, platform → objective) vs actual and ONE monthly revenue target
   (SAR) vs store actuals, paced along a **day-weight curve** (only non-1 day
   weights stored in `budget_day_weights`; no-overrides ≡ v1 linear, unit-pinned;
@@ -691,22 +695,40 @@ This app is deployed and in production use. Treat `main` as shippable.
     recorded as a revision, so restoring never loses the state it replaced.
     `copyBudgetFromLastMonth` was renamed `copyBudgetFromMonth({month, from})` —
     copy from ANY planned month, options from `plannedMonths()`.
-  - **Pacing is the plan-vs-actual surface (2026-09).** Section 1 is the
-    allocation check (platform → objective, planned vs actual, unplanned rows —
-    the reconcile-to-raw-total invariant lives HERE now); section 2 compares
-    over time with URL-backed granularity (daily / weekly / monthly), a
-    dimension (total / platform / objective), a metric and a cumulative-vs-
-    per-period view. Weeks are Sunday-start calendar weeks that never cross a
-    month edge (`weekBuckets` in lib/budget.ts). **Revenue has no platform
-    breakdown anywhere in Budget** — a store total can't be attributed here
-    (that's Reconciliation), so the metric locks to Spend outside the Total
-    dimension and the UI says why instead of hiding it. Monthly granularity
-    reuses `budgetHistory()` and therefore has no breakdown either.
-    `budgetPacingSeries(month)` is TWO scans for the month — per-(date,
-    platform, objective) spend + per-day store revenue — and every scope and
-    bucket size is folded in JS; never add a query per scope (`max: 1`). The
-    objective on a spend row is the campaign's CURRENT objective, so
-    reclassifying a campaign restates budget history.
+  - **Budget has its OWN objective axis (2026-09) — `BUDGET_OBJECTIVES` in
+    lib/budget.ts: Awareness · Activation · Retargeting · Other.**
+    `toBudgetObjective(campaignObjective)` keeps the three mains and sweeps
+    everything else (Sales, Prospecting, Special Case, anything added later)
+    into **Other**. Campaign objectives OUTSIDE Budget are untouched. The bucket
+    is applied at EVERY budget layer — `planSchema`, the Plan editor's pickers,
+    actual-spend grouping (folded inside `db/queries/budget.ts`, so no consumer
+    can forget), and revision restore, which folds legacy snapshots through
+    `mergeAllocationsToBuckets` and SUMS rows that collapse together (an old
+    Sales + Prospecting snapshot restores as one Other row instead of failing
+    or colliding on the unique index). Migration **0041** (hand-written, DATA
+    only) did the same fold to the stored rows — it stages the totals in a temp
+    table, deletes, then re-inserts, because a data-modifying CTE doesn't order
+    its DELETE against the outer INSERT and the unique index would abort.
+    **Never re-list the buckets** — derive from `BUDGET_OBJECTIVES`.
+  - **The allocation check lives on OVERVIEW (2026-09), grouped by bucket.**
+    Planned vs actual per bucket × platform with unplanned rows; the
+    reconcile-to-raw-month-total invariant is enforced HERE and pinned by
+    tests/db/budget.test.ts.
+  - **Pacing is a DATE RANGE, not a month (2026-09).** URL-backed
+    `from`/`to`/`groupBy`/`platforms`; group by Day / Week / Month (weeks are
+    Sunday-start calendar weeks CLIPPED to the range); a platform multi-select
+    that scopes BOTH actual and plan; metric Spend / Revenue / **ROAS**
+    (on-plan ROAS = target-to-date ÷ (plan-to-date × rate)); an objective
+    toggle that gives one series and one table block per bucket. **Revenue has
+    no platform attribution anywhere in Budget** (that's Reconciliation), so a
+    platform filter LOCKS the metric to Spend and the UI says why instead of
+    hiding it. Plans are per MONTH, so a range spreads each month's plan across
+    its days by the day-weight curve and stitches them (`stitchPlanByDay`);
+    `budgetPlansForMonths(months)` is THREE queries with an `inArray`, never one
+    per month, and `budgetPacingSeries(from, to)` stays two scans (`max: 1`).
+    The objective on a spend row is the campaign's CURRENT objective seen
+    through the bucket lens, so reclassifying a campaign restates budget
+    history. `budgetHistory()` was deleted — month grouping replaced it.
 
 - **2026-09: "tag" → "angle" at ALL layers — DB, URL params, code, UI, MCP.**
   The creative-labeling concept is called an **angle** now. Tables `tags` /

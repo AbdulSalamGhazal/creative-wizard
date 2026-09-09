@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
+import { Layers } from "lucide-react";
 import {
   Bar,
   CartesianGrid,
@@ -20,176 +21,102 @@ import { SeriesLegend } from "@/components/charts/series-legend";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { DataTable, type DataColumn } from "@/components/ui/data-table";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { ALL_PLATFORMS, PLATFORM_COLOR, PLATFORM_LABEL, seriesColor } from "@/lib/palette";
-import {
-  monthDay,
-  roas as fmtRoas,
-  sar,
-  sarCompact,
-  signedPct,
-  usdCompact,
-} from "@/lib/format";
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
+import { FilterPill } from "@/components/filters/filter-pill";
+import { DateRangePicker } from "@/components/filters/date-range-picker";
+import { ALL_PLATFORMS, PLATFORM_LABEL, seriesColor } from "@/lib/palette";
+import { monthDay, roas as fmtRoas, sar, sarCompact, usdCompact } from "@/lib/format";
 import { useNavTransition } from "@/lib/nav-progress";
 import { cn } from "@/lib/utils";
 import {
-  curveExpected,
-  dayBuckets,
-  daysInMonth,
-  elapsedDaysInMonth,
-  monthKey,
-  monthLabel,
-  monthStartIso,
+  BUDGET_OBJECTIVES,
+  dayBucketsInRange,
+  monthBucketsInRange,
   pacingDeviation,
   pacingTone,
   pacingVerdict,
   roasThroughRate,
   spendInDisplayCurrency,
-  variance,
-  variancePct,
-  weekBuckets,
-  type MonthBucket,
+  stitchPlanByDay,
+  weekBucketsInRange,
+  type MonthPlan,
+  type RangeBucket,
 } from "@/lib/budget";
-import type {
-  BudgetHistoryRow,
-  BudgetMonthData,
-  BudgetPacingSeries,
-} from "@/db/queries/budget";
+import type { BudgetPacingSeries, MonthPlanRow } from "@/db/queries/budget";
 import {
-  BudgetMonthBar,
   CurrencyToggle,
   HorizonNote,
   formatSpend,
-  horizonDayInMonth,
   useBudgetCurrency,
 } from "@/components/budget/budget-shared";
-import { BudgetAllocationCheck } from "@/components/budget/budget-allocation-check";
 
-export type Granularity = "daily" | "weekly" | "monthly";
-type Dimension = "total" | "platform" | "objective";
-type Metric = "spend" | "revenue";
+export type GroupBy = "day" | "week" | "month";
+type Metric = "spend" | "revenue" | "roas";
 type View = "cumulative" | "period";
 
-/** How many months the cross-month view looks back. */
-const MONTH_WINDOWS = [3, 6, 12] as const;
-type MonthWindow = (typeof MONTH_WINDOWS)[number];
-
+/** The chart/table series: totals, or one per budget objective bucket. */
 interface SeriesDef {
   key: string;
   label: string;
   color: string;
-  /** The plan for THIS series over the whole month, USD (or SAR for revenue). */
-  planned: number;
 }
 
-/** One bucket's folded numbers for ONE side (spend or revenue). */
-interface BucketFold {
-  bucket: MonthBucket;
-  /** seriesKey → actual in the bucket (period) and through it (cumulative). */
-  period: Map<string, number>;
-  cumulative: Map<string, number>;
-  /** Plan for the bucket / through the bucket, per series. */
-  planPeriod: Map<string, number>;
-  planCumulative: Map<string, number>;
-  /** No data yet for any day in the bucket. */
-  unknown: boolean;
-  /** Some days known, some past the horizon — the sums are incomplete. */
-  partial: boolean;
-  /** Last known date in a partial bucket, for the "through …" note. */
-  knownThrough: string | null;
-}
+const TOTAL_KEY = "total";
 
-/**
- * Fold a month's per-day values into buckets for one side. Spend and revenue
- * are folded SEPARATELY because they arrive on different upload schedules and
- * so have different horizons — a week can be complete for orders and still
- * missing its last ad day.
- */
-function foldBuckets(
-  buckets: MonthBucket[],
-  defs: Array<{ key: string; planned: number }>,
-  perDay: Map<string, Map<number, number>>,
-  horizonDay: number,
-  month: string,
-  weights: Record<number, number>,
-): BucketFold[] {
-  const running = new Map<string, number>();
-  return buckets.map((bucket) => {
-    const period = new Map<string, number>();
-    const cumulative = new Map<string, number>();
-    const planPeriod = new Map<string, number>();
-    const planCumulative = new Map<string, number>();
-
-    const lastKnownDay = Math.min(bucket.endDay, horizonDay);
-    const unknown = bucket.startDay > horizonDay;
-    const partial = !unknown && bucket.endDay > horizonDay;
-
-    for (const def of defs) {
-      const days = perDay.get(def.key);
-      let sum = 0;
-      for (let d = bucket.startDay; d <= lastKnownDay; d++) sum += days?.get(d) ?? 0;
-      period.set(def.key, sum);
-      const next = (running.get(def.key) ?? 0) + sum;
-      running.set(def.key, next);
-      cumulative.set(def.key, next);
-
-      // The plan is known for every day of the month — it doesn't stop at the
-      // horizon — so plan-to-date runs to the bucket's real end.
-      const throughEnd = curveExpected(def.planned, month, weights, bucket.endDay);
-      const throughStart = curveExpected(def.planned, month, weights, bucket.startDay - 1);
-      planCumulative.set(def.key, throughEnd);
-      planPeriod.set(def.key, throughEnd - throughStart);
-    }
-
-    return {
-      bucket,
-      period,
-      cumulative,
-      planPeriod,
-      planCumulative,
-      unknown,
-      partial,
-      knownThrough:
-        partial && lastKnownDay >= bucket.startDay
-          ? `${monthStartIso(month).slice(0, 8)}${String(lastKnownDay).padStart(2, "0")}`
-          : null,
-    };
-  });
+interface BucketRow {
+  bucket: RangeBucket;
+  /** seriesKey → actual spend in / through the bucket. */
+  spend: Map<string, number>;
+  spendCum: Map<string, number>;
+  planSpend: Map<string, number>;
+  planSpendCum: Map<string, number>;
+  /** Revenue is a single all-platforms series — no attribution here. */
+  revenue: number;
+  revenueCum: number;
+  planRevenue: number;
+  planRevenueCum: number;
+  /** Per side: nothing known yet / partly known, and how far. */
+  spendUnknown: boolean;
+  spendPartial: boolean;
+  spendThrough: string | null;
+  revenueUnknown: boolean;
+  revenuePartial: boolean;
 }
 
 /**
- * Budget Pacing — the module's plan-vs-actual surface, replacing the old Daily
- * and History pages (2026-09).
+ * Budget Pacing — plan vs actual over any date range.
  *
- * Two questions, two sections. The allocation check answers "did the money go
- * where the plan put it" for the selected month; the time comparison answers
- * "are we on pace" at whatever resolution is useful — day, calendar week, or
- * across months. Spend is RAW (no exclusion filtering) and revenue is store
- * facts in SAR with no platform breakdown, both standing decisions; deviations
- * are warn-tinted by magnitude, never green/red; and a period past its side's
- * data horizon is UNKNOWN (em-dash), never zero.
+ * The plan is stored per MONTH, so it is spread across days by that month's
+ * day-weight curve and re-summed per bucket; a range that spans months stitches
+ * several curves together (`stitchPlanByDay`). Standing decisions hold: spend is
+ * RAW (no exclusion filtering), store revenue has NO per-platform attribution
+ * (that lives on Reconciliation), deviations are warn-tinted by magnitude rather
+ * than green/red, and a period past its side's data horizon is UNKNOWN — an
+ * em-dash and a line that stops, never a zero.
  */
 export function BudgetPacing({
-  month,
-  today,
-  granularity,
-  data,
+  from,
+  to,
+  groupBy,
+  platforms,
   series,
-  history,
+  plans,
+  rate,
   horizon,
   storeHorizon,
 }: {
-  month: string; // YYYY-MM
-  today: string; // ISO date
-  granularity: Granularity;
-  data: BudgetMonthData;
+  from: string;
+  to: string;
+  groupBy: GroupBy;
+  /** Empty = every platform. */
+  platforms: string[];
   series: BudgetPacingSeries;
-  history: BudgetHistoryRow[];
+  plans: MonthPlanRow[];
+  rate: number;
   horizon: string | null;
   storeHorizon: string | null;
 }) {
@@ -198,144 +125,63 @@ export function BudgetPacing({
   const [, startNav] = useNavTransition();
 
   const [currency, pickCurrency] = useBudgetCurrency();
-  const rate = data.usdToSarRate;
   const fmtSpend = (usdAmount: number) => formatSpend(usdAmount, currency, rate);
 
-  const [dimension, setDimension] = useState<Dimension>("total");
-  const [platformPick, setPlatformPick] = useState<string>(ALL_PLATFORMS[0]);
   const [metric, setMetric] = useState<Metric>("spend");
   const [view, setView] = useState<View>("cumulative");
-  const [monthsBack, setMonthsBack] = useState<MonthWindow>(6);
+  const [byObjective, setByObjective] = useState(false);
   const [hidden, setHidden] = useState<Set<string>>(() => new Set());
 
-  const isMonthly = granularity === "monthly";
-  const isCurrentMonth = monthKey(today) === month;
-  const totalDays = daysInMonth(monthStartIso(month));
-  const elapsed = elapsedDaysInMonth(month, today);
-  const weights = data.dayWeightOverrides;
-
-  // Cross-month rows come from the month-grain history query, which has no
-  // platform or objective breakdown at all.
-  const dimensionLocked = isMonthly;
-  const activeDimension: Dimension = dimensionLocked ? "total" : dimension;
-  // Only Total has a revenue series to show — revenue is a store fact with no
-  // platform attribution (that lives on Reconciliation), so a per-platform
-  // revenue line would be an invention. Rather than hiding the option, the
-  // metric drops back to Spend and the page says why. Judged on the ACTIVE
-  // dimension, so a stale "By platform" pick doesn't explain itself in the
-  // monthly view, where the dimension is moot anyway.
-  const revenueLocked = activeDimension !== "total";
-  const activeMetric: Metric = revenueLocked ? "spend" : metric;
-
-  const setGranularity = (next: Granularity) =>
-    startNav(() =>
-      router.replace(
-        `${pathname}?month=${month}&granularity=${next}`,
-        { scroll: false },
-      ),
-    );
-
-  // ── Series definitions ─────────────────────────────────────────────────────
-  const plannedTotal = data.allocations.reduce((s, a) => s + a.plannedSpend, 0);
-
-  /** The SPEND series for the active dimension. Revenue is its own single
-   *  series (`revenueDef` below) — it has no dimension to slice by. */
-  const spendDefs: SeriesDef[] = useMemo(() => {
-    if (activeDimension === "total") {
-      return [{ key: "total", label: "Spend", color: "var(--brand)", planned: plannedTotal }];
+  // ── URL-backed controls ────────────────────────────────────────────────────
+  const setParams = (next: Record<string, string | null>) => {
+    const params = new URLSearchParams();
+    params.set("from", from);
+    params.set("to", to);
+    params.set("groupBy", groupBy);
+    if (platforms.length > 0) params.set("platforms", platforms.join(","));
+    for (const [key, value] of Object.entries(next)) {
+      if (value === null || value === "") params.delete(key);
+      else params.set(key, value);
     }
-    if (activeDimension === "platform") {
-      const present = new Set<string>([
-        ...data.allocations.map((a) => a.platform),
-        ...series.spend.map((r) => r.platform),
-      ]);
-      return ALL_PLATFORMS.filter((p) => present.has(p)).map((p) => ({
-        key: p,
-        label: PLATFORM_LABEL[p],
-        color: PLATFORM_COLOR[p],
-        planned: data.allocations
-          .filter((a) => a.platform === p)
-          .reduce((s, a) => s + a.plannedSpend, 0),
-      }));
-    }
-    // By objective, within the chosen platform.
-    const present = new Set<string>([
-      ...data.allocations.filter((a) => a.platform === platformPick).map((a) => a.objective),
-      ...series.spend.filter((r) => r.platform === platformPick).map((r) => r.objective),
-    ]);
-    return [...present]
-      .sort((a, b) => (a < b ? -1 : 1))
-      .map((objective, i) => ({
-        key: objective,
-        label: objective,
-        color: seriesColor(i),
-        planned: data.allocations
-          .filter((a) => a.platform === platformPick && a.objective === objective)
-          .reduce((s, a) => s + a.plannedSpend, 0),
-      }));
-  }, [activeDimension, platformPick, data.allocations, series.spend, plannedTotal]);
-
-  // ── Fold the month's raw rows into buckets ─────────────────────────────────
-  const spendHorizonDay = horizonDayInMonth(month, horizon, totalDays);
-  const revenueHorizonDay = horizonDayInMonth(month, storeHorizon, totalDays);
-
-  /** seriesKey → day-of-month → SPEND, for the active dimension. */
-  const perDaySpend = useMemo(() => {
-    const out = new Map<string, Map<number, number>>();
-    for (const r of series.spend) {
-      if (activeDimension === "objective" && r.platform !== platformPick) continue;
-      const key =
-        activeDimension === "total"
-          ? "total"
-          : activeDimension === "platform"
-            ? r.platform
-            : r.objective;
-      const day = Number(r.date.slice(8, 10));
-      let days = out.get(key);
-      if (!days) out.set(key, (days = new Map()));
-      days.set(day, (days.get(day) ?? 0) + r.spend);
-    }
-    return out;
-  }, [activeDimension, platformPick, series.spend]);
-
-  /** Revenue is a single month-level series — no platform attribution here. */
-  const perDayRevenue = useMemo(() => {
-    const days = new Map<number, number>();
-    for (const d of series.days) days.set(d.day, d.revenueSar);
-    return new Map([["total", days]]);
-  }, [series.days]);
-
-  const buckets = useMemo(
-    () => (granularity === "weekly" ? weekBuckets(month) : dayBuckets(month)),
-    [granularity, month],
-  );
-
-  const revenueDef: SeriesDef = {
-    key: "total",
-    label: "Revenue",
-    color: "var(--brand)",
-    planned: data.plannedRevenueSar ?? 0,
+    startNav(() => router.replace(`${pathname}?${params.toString()}`, { scroll: false }));
+  };
+  const setRange = (nextFrom: string | null, nextTo: string | null) => {
+    if (!nextFrom || !nextTo) return; // Budget always compares a bounded range
+    setParams({ from: nextFrom, to: nextTo });
+  };
+  const togglePlatform = (platform: string) => {
+    const next = platforms.includes(platform)
+      ? platforms.filter((p) => p !== platform)
+      : [...platforms, platform];
+    setParams({ platforms: next.join(",") });
   };
 
-  // Both sides are folded every render, whatever the chart is showing: the
-  // Total table shows spend columns AND revenue columns together, and each
-  // side stops at its OWN horizon.
-  const spendFold = useMemo(
-    () => foldBuckets(buckets, spendDefs, perDaySpend, spendHorizonDay, month, weights),
-    [buckets, spendDefs, perDaySpend, spendHorizonDay, month, weights],
-  );
-  const revenueFold = useMemo(
-    () =>
-      foldBuckets(buckets, [revenueDef], perDayRevenue, revenueHorizonDay, month, weights),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [buckets, perDayRevenue, revenueHorizonDay, month, weights, data.plannedRevenueSar],
-  );
+  // A platform filter scopes the spend side only; store revenue has no
+  // attribution, so revenue and ROAS drop back to Spend rather than silently
+  // mixing a filtered numerator with an unfiltered denominator.
+  const platformFiltered = platforms.length > 0;
+  const metricLocked = platformFiltered && metric !== "spend";
+  const activeMetric: Metric = metricLocked ? "spend" : metric;
 
-  /** What the chart plots: the revenue fold in the revenue metric, else spend. */
-  const chartDefs = activeMetric === "revenue" ? [revenueDef] : spendDefs;
-  const chartFold = activeMetric === "revenue" ? revenueFold : spendFold;
+  // ── Series ─────────────────────────────────────────────────────────────────
+  const seriesDefs: SeriesDef[] = useMemo(() => {
+    if (!byObjective || activeMetric !== "spend") {
+      return [
+        {
+          key: TOTAL_KEY,
+          label: activeMetric === "revenue" ? "Revenue" : activeMetric === "roas" ? "ROAS" : "Spend",
+          color: "var(--brand)",
+        },
+      ];
+    }
+    return BUDGET_OBJECTIVES.map((o, i) => ({
+      key: o,
+      label: o,
+      color: seriesColor(i),
+    }));
+  }, [byObjective, activeMetric]);
 
-  const shown = new Set(chartDefs.filter((s) => !hidden.has(s.key)).map((s) => s.key));
+  const shown = new Set(seriesDefs.filter((s) => !hidden.has(s.key)).map((s) => s.key));
   const toggleSeries = (key: string) =>
     setHidden((prev) => {
       const next = new Set(prev);
@@ -344,797 +190,690 @@ export function BudgetPacing({
       return next;
     });
 
-  // ── Cross-month rows ───────────────────────────────────────────────────────
-  const monthlyRows = useMemo(() => {
-    // `history` is newest-first; take the window, then read left-to-right.
-    const window = history.slice(0, monthsBack).reverse();
-    let cumActual = 0;
-    let cumPlan = 0;
-    return window.map((r) => {
-      const actual = activeMetric === "revenue" ? r.actualRevenueSar : r.actualSpend;
-      const plan =
-        activeMetric === "revenue" ? (r.plannedRevenueSar ?? 0) : r.plannedSpend;
-      cumActual += actual;
-      cumPlan += plan;
-      return { row: r, actual, plan, cumActual, cumPlan };
+  // ── Actual per day, scoped by the platform filter ──────────────────────────
+  const inScope = (platform: string) =>
+    platforms.length === 0 || platforms.includes(platform);
+
+  const spendPerDay = useMemo(() => {
+    const out = new Map<string, Map<string, number>>();
+    const add = (key: string, date: string, value: number) => {
+      let days = out.get(key);
+      if (!days) out.set(key, (days = new Map()));
+      days.set(date, (days.get(date) ?? 0) + value);
+    };
+    for (const r of series.spend) {
+      if (!inScope(r.platform)) continue;
+      add(TOTAL_KEY, r.date, r.spend);
+      add(r.objective, r.date, r.spend);
+    }
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [series.spend, platforms.join(",")]);
+
+  const revenuePerDay = useMemo(() => {
+    const out = new Map<string, number>();
+    for (const d of series.days) out.set(d.date, d.revenueSar);
+    return out;
+  }, [series.days]);
+
+  // ── Plan per day, stitched across every month the range touches ────────────
+  const monthPlans: MonthPlan[] = useMemo(
+    () =>
+      plans.map((p) => ({
+        month: p.month,
+        // A platform filter scopes the PLAN too, so the comparison stays honest.
+        plannedSpend: p.allocations
+          .filter((a) => inScope(a.platform))
+          .reduce((s, a) => s + a.plannedSpend, 0),
+        plannedRevenueSar: p.plannedRevenueSar,
+        dayWeights: p.dayWeights,
+      })),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [plans, platforms.join(",")],
+  );
+
+  const planSpendPerDay = useMemo(() => {
+    if (!byObjective || activeMetric !== "spend") {
+      return new Map([[TOTAL_KEY, stitchPlanByDay(monthPlans, (m) => m.plannedSpend)]]);
+    }
+    // One stitched curve per objective bucket, each from its own scoped total.
+    const out = new Map<string, Map<string, number>>();
+    out.set(TOTAL_KEY, stitchPlanByDay(monthPlans, (m) => m.plannedSpend));
+    for (const objective of BUDGET_OBJECTIVES) {
+      const scoped = plans.map((p) => ({
+        month: p.month,
+        plannedSpend: p.allocations
+          .filter((a) => inScope(a.platform) && a.objective === objective)
+          .reduce((s, a) => s + a.plannedSpend, 0),
+        plannedRevenueSar: null,
+        dayWeights: p.dayWeights,
+      }));
+      out.set(objective, stitchPlanByDay(scoped, (m) => m.plannedSpend));
+    }
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [monthPlans, plans, byObjective, activeMetric, platforms.join(",")]);
+
+  const planRevenuePerDay = useMemo(
+    () => stitchPlanByDay(monthPlans, (m) => m.plannedRevenueSar),
+    [monthPlans],
+  );
+
+  // ── Buckets ────────────────────────────────────────────────────────────────
+  const buckets = useMemo(() => {
+    if (groupBy === "week") return weekBucketsInRange(from, to);
+    if (groupBy === "month") return monthBucketsInRange(from, to);
+    return dayBucketsInRange(from, to);
+  }, [groupBy, from, to]);
+
+  const rows: BucketRow[] = useMemo(() => {
+    const spendRun = new Map<string, number>();
+    let revenueRun = 0;
+    let planRevenueRun = 0;
+    const planSpendRun = new Map<string, number>();
+
+    return buckets.map((bucket) => {
+      const spend = new Map<string, number>();
+      const spendCum = new Map<string, number>();
+      const planSpend = new Map<string, number>();
+      const planSpendCum = new Map<string, number>();
+
+      // A bucket is known only as far as its side's horizon reaches.
+      const spendLast = horizon && horizon < bucket.end ? horizon : bucket.end;
+      const spendUnknown = horizon === null || bucket.start > horizon;
+      const spendPartial = !spendUnknown && horizon !== null && horizon < bucket.end;
+      const revenueLast = storeHorizon && storeHorizon < bucket.end ? storeHorizon : bucket.end;
+      const revenueUnknown = storeHorizon === null || bucket.start > storeHorizon;
+      const revenuePartial =
+        !revenueUnknown && storeHorizon !== null && storeHorizon < bucket.end;
+
+      const eachDay = (last: string, fn: (iso: string) => void) => {
+        for (const iso of daysBetween(bucket.start, last)) fn(iso);
+      };
+
+      for (const key of [TOTAL_KEY, ...BUDGET_OBJECTIVES]) {
+        let actual = 0;
+        if (!spendUnknown) {
+          const days = spendPerDay.get(key);
+          if (days) eachDay(spendLast, (iso) => (actual += days.get(iso) ?? 0));
+        }
+        spend.set(key, actual);
+        const nextActual = (spendRun.get(key) ?? 0) + actual;
+        spendRun.set(key, nextActual);
+        spendCum.set(key, nextActual);
+
+        // The plan is known in advance, so it always covers the whole bucket.
+        let planned = 0;
+        const planDays = planSpendPerDay.get(key);
+        if (planDays) eachDay(bucket.end, (iso) => (planned += planDays.get(iso) ?? 0));
+        planSpend.set(key, planned);
+        const nextPlan = (planSpendRun.get(key) ?? 0) + planned;
+        planSpendRun.set(key, nextPlan);
+        planSpendCum.set(key, nextPlan);
+      }
+
+      let revenue = 0;
+      if (!revenueUnknown) {
+        eachDay(revenueLast, (iso) => (revenue += revenuePerDay.get(iso) ?? 0));
+      }
+      revenueRun += revenue;
+      let planRevenue = 0;
+      eachDay(bucket.end, (iso) => (planRevenue += planRevenuePerDay.get(iso) ?? 0));
+      planRevenueRun += planRevenue;
+
+      return {
+        bucket,
+        spend,
+        spendCum,
+        planSpend,
+        planSpendCum,
+        revenue,
+        revenueCum: revenueRun,
+        planRevenue,
+        planRevenueCum: planRevenueRun,
+        spendUnknown,
+        spendPartial,
+        spendThrough: spendPartial ? spendLast : null,
+        revenueUnknown,
+        revenuePartial,
+      };
     });
-  }, [history, monthsBack, activeMetric]);
+  }, [buckets, spendPerDay, planSpendPerDay, revenuePerDay, planRevenuePerDay, horizon, storeHorizon]);
 
   // ── Chart ──────────────────────────────────────────────────────────────────
-  const toDisplay = (value: number) =>
-    activeMetric === "revenue" ? value : spendInDisplayCurrency(value, currency, rate);
+  const toDisplay = (usdAmount: number) => spendInDisplayCurrency(usdAmount, currency, rate);
 
-  const chartData = useMemo(() => {
-    if (isMonthly) {
-      return monthlyRows.map((m) => {
-        const point: Record<string, string | number | null> = {
-          label: monthLabel(m.row.month).replace(/ \d{4}$/, ""),
-        };
-        point.total = toDisplay(view === "cumulative" ? m.cumActual : m.actual);
-        const plan = view === "cumulative" ? m.cumPlan : m.plan;
-        point.plan_total = plan > 0 ? toDisplay(plan) : null;
+  /** ROAS for a bucket: revenue ÷ (spend × rate), on either side of the plan. */
+  const roasOf = (revenueSar: number, spendUsd: number) =>
+    roasThroughRate(revenueSar, spendUsd, rate);
+
+  const chartData = useMemo(
+    () =>
+      rows.map((r) => {
+        const point: Record<string, string | number | null> = { label: r.bucket.label };
+        if (activeMetric === "roas") {
+          const actualRevenue = view === "cumulative" ? r.revenueCum : r.revenue;
+          const actualSpend =
+            view === "cumulative" ? (r.spendCum.get(TOTAL_KEY) ?? 0) : (r.spend.get(TOTAL_KEY) ?? 0);
+          const planRevenue = view === "cumulative" ? r.planRevenueCum : r.planRevenue;
+          const planSpend =
+            view === "cumulative"
+              ? (r.planSpendCum.get(TOTAL_KEY) ?? 0)
+              : (r.planSpend.get(TOTAL_KEY) ?? 0);
+          point[TOTAL_KEY] =
+            r.spendUnknown || r.revenueUnknown ? null : roasOf(actualRevenue, actualSpend);
+          point[`plan_${TOTAL_KEY}`] = roasOf(planRevenue, planSpend);
+          return point;
+        }
+        if (activeMetric === "revenue") {
+          point[TOTAL_KEY] = r.revenueUnknown ? null : view === "cumulative" ? r.revenueCum : r.revenue;
+          const plan = view === "cumulative" ? r.planRevenueCum : r.planRevenue;
+          point[`plan_${TOTAL_KEY}`] = plan > 0 ? plan : null;
+          return point;
+        }
+        for (const def of seriesDefs) {
+          const actual =
+            view === "cumulative" ? r.spendCum.get(def.key) : r.spend.get(def.key);
+          point[def.key] = r.spendUnknown ? null : toDisplay(actual ?? 0);
+          const plan =
+            view === "cumulative" ? r.planSpendCum.get(def.key) : r.planSpend.get(def.key);
+          point[`plan_${def.key}`] = plan && plan > 0 ? toDisplay(plan) : null;
+        }
         return point;
-      });
-    }
-    return chartFold.map((b) => {
-      const point: Record<string, string | number | null> = { label: b.bucket.label };
-      for (const def of chartDefs) {
-        const actual = view === "cumulative" ? b.cumulative.get(def.key) : b.period.get(def.key);
-        // Past the horizon the line ENDS — an unknown period is not a zero.
-        point[def.key] = b.unknown ? null : toDisplay(actual ?? 0);
-        const plan =
-          view === "cumulative" ? b.planCumulative.get(def.key) : b.planPeriod.get(def.key);
-        point[`plan_${def.key}`] = def.planned > 0 ? toDisplay(plan ?? 0) : null;
-      }
-      return point;
-    });
+      }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isMonthly, monthlyRows, chartFold, chartDefs, view, currency, rate, activeMetric]);
+    [rows, seriesDefs, view, activeMetric, currency, rate],
+  );
 
   const fmtValue = (v: number) =>
-    activeMetric === "revenue" ? sar(v) : currency === "SAR" ? sar(v) : fmtSpend(v);
+    activeMetric === "roas"
+      ? fmtRoas(v)
+      : activeMetric === "revenue"
+        ? sar(v)
+        : currency === "SAR"
+          ? sar(v)
+          : fmtSpend(v);
   const fmtAxis = (v: number) =>
-    activeMetric === "revenue" || currency === "SAR" ? sarCompact(v) : usdCompact(v);
+    activeMetric === "roas"
+      ? v.toFixed(1)
+      : activeMetric === "revenue" || currency === "SAR"
+        ? sarCompact(v)
+        : usdCompact(v);
 
-  const legendItems = chartDefs.map((s) => ({ key: s.key, label: s.label, color: s.color }));
-
-  // ── Period table ───────────────────────────────────────────────────────────
+  // ── Table ──────────────────────────────────────────────────────────────────
   const dash = <span className="text-ink-3">—</span>;
   const devCell = (dev: number | null) => (
     <span className={cn("num text-xs", pacingTone(dev) === "warn" ? "text-warn" : "text-ink-3")}>
       {pacingVerdict(dev)}
     </span>
   );
-  /** A variance %, warn-tinted by magnitude — the same threshold the rest of
-   *  Budget pacing uses, never a second hard-coded 0.15. */
-  const pctCell = (pct: number | null) => (
-    <span
-      className={cn(
-        "num tabular-nums text-xs",
-        pacingTone(pct) === "warn" ? "text-warn" : "text-ink-3",
-      )}
-    >
-      {signedPct(pct)}
-    </span>
-  );
 
-  /** Column totals for the cross-month table, summed once. */
-  const monthlyTotals = useMemo(
-    () => ({
-      plannedSpend: monthlyRows.reduce((s, m) => s + m.row.plannedSpend, 0),
-      reserve: monthlyRows.reduce((s, m) => s + m.row.reserveSpendUsd, 0),
-      actualSpend: monthlyRows.reduce((s, m) => s + m.row.actualSpend, 0),
-      plannedRevenue: monthlyRows.reduce((s, m) => s + (m.row.plannedRevenueSar ?? 0), 0),
-      actualRevenue: monthlyRows.reduce((s, m) => s + m.row.actualRevenueSar, 0),
-    }),
-    [monthlyRows],
-  );
+  const periodCol: DataColumn<BucketRow> = {
+    key: "period",
+    label: groupBy === "week" ? "Week" : groupBy === "month" ? "Month" : "Day",
+    pinned: true,
+    render: (r) => (
+      <span className="inline-flex items-center gap-1.5">
+        <span className="num tabular-nums">{r.bucket.label}</span>
+        {r.spendPartial && r.spendThrough && (
+          <span className="text-[10px] text-ink-3">through {monthDay(r.spendThrough)}</span>
+        )}
+      </span>
+    ),
+    csv: (r) => r.bucket.label,
+    total: () => <span className="text-ink-3">Total</span>,
+  };
 
-  const monthlyColumns: DataColumn<(typeof monthlyRows)[number]>[] = useMemo(
-    () => [
-      {
-        key: "month",
-        label: "Month",
-        pinned: true,
-        href: (m) => `/budget?month=${m.row.month}`,
-        render: (m) => (
-          <span className="font-medium text-ink hover:underline">{monthLabel(m.row.month)}</span>
-        ),
-        csv: (m) => m.row.month,
-        total: () => <span className="text-ink-3">Total</span>,
-      },
-      {
-        key: "planned",
-        label: `Planned (${currency})`,
-        align: "right",
-        render: (m) => (
-          <span className="num tabular-nums">
-            {m.row.plannedSpend > 0 ? fmtSpend(m.row.plannedSpend) : "—"}
-            {m.row.reserveSpendUsd > 0 && (
-              <span className="text-ink-3"> +{fmtSpend(m.row.reserveSpendUsd)}</span>
-            )}
-          </span>
-        ),
-        csv: (m) => spendInDisplayCurrency(m.row.plannedSpend, currency, rate).toFixed(2),
-        total: () => (
-          <span className="num tabular-nums font-semibold">
-            {fmtSpend(monthlyTotals.plannedSpend)}
-            {monthlyTotals.reserve > 0 && (
-              <span className="text-ink-3"> +{fmtSpend(monthlyTotals.reserve)}</span>
-            )}
-          </span>
-        ),
-      },
-      {
-        key: "actual",
-        label: `Actual (${currency})`,
-        align: "right",
-        render: (m) => <span className="num tabular-nums">{fmtSpend(m.row.actualSpend)}</span>,
-        csv: (m) => spendInDisplayCurrency(m.row.actualSpend, currency, rate).toFixed(2),
-        total: () => (
-          <span className="num tabular-nums font-semibold">{fmtSpend(monthlyTotals.actualSpend)}</span>
-        ),
-      },
-      {
-        key: "variance",
-        label: `Variance (${currency})`,
-        align: "right",
-        render: (m) => {
-          const v = variance(m.row.actualSpend, m.row.plannedSpend);
-          return (
-            <span className="num tabular-nums text-ink-2">
-              {v > 0 ? "+" : v < 0 ? "−" : ""}
-              {fmtSpend(Math.abs(v))}
-            </span>
-          );
-        },
-        csv: (m) =>
-          spendInDisplayCurrency(
-            variance(m.row.actualSpend, m.row.plannedSpend),
-            currency,
-            rate,
-          ).toFixed(2),
-      },
-      {
-        key: "variance_pct",
-        label: "Variance %",
-        align: "right",
-        render: (m) => pctCell(variancePct(m.row.actualSpend, m.row.plannedSpend)),
-        csv: (m) => {
-          const pct = variancePct(m.row.actualSpend, m.row.plannedSpend);
-          return pct === null ? "" : (pct * 100).toFixed(1);
-        },
-        total: () => pctCell(variancePct(monthlyTotals.actualSpend, monthlyTotals.plannedSpend)),
-      },
-      {
-        key: "planned_revenue",
-        label: "Planned revenue (SAR)",
-        align: "right",
-        render: (m) => (
-          <span className="num tabular-nums">
-            {m.row.plannedRevenueSar !== null ? sar(m.row.plannedRevenueSar) : "—"}
-          </span>
-        ),
-        csv: (m) => (m.row.plannedRevenueSar !== null ? m.row.plannedRevenueSar.toFixed(2) : ""),
-        total: () => (
-          <span className="num tabular-nums font-semibold">
-            {monthlyTotals.plannedRevenue > 0 ? sar(monthlyTotals.plannedRevenue) : "—"}
-          </span>
-        ),
-      },
-      {
-        key: "actual_revenue",
-        label: "Actual revenue (SAR)",
-        align: "right",
-        render: (m) => <span className="num tabular-nums">{sar(m.row.actualRevenueSar)}</span>,
-        csv: (m) => m.row.actualRevenueSar.toFixed(2),
-        total: () => (
-          <span className="num tabular-nums font-semibold">{sar(monthlyTotals.actualRevenue)}</span>
-        ),
-      },
-      {
-        key: "revenue_variance",
-        label: "Revenue variance %",
-        align: "right",
-        render: (m) =>
-          pctCell(
-            m.row.plannedRevenueSar !== null
-              ? variancePct(m.row.actualRevenueSar, m.row.plannedRevenueSar)
-              : null,
-          ),
-        csv: (m) => {
-          const pct =
-            m.row.plannedRevenueSar !== null
-              ? variancePct(m.row.actualRevenueSar, m.row.plannedRevenueSar)
-              : null;
-          return pct === null ? "" : (pct * 100).toFixed(1);
-        },
-        total: () =>
-          pctCell(
-            monthlyTotals.plannedRevenue > 0
-              ? variancePct(monthlyTotals.actualRevenue, monthlyTotals.plannedRevenue)
-              : null,
-          ),
-      },
-      {
-        key: "roas",
-        label: "ROAS (via rate)",
-        align: "right",
-        render: (m) => {
-          const v = roasThroughRate(m.row.actualRevenueSar, m.row.actualSpend, rate);
-          return <span className="num tabular-nums">{v === null ? "—" : fmtRoas(v)}</span>;
-        },
-        csv: (m) => {
-          const v = roasThroughRate(m.row.actualRevenueSar, m.row.actualSpend, rate);
-          return v === null ? "" : v.toFixed(2);
-        },
-        total: () => {
-          const v = roasThroughRate(
-            monthlyTotals.actualRevenue,
-            monthlyTotals.actualSpend,
-            rate,
-          );
-          return (
-            <span className="num tabular-nums font-semibold">
-              {v === null ? "—" : fmtRoas(v)}
-            </span>
-          );
-        },
-      },
-    ],
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [currency, rate, monthlyTotals],
-  );
+  const lastKnownSpend = rows.filter((r) => !r.spendUnknown).at(-1);
+  const lastKnownRevenue = rows.filter((r) => !r.revenueUnknown).at(-1);
+  const lastRow = rows.at(-1);
 
-  /** The table walks the SPEND fold; the revenue columns index the revenue
-   *  fold by position, since both folds share the same bucket list. */
-  const revenueAt = (b: BucketFold) => revenueFold[spendFold.indexOf(b)];
-
-  const bucketColumns: DataColumn<BucketFold>[] = useMemo(() => {
-    const periodCol: DataColumn<BucketFold> = {
-      key: "period",
-      label: granularity === "weekly" ? "Week" : "Day",
-      pinned: true,
-      render: (b) => (
-        <span className="inline-flex items-center gap-1.5">
-          <span className="num tabular-nums">{b.bucket.label}</span>
-          {b.partial && b.knownThrough && (
-            <span className="text-[10px] text-ink-3">through {monthDay(b.knownThrough)}</span>
-          )}
-        </span>
-      ),
-      csv: (b) => b.bucket.label,
-      total: () => <span className="text-ink-3">Total</span>,
-    };
-
-    // Total dimension — the old Daily columns, per bucket.
-    if (activeDimension === "total") {
-      const key = "total";
-      const lastKnown = spendFold.filter((b) => !b.unknown).at(-1);
-      const cols: DataColumn<BucketFold>[] = [
+  const columns: DataColumn<BucketRow>[] = useMemo(() => {
+    if (activeMetric === "roas") {
+      const actualRoas = (r: BucketRow) =>
+        r.spendUnknown || r.revenueUnknown
+          ? null
+          : roasOf(r.revenueCum, r.spendCum.get(TOTAL_KEY) ?? 0);
+      const planRoas = (r: BucketRow) =>
+        roasOf(r.planRevenueCum, r.planSpendCum.get(TOTAL_KEY) ?? 0);
+      return [
         periodCol,
         {
-          key: "spend",
-          label: `Spend (${currency})`,
+          key: "roas_actual",
+          label: "ROAS",
           align: "right",
-          render: (b) =>
-            b.unknown ? dash : (
-              <span className="num tabular-nums">{fmtSpend(b.period.get(key) ?? 0)}</span>
-            ),
-          csv: (b) =>
-            b.unknown
-              ? ""
-              : spendInDisplayCurrency(b.period.get(key) ?? 0, currency, rate).toFixed(2),
-          total: () =>
-            lastKnown ? (
-              <span className="num tabular-nums font-semibold">
-                {fmtSpend(lastKnown.cumulative.get(key) ?? 0)}
-              </span>
-            ) : (
-              dash
-            ),
+          render: (r) => {
+            const v = actualRoas(r);
+            return v === null ? dash : <span className="num tabular-nums">{fmtRoas(v)}</span>;
+          },
+          csv: (r) => actualRoas(r)?.toFixed(2) ?? "",
+          total: () => {
+            const v = lastKnownSpend ? actualRoas(lastKnownSpend) : null;
+            return v === null ? dash : (
+              <span className="num tabular-nums font-semibold">{fmtRoas(v)}</span>
+            );
+          },
         },
         {
-          key: "cumulative",
-          label: `Cumulative (${currency})`,
+          key: "roas_plan",
+          label: "On-plan ROAS",
           align: "right",
-          render: (b) =>
-            b.unknown ? dash : (
-              <span className="num tabular-nums">{fmtSpend(b.cumulative.get(key) ?? 0)}</span>
-            ),
-          csv: (b) =>
-            b.unknown
-              ? ""
-              : spendInDisplayCurrency(b.cumulative.get(key) ?? 0, currency, rate).toFixed(2),
+          render: (r) => {
+            const v = planRoas(r);
+            return v === null ? dash : (
+              <span className="num tabular-nums text-ink-3">{fmtRoas(v)}</span>
+            );
+          },
+          csv: (r) => planRoas(r)?.toFixed(2) ?? "",
         },
         {
-          key: "plan_to_date",
-          label: `Plan-to-date (${currency})`,
-          align: "right",
-          render: (b) =>
-            plannedTotal > 0 ? (
-              <span className="num tabular-nums text-ink-3">
-                {fmtSpend(b.planCumulative.get(key) ?? 0)}
-              </span>
-            ) : (
-              dash
-            ),
-          csv: (b) =>
-            plannedTotal > 0
-              ? spendInDisplayCurrency(b.planCumulative.get(key) ?? 0, currency, rate).toFixed(2)
-              : "",
-          total: () =>
-            plannedTotal > 0 ? (
-              <span className="num tabular-nums font-semibold">{fmtSpend(plannedTotal)}</span>
-            ) : (
-              dash
-            ),
-        },
-        {
-          key: "deviation",
+          key: "roas_dev",
           label: "Deviation",
           align: "right",
-          render: (b) =>
-            b.unknown || plannedTotal === 0
-              ? dash
-              : devCell(
-                  pacingDeviation(b.cumulative.get(key) ?? 0, b.planCumulative.get(key) ?? 0),
-                ),
-          csv: (b) =>
-            b.unknown || plannedTotal === 0
-              ? ""
-              : pacingVerdict(
-                  pacingDeviation(b.cumulative.get(key) ?? 0, b.planCumulative.get(key) ?? 0),
-                ),
+          render: (r) => {
+            const a = actualRoas(r);
+            const p = planRoas(r);
+            if (a === null || p === null) return dash;
+            const diff = a - p;
+            return (
+              <span
+                className={cn(
+                  "num tabular-nums text-xs",
+                  // Same magnitude rule as every other deviation in Budget —
+                  // a ROAS miss is judged as a share of the planned ROAS.
+                  pacingTone(diff / p) === "warn" ? "text-warn" : "text-ink-3",
+                )}
+              >
+                {diff > 0 ? "+" : diff < 0 ? "−" : ""}
+                {fmtRoas(Math.abs(diff))}
+              </span>
+            );
+          },
+          csv: (r) => {
+            const a = actualRoas(r);
+            const p = planRoas(r);
+            return a === null || p === null ? "" : (a - p).toFixed(2);
+          },
         },
       ];
-
-      if (activeMetric === "revenue") {
-        const target = data.plannedRevenueSar;
-        cols.push(
-          {
-            key: "revenue",
-            label: "Revenue (SAR)",
-            align: "right",
-            render: (b) => {
-              const r = revenueAt(b);
-              return !r || r.unknown ? dash : (
-                <span className="num tabular-nums">{sar(r.period.get(key) ?? 0)}</span>
-              );
-            },
-            csv: (b) => {
-              const r = revenueAt(b);
-              return !r || r.unknown ? "" : (r.period.get(key) ?? 0).toFixed(2);
-            },
-          },
-          {
-            key: "cum_revenue",
-            label: "Cumulative (SAR)",
-            align: "right",
-            render: (b) => {
-              const r = revenueAt(b);
-              return !r || r.unknown ? dash : (
-                <span className="num tabular-nums">{sar(r.cumulative.get(key) ?? 0)}</span>
-              );
-            },
-            csv: (b) => {
-              const r = revenueAt(b);
-              return !r || r.unknown ? "" : (r.cumulative.get(key) ?? 0).toFixed(2);
-            },
-          },
-          {
-            key: "target_to_date",
-            label: "Target-to-date (SAR)",
-            align: "right",
-            render: (b) => {
-              const r = revenueAt(b);
-              return target !== null && r ? (
-                <span className="num tabular-nums text-ink-3">
-                  {sar(r.planCumulative.get(key) ?? 0)}
-                </span>
-              ) : (
-                dash
-              );
-            },
-            csv: (b) => {
-              const r = revenueAt(b);
-              return target !== null && r ? (r.planCumulative.get(key) ?? 0).toFixed(2) : "";
-            },
-          },
-          {
-            key: "revenue_dev",
-            label: "Revenue deviation",
-            align: "right",
-            render: (b) => {
-              const r = revenueAt(b);
-              if (!r || r.unknown || target === null) return dash;
-              return devCell(
-                pacingDeviation(r.cumulative.get(key) ?? 0, r.planCumulative.get(key) ?? 0),
-              );
-            },
-            csv: (b) => {
-              const r = revenueAt(b);
-              if (!r || r.unknown || target === null) return "";
-              return pacingVerdict(
-                pacingDeviation(r.cumulative.get(key) ?? 0, r.planCumulative.get(key) ?? 0),
-              );
-            },
-          },
-        );
-      }
-      return cols;
     }
 
-    // By platform / by objective — a pivot: one actual column per series.
-    const pivot: DataColumn<BucketFold>[] = [periodCol];
-    for (const def of spendDefs) {
-      pivot.push({
-        key: `s_${def.key}`,
-        label: def.label,
-        align: "right",
-        render: (b) =>
-          b.unknown ? dash : (
-            <span className="num tabular-nums">{fmtSpend(b.period.get(def.key) ?? 0)}</span>
-          ),
-        csv: (b) =>
-          b.unknown
-            ? ""
-            : spendInDisplayCurrency(b.period.get(def.key) ?? 0, currency, rate).toFixed(2),
-      });
+    if (activeMetric === "revenue") {
+      return [
+        periodCol,
+        {
+          key: "revenue",
+          label: "Revenue (SAR)",
+          align: "right",
+          render: (r) =>
+            r.revenueUnknown ? dash : <span className="num tabular-nums">{sar(r.revenue)}</span>,
+          csv: (r) => (r.revenueUnknown ? "" : r.revenue.toFixed(2)),
+          total: () =>
+            lastKnownRevenue ? (
+              <span className="num tabular-nums font-semibold">
+                {sar(lastKnownRevenue.revenueCum)}
+              </span>
+            ) : (
+              dash
+            ),
+        },
+        {
+          key: "revenue_cum",
+          label: "Cumulative (SAR)",
+          align: "right",
+          render: (r) =>
+            r.revenueUnknown ? dash : (
+              <span className="num tabular-nums">{sar(r.revenueCum)}</span>
+            ),
+          csv: (r) => (r.revenueUnknown ? "" : r.revenueCum.toFixed(2)),
+        },
+        {
+          key: "revenue_plan",
+          label: "Target-to-date (SAR)",
+          align: "right",
+          render: (r) =>
+            r.planRevenueCum > 0 ? (
+              <span className="num tabular-nums text-ink-3">{sar(r.planRevenueCum)}</span>
+            ) : (
+              dash
+            ),
+          csv: (r) => (r.planRevenueCum > 0 ? r.planRevenueCum.toFixed(2) : ""),
+          total: () =>
+            lastRow && lastRow.planRevenueCum > 0 ? (
+              <span className="num tabular-nums font-semibold">{sar(lastRow.planRevenueCum)}</span>
+            ) : (
+              dash
+            ),
+        },
+        {
+          key: "revenue_dev",
+          label: "Deviation",
+          align: "right",
+          render: (r) =>
+            r.revenueUnknown || r.planRevenueCum <= 0
+              ? dash
+              : devCell(pacingDeviation(r.revenueCum, r.planRevenueCum)),
+          csv: (r) =>
+            r.revenueUnknown || r.planRevenueCum <= 0
+              ? ""
+              : pacingVerdict(pacingDeviation(r.revenueCum, r.planRevenueCum)),
+        },
+      ];
     }
-    const sumOf = (pick: (k: string) => number) =>
-      spendDefs.reduce((s, def) => s + pick(def.key), 0);
-    pivot.push(
-      {
-        key: "row_total",
-        label: `Total (${currency})`,
-        align: "right",
-        render: (b) =>
-          b.unknown ? dash : (
-            <span className="num tabular-nums font-medium">
-              {fmtSpend(sumOf((k) => b.period.get(k) ?? 0))}
+
+    // Spend. One block per objective when the breakdown is on, else totals.
+    const cols: DataColumn<BucketRow>[] = [periodCol];
+    const blockKeys = byObjective ? [...BUDGET_OBJECTIVES, TOTAL_KEY] : [TOTAL_KEY];
+    for (const key of blockKeys) {
+      const isTotal = key === TOTAL_KEY;
+      const name = isTotal ? "Total" : key;
+      cols.push(
+        {
+          key: `${key}_actual`,
+          label: byObjective ? `${name} actual` : `Spend (${currency})`,
+          align: "right",
+          render: (r) =>
+            r.spendUnknown ? dash : (
+              <span className={cn("num tabular-nums", isTotal && byObjective && "font-medium")}>
+                {fmtSpend(r.spend.get(key) ?? 0)}
+              </span>
+            ),
+          csv: (r) =>
+            r.spendUnknown
+              ? ""
+              : spendInDisplayCurrency(r.spend.get(key) ?? 0, currency, rate).toFixed(2),
+          total: () =>
+            lastKnownSpend ? (
+              <span className="num tabular-nums font-semibold">
+                {fmtSpend(lastKnownSpend.spendCum.get(key) ?? 0)}
+              </span>
+            ) : (
+              dash
+            ),
+        },
+        {
+          key: `${key}_plan`,
+          label: byObjective ? `${name} plan` : `Plan-to-date (${currency})`,
+          align: "right",
+          render: (r) => (
+            <span className="num tabular-nums text-ink-3">
+              {fmtSpend(r.planSpendCum.get(key) ?? 0)}
             </span>
           ),
-        csv: (b) =>
-          b.unknown
-            ? ""
-            : spendInDisplayCurrency(
-                sumOf((k) => b.period.get(k) ?? 0),
-                currency,
-                rate,
-              ).toFixed(2),
-      },
-      {
-        key: "plan_to_date",
-        label: `Plan-to-date (${currency})`,
-        align: "right",
-        render: (b) => (
-          <span className="num tabular-nums text-ink-3">
-            {fmtSpend(sumOf((k) => b.planCumulative.get(k) ?? 0))}
-          </span>
-        ),
-        csv: (b) =>
-          spendInDisplayCurrency(
-            sumOf((k) => b.planCumulative.get(k) ?? 0),
-            currency,
-            rate,
-          ).toFixed(2),
-      },
-      {
-        key: "deviation",
-        label: "Deviation",
-        align: "right",
-        render: (b) =>
-          b.unknown
-            ? dash
-            : devCell(
-                pacingDeviation(
-                  sumOf((k) => b.cumulative.get(k) ?? 0),
-                  sumOf((k) => b.planCumulative.get(k) ?? 0),
+          csv: (r) =>
+            spendInDisplayCurrency(r.planSpendCum.get(key) ?? 0, currency, rate).toFixed(2),
+          total: () =>
+            lastRow ? (
+              <span className="num tabular-nums font-semibold">
+                {fmtSpend(lastRow.planSpendCum.get(key) ?? 0)}
+              </span>
+            ) : (
+              dash
+            ),
+        },
+        {
+          key: `${key}_dev`,
+          label: byObjective ? `${name} dev.` : "Deviation",
+          align: "right",
+          render: (r) =>
+            r.spendUnknown
+              ? dash
+              : devCell(
+                  pacingDeviation(r.spendCum.get(key) ?? 0, r.planSpendCum.get(key) ?? 0),
                 ),
-              ),
-        csv: (b) =>
-          b.unknown
-            ? ""
-            : pacingVerdict(
-                pacingDeviation(
-                  sumOf((k) => b.cumulative.get(k) ?? 0),
-                  sumOf((k) => b.planCumulative.get(k) ?? 0),
+          csv: (r) =>
+            r.spendUnknown
+              ? ""
+              : pacingVerdict(
+                  pacingDeviation(r.spendCum.get(key) ?? 0, r.planSpendCum.get(key) ?? 0),
                 ),
-              ),
-      },
-    );
-    return pivot;
+        },
+      );
+    }
+    return cols;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    activeDimension,
-    activeMetric,
-    spendDefs,
-    spendFold,
-    revenueFold,
-    currency,
-    rate,
-    plannedTotal,
-    granularity,
-    data.plannedRevenueSar,
-  ]);
+  }, [activeMetric, byObjective, currency, rate, rows, groupBy]);
 
-  const chartTitle = isMonthly
-    ? `Last ${monthsBack} months`
-    : `${granularity === "weekly" ? "Weekly" : "Daily"} — ${monthLabel(month)}`;
+  const platformLabel =
+    platforms.length === 0
+      ? "All"
+      : platforms.length === 1
+        ? (PLATFORM_LABEL[platforms[0] as keyof typeof PLATFORM_LABEL] ?? platforms[0]!)
+        : `${platforms.length} selected`;
 
   return (
     <div className="space-y-4">
-      <BudgetMonthBar month={month} today={today}>
-        <CurrencyToggle currency={currency} onChange={pickCurrency} />
-      </BudgetMonthBar>
+      {/* Controls — deliberately wrapping: on a phone they stack into rows
+          rather than scrolling sideways. */}
+      <div className="flex flex-wrap items-center gap-2 rounded-lg border border-line bg-surface px-3 py-2">
+        <DateRangePicker from={from} to={to} onChange={setRange} />
 
-      {/* ── Section 1 — allocation check ─────────────────────────────────── */}
-      <section className="space-y-2">
-        <div>
-          <h2 className="text-sm font-medium text-ink">Allocation check</h2>
-          <p className="text-[11px] text-ink-3">
-            Where {monthLabel(month)}&rsquo;s money actually went, against the plan.
-            Combos with spend but no allocation show as unplanned — the reserve&rsquo;s
-            territory.
-          </p>
-        </div>
-        <BudgetAllocationCheck
-          month={month}
-          data={data}
-          currency={currency}
-          elapsedDays={elapsed}
-          isCurrentMonth={isCurrentMonth}
-        />
-      </section>
-
-      {/* ── Section 2 — time comparison ──────────────────────────────────── */}
-      <section className="space-y-2">
-        <div>
-          <h2 className="text-sm font-medium text-ink">Time comparison</h2>
-          <p className="text-[11px] text-ink-3">
-            Actual against the plan curve over time. Periods past the data horizon are
-            unknown, not zero.
-          </p>
-        </div>
-
-        {/* Controls */}
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-line bg-surface px-3 py-2">
-          <span className="text-label text-ink-3">Granularity</span>
-          <SegmentedControl<Granularity>
-            ariaLabel="Granularity"
-            value={granularity}
-            onChange={setGranularity}
-            options={[
-              { value: "daily", label: "Daily" },
-              { value: "weekly", label: "Weekly" },
-              { value: "monthly", label: "Monthly" },
-            ]}
-          />
-
-          {isMonthly ? (
-            <>
-              <span className="text-label text-ink-3">Range</span>
-              <SegmentedControl<string>
-                ariaLabel="Months shown"
-                value={String(monthsBack)}
-                onChange={(v) => setMonthsBack(Number(v) as MonthWindow)}
-                options={MONTH_WINDOWS.map((n) => ({
-                  value: String(n),
-                  label: `${n}m`,
-                }))}
-              />
-            </>
-          ) : (
-            <>
-              <span className="text-label text-ink-3">Dimension</span>
-              <Select value={dimension} onValueChange={(v) => setDimension(v as Dimension)}>
-                <SelectTrigger className="h-8 w-[9.5rem]" aria-label="Dimension">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="total">Total</SelectItem>
-                  <SelectItem value="platform">By platform</SelectItem>
-                  <SelectItem value="objective">By objective</SelectItem>
-                </SelectContent>
-              </Select>
-              {dimension === "objective" && (
-                <Select value={platformPick} onValueChange={setPlatformPick}>
-                  <SelectTrigger className="h-8 w-[8.5rem]" aria-label="Platform">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {ALL_PLATFORMS.map((p) => (
-                      <SelectItem key={p} value={p}>
-                        {PLATFORM_LABEL[p]}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-            </>
-          )}
-
-          {dimensionLocked && (
-            <span className="text-[11px] text-ink-3">
-              Monthly rows come from month totals, so the platform and objective
-              breakdowns aren&rsquo;t available here — switch to Daily or Weekly for those.
-            </span>
-          )}
-          {revenueLocked && (
-            <span className="text-[11px] text-ink-3">
-              Showing spend: revenue is a store total with no platform attribution
-              (that lives on Reconciliation), so it only has a Total view.
-            </span>
-          )}
-        </div>
-
-        {/* Chart */}
-        <ChartShell
-          ariaLabel="Budget pacing — expanded"
-          legend={
-            chartDefs.length > 1 ? (
-              <SeriesLegend
-                items={legendItems}
-                shown={shown}
-                onToggle={toggleSeries}
-                onShowAll={() => setHidden(new Set())}
-              />
-            ) : undefined
-          }
+        <FilterPill
+          icon={Layers}
+          label="Platforms"
+          value={platformLabel}
+          active={platformFiltered}
         >
-          {({ inFull, toggleExpand }) => (
-            <div className={inFull ? "flex flex-col h-full" : undefined}>
-              <ChartHeader
-                title={chartTitle}
-                picker={
-                  <MetricPicker<Metric>
+          {() => (
+            <DropdownMenuContent align="start" className="w-48">
+              <DropdownMenuLabel>Platforms</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {ALL_PLATFORMS.map((p) => (
+                <DropdownMenuCheckboxItem
+                  key={p}
+                  checked={platforms.includes(p)}
+                  onCheckedChange={() => togglePlatform(p)}
+                  onSelect={(e) => e.preventDefault()}
+                >
+                  {PLATFORM_LABEL[p]}
+                </DropdownMenuCheckboxItem>
+              ))}
+            </DropdownMenuContent>
+          )}
+        </FilterPill>
+
+        <SegmentedControl<GroupBy>
+          ariaLabel="Group by"
+          value={groupBy}
+          onChange={(g) => setParams({ groupBy: g })}
+          options={[
+            { value: "day", label: "Day" },
+            { value: "week", label: "Week" },
+            { value: "month", label: "Month" },
+          ]}
+        />
+
+        <SegmentedControl<string>
+          ariaLabel="Objective breakdown"
+          value={byObjective ? "on" : "off"}
+          onChange={(v) => setByObjective(v === "on")}
+          options={[
+            { value: "off", label: "Totals" },
+            { value: "on", label: "By objective" },
+          ]}
+        />
+
+        <div className="ml-auto flex items-center gap-2">
+          <CurrencyToggle currency={currency} onChange={pickCurrency} />
+        </div>
+
+        {metricLocked && (
+          <p className="w-full text-[11px] text-ink-3">
+            Showing spend: store revenue isn&rsquo;t attributed to a platform (that
+            lives on Reconciliation), so revenue and ROAS are all-platforms only.
+          </p>
+        )}
+        {byObjective && activeMetric !== "spend" && (
+          <p className="w-full text-[11px] text-ink-3">
+            The objective breakdown applies to spend — revenue and ROAS have no
+            objective split.
+          </p>
+        )}
+      </div>
+
+      {/* Chart */}
+      <ChartShell
+        ariaLabel="Budget pacing — expanded"
+        legend={
+          seriesDefs.length > 1 ? (
+            <SeriesLegend
+              items={seriesDefs}
+              shown={shown}
+              onToggle={toggleSeries}
+              onShowAll={() => setHidden(new Set())}
+            />
+          ) : undefined
+        }
+      >
+        {({ inFull, toggleExpand }) => (
+          <div className={inFull ? "flex flex-col h-full" : undefined}>
+            <ChartHeader
+              title={`${monthDay(from)} – ${monthDay(to)}`}
+              picker={
+                <MetricPicker<Metric>
+                  options={[
+                    { value: "spend", label: "Spend" },
+                    { value: "revenue", label: "Revenue" },
+                    { value: "roas", label: "ROAS" },
+                  ]}
+                  value={activeMetric}
+                  onChange={setMetric}
+                />
+              }
+              controls={
+                <>
+                  <SegmentedControl<View>
+                    ariaLabel="Chart view"
+                    value={view}
+                    onChange={setView}
                     options={[
-                      { value: "spend", label: "Spend" },
-                      { value: "revenue", label: "Revenue" },
+                      { value: "cumulative", label: "Cumulative" },
+                      { value: "period", label: "Per-period" },
                     ]}
-                    value={activeMetric}
-                    onChange={setMetric}
                   />
-                }
-                controls={
-                  <>
-                    <SegmentedControl<View>
-                      ariaLabel="Chart view"
-                      value={view}
-                      onChange={setView}
-                      options={[
-                        { value: "cumulative", label: "Cumulative" },
-                        { value: "period", label: "Per-period" },
-                      ]}
-                    />
-                    <ExpandButton inFull={inFull} onClick={toggleExpand} />
-                  </>
-                }
-              />
-              <div className={inFull ? "flex-1 min-h-0" : "h-64"}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <ComposedChart data={chartData} margin={{ top: 12, right: 12, left: 0, bottom: 0 }}>
-                    <CartesianGrid stroke="var(--line)" strokeDasharray="3 3" vertical={false} />
-                    <XAxis
-                      dataKey="label"
-                      tick={{ fill: "var(--ink-3)", fontSize: 11 }}
-                      stroke="var(--line-2)"
-                      tickMargin={6}
-                      interval="preserveStartEnd"
-                      minTickGap={12}
-                    />
-                    <YAxis
-                      tickFormatter={fmtAxis}
-                      tick={{ fill: "var(--ink-3)", fontSize: 11 }}
-                      stroke="var(--line-2)"
-                      width={56}
-                    />
-                    <Tooltip
-                      content={(p: TooltipProps<number, string>) => {
-                        if (!p.active || !p.payload?.length) return null;
-                        return (
-                          <ChartTooltip>
-                            <div className="font-medium text-ink mb-1">{p.label}</div>
-                            {p.payload.map((entry) => {
-                              const key = String(entry.dataKey);
-                              const isPlan = key.startsWith("plan_");
-                              const def = chartDefs.find(
-                                (s) => s.key === (isPlan ? key.slice(5) : key),
-                              );
-                              return (
-                                <div key={key} className="flex items-center gap-2">
-                                  <span
-                                    className="h-2 w-2 rounded-full"
-                                    style={{ background: entry.color }}
-                                  />
-                                  <span className="text-ink-3">
-                                    {isPlan ? `${def?.label ?? ""} plan` : (def?.label ?? key)}
-                                  </span>
-                                  <span className="num tabular-nums text-ink ml-auto">
-                                    {typeof entry.value === "number" ? fmtValue(entry.value) : "—"}
-                                  </span>
-                                </div>
-                              );
-                            })}
-                          </ChartTooltip>
-                        );
-                      }}
-                    />
-                    {chartDefs
-                      .filter((def) => shown.has(def.key))
-                      .flatMap((def) => [
+                  <ExpandButton inFull={inFull} onClick={toggleExpand} />
+                </>
+              }
+            />
+            <div className={inFull ? "flex-1 min-h-0" : "h-64"}>
+              <ResponsiveContainer width="100%" height="100%">
+                <ComposedChart data={chartData} margin={{ top: 12, right: 12, left: 0, bottom: 0 }}>
+                  <CartesianGrid stroke="var(--line)" strokeDasharray="3 3" vertical={false} />
+                  <XAxis
+                    dataKey="label"
+                    tick={{ fill: "var(--ink-3)", fontSize: 11 }}
+                    stroke="var(--line-2)"
+                    tickMargin={6}
+                    interval="preserveStartEnd"
+                    minTickGap={16}
+                  />
+                  <YAxis
+                    tickFormatter={fmtAxis}
+                    tick={{ fill: "var(--ink-3)", fontSize: 11 }}
+                    stroke="var(--line-2)"
+                    width={56}
+                  />
+                  <Tooltip
+                    content={(p: TooltipProps<number, string>) => {
+                      if (!p.active || !p.payload?.length) return null;
+                      return (
+                        <ChartTooltip>
+                          <div className="font-medium text-ink mb-1">{p.label}</div>
+                          {p.payload.map((entry) => {
+                            const key = String(entry.dataKey);
+                            const isPlan = key.startsWith("plan_");
+                            const def = seriesDefs.find(
+                              (s) => s.key === (isPlan ? key.slice(5) : key),
+                            );
+                            return (
+                              <div key={key} className="flex items-center gap-2">
+                                <span
+                                  className="h-2 w-2 rounded-full"
+                                  style={{ background: entry.color }}
+                                />
+                                <span className="text-ink-3">
+                                  {isPlan ? `${def?.label ?? ""} plan` : (def?.label ?? key)}
+                                </span>
+                                <span className="num tabular-nums text-ink ml-auto">
+                                  {typeof entry.value === "number" ? fmtValue(entry.value) : "—"}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </ChartTooltip>
+                      );
+                    }}
+                  />
+                  {seriesDefs
+                    .filter((def) => shown.has(def.key))
+                    .flatMap((def) => [
+                      <Line
+                        key={`plan_${def.key}`}
+                        type="linear"
+                        dataKey={`plan_${def.key}`}
+                        stroke={seriesDefs.length > 1 ? def.color : "var(--ink-3)"}
+                        strokeWidth={1.4}
+                        strokeDasharray="5 4"
+                        strokeOpacity={seriesDefs.length > 1 ? 0.55 : 1}
+                        dot={false}
+                        activeDot={{ r: 3 }}
+                        connectNulls={false}
+                        isAnimationActive={false}
+                      />,
+                      view === "period" && activeMetric !== "roas" ? (
+                        <Bar
+                          key={def.key}
+                          dataKey={def.key}
+                          fill={def.color}
+                          radius={[2, 2, 0, 0]}
+                          isAnimationActive={false}
+                        />
+                      ) : (
                         <Line
-                          key={`plan_${def.key}`}
+                          key={def.key}
                           type="linear"
-                          dataKey={`plan_${def.key}`}
-                          stroke={chartDefs.length > 1 ? def.color : "var(--ink-3)"}
-                          strokeWidth={1.4}
-                          strokeDasharray="5 4"
-                          strokeOpacity={chartDefs.length > 1 ? 0.55 : 1}
+                          dataKey={def.key}
+                          stroke={def.color}
+                          strokeWidth={2}
                           dot={false}
-                          activeDot={{ r: 3 }}
+                          activeDot={{ r: 4 }}
                           connectNulls={false}
                           isAnimationActive={false}
-                        />,
-                        view === "period" ? (
-                          <Bar
-                            key={def.key}
-                            dataKey={def.key}
-                            fill={def.color}
-                            radius={[2, 2, 0, 0]}
-                            isAnimationActive={false}
-                          />
-                        ) : (
-                          <Line
-                            key={def.key}
-                            type="linear"
-                            dataKey={def.key}
-                            stroke={def.color}
-                            strokeWidth={2}
-                            dot={false}
-                            activeDot={{ r: 4 }}
-                            connectNulls={false}
-                            isAnimationActive={false}
-                          />
-                        ),
-                      ])}
-                  </ComposedChart>
-                </ResponsiveContainer>
-              </div>
+                        />
+                      ),
+                    ])}
+                </ComposedChart>
+              </ResponsiveContainer>
             </div>
-          )}
-        </ChartShell>
-
-        {/* Period table */}
-        {isMonthly ? (
-          <DataTable
-            columns={monthlyColumns}
-            rows={monthlyRows}
-            rowKey={(m) => m.row.month}
-            showTotals={monthlyRows.length > 0}
-            minWidthClass="min-w-[1040px]"
-            csvFileName={`budget-pacing-monthly-${currency.toLowerCase()}`}
-            empty={
-              <div className="py-12 text-center text-sm text-ink-2">
-                No budget months yet.
-              </div>
-            }
-          />
-        ) : (
-          <DataTable<BucketFold>
-            columns={bucketColumns}
-            rows={spendFold}
-            rowKey={(b) => b.bucket.key}
-            showTotals={spendFold.length > 0}
-            minWidthClass={activeDimension === "total" ? "min-w-[720px]" : "min-w-[620px]"}
-            csvFileName={`budget-pacing-${granularity}-${month}-${currency.toLowerCase()}`}
-            rowClassName={(b) => cn(b.unknown && "opacity-60")}
-          />
+          </div>
         )}
-      </section>
+      </ChartShell>
+
+      {/* Period table */}
+      <DataTable<BucketRow>
+        columns={columns}
+        rows={rows}
+        rowKey={(r) => r.bucket.key}
+        showTotals={rows.length > 0}
+        minWidthClass={byObjective && activeMetric === "spend" ? "min-w-[1200px]" : "min-w-[720px]"}
+        csvFileName={`budget-pacing-${from}-to-${to}-${groupBy}-${currency.toLowerCase()}`}
+        rowClassName={(r) => cn(r.spendUnknown && "opacity-60")}
+      />
 
       <HorizonNote horizon={horizon} storeHorizon={storeHorizon} />
     </div>
   );
+}
+
+/** Inclusive ISO day list — small helper so the fold reads as a loop. */
+function daysBetween(from: string, to: string): string[] {
+  const out: string[] = [];
+  if (to < from) return out;
+  const d = new Date(`${from}T00:00:00Z`);
+  const end = new Date(`${to}T00:00:00Z`);
+  while (d <= end) {
+    out.push(d.toISOString().slice(0, 10));
+    d.setUTCDate(d.getUTCDate() + 1);
+  }
+  return out;
 }

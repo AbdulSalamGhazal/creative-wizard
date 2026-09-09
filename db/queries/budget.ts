@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, lt, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, lt, lte, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
   accounts,
@@ -20,7 +20,9 @@ import {
   mapWeightsToMonth,
   monthStartIso,
   nextMonthKey,
+  toBudgetObjective,
   validateWeight,
+  type BudgetObjective,
 } from "@/lib/budget";
 
 /**
@@ -43,7 +45,8 @@ export interface BudgetAllocationRow {
 
 export interface BudgetActualCombo {
   platform: string;
-  objective: string;
+  /** Budget's own bucket, not the campaign's raw objective. */
+  objective: BudgetObjective;
   actualSpend: number;
 }
 
@@ -59,6 +62,21 @@ export interface BudgetMonthData {
   actualRevenueSar: number;
   actualOrders: number;
   usdToSarRate: number;
+}
+
+/** Fold raw (platform, campaign objective) spend rows onto Budget's buckets. */
+function bucketCombos(
+  rows: Array<{ platform: string; objective: string; actualSpend: string | number }>,
+): BudgetActualCombo[] {
+  const merged = new Map<string, BudgetActualCombo>();
+  for (const r of rows) {
+    const objective = toBudgetObjective(r.objective);
+    const key = `${r.platform}|${objective}`;
+    const existing = merged.get(key);
+    if (existing) existing.actualSpend += Number(r.actualSpend);
+    else merged.set(key, { platform: r.platform, objective, actualSpend: Number(r.actualSpend) });
+  }
+  return [...merged.values()];
 }
 
 /** [start, end) date bounds for a month key/ISO. */
@@ -150,11 +168,10 @@ export async function getBudgetMonth(month: string): Promise<BudgetMonthData> {
     dayWeightOverrides: Object.fromEntries(
       weightRows.map((w) => [w.day, Number(w.weight)]),
     ),
-    actualSpendByCombo: spendRows.map((r) => ({
-      platform: r.platform,
-      objective: r.objective,
-      actualSpend: Number(r.actualSpend),
-    })),
+    // Campaign objectives are folded onto Budget's buckets HERE, so no
+    // consumer has to remember to do it — and two campaign objectives that map
+    // to the same bucket merge into one row rather than double-listing.
+    actualSpendByCombo: bucketCombos(spendRows),
     actualRevenueSar: Number(revenueRow[0]?.revenue ?? 0),
     actualOrders: Number(revenueRow[0]?.orders ?? 0),
     usdToSarRate: Number(rateRow[0]?.rate ?? 3.77),
@@ -313,41 +330,41 @@ export async function getUsdToSarRate(): Promise<number> {
 export interface BudgetPacingDaySpend {
   date: string;
   platform: string;
-  /** The campaign's CURRENT objective — reclassifying a campaign restates
-   *  history here, exactly as it does everywhere else in the system. */
-  objective: string;
+  /** Budget's own bucket (see `toBudgetObjective`), not the raw campaign value. */
+  objective: BudgetObjective;
   spend: number;
 }
 
 export interface BudgetPacingDayTotals {
-  day: number;
   date: string;
   revenueSar: number;
   orders: number;
 }
 
 export interface BudgetPacingSeries {
-  /** One row per (date, platform, objective) that actually spent. */
+  /** One row per (date, platform, bucket) that actually spent. */
   spend: BudgetPacingDaySpend[];
-  /** One row per day of the month, revenue/orders zero-filled. */
+  /** One row per day of the range, revenue/orders zero-filled. */
   days: BudgetPacingDayTotals[];
 }
 
 /**
- * The month's raw material for Pacing: per-day spend broken down by platform ×
- * objective, plus per-day store revenue and order counts. RAW spend (no
- * exclusion filter — the module's standing decision).
+ * The raw material for Pacing over an arbitrary date range: per-day spend by
+ * platform × budget objective, plus per-day store revenue and order counts.
+ * RAW spend (no exclusion filter — the module's standing decision).
  *
- * TWO scans for the whole month, whatever the page is showing. Every scope the
- * UI offers (total, per platform, per platform × objective) and every bucket
- * size (day, week, month) is folded from these rows in JS — `lib/db.ts` runs
- * one connection, so a query per scope would be a serial round-trip each.
+ * TWO scans for the whole range, whatever the page is showing. Every scope the
+ * UI offers (totals, a platform subset, the objective breakdown) and every
+ * bucket size (day, week, month) is folded from these rows in JS — `lib/db.ts`
+ * runs one connection, so a query per scope would be a serial round-trip each.
  * Spend rows are sparse (only real combos); the day list is dense so the UI can
- * tell a genuine zero from an unknown day past the horizon.
+ * tell a genuine zero from a day past the horizon.
  */
-export async function budgetPacingSeries(month: string): Promise<BudgetPacingSeries> {
+export async function budgetPacingSeries(
+  from: string,
+  to: string,
+): Promise<BudgetPacingSeries> {
   const acct = await getActiveAccountId();
-  const { start, end } = monthBounds(month);
   const [spendRows, revRows] = await Promise.all([
     db
       .select({
@@ -361,8 +378,8 @@ export async function budgetPacingSeries(month: string): Promise<BudgetPacingSer
       .where(
         and(
           eq(performanceRecords.accountId, acct),
-          gte(performanceRecords.date, start),
-          lt(performanceRecords.date, end),
+          gte(performanceRecords.date, from),
+          lte(performanceRecords.date, to),
         ),
       )
       .groupBy(performanceRecords.date, performanceRecords.platform, campaigns.objective),
@@ -376,64 +393,81 @@ export async function budgetPacingSeries(month: string): Promise<BudgetPacingSer
       .where(
         and(
           eq(storeOrders.accountId, acct),
-          gte(storeOrders.orderDate, start),
-          lt(storeOrders.orderDate, end),
+          gte(storeOrders.orderDate, from),
+          lte(storeOrders.orderDate, to),
         ),
       )
       .groupBy(storeOrders.orderDate),
   ]);
 
+  // Two campaign objectives can fold onto the same bucket on the same day and
+  // platform — sum them rather than emitting two rows.
+  const byKey = new Map<string, BudgetPacingDaySpend>();
+  for (const r of spendRows) {
+    const objective = toBudgetObjective(r.objective);
+    const key = `${r.date}|${r.platform}|${objective}`;
+    const existing = byKey.get(key);
+    if (existing) existing.spend += Number(r.spend);
+    else
+      byKey.set(key, {
+        date: r.date,
+        platform: r.platform,
+        objective,
+        spend: Number(r.spend),
+      });
+  }
+
   const revByDate = new Map(
     revRows.map((r) => [r.date, { revenue: Number(r.revenue), orders: Number(r.orders) }]),
   );
-  const total = new Date(
-    Date.UTC(Number(start.slice(0, 4)), Number(start.slice(5, 7)), 0),
-  ).getUTCDate();
+  const days: BudgetPacingDayTotals[] = [];
+  for (let iso = from; iso <= to; iso = isoPlusDay(iso)) {
+    const rev = revByDate.get(iso);
+    days.push({ date: iso, revenueSar: rev?.revenue ?? 0, orders: rev?.orders ?? 0 });
+  }
 
-  return {
-    spend: spendRows.map((r) => ({
-      date: r.date,
-      platform: r.platform,
-      objective: r.objective,
-      spend: Number(r.spend),
-    })),
-    days: Array.from({ length: total }, (_, i) => {
-      const date = `${start.slice(0, 8)}${String(i + 1).padStart(2, "0")}`;
-      const rev = revByDate.get(date);
-      return {
-        day: i + 1,
-        date,
-        revenueSar: rev?.revenue ?? 0,
-        orders: rev?.orders ?? 0,
-      };
-    }),
-  };
+  return { spend: [...byKey.values()], days };
 }
 
-export interface BudgetHistoryRow {
-  month: string; // YYYY-MM
-  plannedSpend: number;
-  reserveSpendUsd: number;
-  actualSpend: number;
+/** UTC-safe next-day, for the dense day list. */
+function isoPlusDay(iso: string): string {
+  const d = new Date(`${iso}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + 1);
+  return d.toISOString().slice(0, 10);
+}
+
+export interface MonthPlanRow {
+  /** YYYY-MM */
+  month: string;
+  allocations: Array<{ platform: string; objective: BudgetObjective; plannedSpend: number }>;
   plannedRevenueSar: number | null;
-  actualRevenueSar: number;
+  reserveSpendUsd: number;
+  dayWeights: Record<number, number>;
 }
 
 /**
- * One row per month that has a plan OR actuals, newest first. Bounded
- * month-grain scans (a handful of GROUP BYs); RAW spend as everywhere here.
+ * The plans for every month a Pacing range touches — THREE queries total, one
+ * per table with an `inArray` over the months, never a round-trip per month
+ * (`lib/db.ts` is `max: 1`, so those would run serially). Months with no plan
+ * simply come back empty, which the caller reads as "no plan", not "zero".
  */
-export async function budgetHistory(): Promise<BudgetHistoryRow[]> {
+export async function budgetPlansForMonths(months: string[]): Promise<MonthPlanRow[]> {
+  if (months.length === 0) return [];
   const acct = await getActiveAccountId();
-  const [planRows, targetRows, spendRows, revRows] = await Promise.all([
+  const starts = months.map((m) => monthStartIso(m));
+
+  const [allocRows, targetRows, weightRows] = await Promise.all([
     db
       .select({
         month: budgetAllocations.month,
-        planned: sql<string>`COALESCE(SUM(${budgetAllocations.plannedSpend}), 0)`,
+        platform: budgetAllocations.platform,
+        objective: budgetAllocations.objective,
+        plannedSpend: budgetAllocations.plannedSpend,
       })
       .from(budgetAllocations)
-      .where(eq(budgetAllocations.accountId, acct))
-      .groupBy(budgetAllocations.month),
+      .where(
+        and(eq(budgetAllocations.accountId, acct), inArray(budgetAllocations.month, starts)),
+      ),
     db
       .select({
         month: budgetTargets.month,
@@ -441,51 +475,49 @@ export async function budgetHistory(): Promise<BudgetHistoryRow[]> {
         reserve: budgetTargets.reserveSpendUsd,
       })
       .from(budgetTargets)
-      .where(eq(budgetTargets.accountId, acct)),
+      .where(and(eq(budgetTargets.accountId, acct), inArray(budgetTargets.month, starts))),
     db
       .select({
-        month: sql<string>`(date_trunc('month', ${performanceRecords.date}))::date`,
-        spend: sql<string>`COALESCE(SUM(${performanceRecords.spend}), 0)`,
+        month: budgetDayWeights.month,
+        day: budgetDayWeights.day,
+        weight: budgetDayWeights.weight,
       })
-      .from(performanceRecords)
-      .where(eq(performanceRecords.accountId, acct))
-      .groupBy(sql`1`),
-    db
-      .select({
-        month: sql<string>`(date_trunc('month', ${storeOrders.orderDate}))::date`,
-        revenue: sql<string>`COALESCE(SUM(${storeOrders.totalAmount}), 0)`,
-      })
-      .from(storeOrders)
-      .where(eq(storeOrders.accountId, acct))
-      .groupBy(sql`1`),
+      .from(budgetDayWeights)
+      .where(
+        and(eq(budgetDayWeights.accountId, acct), inArray(budgetDayWeights.month, starts)),
+      ),
   ]);
 
-  const byMonth = new Map<string, BudgetHistoryRow>();
-  const ensure = (monthIso: string): BudgetHistoryRow => {
-    const key = monthIso.slice(0, 7);
-    let row = byMonth.get(key);
-    if (!row) {
-      row = {
-        month: key,
-        plannedSpend: 0,
-        reserveSpendUsd: 0,
-        actualSpend: 0,
+  const byMonth = new Map<string, MonthPlanRow>(
+    months.map((m) => [
+      m,
+      {
+        month: m,
+        allocations: [],
         plannedRevenueSar: null,
-        actualRevenueSar: 0,
-      };
-      byMonth.set(key, row);
-    }
-    return row;
-  };
-  for (const r of planRows) ensure(r.month).plannedSpend = Number(r.planned);
+        reserveSpendUsd: 0,
+        dayWeights: {},
+      },
+    ]),
+  );
+  for (const r of allocRows) {
+    byMonth.get(r.month.slice(0, 7))?.allocations.push({
+      platform: r.platform,
+      objective: toBudgetObjective(r.objective),
+      plannedSpend: Number(r.plannedSpend),
+    });
+  }
   for (const r of targetRows) {
-    const row = ensure(r.month);
+    const row = byMonth.get(r.month.slice(0, 7));
+    if (!row) continue;
     row.plannedRevenueSar = Number(r.planned) > 0 ? Number(r.planned) : null;
     row.reserveSpendUsd = Number(r.reserve);
   }
-  for (const r of spendRows) ensure(r.month).actualSpend = Number(r.spend);
-  for (const r of revRows) ensure(r.month).actualRevenueSar = Number(r.revenue);
-  return [...byMonth.values()].sort((a, b) => (a.month < b.month ? 1 : -1));
+  for (const r of weightRows) {
+    const row = byMonth.get(r.month.slice(0, 7));
+    if (row) row.dayWeights[r.day] = Number(r.weight);
+  }
+  return [...byMonth.values()].sort((a, b) => (a.month < b.month ? -1 : 1));
 }
 
 // ── Plan revisions + month list (2026-09) ────────────────────────────────────
@@ -493,7 +525,7 @@ export async function budgetHistory(): Promise<BudgetHistoryRow[]> {
 /**
  * Every month the brand has ever planned — allocations OR a target row (a
  * month can carry only a reserve or a revenue target). Newest first; two cheap
- * month-grain GROUP BYs merged in JS, same shape as `budgetHistory`.
+ * month-grain GROUP BYs merged in JS.
  */
 export async function plannedMonths(): Promise<string[]> {
   const acct = await getActiveAccountId();

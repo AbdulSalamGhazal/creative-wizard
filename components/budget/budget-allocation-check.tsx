@@ -4,10 +4,11 @@ import { useMemo } from "react";
 import { Wallet } from "lucide-react";
 import { DataTable, type DataColumn } from "@/components/ui/data-table";
 import { PlatformDot } from "@/components/ui/platform-dot";
-import { ALL_PLATFORMS, PLATFORM_LABEL } from "@/lib/palette";
+import { PLATFORM_LABEL } from "@/lib/palette";
 import { signedPct } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import {
+  BUDGET_OBJECTIVES,
   curveExpected,
   pacingDeviation,
   pacingTone,
@@ -21,21 +22,22 @@ import { formatSpend, type BudgetCurrency } from "@/components/budget/budget-sha
 
 interface CheckRow {
   key: string;
-  kind: "platform" | "combo";
-  platform: string;
-  objective: string | null;
+  kind: "objective" | "combo";
+  objective: string;
+  platform: string | null;
   planned: number;
   actual: number;
   /** Actual spend on a combo with no allocation — the reserve's territory. */
   unplanned: boolean;
 }
 
-const comboKey = (p: string, o: string) => `${p}|${o}`;
+const comboKey = (o: string, p: string) => `${o}|${p}`;
 
 /**
  * The allocation check: did the month's money land where the plan put it?
- * Platform groups with objective children, plan vs actual side by side, and
- * "unplanned" rows for combos that spent without an allocation.
+ * Grouped by Budget's own objective buckets, each with its platforms beneath,
+ * plan vs actual side by side, and "unplanned" rows for combos that spent
+ * without an allocation.
  *
  * The unplanned rows are the point of the invariant, not decoration: the Actual
  * total here must equal the month's RAW `performance_records` total exactly
@@ -61,34 +63,34 @@ export function BudgetAllocationCheck({
 
   const rows: CheckRow[] = useMemo(() => {
     const planned = new Map(
-      data.allocations.map((a) => [comboKey(a.platform, a.objective), a.plannedSpend]),
+      data.allocations.map((a) => [comboKey(a.objective, a.platform), a.plannedSpend]),
     );
     const actual = new Map(
-      data.actualSpendByCombo.map((c) => [comboKey(c.platform, c.objective), c.actualSpend]),
+      data.actualSpendByCombo.map((c) => [comboKey(c.objective, c.platform), c.actualSpend]),
     );
 
     const out: CheckRow[] = [];
-    for (const platform of ALL_PLATFORMS) {
+    for (const objective of BUDGET_OBJECTIVES) {
       const combos = new Set<string>();
-      for (const k of planned.keys()) if (k.startsWith(`${platform}|`)) combos.add(k);
-      for (const k of actual.keys()) if (k.startsWith(`${platform}|`)) combos.add(k);
+      for (const k of planned.keys()) if (k.startsWith(`${objective}|`)) combos.add(k);
+      for (const k of actual.keys()) if (k.startsWith(`${objective}|`)) combos.add(k);
       if (combos.size === 0) continue;
       const children: CheckRow[] = [...combos]
         .map((k) => ({
           key: k,
           kind: "combo" as const,
-          platform,
-          objective: k.split("|")[1]!,
+          objective,
+          platform: k.split("|")[1]!,
           planned: planned.get(k) ?? 0,
           actual: actual.get(k) ?? 0,
           unplanned: !planned.has(k),
         }))
-        .sort((a, b) => (a.objective < b.objective ? -1 : 1));
+        .sort((a, b) => (a.platform! < b.platform! ? -1 : 1));
       out.push({
-        key: platform,
-        kind: "platform",
-        platform,
-        objective: null,
+        key: objective,
+        kind: "objective",
+        objective,
+        platform: null,
         planned: children.reduce((s, c) => s + c.planned, 0),
         actual: children.reduce((s, c) => s + c.actual, 0),
         unplanned: false,
@@ -120,25 +122,23 @@ export function BudgetAllocationCheck({
   );
 
   const columns: DataColumn<CheckRow>[] = useMemo(() => {
-    const label = (r: CheckRow) =>
-      PLATFORM_LABEL[r.platform as keyof typeof PLATFORM_LABEL] ?? r.platform;
+    const platformLabel = (r: CheckRow) =>
+      PLATFORM_LABEL[r.platform as keyof typeof PLATFORM_LABEL] ?? r.platform ?? "";
     const rowDeviation = (r: CheckRow) =>
       pacingDeviation(r.actual, curveExpected(r.planned, month, weights, elapsedDays));
 
     return [
       {
         key: "item",
-        label: "Platform / objective",
+        label: "Objective / platform",
         pinned: true,
         render: (r) =>
-          r.kind === "platform" ? (
-            <span className="inline-flex items-center gap-2 font-medium">
-              <PlatformDot platform={r.platform as never} size="sm" />
-              {label(r)}
-            </span>
+          r.kind === "objective" ? (
+            <span className="font-medium">{r.objective}</span>
           ) : (
             <span className="inline-flex items-center gap-2 pl-6">
-              {r.objective}
+              <PlatformDot platform={r.platform as never} size="sm" />
+              {platformLabel(r)}
               {r.unplanned && (
                 <span className="rounded bg-surface-2 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-ink-3">
                   unplanned
@@ -147,9 +147,9 @@ export function BudgetAllocationCheck({
             </span>
           ),
         csv: (r) =>
-          r.kind === "platform"
-            ? label(r)
-            : `  ${r.objective}${r.unplanned ? " (unplanned)" : ""}`,
+          r.kind === "objective"
+            ? r.objective
+            : `  ${platformLabel(r)}${r.unplanned ? " (unplanned)" : ""}`,
         total: () => <span className="text-ink-3">Total</span>,
       },
       {
@@ -242,9 +242,9 @@ export function BudgetAllocationCheck({
       rowKey={(r) => r.key}
       showTotals={rows.length > 0}
       minWidthClass="min-w-[720px]"
-      csvFileName={`budget-pacing-allocations-${month}-${currency.toLowerCase()}`}
+      csvFileName={`budget-allocations-${month}-${currency.toLowerCase()}`}
       rowClassName={(r) =>
-        cn(r.kind === "platform" && "bg-surface-2/50 font-medium", r.unplanned && "opacity-70")
+        cn(r.kind === "objective" && "bg-surface-2/50 font-medium", r.unplanned && "opacity-70")
       }
       empty={
         <div className="flex flex-col items-center gap-2 py-12 text-center">

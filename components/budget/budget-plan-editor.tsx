@@ -36,10 +36,10 @@ import {
 import { DataTable, type DataColumn } from "@/components/ui/data-table";
 import { PlatformDot } from "@/components/ui/platform-dot";
 import { ALL_PLATFORMS, PLATFORM_LABEL } from "@/lib/palette";
-import { CAMPAIGN_OBJECTIVES } from "@/lib/campaign";
 import { int, pct1, sar, usd } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import {
+  BUDGET_OBJECTIVES,
   curveFraction,
   daysInMonth,
   distributeRemainder,
@@ -94,7 +94,8 @@ const parse = (raw: string | undefined) => {
 
 /**
  * The Plan page body — a PURE PLANNING surface (2026-09). It holds the month's
- * USD allocations per platform → objective, the SAR revenue target, the reserve
+ * USD allocations per platform → budget objective (Awareness / Activation /
+ * Retargeting / Other — Budget's own axis), the SAR revenue target, the reserve
  * and the day-weight curve, and nothing about what was actually spent: no
  * actuals, no pacing, no variance. Plan-vs-actual lives on Overview (and, next,
  * its own Pacing tab), so this screen can be about intent alone.
@@ -217,11 +218,15 @@ export function BudgetPlanEditor({
     [editing, drafts, data.allocations],
   );
 
-  /** A platform's objective keys, in the table's order. */
+  /** A platform's objective keys, in the canonical bucket order. */
   const keysFor = (platform: string) =>
     [...planned.keys()]
       .filter((k) => k.startsWith(`${platform}|`))
-      .sort((a, b) => (a < b ? -1 : 1));
+      .sort(
+        (a, b) =>
+          BUDGET_OBJECTIVES.indexOf(a.split("|")[1] as (typeof BUDGET_OBJECTIVES)[number]) -
+          BUDGET_OBJECTIVES.indexOf(b.split("|")[1] as (typeof BUDGET_OBJECTIVES)[number]),
+      );
 
   const platformSum = (platform: string) =>
     round2(keysFor(platform).reduce((s, k) => s + (planned.get(k) ?? 0), 0));
@@ -831,7 +836,7 @@ export function BudgetPlanEditor({
                 <SelectValue placeholder="Objective…" />
               </SelectTrigger>
               <SelectContent>
-                {CAMPAIGN_OBJECTIVES.map((o) => (
+                {BUDGET_OBJECTIVES.map((o) => (
                   <SelectItem key={o} value={o}>
                     {o}
                   </SelectItem>

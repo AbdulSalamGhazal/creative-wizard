@@ -288,6 +288,13 @@
       "when": 1788942689848,
       "tag": "0040_budget_plan_revisions",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1788942690848,
+      "tag": "0041_budget_objective_buckets",
+      "breakpoints": true
     }
   ]
 }

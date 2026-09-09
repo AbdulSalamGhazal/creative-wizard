@@ -18,13 +18,15 @@ import {
   replaceBudgetMonth,
   copyBudgetMonth,
   budgetPacingSeries,
-  budgetHistory,
+  budgetPlansForMonths,
 } from "@/db/queries/budget";
 import { writeStoreBatch } from "@/db/queries/store";
 import { resetAndSeed } from "./fixtures";
 
 const UPLOADER = "dddddddd-0000-0000-0000-0000000000f1";
 const MONTH = "2026-01"; // the fixtures' perf month (incl. one EXCLUDED row)
+const M_START = "2026-01-01";
+const M_END = "2026-01-31";
 const setAccount = (id: string) =>
   vi.mocked(getActiveAccountId).mockResolvedValue(id);
 
@@ -37,7 +39,7 @@ describe("budget module — raw actuals, plans, scoping", () => {
   it("unplanned bucket invariant: combo totals == raw month total, EXCLUDED RECORDS INCLUDED", async () => {
     // Plan covers only (instagram, Sales); facebook spend exists with no plan.
     await replaceBudgetMonth(db, ACCOUNT_A, MONTH, {
-      allocations: [{ platform: "instagram", objective: "Sales", plannedSpend: 1500 }],
+      allocations: [{ platform: "instagram", objective: "Other", plannedSpend: 1500 }],
       plannedRevenueSar: null,
     });
 
@@ -57,7 +59,7 @@ describe("budget module — raw actuals, plans, scoping", () => {
   it("copy-last-month replicates allocations + target; replace overwrites cleanly", async () => {
     await replaceBudgetMonth(db, ACCOUNT_A, "2026-01", {
       allocations: [
-        { platform: "instagram", objective: "Sales", plannedSpend: 1000 },
+        { platform: "instagram", objective: "Other", plannedSpend: 1000 },
         { platform: "facebook", objective: "Awareness", plannedSpend: 500 },
       ],
       plannedRevenueSar: 25000,
@@ -83,7 +85,7 @@ describe("budget module — raw actuals, plans, scoping", () => {
 
   it("unique (account, month, platform, objective) refuses duplicate combos", async () => {
     await replaceBudgetMonth(db, ACCOUNT_A, MONTH, {
-      allocations: [{ platform: "tiktok", objective: "Sales", plannedSpend: 100 }],
+      allocations: [{ platform: "tiktok", objective: "Other", plannedSpend: 100 }],
       plannedRevenueSar: null,
     });
     await expect(
@@ -94,7 +96,7 @@ describe("budget module — raw actuals, plans, scoping", () => {
           accountId: ACCOUNT_A,
           month: "2026-01-01",
           platform: "tiktok",
-          objective: "Sales",
+          objective: "Other",
           plannedSpend: "999.00",
         });
       }),
@@ -103,7 +105,7 @@ describe("budget module — raw actuals, plans, scoping", () => {
 
   it("is account-scoped — B sees neither A's plan nor A's actuals", async () => {
     await replaceBudgetMonth(db, ACCOUNT_A, MONTH, {
-      allocations: [{ platform: "instagram", objective: "Sales", plannedSpend: 1000 }],
+      allocations: [{ platform: "instagram", objective: "Other", plannedSpend: 1000 }],
       plannedRevenueSar: 9000,
     });
     setAccount(ACCOUNT_B);
@@ -184,7 +186,7 @@ describe("budget v2 — day weights, reserve, daily series, history", () => {
   });
 
   it("per-day spend equals raw per-day totals — EXCLUDED RECORDS INCLUDED", async () => {
-    const { spend, days } = await budgetPacingSeries(MONTH);
+    const { spend, days } = await budgetPacingSeries(M_START, M_END);
     expect(days).toHaveLength(31);
     // The UI folds the sparse spend rows onto the dense day list; do the same.
     const byDay = new Map<number, number>();
@@ -200,8 +202,22 @@ describe("budget v2 — day weights, reserve, daily series, history", () => {
     expect(sum).toBeCloseTo(await rawMonthSpendTotal(MONTH), 2);
   });
 
+  it("campaign objectives are folded onto Budget's buckets before they leave the query", async () => {
+    // Every fixture campaign is "Sales" — a campaign objective with no budget
+    // bucket of its own, so Budget sees it as "Other".
+    const data = await getBudgetMonth(MONTH);
+    expect(data.actualSpendByCombo.every((c) => c.objective === "Other")).toBe(true);
+    // …and the fold does not lose or duplicate money.
+    const comboTotal = data.actualSpendByCombo.reduce((s, c) => s + c.actualSpend, 0);
+    expect(comboTotal).toBeCloseTo(await rawMonthSpendTotal(MONTH), 2);
+
+    const { spend } = await budgetPacingSeries(M_START, M_END);
+    expect(spend.every((r) => r.objective === "Other")).toBe(true);
+    expect(spend.reduce((s, r) => s + r.spend, 0)).toBeCloseTo(comboTotal, 2);
+  });
+
   it("spend rows carry the platform and the campaign's CURRENT objective", async () => {
-    const { spend } = await budgetPacingSeries(MONTH);
+    const { spend } = await budgetPacingSeries(M_START, M_END);
     // Every row is a real (date, platform, objective) combo — no zero padding.
     expect(spend.every((r) => r.spend > 0)).toBe(true);
     expect(new Set(spend.map((r) => r.platform))).toEqual(
@@ -248,9 +264,9 @@ describe("budget v2 — day weights, reserve, daily series, history", () => {
       ],
       updates: [],
     });
-    const { days: daily } = await budgetPacingSeries(MONTH);
-    const d5 = daily.find((d) => d.day === 5)!;
-    const d20 = daily.find((d) => d.day === 20)!;
+    const { days: daily } = await budgetPacingSeries(M_START, M_END);
+    const d5 = daily.find((d) => d.date === "2026-01-05")!;
+    const d20 = daily.find((d) => d.date === "2026-01-20")!;
     expect(d5.revenueSar).toBeCloseTo(200, 2);
     expect(d5.orders).toBe(2);
     expect(d20.revenueSar).toBeCloseTo(250.5, 2);
@@ -262,7 +278,7 @@ describe("budget v2 — day weights, reserve, daily series, history", () => {
 
   it("copy-last-month carries weights (day 31 dropped for shorter months) + reserve", async () => {
     await replaceBudgetMonth(db, ACCOUNT_A, "2026-01", {
-      allocations: [{ platform: "instagram", objective: "Sales", plannedSpend: 1000 }],
+      allocations: [{ platform: "instagram", objective: "Other", plannedSpend: 1000 }],
       plannedRevenueSar: 25000,
       reserveSpendUsd: 1500,
       dayWeights: { 15: 2, 31: 3 },
@@ -274,9 +290,9 @@ describe("budget v2 — day weights, reserve, daily series, history", () => {
     expect(feb.plannedRevenueSar).toBeCloseTo(25000, 2);
   });
 
-  it("weights, reserve, pacing series, and history are account-scoped", async () => {
+  it("weights, reserve, pacing series, and plans are account-scoped", async () => {
     await replaceBudgetMonth(db, ACCOUNT_A, MONTH, {
-      allocations: [{ platform: "instagram", objective: "Sales", plannedSpend: 1000 }],
+      allocations: [{ platform: "instagram", objective: "Other", plannedSpend: 1000 }],
       plannedRevenueSar: 9000,
       reserveSpendUsd: 500,
       dayWeights: { 27: 3 },
@@ -286,34 +302,41 @@ describe("budget v2 — day weights, reserve, daily series, history", () => {
     expect(b.dayWeightOverrides).toEqual({});
     expect(b.reserveSpendUsd).toBe(0);
 
-    const bSeries = await budgetPacingSeries(MONTH);
+    const bSeries = await budgetPacingSeries(M_START, M_END);
     expect(bSeries.spend.reduce((s, r) => s + r.spend, 0)).toBeCloseTo(777, 2); // B's row only
 
-    const bHistory = await budgetHistory();
-    const bJan = bHistory.find((r) => r.month === "2026-01");
-    expect(bJan?.plannedSpend ?? 0).toBe(0); // A's plan is invisible to B
-    expect(bJan?.actualSpend).toBeCloseTo(777, 2);
+    const bPlans = await budgetPlansForMonths([MONTH]);
+    expect(bPlans[0]!.allocations).toHaveLength(0); // A's plan is invisible to B
+    expect(bPlans[0]!.plannedRevenueSar).toBeNull();
   });
 
-  it("history merges plan + actuals per month, newest first", async () => {
+  it("budgetPlansForMonths returns one entry per requested month, in order", async () => {
     await replaceBudgetMonth(db, ACCOUNT_A, "2026-01", {
-      allocations: [{ platform: "instagram", objective: "Sales", plannedSpend: 1200 }],
+      allocations: [
+        { platform: "instagram", objective: "Awareness", plannedSpend: 1200 },
+        { platform: "facebook", objective: "Other", plannedSpend: 300 },
+      ],
       plannedRevenueSar: 30000,
       reserveSpendUsd: 300,
+      dayWeights: { 15: 2 },
     });
-    await replaceBudgetMonth(db, ACCOUNT_A, "2026-02", {
-      allocations: [{ platform: "facebook", objective: "Awareness", plannedSpend: 400 }],
-      plannedRevenueSar: null,
-    });
-    const rows = await budgetHistory();
-    expect(rows.map((r) => r.month)).toEqual(["2026-02", "2026-01"]);
-    const jan = rows[1]!;
-    expect(jan.plannedSpend).toBeCloseTo(1200, 2);
-    expect(jan.reserveSpendUsd).toBeCloseTo(300, 2);
-    expect(jan.actualSpend).toBeCloseTo(1400, 2); // raw, excluded included
+
+    // Three months asked for, only one planned — the other two come back empty
+    // rather than missing, so the caller can tell "no plan" from "not fetched".
+    const plans = await budgetPlansForMonths(["2025-12", "2026-01", "2026-02"]);
+    expect(plans.map((p) => p.month)).toEqual(["2025-12", "2026-01", "2026-02"]);
+
+    const jan = plans.find((p) => p.month === "2026-01")!;
+    expect(jan.allocations).toHaveLength(2);
+    expect(jan.allocations.reduce((s, a) => s + a.plannedSpend, 0)).toBeCloseTo(1500, 2);
     expect(jan.plannedRevenueSar).toBeCloseTo(30000, 2);
-    const feb = rows[0]!;
-    expect(feb.plannedRevenueSar).toBeNull();
+    expect(jan.reserveSpendUsd).toBeCloseTo(300, 2);
+    expect(jan.dayWeights).toEqual({ 15: 2 });
+
+    const dec = plans.find((p) => p.month === "2025-12")!;
+    expect(dec.allocations).toEqual([]);
+    expect(dec.plannedRevenueSar).toBeNull();
+    expect(dec.dayWeights).toEqual({});
   });
 });
 
@@ -370,15 +393,14 @@ describe("budget daily — per-metric data horizons", () => {
     });
 
     const { storeDataHorizon } = await import("@/db/queries/series-bounds");
-    const { days: daily } = await budgetPacingSeries(MONTH);
+    const { days: daily } = await budgetPacingSeries(M_START, M_END);
     const overview = await getBudgetMonth(MONTH);
     const storeHorizon = await storeDataHorizon();
 
-    // Sum the Daily rows the page would treat as KNOWN for revenue — i.e.
-    // gated by the STORE horizon, not the ads one.
-    const storeHorizonDay = Number(storeHorizon!.slice(8, 10));
+    // Sum the days Pacing would treat as KNOWN for revenue — i.e. gated by the
+    // STORE horizon, not the ads one.
     const dailyRevenue = daily
-      .filter((d) => d.day <= storeHorizonDay)
+      .filter((d) => d.date <= storeHorizon!)
       .reduce((s, d) => s + d.revenueSar, 0);
     expect(dailyRevenue).toBeCloseTo(overview.actualRevenueSar, 2);
     expect(dailyRevenue).toBeCloseTo(400.5, 2);

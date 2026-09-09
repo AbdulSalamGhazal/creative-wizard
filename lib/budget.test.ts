@@ -28,8 +28,16 @@ import {
   redistributeByPct,
   distributeRemainder,
   scaleAll,
-  weekBuckets,
-  dayBuckets,
+  weekBucketsInRange,
+  dayBucketsInRange,
+  monthBucketsInRange,
+  monthsInRange,
+  monthDayIncrements,
+  stitchPlanByDay,
+  toBudgetObjective,
+  mergeAllocationsToBuckets,
+  BUDGET_OBJECTIVES,
+  type MonthPlan,
 } from "@/lib/budget";
 
 describe("month helpers", () => {
@@ -286,53 +294,204 @@ describe("plan distribution — percentages and rounding", () => {
 });
 
 /**
- * Bucketing for Pacing. Weeks are Sunday-start and never cross a month edge:
- * a bucket that borrowed days from the neighbouring month would be compared
- * against a plan curve that doesn't cover them.
+ * Bucketing for Pacing. Weeks are Sunday-start and CLIPPED to the range: a
+ * bucket that reached outside the range would be compared against days the
+ * user didn't ask for.
  */
-describe("pacing buckets", () => {
-  it("splits a month that starts mid-week into a partial first week", () => {
+describe("pacing buckets over a range", () => {
+  const days = (b: { start: string; end: string }) =>
+    (Date.parse(`${b.end}T00:00:00Z`) - Date.parse(`${b.start}T00:00:00Z`)) / 86_400_000 + 1;
+
+  it("splits a range that starts mid-week into a partial first week", () => {
     // 2026-09-01 is a Tuesday → the first bucket runs Tue..Sat (1–5).
-    const weeks = weekBuckets("2026-09");
-    expect(weeks[0]).toMatchObject({ label: "Sep 1–5", startDay: 1, endDay: 5 });
-    expect(weeks[1]).toMatchObject({ label: "Sep 6–12", startDay: 6, endDay: 12 });
-    expect(weeks.at(-1)).toMatchObject({ label: "Sep 27–30", endDay: 30 });
+    const weeks = weekBucketsInRange("2026-09-01", "2026-09-30");
+    expect(weeks[0]).toMatchObject({ label: "Sep 1–5", start: "2026-09-01", end: "2026-09-05" });
+    expect(weeks[1]).toMatchObject({ label: "Sep 6–12", start: "2026-09-06" });
+    expect(weeks.at(-1)).toMatchObject({ label: "Sep 27–30", end: "2026-09-30" });
   });
 
-  it("covers every day exactly once, with no gaps and no overlap", () => {
-    for (const month of ["2026-01", "2026-02", "2026-09", "2028-02", "2026-11"]) {
-      const weeks = weekBuckets(month);
-      const days = weeks.flatMap((w) =>
-        Array.from({ length: w.endDay - w.startDay + 1 }, (_, i) => w.startDay + i),
-      );
-      const expected = Array.from(
-        { length: days.at(-1)! },
-        (_, i) => i + 1,
-      );
-      expect(days).toEqual(expected);
-      expect(weeks[0]!.startDay).toBe(1);
-      // No bucket is longer than a week.
-      expect(weeks.every((w) => w.endDay - w.startDay < 7)).toBe(true);
+  it("covers every day of the range exactly once, with no gaps or overlap", () => {
+    const ranges: Array<[string, string]> = [
+      ["2026-01-01", "2026-01-31"],
+      ["2026-02-01", "2026-02-28"],
+      ["2026-09-14", "2026-11-03"], // cross-month, mid-week both ends
+      ["2028-02-01", "2028-02-29"], // leap
+    ];
+    for (const [from, to] of ranges) {
+      const weeks = weekBucketsInRange(from, to);
+      expect(weeks[0]!.start).toBe(from);
+      expect(weeks.at(-1)!.end).toBe(to);
+      // Contiguous, and never longer than a week.
+      for (let i = 1; i < weeks.length; i++) {
+        const prevEnd = Date.parse(`${weeks[i - 1]!.end}T00:00:00Z`);
+        const thisStart = Date.parse(`${weeks[i]!.start}T00:00:00Z`);
+        expect(thisStart - prevEnd).toBe(86_400_000);
+      }
+      expect(weeks.every((w) => days(w) <= 7)).toBe(true);
+      expect(weeks.reduce((s, w) => s + days(w), 0)).toBe(days({ start: from, end: to }));
     }
   });
 
-  it("starts a whole first week when the month starts on a Sunday", () => {
+  it("starts a whole first week when the range starts on a Sunday", () => {
     // 2026-02-01 is a Sunday.
-    const weeks = weekBuckets("2026-02");
-    expect(weeks[0]).toMatchObject({ startDay: 1, endDay: 7, label: "Feb 1–7" });
-    expect(weeks).toHaveLength(4); // 28 days, starting Sunday → exactly 4
+    const weeks = weekBucketsInRange("2026-02-01", "2026-02-28");
+    expect(weeks[0]).toMatchObject({ start: "2026-02-01", end: "2026-02-07", label: "Feb 1–7" });
+    expect(weeks).toHaveLength(4);
   });
 
-  it("labels a one-day trailing bucket without a range dash", () => {
-    // 2026-08-01 is a Saturday → day 1 is a bucket on its own.
-    const weeks = weekBuckets("2026-08");
-    expect(weeks[0]).toMatchObject({ startDay: 1, endDay: 1, label: "Aug 1" });
+  it("labels a cross-month week with both months", () => {
+    const weeks = weekBucketsInRange("2026-09-27", "2026-10-10");
+    expect(weeks[0]!.label).toBe("Sep 27–Oct 3");
   });
 
-  it("day buckets are one per day, in the same shape", () => {
-    const days = dayBuckets("2026-02");
-    expect(days).toHaveLength(28);
-    expect(days[0]).toMatchObject({ label: "1", startDay: 1, endDay: 1, key: "2026-02-01" });
-    expect(days.at(-1)).toMatchObject({ label: "28", startDay: 28, endDay: 28 });
+  it("day buckets are one per day", () => {
+    const d = dayBucketsInRange("2026-02-26", "2026-03-02");
+    expect(d.map((b) => b.start)).toEqual([
+      "2026-02-26",
+      "2026-02-27",
+      "2026-02-28",
+      "2026-03-01",
+      "2026-03-02",
+    ]);
+    expect(d[0]!.label).toBe("Feb 26");
+  });
+
+  it("month buckets clip to the range at both ends", () => {
+    const m = monthBucketsInRange("2026-09-10", "2026-11-05");
+    expect(m).toHaveLength(3);
+    expect(m[0]).toMatchObject({ start: "2026-09-10", end: "2026-09-30", label: "Sep 2026" });
+    expect(m[1]).toMatchObject({ start: "2026-10-01", end: "2026-10-31" });
+    expect(m[2]).toMatchObject({ start: "2026-11-01", end: "2026-11-05" });
+  });
+
+  it("monthsInRange lists every month the range touches", () => {
+    expect(monthsInRange("2026-09-28", "2026-12-02")).toEqual([
+      "2026-09",
+      "2026-10",
+      "2026-11",
+      "2026-12",
+    ]);
+    expect(monthsInRange("2026-09-05", "2026-09-06")).toEqual(["2026-09"]);
+  });
+});
+
+/**
+ * Plans are stored per MONTH but Pacing compares arbitrary ranges, so a
+ * month's plan is spread across its days by the day-weight curve and the days
+ * are re-summed per bucket. The property that has to hold: no money is created
+ * or lost in the spreading.
+ */
+describe("plan stitching across months", () => {
+  const near = (a: number, b: number) => expect(Math.abs(a - b)).toBeLessThan(1e-6);
+
+  it("a month's per-day increments sum back to the month's plan", () => {
+    near(monthDayIncrements("2026-09-01", {}, 3000).reduce((s, v) => s + v, 0), 3000);
+    // …and with a payday curve, which redistributes but doesn't change the sum.
+    const weighted = monthDayIncrements("2026-09-01", { 5: 3, 25: 2.5 }, 3000);
+    near(weighted.reduce((s, v) => s + v, 0), 3000);
+    expect(weighted[4]).toBeGreaterThan(weighted[0]!); // day 5 carries more
+  });
+
+  it("with no overrides every day gets an equal share", () => {
+    const inc = monthDayIncrements("2026-04-01", {}, 300); // 30 days
+    expect(inc).toHaveLength(30);
+    for (const v of inc) near(v, 10);
+  });
+
+  it("a zero-weight month plans nothing rather than dividing by zero", () => {
+    const inc = monthDayIncrements("2026-09-01", {}, 0);
+    near(inc.reduce((s, v) => s + v, 0), 0);
+  });
+
+  it("a cross-month range equals the sum of its months", () => {
+    const months: MonthPlan[] = [
+      { month: "2026-09", plannedSpend: 3000, plannedRevenueSar: null, dayWeights: { 15: 2 } },
+      { month: "2026-10", plannedSpend: 6200, plannedRevenueSar: null, dayWeights: {} },
+    ];
+    const byDay = stitchPlanByDay(months, (m) => m.plannedSpend);
+    const sum = (from: string, to: string) => {
+      let total = 0;
+      for (const [iso, value] of byDay) if (iso >= from && iso <= to) total += value;
+      return total;
+    };
+    near(sum("2026-09-01", "2026-09-30"), 3000);
+    near(sum("2026-10-01", "2026-10-31"), 6200);
+    near(sum("2026-09-01", "2026-10-31"), 9200);
+    // A partial slice takes only its days' share.
+    near(sum("2026-10-01", "2026-10-10"), 2000);
+  });
+
+  it("skips months with no plan instead of zero-filling them", () => {
+    const months: MonthPlan[] = [
+      { month: "2026-09", plannedSpend: 100, plannedRevenueSar: null, dayWeights: {} },
+      { month: "2026-10", plannedSpend: 0, plannedRevenueSar: null, dayWeights: {} },
+    ];
+    const byDay = stitchPlanByDay(
+      months,
+      (m) => m.plannedRevenueSar,
+    );
+    expect(byDay.size).toBe(0); // neither month has a revenue target
+  });
+});
+
+/**
+ * Budget's own objective axis. Campaign objectives elsewhere are untouched —
+ * this is the lens Budget looks at them through.
+ */
+describe("budget objective buckets", () => {
+  it("keeps the three mains and sweeps everything else into Other", () => {
+    expect(toBudgetObjective("Awareness")).toBe("Awareness");
+    expect(toBudgetObjective("Activation")).toBe("Activation");
+    expect(toBudgetObjective("Retargeting")).toBe("Retargeting");
+    expect(toBudgetObjective("Sales")).toBe("Other");
+    expect(toBudgetObjective("Prospecting")).toBe("Other");
+    expect(toBudgetObjective("Special Case")).toBe("Other");
+    expect(toBudgetObjective("Other")).toBe("Other");
+    // A campaign objective invented after this code shipped still lands safely.
+    expect(toBudgetObjective("Some Future Objective")).toBe("Other");
+  });
+
+  it("has exactly the four buckets, Other last", () => {
+    expect(BUDGET_OBJECTIVES).toEqual(["Awareness", "Activation", "Retargeting", "Other"]);
+  });
+
+  describe("mergeAllocationsToBuckets", () => {
+    it("sums the rows that collapse into Other on the same platform", () => {
+      const merged = mergeAllocationsToBuckets([
+        { platform: "instagram", objective: "Sales", plannedSpend: 600 },
+        { platform: "instagram", objective: "Prospecting", plannedSpend: 400 },
+        { platform: "instagram", objective: "Awareness", plannedSpend: 250 },
+      ]);
+      expect(merged).toEqual([
+        { platform: "instagram", objective: "Awareness", plannedSpend: 250 },
+        { platform: "instagram", objective: "Other", plannedSpend: 1000 },
+      ]);
+    });
+
+    it("keeps platforms apart", () => {
+      const merged = mergeAllocationsToBuckets([
+        { platform: "instagram", objective: "Sales", plannedSpend: 100 },
+        { platform: "facebook", objective: "Sales", plannedSpend: 50 },
+      ]);
+      expect(merged).toHaveLength(2);
+      expect(merged.every((r) => r.objective === "Other")).toBe(true);
+      expect(merged[0]!.platform).toBe("facebook"); // deterministic order
+    });
+
+    it("passes an already-bucketed plan through unchanged", () => {
+      const rows = [
+        { platform: "tiktok", objective: "Awareness", plannedSpend: 10 },
+        { platform: "tiktok", objective: "Retargeting", plannedSpend: 20 },
+      ];
+      expect(mergeAllocationsToBuckets(rows)).toEqual(rows);
+    });
+
+    it("does not lose cents when summing", () => {
+      const merged = mergeAllocationsToBuckets([
+        { platform: "snapchat", objective: "Sales", plannedSpend: 0.1 },
+        { platform: "snapchat", objective: "Prospecting", plannedSpend: 0.2 },
+      ]);
+      expect(merged[0]!.plannedSpend).toBe(0.3);
+    });
   });
 });

@@ -30,6 +30,7 @@ import {
   platformAnchorId,
   useBudgetCurrency,
 } from "@/components/budget/budget-shared";
+import { BudgetAllocationCheck } from "@/components/budget/budget-allocation-check";
 
 /**
  * The Budget Overview page body — read-only month verdict: KPI tiles with
@@ -349,6 +350,26 @@ export function BudgetOverview({
           </p>
         </div>
       )}
+
+      {/* Allocation check — did the month's money land where the plan put it?
+          Lives here (not on Pacing) because it is a month verdict, and it is
+          where the reconcile-to-raw-total invariant is enforced. */}
+      <section className="space-y-2">
+        <div>
+          <h2 className="text-sm font-medium text-ink">Allocation check</h2>
+          <p className="text-[11px] text-ink-3">
+            Planned vs actual by objective and platform. Spend on a combo with no
+            allocation shows as unplanned — the reserve&rsquo;s territory.
+          </p>
+        </div>
+        <BudgetAllocationCheck
+          month={month}
+          data={data}
+          currency={currency}
+          elapsedDays={elapsed}
+          isCurrentMonth={isCurrentMonth}
+        />
+      </section>
 
       <HorizonNote horizon={horizon} />
     </div>

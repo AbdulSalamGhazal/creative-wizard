@@ -18,6 +18,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { CAMPAIGN_OBJECTIVES } from "@/lib/campaign";
+import { BUDGET_OBJECTIVES } from "@/lib/budget";
 import { ALL_PLATFORMS } from "@/lib/palette";
 
 export const roleEnum = ["admin", "editor", "viewer"] as const;
@@ -742,7 +743,13 @@ export const budgetAllocations = pgTable(
     /** First day of the planned month (e.g. 2026-09-01). */
     month: date("month").notNull(),
     platform: varchar("platform", { length: 16, enum: platformEnum }).notNull(),
-    objective: varchar("objective", { length: 16, enum: campaignObjectiveEnum }).notNull(),
+    /**
+     * Budget's OWN objective axis (`BUDGET_OBJECTIVES`) — coarser than the
+     * campaign vocabulary, so a campaign-objective rename can never strand a
+     * budget row again. Still a plain varchar; migration 0041 remapped the
+     * legacy campaign values into these buckets.
+     */
+    objective: varchar("objective", { length: 16, enum: BUDGET_OBJECTIVES }).notNull(),
     /** Planned spend for the month, USD. */
     plannedSpend: numeric("planned_spend", { precision: 12, scale: 2 }).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

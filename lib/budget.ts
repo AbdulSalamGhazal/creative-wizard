@@ -319,58 +319,218 @@ export function scaleAll(amounts: number[], pct: number): number[] {
   return amounts.map((a) => round2(a * factor));
 }
 
-// ── Bucketing for the Pacing page ────────────────────────────────────────────
+// ── Budget objective buckets ─────────────────────────────────────────────────
+// The Budget module plans against its OWN objective axis, coarser than the
+// campaign vocabulary: the three the team actually budgets for, plus a
+// catch-all. Campaign objectives elsewhere in the system are untouched — this
+// is a budget-local lens applied to them, so a future campaign-objective
+// rename only has to teach `toBudgetObjective` about the new value; it can
+// never strand a `budget_allocations` row again.
 
-export interface MonthBucket {
-  /** Stable key for React + the URL (the bucket's first day of month). */
-  key: string;
-  /** "Sep 1–6" (or "Sep 7" for a one-day bucket). */
-  label: string;
-  /** Inclusive day-of-month bounds; both sides are within the month. */
-  startDay: number;
-  endDay: number;
+export const BUDGET_OBJECTIVES = [
+  "Awareness",
+  "Activation",
+  "Retargeting",
+  "Other",
+] as const;
+
+export type BudgetObjective = (typeof BUDGET_OBJECTIVES)[number];
+
+/** The three that map one-to-one; everything else falls into "Other". */
+const BUDGET_MAIN: ReadonlySet<string> = new Set(
+  BUDGET_OBJECTIVES.filter((o) => o !== "Other"),
+);
+
+/**
+ * A campaign objective seen through the budget lens. Sales, Prospecting,
+ * Special Case — and any objective added later — land in "Other" rather than
+ * inventing a bucket nobody plans against.
+ */
+export function toBudgetObjective(objective: string): BudgetObjective {
+  return BUDGET_MAIN.has(objective) ? (objective as BudgetObjective) : "Other";
+}
+
+/** Sort key so bucketed output is deterministic wherever it is built. */
+export function budgetObjectiveOrder(objective: BudgetObjective): number {
+  return BUDGET_OBJECTIVES.indexOf(objective);
+}
+
+export interface BucketedAllocation {
+  platform: string;
+  objective: BudgetObjective;
+  plannedSpend: number;
 }
 
 /**
- * Calendar weeks (SUNDAY-start, matching the Plan page's day-curve calendar)
- * covering a month. The first and last buckets are partial whenever the month
- * doesn't start or end on the week boundary — deliberately, because a
- * "week" that borrowed days from the neighbouring month would compare against
- * a plan curve that doesn't cover them.
+ * Fold allocations onto the budget buckets, SUMMING rows that collapse
+ * together — two rows on the same platform (say Sales and Prospecting) become
+ * one "Other" row carrying both. Used by the 0041 migration's logic, and by
+ * restore, so a snapshot written under the old vocabulary comes back as a
+ * valid plan instead of failing validation.
  */
-export function weekBuckets(monthIso: string): MonthBucket[] {
-  const start = monthStartIso(monthIso);
-  const total = daysInMonth(start);
-  const firstWeekday = new Date(`${start}T00:00:00Z`).getUTCDay(); // 0 = Sunday
-  const short = new Date(`${start}T00:00:00Z`).toLocaleDateString("en-US", {
+export function mergeAllocationsToBuckets(
+  rows: Array<{ platform: string; objective: string; plannedSpend: number }>,
+): BucketedAllocation[] {
+  const merged = new Map<string, BucketedAllocation>();
+  for (const row of rows) {
+    const objective = toBudgetObjective(row.objective);
+    const key = `${row.platform}|${objective}`;
+    const existing = merged.get(key);
+    if (existing) existing.plannedSpend = round2(existing.plannedSpend + row.plannedSpend);
+    else merged.set(key, { platform: row.platform, objective, plannedSpend: row.plannedSpend });
+  }
+  return [...merged.values()].sort(
+    (a, b) =>
+      (a.platform < b.platform ? -1 : a.platform > b.platform ? 1 : 0) ||
+      budgetObjectiveOrder(a.objective) - budgetObjectiveOrder(b.objective),
+  );
+}
+
+// ── Bucketing over an arbitrary date range (Pacing) ──────────────────────────
+
+export interface RangeBucket {
+  /** Stable key + sort order: the bucket's first ISO date. */
+  key: string;
+  /** Axis/table label — "Sep 1", "Sep 1–6", "Sep 2026". */
+  label: string;
+  /** Inclusive ISO bounds, always clipped INSIDE the requested range. */
+  start: string;
+  end: string;
+}
+
+/** UTC-safe ISO date arithmetic (the whole module works in UTC dates). */
+function isoPlusDays(iso: string, days: number): string {
+  const d = new Date(`${iso}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+function shortMonth(iso: string): string {
+  return new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-US", {
     month: "short",
     timeZone: "UTC",
   });
+}
 
-  const out: MonthBucket[] = [];
-  let day = 1;
-  // The first bucket runs to the end of its calendar week (Saturday).
-  let end = Math.min(total, 7 - firstWeekday);
-  while (day <= total) {
-    out.push({
-      key: `${start.slice(0, 8)}${String(day).padStart(2, "0")}`,
-      label: day === end ? `${short} ${day}` : `${short} ${day}–${end}`,
-      startDay: day,
-      endDay: end,
-    });
-    day = end + 1;
-    end = Math.min(total, day + 6);
+function dayLabel(iso: string): string {
+  return `${shortMonth(iso)} ${Number(iso.slice(8, 10))}`;
+}
+
+/** One bucket per day of the range. */
+export function dayBucketsInRange(from: string, to: string): RangeBucket[] {
+  const out: RangeBucket[] = [];
+  for (let iso = from; iso <= to; iso = isoPlusDays(iso, 1)) {
+    out.push({ key: iso, label: dayLabel(iso), start: iso, end: iso });
   }
   return out;
 }
 
-/** One bucket per day — the Daily granularity, in the same shape as weeks. */
-export function dayBuckets(monthIso: string): MonthBucket[] {
-  const start = monthStartIso(monthIso);
-  return Array.from({ length: daysInMonth(start) }, (_, i) => ({
-    key: `${start.slice(0, 8)}${String(i + 1).padStart(2, "0")}`,
-    label: String(i + 1),
-    startDay: i + 1,
-    endDay: i + 1,
-  }));
+/**
+ * Calendar weeks, SUNDAY-start (matching the Plan page's day-curve calendar),
+ * CLIPPED to the range: the first and last buckets are partial whenever the
+ * range doesn't begin or end on a week boundary. A bucket never reaches outside
+ * the range the user asked for.
+ */
+export function weekBucketsInRange(from: string, to: string): RangeBucket[] {
+  const out: RangeBucket[] = [];
+  let start = from;
+  while (start <= to) {
+    const weekday = new Date(`${start}T00:00:00Z`).getUTCDay(); // 0 = Sunday
+    const weekEnd = isoPlusDays(start, 6 - weekday);
+    const end = weekEnd > to ? to : weekEnd;
+    out.push({
+      key: start,
+      label:
+        start === end
+          ? dayLabel(start)
+          : shortMonth(start) === shortMonth(end)
+            ? `${shortMonth(start)} ${Number(start.slice(8, 10))}–${Number(end.slice(8, 10))}`
+            : `${dayLabel(start)}–${dayLabel(end)}`,
+      start,
+      end,
+    });
+    start = isoPlusDays(end, 1);
+  }
+  return out;
+}
+
+/** Calendar months, clipped to the range (first/last may be partial). */
+export function monthBucketsInRange(from: string, to: string): RangeBucket[] {
+  const out: RangeBucket[] = [];
+  let start = from;
+  while (start <= to) {
+    const monthEnd = `${start.slice(0, 8)}${String(daysInMonth(monthStartIso(start))).padStart(2, "0")}`;
+    const end = monthEnd > to ? to : monthEnd;
+    out.push({
+      key: start,
+      label: `${shortMonth(start)} ${start.slice(0, 4)}`,
+      start,
+      end,
+    });
+    start = isoPlusDays(end, 1);
+  }
+  return out;
+}
+
+// ── Plan stitched across months ──────────────────────────────────────────────
+
+/**
+ * A month's per-day planned amounts (index 0 = day 1), from the day-weight
+ * curve: day d gets `planned × (curveFraction(d) − curveFraction(d−1))`. The
+ * increments sum back to `planned` because the curve fractions are a partition
+ * of 1 — that property is what lets an arbitrary date range be compared
+ * against a plan that is only ever stored per month.
+ */
+export function monthDayIncrements(
+  monthIso: string,
+  overrides: Record<number, number>,
+  planned: number,
+): number[] {
+  const weights = dayWeights(monthIso, overrides);
+  const total = weights.reduce((s, w) => s + w, 0);
+  if (total <= 0) return weights.map(() => 0);
+  return weights.map((w) => (planned * w) / total);
+}
+
+/** What a month contributes to a stitched plan: its scoped total + its curve. */
+export interface MonthPlan {
+  /** YYYY-MM */
+  month: string;
+  plannedSpend: number;
+  plannedRevenueSar: number | null;
+  dayWeights: Record<number, number>;
+}
+
+/**
+ * Planned amounts per ISO date across every month a range touches. Months with
+ * no plan contribute nothing (not zero-filled days — the caller distinguishes
+ * "no plan" from "planned zero" by the map being empty for that month).
+ */
+export function stitchPlanByDay(
+  months: MonthPlan[],
+  pick: (m: MonthPlan) => number | null,
+): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const m of months) {
+    const planned = pick(m);
+    if (planned === null) continue;
+    const start = monthStartIso(m.month);
+    const increments = monthDayIncrements(start, m.dayWeights, planned);
+    increments.forEach((value, i) => {
+      out.set(`${start.slice(0, 8)}${String(i + 1).padStart(2, "0")}`, value);
+    });
+  }
+  return out;
+}
+
+/** Every YYYY-MM a range touches, ascending. */
+export function monthsInRange(from: string, to: string): string[] {
+  const out: string[] = [];
+  let month = from.slice(0, 7);
+  const last = to.slice(0, 7);
+  while (month <= last) {
+    out.push(month);
+    month = nextMonthKey(month);
+  }
+  return out;
 }

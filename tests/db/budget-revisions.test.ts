@@ -37,7 +37,7 @@ const setAccount = (id: string) => vi.mocked(getActiveAccountId).mockResolvedVal
 const PLAN_A = {
   month: MONTH,
   allocations: [
-    { platform: "instagram", objective: "Sales", plannedSpend: 1000 },
+    { platform: "instagram", objective: "Other", plannedSpend: 1000 },
     { platform: "facebook", objective: "Awareness", plannedSpend: 500 },
   ],
   plannedRevenueSar: 25_000,
@@ -47,7 +47,7 @@ const PLAN_A = {
 
 const PLAN_B = {
   month: MONTH,
-  allocations: [{ platform: "tiktok", objective: "Prospecting", plannedSpend: 800 }],
+  allocations: [{ platform: "tiktok", objective: "Retargeting", plannedSpend: 800 }],
   plannedRevenueSar: null,
   reserveSpendUsd: 0,
   dayWeights: [],
@@ -132,7 +132,7 @@ describe("plan revisions — restore", () => {
       restored.allocations
         .map((a) => `${a.platform}|${a.objective}|${a.plannedSpend}`)
         .sort(),
-    ).toEqual(["facebook|Awareness|500", "instagram|Sales|1000"]);
+    ).toEqual(["facebook|Awareness|500", "instagram|Other|1000"]);
     expect(restored.plannedRevenueSar).toBe(25_000);
     expect(restored.reserveSpendUsd).toBeCloseTo(250, 4);
     expect(restored.dayWeightOverrides).toEqual({ 15: 2 });
@@ -161,26 +161,27 @@ describe("plan revisions — restore", () => {
     expect((await getBudgetMonth(MONTH)).allocations).toHaveLength(0);
   });
 
-  it("fails LOUDLY on a snapshot whose vocabulary no longer validates", async () => {
-    await saveBudgetMonth(PLAN_A);
-    // A snapshot written before an objective was retired: structurally fine,
-    // but planSchema must refuse it rather than half-applying the rest.
+  it("restores a pre-bucket snapshot by folding its objectives into Other", async () => {
+    await saveBudgetMonth(PLAN_B);
+    // A snapshot written before Budget got its own objective axis: campaign
+    // objectives, two of which now collapse onto the same bucket + platform.
     await db.insert(budgetPlanRevisions).values({
       accountId: ACCOUNT_A,
       month: "2026-01-01",
       snapshot: {
         allocations: [
-          { platform: "instagram", objective: "Sales", plannedSpend: 10 },
-          { platform: "instagram", objective: "Video Views", plannedSpend: 90 },
+          { platform: "instagram", objective: "Sales", plannedSpend: 600 },
+          { platform: "instagram", objective: "Prospecting", plannedSpend: 400 },
+          { platform: "instagram", objective: "Awareness", plannedSpend: 250 },
         ],
-        plannedRevenueSar: null,
+        plannedRevenueSar: 12_000,
         reserveSpendUsd: 0,
         dayWeights: {},
       },
       note: "legacy",
       savedBy: USER,
     });
-    const [stale] = await db
+    const [legacy] = await db
       .select({ id: budgetPlanRevisions.id })
       .from(budgetPlanRevisions)
       .where(
@@ -190,7 +191,45 @@ describe("plan revisions — restore", () => {
         ),
       );
 
-    const res = await restorePlanRevision({ revisionId: stale!.id });
+    const res = await restorePlanRevision({ revisionId: legacy!.id });
+    expect(res.ok).toBe(true);
+
+    const after = await getBudgetMonth(MONTH);
+    // Sales + Prospecting merged into ONE Other row carrying both amounts —
+    // no money invented, none lost, and no unique-index collision.
+    expect(
+      after.allocations.map((a) => `${a.platform}|${a.objective}|${a.plannedSpend}`).sort(),
+    ).toEqual(["instagram|Awareness|250", "instagram|Other|1000"]);
+    expect(after.allocations.reduce((s, a) => s + a.plannedSpend, 0)).toBeCloseTo(1250, 4);
+    expect(after.plannedRevenueSar).toBe(12_000);
+  });
+
+  it("still fails LOUDLY on a snapshot that is not a valid plan", async () => {
+    await saveBudgetMonth(PLAN_A);
+    await db.insert(budgetPlanRevisions).values({
+      accountId: ACCOUNT_A,
+      month: "2026-01-01",
+      snapshot: {
+        // A platform that no longer exists can't be folded into anything.
+        allocations: [{ platform: "myspace", objective: "Awareness", plannedSpend: 10 }],
+        plannedRevenueSar: null,
+        reserveSpendUsd: 0,
+        dayWeights: {},
+      },
+      note: "bad-platform",
+      savedBy: USER,
+    });
+    const [bad] = await db
+      .select({ id: budgetPlanRevisions.id })
+      .from(budgetPlanRevisions)
+      .where(
+        and(
+          eq(budgetPlanRevisions.accountId, ACCOUNT_A),
+          eq(budgetPlanRevisions.note, "bad-platform"),
+        ),
+      );
+
+    const res = await restorePlanRevision({ revisionId: bad!.id });
     expect(res.ok).toBe(false);
     expect(res.error).toMatch(/can't be restored/i);
     // The live plan is exactly what it was — no partial application.
@@ -198,6 +237,7 @@ describe("plan revisions — restore", () => {
     expect(after.allocations).toHaveLength(2);
     expect(after.plannedRevenueSar).toBe(25_000);
   });
+
 });
 
 describe("plannedMonths()", () => {
