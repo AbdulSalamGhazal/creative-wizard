@@ -658,8 +658,9 @@ This app is deployed and in production use. Treat `main` as shippable.
   (SAR) vs store actuals, paced along a **day-weight curve** (only non-1 day
   weights stored in `budget_day_weights`; no-overrides ≡ v1 linear, unit-pinned;
   ONE curve for spend AND revenue; projection = actual ÷ elapsed curve
-  fraction) plus a **reserve budget** (`budget_targets.reserve_spend_usd`,
-  deliberately OUTSIDE the curve; "used" = the month's unplanned actual spend).
+  fraction) plus a **reserve** (`budget_targets.reserve_spend_usd`, part of the total and
+  carved out of it, deliberately OUTSIDE the curve; "used" = the month's
+  unplanned actual spend).
   Standing decisions: actual spend deliberately applies **NO exclusion
   filtering** anywhere in Budget (raw `performance_records` totals, per-day
   included — budget totals may differ from dashboards; never "fix" this);
@@ -677,14 +678,35 @@ This app is deployed and in production use. Treat `main` as shippable.
     REMOVED; plan-vs-actual lives on Overview (and, next, its own Pacing tab).
     `getBudgetMonth()` still returns `actualSpendByCombo` for its other
     callers — don't reshape it; the Plan page just ignores it.
-  - **% distribution is display math, amounts are the storage.**
-    `budget_allocations.planned_spend` (USD) stays the only truth. Edit mode's
-    month-total budget and per-platform targets are DRAFT-ONLY (never
-    persisted), and every share is computed live. The pure helpers live in
-    `lib/budget.ts` (`round2`, `pctShare`, `splitByWeights`,
-    `redistributeByPct`, `distributeRemainder`, `scaleAll`) and work in integer
-    cents so a split's parts sum EXACTLY — never re-derive them per component.
-    Guidance only: an imperfect split must never block Save.
+  - **The Plan editor is a TOP-DOWN CASCADE (2026-09): targets → platform
+    shares → objective shares → day curve.** Percentages are the PRIMARY input;
+    amounts are derived cents-exactly from them (amounts stay editable and
+    back-compute their share against a held parent). `budget_allocations
+    .planned_spend` (USD) is still the only storage — SAVE stores the derived
+    amounts, EDIT reconstructs the shares from them (total = Σ allocations +
+    reserve) at full precision, so a round-trip is exact. Pure helpers in
+    `lib/budget.ts`: `allocatableFromTotal`, `reserveShare`/`reserveFromShare`,
+    `amountsFromShares`, `shareFromAmount`, `sharesComplete`,
+    `distributeShareEvenly`, `transferFromReserve` — plus the cents-exact
+    `splitByWeights`/`distributeRemainder` they build on. Never re-derive this
+    math per component.
+  - **The RESERVE is part of the TOTAL, not on top of it (2026-09 framing).**
+    `allocatable = total − reserve`; the reserve is money carved out and not yet
+    allocated. Storage (`budget_targets.reserve_spend_usd`) is UNCHANGED, and it
+    still sits OUTSIDE the day-weight curve — the curve paces the ALLOCATED plan
+    only. Overview's "used = the month's unplanned actual spend" reading still
+    holds: spend outside the plan draws the reserve down.
+  - **Save is BLOCKED below 100% (user decision).** Platform shares must reach
+    exactly 100% of the allocatable and every planned platform's objective
+    shares must reach exactly 100%; the banner names each gap and "Distribute
+    remaining evenly" fixes it in one click. Money not yet committed belongs in
+    the RESERVE, never in a gap. Rounding must never block — `SHARE_EPSILON`
+    tolerates float dust only, and derived amounts are cents-exact.
+  - **Two mid-month operations, KEEP THEM DISTINCT.** Changing the total (or
+    reserve) RESCALES everything through the current shares. "Move from reserve"
+    moves money: the reserve falls, one platform's dollars rise, every other
+    platform's dollars are untouched (only their displayed shares move). Don't
+    collapse them into one control — the difference is the whole point.
   - **Plan revisions (`budget_plan_revisions`, migration 0040, additive).**
     Every write that changes a plan — `saveBudgetMonth`, `copyBudgetFromMonth`,
     `restorePlanRevision` — appends a jsonb snapshot of the plan AS IT STANDS

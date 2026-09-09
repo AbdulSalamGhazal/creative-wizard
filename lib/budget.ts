@@ -140,7 +140,8 @@ export function spendInDisplayCurrency(
 // Only OVERRIDDEN days are stored (absent day = weight 1), so a month with no
 // overrides normalizes to exactly the linear v1 curve. ONE curve drives both
 // spend and revenue pacing/projection (user decision). The reserve budget is
-// deliberately OUTSIDE the curve — contingency, not scheduled spend.
+// deliberately OUTSIDE the curve — it is part of the total, held back rather
+// than scheduled, so only the ALLOCATED plan is paced.
 
 /** A day weight must be a positive number, at most 10. */
 export function validateWeight(weight: number): boolean {
@@ -533,4 +534,135 @@ export function monthsInRange(from: string, to: string): string[] {
     month = nextMonthKey(month);
   }
   return out;
+}
+
+// ── Top-down planning cascade (Plan editor, 2026-09) ─────────────────────────
+// The editor works top-down: a total spend budget, a reserve carved OUT of it,
+// then percentage shares down two levels — platform share of the allocatable,
+// objective share of its platform. SHARES are the primary state; amounts are
+// derived cents-exactly from them (`splitByWeights`), which is what makes
+// "change the total" a pure rescale and what keeps a 33.3/33.3/33.4 split
+// summing to exactly the parent instead of a cent short.
+
+/** How close a set of shares must come to 100% — float dust only, not slack. */
+export const SHARE_EPSILON = 0.005;
+
+/**
+ * What's actually allocatable: the total minus the reserve. The reserve is
+ * PART of the total, held back to decide later — not money on top of it.
+ */
+export function allocatableFromTotal(total: number, reserve: number): number {
+  return round2(Math.max(0, total - reserve));
+}
+
+/** The reserve as a share of the total (dual entry). NULL with no total. */
+export function reserveShare(reserve: number, total: number): number | null {
+  if (total <= 0) return null;
+  return (reserve / total) * 100;
+}
+
+/** The reserve amount a share of the total implies, clamped into the total. */
+export function reserveFromShare(share: number, total: number): number {
+  if (!Number.isFinite(share) || total <= 0) return 0;
+  return round2((total * Math.min(100, Math.max(0, share))) / 100);
+}
+
+/**
+ * The amounts a set of shares implies over a parent total.
+ *
+ * Each row gets literally its own percentage of the parent — deliberately NOT
+ * `splitByWeights`, which normalises the weights and would hand the whole
+ * budget to a platform typed at 50% before its siblings exist. Mid-edit, 80%
+ * assigned places 80% of the money and the rest is visibly unassigned, which is
+ * what the 100%-or-no-save rule is there to surface. Rounding is still settled
+ * by largest remainder, so once the shares DO reach 100% the parts sum to the
+ * parent exactly.
+ */
+export function amountsFromShares(parentTotal: number, shares: number[]): number[] {
+  const totalCents = Math.round(round2(parentTotal) * 100);
+  if (shares.length === 0) return [];
+  if (totalCents <= 0) return shares.map(() => 0);
+  const raw = shares.map((s) => {
+    const share = Number.isFinite(s) ? Math.max(0, s) : 0;
+    return (totalCents * share) / 100;
+  });
+  const target = Math.round(raw.reduce((sum, v) => sum + v, 0));
+  const out = raw.map((v) => Math.floor(v));
+  let left = target - out.reduce((sum, c) => sum + c, 0);
+  const byRemainder = raw
+    .map((v, i) => ({ i, frac: v - Math.floor(v) }))
+    .sort((a, b) => b.frac - a.frac || a.i - b.i);
+  for (let k = 0; k < byRemainder.length && left > 0; k++, left--) {
+    out[byRemainder[k]!.i] = out[byRemainder[k]!.i]! + 1;
+  }
+  return out.map((c) => c / 100);
+}
+
+/**
+ * The share an amount represents of its parent — the back-computation when
+ * someone types a dollar figure instead of a percentage. Full precision on
+ * purpose: rounding here to the displayed 1dp would move the OTHER rows'
+ * money, which is exactly what a secondary input must not do.
+ */
+export function shareFromAmount(amount: number, parentTotal: number): number {
+  if (parentTotal <= 0) return 0;
+  return (amount / parentTotal) * 100;
+}
+
+/** How much share is still unassigned (negative = over-assigned). */
+export function shareRemainder(shares: number[]): number {
+  return round2(100 - shares.reduce((s, v) => s + (Number.isFinite(v) ? v : 0), 0));
+}
+
+/** Do these shares add up to 100%? Tolerant of float dust, nothing more. */
+export function sharesComplete(shares: number[]): boolean {
+  if (shares.length === 0) return false;
+  return Math.abs(shareRemainder(shares)) < SHARE_EPSILON;
+}
+
+/**
+ * Spread whatever share is unassigned evenly across the rows, landing on
+ * exactly 100%. The one-click fix for the editor's blocked-save state.
+ */
+export function distributeShareEvenly(shares: number[]): number[] {
+  if (shares.length === 0) return shares;
+  return distributeRemainder(shares, shareRemainder(shares));
+}
+
+export interface ReserveTransfer {
+  /** Per-platform amounts after the move — only the target changed. */
+  amounts: number[];
+  /** What's left in the reserve. */
+  reserve: number;
+  /** The new allocatable (the total is unchanged; the reserve shrank). */
+  allocatable: number;
+  /** Shares of the NEW allocatable — full precision, so no row drifts a cent. */
+  shares: number[];
+}
+
+/**
+ * Move money out of the reserve and into ONE platform. This is a transfer, not
+ * a re-plan: every other platform keeps its exact dollars, and only their
+ * displayed percentages move (the allocatable grew beneath them). Returns null
+ * when there isn't that much reserve to move.
+ */
+export function transferFromReserve(
+  amounts: number[],
+  index: number,
+  transfer: number,
+  reserve: number,
+): ReserveTransfer | null {
+  if (index < 0 || index >= amounts.length) return null;
+  if (!Number.isFinite(transfer) || transfer <= 0) return null;
+  const moved = round2(transfer);
+  if (moved > round2(reserve)) return null;
+
+  const next = amounts.map((a, i) => (i === index ? round2(a + moved) : a));
+  const allocatable = round2(next.reduce((s, a) => s + a, 0));
+  return {
+    amounts: next,
+    reserve: round2(reserve - moved),
+    allocatable,
+    shares: next.map((a) => shareFromAmount(a, allocatable)),
+  };
 }

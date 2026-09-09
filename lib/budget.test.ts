@@ -37,6 +37,15 @@ import {
   toBudgetObjective,
   mergeAllocationsToBuckets,
   BUDGET_OBJECTIVES,
+  allocatableFromTotal,
+  reserveShare,
+  reserveFromShare,
+  amountsFromShares,
+  shareFromAmount,
+  shareRemainder,
+  sharesComplete,
+  distributeShareEvenly,
+  transferFromReserve,
   type MonthPlan,
 } from "@/lib/budget";
 
@@ -492,6 +501,210 @@ describe("budget objective buckets", () => {
         { platform: "snapchat", objective: "Prospecting", plannedSpend: 0.2 },
       ]);
       expect(merged[0]!.plannedSpend).toBe(0.3);
+    });
+  });
+});
+
+/**
+ * The Plan editor's top-down cascade: total → reserve → platform shares →
+ * objective shares. Shares are the primary state and amounts are derived, so
+ * the properties that matter are (a) derived amounts always sum to their
+ * parent, (b) editing the total is a pure rescale, and (c) a reserve transfer
+ * moves money without disturbing anyone else's dollars.
+ */
+describe("planning cascade", () => {
+  const sum = (xs: number[]) => round2(xs.reduce((s, x) => s + x, 0));
+
+  describe("reserve carved out of the total", () => {
+    it("allocatable is the total minus the reserve", () => {
+      expect(allocatableFromTotal(10_000, 1_500)).toBe(8_500);
+      expect(allocatableFromTotal(10_000, 0)).toBe(10_000);
+      // A reserve bigger than the total leaves nothing to allocate, not a
+      // negative pot.
+      expect(allocatableFromTotal(1_000, 5_000)).toBe(0);
+    });
+
+    it("converts between a reserve amount and a share of the total", () => {
+      expect(reserveShare(1_500, 10_000)).toBeCloseTo(15, 6);
+      expect(reserveShare(0, 10_000)).toBe(0);
+      expect(reserveShare(100, 0)).toBeNull();
+      expect(reserveFromShare(15, 10_000)).toBe(1_500);
+      expect(reserveFromShare(12.5, 8_000)).toBe(1_000);
+      // Out-of-range input clamps rather than producing nonsense.
+      expect(reserveFromShare(150, 10_000)).toBe(10_000);
+      expect(reserveFromShare(-5, 10_000)).toBe(0);
+    });
+
+    it("round-trips a reserve through its share", () => {
+      const total = 12_345.67;
+      const reserve = 2_000;
+      expect(reserveFromShare(reserveShare(reserve, total)!, total)).toBeCloseTo(reserve, 2);
+    });
+  });
+
+  describe("shares → amounts", () => {
+    it("derived amounts sum to the parent, even on an awkward split", () => {
+      const amounts = amountsFromShares(10_000, [33.3, 33.3, 33.4]);
+      expect(sum(amounts)).toBe(10_000);
+      const thirds = amountsFromShares(100, [33.33, 33.33, 33.34]);
+      expect(sum(thirds)).toBe(100);
+    });
+
+    it("scales proportionally", () => {
+      expect(amountsFromShares(1_000, [50, 30, 20])).toEqual([500, 300, 200]);
+      expect(amountsFromShares(0, [50, 50])).toEqual([0, 0]);
+    });
+
+    it("an INCOMPLETE split places only what has been assigned", () => {
+      // Mid-edit, one platform typed: it gets half the budget, not all of it.
+      expect(amountsFromShares(10_000, [50, 0, 0, 0])).toEqual([5_000, 0, 0, 0]);
+      // 80% assigned → $8,000 placed; the missing $2,000 is what the
+      // 100%-or-no-save rule makes the planner deal with.
+      expect(amountsFromShares(10_000, [50, 30])).toEqual([5_000, 3_000]);
+      // Over-assigned overshoots rather than being quietly normalised back.
+      expect(amountsFromShares(10_000, [60, 60])).toEqual([6_000, 6_000]);
+    });
+
+    it("changing the total is a pure rescale through the same shares", () => {
+      const shares = [50, 30, 20];
+      expect(amountsFromShares(10_000, shares)).toEqual([5_000, 3_000, 2_000]);
+      // Double the budget: every platform keeps its share, so every amount
+      // doubles — this is what "editing the total rescales everything" means.
+      expect(amountsFromShares(20_000, shares)).toEqual([10_000, 6_000, 4_000]);
+      expect(sum(amountsFromShares(7_777.77, shares))).toBe(7_777.77);
+    });
+
+    it("back-computes a share from a typed amount, holding the parent", () => {
+      expect(shareFromAmount(2_500, 10_000)).toBe(25);
+      expect(shareFromAmount(0, 10_000)).toBe(0);
+      expect(shareFromAmount(100, 0)).toBe(0); // nothing to be a share OF
+      // Full precision on purpose — rounding here would move other rows.
+      expect(shareFromAmount(1_000, 3_000)).toBeCloseTo(33.3333333, 6);
+    });
+
+    it("a typed amount round-trips back to itself", () => {
+      const parent = 8_500;
+      const typed = 1_234.56;
+      const share = shareFromAmount(typed, parent);
+      const [derived] = amountsFromShares(parent, [share, 100 - share]);
+      expect(derived).toBeCloseTo(typed, 2);
+    });
+  });
+
+  describe("the 100% rule", () => {
+    it("accepts a split that reaches 100 and rejects one that doesn't", () => {
+      expect(sharesComplete([50, 30, 20])).toBe(true);
+      expect(sharesComplete([33.3, 33.3, 33.4])).toBe(true);
+      expect(sharesComplete([40, 45])).toBe(false); // 85% — 15% unassigned
+      expect(sharesComplete([60, 50])).toBe(false); // over-assigned
+      expect(sharesComplete([])).toBe(false);
+    });
+
+    it("accepts the full-precision shares a transfer produces", () => {
+      // A transfer writes shares as amount ÷ allocatable, so they are long
+      // decimals rather than the tidy numbers someone types.
+      const amounts = [4_000, 2_400, 2_600];
+      const allocatable = 9_000;
+      const shares = amounts.map((a) => shareFromAmount(a, allocatable));
+      expect(shares[0]).toBeCloseTo(44.4444444, 6);
+      expect(sharesComplete(shares)).toBe(true);
+      expect(sharesComplete([100 / 3, 100 / 3, 100 / 3])).toBe(true);
+    });
+
+    it("absorbs float dust but not a real gap", () => {
+      // The epsilon exists for binary-addition dust, which is orders of
+      // magnitude below a cent of share — not to wave through a 0.01% hole.
+      expect(sharesComplete([50, 49.999_999])).toBe(true);
+      expect(sharesComplete([50, 49.99])).toBe(false);
+    });
+
+    it("reports exactly how much is unassigned", () => {
+      expect(shareRemainder([40, 45])).toBe(15);
+      expect(shareRemainder([60, 50])).toBe(-10);
+      expect(shareRemainder([100])).toBe(0);
+    });
+
+    it("distribute-evenly lands on exactly 100", () => {
+      const fixed = distributeShareEvenly([40, 45]);
+      expect(sum(fixed)).toBe(100);
+      expect(sharesComplete(fixed)).toBe(true);
+      expect(fixed).toEqual([47.5, 52.5]);
+
+      // Three rows, indivisible remainder — still exactly 100.
+      const thirds = distributeShareEvenly([0, 0, 0]);
+      expect(sum(thirds)).toBe(100);
+      expect(sharesComplete(thirds)).toBe(true);
+
+      // Already complete: a no-op.
+      expect(distributeShareEvenly([50, 50])).toEqual([50, 50]);
+    });
+  });
+
+  describe("transfer from reserve", () => {
+    // $10k total, $2k reserve → $8k allocatable split 50/30/20.
+    const amounts = [4_000, 2_400, 1_600];
+
+    it("moves money to one platform and leaves the others' dollars alone", () => {
+      const out = transferFromReserve(amounts, 2, 1_000, 2_000)!;
+      expect(out.amounts).toEqual([4_000, 2_400, 2_600]);
+      expect(out.reserve).toBe(1_000);
+      expect(out.allocatable).toBe(9_000);
+      // The untouched platforms keep their exact dollars…
+      const rederived = amountsFromShares(out.allocatable, out.shares);
+      expect(rederived[0]).toBeCloseTo(4_000, 2);
+      expect(rederived[1]).toBeCloseTo(2_400, 2);
+      expect(rederived[2]).toBeCloseTo(2_600, 2);
+      // …while their SHARES fall, because the allocatable grew beneath them.
+      expect(out.shares[0]).toBeCloseTo(44.444, 3);
+      expect(out.shares[2]).toBeCloseTo(28.889, 3);
+      expect(sharesComplete(out.shares)).toBe(true);
+    });
+
+    it("refuses to move more than the reserve holds", () => {
+      expect(transferFromReserve(amounts, 0, 2_500, 2_000)).toBeNull();
+      expect(transferFromReserve(amounts, 0, 0, 2_000)).toBeNull();
+      expect(transferFromReserve(amounts, 0, -100, 2_000)).toBeNull();
+      expect(transferFromReserve(amounts, 9, 100, 2_000)).toBeNull();
+    });
+
+    it("can empty the reserve exactly", () => {
+      const out = transferFromReserve(amounts, 1, 2_000, 2_000)!;
+      expect(out.reserve).toBe(0);
+      expect(out.allocatable).toBe(10_000); // the whole total is allocated now
+      expect(sum(out.amounts)).toBe(10_000);
+    });
+
+    it("the total is unchanged — money moved, not created", () => {
+      const before = sum(amounts) + 2_000;
+      const out = transferFromReserve(amounts, 0, 750, 2_000)!;
+      expect(sum(out.amounts) + out.reserve).toBeCloseTo(before, 2);
+    });
+  });
+
+  describe("reconstructing shares from stored amounts", () => {
+    it("round-trips a stored plan back to the same amounts", () => {
+      // What the DB holds: per platform × objective amounts, plus the reserve.
+      const stored = [3_500, 2_500, 1_500, 500];
+      const reserve = 2_000;
+      const allocatable = sum(stored);
+      const total = round2(allocatable + reserve);
+      expect(total).toBe(10_000);
+
+      // Editing reconstructs the shares…
+      const shares = stored.map((a) => shareFromAmount(a, allocatable));
+      expect(sharesComplete(shares)).toBe(true);
+      expect(reserveShare(reserve, total)).toBeCloseTo(20, 6);
+
+      // …and deriving straight back gives the stored amounts, to the cent.
+      expect(amountsFromShares(allocatable, shares)).toEqual(stored);
+    });
+
+    it("round-trips an awkward plan too", () => {
+      const stored = [1_111.11, 2_222.22, 3_333.33, 1.01];
+      const allocatable = sum(stored);
+      const shares = stored.map((a) => shareFromAmount(a, allocatable));
+      expect(amountsFromShares(allocatable, shares)).toEqual(stored);
+      expect(sharesComplete(shares)).toBe(true);
     });
   });
 });

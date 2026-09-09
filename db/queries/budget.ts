@@ -54,7 +54,7 @@ export interface BudgetMonthData {
   monthIso: string;
   allocations: BudgetAllocationRow[];
   plannedRevenueSar: number | null;
-  /** Contingency USD on top of the plan — OUTSIDE the curve (see schema). */
+  /** The reserve (USD) — part of the total, not yet allocated; outside the curve. */
   reserveSpendUsd: number;
   /** Day-weight overrides (only non-1 days are stored; absent = 1). */
   dayWeightOverrides: Record<number, number>;
@@ -201,7 +201,7 @@ export async function rawMonthSpendTotal(month: string): Promise<number> {
 export interface BudgetPlanInput {
   allocations: Array<{ platform: string; objective: string; plannedSpend: number }>;
   plannedRevenueSar: number | null;
-  /** Contingency USD (0 = none). */
+  /** The reserve (USD), carved out of the total (0 = none). */
   reserveSpendUsd?: number;
   /** Day-weight overrides; only non-1 valid weights are persisted. */
   dayWeights?: Record<number, number>;

@@ -779,9 +779,10 @@ export const budgetTargets = pgTable(
     month: date("month").notNull(),
     plannedRevenueSar: numeric("planned_revenue_sar", { precision: 14, scale: 2 }).notNull(),
     /**
-     * Contingency spend (USD) on top of the planned allocations. Tracked
-     * against the month's UNPLANNED actual spend; deliberately OUTSIDE the
-     * day-weight curve and pacing (contingency, not scheduled spend).
+     * The month's reserve (USD) — part of the TOTAL budget, carved out and
+     * not yet allocated to a platform/objective. Tracked against the month's
+     * UNPLANNED actual spend; deliberately OUTSIDE the day-weight curve and
+     * pacing, which pace the ALLOCATED plan only.
      */
     reserveSpendUsd: numeric("reserve_spend_usd", { precision: 12, scale: 2 })
       .notNull()

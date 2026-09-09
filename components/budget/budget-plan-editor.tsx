@@ -3,14 +3,14 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
+  ArrowRightLeft,
   Check,
+  ChevronDown,
+  ChevronRight,
   CopyPlus,
   Pencil,
-  Percent,
-  Plus,
   RotateCcw,
   Split,
-  Trash2,
   Wallet,
   X,
 } from "lucide-react";
@@ -25,7 +25,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Select,
   SelectContent,
@@ -40,19 +39,25 @@ import { int, pct1, sar, usd } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import {
   BUDGET_OBJECTIVES,
-  curveFraction,
+  allocatableFromTotal,
+  amountsFromShares,
   daysInMonth,
-  distributeRemainder,
+  distributeShareEvenly,
   monthLabel,
   monthStartIso,
   pctShare,
   prevMonthKey,
-  redistributeByPct,
+  reserveFromShare,
+  reserveShare,
   round2,
-  scaleAll,
+  shareFromAmount,
+  shareRemainder,
+  sharesComplete,
   spendInDisplayCurrency,
+  transferFromReserve,
   validateRate,
   validateWeight,
+  type BudgetObjective,
 } from "@/lib/budget";
 import {
   saveBudgetMonth,
@@ -74,9 +79,8 @@ interface PlanRow {
   kind: "platform" | "combo";
   platform: string;
   objective: string | null;
-  /** USD. For a platform row: its target when one is set, else the row sum. */
   planned: number;
-  /** Percent of the row's denominator (platform → month, objective → platform). */
+  /** Percent of the row's parent (platform → allocatable, objective → platform). */
   share: number | null;
 }
 
@@ -91,19 +95,48 @@ const parse = (raw: string | undefined) => {
   const n = Number(raw ?? "");
   return Number.isFinite(n) ? n : 0;
 };
+const platformLabel = (p: string) =>
+  PLATFORM_LABEL[p as keyof typeof PLATFORM_LABEL] ?? p;
+
+/** The editor's draft: shares are primary, amounts are derived from them. */
+interface Draft {
+  /** Total spend budget, USD — the number everything else is a share of. */
+  total: string;
+  /** Reserve, USD. Carved OUT of the total: allocatable = total − reserve. */
+  reserve: string;
+  revenue: string;
+  /** platform → share of the allocatable, as typed. */
+  platformShares: Record<string, string>;
+  /** `platform|objective` → share of THAT platform's amount. */
+  objectiveShares: Record<string, string>;
+}
+
+const emptyDraft: Draft = {
+  total: "",
+  reserve: "",
+  revenue: "",
+  platformShares: {},
+  objectiveShares: {},
+};
 
 /**
- * The Plan page body — a PURE PLANNING surface (2026-09). It holds the month's
- * USD allocations per platform → budget objective (Awareness / Activation /
- * Retargeting / Other — Budget's own axis), the SAR revenue target, the reserve
- * and the day-weight curve, and nothing about what was actually spent: no
- * actuals, no pacing, no variance. Plan-vs-actual lives on Overview (and, next,
- * its own Pacing tab), so this screen can be about intent alone.
+ * The Plan page body — a PURE PLANNING surface, edited TOP-DOWN (2026-09).
  *
- * Percentages are an EDITING AFFORDANCE ONLY — amounts remain the stored truth
- * (`budget_allocations.planned_spend`); every share here is computed live from
- * the drafts and never persisted. Each save writes a plan revision, so any past
- * state can be inspected and restored from the Revisions drawer.
+ * Edit mode is a cascade: a total spend budget and a revenue target, a reserve
+ * carved out of the total (money deliberately not decided yet), then percentage
+ * shares down two levels — each platform's share of the allocatable, and each
+ * objective's share of its platform. Percentages are the primary input and the
+ * dollar amounts are derived from them cents-exactly, which is what makes
+ * "change the total" a clean rescale: every share holds, every amount follows.
+ *
+ * Save is blocked until the shares add to exactly 100% at both levels — money
+ * you don't want to commit belongs in the reserve, not in a gap. Moving money
+ * out of the reserve later is a separate, explicit operation that leaves every
+ * other platform's dollars alone.
+ *
+ * Storage is unchanged: derived amounts land in `budget_allocations`, and
+ * opening the editor reconstructs the shares from them, so a round-trip is
+ * exact.
  */
 export function BudgetPlanEditor({
   month,
@@ -116,7 +149,7 @@ export function BudgetPlanEditor({
   month: string; // YYYY-MM
   today: string; // ISO date
   data: BudgetMonthData;
-  /** Months that already have a plan — the "Copy from month…" options. */
+  /** Months that already have a plan — the Copy dialog's options. */
   plannedMonths: string[];
   revisions: PlanRevisionRow[];
   canManage: boolean;
@@ -132,209 +165,267 @@ export function BudgetPlanEditor({
 
   // ── Edit state ─────────────────────────────────────────────────────────────
   const [editing, setEditing] = useState(false);
-  const [drafts, setDrafts] = useState<Map<string, string>>(new Map());
-  const [revenueDraft, setRevenueDraft] = useState<string>("");
-  const [reserveDraft, setReserveDraft] = useState<string>("");
+  const [draft, setDraft] = useState<Draft>(emptyDraft);
   const [weightsDraft, setWeightsDraft] = useState<Record<number, number>>({});
   const [note, setNote] = useState("");
-  /** Optional month-wide budget the shares are measured against. Draft-only. */
-  const [monthTotalDraft, setMonthTotalDraft] = useState("");
-  /** Optional per-platform intent — the "unallocated" chips need something to
-   *  measure against. Draft-only, never stored. */
-  const [targets, setTargets] = useState<Map<string, string>>(new Map());
-  /** The % cell being typed in — its raw text, so a keystroke isn't reformatted
-   *  out from under the caret by the recomputed share. */
-  const [pctEdit, setPctEdit] = useState<{ key: string; raw: string } | null>(null);
+  const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
+  /** The share cell being typed in — raw text, so a keystroke isn't reformatted
+   *  out from under the caret by the recomputed value. */
+  const [shareEdit, setShareEdit] = useState<{ key: string; raw: string } | null>(null);
+  const [totalFocused, setTotalFocused] = useState(false);
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
-  const [addPlatform, setAddPlatform] = useState<string>("");
-  const [addObjective, setAddObjective] = useState<string>("");
   const [copyOpen, setCopyOpen] = useState(false);
   const [copyFrom, setCopyFrom] = useState<string>("");
-  const [scaleOpen, setScaleOpen] = useState(false);
-  const [scaleDraft, setScaleDraft] = useState("");
+  const [moveOpen, setMoveOpen] = useState(false);
+  const [moveAmount, setMoveAmount] = useState("");
+  const [movePlatform, setMovePlatform] = useState<string>(ALL_PLATFORMS[0]);
   const [rateDraft, setRateDraft] = useState<string | null>(null);
 
+  /**
+   * Rebuild the cascade from what's stored: the total is the allocated sum plus
+   * the reserve, and every share is its amount over its parent — at full
+   * precision, so deriving straight back gives the same amounts to the cent.
+   */
   const startEditing = () => {
-    setDrafts(
-      new Map(
-        data.allocations.map((a) => [comboKey(a.platform, a.objective), String(a.plannedSpend)]),
-      ),
+    const allocated = round2(
+      data.allocations.reduce((s, a) => s + a.plannedSpend, 0),
     );
-    setRevenueDraft(data.plannedRevenueSar === null ? "" : String(data.plannedRevenueSar));
-    setReserveDraft(data.reserveSpendUsd > 0 ? String(data.reserveSpendUsd) : "");
+    const reserve = data.reserveSpendUsd;
+    const platformShares: Record<string, string> = {};
+    const objectiveShares: Record<string, string> = {};
+    for (const platform of ALL_PLATFORMS) {
+      const rows = data.allocations.filter((a) => a.platform === platform);
+      const platformSum = round2(rows.reduce((s, a) => s + a.plannedSpend, 0));
+      if (platformSum <= 0 && rows.length === 0) continue;
+      platformShares[platform] = String(shareFromAmount(platformSum, allocated));
+      for (const row of rows) {
+        objectiveShares[comboKey(platform, row.objective)] = String(
+          shareFromAmount(row.plannedSpend, platformSum),
+        );
+      }
+    }
+    setDraft({
+      total: allocated + reserve > 0 ? String(round2(allocated + reserve)) : "",
+      reserve: reserve > 0 ? String(reserve) : "",
+      revenue: data.plannedRevenueSar === null ? "" : String(data.plannedRevenueSar),
+      platformShares,
+      objectiveShares,
+    });
     setWeightsDraft({ ...data.dayWeightOverrides });
-    setMonthTotalDraft("");
-    setTargets(new Map());
+    setExpanded(new Set(Object.keys(platformShares)));
     setNote("");
-    setPctEdit(null);
+    setShareEdit(null);
     setSelectedDay(null);
     setEditing(true);
   };
   const stopEditing = () => {
     setEditing(false);
-    setDrafts(new Map());
-    setRevenueDraft("");
-    setReserveDraft("");
+    setDraft(emptyDraft);
     setWeightsDraft({});
-    setMonthTotalDraft("");
-    setTargets(new Map());
+    setExpanded(new Set());
     setNote("");
-    setPctEdit(null);
+    setShareEdit(null);
     setSelectedDay(null);
   };
-  const dirty = useMemo(() => {
-    if (!editing) return false;
-    const orig = new Map(
-      data.allocations.map((a) => [comboKey(a.platform, a.objective), a.plannedSpend]),
-    );
-    if (orig.size !== drafts.size) return true;
-    for (const [k, v] of drafts) {
-      if (!orig.has(k) || parse(v) !== orig.get(k)) return true;
-    }
-    const origRev = data.plannedRevenueSar === null ? "" : String(data.plannedRevenueSar);
-    if (revenueDraft.trim() !== origRev) return true;
-    if (parse(reserveDraft) !== data.reserveSpendUsd) return true;
-    // Weights: compare only the meaningful (non-1) overrides.
-    const clean = (o: Record<number, number>) =>
-      Object.entries(o)
-        .filter(([, w]) => w !== 1)
-        .sort(([a], [b]) => Number(a) - Number(b))
-        .map(([d, w]) => `${d}:${w}`)
-        .join(",");
-    return clean(weightsDraft) !== clean(data.dayWeightOverrides);
-  }, [editing, drafts, revenueDraft, reserveDraft, weightsDraft, data]);
 
-  // The curve the page shows: the draft while editing, the stored one otherwise.
-  const activeWeights = editing ? weightsDraft : data.dayWeightOverrides;
+  // ── Derivation ─────────────────────────────────────────────────────────────
+  const total = round2(parse(draft.total));
+  const reserve = round2(parse(draft.reserve));
+  const allocatable = allocatableFromTotal(total, reserve);
 
-  // ── Allocation model ───────────────────────────────────────────────────────
-  const planned = useMemo(
+  /** Platforms carrying a share — the ones the cascade is actually planning. */
+  const activePlatforms: string[] = useMemo(
     () =>
-      editing
-        ? new Map([...drafts].map(([k, v]) => [k, parse(v)]))
-        : new Map(
-            data.allocations.map((a) => [comboKey(a.platform, a.objective), a.plannedSpend]),
-          ),
-    [editing, drafts, data.allocations],
+      ALL_PLATFORMS.filter(
+        (p) => draft.platformShares[p] !== undefined && draft.platformShares[p] !== "",
+      ),
+    [draft.platformShares],
   );
 
-  /** A platform's objective keys, in the canonical bucket order. */
-  const keysFor = (platform: string) =>
-    [...planned.keys()]
-      .filter((k) => k.startsWith(`${platform}|`))
-      .sort(
-        (a, b) =>
-          BUDGET_OBJECTIVES.indexOf(a.split("|")[1] as (typeof BUDGET_OBJECTIVES)[number]) -
-          BUDGET_OBJECTIVES.indexOf(b.split("|")[1] as (typeof BUDGET_OBJECTIVES)[number]),
+  const platformShareList = activePlatforms.map((p) => parse(draft.platformShares[p]));
+  const platformAmounts = amountsFromShares(allocatable, platformShareList);
+  const amountOf = (platform: string) =>
+    platformAmounts[activePlatforms.indexOf(platform)] ?? 0;
+
+  const objectiveSharesOf = (platform: string) =>
+    BUDGET_OBJECTIVES.map((o) => parse(draft.objectiveShares[comboKey(platform, o)]));
+  const objectiveAmountsOf = (platform: string) =>
+    amountsFromShares(amountOf(platform), objectiveSharesOf(platform));
+
+  // ── Validation: 100% or no save ────────────────────────────────────────────
+  const problems = useMemo(() => {
+    if (!editing) return [];
+    const out: string[] = [];
+    if (total <= 0) out.push("Set a total spend budget.");
+    if (reserve > total) out.push("The reserve is larger than the total budget.");
+    if (activePlatforms.length === 0) {
+      out.push("Give at least one platform a share.");
+      return out;
+    }
+    if (!sharesComplete(platformShareList)) {
+      const left = shareRemainder(platformShareList);
+      out.push(
+        left > 0
+          ? `Platform shares: ${pct1((100 - left) / 100)} — ${pct1(left / 100)} unassigned`
+          : `Platform shares: ${pct1((100 - left) / 100)} — ${pct1(-left / 100)} over`,
       );
+    }
+    for (const platform of activePlatforms) {
+      const shares = objectiveSharesOf(platform);
+      if (sharesComplete(shares)) continue;
+      const left = shareRemainder(shares);
+      out.push(
+        left > 0
+          ? `${platformLabel(platform)} objectives: ${pct1((100 - left) / 100)} — ${pct1(left / 100)} unassigned`
+          : `${platformLabel(platform)} objectives: ${pct1((100 - left) / 100)} — ${pct1(-left / 100)} over`,
+      );
+    }
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editing, draft, total, reserve, activePlatforms]);
 
-  const platformSum = (platform: string) =>
-    round2(keysFor(platform).reduce((s, k) => s + (planned.get(k) ?? 0), 0));
+  const canSave = editing && problems.length === 0;
 
-  const grandTotal = round2([...planned.values()].reduce((s, v) => s + v, 0));
+  // ── Draft mutations ────────────────────────────────────────────────────────
+  const setField = (patch: Partial<Draft>) => setDraft((d) => ({ ...d, ...patch }));
 
-  /** The platform's intent, when the planner typed one. */
-  const targetOf = (platform: string): number | null => {
-    if (!editing) return null;
-    const raw = targets.get(platform);
-    if (raw === undefined || raw.trim() === "") return null;
-    return round2(parse(raw));
+  const setPlatformShare = (platform: string, raw: string) =>
+    setDraft((d) => ({
+      ...d,
+      platformShares: { ...d.platformShares, [platform]: raw },
+      // A platform joining the cascade starts with an empty objective split.
+      objectiveShares: d.objectiveShares,
+    }));
+
+  const setObjectiveShare = (platform: string, objective: string, raw: string) =>
+    setDraft((d) => ({
+      ...d,
+      objectiveShares: { ...d.objectiveShares, [comboKey(platform, objective)]: raw },
+    }));
+
+  /** A typed dollar amount becomes a share of its parent, parent held fixed. */
+  const setPlatformAmount = (platform: string, rawAmount: string) =>
+    setPlatformShare(platform, String(shareFromAmount(parse(rawAmount), allocatable)));
+  const setObjectiveAmount = (platform: string, objective: string, rawAmount: string) =>
+    setObjectiveShare(
+      platform,
+      objective,
+      String(shareFromAmount(parse(rawAmount), amountOf(platform))),
+    );
+
+  const togglePlatform = (platform: string) => {
+    setDraft((d) => {
+      const next = { ...d.platformShares };
+      const objectives = { ...d.objectiveShares };
+      if (next[platform] === undefined) {
+        next[platform] = "";
+      } else {
+        delete next[platform];
+        for (const o of BUDGET_OBJECTIVES) delete objectives[comboKey(platform, o)];
+      }
+      return { ...d, platformShares: next, objectiveShares: objectives };
+    });
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(platform)) next.delete(platform);
+      else next.add(platform);
+      return next;
+    });
   };
-  /** What a platform's objective shares are measured against. */
-  const platformDenom = (platform: string) => targetOf(platform) ?? platformSum(platform);
-  const monthTotal = monthTotalDraft.trim() === "" ? null : round2(parse(monthTotalDraft));
-  const monthDenom = editing ? (monthTotal ?? grandTotal) : grandTotal;
+
+  const distributePlatforms = () => {
+    const fixed = distributeShareEvenly(platformShareList);
+    setDraft((d) => {
+      const next = { ...d.platformShares };
+      activePlatforms.forEach((p, i) => (next[p] = String(fixed[i] ?? 0)));
+      return { ...d, platformShares: next };
+    });
+  };
+
+  const distributeObjectives = (platform: string) => {
+    const fixed = distributeShareEvenly(objectiveSharesOf(platform));
+    setDraft((d) => {
+      const next = { ...d.objectiveShares };
+      BUDGET_OBJECTIVES.forEach(
+        (o, i) => (next[comboKey(platform, o)] = String(fixed[i] ?? 0)),
+      );
+      return { ...d, objectiveShares: next };
+    });
+  };
+
+  /**
+   * Move money out of the reserve into one platform. Deliberately NOT a
+   * re-plan: the other platforms keep their dollars and only their displayed
+   * shares move, because the allocatable grew beneath them.
+   */
+  const doMove = () => {
+    const amount = round2(parse(moveAmount));
+    const index = activePlatforms.indexOf(movePlatform);
+    if (index < 0) {
+      toast.error(`${platformLabel(movePlatform)} has no share to move money into.`);
+      return;
+    }
+    const result = transferFromReserve(platformAmounts, index, amount, reserve);
+    if (!result) {
+      toast.error(
+        amount > reserve
+          ? `The reserve only holds ${usd(reserve)}.`
+          : "Enter an amount to move.",
+      );
+      return;
+    }
+    setDraft((d) => {
+      const shares = { ...d.platformShares };
+      activePlatforms.forEach((p, i) => (shares[p] = String(result.shares[i] ?? 0)));
+      return { ...d, reserve: String(result.reserve), platformShares: shares };
+    });
+    // Pre-fill the revision note — this is a decision worth recording, and the
+    // author can still edit or clear it before saving.
+    if (note.trim() === "") {
+      setNote(`Moved ${usd(amount)} from reserve to ${platformLabel(movePlatform)}`);
+    }
+    setMoveOpen(false);
+    setMoveAmount("");
+    toast.success(`Moved ${usd(amount)} to ${platformLabel(movePlatform)}`);
+  };
+
+  // ── View-mode rows ─────────────────────────────────────────────────────────
+  const storedAllocated = round2(
+    data.allocations.reduce((s, a) => s + a.plannedSpend, 0),
+  );
 
   const rows: PlanRow[] = useMemo(() => {
     const out: PlanRow[] = [];
     for (const platform of ALL_PLATFORMS) {
-      const keys = keysFor(platform);
-      if (keys.length === 0) continue;
-      const denom = platformDenom(platform);
+      const mine = data.allocations.filter((a) => a.platform === platform);
+      if (mine.length === 0) continue;
+      const platformSum = round2(mine.reduce((s, a) => s + a.plannedSpend, 0));
       out.push({
         key: platform,
         kind: "platform",
         platform,
         objective: null,
-        planned: targetOf(platform) ?? platformSum(platform),
-        share: pctShare(targetOf(platform) ?? platformSum(platform), monthDenom),
+        planned: platformSum,
+        share: pctShare(platformSum, storedAllocated),
       });
-      for (const k of keys) {
-        const amount = planned.get(k) ?? 0;
+      for (const objective of BUDGET_OBJECTIVES) {
+        const row = mine.find((a) => a.objective === objective);
+        if (!row) continue;
         out.push({
-          key: k,
+          key: comboKey(platform, objective),
           kind: "combo",
           platform,
-          objective: k.split("|")[1]!,
-          planned: amount,
-          share: pctShare(amount, denom),
+          objective,
+          planned: row.plannedSpend,
+          share: pctShare(row.plannedSpend, platformSum),
         });
       }
     }
     return out;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [planned, targets, monthTotalDraft, editing]);
+  }, [data.allocations, storedAllocated]);
 
-  // ── Draft mutations ────────────────────────────────────────────────────────
-  const setDraft = (key: string, value: string) =>
-    setDrafts((prev) => new Map(prev).set(key, value));
-  const removeDraft = (key: string) =>
-    setDrafts((prev) => {
-      const next = new Map(prev);
-      next.delete(key);
-      return next;
-    });
-  /** Write a computed set of amounts back onto a platform's rows. */
-  const applyAmounts = (keys: string[], amounts: number[]) =>
-    setDrafts((prev) => {
-      const next = new Map(prev);
-      keys.forEach((k, i) => next.set(k, String(amounts[i] ?? 0)));
-      return next;
-    });
-
-  /** Editing a row's % holds its platform's total and rescales the siblings. */
-  const setRowPct = (platform: string, key: string, raw: string) => {
-    const keys = keysFor(platform);
-    const amounts = keys.map((k) => planned.get(k) ?? 0);
-    const index = keys.indexOf(key);
-    if (index < 0) return;
-    applyAmounts(keys, redistributeByPct(amounts, index, parse(raw), platformDenom(platform)));
-  };
-
-  /** Editing a platform's % sets its intent as a share of the month total. */
-  const setPlatformPct = (platform: string, raw: string) => {
-    if (monthTotal === null) return;
-    const share = Math.min(100, Math.max(0, parse(raw)));
-    setTargets((prev) =>
-      new Map(prev).set(platform, String(round2((monthTotal * share) / 100))),
-    );
-  };
-
-  const distributeRemaining = (platform: string) => {
-    const keys = keysFor(platform);
-    const target = targetOf(platform);
-    if (target === null || keys.length === 0) return;
-    const amounts = keys.map((k) => planned.get(k) ?? 0);
-    applyAmounts(keys, distributeRemainder(amounts, round2(target - platformSum(platform))));
-  };
-
-  const applyScale = () => {
-    const pct = Number(scaleDraft);
-    if (!Number.isFinite(pct) || scaleDraft.trim() === "") {
-      toast.error("Enter a percentage, e.g. 10 or −5.");
-      return;
-    }
-    const keys = [...planned.keys()];
-    applyAmounts(keys, scaleAll(keys.map((k) => planned.get(k) ?? 0), pct));
-    setScaleOpen(false);
-    setScaleDraft("");
-  };
-
-  // ── Table ──────────────────────────────────────────────────────────────────
-  const columns: DataColumn<PlanRow>[] = useMemo(() => {
-    const label = (r: PlanRow) =>
-      PLATFORM_LABEL[r.platform as keyof typeof PLATFORM_LABEL] ?? r.platform;
-    return [
+  const columns: DataColumn<PlanRow>[] = useMemo(
+    () => [
       {
         key: "item",
         label: "Platform / objective",
@@ -343,148 +434,64 @@ export function BudgetPlanEditor({
           r.kind === "platform" ? (
             <span className="inline-flex items-center gap-2 font-medium">
               <PlatformDot platform={r.platform as never} size="sm" />
-              {label(r)}
-              {editing && platformChip(r.platform)}
+              {platformLabel(r.platform)}
             </span>
           ) : (
             <span className="inline-flex items-center gap-2 pl-6">{r.objective}</span>
           ),
-        csv: (r) => (r.kind === "platform" ? label(r) : `  ${r.objective}`),
+        csv: (r) =>
+          r.kind === "platform" ? platformLabel(r.platform) : `  ${r.objective}`,
         total: () => <span className="text-ink-3">Total</span>,
       },
       {
         key: "planned",
-        label: editing ? "Planned (USD)" : `Planned (${currency})`,
+        label: `Planned (${currency})`,
         align: "right",
-        render: (r) => {
-          if (!editing) return <span className="num tabular-nums">{fmtSpend(r.planned)}</span>;
-          if (r.kind === "platform") {
-            return (
-              <Input
-                value={targets.get(r.platform) ?? ""}
-                onChange={(e) =>
-                  setTargets((prev) => new Map(prev).set(r.platform, numeric(e.target.value)))
-                }
-                placeholder={String(platformSum(r.platform))}
-                className="h-7 w-28 text-right num"
-                aria-label={`Budget for ${label(r)}`}
-              />
-            );
-          }
-          return (
-            <span className="inline-flex items-center justify-end gap-1">
-              <Input
-                value={drafts.get(r.key) ?? ""}
-                onChange={(e) => setDraft(r.key, numeric(e.target.value))}
-                className="h-7 w-24 text-right num"
-                aria-label={`Planned spend for ${r.platform} ${r.objective}`}
-              />
-              <button
-                type="button"
-                onClick={() => removeDraft(r.key)}
-                className="text-ink-3 hover:text-neg"
-                aria-label="Remove allocation"
-              >
-                <Trash2 className="h-3 w-3" />
-              </button>
-            </span>
-          );
-        },
+        render: (r) => <span className="num tabular-nums">{fmtSpend(r.planned)}</span>,
         csv: (r) => spendInDisplayCurrency(r.planned, currency, rate).toFixed(2),
         total: () => (
-          <span className="num tabular-nums font-semibold">
-            {editing ? usd(grandTotal) : fmtSpend(grandTotal)}
-          </span>
+          <span className="num tabular-nums font-semibold">{fmtSpend(storedAllocated)}</span>
         ),
       },
       {
         key: "share",
         label: "% share",
         align: "right",
-        render: (r) => {
-          const editableRow = editing && r.kind === "combo" && keysFor(r.platform).length > 1;
-          const editablePlatform = editing && r.kind === "platform" && monthTotal !== null;
-          if (editableRow || editablePlatform) {
-            return (
-              <span className="inline-flex items-center justify-end gap-1">
-                <Input
-                  value={
-                    pctEdit?.key === r.key
-                      ? pctEdit.raw
-                      : r.share === null
-                        ? ""
-                        : r.share.toFixed(1)
-                  }
-                  onChange={(e) => {
-                    const raw = numeric(e.target.value);
-                    setPctEdit({ key: r.key, raw });
-                    if (r.kind === "platform") setPlatformPct(r.platform, raw);
-                    else setRowPct(r.platform, r.key, raw);
-                  }}
-                  onBlur={() => setPctEdit(null)}
-                  className="h-7 w-16 text-right num"
-                  aria-label={
-                    r.kind === "platform"
-                      ? `${label(r)} share of the month budget`
-                      : `${r.objective} share of ${label(r)}`
-                  }
-                />
-                <span className="text-ink-3">%</span>
-              </span>
-            );
-          }
-          return (
-            <span className="num tabular-nums text-ink-3">
-              {r.share === null ? "—" : pct1(r.share / 100)}
-            </span>
-          );
-        },
+        render: (r) => (
+          <span className="num tabular-nums text-ink-3">
+            {r.share === null ? "—" : pct1(r.share / 100)}
+          </span>
+        ),
         csv: (r) => (r.share === null ? "" : r.share.toFixed(1)),
         total: () => <span className="num tabular-nums text-ink-3">100.0%</span>,
       },
-    ];
+    ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currency, rate, editing, drafts, targets, monthTotalDraft, grandTotal, planned, pctEdit]);
-
-  /** The per-platform "unallocated" chip + its distribute button. */
-  function platformChip(platform: string) {
-    const target = targetOf(platform);
-    if (target === null) return null;
-    const left = round2(target - platformSum(platform));
-    if (left === 0) return null;
-    return (
-      <span className="inline-flex items-center gap-1 text-[11px] font-normal">
-        <span className={cn("num", left > 0 ? "text-ink-3" : "text-warn")}>
-          {left > 0 ? `${usd(left)} unallocated` : `${usd(-left)} over`}
-        </span>
-        {left > 0 && (
-          <button
-            type="button"
-            onClick={() => distributeRemaining(platform)}
-            className="inline-flex items-center gap-0.5 text-brand hover:underline"
-          >
-            <Split className="h-3 w-3" />
-            Distribute evenly
-          </button>
-        )}
-      </span>
-    );
-  }
+    [currency, rate, storedAllocated],
+  );
 
   // ── Actions ────────────────────────────────────────────────────────────────
   const save = async () => {
     setIsPending(true);
     try {
-      const allocations = [...drafts].map(([k, v]) => {
-        const [platform, objective] = k.split("|");
-        return { platform: platform!, objective: objective!, plannedSpend: parse(v) };
-      });
-      const rev = revenueDraft.trim();
+      const allocations: Array<{
+        platform: string;
+        objective: BudgetObjective;
+        plannedSpend: number;
+      }> = [];
+      for (const platform of activePlatforms) {
+        const amounts = objectiveAmountsOf(platform);
+        BUDGET_OBJECTIVES.forEach((objective, i) => {
+          const plannedSpend = amounts[i] ?? 0;
+          if (plannedSpend > 0) allocations.push({ platform, objective, plannedSpend });
+        });
+      }
+      const rev = draft.revenue.trim();
       const res = await saveBudgetMonth({
         month,
         allocations,
         plannedRevenueSar: rev === "" ? null : Number(rev),
-        reserveSpendUsd: parse(reserveDraft),
+        reserveSpendUsd: reserve,
         dayWeights: Object.entries(weightsDraft)
           .filter(([, w]) => w !== 1)
           .map(([d, w]) => ({ day: Number(d), weight: w })),
@@ -550,19 +557,8 @@ export function BudgetPlanEditor({
 
   const hasPlan = data.allocations.length > 0 || data.plannedRevenueSar !== null;
 
-  const addDraftRow = () => {
-    if (!addPlatform || !addObjective) return;
-    const k = comboKey(addPlatform, addObjective);
-    if (drafts.has(k)) {
-      toast.error("That platform × objective already has a row.");
-      return;
-    }
-    setDraft(k, "0");
-    setAddPlatform("");
-    setAddObjective("");
-  };
-
   // ── Day-weight editing ─────────────────────────────────────────────────────
+  const activeWeights = editing ? weightsDraft : data.dayWeightOverrides;
   const weightOf = (day: number) => {
     const w = activeWeights[day];
     return w !== undefined && validateWeight(w) ? w : 1;
@@ -583,7 +579,42 @@ export function BudgetPlanEditor({
     (w) => w !== 1 && validateWeight(w),
   ).length;
 
-  const monthLeft = monthTotal === null ? null : round2(monthTotal - grandTotal);
+  /** A share input + the amount it derives — the cascade's one repeated unit. */
+  const shareCell = (
+    key: string,
+    value: number,
+    amount: number,
+    onShare: (raw: string) => void,
+    onAmount: (raw: string) => void,
+    ariaShare: string,
+    ariaAmount: string,
+  ) => (
+    <div className="flex items-center gap-1.5">
+      <Input
+        value={shareEdit?.key === key ? shareEdit.raw : value === 0 ? "" : value.toFixed(1)}
+        onChange={(e) => {
+          const raw = numeric(e.target.value);
+          setShareEdit({ key, raw });
+          onShare(raw);
+        }}
+        onBlur={() => setShareEdit(null)}
+        placeholder="0"
+        className="h-8 w-16 text-right num"
+        aria-label={ariaShare}
+      />
+      <span className="text-ink-3">%</span>
+      <Input
+        value={amount === 0 ? "" : String(amount)}
+        onChange={(e) => {
+          setShareEdit(null);
+          onAmount(numeric(e.target.value));
+        }}
+        placeholder="0"
+        className="h-8 w-28 text-right num text-ink-2"
+        aria-label={ariaAmount}
+      />
+    </div>
+  );
 
   return (
     <div className="space-y-4">
@@ -648,15 +679,11 @@ export function BudgetPlanEditor({
               variant="outline"
               size="sm"
               disabled={copyOptions.length === 0 || isPending}
-              title={
-                copyOptions.length === 0
-                  ? "No other month has a plan to copy."
-                  : undefined
-              }
+              title={copyOptions.length === 0 ? "No other month has a plan to copy." : undefined}
               onClick={openCopy}
             >
               <CopyPlus className="h-3.5 w-3.5" />
-              Copy from month…
+              Copy
             </Button>
             <Button type="button" size="sm" onClick={startEditing}>
               <Pencil className="h-3.5 w-3.5" />
@@ -677,114 +704,320 @@ export function BudgetPlanEditor({
             <Button type="button" variant="ghost" size="sm" onClick={stopEditing} disabled={isPending}>
               Discard
             </Button>
-            <Button type="button" size="sm" onClick={save} disabled={!dirty || isPending}>
+            <Button type="button" size="sm" onClick={save} disabled={!canSave || isPending}>
               Save plan
             </Button>
           </>
         )}
       </BudgetMonthBar>
 
-      {/* Revenue target + reserve */}
-      <div className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-lg border border-line bg-surface px-4 py-3 text-sm">
-        <span className="text-label text-ink-3">Revenue target (SAR)</span>
-        {editing ? (
-          <Input
-            value={revenueDraft}
-            onChange={(e) => setRevenueDraft(numeric(e.target.value))}
-            placeholder="e.g. 250000"
-            className="h-8 w-36 text-right num"
-            aria-label="Planned monthly revenue (SAR)"
-          />
-        ) : (
-          <span className="num tabular-nums text-ink">
-            {data.plannedRevenueSar !== null ? sar(data.plannedRevenueSar) : "—"}
-          </span>
-        )}
-        <span className="text-label text-ink-3">Reserve (USD)</span>
-        {editing ? (
-          <Input
-            value={reserveDraft}
-            onChange={(e) => setReserveDraft(numeric(e.target.value))}
-            placeholder="0"
-            className="h-8 w-28 text-right num"
-            aria-label="Reserve spend (USD)"
-          />
-        ) : (
-          <span className="num tabular-nums text-ink">
-            {data.reserveSpendUsd > 0 ? usd(data.reserveSpendUsd) : "—"}
-          </span>
-        )}
-        <span className="text-[11px] text-ink-3">
-          Contingency on top of the plan — excluded from pacing.
-        </span>
-      </div>
-
-      {/* Month budget + distribution helpers (edit mode) */}
-      {editing && (
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border border-line bg-surface px-4 py-3 text-sm">
-          <span className="text-label text-ink-3">Month total budget (USD)</span>
-          <Input
-            value={monthTotalDraft}
-            onChange={(e) => setMonthTotalDraft(numeric(e.target.value))}
-            placeholder="optional"
-            className="h-8 w-32 text-right num"
-            aria-label="Month total budget (USD)"
-          />
-          <span className="num text-[11px] text-ink-3">
-            Allocated {usd(grandTotal)}
-            {monthLeft !== null && monthLeft !== 0 && (
-              <>
-                {" · "}
-                <span className={monthLeft > 0 ? "text-ink-3" : "text-warn"}>
-                  {monthLeft > 0
-                    ? `${usd(monthLeft)} unallocated`
-                    : `${usd(-monthLeft)} over budget`}
-                </span>
-              </>
-            )}
-          </span>
-
-          <Popover open={scaleOpen} onOpenChange={setScaleOpen}>
-            <PopoverTrigger asChild>
-              <Button type="button" variant="outline" size="xs" disabled={planned.size === 0}>
-                <Percent className="h-3 w-3" />
-                Scale all ±%
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent align="start" className="w-[min(18rem,calc(100vw-2rem))] space-y-2">
-              <p className="text-xs text-ink-2">
-                Scale every allocation. 10 raises them by 10%, −5 trims 5%.
+      {editing ? (
+        <>
+          {/* ── 1. Targets ─────────────────────────────────────────────── */}
+          <section className="space-y-2 rounded-lg border border-line bg-surface p-4">
+            <div>
+              <h3 className="text-sm font-medium text-ink">Targets</h3>
+              <p className="text-[11px] text-ink-3">
+                The reserve is part of the total, held back to decide later —
+                everything below shares out what&rsquo;s left.
               </p>
-              <div className="flex items-center gap-2">
+            </div>
+            <div className="flex flex-wrap items-end gap-x-6 gap-y-3">
+              <label className="space-y-1">
+                <span className="block text-label text-ink-3">Total spend budget (USD)</span>
                 <Input
-                  value={scaleDraft}
-                  onChange={(e) => setScaleDraft(e.target.value.replace(/[^0-9.\-−]/g, "").replace("−", "-"))}
-                  placeholder="10"
-                  className="h-8 w-24 text-right num"
-                  aria-label="Scale percentage"
+                  value={draft.total}
+                  onChange={(e) => setField({ total: numeric(e.target.value) })}
+                  onFocus={() => setTotalFocused(true)}
+                  onBlur={() => setTotalFocused(false)}
+                  placeholder="e.g. 50000"
+                  className="h-9 w-40 text-right num"
+                  aria-label="Total spend budget (USD)"
                 />
-                <span className="text-ink-3">%</span>
-                <Button type="button" size="xs" onClick={applyScale}>
-                  Apply
-                </Button>
+              </label>
+              <label className="space-y-1">
+                <span className="block text-label text-ink-3">Revenue target (SAR)</span>
+                <Input
+                  value={draft.revenue}
+                  onChange={(e) => setField({ revenue: numeric(e.target.value) })}
+                  placeholder="e.g. 250000"
+                  className="h-9 w-40 text-right num"
+                  aria-label="Planned monthly revenue (SAR)"
+                />
+              </label>
+              <div className="space-y-1">
+                <span className="block text-label text-ink-3">Reserve (of the total)</span>
+                <div className="flex items-center gap-1.5">
+                  <Input
+                    value={draft.reserve}
+                    onChange={(e) => setField({ reserve: numeric(e.target.value) })}
+                    placeholder="0"
+                    className="h-9 w-32 text-right num"
+                    aria-label="Reserve (USD)"
+                  />
+                  <span className="text-ink-3">USD</span>
+                  <Input
+                    value={
+                      total > 0 && reserve > 0
+                        ? (reserveShare(reserve, total) ?? 0).toFixed(1)
+                        : ""
+                    }
+                    onChange={(e) =>
+                      setField({
+                        reserve: String(reserveFromShare(parse(numeric(e.target.value)), total)),
+                      })
+                    }
+                    placeholder="0"
+                    className="h-9 w-20 text-right num"
+                    aria-label="Reserve (% of total)"
+                  />
+                  <span className="text-ink-3">%</span>
+                </div>
               </div>
               <p className="text-[11px] text-ink-3">
-                Applies to the drafts — nothing is saved until you save the plan.
+                Allocatable{" "}
+                <span className="num text-ink-2">{usd(allocatable)}</span>
+                {reserve > 0 && <> · reserve {usd(reserve)}</>}
               </p>
-            </PopoverContent>
-          </Popover>
+            </div>
+            {totalFocused && (
+              <p className="text-[11px] text-ink-3">
+                Changing the total rescales every amount through the shares below —
+                a platform on 50% stays on 50%. To hand money to ONE platform, use
+                Move from reserve instead.
+              </p>
+            )}
+          </section>
 
-          <span className="text-[11px] text-ink-3">
-            Shares are a planning aid; the amounts are what gets saved.
-          </span>
-        </div>
+          {/* ── 2 + 3. Platform shares → objective shares ──────────────── */}
+          <section className="space-y-2 rounded-lg border border-line bg-surface p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h3 className="text-sm font-medium text-ink">Split the budget</h3>
+                <p className="text-[11px] text-ink-3">
+                  Each platform takes a share of the allocatable; inside it, each
+                  objective takes a share of the platform.
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <span
+                  className={cn(
+                    "num text-[11px]",
+                    sharesComplete(platformShareList) ? "text-ink-3" : "text-warn",
+                  )}
+                >
+                  {pct1(
+                    platformShareList.reduce((s, v) => s + v, 0) / 100,
+                  )}{" "}
+                  of 100%
+                </span>
+                {!sharesComplete(platformShareList) && activePlatforms.length > 0 && (
+                  <Button type="button" variant="outline" size="xs" onClick={distributePlatforms}>
+                    <Split className="h-3 w-3" />
+                    Distribute remaining evenly
+                  </Button>
+                )}
+                {reserve > 0 && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="xs"
+                    onClick={() => setMoveOpen(true)}
+                    disabled={activePlatforms.length === 0}
+                  >
+                    <ArrowRightLeft className="h-3 w-3" />
+                    Move from reserve
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            <ul className="divide-y divide-line">
+              {ALL_PLATFORMS.map((platform) => {
+                const on = draft.platformShares[platform] !== undefined;
+                const isOpen = on && expanded.has(platform);
+                const objectiveShares = objectiveSharesOf(platform);
+                const objectiveAmounts = objectiveAmountsOf(platform);
+                const objectivesOk = sharesComplete(objectiveShares);
+                return (
+                  <li key={platform} className="py-2">
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                      <button
+                        type="button"
+                        onClick={() => togglePlatform(platform)}
+                        role="checkbox"
+                        aria-checked={on}
+                        className="inline-flex min-w-[8.5rem] items-center gap-2 text-left text-sm"
+                      >
+                        <span
+                          className={cn(
+                            "flex h-4 w-4 items-center justify-center rounded border",
+                            on ? "border-brand bg-[var(--brand-soft)]" : "border-line",
+                          )}
+                        >
+                          {on && <Check className="h-3 w-3 text-brand" />}
+                        </span>
+                        <PlatformDot platform={platform} size="sm" />
+                        {PLATFORM_LABEL[platform]}
+                      </button>
+
+                      {on ? (
+                        <>
+                          {shareCell(
+                            `p:${platform}`,
+                            parse(draft.platformShares[platform]),
+                            amountOf(platform),
+                            (raw) => setPlatformShare(platform, raw),
+                            (raw) => setPlatformAmount(platform, raw),
+                            `${PLATFORM_LABEL[platform]} share of the allocatable budget`,
+                            `${PLATFORM_LABEL[platform]} amount in USD`,
+                          )}
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setExpanded((prev) => {
+                                const next = new Set(prev);
+                                if (next.has(platform)) next.delete(platform);
+                                else next.add(platform);
+                                return next;
+                              })
+                            }
+                            className={cn(
+                              "inline-flex items-center gap-1 text-[11px]",
+                              objectivesOk ? "text-ink-3" : "text-warn",
+                            )}
+                            aria-expanded={isOpen}
+                          >
+                            {isOpen ? (
+                              <ChevronDown className="h-3 w-3" />
+                            ) : (
+                              <ChevronRight className="h-3 w-3" />
+                            )}
+                            Objectives{" "}
+                            {pct1(objectiveShares.reduce((s, v) => s + v, 0) / 100)}
+                          </button>
+                        </>
+                      ) : (
+                        <span className="text-[11px] text-ink-3">Not planned this month</span>
+                      )}
+                    </div>
+
+                    {isOpen && (
+                      <div className="mt-2 space-y-1.5 border-l border-line pl-4">
+                        {BUDGET_OBJECTIVES.map((objective, i) => (
+                          <div
+                            key={objective}
+                            className="flex flex-wrap items-center gap-x-3 gap-y-1"
+                          >
+                            <span className="min-w-[7rem] text-sm text-ink-2">{objective}</span>
+                            {shareCell(
+                              `o:${platform}:${objective}`,
+                              objectiveShares[i] ?? 0,
+                              objectiveAmounts[i] ?? 0,
+                              (raw) => setObjectiveShare(platform, objective, raw),
+                              (raw) => setObjectiveAmount(platform, objective, raw),
+                              `${objective} share of ${PLATFORM_LABEL[platform]}`,
+                              `${objective} amount on ${PLATFORM_LABEL[platform]} in USD`,
+                            )}
+                          </div>
+                        ))}
+                        {!objectivesOk && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="xs"
+                            onClick={() => distributeObjectives(platform)}
+                          >
+                            <Split className="h-3 w-3" />
+                            Distribute remaining evenly
+                          </Button>
+                        )}
+                      </div>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+
+          {/* Blocked-save explanation */}
+          {problems.length > 0 && (
+            <div className="rounded-md border border-warn/40 bg-warn/5 px-4 py-3">
+              <p className="text-xs font-medium text-ink">
+                Finish the split to save — every level has to reach 100%.
+              </p>
+              <ul className="mt-1 space-y-0.5 text-xs text-ink-2">
+                {problems.map((p) => (
+                  <li key={p} className="num">
+                    {p}
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-1 text-[11px] text-ink-3">
+                Money you don&rsquo;t want to commit yet belongs in the reserve.
+              </p>
+            </div>
+          )}
+        </>
+      ) : (
+        <>
+          {/* View mode — the calm read of what's planned */}
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-lg border border-line bg-surface px-4 py-3 text-sm">
+            <span className="text-label text-ink-3">Total budget</span>
+            <span className="num tabular-nums text-ink">
+              {storedAllocated + data.reserveSpendUsd > 0
+                ? fmtSpend(storedAllocated + data.reserveSpendUsd)
+                : "—"}
+            </span>
+            <span className="text-label text-ink-3">Revenue target (SAR)</span>
+            <span className="num tabular-nums text-ink">
+              {data.plannedRevenueSar !== null ? sar(data.plannedRevenueSar) : "—"}
+            </span>
+            <span className="text-label text-ink-3">Reserve</span>
+            <span className="num tabular-nums text-ink">
+              {data.reserveSpendUsd > 0 ? fmtSpend(data.reserveSpendUsd) : "—"}
+            </span>
+            <span className="text-[11px] text-ink-3">
+              Held back from the total — allocated {fmtSpend(storedAllocated)}.
+            </span>
+          </div>
+
+          {!hasPlan && (
+            <div className="rounded-lg border border-dashed border-line bg-surface px-6 py-10 text-center">
+              <p className="text-sm text-ink-2">No plan for this month yet.</p>
+              <p className="mt-1 text-xs text-ink-3">
+                {canManage
+                  ? "Copy another month or set a total budget to start planning."
+                  : "Ask someone with budget access to add a plan."}
+              </p>
+            </div>
+          )}
+
+          <DataTable<PlanRow>
+            columns={columns}
+            rows={rows}
+            rowKey={(r) => r.key}
+            rowId={(r) => (r.kind === "platform" ? platformAnchorId(r.platform) : undefined)}
+            showTotals={rows.length > 0}
+            minWidthClass="min-w-[520px]"
+            csvFileName={`budget-plan-${month}-${currency.toLowerCase()}`}
+            rowClassName={(r) =>
+              cn(r.kind === "platform" && "bg-surface-2/50 font-medium scroll-mt-24")
+            }
+            empty={
+              <div className="flex flex-col items-center gap-2 py-12 text-center">
+                <Wallet className="h-6 w-6 text-ink-3" />
+                <p className="text-sm text-ink-2">Nothing planned for this month.</p>
+              </div>
+            }
+          />
+        </>
       )}
 
-      {/* Day-weight curve */}
+      {/* ── 4. Day curve ─────────────────────────────────────────────── */}
       <DayCurveEditor
         month={month}
         totalDays={totalDays}
-        weights={activeWeights}
         weightOf={weightOf}
         editing={editing}
         selectedDay={selectedDay}
@@ -796,77 +1029,6 @@ export function BudgetPlanEditor({
           setSelectedDay(null);
         }}
         overrideCount={overrideCount}
-      />
-
-      {/* Empty-plan hint */}
-      {!hasPlan && !editing && (
-        <div className="rounded-lg border border-dashed border-line bg-surface px-6 py-10 text-center">
-          <p className="text-sm text-ink-2">No plan for this month yet.</p>
-          <p className="mt-1 text-xs text-ink-3">
-            {canManage
-              ? "Copy another month or add allocations to start planning."
-              : "Ask someone with budget access to add a plan."}
-          </p>
-        </div>
-      )}
-
-      {/* Add-allocation controls (edit mode) */}
-      {editing && (
-        <div className="flex flex-wrap items-end gap-2 rounded-lg border border-line bg-surface p-3">
-          <div className="w-40">
-            <Select value={addPlatform} onValueChange={setAddPlatform}>
-              <SelectTrigger className="h-8">
-                <SelectValue placeholder="Platform…" />
-              </SelectTrigger>
-              <SelectContent>
-                {ALL_PLATFORMS.map((p) => (
-                  <SelectItem key={p} value={p}>
-                    <span className="flex items-center gap-2">
-                      <PlatformDot platform={p} size="sm" />
-                      {PLATFORM_LABEL[p]}
-                    </span>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="w-44">
-            <Select value={addObjective} onValueChange={setAddObjective}>
-              <SelectTrigger className="h-8">
-                <SelectValue placeholder="Objective…" />
-              </SelectTrigger>
-              <SelectContent>
-                {BUDGET_OBJECTIVES.map((o) => (
-                  <SelectItem key={o} value={o}>
-                    {o}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <Button type="button" variant="outline" size="sm" onClick={addDraftRow} disabled={!addPlatform || !addObjective}>
-            <Plus className="h-3.5 w-3.5" />
-            Add allocation
-          </Button>
-        </div>
-      )}
-
-      {/* Plan table — platform rows carry anchor ids for Overview's cards */}
-      <DataTable<PlanRow>
-        columns={columns}
-        rows={rows}
-        rowKey={(r) => r.key}
-        rowId={(r) => (r.kind === "platform" ? platformAnchorId(r.platform) : undefined)}
-        showTotals={rows.length > 0}
-        minWidthClass="min-w-[520px]"
-        csvFileName={`budget-plan-${month}-${currency.toLowerCase()}`}
-        rowClassName={(r) => cn(r.kind === "platform" && "bg-surface-2/50 font-medium scroll-mt-24")}
-        empty={
-          <div className="flex flex-col items-center gap-2 py-12 text-center">
-            <Wallet className="h-6 w-6 text-ink-3" />
-            <p className="text-sm text-ink-2">Nothing planned for this month.</p>
-          </div>
-        }
       />
 
       {/* Copy from any planned month */}
@@ -905,6 +1067,58 @@ export function BudgetPlanEditor({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Move money out of the reserve */}
+      <Dialog open={moveOpen} onOpenChange={setMoveOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Move money from the reserve</DialogTitle>
+            <DialogDescription>
+              This moves money — it doesn&rsquo;t re-plan. The platform you pick gains
+              the amount, spread across its objectives by their current shares;
+              every other platform keeps exactly the dollars it has.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <label className="block space-y-1">
+              <span className="text-label text-ink-3">Amount (USD)</span>
+              <Input
+                value={moveAmount}
+                onChange={(e) => setMoveAmount(numeric(e.target.value))}
+                placeholder="0"
+                className="h-9 w-full text-right num"
+                aria-label="Amount to move from the reserve"
+              />
+              <span className="block text-[11px] text-ink-3">
+                Reserve holds {usd(reserve)}.
+              </span>
+            </label>
+            <div className="space-y-1">
+              <span className="text-label text-ink-3">To platform</span>
+              <Select value={movePlatform} onValueChange={setMovePlatform}>
+                <SelectTrigger className="h-9 w-full" aria-label="Platform to move money to">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {activePlatforms.map((p) => (
+                    <SelectItem key={p} value={p}>
+                      {PLATFORM_LABEL[p as keyof typeof PLATFORM_LABEL]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={() => setMoveOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="button" onClick={doMove}>
+              Move money
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -913,13 +1127,11 @@ export function BudgetPlanEditor({
  * The day-weight calendar: a weekday-aligned grid of the month's days, each
  * showing its weight when overridden (paydays pop). In edit mode, clicking a
  * day selects it and a stepper adjusts its weight in 0.5 steps (weight 1 = no
- * override, deleted on save). The preview line shows the cumulative plan curve
- * the weights produce vs the linear baseline.
+ * override, deleted on save).
  */
 function DayCurveEditor({
   month,
   totalDays,
-  weights,
   weightOf,
   editing,
   selectedDay,
@@ -931,7 +1143,6 @@ function DayCurveEditor({
 }: {
   month: string;
   totalDays: number;
-  weights: Record<number, number>;
   weightOf: (day: number) => number;
   editing: boolean;
   selectedDay: number | null;
@@ -945,20 +1156,6 @@ function DayCurveEditor({
   const startIso = monthStartIso(month);
   const firstWeekday = new Date(`${startIso}T00:00:00Z`).getUTCDay();
 
-  // Cumulative preview: the weighted curve vs the linear diagonal, as an SVG
-  // polyline over [0..1]² (x = day share, y = cumulative plan share).
-  const W = 260;
-  const H = 64;
-  const pts = (frac: (d: number) => number) =>
-    [
-      `0,${H}`,
-      ...Array.from({ length: totalDays }, (_, i) => {
-        const x = ((i + 1) / totalDays) * W;
-        const y = H - frac(i + 1) * H;
-        return `${x.toFixed(1)},${y.toFixed(1)}`;
-      }),
-    ].join(" ");
-
   return (
     <div className="rounded-lg border border-line bg-surface p-4 space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -971,29 +1168,12 @@ function DayCurveEditor({
             {editing && " Click a day to adjust its weight."}
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          {/* Live preview */}
-          <svg
-            viewBox={`0 0 ${W} ${H}`}
-            className="h-12 w-48 shrink-0"
-            aria-label="Cumulative plan curve preview"
-            role="img"
-          >
-            <line x1={0} y1={H} x2={W} y2={0} stroke="var(--line-2)" strokeDasharray="3 3" />
-            <polyline
-              points={pts((d) => curveFraction(month, weights, d))}
-              fill="none"
-              stroke="var(--brand)"
-              strokeWidth={1.8}
-            />
-          </svg>
-          {editing && (
-            <Button type="button" variant="outline" size="xs" onClick={onResetAll} disabled={overrideCount === 0}>
-              <RotateCcw className="h-3 w-3" />
-              Reset all to 1
-            </Button>
-          )}
-        </div>
+        {editing && (
+          <Button type="button" variant="outline" size="xs" onClick={onResetAll} disabled={overrideCount === 0}>
+            <RotateCcw className="h-3 w-3" />
+            Reset all to 1
+          </Button>
+        )}
       </div>
 
       {/* Calendar grid */}

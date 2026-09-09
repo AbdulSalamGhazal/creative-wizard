@@ -116,7 +116,8 @@ export function BudgetOverview({
       </span>
     );
   };
-  // Spend projection is judged against plan + reserve (the reserve exists to
+  // Spend projection is judged against the whole total — allocated plan plus
+  // the reserve still held back (the reserve exists to
   // absorb exactly this overshoot).
   const spendReserveNote =
     projectedSpend !== null && data.reserveSpendUsd > 0 && totalPlanned > 0 && projectedSpend > totalPlanned
@@ -236,15 +237,25 @@ export function BudgetOverview({
         </p>
       )}
 
-      {/* Reserve line — the reserve sits OUTSIDE the curve; "used" is the
-          month's unplanned actual spend drawing it down. */}
+      {/* Reserve line — the reserve is part of the TOTAL, carved out and not
+          yet allocated; the curve paces the allocated plan only, and "used" is
+          the month's unplanned actual spend drawing the reserve down. */}
       {(data.reserveSpendUsd > 0 ||
         (unplannedActual > 0 && data.allocations.length > 0)) && (
         <div className="flex flex-wrap items-center gap-x-6 gap-y-1 rounded-lg border border-line bg-surface px-4 py-3 text-sm">
           <span className="text-label text-ink-3">Reserve</span>
           <span className="num tabular-nums text-ink">
-            Plan {totalPlanned > 0 ? fmtSpend(totalPlanned) : "—"}
-            {data.reserveSpendUsd > 0 && <> + {fmtSpend(data.reserveSpendUsd)} reserve</>}
+            Total{" "}
+            {totalPlanned + data.reserveSpendUsd > 0
+              ? fmtSpend(totalPlanned + data.reserveSpendUsd)
+              : "—"}
+            {data.reserveSpendUsd > 0 && (
+              <>
+                {" "}
+                = {fmtSpend(totalPlanned)} allocated + {fmtSpend(data.reserveSpendUsd)}{" "}
+                reserve
+              </>
+            )}
           </span>
           <span
             className={cn(
