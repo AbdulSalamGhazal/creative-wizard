@@ -22,6 +22,12 @@ import {
   validateRate,
   spendInDisplayCurrency,
   PACING_WARN_THRESHOLD,
+  round2,
+  pctShare,
+  splitByWeights,
+  redistributeByPct,
+  distributeRemainder,
+  scaleAll,
 } from "@/lib/budget";
 
 describe("month helpers", () => {
@@ -155,5 +161,124 @@ describe("per-metric data horizons (v2.1)", () => {
     expect(f("2026-08-31", "2026-09", 30)).toBe(0); // horizon before the month
     expect(f("2026-10-02", "2026-09", 30)).toBe(30); // month fully behind it
     expect(f("2026-09-05", "2026-09", 30)).toBe(5); // mid-month
+  });
+});
+
+/**
+ * Percentage distribution (Plan editor). The property that matters everywhere
+ * here: a split's parts sum to the total EXACTLY, so the "Unallocated" chip
+ * can actually reach zero. Amounts stay the stored truth — none of this is
+ * persisted.
+ */
+describe("plan distribution — percentages and rounding", () => {
+  const sum = (xs: number[]) => round2(xs.reduce((s, x) => s + x, 0));
+
+  it("round2 handles the binary-fraction near-misses", () => {
+    expect(round2(0.1 + 0.2)).toBe(0.3);
+    expect(round2(1.005)).toBe(1.01);
+    expect(round2(1234.567)).toBe(1234.57);
+    expect(round2(-1.005)).toBe(-1.01);
+  });
+
+  it("pctShare is null with nothing to share", () => {
+    expect(pctShare(25, 100)).toBe(25);
+    expect(pctShare(0, 0)).toBeNull();
+    expect(pctShare(10, -5)).toBeNull();
+  });
+
+  it("splits a total that does not divide evenly, exactly", () => {
+    // 100 / 3 is the classic: 33.34 + 33.33 + 33.33, never 99.99.
+    const parts = splitByWeights(100, [1, 1, 1]);
+    expect(sum(parts)).toBe(100);
+    expect(parts).toEqual([33.34, 33.33, 33.33]);
+  });
+
+  it("splits in proportion to the weights and still sums exactly", () => {
+    const parts = splitByWeights(1000, [3, 1]);
+    expect(parts).toEqual([750, 250]);
+    const awkward = splitByWeights(1000.01, [7, 3, 1]);
+    expect(sum(awkward)).toBe(1000.01);
+  });
+
+  it("splits evenly when every weight is zero", () => {
+    expect(splitByWeights(10, [0, 0, 0, 0])).toEqual([2.5, 2.5, 2.5, 2.5]);
+  });
+
+  it("gives nothing away when there is nothing to give", () => {
+    expect(splitByWeights(0, [1, 2])).toEqual([0, 0]);
+    expect(splitByWeights(-5, [1, 2])).toEqual([0, 0]);
+    expect(splitByWeights(100, [])).toEqual([]);
+  });
+
+  describe("redistributeByPct", () => {
+    it("gives the edited row its share and rescales the siblings", () => {
+      const out = redistributeByPct([500, 300, 200], 0, 60); // total 1000
+      expect(out[0]).toBe(600);
+      // The other two keep their 3:2 ratio inside the remaining 400.
+      expect(out[1]).toBe(240);
+      expect(out[2]).toBe(160);
+      expect(sum(out)).toBe(1000);
+    });
+
+    it("preserves the group total through an awkward percentage", () => {
+      const out = redistributeByPct([100, 100, 100], 1, 33.33);
+      expect(sum(out)).toBe(300);
+    });
+
+    it("holds an explicit group total rather than the current sum", () => {
+      // Rows sum to 800 but the platform's intent is 1000.
+      const out = redistributeByPct([500, 300], 0, 50, 1000);
+      expect(out).toEqual([500, 500]);
+      expect(sum(out)).toBe(1000);
+    });
+
+    it("splits evenly among siblings that are all zero", () => {
+      const out = redistributeByPct([1000, 0, 0], 0, 50);
+      expect(out).toEqual([500, 250, 250]);
+    });
+
+    it("leaves a single row alone — it is always 100% of itself", () => {
+      expect(redistributeByPct([400], 0, 50)).toEqual([400]);
+    });
+
+    it("clamps the percentage into 0..100", () => {
+      expect(sum(redistributeByPct([600, 400], 0, 140))).toBe(1000);
+      expect(redistributeByPct([600, 400], 0, 140)[0]).toBe(1000);
+      expect(redistributeByPct([600, 400], 0, -20)[0]).toBe(0);
+    });
+
+    it("does nothing when there is no total to share", () => {
+      expect(redistributeByPct([0, 0], 0, 50)).toEqual([0, 0]);
+    });
+  });
+
+  describe("distributeRemainder", () => {
+    it("adds the remainder in equal parts, exactly", () => {
+      const out = distributeRemainder([100, 200, 300], 100);
+      expect(out).toEqual([133.34, 233.33, 333.33]);
+      expect(sum(out)).toBe(700);
+    });
+
+    it("is a no-op for a zero remainder", () => {
+      expect(distributeRemainder([10, 20], 0)).toEqual([10, 20]);
+    });
+
+    it("clamps at zero when taking more back than a row holds", () => {
+      const out = distributeRemainder([10, 200], -100);
+      expect(out[0]).toBe(0); // would have gone to −40
+      expect(out[1]).toBe(150);
+    });
+  });
+
+  describe("scaleAll", () => {
+    it("scales up and down, rounding each row", () => {
+      expect(scaleAll([100, 250.55], 10)).toEqual([110, 275.61]);
+      expect(scaleAll([100, 250], -10)).toEqual([90, 225]);
+      expect(scaleAll([100], 0)).toEqual([100]);
+    });
+
+    it("floors at zero rather than going negative", () => {
+      expect(scaleAll([100, 50], -150)).toEqual([0, 0]);
+    });
   });
 });

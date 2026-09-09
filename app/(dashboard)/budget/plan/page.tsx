@@ -3,7 +3,7 @@ import { PageShell } from "@/components/layout/page-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { todayIso } from "@/lib/date-presets";
 import { monthKey } from "@/lib/budget";
-import { getBudgetMonth } from "@/db/queries/budget";
+import { getBudgetMonth, listPlanRevisions, plannedMonths } from "@/db/queries/budget";
 import { BudgetPlanEditor } from "@/components/budget/budget-plan-editor";
 
 export const dynamic = "force-dynamic";
@@ -15,10 +15,12 @@ export const metadata = { title: "Plan" };
 const MONTH = /^\d{4}-(0[1-9]|1[0-2])$/;
 
 /**
- * Budget Plan — the month's editor: USD allocations per platform → objective,
- * the SAR revenue target, the reserve budget, and the day-weight plan curve.
- * Viewing is open to any brand member; every edit needs budget.manage and is
- * audited under budget.update.
+ * Budget Plan — the month's editor and nothing else: USD allocations per
+ * platform → objective, the SAR revenue target, the reserve budget, and the
+ * day-weight plan curve. It is a PURE PLANNING surface — no actuals, no pacing
+ * (those live on Overview). Viewing is open to any brand member; every edit
+ * needs budget.manage, is audited under budget.update, and leaves a plan
+ * revision that can be inspected and restored.
  */
 export default async function BudgetPlanPage({
   searchParams,
@@ -31,7 +33,11 @@ export default async function BudgetPlanPage({
 
   const user = await auth();
   const canManage = user ? can(user, "budget.manage") : false;
-  const data = await getBudgetMonth(month);
+  const [data, months, revisions] = await Promise.all([
+    getBudgetMonth(month),
+    plannedMonths(),
+    listPlanRevisions(month),
+  ]);
 
   return (
     <PageShell>
@@ -40,7 +46,14 @@ export default async function BudgetPlanPage({
         title="Plan"
         subtitle="Set the month's spend allocations, revenue target, reserve, and day-weight curve. Weighted days (paydays) get a bigger share of the plan-to-date."
       />
-      <BudgetPlanEditor month={month} today={today} data={data} canManage={canManage} />
+      <BudgetPlanEditor
+        month={month}
+        today={today}
+        data={data}
+        plannedMonths={months}
+        revisions={revisions}
+        canManage={canManage}
+      />
     </PageShell>
   );
 }

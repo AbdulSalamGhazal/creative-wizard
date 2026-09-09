@@ -281,6 +281,13 @@
       "when": 1788849966948,
       "tag": "0039_perf_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1788942689848,
+      "tag": "0040_budget_plan_revisions",
+      "breakpoints": true
     }
   ]
 }

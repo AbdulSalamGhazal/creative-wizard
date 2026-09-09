@@ -48,3 +48,90 @@ export const planSchema = z.object({
 });
 
 export type BudgetPlanInput = z.infer<typeof planSchema>;
+
+/** A one-line "what changed?" stored on the revision. Optional everywhere. */
+export const planNoteSchema = z.string().trim().max(200).optional();
+
+/** Save = a plan plus the optional note that explains it. */
+export const savePlanSchema = planSchema.extend({ note: planNoteSchema });
+
+/** Copy a plan from ANY month that has one (not just the previous month). */
+export const copyPlanSchema = z
+  .object({
+    month: z.string().regex(MONTH_KEY),
+    from: z.string().regex(MONTH_KEY),
+  })
+  .refine((v) => v.from !== v.month, {
+    message: "Pick a different month to copy from.",
+  });
+
+export const restoreRevisionSchema = z.object({ revisionId: z.string().uuid() });
+
+/**
+ * The stored shape of a plan revision's `snapshot` jsonb. Deliberately
+ * STRUCTURAL only — platform/objective are plain strings here so that an old
+ * snapshot carrying a retired objective still PARSES, and then fails loudly at
+ * `planSchema` when someone tries to restore it (rather than being silently
+ * dropped, or half-applied).
+ */
+export const storedSnapshotSchema = z.object({
+  allocations: z
+    .array(
+      z.object({
+        platform: z.string(),
+        objective: z.string(),
+        plannedSpend: z.number(),
+      }),
+    )
+    .default([]),
+  plannedRevenueSar: z.number().nullable().default(null),
+  reserveSpendUsd: z.number().default(0),
+  /** `{ "15": 2 }` — only overridden days, same convention as the table. */
+  dayWeights: z.record(z.string(), z.number()).default({}),
+});
+
+export type BudgetPlanSnapshot = z.infer<typeof storedSnapshotSchema>;
+
+/** The snapshot re-shaped as a `planSchema` input, for validation + restore. */
+export function snapshotToPlanInput(
+  snapshot: BudgetPlanSnapshot,
+  month: string,
+): unknown {
+  return {
+    month,
+    allocations: snapshot.allocations,
+    plannedRevenueSar: snapshot.plannedRevenueSar,
+    reserveSpendUsd: snapshot.reserveSpendUsd,
+    dayWeights: Object.entries(snapshot.dayWeights).map(([day, weight]) => ({
+      day: Number(day),
+      weight,
+    })),
+  };
+}
+
+/**
+ * The plan as it stands after a write — what gets stored on the revision. Takes
+ * the shape `replaceBudgetMonth` is given (day weights keyed by day), so the
+ * snapshot and the rows written in the same transaction can't disagree.
+ */
+export function planInputToSnapshot(plan: {
+  allocations: Array<{ platform: string; objective: string; plannedSpend: number }>;
+  plannedRevenueSar: number | null;
+  reserveSpendUsd?: number;
+  dayWeights?: Record<number | string, number>;
+}): BudgetPlanSnapshot {
+  return {
+    allocations: plan.allocations.map((a) => ({
+      platform: a.platform,
+      objective: a.objective,
+      plannedSpend: a.plannedSpend,
+    })),
+    plannedRevenueSar: plan.plannedRevenueSar,
+    reserveSpendUsd: plan.reserveSpendUsd ?? 0,
+    dayWeights: Object.fromEntries(
+      Object.entries(plan.dayWeights ?? {})
+        .filter(([, w]) => w !== 1)
+        .map(([day, w]) => [String(day), w]),
+    ),
+  };
+}

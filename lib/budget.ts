@@ -220,3 +220,101 @@ export function mapWeightsToMonth(
   }
   return out;
 }
+
+// ── Percentage-based distribution (Plan editor, 2026-09) ─────────────────────
+// AMOUNTS ARE THE STORED TRUTH — percentages exist only as an editing
+// affordance, computed live from the drafts and never persisted. Everything
+// here works in integer cents internally so a split's parts sum EXACTLY to the
+// total the user typed; a plain `total * pct` per row drifts by a cent or two
+// and the "Unallocated" chip would then never reach zero.
+
+/** Round money to 2dp, guarding the usual binary-fraction near-misses. */
+export function round2(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  return Math.round((value + (value >= 0 ? 1e-9 : -1e-9)) * 100) / 100;
+}
+
+/** A row's share of a total, as a percentage. NULL when there is no total. */
+export function pctShare(amount: number, total: number): number | null {
+  if (total <= 0) return null;
+  return (amount / total) * 100;
+}
+
+/**
+ * Split `total` across `weights` so every part is 2dp and the parts sum to
+ * `total` EXACTLY (largest-remainder: the leftover cents go to the parts with
+ * the biggest truncated fractions, ties by position). All-zero weights split
+ * evenly — the caller's "distribute remaining" over untouched rows.
+ */
+export function splitByWeights(total: number, weights: number[]): number[] {
+  const n = weights.length;
+  if (n === 0) return [];
+  const cents = Math.round(round2(total) * 100);
+  if (cents <= 0) return weights.map(() => 0);
+  const positive = weights.map((w) => (Number.isFinite(w) && w > 0 ? w : 0));
+  const sum = positive.reduce((s, w) => s + w, 0);
+  const shares = sum > 0 ? positive.map((w) => w / sum) : positive.map(() => 1 / n);
+  const raw = shares.map((s) => s * cents);
+  const out = raw.map((r) => Math.floor(r));
+  let left = cents - out.reduce((s, c) => s + c, 0);
+  const byRemainder = raw
+    .map((r, i) => ({ i, frac: r - Math.floor(r) }))
+    .sort((a, b) => b.frac - a.frac || a.i - b.i);
+  for (let k = 0; k < byRemainder.length && left > 0; k++, left--) {
+    out[byRemainder[k]!.i] = out[byRemainder[k]!.i]! + 1;
+  }
+  return out.map((c) => c / 100);
+}
+
+/**
+ * Set row `index` to `pct` of the group's total, holding that total fixed: the
+ * row takes its share and the SIBLINGS absorb the rest in proportion to what
+ * they already hold (evenly if they are all zero). A group with one row is
+ * always 100% of itself, so its percentage is not editable — the amounts come
+ * back unchanged.
+ */
+export function redistributeByPct(
+  amounts: number[],
+  index: number,
+  pct: number,
+  total?: number,
+): number[] {
+  if (index < 0 || index >= amounts.length) return amounts;
+  if (amounts.length < 2) return amounts;
+  const groupTotal = round2(total ?? amounts.reduce((s, a) => s + a, 0));
+  if (groupTotal <= 0) return amounts;
+  const share = Math.min(100, Math.max(0, Number.isFinite(pct) ? pct : 0));
+  const target = round2((groupTotal * share) / 100);
+  const others = amounts.map((a, i) => (i === index ? 0 : a));
+  const parts = splitByWeights(groupTotal - target, others.filter((_, i) => i !== index));
+  const out: number[] = [];
+  let p = 0;
+  for (let i = 0; i < amounts.length; i++) {
+    out.push(i === index ? target : parts[p++]!);
+  }
+  return out;
+}
+
+/**
+ * Add `remaining` to the rows in equal parts (exact to the cent). A negative
+ * remainder is clamped per row at zero, which is the one case where the parts
+ * no longer sum to `remaining` — the UI only offers this when there is a real
+ * positive remainder to place.
+ */
+export function distributeRemainder(amounts: number[], remaining: number): number[] {
+  if (amounts.length === 0) return amounts;
+  if (remaining >= 0) {
+    const parts = splitByWeights(remaining, amounts.map(() => 0));
+    return amounts.map((a, i) => round2(a + parts[i]!));
+  }
+  const parts = splitByWeights(-remaining, amounts.map(() => 0));
+  return amounts.map((a, i) => Math.max(0, round2(a - parts[i]!)));
+}
+
+/** Scale every amount by ±pct (10 → ×1.10), each rounded to 2dp. */
+export function scaleAll(amounts: number[], pct: number): number[] {
+  if (!Number.isFinite(pct)) return amounts;
+  const factor = 1 + pct / 100;
+  if (factor < 0) return amounts.map(() => 0);
+  return amounts.map((a) => round2(a * factor));
+}

@@ -6,8 +6,10 @@ import {
   Check,
   CopyPlus,
   Pencil,
+  Percent,
   Plus,
   RotateCcw,
+  Split,
   Trash2,
   Wallet,
   X,
@@ -23,6 +25,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Select,
   SelectContent,
@@ -34,32 +37,29 @@ import { DataTable, type DataColumn } from "@/components/ui/data-table";
 import { PlatformDot } from "@/components/ui/platform-dot";
 import { ALL_PLATFORMS, PLATFORM_LABEL } from "@/lib/palette";
 import { CAMPAIGN_OBJECTIVES } from "@/lib/campaign";
-import { int, sar, usd, signedPct } from "@/lib/format";
+import { int, pct1, sar, usd } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import {
-  curveExpected,
   curveFraction,
   daysInMonth,
-  elapsedDaysInMonth,
-  monthKey,
+  distributeRemainder,
   monthLabel,
   monthStartIso,
-  pacingDeviation,
-  pacingTone,
-  pacingVerdict,
+  pctShare,
   prevMonthKey,
+  redistributeByPct,
+  round2,
+  scaleAll,
   spendInDisplayCurrency,
   validateRate,
   validateWeight,
-  variance,
-  variancePct,
 } from "@/lib/budget";
 import {
   saveBudgetMonth,
-  copyBudgetFromLastMonth,
+  copyBudgetFromMonth,
   setUsdToSarRate,
 } from "@/app/actions/budget";
-import type { BudgetMonthData } from "@/db/queries/budget";
+import type { BudgetMonthData, PlanRevisionRow } from "@/db/queries/budget";
 import {
   BudgetMonthBar,
   CurrencyToggle,
@@ -67,38 +67,57 @@ import {
   platformAnchorId,
   useBudgetCurrency,
 } from "@/components/budget/budget-shared";
+import { BudgetPlanRevisions } from "@/components/budget/budget-plan-revisions";
 
-interface SpendRow {
+interface PlanRow {
   key: string;
   kind: "platform" | "combo";
   platform: string;
   objective: string | null;
+  /** USD. For a platform row: its target when one is set, else the row sum. */
   planned: number;
-  actual: number;
-  unplanned: boolean;
+  /** Percent of the row's denominator (platform → month, objective → platform). */
+  share: number | null;
 }
 
 const WEIGHT_STEP = 0.5;
 const WEIGHT_MIN = 0.5;
 const WEIGHT_MAX = 10;
+const NOTE_MAX = 200;
+
+const comboKey = (p: string, o: string) => `${p}|${o}`;
+const numeric = (raw: string) => raw.replace(/[^0-9.]/g, "");
+const parse = (raw: string | undefined) => {
+  const n = Number(raw ?? "");
+  return Number.isFinite(n) ? n : 0;
+};
 
 /**
- * The Plan page body — v1's Budget editor relocated intact (allocations table
- * with draft/dirty/save, copy-from-last-month, revenue target, rate, currency
- * toggle), plus v2's day-curve calendar editor and the reserve budget. Spend is
- * USD natively; the toggle converts DISPLAY through the per-brand rate. Actuals
- * are raw month totals (no exclusion filtering — standing decision). Pacing is
- * curve-based (current month only).
+ * The Plan page body — a PURE PLANNING surface (2026-09). It holds the month's
+ * USD allocations per platform → objective, the SAR revenue target, the reserve
+ * and the day-weight curve, and nothing about what was actually spent: no
+ * actuals, no pacing, no variance. Plan-vs-actual lives on Overview (and, next,
+ * its own Pacing tab), so this screen can be about intent alone.
+ *
+ * Percentages are an EDITING AFFORDANCE ONLY — amounts remain the stored truth
+ * (`budget_allocations.planned_spend`); every share here is computed live from
+ * the drafts and never persisted. Each save writes a plan revision, so any past
+ * state can be inspected and restored from the Revisions drawer.
  */
 export function BudgetPlanEditor({
   month,
   today,
   data,
+  plannedMonths,
+  revisions,
   canManage,
 }: {
   month: string; // YYYY-MM
   today: string; // ISO date
   data: BudgetMonthData;
+  /** Months that already have a plan — the "Copy from month…" options. */
+  plannedMonths: string[];
+  revisions: PlanRevisionRow[];
   canManage: boolean;
 }) {
   const router = useRouter();
@@ -108,10 +127,7 @@ export function BudgetPlanEditor({
   const rate = data.usdToSarRate;
   const fmtSpend = (usdAmount: number) => formatSpend(usdAmount, currency, rate);
 
-  // ── Month math ─────────────────────────────────────────────────────────────
-  const isCurrentMonth = monthKey(today) === month;
   const totalDays = daysInMonth(monthStartIso(month));
-  const elapsed = elapsedDaysInMonth(month, today);
 
   // ── Edit state ─────────────────────────────────────────────────────────────
   const [editing, setEditing] = useState(false);
@@ -119,20 +135,37 @@ export function BudgetPlanEditor({
   const [revenueDraft, setRevenueDraft] = useState<string>("");
   const [reserveDraft, setReserveDraft] = useState<string>("");
   const [weightsDraft, setWeightsDraft] = useState<Record<number, number>>({});
+  const [note, setNote] = useState("");
+  /** Optional month-wide budget the shares are measured against. Draft-only. */
+  const [monthTotalDraft, setMonthTotalDraft] = useState("");
+  /** Optional per-platform intent — the "unallocated" chips need something to
+   *  measure against. Draft-only, never stored. */
+  const [targets, setTargets] = useState<Map<string, string>>(new Map());
+  /** The % cell being typed in — its raw text, so a keystroke isn't reformatted
+   *  out from under the caret by the recomputed share. */
+  const [pctEdit, setPctEdit] = useState<{ key: string; raw: string } | null>(null);
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const [addPlatform, setAddPlatform] = useState<string>("");
   const [addObjective, setAddObjective] = useState<string>("");
-  const [copyConfirm, setCopyConfirm] = useState(false);
+  const [copyOpen, setCopyOpen] = useState(false);
+  const [copyFrom, setCopyFrom] = useState<string>("");
+  const [scaleOpen, setScaleOpen] = useState(false);
+  const [scaleDraft, setScaleDraft] = useState("");
   const [rateDraft, setRateDraft] = useState<string | null>(null);
 
-  const comboKey = (p: string, o: string) => `${p}|${o}`;
   const startEditing = () => {
     setDrafts(
-      new Map(data.allocations.map((a) => [comboKey(a.platform, a.objective), String(a.plannedSpend)])),
+      new Map(
+        data.allocations.map((a) => [comboKey(a.platform, a.objective), String(a.plannedSpend)]),
+      ),
     );
     setRevenueDraft(data.plannedRevenueSar === null ? "" : String(data.plannedRevenueSar));
     setReserveDraft(data.reserveSpendUsd > 0 ? String(data.reserveSpendUsd) : "");
     setWeightsDraft({ ...data.dayWeightOverrides });
+    setMonthTotalDraft("");
+    setTargets(new Map());
+    setNote("");
+    setPctEdit(null);
     setSelectedDay(null);
     setEditing(true);
   };
@@ -142,6 +175,10 @@ export function BudgetPlanEditor({
     setRevenueDraft("");
     setReserveDraft("");
     setWeightsDraft({});
+    setMonthTotalDraft("");
+    setTargets(new Map());
+    setNote("");
+    setPctEdit(null);
     setSelectedDay(null);
   };
   const dirty = useMemo(() => {
@@ -151,11 +188,11 @@ export function BudgetPlanEditor({
     );
     if (orig.size !== drafts.size) return true;
     for (const [k, v] of drafts) {
-      if (!orig.has(k) || Number(v || 0) !== orig.get(k)) return true;
+      if (!orig.has(k) || parse(v) !== orig.get(k)) return true;
     }
     const origRev = data.plannedRevenueSar === null ? "" : String(data.plannedRevenueSar);
     if (revenueDraft.trim() !== origRev) return true;
-    if (Number(reserveDraft || 0) !== data.reserveSpendUsd) return true;
+    if (parse(reserveDraft) !== data.reserveSpendUsd) return true;
     // Weights: compare only the meaningful (non-1) overrides.
     const clean = (o: Record<number, number>) =>
       Object.entries(o)
@@ -166,68 +203,74 @@ export function BudgetPlanEditor({
     return clean(weightsDraft) !== clean(data.dayWeightOverrides);
   }, [editing, drafts, revenueDraft, reserveDraft, weightsDraft, data]);
 
-  // The curve the page is showing: the draft while editing (live preview), the
-  // stored overrides otherwise.
+  // The curve the page shows: the draft while editing, the stored one otherwise.
   const activeWeights = editing ? weightsDraft : data.dayWeightOverrides;
 
-  // ── Spend rows: plan ∪ actual, grouped platform → objective ────────────────
-  const planned = editing
-    ? new Map([...drafts].map(([k, v]) => [k, Number(v || 0)]))
-    : new Map(data.allocations.map((a) => [comboKey(a.platform, a.objective), a.plannedSpend]));
-  const actualByCombo = new Map(
-    data.actualSpendByCombo.map((c) => [comboKey(c.platform, c.objective), c.actualSpend]),
+  // ── Allocation model ───────────────────────────────────────────────────────
+  const planned = useMemo(
+    () =>
+      editing
+        ? new Map([...drafts].map(([k, v]) => [k, parse(v)]))
+        : new Map(
+            data.allocations.map((a) => [comboKey(a.platform, a.objective), a.plannedSpend]),
+          ),
+    [editing, drafts, data.allocations],
   );
 
-  const rows: SpendRow[] = useMemo(() => {
-    const out: SpendRow[] = [];
+  /** A platform's objective keys, in the table's order. */
+  const keysFor = (platform: string) =>
+    [...planned.keys()]
+      .filter((k) => k.startsWith(`${platform}|`))
+      .sort((a, b) => (a < b ? -1 : 1));
+
+  const platformSum = (platform: string) =>
+    round2(keysFor(platform).reduce((s, k) => s + (planned.get(k) ?? 0), 0));
+
+  const grandTotal = round2([...planned.values()].reduce((s, v) => s + v, 0));
+
+  /** The platform's intent, when the planner typed one. */
+  const targetOf = (platform: string): number | null => {
+    if (!editing) return null;
+    const raw = targets.get(platform);
+    if (raw === undefined || raw.trim() === "") return null;
+    return round2(parse(raw));
+  };
+  /** What a platform's objective shares are measured against. */
+  const platformDenom = (platform: string) => targetOf(platform) ?? platformSum(platform);
+  const monthTotal = monthTotalDraft.trim() === "" ? null : round2(parse(monthTotalDraft));
+  const monthDenom = editing ? (monthTotal ?? grandTotal) : grandTotal;
+
+  const rows: PlanRow[] = useMemo(() => {
+    const out: PlanRow[] = [];
     for (const platform of ALL_PLATFORMS) {
-      const combos = new Set<string>();
-      for (const k of planned.keys()) if (k.startsWith(platform + "|")) combos.add(k);
-      for (const k of actualByCombo.keys()) if (k.startsWith(platform + "|")) combos.add(k);
-      if (combos.size === 0) continue;
-      const children: SpendRow[] = [...combos]
-        .map((k) => {
-          const objective = k.split("|")[1]!;
-          const plan = planned.get(k) ?? 0;
-          const actual = actualByCombo.get(k) ?? 0;
-          return {
-            key: k,
-            kind: "combo" as const,
-            platform,
-            objective,
-            planned: plan,
-            actual,
-            unplanned: !planned.has(k),
-          };
-        })
-        .sort((a, b) => (a.objective! < b.objective! ? -1 : 1));
+      const keys = keysFor(platform);
+      if (keys.length === 0) continue;
+      const denom = platformDenom(platform);
       out.push({
         key: platform,
         kind: "platform",
         platform,
         objective: null,
-        planned: children.reduce((s, c) => s + c.planned, 0),
-        actual: children.reduce((s, c) => s + c.actual, 0),
-        unplanned: false,
+        planned: targetOf(platform) ?? platformSum(platform),
+        share: pctShare(targetOf(platform) ?? platformSum(platform), monthDenom),
       });
-      out.push(...children);
+      for (const k of keys) {
+        const amount = planned.get(k) ?? 0;
+        out.push({
+          key: k,
+          kind: "combo",
+          platform,
+          objective: k.split("|")[1]!,
+          planned: amount,
+          share: pctShare(amount, denom),
+        });
+      }
     }
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data, editing, drafts]);
+  }, [planned, targets, monthTotalDraft, editing]);
 
-  const totals = useMemo(() => {
-    const combos = rows.filter((r) => r.kind === "combo");
-    return {
-      planned: combos.reduce((s, r) => s + r.planned, 0),
-      actual: combos.reduce((s, r) => s + r.actual, 0),
-    };
-  }, [rows]);
-
-  const spendDeviation = isCurrentMonth
-    ? pacingDeviation(totals.actual, curveExpected(totals.planned, month, activeWeights, elapsed))
-    : null;
-
+  // ── Draft mutations ────────────────────────────────────────────────────────
   const setDraft = (key: string, value: string) =>
     setDrafts((prev) => new Map(prev).set(key, value));
   const removeDraft = (key: string) =>
@@ -236,19 +279,57 @@ export function BudgetPlanEditor({
       next.delete(key);
       return next;
     });
+  /** Write a computed set of amounts back onto a platform's rows. */
+  const applyAmounts = (keys: string[], amounts: number[]) =>
+    setDrafts((prev) => {
+      const next = new Map(prev);
+      keys.forEach((k, i) => next.set(k, String(amounts[i] ?? 0)));
+      return next;
+    });
 
-  // ── Table columns ──────────────────────────────────────────────────────────
-  const pacingCell = (r: SpendRow) => {
-    const dev = pacingDeviation(r.actual, curveExpected(r.planned, month, activeWeights, elapsed));
-    return (
-      <span className={cn("num text-xs", pacingTone(dev) === "warn" ? "text-warn" : "text-ink-3")}>
-        {pacingVerdict(dev)}
-      </span>
+  /** Editing a row's % holds its platform's total and rescales the siblings. */
+  const setRowPct = (platform: string, key: string, raw: string) => {
+    const keys = keysFor(platform);
+    const amounts = keys.map((k) => planned.get(k) ?? 0);
+    const index = keys.indexOf(key);
+    if (index < 0) return;
+    applyAmounts(keys, redistributeByPct(amounts, index, parse(raw), platformDenom(platform)));
+  };
+
+  /** Editing a platform's % sets its intent as a share of the month total. */
+  const setPlatformPct = (platform: string, raw: string) => {
+    if (monthTotal === null) return;
+    const share = Math.min(100, Math.max(0, parse(raw)));
+    setTargets((prev) =>
+      new Map(prev).set(platform, String(round2((monthTotal * share) / 100))),
     );
   };
 
-  const columns: DataColumn<SpendRow>[] = useMemo(() => {
-    const cols: DataColumn<SpendRow>[] = [
+  const distributeRemaining = (platform: string) => {
+    const keys = keysFor(platform);
+    const target = targetOf(platform);
+    if (target === null || keys.length === 0) return;
+    const amounts = keys.map((k) => planned.get(k) ?? 0);
+    applyAmounts(keys, distributeRemainder(amounts, round2(target - platformSum(platform))));
+  };
+
+  const applyScale = () => {
+    const pct = Number(scaleDraft);
+    if (!Number.isFinite(pct) || scaleDraft.trim() === "") {
+      toast.error("Enter a percentage, e.g. 10 or −5.");
+      return;
+    }
+    const keys = [...planned.keys()];
+    applyAmounts(keys, scaleAll(keys.map((k) => planned.get(k) ?? 0), pct));
+    setScaleOpen(false);
+    setScaleDraft("");
+  };
+
+  // ── Table ──────────────────────────────────────────────────────────────────
+  const columns: DataColumn<PlanRow>[] = useMemo(() => {
+    const label = (r: PlanRow) =>
+      PLATFORM_LABEL[r.platform as keyof typeof PLATFORM_LABEL] ?? r.platform;
+    return [
       {
         key: "item",
         label: "Platform / objective",
@@ -257,139 +338,133 @@ export function BudgetPlanEditor({
           r.kind === "platform" ? (
             <span className="inline-flex items-center gap-2 font-medium">
               <PlatformDot platform={r.platform as never} size="sm" />
-              {PLATFORM_LABEL[r.platform as keyof typeof PLATFORM_LABEL] ?? r.platform}
+              {label(r)}
+              {editing && platformChip(r.platform)}
             </span>
           ) : (
-            <span className="inline-flex items-center gap-2 pl-6">
-              {r.objective}
-              {r.unplanned && (
-                <span className="rounded bg-surface-2 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-ink-3">
-                  unplanned
-                </span>
-              )}
-            </span>
+            <span className="inline-flex items-center gap-2 pl-6">{r.objective}</span>
           ),
-        csv: (r) =>
-          r.kind === "platform"
-            ? (PLATFORM_LABEL[r.platform as keyof typeof PLATFORM_LABEL] ?? r.platform)
-            : `  ${r.objective}${r.unplanned ? " (unplanned)" : ""}`,
+        csv: (r) => (r.kind === "platform" ? label(r) : `  ${r.objective}`),
         total: () => <span className="text-ink-3">Total</span>,
       },
       {
         key: "planned",
-        label: `Planned (${currency})`,
+        label: editing ? "Planned (USD)" : `Planned (${currency})`,
         align: "right",
         render: (r) => {
-          if (editing && r.kind === "combo" && !r.unplanned) {
+          if (!editing) return <span className="num tabular-nums">{fmtSpend(r.planned)}</span>;
+          if (r.kind === "platform") {
+            return (
+              <Input
+                value={targets.get(r.platform) ?? ""}
+                onChange={(e) =>
+                  setTargets((prev) => new Map(prev).set(r.platform, numeric(e.target.value)))
+                }
+                placeholder={String(platformSum(r.platform))}
+                className="h-7 w-28 text-right num"
+                aria-label={`Budget for ${label(r)}`}
+              />
+            );
+          }
+          return (
+            <span className="inline-flex items-center justify-end gap-1">
+              <Input
+                value={drafts.get(r.key) ?? ""}
+                onChange={(e) => setDraft(r.key, numeric(e.target.value))}
+                className="h-7 w-24 text-right num"
+                aria-label={`Planned spend for ${r.platform} ${r.objective}`}
+              />
+              <button
+                type="button"
+                onClick={() => removeDraft(r.key)}
+                className="text-ink-3 hover:text-neg"
+                aria-label="Remove allocation"
+              >
+                <Trash2 className="h-3 w-3" />
+              </button>
+            </span>
+          );
+        },
+        csv: (r) => spendInDisplayCurrency(r.planned, currency, rate).toFixed(2),
+        total: () => (
+          <span className="num tabular-nums font-semibold">
+            {editing ? usd(grandTotal) : fmtSpend(grandTotal)}
+          </span>
+        ),
+      },
+      {
+        key: "share",
+        label: "% share",
+        align: "right",
+        render: (r) => {
+          const editableRow = editing && r.kind === "combo" && keysFor(r.platform).length > 1;
+          const editablePlatform = editing && r.kind === "platform" && monthTotal !== null;
+          if (editableRow || editablePlatform) {
             return (
               <span className="inline-flex items-center justify-end gap-1">
                 <Input
-                  value={drafts.get(r.key) ?? ""}
-                  onChange={(e) => setDraft(r.key, e.target.value.replace(/[^0-9.]/g, ""))}
-                  className="h-7 w-24 text-right num"
-                  aria-label={`Planned spend for ${r.platform} ${r.objective}`}
+                  value={
+                    pctEdit?.key === r.key
+                      ? pctEdit.raw
+                      : r.share === null
+                        ? ""
+                        : r.share.toFixed(1)
+                  }
+                  onChange={(e) => {
+                    const raw = numeric(e.target.value);
+                    setPctEdit({ key: r.key, raw });
+                    if (r.kind === "platform") setPlatformPct(r.platform, raw);
+                    else setRowPct(r.platform, r.key, raw);
+                  }}
+                  onBlur={() => setPctEdit(null)}
+                  className="h-7 w-16 text-right num"
+                  aria-label={
+                    r.kind === "platform"
+                      ? `${label(r)} share of the month budget`
+                      : `${r.objective} share of ${label(r)}`
+                  }
                 />
-                <button
-                  type="button"
-                  onClick={() => removeDraft(r.key)}
-                  className="text-ink-3 hover:text-neg"
-                  aria-label="Remove allocation"
-                >
-                  <Trash2 className="h-3 w-3" />
-                </button>
+                <span className="text-ink-3">%</span>
               </span>
             );
           }
-          return <span className="num tabular-nums">{r.planned > 0 || !r.unplanned ? fmtSpend(r.planned) : "—"}</span>;
-        },
-        csv: (r) => spendInDisplayCurrency(r.planned, currency, rate).toFixed(2),
-        total: () => <span className="num tabular-nums font-semibold">{fmtSpend(totals.planned)}</span>,
-      },
-      {
-        key: "actual",
-        label: `Actual (${currency})`,
-        align: "right",
-        render: (r) => <span className="num tabular-nums">{fmtSpend(r.actual)}</span>,
-        csv: (r) => spendInDisplayCurrency(r.actual, currency, rate).toFixed(2),
-        total: () => <span className="num tabular-nums font-semibold">{fmtSpend(totals.actual)}</span>,
-      },
-      ...(isCurrentMonth
-        ? [
-            {
-              key: "pacing",
-              label: "Pacing",
-              align: "right" as const,
-              render: pacingCell,
-              csv: (r: SpendRow) =>
-                pacingVerdict(
-                  pacingDeviation(r.actual, curveExpected(r.planned, month, activeWeights, elapsed)),
-                ),
-              total: () => (
-                <span
-                  className={cn(
-                    "num text-xs",
-                    pacingTone(spendDeviation) === "warn" ? "text-warn" : "text-ink-3",
-                  )}
-                >
-                  {pacingVerdict(spendDeviation)}
-                </span>
-              ),
-            },
-          ]
-        : []),
-      {
-        key: "variance",
-        label: `Variance (${currency})`,
-        align: "right",
-        render: (r) => {
-          const v = variance(r.actual, r.planned);
-          return (
-            <span className="num tabular-nums text-ink-2">
-              {v > 0 ? "+" : v < 0 ? "−" : ""}
-              {fmtSpend(Math.abs(v))}
-            </span>
-          );
-        },
-        csv: (r) => spendInDisplayCurrency(variance(r.actual, r.planned), currency, rate).toFixed(2),
-        total: () => {
-          const v = variance(totals.actual, totals.planned);
-          return (
-            <span className="num tabular-nums font-semibold text-ink-2">
-              {v > 0 ? "+" : v < 0 ? "−" : ""}
-              {fmtSpend(Math.abs(v))}
-            </span>
-          );
-        },
-      },
-      {
-        key: "variance_pct",
-        label: "Variance %",
-        align: "right",
-        render: (r) => {
-          const pct = variancePct(r.actual, r.planned);
           return (
             <span className="num tabular-nums text-ink-3">
-              {signedPct(pct)}
+              {r.share === null ? "—" : pct1(r.share / 100)}
             </span>
           );
         },
-        csv: (r) => {
-          const pct = variancePct(r.actual, r.planned);
-          return pct === null ? "" : (pct * 100).toFixed(1);
-        },
-        total: () => {
-          const pct = variancePct(totals.actual, totals.planned);
-          return (
-            <span className="num tabular-nums font-semibold text-ink-3">
-              {signedPct(pct)}
-            </span>
-          );
-        },
+        csv: (r) => (r.share === null ? "" : r.share.toFixed(1)),
+        total: () => <span className="num tabular-nums text-ink-3">100.0%</span>,
       },
     ];
-    return cols;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currency, rate, editing, drafts, totals, isCurrentMonth, elapsed, activeWeights, spendDeviation]);
+  }, [currency, rate, editing, drafts, targets, monthTotalDraft, grandTotal, planned, pctEdit]);
+
+  /** The per-platform "unallocated" chip + its distribute button. */
+  function platformChip(platform: string) {
+    const target = targetOf(platform);
+    if (target === null) return null;
+    const left = round2(target - platformSum(platform));
+    if (left === 0) return null;
+    return (
+      <span className="inline-flex items-center gap-1 text-[11px] font-normal">
+        <span className={cn("num", left > 0 ? "text-ink-3" : "text-warn")}>
+          {left > 0 ? `${usd(left)} unallocated` : `${usd(-left)} over`}
+        </span>
+        {left > 0 && (
+          <button
+            type="button"
+            onClick={() => distributeRemaining(platform)}
+            className="inline-flex items-center gap-0.5 text-brand hover:underline"
+          >
+            <Split className="h-3 w-3" />
+            Distribute evenly
+          </button>
+        )}
+      </span>
+    );
+  }
 
   // ── Actions ────────────────────────────────────────────────────────────────
   const save = async () => {
@@ -397,17 +472,18 @@ export function BudgetPlanEditor({
     try {
       const allocations = [...drafts].map(([k, v]) => {
         const [platform, objective] = k.split("|");
-        return { platform: platform!, objective: objective!, plannedSpend: Number(v || 0) };
+        return { platform: platform!, objective: objective!, plannedSpend: parse(v) };
       });
       const rev = revenueDraft.trim();
       const res = await saveBudgetMonth({
         month,
         allocations,
         plannedRevenueSar: rev === "" ? null : Number(rev),
-        reserveSpendUsd: Number(reserveDraft || 0),
+        reserveSpendUsd: parse(reserveDraft),
         dayWeights: Object.entries(weightsDraft)
           .filter(([, w]) => w !== 1)
           .map(([d, w]) => ({ day: Number(d), weight: w })),
+        note: note.trim() === "" ? undefined : note.trim(),
       });
       if (!res.ok) {
         toast.error(res.error ?? "Could not save the plan");
@@ -421,16 +497,23 @@ export function BudgetPlanEditor({
     }
   };
 
+  const copyOptions = plannedMonths.filter((m) => m !== month);
+  const openCopy = () => {
+    const prev = prevMonthKey(month);
+    setCopyFrom(copyOptions.includes(prev) ? prev : (copyOptions[0] ?? ""));
+    setCopyOpen(true);
+  };
   const doCopy = async () => {
+    if (!copyFrom) return;
     setIsPending(true);
     try {
-      const res = await copyBudgetFromLastMonth({ month });
+      const res = await copyBudgetFromMonth({ month, from: copyFrom });
       if (!res.ok) {
         toast.error(res.error ?? "Could not copy");
         return;
       }
-      toast.success(`Copied ${int(res.copied ?? 0)} allocations from ${monthLabel(prevMonthKey(month))}`);
-      setCopyConfirm(false);
+      toast.success(`Copied ${int(res.copied ?? 0)} allocations from ${monthLabel(copyFrom)}`);
+      setCopyOpen(false);
       stopEditing();
       router.refresh();
     } finally {
@@ -495,6 +578,8 @@ export function BudgetPlanEditor({
     (w) => w !== 1 && validateWeight(w),
   ).length;
 
+  const monthLeft = monthTotal === null ? null : round2(monthTotal - grandTotal);
+
   return (
     <div className="space-y-4">
       <BudgetMonthBar month={month} today={today}>
@@ -519,7 +604,7 @@ export function BudgetPlanEditor({
             <span className="inline-flex items-center gap-1">
               <Input
                 value={rateDraft}
-                onChange={(e) => setRateDraft(e.target.value.replace(/[^0-9.]/g, ""))}
+                onChange={(e) => setRateDraft(numeric(e.target.value))}
                 className="h-6 w-20 text-right num"
                 aria-label="USD to SAR rate"
               />
@@ -535,18 +620,38 @@ export function BudgetPlanEditor({
 
         <CurrencyToggle currency={currency} onChange={pickCurrency} />
 
+        <BudgetPlanRevisions
+          month={month}
+          revisions={revisions}
+          current={{
+            allocations: data.allocations.map((a) => ({
+              platform: a.platform,
+              objective: a.objective,
+              plannedSpend: a.plannedSpend,
+            })),
+            plannedRevenueSar: data.plannedRevenueSar,
+            reserveSpendUsd: data.reserveSpendUsd,
+            dayWeights: data.dayWeightOverrides,
+          }}
+          canManage={canManage}
+        />
+
         {canManage && !editing && (
           <>
             <Button
               type="button"
               variant="outline"
               size="sm"
-              disabled={!data.prevMonthHasPlan || isPending}
-              title={data.prevMonthHasPlan ? undefined : `${monthLabel(prevMonthKey(month))} has no plan to copy.`}
-              onClick={() => (hasPlan ? setCopyConfirm(true) : void doCopy())}
+              disabled={copyOptions.length === 0 || isPending}
+              title={
+                copyOptions.length === 0
+                  ? "No other month has a plan to copy."
+                  : undefined
+              }
+              onClick={openCopy}
             >
               <CopyPlus className="h-3.5 w-3.5" />
-              Copy from last month
+              Copy from month…
             </Button>
             <Button type="button" size="sm" onClick={startEditing}>
               <Pencil className="h-3.5 w-3.5" />
@@ -556,6 +661,14 @@ export function BudgetPlanEditor({
         )}
         {editing && (
           <>
+            <Input
+              value={note}
+              onChange={(e) => setNote(e.target.value.slice(0, NOTE_MAX))}
+              placeholder="What changed? (optional)"
+              maxLength={NOTE_MAX}
+              className="h-8 w-52"
+              aria-label="Revision note"
+            />
             <Button type="button" variant="ghost" size="sm" onClick={stopEditing} disabled={isPending}>
               Discard
             </Button>
@@ -572,7 +685,7 @@ export function BudgetPlanEditor({
         {editing ? (
           <Input
             value={revenueDraft}
-            onChange={(e) => setRevenueDraft(e.target.value.replace(/[^0-9.]/g, ""))}
+            onChange={(e) => setRevenueDraft(numeric(e.target.value))}
             placeholder="e.g. 250000"
             className="h-8 w-36 text-right num"
             aria-label="Planned monthly revenue (SAR)"
@@ -586,7 +699,7 @@ export function BudgetPlanEditor({
         {editing ? (
           <Input
             value={reserveDraft}
-            onChange={(e) => setReserveDraft(e.target.value.replace(/[^0-9.]/g, ""))}
+            onChange={(e) => setReserveDraft(numeric(e.target.value))}
             placeholder="0"
             className="h-8 w-28 text-right num"
             aria-label="Reserve spend (USD)"
@@ -600,6 +713,67 @@ export function BudgetPlanEditor({
           Contingency on top of the plan — excluded from pacing.
         </span>
       </div>
+
+      {/* Month budget + distribution helpers (edit mode) */}
+      {editing && (
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border border-line bg-surface px-4 py-3 text-sm">
+          <span className="text-label text-ink-3">Month total budget (USD)</span>
+          <Input
+            value={monthTotalDraft}
+            onChange={(e) => setMonthTotalDraft(numeric(e.target.value))}
+            placeholder="optional"
+            className="h-8 w-32 text-right num"
+            aria-label="Month total budget (USD)"
+          />
+          <span className="num text-[11px] text-ink-3">
+            Allocated {usd(grandTotal)}
+            {monthLeft !== null && monthLeft !== 0 && (
+              <>
+                {" · "}
+                <span className={monthLeft > 0 ? "text-ink-3" : "text-warn"}>
+                  {monthLeft > 0
+                    ? `${usd(monthLeft)} unallocated`
+                    : `${usd(-monthLeft)} over budget`}
+                </span>
+              </>
+            )}
+          </span>
+
+          <Popover open={scaleOpen} onOpenChange={setScaleOpen}>
+            <PopoverTrigger asChild>
+              <Button type="button" variant="outline" size="xs" disabled={planned.size === 0}>
+                <Percent className="h-3 w-3" />
+                Scale all ±%
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="start" className="w-[min(18rem,calc(100vw-2rem))] space-y-2">
+              <p className="text-xs text-ink-2">
+                Scale every allocation. 10 raises them by 10%, −5 trims 5%.
+              </p>
+              <div className="flex items-center gap-2">
+                <Input
+                  value={scaleDraft}
+                  onChange={(e) => setScaleDraft(e.target.value.replace(/[^0-9.\-−]/g, "").replace("−", "-"))}
+                  placeholder="10"
+                  className="h-8 w-24 text-right num"
+                  aria-label="Scale percentage"
+                />
+                <span className="text-ink-3">%</span>
+                <Button type="button" size="xs" onClick={applyScale}>
+                  Apply
+                </Button>
+              </div>
+              <p className="text-[11px] text-ink-3">
+                Applies to the drafts — nothing is saved until you save the plan.
+              </p>
+            </PopoverContent>
+          </Popover>
+
+          <span className="text-[11px] text-ink-3">
+            Shares are a planning aid; the amounts are what gets saved.
+          </span>
+        </div>
+      )}
 
       {/* Day-weight curve */}
       <DayCurveEditor
@@ -625,7 +799,7 @@ export function BudgetPlanEditor({
           <p className="text-sm text-ink-2">No plan for this month yet.</p>
           <p className="mt-1 text-xs text-ink-3">
             {canManage
-              ? "Copy last month or add allocations to start tracking against a plan."
+              ? "Copy another month or add allocations to start planning."
               : "Ask someone with budget access to add a plan."}
           </p>
         </div>
@@ -672,46 +846,56 @@ export function BudgetPlanEditor({
         </div>
       )}
 
-      {/* Spend table — platform rows carry anchor ids for Overview's cards */}
-      <DataTable<SpendRow>
+      {/* Plan table — platform rows carry anchor ids for Overview's cards */}
+      <DataTable<PlanRow>
         columns={columns}
         rows={rows}
         rowKey={(r) => r.key}
         rowId={(r) => (r.kind === "platform" ? platformAnchorId(r.platform) : undefined)}
         showTotals={rows.length > 0}
-        minWidthClass="min-w-[720px]"
-        csvFileName={`budget-${month}-${currency.toLowerCase()}`}
-        rowClassName={(r) =>
-          cn(
-            r.kind === "platform" && "bg-surface-2/50 font-medium scroll-mt-24",
-            r.unplanned && "opacity-60",
-          )
-        }
+        minWidthClass="min-w-[520px]"
+        csvFileName={`budget-plan-${month}-${currency.toLowerCase()}`}
+        rowClassName={(r) => cn(r.kind === "platform" && "bg-surface-2/50 font-medium scroll-mt-24")}
         empty={
           <div className="flex flex-col items-center gap-2 py-12 text-center">
             <Wallet className="h-6 w-6 text-ink-3" />
-            <p className="text-sm text-ink-2">Nothing planned or spent this month.</p>
+            <p className="text-sm text-ink-2">Nothing planned for this month.</p>
           </div>
         }
       />
 
-      {/* Copy-over-existing confirm */}
-      <Dialog open={copyConfirm} onOpenChange={(o) => !isPending && setCopyConfirm(o)}>
+      {/* Copy from any planned month */}
+      <Dialog open={copyOpen} onOpenChange={(o) => !isPending && setCopyOpen(o)}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
-            <DialogTitle>Replace this month&rsquo;s plan?</DialogTitle>
+            <DialogTitle>Copy a plan into {monthLabel(month)}</DialogTitle>
             <DialogDescription>
-              {monthLabel(month)} already has a plan. Copying from{" "}
-              {monthLabel(prevMonthKey(month))} replaces it entirely (allocations,
-              the revenue target, the reserve, and the day-weight curve).
+              {hasPlan
+                ? `${monthLabel(month)} already has a plan — copying replaces it entirely (allocations, the revenue target, the reserve, and the day-weight curve).`
+                : "Copies the allocations, revenue target, reserve and day-weight curve."}
             </DialogDescription>
           </DialogHeader>
+          <div className="space-y-1.5">
+            <span className="text-label text-ink-3">Copy from</span>
+            <Select value={copyFrom} onValueChange={setCopyFrom}>
+              <SelectTrigger className="h-9 w-full" aria-label="Month to copy from">
+                <SelectValue placeholder="Pick a month…" />
+              </SelectTrigger>
+              <SelectContent>
+                {copyOptions.map((m) => (
+                  <SelectItem key={m} value={m}>
+                    {monthLabel(m)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           <DialogFooter>
-            <Button type="button" variant="ghost" onClick={() => setCopyConfirm(false)} disabled={isPending}>
+            <Button type="button" variant="ghost" onClick={() => setCopyOpen(false)} disabled={isPending}>
               Cancel
             </Button>
-            <Button type="button" onClick={doCopy} disabled={isPending}>
-              Replace with last month
+            <Button type="button" onClick={doCopy} disabled={isPending || !copyFrom}>
+              {hasPlan ? "Replace this month" : "Copy plan"}
             </Button>
           </DialogFooter>
         </DialogContent>

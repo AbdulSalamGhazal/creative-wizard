@@ -1,15 +1,21 @@
-import { and, asc, eq, gte, lt, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, lt, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
   accounts,
   budgetAllocations,
   budgetDayWeights,
+  budgetPlanRevisions,
   budgetTargets,
   campaigns,
   performanceRecords,
   storeOrders,
+  users,
 } from "@/db/schema";
 import { getActiveAccountId } from "@/lib/tenant";
+import {
+  storedSnapshotSchema,
+  type BudgetPlanSnapshot,
+} from "@/validators/budget";
 import {
   mapWeightsToMonth,
   monthStartIso,
@@ -264,7 +270,7 @@ export async function copyBudgetMonth(
   acct: string,
   fromMonth: string,
   toMonth: string,
-): Promise<{ allocations: number; hasTarget: boolean }> {
+): Promise<{ allocations: number; hasTarget: boolean; plan: BudgetPlanInput }> {
   const from = monthStartIso(fromMonth);
   const src = await exec
     .select({
@@ -287,7 +293,7 @@ export async function copyBudgetMonth(
     .from(budgetDayWeights)
     .where(and(eq(budgetDayWeights.accountId, acct), eq(budgetDayWeights.month, from)));
 
-  await replaceBudgetMonth(exec, acct, toMonth, {
+  const plan: BudgetPlanInput = {
     allocations: src.map((a) => ({
       platform: a.platform,
       objective: a.objective,
@@ -301,8 +307,9 @@ export async function copyBudgetMonth(
       Object.fromEntries(srcWeights.map((w) => [w.day, Number(w.weight)])),
       toMonth,
     ),
-  });
-  return { allocations: src.length, hasTarget: srcTarget.length > 0 };
+  };
+  await replaceBudgetMonth(exec, acct, toMonth, plan);
+  return { allocations: src.length, hasTarget: srcTarget.length > 0, plan };
 }
 
 // ── Daily + History (v2) ─────────────────────────────────────────────────────
@@ -462,4 +469,159 @@ export async function budgetHistory(): Promise<BudgetHistoryRow[]> {
   for (const r of spendRows) ensure(r.month).actualSpend = Number(r.spend);
   for (const r of revRows) ensure(r.month).actualRevenueSar = Number(r.revenue);
   return [...byMonth.values()].sort((a, b) => (a.month < b.month ? 1 : -1));
+}
+
+// ── Plan revisions + month list (2026-09) ────────────────────────────────────
+
+/**
+ * Every month the brand has ever planned — allocations OR a target row (a
+ * month can carry only a reserve or a revenue target). Newest first; two cheap
+ * month-grain GROUP BYs merged in JS, same shape as `budgetHistory`.
+ */
+export async function plannedMonths(): Promise<string[]> {
+  const acct = await getActiveAccountId();
+  const [allocMonths, targetMonths] = await Promise.all([
+    db
+      .select({ month: budgetAllocations.month })
+      .from(budgetAllocations)
+      .where(eq(budgetAllocations.accountId, acct))
+      .groupBy(budgetAllocations.month),
+    db
+      .select({ month: budgetTargets.month })
+      .from(budgetTargets)
+      .where(eq(budgetTargets.accountId, acct))
+      .groupBy(budgetTargets.month),
+  ]);
+  const keys = new Set<string>();
+  for (const r of [...allocMonths, ...targetMonths]) keys.add(r.month.slice(0, 7));
+  return [...keys].sort((a, b) => (a < b ? 1 : -1));
+}
+
+export interface PlanRevisionRow {
+  id: string;
+  createdAt: string;
+  note: string | null;
+  /** Display label for the author — name, else email, else "Unknown". */
+  savedBy: string;
+  /** Derived from the snapshot so the list needs no second read. */
+  allocationCount: number;
+  plannedTotal: number;
+  plannedRevenueSar: number | null;
+  reserveSpendUsd: number;
+  weightOverrides: number;
+  /**
+   * The full snapshot, so the drawer can render the plan AND diff it against
+   * the current one without a second round-trip. NULL when the stored shape no
+   * longer parses — the row still lists, it just can't be restored.
+   */
+  snapshot: BudgetPlanSnapshot | null;
+}
+
+/**
+ * A month's revisions, newest first, bounded at 50 — the drawer is a recent
+ * history, not an archive. Summary numbers are derived from each snapshot in
+ * JS; a snapshot that no longer parses is still listed (with zeroes) so the
+ * row can be inspected rather than vanishing.
+ */
+export async function listPlanRevisions(
+  month: string,
+  limit = 50,
+): Promise<PlanRevisionRow[]> {
+  const acct = await getActiveAccountId();
+  const rows = await db
+    .select({
+      id: budgetPlanRevisions.id,
+      createdAt: budgetPlanRevisions.createdAt,
+      note: budgetPlanRevisions.note,
+      snapshot: budgetPlanRevisions.snapshot,
+      name: users.name,
+      email: users.email,
+    })
+    .from(budgetPlanRevisions)
+    .leftJoin(users, eq(users.id, budgetPlanRevisions.savedBy))
+    .where(
+      and(
+        eq(budgetPlanRevisions.accountId, acct),
+        eq(budgetPlanRevisions.month, monthStartIso(month)),
+      ),
+    )
+    .orderBy(desc(budgetPlanRevisions.createdAt))
+    .limit(limit);
+
+  return rows.map((r) => {
+    const parsed = storedSnapshotSchema.safeParse(r.snapshot);
+    const snap = parsed.success ? parsed.data : null;
+    return {
+      id: r.id,
+      createdAt: r.createdAt.toISOString(),
+      note: r.note,
+      savedBy: r.name ?? r.email ?? "Unknown",
+      allocationCount: snap?.allocations.length ?? 0,
+      plannedTotal: snap?.allocations.reduce((s, a) => s + a.plannedSpend, 0) ?? 0,
+      plannedRevenueSar: snap?.plannedRevenueSar ?? null,
+      reserveSpendUsd: snap?.reserveSpendUsd ?? 0,
+      weightOverrides: snap ? Object.keys(snap.dayWeights).length : 0,
+      snapshot: snap,
+    };
+  });
+}
+
+export interface PlanRevisionDetail {
+  id: string;
+  /** YYYY-MM — the month the revision belongs to, NOT the caller's guess. */
+  month: string;
+  createdAt: string;
+  note: string | null;
+  snapshot: BudgetPlanSnapshot;
+}
+
+/**
+ * One revision, ACCOUNT-SCOPED — a revision id from another brand simply is not
+ * found. Returns null when the snapshot no longer matches the stored shape;
+ * the restore action turns that into a loud error rather than applying half.
+ */
+export async function getPlanRevision(id: string): Promise<PlanRevisionDetail | null> {
+  const acct = await getActiveAccountId();
+  const [row] = await db
+    .select({
+      id: budgetPlanRevisions.id,
+      month: budgetPlanRevisions.month,
+      createdAt: budgetPlanRevisions.createdAt,
+      note: budgetPlanRevisions.note,
+      snapshot: budgetPlanRevisions.snapshot,
+    })
+    .from(budgetPlanRevisions)
+    .where(and(eq(budgetPlanRevisions.accountId, acct), eq(budgetPlanRevisions.id, id)))
+    .limit(1);
+  if (!row) return null;
+  const parsed = storedSnapshotSchema.safeParse(row.snapshot);
+  if (!parsed.success) return null;
+  return {
+    id: row.id,
+    month: row.month.slice(0, 7),
+    createdAt: row.createdAt.toISOString(),
+    note: row.note,
+    snapshot: parsed.data,
+  };
+}
+
+/**
+ * Append a revision. ALWAYS called inside the same transaction as the write it
+ * records, so a plan can never change without leaving a trace.
+ */
+export async function insertPlanRevision(
+  exec: Exec,
+  acct: string,
+  month: string,
+  snapshot: BudgetPlanSnapshot,
+  note: string | null,
+  savedBy: string | null,
+): Promise<void> {
+  await exec.insert(budgetPlanRevisions).values({
+    accountId: acct,
+    month: monthStartIso(month),
+    snapshot,
+    note: note && note.length > 0 ? note : null,
+    savedBy,
+  });
 }

@@ -665,6 +665,30 @@ This app is deployed and in production use. Treat `main` as shippable.
   past `dataHorizon()` as em-dashes (unknown ≠ 0). Pacing = current month only,
   warn-tinted by |deviation| magnitude — never green/red. Permission
   `budget.manage`; audit `budget.update`. Migrations 0035 + 0036 (additive).
+  - **The Plan tab is planning-only (2026-09).** `/budget/plan` carries intent
+    and nothing else — Platform/objective · Planned · % share. The Actual,
+    Pacing, Variance and Variance % columns and the "unplanned" ghost rows were
+    REMOVED; plan-vs-actual lives on Overview (and, next, its own Pacing tab).
+    `getBudgetMonth()` still returns `actualSpendByCombo` for its other
+    callers — don't reshape it; the Plan page just ignores it.
+  - **% distribution is display math, amounts are the storage.**
+    `budget_allocations.planned_spend` (USD) stays the only truth. Edit mode's
+    month-total budget and per-platform targets are DRAFT-ONLY (never
+    persisted), and every share is computed live. The pure helpers live in
+    `lib/budget.ts` (`round2`, `pctShare`, `splitByWeights`,
+    `redistributeByPct`, `distributeRemainder`, `scaleAll`) and work in integer
+    cents so a split's parts sum EXACTLY — never re-derive them per component.
+    Guidance only: an imperfect split must never block Save.
+  - **Plan revisions (`budget_plan_revisions`, migration 0040, additive).**
+    Every write that changes a plan — `saveBudgetMonth`, `copyBudgetFromMonth`,
+    `restorePlanRevision` — appends a jsonb snapshot of the plan AS IT STANDS
+    AFTERWARDS, **inside the same transaction as the write**. Any new plan-write
+    path must do the same, or the history silently gains a hole. A restore
+    re-validates its snapshot through `planSchema` FIRST (a snapshot predating a
+    vocabulary change fails loudly rather than half-applying) and is itself
+    recorded as a revision, so restoring never loses the state it replaced.
+    `copyBudgetFromLastMonth` was renamed `copyBudgetFromMonth({month, from})` —
+    copy from ANY planned month, options from `plannedMonths()`.
 
 - **2026-09: "tag" → "angle" at ALL layers — DB, URL params, code, UI, MCP.**
   The creative-labeling concept is called an **angle** now. Tables `tags` /

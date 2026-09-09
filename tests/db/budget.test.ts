@@ -63,7 +63,12 @@ describe("budget module — raw actuals, plans, scoping", () => {
       plannedRevenueSar: 25000,
     });
     const copied = await copyBudgetMonth(db, ACCOUNT_A, "2026-01", "2026-02");
-    expect(copied).toEqual({ allocations: 2, hasTarget: true });
+    expect(copied.allocations).toBe(2);
+    expect(copied.hasTarget).toBe(true);
+    // The applied plan comes back so the caller can snapshot it in the same
+    // transaction as the write (see insertPlanRevision).
+    expect(copied.plan.allocations).toHaveLength(2);
+    expect(copied.plan.plannedRevenueSar).toBe(25000);
 
     const feb = await getBudgetMonth("2026-02");
     expect(feb.allocations).toHaveLength(2);
@@ -72,7 +77,8 @@ describe("budget module — raw actuals, plans, scoping", () => {
 
     // Copying from an EMPTY month wipes the destination (replace semantics).
     const empty = await copyBudgetMonth(db, ACCOUNT_A, "2025-12", "2026-02");
-    expect(empty).toEqual({ allocations: 0, hasTarget: false });
+    expect(empty.allocations).toBe(0);
+    expect(empty.hasTarget).toBe(false);
     expect((await getBudgetMonth("2026-02")).allocations).toHaveLength(0);
   });
 

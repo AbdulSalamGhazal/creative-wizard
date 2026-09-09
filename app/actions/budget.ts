@@ -12,12 +12,23 @@ import {
   daysInMonth,
   monthLabel,
   monthStartIso,
-  prevMonthKey,
   validateRate,
   validateWeight,
 } from "@/lib/budget";
-import { MONTH_KEY, planSchema } from "@/validators/budget";
-import { replaceBudgetMonth, copyBudgetMonth } from "@/db/queries/budget";
+import {
+  copyPlanSchema,
+  planInputToSnapshot,
+  planSchema,
+  restoreRevisionSchema,
+  savePlanSchema,
+  snapshotToPlanInput,
+} from "@/validators/budget";
+import {
+  copyBudgetMonth,
+  getPlanRevision,
+  insertPlanRevision,
+  replaceBudgetMonth,
+} from "@/db/queries/budget";
 import { actionError } from "@/lib/action-error";
 
 /**
@@ -35,11 +46,12 @@ export interface BudgetActionResult {
 export async function saveBudgetMonth(input: unknown): Promise<BudgetActionResult> {
   try {
     const user = await requirePermission("budget.manage");
-    const parsed = planSchema.safeParse(input);
+    const parsed = savePlanSchema.safeParse(input);
     if (!parsed.success) {
       return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid plan" };
     }
-    const { month, allocations, plannedRevenueSar, reserveSpendUsd, dayWeights } = parsed.data;
+    const { month, allocations, plannedRevenueSar, reserveSpendUsd, dayWeights, note } =
+      parsed.data;
 
     // Weights: within the month's real length and the allowed bounds. Weight 1
     // rows are simply not persisted (absent = 1).
@@ -65,14 +77,16 @@ export async function saveBudgetMonth(input: unknown): Promise<BudgetActionResul
     }
 
     const acct = await getActiveAccountId();
-    await db.transaction((tx) =>
-      replaceBudgetMonth(tx, acct, month, {
-        allocations,
-        plannedRevenueSar,
-        reserveSpendUsd,
-        dayWeights: Object.fromEntries(dayWeights.map((w) => [w.day, w.weight])),
-      }),
-    );
+    const plan = {
+      allocations,
+      plannedRevenueSar,
+      reserveSpendUsd,
+      dayWeights: Object.fromEntries(dayWeights.map((w) => [w.day, w.weight])),
+    };
+    await db.transaction(async (tx) => {
+      await replaceBudgetMonth(tx, acct, month, plan);
+      await insertPlanRevision(tx, acct, month, planInputToSnapshot(plan), note ?? null, user.id);
+    });
 
     revalidateBudget();
     await logAudit({
@@ -89,6 +103,7 @@ export async function saveBudgetMonth(input: unknown): Promise<BudgetActionResul
         plannedRevenueSar,
         reserveSpendUsd,
         weightOverrides: dayWeights.filter((w) => w.weight !== 1).length,
+        note: note ?? null,
       },
     });
     return { ok: true };
@@ -97,16 +112,34 @@ export async function saveBudgetMonth(input: unknown): Promise<BudgetActionResul
   }
 }
 
-export async function copyBudgetFromLastMonth(input: unknown): Promise<BudgetActionResult> {
+/**
+ * Copy a plan from ANY month that has one — not just the previous month. The
+ * destination is replaced entirely (allocations, target, reserve, weights) and
+ * the result is recorded as a revision inside the same transaction.
+ */
+export async function copyBudgetFromMonth(input: unknown): Promise<BudgetActionResult> {
   try {
     const user = await requirePermission("budget.manage");
-    const parsed = z.object({ month: z.string().regex(MONTH_KEY) }).safeParse(input);
-    if (!parsed.success) return { ok: false, error: "Invalid month." };
-    const { month } = parsed.data;
-    const from = prevMonthKey(month);
+    const parsed = copyPlanSchema.safeParse(input);
+    if (!parsed.success) {
+      return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid month." };
+    }
+    const { month, from } = parsed.data;
     const acct = await getActiveAccountId();
 
-    const copied = await db.transaction((tx) => copyBudgetMonth(tx, acct, from, month));
+    const copied = await db.transaction(async (tx) => {
+      const result = await copyBudgetMonth(tx, acct, from, month);
+      if (result.allocations === 0 && !result.hasTarget) return result;
+      await insertPlanRevision(
+        tx,
+        acct,
+        month,
+        planInputToSnapshot(result.plan),
+        `Copied from ${monthLabel(from)}`,
+        user.id,
+      );
+      return result;
+    });
     if (copied.allocations === 0 && !copied.hasTarget) {
       return { ok: false, error: `${monthLabel(from)} has no plan to copy.` };
     }
@@ -121,6 +154,77 @@ export async function copyBudgetFromLastMonth(input: unknown): Promise<BudgetAct
       meta: { op: "copy_from", from, allocations: copied.allocations, hasTarget: copied.hasTarget },
     });
     return { ok: true, copied: copied.allocations };
+  } catch (err) {
+    return { ok: false, error: errMsg(err) };
+  }
+}
+
+/**
+ * Restore a past revision onto its own month. The snapshot is re-validated
+ * through `planSchema` FIRST: one written before a vocabulary change (a retired
+ * objective, say) fails loudly here rather than being half-applied. The restore
+ * is itself a plan write, so it records a new revision of its own.
+ */
+export async function restorePlanRevision(input: unknown): Promise<BudgetActionResult> {
+  try {
+    const user = await requirePermission("budget.manage");
+    const parsed = restoreRevisionSchema.safeParse(input);
+    if (!parsed.success) return { ok: false, error: "Invalid revision." };
+
+    // Account-scoped read: a revision id from another brand is simply not found.
+    const revision = await getPlanRevision(parsed.data.revisionId);
+    if (!revision) {
+      return { ok: false, error: "That revision no longer exists, or can't be read." };
+    }
+
+    const plan = planSchema.safeParse(snapshotToPlanInput(revision.snapshot, revision.month));
+    if (!plan.success) {
+      return {
+        ok: false,
+        error: `This revision can't be restored — ${plan.error.issues[0]?.message ?? "it no longer matches the current plan format"}.`,
+      };
+    }
+
+    const acct = await getActiveAccountId();
+    const savedAt = new Date(revision.createdAt).toLocaleString("en-US", {
+      dateStyle: "medium",
+      timeStyle: "short",
+      timeZone: "UTC",
+    });
+    const restored = {
+      allocations: plan.data.allocations,
+      plannedRevenueSar: plan.data.plannedRevenueSar,
+      reserveSpendUsd: plan.data.reserveSpendUsd,
+      dayWeights: Object.fromEntries(plan.data.dayWeights.map((w) => [w.day, w.weight])),
+    };
+    await db.transaction(async (tx) => {
+      await replaceBudgetMonth(tx, acct, revision.month, restored);
+      await insertPlanRevision(
+        tx,
+        acct,
+        revision.month,
+        planInputToSnapshot(restored),
+        `Restored from ${savedAt} UTC`,
+        user.id,
+      );
+    });
+
+    revalidateBudget();
+    await logAudit({
+      action: AUDIT_ACTIONS.BUDGET_UPDATE,
+      entityType: "budget",
+      entityId: monthStartIso(revision.month),
+      entityLabel: `Plan for ${monthLabel(revision.month)}`,
+      actorUserId: user.id,
+      meta: {
+        op: "restore",
+        month: revision.month,
+        revisionId: revision.id,
+        restoredFrom: revision.createdAt,
+        allocations: plan.data.allocations.length,
+      },
+    });
+    return { ok: true };
   } catch (err) {
     return { ok: false, error: errMsg(err) };
   }

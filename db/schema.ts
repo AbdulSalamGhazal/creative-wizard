@@ -818,6 +818,43 @@ export const budgetDayWeights = pgTable(
   }),
 );
 
+/**
+ * Plan revisions — an append-only snapshot of a month's plan taken AFTER every
+ * write that changes it (save, copy-from-month, restore). The Plan tab is a
+ * pure planning surface with no locking, so this is the safety net: any past
+ * state can be inspected, diffed against the current plan, and restored.
+ *
+ * `snapshot` holds the whole plan as it stood — allocations, revenue target,
+ * reserve, and day weights — so a restore needs no other table. It is
+ * re-validated through `planSchema` before being applied, so a snapshot written
+ * before a future vocabulary change fails loudly instead of half-applying.
+ * Tenant table (§4.1).
+ */
+export const budgetPlanRevisions = pgTable(
+  "budget_plan_revisions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    accountId: accountId(),
+    /** First day of the month this revision belongs to. */
+    month: date("month").notNull(),
+    /** The plan AFTER the save — see BudgetPlanSnapshot in validators/budget. */
+    snapshot: jsonb("snapshot").notNull(),
+    /** Optional one-line "what changed?" the author typed next to Save. */
+    note: text("note"),
+    /** Nullable + SET NULL: a revision outlives the person who saved it. */
+    savedBy: uuid("saved_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    // The drawer reads one month, newest first — exactly this index.
+    accountMonthCreatedIdx: index("budget_plan_revisions_account_month_created_idx").on(
+      t.accountId,
+      t.month,
+      t.createdAt.desc(),
+    ),
+  }),
+);
+
 // =====================================================================
 // Store module — manual Salla order uploads (NEW; parallel to the ads
 // pipeline above, which it must NOT touch). Grain = one row per order.
