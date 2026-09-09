@@ -20,7 +20,6 @@ import {
   mapWeightsToMonth,
   monthStartIso,
   nextMonthKey,
-  prevMonthKey,
   validateWeight,
 } from "@/lib/budget";
 
@@ -60,8 +59,6 @@ export interface BudgetMonthData {
   actualRevenueSar: number;
   actualOrders: number;
   usdToSarRate: number;
-  /** Whether the PREVIOUS month has any plan (drives "Copy from last month"). */
-  prevMonthHasPlan: boolean;
 }
 
 /** [start, end) date bounds for a month key/ISO. */
@@ -73,9 +70,8 @@ function monthBounds(month: string): { start: string; end: string } {
 export async function getBudgetMonth(month: string): Promise<BudgetMonthData> {
   const acct = await getActiveAccountId();
   const { start, end } = monthBounds(month);
-  const prevStart = monthStartIso(prevMonthKey(month.slice(0, 7)));
 
-  const [allocations, targetRows, weightRows, spendRows, revenueRow, rateRow, prevAlloc, prevTarget] =
+  const [allocations, targetRows, weightRows, spendRows, revenueRow, rateRow] =
     await Promise.all([
       db
         .select({
@@ -134,16 +130,6 @@ export async function getBudgetMonth(month: string): Promise<BudgetMonthData> {
         .from(accounts)
         .where(eq(accounts.id, acct))
         .limit(1),
-      db
-        .select({ id: budgetAllocations.id })
-        .from(budgetAllocations)
-        .where(and(eq(budgetAllocations.accountId, acct), eq(budgetAllocations.month, prevStart)))
-        .limit(1),
-      db
-        .select({ id: budgetTargets.id })
-        .from(budgetTargets)
-        .where(and(eq(budgetTargets.accountId, acct), eq(budgetTargets.month, prevStart)))
-        .limit(1),
     ]);
 
   return {
@@ -172,7 +158,6 @@ export async function getBudgetMonth(month: string): Promise<BudgetMonthData> {
     actualRevenueSar: Number(revenueRow[0]?.revenue ?? 0),
     actualOrders: Number(revenueRow[0]?.orders ?? 0),
     usdToSarRate: Number(rateRow[0]?.rate ?? 3.77),
-    prevMonthHasPlan: prevAlloc.length > 0 || prevTarget.length > 0,
   };
 }
 

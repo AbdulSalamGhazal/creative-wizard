@@ -27,7 +27,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ALL_PLATFORMS, PLATFORM_COLOR, PLATFORM_LABEL, seriesColor } from "@/lib/palette";
-import { monthDay, sar, sarCompact, signedPct, usdCompact } from "@/lib/format";
+import {
+  monthDay,
+  roas as fmtRoas,
+  sar,
+  sarCompact,
+  signedPct,
+  usdCompact,
+} from "@/lib/format";
 import { useNavTransition } from "@/lib/nav-progress";
 import { cn } from "@/lib/utils";
 import {
@@ -41,6 +48,7 @@ import {
   pacingDeviation,
   pacingTone,
   pacingVerdict,
+  roasThroughRate,
   spendInDisplayCurrency,
   variance,
   variancePct,
@@ -397,6 +405,30 @@ export function BudgetPacing({
       {pacingVerdict(dev)}
     </span>
   );
+  /** A variance %, warn-tinted by magnitude — the same threshold the rest of
+   *  Budget pacing uses, never a second hard-coded 0.15. */
+  const pctCell = (pct: number | null) => (
+    <span
+      className={cn(
+        "num tabular-nums text-xs",
+        pacingTone(pct) === "warn" ? "text-warn" : "text-ink-3",
+      )}
+    >
+      {signedPct(pct)}
+    </span>
+  );
+
+  /** Column totals for the cross-month table, summed once. */
+  const monthlyTotals = useMemo(
+    () => ({
+      plannedSpend: monthlyRows.reduce((s, m) => s + m.row.plannedSpend, 0),
+      reserve: monthlyRows.reduce((s, m) => s + m.row.reserveSpendUsd, 0),
+      actualSpend: monthlyRows.reduce((s, m) => s + m.row.actualSpend, 0),
+      plannedRevenue: monthlyRows.reduce((s, m) => s + (m.row.plannedRevenueSar ?? 0), 0),
+      actualRevenue: monthlyRows.reduce((s, m) => s + m.row.actualRevenueSar, 0),
+    }),
+    [monthlyRows],
+  );
 
   const monthlyColumns: DataColumn<(typeof monthlyRows)[number]>[] = useMemo(
     () => [
@@ -426,7 +458,10 @@ export function BudgetPacing({
         csv: (m) => spendInDisplayCurrency(m.row.plannedSpend, currency, rate).toFixed(2),
         total: () => (
           <span className="num tabular-nums font-semibold">
-            {fmtSpend(monthlyRows.reduce((s, m) => s + m.row.plannedSpend, 0))}
+            {fmtSpend(monthlyTotals.plannedSpend)}
+            {monthlyTotals.reserve > 0 && (
+              <span className="text-ink-3"> +{fmtSpend(monthlyTotals.reserve)}</span>
+            )}
           </span>
         ),
       },
@@ -437,9 +472,7 @@ export function BudgetPacing({
         render: (m) => <span className="num tabular-nums">{fmtSpend(m.row.actualSpend)}</span>,
         csv: (m) => spendInDisplayCurrency(m.row.actualSpend, currency, rate).toFixed(2),
         total: () => (
-          <span className="num tabular-nums font-semibold">
-            {fmtSpend(monthlyRows.reduce((s, m) => s + m.row.actualSpend, 0))}
-          </span>
+          <span className="num tabular-nums font-semibold">{fmtSpend(monthlyTotals.actualSpend)}</span>
         ),
       },
       {
@@ -466,15 +499,12 @@ export function BudgetPacing({
         key: "variance_pct",
         label: "Variance %",
         align: "right",
-        render: (m) => (
-          <span className="num tabular-nums text-ink-3">
-            {signedPct(variancePct(m.row.actualSpend, m.row.plannedSpend))}
-          </span>
-        ),
+        render: (m) => pctCell(variancePct(m.row.actualSpend, m.row.plannedSpend)),
         csv: (m) => {
           const pct = variancePct(m.row.actualSpend, m.row.plannedSpend);
           return pct === null ? "" : (pct * 100).toFixed(1);
         },
+        total: () => pctCell(variancePct(monthlyTotals.actualSpend, monthlyTotals.plannedSpend)),
       },
       {
         key: "planned_revenue",
@@ -486,6 +516,11 @@ export function BudgetPacing({
           </span>
         ),
         csv: (m) => (m.row.plannedRevenueSar !== null ? m.row.plannedRevenueSar.toFixed(2) : ""),
+        total: () => (
+          <span className="num tabular-nums font-semibold">
+            {monthlyTotals.plannedRevenue > 0 ? sar(monthlyTotals.plannedRevenue) : "—"}
+          </span>
+        ),
       },
       {
         key: "actual_revenue",
@@ -494,14 +529,61 @@ export function BudgetPacing({
         render: (m) => <span className="num tabular-nums">{sar(m.row.actualRevenueSar)}</span>,
         csv: (m) => m.row.actualRevenueSar.toFixed(2),
         total: () => (
-          <span className="num tabular-nums font-semibold">
-            {sar(monthlyRows.reduce((s, m) => s + m.row.actualRevenueSar, 0))}
-          </span>
+          <span className="num tabular-nums font-semibold">{sar(monthlyTotals.actualRevenue)}</span>
         ),
+      },
+      {
+        key: "revenue_variance",
+        label: "Revenue variance %",
+        align: "right",
+        render: (m) =>
+          pctCell(
+            m.row.plannedRevenueSar !== null
+              ? variancePct(m.row.actualRevenueSar, m.row.plannedRevenueSar)
+              : null,
+          ),
+        csv: (m) => {
+          const pct =
+            m.row.plannedRevenueSar !== null
+              ? variancePct(m.row.actualRevenueSar, m.row.plannedRevenueSar)
+              : null;
+          return pct === null ? "" : (pct * 100).toFixed(1);
+        },
+        total: () =>
+          pctCell(
+            monthlyTotals.plannedRevenue > 0
+              ? variancePct(monthlyTotals.actualRevenue, monthlyTotals.plannedRevenue)
+              : null,
+          ),
+      },
+      {
+        key: "roas",
+        label: "ROAS (via rate)",
+        align: "right",
+        render: (m) => {
+          const v = roasThroughRate(m.row.actualRevenueSar, m.row.actualSpend, rate);
+          return <span className="num tabular-nums">{v === null ? "—" : fmtRoas(v)}</span>;
+        },
+        csv: (m) => {
+          const v = roasThroughRate(m.row.actualRevenueSar, m.row.actualSpend, rate);
+          return v === null ? "" : v.toFixed(2);
+        },
+        total: () => {
+          const v = roasThroughRate(
+            monthlyTotals.actualRevenue,
+            monthlyTotals.actualSpend,
+            rate,
+          );
+          return (
+            <span className="num tabular-nums font-semibold">
+              {v === null ? "—" : fmtRoas(v)}
+            </span>
+          );
+        },
       },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [currency, rate, monthlyRows],
+    [currency, rate, monthlyTotals],
   );
 
   /** The table walks the SPEND fold; the revenue columns index the revenue
@@ -1031,7 +1113,7 @@ export function BudgetPacing({
             rows={monthlyRows}
             rowKey={(m) => m.row.month}
             showTotals={monthlyRows.length > 0}
-            minWidthClass="min-w-[860px]"
+            minWidthClass="min-w-[1040px]"
             csvFileName={`budget-pacing-monthly-${currency.toLowerCase()}`}
             empty={
               <div className="py-12 text-center text-sm text-ink-2">

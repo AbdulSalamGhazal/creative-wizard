@@ -73,7 +73,6 @@ describe("budget module — raw actuals, plans, scoping", () => {
     const feb = await getBudgetMonth("2026-02");
     expect(feb.allocations).toHaveLength(2);
     expect(feb.plannedRevenueSar).toBeCloseTo(25000, 2);
-    expect(feb.prevMonthHasPlan).toBe(true); // Jan has a plan
 
     // Copying from an EMPTY month wipes the destination (replace semantics).
     const empty = await copyBudgetMonth(db, ACCOUNT_A, "2025-12", "2026-02");
