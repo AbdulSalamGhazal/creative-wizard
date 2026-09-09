@@ -13,8 +13,7 @@ import {
   Scale,
   Wallet,
   NotebookPen,
-  CalendarDays,
-  History,
+  Gauge,
   Users,
   ScrollText,
 } from "lucide-react";
@@ -104,8 +103,7 @@ export const NAV_ITEMS: NavItem[] = [
   // sibling page.
   { href: "/budget", label: "Overview", icon: Wallet, group: "budget", exact: true },
   { href: "/budget/plan", label: "Plan", icon: NotebookPen, group: "budget" },
-  { href: "/budget/daily", label: "Daily", icon: CalendarDays, group: "budget" },
-  { href: "/budget/history", label: "History", icon: History, group: "budget" },
+  { href: "/budget/pacing", label: "Pacing", icon: Gauge, group: "budget" },
 
   // ── Store ────────────────────────────────────────────────────────────────
   {
@@ -202,7 +200,7 @@ const MONTH_PARAM = /^\d{4}-\d{2}$/;
 /**
  * The href a nav item should link to given where the user is. Budget items
  * carry the current `?month=` while the user is inside the Budget section, so
- * switching between Overview / Plan / Daily / History never loses the month.
+ * switching between Overview / Plan / Pacing never loses the month.
  * Everything else links plain.
  */
 export function navItemHref(

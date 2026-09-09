@@ -318,3 +318,59 @@ export function scaleAll(amounts: number[], pct: number): number[] {
   if (factor < 0) return amounts.map(() => 0);
   return amounts.map((a) => round2(a * factor));
 }
+
+// ── Bucketing for the Pacing page ────────────────────────────────────────────
+
+export interface MonthBucket {
+  /** Stable key for React + the URL (the bucket's first day of month). */
+  key: string;
+  /** "Sep 1–6" (or "Sep 7" for a one-day bucket). */
+  label: string;
+  /** Inclusive day-of-month bounds; both sides are within the month. */
+  startDay: number;
+  endDay: number;
+}
+
+/**
+ * Calendar weeks (SUNDAY-start, matching the Plan page's day-curve calendar)
+ * covering a month. The first and last buckets are partial whenever the month
+ * doesn't start or end on the week boundary — deliberately, because a
+ * "week" that borrowed days from the neighbouring month would compare against
+ * a plan curve that doesn't cover them.
+ */
+export function weekBuckets(monthIso: string): MonthBucket[] {
+  const start = monthStartIso(monthIso);
+  const total = daysInMonth(start);
+  const firstWeekday = new Date(`${start}T00:00:00Z`).getUTCDay(); // 0 = Sunday
+  const short = new Date(`${start}T00:00:00Z`).toLocaleDateString("en-US", {
+    month: "short",
+    timeZone: "UTC",
+  });
+
+  const out: MonthBucket[] = [];
+  let day = 1;
+  // The first bucket runs to the end of its calendar week (Saturday).
+  let end = Math.min(total, 7 - firstWeekday);
+  while (day <= total) {
+    out.push({
+      key: `${start.slice(0, 8)}${String(day).padStart(2, "0")}`,
+      label: day === end ? `${short} ${day}` : `${short} ${day}–${end}`,
+      startDay: day,
+      endDay: end,
+    });
+    day = end + 1;
+    end = Math.min(total, day + 6);
+  }
+  return out;
+}
+
+/** One bucket per day — the Daily granularity, in the same shape as weeks. */
+export function dayBuckets(monthIso: string): MonthBucket[] {
+  const start = monthStartIso(monthIso);
+  return Array.from({ length: daysInMonth(start) }, (_, i) => ({
+    key: `${start.slice(0, 8)}${String(i + 1).padStart(2, "0")}`,
+    label: String(i + 1),
+    startDay: i + 1,
+    endDay: i + 1,
+  }));
+}

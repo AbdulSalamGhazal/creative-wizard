@@ -1,28 +1,24 @@
-import { PageShell } from "@/components/layout/page-shell";
-import { PageHeader } from "@/components/layout/page-header";
-import { budgetHistory, getUsdToSarRate } from "@/db/queries/budget";
-import { BudgetHistory } from "@/components/budget/budget-history";
-
-export const dynamic = "force-dynamic";
-
-export const metadata = { title: "History" };
+import { redirect, permanentRedirect } from "next/navigation";
 
 /**
- * Budget History — every month with a plan or actuals, newest first: planned
- * vs actual spend and revenue, variance, and ROAS through the brand rate.
- * Read-only; month links jump to that month's Overview.
+ * Budget History merged into Pacing (2026-09) — its month-over-month table is
+ * Pacing's "Monthly" granularity, so the redirect appends it and a bookmark
+ * still lands on the same content.
  */
-export default async function BudgetHistoryPage() {
-  const [rows, rate] = await Promise.all([budgetHistory(), getUsdToSarRate()]);
-
-  return (
-    <PageShell>
-      <PageHeader
-        eyebrow="Budget"
-        title="History"
-        subtitle="Month by month — planned vs actual spend and revenue, variance, and ROAS via the brand rate. Actuals are raw totals (exclusions don't apply here)."
-      />
-      <BudgetHistory rows={rows} rate={rate} />
-    </PageShell>
-  );
+export default async function BudgetHistoryRedirect({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const params = await searchParams;
+  const qs = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (key === "granularity") continue; // the destination pins it below
+    if (Array.isArray(value)) for (const v of value) qs.append(key, v);
+    else if (value !== undefined) qs.set(key, value);
+  }
+  qs.set("granularity", "monthly");
+  permanentRedirect(`/budget/pacing?${qs.toString()}`);
+  // Unreachable — permanentRedirect throws. Satisfies the never-returns lint.
+  redirect("/budget/pacing?granularity=monthly");
 }

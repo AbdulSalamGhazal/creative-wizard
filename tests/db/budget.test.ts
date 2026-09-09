@@ -17,7 +17,7 @@ import {
   rawMonthSpendTotal,
   replaceBudgetMonth,
   copyBudgetMonth,
-  budgetDailySeries,
+  budgetPacingSeries,
   budgetHistory,
 } from "@/db/queries/budget";
 import { writeStoreBatch } from "@/db/queries/store";
@@ -185,15 +185,48 @@ describe("budget v2 — day weights, reserve, daily series, history", () => {
   });
 
   it("per-day spend equals raw per-day totals — EXCLUDED RECORDS INCLUDED", async () => {
-    const daily = await budgetDailySeries(MONTH);
-    expect(daily).toHaveLength(31);
-    const byDay = new Map(daily.map((d) => [d.day, d.spend]));
+    const { spend, days } = await budgetPacingSeries(MONTH);
+    expect(days).toHaveLength(31);
+    // The UI folds the sparse spend rows onto the dense day list; do the same.
+    const byDay = new Map<number, number>();
+    for (const r of spend) {
+      const day = Number(r.date.slice(8, 10));
+      byDay.set(day, (byDay.get(day) ?? 0) + r.spend);
+    }
     expect(byDay.get(1)).toBeCloseTo(300, 2); // 100 IG + 200 FB
     expect(byDay.get(2)).toBeCloseTo(100, 2);
     expect(byDay.get(3)).toBeCloseTo(1000, 2); // the excluded row IS counted
-    expect(byDay.get(4)).toBeCloseTo(0, 2); // genuine zero day
-    const sum = daily.reduce((s, d) => s + d.spend, 0);
+    expect(byDay.get(4) ?? 0).toBeCloseTo(0, 2); // genuine zero day — no row at all
+    const sum = spend.reduce((s, r) => s + r.spend, 0);
     expect(sum).toBeCloseTo(await rawMonthSpendTotal(MONTH), 2);
+  });
+
+  it("spend rows carry the platform and the campaign's CURRENT objective", async () => {
+    const { spend } = await budgetPacingSeries(MONTH);
+    // Every row is a real (date, platform, objective) combo — no zero padding.
+    expect(spend.every((r) => r.spend > 0)).toBe(true);
+    expect(new Set(spend.map((r) => r.platform))).toEqual(
+      new Set(["instagram", "facebook"]),
+    );
+    expect(spend.every((r) => typeof r.objective === "string" && r.objective.length > 0)).toBe(
+      true,
+    );
+
+    // Per platform × objective, the sums reconcile to the raw month total —
+    // the same invariant the allocation-check table renders.
+    const byCombo = new Map<string, number>();
+    for (const r of spend) {
+      const key = `${r.platform}|${r.objective}`;
+      byCombo.set(key, (byCombo.get(key) ?? 0) + r.spend);
+    }
+    const comboTotal = [...byCombo.values()].reduce((s, v) => s + v, 0);
+    expect(comboTotal).toBeCloseTo(await rawMonthSpendTotal(MONTH), 2);
+
+    // …and they agree, combo for combo, with the month view's own breakdown.
+    const overview = await getBudgetMonth(MONTH);
+    for (const c of overview.actualSpendByCombo) {
+      expect(byCombo.get(`${c.platform}|${c.objective}`) ?? 0).toBeCloseTo(c.actualSpend, 2);
+    }
   });
 
   it("per-day revenue/orders equal the store's per-day sums", async () => {
@@ -216,7 +249,7 @@ describe("budget v2 — day weights, reserve, daily series, history", () => {
       ],
       updates: [],
     });
-    const daily = await budgetDailySeries(MONTH);
+    const { days: daily } = await budgetPacingSeries(MONTH);
     const d5 = daily.find((d) => d.day === 5)!;
     const d20 = daily.find((d) => d.day === 20)!;
     expect(d5.revenueSar).toBeCloseTo(200, 2);
@@ -242,7 +275,7 @@ describe("budget v2 — day weights, reserve, daily series, history", () => {
     expect(feb.plannedRevenueSar).toBeCloseTo(25000, 2);
   });
 
-  it("weights, reserve, daily series, and history are account-scoped", async () => {
+  it("weights, reserve, pacing series, and history are account-scoped", async () => {
     await replaceBudgetMonth(db, ACCOUNT_A, MONTH, {
       allocations: [{ platform: "instagram", objective: "Sales", plannedSpend: 1000 }],
       plannedRevenueSar: 9000,
@@ -254,8 +287,8 @@ describe("budget v2 — day weights, reserve, daily series, history", () => {
     expect(b.dayWeightOverrides).toEqual({});
     expect(b.reserveSpendUsd).toBe(0);
 
-    const bDaily = await budgetDailySeries(MONTH);
-    expect(bDaily.reduce((s, d) => s + d.spend, 0)).toBeCloseTo(777, 2); // B's own row only
+    const bSeries = await budgetPacingSeries(MONTH);
+    expect(bSeries.spend.reduce((s, r) => s + r.spend, 0)).toBeCloseTo(777, 2); // B's row only
 
     const bHistory = await budgetHistory();
     const bJan = bHistory.find((r) => r.month === "2026-01");
@@ -338,7 +371,7 @@ describe("budget daily — per-metric data horizons", () => {
     });
 
     const { storeDataHorizon } = await import("@/db/queries/series-bounds");
-    const daily = await budgetDailySeries(MONTH);
+    const { days: daily } = await budgetPacingSeries(MONTH);
     const overview = await getBudgetMonth(MONTH);
     const storeHorizon = await storeDataHorizon();
 

@@ -646,8 +646,10 @@ This app is deployed and in production use. Treat `main` as shippable.
   stores objective values in its plan rows.
 
 - **Budget module (2026-09, v2) — raw actuals BY DECISION.** Its own sidebar
-  section of 4 pages (`/budget` Overview · `/budget/plan` · `/budget/daily` ·
-  `/budget/history`) sharing `?month=` (nav links preserve it). Monthly spend
+  section of 3 pages (`/budget` Overview · `/budget/plan` · `/budget/pacing`)
+  sharing `?month=` (nav links preserve it). The old **Daily** and **History**
+  pages MERGED into Pacing and are permanent redirects to it (History pins
+  `?granularity=monthly`) — don't reintroduce them. Monthly spend
   plan (USD, platform → objective) vs actual and ONE monthly revenue target
   (SAR) vs store actuals, paced along a **day-weight curve** (only non-1 day
   weights stored in `budget_day_weights`; no-overrides ≡ v1 linear, unit-pinned;
@@ -689,6 +691,22 @@ This app is deployed and in production use. Treat `main` as shippable.
     recorded as a revision, so restoring never loses the state it replaced.
     `copyBudgetFromLastMonth` was renamed `copyBudgetFromMonth({month, from})` —
     copy from ANY planned month, options from `plannedMonths()`.
+  - **Pacing is the plan-vs-actual surface (2026-09).** Section 1 is the
+    allocation check (platform → objective, planned vs actual, unplanned rows —
+    the reconcile-to-raw-total invariant lives HERE now); section 2 compares
+    over time with URL-backed granularity (daily / weekly / monthly), a
+    dimension (total / platform / objective), a metric and a cumulative-vs-
+    per-period view. Weeks are Sunday-start calendar weeks that never cross a
+    month edge (`weekBuckets` in lib/budget.ts). **Revenue has no platform
+    breakdown anywhere in Budget** — a store total can't be attributed here
+    (that's Reconciliation), so the metric locks to Spend outside the Total
+    dimension and the UI says why instead of hiding it. Monthly granularity
+    reuses `budgetHistory()` and therefore has no breakdown either.
+    `budgetPacingSeries(month)` is TWO scans for the month — per-(date,
+    platform, objective) spend + per-day store revenue — and every scope and
+    bucket size is folded in JS; never add a query per scope (`max: 1`). The
+    objective on a spend row is the campaign's CURRENT objective, so
+    reclassifying a campaign restates budget history.
 
 - **2026-09: "tag" → "angle" at ALL layers — DB, URL params, code, UI, MCP.**
   The creative-labeling concept is called an **angle** now. Tables `tags` /

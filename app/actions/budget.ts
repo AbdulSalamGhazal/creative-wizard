@@ -262,8 +262,7 @@ function revalidateBudget() {
   try {
     revalidatePath("/budget");
     revalidatePath("/budget/plan");
-    revalidatePath("/budget/daily");
-    revalidatePath("/budget/history");
+    revalidatePath("/budget/pacing");
   } catch (err) {
     console.warn("revalidatePath after budget change failed:", err);
   }

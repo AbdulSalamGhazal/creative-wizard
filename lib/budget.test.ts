@@ -28,6 +28,8 @@ import {
   redistributeByPct,
   distributeRemainder,
   scaleAll,
+  weekBuckets,
+  dayBuckets,
 } from "@/lib/budget";
 
 describe("month helpers", () => {
@@ -280,5 +282,57 @@ describe("plan distribution — percentages and rounding", () => {
     it("floors at zero rather than going negative", () => {
       expect(scaleAll([100, 50], -150)).toEqual([0, 0]);
     });
+  });
+});
+
+/**
+ * Bucketing for Pacing. Weeks are Sunday-start and never cross a month edge:
+ * a bucket that borrowed days from the neighbouring month would be compared
+ * against a plan curve that doesn't cover them.
+ */
+describe("pacing buckets", () => {
+  it("splits a month that starts mid-week into a partial first week", () => {
+    // 2026-09-01 is a Tuesday → the first bucket runs Tue..Sat (1–5).
+    const weeks = weekBuckets("2026-09");
+    expect(weeks[0]).toMatchObject({ label: "Sep 1–5", startDay: 1, endDay: 5 });
+    expect(weeks[1]).toMatchObject({ label: "Sep 6–12", startDay: 6, endDay: 12 });
+    expect(weeks.at(-1)).toMatchObject({ label: "Sep 27–30", endDay: 30 });
+  });
+
+  it("covers every day exactly once, with no gaps and no overlap", () => {
+    for (const month of ["2026-01", "2026-02", "2026-09", "2028-02", "2026-11"]) {
+      const weeks = weekBuckets(month);
+      const days = weeks.flatMap((w) =>
+        Array.from({ length: w.endDay - w.startDay + 1 }, (_, i) => w.startDay + i),
+      );
+      const expected = Array.from(
+        { length: days.at(-1)! },
+        (_, i) => i + 1,
+      );
+      expect(days).toEqual(expected);
+      expect(weeks[0]!.startDay).toBe(1);
+      // No bucket is longer than a week.
+      expect(weeks.every((w) => w.endDay - w.startDay < 7)).toBe(true);
+    }
+  });
+
+  it("starts a whole first week when the month starts on a Sunday", () => {
+    // 2026-02-01 is a Sunday.
+    const weeks = weekBuckets("2026-02");
+    expect(weeks[0]).toMatchObject({ startDay: 1, endDay: 7, label: "Feb 1–7" });
+    expect(weeks).toHaveLength(4); // 28 days, starting Sunday → exactly 4
+  });
+
+  it("labels a one-day trailing bucket without a range dash", () => {
+    // 2026-08-01 is a Saturday → day 1 is a bucket on its own.
+    const weeks = weekBuckets("2026-08");
+    expect(weeks[0]).toMatchObject({ startDay: 1, endDay: 1, label: "Aug 1" });
+  });
+
+  it("day buckets are one per day, in the same shape", () => {
+    const days = dayBuckets("2026-02");
+    expect(days).toHaveLength(28);
+    expect(days[0]).toMatchObject({ label: "1", startDay: 1, endDay: 1, key: "2026-02-01" });
+    expect(days.at(-1)).toMatchObject({ label: "28", startDay: 28, endDay: 28 });
   });
 });

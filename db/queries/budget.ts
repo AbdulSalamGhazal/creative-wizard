@@ -312,7 +312,7 @@ export async function copyBudgetMonth(
   return { allocations: src.length, hasTarget: srcTarget.length > 0, plan };
 }
 
-// ── Daily + History (v2) ─────────────────────────────────────────────────────
+// ── Pacing + History (v2) ────────────────────────────────────────────────────
 
 /** The active brand's USD→SAR rate (History needs just this, not a full month). */
 export async function getUsdToSarRate(): Promise<number> {
@@ -325,29 +325,54 @@ export async function getUsdToSarRate(): Promise<number> {
   return Number(row?.rate ?? 3.77);
 }
 
-export interface BudgetDailyRow {
+export interface BudgetPacingDaySpend {
+  date: string;
+  platform: string;
+  /** The campaign's CURRENT objective — reclassifying a campaign restates
+   *  history here, exactly as it does everywhere else in the system. */
+  objective: string;
+  spend: number;
+}
+
+export interface BudgetPacingDayTotals {
   day: number;
   date: string;
-  spend: number;
   revenueSar: number;
   orders: number;
 }
 
+export interface BudgetPacingSeries {
+  /** One row per (date, platform, objective) that actually spent. */
+  spend: BudgetPacingDaySpend[];
+  /** One row per day of the month, revenue/orders zero-filled. */
+  days: BudgetPacingDayTotals[];
+}
+
 /**
- * Per-day spend + store revenue/orders for the month. RAW spend (no exclusion
- * filter — the module's standing decision). Days with no rows come back as 0;
- * the UI decides how to render days past the data horizon.
+ * The month's raw material for Pacing: per-day spend broken down by platform ×
+ * objective, plus per-day store revenue and order counts. RAW spend (no
+ * exclusion filter — the module's standing decision).
+ *
+ * TWO scans for the whole month, whatever the page is showing. Every scope the
+ * UI offers (total, per platform, per platform × objective) and every bucket
+ * size (day, week, month) is folded from these rows in JS — `lib/db.ts` runs
+ * one connection, so a query per scope would be a serial round-trip each.
+ * Spend rows are sparse (only real combos); the day list is dense so the UI can
+ * tell a genuine zero from an unknown day past the horizon.
  */
-export async function budgetDailySeries(month: string): Promise<BudgetDailyRow[]> {
+export async function budgetPacingSeries(month: string): Promise<BudgetPacingSeries> {
   const acct = await getActiveAccountId();
   const { start, end } = monthBounds(month);
   const [spendRows, revRows] = await Promise.all([
     db
       .select({
         date: performanceRecords.date,
+        platform: performanceRecords.platform,
+        objective: campaigns.objective,
         spend: sql<string>`COALESCE(SUM(${performanceRecords.spend}), 0)`,
       })
       .from(performanceRecords)
+      .innerJoin(campaigns, eq(campaigns.id, performanceRecords.campaignId))
       .where(
         and(
           eq(performanceRecords.accountId, acct),
@@ -355,7 +380,7 @@ export async function budgetDailySeries(month: string): Promise<BudgetDailyRow[]
           lt(performanceRecords.date, end),
         ),
       )
-      .groupBy(performanceRecords.date),
+      .groupBy(performanceRecords.date, performanceRecords.platform, campaigns.objective),
     db
       .select({
         date: storeOrders.orderDate,
@@ -373,24 +398,31 @@ export async function budgetDailySeries(month: string): Promise<BudgetDailyRow[]
       .groupBy(storeOrders.orderDate),
   ]);
 
-  const spendByDate = new Map(spendRows.map((r) => [r.date, Number(r.spend)]));
   const revByDate = new Map(
     revRows.map((r) => [r.date, { revenue: Number(r.revenue), orders: Number(r.orders) }]),
   );
-  const days = new Date(
+  const total = new Date(
     Date.UTC(Number(start.slice(0, 4)), Number(start.slice(5, 7)), 0),
   ).getUTCDate();
-  return Array.from({ length: days }, (_, i) => {
-    const date = `${start.slice(0, 8)}${String(i + 1).padStart(2, "0")}`;
-    const rev = revByDate.get(date);
-    return {
-      day: i + 1,
-      date,
-      spend: spendByDate.get(date) ?? 0,
-      revenueSar: rev?.revenue ?? 0,
-      orders: rev?.orders ?? 0,
-    };
-  });
+
+  return {
+    spend: spendRows.map((r) => ({
+      date: r.date,
+      platform: r.platform,
+      objective: r.objective,
+      spend: Number(r.spend),
+    })),
+    days: Array.from({ length: total }, (_, i) => {
+      const date = `${start.slice(0, 8)}${String(i + 1).padStart(2, "0")}`;
+      const rev = revByDate.get(date);
+      return {
+        day: i + 1,
+        date,
+        revenueSar: rev?.revenue ?? 0,
+        orders: rev?.orders ?? 0,
+      };
+    }),
+  };
 }
 
 export interface BudgetHistoryRow {
