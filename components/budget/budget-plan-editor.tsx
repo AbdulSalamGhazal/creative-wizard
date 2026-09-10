@@ -35,7 +35,7 @@ import {
 import { DataTable, type DataColumn } from "@/components/ui/data-table";
 import { PlatformDot } from "@/components/ui/platform-dot";
 import { ALL_PLATFORMS, PLATFORM_LABEL } from "@/lib/palette";
-import { int, pct1, sar, usd } from "@/lib/format";
+import { pct1, plural, sar, usd } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import {
   BUDGET_OBJECTIVES,
@@ -526,7 +526,9 @@ export function BudgetPlanEditor({
         toast.error(res.error ?? "Could not copy");
         return;
       }
-      toast.success(`Copied ${int(res.copied ?? 0)} allocations from ${monthLabel(copyFrom)}`);
+      toast.success(
+        `Copied ${plural(res.copied ?? 0, "allocation")} from ${monthLabel(copyFrom)}`,
+      );
       setCopyOpen(false);
       stopEditing();
       router.refresh();
@@ -706,7 +708,13 @@ export function BudgetPlanEditor({
             <Button type="button" variant="ghost" size="sm" onClick={stopEditing} disabled={isPending}>
               Discard
             </Button>
-            <Button type="button" size="sm" onClick={save} disabled={!canSave || isPending}>
+            <Button
+              type="button"
+              size="sm"
+              onClick={save}
+              disabled={!canSave || isPending}
+              title={problems[0]}
+            >
               Save plan
             </Button>
           </>
@@ -726,7 +734,7 @@ export function BudgetPlanEditor({
             </div>
             <div className="flex flex-wrap items-end gap-x-6 gap-y-3">
               <label className="space-y-1">
-                <span className="block text-label text-ink-3">Total spend budget (USD)</span>
+                <span className="block text-label text-ink-3">Total budget (USD)</span>
                 <Input
                   value={draft.total}
                   onChange={(e) => setField({ total: numeric(e.target.value) })}
@@ -734,7 +742,7 @@ export function BudgetPlanEditor({
                   onBlur={() => setTotalFocused(false)}
                   placeholder="e.g. 50000"
                   className="h-9 w-40 text-right num"
-                  aria-label="Total spend budget (USD)"
+                  aria-label="Total budget (USD)"
                 />
               </label>
               <label className="space-y-1">
@@ -963,28 +971,55 @@ export function BudgetPlanEditor({
         </>
       ) : (
         <>
-          {/* View mode — the calm read of what's planned */}
-          <div className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-lg border border-line bg-surface px-4 py-3 text-sm">
-            <span className="text-label text-ink-3">Total budget</span>
-            <span className="num tabular-nums text-ink">
-              {storedAllocated + data.reserveSpendUsd > 0
-                ? fmtSpend(storedAllocated + data.reserveSpendUsd)
-                : "—"}
-            </span>
-            <span className="text-label text-ink-3">Revenue target (SAR)</span>
-            <span className="num tabular-nums text-ink">
-              {data.plannedRevenueSar !== null ? sar(data.plannedRevenueSar) : "—"}
-            </span>
-            <span className="text-label text-ink-3">Reserve</span>
-            <span className="num tabular-nums text-ink">
-              {data.reserveSpendUsd > 0 ? fmtSpend(data.reserveSpendUsd) : "—"}
-            </span>
-            <span className="text-[11px] text-ink-3">
-              Held back from the total — allocated {fmtSpend(storedAllocated)}.
-            </span>
-          </div>
+          {/* View mode — the calm read of what's planned. On a month with no
+              plan at all we show ONE empty state: not a strip of dashes, a
+              hint card, AND an empty table stacked on top of each other. */}
+          {hasPlan ? (
+            <>
+              <div className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-lg border border-line bg-surface px-4 py-3 text-sm">
+                <span className="inline-flex items-center gap-2">
+                  <span className="text-label text-ink-3">Total budget</span>
+                  <span className="num tabular-nums text-ink">
+                    {fmtSpend(storedAllocated + data.reserveSpendUsd)}
+                  </span>
+                </span>
+                <span className="inline-flex items-center gap-2">
+                  <span className="text-label text-ink-3">Revenue target (SAR)</span>
+                  <span className="num tabular-nums text-ink">
+                    {data.plannedRevenueSar !== null ? sar(data.plannedRevenueSar) : "—"}
+                  </span>
+                </span>
+                <span className="inline-flex items-center gap-2">
+                  <span className="text-label text-ink-3">Reserve</span>
+                  <span className="num tabular-nums text-ink">
+                    {data.reserveSpendUsd > 0 ? fmtSpend(data.reserveSpendUsd) : "—"}
+                  </span>
+                </span>
+                <span className="text-[11px] text-ink-3">
+                  Held back from the total — allocated {fmtSpend(storedAllocated)}.
+                </span>
+              </div>
 
-          {!hasPlan && (
+              <DataTable<PlanRow>
+                columns={columns}
+                rows={rows}
+                rowKey={(r) => r.key}
+                rowId={(r) => (r.kind === "platform" ? platformAnchorId(r.platform) : undefined)}
+                showTotals={rows.length > 0}
+                minWidthClass="min-w-[520px]"
+                csvFileName={`budget-plan-${month}-${currency.toLowerCase()}`}
+                rowClassName={(r) =>
+                  cn(r.kind === "platform" && "bg-surface-2/50 font-medium scroll-mt-24")
+                }
+                empty={
+                  <div className="flex flex-col items-center gap-2 py-12 text-center">
+                    <Wallet className="h-6 w-6 text-ink-3" />
+                    <p className="text-sm text-ink-2">Nothing planned for this month.</p>
+                  </div>
+                }
+              />
+            </>
+          ) : (
             <div className="rounded-lg border border-dashed border-line bg-surface px-6 py-10 text-center">
               <p className="text-sm text-ink-2">No plan for this month yet.</p>
               <p className="mt-1 text-xs text-ink-3">
@@ -994,25 +1029,6 @@ export function BudgetPlanEditor({
               </p>
             </div>
           )}
-
-          <DataTable<PlanRow>
-            columns={columns}
-            rows={rows}
-            rowKey={(r) => r.key}
-            rowId={(r) => (r.kind === "platform" ? platformAnchorId(r.platform) : undefined)}
-            showTotals={rows.length > 0}
-            minWidthClass="min-w-[520px]"
-            csvFileName={`budget-plan-${month}-${currency.toLowerCase()}`}
-            rowClassName={(r) =>
-              cn(r.kind === "platform" && "bg-surface-2/50 font-medium scroll-mt-24")
-            }
-            empty={
-              <div className="flex flex-col items-center gap-2 py-12 text-center">
-                <Wallet className="h-6 w-6 text-ink-3" />
-                <p className="text-sm text-ink-2">Nothing planned for this month.</p>
-              </div>
-            }
-          />
         </>
       )}
 
@@ -1040,8 +1056,8 @@ export function BudgetPlanEditor({
             <DialogTitle>Copy a plan into {monthLabel(month)}</DialogTitle>
             <DialogDescription>
               {hasPlan
-                ? `${monthLabel(month)} already has a plan — copying replaces it entirely (allocations, the revenue target, the reserve, and the day-weight curve).`
-                : "Copies the allocations, revenue target, reserve and day-weight curve."}
+                ? `${monthLabel(month)} already has a plan — copying replaces it entirely (allocations, the revenue target, the reserve, and the plan curve).`
+                : "Copies the allocations, revenue target, reserve and plan curve."}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-1.5">
@@ -1178,8 +1194,10 @@ function DayCurveEditor({
         )}
       </div>
 
-      {/* Calendar grid */}
-      <div className="grid grid-cols-7 gap-1 max-w-md">
+      {/* Calendar left, stepper/help right at sm+ — the grid is ~380px wide,
+          so a single column left the right 60% of the card empty. */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+      <div className="grid grid-cols-7 gap-1 max-w-md shrink-0">
         {["S", "M", "T", "W", "T", "F", "S"].map((d, i) => (
           <div key={`${d}${i}`} className="text-center text-[10px] text-ink-3">
             {d}
@@ -1219,7 +1237,8 @@ function DayCurveEditor({
       </div>
 
       {/* Weight stepper for the selected day */}
-      {editing && selectedDay !== null && (
+      <div className="min-w-0 flex-1">
+      {editing && selectedDay !== null ? (
         <div className="flex flex-wrap items-center gap-2 text-sm">
           <span className="text-label text-ink-3">Day {selectedDay}</span>
           <Button type="button" variant="outline" size="xs" onClick={() => onBump(selectedDay, -WEIGHT_STEP)} aria-label="Decrease weight">
@@ -1238,7 +1257,14 @@ function DayCurveEditor({
             0.5–10, step 0.5. Weight 1 means a normal day.
           </span>
         </div>
-      )}
+      ) : editing ? (
+        <p className="text-[11px] text-ink-3">
+          Pick a day to weight it. A weighted day takes a bigger share of the
+          plan, so plan-to-date steps up on paydays instead of rising evenly.
+        </p>
+      ) : null}
+      </div>
+      </div>
     </div>
   );
 }

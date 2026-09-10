@@ -15,7 +15,13 @@ export function MetricPicker<T extends string>({
   ariaLabel = "Metric",
   className,
 }: {
-  options: ReadonlyArray<{ value: T; label: string }>;
+  /** A `disabled` option renders locked; `title` explains why it is. */
+  options: ReadonlyArray<{
+    value: T;
+    label: string;
+    disabled?: boolean;
+    title?: string;
+  }>;
   value: T;
   onChange: (value: T) => void;
   ariaLabel?: string;

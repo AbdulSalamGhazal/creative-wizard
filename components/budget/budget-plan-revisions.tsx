@@ -175,8 +175,8 @@ export function BudgetPlanRevisions({
             <div className="rounded-lg border border-dashed border-line px-4 py-10 text-center">
               <p className="text-sm text-ink-2">No revisions yet.</p>
               <p className="mt-1 text-xs text-ink-3">
-                Revisions are recorded from now on — every save, copy and restore
-                stores the plan as it stood afterwards.
+                Every save, copy, and restore records a snapshot of the plan, so
+                you can compare and roll back later.
               </p>
             </div>
           ) : (
@@ -296,19 +296,12 @@ export function BudgetPlanRevisions({
                             <span className="inline-flex items-center gap-1.5 text-ink-2">
                               <PlatformDot platform={d.platform as never} size="sm" />
                               {d.objective}
-                              <span
-                                className={cn(
-                                  "rounded px-1 text-[10px] uppercase tracking-wide",
-                                  d.kind === "added" && "bg-surface-2 text-ink-3",
-                                  d.kind === "removed" && "bg-surface-2 text-ink-3",
-                                  d.kind === "changed" && "bg-surface-2 text-ink-3",
-                                )}
-                              >
+                              <span className="rounded bg-surface-2 px-1 text-eyebrow text-ink-3">
                                 {d.kind === "added"
                                   ? "would be dropped"
                                   : d.kind === "removed"
                                     ? "would return"
-                                    : "changes"}
+                                    : "would change"}
                               </span>
                             </span>
                             <span className="num tabular-nums whitespace-nowrap text-ink-2">

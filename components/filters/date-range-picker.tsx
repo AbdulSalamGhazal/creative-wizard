@@ -41,6 +41,7 @@ export function DateRangePicker({
   remember = false,
   fallback,
   fullWidth = false,
+  hidePresets,
 }: {
   from: string | null;
   to: string | null;
@@ -55,6 +56,12 @@ export function DateRangePicker({
   fallback?: DateRangeValue;
   /** Full-width stacked trigger for the mobile filter Sheet. */
   fullWidth?: boolean;
+  /**
+   * Preset keys to leave out. Budget's Pacing hides "Lifetime" because an
+   * unbounded range has no plan to compare against — offering a control that
+   * silently does nothing is worse than not offering it.
+   */
+  hidePresets?: readonly string[];
 }) {
   const [open, setOpen] = useState(false);
   const router = useRouter();
@@ -154,7 +161,7 @@ export function DateRangePicker({
               Quick ranges
             </div>
             <div className="space-y-0.5">
-              {DATE_PRESETS.map((p) => (
+              {DATE_PRESETS.filter((p) => !hidePresets?.includes(p.key)).map((p) => (
                 <button
                   key={p.key}
                   type="button"

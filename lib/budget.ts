@@ -735,11 +735,11 @@ export function planGateProblems(input: PlanGateInput): string[] {
   if (total <= 0) {
     if (hasRevenueTarget) {
       if (reserve > 0) {
-        out.push("A reserve needs a total spend budget to be carved out of.");
+        out.push("A reserve needs a total budget to be carved out of.");
       }
       return out;
     }
-    out.push("Set a total spend budget, or just a revenue target.");
+    out.push("Set a total budget, or just a revenue target.");
     return out;
   }
 

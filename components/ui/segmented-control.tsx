@@ -19,7 +19,13 @@ export function SegmentedControl<T extends string>({
   ariaLabel,
   className,
 }: {
-  options: ReadonlyArray<{ value: T; label: string }>;
+  /** `disabled` renders the option visibly unavailable; `title` says why. */
+  options: ReadonlyArray<{
+    value: T;
+    label: string;
+    disabled?: boolean;
+    title?: string;
+  }>;
   value: T;
   onChange: (value: T) => void;
   ariaLabel: string;
@@ -40,10 +46,16 @@ export function SegmentedControl<T extends string>({
           type="button"
           role="tab"
           aria-selected={value === o.value}
+          aria-disabled={o.disabled || undefined}
+          disabled={o.disabled}
+          title={o.title}
           onClick={() => onChange(o.value)}
           className={cn(
             "px-2.5 h-7 rounded transition-colors whitespace-nowrap",
             value === o.value ? "bg-surface-3 text-ink" : "text-ink-3 hover:text-ink",
+            // An unavailable option stays readable but visibly out of reach —
+            // hiding it would leave the reader wondering where it went.
+            o.disabled && "cursor-not-allowed opacity-40 hover:text-ink-3",
           )}
         >
           {o.label}

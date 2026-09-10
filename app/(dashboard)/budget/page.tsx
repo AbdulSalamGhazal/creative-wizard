@@ -7,12 +7,12 @@ import { monthKey } from "@/lib/budget";
 // produce a nonsense one. One regex, in the validators.
 import { MONTH_KEY } from "@/validators/budget";
 import { getBudgetMonth } from "@/db/queries/budget";
-import { dataHorizon } from "@/db/queries/series-bounds";
+import { dataHorizon, storeDataHorizon } from "@/db/queries/series-bounds";
 import { BudgetOverview } from "@/components/budget/budget-overview";
 
 export const dynamic = "force-dynamic";
 
-export const metadata = { title: "Budget" };
+export const metadata = { title: "Overview" };
 
 /**
  * Budget Overview — the month's read-only verdict: plan vs actual with curve-
@@ -32,20 +32,27 @@ export default async function BudgetOverviewPage({
 
   const user = await auth();
   const canManage = user ? can(user, "budget.manage") : false;
-  const [data, horizon] = await Promise.all([getBudgetMonth(month), dataHorizon()]);
+  // Ads and store data arrive on separate schedules, so the horizon note needs
+  // BOTH — this page reports revenue and orders alongside spend.
+  const [data, horizon, storeHorizon] = await Promise.all([
+    getBudgetMonth(month),
+    dataHorizon(),
+    storeDataHorizon(),
+  ]);
 
   return (
     <PageShell>
       <PageHeader
         eyebrow="Budget"
-        title="Budget"
-        subtitle="The month at a glance — spend and revenue vs plan, paced along the day-weight curve, with a month-end projection. Actuals are raw totals (exclusions don't apply here)."
+        title="Overview"
+        subtitle="The month at a glance — spend and revenue vs plan, paced by the plan curve set on the Plan page, with a month-end projection. Actuals are raw totals (exclusions don't apply here)."
       />
       <BudgetOverview
         month={month}
         today={today}
         data={data}
         horizon={horizon}
+        storeHorizon={storeHorizon}
         canManage={canManage}
       />
     </PageShell>

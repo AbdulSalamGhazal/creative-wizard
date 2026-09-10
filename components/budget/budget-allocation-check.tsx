@@ -31,7 +31,7 @@ interface CheckRow {
   platform: string | null;
   planned: number;
   actual: number;
-  /** Actual spend on a combo with no allocation — the reserve's territory. */
+  /** Actual spend with no matching allocation — it draws down the reserve. */
   unplanned: boolean;
 }
 
@@ -137,7 +137,7 @@ export function BudgetAllocationCheck({
               <PlatformDot platform={r.platform as never} size="sm" />
               {platformLabel(r)}
               {r.unplanned && (
-                <span className="rounded bg-surface-2 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-ink-3">
+                <span className="rounded bg-surface-2 px-1.5 py-0.5 text-eyebrow text-ink-3">
                   unplanned
                 </span>
               )}
@@ -244,9 +244,12 @@ export function BudgetAllocationCheck({
         cn(r.kind === "objective" && "bg-surface-2/50 font-medium", r.unplanned && "opacity-70")
       }
       empty={
-        <div className="flex flex-col items-center gap-2 py-12 text-center">
+        <div className="m-3 flex flex-col items-center gap-2 rounded-lg border border-dashed border-line px-6 py-10 text-center">
           <Wallet className="h-6 w-6 text-ink-3" />
           <p className="text-sm text-ink-2">Nothing planned or spent this month.</p>
+          <p className="text-xs text-ink-3">
+            Allocations appear here once the plan is saved or spend arrives.
+          </p>
         </div>
       }
     />

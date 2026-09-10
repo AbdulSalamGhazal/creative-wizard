@@ -58,6 +58,15 @@ import {
 } from "@/components/budget/budget-shared";
 
 export type GroupBy = "day" | "week" | "month";
+
+/**
+ * "Sep 1 – Sep 30" within a year; "Oct 1, 2025 – Sep 30, 2026" across one.
+ * A twelve-month range labelled without years reads as nine days.
+ */
+function rangeTitle(from: string, to: string): string {
+  if (from.slice(0, 4) === to.slice(0, 4)) return `${monthDay(from)} – ${monthDay(to)}`;
+  return `${monthDay(from)}, ${from.slice(0, 4)} – ${monthDay(to)}, ${to.slice(0, 4)}`;
+}
 type Metric = "spend" | "revenue" | "roas";
 type View = "cumulative" | "period";
 
@@ -415,7 +424,7 @@ export function BudgetPacing({
       <span className="inline-flex items-center gap-1.5">
         <span className="num tabular-nums">{r.bucket.label}</span>
         {r.spendPartial && r.spendThrough && (
-          <span className="text-[10px] text-ink-3">through {monthDay(r.spendThrough)}</span>
+          <span className="text-eyebrow text-ink-3">through {monthDay(r.spendThrough)}</span>
         )}
       </span>
     ),
@@ -423,6 +432,8 @@ export function BudgetPacing({
     total: () => <span className="text-ink-3">Total</span>,
   };
 
+  /** Does ANY month in the range carry a spend plan to compare against? */
+  const hasSpendPlan = rows.some((r) => (r.planSpendCum.get(TOTAL_KEY) ?? 0) > 0);
   const lastKnownSpend = rows.filter((r) => !r.spendUnknown).at(-1);
   const lastKnownRevenue = rows.filter((r) => !r.revenueUnknown).at(-1);
   const lastRow = rows.at(-1);
@@ -455,7 +466,7 @@ export function BudgetPacing({
         },
         {
           key: "roas_plan",
-          label: "On-plan ROAS",
+          label: "Target ROAS",
           align: "right",
           render: (r) => {
             const v = planRoas(r);
@@ -467,7 +478,7 @@ export function BudgetPacing({
         },
         {
           key: "roas_dev",
-          label: "Deviation",
+          label: "Pacing",
           align: "right",
           render: (r) => {
             const a = actualRoas(r);
@@ -549,7 +560,7 @@ export function BudgetPacing({
         },
         {
           key: "revenue_dev",
-          label: "Deviation",
+          label: "Pacing",
           align: "right",
           render: (r) =>
             r.revenueUnknown || r.planRevenueCum <= 0
@@ -595,17 +606,26 @@ export function BudgetPacing({
         },
         {
           key: `${key}_plan`,
-          label: byObjective ? `${name} plan` : `Plan-to-date (${currency})`,
+          label: byObjective
+            ? `${name} plan-to-date`
+            : `Plan-to-date (${currency})`,
           align: "right",
-          render: (r) => (
-            <span className="num tabular-nums text-ink-3">
-              {fmtSpend(r.planSpendCum.get(key) ?? 0)}
-            </span>
-          ),
+          render: (r) =>
+            // No plan anywhere in the range → a dash, not a column of $0.00.
+            // The revenue side already reads this way; mirror it.
+            hasSpendPlan ? (
+              <span className="num tabular-nums text-ink-3">
+                {fmtSpend(r.planSpendCum.get(key) ?? 0)}
+              </span>
+            ) : (
+              dash
+            ),
           csv: (r) =>
-            spendInDisplayCurrency(r.planSpendCum.get(key) ?? 0, currency, rate).toFixed(2),
+            hasSpendPlan
+              ? spendInDisplayCurrency(r.planSpendCum.get(key) ?? 0, currency, rate).toFixed(2)
+              : "",
           total: () =>
-            lastRow ? (
+            lastRow && hasSpendPlan ? (
               <span className="num tabular-nums font-semibold">
                 {fmtSpend(lastRow.planSpendCum.get(key) ?? 0)}
               </span>
@@ -615,16 +635,16 @@ export function BudgetPacing({
         },
         {
           key: `${key}_dev`,
-          label: byObjective ? `${name} dev.` : "Deviation",
+          label: byObjective ? `${name} pacing` : "Pacing",
           align: "right",
           render: (r) =>
-            r.spendUnknown
+            r.spendUnknown || !hasSpendPlan
               ? dash
               : devCell(
                   pacingDeviation(r.spendCum.get(key) ?? 0, r.planSpendCum.get(key) ?? 0),
                 ),
           csv: (r) =>
-            r.spendUnknown
+            r.spendUnknown || !hasSpendPlan
               ? ""
               : pacingVerdict(
                   pacingDeviation(r.spendCum.get(key) ?? 0, r.planSpendCum.get(key) ?? 0),
@@ -634,7 +654,11 @@ export function BudgetPacing({
     }
     return cols;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeMetric, byObjective, currency, rate, rows, groupBy]);
+  }, [activeMetric, byObjective, currency, rate, rows, groupBy, hasSpendPlan]);
+
+  /** Why Revenue and ROAS are unavailable under a platform filter. */
+  const allPlatformsOnly =
+    "All-platforms only — revenue isn't attributed to platforms";
 
   const platformFilterLabel =
     platforms.length === 0
@@ -647,8 +671,15 @@ export function BudgetPacing({
     <div className="space-y-4">
       {/* Controls — deliberately wrapping: on a phone they stack into rows
           rather than scrolling sideways. */}
-      <div className="flex flex-wrap items-center gap-2 rounded-lg border border-line bg-surface px-3 py-2">
-        <DateRangePicker from={from} to={to} onChange={setRange} />
+      <div className="sticky top-14 z-10 flex flex-wrap items-center gap-2 rounded-lg border border-line bg-surface px-3 py-2">
+        {/* Lifetime is hidden: an unbounded range has no plan to pace against,
+            so the preset would silently do nothing. */}
+        <DateRangePicker
+          from={from}
+          to={to}
+          onChange={setRange}
+          hidePresets={["lifetime"]}
+        />
 
         <FilterPill
           icon={Layers}
@@ -717,26 +748,44 @@ export function BudgetPacing({
       <ChartShell
         ariaLabel="Budget pacing — expanded"
         legend={
-          seriesDefs.length > 1 ? (
+          // ALWAYS shown. In the default view the plot is a solid line and a
+          // dashed one with nothing saying which is which — the caption below
+          // carries that, and the legend keeps the series toggles reachable.
+          <div className="space-y-1">
             <SeriesLegend
               items={seriesDefs}
               shown={shown}
               onToggle={toggleSeries}
               onShowAll={() => setHidden(new Set())}
             />
-          ) : undefined
+            <p className="text-[11px] text-ink-3">
+              Solid = actual · dashed = the plan, spread by each month&rsquo;s plan curve.
+            </p>
+          </div>
         }
       >
         {({ inFull, toggleExpand }) => (
           <div className={inFull ? "flex flex-col h-full" : undefined}>
             <ChartHeader
-              title={`${monthDay(from)} – ${monthDay(to)}`}
+              title={rangeTitle(from, to)}
               picker={
                 <MetricPicker<Metric>
                   options={[
                     { value: "spend", label: "Spend" },
-                    { value: "revenue", label: "Revenue" },
-                    { value: "roas", label: "ROAS" },
+                    // Locked under a platform filter — shown, not hidden, so the
+                    // reader can see the option exists and why it can't be used.
+                    {
+                      value: "revenue",
+                      label: "Revenue",
+                      disabled: platformFiltered,
+                      title: allPlatformsOnly,
+                    },
+                    {
+                      value: "roas",
+                      label: "ROAS",
+                      disabled: platformFiltered,
+                      title: allPlatformsOnly,
+                    },
                   ]}
                   value={activeMetric}
                   onChange={setMetric}
@@ -857,7 +906,9 @@ export function BudgetPacing({
         rows={rows}
         rowKey={(r) => r.bucket.key}
         showTotals={rows.length > 0}
-        minWidthClass={byObjective && activeMetric === "spend" ? "min-w-[1200px]" : "min-w-[720px]"}
+        minWidthClass={
+          byObjective && activeMetric === "spend" ? "min-w-[1600px]" : "min-w-[720px]"
+        }
         csvFileName={`budget-pacing-${from}-to-${to}-${groupBy}-${currency.toLowerCase()}`}
         rowClassName={(r) => cn(r.spendUnknown && "opacity-60")}
       />

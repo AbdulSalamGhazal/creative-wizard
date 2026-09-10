@@ -212,7 +212,7 @@ export function HorizonNote({
     <p className="text-[11px] text-ink-3">
       {horizon && <>Ad data through {longDate(horizon)}</>}
       {horizon && storeHorizon !== undefined && storeHorizon && " · "}
-      {storeHorizon && <>store data through {longDate(storeHorizon)}</>}
+      {storeHorizon && <>Store data through {longDate(storeHorizon)}</>}
       {" — later days aren’t zero, just not uploaded yet."}
     </p>
   );

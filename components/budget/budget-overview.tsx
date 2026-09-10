@@ -44,12 +44,15 @@ export function BudgetOverview({
   today,
   data,
   horizon,
+  storeHorizon,
   canManage,
 }: {
   month: string; // YYYY-MM
   today: string; // ISO date
   data: BudgetMonthData;
   horizon: string | null;
+  /** The STORE horizon — this page shows revenue and orders too. */
+  storeHorizon: string | null;
   canManage: boolean;
 }) {
   const [currency, pickCurrency] = useBudgetCurrency();
@@ -188,7 +191,7 @@ export function BudgetOverview({
           footer={
             <>
               <span className="block">
-                Plan: {data.plannedRevenueSar !== null ? sar(data.plannedRevenueSar) : "—"}
+                Target: {data.plannedRevenueSar !== null ? sar(data.plannedRevenueSar) : "—"}
               </span>
               {data.plannedRevenueSar !== null
                 ? projLine(projectedRevenue, data.plannedRevenueSar, sar)
@@ -197,14 +200,14 @@ export function BudgetOverview({
           }
         />
         <MetricCard
-          label="ROAS (via rate)"
+          label="ROAS"
           value={actualRoas === null ? "—" : roas(actualRoas)}
           icon={TrendingUp}
           hideBreakdown
           footer={
             !validateRate(rate)
               ? "Set a USD→SAR rate to compute ROAS."
-              : `Target: ${targetRoas === null ? "—" : roas(targetRoas)}`
+              : `Target ${targetRoas === null ? "—" : roas(targetRoas)} · at ${rate.toFixed(2)} SAR/USD`
           }
         />
         <MetricCard
@@ -223,14 +226,14 @@ export function BudgetOverview({
           {" · "}
           spend{" "}
           <span className={pacingTone(spendDeviation) === "warn" ? "text-warn" : "text-ink-2"}>
-            {spendDeviation === null ? "— no plan" : `${pacingVerdict(spendDeviation)} vs plan`}
+            {spendDeviation === null ? "— no plan" : pacingVerdict(spendDeviation)}
           </span>
           {data.plannedRevenueSar !== null && (
             <>
               {" · "}
               revenue{" "}
               <span className={pacingTone(revenueDeviation) === "warn" ? "text-warn" : "text-ink-2"}>
-                {revenueDeviation === null ? "—" : `${pacingVerdict(revenueDeviation)} vs plan`}
+                {revenueDeviation === null ? "—" : pacingVerdict(revenueDeviation)}
               </span>
             </>
           )}
@@ -243,19 +246,23 @@ export function BudgetOverview({
       {(data.reserveSpendUsd > 0 ||
         (unplannedActual > 0 && data.allocations.length > 0)) && (
         <div className="flex flex-wrap items-center gap-x-6 gap-y-1 rounded-lg border border-line bg-surface px-4 py-3 text-sm">
-          <span className="text-label text-ink-3">Reserve</span>
-          <span className="num tabular-nums text-ink">
-            Total{" "}
-            {totalPlanned + data.reserveSpendUsd > 0
-              ? fmtSpend(totalPlanned + data.reserveSpendUsd)
-              : "—"}
-            {data.reserveSpendUsd > 0 && (
-              <>
-                {" "}
-                = {fmtSpend(totalPlanned)} allocated + {fmtSpend(data.reserveSpendUsd)}{" "}
-                reserve
-              </>
-            )}
+          {/* Label and value travel together, so a 375px wrap never orphans
+              a label at the end of one line and its number on the next. */}
+          <span className="inline-flex flex-wrap items-center gap-2">
+            <span className="text-label text-ink-3">Reserve</span>
+            <span className="num tabular-nums text-ink">
+              Total budget{" "}
+              {totalPlanned + data.reserveSpendUsd > 0
+                ? fmtSpend(totalPlanned + data.reserveSpendUsd)
+                : "—"}
+              {data.reserveSpendUsd > 0 && (
+                <>
+                  {" "}
+                  = {fmtSpend(totalPlanned)} allocated + {fmtSpend(data.reserveSpendUsd)}{" "}
+                  reserve
+                </>
+              )}
+            </span>
           </span>
           <span
             className={cn(
@@ -271,16 +278,21 @@ export function BudgetOverview({
         </div>
       )}
 
-      {/* Revenue block (read-only) */}
+      {/* Revenue block (read-only). Hidden on a month with no plan at all —
+          the KPI tiles already carry these numbers, and an empty month should
+          show ONE empty state, not a stack of them. */}
+      {hasPlan && (
       <div className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-lg border border-line bg-surface px-4 py-3 text-sm">
-        <span className="text-label text-ink-3">Revenue target (SAR)</span>
-        <span className="num tabular-nums text-ink">
-          {data.plannedRevenueSar !== null ? sar(data.plannedRevenueSar) : "—"}
+        <span className="inline-flex items-center gap-2">
+          <span className="text-label text-ink-3">Revenue target (SAR)</span>
+          <span className="num tabular-nums text-ink">
+            {data.plannedRevenueSar !== null ? sar(data.plannedRevenueSar) : "—"}
+          </span>
         </span>
-        <span className="text-ink-3">
+        <span className="inline-flex items-center gap-2 text-ink-3">
           actual <span className="num tabular-nums text-ink">{sar(data.actualRevenueSar)}</span>
         </span>
-        <span className="text-ink-3">
+        <span className="inline-flex items-center gap-2 text-ink-3">
           orders <span className="num tabular-nums text-ink">{int(data.actualOrders)}</span>
         </span>
         {isCurrentMonth && data.plannedRevenueSar !== null && (
@@ -294,10 +306,11 @@ export function BudgetOverview({
           </span>
         )}
       </div>
+      )}
 
       {/* Per-platform summary cards → Plan anchors */}
       {platforms.length > 0 && (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {platforms.map((p) => (
             <Link
               key={p.platform}
@@ -334,7 +347,7 @@ export function BudgetOverview({
                     pacingTone(p.dev) === "warn" ? "text-warn" : "text-ink-3",
                   )}
                 >
-                  {p.dev === null ? "—" : `${pacingVerdict(p.dev)} vs plan`}
+                  {p.dev === null ? "—" : pacingVerdict(p.dev)}
                 </div>
               )}
             </Link>
@@ -364,13 +377,15 @@ export function BudgetOverview({
 
       {/* Allocation check — did the month's money land where the plan put it?
           Lives here (not on Pacing) because it is a month verdict, and it is
-          where the reconcile-to-raw-total invariant is enforced. */}
+          where the reconcile-to-raw-total invariant is enforced. Skipped
+          entirely on a month with nothing planned and nothing spent. */}
+      {(hasPlan || data.actualSpendByCombo.length > 0) && (
       <section className="space-y-2">
         <div>
           <h2 className="text-sm font-medium text-ink">Allocation check</h2>
           <p className="text-[11px] text-ink-3">
-            Planned vs actual by objective and platform. Spend on a combo with no
-            allocation shows as unplanned — the reserve&rsquo;s territory.
+            Planned vs actual by objective and platform. Spend with no matching
+            allocation shows as unplanned — it draws down the reserve.
           </p>
         </div>
         <BudgetAllocationCheck
@@ -381,8 +396,9 @@ export function BudgetOverview({
           isCurrentMonth={isCurrentMonth}
         />
       </section>
+      )}
 
-      <HorizonNote horizon={horizon} />
+      <HorizonNote horizon={horizon} storeHorizon={storeHorizon} />
     </div>
   );
 }

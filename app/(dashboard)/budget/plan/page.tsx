@@ -43,7 +43,7 @@ export default async function BudgetPlanPage({
       <PageHeader
         eyebrow="Budget"
         title="Plan"
-        subtitle="Set the month's spend allocations, revenue target, reserve, and day-weight curve. Weighted days (paydays) get a bigger share of the plan-to-date."
+        subtitle="Set the month's spend allocations, revenue target, reserve, and plan curve."
       />
       {/* Keyed by month: switching months must NEVER carry a draft across and
           save September's plan into October. The month bar is also locked

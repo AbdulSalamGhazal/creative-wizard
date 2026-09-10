@@ -846,13 +846,13 @@ describe("plan save gate", () => {
           hasRevenueTarget: true,
           platforms: [],
         }),
-      ).toEqual(["A reserve needs a total spend budget to be carved out of."]);
+      ).toEqual(["A reserve needs a total budget to be carved out of."]);
     });
 
     it("an empty month asks for one or the other", () => {
       expect(
         planGateProblems({ total: 0, reserve: 0, hasRevenueTarget: false, platforms: [] }),
-      ).toEqual(["Set a total spend budget, or just a revenue target."]);
+      ).toEqual(["Set a total budget, or just a revenue target."]);
     });
   });
 

@@ -655,7 +655,8 @@ This app is deployed and in production use. Treat `main` as shippable.
   permanent redirects to it (History asks for the last 12 months grouped by
   month) — don't reintroduce them. Monthly spend
   plan (USD, platform → objective) vs actual and ONE monthly revenue target
-  (SAR) vs store actuals, paced along a **day-weight curve** (only non-1 day
+  (SAR) vs store actuals, paced along a **plan curve** (the day-weight curve;
+  user-facing text says "plan curve" — only non-1 day
   weights stored in `budget_day_weights`; no-overrides ≡ v1 linear, unit-pinned;
   ONE curve for spend AND revenue; projection = actual ÷ elapsed curve
   fraction) plus a **reserve** (`budget_targets.reserve_spend_usd`, part of the
@@ -695,7 +696,7 @@ This app is deployed and in production use. Treat `main` as shippable.
   - **The RESERVE is part of the TOTAL, not on top of it (2026-09 framing).**
     `allocatable = total − reserve`; the reserve is money carved out and not yet
     allocated. Storage (`budget_targets.reserve_spend_usd`) is UNCHANGED, and it
-    still sits OUTSIDE the day-weight curve — the curve paces the ALLOCATED plan
+    still sits OUTSIDE the plan curve — the curve paces the ALLOCATED plan
     only. Overview's "used = the month's unplanned actual spend" reading still
     holds: spend outside the plan draws the reserve down.
   - **Save is BLOCKED below 100% (user decision).** Platform shares must reach
@@ -747,7 +748,7 @@ This app is deployed and in production use. Treat `main` as shippable.
     no platform attribution anywhere in Budget** (that's Reconciliation), so a
     platform filter LOCKS the metric to Spend and the UI says why instead of
     hiding it. Plans are per MONTH, so a range spreads each month's plan across
-    its days by the day-weight curve and stitches them (`stitchPlanByDay`);
+    its days by the plan curve and stitches them (`stitchPlanByDay`);
     `budgetPlansForMonths(months)` is THREE queries with an `inArray`, never one
     per month, and `budgetPacingSeries(from, to)` stays two scans (`max: 1`).
     The objective on a spend row is the campaign's CURRENT objective seen
