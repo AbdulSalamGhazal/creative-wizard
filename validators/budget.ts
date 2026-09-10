@@ -34,7 +34,8 @@ export const planSchema = z.object({
     )
     .max(platformEnum.length * BUDGET_OBJECTIVES.length),
   plannedRevenueSar: z.number().min(0).max(999_999_999_999).nullable(),
-  /** Contingency USD on top of the plan — outside the pacing curve. */
+  /** The reserve (USD) — carved OUT of the total, not added on top of it, and
+   *  outside the pacing curve (the curve paces the ALLOCATED plan only). */
   reserveSpendUsd: z.number().min(0).max(99_999_999).default(0),
   /** Only overridden days travel; weight 1 rows are dropped before persisting. */
   dayWeights: z
@@ -48,7 +49,6 @@ export const planSchema = z.object({
     .default([]),
 });
 
-export type BudgetPlanInput = z.infer<typeof planSchema>;
 
 /** A one-line "what changed?" stored on the revision. Optional everywhere. */
 export const planNoteSchema = z.string().trim().max(200).optional();

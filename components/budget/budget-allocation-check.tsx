@@ -4,21 +4,25 @@ import { useMemo } from "react";
 import { Wallet } from "lucide-react";
 import { DataTable, type DataColumn } from "@/components/ui/data-table";
 import { PlatformDot } from "@/components/ui/platform-dot";
-import { PLATFORM_LABEL } from "@/lib/palette";
 import { signedPct } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import {
   BUDGET_OBJECTIVES,
+  budgetComboKey,
   curveExpected,
   pacingDeviation,
-  pacingTone,
   pacingVerdict,
   spendInDisplayCurrency,
   variance,
   variancePct,
 } from "@/lib/budget";
 import type { BudgetMonthData } from "@/db/queries/budget";
-import { formatSpend, type BudgetCurrency } from "@/components/budget/budget-shared";
+import {
+  PacingDevCell,
+  formatSpend,
+  platformLabel as platformName,
+  type BudgetCurrency,
+} from "@/components/budget/budget-shared";
 
 interface CheckRow {
   key: string;
@@ -30,8 +34,6 @@ interface CheckRow {
   /** Actual spend on a combo with no allocation — the reserve's territory. */
   unplanned: boolean;
 }
-
-const comboKey = (o: string, p: string) => `${o}|${p}`;
 
 /**
  * The allocation check: did the month's money land where the plan put it?
@@ -63,24 +65,24 @@ export function BudgetAllocationCheck({
 
   const rows: CheckRow[] = useMemo(() => {
     const planned = new Map(
-      data.allocations.map((a) => [comboKey(a.objective, a.platform), a.plannedSpend]),
+      data.allocations.map((a) => [budgetComboKey(a.platform, a.objective), a.plannedSpend]),
     );
     const actual = new Map(
-      data.actualSpendByCombo.map((c) => [comboKey(c.objective, c.platform), c.actualSpend]),
+      data.actualSpendByCombo.map((c) => [budgetComboKey(c.platform, c.objective), c.actualSpend]),
     );
 
     const out: CheckRow[] = [];
     for (const objective of BUDGET_OBJECTIVES) {
       const combos = new Set<string>();
-      for (const k of planned.keys()) if (k.startsWith(`${objective}|`)) combos.add(k);
-      for (const k of actual.keys()) if (k.startsWith(`${objective}|`)) combos.add(k);
+      for (const k of planned.keys()) if (k.endsWith(`|${objective}`)) combos.add(k);
+      for (const k of actual.keys()) if (k.endsWith(`|${objective}`)) combos.add(k);
       if (combos.size === 0) continue;
       const children: CheckRow[] = [...combos]
         .map((k) => ({
           key: k,
           kind: "combo" as const,
           objective,
-          platform: k.split("|")[1]!,
+          platform: k.split("|")[0]!,
           planned: planned.get(k) ?? 0,
           actual: actual.get(k) ?? 0,
           unplanned: !planned.has(k),
@@ -115,15 +117,10 @@ export function BudgetAllocationCheck({
       )
     : null;
 
-  const devCell = (dev: number | null) => (
-    <span className={cn("num text-xs", pacingTone(dev) === "warn" ? "text-warn" : "text-ink-3")}>
-      {pacingVerdict(dev)}
-    </span>
-  );
+  const devCell = (dev: number | null) => <PacingDevCell deviation={dev} />;
 
   const columns: DataColumn<CheckRow>[] = useMemo(() => {
-    const platformLabel = (r: CheckRow) =>
-      PLATFORM_LABEL[r.platform as keyof typeof PLATFORM_LABEL] ?? r.platform ?? "";
+    const platformLabel = (r: CheckRow) => platformName(r.platform ?? "");
     const rowDeviation = (r: CheckRow) =>
       pacingDeviation(r.actual, curveExpected(r.planned, month, weights, elapsedDays));
 

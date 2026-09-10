@@ -2,13 +2,16 @@ import { PageShell } from "@/components/layout/page-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { todayIso } from "@/lib/date-presets";
 import {
+  clampRangeMonths,
   daysInMonth,
+  isValidIsoDate,
   monthKey,
   monthStartIso,
   monthsInRange,
   prevMonthKey,
 } from "@/lib/budget";
 import { ALL_PLATFORMS } from "@/lib/palette";
+import { MONTH_KEY } from "@/validators/budget";
 import { budgetPacingSeries, budgetPlansForMonths, getUsdToSarRate } from "@/db/queries/budget";
 import { dataHorizon, storeDataHorizon } from "@/db/queries/series-bounds";
 import { BudgetPacing, type GroupBy } from "@/components/budget/budget-pacing";
@@ -17,8 +20,6 @@ export const dynamic = "force-dynamic";
 
 export const metadata = { title: "Pacing" };
 
-const ISO = /^\d{4}-\d{2}-\d{2}$/;
-const MONTH = /^\d{4}-(0[1-9]|1[0-2])$/;
 const GROUP_BYS: GroupBy[] = ["day", "week", "month"];
 
 /** Last day of the month a YYYY-MM key names. */
@@ -56,9 +57,10 @@ export default async function BudgetPacingPage({
   const legacyHistory = sp.granularity === "monthly" && !sp.from && !sp.to;
   let from: string;
   let to: string;
-  if (sp.from && ISO.test(sp.from) && sp.to && ISO.test(sp.to) && sp.from <= sp.to) {
-    from = sp.from;
-    to = sp.to;
+  if (isValidIsoDate(sp.from) && isValidIsoDate(sp.to) && sp.from <= sp.to) {
+    // A hand-edited or stale URL degrades to the default range rather than
+    // reaching the database as a bad date literal.
+    ({ from, to } = clampRangeMonths(sp.from, sp.to));
   } else if (legacyHistory) {
     // The old History page: twelve months back through the end of this one.
     let month = monthKey(today);
@@ -66,7 +68,7 @@ export default async function BudgetPacingPage({
     from = monthStartIso(month);
     to = monthEndIso(monthKey(today));
   } else {
-    const month = sp.month && MONTH.test(sp.month) ? sp.month : monthKey(today);
+    const month = sp.month && MONTH_KEY.test(sp.month) ? sp.month : monthKey(today);
     from = monthStartIso(month);
     to = monthEndIso(month);
   }

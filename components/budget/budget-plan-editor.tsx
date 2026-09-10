@@ -41,9 +41,11 @@ import {
   BUDGET_OBJECTIVES,
   allocatableFromTotal,
   amountsFromShares,
+  budgetComboKey,
   daysInMonth,
   distributeShareEvenly,
   monthLabel,
+  planGateProblems,
   monthStartIso,
   pctShare,
   prevMonthKey,
@@ -51,7 +53,6 @@ import {
   reserveShare,
   round2,
   shareFromAmount,
-  shareRemainder,
   sharesComplete,
   spendInDisplayCurrency,
   transferFromReserve,
@@ -59,6 +60,7 @@ import {
   validateWeight,
   type BudgetObjective,
 } from "@/lib/budget";
+import { WEIGHT_MAX, WEIGHT_MIN } from "@/validators/budget";
 import {
   saveBudgetMonth,
   copyBudgetFromMonth,
@@ -70,6 +72,7 @@ import {
   CurrencyToggle,
   formatSpend,
   platformAnchorId,
+  platformLabel,
   useBudgetCurrency,
 } from "@/components/budget/budget-shared";
 import { BudgetPlanRevisions } from "@/components/budget/budget-plan-revisions";
@@ -85,18 +88,13 @@ interface PlanRow {
 }
 
 const WEIGHT_STEP = 0.5;
-const WEIGHT_MIN = 0.5;
-const WEIGHT_MAX = 10;
 const NOTE_MAX = 200;
 
-const comboKey = (p: string, o: string) => `${p}|${o}`;
 const numeric = (raw: string) => raw.replace(/[^0-9.]/g, "");
 const parse = (raw: string | undefined) => {
   const n = Number(raw ?? "");
   return Number.isFinite(n) ? n : 0;
 };
-const platformLabel = (p: string) =>
-  PLATFORM_LABEL[p as keyof typeof PLATFORM_LABEL] ?? p;
 
 /** The editor's draft: shares are primary, amounts are derived from them. */
 interface Draft {
@@ -199,7 +197,7 @@ export function BudgetPlanEditor({
       if (platformSum <= 0 && rows.length === 0) continue;
       platformShares[platform] = String(shareFromAmount(platformSum, allocated));
       for (const row of rows) {
-        objectiveShares[comboKey(platform, row.objective)] = String(
+        objectiveShares[budgetComboKey(platform, row.objective)] = String(
           shareFromAmount(row.plannedSpend, platformSum),
         );
       }
@@ -211,7 +209,18 @@ export function BudgetPlanEditor({
       platformShares,
       objectiveShares,
     });
-    setWeightsDraft({ ...data.dayWeightOverrides });
+    // A stored weight below the editor's floor (a legacy row, or one written
+    // before the bounds tightened) would fail save validation with a raw zod
+    // message. Clamp it into range as the draft loads — what you see is what
+    // saves.
+    setWeightsDraft(
+      Object.fromEntries(
+        Object.entries(data.dayWeightOverrides).map(([day, w]) => [
+          Number(day),
+          Math.min(WEIGHT_MAX, Math.max(WEIGHT_MIN, w)),
+        ]),
+      ),
+    );
     setExpanded(new Set(Object.keys(platformShares)));
     setNote("");
     setShareEdit(null);
@@ -248,39 +257,23 @@ export function BudgetPlanEditor({
     platformAmounts[activePlatforms.indexOf(platform)] ?? 0;
 
   const objectiveSharesOf = (platform: string) =>
-    BUDGET_OBJECTIVES.map((o) => parse(draft.objectiveShares[comboKey(platform, o)]));
+    BUDGET_OBJECTIVES.map((o) => parse(draft.objectiveShares[budgetComboKey(platform, o)]));
   const objectiveAmountsOf = (platform: string) =>
     amountsFromShares(amountOf(platform), objectiveSharesOf(platform));
 
   // ── Validation: 100% or no save ────────────────────────────────────────────
   const problems = useMemo(() => {
     if (!editing) return [];
-    const out: string[] = [];
-    if (total <= 0) out.push("Set a total spend budget.");
-    if (reserve > total) out.push("The reserve is larger than the total budget.");
-    if (activePlatforms.length === 0) {
-      out.push("Give at least one platform a share.");
-      return out;
-    }
-    if (!sharesComplete(platformShareList)) {
-      const left = shareRemainder(platformShareList);
-      out.push(
-        left > 0
-          ? `Platform shares: ${pct1((100 - left) / 100)} — ${pct1(left / 100)} unassigned`
-          : `Platform shares: ${pct1((100 - left) / 100)} — ${pct1(-left / 100)} over`,
-      );
-    }
-    for (const platform of activePlatforms) {
-      const shares = objectiveSharesOf(platform);
-      if (sharesComplete(shares)) continue;
-      const left = shareRemainder(shares);
-      out.push(
-        left > 0
-          ? `${platformLabel(platform)} objectives: ${pct1((100 - left) / 100)} — ${pct1(left / 100)} unassigned`
-          : `${platformLabel(platform)} objectives: ${pct1((100 - left) / 100)} — ${pct1(-left / 100)} over`,
-      );
-    }
-    return out;
+    return planGateProblems({
+      total,
+      reserve,
+      hasRevenueTarget: draft.revenue.trim() !== "",
+      platforms: activePlatforms.map((platform) => ({
+        label: platformLabel(platform),
+        share: parse(draft.platformShares[platform]),
+        objectiveShares: objectiveSharesOf(platform),
+      })),
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editing, draft, total, reserve, activePlatforms]);
 
@@ -300,7 +293,7 @@ export function BudgetPlanEditor({
   const setObjectiveShare = (platform: string, objective: string, raw: string) =>
     setDraft((d) => ({
       ...d,
-      objectiveShares: { ...d.objectiveShares, [comboKey(platform, objective)]: raw },
+      objectiveShares: { ...d.objectiveShares, [budgetComboKey(platform, objective)]: raw },
     }));
 
   /** A typed dollar amount becomes a share of its parent, parent held fixed. */
@@ -321,7 +314,7 @@ export function BudgetPlanEditor({
         next[platform] = "";
       } else {
         delete next[platform];
-        for (const o of BUDGET_OBJECTIVES) delete objectives[comboKey(platform, o)];
+        for (const o of BUDGET_OBJECTIVES) delete objectives[budgetComboKey(platform, o)];
       }
       return { ...d, platformShares: next, objectiveShares: objectives };
     });
@@ -347,7 +340,7 @@ export function BudgetPlanEditor({
     setDraft((d) => {
       const next = { ...d.objectiveShares };
       BUDGET_OBJECTIVES.forEach(
-        (o, i) => (next[comboKey(platform, o)] = String(fixed[i] ?? 0)),
+        (o, i) => (next[budgetComboKey(platform, o)] = String(fixed[i] ?? 0)),
       );
       return { ...d, objectiveShares: next };
     });
@@ -365,7 +358,16 @@ export function BudgetPlanEditor({
       toast.error(`${platformLabel(movePlatform)} has no share to move money into.`);
       return;
     }
-    const result = transferFromReserve(platformAmounts, index, amount, reserve);
+    // The editor re-derives amounts as share × (total − reserve), so the
+    // transfer has to compute shares against THAT allocatable — not Σ amounts,
+    // which is smaller whenever the split is still incomplete.
+    const result = transferFromReserve({
+      amounts: platformAmounts,
+      index,
+      transfer: amount,
+      reserve,
+      allocatable,
+    });
     if (!result) {
       toast.error(
         amount > reserve
@@ -412,7 +414,7 @@ export function BudgetPlanEditor({
         const row = mine.find((a) => a.objective === objective);
         if (!row) continue;
         out.push({
-          key: comboKey(platform, objective),
+          key: budgetComboKey(platform, objective),
           kind: "combo",
           platform,
           objective,
@@ -618,7 +620,7 @@ export function BudgetPlanEditor({
 
   return (
     <div className="space-y-4">
-      <BudgetMonthBar month={month} today={today}>
+      <BudgetMonthBar month={month} today={today} locked={editing}>
         {/* Rate (display + inline edit) */}
         <span className="text-[11px] text-ink-3 num">
           1 USD ={" "}

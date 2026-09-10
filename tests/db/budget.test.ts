@@ -341,7 +341,7 @@ describe("budget v2 — day weights, reserve, daily series, history", () => {
 });
 
 /**
- * Ads and store data are uploaded separately, so Budget Daily gates each side
+ * Ads and store data are uploaded separately, so Budget Pacing gates each side
  * by its OWN horizon. Before this, one shared ads horizon blanked out real
  * revenue for a brand that had orders but no ad exports yet.
  */
@@ -373,7 +373,7 @@ describe("budget daily — per-metric data horizons", () => {
     expect(await storeDataHorizon()).toBeNull();
   });
 
-  it("Daily's month revenue total equals the Overview tile for the same month", async () => {
+  it("Pacing's month revenue total equals the Overview tile for the same month", async () => {
     await db.insert(users).values({
       id: UPLOADER,
       email: "horizon-uploader@test.local",

@@ -34,7 +34,7 @@ export const dataHorizon = cache(async (): Promise<string | null> => {
  *
  * The two pipelines are uploaded separately, so their freshness differs: a
  * brand can have this month's orders but no ad exports yet, or vice versa.
- * Anything showing both sides per day (Budget Daily) must gate each side by
+ * Anything showing both sides per day (Budget Pacing) must gate each side by
  * its OWN horizon, or one empty pipeline blanks out the other's real data.
  * `cache()`-wrapped like `dataHorizon` so one page pays for one lookup.
  */

@@ -17,7 +17,7 @@ import { PlatformDot } from "@/components/ui/platform-dot";
 import { PLATFORM_LABEL } from "@/lib/palette";
 import { int, plural, sar, usd } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { monthLabel } from "@/lib/budget";
+import { budgetComboKey, monthLabel } from "@/lib/budget";
 import { restorePlanRevision } from "@/app/actions/budget";
 import type { PlanRevisionRow } from "@/db/queries/budget";
 import type { BudgetPlanSnapshot } from "@/validators/budget";
@@ -39,8 +39,6 @@ interface AllocDiff {
   kind: "added" | "removed" | "changed";
 }
 
-const comboKey = (p: string, o: string) => `${p}|${o}`;
-
 /**
  * What restoring this revision would change, expressed as CURRENT → REVISION:
  * "added" means the current plan has a row the revision doesn't (restoring
@@ -48,12 +46,12 @@ const comboKey = (p: string, o: string) => `${p}|${o}`;
  * (restoring brings it back). Reading it that way keeps the arrow pointing the
  * direction the button would actually move the plan.
  */
-function diffPlans(revision: BudgetPlanSnapshot, current: CurrentPlan) {
+export function diffPlans(revision: BudgetPlanSnapshot, current: CurrentPlan) {
   const rev = new Map(
-    revision.allocations.map((a) => [comboKey(a.platform, a.objective), a.plannedSpend]),
+    revision.allocations.map((a) => [budgetComboKey(a.platform, a.objective), a.plannedSpend]),
   );
   const cur = new Map(
-    current.allocations.map((a) => [comboKey(a.platform, a.objective), a.plannedSpend]),
+    current.allocations.map((a) => [budgetComboKey(a.platform, a.objective), a.plannedSpend]),
   );
   const rows: AllocDiff[] = [];
   for (const key of new Set([...rev.keys(), ...cur.keys()])) {
@@ -72,20 +70,31 @@ function diffPlans(revision: BudgetPlanSnapshot, current: CurrentPlan) {
   }
   rows.sort((a, b) => (a.key < b.key ? -1 : 1));
 
-  const revWeights = Object.keys(revision.dayWeights).length;
+  // Compare the curves by PLACEMENT, not by how many days are weighted:
+  // {15: 2} and {20: 3} are the same count and a completely different month.
+  // A stored weight of 1 is the default, so it counts as absent either side.
+  const meaningful = (weights: Record<string | number, number>) =>
+    Object.entries(weights)
+      .filter(([, w]) => w !== 1)
+      .map(([day, w]) => `${Number(day)}:${w}`)
+      .sort()
+      .join(",");
+  const revCurve = meaningful(revision.dayWeights);
+  const curCurve = meaningful(current.dayWeights);
+  const revWeights = Object.values(revision.dayWeights).filter((w) => w !== 1).length;
   const curWeights = Object.values(current.dayWeights).filter((w) => w !== 1).length;
   return {
     rows,
     revenueChanged: revision.plannedRevenueSar !== current.plannedRevenueSar,
     reserveChanged: revision.reserveSpendUsd !== current.reserveSpendUsd,
-    weightsChanged: revWeights !== curWeights,
+    weightsChanged: revCurve !== curCurve,
     revWeights,
     curWeights,
     identical:
       rows.length === 0 &&
       revision.plannedRevenueSar === current.plannedRevenueSar &&
       revision.reserveSpendUsd === current.reserveSpendUsd &&
-      revWeights === curWeights,
+      revCurve === curCurve,
   };
 }
 
@@ -245,7 +254,7 @@ export function BudgetPlanRevisions({
                         </tr>
                       )}
                       {selected.snapshot.allocations.map((a) => (
-                        <tr key={comboKey(a.platform, a.objective)}>
+                        <tr key={budgetComboKey(a.platform, a.objective)}>
                           <td className="py-1">
                             <span className="inline-flex items-center gap-1.5">
                               <PlatformDot platform={a.platform as never} size="sm" />
@@ -333,9 +342,11 @@ export function BudgetPlanRevisions({
                         )}
                         {diff?.weightsChanged && (
                           <li className="flex items-baseline justify-between gap-2 text-ink-2">
-                            <span>Weighted days</span>
+                            <span>Plan curve</span>
                             <span className="num tabular-nums whitespace-nowrap">
-                              {int(diff.curWeights)} → {int(diff.revWeights)}
+                              {diff.curWeights === diff.revWeights
+                                ? `${int(diff.curWeights)} weighted days, moved`
+                                : `${int(diff.curWeights)} → ${int(diff.revWeights)} weighted days`}
                             </span>
                           </li>
                         )}

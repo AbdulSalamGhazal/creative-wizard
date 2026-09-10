@@ -2,8 +2,8 @@ import { redirect, permanentRedirect } from "next/navigation";
 
 /**
  * Budget Daily merged into Pacing (2026-09) — its per-day view is Pacing's
- * "Daily" granularity. Kept as a permanent redirect so bookmarks and older
- * audit links keep working; `?month=` carries across verbatim.
+ * "Group by → Day". Kept as a permanent redirect so bookmarks and older audit
+ * links keep working; `?month=` carries across verbatim.
  */
 export default async function BudgetDailyRedirect({
   searchParams,

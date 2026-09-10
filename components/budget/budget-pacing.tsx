@@ -35,6 +35,7 @@ import { cn } from "@/lib/utils";
 import {
   BUDGET_OBJECTIVES,
   dayBucketsInRange,
+  isoDaysBetween,
   monthBucketsInRange,
   pacingDeviation,
   pacingTone,
@@ -50,7 +51,9 @@ import type { BudgetPacingSeries, MonthPlanRow } from "@/db/queries/budget";
 import {
   CurrencyToggle,
   HorizonNote,
+  PacingDevCell,
   formatSpend,
+  platformLabel,
   useBudgetCurrency,
 } from "@/components/budget/budget-shared";
 
@@ -288,7 +291,7 @@ export function BudgetPacing({
         !revenueUnknown && storeHorizon !== null && storeHorizon < bucket.end;
 
       const eachDay = (last: string, fn: (iso: string) => void) => {
-        for (const iso of daysBetween(bucket.start, last)) fn(iso);
+        for (const iso of isoDaysBetween(bucket.start, last)) fn(iso);
       };
 
       for (const key of [TOTAL_KEY, ...BUDGET_OBJECTIVES]) {
@@ -402,11 +405,7 @@ export function BudgetPacing({
 
   // ── Table ──────────────────────────────────────────────────────────────────
   const dash = <span className="text-ink-3">—</span>;
-  const devCell = (dev: number | null) => (
-    <span className={cn("num text-xs", pacingTone(dev) === "warn" ? "text-warn" : "text-ink-3")}>
-      {pacingVerdict(dev)}
-    </span>
-  );
+  const devCell = (dev: number | null) => <PacingDevCell deviation={dev} />;
 
   const periodCol: DataColumn<BucketRow> = {
     key: "period",
@@ -473,7 +472,10 @@ export function BudgetPacing({
           render: (r) => {
             const a = actualRoas(r);
             const p = planRoas(r);
-            if (a === null || p === null) return dash;
+            // A planned ROAS of zero (a spend plan with no revenue target) is
+            // nothing to deviate FROM — dividing by it would tint every row
+            // warn off an Infinity.
+            if (a === null || p === null || p <= 0) return dash;
             const diff = a - p;
             return (
               <span
@@ -492,7 +494,7 @@ export function BudgetPacing({
           csv: (r) => {
             const a = actualRoas(r);
             const p = planRoas(r);
-            return a === null || p === null ? "" : (a - p).toFixed(2);
+            return a === null || p === null || p <= 0 ? "" : (a - p).toFixed(2);
           },
         },
       ];
@@ -634,11 +636,11 @@ export function BudgetPacing({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeMetric, byObjective, currency, rate, rows, groupBy]);
 
-  const platformLabel =
+  const platformFilterLabel =
     platforms.length === 0
       ? "All"
       : platforms.length === 1
-        ? (PLATFORM_LABEL[platforms[0] as keyof typeof PLATFORM_LABEL] ?? platforms[0]!)
+        ? platformLabel(platforms[0]!)
         : `${platforms.length} selected`;
 
   return (
@@ -651,7 +653,7 @@ export function BudgetPacing({
         <FilterPill
           icon={Layers}
           label="Platforms"
-          value={platformLabel}
+          value={platformFilterLabel}
           active={platformFiltered}
         >
           {() => (
@@ -863,17 +865,4 @@ export function BudgetPacing({
       <HorizonNote horizon={horizon} storeHorizon={storeHorizon} />
     </div>
   );
-}
-
-/** Inclusive ISO day list — small helper so the fold reads as a loop. */
-function daysBetween(from: string, to: string): string[] {
-  const out: string[] = [];
-  if (to < from) return out;
-  const d = new Date(`${from}T00:00:00Z`);
-  const end = new Date(`${to}T00:00:00Z`);
-  while (d <= end) {
-    out.push(d.toISOString().slice(0, 10));
-    d.setUTCDate(d.getUTCDate() + 1);
-  }
-  return out;
 }

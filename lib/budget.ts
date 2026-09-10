@@ -58,16 +58,6 @@ export function elapsedDaysInMonth(month: string, todayIso: string): number {
   return Math.min(total, Number(todayIso.slice(8, 10)));
 }
 
-/** Linear expected-to-date share of a monthly plan. */
-export function pacingExpected(
-  planned: number,
-  elapsedDays: number,
-  totalDays: number,
-): number {
-  if (totalDays <= 0) return 0;
-  return (planned * elapsedDays) / totalDays;
-}
-
 /**
  * Pacing deviation = (actual − expected) / expected. NULL when there's nothing
  * expected yet (no plan, or day 0) — the UI renders "—" instead of a verdict.
@@ -77,21 +67,27 @@ export function pacingDeviation(
   expected: number,
 ): number | null {
   if (expected <= 0) return null;
-  return (actual - expected) / expected;
+  const deviation = (actual - expected) / expected;
+  return Number.isFinite(deviation) ? deviation : null;
 }
 
 /** |deviation| at/above this is a "large" pacing miss → strong warn tint. */
 export const PACING_WARN_THRESHOLD = 0.15;
 
-/** Tone for a pacing deviation — magnitude-based, like Reconciliation's Δ. */
+/**
+ * Tone for a pacing deviation — magnitude-based, like Reconciliation's Δ.
+ * A non-finite deviation (dividing by a zero plan) is NOT a big miss, it is no
+ * verdict at all: it must never light up as a warning.
+ */
 export function pacingTone(deviation: number | null): "muted" | "warn" {
-  if (deviation === null) return "muted";
+  if (deviation === null || !Number.isFinite(deviation)) return "muted";
   return Math.abs(deviation) >= PACING_WARN_THRESHOLD ? "warn" : "muted";
 }
 
 /** "on track" / "12% ahead" / "8% behind" (rounded, magnitude-worded). */
 export function pacingVerdict(deviation: number | null): string {
-  if (deviation === null) return "—";
+  // Non-finite reads as "—" too — "Infinity% ahead" is not a verdict.
+  if (deviation === null || !Number.isFinite(deviation)) return "—";
   const pct = Math.round(Math.abs(deviation) * 100);
   if (pct === 0) return "on track";
   return `${pct}% ${deviation > 0 ? "ahead" : "behind"}`;
@@ -178,7 +174,7 @@ export function curveFraction(
   return partial / total;
 }
 
-/** Plan-to-date through the curve — replaces linear `pacingExpected` in Budget. */
+/** Plan-to-date through the curve — the module's one pacing baseline. */
 export function curveExpected(
   planned: number,
   monthIso: string,
@@ -267,34 +263,6 @@ export function splitByWeights(total: number, weights: number[]): number[] {
   return out.map((c) => c / 100);
 }
 
-/**
- * Set row `index` to `pct` of the group's total, holding that total fixed: the
- * row takes its share and the SIBLINGS absorb the rest in proportion to what
- * they already hold (evenly if they are all zero). A group with one row is
- * always 100% of itself, so its percentage is not editable — the amounts come
- * back unchanged.
- */
-export function redistributeByPct(
-  amounts: number[],
-  index: number,
-  pct: number,
-  total?: number,
-): number[] {
-  if (index < 0 || index >= amounts.length) return amounts;
-  if (amounts.length < 2) return amounts;
-  const groupTotal = round2(total ?? amounts.reduce((s, a) => s + a, 0));
-  if (groupTotal <= 0) return amounts;
-  const share = Math.min(100, Math.max(0, Number.isFinite(pct) ? pct : 0));
-  const target = round2((groupTotal * share) / 100);
-  const others = amounts.map((a, i) => (i === index ? 0 : a));
-  const parts = splitByWeights(groupTotal - target, others.filter((_, i) => i !== index));
-  const out: number[] = [];
-  let p = 0;
-  for (let i = 0; i < amounts.length; i++) {
-    out.push(i === index ? target : parts[p++]!);
-  }
-  return out;
-}
 
 /**
  * Add `remaining` to the rows in equal parts (exact to the cent). A negative
@@ -312,13 +280,6 @@ export function distributeRemainder(amounts: number[], remaining: number): numbe
   return amounts.map((a, i) => Math.max(0, round2(a - parts[i]!)));
 }
 
-/** Scale every amount by ±pct (10 → ×1.10), each rounded to 2dp. */
-export function scaleAll(amounts: number[], pct: number): number[] {
-  if (!Number.isFinite(pct)) return amounts;
-  const factor = 1 + pct / 100;
-  if (factor < 0) return amounts.map(() => 0);
-  return amounts.map((a) => round2(a * factor));
-}
 
 // ── Budget objective buckets ─────────────────────────────────────────────────
 // The Budget module plans against its OWN objective axis, coarser than the
@@ -375,7 +336,7 @@ export function mergeAllocationsToBuckets(
   const merged = new Map<string, BucketedAllocation>();
   for (const row of rows) {
     const objective = toBudgetObjective(row.objective);
-    const key = `${row.platform}|${objective}`;
+    const key = budgetComboKey(row.platform, objective);
     const existing = merged.get(key);
     if (existing) existing.plannedSpend = round2(existing.plannedSpend + row.plannedSpend);
     else merged.set(key, { platform: row.platform, objective, plannedSpend: row.plannedSpend });
@@ -397,13 +358,6 @@ export interface RangeBucket {
   /** Inclusive ISO bounds, always clipped INSIDE the requested range. */
   start: string;
   end: string;
-}
-
-/** UTC-safe ISO date arithmetic (the whole module works in UTC dates). */
-function isoPlusDays(iso: string, days: number): string {
-  const d = new Date(`${iso}T00:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + days);
-  return d.toISOString().slice(0, 10);
 }
 
 function shortMonth(iso: string): string {
@@ -634,7 +588,7 @@ export interface ReserveTransfer {
   amounts: number[];
   /** What's left in the reserve. */
   reserve: number;
-  /** The new allocatable (the total is unchanged; the reserve shrank). */
+  /** The new allocatable: the total is unchanged, so it grew by the move. */
   allocatable: number;
   /** Shares of the NEW allocatable — full precision, so no row drifts a cent. */
   shares: number[];
@@ -643,26 +597,177 @@ export interface ReserveTransfer {
 /**
  * Move money out of the reserve and into ONE platform. This is a transfer, not
  * a re-plan: every other platform keeps its exact dollars, and only their
- * displayed percentages move (the allocatable grew beneath them). Returns null
- * when there isn't that much reserve to move.
+ * displayed percentages move (the allocatable grew beneath them).
+ *
+ * `allocatable` is the CURRENT allocatable (total − reserve), which the caller
+ * already knows — it is NOT Σ`amounts`. Those two are equal only once the plan
+ * is fully assigned, and deriving shares from the wrong one silently inflates
+ * every amount mid-edit. Returns null when the reserve can't cover the move.
  */
-export function transferFromReserve(
-  amounts: number[],
-  index: number,
-  transfer: number,
-  reserve: number,
-): ReserveTransfer | null {
+export function transferFromReserve(input: {
+  amounts: number[];
+  index: number;
+  transfer: number;
+  reserve: number;
+  allocatable: number;
+}): ReserveTransfer | null {
+  const { amounts, index, transfer, reserve, allocatable } = input;
   if (index < 0 || index >= amounts.length) return null;
   if (!Number.isFinite(transfer) || transfer <= 0) return null;
   const moved = round2(transfer);
   if (moved > round2(reserve)) return null;
 
   const next = amounts.map((a, i) => (i === index ? round2(a + moved) : a));
-  const allocatable = round2(next.reduce((s, a) => s + a, 0));
+  // The total didn't change, so what left the reserve joined the allocatable.
+  const nextAllocatable = round2(allocatable + moved);
   return {
     amounts: next,
     reserve: round2(reserve - moved),
-    allocatable,
-    shares: next.map((a) => shareFromAmount(a, allocatable)),
+    allocatable: nextAllocatable,
+    shares: next.map((a) => shareFromAmount(a, nextAllocatable)),
   };
+}
+
+/** The one key shape for a (platform, budget objective) pair — one argument
+ *  order, everywhere, so a reversed call can't silently miss. */
+export function budgetComboKey(platform: string, objective: string): string {
+  return `${platform}|${objective}`;
+}
+
+/** UTC-safe next-day. The module works in ISO dates; this is the only adder. */
+export function isoPlusDays(iso: string, days = 1): string {
+  const d = new Date(`${iso}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+/** Every ISO date from `from` to `to`, inclusive. Empty when `to` precedes it. */
+export function isoDaysBetween(from: string, to: string): string[] {
+  const out: string[] = [];
+  for (let iso = from; iso <= to; iso = isoPlusDays(iso)) out.push(iso);
+  return out;
+}
+
+// ── Pacing range guards ──────────────────────────────────────────────────────
+
+/**
+ * A REAL calendar date, not just the right shape. `2026-99-99` matches the
+ * obvious regex and then reaches Postgres as a date literal (500) and the
+ * client as an Invalid Date (RangeError), so the check is a round-trip: parse
+ * it, format it back, and insist on the same string.
+ */
+export function isValidIsoDate(value: string | undefined): value is string {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const parsed = new Date(`${value}T00:00:00Z`);
+  if (Number.isNaN(parsed.getTime())) return false;
+  return parsed.toISOString().slice(0, 10) === value;
+}
+
+/** The widest range Pacing will fetch, in months. */
+export const MAX_RANGE_MONTHS = 36;
+
+/** Inclusive month span of a range, by arithmetic — no iteration, no Date. */
+export function monthSpan(from: string, to: string): number {
+  const y1 = Number(from.slice(0, 4));
+  const m1 = Number(from.slice(5, 7));
+  const y2 = Number(to.slice(0, 4));
+  const m2 = Number(to.slice(5, 7));
+  return (y2 * 12 + m2 - (y1 * 12 + m1)) + 1;
+}
+
+/**
+ * Clamp a range to `MAX_RANGE_MONTHS`, keeping `to` and pulling `from` up —
+ * the recent end is the one anyone asked for. Unbounded ranges aren't just
+ * slow: over `0001-01-01 … 9999-12-31` the plan query's `inArray` would blow
+ * past Postgres's 65535-parameter ceiling. Deliberately arithmetic rather than
+ * `monthsInRange().length` — walking ~97k months to discover a range is too
+ * long is the very cost this exists to avoid.
+ */
+export function clampRangeMonths(
+  from: string,
+  to: string,
+  maxMonths = MAX_RANGE_MONTHS,
+): { from: string; to: string } {
+  if (monthSpan(from, to) <= maxMonths) return { from, to };
+  const index = Number(to.slice(0, 4)) * 12 + (Number(to.slice(5, 7)) - 1) - (maxMonths - 1);
+  const year = Math.floor(index / 12);
+  const month = (index % 12) + 1;
+  return {
+    from: `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-01`,
+    to,
+  };
+}
+
+// ── The Plan editor's save gate ──────────────────────────────────────────────
+
+export interface PlanGatePlatform {
+  label: string;
+  /** Share of the allocatable, as typed. */
+  share: number;
+  /** The four objective shares under it, as typed. */
+  objectiveShares: number[];
+}
+
+export interface PlanGateInput {
+  total: number;
+  reserve: number;
+  /** A revenue target on its own is a valid plan — see below. */
+  hasRevenueTarget: boolean;
+  platforms: PlanGatePlatform[];
+}
+
+const asPct = (share: number) => `${share.toFixed(1)}%`;
+
+/**
+ * Why the plan can't be saved yet, in the planner's words — empty means it can.
+ *
+ * The 100% rule is deliberate: money you haven't decided on belongs in the
+ * RESERVE, not in a silent gap. The one exception is a month planned only as a
+ * REVENUE TARGET, which the storage layer has always supported (a target row
+ * with no allocations); there is no spend budget to share out, so the share
+ * rules simply don't apply — but a reserve can't exist either, since it is
+ * carved out of a total.
+ */
+export function planGateProblems(input: PlanGateInput): string[] {
+  const { total, reserve, hasRevenueTarget, platforms } = input;
+  const out: string[] = [];
+
+  if (total <= 0) {
+    if (hasRevenueTarget) {
+      if (reserve > 0) {
+        out.push("A reserve needs a total spend budget to be carved out of.");
+      }
+      return out;
+    }
+    out.push("Set a total spend budget, or just a revenue target.");
+    return out;
+  }
+
+  if (reserve > total) out.push("The reserve is larger than the total budget.");
+  if (platforms.length === 0) {
+    out.push("Give at least one platform a share.");
+    return out;
+  }
+
+  const shares = platforms.map((p) => p.share);
+  if (!sharesComplete(shares)) {
+    const left = shareRemainder(shares);
+    const assigned = asPct(100 - left);
+    out.push(
+      left > 0
+        ? `Platform shares: ${assigned} — ${asPct(left)} unassigned`
+        : `Platform shares: ${assigned} — ${asPct(-left)} over`,
+    );
+  }
+  for (const platform of platforms) {
+    if (sharesComplete(platform.objectiveShares)) continue;
+    const left = shareRemainder(platform.objectiveShares);
+    const assigned = asPct(100 - left);
+    out.push(
+      left > 0
+        ? `${platform.label} objectives: ${assigned} — ${asPct(left)} unassigned`
+        : `${platform.label} objectives: ${assigned} — ${asPct(-left)} over`,
+    );
+  }
+  return out;
 }

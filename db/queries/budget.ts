@@ -17,6 +17,8 @@ import {
   type BudgetPlanSnapshot,
 } from "@/validators/budget";
 import {
+  budgetComboKey,
+  isoPlusDays,
   mapWeightsToMonth,
   monthStartIso,
   nextMonthKey,
@@ -71,7 +73,7 @@ function bucketCombos(
   const merged = new Map<string, BudgetActualCombo>();
   for (const r of rows) {
     const objective = toBudgetObjective(r.objective);
-    const key = `${r.platform}|${objective}`;
+    const key = budgetComboKey(r.platform, objective);
     const existing = merged.get(key);
     if (existing) existing.actualSpend += Number(r.actualSpend);
     else merged.set(key, { platform: r.platform, objective, actualSpend: Number(r.actualSpend) });
@@ -405,7 +407,7 @@ export async function budgetPacingSeries(
   const byKey = new Map<string, BudgetPacingDaySpend>();
   for (const r of spendRows) {
     const objective = toBudgetObjective(r.objective);
-    const key = `${r.date}|${r.platform}|${objective}`;
+    const key = `${r.date}|${budgetComboKey(r.platform, objective)}`;
     const existing = byKey.get(key);
     if (existing) existing.spend += Number(r.spend);
     else
@@ -421,19 +423,12 @@ export async function budgetPacingSeries(
     revRows.map((r) => [r.date, { revenue: Number(r.revenue), orders: Number(r.orders) }]),
   );
   const days: BudgetPacingDayTotals[] = [];
-  for (let iso = from; iso <= to; iso = isoPlusDay(iso)) {
+  for (let iso = from; iso <= to; iso = isoPlusDays(iso)) {
     const rev = revByDate.get(iso);
     days.push({ date: iso, revenueSar: rev?.revenue ?? 0, orders: rev?.orders ?? 0 });
   }
 
   return { spend: [...byKey.values()], days };
-}
-
-/** UTC-safe next-day, for the dense day list. */
-function isoPlusDay(iso: string): string {
-  const d = new Date(`${iso}T00:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + 1);
-  return d.toISOString().slice(0, 10);
 }
 
 export interface MonthPlanRow {

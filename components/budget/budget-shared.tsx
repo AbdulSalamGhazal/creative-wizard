@@ -12,15 +12,24 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { longDate, sar, usd } from "@/lib/format";
-import { monthKey, nextMonthKey, prevMonthKey, spendInDisplayCurrency } from "@/lib/budget";
+import { PLATFORM_LABEL } from "@/lib/palette";
+import { cn } from "@/lib/utils";
+import {
+  monthKey,
+  nextMonthKey,
+  pacingTone,
+  pacingVerdict,
+  prevMonthKey,
+  spendInDisplayCurrency,
+} from "@/lib/budget";
 import { useNavTransition } from "@/lib/nav-progress";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 
 /**
- * Shared client-side plumbing for the four Budget pages: the month bar (with a
- * year dropdown), the per-user display-currency toggle, and the data-horizon
- * note. Keeping these here means the pages can't drift apart on month
- * navigation or currency semantics.
+ * Shared client-side plumbing for the Budget pages: the month bar (with a year
+ * dropdown), the per-user display-currency toggle, the data-horizon note, and
+ * the pacing-deviation cell. Keeping these here means the pages can't drift
+ * apart on month navigation, currency semantics or how a deviation reads.
  */
 
 export type BudgetCurrency = "USD" | "SAR";
@@ -91,16 +100,22 @@ export function BudgetMonthBar({
   month,
   today,
   children,
+  locked = false,
 }: {
   month: string; // YYYY-MM
   today: string; // ISO date
   children?: React.ReactNode;
+  /** Freeze month navigation — an open draft belongs to THIS month. */
+  locked?: boolean;
 }) {
   const router = useRouter();
   const pathname = usePathname();
   const [, startNav] = useNavTransition();
-  const go = (m: string) =>
+  const go = (m: string) => {
+    if (locked) return;
     startNav(() => router.replace(`${pathname}?month=${m}`, { scroll: false }));
+  };
+  const lockedTitle = locked ? "Finish editing first" : undefined;
 
   const [yearStr, monthStr] = month.split("-");
   const year = Number(yearStr);
@@ -124,14 +139,21 @@ export function BudgetMonthBar({
           size="xs"
           onClick={() => go(prevMonthKey(month))}
           aria-label="Previous month"
+          disabled={locked}
+          title={lockedTitle}
         >
           <ChevronLeft className="h-3.5 w-3.5" />
         </Button>
         <span className="min-w-[6.5rem] text-center font-display text-lg">{monthName}</span>
-        <Select value={String(year)} onValueChange={(y) => go(`${y}-${monthStr}`)}>
+        <Select
+          value={String(year)}
+          onValueChange={(y) => go(`${y}-${monthStr}`)}
+          disabled={locked}
+        >
           <SelectTrigger
             className="h-7 w-[5.4rem] text-sm num"
             aria-label="Year"
+            title={lockedTitle}
           >
             <SelectValue />
           </SelectTrigger>
@@ -149,11 +171,20 @@ export function BudgetMonthBar({
           size="xs"
           onClick={() => go(nextMonthKey(month))}
           aria-label="Next month"
+          disabled={locked}
+          title={lockedTitle}
         >
           <ChevronRight className="h-3.5 w-3.5" />
         </Button>
         {!isCurrentMonth && (
-          <Button type="button" variant="ghost" size="xs" onClick={() => go(monthKey(today))}>
+          <Button
+            type="button"
+            variant="ghost"
+            size="xs"
+            onClick={() => go(monthKey(today))}
+            disabled={locked}
+            title={lockedTitle}
+          >
             Today
           </Button>
         )}
@@ -164,26 +195,7 @@ export function BudgetMonthBar({
 }
 
 /**
- * The day (1..N) of `month` covered by data, given the account's data horizon
- * (latest performance-record date). 0 = nothing yet; full length for months
- * entirely behind the horizon.
- */
-export function horizonDayInMonth(
-  month: string,
-  horizon: string | null,
-  totalDays: number,
-): number {
-  if (!horizon) return 0;
-  const h = horizon.slice(0, 7);
-  if (h < month) return 0;
-  if (h > month) return totalDays;
-  return Math.min(totalDays, Number(horizon.slice(8, 10)));
-}
-
-
-
-/**
- * The shared "data through …" note (Overview + Daily). Ads and store uploads
+ * The shared "data through …" note (Overview + Pacing). Ads and store uploads
  * arrive separately, so pass `storeHorizon` wherever BOTH sides are shown
  * (Daily) — the two dates are genuinely different and a single date would
  * misdescribe one of them.
@@ -204,6 +216,29 @@ export function HorizonNote({
       {" — later days aren’t zero, just not uploaded yet."}
     </p>
   );
+}
+
+/**
+ * One pacing deviation, warn-tinted by MAGNITUDE — over- and under-pace are
+ * both deviations, never good/bad green/red. Every Budget surface renders a
+ * deviation through this, so the threshold and the wording can't drift.
+ */
+export function PacingDevCell({ deviation }: { deviation: number | null }) {
+  return (
+    <span
+      className={cn(
+        "num text-xs",
+        pacingTone(deviation) === "warn" ? "text-warn" : "text-ink-3",
+      )}
+    >
+      {pacingVerdict(deviation)}
+    </span>
+  );
+}
+
+/** A platform's display label, falling back to its raw key. */
+export function platformLabel(platform: string): string {
+  return PLATFORM_LABEL[platform as keyof typeof PLATFORM_LABEL] ?? platform;
 }
 
 /** Anchor id for a platform's group on the Plan page (Overview cards link here). */

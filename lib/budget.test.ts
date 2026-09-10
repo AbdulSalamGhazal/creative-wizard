@@ -12,7 +12,6 @@ import {
   nextMonthKey,
   monthLabel,
   elapsedDaysInMonth,
-  pacingExpected,
   pacingDeviation,
   pacingTone,
   pacingVerdict,
@@ -25,9 +24,12 @@ import {
   round2,
   pctShare,
   splitByWeights,
-  redistributeByPct,
   distributeRemainder,
-  scaleAll,
+  isValidIsoDate,
+  clampRangeMonths,
+  monthSpan,
+  MAX_RANGE_MONTHS,
+  planGateProblems,
   weekBucketsInRange,
   dayBucketsInRange,
   monthBucketsInRange,
@@ -71,10 +73,6 @@ describe("month helpers", () => {
 });
 
 describe("pacing", () => {
-  it("expected-to-date is linear over the month", () => {
-    expect(pacingExpected(3000, 10, 30)).toBe(1000);
-    expect(pacingExpected(3100, 31, 31)).toBe(3100); // last day → full plan
-  });
   it("deviation is null with nothing expected; signed otherwise", () => {
     expect(pacingDeviation(50, 0)).toBeNull();
     expect(pacingDeviation(1200, 1000)).toBeCloseTo(0.2, 6);
@@ -119,11 +117,13 @@ describe("variance + ROAS-through-rate + rate", () => {
 });
 
 describe("day-weight curve (v2)", () => {
-  it("no overrides ≡ v1 linear pacing, exactly", () => {
+  it("no overrides ≡ plain linear pacing, exactly", () => {
+    // The unit-pin: a month with no weighted days must behave EXACTLY like a
+    // flat day-by-day spread, which is what Budget did before the curve.
     for (const day of [1, 10, 15, 30]) {
       expect(curveFraction("2026-09", {}, day)).toBeCloseTo(day / 30, 10);
       expect(curveExpected(3000, "2026-09", {}, day)).toBeCloseTo(
-        pacingExpected(3000, day, 30),
+        (3000 * day) / 30,
         8,
       );
     }
@@ -165,23 +165,6 @@ describe("day-weight curve (v2)", () => {
   });
 });
 
-describe("per-metric data horizons (v2.1)", () => {
-  it("horizonDayInMonth clamps to the month and handles a null horizon", () => {
-    // Re-exported through budget-shared, but the logic is what Daily gates on:
-    // ads and store horizons are fed through this SAME helper independently.
-    const f = (horizon: string | null, month: string, days: number) => {
-      if (!horizon) return 0;
-      const h = horizon.slice(0, 7);
-      if (h < month) return 0;
-      if (h > month) return days;
-      return Math.min(days, Number(horizon.slice(8, 10)));
-    };
-    expect(f(null, "2026-09", 30)).toBe(0); // nothing uploaded → all unknown
-    expect(f("2026-08-31", "2026-09", 30)).toBe(0); // horizon before the month
-    expect(f("2026-10-02", "2026-09", 30)).toBe(30); // month fully behind it
-    expect(f("2026-09-05", "2026-09", 30)).toBe(5); // mid-month
-  });
-});
 
 /**
  * Percentage distribution (Plan editor). The property that matters everywhere
@@ -229,47 +212,6 @@ describe("plan distribution — percentages and rounding", () => {
     expect(splitByWeights(100, [])).toEqual([]);
   });
 
-  describe("redistributeByPct", () => {
-    it("gives the edited row its share and rescales the siblings", () => {
-      const out = redistributeByPct([500, 300, 200], 0, 60); // total 1000
-      expect(out[0]).toBe(600);
-      // The other two keep their 3:2 ratio inside the remaining 400.
-      expect(out[1]).toBe(240);
-      expect(out[2]).toBe(160);
-      expect(sum(out)).toBe(1000);
-    });
-
-    it("preserves the group total through an awkward percentage", () => {
-      const out = redistributeByPct([100, 100, 100], 1, 33.33);
-      expect(sum(out)).toBe(300);
-    });
-
-    it("holds an explicit group total rather than the current sum", () => {
-      // Rows sum to 800 but the platform's intent is 1000.
-      const out = redistributeByPct([500, 300], 0, 50, 1000);
-      expect(out).toEqual([500, 500]);
-      expect(sum(out)).toBe(1000);
-    });
-
-    it("splits evenly among siblings that are all zero", () => {
-      const out = redistributeByPct([1000, 0, 0], 0, 50);
-      expect(out).toEqual([500, 250, 250]);
-    });
-
-    it("leaves a single row alone — it is always 100% of itself", () => {
-      expect(redistributeByPct([400], 0, 50)).toEqual([400]);
-    });
-
-    it("clamps the percentage into 0..100", () => {
-      expect(sum(redistributeByPct([600, 400], 0, 140))).toBe(1000);
-      expect(redistributeByPct([600, 400], 0, 140)[0]).toBe(1000);
-      expect(redistributeByPct([600, 400], 0, -20)[0]).toBe(0);
-    });
-
-    it("does nothing when there is no total to share", () => {
-      expect(redistributeByPct([0, 0], 0, 50)).toEqual([0, 0]);
-    });
-  });
 
   describe("distributeRemainder", () => {
     it("adds the remainder in equal parts, exactly", () => {
@@ -289,17 +231,6 @@ describe("plan distribution — percentages and rounding", () => {
     });
   });
 
-  describe("scaleAll", () => {
-    it("scales up and down, rounding each row", () => {
-      expect(scaleAll([100, 250.55], 10)).toEqual([110, 275.61]);
-      expect(scaleAll([100, 250], -10)).toEqual([90, 225]);
-      expect(scaleAll([100], 0)).toEqual([100]);
-    });
-
-    it("floors at zero rather than going negative", () => {
-      expect(scaleAll([100, 50], -150)).toEqual([0, 0]);
-    });
-  });
 });
 
 /**
@@ -643,41 +574,87 @@ describe("planning cascade", () => {
   describe("transfer from reserve", () => {
     // $10k total, $2k reserve → $8k allocatable split 50/30/20.
     const amounts = [4_000, 2_400, 1_600];
+    const ALLOCATABLE = 8_000;
 
     it("moves money to one platform and leaves the others' dollars alone", () => {
-      const out = transferFromReserve(amounts, 2, 1_000, 2_000)!;
+      const out = transferFromReserve({
+        amounts,
+        index: 2,
+        transfer: 1_000,
+        reserve: 2_000,
+        allocatable: ALLOCATABLE,
+      })!;
       expect(out.amounts).toEqual([4_000, 2_400, 2_600]);
       expect(out.reserve).toBe(1_000);
       expect(out.allocatable).toBe(9_000);
-      // The untouched platforms keep their exact dollars…
+      // Re-deriving through the new shares reproduces every amount exactly…
       const rederived = amountsFromShares(out.allocatable, out.shares);
-      expect(rederived[0]).toBeCloseTo(4_000, 2);
-      expect(rederived[1]).toBeCloseTo(2_400, 2);
-      expect(rederived[2]).toBeCloseTo(2_600, 2);
-      // …while their SHARES fall, because the allocatable grew beneath them.
+      expect(rederived).toEqual([4_000, 2_400, 2_600]);
+      // …while the untouched platforms' SHARES fall, because the allocatable
+      // grew beneath them.
       expect(out.shares[0]).toBeCloseTo(44.444, 3);
-      expect(out.shares[2]).toBeCloseTo(28.889, 3);
       expect(sharesComplete(out.shares)).toBe(true);
     });
 
+    /**
+     * The bug this pins: the editor derives amounts as share × (total −
+     * reserve), which is only Σ amounts once the plan is fully assigned.
+     * Computing the post-move shares against Σ amounts instead inflated the
+     * target — $400 + $100 became $900 on a half-assigned plan.
+     */
+    it("is exact mid-edit, when the split is still INCOMPLETE", () => {
+      // Total $1,000, reserve $200 → allocatable $800, one platform at 50%.
+      const partial = amountsFromShares(800, [50, 0, 0, 0]);
+      expect(partial[0]).toBe(400);
+
+      const out = transferFromReserve({
+        amounts: partial,
+        index: 0,
+        transfer: 100,
+        reserve: 200,
+        allocatable: 800,
+      })!;
+      expect(out.reserve).toBe(100);
+      // The allocatable follows the reserve out of the total, not Σ amounts.
+      expect(out.allocatable).toBe(900);
+
+      // Re-derive the way the editor does: share × (total − newReserve).
+      const rederived = amountsFromShares(1_000 - out.reserve, out.shares);
+      expect(rederived[0]).toBe(500); // moved by EXACTLY the $100 transferred
+      expect(rederived[1]).toBe(0); // …and nobody else moved
+      expect(rederived[2]).toBe(0);
+      expect(rederived[3]).toBe(0);
+    });
+
     it("refuses to move more than the reserve holds", () => {
-      expect(transferFromReserve(amounts, 0, 2_500, 2_000)).toBeNull();
-      expect(transferFromReserve(amounts, 0, 0, 2_000)).toBeNull();
-      expect(transferFromReserve(amounts, 0, -100, 2_000)).toBeNull();
-      expect(transferFromReserve(amounts, 9, 100, 2_000)).toBeNull();
+      const args = { amounts, reserve: 2_000, allocatable: ALLOCATABLE };
+      expect(transferFromReserve({ ...args, index: 0, transfer: 2_500 })).toBeNull();
+      expect(transferFromReserve({ ...args, index: 0, transfer: 0 })).toBeNull();
+      expect(transferFromReserve({ ...args, index: 0, transfer: -100 })).toBeNull();
+      expect(transferFromReserve({ ...args, index: 9, transfer: 100 })).toBeNull();
     });
 
     it("can empty the reserve exactly", () => {
-      const out = transferFromReserve(amounts, 1, 2_000, 2_000)!;
+      const out = transferFromReserve({
+        amounts,
+        index: 1,
+        transfer: 2_000,
+        reserve: 2_000,
+        allocatable: ALLOCATABLE,
+      })!;
       expect(out.reserve).toBe(0);
       expect(out.allocatable).toBe(10_000); // the whole total is allocated now
-      expect(sum(out.amounts)).toBe(10_000);
     });
 
     it("the total is unchanged — money moved, not created", () => {
-      const before = sum(amounts) + 2_000;
-      const out = transferFromReserve(amounts, 0, 750, 2_000)!;
-      expect(sum(out.amounts) + out.reserve).toBeCloseTo(before, 2);
+      const out = transferFromReserve({
+        amounts,
+        index: 0,
+        transfer: 750,
+        reserve: 2_000,
+        allocatable: ALLOCATABLE,
+      })!;
+      expect(round2(out.allocatable + out.reserve)).toBe(10_000);
     });
   });
 
@@ -706,5 +683,188 @@ describe("planning cascade", () => {
       expect(amountsFromShares(allocatable, shares)).toEqual(stored);
       expect(sharesComplete(shares)).toBe(true);
     });
+  });
+});
+
+/**
+ * Pacing's URL guards. A hand-edited or stale link must degrade to the default
+ * view, never reach Postgres as a bad date literal or ask for 120,000 months.
+ */
+describe("pacing range guards", () => {
+  it("accepts real dates and rejects well-shaped impossible ones", () => {
+    expect(isValidIsoDate("2026-09-10")).toBe(true);
+    expect(isValidIsoDate("2028-02-29")).toBe(true); // leap year
+    // Right shape, not a date — the regex alone would have let these through.
+    expect(isValidIsoDate("2026-99-99")).toBe(false);
+    expect(isValidIsoDate("2026-13-01")).toBe(false);
+    expect(isValidIsoDate("2026-02-30")).toBe(false);
+    expect(isValidIsoDate("2027-02-29")).toBe(false); // not a leap year
+    expect(isValidIsoDate("2026-9-10")).toBe(false);
+    expect(isValidIsoDate("not-a-date")).toBe(false);
+    expect(isValidIsoDate(undefined)).toBe(false);
+  });
+
+  it("leaves a sane range alone", () => {
+    expect(clampRangeMonths("2026-01-01", "2026-03-31")).toEqual({
+      from: "2026-01-01",
+      to: "2026-03-31",
+    });
+  });
+
+  it("clamps an absurd span, keeping the recent end", () => {
+    const { from, to } = clampRangeMonths("0001-01-01", "9999-12-31");
+    expect(to).toBe("9999-12-31"); // the end anyone actually asked for
+    expect(from).toBe("9997-01-01");
+    // Measured by arithmetic — walking ~97k months to find out a range is too
+    // long is exactly the cost the clamp exists to avoid.
+    expect(monthSpan(from, to)).toBe(MAX_RANGE_MONTHS);
+  });
+
+  it("clamps to exactly the cap at the boundary", () => {
+    // 36 months inclusive — right on the limit, so untouched.
+    expect(clampRangeMonths("2024-01-01", "2026-12-31").from).toBe("2024-01-01");
+    // 37 months — pulled up by one.
+    const clamped = clampRangeMonths("2023-12-01", "2026-12-31");
+    expect(monthsInRange(clamped.from, clamped.to)).toHaveLength(MAX_RANGE_MONTHS);
+    expect(monthSpan(clamped.from, clamped.to)).toBe(MAX_RANGE_MONTHS);
+    expect(clamped.from).toBe("2024-01-01");
+  });
+});
+
+/**
+ * A deviation you can't compute is NO verdict — never a warning. Dividing by a
+ * zero plan (a spend plan with no revenue target, say) used to tint every row
+ * warn off an Infinity.
+ */
+describe("pacing verdicts on non-finite input", () => {
+  it("treats Infinity and NaN as muted, never warn", () => {
+    expect(pacingTone(Infinity)).toBe("muted");
+    expect(pacingTone(-Infinity)).toBe("muted");
+    expect(pacingTone(NaN)).toBe("muted");
+    expect(pacingTone(null)).toBe("muted");
+    // …and a real miss still warns.
+    expect(pacingTone(0.4)).toBe("warn");
+  });
+
+  it("renders the dash rather than 'Infinity% ahead'", () => {
+    expect(pacingVerdict(Infinity)).toBe("—");
+    expect(pacingVerdict(-Infinity)).toBe("—");
+    expect(pacingVerdict(NaN)).toBe("—");
+    expect(pacingVerdict(0.12)).toBe("12% ahead");
+  });
+
+  it("pacingDeviation itself never hands out a non-finite number", () => {
+    expect(pacingDeviation(100, 0)).toBeNull();
+    expect(pacingDeviation(Infinity, 100)).toBeNull();
+    expect(pacingDeviation(NaN, 100)).toBeNull();
+  });
+});
+
+/**
+ * The save gate. 100%-or-no-save is deliberate — undecided money belongs in the
+ * reserve — but a month planned only as a REVENUE TARGET has always been a
+ * valid plan in storage, and the gate must not lock it out.
+ */
+describe("plan save gate", () => {
+  const platform = (label: string, share: number, objectiveShares: number[]) => ({
+    label,
+    share,
+    objectiveShares,
+  });
+  const complete = {
+    total: 10_000,
+    reserve: 1_000,
+    hasRevenueTarget: true,
+    platforms: [
+      platform("Instagram", 60, [50, 50, 0, 0]),
+      platform("TikTok", 40, [100, 0, 0, 0]),
+    ],
+  };
+
+  it("passes a fully-assigned plan", () => {
+    expect(planGateProblems(complete)).toEqual([]);
+  });
+
+  it("names the platform gap precisely", () => {
+    const problems = planGateProblems({
+      ...complete,
+      platforms: [platform("Instagram", 60, [100, 0, 0, 0])],
+    });
+    expect(problems).toContain("Platform shares: 60.0% — 40.0% unassigned");
+  });
+
+  it("names the objective gap precisely, per platform", () => {
+    const problems = planGateProblems({
+      ...complete,
+      platforms: [
+        platform("Instagram", 60, [50, 50, 0, 0]),
+        platform("Snapchat", 40, [85, 0, 0, 0]),
+      ],
+    });
+    expect(problems).toEqual(["Snapchat objectives: 85.0% — 15.0% unassigned"]);
+  });
+
+  it("reports over-assignment as over, not as a gap", () => {
+    const problems = planGateProblems({
+      ...complete,
+      platforms: [platform("Instagram", 60, [100, 0, 0, 0]), platform("TikTok", 60, [100, 0, 0, 0])],
+    });
+    expect(problems[0]).toBe("Platform shares: 120.0% — 20.0% over");
+  });
+
+  it("never blocks on a rounding artifact", () => {
+    // Thirds: the split a planner reaches for and the one naive maths fails.
+    expect(
+      planGateProblems({
+        ...complete,
+        platforms: [
+          platform("A", 33.3, [33.3, 33.3, 33.4, 0]),
+          platform("B", 33.3, [100, 0, 0, 0]),
+          platform("C", 33.4, [100, 0, 0, 0]),
+        ],
+      }),
+    ).toEqual([]);
+  });
+
+  describe("a revenue target on its own", () => {
+    it("is a valid plan with no spend budget", () => {
+      expect(
+        planGateProblems({
+          total: 0,
+          reserve: 0,
+          hasRevenueTarget: true,
+          platforms: [],
+        }),
+      ).toEqual([]);
+    });
+
+    it("still refuses a reserve, which is carved from a total", () => {
+      expect(
+        planGateProblems({
+          total: 0,
+          reserve: 500,
+          hasRevenueTarget: true,
+          platforms: [],
+        }),
+      ).toEqual(["A reserve needs a total spend budget to be carved out of."]);
+    });
+
+    it("an empty month asks for one or the other", () => {
+      expect(
+        planGateProblems({ total: 0, reserve: 0, hasRevenueTarget: false, platforms: [] }),
+      ).toEqual(["Set a total spend budget, or just a revenue target."]);
+    });
+  });
+
+  it("catches a reserve larger than the total", () => {
+    expect(
+      planGateProblems({ ...complete, total: 500, reserve: 1_000 }),
+    ).toContain("The reserve is larger than the total budget.");
+  });
+
+  it("asks for a platform when a budget is set but nothing is split", () => {
+    expect(
+      planGateProblems({ ...complete, platforms: [] }),
+    ).toEqual(["Give at least one platform a share."]);
   });
 });

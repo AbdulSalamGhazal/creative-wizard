@@ -658,9 +658,9 @@ This app is deployed and in production use. Treat `main` as shippable.
   (SAR) vs store actuals, paced along a **day-weight curve** (only non-1 day
   weights stored in `budget_day_weights`; no-overrides ≡ v1 linear, unit-pinned;
   ONE curve for spend AND revenue; projection = actual ÷ elapsed curve
-  fraction) plus a **reserve** (`budget_targets.reserve_spend_usd`, part of the total and
-  carved out of it, deliberately OUTSIDE the curve; "used" = the month's
-  unplanned actual spend).
+  fraction) plus a **reserve** (`budget_targets.reserve_spend_usd`, part of the
+  total and carved out of it, deliberately OUTSIDE the curve; "used" = the
+  month's unplanned actual spend).
   Standing decisions: actual spend deliberately applies **NO exclusion
   filtering** anywhere in Budget (raw `performance_records` totals, per-day
   included — budget totals may differ from dashboards; never "fix" this);
@@ -668,14 +668,16 @@ This app is deployed and in production use. Treat `main` as shippable.
   lives on Reconciliation); the USD↔SAR toggle is display-only (localStorage)
   but ROAS is ALWAYS computed through the per-brand `accounts.usd_to_sar_rate`
   (default 3.77). The spend table's Unplanned bucket must reconcile its actual
-  total to the raw month total exactly (harness-pinned). Daily renders days
-  past `dataHorizon()` as em-dashes (unknown ≠ 0). Pacing = current month only,
-  warn-tinted by |deviation| magnitude — never green/red. Permission
+  total to the raw month total exactly (harness-pinned). A period past its
+  side's horizon renders as an em-dash (unknown ≠ 0). Pacing VERDICTS (Overview's
+  tiles and its allocation check) are current-month-only; the **Pacing page** is
+  a date range. Deviations everywhere are warn-tinted by |magnitude| — never
+  green/red. Permission
   `budget.manage`; audit `budget.update`. Migrations 0035 + 0036 (additive).
   - **The Plan tab is planning-only (2026-09).** `/budget/plan` carries intent
     and nothing else — Platform/objective · Planned · % share. The Actual,
     Pacing, Variance and Variance % columns and the "unplanned" ghost rows were
-    REMOVED; plan-vs-actual lives on Overview (and, next, its own Pacing tab).
+    REMOVED; plan-vs-actual lives on Overview and the Pacing page.
     `getBudgetMonth()` still returns `actualSpendByCombo` for its other
     callers — don't reshape it; the Plan page just ignores it.
   - **The Plan editor is a TOP-DOWN CASCADE (2026-09): targets → platform

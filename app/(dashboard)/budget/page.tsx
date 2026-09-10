@@ -3,6 +3,9 @@ import { PageShell } from "@/components/layout/page-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { todayIso } from "@/lib/date-presets";
 import { monthKey } from "@/lib/budget";
+// Month 01-12 only — `2026-13` must fall back to the current month, not
+// produce a nonsense one. One regex, in the validators.
+import { MONTH_KEY } from "@/validators/budget";
 import { getBudgetMonth } from "@/db/queries/budget";
 import { dataHorizon } from "@/db/queries/series-bounds";
 import { BudgetOverview } from "@/components/budget/budget-overview";
@@ -10,10 +13,6 @@ import { BudgetOverview } from "@/components/budget/budget-overview";
 export const dynamic = "force-dynamic";
 
 export const metadata = { title: "Budget" };
-
-// Month 01-12 only — `2026-13` would otherwise sail through and produce a
-// nonsense month rather than falling back to the current one.
-const MONTH = /^\d{4}-(0[1-9]|1[0-2])$/;
 
 /**
  * Budget Overview — the month's read-only verdict: plan vs actual with curve-
@@ -29,7 +28,7 @@ export default async function BudgetOverviewPage({
 }) {
   const sp = await searchParams;
   const today = todayIso();
-  const month = sp.month && MONTH.test(sp.month) ? sp.month : monthKey(today);
+  const month = sp.month && MONTH_KEY.test(sp.month) ? sp.month : monthKey(today);
 
   const user = await auth();
   const canManage = user ? can(user, "budget.manage") : false;
