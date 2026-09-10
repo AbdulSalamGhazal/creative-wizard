@@ -6,7 +6,7 @@ import { monthKey } from "@/lib/budget";
 // Month 01-12 only — `2026-13` must fall back to the current month, not
 // produce a nonsense one. One regex, in the validators.
 import { MONTH_KEY } from "@/validators/budget";
-import { getBudgetMonth } from "@/db/queries/budget";
+import { getBudgetMonth, plannedMonths } from "@/db/queries/budget";
 import { dataHorizon, storeDataHorizon } from "@/db/queries/series-bounds";
 import { BudgetOverview } from "@/components/budget/budget-overview";
 
@@ -34,11 +34,14 @@ export default async function BudgetOverviewPage({
   const canManage = user ? can(user, "budget.manage") : false;
   // Ads and store data arrive on separate schedules, so the horizon note needs
   // BOTH — this page reports revenue and orders alongside spend.
-  const [data, horizon, storeHorizon] = await Promise.all([
+  const [data, horizon, storeHorizon, months] = await Promise.all([
     getBudgetMonth(month),
     dataHorizon(),
     storeDataHorizon(),
+    // One cheap month-grain query, for the rollover nudge on an empty month.
+    plannedMonths(),
   ]);
+  const seedMonth = months.find((m) => m < month) ?? null;
 
   return (
     <PageShell>
@@ -53,6 +56,7 @@ export default async function BudgetOverviewPage({
         data={data}
         horizon={horizon}
         storeHorizon={storeHorizon}
+        seedMonth={seedMonth}
         canManage={canManage}
       />
     </PageShell>

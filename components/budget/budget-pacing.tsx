@@ -424,7 +424,7 @@ export function BudgetPacing({
       <span className="inline-flex items-center gap-1.5">
         <span className="num tabular-nums">{r.bucket.label}</span>
         {r.spendPartial && r.spendThrough && (
-          <span className="text-eyebrow text-ink-3">through {monthDay(r.spendThrough)}</span>
+          <span className="text-label text-ink-3">through {monthDay(r.spendThrough)}</span>
         )}
       </span>
     ),

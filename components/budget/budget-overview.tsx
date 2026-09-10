@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { Button } from "@/components/ui/button";
 import { ArrowRight, Package, ShoppingBag, TrendingUp, Wallet } from "lucide-react";
 import { MetricCard } from "@/components/overview/metric-card";
 import { PlatformDot } from "@/components/ui/platform-dot";
@@ -12,6 +13,8 @@ import {
   daysInMonth,
   elapsedDaysInMonth,
   monthKey,
+  monthDayIncrements,
+  monthLabel,
   monthStartIso,
   pacingDeviation,
   pacingTone,
@@ -20,6 +23,7 @@ import {
   roasThroughRate,
   validateRate,
   variancePct,
+  round2,
 } from "@/lib/budget";
 import type { BudgetMonthData } from "@/db/queries/budget";
 import {
@@ -45,6 +49,7 @@ export function BudgetOverview({
   data,
   horizon,
   storeHorizon,
+  seedMonth,
   canManage,
 }: {
   month: string; // YYYY-MM
@@ -53,6 +58,8 @@ export function BudgetOverview({
   horizon: string | null;
   /** The STORE horizon — this page shows revenue and orders too. */
   storeHorizon: string | null;
+  /** The most recent planned month before this one — drives the rollover nudge. */
+  seedMonth: string | null;
   canManage: boolean;
 }) {
   const [currency, pickCurrency] = useBudgetCurrency();
@@ -84,6 +91,13 @@ export function BudgetOverview({
           curveExpected(data.plannedRevenueSar, month, ov, elapsed),
         )
       : null;
+
+  // Today's slice of the curve, and what's left of the plan after actuals.
+  // Floored at zero: "−$400 left" is not a useful thing to tell someone.
+  const plannedToday = isCurrentMonth
+    ? (monthDayIncrements(monthStartIso(month), ov, totalPlanned)[elapsed - 1] ?? 0)
+    : 0;
+  const leftThisMonth = Math.max(0, round2(totalPlanned - totalActual));
 
   // Month-end projections (current month only): actual ÷ elapsed curve share.
   const projectedSpend = isCurrentMonth
@@ -237,6 +251,20 @@ export function BudgetOverview({
               </span>
             </>
           )}
+          {/* What the plan says to spend TODAY, and what's left of it — the two
+              numbers people were computing in their heads off the curve. */}
+          {totalPlanned > 0 && (
+            <>
+              {" · "}
+              today&rsquo;s plan{" "}
+              <span className="text-ink-2">{fmtSpend(plannedToday)}</span>
+              {" · "}
+              <span className="text-ink-2">{fmtSpend(leftThisMonth)}</span> left this month
+              {data.reserveSpendUsd > 0 && (
+                <> + {fmtSpend(data.reserveSpendUsd)} reserve</>
+              )}
+            </>
+          )}
         </p>
       )}
 
@@ -359,19 +387,40 @@ export function BudgetOverview({
       {!hasPlan && (
         <div className="rounded-lg border border-dashed border-line bg-surface px-6 py-10 text-center">
           <p className="text-sm text-ink-2">No plan for this month yet.</p>
-          <p className="mt-1 text-xs text-ink-3">
-            {canManage ? (
+          {canManage ? (
+            seedMonth ? (
               <>
+                <p className="mt-1 text-xs text-ink-3">
+                  {monthLabel(seedMonth)} has one — carry it over, or plan this
+                  month from scratch.
+                </p>
+                <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
+                  <Button asChild size="sm">
+                    <Link href={`/budget/plan?month=${month}`}>
+                      Plan {monthLabel(month)}
+                    </Link>
+                  </Button>
+                  <Button asChild variant="outline" size="sm">
+                    <Link href={`/budget?month=${seedMonth}`}>
+                      See {monthLabel(seedMonth)}
+                    </Link>
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <p className="mt-1 text-xs text-ink-3">
                 Head to the{" "}
                 <Link href={`/budget/plan?month=${month}`} className="underline hover:text-ink">
                   Plan page
                 </Link>{" "}
                 to add allocations.
-              </>
-            ) : (
-              "Ask someone with budget access to add a plan."
-            )}
-          </p>
+              </p>
+            )
+          ) : (
+            <p className="mt-1 text-xs text-ink-3">
+              Ask someone with budget access to add a plan.
+            </p>
+          )}
         </div>
       )}
 

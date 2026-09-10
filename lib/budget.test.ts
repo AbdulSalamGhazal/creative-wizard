@@ -47,7 +47,8 @@ import {
   shareRemainder,
   sharesComplete,
   distributeShareEvenly,
-  transferFromReserve,
+  moveMoney,
+  normalizeShares,
   type MonthPlan,
 } from "@/lib/budget";
 
@@ -571,90 +572,149 @@ describe("planning cascade", () => {
     });
   });
 
-  describe("transfer from reserve", () => {
+  describe("moving money", () => {
     // $10k total, $2k reserve → $8k allocatable split 50/30/20.
     const amounts = [4_000, 2_400, 1_600];
-    const ALLOCATABLE = 8_000;
+    const base = { amounts, reserve: 2_000, total: 10_000, allocatable: 8_000 };
 
-    it("moves money to one platform and leaves the others' dollars alone", () => {
-      const out = transferFromReserve({
-        amounts,
-        index: 2,
-        transfer: 1_000,
-        reserve: 2_000,
-        allocatable: ALLOCATABLE,
-      })!;
+    it("from the RESERVE: target rises, others keep their dollars", () => {
+      const out = moveMoney({ ...base, toIndex: 2, amount: 1_000, source: { kind: "reserve" } })!;
       expect(out.amounts).toEqual([4_000, 2_400, 2_600]);
       expect(out.reserve).toBe(1_000);
+      expect(out.total).toBe(10_000); // a move, not new money
       expect(out.allocatable).toBe(9_000);
-      // Re-deriving through the new shares reproduces every amount exactly…
-      const rederived = amountsFromShares(out.allocatable, out.shares);
-      expect(rederived).toEqual([4_000, 2_400, 2_600]);
-      // …while the untouched platforms' SHARES fall, because the allocatable
-      // grew beneath them.
-      expect(out.shares[0]).toBeCloseTo(44.444, 3);
+      expect(amountsFromShares(out.allocatable, out.shares)).toEqual([4_000, 2_400, 2_600]);
       expect(sharesComplete(out.shares)).toBe(true);
     });
 
+    it("from a PLATFORM: one falls, one rises, the pot is unchanged", () => {
+      const out = moveMoney({
+        ...base,
+        toIndex: 2,
+        amount: 1_000,
+        source: { kind: "platform", index: 0 },
+      })!;
+      expect(out.amounts).toEqual([3_000, 2_400, 2_600]);
+      expect(out.reserve).toBe(2_000); // untouched
+      expect(out.total).toBe(10_000);
+      expect(out.allocatable).toBe(8_000); // nothing entered or left the pot
+      expect(amountsFromShares(out.allocatable, out.shares)).toEqual([3_000, 2_400, 2_600]);
+      expect(sharesComplete(out.shares)).toBe(true);
+    });
+
+    it("from NEW MONEY: the total grows by the amount", () => {
+      const out = moveMoney({ ...base, toIndex: 1, amount: 5_000, source: { kind: "new" } })!;
+      expect(out.amounts).toEqual([4_000, 7_400, 1_600]);
+      expect(out.reserve).toBe(2_000); // the reserve is not the source
+      expect(out.total).toBe(15_000);
+      expect(out.allocatable).toBe(13_000);
+      expect(amountsFromShares(out.allocatable, out.shares)).toEqual([4_000, 7_400, 1_600]);
+    });
+
     /**
-     * The bug this pins: the editor derives amounts as share × (total −
-     * reserve), which is only Σ amounts once the plan is fully assigned.
-     * Computing the post-move shares against Σ amounts instead inflated the
-     * target — $400 + $100 became $900 on a half-assigned plan.
+     * The bug this pins (carried from the correctness pass): the editor derives
+     * amounts as share × (total − reserve), which is only Σ amounts once a plan
+     * is fully assigned. Deriving the post-move shares from Σ amounts instead
+     * inflated the target — $400 + $100 became $900 on a half-assigned plan.
      */
-    it("is exact mid-edit, when the split is still INCOMPLETE", () => {
+    it("is exact MID-EDIT, when the split is still incomplete", () => {
       // Total $1,000, reserve $200 → allocatable $800, one platform at 50%.
       const partial = amountsFromShares(800, [50, 0, 0, 0]);
       expect(partial[0]).toBe(400);
+      const args = { amounts: partial, reserve: 200, total: 1_000, allocatable: 800 };
 
-      const out = transferFromReserve({
-        amounts: partial,
-        index: 0,
-        transfer: 100,
-        reserve: 200,
-        allocatable: 800,
-      })!;
-      expect(out.reserve).toBe(100);
-      // The allocatable follows the reserve out of the total, not Σ amounts.
-      expect(out.allocatable).toBe(900);
-
-      // Re-derive the way the editor does: share × (total − newReserve).
-      const rederived = amountsFromShares(1_000 - out.reserve, out.shares);
-      expect(rederived[0]).toBe(500); // moved by EXACTLY the $100 transferred
-      expect(rederived[1]).toBe(0); // …and nobody else moved
-      expect(rederived[2]).toBe(0);
-      expect(rederived[3]).toBe(0);
+      for (const source of [
+        { kind: "reserve" } as const,
+        { kind: "new" } as const,
+      ]) {
+        const out = moveMoney({ ...args, toIndex: 0, amount: 100, source })!;
+        // Re-derive the way the editor does: share × (total − reserve).
+        const rederived = amountsFromShares(out.total - out.reserve, out.shares);
+        expect(rederived[0]).toBe(500); // moved by EXACTLY the $100
+        expect(rederived[1]).toBe(0); // …and nobody else moved
+        expect(rederived[2]).toBe(0);
+        expect(rederived[3]).toBe(0);
+      }
     });
 
-    it("refuses to move more than the reserve holds", () => {
-      const args = { amounts, reserve: 2_000, allocatable: ALLOCATABLE };
-      expect(transferFromReserve({ ...args, index: 0, transfer: 2_500 })).toBeNull();
-      expect(transferFromReserve({ ...args, index: 0, transfer: 0 })).toBeNull();
-      expect(transferFromReserve({ ...args, index: 0, transfer: -100 })).toBeNull();
-      expect(transferFromReserve({ ...args, index: 9, transfer: 100 })).toBeNull();
+    it("a platform-to-platform move is exact mid-edit too", () => {
+      const partial = amountsFromShares(800, [50, 25, 0, 0]); // $400 / $200
+      const out = moveMoney({
+        amounts: partial,
+        reserve: 200,
+        total: 1_000,
+        allocatable: 800,
+        toIndex: 1,
+        amount: 150,
+        source: { kind: "platform", index: 0 },
+      })!;
+      const rederived = amountsFromShares(out.total - out.reserve, out.shares);
+      expect(rederived[0]).toBe(250);
+      expect(rederived[1]).toBe(350);
+      expect(rederived[2]).toBe(0);
+    });
+
+    it("refuses moves it can't fund", () => {
+      expect(moveMoney({ ...base, toIndex: 0, amount: 2_500, source: { kind: "reserve" } })).toBeNull();
+      expect(
+        moveMoney({ ...base, toIndex: 1, amount: 5_000, source: { kind: "platform", index: 0 } }),
+      ).toBeNull(); // platform 0 only holds $4,000
+      expect(moveMoney({ ...base, toIndex: 0, amount: 0, source: { kind: "new" } })).toBeNull();
+      expect(moveMoney({ ...base, toIndex: 0, amount: -5, source: { kind: "new" } })).toBeNull();
+      expect(moveMoney({ ...base, toIndex: 9, amount: 10, source: { kind: "new" } })).toBeNull();
+      // Moving a platform onto itself is a no-op, not a silent identity.
+      expect(
+        moveMoney({ ...base, toIndex: 0, amount: 100, source: { kind: "platform", index: 0 } }),
+      ).toBeNull();
     });
 
     it("can empty the reserve exactly", () => {
-      const out = transferFromReserve({
-        amounts,
-        index: 1,
-        transfer: 2_000,
-        reserve: 2_000,
-        allocatable: ALLOCATABLE,
-      })!;
+      const out = moveMoney({ ...base, toIndex: 1, amount: 2_000, source: { kind: "reserve" } })!;
       expect(out.reserve).toBe(0);
       expect(out.allocatable).toBe(10_000); // the whole total is allocated now
     });
 
-    it("the total is unchanged — money moved, not created", () => {
-      const out = transferFromReserve({
-        amounts,
-        index: 0,
-        transfer: 750,
-        reserve: 2_000,
-        allocatable: ALLOCATABLE,
-      })!;
-      expect(round2(out.allocatable + out.reserve)).toBe(10_000);
+    it("money is conserved unless it is explicitly new", () => {
+      const moved = moveMoney({ ...base, toIndex: 0, amount: 750, source: { kind: "reserve" } })!;
+      expect(round2(moved.allocatable + moved.reserve)).toBe(10_000);
+      const added = moveMoney({ ...base, toIndex: 0, amount: 750, source: { kind: "new" } })!;
+      expect(round2(added.allocatable + added.reserve)).toBe(10_750);
+    });
+  });
+
+  describe("normalizeShares", () => {
+    it("scales an incomplete split up to exactly 100, keeping proportions", () => {
+      const out = normalizeShares([30, 20, 10]); // 3:2:1 of 60%
+      expect(round2(out.reduce((s, v) => s + v, 0))).toBe(100);
+      expect(out).toEqual([50, 33.33, 16.67]);
+      expect(sharesComplete(out)).toBe(true);
+    });
+
+    it("scales an over-assigned split back down", () => {
+      const out = normalizeShares([80, 40]); // 2:1 of 120%
+      expect(out).toEqual([66.67, 33.33]);
+      expect(sharesComplete(out)).toBe(true);
+    });
+
+    it("lands on exactly 100 where naive scaling would not", () => {
+      const out = normalizeShares([1, 1, 1]);
+      expect(round2(out.reduce((s, v) => s + v, 0))).toBe(100);
+      expect(sharesComplete(out)).toBe(true);
+    });
+
+    it("leaves an already-complete split alone", () => {
+      expect(normalizeShares([50, 30, 20])).toEqual([50, 30, 20]);
+    });
+
+    it("has nothing to scale when everything is zero", () => {
+      expect(normalizeShares([0, 0])).toEqual([0, 0]);
+      expect(normalizeShares([])).toEqual([]);
+    });
+
+    it("differs from distribute-evenly — scale vs pad", () => {
+      // 3:1 of 80%. Scaling keeps the ratio; padding splits the gap equally.
+      expect(normalizeShares([60, 20])).toEqual([75, 25]);
+      expect(distributeShareEvenly([60, 20])).toEqual([70, 30]);
     });
   });
 
@@ -866,5 +926,41 @@ describe("plan save gate", () => {
     expect(
       planGateProblems({ ...complete, platforms: [] }),
     ).toEqual(["Give at least one platform a share."]);
+  });
+});
+
+/**
+ * The curve editor's bar chart plots each day's planned DOLLARS. It must be
+ * the same number the pacing math uses — a chart that disagrees with the plan
+ * it is drawing is worse than no chart.
+ */
+describe("per-day plan dollars (curve chart)", () => {
+  it("bars are exactly monthDayIncrements", () => {
+    const weights = { 10: 3, 25: 3 };
+    const bars = monthDayIncrements("2026-09-01", weights, 100_000);
+    expect(bars).toHaveLength(30);
+    // 28 normal days at ×1 plus two at ×3 → 34 weight units.
+    const unit = 100_000 / 34;
+    expect(bars[0]).toBeCloseTo(unit, 6);
+    expect(bars[9]).toBeCloseTo(unit * 3, 6); // day 10
+    expect(bars[24]).toBeCloseTo(unit * 3, 6); // day 25
+    expect(bars.reduce((s, v) => s + v, 0)).toBeCloseTo(100_000, 6);
+  });
+
+  it("weighting a day SHRINKS the others — the total never moves", () => {
+    const flat = monthDayIncrements("2026-09-01", {}, 30_000);
+    const weighted = monthDayIncrements("2026-09-01", { 10: 3 }, 30_000);
+    expect(weighted[9]!).toBeGreaterThan(flat[9]!);
+    expect(weighted[0]!).toBeLessThan(flat[0]!); // everyone else gives a little
+    expect(weighted.reduce((s, v) => s + v, 0)).toBeCloseTo(30_000, 6);
+  });
+
+  it("falls back to shares of the plan when no total is set", () => {
+    // With a total of 0 the bars are all zero, so the UI plots the normalized
+    // WEIGHTS instead — same shape, labelled as percentages.
+    expect(monthDayIncrements("2026-09-01", { 10: 3 }, 0).every((v) => v === 0)).toBe(true);
+    const shares = monthDayIncrements("2026-09-01", { 10: 3 }, 100);
+    expect(shares.reduce((s, v) => s + v, 0)).toBeCloseTo(100, 6);
+    expect(shares[9]).toBeCloseTo(300 / 32, 6); // 3 of 32 weight units, as a %
   });
 });

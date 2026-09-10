@@ -583,49 +583,101 @@ export function distributeShareEvenly(shares: number[]): number[] {
   return distributeRemainder(shares, shareRemainder(shares));
 }
 
-export interface ReserveTransfer {
-  /** Per-platform amounts after the move — only the target changed. */
+/** Where money being moved comes from. */
+export type MoneySource =
+  | { kind: "reserve" }
+  | { kind: "platform"; index: number }
+  /** Not a move at all — the total grows by the amount. */
+  | { kind: "new" };
+
+export interface MoneyMove {
+  /** Per-platform amounts after the move. */
   amounts: number[];
   /** What's left in the reserve. */
   reserve: number;
-  /** The new allocatable: the total is unchanged, so it grew by the move. */
+  /** The new total budget (only "new money" changes it). */
+  total: number;
+  /** The new allocatable — total − reserve. */
   allocatable: number;
   /** Shares of the NEW allocatable — full precision, so no row drifts a cent. */
   shares: number[];
 }
 
 /**
- * Move money out of the reserve and into ONE platform. This is a transfer, not
- * a re-plan: every other platform keeps its exact dollars, and only their
- * displayed percentages move (the allocatable grew beneath them).
+ * Move money into ONE platform, from the reserve, from another platform, or
+ * from outside the budget entirely ("new money", which grows the total).
+ *
+ * This is a transfer, not a re-plan. The target's dollars rise by exactly the
+ * amount and the source's fall by exactly the amount; every other platform
+ * keeps its dollars to the cent, and only their displayed percentages move
+ * because the allocatable shifted beneath them. Inside the target, objective
+ * shares are untouched, so the new money spreads proportionally.
  *
  * `allocatable` is the CURRENT allocatable (total − reserve), which the caller
- * already knows — it is NOT Σ`amounts`. Those two are equal only once the plan
+ * already knows — it is NOT Σ`amounts`. Those two are equal only once a plan
  * is fully assigned, and deriving shares from the wrong one silently inflates
- * every amount mid-edit. Returns null when the reserve can't cover the move.
+ * every amount mid-edit (the bug fixed in the correctness pass; never go back
+ * to the share domain). Returns null when the move isn't possible.
  */
-export function transferFromReserve(input: {
+export function moveMoney(input: {
   amounts: number[];
-  index: number;
-  transfer: number;
+  /** Index of the platform receiving the money. */
+  toIndex: number;
+  amount: number;
+  source: MoneySource;
   reserve: number;
+  total: number;
   allocatable: number;
-}): ReserveTransfer | null {
-  const { amounts, index, transfer, reserve, allocatable } = input;
-  if (index < 0 || index >= amounts.length) return null;
-  if (!Number.isFinite(transfer) || transfer <= 0) return null;
-  const moved = round2(transfer);
-  if (moved > round2(reserve)) return null;
+}): MoneyMove | null {
+  const { amounts, toIndex, amount, source, reserve, total, allocatable } = input;
+  if (toIndex < 0 || toIndex >= amounts.length) return null;
+  if (!Number.isFinite(amount) || amount <= 0) return null;
+  const moved = round2(amount);
 
-  const next = amounts.map((a, i) => (i === index ? round2(a + moved) : a));
-  // The total didn't change, so what left the reserve joined the allocatable.
-  const nextAllocatable = round2(allocatable + moved);
+  if (source.kind === "platform") {
+    if (source.index < 0 || source.index >= amounts.length) return null;
+    if (source.index === toIndex) return null; // moving to itself is a no-op
+    if (moved > round2(amounts[source.index]!)) return null;
+  } else if (source.kind === "reserve") {
+    if (moved > round2(reserve)) return null;
+  }
+
+  const nextAmounts = amounts.map((a, i) => {
+    if (i === toIndex) return round2(a + moved);
+    if (source.kind === "platform" && i === source.index) return round2(a - moved);
+    return a;
+  });
+
+  // Only the reserve source shrinks the reserve; only new money grows the
+  // total. A platform-to-platform move changes neither.
+  const nextReserve = source.kind === "reserve" ? round2(reserve - moved) : round2(reserve);
+  const nextTotal = source.kind === "new" ? round2(total + moved) : round2(total);
+  const nextAllocatable =
+    source.kind === "platform" ? round2(allocatable) : round2(allocatable + moved);
+
   return {
-    amounts: next,
-    reserve: round2(reserve - moved),
+    amounts: nextAmounts,
+    reserve: nextReserve,
+    total: nextTotal,
     allocatable: nextAllocatable,
-    shares: next.map((a) => shareFromAmount(a, nextAllocatable)),
+    shares: nextAmounts.map((a) => shareFromAmount(a, nextAllocatable)),
   };
+}
+
+/**
+ * Scale a set of shares so they sum to exactly 100%, keeping their PROPORTIONS
+ * — the "we split it 3:2:1, just make the numbers add up" intent, distinct
+ * from `distributeShareEvenly`, which pads the gap equally. Cents-exact, so it
+ * always lands on 100 rather than 99.99. Returns the input unchanged when
+ * there is nothing to scale.
+ */
+export function normalizeShares(shares: number[]): number[] {
+  if (shares.length === 0) return shares;
+  const positive = shares.map((s) => (Number.isFinite(s) && s > 0 ? s : 0));
+  const sum = positive.reduce((a, b) => a + b, 0);
+  if (sum <= 0) return shares;
+  // splitByWeights normalises its weights and is cents-exact — exactly this.
+  return splitByWeights(100, positive);
 }
 
 /** The one key shape for a (platform, budget objective) pair — one argument

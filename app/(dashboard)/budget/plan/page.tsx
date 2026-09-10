@@ -6,7 +6,12 @@ import { monthKey } from "@/lib/budget";
 // Month 01-12 only — `2026-13` must fall back to the current month, not
 // produce a nonsense one. One regex, in the validators.
 import { MONTH_KEY } from "@/validators/budget";
-import { getBudgetMonth, listPlanRevisions, plannedMonths } from "@/db/queries/budget";
+import {
+  budgetPlansForMonths,
+  getBudgetMonth,
+  listPlanRevisions,
+  plannedMonths,
+} from "@/db/queries/budget";
 import { BudgetPlanEditor } from "@/components/budget/budget-plan-editor";
 
 export const dynamic = "force-dynamic";
@@ -38,6 +43,18 @@ export default async function BudgetPlanPage({
     listPlanRevisions(month),
   ]);
 
+  // "Same split, new total" needs the source month's PLAN, not just its name.
+  // Fetched only when an earlier planned month exists (three more serial
+  // queries on a max:1 connection — worth it here, and skipped entirely for a
+  // brand that has never planned).
+  const seedMonth = months.find((m) => m < month) ?? null;
+  const seed = seedMonth
+    ? {
+        month: seedMonth,
+        plan: (await budgetPlansForMonths([seedMonth]))[0]!,
+      }
+    : null;
+
   return (
     <PageShell>
       <PageHeader
@@ -54,6 +71,7 @@ export default async function BudgetPlanPage({
         today={today}
         data={data}
         plannedMonths={months}
+        seed={seed}
         revisions={revisions}
         canManage={canManage}
       />
