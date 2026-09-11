@@ -472,6 +472,33 @@ describe("planning cascade", () => {
       const reserve = 2_000;
       expect(reserveFromShare(reserveShare(reserve, total)!, total)).toBeCloseTo(reserve, 2);
     });
+
+    // The editor's reserve % field shows reserveShare(...).toFixed(1). A % the
+    // planner typed must display as itself, and typing that displayed % back
+    // must land on the same cents — otherwise the USD figure creeps every time
+    // someone re-enters the field.
+    it("typing back the % the field shows never drifts the reserve", () => {
+      const totals = [10, 99.99, 1_000, 12_345.67, 50_000, 1_234_567.89];
+      for (const total of totals) {
+        for (let tenths = 0; tenths <= 1_000; tenths++) {
+          const typed = tenths / 10;
+          const reserve = reserveFromShare(typed, total);
+          const shown = (reserveShare(reserve, total) ?? 0).toFixed(1);
+          expect(shown, `${typed}% of ${total}`).toBe(typed.toFixed(1));
+          expect(reserveFromShare(Number(shown), total), `${typed}% of ${total}`).toBe(reserve);
+        }
+      }
+    });
+
+    it("a partial % entry commits a stable reserve at every keystroke", () => {
+      // "1" → "12" → "12." → "12.5": each prefix is a valid share, and the
+      // trailing "." parses to the same value as the digits before it.
+      const total = 8_000;
+      const steps = ["1", "12", "12.", "12.5"].map((raw) => reserveFromShare(Number(raw), total));
+      expect(steps).toEqual([80, 960, 960, 1_000]);
+      // Clearing the field is an empty entry, which the editor maps to no reserve.
+      expect(reserveFromShare(Number(""), total)).toBe(0);
+    });
   });
 
   describe("shares → amounts", () => {

@@ -5,8 +5,6 @@ import { useRouter } from "next/navigation";
 import {
   ArrowRightLeft,
   Check,
-  ChevronDown,
-  ChevronRight,
   CopyPlus,
   Pencil,
   RotateCcw,
@@ -182,10 +180,11 @@ export function BudgetPlanEditor({
   const [draft, setDraft] = useState<Draft>(emptyDraft);
   const [weightsDraft, setWeightsDraft] = useState<Record<number, number>>({});
   const [note, setNote] = useState("");
-  const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
   /** The share cell being typed in — raw text, so a keystroke isn't reformatted
    *  out from under the caret by the recomputed value. */
   const [shareEdit, setShareEdit] = useState<{ key: string; raw: string } | null>(null);
+  /** Same idea for the reserve's % field: the raw text while it has focus. */
+  const [reservePctRaw, setReservePctRaw] = useState<string | null>(null);
   const [totalFocused, setTotalFocused] = useState(false);
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const [copyOpen, setCopyOpen] = useState(false);
@@ -272,9 +271,9 @@ export function BudgetPlanEditor({
         ]),
       ),
     );
-    setExpanded(new Set(Object.keys(platformShares)));
     setNote("");
     setShareEdit(null);
+    setReservePctRaw(null);
     setSelectedDay(null);
     setEditing(true);
   };
@@ -282,9 +281,9 @@ export function BudgetPlanEditor({
     setEditing(false);
     setDraft(emptyDraft);
     setWeightsDraft({});
-    setExpanded(new Set());
     setNote("");
     setShareEdit(null);
+    setReservePctRaw(null);
     setSelectedDay(null);
   };
 
@@ -368,12 +367,6 @@ export function BudgetPlanEditor({
         for (const o of BUDGET_OBJECTIVES) delete objectives[budgetComboKey(platform, o)];
       }
       return { ...d, platformShares: next, objectiveShares: objectives };
-    });
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      if (next.has(platform)) next.delete(platform);
-      else next.add(platform);
-      return next;
     });
   };
 
@@ -537,9 +530,9 @@ export function BudgetPlanEditor({
         ]),
       ),
     );
-    setExpanded(new Set(Object.keys(platformShares)));
     setNote(`Started from ${monthLabel(source.month)}'s shares`);
     setShareEdit(null);
+    setReservePctRaw(null);
     setSelectedDay(null);
     setCopyOpen(false);
     setEditing(true);
@@ -748,7 +741,12 @@ export function BudgetPlanEditor({
     (w) => w !== 1 && validateWeight(w),
   ).length;
 
-  /** A share input + the amount it derives — the cascade's one repeated unit. */
+  /**
+   * A share input + the amount it derives — the cascade's one repeated unit.
+   * `lock` names why a field can't take input right now; a locked field is
+   * disabled (so Enter-advance skips it) rather than silently swallowing
+   * keystrokes into a zero parent.
+   */
   const shareCell = (
     key: string,
     value: number,
@@ -757,9 +755,13 @@ export function BudgetPlanEditor({
     onAmount: (raw: string) => void,
     ariaShare: string,
     ariaAmount: string,
+    lock: { share?: string; amount?: string } = {},
   ) => (
     <div className="flex items-center gap-1.5">
-      <Input
+      <UnitInput
+        unit="%"
+        wrapperClassName="w-20 shrink-0"
+        {...fieldProps}
         value={shareEdit?.key === key ? shareEdit.raw : value === 0 ? "" : value.toFixed(1)}
         onChange={(e) => {
           const raw = numeric(e.target.value);
@@ -768,22 +770,25 @@ export function BudgetPlanEditor({
         }}
         onBlur={() => setShareEdit(null)}
         placeholder="0"
-        className="h-8 w-16 text-right num"
+        className="h-8"
         aria-label={ariaShare}
-        {...fieldProps}
+        disabled={lock.share !== undefined}
+        title={lock.share}
       />
-      <span className="text-ink-3">%</span>
-      <Input
-        value={amount === 0 ? "" : String(amount)}
-        onChange={(e) => {
-          setShareEdit(null);
-          onAmount(numeric(e.target.value));
-        }}
-        placeholder="0"
-        className="h-8 w-28 text-right num text-ink-2"
-        aria-label={ariaAmount}
-        {...fieldProps}
-      />
+      <div className="w-28 shrink-0" title={lock.amount}>
+        <Input
+          {...fieldProps}
+          value={amount === 0 ? "" : String(amount)}
+          onChange={(e) => {
+            setShareEdit(null);
+            onAmount(numeric(e.target.value));
+          }}
+          placeholder="0"
+          className="h-8 text-right num text-ink-2"
+          aria-label={ariaAmount}
+          disabled={lock.amount !== undefined}
+        />
+      </div>
     </div>
   );
 
@@ -903,7 +908,7 @@ export function BudgetPlanEditor({
       {editing ? (
         <>
           {/* ── 1. Targets ─────────────────────────────────────────────── */}
-          <section className="space-y-2 rounded-lg border border-line bg-surface p-4">
+          <section className="space-y-3 rounded-lg border border-line bg-surface p-4">
             <div>
               <h3 className="text-sm font-medium text-ink">Targets</h3>
               <p className="text-[11px] text-ink-3">
@@ -911,17 +916,20 @@ export function BudgetPlanEditor({
                 everything below shares out what&rsquo;s left.
               </p>
             </div>
-            <div className="flex flex-wrap items-end gap-x-6 gap-y-3">
-              <label className="space-y-1">
-                <span className="block text-label text-ink-3">Total budget (USD)</span>
-                <Input
+            {/* One baseline grid: every field is a single-line label over an
+                h-9 input with its unit inside the box. The reserve column is a
+                little wider because it holds a pair. */}
+            <div className="grid gap-x-6 gap-y-3 sm:max-w-3xl sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.4fr)]">
+              <label className="min-w-0 space-y-1">
+                <span className="block truncate text-label text-ink-3">Total budget</span>
+                <UnitInput
+                  unit="USD"
+                  {...fieldProps}
                   value={draft.total}
                   onChange={(e) => setField({ total: numeric(e.target.value) })}
                   placeholder="e.g. 50000"
-                  className="h-9 w-40 text-right num"
                   aria-label="Total budget (USD)"
                   ref={totalRef}
-                  {...fieldProps}
                   // The rescale note shows while this field has focus, so it
                   // wraps the shared handler rather than replacing it.
                   onFocus={(e) => {
@@ -931,65 +939,83 @@ export function BudgetPlanEditor({
                   onBlur={() => setTotalFocused(false)}
                 />
               </label>
-              <label className="space-y-1">
-                <span className="block text-label text-ink-3">Revenue target (SAR)</span>
-                <Input
+              <label className="min-w-0 space-y-1">
+                <span className="block truncate text-label text-ink-3">Revenue target</span>
+                <UnitInput
+                  unit="SAR"
+                  {...fieldProps}
                   value={draft.revenue}
                   onChange={(e) => setField({ revenue: numeric(e.target.value) })}
                   placeholder="e.g. 250000"
-                  className="h-9 w-40 text-right num"
                   aria-label="Planned monthly revenue (SAR)"
-                  {...fieldProps}
                 />
               </label>
-              <div className="space-y-1">
-                <span className="block text-label text-ink-3">Reserve (of the total)</span>
-                <div className="flex items-center gap-1.5">
-                  <Input
+              <div className="min-w-0 space-y-1">
+                <span className="block truncate text-label text-ink-3">Reserve (of the total)</span>
+                <div className="grid grid-cols-[minmax(0,1fr)_5rem] gap-1.5">
+                  <UnitInput
+                    unit="USD"
+                    {...fieldProps}
                     value={draft.reserve}
-                    onChange={(e) => setField({ reserve: numeric(e.target.value) })}
+                    onChange={(e) => {
+                      setReservePctRaw(null);
+                      setField({ reserve: numeric(e.target.value) });
+                    }}
                     placeholder="0"
-                    className="h-9 w-32 text-right num"
                     aria-label="Reserve (USD)"
-                    {...fieldProps}
                   />
-                  <span className="text-ink-3">USD</span>
-                  <Input
+                  {/* Buffered like the share inputs: while focused it holds the
+                      raw text (so "1" isn't reformatted to "1.0" under the
+                      caret) and commits the derived reserve on every change;
+                      blur hands it back to the formatted 1dp value. */}
+                  <UnitInput
+                    unit="%"
+                    {...fieldProps}
                     value={
-                      total > 0 && reserve > 0
+                      reservePctRaw ??
+                      (total > 0 && reserve > 0
                         ? (reserveShare(reserve, total) ?? 0).toFixed(1)
-                        : ""
+                        : "")
                     }
-                    onChange={(e) =>
-                      setField({
-                        reserve: String(reserveFromShare(parse(numeric(e.target.value)), total)),
-                      })
-                    }
+                    onChange={(e) => {
+                      const raw = numeric(e.target.value);
+                      setReservePctRaw(raw);
+                      const next = raw === "" ? 0 : reserveFromShare(parse(raw), total);
+                      setField({ reserve: next > 0 ? String(next) : "" });
+                    }}
+                    onBlur={() => setReservePctRaw(null)}
                     placeholder="0"
-                    className="h-9 w-20 text-right num"
                     aria-label="Reserve (% of total)"
-                    {...fieldProps}
+                    disabled={total <= 0}
+                    title={total <= 0 ? "Set a total budget first" : undefined}
                   />
-                  <span className="text-ink-3">%</span>
                 </div>
               </div>
-              <p className="text-[11px] text-ink-3">
-                Allocatable{" "}
-                <span className="num text-ink-2">{usd(allocatable)}</span>
-                {reserve > 0 && <> · reserve {usd(reserve)}</>}
-              </p>
             </div>
+            <p className="flex flex-wrap gap-x-4 gap-y-1">
+              {/* Each label + value wraps as a unit at 375px. */}
+              <span className="whitespace-nowrap">
+                <span className="text-label text-ink-3">Allocatable</span>{" "}
+                <span className="num text-sm text-ink-2">{usd(allocatable)}</span>
+              </span>
+              {reserve > 0 && (
+                <span className="whitespace-nowrap">
+                  <span className="text-label text-ink-3">Reserve</span>{" "}
+                  <span className="num text-sm text-ink-2">{usd(reserve)}</span>
+                </span>
+              )}
+            </p>
             {totalFocused && (
               <p className="text-[11px] text-ink-3">
                 Changing the total rescales every amount through the shares below —
                 a platform on 50% stays on 50%. To hand money to ONE platform, use
-                Move from reserve instead.
+                Move money instead.
               </p>
             )}
           </section>
 
           {/* ── 2 + 3. Platform shares → objective shares ──────────────── */}
-          <section className="space-y-2 rounded-lg border border-line bg-surface p-4">
+          <section className="space-y-3 rounded-lg border border-line bg-surface p-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
                 <h3 className="text-sm font-medium text-ink">Split the budget</h3>
@@ -998,7 +1024,7 @@ export function BudgetPlanEditor({
                   objective takes a share of the platform.
                 </p>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <span
                   className={cn(
                     "num text-[11px]",
@@ -1049,22 +1075,45 @@ export function BudgetPlanEditor({
               </div>
             </div>
 
-            <ul className="divide-y divide-line">
+            {/* Always-open platform cards, 2×2 from sm up. DOM order is the
+                visual order (row-major), so Enter-advance walks card by card —
+                top-left, top-right, bottom-left, bottom-right — and top to
+                bottom inside each. */}
+            <ul className="grid gap-3 sm:grid-cols-2">
               {ALL_PLATFORMS.map((platform) => {
                 const on = draft.platformShares[platform] !== undefined;
-                const isOpen = on && expanded.has(platform);
+                const label = PLATFORM_LABEL[platform];
                 const objectiveShares = objectiveSharesOf(platform);
                 const objectiveAmounts = objectiveAmountsOf(platform);
                 const objectivesOk = sharesComplete(objectiveShares);
+                const objectiveSum = objectiveShares.reduce((s, v) => s + v, 0);
+                // A platform that isn't planned shows its split read-only; one
+                // with no money yet can take its split but has no parent for a
+                // typed dollar amount to be a share of.
+                const objectiveLock = !on
+                  ? { share: `Plan ${label} this month first`, amount: `Plan ${label} this month first` }
+                  : amountOf(platform) <= 0
+                    ? { amount: `Give ${label} a share first` }
+                    : {};
                 return (
-                  <li key={platform} className="py-2">
-                    <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                  <li
+                    key={platform}
+                    className={cn(
+                      // A container, so every row in the card switches between
+                      // stacked and inline TOGETHER: a 375px phone card is ~267px
+                      // inside, and "Retargeting" + its two inputs need ~298px —
+                      // without this, one row would wrap while its siblings don't.
+                      "@container flex flex-col gap-3 rounded-lg border border-line p-3",
+                      on ? "bg-surface-2/50" : "bg-surface",
+                    )}
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
                       <button
                         type="button"
                         onClick={() => togglePlatform(platform)}
                         role="checkbox"
                         aria-checked={on}
-                        className="inline-flex min-w-[8.5rem] items-center gap-2 text-left text-sm"
+                        className="inline-flex items-center gap-2 text-left text-sm font-medium text-ink"
                       >
                         <span
                           className={cn(
@@ -1075,93 +1124,84 @@ export function BudgetPlanEditor({
                           {on && <Check className="h-3 w-3 text-brand" />}
                         </span>
                         <PlatformDot platform={platform} size="sm" />
-                        {PLATFORM_LABEL[platform]}
+                        {label}
                       </button>
-
-                      {on ? (
-                        <>
-                          {shareCell(
+                      <div className="@min-[18.75rem]:ml-auto">
+                        {on ? (
+                          shareCell(
                             `p:${platform}`,
                             parse(draft.platformShares[platform]),
                             amountOf(platform),
                             (raw) => setPlatformShare(platform, raw),
                             (raw) => setPlatformAmount(platform, raw),
-                            `${PLATFORM_LABEL[platform]} share of the allocatable budget`,
-                            `${PLATFORM_LABEL[platform]} amount in USD`,
-                          )}
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setExpanded((prev) => {
-                                const next = new Set(prev);
-                                if (next.has(platform)) next.delete(platform);
-                                else next.add(platform);
-                                return next;
-                              })
-                            }
-                            className={cn(
-                              "inline-flex items-center gap-1 text-[11px]",
-                              objectivesOk ? "text-ink-3" : "text-warn",
-                            )}
-                            aria-expanded={isOpen}
-                          >
-                            {isOpen ? (
-                              <ChevronDown className="h-3 w-3" />
-                            ) : (
-                              <ChevronRight className="h-3 w-3" />
-                            )}
-                            Objectives{" "}
-                            {pct1(objectiveShares.reduce((s, v) => s + v, 0) / 100)}
-                          </button>
-                        </>
-                      ) : (
-                        <span className="text-[11px] text-ink-3">Not planned this month</span>
-                      )}
+                            `${label} share of the allocatable budget`,
+                            `${label} amount in USD`,
+                            allocatable <= 0 ? { amount: "Set a total budget first" } : {},
+                          )
+                        ) : (
+                          <span className="text-[11px] text-ink-3">Not planned this month</span>
+                        )}
+                      </div>
                     </div>
 
-                    {isOpen && (
-                      <div className="mt-2 space-y-1.5 border-l border-line pl-4">
-                        {BUDGET_OBJECTIVES.map((objective, i) => (
-                          <div
-                            key={objective}
-                            className="flex flex-wrap items-center gap-x-3 gap-y-1"
+                    <div className="space-y-1.5 border-t border-line pt-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-label text-ink-3">Objectives</span>
+                        {on && (
+                          <span
+                            className={cn(
+                              "num text-[11px]",
+                              objectivesOk ? "text-ink-3" : "text-warn",
+                            )}
                           >
-                            <span className="min-w-[7rem] text-sm text-ink-2">{objective}</span>
-                            {shareCell(
-                              `o:${platform}:${objective}`,
-                              objectiveShares[i] ?? 0,
-                              objectiveAmounts[i] ?? 0,
-                              (raw) => setObjectiveShare(platform, objective, raw),
-                              (raw) => setObjectiveAmount(platform, objective, raw),
-                              `${objective} share of ${PLATFORM_LABEL[platform]}`,
-                              `${objective} amount on ${PLATFORM_LABEL[platform]} in USD`,
-                            )}
-                          </div>
-                        ))}
-                        {!objectivesOk && (
-                          <div className="flex flex-wrap items-center gap-2">
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="xs"
-                              onClick={() => distributeObjectives(platform)}
-                            >
-                              <Split className="h-3 w-3" />
-                              Distribute remaining evenly
-                            </Button>
-                            {objectiveShares.reduce((sum, v) => sum + v, 0) > 0 && (
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="xs"
-                                onClick={() => normalizeObjectives(platform)}
-                                title="Scale these shares proportionally so they total 100%"
-                              >
-                                <Scale className="h-3 w-3" />
-                                Normalize to 100%
-                              </Button>
-                            )}
-                          </div>
+                            {pct1(objectiveSum / 100)} of 100%
+                          </span>
+                        )}
+                      </div>
+                      {BUDGET_OBJECTIVES.map((objective, i) => (
+                        <div
+                          key={objective}
+                          className="flex flex-col gap-1 @min-[18.75rem]:flex-row @min-[18.75rem]:items-center @min-[18.75rem]:justify-between @min-[18.75rem]:gap-3"
+                        >
+                          <span className={cn("text-sm", on ? "text-ink-2" : "text-ink-3")}>
+                            {objective}
+                          </span>
+                          {shareCell(
+                            `o:${platform}:${objective}`,
+                            objectiveShares[i] ?? 0,
+                            objectiveAmounts[i] ?? 0,
+                            (raw) => setObjectiveShare(platform, objective, raw),
+                            (raw) => setObjectiveAmount(platform, objective, raw),
+                            `${objective} share of ${label}`,
+                            `${objective} amount on ${label} in USD`,
+                            objectiveLock,
+                          )}
+                        </div>
+                      ))}
+                    </div>
+
+                    {on && !objectivesOk && (
+                      <div className="mt-auto flex flex-wrap items-center gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="xs"
+                          onClick={() => distributeObjectives(platform)}
+                        >
+                          <Split className="h-3 w-3" />
+                          Distribute remaining evenly
+                        </Button>
+                        {objectiveSum > 0 && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="xs"
+                            onClick={() => normalizeObjectives(platform)}
+                            title="Scale these shares proportionally so they total 100%"
+                          >
+                            <Scale className="h-3 w-3" />
+                            Normalize to 100%
+                          </Button>
                         )}
                       </div>
                     )}
@@ -1740,6 +1780,34 @@ function DayCurveEditor({
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * A number input with its unit INSIDE the bordered box — never loose text
+ * floating beside it. The title sits on the wrapper: a disabled input takes no
+ * pointer events, so a tooltip on the input itself would never show.
+ */
+function UnitInput({
+  unit,
+  title,
+  wrapperClassName,
+  className,
+  ...props
+}: React.ComponentProps<typeof Input> & { unit: string; wrapperClassName?: string }) {
+  return (
+    <div className={cn("relative", wrapperClassName)} title={title}>
+      <Input
+        {...props}
+        className={cn("peer text-right num", unit.length > 1 ? "pr-11" : "pl-2 pr-6", className)}
+      />
+      <span
+        aria-hidden
+        className="pointer-events-none absolute inset-y-0 right-2.5 flex items-center text-[11px] text-ink-3 peer-disabled:opacity-50"
+      >
+        {unit}
+      </span>
     </div>
   );
 }

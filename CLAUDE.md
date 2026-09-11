@@ -690,7 +690,7 @@ This app is deployed and in production use. Treat `main` as shippable.
     reserve) at full precision, so a round-trip is exact. Pure helpers in
     `lib/budget.ts`: `allocatableFromTotal`, `reserveShare`/`reserveFromShare`,
     `amountsFromShares`, `shareFromAmount`, `sharesComplete`,
-    `distributeShareEvenly`, `transferFromReserve` — plus the cents-exact
+    `distributeShareEvenly`, `normalizeShares`, `moveMoney` — plus the cents-exact
     `splitByWeights`/`distributeRemainder` they build on. Never re-derive this
     math per component.
   - **The RESERVE is part of the TOTAL, not on top of it (2026-09 framing).**
@@ -706,9 +706,10 @@ This app is deployed and in production use. Treat `main` as shippable.
     the RESERVE, never in a gap. Rounding must never block — `SHARE_EPSILON`
     tolerates float dust only, and derived amounts are cents-exact.
   - **Two mid-month operations, KEEP THEM DISTINCT.** Changing the total (or
-    reserve) RESCALES everything through the current shares. "Move from reserve"
-    moves money: the reserve falls, one platform's dollars rise, every other
-    platform's dollars are untouched (only their displayed shares move). Don't
+    reserve) RESCALES everything through the current shares. "Move money"
+    moves money: the source (the reserve or a platform) falls by the amount —
+    or, for new money, the total grows by it — one platform's dollars rise by
+    it, and every other platform's dollars are untouched (only their displayed shares move). Don't
     collapse them into one control — the difference is the whole point.
   - **Plan revisions (`budget_plan_revisions`, migration 0040, additive).**
     Every write that changes a plan — `saveBudgetMonth`, `copyBudgetFromMonth`,
