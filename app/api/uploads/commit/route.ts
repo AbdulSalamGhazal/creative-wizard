@@ -19,6 +19,9 @@ import {
 } from "@/db/queries/performance";
 import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
 import { stampAgainstActiveRules } from "@/db/queries/exclusion-rules";
+import { notifyRoutes } from "@/db/queries/notifications";
+import { PLATFORM_LABEL } from "@/lib/palette";
+import { int } from "@/lib/format";
 
 const bodySchema = z.object({
   token: z.string().uuid(),
@@ -331,6 +334,20 @@ export async function POST(request: NextRequest) {
           inArray(performanceRecords.id, updatedIds.slice(i, i + CHUNK_SIZE)),
         ]);
       }
+    }
+
+    // Tell whoever is routed for this event — inside the SAME transaction, so
+    // a notification can never describe an import that rolled back.
+    if (batchId) {
+      await notifyRoutes(tx, acct, "upload.committed", {
+        title: `Ads upload: ${int(inserted + updated)} ${
+          inserted + updated === 1 ? "row" : "rows"
+        } for ${PLATFORM_LABEL[platform]}`,
+        body: session.fileName,
+        href: "/uploads",
+        actorUserId: user.id,
+        entity: { type: "upload", id: batchId },
+      });
     }
 
     return { batchId, rowsImported: inserted, rowsUpdated: updated, upsert };

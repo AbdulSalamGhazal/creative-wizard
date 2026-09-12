@@ -97,6 +97,11 @@ export const AUDIT_ACTIONS = {
   AUDIENCE_UPDATE: "audience.update",
   AUDIENCE_DELETE: "audience.delete",
 
+  // Notification routing. Individual notifications are deliberately NOT
+  // audited: they are a fan-out OF audited events, and logging them would
+  // duplicate this table row for row.
+  NOTIFY_ROUTES_UPDATE: "notify.routes_update",
+
   // Brands (accounts)
   ACCOUNT_CREATE: "account.create",
   ACCOUNT_RENAME: "account.rename",
@@ -122,7 +127,8 @@ export type AuditEntityType =
   | "campaign"
   | "store"
   | "budget"
-  | "audience";
+  | "audience"
+  | "notification";
 
 export interface AuditEventInput {
   action: AuditAction;
@@ -243,6 +249,7 @@ export const AUDIT_LABELS: Record<AuditAction, string> = {
   "audience.record": "Recorded audience sizes",
   "audience.update": "Corrected an audience size",
   "audience.delete": "Deleted an audience snapshot",
+  "notify.routes_update": "Updated notification routing",
   "account.create": "Created brand",
   "account.rename": "Renamed brand",
   "account.window_update": "Changed status window",
@@ -301,6 +308,7 @@ export const AUDIT_CATEGORIES: Record<AuditAction, AuditEntityType> = {
   "audience.record": "audience",
   "audience.update": "audience",
   "audience.delete": "audience",
+  "notify.routes_update": "notification",
   "account.create": "account",
   "account.rename": "account",
   "account.window_update": "account",

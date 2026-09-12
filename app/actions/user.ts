@@ -14,6 +14,9 @@ import {
 import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
 import { isPermission } from "@/lib/permissions";
 import { actionError } from "@/lib/action-error";
+import { listAllAccounts } from "@/lib/tenant";
+import { createNotifications } from "@/db/queries/notifications";
+import { DIRECT_EVENT_TYPES, categoryForType } from "@/lib/notifications";
 
 export interface UserMutationResult {
   ok: boolean;
@@ -296,6 +299,15 @@ export async function updateUserBrands(
         .where(eq(userAccounts.userId, userId))
     ).map((r) => r.accountId);
 
+    // Which brands this is NEWLY opening up. An all-brands user already had
+    // every brand, so flipping other things around them grants nothing; going
+    // from restricted to all-brands grants everything they didn't have.
+    const allBrands = await listAllAccounts();
+    const allIds = allBrands.map((a) => a.id);
+    const beforeSet = new Set(target.allAccounts ? allIds : beforeIds);
+    const afterIds = grant.allAccounts ? allIds : grant.accountIds;
+    const newlyGranted = afterIds.filter((id) => !beforeSet.has(id));
+
     await db.transaction(async (tx) => {
       await tx
         .update(users)
@@ -308,6 +320,26 @@ export async function updateUserBrands(
           .insert(userAccounts)
           .values(grant.accountIds.map((accountId) => ({ userId, accountId })));
       }
+      // A DIRECT notification: one obvious recipient, so it bypasses routing
+      // entirely. Stamped to the GRANTED brand, so it shows up where it's
+      // about — and written here, so it can't survive a failed grant.
+      await createNotifications(
+        tx,
+        newlyGranted.map((accountId) => ({
+          accountId,
+          recipientUserId: userId,
+          category: categoryForType(DIRECT_EVENT_TYPES.BRAND_GRANTED),
+          type: DIRECT_EVENT_TYPES.BRAND_GRANTED,
+          title: `You now have access to ${
+            allBrands.find((a) => a.id === accountId)?.name ?? "a new brand"
+          }`,
+          body: "Switch to it with the brand picker in the top bar.",
+          href: "/",
+          actorUserId: me.id,
+          entityType: "account",
+          entityId: accountId,
+        })),
+      );
     });
 
     try {

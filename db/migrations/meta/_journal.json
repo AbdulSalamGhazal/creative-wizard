@@ -302,6 +302,13 @@
       "when": 1789205461661,
       "tag": "0042_audience_snapshots",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1789213511832,
+      "tag": "0043_notifications",
+      "breakpoints": true
     }
   ]
 }

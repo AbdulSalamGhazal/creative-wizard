@@ -326,6 +326,15 @@ export async function writeStoreBatch(opts: {
    * replace-the-whole-object behaviour.
    */
   presentFieldKeys?: string[];
+  /**
+   * Run inside this write's OWN transaction, after the rows land — the hook the
+   * notification producer uses, so "the store upload finished" can never
+   * outlive a rolled-back import.
+   */
+  afterWrite?: (
+    tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
+    result: { batchId: string; rowsInserted: number; rowsUpdated: number },
+  ) => Promise<void>;
 }): Promise<{ batchId: string; rowsInserted: number; rowsUpdated: number }> {
   const CHUNK = 500;
   return db.transaction(async (tx) => {
@@ -401,7 +410,13 @@ export async function writeStoreBatch(opts: {
       `);
     }
 
-    return { batchId: bid, rowsInserted: opts.inserts.length, rowsUpdated: opts.updates.length };
+    const result = {
+      batchId: bid,
+      rowsInserted: opts.inserts.length,
+      rowsUpdated: opts.updates.length,
+    };
+    await opts.afterWrite?.(tx, result);
+    return result;
   });
 }
 

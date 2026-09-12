@@ -10,6 +10,8 @@ import { StatusConfigAdmin } from "@/components/creative/status-config-admin";
 import { PageShell } from "@/components/layout/page-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { ExclusionRulesAdmin } from "@/components/exclusions/exclusion-rules-admin";
+import { NotificationRoutesAdmin } from "@/components/notifications/notification-routes-admin";
+import { brandMembers, routeRecipients } from "@/db/queries/notifications";
 import { listExclusionRules } from "@/db/queries/exclusion-rules";
 import { asc, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
@@ -22,6 +24,7 @@ const TABS = [
   { key: "status", label: "Status", perm: "config.brands" },
   { key: "brands", label: "Brands", perm: "config.brands" },
   { key: "exclusions", label: "Exclusions", perm: "record.exclude" },
+  { key: "notifications", label: "Notifications", perm: "notify.manage" },
 ] as const satisfies ReadonlyArray<{
   key: string;
   label: string;
@@ -106,6 +109,7 @@ export default async function CatalogAdminPage({ searchParams }: Props) {
         />
       )}
       {active === "exclusions" && <ExclusionsTab />}
+      {active === "notifications" && <NotificationsTab />}
     </PageShell>
   );
 }
@@ -137,4 +141,14 @@ async function ExclusionsTab() {
       creatives={ruleCreatives}
     />
   );
+}
+
+/**
+ * The Notifications tab: who receives which event in this brand
+ * (`notify.manage`). Rows derive from the EVENT_TYPES catalog; recipients are
+ * the brand's members.
+ */
+async function NotificationsTab() {
+  const [members, recipients] = await Promise.all([brandMembers(), routeRecipients()]);
+  return <NotificationRoutesAdmin members={members} recipients={recipients} />;
 }

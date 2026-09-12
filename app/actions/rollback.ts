@@ -8,6 +8,8 @@ import { performanceRecords, uploadBatches } from "@/db/schema";
 import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
 import { getActiveAccountId } from "@/lib/tenant";
 import { actionError } from "@/lib/action-error";
+import { notifyRoutes } from "@/db/queries/notifications";
+import { int } from "@/lib/format";
 
 const ROLLBACK_WINDOW_MS = 24 * 60 * 60 * 1000;
 
@@ -75,6 +77,18 @@ export async function rollbackBatch(batchId: string): Promise<RollbackResult> {
           rolledBackByUserId: user.id,
         })
         .where(and(eq(uploadBatches.accountId, acct), eq(uploadBatches.id, batchId)));
+
+      // Same transaction as the delete: if the rollback fails, nobody is told
+      // it happened.
+      await notifyRoutes(tx, acct, "upload.rolled_back", {
+        title: `Upload rolled back: ${int(rows.length)} ${
+          rows.length === 1 ? "row" : "rows"
+        } removed`,
+        body: batch.fileName,
+        href: "/uploads",
+        actorUserId: user.id,
+        entity: { type: "upload", id: batchId },
+      });
       return rows.length;
     });
 

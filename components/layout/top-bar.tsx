@@ -4,6 +4,7 @@ import type { SessionUser } from "@/lib/auth";
 import { UserMenu } from "@/components/auth/user-menu";
 import { CommandPalette } from "@/components/layout/command-palette";
 import { ScreenshotButton } from "@/components/layout/screenshot-button";
+import { NotificationBell } from "@/components/layout/notification-bell";
 import { AccountSwitcher } from "@/components/layout/account-switcher";
 import { MobileNav } from "@/components/layout/mobile-nav";
 import { LogoMark } from "@/components/layout/logo-mark";
@@ -53,8 +54,13 @@ export function TopBar({
           <BrandWordmark className="text-2xl leading-none" />
           <AccountSwitcher accounts={accounts} activeId={activeAccountId} />
         </div>
-        <div className="flex items-center gap-3">
+        {/* Tighter gaps below sm: the bell is a fourth control in a row that
+            was already close on a phone. */}
+        <div className="flex items-center gap-2 sm:gap-3">
           <CommandPalette creatives={creatives} granted={granted} />
+          {/* The bell is the ONLY entry to notifications — there is no sidebar
+              item for them, on purpose. */}
+          <NotificationBell />
           <ScreenshotButton />
           <ThemeToggle />
           <UserMenu

@@ -18,6 +18,8 @@ import { runStorePipeline, type StoreParsedRow } from "@/store/pipeline";
 import { type StoreValidationError } from "@/store/errors";
 import type { StoreField } from "@/store/fields";
 import { actionError } from "@/lib/action-error";
+import { notifyRoutes } from "@/db/queries/notifications";
+import { int } from "@/lib/format";
 
 /**
  * Store-order upload flow — parallel to the ads pipeline, but a self-contained
@@ -201,6 +203,16 @@ export async function commitStoreUpload(
       // Only these fields had a column in the file; everything else keeps its
       // stored value on an upsert update.
       presentFieldKeys: res.presentFieldKeys,
+      afterWrite: (tx, written) =>
+        notifyRoutes(tx, acct, "store.upload_committed", {
+          title: `Store upload: ${int(written.rowsInserted + written.rowsUpdated)} ${
+            written.rowsInserted + written.rowsUpdated === 1 ? "order" : "orders"
+          }`,
+          body: input.fileName,
+          href: "/store/uploads",
+          actorUserId: me.id,
+          entity: { type: "store", id: written.batchId },
+        }).then(() => undefined),
     });
 
     try {

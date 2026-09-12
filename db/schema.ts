@@ -1057,3 +1057,107 @@ export const storeSourceMappings = pgTable(
     ),
   }),
 );
+
+// =====================================================================
+// Notifications — the per-user in-app spine (phase 1). Producers write
+// these INSIDE the transaction of the thing that caused them, so a
+// notification can never describe a write that rolled back.
+// =====================================================================
+
+/**
+ * One notification for one person in one brand.
+ *
+ * Recipient-scoped by construction: every read and every mutation filters on
+ * `recipient_user_id = the session user` AND `account_id = the active brand`,
+ * so a user can never see, mark or archive someone else's row (pinned by a DB
+ * test). Nothing here is ever hard-deleted — "clear" sets `archived_at`, and an
+ * archived notification stays searchable in its own tab.
+ *
+ * `category` and `type` come from `lib/notifications.ts`; both are stored as
+ * plain varchars (like every other "enum" in this schema) so the catalog can
+ * grow without a migration. Tenant table (§4.1).
+ */
+export const notifications = pgTable(
+  "notifications",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    accountId: accountId(),
+    /** Who this is for. CASCADE: a deleted user's notifications go with them. */
+    recipientUserId: uuid("recipient_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    /** One of NOTIFICATION_CATEGORIES — drives the page's filter chips. */
+    category: varchar("category", { length: 16 }).notNull(),
+    /** The event that produced it (EVENT_TYPES or a direct event). */
+    type: varchar("type", { length: 48 }).notNull(),
+    title: text("title").notNull(),
+    body: text("body"),
+    /** In-app path to the thing that happened. Validated through `safeHref`. */
+    href: text("href"),
+    /** Who caused it. SET NULL: the notification outlives the actor's account. */
+    actorUserId: uuid("actor_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    entityType: varchar("entity_type", { length: 32 }),
+    entityId: text("entity_id"),
+    readAt: timestamp("read_at", { withTimezone: true }),
+    /** "Clear" — reversible, and the only way a notification leaves the list. */
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
+    /**
+     * RESERVED for phase 3. A recurring evaluator ("still 40% over budget")
+     * will upsert on this key instead of filing a duplicate every run. Phase 1
+     * writes NULL everywhere, and the unique index below is partial so those
+     * NULLs never collide.
+     */
+    dedupeKey: text("dedupe_key"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    // The page: one person's notifications in one brand, newest first.
+    recipientCreatedIdx: index("notifications_recipient_account_created_idx").on(
+      t.recipientUserId,
+      t.accountId,
+      t.createdAt.desc(),
+    ),
+    // The badge count, which runs on every poll — a PARTIAL index so it only
+    // spans rows that are actually unread and unarchived.
+    unreadIdx: index("notifications_unread_idx")
+      .on(t.recipientUserId, t.accountId)
+      .where(sql`${t.readAt} is null and ${t.archivedAt} is null`),
+    // Phase-3 reservation: lets an evaluator upsert. Partial, so phase 1's
+    // all-NULL dedupe keys are exempt.
+    dedupeUnique: uniqueIndex("notifications_account_dedupe_idx")
+      .on(t.accountId, t.dedupeKey)
+      .where(sql`${t.dedupeKey} is not null`),
+  }),
+);
+
+/**
+ * Who receives which event, per brand. One row = "this person receives this
+ * event type in this brand".
+ *
+ * NO rows for an event = it notifies nobody. Silent by default is deliberate:
+ * the team opts in to noise rather than opting out of it, and an unconfigured
+ * system is quiet rather than unusable. Managed on Configuration →
+ * Notifications (`notify.manage`), audited as `notify.routes_update`.
+ */
+export const notificationRoutes = pgTable(
+  "notification_routes",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    accountId: accountId(),
+    /** An EVENT_TYPES key. */
+    eventType: varchar("event_type", { length: 48 }).notNull(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    accountEventUserUnique: uniqueIndex("notification_routes_account_event_user_idx").on(
+      t.accountId,
+      t.eventType,
+      t.userId,
+    ),
+  }),
+);

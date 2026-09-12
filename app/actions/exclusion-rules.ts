@@ -8,6 +8,7 @@ import { campaigns, creatives, exclusionRules } from "@/db/schema";
 import { requirePermission } from "@/lib/auth";
 import { getActiveAccountId } from "@/lib/tenant";
 import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
+import { notifyRoutes } from "@/db/queries/notifications";
 import { CAMPAIGN_OBJECTIVES } from "@/lib/campaign";
 import {
   ruleDescriptor,
@@ -131,6 +132,14 @@ export async function createExclusionRule(input: unknown): Promise<RuleMutationR
         })
         .returning({ id: exclusionRules.id });
       const flipped = await applyRule(tx, { ...target, id: rule!.id }, acct);
+      // Same transaction as the rule and its first sweep.
+      await notifyRoutes(tx, acct, "exclusion.rule_created", {
+        title: `Exclusion rule added: ${ruleDescriptor(target, resolved.label)}`,
+        body: `${flipped} ${flipped === 1 ? "record" : "records"} excluded from aggregates.`,
+        href: "/admin/catalog?tab=exclusions",
+        actorUserId: user.id,
+        entity: { type: "exclusion", id: rule!.id },
+      });
       return { ruleId: rule!.id, affected: flipped };
     });
 
@@ -166,6 +175,11 @@ export async function toggleExclusionRule(input: unknown): Promise<RuleMutationR
     if (!rule) return { ok: false, error: "Rule not found." };
     if (rule.active === active) return { ok: true, affected: 0 };
 
+    // Resolved ONCE, before the transaction: the notification and the audit
+    // row want the same label, and it is a read the transaction doesn't need.
+    const resolved = await resolveTargetLabel(rule, acct);
+    const descriptor = ruleDescriptor(rule, resolved.ok ? resolved.label : null);
+
     const affected = await db.transaction(async (tx) => {
       await tx
         .update(exclusionRules)
@@ -175,16 +189,25 @@ export async function toggleExclusionRule(input: unknown): Promise<RuleMutationR
       const restored = await unapplyRule(tx, id, acct);
       // Rows also covered by another active rule get re-stamped, not released.
       const restamped = await resweepActiveRules(tx, acct);
-      return restored - restamped;
+      const released = restored - restamped;
+      // Only DEACTIVATION is an event: switching a rule back on is the
+      // ordinary state, switching it off silently changes every aggregate.
+      await notifyRoutes(tx, acct, "exclusion.rule_deactivated", {
+        title: `Exclusion rule switched off: ${descriptor}`,
+        body: `${released} ${released === 1 ? "record is" : "records are"} back in aggregates.`,
+        href: "/admin/catalog?tab=exclusions",
+        actorUserId: user.id,
+        entity: { type: "exclusion", id },
+      });
+      return released;
     });
 
     revalidateEverything();
-    const resolved = await resolveTargetLabel(rule, acct);
     await logAudit({
       action: AUDIT_ACTIONS.EXCLUSION_RULE_TOGGLE,
       entityType: "exclusion",
       entityId: id,
-      entityLabel: ruleDescriptor(rule, resolved.ok ? resolved.label : null),
+      entityLabel: descriptor,
       actorUserId: user.id,
       meta: { active, affected },
     });

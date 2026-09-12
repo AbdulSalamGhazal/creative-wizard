@@ -30,6 +30,8 @@ import {
   replaceBudgetMonth,
 } from "@/db/queries/budget";
 import { actionError } from "@/lib/action-error";
+import { notifyRoutes } from "@/db/queries/notifications";
+import { usd } from "@/lib/format";
 
 /**
  * Budget mutations — permission `budget.manage`, all audited `budget.update`
@@ -86,6 +88,18 @@ export async function saveBudgetMonth(input: unknown): Promise<BudgetActionResul
     await db.transaction(async (tx) => {
       await replaceBudgetMonth(tx, acct, month, plan);
       await insertPlanRevision(tx, acct, month, planInputToSnapshot(plan), note ?? null, user.id);
+      // Inside the save's own transaction — see the notifications module rule.
+      await notifyRoutes(tx, acct, "budget.plan_saved", {
+        title: `${monthLabel(month)}'s budget plan was saved`,
+        body: note?.trim()
+          ? note.trim()
+          : `${allocations.length} ${
+              allocations.length === 1 ? "allocation" : "allocations"
+            }, ${usd(allocations.reduce((sum, a) => sum + a.plannedSpend, 0))} planned`,
+        href: `/budget/plan?month=${month}`,
+        actorUserId: user.id,
+        entity: { type: "budget", id: monthStartIso(month) },
+      });
     });
 
     revalidateBudget();
@@ -207,6 +221,13 @@ export async function restorePlanRevision(input: unknown): Promise<BudgetActionR
         `Restored from ${savedAt} UTC`,
         user.id,
       );
+      await notifyRoutes(tx, acct, "budget.plan_restored", {
+        title: `${monthLabel(revision.month)}'s plan was restored to the ${savedAt} UTC revision`,
+        body: revision.note ?? null,
+        href: `/budget/plan?month=${revision.month}`,
+        actorUserId: user.id,
+        entity: { type: "budget", id: monthStartIso(revision.month) },
+      });
     });
 
     revalidateBudget();

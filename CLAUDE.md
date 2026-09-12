@@ -134,6 +134,35 @@ This app is deployed and in production use. Treat `main` as shippable.
 
 ## Learned
 
+- **Notifications (2026-09, phase 1 — the spine). Five invariants, all
+  deliberate.** Per-user in-app notifications: a top-bar bell, `/notifications`
+  (no sidebar entry — the bell is the way in), and routing configured on
+  Configuration → Notifications. Migration **0043** (additive: `notifications`
+  + `notification_routes`).
+  1. **Producers write INSIDE the transaction of the thing they describe.**
+     `notifyRoutes(tx, accountId, eventType, {...})` takes the caller's `tx`, so
+     a notification can never outlive a rolled-back write. Where a query helper
+     owns the transaction, give it an `afterWrite(tx, result)` hook (see
+     `writeStoreBatch`) instead of opening a second one. One routes read + one
+     bulk insert per producer — `lib/db.ts` is `max: 1`.
+  2. **Self-scoping on every notification read and write:**
+     `recipient_user_id = the session user` AND `account_id = the active brand`.
+     An id alone never identifies a row; someone else's simply matches nothing.
+     Reading your own needs NO permission — `notify.manage` gates the ROUTING
+     config only. Pinned by tests/db/notifications.test.ts.
+  3. **Silent by default.** No `notification_routes` rows for an event = it
+     notifies nobody, and the actor is always excluded from their own event.
+  4. **Archive, never delete.** "Clear" sets `archived_at`; restore reverses it;
+     archived rows stay searchable in the Archived tab. Nothing hard-deletes.
+  5. **Individual notifications are NOT audited** (they'd mirror `audit_events`
+     row for row); only `notify.routes_update` is.
+  Vocabulary is `lib/notifications.ts` and everything derives from it —
+  `EVENT_TYPES` (the routable catalog; the config tab's rows), the five
+  categories (phase 1 produces `system` only), `POLL_MS` (the ONE polling knob),
+  `safeHref` (an href is data: in-app paths only, never an open redirect).
+  `notifications.dedupe_key` is RESERVED for phase-3 alert upserts — its unique
+  index is partial so today's NULLs never collide. See tech-spec §5f.
+
 - **Sparse audience snapshots: carry forward, never interpolate (2026-09).**
   `audience_snapshots` holds only the days somebody actually MEASURED an
   audience, so every reader in `lib/audience.ts` follows four rules that are
@@ -573,7 +602,7 @@ This app is deployed and in production use. Treat `main` as shippable.
 - **Authorization is GRANULAR per-user permissions (2026-07) — DERIVE from the
   catalog, never re-list.** The old two-tier `requireEditor`/`requireAdmin` model
   is GONE. `lib/permissions.ts` is the single source of truth: `PERMISSION_GROUPS`
-  (an `as const` catalog of 6 groups / 23 keys) → the `Permission` union +
+  (an `as const` catalog of 6 groups / 24 keys) → the `Permission` union +
   `ALL_PERMISSIONS` are derived from it, so any new capability is added in ONE
   place and every surface (checks, the Team UI, nav) follows.
   - **Storage:** `users.role` (`admin` | `editor` | `viewer`, a tier) +

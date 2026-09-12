@@ -59,6 +59,9 @@ export const PERMISSION_GROUPS = [
       { key: "config.rating", label: "Edit rating rules" },
       { key: "config.mappings", label: "Edit CSV mappings" },
       { key: "config.brands", label: "Manage brands & status window" },
+      // Gates the routing config ONLY — reading your own notifications needs
+      // no permission at all.
+      { key: "notify.manage", label: "Configure notification routing" },
     ],
   },
   {
