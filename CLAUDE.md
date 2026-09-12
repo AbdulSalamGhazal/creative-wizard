@@ -134,6 +134,23 @@ This app is deployed and in production use. Treat `main` as shippable.
 
 ## Learned
 
+- **Sparse audience snapshots: carry forward, never interpolate (2026-09).**
+  `audience_snapshots` holds only the days somebody actually MEASURED an
+  audience, so every reader in `lib/audience.ts` follows four rules that are
+  deliberate, not gaps to be filled: (1) between measurements the last known
+  size carries forward as a STEP — a ramp would invent numbers nobody took;
+  (2) before a pair's first snapshot the size is UNKNOWN (`—`), never 0 — an
+  unmeasured audience is not an empty one; (3) every displayed size carries its
+  age, with ONE neutral threshold (`STALE_AFTER_DAYS = 7`) that says "old", not
+  "bad" — v1 passes no judgment on size, and stores no target bands; (4)
+  pressure (spend per 1,000 audience) counts ONLY days with a known audience and
+  is computed as component sums (Σspend ÷ Σ(size/1000)), so an unknown day can
+  never smuggle its spend into the ratio and a zero audience gives `null`, not
+  Infinity. A range's early days are only knowable because
+  `audienceSnapshotSeries` fetches the latest snapshot BEFORE the range as a
+  seed — drop that query and the page silently reads "unknown" for a pair
+  measured last month.
+
 - **Forgiving CSV matching is INTENTIONAL as of 2026-07 (validation-spec v1.2).**
   The pipeline trims cells then matches creative names byte-exactly (case-
   sensitive, no NFC), and reads blank/`-`/`—`/`N/A`/`null` numeric cells as `0`
@@ -556,7 +573,7 @@ This app is deployed and in production use. Treat `main` as shippable.
 - **Authorization is GRANULAR per-user permissions (2026-07) — DERIVE from the
   catalog, never re-list.** The old two-tier `requireEditor`/`requireAdmin` model
   is GONE. `lib/permissions.ts` is the single source of truth: `PERMISSION_GROUPS`
-  (an `as const` catalog of 6 groups / 22 keys) → the `Permission` union +
+  (an `as const` catalog of 6 groups / 23 keys) → the `Permission` union +
   `ALL_PERMISSIONS` are derived from it, so any new capability is added in ONE
   place and every surface (checks, the Team UI, nav) follows.
   - **Storage:** `users.role` (`admin` | `editor` | `viewer`, a tier) +
@@ -649,7 +666,8 @@ This app is deployed and in production use. Treat `main` as shippable.
   still need the sweep.
 
 - **Budget module (2026-09, v2) — raw actuals BY DECISION.** Its own sidebar
-  section of 3 pages (`/budget` Overview · `/budget/plan` · `/budget/pacing`);
+  section of 4 pages (`/budget` Overview · `/budget/plan` · `/budget/pacing` ·
+  `/budget/audience`);
   Overview and Plan share `?month=` (nav links preserve it), Pacing takes a date
   range. The old **Daily** and **History** pages MERGED into Pacing and are
   permanent redirects to it (History asks for the last 12 months grouped by
@@ -755,6 +773,16 @@ This app is deployed and in production use. Treat `main` as shippable.
     The objective on a spend row is the campaign's CURRENT objective seen
     through the bucket lens, so reclassifying a campaign restates budget
     history. `budgetHistory()` was deleted — month grouping replaced it.
+  - **Funnel audience (`/budget/audience`, 2026-09, migration 0042 additive).**
+    Hand-measured audience sizes per funnel stage × platform, versus spend.
+    **Stages DERIVE from `BUDGET_OBJECTIVES` minus "Other"** (`FUNNEL_STAGES` in
+    `lib/audience.ts`) — Awareness/TOF · Activation/MOF · Retargeting/BOF; never
+    re-list them. Permission `audience.manage` (NOT in the editor preset — the
+    measuring chore and planning authority are different jobs); audited
+    `audience.record`/`update`/`delete`. Spend is the module's RAW basis and
+    comes from `budgetPacingSeries` — never add a second spend scan. USD only
+    (no currency toggle: pressure is a ratio). See the Learned entry for the
+    sparse-snapshot semantics, and tech-spec §5e.
 
 - **2026-09: "tag" → "angle" at ALL layers — DB, URL params, code, UI, MCP.**
   The creative-labeling concept is called an **angle** now. Tables `tags` /

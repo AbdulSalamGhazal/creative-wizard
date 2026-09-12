@@ -81,6 +81,7 @@ import {
   platformAnchorId,
   platformLabel,
   useBudgetCurrency,
+  useFieldFlow,
 } from "@/components/budget/budget-shared";
 import { BudgetPlanRevisions } from "@/components/budget/budget-plan-revisions";
 
@@ -197,37 +198,10 @@ export function BudgetPlanEditor({
   const [copyMode, setCopyMode] = useState<"amounts" | "shares">("amounts");
   const [rateDraft, setRateDraft] = useState<string | null>(null);
 
-  /**
-   * Phone + keyboard flow for every numeric field in the cascade. One ref on
-   * the form container; Enter walks to the next `data-budget-field` input in
-   * DOM order (which IS visual order here), Escape blurs, and focus selects so
-   * a correction overwrites instead of appending to what's there.
-   */
-  const formRef = useRef<HTMLDivElement>(null);
+  // Phone + keyboard flow for every numeric field in the cascade (shared with
+  // the Audience record grid — see useFieldFlow).
+  const { formRef, fieldProps } = useFieldFlow();
   const totalRef = useRef<HTMLInputElement>(null);
-  const fieldProps = {
-    inputMode: "decimal" as const,
-    "data-budget-field": true,
-    onFocus: (e: React.FocusEvent<HTMLInputElement>) => e.currentTarget.select(),
-    onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => {
-      if (e.key === "Escape") {
-        e.currentTarget.blur();
-        return;
-      }
-      if (e.key !== "Enter") return;
-      e.preventDefault();
-      const fields = Array.from(
-        formRef.current?.querySelectorAll<HTMLInputElement>("[data-budget-field]") ?? [],
-      ).filter((el) => !el.disabled);
-      const next = fields[fields.indexOf(e.currentTarget) + 1];
-      if (next) {
-        next.focus();
-        next.select();
-      } else {
-        e.currentTarget.blur();
-      }
-    },
-  };
 
   /**
    * Rebuild the cascade from what's stored: the total is the allocated sum plus

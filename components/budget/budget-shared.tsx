@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -244,4 +244,41 @@ export function platformLabel(platform: string): string {
 /** Anchor id for a platform's group on the Plan page (Overview cards link here). */
 export function platformAnchorId(platform: string): string {
   return `platform-${platform}`;
+}
+
+/**
+ * Phone + keyboard flow for a form full of numeric fields (the Plan editor's
+ * cascade, the Audience record grid).
+ *
+ * One ref goes on the form container; every field spreads `fieldProps`. Enter
+ * walks to the next `[data-budget-field]` in DOM order — which both callers
+ * keep as the visual order — skipping disabled fields; Escape blurs; focus
+ * selects, so a correction overwrites instead of appending to what's there.
+ */
+export function useFieldFlow(inputMode: "decimal" | "numeric" = "decimal") {
+  const formRef = useRef<HTMLDivElement>(null);
+  const fieldProps = {
+    inputMode,
+    "data-budget-field": true,
+    onFocus: (e: React.FocusEvent<HTMLInputElement>) => e.currentTarget.select(),
+    onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === "Escape") {
+        e.currentTarget.blur();
+        return;
+      }
+      if (e.key !== "Enter") return;
+      e.preventDefault();
+      const fields = Array.from(
+        formRef.current?.querySelectorAll<HTMLInputElement>("[data-budget-field]") ?? [],
+      ).filter((el) => !el.disabled);
+      const next = fields[fields.indexOf(e.currentTarget) + 1];
+      if (next) {
+        next.focus();
+        next.select();
+      } else {
+        e.currentTarget.blur();
+      }
+    },
+  };
+  return { formRef, fieldProps };
 }

@@ -19,6 +19,7 @@ import {
 import { sql } from "drizzle-orm";
 import { CAMPAIGN_OBJECTIVES } from "@/lib/campaign";
 import { BUDGET_OBJECTIVES } from "@/lib/budget";
+import { FUNNEL_STAGES } from "@/lib/audience";
 import { ALL_PLATFORMS } from "@/lib/palette";
 
 export const roleEnum = ["admin", "editor", "viewer"] as const;
@@ -860,6 +861,51 @@ export const budgetPlanRevisions = pgTable(
       t.month,
       t.createdAt.desc(),
     ),
+  }),
+);
+
+/**
+ * Funnel-audience snapshots — the team's IRREGULAR measurements of how big each
+ * audience is, per funnel stage per platform. One row = "on this date, this
+ * audience was this many people".
+ *
+ * The grain is deliberately sparse: nothing is written for a day nobody
+ * measured. Readers carry the last known value forward as a step and show its
+ * age (`lib/audience.ts`); before a pair's first snapshot the size is UNKNOWN,
+ * never zero. v1 stores numbers and dates ONLY — no audience definitions, no
+ * target bands: judgment stays with the team.
+ *
+ * Stages are the three main budget buckets (Awareness/Activation/Retargeting —
+ * `FUNNEL_STAGES`, derived from `BUDGET_OBJECTIVES` minus the "Other"
+ * catch-all). Tenant table (§4.1).
+ */
+export const audienceSnapshots = pgTable(
+  "audience_snapshots",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    accountId: accountId(),
+    platform: varchar("platform", { length: 16, enum: platformEnum }).notNull(),
+    /** One of FUNNEL_STAGES — code-validated, like every other varchar "enum". */
+    stage: varchar("stage", { length: 16, enum: FUNNEL_STAGES }).notNull(),
+    /** The day the audience was measured (not the day it was typed in). */
+    date: date("date").notNull(),
+    /** People in the audience. 0 is a real measurement; absence is unknown. */
+    size: integer("size").notNull(),
+    /** Nullable + SET NULL: a measurement outlives whoever recorded it. */
+    createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    // One measurement per pair per day — the batch record UPSERTs onto this.
+    accountPlatformStageDateUnique: uniqueIndex(
+      "audience_snapshots_account_platform_stage_date_idx",
+    ).on(t.accountId, t.platform, t.stage, t.date),
+    // The range scan the trends/comparison page runs, and the seed query that
+    // reaches back for the last snapshot BEFORE the range.
+    accountDateIdx: index("audience_snapshots_account_date_idx").on(t.accountId, t.date),
+    // A negative audience is not a measurement. The action validates it too;
+    // this is the floor nothing can write beneath.
+    sizeNonNegative: check("audience_snapshots_size_non_negative", sql`${t.size} >= 0`),
   }),
 );
 

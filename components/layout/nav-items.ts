@@ -15,6 +15,7 @@ import {
   NotebookPen,
   Gauge,
   Users,
+  UsersRound,
   ScrollText,
 } from "lucide-react";
 import type { Permission } from "@/lib/permissions";
@@ -104,6 +105,9 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/budget", label: "Overview", icon: Wallet, group: "budget", exact: true },
   { href: "/budget/plan", label: "Plan", icon: NotebookPen, group: "budget" },
   { href: "/budget/pacing", label: "Pacing", icon: Gauge, group: "budget" },
+  // Funnel-audience sizes vs spend. Open to any brand member, like the other
+  // read surfaces; recording is gated behind audience.manage on the page.
+  { href: "/budget/audience", label: "Audience", icon: UsersRound, group: "budget" },
 
   // ── Store ────────────────────────────────────────────────────────────────
   {

@@ -92,6 +92,11 @@ export const AUDIT_ACTIONS = {
   // Budget module
   BUDGET_UPDATE: "budget.update",
 
+  // Funnel-audience snapshots (Budget → Audience)
+  AUDIENCE_RECORD: "audience.record",
+  AUDIENCE_UPDATE: "audience.update",
+  AUDIENCE_DELETE: "audience.delete",
+
   // Brands (accounts)
   ACCOUNT_CREATE: "account.create",
   ACCOUNT_RENAME: "account.rename",
@@ -116,7 +121,8 @@ export type AuditEntityType =
   | "account"
   | "campaign"
   | "store"
-  | "budget";
+  | "budget"
+  | "audience";
 
 export interface AuditEventInput {
   action: AuditAction;
@@ -234,6 +240,9 @@ export const AUDIT_LABELS: Record<AuditAction, string> = {
   "angle.delete": "Deleted angle",
   "rating.update": "Updated rating rules",
   "budget.update": "Updated budget plan",
+  "audience.record": "Recorded audience sizes",
+  "audience.update": "Corrected an audience size",
+  "audience.delete": "Deleted an audience snapshot",
   "account.create": "Created brand",
   "account.rename": "Renamed brand",
   "account.window_update": "Changed status window",
@@ -289,6 +298,9 @@ export const AUDIT_CATEGORIES: Record<AuditAction, AuditEntityType> = {
   "angle.delete": "angle",
   "rating.update": "rating",
   "budget.update": "budget",
+  "audience.record": "audience",
+  "audience.update": "audience",
+  "audience.delete": "audience",
   "account.create": "account",
   "account.rename": "account",
   "account.window_update": "account",

@@ -33,6 +33,10 @@ export const PERMISSION_GROUPS = [
       { key: "campaign.edit", label: "Edit campaigns" },
       { key: "campaign.delete", label: "Delete campaigns (removes their records)" },
       { key: "budget.manage", label: "Manage budget plans" },
+      // Deliberately NOT in the editor preset: recording audience sizes is the
+      // measurement chore, planning authority is a different job. Grant it
+      // explicitly (admins bypass, as always).
+      { key: "audience.manage", label: "Record funnel audience sizes" },
     ],
   },
   {

@@ -25,6 +25,7 @@ const CATEGORY_LABELS: Record<AuditEntityType, string> = {
   upload: "Ad uploads",
   store: "Store",
   budget: "Budget",
+  audience: "Funnel audience",
   exclusion: "Exclusions",
   user: "Users",
   mapping: "CSV mapping",
