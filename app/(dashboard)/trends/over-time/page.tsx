@@ -23,6 +23,7 @@ import { changeDimSchema, dashboardFiltersSchema } from "@/validators/filters";
 import { PLATFORM_LABEL } from "@/lib/palette";
 import { cn } from "@/lib/utils";
 import { usd, roas } from "@/lib/format";
+import { ViewComments } from "@/components/comments/view-comments";
 
 export const dynamic = "force-dynamic";
 
@@ -173,10 +174,13 @@ export default async function TrendsOverTimePage({
           </>
         }
         rightSlot={
-          <Badge variant="outline" className="text-ink-3">
-            {from} → {to} · vs {breakdown.prevRange.from} →{" "}
-            {breakdown.prevRange.to}
-          </Badge>
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant="outline" className="text-ink-3">
+              {from} → {to} · vs {breakdown.prevRange.from} →{" "}
+              {breakdown.prevRange.to}
+            </Badge>
+            <ViewComments path="/trends/over-time" />
+          </div>
         }
       />
 

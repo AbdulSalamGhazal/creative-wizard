@@ -40,6 +40,7 @@ import { CreativeRecordsTable } from "@/components/creative/creative-records-tab
 import { AnalyticsDateFilter } from "@/components/creative/analytics-date-filter";
 import { NotesPanel } from "@/components/creative/notes-panel";
 import { AuditFeed } from "@/components/audit/audit-feed";
+import { CommentSection } from "@/components/comments/comment-section";
 import { MetricCard } from "@/components/overview/metric-card";
 import { PageShell } from "@/components/layout/page-shell";
 import { int, roas, usd, usd0 } from "@/lib/format";
@@ -317,6 +318,11 @@ export default async function CreativeDetailPage({
         rows={records}
         title={from && to ? "Records in range" : "All records"}
       />
+
+      {/* ─────────── Comments ─────────── */}
+      {/* Distinct from Notes above: notes are a document, comments are a
+          conversation — and only a mention or a reply notifies anyone. */}
+      <CommentSection anchorType="creative" anchorId={creative.id} />
 
       {/* ─────────── Activity log ─────────── */}
       <div>

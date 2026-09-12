@@ -97,6 +97,11 @@ export const AUDIT_ACTIONS = {
   AUDIENCE_UPDATE: "audience.update",
   AUDIENCE_DELETE: "audience.delete",
 
+  // Comments (notifications phase 2). CREATION is not audited — the comment
+  // is its own visible record; edits and deletes remove evidence, so they are.
+  COMMENT_UPDATE: "comment.update",
+  COMMENT_DELETE: "comment.delete",
+
   // Notification routing. Individual notifications are deliberately NOT
   // audited: they are a fan-out OF audited events, and logging them would
   // duplicate this table row for row.
@@ -128,7 +133,8 @@ export type AuditEntityType =
   | "store"
   | "budget"
   | "audience"
-  | "notification";
+  | "notification"
+  | "comment";
 
 export interface AuditEventInput {
   action: AuditAction;
@@ -249,6 +255,8 @@ export const AUDIT_LABELS: Record<AuditAction, string> = {
   "audience.record": "Recorded audience sizes",
   "audience.update": "Corrected an audience size",
   "audience.delete": "Deleted an audience snapshot",
+  "comment.update": "Edited a comment",
+  "comment.delete": "Deleted a comment",
   "notify.routes_update": "Updated notification routing",
   "account.create": "Created brand",
   "account.rename": "Renamed brand",
@@ -308,6 +316,8 @@ export const AUDIT_CATEGORIES: Record<AuditAction, AuditEntityType> = {
   "audience.record": "audience",
   "audience.update": "audience",
   "audience.delete": "audience",
+  "comment.update": "comment",
+  "comment.delete": "comment",
   "notify.routes_update": "notification",
   "account.create": "account",
   "account.rename": "account",

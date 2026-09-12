@@ -20,6 +20,7 @@ import { PlatformFunnelComparison } from "@/components/funnel/platform-funnel-co
 import { CampaignFunnelTable } from "@/components/funnel/campaign-funnel-table";
 import { dashboardFiltersSchema } from "@/validators/filters";
 import { prevPeriod } from "@/lib/period";
+import { ViewComments } from "@/components/comments/view-comments";
 
 export const dynamic = "force-dynamic";
 
@@ -103,9 +104,12 @@ export default async function FunnelPage({
         eyebrow="Main metrics"
         title="Funnel"
         rightSlot={
-          <Badge variant="outline" className="text-ink-3">
-            {from} → {to}
-          </Badge>
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant="outline" className="text-ink-3">
+              {from} → {to}
+            </Badge>
+            <ViewComments path="/funnel" />
+          </div>
         }
       />
 

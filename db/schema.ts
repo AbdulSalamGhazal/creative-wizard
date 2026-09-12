@@ -1,5 +1,6 @@
 import {
   check,
+  type AnyPgColumn,
   pgTable,
   uuid,
   text,
@@ -1157,6 +1158,93 @@ export const notificationRoutes = pgTable(
     accountEventUserUnique: uniqueIndex("notification_routes_account_event_user_idx").on(
       t.accountId,
       t.eventType,
+      t.userId,
+    ),
+  }),
+);
+
+// =====================================================================
+// Comments (notifications phase 2) — conversation attached to a thing,
+// with the VIEW it was written in captured alongside it.
+// =====================================================================
+
+/**
+ * One comment on an anchor: a creative, a campaign, a budget month, or an
+ * aggregate page ("view").
+ *
+ * `anchor_id` holds the entity uuid, a `YYYY-MM` month, or — for `view` — the
+ * page's pathname. It deliberately has NO foreign key (four different targets),
+ * so the create action re-validates the anchor against the ACTIVE account
+ * before writing, and `view` pathnames against an explicit allow-list
+ * (`COMMENTABLE_VIEWS`). The house FK-revalidation rule, applied to a column
+ * the database can't enforce for us.
+ *
+ * `view_query` is the query string the commenter had on screen (no leading
+ * "?"), captured at post time so a deep link reproduces their view exactly.
+ *
+ * Threads are FLAT: `parent_id` always points at a top-level comment (replying
+ * to a reply re-parents to its root). Deletion is SOFT — the row stays and
+ * renders as "Comment deleted" so the thread under it keeps its shape; the only
+ * hard deletes are the CASCADE paths that already exist (a deleted user, a
+ * deleted parent). Tenant table (§4.1).
+ */
+export const comments = pgTable(
+  "comments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    accountId: accountId(),
+    /** SET NULL: a comment outlives its author's account ("Former member"). */
+    authorUserId: uuid("author_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    /** One of COMMENT_ANCHOR_TYPES. */
+    anchorType: varchar("anchor_type", { length: 16 }).notNull(),
+    /** Entity uuid · `YYYY-MM` · or an allow-listed pathname for `view`. */
+    anchorId: text("anchor_id").notNull(),
+    /** The commenter's query string at post time. NULL = they had none. */
+    viewQuery: text("view_query"),
+    /** Always a TOP-LEVEL comment's id, or NULL for a top-level comment. */
+    parentId: uuid("parent_id").references((): AnyPgColumn => comments.id, {
+      onDelete: "cascade",
+    }),
+    body: text("body").notNull(),
+    /** Set on edit — the "edited" marker, and the only trace of the old text. */
+    editedAt: timestamp("edited_at", { withTimezone: true }),
+    /** Soft delete: the row survives so replies under it still make sense. */
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    anchorIdx: index("comments_account_anchor_idx").on(
+      t.accountId,
+      t.anchorType,
+      t.anchorId,
+      t.createdAt,
+    ),
+    parentIdx: index("comments_parent_idx").on(t.parentId),
+  }),
+);
+
+/**
+ * Who a comment mentions. Written EXPLICITLY from the picker — never parsed out
+ * of the body, so a typed "@someone" notifies nobody and the notification set
+ * is exactly what the author chose. Mentioned users must be members of the
+ * comment's brand (checked in the action).
+ */
+export const commentMentions = pgTable(
+  "comment_mentions",
+  {
+    commentId: uuid("comment_id")
+      .notNull()
+      .references(() => comments.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    commentUserUnique: uniqueIndex("comment_mentions_comment_user_idx").on(
+      t.commentId,
       t.userId,
     ),
   }),

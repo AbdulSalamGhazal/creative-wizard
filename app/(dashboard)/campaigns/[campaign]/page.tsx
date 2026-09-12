@@ -35,6 +35,7 @@ import { parseCampaignDetailParams } from "@/validators/campaign";
 import { PLATFORM_LABEL } from "@/lib/palette";
 import { safeDecodeURIComponent } from "@/lib/url";
 import { PageShell } from "@/components/layout/page-shell";
+import { CommentSection } from "@/components/comments/comment-section";
 import { isoDate, int } from "@/lib/format";
 import { defaultDateRange, presetLabel } from "@/lib/date-presets";
 import { resolvePreferredRange, resolveIncludeExcluded } from "@/db/queries/user-prefs";
@@ -233,6 +234,11 @@ export default async function CampaignDetailPage({
       >
         <CampaignRecordsTable records={records} byDay={byDay} campaign={decoded} />
       </CollapsibleSection>
+
+      {/* ─────────── Comments ─────────── */}
+      {registry && (
+        <CommentSection anchorType="campaign" anchorId={registry.id} />
+      )}
 
       {/* ─────────── Danger zone (delete permission only) ─────────── */}
       {canDelete && registry && deletionSummary && (

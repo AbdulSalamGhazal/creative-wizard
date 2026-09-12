@@ -12,6 +12,7 @@ import {
 } from "@/db/queries/reconciliation";
 import { ReconciliationView } from "@/components/store/reconciliation-view";
 import { resolveIncludeExcluded } from "@/db/queries/user-prefs";
+import { ViewComments } from "@/components/comments/view-comments";
 
 export const dynamic = "force-dynamic";
 
@@ -73,6 +74,7 @@ export default async function ReconciliationPage({
         eyebrow="Store"
         title="Reconciliation"
         subtitle="Store order counts vs platform-claimed conversions, per day. Counts only — no revenue comparison."
+        rightSlot={<ViewComments path="/store/reconciliation" />}
       />
       <ReconciliationView
         from={f.from ?? null}

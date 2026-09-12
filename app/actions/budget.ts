@@ -152,6 +152,17 @@ export async function copyBudgetFromMonth(input: unknown): Promise<BudgetActionR
         `Copied from ${monthLabel(from)}`,
         user.id,
       );
+      // A copy CHANGES the month's plan, so it is a plan_saved event like any
+      // other — missed when the spine shipped. Same in-transaction rule.
+      await notifyRoutes(tx, acct, "budget.plan_saved", {
+        title: `${monthLabel(month)}'s plan was copied from ${monthLabel(from)}`,
+        body: `${result.allocations} ${
+          result.allocations === 1 ? "allocation" : "allocations"
+        } replaced${result.hasTarget ? ", revenue target included" : ""}.`,
+        href: `/budget/plan?month=${month}`,
+        actorUserId: user.id,
+        entity: { type: "budget", id: monthStartIso(month) },
+      });
       return result;
     });
     if (copied.allocations === 0 && !copied.hasTarget) {

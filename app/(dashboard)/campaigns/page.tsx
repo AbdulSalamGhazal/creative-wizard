@@ -20,6 +20,7 @@ import { PortfolioTable } from "@/components/portfolio/portfolio-table";
 import { PageShell } from "@/components/layout/page-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { FilterBarSkeleton } from "@/components/layout/page-skeletons";
+import { ViewComments } from "@/components/comments/view-comments";
 
 export const dynamic = "force-dynamic";
 
@@ -107,13 +108,16 @@ export default async function CampaignsPage({
           </span>
         }
         rightSlot={
-          can(user, "campaign.create") ? (
-            <Button asChild>
-              <Link href="/campaigns/new">
-                <Plus className="w-4 h-4" /> New campaign
-              </Link>
-            </Button>
-          ) : undefined
+          <div className="flex flex-wrap items-center gap-2">
+            {can(user, "campaign.create") && (
+              <Button asChild>
+                <Link href="/campaigns/new">
+                  <Plus className="w-4 h-4" /> New campaign
+                </Link>
+              </Button>
+            )}
+            <ViewComments path="/campaigns" />
+          </div>
         }
       />
 

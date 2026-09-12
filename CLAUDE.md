@@ -162,6 +162,24 @@ This app is deployed and in production use. Treat `main` as shippable.
   `safeHref` (an href is data: in-app paths only, never an open redirect).
   `notifications.dedupe_key` is RESERVED for phase-3 alert upserts — its unique
   index is partial so today's NULLs never collide. See tech-spec §5f.
+  - **Phase 2 — comments, mentions, replies (2026-09, migration 0044).**
+    Anchors: creative · campaign · budget month · an allow-listed aggregate
+    page (`COMMENTABLE_VIEWS` in lib/comments.ts). Invariants, all deliberate:
+    (a) **every comment captures the commenter's current view** — the query
+    string, read from the LIVE location at post time, so a deep link reproduces
+    what they were looking at; (b) a comment notifies ONLY by mention or reply
+    — a top-level comment with no mentions reaches nobody, and **mention wins**
+    so one comment never produces two rows for one person; (c) mentions are
+    stored EXPLICITLY from the picker, never parsed out of body text, and a
+    non-member mention is REFUSED, not dropped; (d) threads are FLAT — the
+    server re-parents a reply-to-a-reply onto the thread's root; (e) `anchor_id`
+    has no FK, so the action re-validates the anchor account-scoped and
+    allow-lists `view` pathnames; (f) delete is SOFT (the row renders "Comment
+    deleted" so replies keep their place), edit is author-only, admins may
+    delete anyone's; (g) notification links go through **`/go/comment/[id]`**,
+    which resolves the anchor at CLICK time — creatives and campaigns are
+    addressed by name, so a stored link would rot on the next rename.
+    `comment.update`/`comment.delete` are audited; creation is not.
 
 - **Sparse audience snapshots: carry forward, never interpolate (2026-09).**
   `audience_snapshots` holds only the days somebody actually MEASURED an

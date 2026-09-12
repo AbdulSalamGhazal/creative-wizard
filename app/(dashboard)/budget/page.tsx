@@ -2,13 +2,14 @@ import { auth, can } from "@/lib/auth";
 import { PageShell } from "@/components/layout/page-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { todayIso } from "@/lib/date-presets";
-import { monthKey } from "@/lib/budget";
+import { monthKey, monthLabel } from "@/lib/budget";
 // Month 01-12 only — `2026-13` must fall back to the current month, not
 // produce a nonsense one. One regex, in the validators.
 import { MONTH_KEY } from "@/validators/budget";
 import { getBudgetMonth, plannedMonths } from "@/db/queries/budget";
 import { dataHorizon, storeDataHorizon } from "@/db/queries/series-bounds";
 import { BudgetOverview } from "@/components/budget/budget-overview";
+import { CommentSection } from "@/components/comments/comment-section";
 
 export const dynamic = "force-dynamic";
 
@@ -58,6 +59,14 @@ export default async function BudgetOverviewPage({
         storeHorizon={storeHorizon}
         seedMonth={seedMonth}
         canManage={canManage}
+      />
+
+      {/* The month's conversation, anchored to ?month — a comment on September
+          stays on September when you step to October. */}
+      <CommentSection
+        anchorType="budget_month"
+        anchorId={month}
+        title={`Comments on ${monthLabel(month)}`}
       />
     </PageShell>
   );

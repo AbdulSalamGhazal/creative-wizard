@@ -21,6 +21,7 @@ import {
   sideIsEmpty,
   type CompareSide,
 } from "@/validators/compare";
+import { ViewComments } from "@/components/comments/view-comments";
 
 export const dynamic = "force-dynamic";
 
@@ -141,6 +142,7 @@ export default async function ComparePage({
             charts align by day (D1 = each side&rsquo;s first day with data).
           </>
         }
+        rightSlot={<ViewComments path="/compare" />}
       />
 
       <CompareControls
