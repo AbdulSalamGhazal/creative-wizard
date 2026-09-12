@@ -1,16 +1,20 @@
 import { describe, expect, it } from "vitest";
 import {
   COMMENTABLE_VIEWS,
+  COMMENT_PARAM,
   buildCommentTarget,
   highlightMentions,
   isCommentableView,
   monthAnchorLabel,
   normalizeQuery,
+  resolveCommentAnchor,
   rootParentId,
   showViewChip,
   splitCommentRecipients,
+  viewAnchorFor,
   viewLabel,
 } from "@/lib/comments";
+import { NAV_ITEMS } from "@/components/layout/nav-items";
 
 describe("flat threads", () => {
   it("re-parents a reply-to-a-reply onto the thread's root", () => {
@@ -84,17 +88,19 @@ describe("the captured view", () => {
     expect(showViewChip("a=1", "a=2")).toBe(true);
   });
 
-  it("builds a deep link from the CURRENT path, the captured view and the anchor", () => {
+  it("builds a deep link from the CURRENT path, the captured view and ?comment", () => {
+    // A query param, not a hash: the drawer has to READ it to open itself on
+    // the comment, and a hash never reaches the router.
     expect(buildCommentTarget("/library/Ad-One", "from=2026-01-01", "c1")).toBe(
-      "/library/Ad-One?from=2026-01-01#comment-c1",
+      `/library/Ad-One?from=2026-01-01&${COMMENT_PARAM}=c1`,
     );
-    expect(buildCommentTarget("/summary", null, "c2")).toBe("/summary#comment-c2");
+    expect(buildCommentTarget("/summary", null, "c2")).toBe(`/summary?${COMMENT_PARAM}=c2`);
     // A path with its own query keeps it, and the captured view wins a clash.
     expect(buildCommentTarget("/budget?month=2026-09", "month=2026-08", "c3")).toBe(
-      "/budget?month=2026-08#comment-c3",
+      `/budget?month=2026-08&${COMMENT_PARAM}=c3`,
     );
     expect(buildCommentTarget("/budget?month=2026-09", "", "c4")).toBe(
-      "/budget?month=2026-09#comment-c4",
+      `/budget?month=2026-09&${COMMENT_PARAM}=c4`,
     );
     // An href is data: anything that isn't an in-app path resolves to nothing.
     expect(buildCommentTarget("https://example.com/evil", "", "c5")).toBeNull();
@@ -102,18 +108,71 @@ describe("the captured view", () => {
   });
 });
 
-describe("the view allow-list", () => {
-  it("accepts exactly the listed pages", () => {
+describe("the view paths derive from the nav", () => {
+  it("accepts every nav-listed page, admin included", () => {
     for (const view of COMMENTABLE_VIEWS) {
       expect(isCommentableView(view.path)).toBe(true);
       expect(viewLabel(view.path)).toBe(view.label);
     }
+    // Derived, not re-listed: every nav href (or its children's) is here.
+    for (const item of NAV_ITEMS) {
+      const paths = item.children ? item.children.map((c) => c.href) : [item.href];
+      for (const path of paths) expect(isCommentableView(path)).toBe(true);
+    }
+    // The admin section is commentable now.
+    expect(isCommentableView("/admin/users")).toBe(true);
+    expect(isCommentableView("/admin/audit")).toBe(true);
+  });
+
+  it("still refuses anything the nav doesn't offer", () => {
+    // An entity page is anchored to the ENTITY, never to its pathname.
     expect(isCommentableView("/library/Some-Creative")).toBe(false);
-    expect(isCommentableView("/admin/users")).toBe(false);
-    // `/trends` is a redirect stub; the page it lands on is what's listed.
+    // `/trends` is a redirect stub; its children are the real pages.
     expect(isCommentableView("/trends")).toBe(false);
     expect(isCommentableView("/trends/over-time")).toBe(true);
+    // A flow step, and the notifications feed itself.
+    expect(isCommentableView("/uploads/new")).toBe(false);
+    expect(isCommentableView("/notifications")).toBe(false);
+    expect(isCommentableView("/../etc/passwd")).toBe(false);
     expect(viewLabel("/nope")).toBeNull();
+  });
+});
+
+describe("which anchor the drawer points at", () => {
+  const creative = { type: "creative" as const, id: "cr-1" };
+
+  it("lets an ENTITY registration beat the page it was made on", () => {
+    expect(
+      resolveCommentAnchor({
+        pathname: "/library/Ad-One",
+        entity: { path: "/library/Ad-One", anchor: creative },
+      }),
+    ).toEqual(creative);
+  });
+
+  it("ignores a registration made on a DIFFERENT path", () => {
+    // The stale one left behind by the page you just navigated away from.
+    expect(
+      resolveCommentAnchor({
+        pathname: "/summary",
+        entity: { path: "/library/Ad-One", anchor: creative },
+      }),
+    ).toEqual({ type: "view", id: "/summary" });
+  });
+
+  it("derives a view anchor for a nav page, and none for anything else", () => {
+    expect(resolveCommentAnchor({ pathname: "/campaigns" })).toEqual({
+      type: "view",
+      id: "/campaigns",
+    });
+    expect(viewAnchorFor("/admin/catalog")).toEqual({
+      type: "view",
+      id: "/admin/catalog",
+    });
+    // No anchor → the drawer's icon is hidden rather than shown broken.
+    expect(resolveCommentAnchor({ pathname: "/uploads/new" })).toBeNull();
+    expect(resolveCommentAnchor({ pathname: "/notifications" })).toBeNull();
+    expect(viewAnchorFor("/library/Ad-One")).toBeNull();
   });
 });
 

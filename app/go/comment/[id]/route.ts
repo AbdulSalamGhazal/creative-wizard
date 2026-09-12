@@ -13,8 +13,9 @@ export const dynamic = "force-dynamic";
  * It exists because creatives and campaigns are addressed by NAME: a stored
  * `/library/Old-Name` link rots the moment someone renames the creative. This
  * looks the anchor up at CLICK time, so links never go stale, and appends the
- * view the comment was written in plus the `#comment-<id>` anchor — the reader
- * lands on exactly what the commenter was looking at.
+ * view the comment was written in plus `?comment=<id>` — which the global
+ * drawer reads, opening itself on that comment with its view already applied.
+ * The reader lands on exactly what the commenter was looking at.
  *
  * Behind `middleware.ts` (session required); the lookup is account-scoped, so a
  * link to another brand's comment resolves to nothing rather than leaking that

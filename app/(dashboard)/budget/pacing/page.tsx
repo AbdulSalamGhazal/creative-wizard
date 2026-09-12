@@ -15,7 +15,6 @@ import { MONTH_KEY } from "@/validators/budget";
 import { budgetPacingSeries, budgetPlansForMonths, getUsdToSarRate } from "@/db/queries/budget";
 import { dataHorizon, storeDataHorizon } from "@/db/queries/series-bounds";
 import { BudgetPacing, type GroupBy } from "@/components/budget/budget-pacing";
-import { ViewComments } from "@/components/comments/view-comments";
 
 export const dynamic = "force-dynamic";
 
@@ -104,7 +103,6 @@ export default async function BudgetPacingPage({
         eyebrow="Budget"
         title="Pacing"
         subtitle="Actual against the plan curve over any range — grouped by day, week or month, filtered by platform, and broken down by objective. Spend is raw, unfiltered totals."
-        rightSlot={<ViewComments path="/budget/pacing" />}
       />
       <BudgetPacing
         from={from}

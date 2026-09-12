@@ -1,4 +1,5 @@
 import { safeHref } from "@/lib/notifications";
+import { NAV_ITEMS } from "@/components/layout/nav-items";
 
 /**
  * Comments — the pure layer (phase 2 of notifications).
@@ -30,29 +31,39 @@ export function isCommentAnchorType(value: string): value is CommentAnchorType {
 }
 
 /**
- * The aggregate pages that accept a "view" comment — an explicit ALLOW-LIST,
- * because `anchor_id` for these is a pathname and an unchecked pathname is an
- * open door (a comment anchored to an arbitrary string, and a deep link to
- * wherever it says).
+ * Pages that accept a "view" comment, DERIVED from the nav (house rule: derive,
+ * don't re-list). Every page the sidebar offers — the admin section included —
+ * is commentable; the old hand-listed nine are gone, and a page added to
+ * `NAV_ITEMS` becomes commentable without touching this file.
  *
- * `/trends` itself is a redirect stub, so the Changes page it lands on is what
- * is listed.
+ * The derivation still matters as a check, not a formality: `anchor_id` for a
+ * view is a pathname, and an unchecked pathname is an open door (a comment
+ * anchored to an arbitrary string, and a deep link to wherever it says).
  */
-export const COMMENTABLE_VIEWS = [
-  { path: "/", label: "Dashboard" },
-  { path: "/summary", label: "Ads" },
-  { path: "/funnel", label: "Funnel" },
-  { path: "/campaigns", label: "Campaigns" },
-  { path: "/trends/over-time", label: "Trends — Changes" },
-  { path: "/trends/by-angle", label: "Trends — Angles" },
-  { path: "/compare", label: "Compare" },
-  { path: "/budget/pacing", label: "Pacing" },
-  { path: "/store/reconciliation", label: "Reconciliation" },
-] as const;
+const NOT_COMMENTABLE = new Set<string>([
+  // Its own feed — commenting on the list of comments-about-things is a loop.
+  "/notifications",
+]);
 
-export type CommentableViewPath = (typeof COMMENTABLE_VIEWS)[number]["path"];
+export const COMMENTABLE_VIEWS: ReadonlyArray<{ path: string; label: string }> =
+  (() => {
+    const out: Array<{ path: string; label: string }> = [];
+    const seen = new Set<string>();
+    const add = (path: string, label: string) => {
+      if (seen.has(path) || NOT_COMMENTABLE.has(path)) return;
+      seen.add(path);
+      out.push({ path, label });
+    };
+    for (const item of NAV_ITEMS) {
+      // A hub item's href is its first child's, so the children carry the
+      // labels people would recognise ("Angles", not "Trends").
+      if (item.children) for (const child of item.children) add(child.href, child.label);
+      else add(item.href, item.label);
+    }
+    return out;
+  })();
 
-export function isCommentableView(path: string): path is CommentableViewPath {
+export function isCommentableView(path: string): boolean {
   return COMMENTABLE_VIEWS.some((v) => v.path === path);
 }
 
@@ -76,6 +87,37 @@ export const COMMENT_MAX = 2000;
 export const VIEW_QUERY_MAX = 2000;
 /** The list is a conversation, not an archive: newest 100 threads. */
 export const COMMENT_THREAD_LIMIT = 100;
+
+export interface CommentAnchor {
+  type: CommentAnchorType;
+  id: string;
+}
+
+/** The anchor a plain page gets: itself, if it is commentable. */
+export function viewAnchorFor(pathname: string): CommentAnchor | null {
+  return isCommentableView(pathname) ? { type: "view", id: pathname } : null;
+}
+
+/**
+ * Which anchor the comment drawer is pointing at.
+ *
+ * An ENTITY beats the page it sits on: a creative's detail page anchors to the
+ * creative, not to `/library/Some-Name` (which isn't commentable anyway — only
+ * nav pages are). Entity registrations carry the pathname they were made on,
+ * so a stale one from the page you just left can never leak onto the next.
+ * A page with neither — a flow step, the notifications feed — has no anchor,
+ * and the drawer's icon is hidden rather than shown broken.
+ */
+export function resolveCommentAnchor(input: {
+  pathname: string;
+  entity?: { path: string; anchor: CommentAnchor } | null;
+}): CommentAnchor | null {
+  if (input.entity && input.entity.path === input.pathname) return input.entity.anchor;
+  return viewAnchorFor(input.pathname);
+}
+
+/** The query param that tells the drawer to open on one comment. */
+export const COMMENT_PARAM = "comment";
 
 /**
  * Threads are FLAT — one level of replies. Replying to a reply re-parents to
@@ -148,7 +190,12 @@ export function showViewChip(
 /**
  * The URL a comment's deep link lands on: the CURRENT path of the thing it is
  * about (names change — the resolver looks them up at click time), the view it
- * was written under, and the anchor that scrolls it into sight.
+ * was written under, and `?comment=<id>`, which opens the drawer on that
+ * comment and highlights it.
+ *
+ * A query param rather than a hash: the drawer is a React surface that has to
+ * read it (a hash is invisible to the router), and the comment may not be
+ * mounted at all until the drawer opens.
  */
 export function buildCommentTarget(
   path: string,
@@ -163,8 +210,8 @@ export function buildCommentTarget(
   // the captured one wins on conflict, because it is what the commenter saw.
   const merged = new URLSearchParams(existing ?? "");
   for (const [k, v] of new URLSearchParams(query)) merged.set(k, v);
-  const qs = merged.toString();
-  return `${base}${qs ? `?${qs}` : ""}#comment-${commentId}`;
+  merged.set(COMMENT_PARAM, commentId);
+  return `${base}?${merged.toString()}`;
 }
 
 export interface BodySegment {

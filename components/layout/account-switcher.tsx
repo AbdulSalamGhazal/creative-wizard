@@ -60,7 +60,9 @@ export function AccountSwitcher({ accounts, activeId }: Props) {
           type="button"
           title="Switch brand"
           aria-label="Switch brand"
-          className="flex items-center gap-1.5 rounded-md border border-line px-2 py-1 text-xs font-medium text-ink-2 hover:text-ink hover:bg-surface-2 transition"
+          // `min-w-0` lets the trigger shrink when the top bar runs out of
+          // room: the brand NAME truncates instead of the bar overflowing.
+          className="flex min-w-0 items-center gap-1.5 rounded-md border border-line px-2 py-1 text-xs font-medium text-ink-2 hover:text-ink hover:bg-surface-2 transition"
         >
           <span className="max-w-[140px] truncate">{active.name}</span>
           {pending ? (

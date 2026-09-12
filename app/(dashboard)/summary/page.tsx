@@ -17,7 +17,6 @@ import { SummaryFilterBar } from "@/components/summary/summary-filter-bar";
 import { SummaryTable } from "@/components/summary/summary-table";
 import { PageShell } from "@/components/layout/page-shell";
 import { PageHeader } from "@/components/layout/page-header";
-import { ViewComments } from "@/components/comments/view-comments";
 
 export const dynamic = "force-dynamic";
 
@@ -167,11 +166,8 @@ export default async function SummaryPage({
           </>
         }
         rightSlot={
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="text-[11px] text-ink-3 font-mono">
-              Sorted by {effectiveSort.key} {effectiveSort.dir}
-            </div>
-            <ViewComments path="/summary" />
+          <div className="text-[11px] text-ink-3 font-mono">
+            Sorted by {effectiveSort.key} {effectiveSort.dir}
           </div>
         }
       />

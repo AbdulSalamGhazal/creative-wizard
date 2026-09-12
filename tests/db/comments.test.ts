@@ -81,12 +81,21 @@ describe("anchors are re-validated against the active brand", () => {
     });
     expect(foreign.ok).toBe(false);
 
+    // The admin section IS commentable now (the path set derives from the
+    // nav) — what stays refused is a path the nav doesn't offer.
     const notAPage = await createComment({
       anchorType: "view",
-      anchorId: "/admin/users",
-      body: "Commenting on the team page",
+      anchorId: "/uploads/new",
+      body: "Commenting on a flow step",
     });
     expect(notAPage.ok).toBe(false);
+
+    const itsOwnFeed = await createComment({
+      anchorType: "view",
+      anchorId: "/notifications",
+      body: "Commenting on the notifications feed",
+    });
+    expect(itsOwnFeed.ok).toBe(false);
 
     const madeUp = await createComment({
       anchorType: "creative",
@@ -291,7 +300,7 @@ describe("the /go resolver's reason to exist", () => {
     const anchor = await resolveAnchorPath("creative", CREATIVE_1, ACCOUNT_A);
     expect(anchor?.path).toBe("/library/Renamed-Creative");
     expect(buildCommentTarget(anchor!.path, "from=2026-01-01&to=2026-01-31", res.id!)).toBe(
-      `/library/Renamed-Creative?from=2026-01-01&to=2026-01-31#comment-${res.id}`,
+      `/library/Renamed-Creative?from=2026-01-01&to=2026-01-31&comment=${res.id}`,
     );
   });
 
@@ -318,7 +327,12 @@ describe("the /go resolver's reason to exist", () => {
       path: "/summary",
       label: "Ads",
     });
-    // A pathname that isn't on the allow-list resolves to nothing.
-    expect(await resolveAnchorPath("view", "/admin/users", ACCOUNT_A)).toBeNull();
+    // A nav page the admin section offers resolves too.
+    expect(await resolveAnchorPath("view", "/admin/users", ACCOUNT_A)).toEqual({
+      path: "/admin/users",
+      label: "Team",
+    });
+    // A pathname the nav doesn't offer resolves to nothing.
+    expect(await resolveAnchorPath("view", "/uploads/new", ACCOUNT_A)).toBeNull();
   });
 });

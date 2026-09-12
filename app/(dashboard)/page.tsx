@@ -11,7 +11,6 @@ import { OverviewSection } from "@/components/overview/overview-section";
 import { FilterStrip } from "@/components/filters/filter-strip";
 import { dashboardFiltersSchema } from "@/validators/filters";
 import { PLATFORM_LABEL } from "@/lib/palette";
-import { ViewComments } from "@/components/comments/view-comments";
 
 const TRAILING_DAYS_DEFAULT = 30;
 
@@ -89,13 +88,10 @@ export default async function DashboardPage({
       <PageHeader
         title="Dashboard"
         rightSlot={
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="outline" className="text-ink-3">
-              {from} → {to} · {platformsBadge} ·{" "}
-              {includeExcluded ? "excluded shown" : "excluded hidden"}
-            </Badge>
-            <ViewComments path="/" />
-          </div>
+          <Badge variant="outline" className="text-ink-3">
+            {from} → {to} · {platformsBadge} ·{" "}
+            {includeExcluded ? "excluded shown" : "excluded hidden"}
+          </Badge>
         }
       />
 

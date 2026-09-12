@@ -35,7 +35,7 @@ import { parseCampaignDetailParams } from "@/validators/campaign";
 import { PLATFORM_LABEL } from "@/lib/palette";
 import { safeDecodeURIComponent } from "@/lib/url";
 import { PageShell } from "@/components/layout/page-shell";
-import { CommentSection } from "@/components/comments/comment-section";
+import { CommentAnchor } from "@/components/comments/comment-anchor-context";
 import { isoDate, int } from "@/lib/format";
 import { defaultDateRange, presetLabel } from "@/lib/date-presets";
 import { resolvePreferredRange, resolveIncludeExcluded } from "@/db/queries/user-prefs";
@@ -139,6 +139,9 @@ export default async function CampaignDetailPage({
 
   return (
     <PageShell>
+      {/* The drawer anchors to the campaign itself (registry row), so a
+          rename never moves its thread. */}
+      {registry && <CommentAnchor type="campaign" id={registry.id} />}
       {/* ─────────── Header ─────────── */}
       <section className="space-y-4">
         <div className="flex items-center justify-between gap-3">
@@ -234,11 +237,6 @@ export default async function CampaignDetailPage({
       >
         <CampaignRecordsTable records={records} byDay={byDay} campaign={decoded} />
       </CollapsibleSection>
-
-      {/* ─────────── Comments ─────────── */}
-      {registry && (
-        <CommentSection anchorType="campaign" anchorId={registry.id} />
-      )}
 
       {/* ─────────── Danger zone (delete permission only) ─────────── */}
       {canDelete && registry && deletionSummary && (

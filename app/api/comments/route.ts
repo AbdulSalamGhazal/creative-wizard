@@ -1,15 +1,16 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { auth } from "@/lib/auth";
-import { listComments } from "@/db/queries/comments";
+import { commentCount, listComments } from "@/db/queries/comments";
 import { listCommentsSchema } from "@/validators/comments";
 import type { CommentAnchorType } from "@/lib/comments";
 
 export const dynamic = "force-dynamic";
 
 /**
- * GET /api/comments?anchorType=&anchorId= — one anchor's thread, for the
- * aggregate pages' Comments sheet, which loads lazily when it opens (those
- * pages shouldn't pay for a thread nobody looked at).
+ * GET /api/comments?anchorType=&anchorId=[&count=1] — one anchor's thread for
+ * the global comment drawer, which loads it when it OPENS (a page nobody
+ * comments on shouldn't pay for a thread nobody looked at), or just the count
+ * for its badge.
  *
  * Behind `middleware.ts` like every other `/api` route; the anchor is validated
  * with the same schema the post path uses (a `view` anchor must be on the
@@ -26,6 +27,16 @@ export async function GET(request: NextRequest) {
   });
   if (!parsed.success) {
     return NextResponse.json({ error: "Invalid anchor" }, { status: 400 });
+  }
+
+  // The drawer's badge asks for the count alone: one bounded COUNT per page
+  // view, for the whole app, instead of a thread nobody opened.
+  if (searchParams.get("count") === "1") {
+    const count = await commentCount(
+      parsed.data.anchorType as CommentAnchorType,
+      parsed.data.anchorId,
+    );
+    return NextResponse.json({ count }, { headers: { "Cache-Control": "no-store" } });
   }
 
   const rows = await listComments(

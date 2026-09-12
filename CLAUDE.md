@@ -180,6 +180,19 @@ This app is deployed and in production use. Treat `main` as shippable.
     which resolves the anchor at CLICK time — creatives and campaigns are
     addressed by name, so a stored link would rot on the next rename.
     `comment.update`/`comment.delete` are audited; creation is not.
+    - **Relocated to GLOBAL CHROME (2026-09).** ONE surface: a comment icon in
+      the top bar opens a right-side drawer showing the CURRENT page's thread —
+      no per-page panels or header buttons (they were removed). Chat order
+      (oldest top, newest bottom, composer pinned below, scrolled to the end on
+      open). **Clicking a comment that carries a view APPLIES that view to the
+      page behind the drawer**, which stays open — the drawer is a set of saved
+      states, and this is the point of capturing the view at all. Anchors come
+      from a client `CommentAnchorProvider` in the dashboard layout: an entity
+      page renders `<CommentAnchor type id />` and WINS on its own pathname,
+      everything else derives a `view` anchor from the pathname, and a page with
+      neither hides the icon. Valid view paths DERIVE from `NAV_ITEMS` (admin
+      included, `/notifications` excluded) — never re-list them. `/go/comment`
+      lands with `?comment=<id>`, which opens the drawer on that comment.
 
 - **Sparse audience snapshots: carry forward, never interpolate (2026-09).**
   `audience_snapshots` holds only the days somebody actually MEASURED an

@@ -13,7 +13,6 @@ import { AngleLeaderboard } from "@/components/trends/angle-leaderboard";
 import { AnglePlatformCompare } from "@/components/trends/angle-platform-compare";
 import { dashboardFiltersSchema } from "@/validators/filters";
 import { periodCaption } from "@/lib/period";
-import { ViewComments } from "@/components/comments/view-comments";
 
 export const dynamic = "force-dynamic";
 
@@ -90,12 +89,9 @@ export default async function TrendsByAnglePage({
           </>
         }
         rightSlot={
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="outline" className="text-ink-3">
-              {from} → {to}
-            </Badge>
-            <ViewComments path="/trends/by-angle" />
-          </div>
+          <Badge variant="outline" className="text-ink-3">
+            {from} → {to}
+          </Badge>
         }
       />
 
