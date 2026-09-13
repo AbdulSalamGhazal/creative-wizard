@@ -180,19 +180,33 @@ This app is deployed and in production use. Treat `main` as shippable.
     which resolves the anchor at CLICK time — creatives and campaigns are
     addressed by name, so a stored link would rot on the next rename.
     `comment.update`/`comment.delete` are audited; creation is not.
-    - **Relocated to GLOBAL CHROME (2026-09).** ONE surface: a comment icon in
-      the top bar opens a right-side drawer showing the CURRENT page's thread —
-      no per-page panels or header buttons (they were removed). Chat order
-      (oldest top, newest bottom, composer pinned below, scrolled to the end on
-      open). **Clicking a comment that carries a view APPLIES that view to the
-      page behind the drawer**, which stays open — the drawer is a set of saved
-      states, and this is the point of capturing the view at all. Anchors come
+    - **Relocated to GLOBAL CHROME (2026-09) — a DOCKED panel, not a modal.**
+      ONE surface: the top-bar comment icon TOGGLES a 380px `<aside>` in the
+      dashboard layout's content row, beside the page column (`flex-1 min-w-0`).
+      The page SQUEEZES and stays fully interactive — no backdrop, no focus
+      trap, no scroll lock; clicking the page never closes it. It PERSISTS
+      across navigation (shows each page's thread; a quiet "no comments here" on
+      anchor-less pages), open state in localStorage. **Below `lg` it falls back
+      to the full-width overlay Sheet** — don't dock on a phone. No per-page
+      panels or header buttons (removed). Chat order (oldest top, newest bottom,
+      composer pinned below, scrolled to the end on open). **Clicking a comment
+      that carries a view APPLIES that view to the page beside the panel**, which
+      stays open — the panel is a set of saved states, and this is the point of
+      capturing the view at all. Reply is the only visible row action; Edit and
+      Delete live behind a "…" menu. **Delete = UNDO toast (8s), never a
+      confirm**: `restoreComment` is allowed ONLY for whoever performed the
+      delete (author, or the admin who removed it), checked against the
+      `comment.delete` audit row that `deleteComment` writes INSIDE its own
+      transaction — keep that row in-transaction or undo silently breaks.
+      **Inline @**: typing "@" at text start or after whitespace opens the picker
+      (never mid-word or in an email); mentions stay explicit ids, never parsed
+      at submit. Anchors come
       from a client `CommentAnchorProvider` in the dashboard layout: an entity
       page renders `<CommentAnchor type id />` and WINS on its own pathname,
       everything else derives a `view` anchor from the pathname, and a page with
       neither hides the icon. Valid view paths DERIVE from `NAV_ITEMS` (admin
       included, `/notifications` excluded) — never re-list them. `/go/comment`
-      lands with `?comment=<id>`, which opens the drawer on that comment.
+      lands with `?comment=<id>`, which opens the panel on that comment.
 
 - **Sparse audience snapshots: carry forward, never interpolate (2026-09).**
   `audience_snapshots` holds only the days somebody actually MEASURED an

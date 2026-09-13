@@ -4,7 +4,7 @@ import type { SessionUser } from "@/lib/auth";
 import { UserMenu } from "@/components/auth/user-menu";
 import { CommandPalette } from "@/components/layout/command-palette";
 import { NotificationBell } from "@/components/layout/notification-bell";
-import { CommentDrawer } from "@/components/comments/comment-drawer";
+import { CommentToggle } from "@/components/comments/comment-drawer";
 import { AccountSwitcher } from "@/components/layout/account-switcher";
 import { MobileNav } from "@/components/layout/mobile-nav";
 import { LogoMark } from "@/components/layout/logo-mark";
@@ -22,8 +22,6 @@ interface Props {
   activeAccountId: string;
   /** The user's effective permission keys — drives which nav items appear. */
   granted: string[];
-  /** Admins may delete anyone's comment; everyone may delete their own. */
-  canModerateComments: boolean;
 }
 
 export function TopBar({
@@ -32,7 +30,6 @@ export function TopBar({
   accounts,
   activeAccountId,
   granted,
-  canModerateComments,
 }: Props) {
   return (
     <header className="border-b border-line sticky top-0 z-20 bg-background">
@@ -66,11 +63,9 @@ export function TopBar({
             this row fit a phone. */}
         <div className="flex shrink-0 items-center gap-2 sm:gap-3">
           <CommandPalette creatives={creatives} granted={granted} />
-          {/* One comment surface for the whole app: it follows the page. */}
-          <CommentDrawer
-            currentUserId={user.id}
-            canModerate={canModerateComments}
-          />
+          {/* Toggles the docked comment panel, which lives in the layout
+              beside the page and follows it from page to page. */}
+          <CommentToggle />
           {/* The bell is the ONLY entry to notifications — there is no sidebar
               item for them, on purpose. */}
           <NotificationBell />

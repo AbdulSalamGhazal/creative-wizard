@@ -1,9 +1,9 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNotNull, isNull } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { comments } from "@/db/schema";
+import { auditEvents, comments } from "@/db/schema";
 import { can, requireAuth } from "@/lib/auth";
 import { getActiveAccountId } from "@/lib/tenant";
 import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
@@ -18,12 +18,14 @@ import {
   anchorBelongsToAccount,
   getComment,
   insertMentions,
+  lastCommentDeleter,
   threadParticipants,
 } from "@/db/queries/comments";
 import { brandMembers } from "@/db/queries/notifications";
 import {
   createCommentSchema,
   deleteCommentSchema,
+  restoreCommentSchema,
   updateCommentSchema,
 } from "@/validators/comments";
 
@@ -225,6 +227,14 @@ export async function updateComment(input: unknown): Promise<CommentActionResult
  * Soft-delete: the row stays and renders as "Comment deleted", so the replies
  * under it still make sense. The author may delete their own; an admin may
  * delete anyone's (and the audit records which of the two it was).
+ *
+ * There is no confirm dialog — the UI offers an UNDO toast instead, backed by
+ * `restoreComment`. That's safe precisely because the delete is soft.
+ *
+ * The audit row is written INSIDE this transaction rather than through the
+ * fire-and-forget `logAudit`: it is not only the record, it is what
+ * `restoreComment` reads to decide who may undo. A delete that committed
+ * without its row would be a delete nobody could reverse.
  */
 export async function deleteComment(input: unknown): Promise<CommentActionResult> {
   try {
@@ -242,29 +252,110 @@ export async function deleteComment(input: unknown): Promise<CommentActionResult
       return { ok: false, error: "You can only delete your own comments." };
     }
 
-    await db
-      .update(comments)
-      .set({ deletedAt: new Date() })
-      .where(and(eq(comments.id, parsed.data.id), eq(comments.accountId, acct)));
+    const deleted = await db.transaction(async (tx) => {
+      const rows = await tx
+        .update(comments)
+        .set({ deletedAt: new Date() })
+        .where(
+          and(
+            eq(comments.id, parsed.data.id),
+            eq(comments.accountId, acct),
+            isNull(comments.deletedAt),
+          ),
+        )
+        .returning({ id: comments.id });
+      // A concurrent delete got there first — nothing to record.
+      if (rows.length === 0) return false;
+      await tx.insert(auditEvents).values({
+        accountId: acct,
+        action: AUDIT_ACTIONS.COMMENT_DELETE,
+        entityType: "comment",
+        entityId: parsed.data.id,
+        entityLabel: `${existing.anchorType}:${existing.anchorId}`,
+        actorUserId: user.id,
+        meta: {
+          anchorType: existing.anchorType,
+          anchorId: existing.anchorId,
+          body: existing.body.slice(0, BODY_SNAPSHOT),
+          // An admin clearing someone else's comment is a different act from
+          // an author retracting their own.
+          adminDeletedOther: !isAuthor,
+          authorUserId: existing.authorUserId,
+        },
+      });
+      return true;
+    });
+    if (!deleted) return { ok: false, error: "That comment no longer exists." };
 
     revalidateComments();
-    await logAudit({
-      action: AUDIT_ACTIONS.COMMENT_DELETE,
-      entityType: "comment",
-      entityId: parsed.data.id,
-      entityLabel: `${existing.anchorType}:${existing.anchorId}`,
-      actorUserId: user.id,
-      meta: {
-        anchorType: existing.anchorType,
-        anchorId: existing.anchorId,
-        body: existing.body.slice(0, BODY_SNAPSHOT),
-        // An admin clearing someone else's comment is a different act from an
-        // author retracting their own.
-        adminDeletedOther: !isAuthor,
-        authorUserId: existing.authorUserId,
-      },
-    });
     return { ok: true };
+  } catch (err) {
+    return { ok: false, error: errMsg(err) };
+  }
+}
+
+/**
+ * Undo a delete. Permitted ONLY for whoever performed that delete — the author
+ * who retracted their own comment, or the admin who removed someone else's —
+ * checked server-side against the delete's audit row, never trusted from the
+ * client. An author can't resurrect a comment an admin took down, and nobody
+ * can restore a comment someone else deleted.
+ *
+ * The toast is the window: the UI offers this for ~8 seconds and then never
+ * again. Nothing is lost after that — the row is soft-deleted, and a DB-level
+ * rescue remains possible.
+ */
+export async function restoreComment(input: unknown): Promise<CommentActionResult> {
+  try {
+    const user = await requireAuth();
+    const parsed = restoreCommentSchema.safeParse(input);
+    if (!parsed.success) return { ok: false, error: "Invalid comment." };
+    const acct = await getActiveAccountId();
+    const existing = await getComment(parsed.data.id, acct);
+    if (!existing) return { ok: false, error: "That comment no longer exists." };
+    // Undo clicked twice, or already restored: the outcome the user wants.
+    if (!existing.deletedAt) return { ok: true };
+
+    const deleter = await lastCommentDeleter(db, parsed.data.id, acct);
+    if (deleter !== user.id) {
+      return {
+        ok: false,
+        error: "Only the person who deleted this comment can restore it.",
+      };
+    }
+
+    const restored = await db.transaction(async (tx) => {
+      const rows = await tx
+        .update(comments)
+        .set({ deletedAt: null })
+        .where(
+          and(
+            eq(comments.id, parsed.data.id),
+            eq(comments.accountId, acct),
+            isNotNull(comments.deletedAt),
+          ),
+        )
+        .returning({ id: comments.id });
+      if (rows.length === 0) return false;
+      await tx.insert(auditEvents).values({
+        accountId: acct,
+        action: AUDIT_ACTIONS.COMMENT_RESTORE,
+        entityType: "comment",
+        entityId: parsed.data.id,
+        entityLabel: `${existing.anchorType}:${existing.anchorId}`,
+        actorUserId: user.id,
+        meta: {
+          anchorType: existing.anchorType,
+          anchorId: existing.anchorId,
+          authorUserId: existing.authorUserId,
+          restoredOwn: existing.authorUserId === user.id,
+        },
+      });
+      return true;
+    });
+
+    revalidateComments();
+    return restored ? { ok: true } : { ok: true };
   } catch (err) {
     return { ok: false, error: errMsg(err) };
   }

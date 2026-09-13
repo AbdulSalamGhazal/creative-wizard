@@ -1,10 +1,16 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
-import { Eye, Pencil, Trash2 } from "lucide-react";
+import { Eye, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { relativeTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import {
@@ -13,17 +19,25 @@ import {
   normalizeQuery,
   showViewChip,
 } from "@/lib/comments";
-import { deleteComment, updateComment } from "@/app/actions/comments";
+import { deleteComment, restoreComment, updateComment } from "@/app/actions/comments";
 import type { CommentRow } from "@/db/queries/comments";
 
+/** How long the Undo toast stays — and so how long a delete can be undone. */
+const UNDO_MS = 8_000;
+
 /**
- * The thread inside the drawer — CHAT ORDER: oldest at the top, newest at the
+ * The thread inside the panel — CHAT ORDER: oldest at the top, newest at the
  * bottom, replies inline under their root, and the list scrolled to the end on
  * open. A conversation reads downwards.
  *
  * The headline mechanic lives here: a comment that captured a view is CLICKABLE
- * and applies that view to the page behind the drawer. Two comments written
+ * and applies that view to the page beside the panel. Two comments written
  * under different filters become two buttons for two states of the page.
+ *
+ * Row actions are deliberately separated: Reply is the one visible action, and
+ * Edit/Delete live behind a "…" menu — Delete never sits next to Reply, where a
+ * slip would take a comment down. And Delete asks nothing first: it acts, then
+ * offers Undo for a few seconds, which is safe because the delete is soft.
  */
 export function CommentThread({
   comments,
@@ -80,6 +94,15 @@ export function CommentThread({
     });
   };
 
+  const undo = async (id: string) => {
+    const res = await restoreComment({ id });
+    if (!res.ok) {
+      toast.error(res.error ?? "Couldn't restore that comment.");
+      return;
+    }
+    onChanged();
+  };
+
   const remove = (id: string) => {
     startTransition(async () => {
       const res = await deleteComment({ id });
@@ -88,12 +111,20 @@ export function CommentThread({
         return;
       }
       onChanged();
+      // The toast IS the undo window. After it goes, the comment stays
+      // soft-deleted — never lost, just not one click away any more.
+      toast("Comment deleted", {
+        duration: UNDO_MS,
+        action: { label: "Undo", onClick: () => void undo(id) },
+      });
     });
   };
 
   const renderOne = (comment: CommentRow, isReply: boolean) => {
     const deleted = comment.deletedAt !== null;
     const mine = currentUserId !== null && comment.authorUserId === currentUserId;
+    const canEdit = !deleted && mine;
+    const canDelete = !deleted && (mine || canModerate);
     const hasView = !deleted && normalizeQuery(comment.viewQuery) !== "";
     const differs = !deleted && showViewChip(comment.viewQuery, currentQuery);
     const highlighted = highlightId === comment.id;
@@ -111,7 +142,7 @@ export function CommentThread({
         // without one are inert, so nothing moves when you click them.
         onClick={hasView ? () => onApplyView(comment) : undefined}
         className={cn(
-          "rounded-md px-2 py-2 transition-colors",
+          "group rounded-md px-2 py-2 transition-colors",
           isReply && "border-l border-line pl-3",
           hasView && "cursor-pointer hover:bg-surface-2",
           highlighted && "bg-[var(--brand-soft)] ring-1 ring-brand",
@@ -133,6 +164,52 @@ export function CommentThread({
               <Eye className="h-3 w-3" />
               Open this view
             </span>
+          )}
+
+          {(canEdit || canDelete) && editing !== comment.id && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  onClick={(e) => e.stopPropagation()}
+                  aria-label="More actions"
+                  className={cn(
+                    "ml-auto inline-flex h-6 w-6 items-center justify-center rounded text-ink-3 hover:bg-surface-2 hover:text-ink",
+                    // Revealed on hover or keyboard focus; ALWAYS shown on a
+                    // touch screen, where there is no hover to reveal it.
+                    "opacity-0 group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100 [@media(hover:none)]:opacity-100",
+                  )}
+                >
+                  <MoreHorizontal className="h-4 w-4" />
+                </button>
+              </DropdownMenuTrigger>
+              {/* The menu is portaled, but React events still bubble up the
+                  component tree — stop them before they reach the row's
+                  click-to-apply handler. */}
+              <DropdownMenuContent align="end" className="w-36" onClick={(e) => e.stopPropagation()}>
+                {canEdit && (
+                  <DropdownMenuItem
+                    onSelect={() => {
+                      setEditing(comment.id);
+                      setDraft(comment.body);
+                    }}
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                    Edit
+                  </DropdownMenuItem>
+                )}
+                {canDelete && (
+                  <DropdownMenuItem
+                    onSelect={() => remove(comment.id)}
+                    disabled={isPending}
+                    className="text-neg focus:text-neg"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    Delete
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
           )}
         </div>
 
@@ -176,11 +253,9 @@ export function CommentThread({
         )}
 
         {!deleted && editing !== comment.id && (
-          // Buttons stay live inside an otherwise-clickable row.
-          <div
-            className="mt-1 flex flex-wrap items-center gap-1"
-            onClick={(e) => e.stopPropagation()}
-          >
+          // Reply is the ONLY visible action; it stays live inside an
+          // otherwise-clickable row.
+          <div className="mt-1" onClick={(e) => e.stopPropagation()}>
             <Button
               type="button"
               variant="ghost"
@@ -189,32 +264,6 @@ export function CommentThread({
             >
               Reply
             </Button>
-            {mine && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="xs"
-                onClick={() => {
-                  setEditing(comment.id);
-                  setDraft(comment.body);
-                }}
-              >
-                <Pencil className="h-3 w-3" />
-                Edit
-              </Button>
-            )}
-            {(mine || canModerate) && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="xs"
-                disabled={isPending}
-                onClick={() => remove(comment.id)}
-              >
-                <Trash2 className="h-3 w-3" />
-                Delete
-              </Button>
-            )}
           </div>
         )}
       </div>

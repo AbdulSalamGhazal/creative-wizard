@@ -101,6 +101,7 @@ export const AUDIT_ACTIONS = {
   // is its own visible record; edits and deletes remove evidence, so they are.
   COMMENT_UPDATE: "comment.update",
   COMMENT_DELETE: "comment.delete",
+  COMMENT_RESTORE: "comment.restore",
 
   // Notification routing. Individual notifications are deliberately NOT
   // audited: they are a fan-out OF audited events, and logging them would
@@ -257,6 +258,7 @@ export const AUDIT_LABELS: Record<AuditAction, string> = {
   "audience.delete": "Deleted an audience snapshot",
   "comment.update": "Edited a comment",
   "comment.delete": "Deleted a comment",
+  "comment.restore": "Restored a comment",
   "notify.routes_update": "Updated notification routing",
   "account.create": "Created brand",
   "account.rename": "Renamed brand",
@@ -318,6 +320,7 @@ export const AUDIT_CATEGORIES: Record<AuditAction, AuditEntityType> = {
   "audience.delete": "audience",
   "comment.update": "comment",
   "comment.delete": "comment",
+  "comment.restore": "comment",
   "notify.routes_update": "notification",
   "account.create": "account",
   "account.rename": "account",

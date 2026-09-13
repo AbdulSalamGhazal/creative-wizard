@@ -7,6 +7,10 @@ import { NavProgressBar } from "@/components/layout/nav-progress-bar";
 import { auth, can, grantedPermissions } from "@/lib/auth";
 import { PermissionsProvider } from "@/components/auth/permissions-context";
 import { CommentAnchorProvider } from "@/components/comments/comment-anchor-context";
+import {
+  CommentDock,
+  CommentPanelProvider,
+} from "@/components/comments/comment-drawer";
 import { NoBrandAccess } from "@/components/layout/no-brand-access";
 import { db } from "@/lib/db";
 import { creatives, products } from "@/db/schema";
@@ -53,37 +57,47 @@ export default async function DashboardLayout({
       {/* Which thing the comment drawer points at — an entity page registers
           itself, everything else derives from the pathname. */}
       <CommentAnchorProvider>
-        <div className="min-h-screen flex flex-col">
-          <NavProgressBar />
-          <TopBar
-            user={user}
-            creatives={creativeOptions}
-            accounts={accounts.map((a) => ({ id: a.id, name: a.name }))}
-            activeAccountId={acct}
-            granted={granted}
-            canModerateComments={
-              user.role === "admin" || can(user, "users.manage")
-            }
-          />
-          <div className="flex flex-1">
-            {/* Suspense: Sidebar reads useSearchParams (Budget month links). */}
-            <Suspense
-              fallback={
-                <aside className="hidden lg:block w-56 shrink-0 border-r border-line" />
-              }
-            >
-              <Sidebar granted={granted} />
-            </Suspense>
-            {/* `min-w-0` lets this column shrink to the available width instead
-             *  of being forced to its content's intrinsic width — so wide
-             *  children (e.g. the Summary table) scroll within their own
-             *  overflow-x container rather than pushing the whole page to
-             *  scroll horizontally. */}
-            <div className="flex-1 min-w-0 flex flex-col">
-              <main className="flex-1 px-6 py-6">{children}</main>
+        <CommentPanelProvider>
+          <div className="min-h-screen flex flex-col">
+            <NavProgressBar />
+            <TopBar
+              user={user}
+              creatives={creativeOptions}
+              accounts={accounts.map((a) => ({ id: a.id, name: a.name }))}
+              activeAccountId={acct}
+              granted={granted}
+            />
+            <div className="flex flex-1">
+              {/* Suspense: Sidebar reads useSearchParams (Budget month links). */}
+              <Suspense
+                fallback={
+                  <aside className="hidden lg:block w-56 shrink-0 border-r border-line" />
+                }
+              >
+                <Sidebar granted={granted} />
+              </Suspense>
+              {/* `min-w-0` lets this column shrink to the available width instead
+               *  of being forced to its content's intrinsic width — so wide
+               *  children (e.g. the Summary table) scroll within their own
+               *  overflow-x container rather than pushing the whole page to
+               *  scroll horizontally. */}
+              <div className="flex-1 min-w-0 flex flex-col">
+                <main className="flex-1 px-6 py-6">{children}</main>
+              </div>
+              {/* The docked comment panel. A sibling of the page column, so
+                opening it SQUEEZES the page (which is flex-1 min-w-0) instead
+                of covering it; below lg it renders as an overlay instead. */}
+              <Suspense fallback={null}>
+                <CommentDock
+                  currentUserId={user.id}
+                  canModerate={
+                    user.role === "admin" || can(user, "users.manage")
+                  }
+                />
+              </Suspense>
             </div>
           </div>
-        </div>
+        </CommentPanelProvider>
       </CommentAnchorProvider>
     </PermissionsProvider>
   );

@@ -30,10 +30,11 @@ vi.mock("@/lib/auth", () => ({
 import { auth, can, requireAuth } from "@/lib/auth";
 import { getActiveAccountId } from "@/lib/tenant";
 import { db } from "@/lib/db";
-import { campaigns, comments, creatives, notifications, users } from "@/db/schema";
+import { auditEvents, campaigns, comments, creatives, notifications, users } from "@/db/schema";
 import {
   createComment,
   deleteComment,
+  restoreComment,
   updateComment,
 } from "@/app/actions/comments";
 import { listComments, resolveAnchorPath } from "@/db/queries/comments";
@@ -259,6 +260,84 @@ describe("edit and delete", () => {
 
     const thread = await listComments("creative", CREATIVE_1);
     expect(thread).toHaveLength(2); // the reply is still there under it
+  });
+});
+
+describe("undo a delete", () => {
+  it("round-trips: the deleter restores, and both steps are on the record", async () => {
+    const root = await createComment({ ...onCreative, body: "Oops, undo me" });
+    setUser(BOB, "Bob");
+    await createComment({ ...onCreative, parentId: root.id, body: "A reply underneath" });
+
+    setUser(ALICE, "Alice");
+    expect((await deleteComment({ id: root.id })).ok).toBe(true);
+
+    // While deleted: the placeholder row is still in the thread, replies too.
+    let thread = await listComments("creative", CREATIVE_1);
+    expect(thread).toHaveLength(2);
+    expect(thread.find((c) => c.id === root.id)?.deletedAt).not.toBeNull();
+
+    const restored = await restoreComment({ id: root.id });
+    expect(restored.ok).toBe(true);
+
+    thread = await listComments("creative", CREATIVE_1);
+    expect(thread.find((c) => c.id === root.id)?.deletedAt).toBeNull();
+    expect(thread.find((c) => c.id === root.id)?.body).toBe("Oops, undo me");
+
+    const trail = await db
+      .select({ action: auditEvents.action, actor: auditEvents.actorUserId })
+      .from(auditEvents)
+      .where(eq(auditEvents.entityId, root.id!));
+    expect(trail.map((t) => t.action).sort()).toEqual(["comment.delete", "comment.restore"]);
+    expect(trail.every((t) => t.actor === ALICE)).toBe(true);
+
+    // Undo clicked twice is harmless.
+    expect((await restoreComment({ id: root.id })).ok).toBe(true);
+  });
+
+  it("refuses anyone who didn't perform the delete — the author included", async () => {
+    const root = await createComment({ ...onCreative, body: "Taken down by an admin" });
+
+    // An admin removes Alice's comment…
+    setUser(ADMIN, "Harness", "admin");
+    expect((await deleteComment({ id: root.id })).ok).toBe(true);
+
+    // …so Alice, its author, can't bring it back…
+    setUser(ALICE, "Alice");
+    const author = await restoreComment({ id: root.id });
+    expect(author.ok).toBe(false);
+    expect(author.error).toMatch(/person who deleted/i);
+
+    // …and neither can a bystander.
+    setUser(BOB, "Bob");
+    expect((await restoreComment({ id: root.id })).ok).toBe(false);
+
+    const [row] = await db.select().from(comments).where(eq(comments.id, root.id!));
+    expect(row?.deletedAt).not.toBeNull();
+
+    // The admin who deleted it can.
+    setUser(ADMIN, "Harness", "admin");
+    expect((await restoreComment({ id: root.id })).ok).toBe(true);
+  });
+
+  it("follows the LATEST delete — restored, then deleted by someone else", async () => {
+    const root = await createComment({ ...onCreative, body: "Round two" });
+    expect((await deleteComment({ id: root.id })).ok).toBe(true); // Alice
+    expect((await restoreComment({ id: root.id })).ok).toBe(true); // Alice
+
+    setUser(ADMIN, "Harness", "admin");
+    expect((await deleteComment({ id: root.id })).ok).toBe(true); // the admin, now
+
+    setUser(ALICE, "Alice");
+    expect((await restoreComment({ id: root.id })).ok).toBe(false);
+  });
+
+  it("never restores across brands", async () => {
+    const root = await createComment({ ...onCreative, body: "Brand A" });
+    expect((await deleteComment({ id: root.id })).ok).toBe(true);
+
+    setAccount(ACCOUNT_B);
+    expect((await restoreComment({ id: root.id })).ok).toBe(false);
   });
 });
 

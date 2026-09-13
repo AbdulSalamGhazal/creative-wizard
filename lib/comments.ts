@@ -214,6 +214,77 @@ export function buildCommentTarget(
   return `${base}?${merged.toString()}`;
 }
 
+// ── Inline @ mentions ─────────────────────────────────────────────────────
+
+/** Longest @query the inline picker keeps listening to. */
+export const MENTION_QUERY_MAX = 40;
+
+export interface MentionQuery {
+  /** Index of the "@" that opened the token. */
+  start: number;
+  /** What has been typed after it, up to the caret. */
+  query: string;
+}
+
+/**
+ * The "@query" the caret is sitting in, if any — what opens the inline picker.
+ *
+ * The "@" must START the text or follow whitespace. That one rule is what keeps
+ * mid-word and email-like text ("salam@urjwan.com") from ever popping the
+ * picker. The token ends at whitespace: type a space and you've left it (the
+ * picker still inserts full names like "Ann Lee" — filtering on "Ann" finds
+ * them).
+ */
+export function detectMentionQuery(text: string, caret: number): MentionQuery | null {
+  if (caret < 1 || caret > text.length) return null;
+  const before = text.slice(0, caret);
+  const at = before.lastIndexOf("@");
+  if (at === -1) return null;
+  if (at > 0 && !/\s/.test(before[at - 1]!)) return null;
+  const query = before.slice(at + 1);
+  if (/\s/.test(query) || query.length > MENTION_QUERY_MAX) return null;
+  return { start: at, query };
+}
+
+/** Replace the open "@query" with "@Name " and put the caret after it. */
+export function insertMentionToken(
+  text: string,
+  token: MentionQuery,
+  caret: number,
+  name: string,
+): { text: string; caret: number } {
+  const inserted = `@${name} `;
+  return {
+    text: text.slice(0, token.start) + inserted + text.slice(caret),
+    caret: token.start + inserted.length,
+  };
+}
+
+/** Members matching a picker query — name OR email, case-insensitive. */
+export function matchMembers<T extends { name: string; email?: string | null }>(
+  members: readonly T[],
+  query: string,
+): T[] {
+  const q = query.trim().toLowerCase();
+  if (!q) return [...members];
+  return members.filter(
+    (m) => m.name.toLowerCase().includes(q) || (m.email ?? "").toLowerCase().includes(q),
+  );
+}
+
+/**
+ * The picked mentions that SURVIVED editing. Picking someone and then deleting
+ * their "@Name" un-mentions them: only a token still present in the final text
+ * is sent. The ids still travel explicitly — this filters the picker's own
+ * list, it never discovers a mention from the text.
+ */
+export function activeMentions<T extends { name: string }>(
+  body: string,
+  picked: readonly T[],
+): T[] {
+  return picked.filter((m) => body.includes(`@${m.name}`));
+}
+
 export interface BodySegment {
   text: string;
   mention: boolean;

@@ -2,7 +2,12 @@ import { describe, expect, it } from "vitest";
 import {
   COMMENTABLE_VIEWS,
   COMMENT_PARAM,
+  MENTION_QUERY_MAX,
+  activeMentions,
   buildCommentTarget,
+  detectMentionQuery,
+  insertMentionToken,
+  matchMembers,
   highlightMentions,
   isCommentableView,
   monthAnchorLabel,
@@ -204,5 +209,65 @@ describe("anchor labels", () => {
   it("names a budget month the way people say it", () => {
     expect(monthAnchorLabel("2026-09")).toBe("September 2026");
     expect(monthAnchorLabel("nonsense")).toBe("nonsense");
+  });
+});
+
+describe("inline @ — when the picker opens", () => {
+  it("opens at the start of the text and after whitespace", () => {
+    expect(detectMentionQuery("@", 1)).toEqual({ start: 0, query: "" });
+    expect(detectMentionQuery("@an", 3)).toEqual({ start: 0, query: "an" });
+    expect(detectMentionQuery("hey @bo", 7)).toEqual({ start: 4, query: "bo" });
+    expect(detectMentionQuery("line one\n@ca", 12)).toEqual({ start: 9, query: "ca" });
+  });
+
+  it("does NOT open mid-word or inside email-like text", () => {
+    expect(detectMentionQuery("abc@", 4)).toBeNull();
+    expect(detectMentionQuery("salam@urjwan.com", 16)).toBeNull();
+    expect(detectMentionQuery("mail salam@urj", 14)).toBeNull();
+  });
+
+  it("closes once the token is left: a space, a caret before the @, or nothing typed", () => {
+    expect(detectMentionQuery("@ann ", 5)).toBeNull(); // typed a space
+    expect(detectMentionQuery("hi @ann", 2)).toBeNull(); // caret before the @
+    expect(detectMentionQuery("", 0)).toBeNull();
+    expect(detectMentionQuery("no mention", 10)).toBeNull();
+    expect(detectMentionQuery(`@${"a".repeat(MENTION_QUERY_MAX + 1)}`, MENTION_QUERY_MAX + 2)).toBeNull();
+  });
+
+  it("reads the token under the CARET, not the end of the text", () => {
+    // Editing in the middle of a draft: "@bo" is where the caret is.
+    expect(detectMentionQuery("cc @bo and more", 6)).toEqual({ start: 3, query: "bo" });
+  });
+});
+
+describe("inline @ — inserting and filtering", () => {
+  it("replaces the typed @query with the full @Name and a trailing space", () => {
+    const text = "hey @an please";
+    const token = detectMentionQuery(text, 7)!;
+    expect(insertMentionToken(text, token, 7, "Ann Lee")).toEqual({
+      text: "hey @Ann Lee  please",
+      caret: 13,
+    });
+  });
+
+  it("matches on name or email, case-insensitively", () => {
+    const members = [
+      { id: "1", name: "Ann Lee", email: "ann@urjwan.com" },
+      { id: "2", name: "Bob", email: "robert@urjwan.com" },
+    ];
+    expect(matchMembers(members, "ANN").map((m) => m.id)).toEqual(["1"]);
+    expect(matchMembers(members, "robert").map((m) => m.id)).toEqual(["2"]);
+    expect(matchMembers(members, "").map((m) => m.id)).toEqual(["1", "2"]);
+    expect(matchMembers(members, "zed")).toEqual([]);
+  });
+
+  it("un-mentions someone whose @Name was deleted before posting", () => {
+    const picked = [
+      { id: "1", name: "Ann" },
+      { id: "2", name: "Bob" },
+    ];
+    // Both were picked; Bob's token was then deleted from the draft.
+    expect(activeMentions("@Ann thoughts?", picked).map((m) => m.id)).toEqual(["1"]);
+    expect(activeMentions("no tokens left", picked)).toEqual([]);
   });
 });

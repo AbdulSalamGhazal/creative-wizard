@@ -18,7 +18,9 @@ export async function GET() {
 
   const members = await brandMembers();
   return NextResponse.json(
-    { members: members.map((m) => ({ id: m.id, name: m.name })) },
+    // Email travels so the inline @ picker can match on it too — every name
+    // here is a member of the SAME brand, which the Team page already shows.
+    { members: members.map((m) => ({ id: m.id, name: m.name, email: m.email })) },
     { headers: { "Cache-Control": "no-store" } },
   );
 }

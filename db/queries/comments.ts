@@ -1,6 +1,7 @@
 import { and, asc, desc, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
+  auditEvents,
   campaigns,
   commentMentions,
   comments,
@@ -253,4 +254,34 @@ export async function insertMentions(
   await tx
     .insert(commentMentions)
     .values(unique.map((userId) => ({ commentId, userId })));
+}
+
+/**
+ * Who performed the MOST RECENT delete of a comment, from the audit trail.
+ *
+ * `comments` records THAT a comment was deleted, not who did it — and no
+ * column was added for that. The delete action instead writes its audit row
+ * INSIDE the delete's own transaction, which makes the audit trail a reliable
+ * answer here: a committed delete always has its row, and the latest row wins
+ * (delete → restore → someone else deletes = that someone).
+ */
+export async function lastCommentDeleter(
+  exec: Exec,
+  commentId: string,
+  accountId: string,
+): Promise<string | null> {
+  const [row] = await exec
+    .select({ actorUserId: auditEvents.actorUserId })
+    .from(auditEvents)
+    .where(
+      and(
+        eq(auditEvents.accountId, accountId),
+        eq(auditEvents.entityType, "comment"),
+        eq(auditEvents.entityId, commentId),
+        eq(auditEvents.action, "comment.delete"),
+      ),
+    )
+    .orderBy(desc(auditEvents.id))
+    .limit(1);
+  return row?.actorUserId ?? null;
 }

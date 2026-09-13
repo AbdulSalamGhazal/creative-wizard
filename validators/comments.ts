@@ -74,6 +74,9 @@ export const updateCommentSchema = z.object({
 
 export const deleteCommentSchema = z.object({ id: z.string().uuid() });
 
+/** Undo a delete — only ever offered in the toast that follows it. */
+export const restoreCommentSchema = z.object({ id: z.string().uuid() });
+
 /** Reading a thread: the anchor, same shape rules as posting to it. */
 export const listCommentsSchema = z
   .object({

@@ -3,7 +3,7 @@
 import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import { useTheme } from "next-themes";
-import { Camera, KeyRound, LogOut, Plug } from "lucide-react";
+import { Camera, KeyRound, LogOut, Palette, Plug } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -12,6 +12,9 @@ import {
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { signOut } from "@/app/actions/session";
@@ -62,8 +65,9 @@ function Swatches({ colors }: { colors: readonly string[] }) {
  * keeps only what's used constantly (search, comments, notifications); the
  * things used occasionally moved one click away.
  *
- * The theme block is a LABEL LINE with its options below it — the old popover
- * ran "Theme · Dark" inline as a single heading, which read as one tone's name.
+ * Theme is a hover SUBMENU (shadcn's DropdownMenuSub) rather than an
+ * always-expanded section: the menu stays short, and the four swatches appear
+ * only when asked for.
  */
 export function UserMenu({ user }: Props) {
   const [isPending, startTransition] = useTransition();
@@ -76,6 +80,10 @@ export function UserMenu({ user }: Props) {
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  const currentTheme = mounted
+    ? ([...DARK_THEMES, ...LIGHT_THEMES].find((t) => t.value === theme)?.label ?? "")
+    : "";
 
   const handleSignOut = () => {
     startTransition(async () => {
@@ -137,31 +145,43 @@ export function UserMenu({ user }: Props) {
             Copy screenshot
           </DropdownMenuItem>
 
-          <DropdownMenuSeparator />
-          <DropdownMenuLabel>Theme</DropdownMenuLabel>
-          <DropdownMenuRadioGroup
-            value={mounted ? (theme ?? "midnight") : undefined}
-            onValueChange={setTheme}
-          >
-            <DropdownMenuLabel className="text-ink-3 text-eyebrow font-normal">
-              Dark
-            </DropdownMenuLabel>
-            {DARK_THEMES.map((t) => (
-              <DropdownMenuRadioItem key={t.value} value={t.value} className="gap-2">
-                <Swatches colors={t.swatches} />
-                {t.label}
-              </DropdownMenuRadioItem>
-            ))}
-            <DropdownMenuLabel className="text-ink-3 text-eyebrow font-normal">
-              Light
-            </DropdownMenuLabel>
-            {LIGHT_THEMES.map((t) => (
-              <DropdownMenuRadioItem key={t.value} value={t.value} className="gap-2">
-                <Swatches colors={t.swatches} />
-                {t.label}
-              </DropdownMenuRadioItem>
-            ))}
-          </DropdownMenuRadioGroup>
+          {/* Theme is a SUBMENU: one row that opens the four swatches on
+              hover, focus, → or Enter (Radix handles all four). The menu stays
+              short, and the current theme carries the radio indicator. */}
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger>
+              <Palette className="w-3.5 h-3.5" />
+              Theme
+              <span className="ml-auto text-[11px] text-ink-3">{currentTheme}</span>
+            </DropdownMenuSubTrigger>
+            {/* SubContent is portaled separately — exclude it from captures. */}
+            <DropdownMenuSubContent className="w-48" data-screenshot-exclude>
+              <DropdownMenuRadioGroup
+                value={mounted ? (theme ?? "midnight") : undefined}
+                onValueChange={setTheme}
+              >
+                <DropdownMenuLabel className="text-ink-3 text-eyebrow font-normal">
+                  Dark
+                </DropdownMenuLabel>
+                {DARK_THEMES.map((t) => (
+                  <DropdownMenuRadioItem key={t.value} value={t.value} className="gap-2">
+                    <Swatches colors={t.swatches} />
+                    {t.label}
+                  </DropdownMenuRadioItem>
+                ))}
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel className="text-ink-3 text-eyebrow font-normal">
+                  Light
+                </DropdownMenuLabel>
+                {LIGHT_THEMES.map((t) => (
+                  <DropdownMenuRadioItem key={t.value} value={t.value} className="gap-2">
+                    <Swatches colors={t.swatches} />
+                    {t.label}
+                  </DropdownMenuRadioItem>
+                ))}
+              </DropdownMenuRadioGroup>
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
 
           <DropdownMenuSeparator />
           <DropdownMenuItem onSelect={handleSignOut} disabled={isPending}>
