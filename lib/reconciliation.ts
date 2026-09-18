@@ -41,6 +41,64 @@ export function reconMatchRate(
   return claimed / storeOrders;
 }
 
+/**
+ * Share of a day's store orders that carry no attributable source — "how much
+ * of this day has no UTM". NULL when the store recorded nothing that day (a
+ * share of zero is undefined → the UI renders "—", never 0%).
+ */
+export function unattributedShare(
+  unattributed: number,
+  storeTotal: number,
+): number | null {
+  if (storeTotal === 0) return null;
+  return unattributed / storeTotal;
+}
+
+export interface PlatformDayRow {
+  storeByPlatform: Record<string, number>;
+  claimedByPlatform: Record<string, number>;
+  unattributed: number;
+  storeOrders: number;
+}
+
+export interface PlatformTotals {
+  store: Record<string, number>;
+  claimed: Record<string, number>;
+  unattributed: number;
+  storeOrders: number;
+}
+
+/**
+ * Range totals for the Platforms table: COMPONENT SUMS per platform, never an
+ * average of per-day figures. The totals row's Δ and Δ% are then computed FROM
+ * these sums (the house aggregation rule — a mean of daily ratios would be a
+ * different, wrong number).
+ */
+export function sumPlatformDays<P extends string>(
+  rows: readonly PlatformDayRow[],
+  platforms: readonly P[],
+): PlatformTotals {
+  const store: Record<string, number> = {};
+  const claimed: Record<string, number> = {};
+  // Seeded up front so EVERY known platform has a bucket even when no row
+  // mentions it — the table renders a column per platform regardless.
+  for (const p of platforms) {
+    store[p] = 0;
+    claimed[p] = 0;
+  }
+  let unattributed = 0;
+  let storeOrders = 0;
+  for (const r of rows) {
+    for (const p of platforms) {
+      store[p] = (store[p] ?? 0) + (r.storeByPlatform[p] ?? 0);
+      claimed[p] = (claimed[p] ?? 0) + (r.claimedByPlatform[p] ?? 0);
+    }
+    unattributed += r.unattributed;
+    storeOrders += r.storeOrders;
+  }
+  return { store, claimed, unattributed, storeOrders };
+}
+
 /** |Δ%| at/above this is a "large" discrepancy → warn-tinted. */
 export const RECON_WARN_THRESHOLD = 0.25;
 

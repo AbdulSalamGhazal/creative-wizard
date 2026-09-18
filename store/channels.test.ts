@@ -4,6 +4,7 @@ import {
   CHANNEL_LABEL,
   channelDeltas,
   isChannelDestination,
+  sumChannelDays,
 } from "@/store/channels";
 import {
   SYSTEM_REQUIRED_FIELDS,
@@ -86,5 +87,48 @@ describe("the system-required field tier", () => {
     a[0]!.headers.push("mutated");
     expect(b[0]!.headers).not.toContain("mutated");
     expect(SYSTEM_REQUIRED_FIELDS[0]!.headers).not.toContain("mutated");
+  });
+});
+
+describe("sumChannelDays", () => {
+  const rows = [
+    { website: 80, application: 20, unmapped: 0, storeOrders: 100, claimed: 100, revenue: 500, spend: 40 },
+    { website: 10, application: 0, unmapped: 5, storeOrders: 15, claimed: 20, revenue: 90, spend: 8 },
+  ];
+
+  it("sums every bucket, including the never-diffed money context", () => {
+    expect(sumChannelDays(rows)).toEqual({
+      website: 90,
+      application: 20,
+      unmapped: 5,
+      storeOrders: 115,
+      claimed: 120,
+      revenue: 590,
+      spend: 48,
+    });
+  });
+
+  it("the totals row's deltas come from the SUMS, never from averaging days", () => {
+    const t = sumChannelDays(rows);
+    // incl. app: 120 claimed − (90 + 20) = +10. excl. app: 120 − 90 = +30.
+    expect(channelDeltas(t)).toEqual({ inclApp: 10, exclApp: 30 });
+    // Summing the per-day deltas gives the same Δ (it is linear)…
+    const perDay = rows.map((r) => channelDeltas(r));
+    expect(perDay[0]!.inclApp + perDay[1]!.inclApp).toBe(10);
+    // …but the AVERAGE of the per-day figures does not, which is why the footer
+    // never averages: (0 + 10) / 2 = 5 ≠ 10.
+    expect((perDay[0]!.inclApp + perDay[1]!.inclApp) / 2).toBe(5);
+  });
+
+  it("an empty range is all zeros, not NaN", () => {
+    expect(sumChannelDays([])).toEqual({
+      website: 0,
+      application: 0,
+      unmapped: 0,
+      storeOrders: 0,
+      claimed: 0,
+      revenue: 0,
+      spend: 0,
+    });
   });
 });

@@ -597,12 +597,19 @@ This app is deployed and in production use. Treat `main` as shippable.
     Columns dropdown lives in each consumer's toolbar and drives `hidden`. (The
     old hand-rolled `creative-platform-table.tsx` — expandable per-platform rows —
     was replaced by this and DELETED.)
-  - **THE ONE EXCEPTION: the Summary table** (`summary-table.tsx`) is NOT on
-    DataTable and shouldn't be forced onto it — its columns are per-platform
-    GROUPS (a grouped header row), not flat columns, so it reorders/hides at the
-    group level. It already shares the same visual language (borders, sort
-    arrows, resize handle) — DataTable's border style was derived from it. Leave
-    its structure; only keep the look in sync.
+  - **THE GROUPED-HEADER EXCEPTION: the Summary table** (`summary-table.tsx`) is
+    NOT on DataTable and shouldn't be forced onto it — its columns are
+    per-platform GROUPS (a grouped header row), not flat columns, so it
+    reorders/hides at the group level. It already shares the same visual language
+    (borders, sort arrows, resize handle) — DataTable's border style was derived
+    from it. Leave its structure; only keep the look in sync.
+    **It gained a SIBLING in 2026-09: Reconciliation's Platforms table**
+    (`ByPlatformTable` in `reconciliation-view.tsx`), where each platform is a
+    group of four columns (Store · Claim · Δ · Δ%) — same reason, same visual
+    language, deliberately denser (`text-xs`, `px-1.5 py-1.5`, compacted counts)
+    so four platforms fit a 1366px desktop without horizontal scroll. These two
+    are the WHOLE list: a grouped header is the only licence to leave DataTable,
+    and a flat table that wants one should be re-thought, not hand-rolled.
   - **Chart metric pick → `components/charts/metric-picker.tsx` (`MetricPicker`)**
     — one segmented control (wraps when many options). Replaced the old mix of
     native `<select>`, shadcn `<Select>`, and ad-hoc pill/segment groups. On it:
@@ -787,16 +794,33 @@ This app is deployed and in production use. Treat `main` as shippable.
   `(account_id, raw_value)`; app-side enum, no DB enum). Unmapped/blank on either
   axis stays its own visible bucket — Unattributed for sources, Unmapped for
   channels — and is NEVER folded into a neighbour.
-  **The page has THREE views (toggle FIRST in the controls row): Overview ·
-  Platforms · Channels.** Channels shows, per day: Store total · Website ·
-  Application · Unmapped (column only when > 0) · Claimed (all platforms) ·
-  **Δ incl. app** = claimed − (Website + Application) · **Δ excl. app** =
-  claimed − Website, each Δ% warn-tinted by |magnitude|. Rationale, stated on the
-  page: platform pixels largely see WEBSITE purchases, so Δ excl. app is the
-  honest attribution gap and Application explains the rest. **Invariant
-  (test-pinned): Website + Application + Unmapped = Store total every day** —
-  buckets reconcile by construction via the unique mapping, exactly like
-  platforms. Never
+  **The page has TWO views (toggle FIRST in the controls row): Channels
+  (DEFAULT) · Platforms.** The old **Overview** view was MERGED AWAY in 2026-09:
+  it showed store orders vs claimed with revenue/spend for context, which is a
+  strict SUBSET of Channels (Store total · Claimed + the two context columns), so
+  its table, columns-menu branch and CSV variant were deleted rather than
+  maintained. Mode is client state defaulting to `"channel"` and has never been a
+  URL param, so no saved link can ask for the removed view. Channels is a
+  **DataTable** (flat columns → the canonical home; sortable throughout, day
+  desc by default, evenly-sized columns, pinned totals row): Store total ·
+  Website · Application · Unmapped (column only when > 0) · Claimed (all
+  platforms) · **Δ incl. app** = claimed − (Website + Application) · **Δ incl.
+  app %** · **Δ excl. app** = claimed − Website · **Δ excl. app %** — the number
+  and its share are SEPARATE sortable columns, each Δ% warn-tinted by
+  |magnitude| and sorted by SIGNED value with "—" (store 0) last in both
+  directions. Revenue (SAR) and Spend (USD) are the hidden-by-default context
+  columns that came over from Overview; the CSV exports exactly the visible
+  columns in the on-screen sort. Rationale, stated on the page: platform pixels
+  largely see WEBSITE purchases, so Δ excl. app is the honest attribution gap and
+  Application explains the rest. Platforms leads with Day · Store total ·
+  Unattributed · Unattributed % (= unattributed ÷ store total,
+  `unattributedShare`, NULL → "—" when the store total is 0) and then one
+  four-column group per platform. **Every totals row on this page is computed
+  from the range SUMS (`sumChannelDays`, `sumPlatformDays`), never by averaging
+  the per-day figures** — test-pinned, because a mean of daily ratios is a
+  different and wrong number. **Invariant (test-pinned): Website + Application +
+  Unmapped = Store total every day** — buckets reconcile by construction via the
+  unique mapping, exactly like platforms. Never
   auto-match source values. Buckets reconcile by construction (unique mapping →
   no fan-out → per-platform + unattributed = overview count). Pure Δ/Δ%/lag math
   lives in `lib/reconciliation.ts`; queries in `db/queries/reconciliation.ts`

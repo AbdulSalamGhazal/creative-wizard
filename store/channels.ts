@@ -57,3 +57,33 @@ export function channelDeltas(input: {
     exclApp: input.claimed - input.website,
   };
 }
+
+export interface ChannelDayRow {
+  website: number;
+  application: number;
+  unmapped: number;
+  storeOrders: number;
+  claimed: number;
+  revenue: number;
+  spend: number;
+}
+
+/**
+ * Range totals for the Channels table: plain COMPONENT SUMS. The totals row's
+ * deltas are then `channelDeltas` OVER THESE SUMS — never an average of the
+ * per-day deltas, which is a different number whenever the days differ in size.
+ */
+export function sumChannelDays(rows: readonly ChannelDayRow[]): ChannelDayRow {
+  return rows.reduce<ChannelDayRow>(
+    (a, r) => ({
+      website: a.website + r.website,
+      application: a.application + r.application,
+      unmapped: a.unmapped + r.unmapped,
+      storeOrders: a.storeOrders + r.storeOrders,
+      claimed: a.claimed + r.claimed,
+      revenue: a.revenue + r.revenue,
+      spend: a.spend + r.spend,
+    }),
+    { website: 0, application: 0, unmapped: 0, storeOrders: 0, claimed: 0, revenue: 0, spend: 0 },
+  );
+}

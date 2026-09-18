@@ -4,7 +4,11 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Columns3, Download, Megaphone, Percent, Scale, ShoppingBag } from "lucide-react";
-import { DataTable, type DataColumn } from "@/components/ui/data-table";
+import {
+  DataTable,
+  compareSortValues,
+  type DataColumn,
+} from "@/components/ui/data-table";
 import { MetricCard, type BreakdownBar } from "@/components/overview/metric-card";
 import { Button } from "@/components/ui/button";
 import {
@@ -19,7 +23,7 @@ import { DateRangePicker } from "@/components/filters/date-range-picker";
 import type { DateRangeValue } from "@/lib/date-presets";
 import { PlatformDot } from "@/components/ui/platform-dot";
 import { PLATFORM_COLOR, PLATFORM_LABEL } from "@/lib/palette";
-import { sar, usd, isoDate, int, pct1, signedPct } from "@/lib/format";
+import { sar, usd, isoDate, int, intCompact, pct1, signedPct } from "@/lib/format";
 import { downloadCsv, todayStamp, matrixToCsv } from "@/lib/csv-export";
 import { useNavTransition } from "@/lib/nav-progress";
 import {
@@ -28,6 +32,8 @@ import {
   reconDeltaTone,
   reconMatchRate,
   isWithinAttributionLag,
+  unattributedShare,
+  sumPlatformDays,
 } from "@/lib/reconciliation";
 import { cn } from "@/lib/utils";
 import { SegmentedControl } from "@/components/ui/segmented-control";
@@ -37,10 +43,29 @@ import type {
   ReconByPlatformRow,
   ReconByChannelRow,
 } from "@/db/queries/reconciliation";
-import { CHANNEL_LABEL, channelDeltas } from "@/store/channels";
+import { CHANNEL_LABEL, channelDeltas, sumChannelDays } from "@/store/channels";
 
-type Mode = "overview" | "platform" | "channel";
+/**
+ * Two modes, Channels first. There is no "overview" mode: it showed store
+ * orders vs claimed with revenue/spend for context, which is exactly the
+ * Channels table's Store total / Claimed columns plus its two hidden context
+ * columns — a strict subset, so it was merged away rather than maintained.
+ */
+type Mode = "channel" | "platform";
 type PlatformKey = keyof typeof PLATFORM_COLOR;
+
+/** One Channels row: the store's channel split joined to what platforms claim. */
+interface ChannelRow {
+  day: string;
+  storeOrders: number;
+  website: number;
+  application: number;
+  unmapped: number;
+  claimed: number;
+  /** Context only — NEVER diffed (this page compares counts, never money). */
+  revenue: number;
+  spend: number;
+}
 
 interface Props {
   /** Raw URL range (drives the highlighted preset), null when absent. */
@@ -70,7 +95,14 @@ function signed(n: number): string {
   if (n < 0) return `−${int(Math.abs(n))}`;
   return "0";
 }
+/** Same, compacted (12.3k) — for the dense Platforms grid. */
+function signedCompact(n: number): string {
+  if (n > 0) return `+${intCompact(n)}`;
+  if (n < 0) return `−${intCompact(Math.abs(n))}`;
+  return "0";
+}
 const pctText = (pct: number | null) => signedPct(pct);
+const csvPct = (pct: number | null) => (pct === null ? "" : (pct * 100).toFixed(1));
 
 export function ReconciliationView({
   from,
@@ -92,7 +124,9 @@ export function ReconciliationView({
   const searchParams = useSearchParams();
   const [, startNav] = useNavTransition();
 
-  const [mode, setMode] = useState<Mode>("overview");
+  // Client state only — no URL param has ever carried the mode, so a stale
+  // "overview" value cannot arrive from a bookmark or a saved view.
+  const [mode, setMode] = useState<Mode>("channel");
   // The two context columns are hidden by default (counts-only page).
   const [hidden, setHidden] = useState<Set<string>>(
     () => new Set(["store_revenue", "spend"]),
@@ -107,36 +141,26 @@ export function ReconciliationView({
 
   const lag = (day: string) => isWithinAttributionLag(day, maxHorizon);
 
-  // ── Overview columns ───────────────────────────────────────────────────────
-  const overviewTotals = useMemo(() => {
-    const s = overview.reduce(
-      (a, r) => ({
-        orders: a.orders + r.storeOrders,
-        conv: a.conv + r.platformConv,
-        rev: a.rev + r.storeRevenue,
-        spend: a.spend + r.spend,
-      }),
-      { orders: 0, conv: 0, rev: 0, spend: 0 },
-    );
-    return s;
-  }, [overview]);
+  const overviewTotals = useMemo(
+    () =>
+      overview.reduce(
+        (a, r) => ({
+          orders: a.orders + r.storeOrders,
+          conv: a.conv + r.platformConv,
+        }),
+        { orders: 0, conv: 0 },
+      ),
+    [overview],
+  );
 
-  // Per-platform totals for by-platform mode (KPI tile breakdowns + table footer).
-  const bpTotals = useMemo(() => {
-    const store: Record<string, number> = {};
-    const claimed: Record<string, number> = {};
-    let unattr = 0;
-    for (const r of byPlatform) {
-      for (const p of platforms) {
-        store[p] = (store[p] ?? 0) + (r.storeByPlatform[p] ?? 0);
-        claimed[p] = (claimed[p] ?? 0) + (r.claimedByPlatform[p] ?? 0);
-      }
-      unattr += r.unattributed;
-    }
-    return { store, claimed, unattr };
-  }, [byPlatform, platforms]);
+  // Per-platform range totals (KPI tile breakdowns + the Platforms footer).
+  // Sums per component; the footer's Δ/Δ% are derived FROM these sums.
+  const bpTotals = useMemo(
+    () => sumPlatformDays(byPlatform, platforms),
+    [byPlatform, platforms],
+  );
 
-  // In by-platform mode the KPI tiles break down per platform (the Dashboard
+  // In Platforms mode the KPI tiles break down per platform (the Dashboard
   // MetricCard bar pattern). Only platforms with data in range get a bar; the
   // Unattributed bucket rides along on the store-orders and Δ tiles so the bar
   // sums always reconcile with the headline totals.
@@ -161,12 +185,12 @@ export function ReconciliationView({
       fraction: (bpTotals.store[p] ?? 0) / totalOrders,
       display: int(bpTotals.store[p] ?? 0),
     }));
-    if (bpTotals.unattr > 0) {
+    if (bpTotals.unattributed > 0) {
       orders.push({
         key: "unattr",
         ...UNATTR,
-        fraction: bpTotals.unattr / totalOrders,
-        display: int(bpTotals.unattr),
+        fraction: bpTotals.unattributed / totalOrders,
+        display: int(bpTotals.unattributed),
       });
     }
 
@@ -185,7 +209,7 @@ export function ReconciliationView({
     const maxAbs = Math.max(
       1,
       ...deltas.map((x) => Math.abs(x.d)),
-      bpTotals.unattr,
+      bpTotals.unattributed,
     );
     const delta: BreakdownBar[] = deltas.map(({ p, d }) => ({
       key: p,
@@ -194,12 +218,12 @@ export function ReconciliationView({
       fraction: Math.abs(d) / maxAbs,
       display: signed(d),
     }));
-    if (bpTotals.unattr > 0) {
+    if (bpTotals.unattributed > 0) {
       // Unattributed orders have no claiming platform, so their Δ contribution
       // is claimed(0) − store(n) = −n under the inflation framing. Through the
       // HELPER, never re-derived here, so the sign can't drift again (keeps
       // Σ bars == the headline Δ).
-      const unattrDelta = reconDelta(bpTotals.unattr, 0);
+      const unattrDelta = reconDelta(bpTotals.unattributed, 0);
       delta.push({
         key: "unattr",
         ...UNATTR,
@@ -224,9 +248,57 @@ export function ReconciliationView({
     return { orders, conv, delta, match };
   }, [mode, byPlatform.length, platforms, bpTotals, overviewTotals]);
 
-  const columns: DataColumn<ReconOverviewRow>[] = useMemo(() => {
-    const t = overviewTotals;
-    return [
+  // ── Channels rows ──────────────────────────────────────────────────────────
+  /** Claimed conversions + the money context per day, from the overview rows
+   *  the page already fetched rather than re-scanning the ads table. */
+  const overviewByDay = useMemo(() => {
+    const m = new Map<string, ReconOverviewRow>();
+    for (const r of overview) m.set(r.day, r);
+    return m;
+  }, [overview]);
+
+  const channelRows = useMemo((): ChannelRow[] => {
+    return byChannel.map((r) => {
+      const o = overviewByDay.get(r.day);
+      return {
+        day: r.day,
+        storeOrders: r.storeOrders,
+        website: r.website,
+        application: r.application,
+        unmapped: r.unmapped,
+        claimed: o?.platformConv ?? 0,
+        revenue: o?.storeRevenue ?? 0,
+        spend: o?.spend ?? 0,
+      };
+    });
+  }, [byChannel, overviewByDay]);
+
+  /** Range totals: component sums. Every delta in the footer comes from THESE,
+   *  never from averaging the per-day deltas. */
+  const channelTotals = useMemo(() => sumChannelDays(channelRows), [channelRows]);
+
+  /** The Unmapped column only exists when there's something in it. */
+  const showUnmappedChannel = channelTotals.unmapped > 0;
+
+  const channelColumns: DataColumn<ChannelRow>[] = useMemo(() => {
+    const t = channelTotals;
+    const td = channelDeltas(t);
+    const num = (v: number) => <span className="num tabular-nums">{int(v)}</span>;
+    const tot = (v: string) => (
+      <span className="num tabular-nums font-semibold">{v}</span>
+    );
+    const pctCell = (pct: number | null, bold = false) => (
+      <span
+        className={cn(
+          "num tabular-nums",
+          bold && "font-semibold",
+          reconDeltaTone(pct) === "warn" ? "text-warn" : "text-ink-2",
+        )}
+      >
+        {pctText(pct)}
+      </span>
+    );
+    const cols: DataColumn<ChannelRow>[] = [
       {
         key: "day",
         label: "Day",
@@ -235,233 +307,184 @@ export function ReconciliationView({
         render: (r) => <DayCell day={r.day} isLag={lag(r.day)} />,
         sortValue: (r) => r.day,
         csv: (r) => r.day,
-        total: () => <span className="text-ink-3">{int(overview.length)} days</span>,
+        total: () => (
+          <span className="text-ink-3">{int(channelRows.length)} days</span>
+        ),
       },
       {
         key: "store_orders",
-        label: "Store orders",
+        label: "Store total",
         align: "right",
         sortable: true,
-        render: (r) => <span className="num tabular-nums">{int(r.storeOrders)}</span>,
+        render: (r) => num(r.storeOrders),
         sortValue: (r) => r.storeOrders,
-        csv: (r) => r.storeOrders,
-        total: () => <span className="num tabular-nums font-semibold">{int(t.orders)}</span>,
+        total: () => tot(int(t.storeOrders)),
       },
       {
-        key: "platform_conv",
-        label: "Platform conv.",
+        key: "website",
+        label: CHANNEL_LABEL.website,
         align: "right",
         sortable: true,
-        render: (r) => <span className="num tabular-nums">{int(r.platformConv)}</span>,
-        sortValue: (r) => r.platformConv,
-        csv: (r) => r.platformConv,
-        total: () => <span className="num tabular-nums font-semibold">{int(t.conv)}</span>,
+        render: (r) => num(r.website),
+        sortValue: (r) => r.website,
+        total: () => tot(int(t.website)),
       },
       {
-        key: "delta",
-        label: "Δ",
+        key: "application",
+        label: CHANNEL_LABEL.application,
+        align: "right",
+        sortable: true,
+        render: (r) => num(r.application),
+        sortValue: (r) => r.application,
+        total: () => tot(int(t.application)),
+      },
+    ];
+    if (showUnmappedChannel) {
+      cols.push({
+        key: "unmapped",
+        label: "Unmapped",
+        align: "right",
+        sortable: true,
+        render: (r) => <span className="num tabular-nums text-ink-3">{int(r.unmapped)}</span>,
+        sortValue: (r) => r.unmapped,
+        total: () => <span className="num tabular-nums font-semibold text-ink-3">{int(t.unmapped)}</span>,
+      });
+    }
+    cols.push(
+      {
+        key: "claimed",
+        label: "Claimed",
+        align: "right",
+        sortable: true,
+        render: (r) => num(r.claimed),
+        sortValue: (r) => r.claimed,
+        total: () => tot(int(t.claimed)),
+      },
+      {
+        key: "delta_incl",
+        label: "Δ incl. app",
         align: "right",
         sortable: true,
         render: (r) => (
-          <span className="num tabular-nums">{signed(reconDelta(r.storeOrders, r.platformConv))}</span>
-        ),
-        sortValue: (r) => reconDelta(r.storeOrders, r.platformConv),
-        csv: (r) => reconDelta(r.storeOrders, r.platformConv),
-        total: () => (
-          <span className="num tabular-nums font-semibold">
-            {signed(reconDelta(t.orders, t.conv))}
+          <span className="num tabular-nums">
+            {signed(channelDeltas(r).inclApp)}
           </span>
         ),
+        sortValue: (r) => channelDeltas(r).inclApp,
+        total: () => tot(signed(td.inclApp)),
       },
       {
-        key: "delta_pct",
-        label: "Δ%",
+        key: "delta_incl_pct",
+        label: "Δ incl. app %",
         align: "right",
         sortable: true,
-        render: (r) => {
-          const pct = reconDeltaPct(r.storeOrders, r.platformConv);
-          return (
-            <span
-              className={cn(
-                "num tabular-nums",
-                reconDeltaTone(pct) === "warn" ? "text-warn" : "text-ink-2",
-              )}
-            >
-              {pctText(pct)}
-            </span>
-          );
-        },
-        sortValue: (r) => reconDeltaPct(r.storeOrders, r.platformConv),
-        csv: (r) => {
-          const pct = reconDeltaPct(r.storeOrders, r.platformConv);
-          return pct === null ? "" : (pct * 100).toFixed(1);
-        },
-        total: () => {
-          const pct = reconDeltaPct(t.orders, t.conv);
-          return (
-            <span
-              className={cn(
-                "num tabular-nums font-semibold",
-                reconDeltaTone(pct) === "warn" ? "text-warn" : "text-ink-2",
-              )}
-            >
-              {pctText(pct)}
-            </span>
-          );
-        },
+        render: (r) => pctCell(reconDeltaPct(r.website + r.application, r.claimed)),
+        sortValue: (r) => reconDeltaPct(r.website + r.application, r.claimed),
+        csv: (r) => csvPct(reconDeltaPct(r.website + r.application, r.claimed)),
+        total: () => pctCell(reconDeltaPct(t.website + t.application, t.claimed), true),
       },
+      {
+        key: "delta_excl",
+        label: "Δ excl. app",
+        align: "right",
+        sortable: true,
+        render: (r) => (
+          <span className="num tabular-nums">
+            {signed(channelDeltas(r).exclApp)}
+          </span>
+        ),
+        sortValue: (r) => channelDeltas(r).exclApp,
+        total: () => tot(signed(td.exclApp)),
+      },
+      {
+        key: "delta_excl_pct",
+        label: "Δ excl. app %",
+        align: "right",
+        sortable: true,
+        render: (r) => pctCell(reconDeltaPct(r.website, r.claimed)),
+        sortValue: (r) => reconDeltaPct(r.website, r.claimed),
+        csv: (r) => csvPct(reconDeltaPct(r.website, r.claimed)),
+        total: () => pctCell(reconDeltaPct(t.website, t.claimed), true),
+      },
+      // Context, hidden by default: the only money on this page, and it is
+      // never differenced against anything.
       {
         key: "store_revenue",
-        label: "Store revenue",
+        label: "Revenue (SAR)",
         align: "right",
         sortable: true,
-        render: (r) => <span className="num tabular-nums">{sar(r.storeRevenue)}</span>,
-        sortValue: (r) => r.storeRevenue,
-        csv: (r) => r.storeRevenue,
-        total: () => <span className="num tabular-nums font-semibold">{sar(t.rev)}</span>,
+        render: (r) => <span className="num tabular-nums text-ink-2">{sar(r.revenue)}</span>,
+        sortValue: (r) => r.revenue,
+        total: () => tot(sar(t.revenue)),
       },
       {
         key: "spend",
-        label: "Spend",
+        label: "Spend (USD)",
         align: "right",
         sortable: true,
-        render: (r) => <span className="num tabular-nums">{usd(r.spend)}</span>,
+        render: (r) => <span className="num tabular-nums text-ink-2">{usd(r.spend)}</span>,
         sortValue: (r) => r.spend,
-        csv: (r) => r.spend,
-        total: () => <span className="num tabular-nums font-semibold">{usd(t.spend)}</span>,
+        total: () => tot(usd(t.spend)),
       },
-    ];
+    );
+    return cols;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [overview, overviewTotals, maxHorizon]);
+  }, [channelRows, channelTotals, showUnmappedChannel, maxHorizon]);
 
   const [sort, setSort] = useState<{ key: string; dir: "asc" | "desc" }>({
     key: "day",
     dir: "desc",
   });
-  const sortedOverview = useMemo(() => {
-    const col = columns.find((c) => c.key === sort.key);
-    if (!col?.sortValue) return overview;
+  /** Sorted here (not only inside DataTable) so the CSV exports the order the
+   *  reader is looking at. */
+  const sortedChannelRows = useMemo(() => {
+    const col = channelColumns.find((c) => c.key === sort.key);
+    if (!col?.sortValue) return channelRows;
     const sv = col.sortValue;
-    const mult = sort.dir === "asc" ? 1 : -1;
-    return [...overview].sort((a, b) => {
-      const av = sv(a);
-      const bv = sv(b);
-      if (av === null || av === undefined) return 1;
-      if (bv === null || bv === undefined) return -1;
-      if (av < bv) return -1 * mult;
-      if (av > bv) return 1 * mult;
-      return 0;
-    });
-  }, [overview, columns, sort]);
+    return [...channelRows].sort((a, b) => compareSortValues(sv(a), sv(b), sort.dir));
+  }, [channelRows, channelColumns, sort]);
 
   function exportCsv() {
-    if (mode === "overview") {
-      const head = [
-        "Day",
-        "Store orders",
-        "Platform conversions",
-        "Delta",
-        "Delta %",
-        "Store revenue (SAR)",
-        "Spend (USD)",
-      ];
-      const lines = sortedOverview.map((r) => {
-        const pct = reconDeltaPct(r.storeOrders, r.platformConv);
-        return [
-          r.day,
-          r.storeOrders,
-          r.platformConv,
-          reconDelta(r.storeOrders, r.platformConv),
-          pct === null ? "" : (pct * 100).toFixed(1),
-          r.storeRevenue,
-          r.spend,
-        ];
-      });
-      downloadCsv(`reconciliation-overview-${todayStamp()}.csv`, matrixToCsv(head, lines));
-    } else if (mode === "platform") {
-      const head = ["Day"];
-      for (const p of platforms) {
-        head.push(`${PLATFORM_LABEL[p]} orders`, `${PLATFORM_LABEL[p]} claimed`, `${PLATFORM_LABEL[p]} Δ`);
-      }
-      head.push("Unattributed orders");
-      const lines = byPlatform.map((r) => {
-        const cells: (string | number)[] = [r.day];
-        for (const p of platforms) {
-          const o = r.storeByPlatform[p] ?? 0;
-          const c = r.claimedByPlatform[p] ?? 0;
-          cells.push(o, c, reconDelta(o, c));
-        }
-        cells.push(r.unattributed);
-        return cells;
-      });
-      downloadCsv(`reconciliation-by-platform-${todayStamp()}.csv`, matrixToCsv(head, lines));
-    } else {
-      const head = [
-        "Day",
-        "Store total",
-        "Website",
-        "Application",
-        ...(showUnmappedChannel ? ["Unmapped"] : []),
-        "Claimed",
-        "Delta incl. app",
-        "Delta incl. app %",
-        "Delta excl. app",
-        "Delta excl. app %",
-      ];
-      const lines = byChannel.map((r) => {
-        const claimed = claimedByDay.get(r.day) ?? 0;
-        const d = channelDeltas({ website: r.website, application: r.application, claimed });
-        const inclPct = reconDeltaPct(r.website + r.application, claimed);
-        const exclPct = reconDeltaPct(r.website, claimed);
-        return [
-          r.day,
-          r.storeOrders,
-          r.website,
-          r.application,
-          ...(showUnmappedChannel ? [r.unmapped] : []),
-          claimed,
-          d.inclApp,
-          inclPct === null ? "" : (inclPct * 100).toFixed(1),
-          d.exclApp,
-          exclPct === null ? "" : (exclPct * 100).toFixed(1),
-        ];
-      });
+    if (mode === "channel") {
+      // Exactly the visible columns, in the order and sort on screen.
+      const cols = channelColumns.filter((c) => !hidden.has(c.key));
+      const head = cols.map((c) => c.label);
+      const lines = sortedChannelRows.map((r) =>
+        cols.map((c) => {
+          const v = c.csv ? c.csv(r) : c.sortValue ? c.sortValue(r) : null;
+          return v ?? "";
+        }),
+      );
       downloadCsv(`reconciliation-by-channel-${todayStamp()}.csv`, matrixToCsv(head, lines));
+      return;
     }
+    const head = ["Day", "Store total", "Unattributed", "Unattributed %"];
+    for (const p of platforms) {
+      head.push(
+        `${PLATFORM_LABEL[p]} store`,
+        `${PLATFORM_LABEL[p]} claimed`,
+        `${PLATFORM_LABEL[p]} Δ`,
+        `${PLATFORM_LABEL[p]} Δ%`,
+      );
+    }
+    const lines = byPlatform.map((r) => {
+      const cells: (string | number)[] = [
+        r.day,
+        r.storeOrders,
+        r.unattributed,
+        csvPct(unattributedShare(r.unattributed, r.storeOrders)),
+      ];
+      for (const p of platforms) {
+        const o = r.storeByPlatform[p] ?? 0;
+        const c = r.claimedByPlatform[p] ?? 0;
+        cells.push(o, c, reconDelta(o, c), csvPct(reconDeltaPct(o, c)));
+      }
+      return cells;
+    });
+    downloadCsv(`reconciliation-by-platform-${todayStamp()}.csv`, matrixToCsv(head, lines));
   }
 
-  const empty =
-    mode === "overview"
-      ? overview.length === 0
-      : mode === "platform"
-        ? byPlatform.length === 0
-        : byChannel.length === 0;
-
-  /** Claimed conversions per day (all platforms) — the Channels view's right
-   *  side, taken from the overview rows the page already fetched rather than
-   *  re-scanning the ads table. */
-  const claimedByDay = useMemo(() => {
-    const m = new Map<string, number>();
-    for (const r of overview) m.set(r.day, r.platformConv);
-    return m;
-  }, [overview]);
-
-  const channelTotals = useMemo(() => {
-    let website = 0;
-    let application = 0;
-    let unmappedOrders = 0;
-    let claimed = 0;
-    for (const r of byChannel) {
-      website += r.website;
-      application += r.application;
-      unmappedOrders += r.unmapped;
-      claimed += claimedByDay.get(r.day) ?? 0;
-    }
-    return { website, application, unmapped: unmappedOrders, claimed };
-  }, [byChannel, claimedByDay]);
-
-  /** The Unmapped column only exists when there's something in it. */
-  const showUnmappedChannel = channelTotals.unmapped > 0;
+  const empty = mode === "channel" ? channelRows.length === 0 : byPlatform.length === 0;
 
   return (
     <div className="space-y-4">
@@ -479,7 +502,7 @@ export function ReconciliationView({
         />
         <div className="ml-auto flex flex-wrap items-center gap-2">
           <ExcludedParamToggle on={includeExcluded} />
-          {mode === "overview" && (
+          {mode === "channel" && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button type="button" variant="outline" size="sm">
@@ -491,8 +514,8 @@ export function ReconciliationView({
                 <DropdownMenuLabel>Context columns</DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 {[
-                  { k: "store_revenue", label: "Store revenue" },
-                  { k: "spend", label: "Spend" },
+                  { k: "store_revenue", label: "Revenue (SAR)" },
+                  { k: "spend", label: "Spend (USD)" },
                 ].map(({ k, label }) => (
                   <DropdownMenuCheckboxItem
                     key={k}
@@ -563,8 +586,8 @@ export function ReconciliationView({
         />
       </div>
 
-      {/* Unmapped-values hint */}
-      {sourceConfigured && unmappedCount > 0 && (
+      {/* Unmapped-SOURCE hint — the source mapping only drives Platforms. */}
+      {mode === "platform" && sourceConfigured && unmappedCount > 0 && (
         <div className="rounded-md border border-warn/30 bg-warn/[0.06] px-3 py-2 text-xs text-ink-2">
           {int(unmappedCount)} source value{unmappedCount === 1 ? "" : "s"} in your
           orders {unmappedCount === 1 ? "is" : "are"} unmapped — those orders count
@@ -599,7 +622,7 @@ export function ReconciliationView({
         </div>
       )}
 
-      {mode === "channel" && byChannel.length > 0 && (
+      {mode === "channel" && channelRows.length > 0 && (
         <p className="text-xs text-ink-3">
           Platform pixels largely see WEBSITE purchases, so{" "}
           <span className="text-ink-2">Δ excl. app</span> is the honest
@@ -608,31 +631,20 @@ export function ReconciliationView({
         </p>
       )}
 
-      {mode === "overview" ? (
-        <DataTable<ReconOverviewRow>
-          columns={columns}
-          rows={sortedOverview}
+      {mode === "channel" ? (
+        <DataTable<ChannelRow>
+          columns={channelColumns}
+          rows={sortedChannelRows}
           rowKey={(r) => r.day}
           sort={sort.key}
           dir={sort.dir}
           hidden={[...hidden]}
           onSort={(key, dir) => setSort({ key, dir })}
-          showTotals={overview.length > 0}
-          minWidthClass="min-w-[640px]"
+          showTotals={channelRows.length > 0}
+          evenColumns
+          minWidthClass="min-w-[880px]"
           empty={<EmptyState />}
         />
-      ) : mode === "channel" ? (
-        byChannel.length === 0 ? (
-          <EmptyState />
-        ) : (
-          <ByChannelTable
-            rows={byChannel}
-            claimedByDay={claimedByDay}
-            lag={lag}
-            totals={channelTotals}
-            showUnmapped={showUnmappedChannel}
-          />
-        )
       ) : !sourceConfigured ? (
         <NotConfigured canConfig={canConfig} />
       ) : byPlatform.length === 0 ? (
@@ -672,171 +684,27 @@ function ModeToggle({ mode, onChange }: { mode: Mode; onChange: (m: Mode) => voi
       value={mode}
       onChange={onChange}
       options={[
-        { value: "overview", label: "Overview" },
-        { value: "platform", label: "Platforms" },
         { value: "channel", label: "Channels" },
+        { value: "platform", label: "Platforms" },
       ]}
     />
   );
 }
 
 /**
- * The CHANNELS table: where purchases happened, against what platforms claim.
- * Counts only, like everything on this page.
- *
- * Website + Application + Unmapped == Store total for every row, BY
- * CONSTRUCTION — the channel mapping is unique per raw value, so each order
- * lands in exactly one bucket. Unmapped is never absorbed into a delta: those
- * orders are not evidence about either side.
+ * One Δ% cell in the Platforms grid: warn-tinted by MAGNITUDE (never
+ * good/bad — both directions are discrepancies), "—" when the store side is 0.
  */
-function ByChannelTable({
-  rows,
-  claimedByDay,
-  lag,
-  totals,
-  showUnmapped,
-}: {
-  rows: ReconByChannelRow[];
-  claimedByDay: Map<string, number>;
-  lag: (day: string) => boolean;
-  totals: { website: number; application: number; unmapped: number; claimed: number };
-  showUnmapped: boolean;
-}) {
-  const totalStore = totals.website + totals.application + totals.unmapped;
-  const totalDeltas = channelDeltas({
-    website: totals.website,
-    application: totals.application,
-    claimed: totals.claimed,
-  });
-
+function PctCell({ pct, className }: { pct: number | null; className?: string }) {
   return (
-    <div className="overflow-x-auto rounded-lg border border-line bg-surface">
-      <table className="w-full min-w-[860px] border-collapse text-sm num">
-        <thead className="sticky top-0 z-20 bg-surface">
-          <tr className="border-b border-line text-label text-ink-3">
-            <th className="sticky left-0 z-30 bg-surface px-3 py-2 text-left">Day</th>
-            <th className="border-l border-line px-3 py-2 text-right">Store total</th>
-            <th className="px-3 py-2 text-right">{CHANNEL_LABEL.website}</th>
-            <th className="px-3 py-2 text-right">{CHANNEL_LABEL.application}</th>
-            {showUnmapped && <th className="px-3 py-2 text-right">Unmapped</th>}
-            <th className="border-l border-line px-3 py-2 text-right">Claimed</th>
-            <th
-              className="border-l border-line px-3 py-2 text-right"
-              title="Claimed − (Website + Application)"
-            >
-              Δ incl. app
-            </th>
-            <th
-              className="px-3 py-2 text-right"
-              title="Claimed − website — the honest attribution gap for pixel-based claims"
-            >
-              Δ excl. app
-            </th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-line">
-          {rows.map((r) => {
-            const claimed = claimedByDay.get(r.day) ?? 0;
-            const d = channelDeltas({
-              website: r.website,
-              application: r.application,
-              claimed,
-            });
-            const inclPct = reconDeltaPct(r.website + r.application, claimed);
-            const exclPct = reconDeltaPct(r.website, claimed);
-            return (
-              <tr key={r.day} className="hover:bg-surface-2/50">
-                <td className="sticky left-0 z-10 bg-surface px-3 py-2 text-left">
-                  <DayCell day={r.day} isLag={lag(r.day)} />
-                </td>
-                <td className="border-l border-line px-3 py-2 text-right tabular-nums">
-                  {int(r.storeOrders)}
-                </td>
-                <td className="px-3 py-2 text-right tabular-nums">{int(r.website)}</td>
-                <td className="px-3 py-2 text-right tabular-nums">
-                  {int(r.application)}
-                </td>
-                {showUnmapped && (
-                  <td className="px-3 py-2 text-right tabular-nums text-ink-3">
-                    {int(r.unmapped)}
-                  </td>
-                )}
-                <td className="border-l border-line px-3 py-2 text-right tabular-nums">
-                  {int(claimed)}
-                </td>
-                <DeltaCells value={d.inclApp} pct={inclPct} bordered />
-                <DeltaCells value={d.exclApp} pct={exclPct} />
-              </tr>
-            );
-          })}
-        </tbody>
-        <tfoot className="sticky bottom-0 z-20 border-t border-line bg-surface text-ink">
-          <tr>
-            <th className="sticky left-0 z-30 bg-surface px-3 py-2 text-left text-label text-ink-3">
-              Total
-            </th>
-            <td className="border-l border-line px-3 py-2 text-right tabular-nums">
-              {int(totalStore)}
-            </td>
-            <td className="px-3 py-2 text-right tabular-nums">{int(totals.website)}</td>
-            <td className="px-3 py-2 text-right tabular-nums">
-              {int(totals.application)}
-            </td>
-            {showUnmapped && (
-              <td className="px-3 py-2 text-right tabular-nums text-ink-3">
-                {int(totals.unmapped)}
-              </td>
-            )}
-            <td className="border-l border-line px-3 py-2 text-right tabular-nums">
-              {int(totals.claimed)}
-            </td>
-            <DeltaCells
-              value={totalDeltas.inclApp}
-              pct={reconDeltaPct(totals.website + totals.application, totals.claimed)}
-              bordered
-            />
-            <DeltaCells
-              value={totalDeltas.exclApp}
-              pct={reconDeltaPct(totals.website, totals.claimed)}
-            />
-          </tr>
-        </tfoot>
-      </table>
-    </div>
-  );
-}
-
-/**
- * One Δ cell: the signed count with its Δ% beneath, warn-tinted by MAGNITUDE
- * (never good/bad — both directions are discrepancies). "—" when the store side
- * is 0, since a percentage of zero is undefined.
- */
-function DeltaCells({
-  value,
-  pct,
-  bordered = false,
-}: {
-  value: number;
-  pct: number | null;
-  bordered?: boolean;
-}) {
-  return (
-    <td
+    <span
       className={cn(
-        "px-3 py-2 text-right tabular-nums",
-        bordered && "border-l border-line",
+        reconDeltaTone(pct) === "warn" ? "text-warn" : "text-ink-3",
+        className,
       )}
     >
-      <span className="block">{value > 0 ? `+${int(value)}` : int(value)}</span>
-      <span
-        className={cn(
-          "block text-[11px]",
-          reconDeltaTone(pct) === "warn" ? "text-warn" : "text-ink-3",
-        )}
-      >
-        {pct === null ? "—" : signedPct(pct)}
-      </span>
-    </td>
+      {pct === null ? "—" : signedPct(pct)}
+    </span>
   );
 }
 
@@ -871,7 +739,17 @@ function NotConfigured({ canConfig }: { canConfig: boolean }) {
   );
 }
 
-// ── By-platform grouped table (summary-table visual language) ─────────────────
+// ── Platforms: grouped table (summary-table visual language) ─────────────────
+/**
+ * The SECOND sanctioned grouped-header table (the Summary table is the first):
+ * every platform is a GROUP of four columns — Store · Claim · Δ · Δ% — which
+ * DataTable's flat column model cannot express. Deliberately dense (text-xs,
+ * `py-1.5 px-1.5`, compact counts) so 4 platforms × 4 + 4 leading columns fit a
+ * 1366px desktop without horizontal scroll.
+ */
+const CELL = "px-1.5 py-1.5 text-right tabular-nums";
+const SUB = "px-1.5 py-1 text-right text-[10px] font-medium uppercase tracking-[0.06em]";
+
 function ByPlatformTable({
   rows,
   platforms,
@@ -882,79 +760,90 @@ function ByPlatformTable({
   platforms: PlatformKey[];
   lag: (day: string) => boolean;
   /** Range totals (computed once by the parent, shared with the KPI tiles). */
-  totals: { store: Record<string, number>; claimed: Record<string, number>; unattr: number };
+  totals: { store: Record<string, number>; claimed: Record<string, number>; unattributed: number; storeOrders: number };
 }) {
   return (
     <div className="overflow-x-auto rounded-lg border border-line bg-surface">
-      <table className="w-full min-w-[760px] border-collapse text-sm num">
+      <table className="w-full min-w-[720px] border-collapse text-xs num">
         <thead className="sticky top-0 z-20 bg-surface">
           {/* Group banners */}
           <tr className="border-b border-line">
-            <th className="sticky left-0 z-30 bg-surface px-3 py-2 text-left text-label text-ink-3">
+            <th
+              rowSpan={2}
+              className="sticky left-0 z-30 bg-surface px-1.5 py-1.5 text-left text-label text-ink-3"
+            >
               Day
+            </th>
+            <th
+              colSpan={3}
+              className="border-l border-line px-1.5 py-1.5 text-center text-label text-ink-3"
+            >
+              Store
             </th>
             {platforms.map((p) => (
               <th
                 key={p}
-                colSpan={3}
-                className="border-l border-line px-3 py-2 text-center text-label"
+                colSpan={4}
+                className="border-l border-line px-1.5 py-1.5 text-center text-label"
                 style={{ color: PLATFORM_COLOR[p] }}
               >
-                <span className="inline-flex items-center gap-1.5">
+                <span className="inline-flex items-center gap-1">
                   <PlatformDot platform={p} size="sm" />
                   {PLATFORM_LABEL[p]}
                 </span>
               </th>
             ))}
-            <th className="border-l border-line px-3 py-2 text-center text-label text-ink-3">
-              Unattributed
-            </th>
           </tr>
           {/* Sub-labels */}
-          <tr className="border-b border-line text-label text-ink-3">
-            <th className="sticky left-0 z-30 bg-surface px-3 py-1.5" />
+          <tr className="border-b border-line text-ink-3">
+            <th className={cn(SUB, "border-l border-line")}>Total</th>
+            <th className={SUB}>Unattr.</th>
+            <th className={SUB} title="Unattributed ÷ store total">%</th>
             {platforms.map((p) => (
               <SubHead key={p} />
             ))}
-            <th className="border-l border-line px-3 py-1.5 text-right font-medium">
-              Orders
-            </th>
           </tr>
         </thead>
         <tbody className="divide-y divide-line">
           {rows.map((r) => (
             <tr key={r.day} className="hover:bg-surface-2/50">
-              <td className="sticky left-0 z-10 bg-surface px-3 py-2 text-left">
+              <td className="sticky left-0 z-10 bg-surface px-1.5 py-1.5 text-left">
                 <DayCell day={r.day} isLag={lag(r.day)} />
               </td>
-              {platforms.map((p) => {
-                const o = r.storeByPlatform[p] ?? 0;
-                const c = r.claimedByPlatform[p] ?? 0;
-                return (
-                  <GroupCells key={p} orders={o} claimed={c} />
-                );
-              })}
-              <td className="border-l border-line px-3 py-2 text-right tabular-nums">
-                {int(r.unattributed)}
+              <td className={cn(CELL, "border-l border-line")}>{intCompact(r.storeOrders)}</td>
+              <td className={cn(CELL, "text-ink-3")}>{intCompact(r.unattributed)}</td>
+              <td className={CELL}>
+                <PctCell pct={unattributedShare(r.unattributed, r.storeOrders)} />
               </td>
+              {platforms.map((p) => (
+                <GroupCells
+                  key={p}
+                  store={r.storeByPlatform[p] ?? 0}
+                  claimed={r.claimedByPlatform[p] ?? 0}
+                />
+              ))}
             </tr>
           ))}
         </tbody>
         <tfoot className="sticky bottom-0 z-20 bg-surface-2">
           <tr className="border-t border-line font-semibold">
-            <td className="sticky left-0 z-30 bg-surface-2 px-3 py-2 text-left text-ink-3">
+            <td className="sticky left-0 z-30 bg-surface-2 px-1.5 py-1.5 text-left text-ink-3">
               Totals
+            </td>
+            {/* Every footer figure below is computed from the range SUMS, not
+                from averaging the per-day numbers. */}
+            <td className={cn(CELL, "border-l border-line")}>{intCompact(totals.storeOrders)}</td>
+            <td className={cn(CELL, "text-ink-3")}>{intCompact(totals.unattributed)}</td>
+            <td className={CELL}>
+              <PctCell pct={unattributedShare(totals.unattributed, totals.storeOrders)} />
             </td>
             {platforms.map((p) => (
               <GroupCells
                 key={p}
-                orders={totals.store[p] ?? 0}
+                store={totals.store[p] ?? 0}
                 claimed={totals.claimed[p] ?? 0}
               />
             ))}
-            <td className="border-l border-line px-3 py-2 text-right tabular-nums">
-              {int(totals.unattr)}
-            </td>
           </tr>
         </tfoot>
       </table>
@@ -965,22 +854,23 @@ function ByPlatformTable({
 function SubHead() {
   return (
     <>
-      <th className="border-l border-line px-3 py-1.5 text-right font-medium">Orders</th>
-      <th className="px-3 py-1.5 text-right font-medium">Claimed</th>
-      <th className="px-3 py-1.5 text-right font-medium">Δ</th>
+      <th className={cn(SUB, "border-l border-line")}>Store</th>
+      <th className={SUB}>Claim</th>
+      <th className={SUB}>Δ</th>
+      <th className={SUB}>Δ%</th>
     </>
   );
 }
 
-function GroupCells({ orders, claimed }: { orders: number; claimed: number }) {
+function GroupCells({ store, claimed }: { store: number; claimed: number }) {
   return (
     <>
-      <td className="border-l border-line px-3 py-2 text-right tabular-nums">{int(orders)}</td>
-      <td className="px-3 py-2 text-right tabular-nums">{int(claimed)}</td>
-      <td className="px-3 py-2 text-right tabular-nums text-ink-2">
-        {signed(reconDelta(orders, claimed))}
+      <td className={cn(CELL, "border-l border-line")}>{intCompact(store)}</td>
+      <td className={CELL}>{intCompact(claimed)}</td>
+      <td className={cn(CELL, "text-ink-2")}>{signedCompact(reconDelta(store, claimed))}</td>
+      <td className={CELL}>
+        <PctCell pct={reconDeltaPct(store, claimed)} />
       </td>
     </>
   );
 }
-

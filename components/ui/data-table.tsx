@@ -45,6 +45,27 @@ export interface DataColumn<T> {
 
 const MIN_W = 64;
 
+/**
+ * The sort comparator every DataTable uses. NULL/undefined SINKS TO THE BOTTOM
+ * in both directions — an absent value ("—") is missing information, not a
+ * small one, so it never leads the table. Exported so the rule can be pinned by
+ * a unit test (the component itself needs a DOM to test).
+ */
+export function compareSortValues(
+  av: number | string | null | undefined,
+  bv: number | string | null | undefined,
+  dir: "asc" | "desc",
+): number {
+  const factor = dir === "asc" ? 1 : -1;
+  if (av == null && bv == null) return 0;
+  if (av == null) return 1;
+  if (bv == null) return -1;
+  if (typeof av === "string" && typeof bv === "string") {
+    return (av < bv ? -1 : av > bv ? 1 : 0) * factor;
+  }
+  return ((av as number) - (bv as number)) * factor;
+}
+
 export function DataTable<T>({
   columns,
   rows,
@@ -60,6 +81,7 @@ export function DataTable<T>({
   rowId,
   showTotals = false,
   minWidthClass = "min-w-[960px]",
+  evenColumns = false,
   csvFileName,
   empty,
 }: {
@@ -79,6 +101,12 @@ export function DataTable<T>({
   rowId?: (row: T) => string | undefined;
   showTotals?: boolean;
   minWidthClass?: string;
+  /**
+   * Divide the width evenly across columns (`table-fixed`) instead of sizing to
+   * content. Drag-resize still wins per column — a fixed layout honours an
+   * explicit width and shares the rest.
+   */
+  evenColumns?: boolean;
   /** When set, shows a "Download CSV" button that exports the shown columns
    *  (in their current order/visibility/sort) using each column's `csv` value
    *  (or `sortValue` as a fallback). The filename gets a `.csv` suffix. */
@@ -117,18 +145,7 @@ export function DataTable<T>({
     const col = columns.find((c) => c.key === sortKey);
     if (!col?.sortValue) return rows;
     const sv = col.sortValue;
-    const factor = dir === "asc" ? 1 : -1;
-    return [...rows].sort((a, b) => {
-      const av = sv(a);
-      const bv = sv(b);
-      if (av == null && bv == null) return 0;
-      if (av == null) return 1;
-      if (bv == null) return -1;
-      if (typeof av === "string" && typeof bv === "string") {
-        return (av < bv ? -1 : av > bv ? 1 : 0) * factor;
-      }
-      return ((av as number) - (bv as number)) * factor;
-    });
+    return [...rows].sort((a, b) => compareSortValues(sv(a), sv(b), dir));
   }, [rows, sortKey, dir, columns]);
 
   const toggleSort = (col: DataColumn<T>) => {
@@ -225,7 +242,7 @@ export function DataTable<T>({
         </div>
       )}
       <div className="rounded-lg border border-line bg-surface overflow-auto max-h-[70vh]">
-      <table className={cn(minWidthClass, "w-full text-xs num")}>
+      <table className={cn(minWidthClass, "w-full text-xs num", evenColumns && "table-fixed")}>
         <thead className="sticky top-0 z-20 bg-surface">
           <tr className="text-label text-ink-3 border-b border-line bg-surface-2/40">
             {cols.map((c, i) => {
