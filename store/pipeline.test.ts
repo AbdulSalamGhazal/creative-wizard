@@ -17,6 +17,7 @@ const core = (
   headers,
   sortOrder: 0,
   core: true,
+  systemRequired: false,
 });
 const custom = (
   key: string,
@@ -32,6 +33,23 @@ const custom = (
   headers,
   sortOrder: 5,
   core: false,
+  systemRequired: false,
+});
+
+/** A SYSTEM-REQUIRED field (utm_source / channel): column required, blanks OK. */
+const systemRequired = (
+  key: "utm_source" | "channel",
+  headers: string[],
+): StoreField => ({
+  id: key,
+  key,
+  label: key === "utm_source" ? "UTM source" : "Channel",
+  type: "text",
+  required: true,
+  headers,
+  sortOrder: 3,
+  core: false,
+  systemRequired: true,
 });
 
 const CORE = [
@@ -180,5 +198,75 @@ describe("runStorePipeline — existing ids", () => {
       expect(res.rows.find((r) => r.orderId === "OLD")!.isUpdate).toBe(true);
       expect(res.rows.find((r) => r.orderId === "NEW")!.isUpdate).toBe(false);
     }
+  });
+});
+
+describe("system-required fields — the COLUMN is required, the VALUES are not", () => {
+  const UTM = systemRequired("utm_source", ["utm_source", "utm source"]);
+  const CHANNEL = systemRequired("channel", ["channel"]);
+
+  it("rejects the file when a required field has no matching column (S010)", () => {
+    const res = run(
+      "Order ID,Order Date,Total\nA-1,2026-01-05,100\n",
+      [...CORE, UTM, CHANNEL],
+    );
+    expect(res.ok).toBe(false);
+    if (res.ok) return;
+    expect(res.errors.map((e) => e.code)).toEqual(["S010", "S010"]);
+    expect(res.errors[0]!.message).toMatch(/UTM source/);
+    // It names the header to add, rather than just refusing.
+    expect(res.errors[0]!.message).toMatch(/utm_source/);
+  });
+
+  it("accepts BLANK cells and counts them — blanks are information, not errors", () => {
+    const res = run(
+      [
+        "Order ID,Order Date,Total,utm_source,channel",
+        "A-1,2026-01-05,100,facebook,web",
+        "A-2,2026-01-05,100,,web",
+        "A-3,2026-01-05,100,,",
+        "A-4,2026-01-05,100,tiktok,app",
+      ].join("\n") + "\n",
+      [...CORE, UTM, CHANNEL],
+    );
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.rows).toHaveLength(4);
+    // 2 rows without a UTM source, 1 without a channel.
+    expect(res.blankCounts).toEqual([
+      { key: "utm_source", label: "UTM source", count: 2 },
+      { key: "channel", label: "Channel", count: 1 },
+    ]);
+    // A blank clears the attribute rather than storing an empty string.
+    expect(res.rows[1]!.attributes.utm_source).toBeUndefined();
+    expect(res.rows[1]!.attributes.channel).toBe("web");
+  });
+
+  it("reports nothing for a field with no blanks", () => {
+    const res = run(
+      [
+        "Order ID,Order Date,Total,utm_source,channel",
+        "A-1,2026-01-05,100,facebook,web",
+      ].join("\n") + "\n",
+      [...CORE, UTM, CHANNEL],
+    );
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.blankCounts).toEqual([]); // "0 without a channel" is noise
+  });
+
+  it("an ORDINARY required custom field still errors on a blank cell (S042)", () => {
+    // The tiers differ on purpose: a system-required field means "the column
+    // must exist"; an ordinary required field still means "every row needs one".
+    const res = run(
+      [
+        "Order ID,Order Date,Total,coupon",
+        "A-1,2026-01-05,100,",
+      ].join("\n") + "\n",
+      [...CORE, custom("coupon", "text", ["coupon"], true)],
+    );
+    expect(res.ok).toBe(false);
+    if (res.ok) return;
+    expect(res.errors.map((e) => e.code)).toEqual(["S042"]);
   });
 });

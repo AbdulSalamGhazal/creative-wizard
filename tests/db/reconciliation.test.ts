@@ -15,6 +15,7 @@ import { db } from "@/lib/db";
 import {
   accounts,
   performanceRecords,
+  storeChannelMappings,
   storeSourceMappings,
   users,
 } from "@/db/schema";
@@ -22,8 +23,12 @@ import { writeStoreBatch } from "@/db/queries/store";
 import {
   reconciliationOverview,
   reconciliationByPlatform,
+  reconciliationByChannel,
+  distinctStoreChannelValues,
+  listStoreChannelMappings,
   distinctStoreSourceValues,
 } from "@/db/queries/reconciliation";
+import { channelDeltas } from "@/store/channels";
 import {
   resetAndSeed,
   CREATIVE_1,
@@ -60,12 +65,12 @@ const perfRow = (
   excludedFromAggregates: false,
 });
 
-const order = (orderId: string, source: string) => ({
-  orderId,
-  orderDate: D,
-  totalAmount: "100.00",
-  attributes: { source },
-});
+const order = (orderId: string, source: string, channel?: string) => {
+  const attributes: Record<string, string | number> = { source };
+  // An order with no channel column at all — the Unmapped bucket's other case.
+  if (channel !== undefined) attributes.channel = channel;
+  return { orderId, orderDate: D, totalAmount: "100.00", attributes };
+};
 
 beforeAll(async () => {
   await resetAndSeed();
@@ -89,10 +94,12 @@ beforeAll(async () => {
     uploadedByUserId: UPLOADER,
     upsert: false,
     inserts: [
-      order("A1", "ig_ad"), order("A2", "ig_ad"), order("A3", "ig_ad"),
-      order("A4", "ig_ad"), order("A5", "ig_ad"),
-      order("A6", "fb_ad"), order("A7", "fb_ad"), order("A8", "fb_ad"),
-      order("A9", "newsletter"), order("A10", "newsletter"),
+      // Channels: 6 web, 3 app, 1 with a channel nobody has mapped.
+      order("A1", "ig_ad", "web"), order("A2", "ig_ad", "web"),
+      order("A3", "ig_ad", "web"), order("A4", "ig_ad", "web"),
+      order("A5", "ig_ad", "ios"), order("A6", "fb_ad", "ios"),
+      order("A7", "fb_ad", "ios"), order("A8", "fb_ad", "web"),
+      order("A9", "newsletter", "web"), order("A10", "newsletter", "kiosk"),
     ],
     updates: [],
   });
@@ -102,6 +109,12 @@ beforeAll(async () => {
   await db.insert(storeSourceMappings).values([
     { accountId: ACCOUNT_A, rawValue: "ig_ad", platform: "instagram" },
     { accountId: ACCOUNT_A, rawValue: "fb_ad", platform: "facebook" },
+  ]);
+
+  // Channel axis: web → Website, ios → Application. "kiosk" is left unmapped.
+  await db.insert(storeChannelMappings).values([
+    { accountId: ACCOUNT_A, rawValue: "web", destination: "website" },
+    { accountId: ACCOUNT_A, rawValue: "ios", destination: "application" },
   ]);
 
   // Account B: one order on D with the SAME raw value, but no mapping of its own.
@@ -216,5 +229,62 @@ describe("reconciliation — overview Δ, by-platform buckets, scoping", () => {
     const ov = (await reconciliationOverview(D, D))[0]!;
     expect(ov.storeOrders).toBe(1);
     expect(ov.platformConv).toBe(0); // B has no ads data on D
+  });
+});
+
+describe("reconciliation — the CHANNELS view", () => {
+  it("buckets reconcile BY CONSTRUCTION: website + application + unmapped = store total", async () => {
+    const res = await reconciliationByChannel(D, D);
+    expect(res.rows).toHaveLength(1);
+    const r = res.rows[0]!;
+    // 6 web, 3 ios (→ Application), 1 kiosk (unmapped).
+    expect(r.website).toBe(6);
+    expect(r.application).toBe(3);
+    expect(r.unmapped).toBe(1);
+    expect(r.website + r.application + r.unmapped).toBe(r.storeOrders);
+    expect(r.storeOrders).toBe(10); // the same total the overview reports
+  });
+
+  it("surfaces the unmapped channel values in range for the banner", async () => {
+    const res = await reconciliationByChannel(D, D);
+    expect(res.unmappedValues).toEqual(["kiosk"]);
+  });
+
+  it("both deltas, and unmapped absorbed into NEITHER", async () => {
+    const r = (await reconciliationByChannel(D, D)).rows[0]!;
+    const claimed = (await reconciliationOverview(D, D))[0]!.platformConv; // 7
+    const d = channelDeltas({
+      website: r.website,
+      application: r.application,
+      claimed,
+    });
+    // incl. app: (6 + 3) − 7 = +2. excl. app: 6 − 7 = −1 — the honest gap.
+    expect(d.inclApp).toBe(2);
+    expect(d.exclApp).toBe(-1);
+    // The unmapped order is in NEITHER: it would have made incl. app +3.
+    expect(d.inclApp).not.toBe(r.storeOrders - claimed);
+  });
+
+  it("is account-scoped — B's orders and mappings never leak into A", async () => {
+    setAccount(ACCOUNT_B);
+    const res = await reconciliationByChannel(D, D);
+    // B has one order with NO channel attribute at all → Unmapped, not Website.
+    expect(res.rows[0]!.storeOrders).toBe(1);
+    expect(res.rows[0]!.website).toBe(0);
+    expect(res.rows[0]!.application).toBe(0);
+    expect(res.rows[0]!.unmapped).toBe(1);
+    // A's mappings are not visible from B.
+    expect(await listStoreChannelMappings()).toEqual([]);
+    setAccount(ACCOUNT_A);
+    expect((await listStoreChannelMappings()).map((m) => m.rawValue).sort()).toEqual([
+      "ios",
+      "web",
+    ]);
+  });
+
+  it("lists the distinct channel values for the config UI", async () => {
+    const values = await distinctStoreChannelValues();
+    expect(values.map((v) => v.value).sort()).toEqual(["ios", "kiosk", "web"]);
+    expect(values.find((v) => v.value === "web")?.count).toBe(6);
   });
 });

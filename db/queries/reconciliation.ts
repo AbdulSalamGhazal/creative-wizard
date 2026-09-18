@@ -3,11 +3,17 @@ import { db } from "@/lib/db";
 import {
   performanceRecords,
   platformEnum,
+  storeChannelMappings,
   storeOrders,
   storeSourceMappings,
 } from "@/db/schema";
 import { getActiveAccountId } from "@/lib/tenant";
 import { sumConversions, sumSpend } from "@/lib/metrics";
+import {
+  STORE_CHANNEL_FIELD_KEY,
+  UNMAPPED_CHANNEL,
+  type ChannelDestination,
+} from "@/store/channels";
 
 /**
  * Store → Reconciliation queries. Compares store ORDER COUNTS (from
@@ -43,6 +49,25 @@ export interface ReconOverviewRow {
 export interface ReconByPlatformResult {
   rows: ReconByPlatformRow[];
   /** Distinct non-empty raw values in range with no `store_source_mappings` row. */
+  unmappedValues: string[];
+}
+
+/** Per-day channel roll-up: where the purchase happened vs what platforms claim. */
+export interface ReconByChannelRow {
+  day: string;
+  /** Orders whose channel maps to Website. */
+  website: number;
+  /** Orders whose channel maps to Application. */
+  application: number;
+  /** Orders whose channel has NO mapping (or is blank) — never absorbed. */
+  unmapped: number;
+  /** Total store orders that day (== website + application + unmapped). */
+  storeOrders: number;
+}
+
+export interface ReconByChannelResult {
+  rows: ReconByChannelRow[];
+  /** Distinct non-empty raw channel values in range with no mapping row. */
   unmappedValues: string[];
 }
 
@@ -123,6 +148,26 @@ export async function distinctStoreSourceValues(
     .orderBy(sql`count(*) DESC`)
     .limit(cap);
   return rows.map((r) => ({ value: r.value, count: Number(r.count) }));
+}
+
+/** Every channel-value → destination mapping for the active account. */
+export async function listStoreChannelMappings(): Promise<
+  Array<{ id: string; rawValue: string; destination: ChannelDestination }>
+> {
+  const acct = await getActiveAccountId();
+  const rows = await db
+    .select({
+      id: storeChannelMappings.id,
+      rawValue: storeChannelMappings.rawValue,
+      destination: storeChannelMappings.destination,
+    })
+    .from(storeChannelMappings)
+    .where(eq(storeChannelMappings.accountId, acct));
+  return rows.map((r) => ({
+    id: r.id,
+    rawValue: r.rawValue,
+    destination: r.destination as ChannelDestination,
+  }));
 }
 
 // ── Reconciliation reads ─────────────────────────────────────────────────────
@@ -304,6 +349,86 @@ export async function reconciliationByPlatform(
     rows: [...byDay.values()].sort((a, b) => (a.day < b.day ? 1 : -1)),
     unmappedValues: [...unmapped].sort(),
   };
+}
+
+/**
+ * The per-day CHANNEL roll-up: store orders split into Website / Application /
+ * Unmapped by the explicit channel mapping.
+ *
+ * ONE added scan — the claimed side is not re-queried here: the page already
+ * has all-platform conversions per day from `reconciliationOverview`, and the
+ * Channels view merges against that (`lib/db.ts` is `max: 1`, so every extra
+ * query is a serial round-trip).
+ *
+ * The three buckets reconcile to the day's total BY CONSTRUCTION: the mapping
+ * is unique per raw value, so each order lands in exactly one of them, and an
+ * unmapped or blank channel lands in Unmapped rather than being folded into
+ * either side.
+ */
+export async function reconciliationByChannel(
+  from?: string,
+  to?: string,
+): Promise<ReconByChannelResult> {
+  const acct = await getActiveAccountId();
+  const channelExpr = sql<string>`${storeOrders.attributes} ->> ${STORE_CHANNEL_FIELD_KEY}`;
+  // COALESCE(mapping.destination, sentinel): an unmapped value and a blank
+  // cell both fall through to Unmapped.
+  const bucketExpr = sql<string>`COALESCE(${storeChannelMappings.destination}, ${UNMAPPED_CHANNEL})`;
+
+  const rows = await db
+    .select({
+      day: storeOrders.orderDate,
+      bucket: bucketExpr,
+      // The raw value, but ONLY when nothing maps it — exactly the set the
+      // unmapped banner is about (same trick as the by-platform scan).
+      unmappedValue: sql<
+        string | null
+      >`CASE WHEN ${storeChannelMappings.rawValue} IS NULL THEN NULLIF(${channelExpr}, '') END`,
+      n: sql<number>`count(*)::int`,
+    })
+    .from(storeOrders)
+    .leftJoin(
+      storeChannelMappings,
+      and(
+        eq(storeChannelMappings.accountId, acct),
+        sql`${storeChannelMappings.rawValue} = (${channelExpr})`,
+      ),
+    )
+    .where(and(...storeConds(acct, from, to)))
+    // GROUP BY ordinal — these derived expressions carry bind params drizzle
+    // would re-serialize, breaking GROUP BY matching.
+    .groupBy(sql`1, 2, 3`);
+
+  const byDay = new Map<string, ReconByChannelRow>();
+  const unmapped = new Set<string>();
+  for (const r of rows) {
+    let row = byDay.get(r.day);
+    if (!row) {
+      row = { day: r.day, website: 0, application: 0, unmapped: 0, storeOrders: 0 };
+      byDay.set(r.day, row);
+    }
+    const n = Number(r.n);
+    row.storeOrders += n;
+    if (r.bucket === "website") row.website += n;
+    else if (r.bucket === "application") row.application += n;
+    else row.unmapped += n;
+    if (r.unmappedValue) unmapped.add(r.unmappedValue);
+  }
+
+  return {
+    rows: [...byDay.values()].sort((a, b) => (a.day < b.day ? 1 : -1)),
+    unmappedValues: [...unmapped].sort(),
+  };
+}
+
+/**
+ * The DISTINCT raw channel values present in uploaded orders, with frequency
+ * (desc), capped — the config UI's mapping list.
+ */
+export async function distinctStoreChannelValues(
+  cap = 200,
+): Promise<Array<{ value: string; count: number }>> {
+  return distinctStoreSourceValues(STORE_CHANNEL_FIELD_KEY, cap);
 }
 
 /**

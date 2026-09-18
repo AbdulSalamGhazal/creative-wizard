@@ -7,7 +7,7 @@ import { requireAuth, requirePermission } from "@/lib/auth";
 import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
 import { db } from "@/lib/db";
 import { accounts, userAccounts, storeOrderFields } from "@/db/schema";
-import { coreFieldRows } from "@/store/fields";
+import { coreFieldRows, systemRequiredFieldRows } from "@/store/fields";
 import { ACCOUNT_COOKIE, listAccounts } from "@/lib/tenant";
 import {
   createAccountSchema,
@@ -104,7 +104,14 @@ export async function createAccount(input: unknown): Promise<ActionResult> {
       // Seed the three locked Store core fields for the new brand (existing
       // brands got them in migration 0030). See store/fields.ts.
       if (created) {
-        await tx.insert(storeOrderFields).values(coreFieldRows(created.id));
+        // Five rows: the 3 core identity fields + the 2 system-required
+        // attribute fields (utm_source, channel) every account must carry.
+        await tx
+          .insert(storeOrderFields)
+          .values([
+            ...coreFieldRows(created.id),
+            ...systemRequiredFieldRows(created.id),
+          ]);
       }
       return created;
     });

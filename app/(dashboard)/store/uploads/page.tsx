@@ -9,11 +9,13 @@ import { PageHeader } from "@/components/layout/page-header";
 import { PageTabs, type PageTab } from "@/components/layout/page-tabs";
 import { StoreFieldsAdmin } from "@/components/store/store-fields-admin";
 import { StoreSourceMappingAdmin } from "@/components/store/store-source-mapping-admin";
+import { STORE_SOURCE_FIELD_KEY } from "@/store/fields";
 import { listStoreFields } from "@/db/queries/store";
 import {
-  getStoreSourceFieldKey,
   listStoreSourceMappings,
+  listStoreChannelMappings,
   distinctStoreSourceValues,
+  distinctStoreChannelValues,
 } from "@/db/queries/reconciliation";
 import { RecentStoreBatches } from "@/components/store/recent-store-batches";
 import { StoreCleanupTool } from "@/components/store/store-cleanup-tool";
@@ -168,25 +170,26 @@ export default async function StoreUploadsPage({
  * mappings, and the distinct raw values present in uploaded orders.
  */
 async function OrderFieldsTab() {
-  // `fields` and the source-field key are independent of each other; only the
-  // distinct-values scan depends on the key, so it waits and the rest doesn't.
-  const [fields, sourceFieldKey, mappings] = await Promise.all([
+  // The source field is PINNED to utm_source (the picker is retired), so
+  // nothing here waits on a config read to know which key to scan.
+  const [fields, mappings, channelMappings] = await Promise.all([
     listStoreFields(),
-    getStoreSourceFieldKey(),
     listStoreSourceMappings(),
+    listStoreChannelMappings(),
   ]);
-  // The FULL distinct scan lives here and only here: this tab is where the
+  // The FULL distinct scans live here and only here: this tab is where the
   // mapping UI has to list every raw value the brand has ever uploaded.
-  // Reconciliation derives its banner from its own date-bounded scan instead.
-  const values = await distinctStoreSourceValues(sourceFieldKey);
+  // Reconciliation derives its banners from its own date-bounded scans instead.
+  const values = await distinctStoreSourceValues(STORE_SOURCE_FIELD_KEY);
+  const channelValues = await distinctStoreChannelValues();
   return (
     <div className="space-y-10">
-      <StoreFieldsAdmin fields={fields} sourceFieldKey={sourceFieldKey} />
+      <StoreFieldsAdmin fields={fields} sourceFieldKey={STORE_SOURCE_FIELD_KEY} />
       <StoreSourceMappingAdmin
-        fields={fields}
-        sourceFieldKey={sourceFieldKey}
         mappings={mappings}
         values={values}
+        channelMappings={channelMappings}
+        channelValues={channelValues}
       />
     </div>
   );

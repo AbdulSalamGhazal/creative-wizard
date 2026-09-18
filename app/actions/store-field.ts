@@ -8,7 +8,7 @@ import { requirePermission } from "@/lib/auth";
 import { getActiveAccountId } from "@/lib/tenant";
 import { accounts, storeOrderFields } from "@/db/schema";
 import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
-import { isCoreKey, slugifyKey } from "@/store/fields";
+import { isCoreKey, isSystemRequiredKey, slugifyKey } from "@/store/fields";
 import { actionError } from "@/lib/action-error";
 
 /**
@@ -116,19 +116,24 @@ export async function updateStoreField(input: unknown): Promise<FieldMutationRes
       .limit(1);
     if (!row) return { ok: false, error: "Field not found." };
     const core = isCoreKey(row.key);
+    // SYSTEM-REQUIRED (utm_source / channel): a distinct tier — the values live
+    // in `attributes`, not in an identity column, but the field can't be
+    // deleted and `required` can't be switched off. Label + headers stay
+    // editable. Enforced HERE, not just hidden in the UI.
+    const systemRequired = isSystemRequiredKey(row.key);
 
     // Core fields: only label + headers are editable (key/type/required locked).
     const set: Partial<typeof storeOrderFields.$inferInsert> = { updatedAt: new Date() };
     if (label !== undefined) set.label = label;
     if (headers !== undefined) set.headers = headers;
-    if (!core && required !== undefined) set.required = required;
+    if (!core && !systemRequired && required !== undefined) set.required = required;
     await db
       .update(storeOrderFields)
       .set(set)
       .where(and(eq(storeOrderFields.accountId, acct), eq(storeOrderFields.id, id)));
 
     revalidatePathsSafe();
-    await audit(me.id, { op: "update", key: row.key, core });
+    await audit(me.id, { op: "update", key: row.key, core, systemRequired });
     return { ok: true };
   } catch (err) {
     return { ok: false, error: actionError(err, "store_field") };
@@ -150,6 +155,12 @@ export async function deleteStoreField(id: unknown): Promise<FieldMutationResult
     if (!row) return { ok: false, error: "Field not found." };
     if (isCoreKey(row.key)) {
       return { ok: false, error: "System fields can't be deleted." };
+    }
+    if (isSystemRequiredKey(row.key)) {
+      return {
+        ok: false,
+        error: "This field is required by the system and can't be deleted.",
+      };
     }
 
     // Reconciliation's by-platform mode reads its source values from ONE

@@ -1,0 +1,57 @@
+/**
+ * Store CHANNEL vocabulary — the second mapping axis (the first is
+ * utm_source → ad platform).
+ *
+ * A channel value on an order says WHERE the purchase happened; each distinct
+ * raw value is mapped EXPLICITLY to one of two destinations. Nothing is ever
+ * auto-matched (the house rule), and an unmapped or blank channel falls into
+ * its own visible bucket rather than being absorbed into either side.
+ *
+ * Why the split matters: platform pixels largely see WEBSITE purchases, so
+ * "Δ excl. app" (website − claimed) is the honest attribution gap, and the
+ * Application column explains the rest.
+ */
+
+export const CHANNEL_DESTINATIONS = ["website", "application"] as const;
+export type ChannelDestination = (typeof CHANNEL_DESTINATIONS)[number];
+
+export const CHANNEL_LABEL: Record<ChannelDestination, string> = {
+  website: "Website",
+  application: "Application",
+};
+
+export function isChannelDestination(value: string): value is ChannelDestination {
+  return (CHANNEL_DESTINATIONS as readonly string[]).includes(value);
+}
+
+/** Sentinel bucket: no mapping for this order's channel (or the cell is blank). */
+export const UNMAPPED_CHANNEL = "__unmapped__";
+
+/** The field whose values carry the channel. Pinned, like the source field. */
+export const STORE_CHANNEL_FIELD_KEY = "channel";
+
+export interface ChannelDeltas {
+  /** (Website + Application) − claimed. */
+  inclApp: number;
+  /** Website − claimed — the honest attribution gap for pixel-based claims. */
+  exclApp: number;
+}
+
+/**
+ * Both deltas for one day (or one total row).
+ *
+ * UNMAPPED IS NEVER ABSORBED into either delta: orders whose channel nobody has
+ * mapped are not evidence about website or app, so they stay in their own
+ * column. Counting them would quietly flatter whichever side they were folded
+ * into.
+ */
+export function channelDeltas(input: {
+  website: number;
+  application: number;
+  claimed: number;
+}): ChannelDeltas {
+  return {
+    inclApp: input.website + input.application - input.claimed,
+    exclApp: input.website - input.claimed,
+  };
+}

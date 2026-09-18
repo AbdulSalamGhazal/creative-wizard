@@ -50,6 +50,13 @@ export type StorePipelineResult =
       presentFieldKeys: string[];
       /** Configured custom fields with NO column here (reported as info). */
       absentFieldLabels: string[];
+      /**
+       * Per SYSTEM-REQUIRED field, how many accepted rows had a BLANK cell.
+       * Information, not a problem: plenty of orders genuinely have no UTM
+       * source. The upload review states it plainly (neutral tone, no warning
+       * styling); only fields with a non-zero count are listed.
+       */
+      blankCounts: Array<{ key: string; label: string; count: number }>;
       warnings: StoreValidationError[];
     }
   | { ok: false; errors: StoreValidationError[]; warnings: StoreValidationError[] };
@@ -144,6 +151,8 @@ export function runStorePipeline(input: StorePipelineInput): StorePipelineResult
   const errors: StoreValidationError[] = [];
   const accepted: StoreParsedRow[] = [];
   const idToRows = new Map<string, number[]>(); // for intra-file dup detection
+  /** field key → rows whose cell was blank (system-required fields only). */
+  const blanks = new Map<string, number>();
 
   rows.forEach((row, i) => {
     const rowNumber = rowNumbers[i]!;
@@ -184,7 +193,11 @@ export function runStorePipeline(input: StorePipelineInput): StorePipelineResult
     for (const f of customFields) {
       const raw = cell(row, f.key);
       if (!raw) {
-        if (f.required) {
+        // A SYSTEM-REQUIRED field requires its COLUMN (S010 above), not a value
+        // in every row — a blank is counted and reported, never an error.
+        if (f.systemRequired) {
+          blanks.set(f.key, (blanks.get(f.key) ?? 0) + 1);
+        } else if (f.required) {
           errors.push(
             err("S042", `Row ${rowNumber}: required field "${f.label}" is blank.`, {
               row: rowNumber,
@@ -275,6 +288,12 @@ export function runStorePipeline(input: StorePipelineInput): StorePipelineResult
   const absentFieldLabels = input.fields
     .filter((f) => !f.core && !fieldIndex.has(f.key))
     .map((f) => f.label);
+  // Only fields that actually had blanks are reported — "0 without a channel"
+  // is noise.
+  const blankCounts = input.fields
+    .filter((f) => f.systemRequired && (blanks.get(f.key) ?? 0) > 0)
+    .map((f) => ({ key: f.key, label: f.label, count: blanks.get(f.key) ?? 0 }));
+
   return {
     ok: true,
     rows: accepted,
@@ -283,6 +302,7 @@ export function runStorePipeline(input: StorePipelineInput): StorePipelineResult
     ignoredColumns,
     presentFieldKeys,
     absentFieldLabels,
+    blankCounts,
     warnings,
   };
 }

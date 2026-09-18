@@ -37,6 +37,65 @@ export const CORE_FIELDS: readonly CoreFieldDef[] = [
   { key: "total_amount", label: "Total amount", type: "number", sortOrder: 2 },
 ];
 
+/**
+ * SYSTEM-REQUIRED fields — a tier BETWEEN core and ordinary custom fields.
+ *
+ * Their values still live in `attributes` jsonb (they are not identity
+ * columns, so core stays exactly the three), but every account has them, they
+ * can't be deleted, and `required` can't be switched off. Label and accepted
+ * headers stay editable — a store that calls the column "utm-source" just maps
+ * it.
+ *
+ * "Required" here means the COLUMN must be present in every upload (S010).
+ * Blank CELLS are fine and expected — plenty of orders genuinely have no UTM —
+ * so the pipeline counts them instead of erroring (see `runStorePipeline`).
+ */
+export const SYSTEM_REQUIRED_KEYS = ["utm_source", "channel"] as const;
+export type SystemRequiredKey = (typeof SYSTEM_REQUIRED_KEYS)[number];
+
+const SYSTEM_REQUIRED_SET: ReadonlySet<string> = new Set(SYSTEM_REQUIRED_KEYS);
+export function isSystemRequiredKey(key: string): key is SystemRequiredKey {
+  return SYSTEM_REQUIRED_SET.has(key);
+}
+
+export interface SystemRequiredFieldDef {
+  key: SystemRequiredKey;
+  label: string;
+  type: StoreFieldType;
+  /** Default accepted headers; editable afterwards. */
+  headers: string[];
+  sortOrder: number;
+}
+
+/**
+ * Definitions seeded per account — mirrored by migration 0046's promote/seed
+ * (which KEEPS an existing field's label and headers rather than overwriting
+ * them; only `required` is forced on).
+ */
+export const SYSTEM_REQUIRED_FIELDS: readonly SystemRequiredFieldDef[] = [
+  {
+    key: "utm_source",
+    label: "UTM source",
+    type: "text",
+    headers: ["utm_source", "utm source"],
+    sortOrder: 3,
+  },
+  {
+    key: "channel",
+    label: "Channel",
+    type: "text",
+    headers: ["channel"],
+    sortOrder: 4,
+  },
+];
+
+/**
+ * The ONE field whose values drive platform attribution. Pinned in code since
+ * 2026-09: `accounts.store_source_field_key` is backfilled to this and no
+ * longer read (kept as a dead column, like `store_order_fields.show_in_table`).
+ */
+export const STORE_SOURCE_FIELD_KEY = "utm_source";
+
 /** Insert-shaped core rows for an account (used by `createAccount`). */
 export function coreFieldRows(accountId: string): Array<{
   accountId: string;
@@ -54,6 +113,27 @@ export function coreFieldRows(accountId: string): Array<{
     type: f.type,
     required: true,
     headers: [],
+    sortOrder: f.sortOrder,
+  }));
+}
+
+/** Insert-shaped system-required rows for an account (used by `createAccount`). */
+export function systemRequiredFieldRows(accountId: string): Array<{
+  accountId: string;
+  key: string;
+  label: string;
+  type: StoreFieldType;
+  required: boolean;
+  headers: string[];
+  sortOrder: number;
+}> {
+  return SYSTEM_REQUIRED_FIELDS.map((f) => ({
+    accountId,
+    key: f.key,
+    label: f.label,
+    type: f.type,
+    required: true,
+    headers: [...f.headers],
     sortOrder: f.sortOrder,
   }));
 }
@@ -84,4 +164,6 @@ export interface StoreField {
   sortOrder: number;
   /** Convenience flag; core fields are locked in the config UI + actions. */
   core: boolean;
+  /** Convenience flag; system-required fields can't be deleted or un-required. */
+  systemRequired: boolean;
 }

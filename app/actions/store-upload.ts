@@ -47,6 +47,11 @@ export type StoreUploadReport =
         ignoredColumns: string[];
         /** Configured custom fields with no column in this file. */
         absentFieldLabels: string[];
+        /**
+         * Rows with a blank cell in a system-required field (utm_source /
+         * channel). INFORMATION, not a problem — the review states it plainly.
+         */
+        blankCounts: Array<{ key: string; label: string; count: number }>;
       };
       warnings: StoreValidationError[];
     };
@@ -109,6 +114,7 @@ async function validate(input: FileInput): Promise<
       ignoredColumns: string[];
       presentFieldKeys: string[];
       absentFieldLabels: string[];
+      blankCounts: Array<{ key: string; label: string; count: number }>;
       warnings: StoreValidationError[];
     }
 > {
@@ -152,6 +158,7 @@ export async function validateStoreUpload(
         upsert: input.upsert,
         ignoredColumns: res.ignoredColumns,
         absentFieldLabels: res.absentFieldLabels,
+        blankCounts: res.blankCounts,
       },
       warnings: res.warnings,
     };

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { platformEnum } from "@/db/schema";
+import { CHANNEL_DESTINATIONS } from "@/store/channels";
 
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -38,11 +39,6 @@ export const storeCleanupFiltersSchema = z
 
 export type StoreCleanupFilters = z.infer<typeof storeCleanupFiltersSchema>;
 
-/** Set (or clear, with null) the account's reconciliation source field. */
-export const storeSourceFieldSchema = z.object({
-  fieldKey: z.string().trim().min(1).max(48).nullable(),
-});
-
 /**
  * Assign a raw source value: one of the 4 platforms, "none" ("not an ad
  * platform" → a row with platform NULL), or "unset" (delete the row → unmapped).
@@ -53,6 +49,18 @@ export const storeSourceMappingSchema = z.object({
 });
 
 export type StoreSourceMappingInput = z.infer<typeof storeSourceMappingSchema>;
+
+/**
+ * Assign a raw CHANNEL value: 'website', 'application', or "unset" (delete the
+ * row → the value returns to the Unmapped bucket). Derived from
+ * `CHANNEL_DESTINATIONS`, never re-listed.
+ */
+export const storeChannelMappingSchema = z.object({
+  rawValue: z.string().trim().min(1).max(128),
+  assignment: z.enum([...CHANNEL_DESTINATIONS, "unset"]),
+});
+
+export type StoreChannelMappingInput = z.infer<typeof storeChannelMappingSchema>;
 
 /** URL filters for the Reconciliation page — date range only. */
 export const reconciliationFiltersSchema = z.object({

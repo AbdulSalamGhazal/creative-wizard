@@ -1045,6 +1045,37 @@ export const storeOrders = pgTable(
 );
 
 /**
+ * Maps a RAW channel value (as found in an order's `channel` attribute) to
+ * WHERE the purchase happened: exactly 'website' or 'application' (app-side
+ * enum, no DB enum — the house pattern). The SECOND mapping axis, parallel to
+ * `store_source_mappings`.
+ *
+ * Mapping is EXPLICIT only: a raw value with no row here (or a blank cell)
+ * falls into the Unmapped bucket, which Reconciliation shows as its own column
+ * and never folds into either delta. Tenant-scoped (§4.1); unique per
+ * `(account_id, raw_value)`.
+ */
+export const storeChannelMappings = pgTable(
+  "store_channel_mappings",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    accountId: accountId(),
+    /** The raw value as it appears in the order's channel field (verbatim). */
+    rawValue: varchar("raw_value", { length: 128 }).notNull(),
+    /** 'website' | 'application' — code-validated (store/channels.ts). */
+    destination: varchar("destination", { length: 16 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    accountRawUnique: uniqueIndex("store_channel_mappings_account_raw_idx").on(
+      t.accountId,
+      t.rawValue,
+    ),
+  }),
+);
+
+/**
  * Maps a RAW source value (as found in an order's configured source field, see
  * `accounts.store_source_field_key`) to one of the four ad platforms, or to NULL
  * = "not an ad platform" (e.g. organic/direct). Drives the Store →

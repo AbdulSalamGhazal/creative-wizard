@@ -7,7 +7,7 @@ import {
   users,
 } from "@/db/schema";
 import { getActiveAccountId } from "@/lib/tenant";
-import { isCoreKey, type StoreField, type StoreFieldType } from "@/store/fields";
+import { isCoreKey, isSystemRequiredKey, type StoreField, type StoreFieldType } from "@/store/fields";
 
 /**
  * Store module queries — account-scoped (tenant §4.1) reads for the Store page
@@ -42,6 +42,7 @@ export async function listStoreFields(): Promise<StoreField[]> {
     headers: r.headers ?? [],
     sortOrder: r.sortOrder,
     core: isCoreKey(r.key),
+    systemRequired: isSystemRequiredKey(r.key),
   }));
 }
 

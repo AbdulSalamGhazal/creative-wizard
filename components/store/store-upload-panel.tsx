@@ -185,6 +185,17 @@ export function StoreUploadPanel({
                 </span>
               </p>
             )}
+          {/* Blank UTM sources / channels are INFORMATION, not a problem —
+              plenty of orders genuinely have neither. Deliberately neutral:
+              plain text, no warn tint, no icon. */}
+          {stage.report.summary.blankCounts.length > 0 && (
+            <p className="mt-1.5 text-[11px] text-ink-3">
+              {int(stage.report.summary.total)} rows ·{" "}
+              {stage.report.summary.blankCounts
+                .map((b) => `${int(b.count)} without a ${b.label.toLowerCase()}`)
+                .join(" · ")}
+            </p>
+          )}
           {stage.report.summary.ignoredColumns.length > 0 && (
             <p className="mt-1.5 text-[11px] text-ink-3">
               Ignored columns:{" "}

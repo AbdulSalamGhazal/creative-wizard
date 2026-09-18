@@ -6,11 +6,12 @@ import { reconciliationFiltersSchema } from "@/validators/store";
 import {
   reconciliationOverview,
   reconciliationByPlatform,
-  getStoreSourceFieldKey,
+  reconciliationByChannel,
   platformDataHorizons,
   type ReconPlatform,
 } from "@/db/queries/reconciliation";
 import { ReconciliationView } from "@/components/store/reconciliation-view";
+import { STORE_SOURCE_FIELD_KEY } from "@/store/fields";
 import { resolveIncludeExcluded } from "@/db/queries/user-prefs";
 
 export const dynamic = "force-dynamic";
@@ -44,15 +45,16 @@ export default async function ReconciliationPage({
   const user = await auth();
   const canConfig = user ? can(user, "config.store") : false;
 
-  const [includeExcluded, sourceFieldKey] = await Promise.all([
-    // Effective Excluded state for the ads side (URL param → saved pref → hidden).
-    resolveIncludeExcluded(pick(sp.includeExcluded)),
-    getStoreSourceFieldKey(),
-  ]);
+  // Effective Excluded state for the ads side (URL param → saved pref → hidden).
+  const includeExcluded = await resolveIncludeExcluded(pick(sp.includeExcluded));
 
-  const [overview, byPlatformResult, horizons] = await Promise.all([
+  const [overview, byPlatformResult, byChannelResult, horizons] = await Promise.all([
     reconciliationOverview(f.from, f.to, includeExcluded),
-    reconciliationByPlatform(sourceFieldKey, f.from, f.to, includeExcluded),
+    // The source field is PINNED to utm_source — the picker is retired.
+    reconciliationByPlatform(STORE_SOURCE_FIELD_KEY, f.from, f.to, includeExcluded),
+    // ONE added scan: the claimed side of the Channels view is merged from the
+    // overview rows above rather than re-queried.
+    reconciliationByChannel(f.from, f.to),
     platformDataHorizons(),
   ]);
   const byPlatform = byPlatformResult.rows;
@@ -61,6 +63,7 @@ export default async function ReconciliationPage({
   // produced. It used to run a separate DISTINCT over every order the brand had
   // ever uploaded — unbounded, and only ever used to render a count.
   const unmappedCount = byPlatformResult.unmappedValues.length;
+  const unmappedChannelCount = byChannelResult.unmappedValues.length;
 
   const horizonDays = Object.values(horizons).filter(Boolean) as string[];
   const maxHorizon = horizonDays.length
@@ -72,7 +75,7 @@ export default async function ReconciliationPage({
       <PageHeader
         eyebrow="Store"
         title="Reconciliation"
-        subtitle="Store order counts vs platform-claimed conversions, per day. Counts only — no revenue comparison."
+        subtitle="Store order counts vs platform-claimed conversions, per day. Counts only — no revenue comparison. Platform pixels largely see website purchases, so Δ excl. app is the honest attribution gap and Application explains the rest."
       />
       <ReconciliationView
         from={f.from ?? null}
@@ -80,10 +83,12 @@ export default async function ReconciliationPage({
         includeExcluded={includeExcluded}
         overview={overview}
         byPlatform={byPlatform}
+        byChannel={byChannelResult.rows}
         platforms={[...platformEnum] as ReconPlatform[]}
-        sourceConfigured={sourceFieldKey !== null}
+        sourceConfigured
         maxHorizon={maxHorizon}
         unmappedCount={unmappedCount}
+        unmappedChannelCount={unmappedChannelCount}
         canConfig={canConfig}
       />
     </PageShell>

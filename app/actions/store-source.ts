@@ -3,23 +3,22 @@
 import { revalidatePath } from "next/cache";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { accounts, storeSourceMappings } from "@/db/schema";
+import { storeSourceMappings } from "@/db/schema";
 import { requirePermission } from "@/lib/auth";
 import { getActiveAccountId } from "@/lib/tenant";
-import { listStoreFields } from "@/db/queries/store";
 import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
-import {
-  storeSourceFieldSchema,
-  storeSourceMappingSchema,
-} from "@/validators/store";
+import { storeSourceMappingSchema } from "@/validators/store";
 import { actionError } from "@/lib/action-error";
 
 /**
- * Config for the Store → Reconciliation source mapping (permission
- * `config.store`). Picks which custom store field holds an order's traffic
- * source, and maps each raw source value to an ad platform (or "not an ad
- * platform"). Explicit mapping only — never auto-matched. Audited as
+ * Config for the Store → Reconciliation SOURCE mapping (permission
+ * `config.store`): each raw `utm_source` value → an ad platform, or "not an ad
+ * platform". Explicit mapping only — never auto-matched. Audited as
  * `store.source_mapping_update`.
+ *
+ * The "which field is the source?" picker was RETIRED in 2026-09: the source is
+ * always `utm_source` (a system-required field), so there is nothing to pick.
+ * `accounts.store_source_field_key` is backfilled to it and no longer read.
  */
 
 export interface SourceConfigResult {
@@ -33,44 +32,6 @@ function revalidateSafe() {
     revalidatePath("/store/reconciliation");
   } catch (err) {
     console.warn("revalidatePath after source-mapping change failed:", err);
-  }
-}
-
-/** Set (or clear, with null) the account's reconciliation source field. */
-export async function setStoreSourceField(
-  input: unknown,
-): Promise<SourceConfigResult> {
-  try {
-    const me = await requirePermission("config.store");
-    const parsed = storeSourceFieldSchema.safeParse(input);
-    if (!parsed.success) {
-      return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
-    }
-    const acct = await getActiveAccountId();
-    const { fieldKey } = parsed.data;
-
-    // A source field must be one of THIS account's custom (non-core) fields.
-    if (fieldKey !== null) {
-      const fields = await listStoreFields();
-      const ok = fields.some((f) => !f.core && f.key === fieldKey);
-      if (!ok) return { ok: false, error: "That field doesn't exist." };
-    }
-
-    await db
-      .update(accounts)
-      .set({ storeSourceFieldKey: fieldKey })
-      .where(eq(accounts.id, acct));
-
-    revalidateSafe();
-    await logAudit({
-      action: AUDIT_ACTIONS.STORE_SOURCE_MAPPING_UPDATE,
-      entityType: "store",
-      actorUserId: me.id,
-      meta: { op: "set_field", fieldKey },
-    });
-    return { ok: true };
-  } catch (err) {
-    return { ok: false, error: actionError(err, "store_source") };
   }
 }
 

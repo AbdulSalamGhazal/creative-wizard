@@ -727,6 +727,20 @@ This app is deployed and in production use. Treat `main` as shippable.
     the old per-row `UserRoleSelect` + `updateUserRole` were removed — the card's
     preset selector supersedes them.)
 
+- **SYSTEM-REQUIRED store fields (2026-09) — a THIRD tier.** `utm_source` and
+  `channel` (`SYSTEM_REQUIRED_KEYS` in `store/fields.ts`) exist in every account,
+  can't be deleted, and can't have `required` switched off — enforced SERVER-side
+  in `app/actions/store-field.ts`, not just hidden in the UI. They are NOT core:
+  core stays exactly the three identity columns, and these two live in
+  `attributes` jsonb like any other custom field. Label + accepted headers stay
+  editable. **"Required" means the COLUMN must be present in every upload
+  (S010) — blank CELLS are fine**: plenty of orders genuinely have no UTM, so the
+  pipeline COUNTS blanks per field (`blankCounts`) and the upload review states
+  it in neutral prose ("1,240 rows · 312 without a UTM source"), with no warning
+  styling. An ordinary required custom field still errors on a blank (S042) —
+  the two tiers differ on purpose. `createAccount` seeds all five rows (3 core +
+  these 2); migration 0046 promotes an existing field KEEPING its label and
+  headers, or seeds it where missing.
 - **Store → Reconciliation is COUNTS ONLY, by explicit user decision (2026-08).**
   `/store/reconciliation` compares store ORDER COUNTS vs platform-claimed
   CONVERSION counts per day — Δ = store − claimed. There is deliberately **no
@@ -736,10 +750,27 @@ This app is deployed and in production use. Treat `main` as shippable.
   other. Do **not** add a revenue/ROAS comparison without asking — it was
   explicitly scoped out. Δ% is warn-tinted by |magnitude| (over- and under-claim
   are both discrepancies — not good/bad green/red), and "—" when store = 0.
-  **Attribution is EXPLICIT-mapping only** (house rule): each order's source =
-  a configured custom field (`accounts.store_source_field_key`), whose raw values
-  map to a platform (or "not an ad platform") via `store_source_mappings`
-  (unique `(account_id, raw_value)`; unmapped/empty/not-ad → Unattributed). Never
+  **Attribution is EXPLICIT-mapping only** (house rule), on TWO axes since
+  2026-09 (migration 0046) and nothing else is configurable:
+  (1) **utm_source → platform** via `store_source_mappings`; the "which field is
+  the source?" PICKER IS RETIRED — the source is always `utm_source`, pinned in
+  code as `STORE_SOURCE_FIELD_KEY`, with `accounts.store_source_field_key`
+  backfilled to it and NO LONGER READ (a kept-dead column, like
+  `store_order_fields.show_in_table`).
+  (2) **channel → Website | Application** via `store_channel_mappings` (unique
+  `(account_id, raw_value)`; app-side enum, no DB enum). Unmapped/blank on either
+  axis stays its own visible bucket — Unattributed for sources, Unmapped for
+  channels — and is NEVER folded into a neighbour.
+  **The page has THREE views (toggle FIRST in the controls row): Overview ·
+  Platforms · Channels.** Channels shows, per day: Store total · Website ·
+  Application · Unmapped (column only when > 0) · Claimed (all platforms) ·
+  **Δ incl. app** = (Website + Application) − claimed · **Δ excl. app** =
+  Website − claimed, each Δ% warn-tinted by |magnitude|. Rationale, stated on the
+  page: platform pixels largely see WEBSITE purchases, so Δ excl. app is the
+  honest attribution gap and Application explains the rest. **Invariant
+  (test-pinned): Website + Application + Unmapped = Store total every day** —
+  buckets reconcile by construction via the unique mapping, exactly like
+  platforms. Never
   auto-match source values. Buckets reconcile by construction (unique mapping →
   no fan-out → per-platform + unattributed = overview count). Pure Δ/Δ%/lag math
   lives in `lib/reconciliation.ts`; queries in `db/queries/reconciliation.ts`

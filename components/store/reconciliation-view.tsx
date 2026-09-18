@@ -34,9 +34,11 @@ import { ExcludedParamToggle } from "@/components/filters/excluded-param-toggle"
 import type {
   ReconOverviewRow,
   ReconByPlatformRow,
+  ReconByChannelRow,
 } from "@/db/queries/reconciliation";
+import { CHANNEL_LABEL, channelDeltas } from "@/store/channels";
 
-type Mode = "overview" | "platform";
+type Mode = "overview" | "platform" | "channel";
 type PlatformKey = keyof typeof PLATFORM_COLOR;
 
 interface Props {
@@ -46,12 +48,15 @@ interface Props {
   includeExcluded: boolean;
   overview: ReconOverviewRow[];
   byPlatform: ReconByPlatformRow[];
+  byChannel: ReconByChannelRow[];
   platforms: PlatformKey[];
   sourceConfigured: boolean;
   /** Latest ads data day across platforms, for the attribution-lag marker. */
   maxHorizon: string | null;
   /** Distinct source values present in data but not yet mapped. */
   unmappedCount: number;
+  /** Distinct raw CHANNEL values in range with no mapping row. */
+  unmappedChannelCount: number;
   canConfig: boolean;
 }
 
@@ -69,10 +74,12 @@ export function ReconciliationView({
   includeExcluded,
   overview,
   byPlatform,
+  byChannel,
   platforms,
   sourceConfigured,
   maxHorizon,
   unmappedCount,
+  unmappedChannelCount,
   canConfig,
 }: Props) {
   const router = useRouter();
@@ -363,7 +370,7 @@ export function ReconciliationView({
         ];
       });
       downloadCsv(`reconciliation-overview-${todayStamp()}.csv`, matrixToCsv(head, lines));
-    } else {
+    } else if (mode === "platform") {
       const head = ["Day"];
       for (const p of platforms) {
         head.push(`${PLATFORM_LABEL[p]} orders`, `${PLATFORM_LABEL[p]} claimed`, `${PLATFORM_LABEL[p]} Δ`);
@@ -380,10 +387,73 @@ export function ReconciliationView({
         return cells;
       });
       downloadCsv(`reconciliation-by-platform-${todayStamp()}.csv`, matrixToCsv(head, lines));
+    } else {
+      const head = [
+        "Day",
+        "Store total",
+        "Website",
+        "Application",
+        ...(showUnmappedChannel ? ["Unmapped"] : []),
+        "Claimed",
+        "Delta incl. app",
+        "Delta incl. app %",
+        "Delta excl. app",
+        "Delta excl. app %",
+      ];
+      const lines = byChannel.map((r) => {
+        const claimed = claimedByDay.get(r.day) ?? 0;
+        const d = channelDeltas({ website: r.website, application: r.application, claimed });
+        const inclPct = reconDeltaPct(r.website + r.application, claimed);
+        const exclPct = reconDeltaPct(r.website, claimed);
+        return [
+          r.day,
+          r.storeOrders,
+          r.website,
+          r.application,
+          ...(showUnmappedChannel ? [r.unmapped] : []),
+          claimed,
+          d.inclApp,
+          inclPct === null ? "" : (inclPct * 100).toFixed(1),
+          d.exclApp,
+          exclPct === null ? "" : (exclPct * 100).toFixed(1),
+        ];
+      });
+      downloadCsv(`reconciliation-by-channel-${todayStamp()}.csv`, matrixToCsv(head, lines));
     }
   }
 
-  const empty = mode === "overview" ? overview.length === 0 : byPlatform.length === 0;
+  const empty =
+    mode === "overview"
+      ? overview.length === 0
+      : mode === "platform"
+        ? byPlatform.length === 0
+        : byChannel.length === 0;
+
+  /** Claimed conversions per day (all platforms) — the Channels view's right
+   *  side, taken from the overview rows the page already fetched rather than
+   *  re-scanning the ads table. */
+  const claimedByDay = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const r of overview) m.set(r.day, r.platformConv);
+    return m;
+  }, [overview]);
+
+  const channelTotals = useMemo(() => {
+    let website = 0;
+    let application = 0;
+    let unmappedOrders = 0;
+    let claimed = 0;
+    for (const r of byChannel) {
+      website += r.website;
+      application += r.application;
+      unmappedOrders += r.unmapped;
+      claimed += claimedByDay.get(r.day) ?? 0;
+    }
+    return { website, application, unmapped: unmappedOrders, claimed };
+  }, [byChannel, claimedByDay]);
+
+  /** The Unmapped column only exists when there's something in it. */
+  const showUnmappedChannel = channelTotals.unmapped > 0;
 
   return (
     <div className="space-y-4">
@@ -391,8 +461,8 @@ export function ReconciliationView({
       <div className="sticky top-14 z-10 -mx-6 flex flex-wrap items-center justify-between gap-2 border-b border-line bg-background/95 px-6 py-2 backdrop-blur">
         <DateRangePicker from={from} to={to} onChange={setRange} />
         <div className="flex items-center gap-2">
-          <ExcludedParamToggle on={includeExcluded} />
           <ModeToggle mode={mode} onChange={setMode} />
+          <ExcludedParamToggle on={includeExcluded} />
           {mode === "overview" && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -496,6 +566,32 @@ export function ReconciliationView({
         </div>
       )}
 
+      {/* Unmapped-CHANNEL hint — date-bounded, like the source one above. */}
+      {mode === "channel" && unmappedChannelCount > 0 && (
+        <div className="rounded-md border border-warn/30 bg-warn/[0.06] px-3 py-2 text-xs text-ink-2">
+          {int(unmappedChannelCount)} channel value
+          {unmappedChannelCount === 1 ? "" : "s"} in your orders{" "}
+          {unmappedChannelCount === 1 ? "is" : "are"} unmapped — those orders sit
+          in their own Unmapped column and count toward neither delta.{" "}
+          {canConfig ? (
+            <Link href="/store/uploads?tab=fields" className="underline hover:text-ink">
+              Configure
+            </Link>
+          ) : (
+            <span className="text-ink-3">Ask an admin to configure the mapping.</span>
+          )}
+        </div>
+      )}
+
+      {mode === "channel" && byChannel.length > 0 && (
+        <p className="text-xs text-ink-3">
+          Platform pixels largely see WEBSITE purchases, so{" "}
+          <span className="text-ink-2">Δ excl. app</span> is the honest
+          attribution gap — Application explains the rest. Counts only, never
+          revenue.
+        </p>
+      )}
+
       {mode === "overview" ? (
         <DataTable<ReconOverviewRow>
           columns={columns}
@@ -509,6 +605,18 @@ export function ReconciliationView({
           minWidthClass="min-w-[640px]"
           empty={<EmptyState />}
         />
+      ) : mode === "channel" ? (
+        byChannel.length === 0 ? (
+          <EmptyState />
+        ) : (
+          <ByChannelTable
+            rows={byChannel}
+            claimedByDay={claimedByDay}
+            lag={lag}
+            totals={channelTotals}
+            showUnmapped={showUnmappedChannel}
+          />
+        )
       ) : !sourceConfigured ? (
         <NotConfigured canConfig={canConfig} />
       ) : byPlatform.length === 0 ? (
@@ -549,9 +657,170 @@ function ModeToggle({ mode, onChange }: { mode: Mode; onChange: (m: Mode) => voi
       onChange={onChange}
       options={[
         { value: "overview", label: "Overview" },
-        { value: "platform", label: "By platform" },
+        { value: "platform", label: "Platforms" },
+        { value: "channel", label: "Channels" },
       ]}
     />
+  );
+}
+
+/**
+ * The CHANNELS table: where purchases happened, against what platforms claim.
+ * Counts only, like everything on this page.
+ *
+ * Website + Application + Unmapped == Store total for every row, BY
+ * CONSTRUCTION — the channel mapping is unique per raw value, so each order
+ * lands in exactly one bucket. Unmapped is never absorbed into a delta: those
+ * orders are not evidence about either side.
+ */
+function ByChannelTable({
+  rows,
+  claimedByDay,
+  lag,
+  totals,
+  showUnmapped,
+}: {
+  rows: ReconByChannelRow[];
+  claimedByDay: Map<string, number>;
+  lag: (day: string) => boolean;
+  totals: { website: number; application: number; unmapped: number; claimed: number };
+  showUnmapped: boolean;
+}) {
+  const totalStore = totals.website + totals.application + totals.unmapped;
+  const totalDeltas = channelDeltas({
+    website: totals.website,
+    application: totals.application,
+    claimed: totals.claimed,
+  });
+
+  return (
+    <div className="overflow-x-auto rounded-lg border border-line bg-surface">
+      <table className="w-full min-w-[860px] border-collapse text-sm num">
+        <thead className="sticky top-0 z-20 bg-surface">
+          <tr className="border-b border-line text-label text-ink-3">
+            <th className="sticky left-0 z-30 bg-surface px-3 py-2 text-left">Day</th>
+            <th className="border-l border-line px-3 py-2 text-right">Store total</th>
+            <th className="px-3 py-2 text-right">{CHANNEL_LABEL.website}</th>
+            <th className="px-3 py-2 text-right">{CHANNEL_LABEL.application}</th>
+            {showUnmapped && <th className="px-3 py-2 text-right">Unmapped</th>}
+            <th className="border-l border-line px-3 py-2 text-right">Claimed</th>
+            <th
+              className="border-l border-line px-3 py-2 text-right"
+              title="(Website + Application) − claimed"
+            >
+              Δ incl. app
+            </th>
+            <th
+              className="px-3 py-2 text-right"
+              title="Website − claimed — the honest attribution gap for pixel-based claims"
+            >
+              Δ excl. app
+            </th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-line">
+          {rows.map((r) => {
+            const claimed = claimedByDay.get(r.day) ?? 0;
+            const d = channelDeltas({
+              website: r.website,
+              application: r.application,
+              claimed,
+            });
+            const inclPct = reconDeltaPct(r.website + r.application, claimed);
+            const exclPct = reconDeltaPct(r.website, claimed);
+            return (
+              <tr key={r.day} className="hover:bg-surface-2/50">
+                <td className="sticky left-0 z-10 bg-surface px-3 py-2 text-left">
+                  <DayCell day={r.day} isLag={lag(r.day)} />
+                </td>
+                <td className="border-l border-line px-3 py-2 text-right tabular-nums">
+                  {int(r.storeOrders)}
+                </td>
+                <td className="px-3 py-2 text-right tabular-nums">{int(r.website)}</td>
+                <td className="px-3 py-2 text-right tabular-nums">
+                  {int(r.application)}
+                </td>
+                {showUnmapped && (
+                  <td className="px-3 py-2 text-right tabular-nums text-ink-3">
+                    {int(r.unmapped)}
+                  </td>
+                )}
+                <td className="border-l border-line px-3 py-2 text-right tabular-nums">
+                  {int(claimed)}
+                </td>
+                <DeltaCells value={d.inclApp} pct={inclPct} bordered />
+                <DeltaCells value={d.exclApp} pct={exclPct} />
+              </tr>
+            );
+          })}
+        </tbody>
+        <tfoot className="sticky bottom-0 z-20 border-t border-line bg-surface text-ink">
+          <tr>
+            <th className="sticky left-0 z-30 bg-surface px-3 py-2 text-left text-label text-ink-3">
+              Total
+            </th>
+            <td className="border-l border-line px-3 py-2 text-right tabular-nums">
+              {int(totalStore)}
+            </td>
+            <td className="px-3 py-2 text-right tabular-nums">{int(totals.website)}</td>
+            <td className="px-3 py-2 text-right tabular-nums">
+              {int(totals.application)}
+            </td>
+            {showUnmapped && (
+              <td className="px-3 py-2 text-right tabular-nums text-ink-3">
+                {int(totals.unmapped)}
+              </td>
+            )}
+            <td className="border-l border-line px-3 py-2 text-right tabular-nums">
+              {int(totals.claimed)}
+            </td>
+            <DeltaCells
+              value={totalDeltas.inclApp}
+              pct={reconDeltaPct(totals.website + totals.application, totals.claimed)}
+              bordered
+            />
+            <DeltaCells
+              value={totalDeltas.exclApp}
+              pct={reconDeltaPct(totals.website, totals.claimed)}
+            />
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  );
+}
+
+/**
+ * One Δ cell: the signed count with its Δ% beneath, warn-tinted by MAGNITUDE
+ * (never good/bad — both directions are discrepancies). "—" when the store side
+ * is 0, since a percentage of zero is undefined.
+ */
+function DeltaCells({
+  value,
+  pct,
+  bordered = false,
+}: {
+  value: number;
+  pct: number | null;
+  bordered?: boolean;
+}) {
+  return (
+    <td
+      className={cn(
+        "px-3 py-2 text-right tabular-nums",
+        bordered && "border-l border-line",
+      )}
+    >
+      <span className="block">{value > 0 ? `+${int(value)}` : int(value)}</span>
+      <span
+        className={cn(
+          "block text-[11px]",
+          reconDeltaTone(pct) === "warn" ? "text-warn" : "text-ink-3",
+        )}
+      >
+        {pct === null ? "—" : signedPct(pct)}
+      </span>
+    </td>
   );
 }
 
