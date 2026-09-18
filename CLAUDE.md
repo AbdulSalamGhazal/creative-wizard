@@ -315,8 +315,21 @@ This app is deployed and in production use. Treat `main` as shippable.
   real default state — never a numeric 0, never auto-set). Field/validator/label
   are all `priority` (`prioritySchema` in `validators/creative.ts`); it's edited
   inline on the detail header (3 lucide `Star` icons, warn-amber fill) via the
-  normal draft/Save flow and shown ONLY there (no list/summary/CSV/filter — out
-  of scope by decision). Migration 0028 (additive, no index). **Rate** is a
+  normal draft/Save flow. Migration 0028 (additive, no index).
+  **SUPERSEDED 2026-09 — Priority is now VISIBLE, SORTABLE and FILTERABLE.** The
+  old "detail page only, no list/summary/CSV/filter" scope was reversed by the
+  user. It now appears on **Library** (a column of filled stars, sortable, a
+  3 · 2 · 1 · Unrated filter) and **Ads/Summary** (with the pinned creative-
+  identity columns — NEVER inside a per-platform metric group, since priority is
+  a per-creative field — sortable, same filter, hideable like its sibling
+  identity columns); both CSVs carry it, with unrated as an EMPTY cell. Shared
+  vocabulary lives in `lib/priority.ts`; the read-only star display is
+  `components/creative/priority-stars.tsx`. **UNRATED SORTS LAST IN BOTH
+  DIRECTIONS** (`comparePriority`) — an absence of judgment is not a low one, so
+  Postgres' default NULL placement is overridden (`NULLS LAST` in the Library's
+  SQL sort, a JS re-sort on Summary where the base order is spend). The Ads
+  filter pill uses a FLAG icon, not a star: `Star` already means **Rate** in that
+  bar, and these two must never read as one thing. **Rate** is a
   totally different, COMPUTED concept — the ROAS-driven performance chips
   (`rating_rules` / `lib/rating.ts` / Summary "Rate" filter). Rule: **Rate =
   computed performance; Priority = manual judgment.** The word "rating" must

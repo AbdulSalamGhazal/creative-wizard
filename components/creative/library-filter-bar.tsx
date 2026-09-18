@@ -5,6 +5,7 @@ import {
   ChevronDown,
   CircleDot,
   LayoutGrid,
+  Flag,
   MonitorSmartphone,
   Package,
   Shapes,
@@ -44,6 +45,11 @@ import {
   type CreativeView,
 } from "@/validators/creative";
 import { CREATIVE_STATUSES, STATUS_LABEL } from "@/lib/creative-status";
+import {
+  PRIORITY_FILTER_LABEL,
+  PRIORITY_FILTER_VALUES,
+  type PriorityFilterValue,
+} from "@/lib/priority";
 import { ViewsControl } from "@/components/summary/views-control";
 import type { SummaryViewRow } from "@/db/queries/summary-views";
 import { ExcludedParamToggle } from "@/components/filters/excluded-param-toggle";
@@ -93,6 +99,8 @@ const SORT_LABEL: Record<CreativeSort, string> = {
   "spend7-asc": "7-day spend (low→high)",
   "spend-desc": "30-day spend (high→low)",
   "spend-asc": "30-day spend (low→high)",
+  "priority-desc": "Priority (high→low)",
+  "priority-asc": "Priority (low→high)",
   "created-desc": "Recently added",
 };
 
@@ -118,6 +126,7 @@ export function LibraryFilterBar({ products, angles, views, currentUserId, isAdm
   const statuses = csvParam(searchParams.get("statuses"));
   const platforms = csvParam(searchParams.get("platforms"));
   const selectedAngles = csvParam(searchParams.get("angles"));
+  const priorities = csvParam(searchParams.get("priorities"));
   const sortParam = (searchParams.get("sort") ?? "launched-desc") as CreativeSort;
   const sort = creativeSortValues.includes(sortParam) ? sortParam : "launched-desc";
   const viewParam = (searchParams.get("view") ?? "table") as CreativeView;
@@ -195,6 +204,7 @@ export function LibraryFilterBar({ products, angles, views, currentUserId, isAdm
     productIds.length > 0 ||
     types.length > 0 ||
     statuses.length > 0 ||
+    priorities.length > 0 ||
     platforms.length > 0 ||
     selectedAngles.length > 0;
 
@@ -203,6 +213,7 @@ export function LibraryFilterBar({ products, angles, views, currentUserId, isAdm
     (productIds.length > 0 ? 1 : 0) +
     (types.length > 0 ? 1 : 0) +
     (statuses.length > 0 ? 1 : 0) +
+    (priorities.length > 0 ? 1 : 0) +
     (platforms.length > 0 ? 1 : 0) +
     (selectedAngles.length > 0 ? 1 : 0);
 
@@ -212,6 +223,7 @@ export function LibraryFilterBar({ products, angles, views, currentUserId, isAdm
       next.delete("productIds");
       next.delete("types");
       next.delete("statuses");
+      next.delete("priorities");
       next.delete("platforms");
       next.delete("angles");
     });
@@ -234,8 +246,8 @@ export function LibraryFilterBar({ products, angles, views, currentUserId, isAdm
     />
   );
 
-  // Dimension pills in canonical order (Products → Type → Status → Platforms →
-  // Angles). Rendered inline on desktop and stacked full-width in the mobile Sheet.
+  // Dimension pills in canonical order (Products → Type → Status → Priority →
+  // Platforms → Angles). Rendered inline on desktop and stacked full-width in the mobile Sheet.
   const dimensionControls = (fullWidth: boolean) => (
     <>
       <FilterPill
@@ -319,6 +331,36 @@ export function LibraryFilterBar({ products, angles, views, currentUserId, isAdm
                 onCheckedChange={() => toggleMulti("statuses", s.value, statuses)}
               >
                 {s.label}
+              </DropdownMenuCheckboxItem>
+            ))}
+          </DropdownMenuContent>
+        )}
+      </FilterPill>
+
+      <FilterPill
+        icon={Flag}
+        label="Priority"
+        value={
+          priorities.length === 0
+            ? "Any"
+            : priorities.length === 1
+              ? (PRIORITY_FILTER_LABEL[priorities[0] as PriorityFilterValue] ?? "1")
+              : `${priorities.length} selected`
+        }
+        active={priorities.length > 0}
+        fullWidth={fullWidth}
+      >
+        {() => (
+          <DropdownMenuContent align="start" className="w-44">
+            <DropdownMenuLabel>Priority</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            {PRIORITY_FILTER_VALUES.map((v) => (
+              <DropdownMenuCheckboxItem
+                key={v}
+                checked={priorities.includes(v)}
+                onCheckedChange={() => toggleMulti("priorities", v, priorities)}
+              >
+                {PRIORITY_FILTER_LABEL[v]}
               </DropdownMenuCheckboxItem>
             ))}
           </DropdownMenuContent>

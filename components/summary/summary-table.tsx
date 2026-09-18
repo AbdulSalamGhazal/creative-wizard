@@ -27,6 +27,7 @@ import {
 import { StatusSquare } from "@/components/creative/status-badge";
 import { DownloadCsvButton } from "@/components/ui/download-csv-button";
 import { rowsToCsv, todayStamp, type CsvColumn } from "@/lib/csv-export";
+import { PriorityStars } from "@/components/creative/priority-stars";
 import type { PlatformStatus } from "@/lib/creative-status";
 
 interface Props {
@@ -305,6 +306,9 @@ export function SummaryTable({
     { key: "name", label: "Creative" },
     { key: "product", label: "Product", hideKey: "product" },
     { key: "type", label: "Type", hideKey: "type" },
+    // Priority is a per-CREATIVE field, so it belongs with the pinned identity
+    // columns — never inside a per-platform metric group.
+    { key: "priority", label: "Priority", hideKey: "priority" },
     { key: "launch", label: "Launch date", hideKey: "launch" },
     { key: "creator", label: "Creator", hideKey: "creator" },
   ];
@@ -363,11 +367,14 @@ export function SummaryTable({
             ? r.productName
             : c.key === "type"
               ? r.type
-              : c.key === "launch"
-                ? r.launchDate
-                : c.key === "creator"
-                  ? r.creatorName
-                  : null,
+              : c.key === "priority"
+                ? // Unrated stays an EMPTY cell — never 0.
+                  (r.priority ?? "")
+                : c.key === "launch"
+                  ? r.launchDate
+                  : c.key === "creator"
+                    ? r.creatorName
+                    : null,
       })),
     { key: "status", label: "Status", value: (r: SummaryRow) => r.generalStatus },
     { key: "angles", label: "Angles", value: (r: SummaryRow) => r.angles.join(" | ") },
@@ -572,6 +579,15 @@ export function SummaryTable({
                         className="px-3 py-2 text-ink-2 whitespace-nowrap capitalize"
                       >
                         {r.type}
+                      </td>
+                    );
+                  case "priority":
+                    return (
+                      <td
+                        key="priority"
+                        className="px-3 py-2 whitespace-nowrap"
+                      >
+                        <PriorityStars value={r.priority} />
                       </td>
                     );
                   case "launch":

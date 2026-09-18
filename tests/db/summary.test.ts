@@ -81,3 +81,57 @@ describe("listCreativeSummary()", () => {
     expect(res.rows.some((r) => r.name === "A-Creative-1")).toBe(true);
   });
 });
+
+describe("Ads Priority — a per-creative column, sorted and filtered", () => {
+  beforeEach(async () => {
+    await resetAndSeed();
+    vi.mocked(getActiveAccountId).mockResolvedValue(ACCOUNT_A);
+    await db.update(creatives).set({ priority: 2 }).where(eq(creatives.name, "A-Creative-1"));
+    await db.update(creatives).set({ priority: null }).where(eq(creatives.name, "A-Creative-2"));
+  });
+
+  it("carries priority on every row", async () => {
+    const res = await listCreativeSummary({ platforms: ["instagram", "facebook"] });
+    expect(res.rows.find((r) => r.name === "A-Creative-1")?.priority).toBe(2);
+    expect(res.rows.find((r) => r.name === "A-Creative-2")?.priority).toBeNull();
+  });
+
+  it("sorts unrated LAST in BOTH directions", async () => {
+    const desc = await listCreativeSummary({
+      platforms: ["instagram", "facebook"],
+      sort: "priority",
+      dir: "desc",
+    });
+    expect(desc.rows.map((r) => r.priority)).toEqual([2, null]);
+    expect(desc.effectiveSort).toEqual({ key: "priority", dir: "desc" });
+
+    const asc = await listCreativeSummary({
+      platforms: ["instagram", "facebook"],
+      sort: "priority",
+      dir: "asc",
+    });
+    expect(asc.rows.map((r) => r.priority)).toEqual([2, null]);
+  });
+
+  it("filters by value and by Unrated", async () => {
+    const rated = await listCreativeSummary({
+      platforms: ["instagram", "facebook"],
+      priorities: ["2"],
+    });
+    expect(rated.rows.map((r) => r.name)).toEqual(["A-Creative-1"]);
+
+    const unrated = await listCreativeSummary({
+      platforms: ["instagram", "facebook"],
+      priorities: ["unrated"],
+    });
+    expect(unrated.rows.map((r) => r.name)).toEqual(["A-Creative-2"]);
+
+    // ANDs with the other filters like any plain dimension.
+    const withType = await listCreativeSummary({
+      platforms: ["instagram", "facebook"],
+      priorities: ["2"],
+      types: ["image"],
+    });
+    expect(withType.rows).toHaveLength(0);
+  });
+});

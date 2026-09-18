@@ -124,13 +124,28 @@ export function ok(
   brand: Account,
   range: RangeEcho | null,
   data: Record<string, unknown>,
+  excluded?: ExcludedEcho,
 ): ToolResult {
   const payload = {
     brand: { id: brand.id, name: brand.name },
     range,
+    ...(excluded ? { excluded_records: excluded } : {}),
     ...data,
   };
   return { content: [{ type: "text", text: JSON.stringify(payload) }] };
+}
+
+/**
+ * Whether records marked `excluded_from_aggregates` were counted in THIS
+ * result. Every tool whose numbers come from performance aggregates echoes it,
+ * because the app's default is to hide them — and a connected LLM that can't
+ * see which convention produced a number will eventually explain a gap that
+ * isn't there.
+ */
+export type ExcludedEcho = "hidden" | "included";
+
+export function excludedEcho(includeExcluded: boolean | undefined): ExcludedEcho {
+  return includeExcluded ? "included" : "hidden";
 }
 
 /** An error tool result (isError) — the LLM sees the message and can adjust. */

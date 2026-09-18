@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { creativeTypeEnum, platformEnum } from "@/db/schema";
 import { CREATIVE_STATUSES } from "@/lib/creative-status";
+import { PRIORITY_FILTER_VALUES } from "@/lib/priority";
 
 // Initial sketch; see docs/prd.md §5.1.
 // The creative attribute set is expected to evolve during development.
@@ -107,6 +108,8 @@ export const creativeSortValues = [
   "spend7-asc",
   "spend-desc",
   "spend-asc",
+  "priority-desc",
+  "priority-asc",
   "created-desc",
 ] as const;
 export type CreativeSort = (typeof creativeSortValues)[number];
@@ -127,6 +130,8 @@ export const creativeListFiltersSchema = z.object({
   // Keep only creatives with performance data on the selected platform(s).
   platforms: csvEnum(platformEnum),
   angles: csvString(),
+  // Manual Priority: 3 · 2 · 1 · Unrated (a first-class choice, not an absence).
+  priorities: csvEnum(PRIORITY_FILTER_VALUES),
   sort: z.enum(creativeSortValues).catch("launched-desc"),
   // Table is the default view; "grid" is the opt-in (carried as ?view=grid).
   view: z.enum(creativeViewValues).catch("table"),

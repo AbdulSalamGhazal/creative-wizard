@@ -6,6 +6,7 @@ import {
   eq,
   ilike,
   inArray,
+  or,
   sql,
   type SQL,
 } from "drizzle-orm";
@@ -54,6 +55,7 @@ import {
   type RatingConfig,
 } from "@/lib/rating";
 import { getActiveAccountId } from "@/lib/tenant";
+import { comparePriority, splitPriorityFilter } from "@/lib/priority";
 import { creativeStatusMap, statusFor } from "@/db/queries/creative-status";
 import {
   STATUS_ORDER,
@@ -82,6 +84,8 @@ export interface SummaryFilterInput {
   types?: CreativeType[];
   angles?: string[];
   creatorIds?: string[];
+  /** Priority filter tokens: "3" | "2" | "1" | "unrated". */
+  priorities?: string[];
   includeExcluded?: boolean;
   sort?: string;
   dir?: SortDir;
@@ -126,6 +130,8 @@ export interface SummaryRow {
   perPlatformStatus: Partial<Record<Platform, PlatformStatus>>;
   creatorName: string | null;
   creatorEmail: string | null;
+  /** Manual Priority (1..3, 3 = highest); null = unrated. */
+  priority: number | null;
   /** Manual launch date (`creatives.launch_date`), null when not set. */
   launchDate: string | null;
   angles: string[];
@@ -153,6 +159,7 @@ const IDENTITY_SORT_KEYS = new Set([
   "product",
   "type",
   "status",
+  "priority",
   "creator",
   "launch",
 ]);
@@ -239,6 +246,11 @@ function orderBySql(
         // Dynamic general status can't be a SQL sort (it's derived in JS). Give
         // SQL a neutral stable base (spend desc); the JS re-sort below applies
         // the real STATUS_ORDER ordering. Mirrors the rate-sort handling.
+        return sumSpend;
+      case "priority":
+        // Unrated must sort LAST in BOTH directions, which no single SQL
+        // direction gives — the JS re-sort below does it (same shape as the
+        // rate/status sorts). SQL only needs a stable base here.
         return sumSpend;
       case "creator":
         return users.name;
@@ -496,6 +508,16 @@ export async function listCreativeSummary(
   if (filters.creatorIds && filters.creatorIds.length > 0) {
     whereConds.push(inArray(creatives.createdByUserId, filters.creatorIds));
   }
+  if (filters.priorities && filters.priorities.length > 0) {
+    const { numbers, unrated } = splitPriorityFilter(filters.priorities);
+    const wanted: SQL[] = [];
+    if (numbers.length > 0) wanted.push(inArray(creatives.priority, numbers));
+    // "Unrated" is a selectable value — `IN (…)` never matches a NULL.
+    if (unrated) wanted.push(sql`${creatives.priority} IS NULL`);
+    if (wanted.length > 0) {
+      whereConds.push(wanted.length === 1 ? wanted[0]! : or(...wanted)!);
+    }
+  }
   if (filters.angles && filters.angles.length > 0) {
     // Restrict to creatives that have at least one of the named angles.
     // EXISTS keeps it as a row-level predicate so we don't fan-out on the
@@ -522,6 +544,7 @@ export async function listCreativeSummary(
   const select: Record<string, PgColumn | SQL<unknown>> = {
     creativeId: creatives.id,
     name: creatives.name,
+    priority: creatives.priority,
     productId: products.id,
     productName: products.name,
     type: creatives.type,
@@ -578,9 +601,11 @@ export async function listCreativeSummary(
   // Per-platform status sort ("<platform>.status") — derived in JS like rate
   // and the general status, so SQL only needs a neutral base order.
   const isPlatformStatusSort = resolved.key.endsWith(".status");
+  // Priority: rated first in the chosen direction, unrated always last.
+  const isPrioritySort = resolved.key === "priority";
   const isIdentitySort = IDENTITY_SORT_KEYS.has(resolved.key);
   const baseOrderExpr =
-    isRateSort || isStatusSort || isPlatformStatusSort
+    isRateSort || isStatusSort || isPlatformStatusSort || isPrioritySort
       ? sumSpend
       : orderBySql(resolved.key, selectedPlatforms, metricsByPlatform);
   // Null metrics must sort as 0 globally (a creative with no clicks has cpc =
@@ -605,6 +630,7 @@ export async function listCreativeSummary(
       products.id,
       products.name,
       creatives.type,
+      creatives.priority,
       users.name,
       users.email,
     )
@@ -680,6 +706,7 @@ export async function listCreativeSummary(
       generalStatus: dyn.general,
       perPlatformStatus: dyn.perPlatform,
       creatorName: (r.creatorName as string | null) ?? null,
+      priority: (r.priority as number | null) ?? null,
       creatorEmail: (r.creatorEmail as string | null) ?? null,
       launchDate: (r.launchDate as string | null) ?? null,
       angles: anglesByCreative.get(r.creativeId as string) ?? [],
@@ -783,6 +810,17 @@ export async function listCreativeSummary(
       const sb = STATUS_ORDER[b.generalStatus];
       if (sa !== sb) return (sa - sb) * factor;
       return a.name.localeCompare(b.name);
+    });
+  }
+
+  // Priority sort — rated creatives in the chosen direction, UNRATED ALWAYS
+  // LAST (an absence of judgment, not a low one). Same JS re-sort shape as the
+  // rate/status sorts; the SQL base order was spend desc.
+  if (isPrioritySort) {
+    const dir = resolved.dir === "asc" ? 1 : -1;
+    filteredRows = [...filteredRows].sort((a, b) => {
+      const d = comparePriority(a.priority, b.priority, dir);
+      return d !== 0 ? d : a.name.localeCompare(b.name);
     });
   }
 

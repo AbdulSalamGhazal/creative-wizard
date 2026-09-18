@@ -27,6 +27,7 @@ import type { CreativeSort } from "@/validators/creative";
 import { getActiveAccountId } from "@/lib/tenant";
 import { creativeStatusMap, statusFor } from "@/db/queries/creative-status";
 import { STATUS_ORDER, type CreativeStatus } from "@/lib/creative-status";
+import { splitPriorityFilter } from "@/lib/priority";
 
 type CreativeType = (typeof creativeTypeEnum)[number];
 type Platform = (typeof platformEnum)[number];
@@ -39,6 +40,8 @@ export interface CreativeListFilters {
   /** Keep only creatives with ≥1 performance record on these platforms. */
   platforms?: Platform[];
   angles?: string[];
+  /** Priority filter tokens: "3" | "2" | "1" | "unrated". */
+  priorities?: string[];
   sort: CreativeSort;
   limit?: number;
   /** Count excluded records into the 7d/30d spend windows (default: hidden). */
@@ -160,6 +163,15 @@ export async function listCreatives(
                   WHERE ct.creative_id = ${creatives.id}
                     AND ct.angle IN ${filters.angles})`,
     );
+  }
+  if (filters.priorities && filters.priorities.length > 0) {
+    const { numbers, unrated } = splitPriorityFilter(filters.priorities);
+    const wanted: SQL[] = [];
+    if (numbers.length > 0) wanted.push(inArray(creatives.priority, numbers));
+    // "Unrated" is a selectable value, so it has to match NULL explicitly —
+    // `IN (…)` never matches a NULL.
+    if (unrated) wanted.push(sql`${creatives.priority} IS NULL`);
+    if (wanted.length > 0) conditions.push(wanted.length === 1 ? wanted[0]! : or(...wanted)!);
   }
   // The platform filter NEVER narrows the list (one platform or several). It
   // only scopes the status (and the 7d/30d spend columns) to the selected
@@ -345,6 +357,12 @@ function orderByForSort(sort: CreativeSort): SQL[] {
              WHERE ${creativeAngles.creativeId} = ${creatives.id}) DESC NULLS LAST`,
         asc(creatives.name),
       ];
+    // Unrated sorts LAST in BOTH directions — it's an absence of judgment,
+    // not a low one (Postgres would put NULLs first on DESC by default).
+    case "priority-desc":
+      return [sql`${creatives.priority} DESC NULLS LAST`, asc(creatives.name)];
+    case "priority-asc":
+      return [sql`${creatives.priority} ASC NULLS LAST`, asc(creatives.name)];
     case "spend7-desc":
       return [sql`spend_7d DESC NULLS LAST`, asc(creatives.name)];
     case "spend7-asc":

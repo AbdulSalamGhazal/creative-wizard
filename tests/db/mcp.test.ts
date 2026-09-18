@@ -153,6 +153,51 @@ describe("MCP tools — brand scoping for a restricted user", () => {
     expect(res.content[0]!.text).toMatch(/Unknown brand|allowed brands/i);
   });
 
+  it("echoes the exclusion state, and include_excluded changes the numbers", async () => {
+    const tools = loadTools();
+    const call = (args: Record<string, unknown>) =>
+      runWithMcpActor({ user: restricted, tokenId: "t" }, () =>
+        tools.get("get_kpis")!(args, {}),
+      );
+
+    // Default: the app's convention — excluded records are HIDDEN, and the
+    // envelope says so rather than leaving the caller to guess.
+    const hidden = parse(await call({}));
+    expect(hidden.excluded_records).toBe("hidden");
+    expect(hidden.totals.spend).toBe(400);
+
+    // Opting in counts the fixture's excluded 1,000 row.
+    const included = parse(await call({ include_excluded: true }));
+    expect(included.excluded_records).toBe("included");
+    expect(included.totals.spend).toBe(1400);
+  });
+
+  it("every aggregate tool echoes excluded_records; non-aggregate tools stay quiet", async () => {
+    const tools = loadTools();
+    const echo = async (name: string, args: Record<string, unknown> = {}) =>
+      parse(
+        await runWithMcpActor({ user: restricted, tokenId: "t" }, () =>
+          tools.get(name)!(args, {}),
+        ),
+      ).excluded_records;
+
+    const range = { from: "2026-01-01", to: "2026-01-31" };
+    expect(await echo("get_kpis")).toBe("hidden");
+    expect(await echo("list_creatives")).toBe("hidden");
+    expect(await echo("list_campaigns")).toBe("hidden");
+    expect(await echo("get_summary")).toBe("hidden");
+    // These callbacks are invoked directly, so the SDK's schema parsing — and
+    // with it every zod `.default()` — hasn't run: pass what a real call would
+    // have been given.
+    expect(await echo("get_timeseries", { dimension: "platform" })).toBe("hidden");
+    expect(await echo("get_funnel", range)).toBe("hidden");
+    expect(await echo("get_summary", { include_excluded: true })).toBe("included");
+
+    // Brand list and data freshness read no aggregates — no noise added there.
+    expect(await echo("list_brands")).toBeUndefined();
+    expect(await echo("get_data_freshness")).toBeUndefined();
+  });
+
   it("allowedAccountsForUser mirrors the scoping (belt-and-braces)", async () => {
     const brands = await allowedAccountsForUser(restricted);
     expect(brands.map((b) => b.id)).toEqual([ACCOUNT_A]);

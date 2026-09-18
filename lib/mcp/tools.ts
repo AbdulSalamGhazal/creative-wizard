@@ -35,6 +35,7 @@ import {
   currentActor,
   withBrand,
   ok,
+  excludedEcho,
   capRows,
   McpToolError,
   type RangeEcho,
@@ -53,7 +54,7 @@ import {
 
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
 const CONVENTIONS =
-  "Money is USD. Dates are YYYY-MM-DD. Blended metrics (CTR, ROAS, CPA, CvR, VOC, CPM) are weighted from component sums, never averaged.";
+  "Money is USD. Dates are YYYY-MM-DD. Blended metrics (CTR, ROAS, CPA, CvR, VOC, CPM) are weighted from component sums, never averaged. Records marked excluded-from-aggregates are HIDDEN by default (the app's default view); pass include_excluded: true to count them. Every result echoes `excluded_records` so you never have to guess which convention produced a number.";
 
 /**
  * BREAKING CHANGE (2026-09): the creative-labeling concept "tag" was renamed
@@ -95,6 +96,19 @@ const productIdsField = z
   .optional()
   .describe("Restrict to these product ids.");
 const anglesField = z.array(z.string()).optional().describe("Restrict to these angles.");
+/**
+ * The exclusion lever, on every tool whose numbers come from performance
+ * aggregates. It threads into the SAME `includeExcluded` flag the pages use —
+ * the `excluded_from_aggregates = false` WHERE convention is never bypassed by
+ * hand here any more than it is there.
+ */
+const includeExcludedField = z
+  .boolean()
+  .optional()
+  .default(false)
+  .describe(
+    "Include records marked excluded-from-aggregates. Default false, matching the app's default view.",
+  );
 
 function rangeEcho(from?: string, to?: string): RangeEcho {
   return { from: from ?? null, to: to ?? null };
@@ -144,6 +158,7 @@ export function registerMcpTools(server: McpServer): void {
         productIds: productIdsField,
         types: typesField,
         angles: anglesField,
+        include_excluded: includeExcludedField,
       },
     },
     async (args) =>
@@ -155,6 +170,7 @@ export function registerMcpTools(server: McpServer): void {
           productIds: args.productIds,
           types: args.types,
           angles: args.angles,
+          includeExcluded: args.include_excluded,
         };
         const [k, mix] = await Promise.all([kpis(filters), platformMix(filters)]);
         return ok(brand, rangeEcho(args.from, args.to), {
@@ -181,7 +197,7 @@ export function registerMcpTools(server: McpServer): void {
             roas: r2(m.roas),
             ctr: m.ctr,
           })),
-        });
+        }, excludedEcho(args.include_excluded));
       }),
   );
 
@@ -201,6 +217,7 @@ export function registerMcpTools(server: McpServer): void {
         angles: anglesField,
         q: z.string().optional().describe("Search name/notes/angles (substring)."),
         platforms: platformsField,
+        include_excluded: includeExcludedField,
       },
     },
     async (args) =>
@@ -213,6 +230,8 @@ export function registerMcpTools(server: McpServer): void {
           q: args.q,
           platforms: args.platforms,
           sort: "spend-desc",
+          // Drives the 7d/30d spend windows on every row.
+          includeExcluded: args.include_excluded,
         };
         const result = await listCreatives(filters);
         const { rows, truncated } = capRows(result.rows);
@@ -231,7 +250,7 @@ export function registerMcpTools(server: McpServer): void {
             spend30d: r2(c.spend30d),
             launchDate: c.launchDate,
           })),
-        });
+        }, excludedEcho(args.include_excluded));
       }),
   );
 
@@ -245,6 +264,7 @@ export function registerMcpTools(server: McpServer): void {
         name: z.string().describe("Exact creative name."),
         from: fromField,
         to: toField,
+        include_excluded: includeExcludedField,
       },
     },
     async (args) =>
@@ -252,7 +272,12 @@ export function registerMcpTools(server: McpServer): void {
         const creative = await getCreativeByName(args.name);
         if (!creative) throw new McpToolError(`No creative named "${args.name}".`);
         const [mix, statusMap] = await Promise.all([
-          campaignMix({ creativeIds: [creative.id], from: args.from, to: args.to }),
+          campaignMix({
+            creativeIds: [creative.id],
+            from: args.from,
+            to: args.to,
+            includeExcluded: args.include_excluded,
+          }),
           creativeStatusMap([creative.id]),
         ]);
         const status = statusFor(statusMap, creative.id);
@@ -279,7 +304,7 @@ export function registerMcpTools(server: McpServer): void {
             roas: r2(m.roas),
             ctr: m.ctr,
           })),
-        });
+        }, excludedEcho(args.include_excluded));
       }),
   );
 
@@ -293,6 +318,7 @@ export function registerMcpTools(server: McpServer): void {
         from: fromField,
         to: toField,
         platforms: platformsField,
+        include_excluded: includeExcludedField,
       },
     },
     async (args) =>
@@ -302,6 +328,7 @@ export function registerMcpTools(server: McpServer): void {
           from: range.from,
           to: range.to,
           platforms: args.platforms,
+          includeExcluded: args.include_excluded,
         };
         const all = await portfolioCampaigns(filters);
         const { rows, truncated } = capRows(all);
@@ -323,7 +350,7 @@ export function registerMcpTools(server: McpServer): void {
             ctr: c.ctr,
             lastDate: c.lastDate,
           })),
-        });
+        }, excludedEcho(args.include_excluded));
       }),
   );
 
@@ -337,6 +364,7 @@ export function registerMcpTools(server: McpServer): void {
         name: z.string().describe("Exact campaign name (as in list_campaigns)."),
         from: fromField,
         to: toField,
+        include_excluded: includeExcludedField,
       },
     },
     async (args) =>
@@ -345,8 +373,8 @@ export function registerMcpTools(server: McpServer): void {
         if (!meta) throw new McpToolError(`No campaign named "${args.name}".`);
         const range = { from: args.from, to: args.to };
         const [analytics, daily, registry] = await Promise.all([
-          campaignAnalytics(args.name, range),
-          campaignDailyByCreative(args.name, range),
+          campaignAnalytics(args.name, range, args.include_excluded),
+          campaignDailyByCreative(args.name, range, args.include_excluded),
           campaignRegistry(args.name),
         ]);
         let status: string | null = null;
@@ -374,7 +402,7 @@ export function registerMcpTools(server: McpServer): void {
             revenue: r2(d.conversionValue),
             roas: r2(d.roas),
           })),
-        });
+        }, excludedEcho(args.include_excluded));
       }),
   );
 
@@ -391,6 +419,7 @@ export function registerMcpTools(server: McpServer): void {
         types: typesField,
         angles: anglesField,
         q: z.string().optional().describe("Search creatives (substring)."),
+        include_excluded: includeExcludedField,
       },
     },
     async (args) =>
@@ -403,6 +432,7 @@ export function registerMcpTools(server: McpServer): void {
           platforms: args.platforms,
           types: args.types,
           angles: args.angles,
+          includeExcluded: args.include_excluded,
           ratingConfig,
         });
         const { rows, truncated } = capRows(result.rows);
@@ -431,7 +461,7 @@ export function registerMcpTools(server: McpServer): void {
               ]),
             ),
           })),
-        });
+        }, excludedEcho(args.include_excluded));
       }),
   );
 
@@ -450,6 +480,7 @@ export function registerMcpTools(server: McpServer): void {
           .describe("Break the series down by platform (default) or campaign."),
         platforms: platformsField,
         productIds: productIdsField,
+        include_excluded: includeExcludedField,
       },
     },
     async (args) =>
@@ -459,6 +490,7 @@ export function registerMcpTools(server: McpServer): void {
           to: args.to,
           platforms: args.platforms,
           productIds: args.productIds,
+          includeExcluded: args.include_excluded,
         };
         const dimension: BreakdownDimension = args.dimension;
         const series = await metricOverTime(filters, dimension);
@@ -475,7 +507,7 @@ export function registerMcpTools(server: McpServer): void {
             cpa: r2(p.cpa),
             roas: r2(p.roas),
           })),
-        });
+        }, excludedEcho(args.include_excluded));
       }),
   );
 
@@ -490,6 +522,7 @@ export function registerMcpTools(server: McpServer): void {
         to: z.string().regex(ISO).describe("End date (YYYY-MM-DD). Required."),
         platforms: platformsField,
         productIds: productIdsField,
+        include_excluded: includeExcludedField,
       },
     },
     async (args) =>
@@ -499,6 +532,7 @@ export function registerMcpTools(server: McpServer): void {
           to: args.to,
           platforms: args.platforms,
           productIds: args.productIds,
+          includeExcluded: args.include_excluded,
         });
         const c = overview.current;
         return ok(brand, rangeEcho(args.from, args.to), {
@@ -520,7 +554,7 @@ export function registerMcpTools(server: McpServer): void {
             purchaseRate: c.purchaseRate,
             cvr: c.cvr,
           },
-        });
+        }, excludedEcho(args.include_excluded));
       }),
   );
 

@@ -8,6 +8,7 @@ import { DownloadCsvButton } from "@/components/ui/download-csv-button";
 import type { CreativeListRow } from "@/db/queries/creatives";
 import type { CreativeSort } from "@/validators/creative";
 import { StatusBadge } from "@/components/creative/status-badge";
+import { PriorityStars } from "@/components/creative/priority-stars";
 import { STATUS_LABEL } from "@/lib/creative-status";
 import { rowsToCsv, todayStamp, type CsvColumn } from "@/lib/csv-export";
 import { isoDate, usd } from "@/lib/format";
@@ -56,6 +57,7 @@ const SORTS = {
   status: { asc: "status-asc", desc: "status-desc" },
   angle: { asc: "angle-asc", desc: "angle-desc" },
   launched: { asc: "launched-asc", desc: "launched-desc" },
+  priority: { asc: "priority-asc", desc: "priority-desc" },
   spend7: { asc: "spend7-asc", desc: "spend7-desc" },
   spend30: { asc: "spend-asc", desc: "spend-desc" },
 } satisfies Record<string, { asc: CreativeSort; desc: CreativeSort }>;
@@ -190,6 +192,7 @@ export function CreativeTable({
               />
               <SortableTh label="Type" state={sortState("type")} />
               <SortableTh label="Status" state={sortState("status")} />
+              <SortableTh label="Priority" state={sortState("priority")} />
               <SortableTh label="Launch date" state={sortState("launched")} />
               <SortableTh label="7d spend" state={sortState("spend7")} numeric />
               <SortableTh label="30d spend" state={sortState("spend30")} numeric />
@@ -227,6 +230,9 @@ export function CreativeTable({
                 <td className="px-3 py-2.5 text-ink-2">{TYPE_LABEL[r.type]}</td>
                 <td className="px-3 py-2.5">
                   <StatusBadge status={r.status} />
+                </td>
+                <td className="px-3 py-2.5">
+                  <PriorityStars value={r.priority} />
                 </td>
                 <td className="px-3 py-2.5 text-ink-2">
                   {r.launchDate ? isoDate(r.launchDate) : "—"}

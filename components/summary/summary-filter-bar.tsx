@@ -3,6 +3,7 @@
 import {
   Activity,
   Columns3,
+  Flag,
   Layers,
   Package,
   Shapes,
@@ -53,6 +54,11 @@ import {
   type CreativeStatus,
 } from "@/lib/creative-status";
 import { PLATFORM_LABEL } from "@/lib/palette";
+import {
+  PRIORITY_FILTER_LABEL,
+  PRIORITY_FILTER_VALUES,
+  type PriorityFilterValue,
+} from "@/lib/priority";
 import { platformEnum, creativeTypeEnum } from "@/db/schema";
 import { MetricFilterControl } from "@/components/summary/metric-filter";
 import { ViewsControl } from "@/components/summary/views-control";
@@ -101,6 +107,7 @@ const PLATFORMS_NONE = "none";
 const IDENTITY_LABELS: Record<IdentityColumnKey, string> = {
   product: "Product",
   type: "Type",
+  priority: "Priority",
   creator: "Creator",
   launch: "Launch date",
 };
@@ -156,6 +163,7 @@ export function SummaryFilterBar({
         : csv(rawPlatforms).slice(0, MAX_PLATFORMS);
   const productIds = csv(searchParams.get("productIds"));
   const types = csv(searchParams.get("types"));
+  const priorities = csv(searchParams.get("priorities"));
   const selectedAngles = csv(searchParams.get("angles"));
   // Effective Excluded state: explicit URL param wins, else the saved
   // per-user preference the server resolved into `includeExcludedDefault`.
@@ -382,6 +390,7 @@ export function SummaryFilterBar({
     urlQ.length > 0 ||
     productIds.length > 0 ||
     types.length > 0 ||
+    priorities.length > 0 ||
     selectedAngles.length > 0 ||
     // A platform filter is "active" only when the URL explicitly sets it — the
     // default (no param) resolves `platforms` to all 5, so `platforms.length`
@@ -400,6 +409,7 @@ export function SummaryFilterBar({
     (from || to ? 1 : 0) +
     (productIds.length > 0 ? 1 : 0) +
     (types.length > 0 ? 1 : 0) +
+    (priorities.length > 0 ? 1 : 0) +
     (selectedAngles.length > 0 ? 1 : 0) +
     (rateRatings.length > 0 ? 1 : 0) +
     (statusValues.length > 0 ? 1 : 0) +
@@ -412,6 +422,7 @@ export function SummaryFilterBar({
         "q",
         "productIds",
         "types",
+        "priorities",
         "angles",
         "creatorIds",
         "platforms",
@@ -588,6 +599,39 @@ export function SummaryFilterBar({
                   onSelect={(e) => e.preventDefault()}
                 >
                   {t.label}
+                </DropdownMenuCheckboxItem>
+              ))}
+            </DropdownMenuContent>
+          )}
+        </FilterPill>
+
+        {/* Priority — the team's MANUAL judgment (distinct from Rate, which is
+            computed). Star stays Rate's icon here; this pill takes the flag. */}
+        <FilterPill
+          fullWidth={inSheet}
+          icon={Flag}
+          label="Priority"
+          value={
+            priorities.length === 0
+              ? "Any"
+              : priorities.length === 1
+                ? (PRIORITY_FILTER_LABEL[priorities[0] as PriorityFilterValue] ?? "1")
+                : `${priorities.length} selected`
+          }
+          active={priorities.length > 0}
+        >
+          {() => (
+            <DropdownMenuContent align="start" className="w-44">
+              <DropdownMenuLabel>Priority</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {PRIORITY_FILTER_VALUES.map((v) => (
+                <DropdownMenuCheckboxItem
+                  key={v}
+                  checked={priorities.includes(v)}
+                  onCheckedChange={() => toggleMulti("priorities", v, priorities)}
+                  onSelect={(e) => e.preventDefault()}
+                >
+                  {PRIORITY_FILTER_LABEL[v]}
                 </DropdownMenuCheckboxItem>
               ))}
             </DropdownMenuContent>
