@@ -335,6 +335,37 @@ This app is deployed and in production use. Treat `main` as shippable.
   computed performance; Priority = manual judgment.** The word "rating" must
   NEVER name the Priority feature, and "stars" is only the UI metaphor (the icon)
   — it appears nowhere in the schema/code.
+- **Stage (2026-09) — the creative's MANUAL funnel declaration. A STANDING
+  DECISION.** `creatives.stages text[] NOT NULL DEFAULT '{}'` (migration 0045,
+  additive, GIN index — it's filtered by OVERLAP): any 1, 2 or all 3 of
+  **Awareness · Activation · Retargeting**. Empty = **unassigned**, a real
+  default state.
+  - **NEVER auto-derived.** Not from the campaign objective a creative happens
+    to run under, not from where it spends. It is the team saying where the
+    creative sits, and nothing may infer it for them.
+  - **A DIFFERENT AXIS from the campaign Objective and the Budget buckets.** A
+    creative declared Retargeting can spend inside an Awareness campaign, and
+    that mismatch is INFORMATION, not an error — never "fix" it, never warn on
+    it, never reconcile the two.
+  - **One vocabulary, `lib/funnel-stages.ts`** (`FUNNEL_STAGES` / `STAGE_SHORT`
+    / `stageLabel` / `sortStages` / `compareStages`), derived from
+    `BUDGET_OBJECTIVES` minus "Other" and RE-EXPORTED by `lib/audience.ts` —
+    hoisted there so the creative and audience sides share one definition.
+    Never re-list the stage names (not in SQL either: the Library and Summary
+    stage sorts run in JS through `compareStages` rather than encoding the
+    funnel order in an ORDER BY).
+  - **Sort rule: by the EARLIEST stage in funnel order, UNASSIGNED LAST in both
+    directions** ({Awareness, Retargeting} ranks as Awareness). Same shape as
+    Priority's unrated-last rule.
+  - **Filter semantics: OVERLAP** — a creative matches if ANY selected stage is
+    on it; "Unassigned" matches the empty array. Surfaces: the detail header
+    (toggle chips in the draft/Save flow), the create form, bulk import (a
+    `stage`/`stages` column, full names or TOF/MOF/BOF), Library + Ads columns
+    (compact TOF/MOF/BOF chips, sortable, filterable, in both CSVs), and MCP
+    (`list_creatives`/`get_creative` output + a `stages` filter).
+  - **Naming discipline, like Priority ≠ Rate:** **"Stage" is the CREATIVE's
+    field; "Objective" stays campaigns-only; "bucket" is Budget's.** Don't let
+    the three words drift into each other.
 - **Theming = one axis, FOUR THEMES** — two dark (**Midnight** default /
   **Contrast**) + two light (**Frost** cool blue-white / **Paper** warm cream).
   (2026-07: slimmed from eight — Slate/Carbon/Ocean/Sand/Rose were deleted and

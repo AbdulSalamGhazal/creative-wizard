@@ -9,6 +9,7 @@ import type { CreativeListRow } from "@/db/queries/creatives";
 import type { CreativeSort } from "@/validators/creative";
 import { StatusBadge } from "@/components/creative/status-badge";
 import { PriorityStars } from "@/components/creative/priority-stars";
+import { StageChips } from "@/components/creative/stage-chips";
 import { STATUS_LABEL } from "@/lib/creative-status";
 import { rowsToCsv, todayStamp, type CsvColumn } from "@/lib/csv-export";
 import { isoDate, usd } from "@/lib/format";
@@ -32,6 +33,8 @@ export const CSV_COLUMNS: CsvColumn<CreativeListRow>[] = [
   { key: "status", label: "Status", value: (r) => STATUS_LABEL[r.status] },
   // Unrated stays an EMPTY cell — never 0.
   { key: "priority", label: "Priority", value: (r) => r.priority ?? "" },
+  // Full names, comma-joined; unassigned is an empty cell.
+  { key: "stages", label: "Stage", value: (r) => r.stages.join(", ") },
   { key: "launchDate", label: "Launch date", value: (r) => r.launchDate ?? "" },
   { key: "angles", label: "Angles", value: (r) => r.angles.join(", ") },
   { key: "sourceLink", label: "Source link", value: (r) => r.sourceLink ?? "" },
@@ -58,6 +61,7 @@ const SORTS = {
   angle: { asc: "angle-asc", desc: "angle-desc" },
   launched: { asc: "launched-asc", desc: "launched-desc" },
   priority: { asc: "priority-asc", desc: "priority-desc" },
+  stage: { asc: "stage-asc", desc: "stage-desc" },
   spend7: { asc: "spend7-asc", desc: "spend7-desc" },
   spend30: { asc: "spend-asc", desc: "spend-desc" },
 } satisfies Record<string, { asc: CreativeSort; desc: CreativeSort }>;
@@ -193,6 +197,7 @@ export function CreativeTable({
               <SortableTh label="Type" state={sortState("type")} />
               <SortableTh label="Status" state={sortState("status")} />
               <SortableTh label="Priority" state={sortState("priority")} />
+              <SortableTh label="Stage" state={sortState("stage")} />
               <SortableTh label="Launch date" state={sortState("launched")} />
               <SortableTh label="7d spend" state={sortState("spend7")} numeric />
               <SortableTh label="30d spend" state={sortState("spend30")} numeric />
@@ -233,6 +238,9 @@ export function CreativeTable({
                 </td>
                 <td className="px-3 py-2.5">
                   <PriorityStars value={r.priority} />
+                </td>
+                <td className="px-3 py-2.5">
+                  <StageChips stages={r.stages} />
                 </td>
                 <td className="px-3 py-2.5 text-ink-2">
                   {r.launchDate ? isoDate(r.launchDate) : "—"}

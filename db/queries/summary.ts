@@ -56,6 +56,11 @@ import {
 } from "@/lib/rating";
 import { getActiveAccountId } from "@/lib/tenant";
 import { comparePriority, splitPriorityFilter } from "@/lib/priority";
+import {
+  compareStages,
+  sortStages,
+  splitStageFilter,
+} from "@/lib/funnel-stages";
 import { creativeStatusMap, statusFor } from "@/db/queries/creative-status";
 import {
   STATUS_ORDER,
@@ -86,6 +91,8 @@ export interface SummaryFilterInput {
   creatorIds?: string[];
   /** Priority filter tokens: "3" | "2" | "1" | "unrated". */
   priorities?: string[];
+  /** Stage filter tokens: a FUNNEL_STAGES value, or "unassigned". OVERLAP. */
+  stages?: string[];
   includeExcluded?: boolean;
   sort?: string;
   dir?: SortDir;
@@ -132,6 +139,8 @@ export interface SummaryRow {
   creatorEmail: string | null;
   /** Manual Priority (1..3, 3 = highest); null = unrated. */
   priority: number | null;
+  /** Manual funnel stage(s), in funnel order; empty = unassigned. */
+  stages: string[];
   /** Manual launch date (`creatives.launch_date`), null when not set. */
   launchDate: string | null;
   angles: string[];
@@ -160,6 +169,7 @@ const IDENTITY_SORT_KEYS = new Set([
   "type",
   "status",
   "priority",
+  "stage",
   "creator",
   "launch",
 ]);
@@ -246,6 +256,10 @@ function orderBySql(
         // Dynamic general status can't be a SQL sort (it's derived in JS). Give
         // SQL a neutral stable base (spend desc); the JS re-sort below applies
         // the real STATUS_ORDER ordering. Mirrors the rate-sort handling.
+        return sumSpend;
+      case "stage":
+        // Ranked by the EARLIEST stage with unassigned last — the JS re-sort
+        // below owns that; SQL only needs a stable base.
         return sumSpend;
       case "priority":
         // Unrated must sort LAST in BOTH directions, which no single SQL
@@ -508,6 +522,18 @@ export async function listCreativeSummary(
   if (filters.creatorIds && filters.creatorIds.length > 0) {
     whereConds.push(inArray(creatives.createdByUserId, filters.creatorIds));
   }
+  if (filters.stages && filters.stages.length > 0) {
+    const { stages, unassigned } = splitStageFilter(filters.stages);
+    const wanted: SQL[] = [];
+    // OVERLAP — any selected stage on the creative matches.
+    if (stages.length > 0) {
+      wanted.push(sql`${creatives.stages} && ${sql.param(stages)}::text[]`);
+    }
+    if (unassigned) wanted.push(sql`cardinality(${creatives.stages}) = 0`);
+    if (wanted.length > 0) {
+      whereConds.push(wanted.length === 1 ? wanted[0]! : or(...wanted)!);
+    }
+  }
   if (filters.priorities && filters.priorities.length > 0) {
     const { numbers, unrated } = splitPriorityFilter(filters.priorities);
     const wanted: SQL[] = [];
@@ -545,6 +571,7 @@ export async function listCreativeSummary(
     creativeId: creatives.id,
     name: creatives.name,
     priority: creatives.priority,
+    stages: creatives.stages,
     productId: products.id,
     productName: products.name,
     type: creatives.type,
@@ -603,9 +630,15 @@ export async function listCreativeSummary(
   const isPlatformStatusSort = resolved.key.endsWith(".status");
   // Priority: rated first in the chosen direction, unrated always last.
   const isPrioritySort = resolved.key === "priority";
+  // Stage: earliest stage in funnel order, unassigned always last.
+  const isStageSort = resolved.key === "stage";
   const isIdentitySort = IDENTITY_SORT_KEYS.has(resolved.key);
   const baseOrderExpr =
-    isRateSort || isStatusSort || isPlatformStatusSort || isPrioritySort
+    isRateSort ||
+    isStatusSort ||
+    isPlatformStatusSort ||
+    isPrioritySort ||
+    isStageSort
       ? sumSpend
       : orderBySql(resolved.key, selectedPlatforms, metricsByPlatform);
   // Null metrics must sort as 0 globally (a creative with no clicks has cpc =
@@ -631,6 +664,7 @@ export async function listCreativeSummary(
       products.name,
       creatives.type,
       creatives.priority,
+      creatives.stages,
       users.name,
       users.email,
     )
@@ -707,6 +741,7 @@ export async function listCreativeSummary(
       perPlatformStatus: dyn.perPlatform,
       creatorName: (r.creatorName as string | null) ?? null,
       priority: (r.priority as number | null) ?? null,
+      stages: sortStages((r.stages as string[] | null) ?? []),
       creatorEmail: (r.creatorEmail as string | null) ?? null,
       launchDate: (r.launchDate as string | null) ?? null,
       angles: anglesByCreative.get(r.creativeId as string) ?? [],
@@ -820,6 +855,16 @@ export async function listCreativeSummary(
     const dir = resolved.dir === "asc" ? 1 : -1;
     filteredRows = [...filteredRows].sort((a, b) => {
       const d = comparePriority(a.priority, b.priority, dir);
+      return d !== 0 ? d : a.name.localeCompare(b.name);
+    });
+  }
+
+  // Stage sort — the SAME `compareStages` the Library uses, so a creative on
+  // {Awareness, Retargeting} ranks as Awareness on both surfaces.
+  if (isStageSort) {
+    const dir = resolved.dir === "asc" ? 1 : -1;
+    filteredRows = [...filteredRows].sort((a, b) => {
+      const d = compareStages(a.stages, b.stages, dir);
       return d !== 0 ? d : a.name.localeCompare(b.name);
     });
   }

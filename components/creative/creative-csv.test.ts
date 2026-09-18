@@ -25,6 +25,7 @@ const base: CreativeListRow = {
   spend7d: 1234.5,
   spend30d: 6789,
   priority: 2,
+  stages: ["Awareness", "Retargeting"],
   notes: 'Hook A, then B\nCTA: "buy now"',
   sourceLink: "https://example.com/ad?a=1,2",
   createdByName: "Salam Ghazal",
@@ -47,6 +48,7 @@ describe("Library CSV export columns", () => {
       "Type",
       "Status",
       "Priority",
+      "Stage",
       "Launch date",
       "Angles",
       "Source link",
@@ -68,6 +70,7 @@ describe("Library CSV export columns", () => {
       "Video", // display label, not the raw enum
       "Active",
       "2",
+      "Awareness, Retargeting", // full names, one cell, funnel order
       "2026-04-17",
       "launch, ugc, q4", // one cell, comma+space
       "https://example.com/ad?a=1,2",

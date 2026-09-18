@@ -3,6 +3,7 @@ import { platformEnum, creativeTypeEnum } from "@/db/schema";
 import { RATING_VALUES, type Rating } from "@/lib/rating";
 import { CREATIVE_STATUSES, type CreativeStatus } from "@/lib/creative-status";
 import { PRIORITY_FILTER_VALUES } from "@/lib/priority";
+import { STAGE_FILTER_VALUES } from "@/lib/funnel-stages";
 import { defaultDateRange } from "@/lib/date-presets";
 
 /**
@@ -45,6 +46,7 @@ export const IDENTITY_COLUMN_KEYS = [
   "product",
   "type",
   "priority",
+  "stage",
   "creator",
   "launch",
 ] as const;
@@ -313,6 +315,9 @@ export const summaryFiltersSchema = z.object({
   // Manual Priority filter: 3 · 2 · 1 · Unrated. ADDITIVE — absent means no
   // filter, so every saved view (whose config predates this) keeps parsing.
   priorities: csvEnum(PRIORITY_FILTER_VALUES),
+  // Manual Stage, OVERLAP semantics ("unassigned" matches an empty set).
+  // ADDITIVE — absent means no filter, so saved views keep parsing.
+  stages: csvEnum(STAGE_FILTER_VALUES),
   includeExcluded: z
     .string()
     .optional()

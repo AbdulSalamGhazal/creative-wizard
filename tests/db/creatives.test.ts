@@ -85,3 +85,65 @@ describe("Library Priority — sort and filter", () => {
     expect(all.totalMatching).toBe(2);
   });
 });
+
+describe("Library Stage — overlap filter and funnel-order sort", () => {
+  beforeEach(async () => {
+    await resetAndSeed();
+    setAccount(ACCOUNT_A);
+    // One creative spans two stages, the other is left UNASSIGNED.
+    await db
+      .update(creatives)
+      .set({ stages: ["Awareness", "Retargeting"] })
+      .where(eq(creatives.id, CREATIVE_1));
+    await db.update(creatives).set({ stages: [] }).where(eq(creatives.id, CREATIVE_2));
+  });
+
+  it("matches on OVERLAP — any selected stage on the creative", async () => {
+    const awareness = await listCreatives({ sort: "name-asc", stages: ["Awareness"] });
+    expect(awareness.rows.map((r) => r.id)).toEqual([CREATIVE_1]);
+
+    // The same creative matches on its OTHER stage too.
+    const retargeting = await listCreatives({ sort: "name-asc", stages: ["Retargeting"] });
+    expect(retargeting.rows.map((r) => r.id)).toEqual([CREATIVE_1]);
+
+    // A stage nobody carries matches nothing (rather than everything).
+    const activation = await listCreatives({ sort: "name-asc", stages: ["Activation"] });
+    expect(activation.rows).toHaveLength(0);
+
+    // Selecting both of a creative's stages returns it ONCE, not twice.
+    const both = await listCreatives({
+      sort: "name-asc",
+      stages: ["Awareness", "Retargeting"],
+    });
+    expect(both.rows.map((r) => r.id)).toEqual([CREATIVE_1]);
+  });
+
+  it("Unassigned matches the empty set, and combines with a stage", async () => {
+    const unassigned = await listCreatives({ sort: "name-asc", stages: ["unassigned"] });
+    expect(unassigned.rows.map((r) => r.id)).toEqual([CREATIVE_2]);
+
+    const either = await listCreatives({
+      sort: "name-asc",
+      stages: ["Awareness", "unassigned"],
+    });
+    expect(either.rows.map((r) => r.id).sort()).toEqual([CREATIVE_1, CREATIVE_2].sort());
+
+    // No filter = everything, and the count agrees.
+    const all = await listCreatives({ sort: "name-asc" });
+    expect(all.rows).toHaveLength(2);
+    expect(all.totalMatching).toBe(2);
+  });
+
+  it("reads back in funnel order, and sorts unassigned LAST both ways", async () => {
+    const desc = await listCreatives({ sort: "stage-desc" });
+    // Stored unordered; presented Awareness → Retargeting.
+    expect(desc.rows.find((r) => r.id === CREATIVE_1)?.stages).toEqual([
+      "Awareness",
+      "Retargeting",
+    ]);
+    expect(desc.rows.map((r) => r.id)).toEqual([CREATIVE_1, CREATIVE_2]);
+
+    const asc = await listCreatives({ sort: "stage-asc" });
+    expect(asc.rows.map((r) => r.id)).toEqual([CREATIVE_1, CREATIVE_2]);
+  });
+});

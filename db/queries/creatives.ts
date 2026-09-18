@@ -28,6 +28,12 @@ import { getActiveAccountId } from "@/lib/tenant";
 import { creativeStatusMap, statusFor } from "@/db/queries/creative-status";
 import { STATUS_ORDER, type CreativeStatus } from "@/lib/creative-status";
 import { splitPriorityFilter } from "@/lib/priority";
+import { compareStages, sortStages, splitStageFilter } from "@/lib/funnel-stages";
+
+/** Both stage sorts re-order in JS — one predicate, used in three places. */
+function isStageSort(sort: CreativeSort): boolean {
+  return sort === "stage-asc" || sort === "stage-desc";
+}
 
 type CreativeType = (typeof creativeTypeEnum)[number];
 type Platform = (typeof platformEnum)[number];
@@ -42,6 +48,8 @@ export interface CreativeListFilters {
   angles?: string[];
   /** Priority filter tokens: "3" | "2" | "1" | "unrated". */
   priorities?: string[];
+  /** Stage filter tokens: a FUNNEL_STAGES value, or "unassigned". OVERLAP. */
+  stages?: string[];
   sort: CreativeSort;
   limit?: number;
   /** Count excluded records into the 7d/30d spend windows (default: hidden). */
@@ -62,6 +70,8 @@ export interface CreativeListRow {
   spend30d: number;
   /** Manual Priority (1..3, 3 = highest); null = unrated. */
   priority: number | null;
+  /** Manual funnel stage(s), in funnel order; empty = unassigned. */
+  stages: string[];
   notes: string | null;
   sourceLink: string | null;
   /** Display name of the creator (joined from `users`), null if unresolvable. */
@@ -173,6 +183,18 @@ export async function listCreatives(
     if (unrated) wanted.push(sql`${creatives.priority} IS NULL`);
     if (wanted.length > 0) conditions.push(wanted.length === 1 ? wanted[0]! : or(...wanted)!);
   }
+  if (filters.stages && filters.stages.length > 0) {
+    const { stages, unassigned } = splitStageFilter(filters.stages);
+    const wanted: SQL[] = [];
+    // OVERLAP: a creative matches if ANY selected stage is on it. `&&` is what
+    // the GIN index on the column serves.
+    if (stages.length > 0) {
+      wanted.push(sql`${creatives.stages} && ${sql.param(stages)}::text[]`);
+    }
+    // "Unassigned" is a selectable value — an empty array, not a NULL.
+    if (unassigned) wanted.push(sql`cardinality(${creatives.stages}) = 0`);
+    if (wanted.length > 0) conditions.push(wanted.length === 1 ? wanted[0]! : or(...wanted)!);
+  }
   // The platform filter NEVER narrows the list (one platform or several). It
   // only scopes the status (and the 7d/30d spend columns) to the selected
   // platform(s): every creative still shows, and its status becomes the roll-up
@@ -205,6 +227,7 @@ export async function listCreatives(
       // Export-only fields (the on-screen table renders the same columns as
       // before) — the Library CSV exports the creative's full data.
       priority: creatives.priority,
+      stages: creatives.stages,
       notes: creatives.notes,
       sourceLink: creatives.sourceLink,
       createdAt: creatives.createdAt,
@@ -231,7 +254,10 @@ export async function listCreatives(
   // runs in JS AFTER the query, so a DB-side limit would slice BEFORE filtering
   // and both the rows and the "N of M" count would miss status-matching
   // creatives past the cap. With a status filter we fetch all and limit in JS.
-  const rows = await (filters.limit && !filters.statuses?.length
+  // A stage sort re-orders in JS (below), so a DB-side limit would slice the
+  // WRONG rows — same reason the status filter skips it.
+  const jsReorders = isStageSort(filters.sort);
+  const rows = await (filters.limit && !filters.statuses?.length && !jsReorders
     ? baseQuery.limit(filters.limit)
     : baseQuery);
 
@@ -278,6 +304,8 @@ export async function listCreatives(
     spend7d: r.spend7d === null ? 0 : Number(r.spend7d),
     spend30d: r.spend30d === null ? 0 : Number(r.spend30d),
     priority: r.priority,
+    // Stored unordered; presented in funnel order so every surface agrees.
+    stages: sortStages(r.stages ?? []),
     notes: r.notes,
     sourceLink: r.sourceLink,
     createdByName: r.createdByName,
@@ -305,6 +333,17 @@ export async function listCreatives(
     });
   }
 
+  // Stage sort runs in JS too: "earliest stage in funnel order, unassigned
+  // last in BOTH directions" is not something one SQL direction expresses, and
+  // `compareStages` is the shared rule (Summary uses the same one).
+  if (isStageSort(filters.sort)) {
+    const dir = filters.sort === "stage-asc" ? 1 : -1;
+    mapped.sort((a, b) => {
+      const d = compareStages(a.stages, b.stages, dir);
+      return d !== 0 ? d : a.name.localeCompare(b.name);
+    });
+  }
+
   const totalMatching = statusFiltered
     ? mapped.length
     : rows[0]
@@ -315,7 +354,9 @@ export async function listCreatives(
   // to the RETURNED rows here — totalMatching above already reflects the full
   // filtered count.
   const finalRows =
-    filters.limit && statusFiltered ? mapped.slice(0, filters.limit) : mapped;
+    filters.limit && (statusFiltered || isStageSort(filters.sort))
+      ? mapped.slice(0, filters.limit)
+      : mapped;
 
   return { rows: finalRows, totalMatching };
 }
@@ -342,6 +383,11 @@ function orderByForSort(sort: CreativeSort): SQL[] {
     // listCreatives re-sorts by the derived status rank in JS.
     case "status-asc":
     case "status-desc":
+    // Stage ranks by the EARLIEST stage with unassigned last, which needs the
+    // funnel order — re-sorted in JS rather than re-listing the stage names in
+    // SQL. Same stable base.
+    case "stage-asc":
+    case "stage-desc":
       return [asc(creatives.name)];
     case "angle-asc":
       // First angle alphabetically (MIN over the creative's angles); creatives
@@ -399,6 +445,8 @@ export interface CreativeDetail {
   launchDate: string | null;
   /** Manual Priority (1..3, 3 = highest); null = unrated. Distinct from Rate. */
   priority: number | null;
+  /** Manual funnel stage(s), in funnel order; empty = unassigned. */
+  stages: string[];
   notes: string | null;
   sourceLink: string | null;
   createdAt: Date;
@@ -425,6 +473,7 @@ export const getCreativeByName = cache(async (
       thumbnailUrl: creatives.thumbnailUrl,
       launchDate: creatives.launchDate,
       priority: creatives.priority,
+      stages: creatives.stages,
       notes: creatives.notes,
       sourceLink: creatives.sourceLink,
       createdAt: creatives.createdAt,
@@ -446,6 +495,9 @@ export const getCreativeByName = cache(async (
   return {
     ...row,
     type: row.type as CreativeType,
+    // Stored unordered; presented in funnel order so the editor's chips and
+    // every table cell agree.
+    stages: sortStages(row.stages ?? []),
     angles: angleRows.map((t) => t.angle),
   };
 });

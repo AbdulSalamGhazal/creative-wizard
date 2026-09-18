@@ -1,9 +1,4 @@
-import {
-  BUDGET_OBJECTIVES,
-  isoDaysBetween,
-  round2,
-  type BudgetObjective,
-} from "@/lib/budget";
+import { isoDaysBetween, round2 } from "@/lib/budget";
 
 /**
  * Funnel-audience tracking — the pure layer.
@@ -25,38 +20,18 @@ import {
  */
 
 /**
- * The funnel stages ARE the three main budget buckets — DERIVED from
- * `BUDGET_OBJECTIVES`, never re-listed. "Other" is a catch-all bucket, not a
- * funnel stage, so it is excluded: an audience has a position in the funnel or
- * it isn't part of one.
+ * The stage vocabulary lives in `lib/funnel-stages.ts` — hoisted there when
+ * creatives gained a manual `stages` field, so both sides share ONE definition
+ * (still derived from `BUDGET_OBJECTIVES` minus "Other"). Re-exported here so
+ * every existing audience import keeps working.
  */
-export type FunnelStage = Exclude<BudgetObjective, "Other">;
-
-const DERIVED_STAGES = BUDGET_OBJECTIVES.filter((o): o is FunnelStage => o !== "Other");
-
-/** Typed as a non-empty tuple so `z.enum` can take it directly (validators/
- *  audience.ts) — the VALUES still come from the filter above, never a list. */
-export const FUNNEL_STAGES: readonly [FunnelStage, ...FunnelStage[]] = [
-  DERIVED_STAGES[0]!,
-  ...DERIVED_STAGES.slice(1),
-];
-
-/** The funnel shorthand the team says out loud. Typed per stage, so a change
- *  to the objective axis fails to compile until this map follows. */
-export const STAGE_SHORT: Record<FunnelStage, string> = {
-  Awareness: "TOF",
-  Activation: "MOF",
-  Retargeting: "BOF",
-};
-
-/** Both names, because the team uses both: "Awareness · TOF". */
-export function stageLabel(stage: FunnelStage): string {
-  return `${stage} · ${STAGE_SHORT[stage]}`;
-}
-
-export function isFunnelStage(value: string): value is FunnelStage {
-  return (FUNNEL_STAGES as readonly string[]).includes(value);
-}
+export {
+  FUNNEL_STAGES,
+  STAGE_SHORT,
+  isFunnelStage,
+  stageLabel,
+  type FunnelStage,
+} from "@/lib/funnel-stages";
 
 /** One (platform, stage) pair — the grain of everything in this module. */
 export function audienceKey(platform: string, stage: string): string {

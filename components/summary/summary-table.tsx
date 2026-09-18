@@ -28,6 +28,7 @@ import { StatusSquare } from "@/components/creative/status-badge";
 import { DownloadCsvButton } from "@/components/ui/download-csv-button";
 import { rowsToCsv, todayStamp, type CsvColumn } from "@/lib/csv-export";
 import { PriorityStars } from "@/components/creative/priority-stars";
+import { StageChips } from "@/components/creative/stage-chips";
 import type { PlatformStatus } from "@/lib/creative-status";
 
 interface Props {
@@ -309,6 +310,8 @@ export function SummaryTable({
     // Priority is a per-CREATIVE field, so it belongs with the pinned identity
     // columns — never inside a per-platform metric group.
     { key: "priority", label: "Priority", hideKey: "priority" },
+    // Stage is per-CREATIVE too — beside Priority, never in a platform group.
+    { key: "stage", label: "Stage", hideKey: "stage" },
     { key: "launch", label: "Launch date", hideKey: "launch" },
     { key: "creator", label: "Creator", hideKey: "creator" },
   ];
@@ -370,11 +373,14 @@ export function SummaryTable({
               : c.key === "priority"
                 ? // Unrated stays an EMPTY cell — never 0.
                   (r.priority ?? "")
-                : c.key === "launch"
-                  ? r.launchDate
-                  : c.key === "creator"
-                    ? r.creatorName
-                    : null,
+                : c.key === "stage"
+                  ? // Full names; unassigned is an empty cell.
+                    r.stages.join(", ")
+                  : c.key === "launch"
+                    ? r.launchDate
+                    : c.key === "creator"
+                      ? r.creatorName
+                      : null,
       })),
     { key: "status", label: "Status", value: (r: SummaryRow) => r.generalStatus },
     { key: "angles", label: "Angles", value: (r: SummaryRow) => r.angles.join(" | ") },
@@ -588,6 +594,12 @@ export function SummaryTable({
                         className="px-3 py-2 whitespace-nowrap"
                       >
                         <PriorityStars value={r.priority} />
+                      </td>
+                    );
+                  case "stage":
+                    return (
+                      <td key="stage" className="px-3 py-2 whitespace-nowrap">
+                        <StageChips stages={r.stages} />
                       </td>
                     );
                   case "launch":

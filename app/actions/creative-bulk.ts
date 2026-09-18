@@ -14,6 +14,11 @@ import { parseFile } from "@/csv/parse";
 import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
 import { getActiveAccountId } from "@/lib/tenant";
 import { actionError } from "@/lib/action-error";
+import {
+  FUNNEL_STAGES,
+  STAGE_SHORT,
+  sortStages,
+} from "@/lib/funnel-stages";
 
 /**
  * Bulk-create creatives from a CSV/XLSX upload.
@@ -34,6 +39,7 @@ export interface BulkRowResult {
   type: string;
   launchDate: string | null;
   angles: string[];
+  stages: string[];
   ok: boolean;
   errors: string[];
 }
@@ -62,6 +68,7 @@ const HEADER_MAP: Record<string, string[]> = {
   type: ["type", "creative type"],
   launchDate: ["launch_date", "launch date", "launchdate", "launched"],
   angles: ["angles", "angle"],
+  stages: ["stages", "stage"],
   notes: ["notes", "note"],
 };
 
@@ -105,6 +112,7 @@ interface NormalizedRow {
   type: CreativeType;
   launchDate: string | null;
   angles: string[];
+  stages: string[];
   notes: string | null;
 }
 
@@ -140,6 +148,7 @@ async function build(formData: FormData): Promise<BuildResult> {
     type: indexFor(parsed.header, "type"),
     launchDate: indexFor(parsed.header, "launchDate"),
     angles: indexFor(parsed.header, "angles"),
+    stages: indexFor(parsed.header, "stages"),
     notes: indexFor(parsed.header, "notes"),
   };
   if (idx.name === -1 || idx.product === -1) {
@@ -188,6 +197,7 @@ async function build(formData: FormData): Promise<BuildResult> {
     const typeRaw = cell(row, idx.type).toLowerCase();
     const launchRaw = cell(row, idx.launchDate);
     const anglesRaw = cell(row, idx.angles);
+    const stagesRaw = cell(row, idx.stages);
 
     // name
     if (!name) errors.push("Name is required.");
@@ -225,6 +235,29 @@ async function build(formData: FormData): Promise<BuildResult> {
     );
     if (angles.some((t) => t.length > 64)) errors.push("An angle exceeds 64 characters.");
 
+    // stages — optional; unassigned is a real state, so an empty cell is fine.
+    // Matched case-insensitively against the canonical funnel stages, by full
+    // name ("Awareness") or shorthand ("TOF").
+    const stageTokens = stagesRaw
+      .split(/[;,]/)
+      .map((t) => t.trim())
+      .filter(Boolean);
+    const stages: string[] = [];
+    for (const token of stageTokens) {
+      const match = FUNNEL_STAGES.find(
+        (st) =>
+          st.toLowerCase() === token.toLowerCase() ||
+          STAGE_SHORT[st].toLowerCase() === token.toLowerCase(),
+      );
+      if (!match) {
+        errors.push(
+          `Invalid stage "${token}". Use ${FUNNEL_STAGES.join(", ")} (or TOF/MOF/BOF).`,
+        );
+      } else if (!stages.includes(match)) {
+        stages.push(match);
+      }
+    }
+
     const ok = errors.length === 0;
     if (ok && name) seenInFile.add(name);
 
@@ -235,6 +268,7 @@ async function build(formData: FormData): Promise<BuildResult> {
       type,
       launchDate: launch.value,
       angles,
+      stages: sortStages(stages),
       ok,
       errors,
     });
@@ -247,6 +281,7 @@ async function build(formData: FormData): Promise<BuildResult> {
         type,
         launchDate: launch.value,
         angles,
+        stages: sortStages(stages),
         notes: idx.notes >= 0 ? cell(row, idx.notes) || null : null,
       });
     }
@@ -317,6 +352,7 @@ export async function commitBulkCreatives(
             productId: r.productId,
             type: r.type,
             launchDate: r.launchDate,
+            stages: r.stages,
             notes: r.notes,
             createdByUserId: user.id,
           })

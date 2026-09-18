@@ -2,6 +2,11 @@ import { z } from "zod";
 import { creativeTypeEnum, platformEnum } from "@/db/schema";
 import { CREATIVE_STATUSES } from "@/lib/creative-status";
 import { PRIORITY_FILTER_VALUES } from "@/lib/priority";
+import {
+  FUNNEL_STAGES,
+  STAGE_FILTER_VALUES,
+  sortStages,
+} from "@/lib/funnel-stages";
 
 // Initial sketch; see docs/prd.md §5.1.
 // The creative attribute set is expected to evolve during development.
@@ -37,6 +42,24 @@ export const prioritySchema = z.number().int().min(1).max(3).nullable();
 
 export type PriorityInput = z.infer<typeof prioritySchema>;
 
+/**
+ * Manual STAGE(S) — where the team declares this creative sits in the funnel.
+ * Any 1..3 of `FUNNEL_STAGES`; empty = unassigned (a real default state).
+ *
+ * NEVER auto-derived — not from the campaign objective it happens to run
+ * under, not from where it spends. A creative declared Retargeting running in
+ * an Awareness campaign is information, not an error.
+ *
+ * Deduped and kept in funnel order, so `{Retargeting, Awareness, Awareness}`
+ * stores as `[Awareness, Retargeting]` and a set never depends on click order.
+ */
+export const stagesSchema = z
+  .array(z.enum(FUNNEL_STAGES))
+  .max(FUNNEL_STAGES.length)
+  .transform((v) => sortStages(v));
+
+export type StagesInput = z.infer<typeof stagesSchema>;
+
 export const creativeCreateSchema = z.object({
   name: z.string().min(1).max(255),
   productId: z.string().uuid(),
@@ -46,6 +69,7 @@ export const creativeCreateSchema = z.object({
   notes: z.string().optional(),
   sourceLink: sourceLinkSchema,
   angles: z.array(z.string().min(1).max(64)).default([]),
+  stages: stagesSchema.default([]),
 });
 
 export type CreativeCreateInput = z.infer<typeof creativeCreateSchema>;
@@ -110,6 +134,8 @@ export const creativeSortValues = [
   "spend-asc",
   "priority-desc",
   "priority-asc",
+  "stage-asc",
+  "stage-desc",
   "created-desc",
 ] as const;
 export type CreativeSort = (typeof creativeSortValues)[number];
@@ -132,6 +158,9 @@ export const creativeListFiltersSchema = z.object({
   angles: csvString(),
   // Manual Priority: 3 · 2 · 1 · Unrated (a first-class choice, not an absence).
   priorities: csvEnum(PRIORITY_FILTER_VALUES),
+  // Manual Stage, OVERLAP semantics: a creative matches if ANY selected stage
+  // is on it; "unassigned" matches an empty set.
+  stages: csvEnum(STAGE_FILTER_VALUES),
   sort: z.enum(creativeSortValues).catch("launched-desc"),
   // Table is the default view; "grid" is the opt-in (carried as ?view=grid).
   view: z.enum(creativeViewValues).catch("table"),

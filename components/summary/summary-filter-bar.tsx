@@ -55,6 +55,10 @@ import {
 } from "@/lib/creative-status";
 import { PLATFORM_LABEL } from "@/lib/palette";
 import {
+  STAGE_FILTER_VALUES,
+  stageFilterLabel,
+} from "@/lib/funnel-stages";
+import {
   PRIORITY_FILTER_LABEL,
   PRIORITY_FILTER_VALUES,
   type PriorityFilterValue,
@@ -108,6 +112,7 @@ const IDENTITY_LABELS: Record<IdentityColumnKey, string> = {
   product: "Product",
   type: "Type",
   priority: "Priority",
+  stage: "Stage",
   creator: "Creator",
   launch: "Launch date",
 };
@@ -164,6 +169,7 @@ export function SummaryFilterBar({
   const productIds = csv(searchParams.get("productIds"));
   const types = csv(searchParams.get("types"));
   const priorities = csv(searchParams.get("priorities"));
+  const stages = csv(searchParams.get("stages"));
   const selectedAngles = csv(searchParams.get("angles"));
   // Effective Excluded state: explicit URL param wins, else the saved
   // per-user preference the server resolved into `includeExcludedDefault`.
@@ -391,6 +397,7 @@ export function SummaryFilterBar({
     productIds.length > 0 ||
     types.length > 0 ||
     priorities.length > 0 ||
+    stages.length > 0 ||
     selectedAngles.length > 0 ||
     // A platform filter is "active" only when the URL explicitly sets it — the
     // default (no param) resolves `platforms` to all 5, so `platforms.length`
@@ -410,6 +417,7 @@ export function SummaryFilterBar({
     (productIds.length > 0 ? 1 : 0) +
     (types.length > 0 ? 1 : 0) +
     (priorities.length > 0 ? 1 : 0) +
+    (stages.length > 0 ? 1 : 0) +
     (selectedAngles.length > 0 ? 1 : 0) +
     (rateRatings.length > 0 ? 1 : 0) +
     (statusValues.length > 0 ? 1 : 0) +
@@ -423,6 +431,7 @@ export function SummaryFilterBar({
         "productIds",
         "types",
         "priorities",
+        "stages",
         "angles",
         "creatorIds",
         "platforms",
@@ -632,6 +641,39 @@ export function SummaryFilterBar({
                   onSelect={(e) => e.preventDefault()}
                 >
                   {PRIORITY_FILTER_LABEL[v]}
+                </DropdownMenuCheckboxItem>
+              ))}
+            </DropdownMenuContent>
+          )}
+        </FilterPill>
+
+        {/* Stage — the team's MANUAL funnel declaration on the creative,
+            a different axis from the campaign objective it runs under. */}
+        <FilterPill
+          fullWidth={inSheet}
+          icon={Layers}
+          label="Stage"
+          value={
+            stages.length === 0
+              ? "Any"
+              : stages.length === 1
+                ? stageFilterLabel(stages[0]!)
+                : `${stages.length} selected`
+          }
+          active={stages.length > 0}
+        >
+          {() => (
+            <DropdownMenuContent align="start" className="w-52">
+              <DropdownMenuLabel>Stage</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {STAGE_FILTER_VALUES.map((v) => (
+                <DropdownMenuCheckboxItem
+                  key={v}
+                  checked={stages.includes(v)}
+                  onCheckedChange={() => toggleMulti("stages", v, stages)}
+                  onSelect={(e) => e.preventDefault()}
+                >
+                  {stageFilterLabel(v)}
                 </DropdownMenuCheckboxItem>
               ))}
             </DropdownMenuContent>

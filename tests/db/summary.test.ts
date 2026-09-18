@@ -135,3 +135,63 @@ describe("Ads Priority — a per-creative column, sorted and filtered", () => {
     expect(withType.rows).toHaveLength(0);
   });
 });
+
+describe("Ads Stage — a per-creative column, sorted and filtered", () => {
+  beforeEach(async () => {
+    await resetAndSeed();
+    vi.mocked(getActiveAccountId).mockResolvedValue(ACCOUNT_A);
+    await db
+      .update(creatives)
+      .set({ stages: ["Retargeting", "Awareness"] })
+      .where(eq(creatives.name, "A-Creative-1"));
+    await db.update(creatives).set({ stages: [] }).where(eq(creatives.name, "A-Creative-2"));
+  });
+
+  it("carries stages in funnel order on every row", async () => {
+    const res = await listCreativeSummary({ platforms: ["instagram", "facebook"] });
+    expect(res.rows.find((r) => r.name === "A-Creative-1")?.stages).toEqual([
+      "Awareness",
+      "Retargeting",
+    ]);
+    expect(res.rows.find((r) => r.name === "A-Creative-2")?.stages).toEqual([]);
+  });
+
+  it("sorts by the earliest stage, unassigned LAST in both directions", async () => {
+    const desc = await listCreativeSummary({
+      platforms: ["instagram", "facebook"],
+      sort: "stage",
+      dir: "desc",
+    });
+    expect(desc.rows.map((r) => r.name)).toEqual(["A-Creative-1", "A-Creative-2"]);
+    expect(desc.effectiveSort).toEqual({ key: "stage", dir: "desc" });
+
+    const asc = await listCreativeSummary({
+      platforms: ["instagram", "facebook"],
+      sort: "stage",
+      dir: "asc",
+    });
+    expect(asc.rows.map((r) => r.name)).toEqual(["A-Creative-1", "A-Creative-2"]);
+  });
+
+  it("filters on OVERLAP, and on Unassigned", async () => {
+    const awareness = await listCreativeSummary({
+      platforms: ["instagram", "facebook"],
+      stages: ["Awareness"],
+    });
+    expect(awareness.rows.map((r) => r.name)).toEqual(["A-Creative-1"]);
+
+    const unassigned = await listCreativeSummary({
+      platforms: ["instagram", "facebook"],
+      stages: ["unassigned"],
+    });
+    expect(unassigned.rows.map((r) => r.name)).toEqual(["A-Creative-2"]);
+
+    // ANDs with the other filters like any plain dimension.
+    const withType = await listCreativeSummary({
+      platforms: ["instagram", "facebook"],
+      stages: ["Awareness"],
+      types: ["image"],
+    });
+    expect(withType.rows).toHaveLength(0);
+  });
+});

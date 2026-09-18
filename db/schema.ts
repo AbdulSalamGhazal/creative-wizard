@@ -231,6 +231,17 @@ export const creatives = pgTable(
      * for now (not filtered/sorted → no index).
      */
     priority: smallint("priority"),
+    /**
+     * Manual STAGE(S) — the team's declaration of where this creative sits in
+     * the funnel: any 1..3 of Awareness · Activation · Retargeting
+     * (`FUNNEL_STAGES`). NEVER auto-derived (not from campaign objectives, not
+     * from spend), and a DIFFERENT axis from the campaign objective and the
+     * budget buckets: a creative declared Retargeting can spend inside an
+     * Awareness campaign, and that mismatch is information, not an error.
+     * Empty = unassigned, a real default state. Values are code-validated
+     * (zod), like every other varchar "enum" here — no DB enum.
+     */
+    stages: text("stages").array().notNull().default(sql`'{}'::text[]`),
     notes: text("notes"),
     // The creative's source link (e.g. the live post/ad or asset URL).
     // Display-only metadata; not used in aggregation.
@@ -246,6 +257,8 @@ export const creatives = pgTable(
     statusIdx: index("creatives_status_idx").on(t.status),
     typeIdx: index("creatives_type_idx").on(t.type),
     accountNameIdx: uniqueIndex("creatives_account_name_idx").on(t.accountId, t.name),
+    // Filtered by OVERLAP (`&&`), which a b-tree can't serve.
+    stagesIdx: index("creatives_stages_idx").using("gin", t.stages),
   }),
 );
 

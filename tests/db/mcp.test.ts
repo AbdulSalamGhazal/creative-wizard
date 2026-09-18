@@ -6,7 +6,7 @@ import { ACCOUNT_A, ACCOUNT_B } from "./config";
 // `getActiveAccountId`), which is the whole point of the MCP tenant path.
 
 import { db } from "@/lib/db";
-import { users, userAccounts, apiTokens } from "@/db/schema";
+import { users, userAccounts, apiTokens, creatives } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import {
   runWithTenant,
@@ -196,6 +196,40 @@ describe("MCP tools — brand scoping for a restricted user", () => {
     // Brand list and data freshness read no aggregates — no noise added there.
     expect(await echo("list_brands")).toBeUndefined();
     expect(await echo("get_data_freshness")).toBeUndefined();
+  });
+
+  it("list_creatives exposes stages and filters on them", async () => {
+    // Account A's creatives: one declared Retargeting, one left unassigned.
+    await db
+      .update(creatives)
+      .set({ stages: ["Retargeting"] })
+      .where(eq(creatives.name, "A-Creative-1"));
+    await db
+      .update(creatives)
+      .set({ stages: [] })
+      .where(eq(creatives.name, "A-Creative-2"));
+
+    const tools = loadTools();
+    const call = (args: Record<string, unknown>) =>
+      runWithMcpActor({ user: restricted, tokenId: "t" }, () =>
+        tools.get("list_creatives")!(args, {}),
+      );
+
+    const all = parse(await call({}));
+    const one = all.creatives.find(
+      (c: { name: string }) => c.name === "A-Creative-1",
+    );
+    expect(one.stages).toEqual(["Retargeting"]);
+
+    // The filter narrows to the declared creative only.
+    const filtered = parse(await call({ stages: ["Retargeting"] }));
+    expect(filtered.creatives.map((c: { name: string }) => c.name)).toEqual([
+      "A-Creative-1",
+    ]);
+
+    // A stage nobody carries returns nothing, not everything.
+    const empty = parse(await call({ stages: ["Activation"] }));
+    expect(empty.creatives).toHaveLength(0);
   });
 
   it("allowedAccountsForUser mirrors the scoping (belt-and-braces)", async () => {

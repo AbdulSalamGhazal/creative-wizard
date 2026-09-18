@@ -6,6 +6,7 @@ import {
   CircleDot,
   LayoutGrid,
   Flag,
+  Layers,
   MonitorSmartphone,
   Package,
   Shapes,
@@ -45,6 +46,10 @@ import {
   type CreativeView,
 } from "@/validators/creative";
 import { CREATIVE_STATUSES, STATUS_LABEL } from "@/lib/creative-status";
+import {
+  STAGE_FILTER_VALUES,
+  stageFilterLabel,
+} from "@/lib/funnel-stages";
 import {
   PRIORITY_FILTER_LABEL,
   PRIORITY_FILTER_VALUES,
@@ -101,6 +106,8 @@ const SORT_LABEL: Record<CreativeSort, string> = {
   "spend-asc": "30-day spend (low→high)",
   "priority-desc": "Priority (high→low)",
   "priority-asc": "Priority (low→high)",
+  "stage-asc": "Stage (TOF→BOF)",
+  "stage-desc": "Stage (BOF→TOF)",
   "created-desc": "Recently added",
 };
 
@@ -127,6 +134,7 @@ export function LibraryFilterBar({ products, angles, views, currentUserId, isAdm
   const platforms = csvParam(searchParams.get("platforms"));
   const selectedAngles = csvParam(searchParams.get("angles"));
   const priorities = csvParam(searchParams.get("priorities"));
+  const stages = csvParam(searchParams.get("stages"));
   const sortParam = (searchParams.get("sort") ?? "launched-desc") as CreativeSort;
   const sort = creativeSortValues.includes(sortParam) ? sortParam : "launched-desc";
   const viewParam = (searchParams.get("view") ?? "table") as CreativeView;
@@ -205,6 +213,7 @@ export function LibraryFilterBar({ products, angles, views, currentUserId, isAdm
     types.length > 0 ||
     statuses.length > 0 ||
     priorities.length > 0 ||
+    stages.length > 0 ||
     platforms.length > 0 ||
     selectedAngles.length > 0;
 
@@ -214,6 +223,7 @@ export function LibraryFilterBar({ products, angles, views, currentUserId, isAdm
     (types.length > 0 ? 1 : 0) +
     (statuses.length > 0 ? 1 : 0) +
     (priorities.length > 0 ? 1 : 0) +
+    (stages.length > 0 ? 1 : 0) +
     (platforms.length > 0 ? 1 : 0) +
     (selectedAngles.length > 0 ? 1 : 0);
 
@@ -224,6 +234,7 @@ export function LibraryFilterBar({ products, angles, views, currentUserId, isAdm
       next.delete("types");
       next.delete("statuses");
       next.delete("priorities");
+      next.delete("stages");
       next.delete("platforms");
       next.delete("angles");
     });
@@ -247,7 +258,7 @@ export function LibraryFilterBar({ products, angles, views, currentUserId, isAdm
   );
 
   // Dimension pills in canonical order (Products → Type → Status → Priority →
-  // Platforms → Angles). Rendered inline on desktop and stacked full-width in the mobile Sheet.
+  // Stage → Platforms → Angles). Rendered inline on desktop and stacked full-width in the mobile Sheet.
   const dimensionControls = (fullWidth: boolean) => (
     <>
       <FilterPill
@@ -361,6 +372,36 @@ export function LibraryFilterBar({ products, angles, views, currentUserId, isAdm
                 onCheckedChange={() => toggleMulti("priorities", v, priorities)}
               >
                 {PRIORITY_FILTER_LABEL[v]}
+              </DropdownMenuCheckboxItem>
+            ))}
+          </DropdownMenuContent>
+        )}
+      </FilterPill>
+
+      <FilterPill
+        icon={Layers}
+        label="Stage"
+        value={
+          stages.length === 0
+            ? "Any"
+            : stages.length === 1
+              ? stageFilterLabel(stages[0]!)
+              : `${stages.length} selected`
+        }
+        active={stages.length > 0}
+        fullWidth={fullWidth}
+      >
+        {() => (
+          <DropdownMenuContent align="start" className="w-52">
+            <DropdownMenuLabel>Stage</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            {STAGE_FILTER_VALUES.map((v) => (
+              <DropdownMenuCheckboxItem
+                key={v}
+                checked={stages.includes(v)}
+                onCheckedChange={() => toggleMulti("stages", v, stages)}
+              >
+                {stageFilterLabel(v)}
               </DropdownMenuCheckboxItem>
             ))}
           </DropdownMenuContent>

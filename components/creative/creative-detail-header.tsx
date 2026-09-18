@@ -50,6 +50,7 @@ import { creativeTypeEnum } from "@/db/schema";
 import { ALL_PLATFORMS, PLATFORM_COLOR, PLATFORM_LABEL } from "@/lib/palette";
 import { isoDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { StagePicker } from "@/components/creative/stage-picker";
 import type { CreativeDetail } from "@/db/queries/creatives";
 import type {
   CreativeStatusResult,
@@ -124,6 +125,7 @@ export function CreativeDetailHeader({
     thumbnailUrl: creative.thumbnailUrl,
     launchDate: creative.launchDate,
     priority: creative.priority,
+    stages: creative.stages,
     angles: creative.angles,
   });
 
@@ -137,6 +139,7 @@ export function CreativeDetailHeader({
     creative.launchDate,
   );
   const [priority, setPriority] = useState<number | null>(creative.priority);
+  const [stages, setStages] = useState<string[]>(creative.stages);
   const [angles, setAngles] = useState<string[]>(creative.angles);
 
   const nameTrimmed = name.trim();
@@ -147,6 +150,7 @@ export function CreativeDetailHeader({
     thumbnailUrl !== saved.thumbnailUrl ||
     launchDate !== saved.launchDate ||
     priority !== saved.priority ||
+    !sameSet(stages, saved.stages) ||
     !sameSet(angles, saved.angles);
 
   const canSave = dirty && nameTrimmed !== "" && !isPending;
@@ -158,6 +162,7 @@ export function CreativeDetailHeader({
     setThumbnailUrl(saved.thumbnailUrl);
     setLaunchDate(saved.launchDate);
     setPriority(saved.priority);
+    setStages(saved.stages);
     setAngles(saved.angles);
   };
 
@@ -170,6 +175,7 @@ export function CreativeDetailHeader({
     if (thumbnailUrl !== saved.thumbnailUrl) patch.thumbnailUrl = thumbnailUrl;
     if (launchDate !== saved.launchDate) patch.launchDate = launchDate;
     if (priority !== saved.priority) patch.priority = priority;
+    if (!sameSet(stages, saved.stages)) patch.stages = stages;
     if (!sameSet(angles, saved.angles)) patch.angles = angles;
 
     startTransition(async () => {
@@ -192,6 +198,7 @@ export function CreativeDetailHeader({
           thumbnailUrl,
           launchDate,
           priority,
+          stages,
           angles,
         });
         router.refresh();
@@ -403,6 +410,20 @@ export function CreativeDetailHeader({
               onChange={setPriority}
               disabled={locked}
               readOnly={!canEdit}
+            />
+          </div>
+
+          {/* Stage — the team's MANUAL declaration of where this creative
+           *  sits in the funnel. Never derived from the campaign objective it
+           *  runs under or from where it spends; a mismatch is information. */}
+          <div className="space-y-1.5">
+            <label className="text-eyebrow text-ink-3">
+              Stage
+            </label>
+            <StagePicker
+              value={stages}
+              onChange={setStages}
+              disabled={locked}
             />
           </div>
 

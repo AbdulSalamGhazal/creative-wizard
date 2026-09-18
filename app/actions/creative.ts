@@ -17,6 +17,7 @@ import {
   creativeCreateSchema,
   creativeTerminationSchema,
   prioritySchema,
+  stagesSchema,
   sourceLinkSchema,
 } from "@/validators/creative";
 import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
@@ -104,6 +105,7 @@ export async function createCreative(
           launchDate: data.launchDate,
           notes: data.notes,
           sourceLink: data.sourceLink ?? null,
+          stages: data.stages,
           createdByUserId: user.id,
         })
         .returning({ id: creatives.id, name: creatives.name });
@@ -337,6 +339,8 @@ const creativePatchSchema = z
       .transform((v) => (v ? v : v === null ? null : undefined)),
     // Manual Priority (1..3; null = unrated). Sent only when changed.
     priority: prioritySchema.optional(),
+    // Manual Stage(s). Sent only when changed; [] clears to unassigned.
+    stages: stagesSchema.optional(),
     angles: z.array(z.string().min(1).max(64)).max(50).optional(),
   })
   .refine(
@@ -380,6 +384,7 @@ export async function patchCreative(
         thumbnailUrl: creatives.thumbnailUrl,
         launchDate: creatives.launchDate,
         priority: creatives.priority,
+        stages: creatives.stages,
       })
       .from(creatives)
       .where(and(eq(creatives.accountId, acct), eq(creatives.id, data.id)))
@@ -430,6 +435,7 @@ export async function patchCreative(
     if (data.thumbnailUrl !== undefined) set.thumbnailUrl = data.thumbnailUrl;
     if (data.launchDate !== undefined) set.launchDate = data.launchDate;
     if (data.priority !== undefined) set.priority = data.priority;
+    if (data.stages !== undefined) set.stages = data.stages;
     const hasScalarChange = Object.keys(set).length > 1; // more than updatedAt
 
     await db.transaction(async (tx) => {

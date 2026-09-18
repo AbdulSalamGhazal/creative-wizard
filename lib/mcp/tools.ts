@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { platformEnum, creativeTypeEnum } from "@/db/schema";
+import { FUNNEL_STAGES } from "@/lib/funnel-stages";
 import { allowedAccountsForUser } from "@/lib/tenant";
 import {
   kpis,
@@ -96,6 +97,16 @@ const productIdsField = z
   .optional()
   .describe("Restrict to these product ids.");
 const anglesField = z.array(z.string()).optional().describe("Restrict to these angles.");
+/**
+ * The creative's MANUAL funnel stage(s) — the team's declaration, never derived
+ * from the campaign objective it runs under or from where it spends.
+ */
+const stagesField = z
+  .array(z.enum(FUNNEL_STAGES))
+  .optional()
+  .describe(
+    "Restrict to creatives carrying ANY of these manual funnel stages (Awareness, Activation, Retargeting).",
+  );
 /**
  * The exclusion lever, on every tool whose numbers come from performance
  * aggregates. It threads into the SAME `includeExcluded` flag the pages use —
@@ -205,7 +216,7 @@ export function registerMcpTools(server: McpServer): void {
   server.registerTool(
     "list_creatives",
     {
-      description: `List creatives (the Library) with derived status, priority (1-3, null = unrated), angles, and 7d/30d spend. Filterable by status, type, product, angles, and search. Capped at 500 rows (\`truncated\` flag). ${CONVENTIONS} ${ANGLES_RENAME}`,
+      description: `List creatives (the Library) with derived status, priority (1-3, null = unrated), manual funnel stage(s), angles, and 7d/30d spend. Filterable by status, type, product, angles, stage, and search. Capped at 500 rows (\`truncated\` flag). ${CONVENTIONS} ${ANGLES_RENAME}`,
       inputSchema: {
         brand: brandField,
         status: z
@@ -215,6 +226,7 @@ export function registerMcpTools(server: McpServer): void {
         types: typesField,
         productIds: productIdsField,
         angles: anglesField,
+        stages: stagesField,
         q: z.string().optional().describe("Search name/notes/angles (substring)."),
         platforms: platformsField,
         include_excluded: includeExcludedField,
@@ -227,6 +239,7 @@ export function registerMcpTools(server: McpServer): void {
           types: args.types,
           productIds: args.productIds,
           angles: args.angles,
+          stages: args.stages,
           q: args.q,
           platforms: args.platforms,
           sort: "spend-desc",
@@ -245,6 +258,7 @@ export function registerMcpTools(server: McpServer): void {
             type: c.type,
             status: c.status,
             priority: c.priority,
+            stages: c.stages,
             angles: c.angles,
             spend7d: r2(c.spend7d),
             spend30d: r2(c.spend30d),
@@ -258,7 +272,7 @@ export function registerMcpTools(server: McpServer): void {
   server.registerTool(
     "get_creative",
     {
-      description: `One creative in depth: fields, angles, per-platform status, and its per-campaign performance breakdown (all-time unless a range is given). ${CONVENTIONS} ${ANGLES_RENAME}`,
+      description: `One creative in depth: fields, manual funnel stage(s), angles, per-platform status, and its per-campaign performance breakdown (all-time unless a range is given). ${CONVENTIONS} ${ANGLES_RENAME}`,
       inputSchema: {
         brand: brandField,
         name: z.string().describe("Exact creative name."),
@@ -288,6 +302,7 @@ export function registerMcpTools(server: McpServer): void {
             product: creative.productName,
             type: creative.type,
             priority: creative.priority,
+            stages: creative.stages,
             angles: creative.angles,
             launchDate: creative.launchDate,
             sourceLink: creative.sourceLink,

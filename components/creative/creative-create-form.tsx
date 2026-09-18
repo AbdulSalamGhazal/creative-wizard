@@ -17,6 +17,7 @@ import {
 import { createCreative } from "@/app/actions/creative";
 import { AngleInput } from "@/components/creative/angle-input";
 import { ThumbnailUpload } from "@/components/creative/thumbnail-upload";
+import { StagePicker } from "@/components/creative/stage-picker";
 
 interface Props {
   products: Array<{ id: string; name: string }>;
@@ -37,6 +38,7 @@ export function CreativeCreateForm({ products, allAngles }: Props) {
   const [type, setType] = useState<"" | "video" | "image" | "slides">("");
   const [launchDate, setLaunchDate] = useState("");
   const [anglesInput, setAnglesInput] = useState("");
+  const [stages, setStages] = useState<string[]>([]);
   const [notes, setNotes] = useState("");
   const [sourceLink, setSourceLink] = useState("");
   const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
@@ -68,6 +70,7 @@ export function CreativeCreateForm({ products, allAngles }: Props) {
         thumbnailUrl: thumbnailUrl || undefined,
         sourceLink: sourceLink.trim() || undefined,
         angles,
+        stages,
       });
       if (!res.ok) {
         setError(res.error ?? "Failed to create");
@@ -152,6 +155,16 @@ export function CreativeCreateForm({ products, allAngles }: Props) {
           onChange={setThumbnailUrl}
           disabled={isPending}
         />
+      </Field>
+
+      {/* Stage — the team's manual call on where this sits in the funnel.
+          Optional: unassigned is a real state. */}
+      <Field
+        label="Stage"
+        hint="Optional — where this sits in the funnel."
+        error={fieldErrors.stages}
+      >
+        <StagePicker value={stages} onChange={setStages} disabled={isPending} />
       </Field>
 
       <Field
