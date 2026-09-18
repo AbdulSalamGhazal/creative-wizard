@@ -3,6 +3,8 @@ import { PageShell } from "@/components/layout/page-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { listStoreOrders, listStoreFields } from "@/db/queries/store";
 import { storeOrdersFiltersSchema } from "@/validators/store";
+import { resolvePreferredRange } from "@/db/queries/user-prefs";
+import { defaultDateRange } from "@/lib/date-presets";
 import { StoreFilterBar } from "@/components/store/store-filter-bar";
 import { StoreOrdersTable } from "@/components/store/store-orders-table";
 
@@ -37,9 +39,17 @@ export default async function StoreOrdersPage({
     dir: pick(sp.dir),
   });
 
+  // Resolved server-side — URL params → the user's saved preferred range →
+  // last 7 days — and the SAME values feed the query and the picker. With the
+  // raw optional params the query's `f.from && f.to` branch simply never bound,
+  // so a fresh visit listed EVERY order ever while the picker said "Last 7
+  // days". BEHAVIOUR CHANGE: a paramless visit now lists the resolved range,
+  // and the count header, pagination and CSV all follow what's shown.
+  const range = await resolvePreferredRange(f.from, f.to, defaultDateRange());
+
   const [fields, orders] = await Promise.all([
     listStoreFields(),
-    listStoreOrders(f),
+    listStoreOrders({ ...f, from: range.from, to: range.to }),
   ]);
 
   return (
@@ -51,7 +61,12 @@ export default async function StoreOrdersPage({
       />
 
       <div className="space-y-2">
-        <StoreFilterBar from={f.from ?? null} to={f.to ?? null} q={f.q ?? ""} />
+        <StoreFilterBar
+          from={f.from ?? null}
+          to={f.to ?? null}
+          resolvedRange={range}
+          q={f.q ?? ""}
+        />
         <StoreOrdersTable
           rows={orders.rows}
           fields={fields}

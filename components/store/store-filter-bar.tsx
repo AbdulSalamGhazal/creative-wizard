@@ -3,6 +3,7 @@
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { DateRangePicker } from "@/components/filters/date-range-picker";
+import type { DateRangeValue } from "@/lib/date-presets";
 import { FilterSearch, ClearButton } from "@/components/filters/filter-pill";
 import { useNavTransition } from "@/lib/nav-progress";
 
@@ -14,10 +15,14 @@ import { useNavTransition } from "@/lib/nav-progress";
 export function StoreFilterBar({
   from,
   to,
+  resolvedRange,
   q,
 }: {
+  /** Raw URL range (drives the highlighted preset), null when absent. */
   from: string | null;
   to: string | null;
+  /** What the query actually ran — the picker's label falls back to it. */
+  resolvedRange: DateRangeValue;
   q: string;
 }) {
   const router = useRouter();
@@ -63,7 +68,13 @@ export function StoreFilterBar({
 
   return (
     <div className="sticky top-14 z-10 flex flex-wrap items-center gap-2 bg-background py-2">
-      <DateRangePicker from={from} to={to} onChange={setRange} />
+      <DateRangePicker
+        from={from}
+        to={to}
+        onChange={setRange}
+        remember
+        fallback={resolvedRange}
+      />
       <FilterSearch
         value={qLocal}
         onChange={setQLocal}

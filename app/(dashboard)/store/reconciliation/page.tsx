@@ -12,7 +12,8 @@ import {
 } from "@/db/queries/reconciliation";
 import { ReconciliationView } from "@/components/store/reconciliation-view";
 import { STORE_SOURCE_FIELD_KEY } from "@/store/fields";
-import { resolveIncludeExcluded } from "@/db/queries/user-prefs";
+import { resolveIncludeExcluded, resolvePreferredRange } from "@/db/queries/user-prefs";
+import { defaultDateRange } from "@/lib/date-presets";
 
 export const dynamic = "force-dynamic";
 
@@ -48,13 +49,22 @@ export default async function ReconciliationPage({
   // Effective Excluded state for the ads side (URL param → saved pref → hidden).
   const includeExcluded = await resolveIncludeExcluded(pick(sp.includeExcluded));
 
+  // The range is resolved HERE, server-side — URL params → the user's saved
+  // preferred range → last 7 days — and the SAME values feed the queries and
+  // the picker. Passing the raw optional params through would leave the
+  // condition builders unbounded while the picker announced "Last 7 days":
+  // aggregate numbers claiming a window they never ran. (A saved "lifetime"
+  // preference decodes to the concrete floor→today range, which the picker
+  // then honestly labels Lifetime.)
+  const range = await resolvePreferredRange(f.from, f.to, defaultDateRange());
+
   const [overview, byPlatformResult, byChannelResult, horizons] = await Promise.all([
-    reconciliationOverview(f.from, f.to, includeExcluded),
+    reconciliationOverview(range.from, range.to, includeExcluded),
     // The source field is PINNED to utm_source — the picker is retired.
-    reconciliationByPlatform(STORE_SOURCE_FIELD_KEY, f.from, f.to, includeExcluded),
+    reconciliationByPlatform(STORE_SOURCE_FIELD_KEY, range.from, range.to, includeExcluded),
     // ONE added scan: the claimed side of the Channels view is merged from the
     // overview rows above rather than re-queried.
-    reconciliationByChannel(f.from, f.to),
+    reconciliationByChannel(range.from, range.to),
     platformDataHorizons(),
   ]);
   const byPlatform = byPlatformResult.rows;
@@ -80,6 +90,9 @@ export default async function ReconciliationPage({
       <ReconciliationView
         from={f.from ?? null}
         to={f.to ?? null}
+        // What the queries actually ran — the picker's label comes from this
+        // when the URL carries no explicit range.
+        resolvedRange={range}
         includeExcluded={includeExcluded}
         overview={overview}
         byPlatform={byPlatform}

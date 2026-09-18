@@ -78,6 +78,13 @@ export interface StoreOrdersResult {
 
 export const STORE_PAGE_SIZE = 100;
 
+/**
+ * CONTRACT: `f.from`/`f.to` are a RESOLVED range, never the raw optional search
+ * params. Each side binds only when present, so a paramless request listed
+ * EVERY order ever while the picker announced "Last 7 days" — display and query
+ * have to come from one server-side resolution (see `/store/orders/page.tsx`).
+ * Absence therefore means the user explicitly chose an unbounded range.
+ */
 function orderConds(acct: string, f: StoreOrdersFilters): SQL[] {
   const c: SQL[] = [eq(storeOrders.accountId, acct)];
   if (f.from) c.push(gte(storeOrders.orderDate, f.from));

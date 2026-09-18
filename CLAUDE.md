@@ -225,6 +225,23 @@ This app is deployed and in production use. Treat `main` as shippable.
   seed — drop that query and the page silently reads "unknown" for a pair
   measured last month.
 
+- **Every DateRangePicker page resolves its range SERVER-side through
+  `resolvePreferredRange` / `defaultDateRange` (or its own concrete equivalent)
+  — the picker never invents a display default the query didn't run.** The
+  picker derives a DISPLAY default client-side (`from/to ?? fallback ??` last-7),
+  so a page that passes RAW optional search params to its queries makes the
+  label lie: the condition builders only bind when a value is present, so a
+  fresh URL ran LIFETIME while the control said "Last 7 days". That shipped on
+  `/store/reconciliation` (aggregate numbers claiming a window they never had)
+  and `/store/orders` (every order ever, with the count header, pager and CSV
+  all following the wrong set) and was fixed 2026-09-19 by resolving on the
+  server and feeding ONE range to both the queries and the picker (`fallback`).
+  A saved "lifetime" preference decodes to the concrete floor→today range, so
+  the picker then honestly says Lifetime. **A new range-filtered page must
+  follow this or its label lies**; cleanup tools are the one sanctioned
+  exception — their picker IS the filter state (seeded client-side), not a
+  window a query silently widened.
+
 - **Forgiving CSV matching is INTENTIONAL as of 2026-07 (validation-spec v1.2).**
   The pipeline trims cells then matches creative names byte-exactly (case-
   sensitive, no NFC), and reads blank/`-`/`—`/`N/A`/`null` numeric cells as `0`

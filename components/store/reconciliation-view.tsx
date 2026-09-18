@@ -16,6 +16,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { DateRangePicker } from "@/components/filters/date-range-picker";
+import type { DateRangeValue } from "@/lib/date-presets";
 import { PlatformDot } from "@/components/ui/platform-dot";
 import { PLATFORM_COLOR, PLATFORM_LABEL } from "@/lib/palette";
 import { sar, usd, isoDate, int, pct1, signedPct } from "@/lib/format";
@@ -42,8 +43,11 @@ type Mode = "overview" | "platform" | "channel";
 type PlatformKey = keyof typeof PLATFORM_COLOR;
 
 interface Props {
+  /** Raw URL range (drives the highlighted preset), null when absent. */
   from: string | null;
   to: string | null;
+  /** What the page's queries actually ran — the picker's label falls back to it. */
+  resolvedRange: DateRangeValue;
   /** Effective Excluded state for the ads side (URL → saved pref → hidden). */
   includeExcluded: boolean;
   overview: ReconOverviewRow[];
@@ -71,6 +75,7 @@ const pctText = (pct: number | null) => signedPct(pct);
 export function ReconciliationView({
   from,
   to,
+  resolvedRange,
   includeExcluded,
   overview,
   byPlatform,
@@ -465,7 +470,13 @@ export function ReconciliationView({
           — and because the toggle is the first flex item, it stays first. */}
       <div className="sticky top-14 z-10 -mx-6 flex flex-wrap items-center gap-2 border-b border-line bg-background/95 px-6 py-2 backdrop-blur">
         <ModeToggle mode={mode} onChange={setMode} />
-        <DateRangePicker from={from} to={to} onChange={setRange} />
+        <DateRangePicker
+          from={from}
+          to={to}
+          onChange={setRange}
+          remember
+          fallback={resolvedRange}
+        />
         <div className="ml-auto flex flex-wrap items-center gap-2">
           <ExcludedParamToggle on={includeExcluded} />
           {mode === "overview" && (

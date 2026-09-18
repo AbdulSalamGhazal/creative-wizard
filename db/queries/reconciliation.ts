@@ -172,6 +172,15 @@ export async function listStoreChannelMappings(): Promise<
 
 // ── Reconciliation reads ─────────────────────────────────────────────────────
 
+/**
+ * CONTRACT for every `from`/`to` in this file: callers pass RESOLVED bounds.
+ * Absence is not "the page didn't say" — it means the user explicitly chose an
+ * unbounded range. The page resolves URL params → saved preferred range →
+ * last 7 days BEFORE calling (see `/store/reconciliation/page.tsx`), because
+ * these builders only bind when a value is present: handing them the raw
+ * optional search params left the queries running lifetime while the picker
+ * announced "Last 7 days".
+ */
 function storeConds(acct: string, from?: string, to?: string) {
   const c = [eq(storeOrders.accountId, acct)];
   if (from) c.push(gte(storeOrders.orderDate, from));

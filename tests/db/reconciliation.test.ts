@@ -19,7 +19,7 @@ import {
   storeSourceMappings,
   users,
 } from "@/db/schema";
-import { writeStoreBatch } from "@/db/queries/store";
+import { writeStoreBatch, listStoreOrders } from "@/db/queries/store";
 import {
   reconciliationOverview,
   reconciliationByPlatform,
@@ -292,5 +292,85 @@ describe("reconciliation — the CHANNELS view", () => {
     const values = await distinctStoreChannelValues();
     expect(values.map((v) => v.value).sort()).toEqual(["ios", "kiosk", "web"]);
     expect(values.find((v) => v.value === "web")?.count).toBe(6);
+  });
+});
+
+/**
+ * The bug this pins: `/store/reconciliation` and `/store/orders` passed the RAW
+ * optional search params to their queries, whose condition builders only bind
+ * when a value is present — so a paramless visit ran LIFETIME while the picker
+ * said "Last 7 days". The pages now resolve the range server-side and hand the
+ * queries concrete bounds; these tests pin both halves of that contract.
+ */
+describe("range bounds bind — resolved vs absent", () => {
+  const OUTSIDE = "2026-04-01"; // a month before the fixtures' isolated day D
+
+  // This suite seeds once and never resets, so the out-of-range order is
+  // inserted ONCE for the whole describe (a beforeEach would collide on the
+  // unique order_id).
+  beforeAll(async () => {
+    setAccount(ACCOUNT_A);
+    // One order well outside the day every other test uses.
+    await writeStoreBatch({
+      accountId: ACCOUNT_A,
+      fileName: "out-of-range.csv",
+      uploadedByUserId: UPLOADER,
+      upsert: false,
+      inserts: [
+        {
+          orderId: "OUT-1",
+          orderDate: OUTSIDE,
+          totalAmount: "100.00",
+          attributes: { source: "ig_ad", channel: "web" },
+        },
+      ],
+      updates: [],
+    });
+  });
+
+  it("RESOLVED bounds exclude days outside the window", async () => {
+    // What the page now passes: concrete from/to.
+    const rows = await reconciliationOverview(D, D);
+    expect(rows.map((r) => r.day)).toEqual([D]);
+    expect(rows.find((r) => r.day === OUTSIDE)).toBeUndefined();
+
+    const byChannel = await reconciliationByChannel(D, D);
+    expect(byChannel.rows.map((r) => r.day)).toEqual([D]);
+
+    const byPlatform = await reconciliationByPlatform("source", D, D);
+    expect(byPlatform.rows.map((r) => r.day)).toEqual([D]);
+  });
+
+  it("ABSENT bounds mean LIFETIME — which is why the page must resolve first", async () => {
+    // Exactly the old (buggy) call shape: no bounds at all. It is not "the
+    // default window", it is every row the brand has.
+    const rows = await reconciliationOverview(undefined, undefined);
+    const days = rows.map((r) => r.day);
+    expect(days).toContain(OUTSIDE);
+    expect(days).toContain(D);
+
+    const byChannel = await reconciliationByChannel(undefined, undefined);
+    expect(byChannel.rows.map((r) => r.day)).toContain(OUTSIDE);
+  });
+
+  it("listStoreOrders honours the same contract", async () => {
+    const bounded = await listStoreOrders({
+      from: D,
+      to: D,
+      page: 1,
+      sort: "order_date",
+      dir: "desc",
+    });
+    expect(bounded.rows.every((r) => r.orderDate === D)).toBe(true);
+    expect(bounded.rows.some((r) => r.orderId === "OUT-1")).toBe(false);
+
+    // Unbounded: the paramless shape that made a fresh visit list everything.
+    const unbounded = await listStoreOrders({
+      page: 1,
+      sort: "order_date",
+      dir: "desc",
+    });
+    expect(unbounded.total).toBeGreaterThan(bounded.total);
+    expect(unbounded.rows.some((r) => r.orderId === "OUT-1")).toBe(true);
   });
 });
