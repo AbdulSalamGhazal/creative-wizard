@@ -457,11 +457,13 @@ export function ReconciliationView({
 
   return (
     <div className="space-y-4">
-      {/* Filter + controls bar */}
-      <div className="sticky top-14 z-10 -mx-6 flex flex-wrap items-center justify-between gap-2 border-b border-line bg-background/95 px-6 py-2 backdrop-blur">
+      {/* Filter + controls bar. The view toggle LEADS, then the range, then
+          everything else is pushed right by `ml-auto`. On a phone the row wraps
+          — and because the toggle is the first flex item, it stays first. */}
+      <div className="sticky top-14 z-10 -mx-6 flex flex-wrap items-center gap-2 border-b border-line bg-background/95 px-6 py-2 backdrop-blur">
+        <ModeToggle mode={mode} onChange={setMode} />
         <DateRangePicker from={from} to={to} onChange={setRange} />
-        <div className="flex items-center gap-2">
-          <ModeToggle mode={mode} onChange={setMode} />
+        <div className="ml-auto flex flex-wrap items-center gap-2">
           <ExcludedParamToggle on={includeExcluded} />
           {mode === "overview" && (
             <DropdownMenu>

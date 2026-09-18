@@ -32,26 +32,33 @@ import {
 import type { StoreField, StoreFieldType } from "@/store/fields";
 
 /**
- * Admin config for the Store module's order fields. The three CORE fields are
- * locked (System field) — only their label + accepted headers are editable.
- * Custom fields are fully editable and deletable (deleting keeps existing data).
+ * Admin config for the Store module's order fields — THREE tiers, and the UI
+ * has to show all three or it offers controls the server refuses:
+ *
+ *  - CORE (the 3 identity columns): locked; only label + headers are editable.
+ *  - SYSTEM-REQUIRED (`utm_source`, `channel`): can't be deleted or
+ *    un-required, but their values live in `attributes` like any custom field.
+ *    Label + headers stay editable.
+ *  - CUSTOM: fully editable and deletable (deleting keeps existing data).
+ *
+ * The tier comes off `field.systemRequired` / `field.core`, both derived in the
+ * query layer from `store/fields.ts` — nothing here re-lists the keys.
  */
-export function StoreFieldsAdmin({
-  fields,
-  sourceFieldKey,
-}: {
-  fields: StoreField[];
-  /** The field Reconciliation reads order sources from, if configured. */
-  sourceFieldKey?: string | null;
-}) {
+export function StoreFieldsAdmin({ fields }: { fields: StoreField[] }) {
+  // Tier order: core, then system-required, then custom. `sort_order` can't be
+  // relied on — a field PROMOTED into the system tier by migration 0046 kept
+  // whatever order it already had. Stable within each tier.
+  const tier = (f: StoreField) => (f.core ? 0 : f.systemRequired ? 1 : 2);
+  const ordered = [...fields].sort((a, b) => tier(a) - tier(b));
+
   return (
     <div className="max-w-3xl space-y-4">
       <div className="rounded-lg border border-line bg-surface p-4">
         <NewFieldForm />
       </div>
       <div className="divide-y divide-line rounded-lg border border-line bg-surface">
-        {fields.map((f) => (
-          <FieldRow key={f.id} field={f} isSourceField={f.key === sourceFieldKey} />
+        {ordered.map((f) => (
+          <FieldRow key={f.id} field={f} />
         ))}
       </div>
       <p className="text-xs text-ink-3">
@@ -121,13 +128,10 @@ function HeadersEditor({
   );
 }
 
-function FieldRow({
-  field,
-  isSourceField,
-}: {
-  field: StoreField;
-  isSourceField: boolean;
-}) {
+function FieldRow({ field }: { field: StoreField }) {
+  // Locked tiers: no delete, no Required toggle. The server enforces both
+  // (app/actions/store-field.ts) — this is the UI telling the same truth.
+  const locked = field.core || field.systemRequired;
   const router = useRouter();
   const [isPending, startTransition] = useNavTransition();
   const [label, setLabel] = useState(field.label);
@@ -183,9 +187,17 @@ function FieldRow({
         <span className="rounded bg-surface-2 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-ink-3">
           {field.type}
         </span>
-        {field.core ? (
-          <span className="inline-flex items-center gap-1 rounded bg-surface-2 px-1.5 py-0.5 text-[10px] text-ink-3">
-            <Lock className="h-3 w-3" /> System field
+        {locked ? (
+          <span
+            className="inline-flex items-center gap-1 rounded bg-surface-2 px-1.5 py-0.5 text-[10px] text-ink-3"
+            title={
+              field.core
+                ? "One of the three core identity columns."
+                : "Required in every upload file; can't be deleted."
+            }
+          >
+            <Lock className="h-3 w-3" />{" "}
+            {field.core ? "System field" : "System field — required in uploads"}
           </span>
         ) : (
           <button
@@ -205,7 +217,7 @@ function FieldRow({
         <HeadersEditor headers={headers} onChange={setHeaders} disabled={isPending} />
       </div>
 
-      {!field.core && (
+      {!locked && (
         <div className="flex flex-wrap items-center gap-4 text-xs text-ink-2">
           <Toggle label="Required" on={required} onToggle={() => setRequired((v) => !v)} disabled={isPending} />
         </div>
@@ -213,6 +225,12 @@ function FieldRow({
       {field.core && (
         <p className="text-[11px] text-ink-3">
           Always required. Only the label + headers are editable.
+        </p>
+      )}
+      {field.systemRequired && (
+        <p className="text-[11px] text-ink-3">
+          Always in the upload file — blank values are allowed and counted. Only
+          the label + headers are editable.
         </p>
       )}
 
@@ -234,18 +252,6 @@ function FieldRow({
               can re-add a field with the same name later.
             </DialogDescription>
           </DialogHeader>
-          {/* Deleting the configured source field also clears the pointer, so
-              by-platform Reconciliation stops attributing until it's re-set. */}
-          {isSourceField && (
-            <p className="rounded-md border border-warn/30 bg-warn/5 px-3 py-2 text-xs text-ink-2">
-              <span className="font-medium text-ink">
-                This is Reconciliation&rsquo;s source field.
-              </span>{" "}
-              Deleting it clears that setting, so Reconciliation&rsquo;s
-              by-platform mode will need reconfiguring before it can attribute
-              orders again.
-            </p>
-          )}
           <DialogFooter>
             <Button type="button" variant="ghost" onClick={() => setConfirmDelete(false)} disabled={isPending}>
               Cancel
