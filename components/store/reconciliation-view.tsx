@@ -190,13 +190,16 @@ export function ReconciliationView({
       display: signed(d),
     }));
     if (bpTotals.unattr > 0) {
-      // Unattributed orders have no claiming platform → their Δ contribution
-      // is the full count (keeps Σ bars == the headline Δ).
+      // Unattributed orders have no claiming platform, so their Δ contribution
+      // is claimed(0) − store(n) = −n under the inflation framing. Through the
+      // HELPER, never re-derived here, so the sign can't drift again (keeps
+      // Σ bars == the headline Δ).
+      const unattrDelta = reconDelta(bpTotals.unattr, 0);
       delta.push({
         key: "unattr",
         ...UNATTR,
-        fraction: bpTotals.unattr / maxAbs,
-        display: signed(bpTotals.unattr),
+        fraction: Math.abs(unattrDelta) / maxAbs,
+        display: signed(unattrDelta),
       });
     }
 
@@ -524,7 +527,7 @@ export function ReconciliationView({
           empty={overview.length === 0}
         />
         <MetricCard
-          label="Δ store − claimed"
+          label="Δ claimed − store"
           value={
             overview.length === 0
               ? "—"
@@ -643,8 +646,8 @@ function DayCell({ day, isLag }: { day: string; isLag: boolean }) {
         <span
           className="h-1.5 w-1.5 rounded-full bg-ink-3/60"
           role="img"
-          aria-label="Still attributing — within 7 days of the latest ads data, so a store &gt; claimed gap here may not be a real discrepancy."
-          title="Platform data may still be attributing (within 7 days of the latest ads data) — a store &gt; claimed gap here may not be a real discrepancy."
+          aria-label="Still attributing — within 7 days of the latest ads data, so a negative Δ (claimed under store) here may not be a real discrepancy."
+          title="Platform data may still be attributing (within 7 days of the latest ads data) — claimed runs low, so a negative Δ here may not be a real discrepancy."
         />
       )}
     </span>
@@ -708,13 +711,13 @@ function ByChannelTable({
             <th className="border-l border-line px-3 py-2 text-right">Claimed</th>
             <th
               className="border-l border-line px-3 py-2 text-right"
-              title="(Website + Application) − claimed"
+              title="Claimed − (Website + Application)"
             >
               Δ incl. app
             </th>
             <th
               className="px-3 py-2 text-right"
-              title="Website − claimed — the honest attribution gap for pixel-based claims"
+              title="Claimed − website — the honest attribution gap for pixel-based claims"
             >
               Δ excl. app
             </th>

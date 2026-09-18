@@ -2,23 +2,30 @@
  * Pure math for the Store → Reconciliation page. COUNTS ONLY — Δ compares store
  * order counts against platform-claimed conversion counts; there is deliberately
  * no revenue comparison anywhere (a standing product decision).
+ *
+ * DIRECTION — the INFLATION framing, a user decision of 2026-09-19 that
+ * SUPERSEDES the original store − claimed: **Δ = claimed − store**, so a
+ * POSITIVE Δ means platforms claim MORE than the store actually recorded.
+ * Actual 80, claimed 100 → Δ = +20, Δ% = +25%. Don't "fix" the sign back.
  */
 
-/** Δ = store orders − platform-claimed conversions (signed). */
+/** Δ = platform-claimed conversions − store orders (signed; + = over-claim). */
 export function reconDelta(storeOrders: number, claimed: number): number {
-  return storeOrders - claimed;
+  return claimed - storeOrders;
 }
 
 /**
- * Δ% = Δ / store orders. NULL when store orders = 0 (a percentage of zero is
- * undefined → the UI renders "—"), even if the platform claims conversions.
+ * Δ% = Δ / store orders — the STORE side stays the base (what actually
+ * happened is what an over-claim is measured against). NULL when store orders
+ * = 0 (a percentage of zero is undefined → the UI renders "—"), even if the
+ * platform claims conversions.
  */
 export function reconDeltaPct(
   storeOrders: number,
   claimed: number,
 ): number | null {
   if (storeOrders === 0) return null;
-  return (storeOrders - claimed) / storeOrders;
+  return (claimed - storeOrders) / storeOrders;
 }
 
 /**
@@ -40,7 +47,8 @@ export const RECON_WARN_THRESHOLD = 0.25;
 /**
  * Semantic tone for a Δ%: this is a DISCREPANCY MAGNITUDE, not good/bad — both
  * claimed>store and claimed<store are discrepancies — so large |Δ%| gets warn
- * tinting rather than green/red. NULL (store=0) is muted.
+ * tinting rather than green/red. Magnitude-based, so the 2026-09-19 sign flip
+ * left it untouched. NULL (store=0) is muted.
  */
 export function reconDeltaTone(pct: number | null): "muted" | "warn" {
   if (pct === null) return "muted";
@@ -49,8 +57,9 @@ export function reconDeltaTone(pct: number | null): "muted" | "warn" {
 
 /**
  * Is `day` within the trailing 7-day attribution window of the ads data horizon
- * (the latest ads data day)? Such a day is "still attributing", so a store >
- * claimed gap there isn't necessarily a real discrepancy. Both args are ISO
+ * (the latest ads data day)? Such a day is "still attributing": the platforms
+ * haven't finished counting, so claimed runs LOW and a NEGATIVE Δ (claimed
+ * under store) there isn't necessarily a real discrepancy. Both args are ISO
  * `YYYY-MM-DD`; returns false when there's no horizon.
  */
 export function isWithinAttributionLag(

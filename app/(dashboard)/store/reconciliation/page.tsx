@@ -75,7 +75,7 @@ export default async function ReconciliationPage({
       <PageHeader
         eyebrow="Store"
         title="Reconciliation"
-        subtitle="Store order counts vs platform-claimed conversions, per day. Counts only — no revenue comparison. Platform pixels largely see website purchases, so Δ excl. app is the honest attribution gap and Application explains the rest."
+        subtitle="Store order counts vs platform-claimed conversions, per day. Counts only — no revenue comparison. Δ positive = platforms claim more than the store recorded. Platform pixels largely see website purchases, so Δ excl. app is the honest attribution gap and Application explains the rest."
       />
       <ReconciliationView
         from={f.from ?? null}

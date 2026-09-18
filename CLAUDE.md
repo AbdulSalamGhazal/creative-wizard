@@ -743,13 +743,22 @@ This app is deployed and in production use. Treat `main` as shippable.
   headers, or seeds it where missing.
 - **Store → Reconciliation is COUNTS ONLY, by explicit user decision (2026-08).**
   `/store/reconciliation` compares store ORDER COUNTS vs platform-claimed
-  CONVERSION counts per day — Δ = store − claimed. There is deliberately **no
+  CONVERSION counts per day. **Δ = claimed − store as of 2026-09-19 — the
+  INFLATION framing, a user decision that SUPERSEDES the original
+  `store − claimed`: POSITIVE Δ means platforms claim MORE than the store
+  recorded** (actual 80, claimed 100 → Δ +20, Δ% +25%). Δ% divides by the STORE
+  side (what actually happened is the base) and is still NULL when store = 0.
+  The math lives ONLY in `reconDelta`/`reconDeltaPct` (`lib/reconciliation.ts`)
+  and `channelDeltas` (`store/channels.ts`) — never re-derive a delta in a
+  component, and do NOT "fix" the sign back. There is deliberately **no
   revenue comparison anywhere** on the page (no exchange rate, no revenue delta,
   no platform revenue): store revenue (SAR) and spend (USD) exist only as
   optional context columns, hidden by default, and are NEVER diffed against each
   other. Do **not** add a revenue/ROAS comparison without asking — it was
-  explicitly scoped out. Δ% is warn-tinted by |magnitude| (over- and under-claim
-  are both discrepancies — not good/bad green/red), and "—" when store = 0.
+  explicitly scoped out. Δ% is warn-tinted by |MAGNITUDE| (over- and under-claim
+  are both discrepancies — not good/bad green/red), and "—" when store = 0; the
+  tone rule is sign-independent, so the 2026-09-19 flip left it untouched, as it
+  left `reconMatchRate` (claimed ÷ store).
   **Attribution is EXPLICIT-mapping only** (house rule), on TWO axes since
   2026-09 (migration 0046) and nothing else is configurable:
   (1) **utm_source → platform** via `store_source_mappings`; the "which field is
@@ -764,8 +773,8 @@ This app is deployed and in production use. Treat `main` as shippable.
   **The page has THREE views (toggle FIRST in the controls row): Overview ·
   Platforms · Channels.** Channels shows, per day: Store total · Website ·
   Application · Unmapped (column only when > 0) · Claimed (all platforms) ·
-  **Δ incl. app** = (Website + Application) − claimed · **Δ excl. app** =
-  Website − claimed, each Δ% warn-tinted by |magnitude|. Rationale, stated on the
+  **Δ incl. app** = claimed − (Website + Application) · **Δ excl. app** =
+  claimed − Website, each Δ% warn-tinted by |magnitude|. Rationale, stated on the
   page: platform pixels largely see WEBSITE purchases, so Δ excl. app is the
   honest attribution gap and Application explains the rest. **Invariant
   (test-pinned): Website + Application + Unmapped = Store total every day** —

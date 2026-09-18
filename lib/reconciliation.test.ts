@@ -9,10 +9,21 @@ import {
 } from "@/lib/reconciliation";
 
 describe("reconDelta / reconDeltaPct", () => {
-  it("Δ is store − claimed (signed both ways)", () => {
-    expect(reconDelta(10, 7)).toBe(3);
-    expect(reconDelta(7, 10)).toBe(-3);
+  it("Δ is claimed − store, the INFLATION framing (signed both ways)", () => {
+    // store 10, claimed 7 → platforms claim 3 FEWER than actually happened.
+    expect(reconDelta(10, 7)).toBe(-3);
+    // store 7, claimed 10 → platforms claim 3 MORE: an over-claim is positive.
+    expect(reconDelta(7, 10)).toBe(3);
     expect(reconDelta(0, 0)).toBe(0);
+  });
+
+  it("the canonical case: 80 actual, 100 claimed → +20 / +25%", () => {
+    // The direction here is a USER DECISION (2026-09-19) that SUPERSEDES the
+    // original store − claimed. Positive = platforms claim more than the store
+    // recorded. If this test ever "fails" after a refactor, the refactor is
+    // wrong — not this expectation.
+    expect(reconDelta(80, 100)).toBe(20);
+    expect(reconDeltaPct(80, 100)).toBeCloseTo(0.25, 6);
   });
 
   it("Δ% is null when store = 0 (even if claimed > 0)", () => {
@@ -20,9 +31,11 @@ describe("reconDelta / reconDeltaPct", () => {
     expect(reconDeltaPct(0, 5)).toBeNull();
   });
 
-  it("Δ% divides by store orders; handles claimed > store (negative)", () => {
-    expect(reconDeltaPct(10, 7)).toBeCloseTo(0.3, 6);
-    expect(reconDeltaPct(10, 12)).toBeCloseTo(-0.2, 6);
+  it("Δ% divides by the STORE side; under-claim is negative", () => {
+    // (7 − 10) / 10
+    expect(reconDeltaPct(10, 7)).toBeCloseTo(-0.3, 6);
+    // (12 − 10) / 10 — over-claim, positive.
+    expect(reconDeltaPct(10, 12)).toBeCloseTo(0.2, 6);
     expect(reconDeltaPct(10, 10)).toBe(0);
   });
 });
@@ -45,7 +58,7 @@ describe("reconDeltaTone", () => {
   it("warn only when |Δ%| ≥ threshold; both directions", () => {
     expect(reconDeltaTone(0.1)).toBe("muted");
     expect(reconDeltaTone(RECON_WARN_THRESHOLD)).toBe("warn");
-    expect(reconDeltaTone(-RECON_WARN_THRESHOLD)).toBe("warn"); // over-claim is a discrepancy too
+    expect(reconDeltaTone(-RECON_WARN_THRESHOLD)).toBe("warn"); // under-claim is a discrepancy too
     expect(reconDeltaTone(0.9)).toBe("warn");
   });
 });

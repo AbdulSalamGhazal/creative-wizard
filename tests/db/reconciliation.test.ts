@@ -29,6 +29,7 @@ import {
   distinctStoreSourceValues,
 } from "@/db/queries/reconciliation";
 import { channelDeltas } from "@/store/channels";
+import { reconDelta } from "@/lib/reconciliation";
 import {
   resetAndSeed,
   CREATIVE_1,
@@ -130,14 +131,16 @@ beforeAll(async () => {
 beforeEach(() => setAccount(ACCOUNT_A));
 
 describe("reconciliation — overview Δ, by-platform buckets, scoping", () => {
-  it("overview: store 10 vs claimed 7 → Δ +3 on the day", async () => {
+  it("overview: store 10 vs claimed 7 → Δ −3 on the day (claimed − store)", async () => {
     const rows = await reconciliationOverview(D, D);
     expect(rows).toHaveLength(1);
     const r = rows[0]!;
     expect(r.day).toBe(D);
     expect(r.storeOrders).toBe(10);
     expect(r.platformConv).toBe(7); // IG 4 + FB 3
-    expect(r.storeOrders - r.platformConv).toBe(3);
+    // Through the helper, so the DB suite pins the page's DIRECTION too:
+    // claimed 7 − store 10 = −3 (platforms claim fewer than actually happened).
+    expect(reconDelta(r.storeOrders, r.platformConv)).toBe(-3);
     expect(r.storeRevenue).toBeCloseTo(1000, 2); // 10 × 100 (context only)
   });
 
@@ -258,11 +261,14 @@ describe("reconciliation — the CHANNELS view", () => {
       application: r.application,
       claimed,
     });
-    // incl. app: (6 + 3) − 7 = +2. excl. app: 6 − 7 = −1 — the honest gap.
-    expect(d.inclApp).toBe(2);
-    expect(d.exclApp).toBe(-1);
-    // The unmapped order is in NEITHER: it would have made incl. app +3.
-    expect(d.inclApp).not.toBe(r.storeOrders - claimed);
+    // Inflation framing (claimed − actual):
+    //   incl. app: 7 − (6 + 3) = −2
+    //   excl. app: 7 − 6       = +1 — platforms over-claim against website alone
+    expect(d.inclApp).toBe(-2);
+    expect(d.exclApp).toBe(1);
+    // The unmapped order is in NEITHER: absorbing it would have made incl. app
+    // 7 − 10 = −3.
+    expect(d.inclApp).not.toBe(claimed - r.storeOrders);
   });
 
   it("is account-scoped — B's orders and mappings never leak into A", async () => {

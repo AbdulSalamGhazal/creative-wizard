@@ -25,10 +25,15 @@ describe("channel destinations", () => {
 
 describe("the two channel deltas", () => {
   it("incl. app counts both buckets; excl. app is website alone", () => {
-    // 80 website + 30 app against 100 claimed.
+    // 80 website + 30 app against 100 claimed, in the INFLATION framing
+    // (claimed − actual, a user decision of 2026-09-19):
+    //   incl. app: 100 − (80 + 30) = −10  (platforms claim FEWER than the
+    //              store recorded once app orders are counted)
+    //   excl. app: 100 − 80        = +20  (against website alone they
+    //              over-claim — the honest attribution gap)
     expect(channelDeltas({ website: 80, application: 30, claimed: 100 })).toEqual({
-      inclApp: 10,
-      exclApp: -20,
+      inclApp: -10,
+      exclApp: 20,
     });
   });
 
@@ -41,8 +46,10 @@ describe("the two channel deltas", () => {
   });
 
   it("is signed both ways — over- and under-claiming both show", () => {
-    expect(channelDeltas({ website: 10, application: 0, claimed: 4 }).exclApp).toBe(6);
-    expect(channelDeltas({ website: 10, application: 0, claimed: 40 }).exclApp).toBe(-30);
+    // 4 claimed against 10 website: 4 − 10 = −6, an under-claim.
+    expect(channelDeltas({ website: 10, application: 0, claimed: 4 }).exclApp).toBe(-6);
+    // 40 claimed against 10 website: 40 − 10 = +30, a heavy over-claim.
+    expect(channelDeltas({ website: 10, application: 0, claimed: 40 }).exclApp).toBe(30);
     expect(channelDeltas({ website: 0, application: 0, claimed: 0 })).toEqual({
       inclApp: 0,
       exclApp: 0,

@@ -8,7 +8,7 @@
  * its own visible bucket rather than being absorbed into either side.
  *
  * Why the split matters: platform pixels largely see WEBSITE purchases, so
- * "Δ excl. app" (website − claimed) is the honest attribution gap, and the
+ * "Δ excl. app" (claimed − website) is the honest attribution gap, and the
  * Application column explains the rest.
  */
 
@@ -31,14 +31,16 @@ export const UNMAPPED_CHANNEL = "__unmapped__";
 export const STORE_CHANNEL_FIELD_KEY = "channel";
 
 export interface ChannelDeltas {
-  /** (Website + Application) − claimed. */
+  /** claimed − (Website + Application). */
   inclApp: number;
-  /** Website − claimed — the honest attribution gap for pixel-based claims. */
+  /** claimed − Website — the honest attribution gap for pixel-based claims. */
   exclApp: number;
 }
 
 /**
- * Both deltas for one day (or one total row).
+ * Both deltas for one day (or one total row), in the page's INFLATION framing
+ * (2026-09-19): **claimed − actual**, so POSITIVE = platforms claim more than
+ * the store recorded. Website 80, claimed 100 → Δ excl. app = +20.
  *
  * UNMAPPED IS NEVER ABSORBED into either delta: orders whose channel nobody has
  * mapped are not evidence about website or app, so they stay in their own
@@ -51,7 +53,7 @@ export function channelDeltas(input: {
   claimed: number;
 }): ChannelDeltas {
   return {
-    inclApp: input.website + input.application - input.claimed,
-    exclApp: input.website - input.claimed,
+    inclApp: input.claimed - (input.website + input.application),
+    exclApp: input.claimed - input.website,
   };
 }
