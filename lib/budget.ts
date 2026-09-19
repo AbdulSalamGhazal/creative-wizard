@@ -823,3 +823,221 @@ export function planGateProblems(input: PlanGateInput): string[] {
   }
   return out;
 }
+
+// ── Tracker (2026-09) ────────────────────────────────────────────────────────
+// The zero-configuration daily pace board: for every row that has a plan, how
+// far through it we are against where the curve says we should be. Pure, so
+// the arithmetic is unit-tested rather than eyeballed on a page; the input is
+// structural (BudgetMonthData satisfies it) so this module stays free of DB
+// imports. NOTHING here re-derives pacing — it composes curveExpected /
+// pacingDeviation / projectedMonthEnd, the module's one set of conventions.
+
+/** Exactly what the Tracker needs from `getBudgetMonth()`. */
+export interface TrackerInput {
+  allocations: ReadonlyArray<{
+    platform: string;
+    objective: string;
+    plannedSpend: number;
+  }>;
+  actualSpendByCombo: ReadonlyArray<{
+    platform: string;
+    objective: string;
+    actualSpend: number;
+  }>;
+  plannedRevenueSar: number | null;
+  reserveSpendUsd: number;
+  dayWeightOverrides: Record<number, number>;
+  actualRevenueSar: number;
+}
+
+/** One bar: a full-month plan, the actual so far, and the curve's mark. */
+export interface TrackerBar {
+  key: string;
+  label: string;
+  /** Full-month plan — the bar's TRACK. */
+  plan: number;
+  /** Month-to-date actual — the bar's FILL. */
+  actual: number;
+  /** What the curve expects by today — the bar's TICK. */
+  planToDate: number;
+  /** actual − planToDate (signed; the verdict's magnitude). */
+  delta: number;
+  /** (actual − planToDate) ÷ planToDate; NULL when nothing is expected yet. */
+  deviation: number | null;
+}
+
+export interface TrackerPlatform extends TrackerBar {
+  /** One bar per PLANNED bucket, in funnel order. */
+  buckets: TrackerBar[];
+  /** Spend in buckets with no plan — no bar, it draws down the reserve. */
+  unplanned: number;
+}
+
+export interface TrackerRevenue extends TrackerBar {
+  /** NULL when the month has no revenue target (the bar is not rendered). */
+  target: number | null;
+}
+
+export interface TrackerData {
+  month: string;
+  /** Day N of M, by the module's elapsed convention (0 future, M past). */
+  elapsedDays: number;
+  totalDays: number;
+  /** The curve fraction elapsed — "plan expects P% spent". */
+  curveElapsed: number;
+  isCurrentMonth: boolean;
+  isPastMonth: boolean;
+  isFutureMonth: boolean;
+  /** The brand total bar (every allocation, every actual). */
+  total: TrackerBar;
+  /**
+   * Month-end projection, CURRENT MONTH ONLY (actual ÷ elapsed curve
+   * fraction). NULL on a past month — it is already final — and on a future
+   * one, and when the elapsed fraction is 0.
+   */
+  projectedSpend: number | null;
+  /** projectedSpend ÷ plan; NULL without a plan to measure against. */
+  projectedPctOfPlan: number | null;
+  /** Cards, richest plan first; a platform with neither plan nor spend is out. */
+  platforms: TrackerPlatform[];
+  /** Σ unplanned across platforms — what the reserve has absorbed. */
+  unplannedTotal: number;
+  reserve: number;
+  /** Reserve minus unplanned spend, floored at 0. */
+  reserveRemaining: number;
+  revenue: TrackerRevenue;
+  /** False → the page shows its "plan this month first" hint, not a zero board. */
+  hasPlan: boolean;
+}
+
+const comboKey = (platform: string, objective: string) => `${platform}|${objective}`;
+
+function makeBar(
+  key: string,
+  label: string,
+  plan: number,
+  actual: number,
+  month: string,
+  overrides: Record<number, number>,
+  throughDay: number,
+): TrackerBar {
+  const planToDate = curveExpected(plan, monthStartIso(month), overrides, throughDay);
+  return {
+    key,
+    label,
+    plan,
+    actual,
+    planToDate,
+    delta: round2(actual - planToDate),
+    deviation: pacingDeviation(actual, planToDate),
+  };
+}
+
+export function buildTrackerRows(
+  data: TrackerInput,
+  month: string,
+  todayIso: string,
+): TrackerData {
+  const monthIso = monthStartIso(month);
+  const ov = data.dayWeightOverrides;
+  const totalDays = daysInMonth(monthIso);
+  const elapsedDays = elapsedDaysInMonth(month, todayIso);
+  const todayMonth = monthKey(todayIso);
+  const isCurrentMonth = todayMonth === month;
+  const isPastMonth = todayMonth > month;
+  const isFutureMonth = todayMonth < month;
+
+  const planByCombo = new Map<string, number>();
+  for (const a of data.allocations) {
+    const key = comboKey(a.platform, a.objective);
+    planByCombo.set(key, (planByCombo.get(key) ?? 0) + a.plannedSpend);
+  }
+  const actualByCombo = new Map<string, number>();
+  for (const c of data.actualSpendByCombo) {
+    const key = comboKey(c.platform, c.objective);
+    actualByCombo.set(key, (actualByCombo.get(key) ?? 0) + c.actualSpend);
+  }
+
+  const platformKeys = [
+    ...new Set([
+      ...data.allocations.map((a) => a.platform),
+      ...data.actualSpendByCombo.map((c) => c.platform),
+    ]),
+  ];
+
+  const platforms: TrackerPlatform[] = platformKeys.map((platform) => {
+    // Buckets in FUNNEL ORDER, derived — never a re-listed vocabulary.
+    const buckets: TrackerBar[] = [];
+    let unplanned = 0;
+    for (const objective of BUDGET_OBJECTIVES) {
+      const key = comboKey(platform, objective);
+      const plan = planByCombo.get(key) ?? 0;
+      const actual = actualByCombo.get(key) ?? 0;
+      // A bar needs a track: spend with no plan can't be barred, it is
+      // unplanned money and shows as an amount that draws down the reserve.
+      if (plan > 0) {
+        buckets.push(makeBar(key, objective, plan, actual, month, ov, elapsedDays));
+      } else if (actual > 0) {
+        unplanned += actual;
+      }
+    }
+    const plan = buckets.reduce((s, b) => s + b.plan, 0);
+    const actual = buckets.reduce((s, b) => s + b.actual, 0) + unplanned;
+    return {
+      ...makeBar(platform, platform, plan, actual, month, ov, elapsedDays),
+      buckets,
+      unplanned: round2(unplanned),
+    };
+  });
+  // Richest plan first; ties (and unplanned-only platforms) by actual spend.
+  platforms.sort((a, b) => b.plan - a.plan || b.actual - a.actual);
+
+  const totalPlan = data.allocations.reduce((s, a) => s + a.plannedSpend, 0);
+  const totalActual = data.actualSpendByCombo.reduce((s, c) => s + c.actualSpend, 0);
+  const total = makeBar("total", "Total", totalPlan, totalActual, month, ov, elapsedDays);
+
+  const unplannedTotal = round2(platforms.reduce((s, p) => s + p.unplanned, 0));
+
+  // The projection is a CURRENT-month reading: a past month is already final,
+  // and a future one has nothing to extrapolate from.
+  const projectedSpend = isCurrentMonth
+    ? projectedMonthEnd(totalActual, monthIso, ov, elapsedDays)
+    : null;
+
+  const target = data.plannedRevenueSar;
+  const revenue: TrackerRevenue = {
+    ...makeBar(
+      "revenue",
+      "Revenue",
+      target ?? 0,
+      data.actualRevenueSar,
+      month,
+      ov,
+      elapsedDays,
+    ),
+    target,
+  };
+
+  return {
+    month,
+    elapsedDays,
+    totalDays,
+    curveElapsed: curveFraction(monthIso, ov, elapsedDays),
+    isCurrentMonth,
+    isPastMonth,
+    isFutureMonth,
+    total,
+    projectedSpend,
+    projectedPctOfPlan:
+      projectedSpend !== null && totalPlan > 0 ? projectedSpend / totalPlan : null,
+    platforms,
+    unplannedTotal,
+    reserve: data.reserveSpendUsd,
+    reserveRemaining: Math.max(0, round2(data.reserveSpendUsd - unplannedTotal)),
+    revenue,
+    hasPlan:
+      data.allocations.length > 0 ||
+      data.plannedRevenueSar !== null ||
+      data.reserveSpendUsd > 0,
+  };
+}

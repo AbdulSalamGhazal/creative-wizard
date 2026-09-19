@@ -865,8 +865,8 @@ This app is deployed and in production use. Treat `main` as shippable.
   still need the sweep.
 
 - **Budget module (2026-09, v2) — raw actuals BY DECISION.** Its own sidebar
-  section of 4 pages (`/budget` Overview · `/budget/plan` · `/budget/pacing` ·
-  `/budget/audience`);
+  section of 5 pages (`/budget` Overview · `/budget/plan` · `/budget/tracker` ·
+  `/budget/pacing` · `/budget/audience`);
   Overview and Plan share `?month=` (nav links preserve it), Pacing takes a date
   range. The old **Daily** and **History** pages MERGED into Pacing and are
   permanent redirects to it (History asks for the last 12 months grouped by
@@ -972,6 +972,31 @@ This app is deployed and in production use. Treat `main` as shippable.
     The objective on a spend row is the campaign's CURRENT objective seen
     through the bucket lens, so reclassifying a campaign restates budget
     history. `budgetHistory()` was deleted — month grouping replaced it.
+  - **Tracker (`/budget/tracker`, 2026-09) — the ZERO-CONFIGURATION daily
+    pace board.** One question, answered in bars: who's ahead, who's behind,
+    by how much. The month and the currency are its ONLY controls and that
+    absence is the feature — **Pacing is the analysis tool** (ranges, grouping,
+    platform slicing) and **Overview is the month's verdict, untouched by user
+    decision**. Nothing here is new data: it reads the SAME `getBudgetMonth()`
+    payload and derives everything through `buildTrackerRows` (pure,
+    unit-tested, in lib/budget.ts), which composes the module's existing
+    conventions — `curveExpected` for plan-to-date, `pacingDeviation` /
+    `pacingTone` for the magnitude-based verdict, `projectedMonthEnd` for the
+    "on this pace" line. **Never re-derive pacing in the page.**
+    - **The bar says three things at once:** the TRACK is the row's full-month
+      plan, the FILL is actual month-to-date, and the TICK is where the plan
+      curve says today should be. Pure CSS, tokens only (surface-2 / brand /
+      ink-3), warn-tinted by |deviation| through the shared threshold. The tick
+      stands 4px PROUD of the track — against the fill it is nearly invisible
+      (1.06:1 on Midnight), and it is the whole point of the bar. Every bar
+      carries an aria-label that says the numbers in words.
+    - **A row with no plan gets NO bar** — there is no track to draw against.
+      Unplanned spend is an amount-only line per platform ("draws down the
+      reserve"), which is the same reserve framing Overview uses.
+    - Past month → the tick sits at 100% and the projection is replaced by
+      "final for <month>"; future month → tick at 0, no verdict at all (nothing
+      is expected yet, which must never read as 100% behind). Both fall out of
+      `elapsedDaysInMonth`, not a special case.
   - **Funnel audience (`/budget/audience`, 2026-09, migration 0042 additive).**
     Hand-measured audience sizes per funnel stage × platform, versus spend.
     **Stages DERIVE from `BUDGET_OBJECTIVES` minus "Other"** (`FUNNEL_STAGES` in

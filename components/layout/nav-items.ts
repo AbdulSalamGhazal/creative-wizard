@@ -1,4 +1,5 @@
 import {
+  BarChartHorizontal,
   LayoutDashboard,
   Images,
   GitCompare,
@@ -104,6 +105,10 @@ export const NAV_ITEMS: NavItem[] = [
   // sibling page.
   { href: "/budget", label: "Overview", icon: Wallet, group: "budget", exact: true },
   { href: "/budget/plan", label: "Plan", icon: NotebookPen, group: "budget" },
+  // The daily pace board — between the plan and the analysis tool, which is
+  // the order you use them in. Its icon is deliberately NOT Pacing's gauge:
+  // bars, because that is what the page is.
+  { href: "/budget/tracker", label: "Tracker", icon: BarChartHorizontal, group: "budget" },
   { href: "/budget/pacing", label: "Pacing", icon: Gauge, group: "budget" },
   // Funnel-audience sizes vs spend. Open to any brand member, like the other
   // read surfaces; recording is gated behind audience.manage on the page.
