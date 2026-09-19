@@ -26,7 +26,12 @@ import {
 import type { CreativeSort } from "@/validators/creative";
 import { getActiveAccountId } from "@/lib/tenant";
 import { creativeStatusMap, statusFor } from "@/db/queries/creative-status";
-import { STATUS_ORDER, type CreativeStatus } from "@/lib/creative-status";
+import {
+  STATUS_ORDER,
+  statusBreakdownOf,
+  type CreativeStatus,
+  type CreativeStatusBreakdown,
+} from "@/lib/creative-status";
 import { splitPriorityFilter } from "@/lib/priority";
 import { compareStages, sortStages, splitStageFilter } from "@/lib/funnel-stages";
 
@@ -84,6 +89,14 @@ export interface CreativeListRow {
 export interface CreativeListResult {
   rows: CreativeListRow[];
   totalMatching: number;
+  /**
+   * The status FACET for the strip above the table: counts across the rows
+   * this call matched, with the STATUS filter itself deliberately left out
+   * (selecting "Active" must not zero the other chips). Computed here, from
+   * the pre-status-filter rows, so it costs nothing and can never disagree
+   * with the table — never re-derive it with a second query.
+   */
+  breakdown: CreativeStatusBreakdown;
 }
 
 
@@ -316,6 +329,12 @@ export async function listCreatives(
     createdAt: r.createdAt,
   }));
 
+  // The status FACET for the strip, taken HERE — after every other filter has
+  // been applied and the status attached, but BEFORE the status filter narrows
+  // `mapped` below. That ordering is the whole behaviour: the chips keep their
+  // counts when one of them is selected.
+  const breakdown = statusBreakdownOf(mapped);
+
   // Status filter runs in JS, AFTER status is attached — the dynamic status
   // isn't a DB column, so it can't be a SQL WHERE. It matches the EFFECTIVE
   // (platform-scoped when one platform is selected) status. The Library shows
@@ -362,7 +381,7 @@ export async function listCreatives(
       ? mapped.slice(0, filters.limit)
       : mapped;
 
-  return { rows: finalRows, totalMatching };
+  return { rows: finalRows, totalMatching, breakdown };
 }
 
 function orderByForSort(sort: CreativeSort): SQL[] {

@@ -1,5 +1,5 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { ACCOUNT_A } from "./config";
+import { ACCOUNT_A, ACCOUNT_B } from "./config";
 
 vi.mock("@/lib/tenant", () => ({
   ACCOUNT_COOKIE: "ccms_account",
@@ -145,5 +145,66 @@ describe("Library Stage — overlap filter and funnel-order sort", () => {
 
     const asc = await listCreatives({ sort: "stage-asc" });
     expect(asc.rows.map((r) => r.id)).toEqual([CREATIVE_1, CREATIVE_2]);
+  });
+});
+
+/**
+ * The Library's status STRIP. Its counts are a facet of the listing itself
+ * (2026-09): every filter applies EXCEPT the status filter, so the chips stay
+ * toggleable and the strip can never disagree with the rows below it.
+ */
+describe("Library status facet (listCreatives().breakdown)", () => {
+  beforeEach(async () => {
+    await resetAndSeed();
+    setAccount(ACCOUNT_A);
+  });
+
+  it("with no filters it counts every creative in the brand", async () => {
+    const all = await listCreatives({ sort: "name-asc" });
+    expect(all.breakdown.total).toBe(2); // A-Creative-1 + A-Creative-2
+    const sum = Object.values(all.breakdown.general).reduce((a, b) => a + b, 0);
+    expect(sum).toBe(all.breakdown.total);
+    // …and it agrees with the rows it was taken from.
+    expect(all.breakdown.total).toBe(all.rows.length);
+  });
+
+  it("respects a NON-status filter — the facet narrows with the list", async () => {
+    const one = await listCreatives({ sort: "name-asc", types: ["video"] });
+    expect(one.rows.map((r) => r.name)).toEqual(["A-Creative-1"]);
+    expect(one.breakdown.total).toBe(1);
+    expect(one.breakdown.general[one.rows[0]!.status]).toBe(1);
+  });
+
+  it("respects a PLATFORM filter — status is scoped to it, and so is the count", async () => {
+    // Only CREATIVE_1 ever ran on facebook; CREATIVE_2's single row is
+    // instagram (and excluded). The platform filter never drops a creative —
+    // it re-scopes the status — so the facet still counts both, but they land
+    // in different buckets than the unfiltered call.
+    const fb = await listCreatives({ sort: "name-asc", platforms: ["facebook"] });
+    expect(fb.breakdown.total).toBe(2);
+    const byName = new Map(fb.rows.map((r) => [r.name, r.status]));
+    expect(fb.breakdown.general[byName.get("A-Creative-1")!]).toBeGreaterThan(0);
+    // The counts are exactly the rows' statuses — no second derivation.
+    const recount = { new: 0, active: 0, pause: 0, terminated: 0 };
+    for (const r of fb.rows) recount[r.status] += 1;
+    expect(fb.breakdown.general).toEqual(recount);
+  });
+
+  it("IGNORES the status filter — chips stay toggleable", async () => {
+    const all = await listCreatives({ sort: "name-asc" });
+    // Pick a status that at least one creative actually has.
+    const target = all.rows[0]!.status;
+    const filtered = await listCreatives({ sort: "name-asc", statuses: [target] });
+    // The LIST narrowed…
+    expect(filtered.rows.every((r) => r.status === target)).toBe(true);
+    // …but the FACET didn't: it still reports every bucket, unchanged, so the
+    // other chips remain clickable instead of reading 0.
+    expect(filtered.breakdown).toEqual(all.breakdown);
+  });
+
+  it("is account-scoped — another brand's creatives never appear in it", async () => {
+    setAccount(ACCOUNT_B);
+    const b = await listCreatives({ sort: "name-asc" });
+    expect(b.breakdown.total).toBe(1); // B-Creative-1 only
   });
 });

@@ -1,19 +1,31 @@
 "use client";
 
-import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
+import { useMemo } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { Columns3 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { DataTable, type DataColumn } from "@/components/ui/data-table";
 import { DownloadCsvButton } from "@/components/ui/download-csv-button";
+import { usePersistentHidden } from "@/components/ui/use-persistent-hidden";
 import type { CreativeListRow } from "@/db/queries/creatives";
 import type { CreativeSort } from "@/validators/creative";
 import { StatusBadge } from "@/components/creative/status-badge";
 import { SystemBadge } from "@/components/creative/system-badge";
 import { PriorityStars } from "@/components/creative/priority-stars";
 import { StageChips } from "@/components/creative/stage-chips";
+import { AngleChips } from "@/components/creative/angle-chips";
 import { STATUS_LABEL } from "@/lib/creative-status";
 import { rowsToCsv, todayStamp, type CsvColumn } from "@/lib/csv-export";
 import { isoDate, usd } from "@/lib/format";
+import { useNavTransition } from "@/lib/nav-progress";
 
 const TYPE_LABEL: Record<CreativeListRow["type"], string> = {
   video: "Video",
@@ -26,6 +38,10 @@ const TYPE_LABEL: Record<CreativeListRow["type"], string> = {
  * still renders its usual subset). Angles stay in ONE cell, comma-separated —
  * never one column per angle. Fields that can contain commas / quotes / newlines
  * (angles, notes, links) are quoted by `rowsToCsv` (RFC 4180).
+ *
+ * DELIBERATELY independent of the on-screen columns and of the Columns menu:
+ * the export is the whole record, whatever the viewer has chosen to look at.
+ * Its shape is pinned by creative-csv.test.ts.
  */
 export const CSV_COLUMNS: CsvColumn<CreativeListRow>[] = [
   { key: "name", label: "Creative", value: (r) => r.name },
@@ -51,24 +67,38 @@ export const CSV_COLUMNS: CsvColumn<CreativeListRow>[] = [
   },
 ];
 
-// Sortable columns → their asc/desc URL sort values (validated in
-// validators/creative.ts). Clicking a header cycles desc → asc → default.
+// Column key → its asc/desc URL sort values (validated in
+// validators/creative.ts). Sorting stays SERVER-side: the query layer owns the
+// derived-status order, the priority "unrated last" and the stage "earliest
+// stage, unassigned last" rules. DataTable only reflects the URL's state —
+// none of these columns carries a `sortValue`, so it never re-sorts locally.
 const DEFAULT_SORT: CreativeSort = "launched-desc";
 const SORTS = {
   name: { asc: "name-asc", desc: "name-desc" },
   product: { asc: "product-asc", desc: "product-desc" },
   type: { asc: "type-asc", desc: "type-desc" },
   status: { asc: "status-asc", desc: "status-desc" },
-  angle: { asc: "angle-asc", desc: "angle-desc" },
-  launched: { asc: "launched-asc", desc: "launched-desc" },
+  angles: { asc: "angle-asc", desc: "angle-desc" },
+  launchDate: { asc: "launched-asc", desc: "launched-desc" },
   priority: { asc: "priority-asc", desc: "priority-desc" },
-  stage: { asc: "stage-asc", desc: "stage-desc" },
-  spend7: { asc: "spend7-asc", desc: "spend7-desc" },
-  spend30: { asc: "spend-asc", desc: "spend-desc" },
+  stages: { asc: "stage-asc", desc: "stage-desc" },
+  spend7d: { asc: "spend7-asc", desc: "spend-desc" },
+  spend30d: { asc: "spend-asc", desc: "spend-desc" },
 } satisfies Record<string, { asc: CreativeSort; desc: CreativeSort }>;
+type SortKey = keyof typeof SORTS;
 
-const COL_WIDTHS_KEY = "creatives-col-widths";
-const MIN_COL_WIDTH = 90;
+/**
+ * Hidden on a first visit — the declutter the table needed. They are ordinary
+ * columns otherwise: the Columns menu restores them, the choice persists per
+ * browser, and the CSV carries them regardless.
+ */
+const DEFAULT_HIDDEN = [
+  "notes",
+  "sourceLink",
+  "thumbnailUrl",
+  "createdBy",
+  "createdAt",
+] as const;
 
 export function CreativeTable({
   rows,
@@ -80,301 +110,266 @@ export function CreativeTable({
   total?: number;
   listCtx?: string;
 }) {
+  const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const [, startNav] = useNavTransition();
   const currentSort = (searchParams.get("sort") as CreativeSort) ?? DEFAULT_SORT;
 
-  // ---- Resizable text columns (Creative, Product) ----
-  const [widths, setWidths] = useState<Record<string, number>>({});
-  const thRefs = useRef<Record<string, HTMLTableCellElement | null>>({});
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(COL_WIDTHS_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw) as Record<string, number>;
-        if (parsed && typeof parsed === "object") setWidths(parsed);
-      }
-    } catch {
-      /* ignore */
-    }
-  }, []);
-  const startResize = useCallback(
-    (key: string, e: React.MouseEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
-      const startX = e.clientX;
-      const measured = thRefs.current[key]?.getBoundingClientRect().width ?? 160;
-      const startW = widths[key] ?? measured;
-      const onMove = (ev: MouseEvent) => {
-        const w = Math.max(MIN_COL_WIDTH, Math.round(startW + (ev.clientX - startX)));
-        setWidths((prev) => ({ ...prev, [key]: w }));
-      };
-      const onUp = () => {
-        window.removeEventListener("mousemove", onMove);
-        window.removeEventListener("mouseup", onUp);
-        document.body.style.userSelect = "";
-        setWidths((prev) => {
-          try {
-            localStorage.setItem(COL_WIDTHS_KEY, JSON.stringify(prev));
-          } catch {
-            /* ignore */
-          }
-          return prev;
-        });
-      };
-      window.addEventListener("mousemove", onMove);
-      window.addEventListener("mouseup", onUp);
-      document.body.style.userSelect = "none";
-    },
-    [widths],
+  const [hiddenSet, setHiddenSet] = usePersistentHidden<string>(
+    "cw-cols-hidden:library",
+    DEFAULT_HIDDEN,
   );
-  const widthStyle = (key: string): React.CSSProperties | undefined => {
-    const w = widths[key];
-    return w ? { width: w, minWidth: w, maxWidth: w } : undefined;
-  };
 
-  // ---- Sort link helper ----
-  const sortState = (col: keyof typeof SORTS) => {
-    const { asc, desc } = SORTS[col];
-    const active = currentSort === asc || currentSort === desc;
-    const dir: "asc" | "desc" = currentSort === asc ? "asc" : "desc";
-    let next: CreativeSort | null;
-    if (currentSort === desc) next = asc;
-    else if (currentSort === asc) next = null; // reset to default
-    else next = desc;
+  const detailHref = (r: CreativeListRow) =>
+    `/library/${encodeURIComponent(r.name)}${listCtx ? `?${listCtx}` : ""}`;
+
+  /** The active column + direction, read back off the URL's sort value. */
+  const active = useMemo(() => {
+    for (const [key, pair] of Object.entries(SORTS) as Array<
+      [SortKey, { asc: CreativeSort; desc: CreativeSort }]
+    >) {
+      if (currentSort === pair.asc) return { key, dir: "asc" as const };
+      if (currentSort === pair.desc) return { key, dir: "desc" as const };
+    }
+    return { key: "launchDate" as SortKey, dir: "desc" as const };
+  }, [currentSort]);
+
+  /**
+   * Today's three-state header cycle, kept exactly: desc → asc → back to the
+   * page default. DataTable proposes a direction; we decide what the URL says,
+   * and dropping the param IS the third state.
+   */
+  const onSort = (key: string) => {
+    const pair = SORTS[key as SortKey];
+    if (!pair) return;
+    const next: CreativeSort | null =
+      currentSort === pair.desc ? pair.asc : currentSort === pair.asc ? null : pair.desc;
     const params = new URLSearchParams(searchParams.toString());
     if (next === null || next === DEFAULT_SORT) params.delete("sort");
     else params.set("sort", next);
     const qs = params.toString();
-    return { active, dir, href: qs ? `${pathname}?${qs}` : pathname };
+    startNav(() =>
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false }),
+    );
   };
 
-  if (rows.length === 0) {
-    return (
-      <div className="rounded-lg border border-dashed border-line bg-surface px-6 py-16 text-center">
-        <p className="text-ink-2 text-sm">No creatives match these filters.</p>
-      </div>
-    );
-  }
+  const columns: DataColumn<CreativeListRow>[] = useMemo(
+    () => [
+      {
+        key: "name",
+        label: "Creative",
+        pinned: true,
+        sortable: true,
+        href: detailHref,
+        render: (r) => (
+          <span className="flex min-w-0 flex-col gap-1">
+            <span className="truncate font-mono text-xs text-ink" title={r.name}>
+              {r.name}
+            </span>
+            {r.isSystem && <SystemBadge className="self-start" />}
+          </span>
+        ),
+        csv: (r) => r.name,
+      },
+      {
+        key: "product",
+        label: "Product",
+        sortable: true,
+        render: (r) => (
+          <span className="block truncate text-ink-2" title={r.productName}>
+            {r.productName}
+          </span>
+        ),
+      },
+      {
+        key: "type",
+        label: "Type",
+        sortable: true,
+        render: (r) => <span className="text-ink-2">{TYPE_LABEL[r.type]}</span>,
+      },
+      {
+        key: "status",
+        label: "Status",
+        sortable: true,
+        render: (r) => <StatusBadge status={r.status} />,
+      },
+      {
+        key: "priority",
+        label: "Priority",
+        sortable: true,
+        render: (r) => <PriorityStars value={r.priority} />,
+      },
+      {
+        key: "stages",
+        label: "Stage",
+        sortable: true,
+        render: (r) => <StageChips stages={r.stages} nowrap />,
+      },
+      {
+        key: "launchDate",
+        label: "Launch date",
+        sortable: true,
+        render: (r) => (
+          <span className="num text-ink-2">
+            {r.launchDate ? isoDate(r.launchDate) : "—"}
+          </span>
+        ),
+      },
+      {
+        key: "spend7d",
+        label: "7d spend",
+        align: "right",
+        sortable: true,
+        render: (r) => (
+          <span className="num tabular-nums text-ink">
+            {r.spend7d > 0 ? usd(r.spend7d) : "—"}
+          </span>
+        ),
+      },
+      {
+        key: "spend30d",
+        label: "30d spend",
+        align: "right",
+        sortable: true,
+        render: (r) => (
+          <span className="num tabular-nums text-ink">
+            {r.spend30d > 0 ? usd(r.spend30d) : "—"}
+          </span>
+        ),
+      },
+      {
+        key: "angles",
+        label: "Angles",
+        sortable: true,
+        render: (r) => <AngleChips angles={r.angles} />,
+      },
+      // ── Hidden by default (the Columns menu restores them) ──
+      {
+        key: "notes",
+        label: "Notes",
+        render: (r) =>
+          r.notes ? (
+            <span className="block truncate text-ink-2" title={r.notes}>
+              {r.notes}
+            </span>
+          ) : (
+            <span className="text-ink-3">—</span>
+          ),
+      },
+      {
+        key: "sourceLink",
+        label: "Source link",
+        render: (r) => <ExternalCell url={r.sourceLink} />,
+      },
+      {
+        key: "thumbnailUrl",
+        label: "Thumbnail",
+        render: (r) => <ExternalCell url={r.thumbnailUrl} />,
+      },
+      {
+        key: "createdBy",
+        label: "Created by",
+        render: (r) => (
+          <span className="block truncate text-ink-2">
+            {r.createdByName ?? "—"}
+          </span>
+        ),
+      },
+      {
+        key: "createdAt",
+        label: "Created at",
+        render: (r) => (
+          <span className="num text-ink-2">{isoDate(r.createdAt)}</span>
+        ),
+      },
+    ],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [listCtx],
+  );
 
+  const hideable = columns.filter((c) => !c.pinned);
   const csvContent = rowsToCsv(rows, CSV_COLUMNS);
 
   return (
     <div className="space-y-2">
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-xs text-ink-3 num">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="num text-xs text-ink-3">
           Showing {rows.length}
           {total !== undefined ? ` of ${total}` : ""} creatives
         </p>
-        <DownloadCsvButton
-          csvContent={csvContent}
-          filename={`creatives-${todayStamp()}.csv`}
-        />
-      </div>
-      <div className="max-h-[70vh] overflow-auto rounded-lg border border-line bg-surface">
-        <table className="w-full text-sm num">
-          <thead>
-            <tr className="text-left text-label text-ink-3 [&>th]:sticky [&>th]:top-0 [&>th]:z-10 [&>th]:bg-surface [&>th]:border-b [&>th]:border-line">
-              <SortableTextTh
-                label="Creative"
-                state={sortState("name")}
-                width={widths.name}
-                style={widthStyle("name")}
-                onResizeStart={(e) => startResize("name", e)}
-                thRef={(el) => {
-                  thRefs.current.name = el;
-                }}
-              />
-              <SortableTextTh
-                label="Product"
-                state={sortState("product")}
-                width={widths.product}
-                style={widthStyle("product")}
-                onResizeStart={(e) => startResize("product", e)}
-                thRef={(el) => {
-                  thRefs.current.product = el;
-                }}
-              />
-              <SortableTh label="Type" state={sortState("type")} />
-              <SortableTh label="Status" state={sortState("status")} />
-              <SortableTh label="Priority" state={sortState("priority")} />
-              <SortableTh label="Stage" state={sortState("stage")} />
-              <SortableTh label="Launch date" state={sortState("launched")} />
-              <SortableTh label="7d spend" state={sortState("spend7")} numeric />
-              <SortableTh label="30d spend" state={sortState("spend30")} numeric />
-              <SortableTh label="Angles" state={sortState("angle")} />
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-line">
-            {rows.map((r) => (
-              <tr
-                key={r.id}
-                className="hover:bg-surface-2/60 transition-colors"
-              >
-                <td
-                  style={widthStyle("name")}
-                  className={`px-3 py-2.5 ${widths.name ? "" : "whitespace-nowrap"}`}
+        <div className="flex items-center gap-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button type="button" variant="outline" size="sm">
+                <Columns3 className="h-3.5 w-3.5" />
+                Columns
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="max-h-80 w-48 overflow-auto">
+              <DropdownMenuLabel>Show columns</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuCheckboxItem checked disabled>
+                Creative
+              </DropdownMenuCheckboxItem>
+              {hideable.map((c) => (
+                <DropdownMenuCheckboxItem
+                  key={c.key}
+                  checked={!hiddenSet.has(c.key)}
+                  onCheckedChange={(on) =>
+                    setHiddenSet((prev) => {
+                      const next = new Set(prev);
+                      if (on) next.delete(c.key);
+                      else next.add(c.key);
+                      return next;
+                    })
+                  }
                 >
-                  <Link
-                    href={`/library/${encodeURIComponent(r.name)}${listCtx ? `?${listCtx}` : ""}`}
-                    title={r.name}
-                    className={
-                      "font-mono text-ink text-xs hover:text-brand transition-colors " +
-                      (widths.name ? "block truncate" : "")
-                    }
-                  >
-                    {r.name}
-                  </Link>
-                  {r.isSystem && <SystemBadge className="mt-1" />}
-                </td>
-                <td
-                  style={widthStyle("product")}
-                  title={widths.product ? r.productName : undefined}
-                  className={`px-3 py-2.5 text-ink-2 ${widths.product ? "truncate" : ""}`}
-                >
-                  {r.productName}
-                </td>
-                <td className="px-3 py-2.5 text-ink-2">{TYPE_LABEL[r.type]}</td>
-                <td className="px-3 py-2.5">
-                  <StatusBadge status={r.status} />
-                </td>
-                <td className="px-3 py-2.5">
-                  <PriorityStars value={r.priority} />
-                </td>
-                <td className="px-3 py-2.5">
-                  <StageChips stages={r.stages} />
-                </td>
-                <td className="px-3 py-2.5 text-ink-2">
-                  {r.launchDate ? isoDate(r.launchDate) : "—"}
-                </td>
-                <td className="px-3 py-2.5 text-right text-ink tabular-nums">
-                  {r.spend7d > 0 ? usd(r.spend7d) : "—"}
-                </td>
-                <td className="px-3 py-2.5 text-right text-ink tabular-nums">
-                  {r.spend30d > 0 ? usd(r.spend30d) : "—"}
-                </td>
-                <td className="px-3 py-2.5 text-ink-2">
-                  {r.angles.length === 0 ? (
-                    <span className="text-ink-3">—</span>
-                  ) : (
-                    <div className="flex items-center gap-1 flex-wrap">
-                      {r.angles.slice(0, 3).map((t) => (
-                        <span
-                          key={t}
-                          className="inline-flex items-center h-5 px-1.5 rounded text-[10px] bg-surface-2 border border-line text-ink-2"
-                        >
-                          {t}
-                        </span>
-                      ))}
-                      {r.angles.length > 3 && (
-                        <span className="text-[10px] text-ink-3">
-                          +{r.angles.length - 3}
-                        </span>
-                      )}
-                    </div>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                  {c.label}
+                </DropdownMenuCheckboxItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <DownloadCsvButton
+            csvContent={csvContent}
+            filename={`creatives-${todayStamp()}.csv`}
+          />
+        </div>
       </div>
+
+      <DataTable<CreativeListRow>
+        columns={columns}
+        rows={rows}
+        rowKey={(r) => r.id}
+        sort={active.key}
+        dir={active.dir}
+        hidden={[...hiddenSet]}
+        onSort={onSort}
+        onRowClick={(r) => startNav(() => router.push(detailHref(r)))}
+        minWidthClass="min-w-[900px]"
+        empty={
+          <div className="rounded-lg border border-dashed border-line bg-surface px-6 py-16 text-center">
+            <p className="text-sm text-ink-2">No creatives match these filters.</p>
+          </div>
+        }
+      />
     </div>
   );
 }
 
-interface SortState {
-  active: boolean;
-  dir: "asc" | "desc";
-  href: string;
-}
-
-function SortIcon({ active, dir }: { active: boolean; dir: "asc" | "desc" }) {
-  if (!active)
-    return <ArrowUpDown className="w-3 h-3 text-ink-3 opacity-60" aria-hidden />;
-  return dir === "asc" ? (
-    <ArrowUp className="w-3 h-3 text-brand" aria-hidden />
-  ) : (
-    <ArrowDown className="w-3 h-3 text-brand" aria-hidden />
-  );
-}
-
-/** Plain sortable header (numeric or text), no resize handle. */
-function SortableTh({
-  label,
-  state,
-  numeric = false,
-}: {
-  label: string;
-  state: SortState;
-  numeric?: boolean;
-}) {
+/** A URL cell: a short link out, never the raw URL stretching the column. */
+function ExternalCell({ url }: { url: string | null }) {
+  if (!url) return <span className="text-ink-3">—</span>;
   return (
-    <th
-      className={
-        "font-medium px-3 py-2.5 whitespace-nowrap " +
-        (numeric ? "text-right" : "text-left")
-      }
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      title={url}
+      onClick={(e) => e.stopPropagation()}
+      className="text-ink-2 underline decoration-line underline-offset-2 hover:text-ink"
     >
-      <Link
-        href={state.href}
-        scroll={false}
-        className={
-          "inline-flex items-center gap-1 hover:text-ink transition-colors " +
-          (numeric ? "justify-end " : "") +
-          (state.active ? "text-brand" : "")
-        }
-      >
-        {label}
-        <SortIcon active={state.active} dir={state.dir} />
-      </Link>
-    </th>
-  );
-}
-
-/** Sortable text header with a drag-to-resize handle on the right edge. */
-function SortableTextTh({
-  label,
-  state,
-  width,
-  style,
-  onResizeStart,
-  thRef,
-}: {
-  label: string;
-  state: SortState;
-  width?: number;
-  style?: React.CSSProperties;
-  onResizeStart: (e: React.MouseEvent) => void;
-  thRef: (el: HTMLTableCellElement | null) => void;
-}) {
-  return (
-    <th
-      ref={thRef}
-      style={style}
-      className={
-        "relative font-medium px-3 py-2.5 text-left " +
-        (width ? "" : "whitespace-nowrap")
-      }
-    >
-      <Link
-        href={state.href}
-        scroll={false}
-        className={
-          "inline-flex items-center gap-1 max-w-full hover:text-ink transition-colors " +
-          (state.active ? "text-brand" : "")
-        }
-      >
-        <span className={width ? "truncate" : ""}>{label}</span>
-        <SortIcon active={state.active} dir={state.dir} />
-      </Link>
-      <span
-        role="separator"
-        aria-orientation="vertical"
-        aria-label={`Resize ${label} column`}
-        onMouseDown={onResizeStart}
-        className="absolute top-0 right-0 h-full w-1.5 cursor-col-resize select-none hover:bg-brand/40 active:bg-brand/60"
-      />
-    </th>
+      Open
+    </a>
   );
 }

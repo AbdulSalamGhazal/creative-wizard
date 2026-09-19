@@ -593,10 +593,29 @@ This app is deployed and in production use. Treat `main` as shippable.
     the **campaign row-data** table (`campaign-records-table.tsx`), and the
     creative-detail **campaigns/platform** table (`creative-campaigns-table.tsx`,
     local sort + a By campaign / By platform mode toggle; totals derived from
-    component sums so they match across modes; row-click → campaign detail). The
-    Columns dropdown lives in each consumer's toolbar and drives `hidden`. (The
-    old hand-rolled `creative-platform-table.tsx` — expandable per-platform rows —
-    was replaced by this and DELETED.)
+    component sums so they match across modes; row-click → campaign detail), and
+    the **Library** table (`creative-table.tsx`, migrated 2026-09 — see below).
+    The Columns dropdown lives in each consumer's toolbar and drives `hidden`.
+    (The old hand-rolled `creative-platform-table.tsx` — expandable per-platform
+    rows — was replaced by this and DELETED.)
+  - **The LIBRARY table (2026-09) — DataTable, with three things worth keeping.**
+    (1) **Sorting stays SERVER-side.** No column carries a `sortValue`, so
+    DataTable never re-sorts locally: the query layer owns the derived-status
+    order, "unrated last" and "earliest stage, unassigned last", and the table
+    only reflects the URL's `?sort=`. Its header keeps the Library's
+    THREE-state cycle (desc → asc → back to the page default) by interpreting
+    `onSort` itself — DataTable proposes a direction, the consumer decides what
+    the URL says. (2) **A Columns menu** on the shared hidden-key pattern
+    (`usePersistentHidden`, per browser), with notes / source link / thumbnail /
+    created-by / created-at hidden on a first visit. A key absent from the
+    stored set is VISIBLE, so a column added later still shows up. (3) **Cells
+    that cannot grow the row.** `AngleChips` renders at most two width-capped,
+    truncated chips plus a "+N" whose tooltip names the rest, and `StageChips`
+    takes `nowrap`; measured against the built CSS, the Angles cell is 271px
+    and the row 43px whether a creative has zero angles or eight long ones.
+    **The CSV is deliberately NOT the visible column set** — it exports the
+    whole record regardless of the menu (shape pinned by
+    `creative-csv.test.ts`).
   - **THE GROUPED-HEADER EXCEPTION: the Summary table** (`summary-table.tsx`) is
     NOT on DataTable and shouldn't be forced onto it — its columns are
     per-platform GROUPS (a grouped header row), not flat columns, so it
@@ -1178,6 +1197,18 @@ This app is deployed and in production use. Treat `main` as shippable.
   **MCP inherits all of it** — `get_summary`/`get_funnel` reuse the guarded
   queries, `list_creatives`/`get_creative` expose `isSystem`, and the shared
   CONVENTIONS string states the rule. See tech-spec §5g.
+
+- **The Library's status STRIP is a FACET of the listing, not a query
+  (2026-09).** It sits directly ABOVE the list (both views), not in the page
+  header, because it describes what you are looking at and must move when the
+  filters move. Its counts come back on `listCreatives().breakdown`, computed
+  in JS from the rows that call already matched — **after every other filter,
+  BEFORE the status filter narrows them**. That ordering IS the behaviour:
+  selecting "Active" must not zero the other chips, or there would be no way
+  back. Consequences: it costs NO query (the old `creativeStatusBreakdown()`
+  and its per-platform half are gone — the strip's platform row went with them,
+  a user decision), and it can never disagree with the table below it. The pure
+  counter is `statusBreakdownOf` in lib/creative-status.ts.
 
 - **Status maps derive from the request's cached `brandStatusInputs()` — never
   add another status scan (2026-09 perf pass).** Status is computed on nearly

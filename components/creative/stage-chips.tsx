@@ -13,9 +13,16 @@ import { STAGE_SHORT, sortStages, stageLabel } from "@/lib/funnel-stages";
 export function StageChips({
   stages,
   className,
+  nowrap = false,
 }: {
   stages: readonly string[];
   className?: string;
+  /**
+   * Keep the (at most three, always short) chips on ONE line — the Library
+   * table's never-overflow guarantee. Off by default so every other surface
+   * keeps exactly the behaviour it had.
+   */
+  nowrap?: boolean;
 }) {
   const ordered = sortStages(stages);
   if (ordered.length === 0) {
@@ -28,7 +35,13 @@ export function StageChips({
   const full = ordered.map(stageLabel).join(" · ");
   return (
     <span
-      className={cn("inline-flex flex-wrap items-center gap-1", className)}
+      className={cn(
+        "inline-flex items-center gap-1",
+        // With `nowrap` the cell can't grow a row taller or push a column
+        // wider — three short chips always fit on one line.
+        nowrap ? "flex-nowrap whitespace-nowrap" : "flex-wrap",
+        className,
+      )}
       aria-label={`Stage: ${full}`}
       title={full}
     >

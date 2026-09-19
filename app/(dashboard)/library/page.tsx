@@ -5,7 +5,6 @@ import { ProductsAdmin } from "@/components/product/products-admin";
 import { AnglesTable } from "@/components/angle/angles-table";
 import { PageTabs, type PageTab } from "@/components/layout/page-tabs";
 import type { Permission } from "@/lib/permissions";
-import { creativeStatusBreakdown } from "@/db/queries/creative-status";
 import { listProducts } from "@/db/queries/products";
 import {
   getDefaultSummaryView,
@@ -18,6 +17,7 @@ import { LibraryFilterBar } from "@/components/creative/library-filter-bar";
 import { PageShell } from "@/components/layout/page-shell";
 import { CreativeGrid } from "@/components/creative/creative-grid";
 import { CreativeTable } from "@/components/creative/creative-table";
+import { CreativeStatusSummary } from "@/components/creative/creative-status-summary";
 import { resolveIncludeExcluded } from "@/db/queries/user-prefs";
 
 export const dynamic = "force-dynamic";
@@ -76,10 +76,7 @@ export default async function CreativesPage({
   if (activeTab !== "creatives") {
     return (
       <PageShell>
-        <LibraryHeader
-          breakdown={await creativeStatusBreakdown()}
-          canCreate={can(user, "creative.create")}
-        />
+        <LibraryHeader canCreate={can(user, "creative.create")} />
         <PageTabs tabs={tabs} active={activeTab} />
         {activeTab === "products" && <ProductsAdmin />}
         {activeTab === "angles" && <AnglesTable rows={await listAngles()} />}
@@ -114,7 +111,7 @@ export default async function CreativesPage({
     pickFirst(params.includeExcluded),
   );
 
-  const [listResult, breakdown, products, allAngles, views] = await Promise.all([
+  const [listResult, products, allAngles, views] = await Promise.all([
     listCreatives({
       q: parsed.q,
       productIds: parsed.productIds.length > 0 ? parsed.productIds : undefined,
@@ -127,7 +124,6 @@ export default async function CreativesPage({
       sort: parsed.sort,
       includeExcluded,
     }),
-    creativeStatusBreakdown(),
     listProducts(),
     listAllAngles(),
     listSummaryViews(user.id, "creatives"),
@@ -156,10 +152,7 @@ export default async function CreativesPage({
 
   return (
     <PageShell>
-      <LibraryHeader
-        breakdown={breakdown}
-        canCreate={can(user, "creative.create")}
-      />
+      <LibraryHeader canCreate={can(user, "creative.create")} />
       <PageTabs tabs={tabs} active={activeTab} />
       <LibraryFilterBar
         products={products}
@@ -169,6 +162,11 @@ export default async function CreativesPage({
         currentUserId={user.id}
         isAdmin={user.role === "admin"}
       />
+
+      {/* The status facet sits with the list it describes — same placement in
+          both views — and follows every filter change because its counts come
+          from the listing's own rows. */}
+      <CreativeStatusSummary breakdown={listResult.breakdown} />
 
       {parsed.view === "table" ? (
         <CreativeTable

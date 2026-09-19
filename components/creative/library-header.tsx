@@ -2,16 +2,12 @@ import Link from "next/link";
 import { Plus, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/layout/page-header";
-import type { CreativeStatusBreakdown } from "@/db/queries/creative-status";
-import { CreativeStatusSummary } from "@/components/creative/creative-status-summary";
-
-export function LibraryHeader({
-  breakdown,
-  canCreate,
-}: {
-  breakdown: CreativeStatusBreakdown;
-  canCreate: boolean;
-}) {
+/**
+ * The Library's page header. The status strip used to live here; it moved
+ * DIRECTLY ABOVE the list (2026-09) so it sits with what it describes and
+ * visibly follows the filters.
+ */
+export function LibraryHeader({ canCreate }: { canCreate: boolean }) {
   return (
     <PageHeader
       title="Library"
@@ -33,8 +29,6 @@ export function LibraryHeader({
           </div>
         ) : undefined
       }
-    >
-      <CreativeStatusSummary breakdown={breakdown} />
-    </PageHeader>
+    />
   );
 }

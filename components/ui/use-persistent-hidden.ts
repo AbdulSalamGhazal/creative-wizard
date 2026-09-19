@@ -17,8 +17,15 @@ import { useEffect, useState, type Dispatch, type SetStateAction } from "react";
  */
 export function usePersistentHidden<K extends string>(
   storageKey: string,
+  /**
+   * Columns hidden on a FIRST visit (nothing stored yet) — a declutter
+   * default, not a rule: the stored set wins the moment the viewer touches the
+   * menu, and a column added later is absent from that set, so it still
+   * defaults VISIBLE. Pass nothing for "everything visible".
+   */
+  initialHidden: readonly K[] = [],
 ): [Set<K>, Dispatch<SetStateAction<Set<K>>>] {
-  const [hidden, setHidden] = useState<Set<K>>(() => new Set());
+  const [hidden, setHidden] = useState<Set<K>>(() => new Set(initialHidden));
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {

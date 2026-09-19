@@ -39,7 +39,8 @@ vi.mock("@/lib/tenant", () => ({
 }));
 
 import { db } from "@/lib/db";
-import { creativeStatusMap, creativeStatusBreakdown } from "@/db/queries/creative-status";
+import { creativeStatusMap } from "@/db/queries/creative-status";
+import { listCreatives } from "@/db/queries/creatives";
 import { campaignStatusMap } from "@/db/queries/campaign-status";
 import { resetAndSeed } from "./fixtures";
 
@@ -75,13 +76,20 @@ describe("status inputs are fetched once per request", () => {
     expect(restricted.get(someId)).toEqual(all.get(someId));
   });
 
-  it("the breakdown adds only its own COUNT on top of the shared inputs", async () => {
+  it("the Library listing adds only its OWN query on top of the shared inputs", async () => {
+    // The status strip's counts are a facet of this same call (2026-09) — it
+    // must not cost a second status pass, or a scan of its own.
     await creativeStatusMap(); // inputs already warm
     const spy = vi.spyOn(db, "select");
-    await creativeStatusBreakdown();
-    // Just the creatives COUNT(*) — the three status scans are not repeated.
-    expect(spy.mock.calls.length).toBe(1);
+    const result = await listCreatives({ sort: "name-asc" });
+    // Exactly the listing's OWN statement: the row query plus the two
+    // spend-window CTEs it is built from (one round trip, three builder
+    // calls). None of the three status scans is repeated — and the facet
+    // added none, because it is counted in JS from the rows.
+    expect(spy.mock.calls.length).toBe(3);
     spy.mockRestore();
+    // …and it carried the facet home with it.
+    expect(result.breakdown.total).toBe(result.rows.length);
   });
 
   it("campaign status shares the platform-freshness scan with creative status", async () => {

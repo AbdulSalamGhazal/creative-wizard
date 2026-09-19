@@ -21,6 +21,36 @@ export type CreativeStatus = (typeof CREATIVE_STATUSES)[number];
 
 export type PlatformStatus = "active" | "pause" | "terminated";
 
+/**
+ * Status counts for a set of rows — the Library's status FACET.
+ *
+ * It is computed from the rows the listing already matched (minus the status
+ * filter itself), so the strip can never disagree with the table below it and
+ * costs no query: the counts ARE the listing's own pre-status result. Facet
+ * behaviour means the status filter is deliberately NOT applied — otherwise
+ * selecting "Active" would zero every other chip and there would be no way
+ * back.
+ */
+export function statusBreakdownOf(
+  rows: ReadonlyArray<{ status: CreativeStatus }>,
+): CreativeStatusBreakdown {
+  const general: Record<CreativeStatus, number> = {
+    new: 0,
+    active: 0,
+    pause: 0,
+    terminated: 0,
+  };
+  for (const r of rows) general[r.status] += 1;
+  return { total: rows.length, general };
+}
+
+export interface CreativeStatusBreakdown {
+  /** Creatives matching the current filters, ignoring the status filter. */
+  total: number;
+  /** How those split across the four derived statuses. */
+  general: Record<CreativeStatus, number>;
+}
+
 /** Sort rank (most-relevant → least): active ▸ pause ▸ new ▸ terminated. */
 export const STATUS_ORDER: Record<CreativeStatus, number> = {
   active: 0,
