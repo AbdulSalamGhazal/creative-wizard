@@ -53,7 +53,7 @@ import {
   STATUS_LABEL,
   type CreativeStatus,
 } from "@/lib/creative-status";
-import { PLATFORM_LABEL } from "@/lib/palette";
+import { PLATFORMS_WITH_CREATIVES, PLATFORM_LABEL } from "@/lib/palette";
 import {
   STAGE_FILTER_VALUES,
   stageFilterLabel,
@@ -63,7 +63,7 @@ import {
   PRIORITY_FILTER_VALUES,
   type PriorityFilterValue,
 } from "@/lib/priority";
-import { platformEnum, creativeTypeEnum } from "@/db/schema";
+import { creativeTypeEnum } from "@/db/schema";
 import { MetricFilterControl } from "@/components/summary/metric-filter";
 import { ViewsControl } from "@/components/summary/views-control";
 import type { SummaryViewRow } from "@/db/queries/summary-views";
@@ -93,7 +93,9 @@ const TYPE_LABEL: Record<(typeof creativeTypeEnum)[number], string> = {
   image: "Image",
   slides: "Slides",
 };
-const PLATFORMS = platformEnum.map((value) => ({
+// Ads is a per-CREATIVE table: only platforms that HAVE creatives can be a
+// column group here (google has no creative concept — lib/palette).
+const PLATFORMS = PLATFORMS_WITH_CREATIVES.map((value) => ({
   value,
   label: PLATFORM_LABEL[value] ?? value,
 }));

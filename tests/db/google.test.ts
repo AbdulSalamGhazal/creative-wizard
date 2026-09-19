@@ -29,7 +29,10 @@ import {
   uploadBatches,
 } from "@/db/schema";
 import { ensureGoogleCreative } from "@/db/queries/google";
-import { funnelOverview } from "@/db/queries/funnel";
+import { campaignFunnel, funnelOverview } from "@/db/queries/funnel";
+import { kpis, compareDimensions } from "@/db/queries/performance";
+import { listCreativeSummary } from "@/db/queries/summary";
+import { listCreatives } from "@/db/queries/creatives";
 import { deleteCreative, patchCreative } from "@/app/actions/creative";
 import {
   GOOGLE_SYSTEM_CREATIVE_NAME,
@@ -40,6 +43,7 @@ import { resetAndSeed, CREATIVE_1, PRODUCT_A } from "./fixtures";
 const setAccount = (id: string) => vi.mocked(getActiveAccountId).mockResolvedValue(id);
 
 const GOOGLE_CAMPAIGN = "44444444-4444-4444-4444-44444444a0f1";
+let systemCreativeId = "";
 const GOOGLE_BATCH = "55555555-5555-5555-5555-55555555a0f1";
 
 beforeAll(async () => {
@@ -172,18 +176,23 @@ describe("system-creative guards", () => {
 });
 
 /**
- * THE RATIO-POISONING TRAP, against the real query.
+ * THE RATIO-POISONING TRAP, against the real queries.
  *
- * Google reports conversions but has no add-payment events at all. Without the
- * guard, the blended purchase rate takes its numerator from every platform and
- * its denominator from only the platforms that measure it — and reads far
- * higher than any real platform's rate.
+ * Google reports conversions but has no add-payment events at all. Two layers
+ * protect the numbers, and both are pinned below:
+ *   - phase 1, the SQL guard: on a BRAND-level query (kpis), google's rows are
+ *     counted in the totals but excluded from BOTH sides of any rate it can't
+ *     report;
+ *   - phase 2, the surface rule: on the FUNNEL surfaces google isn't there at
+ *     all, so its spend and conversions don't appear either.
  */
 describe("blended funnel rates with google in the data", () => {
   const FROM = "2026-03-01";
   const TO = "2026-03-31";
 
   beforeAll(async () => {
+    // As in production: google's rows hang off the ONE system creative.
+    systemCreativeId = await ensureGoogleCreative(db, ACCOUNT_A, USER);
     await db.insert(campaigns).values({
       id: GOOGLE_CAMPAIGN,
       accountId: ACCOUNT_A,
@@ -223,7 +232,7 @@ describe("blended funnel rates with google in the data", () => {
       // google never reported them (the pipeline refuses to write 0 there).
       {
         accountId: ACCOUNT_A,
-        creativeId: CREATIVE_1,
+        creativeId: systemCreativeId,
         platform: "google",
         date: "2026-03-10",
         campaignId: GOOGLE_CAMPAIGN,
@@ -241,31 +250,113 @@ describe("blended funnel rates with google in the data", () => {
     ]);
   });
 
-  it("purchaseRate is instagram's OWN rate, not the poisoned blend", async () => {
-    const { current } = await funnelOverview({ from: FROM, to: TO });
-    // Instagram alone: 10 purchases / 40 add-payments = 25%.
-    expect(current.purchaseRate).toBeCloseTo(0.25, 9);
-    // The bug this guards against: (10 + 90) / 40 = 250%, a rate that claims
-    // more purchases than there were add-payments. If this ever passes, the
-    // guard in lib/metrics.ts has been removed.
-    expect(current.purchaseRate).not.toBeCloseTo(2.5, 6);
+  // ---- phase 1: the SQL guard, on a brand-level query that KEEPS google ----
+  it("brand-level rates exclude google from both sides, totals keep it", async () => {
+    const k = await kpis({ from: FROM, to: TO });
+    // Totals: google's spend and conversions are real brand numbers.
+    expect(k.spend).toBe(300); // 100 + 200
+    expect(k.impressions).toBe(6000);
+    expect(k.clicks).toBe(500);
+    expect(k.conversions).toBe(100); // 10 + 90
+    // Ratios google fully reports keep it in.
+    expect(k.ctr).toBeCloseTo(500 / 6000, 9);
+    expect(k.cpm).toBeCloseTo((300 / 6000) * 1000, 9);
+    // Ratios it can't back are instagram's own — NOT the poisoned blend.
+    expect(k.cvr).toBeCloseTo(10 / 100, 9); // NOT (10+90)/100
+    expect(k.voc).toBeCloseTo(100 / 200, 9); // NOT 100/(200+300)
   });
 
-  it("the other poisoned rates are clean too (cvr / voc / atc / ap)", async () => {
+  it("the funnel card's CPM/CTR are the google-free pair", async () => {
+    const k = await kpis({ from: FROM, to: TO });
+    // The card must tell ONE story, so its CPM/CTR drop google too — unlike
+    // the brand-level cpm/ctr above, which are every platform's.
+    expect(k.funnelCtr).toBeCloseTo(200 / 1000, 9);
+    expect(k.funnelCpm).toBeCloseTo((100 / 1000) * 1000, 9);
+    expect(k.funnelCtr).not.toBeCloseTo(k.ctr!, 6);
+  });
+
+  // ---- phase 2: the funnel surfaces don't show google at all ----
+  it("/funnel excludes google ENTIRELY — its conversions never reach CvR", async () => {
     const { current } = await funnelOverview({ from: FROM, to: TO });
-    expect(current.cvr).toBeCloseTo(10 / 100, 9); // NOT (10+90)/100
-    expect(current.voc).toBeCloseTo(100 / 200, 9); // NOT 100/(200+300)
+    // Instagram's row and nothing else.
+    expect(current.spend).toBe(100);
+    expect(current.impressions).toBe(1000);
+    expect(current.clicks).toBe(200);
+    expect(current.conversions).toBe(10); // NOT 100 — google's 90 are not here
+    expect(current.ctr).toBeCloseTo(200 / 1000, 9);
+  });
+
+  it("every funnel rate is instagram's own", async () => {
+    const { current } = await funnelOverview({ from: FROM, to: TO });
+    expect(current.purchaseRate).toBeCloseTo(10 / 40, 9);
+    // The bug both layers guard against: (10 + 90) / 40 = 250%, a rate that
+    // claims more purchases than there were add-payments.
+    expect(current.purchaseRate).not.toBeCloseTo(2.5, 6);
+    expect(current.cvr).toBeCloseTo(10 / 100, 9);
+    expect(current.voc).toBeCloseTo(100 / 200, 9);
     expect(current.atcRate).toBeCloseTo(50 / 100, 9);
     expect(current.apRate).toBeCloseTo(40 / 50, 9);
   });
 
-  it("plain totals and google-supported ratios still INCLUDE google", async () => {
-    const { current } = await funnelOverview({ from: FROM, to: TO });
-    expect(current.spend).toBe(300); // 100 + 200
-    expect(current.impressions).toBe(6000);
-    expect(current.clicks).toBe(500);
-    expect(current.conversions).toBe(100); // 10 + 90
-    expect(current.ctr).toBeCloseTo(500 / 6000, 9);
-    expect(current.cpm).toBeCloseTo((300 / 6000) * 1000, 9);
+  it("the per-campaign funnel table gets no Google row", async () => {
+    const rows = await campaignFunnel({ from: FROM, to: TO });
+    expect(rows.some((r) => r.platform === "google")).toBe(false);
+    expect(rows).toHaveLength(1);
+  });
+
+  it("a forged ?platforms=google on /funnel yields nothing, not google", async () => {
+    const { current } = await funnelOverview({
+      from: FROM,
+      to: TO,
+      platforms: ["google"],
+    });
+    expect(current.spend).toBe(0);
+    expect(current.conversions).toBe(0);
+    expect(current.cvr).toBeNull();
+  });
+});
+
+/**
+ * Creative-level surfaces (google, phase 2). Google has no creative concept —
+ * its rows all hang off the ONE system creative — so it belongs on none of
+ * these. Both guards are checked: the platform set and `creatives.is_system`.
+ */
+describe("creative-level surfaces exclude google", () => {
+  const FROM = "2026-03-01";
+  const TO = "2026-03-31";
+
+  it("Ads (the summary query) drops the system creative entirely", async () => {
+    const id = await ensureGoogleCreative(db, ACCOUNT_A, USER);
+    const all = await listCreativeSummary({ from: FROM, to: TO });
+    expect(all.rows.some((r) => r.creativeId === id)).toBe(false);
+    expect(all.rows.some((r) => r.name === GOOGLE_SYSTEM_CREATIVE_NAME)).toBe(false);
+  });
+
+  it("…and never builds a Google column group, even if one is asked for", async () => {
+    const asked = await listCreativeSummary({
+      from: FROM,
+      to: TO,
+      platforms: ["google", "instagram"],
+    });
+    expect(asked.platforms).toEqual(["instagram"]);
+    const onlyGoogle = await listCreativeSummary({
+      from: FROM,
+      to: TO,
+      platforms: ["google"],
+    });
+    expect(onlyGoogle.platforms).toEqual([]);
+  });
+
+  it("Compare's dimension picker offers no google platform or campaign", async () => {
+    const dims = await compareDimensions();
+    expect(dims.some((d) => d.platform === "google")).toBe(false);
+    expect(dims.some((d) => d.creativeName === GOOGLE_SYSTEM_CREATIVE_NAME)).toBe(false);
+  });
+
+  it("Library still SHOWS the system creative, badged (unchanged from G1)", async () => {
+    const { rows } = await listCreatives({ sort: "name-asc" });
+    const sys = rows.find((r) => r.name === GOOGLE_SYSTEM_CREATIVE_NAME);
+    expect(sys).toBeDefined();
+    expect(sys!.isSystem).toBe(true);
   });
 });

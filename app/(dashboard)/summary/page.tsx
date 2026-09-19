@@ -11,7 +11,7 @@ import {
 import { summaryFiltersSchema } from "@/validators/summary";
 import { resolvePreferredRange, resolveIncludeExcluded } from "@/db/queries/user-prefs";
 import { LIFETIME_FLOOR, presetLabel, todayIso } from "@/lib/date-presets";
-import { platformEnum } from "@/db/schema";
+import { PLATFORMS_WITH_CREATIVES } from "@/lib/palette";
 import { requireAuth } from "@/lib/auth";
 import { SummaryFilterBar } from "@/components/summary/summary-filter-bar";
 import { SummaryTable } from "@/components/summary/summary-table";
@@ -90,12 +90,14 @@ export default async function SummaryPage({
     getRatingConfig(),
   ]);
 
-  // Platform default: NO `platforms` param at all → all platforms (the default
-  // landing view). An explicit `platforms=none` sentinel (the user deselected
-  // every platform) parses to [] and shows nothing. A subset → just those.
+  // Platform default: NO `platforms` param at all → every platform that HAS
+  // creatives (the default landing view; google has no creative concept, so it
+  // has no column group here — see PLATFORMS_WITH_CREATIVES). An explicit
+  // `platforms=none` sentinel (the user deselected every platform) parses to []
+  // and shows nothing. A subset → just those (the query drops google again).
   const effectivePlatforms =
     pickFirst(params.platforms) === undefined
-      ? [...platformEnum]
+      ? [...PLATFORMS_WITH_CREATIVES]
       : parsed.platforms;
 
   // Filter dropdowns + the query run in parallel.
@@ -140,7 +142,7 @@ export default async function SummaryPage({
   const platformsLabel =
     selectedPlatforms.length === 0
       ? "no platforms selected"
-      : selectedPlatforms.length === platformEnum.length
+      : selectedPlatforms.length === PLATFORMS_WITH_CREATIVES.length
         ? "all platforms"
         : selectedPlatforms.join(", ");
 

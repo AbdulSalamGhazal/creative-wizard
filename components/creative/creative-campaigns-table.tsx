@@ -11,6 +11,7 @@ import { METRIC_LABEL } from "@/lib/metric-labels";
 import { int, pct, roas, usd } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { CampaignMixRow, PlatformMixRow } from "@/db/queries/performance";
+import { funnelTotals, type FunnelTotalsResult } from "@/lib/funnel-totals";
 
 type Mode = "campaign" | "platform";
 
@@ -21,54 +22,26 @@ interface Props {
   platforms: PlatformMixRow[];
 }
 
-interface Totals {
-  spend: number;
-  impressions: number;
-  clicks: number;
-  landingPageViews: number;
-  conversions: number;
-  conversionValue: number;
-  cpm: number | null;
-  ctr: number | null;
-  voc: number | null;
-  cvr: number | null;
-  cpa: number | null;
-  roas: number | null;
-}
+type Totals = FunnelTotalsResult;
 
 /** Weighted totals from component sums — never averages the per-row ratios
- *  (CLAUDE.md aggregation rule). Both modes' rows sum to the same creative
- *  total, so one computation drives both footers → the totals always match. */
+ *  (CLAUDE.md aggregation rule), through the SHARED helper so the null rule is
+ *  the same one the /funnel table uses: a platform that never reported LP
+ *  views (google, on the system creative's page) contributes to neither side
+ *  of VOC/CvR, and those render "—" rather than a fabricated 0%. Both modes'
+ *  rows sum to the same creative total, so one computation drives both footers
+ *  → the totals always match. */
 function weightedTotals(rows: PlatformMixRow[]): Totals {
-  let spend = 0,
-    impressions = 0,
-    clicks = 0,
-    landingPageViews = 0,
-    conversions = 0,
-    conversionValue = 0;
-  for (const r of rows) {
-    spend += r.spend;
-    impressions += r.impressions;
-    clicks += r.clicks;
-    landingPageViews += r.landingPageViews;
-    conversions += r.conversions ?? 0;
-    conversionValue += r.conversionValue;
-  }
-  const div = (a: number, b: number): number | null => (b > 0 ? a / b : null);
-  return {
-    spend,
-    impressions,
-    clicks,
-    landingPageViews,
-    conversions,
-    conversionValue,
-    cpm: div(spend * 1000, impressions),
-    ctr: div(clicks, impressions),
-    voc: div(landingPageViews, clicks),
-    cvr: div(conversions, landingPageViews),
-    cpa: div(spend, conversions),
-    roas: div(conversionValue, spend),
-  };
+  return funnelTotals(
+    rows.map((r) => ({
+      spend: r.spend,
+      impressions: r.impressions,
+      clicks: r.clicks,
+      conversions: r.conversions ?? 0,
+      conversionValue: r.conversionValue,
+      landingPageViews: r.landingPageViews,
+    })),
+  );
 }
 
 /** The 9 metric columns, shared by both modes. Generic over the row type so a

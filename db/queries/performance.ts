@@ -31,7 +31,9 @@ import {
   sumLandingPageViews,
   sumSpend,
   voc,
+  scopedMetrics,
 } from "@/lib/metrics";
+import { PLATFORMS_WITH_CREATIVES } from "@/lib/palette";
 import {
   computeDelta,
   prevPeriod,
@@ -41,6 +43,19 @@ import { fillDailyGaps } from "@/lib/time-series";
 import { getActiveAccountId } from "@/lib/tenant";
 
 type Platform = (typeof platformEnum)[number];
+
+/**
+ * FUNNEL SCOPE (google, phase 2). The funnel surfaces are all-or-nothing on
+ * google — it reports no funnel steps, so it appears on none of them. This
+ * predicate is the one place that says so for `db/queries/performance.ts`;
+ * `db/queries/funnel.ts` applies the same rule to /funnel's own queries.
+ * Derived from PLATFORMS_WITH_CREATIVES, never a "google" literal.
+ */
+const FUNNEL_PLATFORMS: SQL = inArray(performanceRecords.platform, [
+  ...PLATFORMS_WITH_CREATIVES,
+]);
+/** CPM/CTR over those platforms only — the funnel card's own two rates. */
+const funnelScoped = scopedMetrics(FUNNEL_PLATFORMS);
 type CreativeType = (typeof creativeTypeEnum)[number];
 /** The OLD, now-frozen manual status enum. Only kept for the (unused)
  *  `KpiFilters.statuses` field — the dynamic status comes from
@@ -79,6 +94,15 @@ export interface Kpis {
   landingPageViews: number | null;
   hookRate: number | null;
   holdRate: number | null;
+  /**
+   * CPM and CTR restricted to the platforms that report a funnel (google
+   * excluded — see FUNNEL_PLATFORMS). ONLY the funnel-rates card reads these:
+   * its four tiles must tell one story, and `voc`/`cvr` are already
+   * google-free through the lib/metrics guard. Everywhere else uses `cpm` /
+   * `ctr`, which include every platform — that is the brand-level truth.
+   */
+  funnelCpm: number | null;
+  funnelCtr: number | null;
 }
 
 export interface SpendByDatePlatform {
@@ -92,9 +116,14 @@ export interface PlatformMixRow {
   spend: number;
   impressions: number;
   clicks: number;
-  /** Component sum — lets consumers derive VOC (LPV/clicks) + CvR (conv/LPV)
-   *  weighted totals from sums rather than averaging per-row ratios. */
-  landingPageViews: number;
+  /**
+   * Component sum — lets consumers derive VOC (LPV/clicks) + CvR (conv/LPV)
+   * weighted totals from sums rather than averaging per-row ratios. NULL when
+   * the platform never reported landing-page views at all (google): "not
+   * measured" is not "measured zero", and only NULL renders as "—" and keeps
+   * the row out of both sides of a JS-side ratio (`lib/funnel-totals.ts`).
+   */
+  landingPageViews: number | null;
   conversions: number | null;
   conversionValue: number;
   cpm: number | null;
@@ -312,6 +341,8 @@ export async function kpis(filters: KpiFilters): Promise<Kpis> {
       landingPageViews: sumLandingPageViews,
       hookRate,
       holdRate,
+      funnelCpm: funnelScoped.cpm,
+      funnelCtr: funnelScoped.ctr,
     })
     .from(performanceRecords)
     .$dynamic();
@@ -345,6 +376,8 @@ export async function kpis(filters: KpiFilters): Promise<Kpis> {
     landingPageViews: num(row?.landingPageViews),
     hookRate: num(row?.hookRate),
     holdRate: num(row?.holdRate),
+    funnelCpm: num(row?.funnelCpm),
+    funnelCtr: num(row?.funnelCtr),
   };
 }
 
@@ -683,7 +716,7 @@ export async function platformMix(
     spend: Number(r.spend ?? 0),
     impressions: Number(r.impressions ?? 0),
     clicks: Number(r.clicks ?? 0),
-    landingPageViews: Number(r.landingPageViews ?? 0),
+    landingPageViews: num(r.landingPageViews),
     conversions: num(r.conversions),
     conversionValue: Number(r.conversionValue ?? 0),
     cpm: num(r.cpm),
@@ -754,7 +787,8 @@ export async function campaignMix(
     spend: Number(r.spend ?? 0),
     impressions: Number(r.impressions ?? 0),
     clicks: Number(r.clicks ?? 0),
-    landingPageViews: Number(r.landingPageViews ?? 0),
+    // NULL survives — see PlatformMixRow.landingPageViews.
+    landingPageViews: num(r.landingPageViews),
     conversions: num(r.conversions),
     conversionValue: Number(r.conversionValue ?? 0),
     cpm: num(r.cpm),
@@ -792,6 +826,9 @@ export async function dailyFunnelRates(
 ): Promise<DailyRatesRow[]> {
   const { conditions, needsCreativeJoin, needsAngleJoin } =
     await buildBaseConditions(filters);
+  // The sparklines under the funnel-rates card must match the numbers above
+  // them, so they share the card's google-free scope (phase 2).
+  conditions.push(FUNNEL_PLATFORMS);
 
   let q = db
     .select({ date: performanceRecords.date, cpm, ctr, voc, cvr })
@@ -1411,6 +1448,9 @@ export interface KpisWithDelta {
     conversions: Delta;
     ctr: Delta;
     cpm: Delta;
+    /** The funnel card's google-free CPM/CTR — see Kpis.funnelCpm. */
+    funnelCpm: Delta;
+    funnelCtr: Delta;
     cpc: Delta;
     cpa: Delta;
     roas: Delta;
@@ -1451,6 +1491,8 @@ export async function kpisWithDelta(
       conversions: computeDelta(current.conversions, previous.conversions),
       ctr: computeDelta(current.ctr, previous.ctr),
       cpm: computeDelta(current.cpm, previous.cpm),
+      funnelCpm: computeDelta(current.funnelCpm, previous.funnelCpm),
+      funnelCtr: computeDelta(current.funnelCtr, previous.funnelCtr),
       cpc: computeDelta(current.cpc, previous.cpc),
       cpa: computeDelta(current.cpa, previous.cpa),
       roas: computeDelta(current.roas, previous.roas),
@@ -1644,6 +1686,14 @@ export async function compareDimensions(): Promise<CompareDimensionRow[]> {
       and(
         eq(performanceRecords.accountId, acct),
         eq(performanceRecords.excludedFromAggregates, false),
+        // Compare is CREATIVE-level (its series are per creativeId), so BOTH
+        // creative-scope guards apply: no system creative, and no platform
+        // that has no creatives. Either one alone would usually do it —
+        // google's rows all hang off the system creative — but a stray row on
+        // an ordinary creative must not put Google back in the picker.
+        // (google, phase 2)
+        eq(creatives.isSystem, false),
+        FUNNEL_PLATFORMS,
       ),
     )
     .orderBy(
@@ -1935,7 +1985,9 @@ export async function launchFatigue(
              )) AS eff_launch
       FROM creatives c
       JOIN products p ON p.id = c.product_id
-      WHERE c.account_id = ${acct}${creativeWhere}
+      -- Launches is a CREATIVE cohort view; the system creative isn't a launch
+      -- (it's app-owned, and google has no creative concept). google, phase 2.
+      WHERE c.account_id = ${acct} AND c.is_system = false${creativeWhere}
     )
     SELECT eff.id, eff.name, eff.type, eff.product_name, eff.derived,
            eff.eff_launch::text AS eff_launch,

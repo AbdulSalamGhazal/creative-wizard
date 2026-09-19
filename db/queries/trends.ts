@@ -1,5 +1,6 @@
 import { and, between, desc, eq, inArray, sql, type SQL } from "drizzle-orm";
 import { db } from "@/lib/db";
+import { PLATFORMS_WITH_CREATIVES } from "@/lib/palette";
 import {
   creatives,
   creativeAngles,
@@ -37,6 +38,21 @@ import { creativeStatusMap, statusFor } from "@/db/queries/creative-status";
 import type { CreativeStatus } from "@/lib/creative-status";
 
 type Platform = (typeof platformEnum)[number];
+
+/**
+ * CREATIVE-LEVEL SCOPE (google, phase 2). Every query in this module groups by
+ * a creative attribute (angle, type, the creative itself), and google has no
+ * creative concept — its rows all hang off the ONE system creative. Two guards,
+ * both derived, never a bare "google" literal:
+ *   - platforms narrow to `PLATFORMS_WITH_CREATIVES`;
+ *   - `creatives.is_system` rows are dropped (belt and braces: the system row
+ *     never appears even if a google row somehow reached another platform).
+ * The caller's own platform filter still applies on top.
+ */
+const CREATIVE_SCOPE: SQL[] = [
+  inArray(performanceRecords.platform, [...PLATFORMS_WITH_CREATIVES]),
+  eq(creatives.isSystem, false),
+];
 
 const num = (v: unknown): number => (v === null || v === undefined ? 0 : Number(v));
 const numOrNull = (v: unknown): number | null =>
@@ -115,6 +131,7 @@ async function angleAggregates(f: TrendsFilters): Promise<Map<string, AngleAgg>>
   const conds: SQL[] = [eq(performanceRecords.accountId, acct)];
   if (f.from && f.to) conds.push(between(performanceRecords.date, f.from, f.to));
   if (!f.includeExcluded) conds.push(eq(performanceRecords.excludedFromAggregates, false));
+  conds.push(...CREATIVE_SCOPE);
   if (f.platforms && f.platforms.length > 0) {
     conds.push(inArray(performanceRecords.platform, f.platforms));
   }
@@ -247,6 +264,7 @@ export async function angleByPlatform(f: TrendsFilters): Promise<AnglePlatformRo
   const conds: SQL[] = [eq(performanceRecords.accountId, acct)];
   if (f.from && f.to) conds.push(between(performanceRecords.date, f.from, f.to));
   if (!f.includeExcluded) conds.push(eq(performanceRecords.excludedFromAggregates, false));
+  conds.push(...CREATIVE_SCOPE);
   if (f.platforms && f.platforms.length > 0) {
     conds.push(inArray(performanceRecords.platform, f.platforms));
   }
@@ -348,6 +366,7 @@ export async function typeRollup(
   if (!f.includeExcluded) {
     conds.push(eq(performanceRecords.excludedFromAggregates, false));
   }
+  conds.push(...CREATIVE_SCOPE);
   if (f.platforms && f.platforms.length > 0) {
     conds.push(inArray(performanceRecords.platform, f.platforms));
   }
@@ -470,6 +489,7 @@ export async function videoDiagnostics(
   ];
   if (f.from && f.to) conds.push(between(performanceRecords.date, f.from, f.to));
   if (!f.includeExcluded) conds.push(eq(performanceRecords.excludedFromAggregates, false));
+  conds.push(...CREATIVE_SCOPE);
   if (f.platforms && f.platforms.length > 0) {
     conds.push(inArray(performanceRecords.platform, f.platforms));
   }

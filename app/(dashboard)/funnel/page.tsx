@@ -96,6 +96,7 @@ export default async function FunnelPage({
           angles={angles}
           defaultFrom={from}
           defaultTo={to}
+          platformScope="creative"
         />
       }
     >
@@ -108,6 +109,13 @@ export default async function FunnelPage({
           </Badge>
         }
       />
+
+      {/* One quiet line, stated once for the whole page: every query here
+          drops google (phase 2 — it reports no funnel steps, so including it
+          would put its purchases in CvR while its ATC column stayed empty). */}
+      <p className="text-xs text-ink-3">
+        Google is excluded — it doesn&apos;t report funnel steps.
+      </p>
 
       {/* Headline funnel rates in one row — dashboard "Funnel rates" style */}
       <FunnelRateTiles overview={overview} daily={daily} />

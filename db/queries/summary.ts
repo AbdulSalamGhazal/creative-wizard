@@ -55,6 +55,7 @@ import {
   type RatingConfig,
 } from "@/lib/rating";
 import { getActiveAccountId } from "@/lib/tenant";
+import { PLATFORMS_WITH_CREATIVES } from "@/lib/palette";
 import { comparePriority, splitPriorityFilter } from "@/lib/priority";
 import {
   compareStages,
@@ -478,9 +479,14 @@ function passesMetricFilters(
 export async function listCreativeSummary(
   filters: SummaryFilterInput,
 ): Promise<SummaryResult> {
+  // CREATIVE-LEVEL SCOPE (google, phase 2): the Ads table is one row per
+  // CREATIVE with a column group per platform, and google has no creative
+  // concept — so its group can never be requested, even from a forged URL.
+  // Derived from PLATFORMS_WITH_CREATIVES, never a "google" literal.
+  const creativePlatforms = new Set<string>(PLATFORMS_WITH_CREATIVES);
   const selectedPlatforms: Platform[] =
     filters.platforms && filters.platforms.length > 0
-      ? filters.platforms.slice(0, 5)
+      ? filters.platforms.filter((p) => creativePlatforms.has(p)).slice(0, 5)
       : [];
 
   const resolved = resolveSort(filters.sort, filters.dir, selectedPlatforms);
@@ -509,7 +515,12 @@ export async function listCreativeSummary(
 
   // -------- WHERE clauses on creatives --------
   const acct = await getActiveAccountId();
-  const whereConds: SQL[] = [eq(creatives.accountId, acct)];
+  const whereConds: SQL[] = [
+    eq(creatives.accountId, acct),
+    // …and the SYSTEM creative never appears here (belt and braces: the row
+    // would carry google's brand-level totals into a per-creative table).
+    eq(creatives.isSystem, false),
+  ];
   if (filters.q) {
     whereConds.push(ilike(creatives.name, `%${filters.q}%`));
   }

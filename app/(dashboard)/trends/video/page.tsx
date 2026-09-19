@@ -77,6 +77,7 @@ export default async function TrendsVideoPage({
           hideType
           defaultFrom={from}
           defaultTo={to}
+          platformScope="creative"
         />
       }
     >

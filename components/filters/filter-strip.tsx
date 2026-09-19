@@ -17,14 +17,18 @@ import {
   FilterPill,
 } from "@/components/filters/filter-pill";
 import { FilterSheet } from "@/components/filters/filter-sheet";
-import { ALL_PLATFORMS, PLATFORM_LABEL } from "@/lib/palette";
+import {
+  ALL_PLATFORMS,
+  PLATFORMS_WITH_CREATIVES,
+  PLATFORM_LABEL,
+} from "@/lib/palette";
 import { setIncludeExcludedPref } from "@/app/actions/user-prefs";
 
-// Derived from the canonical platform list (lib/palette) — no hand-copied set.
-const PLATFORMS = ALL_PLATFORMS.map((value) => ({
-  value,
-  label: PLATFORM_LABEL[value],
-}));
+// Derived from the canonical platform lists (lib/palette) — no hand-copied set.
+const opts = (set: readonly (typeof ALL_PLATFORMS)[number][]) =>
+  set.map((value) => ({ value, label: PLATFORM_LABEL[value] }));
+const PLATFORMS = opts(ALL_PLATFORMS);
+const CREATIVE_PLATFORMS = opts(PLATFORMS_WITH_CREATIVES);
 
 const TYPES = [
   { value: "video", label: "Video" },
@@ -39,6 +43,13 @@ interface FilterStripProps {
   angles?: string[];
   /** Hide the Type filter — e.g. on the video-only diagnostics page. */
   hideType?: boolean;
+  /**
+   * Which platforms the Platform filter offers. `"creative"` narrows it to
+   * `PLATFORMS_WITH_CREATIVES` — for the creative-granularity pages (by-angle,
+   * by-type, Video, Launches) and for /funnel, which excludes google wholesale.
+   * Default `"all"`: the brand-level pages (Dashboard, Trends over-time).
+   */
+  platformScope?: "all" | "creative";
   /** The effective default range (user's saved choice) for the picker label. */
   defaultFrom?: string;
   defaultTo?: string;
@@ -58,6 +69,7 @@ export function FilterStrip({
   angles = [],
   includeExcludedDefault,
   hideType = false,
+  platformScope = "all",
   defaultFrom,
   defaultTo,
   rememberDate = true,
@@ -169,11 +181,15 @@ export function FilterStrip({
     });
   };
 
+  // The offered set: narrowed on creative-granularity pages (and /funnel).
+  const platformOptions =
+    platformScope === "creative" ? CREATIVE_PLATFORMS : PLATFORMS;
+
   const platformLabel =
     selectedPlatforms.length === 0
       ? "All"
       : selectedPlatforms.length === 1
-        ? (PLATFORMS.find((p) => p.value === selectedPlatforms[0])?.label ?? "")
+        ? (platformOptions.find((p) => p.value === selectedPlatforms[0])?.label ?? "")
         : `${selectedPlatforms.length} selected`;
 
   const filtersActive = !!(
@@ -223,7 +239,7 @@ export function FilterStrip({
           <DropdownMenuContent align="start" className="w-48">
             <DropdownMenuLabel>Platforms</DropdownMenuLabel>
             <DropdownMenuSeparator />
-            {PLATFORMS.map((p) => (
+            {platformOptions.map((p) => (
               <DropdownMenuCheckboxItem
                 key={p.value}
                 checked={selectedPlatforms.includes(p.value)}

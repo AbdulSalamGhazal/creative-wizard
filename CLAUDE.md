@@ -1057,8 +1057,8 @@ This app is deployed and in production use. Treat `main` as shippable.
   `($1,$2)` (a row expression), so the cleared-keys list is bound as ONE
   `text[]` literal.
 
-- **GOOGLE (2026-09, phase 1 of 2) — a platform whose EXPORTS ARE THINNER, and
-  the math is protected from that.** Google joined `ALL_PLATFORMS` (lib/palette;
+- **GOOGLE (2026-09, phases 1 AND 2, both shipped) — a platform whose EXPORTS
+  ARE THINNER, and the math AND the surfaces are honest about it.** Google joined `ALL_PLATFORMS` (lib/palette;
   `platformEnum` derives from it) and needed NO migration for the vocabulary —
   `platform` is a varchar, not a PG enum. Migration **0047** adds exactly one
   column, `creatives.is_system`. Five things to know:
@@ -1110,11 +1110,49 @@ This app is deployed and in production use. Treat `main` as shippable.
      `platform_rating_rules` needs nothing seeded — rows are created on demand
      when an admin saves an override, so google uses `DEFAULT_RATING_RULES`
      until someone changes them.
-  **PHASE 2 (not done): the UI surface exclusions** — Ads/Compare/video/
-  by-angle/funnel surfaces that recompute rates in JS from returned sums (e.g.
-  `campaign-funnel-table.tsx`'s totals row), and the video-only views where
-  google has nothing to show. The SQL layer is guarded; those JS recomputations
-  are not. See tech-spec §5g.
+  6. **PHASE 2 — where google BELONGS (the surface rule).** One derived
+     constant says it: **`PLATFORMS_WITH_CREATIVES`** (lib/palette =
+     `ALL_PLATFORMS` minus google). Google's exports are campaign/ad-group
+     rows, so it has **no creative-level data** — every creative-granularity
+     surface derives its platform set from that constant AND drops
+     `creatives.is_system` rows (two guards, because either alone can be
+     defeated: a stray google row on an ordinary creative, or a system
+     creative that somehow carried another platform). Surfaces: **Ads**
+     (`/summary` — no Google column group, system creative never listed),
+     **Compare** (its series are per creativeId, so google leaves the platform
+     and campaign pickers with it), **Trends by-angle / by-type / Video /
+     Launches**. **Library is the deliberate exception**: the system creative
+     stays VISIBLE with its System badge, and its aggregate columns show
+     google's real totals — that row IS google's spend, and hiding it would
+     lose money on the page. **Brand/campaign granularity keeps google:**
+     Dashboard, Trends over-time, Campaigns, Budget, Reconciliation.
+  7. **The FUNNEL surfaces exclude google WHOLESALE (a user decision).** Not
+     just from the rates (phase 1 did that) but from the rows: `/funnel`'s
+     `whereFor` and the dashboard funnel-rates card both scope to
+     `PLATFORMS_WITH_CREATIVES`, so google's purchases can't sit in the
+     conversions column while its ATC column is empty — **all-or-nothing, so
+     the page tells ONE story**. `/funnel` says so in one quiet `text-label`
+     line; the dashboard card says it in a title tooltip (the dashboard is
+     dense enough). The card's VOC/CvR were already google-free through the
+     lib/metrics guard, so its CPM/CTR come from `Kpis.funnelCpm`/`funnelCtr`
+     (two extra FILTER aggregates on the query that already runs — NOT a new
+     round-trip) and `dailyFunnelRates` shares the scope, so the sparklines
+     match the numbers above them.
+  8. **JS-side rates obey the same two rules** (the phase-1 report's closing
+     flag). `lib/funnel-totals.ts` is the JS mirror of the SQL guard and the
+     ONE implementation: weighted via component sums, and a row that didn't
+     report a side joins NEITHER side of that ratio, so a missing step renders
+     "—" — never 0%, NaN% or ∞%. It backs `/funnel`'s pinned totals row and the
+     creative-detail campaigns/platform table. For that to work the mid-funnel
+     sums stay **NULLABLE all the way to the UI** (`CampaignFunnelRow`,
+     `PlatformMixRow`) — coercing NULL→0 in a query mapper is what made a
+     google-only page read "0.0%" instead of "—". The chart aggregators
+     (`metric-over-time`, `creative-perf-line`, `campaign-creative-chart`) were
+     already safe: they skip a point unless BOTH its value and its weight are
+     numbers, which is the same guard by construction.
+  **MCP inherits all of it** — `get_summary`/`get_funnel` reuse the guarded
+  queries, `list_creatives`/`get_creative` expose `isSystem`, and the shared
+  CONVENTIONS string states the rule. See tech-spec §5g.
 
 - **Status maps derive from the request's cached `brandStatusInputs()` — never
   add another status scan (2026-09 perf pass).** Status is computed on nearly

@@ -77,6 +77,7 @@ export default async function TrendsByTypePage({
           angles={angles}
           defaultFrom={from}
           defaultTo={to}
+          platformScope="creative"
         />
       }
     >

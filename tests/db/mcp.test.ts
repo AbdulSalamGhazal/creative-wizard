@@ -18,6 +18,8 @@ import { registerMcpTools } from "@/lib/mcp/tools";
 import { runWithMcpActor } from "@/lib/mcp/runtime";
 import type { SessionUser } from "@/lib/auth";
 import { resetAndSeed } from "./fixtures";
+import { ensureGoogleCreative } from "@/db/queries/google";
+import { GOOGLE_SYSTEM_CREATIVE_NAME } from "@/lib/google";
 
 const RESTRICTED_ID = "cccccccc-0000-0000-0000-0000000000c1"; // member of A only
 const ADMIN_ID = "cccccccc-0000-0000-0000-0000000000ad"; // all_accounts
@@ -230,6 +232,28 @@ describe("MCP tools — brand scoping for a restricted user", () => {
     // A stage nobody carries returns nothing, not everything.
     const empty = parse(await call({ stages: ["Activation"] }));
     expect(empty.creatives).toHaveLength(0);
+  });
+
+  it("list_creatives marks the app-owned system creative (google, phase 2)", async () => {
+    // The Library — and so this tool — SHOWS it; the flag is how a client can
+    // tell it apart from a real ad it could ask questions about.
+    const id = await ensureGoogleCreative(db, ACCOUNT_A, ADMIN_ID);
+    expect(id).toBeTruthy();
+    const tools = loadTools();
+    const out = parse(
+      await runWithMcpActor({ user: restricted, tokenId: "t" }, () =>
+        tools.get("list_creatives")!({}, {}),
+      ),
+    );
+    const sys = out.creatives.find(
+      (c: { name: string }) => c.name === GOOGLE_SYSTEM_CREATIVE_NAME,
+    );
+    expect(sys.isSystem).toBe(true);
+    // …and an ordinary creative is plainly not one.
+    const ordinary = out.creatives.find(
+      (c: { name: string }) => c.name === "A-Creative-1",
+    );
+    expect(ordinary.isSystem).toBe(false);
   });
 
   it("allowedAccountsForUser mirrors the scoping (belt-and-braces)", async () => {

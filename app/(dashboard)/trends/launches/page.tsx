@@ -148,6 +148,7 @@ export default async function TrendsLaunchesPage({
           defaultFrom={LIFETIME_FLOOR}
           defaultTo={todayIso()}
           rememberDate={false}
+          platformScope="creative"
         />
       }
     >

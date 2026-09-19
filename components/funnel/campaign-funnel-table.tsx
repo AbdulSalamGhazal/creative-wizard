@@ -5,6 +5,7 @@ import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 import { DeltaBadge } from "@/components/kpi/delta-badge";
 import { int, pct, roas, usd } from "@/lib/format";
 import { METRIC_LABEL } from "@/lib/metric-labels";
+import { funnelTotals } from "@/lib/funnel-totals";
 import { PLATFORM_LABEL } from "@/lib/palette";
 import { PlatformDot } from "@/components/ui/platform-dot";
 import { cn } from "@/lib/utils";
@@ -133,42 +134,11 @@ export function CampaignFunnelTable({ rows }: { rows: CampaignFunnelRow[] }) {
   }, [rows, sortKey, dir]);
 
   // Pinned footer: additive columns sum; rate columns are weighted averages
-  // recomputed from component sums (never an average of ratios).
-  const totals = useMemo(() => {
-    let spend = 0;
-    let impressions = 0;
-    let clicks = 0;
-    let lpv = 0;
-    let atc = 0;
-    let ap = 0;
-    let conversions = 0;
-    let conversionValue = 0;
-    for (const r of rows) {
-      spend += r.spend;
-      impressions += r.impressions;
-      clicks += r.clicks;
-      lpv += r.landingPageViews;
-      atc += r.addToCart;
-      ap += r.addPayment;
-      conversions += r.conversions;
-      conversionValue += r.conversionValue;
-    }
-    return {
-      spend,
-      impressions,
-      conversions,
-      addToCart: atc,
-      addPayment: ap,
-      cpm: impressions > 0 ? (spend / impressions) * 1000 : null,
-      ctr: impressions > 0 ? clicks / impressions : null,
-      voc: clicks > 0 ? lpv / clicks : null,
-      atcRate: lpv > 0 ? atc / lpv : null,
-      apRate: atc > 0 ? ap / atc : null,
-      purchaseRate: ap > 0 ? conversions / ap : null,
-      cvr: lpv > 0 ? conversions / lpv : null,
-      roas: spend > 0 ? conversionValue / spend : null,
-    };
-  }, [rows]);
+  // recomputed from component sums (never an average of ratios) by the shared
+  // pure helper, which also skips rows that didn't report a side — so a
+  // platform with no mid-funnel data can't inflate a rate, and a column
+  // nobody reported renders "—" instead of a fabricated 0%.
+  const totals = useMemo(() => funnelTotals(rows), [rows]);
 
   const onSort = (key: SortKey) => {
     if (sortKey === key) {

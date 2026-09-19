@@ -17,6 +17,13 @@ const COLOR = FUNNEL_METRIC_COLOR;
  * The four funnel efficiency rates — CPM, CTR, VOC, CvR — as colorful stat
  * tiles: a colored marker + label, a big value with a delta, and a tiny
  * sparkline of the rate's daily trend. CPM is lower-is-better (inverted).
+ *
+ * GOOGLE IS EXCLUDED from all four (phase 2, a user decision): it reports no
+ * funnel steps, so every funnel surface is all-or-nothing on it. `voc`/`cvr`
+ * are google-free through the lib/metrics guard; CPM/CTR come from the
+ * funnel-scoped `funnelCpm`/`funnelCtr`, and `dailyFunnelRates` uses the same
+ * scope, so the sparklines match the numbers above them. The card says so in a
+ * title tooltip rather than a visible line — the dashboard is dense enough.
  */
 export function FunnelRates({
   k,
@@ -55,8 +62,14 @@ export function FunnelRates({
     delta?: Delta;
     inverted?: boolean;
   }> = [
-    { key: "cpm", label: "CPM", value: usd(k.cpm), delta: kd?.delta.cpm, inverted: true },
-    { key: "ctr", label: "CTR", value: pct(k.ctr), delta: kd?.delta.ctr },
+    {
+      key: "cpm",
+      label: "CPM",
+      value: usd(k.funnelCpm),
+      delta: kd?.delta.funnelCpm,
+      inverted: true,
+    },
+    { key: "ctr", label: "CTR", value: pct(k.funnelCtr), delta: kd?.delta.funnelCtr },
     {
       key: "voc",
       label: "VOC",
@@ -69,7 +82,12 @@ export function FunnelRates({
   return (
     <Card className="h-full flex flex-col">
       <CardHeader>
-        <CardTitle className="text-sm">Funnel rates</CardTitle>
+        <CardTitle
+          className="text-sm"
+          title="Google is excluded — it doesn't report funnel steps."
+        >
+          Funnel rates
+        </CardTitle>
       </CardHeader>
       <CardContent className="flex-1 grid grid-cols-2 gap-3">
         {rates.map((r) => {
