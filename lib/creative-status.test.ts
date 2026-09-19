@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { ALL_PLATFORMS } from "@/lib/palette";
 import {
   NEW_STATUS,
   STATUS_ORDER,
@@ -138,12 +139,11 @@ describe("deriveCreativeStatus — general roll-up (active ▸ pause ▸ new ▸
     expect(r.general).toBe("new"); // unused potential remains on tiktok/snapchat
   });
 
-  it("terminated on ALL FOUR platforms → general terminated", () => {
+  it("terminated on EVERY platform → general terminated", () => {
+    // Derived from the canonical list, not re-listed: when a platform is added
+    // (google, 2026-09) "everywhere" has to mean everywhere.
     const r = deriveCreativeStatus(
-      {
-        lastSpendByPlatform: {},
-        terminatedPlatforms: ["instagram", "facebook", "tiktok", "snapchat"],
-      },
+      { lastSpendByPlatform: {}, terminatedPlatforms: [...ALL_PLATFORMS] },
       ctx,
     );
     expect(r.general).toBe("terminated");

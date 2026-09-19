@@ -1057,6 +1057,65 @@ This app is deployed and in production use. Treat `main` as shippable.
   `($1,$2)` (a row expression), so the cleared-keys list is bound as ONE
   `text[]` literal.
 
+- **GOOGLE (2026-09, phase 1 of 2) — a platform whose EXPORTS ARE THINNER, and
+  the math is protected from that.** Google joined `ALL_PLATFORMS` (lib/palette;
+  `platformEnum` derives from it) and needed NO migration for the vocabulary —
+  `platform` is a varchar, not a PG enum. Migration **0047** adds exactly one
+  column, `creatives.is_system`. Five things to know:
+  1. **The unavailable set is DECLARED ONCE**, in `FIELD_META.unavailableOn`
+     (`csv/platforms/types.ts`): google reports no `landing_page_views`, no
+     `add_to_cart`/`add_payment`, and no `video_views_*`. THREE behaviours
+     derive from that one declaration — E010 skips those columns for google;
+     the pipeline stores **NULL, not 0** for them; and `lib/metrics.ts` builds
+     its ratio guard from it. Never hand-list the fields or the platform at a
+     consumer. (The mapping admin greys those rows out and `addHeaderMapping`
+     refuses them, so nobody maps a header the pipeline would ignore.)
+  2. **NULL ≠ 0 is the whole point.** "The platform never measured this" is not
+     "the platform measured zero", and only NULL keeps a row out of BOTH sides
+     of a blended rate. The v1.2 blank-CELL-reads-as-0 decision is untouched —
+     that is the present-column path; this is the absent-COLUMN path.
+  3. **The ratio-poisoning guard (lib/metrics.ts).** SUM skips NULLs, so an
+     unguarded blended ratio takes its numerator from every platform and its
+     denominator from only the ones that measure it. `purchaseRate` is the
+     sharp case: with google's conversions in the numerator and only
+     instagram's add-payments in the denominator, a real 25% reads as 250%. So
+     any fragment touching an unreported field **excludes those platforms from
+     BOTH sides** (`voc`, `cvr`, `atcRate`, `apRate`, `purchaseRate`,
+     `hookRate`, `holdRate`, `completeRate`), while the ratios google fully
+     supports (CTR, CPM, CPC, CPA, ROAS, AOV) and every plain SUM include it
+     normally. A google-SCOPED block renders those rates as "—" (both sides
+     empty), which is correct: google has no funnel to report. Pinned by
+     `lib/metrics.test.ts` (shape) and `tests/db/google.test.ts` (the number,
+     against the real query, with the inflated value asserted NOT to appear).
+  4. **The system creative.** Google exports have no creative column, so the
+     adapter stamps every row with ONE app-owned creative: **"Google Ads"**
+     (`lib/google.ts`), `is_system = true`, type image, on the account's
+     **Collection** product (case-insensitive match, CREATED when the brand
+     hasn't got one — account-scoped, per the FK-revalidation rule).
+     `ensureGoogleCreative` is find-or-create and idempotent, and runs TWICE by
+     design: at VALIDATE time before the registered-names snapshot (skip it and
+     the first google upload fails E020 on every row) and again INSIDE the
+     commit transaction (so the creative can't be written apart from the rows
+     that reference it). It is VISIBLE in the Library with a **System** badge
+     (user decision), and `patchCreative`/`deleteCreative` REFUSE to rename or
+     delete it — the pipeline matches it BY NAME — while priority, stage,
+     thumbnail, notes and product stay freely editable.
+  5. **The "All" ad group.** When a google export has no ad-group COLUMN
+     (campaign-level exports), the adapter's `synthesizeAbsent` substitutes
+     "All" so the campaign identity is still `Campaign ➤ Ad group`. A column
+     that IS present but blank is still E042 — synthesis covers absent COLUMNS
+     only. Headers are ASSUMED (`Day`/`Campaign`/`Ad group`/`Cost`/…) and the
+     team corrects them per account in the CSV-mapping admin, like every other
+     platform. Google takes NO `PLATFORM_TAG` (that stays IG/FB-only), and
+     `platform_rating_rules` needs nothing seeded — rows are created on demand
+     when an admin saves an override, so google uses `DEFAULT_RATING_RULES`
+     until someone changes them.
+  **PHASE 2 (not done): the UI surface exclusions** — Ads/Compare/video/
+  by-angle/funnel surfaces that recompute rates in JS from returned sums (e.g.
+  `campaign-funnel-table.tsx`'s totals row), and the video-only views where
+  google has nothing to show. The SQL layer is guarded; those JS recomputations
+  are not. See tech-spec §5g.
+
 - **Status maps derive from the request's cached `brandStatusInputs()` — never
   add another status scan (2026-09 perf pass).** Status is computed on nearly
   every page and each consumer used to run its own three scans of

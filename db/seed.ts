@@ -26,10 +26,7 @@ import {
   type platformEnum,
 } from "@/db/schema";
 import { hashPassword } from "@/lib/auth-password";
-import { instagramAdapter } from "@/csv/platforms/instagram";
-import { facebookAdapter } from "@/csv/platforms/facebook";
-import { tiktokAdapter } from "@/csv/platforms/tiktok";
-import { snapchatAdapter } from "@/csv/platforms/snapchat";
+import { ADAPTERS } from "@/csv/platforms";
 import type { InternalField } from "@/csv/platforms/types";
 import { eq, sql } from "drizzle-orm";
 import { buildCampaignName } from "@/lib/campaign";
@@ -160,7 +157,8 @@ async function main() {
   // Seeds the placeholder candidate headers we shipped in code into the DB
   // so the admin UI starts with reasonable defaults. Each (platform, field,
   // header) is unique; ON CONFLICT DO NOTHING keeps re-runs no-ops.
-  const adapters = [instagramAdapter, facebookAdapter, tiktokAdapter, snapchatAdapter];
+  // Derived from the adapter registry — a new platform seeds its defaults too.
+  const adapters = Object.values(ADAPTERS);
   let mappingsInserted = 0;
   for (const a of adapters) {
     for (const [field, headers] of Object.entries(a.headerMap) as Array<[

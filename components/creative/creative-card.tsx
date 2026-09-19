@@ -3,6 +3,7 @@ import Image from "next/image";
 import { ArrowUpRight, Film, Image as ImageIcon, Layers } from "lucide-react";
 import type { CreativeListRow } from "@/db/queries/creatives";
 import { StatusBadge } from "@/components/creative/status-badge";
+import { SystemBadge } from "@/components/creative/system-badge";
 import { gradientFor } from "@/lib/palette";
 import { cn } from "@/lib/utils";
 import { isoDate, usd } from "@/lib/format";
@@ -105,6 +106,7 @@ export function CreativeCard({
         <div className="font-mono text-xs text-ink truncate" title={row.name}>
           {row.name}
         </div>
+        {row.isSystem && <SystemBadge className="mt-1" />}
         <div className="mt-0.5 text-xs text-ink-3 truncate">{row.productName}</div>
 
         {/* Angles */}

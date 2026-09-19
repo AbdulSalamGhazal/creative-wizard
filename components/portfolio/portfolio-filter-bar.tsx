@@ -27,16 +27,16 @@ import { FilterSheet } from "@/components/filters/filter-sheet";
 import { ViewsControl } from "@/components/summary/views-control";
 import { CAMPAIGN_TABLE_COLUMNS } from "@/components/portfolio/portfolio-table";
 import type { SummaryViewRow } from "@/db/queries/summary-views";
+import { ALL_PLATFORMS, PLATFORM_LABEL } from "@/lib/palette";
 import { CAMPAIGN_OBJECTIVES } from "@/lib/campaign";
 import { CAMPAIGN_STATUSES, CAMPAIGN_STATUS_LABEL } from "@/lib/campaign-status";
 import { setIncludeExcludedPref } from "@/app/actions/user-prefs";
 
-const PLATFORMS = [
-  { value: "instagram", label: "Instagram" },
-  { value: "facebook", label: "Facebook" },
-  { value: "tiktok", label: "TikTok" },
-  { value: "snapchat", label: "Snapchat" },
-] as const;
+/** Derived from the canonical list — never re-list the platforms. */
+const PLATFORMS = ALL_PLATFORMS.map((value) => ({
+  value,
+  label: PLATFORM_LABEL[value],
+}));
 
 function csv(v: string | null): string[] {
   return v ? v.split(",").filter(Boolean) : [];

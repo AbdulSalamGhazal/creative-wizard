@@ -242,6 +242,16 @@ export const creatives = pgTable(
      * (zod), like every other varchar "enum" here — no DB enum.
      */
     stages: text("stages").array().notNull().default(sql`'{}'::text[]`),
+    /**
+     * SYSTEM creative — created and owned by the app, not by a person. Today
+     * that means exactly one row per account: the "Google Ads" creative every
+     * google performance row hangs off (google exports carry no creative
+     * column). It is VISIBLE in the Library with a badge, and its priority /
+     * stage / thumbnail / notes are freely editable — but `patchCreative`
+     * REFUSES to rename it and `deleteCreative` REFUSES to delete it, because
+     * the upload pipeline resolves it BY NAME. Migration 0047.
+     */
+    isSystem: boolean("is_system").notNull().default(false),
     notes: text("notes"),
     // The creative's source link (e.g. the live post/ad or asset URL).
     // Display-only metadata; not used in aggregation.

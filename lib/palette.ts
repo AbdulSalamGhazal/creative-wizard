@@ -6,17 +6,36 @@
  * (the two hues that fail on white) — see the light-theme block in globals.css.
  *
  * Meta was split into Instagram + Facebook — they are now two distinct
- * platforms everywhere in the system. (Google was removed — to re-add it,
- * restore it in `platformEnum` (db/schema.ts), these three maps, and the
- * `--google` CSS var in app/globals.css.)
+ * platforms everywhere in the system. Google was re-added in 2026-09 (see the
+ * CLAUDE.md google bullet): it is a first-class platform whose EXPORTS are
+ * thinner than the social ones — several metrics simply don't exist there
+ * (`FIELD_META.unavailableOn` in csv/platforms/types.ts is the one declaration
+ * of that, and lib/metrics.ts derives its ratio guard from it).
  */
-type PlatformKey = "instagram" | "facebook" | "tiktok" | "snapchat";
+
+/**
+ * The CANONICAL platform list. Client-safe single source of truth —
+ * db/schema.ts derives `platformEnum` from THIS (mirroring how
+ * `campaignObjectiveEnum` derives from lib/campaign's CAMPAIGN_OBJECTIVES),
+ * so the two can never drift and client bundles never pull in the schema.
+ * Everything platform-shaped in the app derives from it: never re-list these.
+ */
+export const ALL_PLATFORMS = [
+  "instagram",
+  "facebook",
+  "tiktok",
+  "snapchat",
+  "google",
+] as const;
+
+export type PlatformKey = (typeof ALL_PLATFORMS)[number];
 
 export const PLATFORM_COLOR: Record<PlatformKey, string> = {
   instagram: "var(--instagram)", // IG purple/magenta
   facebook: "var(--facebook)", // FB blue
   tiktok: "var(--tiktok)", // grey (dark on light themes)
   snapchat: "var(--snapchat)", // yellow (darker gold on light themes)
+  google: "var(--google)", // red (darker red on light themes)
 };
 
 export const PLATFORM_LABEL: Record<PlatformKey, string> = {
@@ -24,20 +43,8 @@ export const PLATFORM_LABEL: Record<PlatformKey, string> = {
   facebook: "Facebook",
   tiktok: "TikTok",
   snapchat: "Snapchat",
+  google: "Google",
 };
-
-/**
- * The CANONICAL platform list. Client-safe single source of truth —
- * db/schema.ts derives `platformEnum` from THIS (mirroring how
- * `campaignObjectiveEnum` derives from lib/campaign's CAMPAIGN_OBJECTIVES),
- * so the two can never drift and client bundles never pull in the schema.
- */
-export const ALL_PLATFORMS = [
-  "instagram",
-  "facebook",
-  "tiktok",
-  "snapchat",
-] as const;
 
 /**
  * Deterministic gradient picker for creative thumbnails without an uploaded

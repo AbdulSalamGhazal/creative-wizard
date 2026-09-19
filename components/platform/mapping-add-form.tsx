@@ -13,14 +13,19 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { addHeaderMapping } from "@/app/actions/platform-mapping";
-import { FIELD_LIST, type InternalField } from "@/csv/platforms/types";
+import {
+  FIELD_LIST,
+  isFieldUnavailableOn,
+  type InternalField,
+  type Platform,
+} from "@/csv/platforms/types";
 
 type Field = InternalField;
 
 export function MappingAddForm({
   platform,
 }: {
-  platform: "instagram" | "facebook" | "tiktok" | "snapchat";
+  platform: Platform;
 }) {
   const [field, setField] = useState<Field>("creative_name");
   const [headerName, setHeaderName] = useState("");
@@ -59,11 +64,15 @@ export function MappingAddForm({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {FIELD_LIST.map((f) => (
-              <SelectItem key={f.key} value={f.key}>
-                {f.label}
-              </SelectItem>
-            ))}
+            {/* A field the platform can't report isn't offered — mapping a
+                header for it would be silently ignored by the pipeline. */}
+            {FIELD_LIST.filter((f) => !isFieldUnavailableOn(f.key, platform)).map(
+              (f) => (
+                <SelectItem key={f.key} value={f.key}>
+                  {f.label}
+                </SelectItem>
+              ),
+            )}
           </SelectContent>
         </Select>
       </div>

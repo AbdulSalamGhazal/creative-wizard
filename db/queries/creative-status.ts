@@ -421,13 +421,8 @@ async function statusRestrictIds(
 // Both keep the same start-of-window → now transition shape as the single flow.
 // ---------------------------------------------------------------------------
 
-/** Platforms shown in the status-flow grid. */
-export const FLOW_PLATFORMS: Platform[] = [
-  "instagram",
-  "facebook",
-  "tiktok",
-  "snapchat",
-];
+/** Platforms shown in the status-flow grid — the canonical list, derived. */
+export const FLOW_PLATFORMS: Platform[] = [...platformEnum];
 
 export interface StatusFlowScope {
   /** Platform value or campaign name. */

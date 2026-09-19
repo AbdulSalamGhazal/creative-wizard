@@ -3,7 +3,11 @@ import { ALL_PLATFORMS, PLATFORM_LABEL } from "@/lib/palette";
 import { PlatformDot } from "@/components/ui/platform-dot";
 import { MappingAddForm } from "@/components/platform/mapping-add-form";
 import { MappingRemoveButton } from "@/components/platform/mapping-remove-button";
-import { FIELD_LIST, type InternalField } from "@/csv/platforms/types";
+import {
+  FIELD_LIST,
+  isFieldUnavailableOn,
+  type InternalField,
+} from "@/csv/platforms/types";
 import { PlatformsAdmin } from "@/components/platform/platforms-admin";
 
 /**
@@ -44,12 +48,23 @@ export async function MappingsAdmin() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-line">
-                  {FIELD_LIST.map((f) => (
+                  {FIELD_LIST.map((f) => {
+                    // A field this platform can't report is shown, but greyed
+                    // and unmappable: a header mapped here would be ignored
+                    // (the pipeline stores NULL for it by declaration).
+                    const unavailable = isFieldUnavailableOn(f.key, platform);
+                    return (
                     <tr key={f.key} className="align-top">
                       <td className="px-3 py-2.5">
-                        <div className="text-ink">{f.label}</div>
+                        <div className={unavailable ? "text-ink-3" : "text-ink"}>
+                          {f.label}
+                        </div>
                         <div className="text-eyebrow text-ink-3">
-                          {f.required ? "required" : "optional"}
+                          {unavailable
+                            ? `not reported by ${PLATFORM_LABEL[platform]}`
+                            : f.required
+                              ? "required"
+                              : "optional"}
                         </div>
                       </td>
                       <td className="px-3 py-2.5">
@@ -66,6 +81,13 @@ export async function MappingsAdmin() {
                                 <MappingRemoveButton id={r.id} />
                               </span>
                             ))
+                          ) : unavailable ? (
+                            <span className="text-[11px] text-ink-3 italic">
+                              {PLATFORM_LABEL[platform]} exports don&apos;t carry
+                              this metric — rows are stored as{" "}
+                              <span className="font-mono">NULL</span>, never 0,
+                              and it&apos;s left out of blended rates.
+                            </span>
                           ) : (
                             <span className="text-[11px] text-ink-3 italic">
                               No header names mapped yet — uploads won&apos;t
@@ -77,7 +99,8 @@ export async function MappingsAdmin() {
                         </div>
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

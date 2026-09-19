@@ -33,15 +33,14 @@ import { usd, int, plural } from "@/lib/format";
 import { defaultDateRange } from "@/lib/date-presets";
 import { cn } from "@/lib/utils";
 import { pillClass } from "@/components/filters/filter-pill";
+import { ALL_PLATFORMS, PLATFORM_LABEL } from "@/lib/palette";
 
-type Platform = "instagram" | "facebook" | "tiktok" | "snapchat";
+type Platform = (typeof ALL_PLATFORMS)[number];
 
-const PLATFORMS: Array<{ value: Platform; label: string }> = [
-  { value: "instagram", label: "Instagram" },
-  { value: "facebook", label: "Facebook" },
-  { value: "tiktok", label: "TikTok" },
-  { value: "snapchat", label: "Snapchat" },
-];
+/** Derived from the canonical list — never re-list the platforms. */
+const PLATFORMS: Array<{ value: Platform; label: string }> = ALL_PLATFORMS.map(
+  (value) => ({ value, label: PLATFORM_LABEL[value] }),
+);
 
 interface Props {
   products: Array<{ id: string; name: string }>;

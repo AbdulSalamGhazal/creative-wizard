@@ -15,10 +15,11 @@
  */
 import { parseCsv, type ParseInput } from "@/csv/parse";
 import { ADAPTERS } from "@/csv/platforms";
-import type {
-  DateFormat,
-  InternalField,
-  PlatformAdapter,
+import {
+  isFieldUnavailableOn,
+  type DateFormat,
+  type InternalField,
+  type PlatformAdapter,
 } from "@/csv/platforms/types";
 import type { ValidationError } from "@/csv/errors";
 import { buildCampaignName } from "@/lib/campaign";
@@ -144,9 +145,14 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
     }
   }
 
-  // Stage 2 fatal: every required field must be present.
+  // Stage 2 fatal: every required field must be present — EXCEPT one the
+  // platform can't report at all (`unavailableOn`; the pipeline stores NULL
+  // for it below) or one the adapter can synthesize a value for (google has no
+  // creative column and campaign-level exports have no ad-group column).
   const missingHeaders: ValidationError[] = [];
   for (const required of adapter.requiredFields) {
+    if (isFieldUnavailableOn(required, platform)) continue;
+    if (adapter.synthesizeAbsent?.[required] !== undefined) continue;
     if (fieldIndex[required] === undefined) {
       const firstCandidate = adapter.headerMap[required][0] ?? required;
       missingHeaders.push({
@@ -200,6 +206,14 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
     const allCells: Partial<Record<InternalField, string>> = {};
     for (const f of Object.keys(fieldIndex) as InternalField[]) {
       allCells[f] = cell(f);
+    }
+    // Absent COLUMN → the adapter's stand-in value (google's creative name and
+    // its "All" ad group). A column that exists but holds a blank cell is NOT
+    // covered here: that stays an E042 blank identity field.
+    for (const [f, value] of Object.entries(adapter.synthesizeAbsent ?? {}) as Array<
+      [InternalField, string]
+    >) {
+      if (fieldIndex[f] === undefined) allCells[f] = value;
     }
 
     // skipRow rule (subtotal / grand-total rows).
@@ -308,19 +322,29 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
       return parsedNumeric;
     };
 
-    const spend = parseNumericCell("spend");
-    const impressions = parseNumericCell("impressions");
-    const clicks = parseNumericCell("clicks");
-    const conversions = parseNumericCell("conversions");
-    const conversionValue = parseNumericCell("conversion_value");
-    const landingPageViews = parseNumericCell("landing_page_views");
-    const addToCart = parseNumericCell("add_to_cart");
-    const addPayment = parseNumericCell("add_payment");
-    const videoViews2s = parseNumericCell("video_views_2s");
-    const videoViews25 = parseNumericCell("video_views_25");
-    const videoViews50 = parseNumericCell("video_views_50");
-    const videoViews75 = parseNumericCell("video_views_75");
-    const videoViews100 = parseNumericCell("video_views_100");
+    /**
+     * A field this platform CANNOT report is NULL — never 0. "The platform
+     * doesn't measure this" and "the platform measured zero" are different
+     * facts, and only NULL keeps the metric out of both sides of a blended
+     * ratio (SUM skips NULLs; see lib/metrics.ts). Blank cells in a column
+     * that IS present still read as 0 — that standing decision is untouched.
+     */
+    const numericCell = (field: InternalField): number | null =>
+      isFieldUnavailableOn(field, platform) ? null : parseNumericCell(field);
+
+    const spend = numericCell("spend");
+    const impressions = numericCell("impressions");
+    const clicks = numericCell("clicks");
+    const conversions = numericCell("conversions");
+    const conversionValue = numericCell("conversion_value");
+    const landingPageViews = numericCell("landing_page_views");
+    const addToCart = numericCell("add_to_cart");
+    const addPayment = numericCell("add_payment");
+    const videoViews2s = numericCell("video_views_2s");
+    const videoViews25 = numericCell("video_views_25");
+    const videoViews50 = numericCell("video_views_50");
+    const videoViews75 = numericCell("video_views_75");
+    const videoViews100 = numericCell("video_views_100");
 
     if (errorsForRow.length > 0) {
       collected.push(...errorsForRow);

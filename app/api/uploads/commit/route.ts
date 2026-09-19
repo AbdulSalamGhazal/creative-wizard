@@ -9,6 +9,7 @@ import {
   campaigns,
   creatives,
   performanceRecords,
+  platformEnum,
   uploadBatches,
   uploadValidationSessions,
 } from "@/db/schema";
@@ -18,6 +19,8 @@ import {
   type PerformanceMetricUpdate,
 } from "@/db/queries/performance";
 import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
+import { ensureGoogleCreative } from "@/db/queries/google";
+import { GOOGLE_SYSTEM_CREATIVE_NAME } from "@/lib/google";
 import { stampAgainstActiveRules } from "@/db/queries/exclusion-rules";
 import { notifyRoutes } from "@/db/queries/notifications";
 import { PLATFORM_LABEL } from "@/lib/palette";
@@ -147,6 +150,17 @@ export async function POST(request: NextRequest) {
   // this file's rows into a different brand.
   const acct = session.accountId;
 
+  // Transactional commit. The platform vocabulary is derived, never re-listed.
+  const platform = session.platform as (typeof platformEnum)[number];
+
+  // Google rows all carry the ONE system creative, which the validate step
+  // already ensured. Re-assert it here (idempotent) so the name resolution
+  // below can't 422 on a brand whose row was somehow removed, and again inside
+  // the transaction so the commit is atomic with it.
+  if (platform === "google") {
+    await ensureGoogleCreative(db, acct, user.id);
+  }
+
   // Re-resolve creative IDs by name in case the registry shifted between
   // validate and commit. Names that vanished → 422 with a clear pointer.
   const names = [...new Set(payload.rows.map((r) => r.creativeName))];
@@ -190,13 +204,6 @@ export async function POST(request: NextRequest) {
       { status: 422 },
     );
   }
-
-  // Transactional commit.
-  const platform = session.platform as
-    | "instagram"
-    | "facebook"
-    | "tiktok"
-    | "snapchat";
 
   // Column values for one performance_records row. Identity columns
   // (creative/platform/campaign/date) are added separately for inserts;
@@ -258,6 +265,14 @@ export async function POST(request: NextRequest) {
       .where(eq(uploadValidationSessions.token, token))
       .returning({ token: uploadValidationSessions.token });
     if (claimed.length === 0) return null;
+
+    // The system creative, inside the commit transaction: if anything removed
+    // it between the check above and here, it comes back with the rows that
+    // reference it — the two can never be written apart.
+    if (platform === "google") {
+      const systemId = await ensureGoogleCreative(tx, acct, user.id);
+      idByName.set(GOOGLE_SYSTEM_CREATIVE_NAME, systemId);
+    }
 
     // Only open a batch when there are new rows to insert. A pure-update
     // upsert (every row already exists) creates no batch.

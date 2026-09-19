@@ -8,14 +8,20 @@ import { int } from "@/lib/format";
 import {
   FIELD_META,
   INTERNAL_FIELDS,
+  isFieldUnavailableOn,
   type InternalField,
+  type Platform,
 } from "@/csv/platforms/types";
 
-// Derived from the single field registry (csv/platforms/types). Required
-// fields gate the "mapping ready" badge; optional ones still count toward the
-// "all fields" total but don't block readiness.
-const REQUIRED_FIELDS = INTERNAL_FIELDS.filter((f) => FIELD_META[f].required);
-const ALL_FIELDS = INTERNAL_FIELDS;
+// Derived from the single field registry (csv/platforms/types), PER PLATFORM:
+// a field the platform can't report at all (google has no landing-page views,
+// cart/payment events or video funnel) is not a gap in its mapping, so it
+// counts on neither side. Required fields gate the "mapping ready" badge;
+// optional ones still count toward the "all fields" total but don't block it.
+const fieldsFor = (p: Platform) =>
+  INTERNAL_FIELDS.filter((f) => !isFieldUnavailableOn(f, p));
+const requiredFieldsFor = (p: Platform) =>
+  fieldsFor(p).filter((f) => FIELD_META[f].required);
 
 /**
  * Platform readiness — the supported ad channels (a fixed set: adding a new
@@ -50,9 +56,11 @@ export async function PlatformsAdmin() {
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {ALL_PLATFORMS.map((p) => {
           const mapped = mappedByPlatform.get(p) ?? new Set<InternalField>();
-          const requiredMapped = REQUIRED_FIELDS.filter((f) => mapped.has(f)).length;
-          const totalMapped = ALL_FIELDS.filter((f) => mapped.has(f)).length;
-          const ready = requiredMapped === REQUIRED_FIELDS.length;
+          const requiredFields = requiredFieldsFor(p);
+          const allFields = fieldsFor(p);
+          const requiredMapped = requiredFields.filter((f) => mapped.has(f)).length;
+          const totalMapped = allFields.filter((f) => mapped.has(f)).length;
+          const ready = requiredMapped === requiredFields.length;
           const recordCount = records[p] ?? 0;
 
           return (
@@ -83,7 +91,7 @@ export async function PlatformsAdmin() {
                     Required fields
                   </div>
                   <div className="text-ink num mt-0.5">
-                    {requiredMapped}/{REQUIRED_FIELDS.length}
+                    {requiredMapped}/{requiredFields.length}
                   </div>
                 </div>
                 <div>
@@ -91,7 +99,7 @@ export async function PlatformsAdmin() {
                     All fields
                   </div>
                   <div className="text-ink num mt-0.5">
-                    {totalMapped}/{ALL_FIELDS.length}
+                    {totalMapped}/{allFields.length}
                   </div>
                 </div>
                 <div>

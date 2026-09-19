@@ -8,6 +8,7 @@ import { DownloadCsvButton } from "@/components/ui/download-csv-button";
 import type { CreativeListRow } from "@/db/queries/creatives";
 import type { CreativeSort } from "@/validators/creative";
 import { StatusBadge } from "@/components/creative/status-badge";
+import { SystemBadge } from "@/components/creative/system-badge";
 import { PriorityStars } from "@/components/creative/priority-stars";
 import { StageChips } from "@/components/creative/stage-chips";
 import { STATUS_LABEL } from "@/lib/creative-status";
@@ -224,6 +225,7 @@ export function CreativeTable({
                   >
                     {r.name}
                   </Link>
+                  {r.isSystem && <SystemBadge className="mt-1" />}
                 </td>
                 <td
                   style={widthStyle("product")}

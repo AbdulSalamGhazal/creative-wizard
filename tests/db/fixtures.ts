@@ -5,6 +5,7 @@ import {
   campaigns,
   creatives,
   performanceRecords,
+  platformEnum,
   products,
   uploadBatches,
   users,
@@ -40,7 +41,7 @@ const BATCH_B = "55555555-5555-5555-5555-5555555550b1";
 
 type PerfRow = {
   creativeId: string;
-  platform: "instagram" | "facebook" | "tiktok" | "snapchat";
+  platform: (typeof platformEnum)[number];
   campaignId: string;
   date: string;
   spend: number;

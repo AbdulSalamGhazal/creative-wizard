@@ -385,11 +385,24 @@ export async function patchCreative(
         launchDate: creatives.launchDate,
         priority: creatives.priority,
         stages: creatives.stages,
+        isSystem: creatives.isSystem,
       })
       .from(creatives)
       .where(and(eq(creatives.accountId, acct), eq(creatives.id, data.id)))
       .limit(1);
     if (!oldRow) return { ok: false, error: "Creative not found." };
+
+    // A SYSTEM creative cannot be renamed: the upload pipeline resolves it by
+    // NAME (google rows are all stamped with it), so a rename would make every
+    // future google upload fail to match. Everything else about it — priority,
+    // stage, thumbnail, notes — is ordinary editable metadata.
+    if (oldRow.isSystem && data.name !== undefined && data.name !== oldRow.name) {
+      return {
+        ok: false,
+        error: `“${oldRow.name}” is a system creative — uploads match it by name, so it can't be renamed.`,
+        fieldErrors: { name: "System creative" },
+      };
+    }
 
     // Name uniqueness — only when actually renaming (scoped to this account).
     if (data.name !== undefined && data.name !== oldRow.name) {
@@ -535,11 +548,25 @@ export async function deleteCreative(
     const acct = await getActiveAccountId();
 
     const [target] = await db
-      .select({ id: creatives.id, name: creatives.name })
+      .select({
+        id: creatives.id,
+        name: creatives.name,
+        isSystem: creatives.isSystem,
+      })
       .from(creatives)
       .where(and(eq(creatives.accountId, acct), eq(creatives.id, creativeId)))
       .limit(1);
     if (!target) return { ok: false, error: "Creative not found." };
+
+    // A SYSTEM creative is app-owned: every google performance row hangs off
+    // it, and the next upload would just recreate it. Deleting it would take
+    // that history with it, so refuse rather than cascade.
+    if (target.isSystem) {
+      return {
+        ok: false,
+        error: `“${target.name}” is a system creative — every Google upload records against it, so it can't be deleted.`,
+      };
+    }
 
     const recordsDeleted = await db.transaction(async (tx) => {
       const countRows = await tx

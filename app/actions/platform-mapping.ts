@@ -6,7 +6,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { requirePermission } from "@/lib/auth";
 import { platformFieldMappings, platformEnum } from "@/db/schema";
-import { INTERNAL_FIELDS } from "@/csv/platforms/types";
+import { INTERNAL_FIELDS, isFieldUnavailableOn } from "@/csv/platforms/types";
 import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
 import { getActiveAccountId } from "@/lib/tenant";
 import { actionError } from "@/lib/action-error";
@@ -33,6 +33,15 @@ export async function addHeaderMapping(input: unknown): Promise<MutationResult> 
       };
     }
     const { platform, internalField, headerName } = parsed.data;
+    // The UI doesn't offer these, but the server is the boundary: a header
+    // mapped for a metric the platform can't report would be silently ignored
+    // (the pipeline stores NULL for it by declaration), so refuse it outright.
+    if (isFieldUnavailableOn(internalField, platform)) {
+      return {
+        ok: false,
+        error: `${platform} exports don't carry that metric — it is stored as NULL, so a header mapping would be ignored.`,
+      };
+    }
     const trimmed = headerName.trim();
     if (trimmed.length === 0) return { ok: false, error: "Header name is empty." };
     const acct = await getActiveAccountId();

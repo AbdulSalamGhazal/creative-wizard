@@ -1,5 +1,9 @@
-import { sql, type SQL } from "drizzle-orm";
+import { sql, type Column, type SQL } from "drizzle-orm";
 import { performanceRecords, type platformEnum } from "@/db/schema";
+import {
+  platformsMissingAnyOf,
+  type InternalField,
+} from "@/csv/platforms/types";
 
 type Platform = (typeof platformEnum)[number];
 
@@ -20,6 +24,50 @@ type Platform = (typeof platformEnum)[number];
  */
 
 const p = performanceRecords;
+
+/**
+ * THE RATIO-POISONING GUARD.
+ *
+ * Some platforms don't report some metrics at all (Google has no landing-page
+ * views, no cart/payment events, no video funnel — see `FIELD_META
+ * .unavailableOn`, the one declaration this derives from). Their rows store
+ * NULL there, and `SUM` skips NULLs — so a blended ratio would take its
+ * NUMERATOR from every platform while its DENOMINATOR came from only some.
+ * `purchaseRate = Σconversions / Σadd_payment` is the sharp case: google
+ * contributes conversions it can't back with add-payments, and the blended
+ * rate reads far higher than any real platform's.
+ *
+ * So: any fragment whose numerator OR denominator touches an unreported field
+ * excludes those platforms from BOTH SIDES. The result is then a true rate for
+ * the platforms that actually measure the funnel, and google simply isn't in
+ * it. Ratios google fully supports (CTR, CPM, CPC, CPA, ROAS, AOV) and every
+ * plain SUM include it normally.
+ */
+function ratioScope(...fields: InternalField[]): SQL | null {
+  const missing = platformsMissingAnyOf(fields);
+  if (missing.length === 0) return null;
+  return sql`${p.platform} NOT IN (${sql.join(
+    missing.map((m) => sql`${m}`),
+    sql`, `,
+  )})`;
+}
+
+/** `SUM(col)`, restricted to `scope` when one applies (and to `extra` if given). */
+function scopedSum(col: Column, scope: SQL | null, extra?: SQL): SQL<number> {
+  const filters = [scope, extra].filter((f): f is SQL => f !== null && f !== undefined);
+  if (filters.length === 0) return sql<number>`SUM(${col})`;
+  return sql<number>`SUM(${col}) FILTER (WHERE ${sql.join(filters, sql` AND `)})`;
+}
+
+// Scopes, derived once. Each names the fields its ratios touch.
+const vocScope = ratioScope("landing_page_views", "clicks");
+const cvrScope = ratioScope("conversions", "landing_page_views");
+const atcScope = ratioScope("add_to_cart", "landing_page_views");
+const apScope = ratioScope("add_payment", "add_to_cart");
+const purchaseScope = ratioScope("conversions", "add_payment");
+const hookScope = ratioScope("video_views_2s", "impressions");
+const holdScope = ratioScope("video_views_50", "video_views_2s");
+const completeScope = ratioScope("video_views_100", "video_views_2s");
 
 /**
  * Video-funnel metrics ignore image/slides creatives. The upload pipeline
@@ -52,28 +100,28 @@ export const roas: SQL<number> = sql<number>`SUM(${p.conversionValue}) / NULLIF(
 /** Average order value = revenue / orders. */
 export const aov: SQL<number> = sql<number>`SUM(${p.conversionValue}) / NULLIF(SUM(${p.conversions}), 0)`;
 /** Views Over Clicks = landing page views / clicks (shown ×100 as %). */
-export const voc: SQL<number> = sql<number>`SUM(${p.landingPageViews})::numeric / NULLIF(SUM(${p.clicks}), 0)`;
+export const voc: SQL<number> = sql<number>`${scopedSum(p.landingPageViews, vocScope)}::numeric / NULLIF(${scopedSum(p.clicks, vocScope)}, 0)`;
 /**
  * Conversion rate = conversions / landing page views (shown ×100 as %). The
  * last funnel step after VOC: impressions →(CTR)→ clicks →(VOC)→ LP views
  * →(CvR)→ conversions.
  */
-export const cvr: SQL<number> = sql<number>`SUM(${p.conversions})::numeric / NULLIF(SUM(${p.landingPageViews}), 0)`;
+export const cvr: SQL<number> = sql<number>`${scopedSum(p.conversions, cvrScope)}::numeric / NULLIF(${scopedSum(p.landingPageViews, cvrScope)}, 0)`;
 
 /**
  * Lower-funnel step rates (shown ×100 as %). The funnel between LP view and
  * purchase: LP views →(atcRate)→ add-to-cart →(apRate)→ add-payment
  * →(purchaseRate)→ conversions.
  */
-export const atcRate: SQL<number> = sql<number>`SUM(${p.addToCart})::numeric / NULLIF(SUM(${p.landingPageViews}), 0)`;
-export const apRate: SQL<number> = sql<number>`SUM(${p.addPayment})::numeric / NULLIF(SUM(${p.addToCart}), 0)`;
-export const purchaseRate: SQL<number> = sql<number>`SUM(${p.conversions})::numeric / NULLIF(SUM(${p.addPayment}), 0)`;
+export const atcRate: SQL<number> = sql<number>`${scopedSum(p.addToCart, atcScope)}::numeric / NULLIF(${scopedSum(p.landingPageViews, atcScope)}, 0)`;
+export const apRate: SQL<number> = sql<number>`${scopedSum(p.addPayment, apScope)}::numeric / NULLIF(${scopedSum(p.addToCart, apScope)}, 0)`;
+export const purchaseRate: SQL<number> = sql<number>`${scopedSum(p.conversions, purchaseScope)}::numeric / NULLIF(${scopedSum(p.addPayment, purchaseScope)}, 0)`;
 
 // Video-funnel rates — non-video rows carry NULL video views and so are
 // skipped; hookRate's denominator is restricted to rows with video data.
-export const hookRate: SQL<number> = sql<number>`SUM(${p.videoViews2s})::numeric / NULLIF(SUM(${p.impressions}) FILTER (WHERE ${p.videoViews2s} IS NOT NULL), 0)`;
-export const holdRate: SQL<number> = sql<number>`SUM(${p.videoViews50})::numeric / NULLIF(SUM(${p.videoViews2s}), 0)`;
-export const completeRate: SQL<number> = sql<number>`SUM(${p.videoViews100})::numeric / NULLIF(SUM(${p.videoViews2s}), 0)`;
+export const hookRate: SQL<number> = sql<number>`${scopedSum(p.videoViews2s, hookScope)}::numeric / NULLIF(${scopedSum(p.impressions, hookScope, sql`${p.videoViews2s} IS NOT NULL`)}, 0)`;
+export const holdRate: SQL<number> = sql<number>`${scopedSum(p.videoViews50, holdScope)}::numeric / NULLIF(${scopedSum(p.videoViews2s, holdScope)}, 0)`;
+export const completeRate: SQL<number> = sql<number>`${scopedSum(p.videoViews100, completeScope)}::numeric / NULLIF(${scopedSum(p.videoViews2s, completeScope)}, 0)`;
 
 /**
  * Per-platform metric fragments built on Postgres FILTER aggregates. Used by
@@ -133,9 +181,14 @@ export function scopedMetrics(predicate: SQL): MetricBlockSql {
   const videoViews50 = sql<number>`SUM(${p.videoViews50}) FILTER (WHERE ${w})`;
   const videoViews75 = sql<number>`SUM(${p.videoViews75}) FILTER (WHERE ${w})`;
   const videoViews100 = sql<number>`SUM(${p.videoViews100}) FILTER (WHERE ${w})`;
+  // The exposed SUMS above stay unguarded — a plain total includes every
+  // platform. Only the RATIOS below carry the poisoning guard, so each one
+  // needs its own scoped pair of sums.
+  const g = (col: Column, scope: SQL | null, extra?: SQL) =>
+    scopedSum(col, scope === null ? w : sql`${w} AND ${scope}`, extra);
   // hookRate's denominator counts only rows with video data so non-video
   // impressions don't dilute it; the numerators already skip NULL video views.
-  const imprVideo = sql`SUM(${p.impressions}) FILTER (WHERE ${w} AND ${p.videoViews2s} IS NOT NULL)`;
+  const imprVideo = g(p.impressions, hookScope, sql`${p.videoViews2s} IS NOT NULL`);
   return {
     spend,
     impressions,
@@ -153,11 +206,11 @@ export function scopedMetrics(predicate: SQL): MetricBlockSql {
     cpc: sql<number>`${spend} / NULLIF(${clicks}, 0)`,
     cpa: sql<number>`${spend} / NULLIF(${conversions}, 0)`,
     roas: sql<number>`${conversionValue} / NULLIF(${spend}, 0)`,
-    voc: sql<number>`${landingPageViews}::numeric / NULLIF(${clicks}, 0)`,
-    cvr: sql<number>`${conversions}::numeric / NULLIF(${landingPageViews}, 0)`,
-    hookRate: sql<number>`${videoViews2s}::numeric / NULLIF(${imprVideo}, 0)`,
-    holdRate: sql<number>`${videoViews50}::numeric / NULLIF(${videoViews2s}, 0)`,
-    completeRate: sql<number>`${videoViews100}::numeric / NULLIF(${videoViews2s}, 0)`,
+    voc: sql<number>`${g(p.landingPageViews, vocScope)}::numeric / NULLIF(${g(p.clicks, vocScope)}, 0)`,
+    cvr: sql<number>`${g(p.conversions, cvrScope)}::numeric / NULLIF(${g(p.landingPageViews, cvrScope)}, 0)`,
+    hookRate: sql<number>`${g(p.videoViews2s, hookScope)}::numeric / NULLIF(${imprVideo}, 0)`,
+    holdRate: sql<number>`${g(p.videoViews50, holdScope)}::numeric / NULLIF(${g(p.videoViews2s, holdScope)}, 0)`,
+    completeRate: sql<number>`${g(p.videoViews100, completeScope)}::numeric / NULLIF(${g(p.videoViews2s, completeScope)}, 0)`,
   };
 }
 

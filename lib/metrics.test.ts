@@ -28,7 +28,10 @@ import {
   sumVideoViews50,
   sumVideoViews75,
   voc,
+  platformMetrics,
+  purchaseRate,
 } from "@/lib/metrics";
+import { unavailableFieldsFor } from "@/csv/platforms/types";
 
 /**
  * lib/metrics.ts is the single source of truth for the project's CRITICAL
@@ -39,6 +42,11 @@ import {
  */
 const render = (fragment: SQL): string =>
   new PgDialect().sqlToQuery(fragment).sql;
+/** Rendered SQL with the bound values inlined — readable for shape assertions. */
+const renderFull = (fragment: SQL): string => {
+  const q = new PgDialect().sqlToQuery(fragment);
+  return q.sql.replace(/\$(\d+)/g, (_m, i) => `'${String(q.params[Number(i) - 1])}'`);
+};
 
 const RATIOS: Array<{
   name: string;
@@ -112,5 +120,81 @@ describe("lib/metrics fragments — weighted-average shape (CRITICAL rule)", () 
 
   it("cpm scales the ratio to cost-per-thousand", () => {
     expect(render(cpm)).toMatch(/\* 1000$/);
+  });
+});
+
+/**
+ * The ratio-poisoning guard. Google's exports carry no landing-page views, no
+ * cart/payment events and no video funnel, so its rows store NULL there — and
+ * SUM skips NULLs. Without the guard a blended ratio would take its numerator
+ * from every platform and its denominator from only some.
+ */
+describe("google ratio guard", () => {
+  const GUARDED: Array<{ name: string; fragment: SQL<number> }> = [
+    { name: "voc", fragment: voc },
+    { name: "cvr", fragment: cvr },
+    { name: "atcRate", fragment: atcRate },
+    { name: "apRate", fragment: apRate },
+    { name: "purchaseRate", fragment: purchaseRate },
+    { name: "hookRate", fragment: hookRate },
+    { name: "holdRate", fragment: holdRate },
+    { name: "completeRate", fragment: completeRate },
+  ];
+  // Ratios google reports in full — it must stay IN these.
+  const UNGUARDED: Array<{ name: string; fragment: SQL<number> }> = [
+    { name: "ctr", fragment: ctr },
+    { name: "cpm", fragment: cpm },
+    { name: "cpc", fragment: cpc },
+    { name: "cpa", fragment: cpa },
+    { name: "roas", fragment: roas },
+    { name: "aov", fragment: aov },
+  ];
+
+  const EXCLUDES_GOOGLE = /"platform" not in \('google'\)/i;
+
+  it.each(GUARDED)(
+    "$name excludes google from BOTH sides of the division",
+    ({ fragment }) => {
+      const [num, den] = renderFull(fragment).split("/");
+      expect(num).toMatch(EXCLUDES_GOOGLE);
+      expect(den).toMatch(EXCLUDES_GOOGLE);
+    },
+  );
+
+  it.each(UNGUARDED)("$name keeps google in — it reports every input", ({ fragment }) => {
+    expect(renderFull(fragment)).not.toMatch(EXCLUDES_GOOGLE);
+  });
+
+  it.each(SUMS)("$name is never guarded — a total includes every platform", ({ fragment }) => {
+    expect(renderFull(fragment)).not.toMatch(EXCLUDES_GOOGLE);
+  });
+
+  it("guards the per-platform FILTER block too, on both sides", () => {
+    const block = platformMetrics("tiktok");
+    for (const key of ["voc", "cvr", "holdRate", "completeRate"] as const) {
+      const [num, den] = renderFull(block[key]).split("/");
+      expect(num).toMatch(EXCLUDES_GOOGLE);
+      expect(den).toMatch(EXCLUDES_GOOGLE);
+    }
+    // …and leaves the block's plain component sums alone.
+    expect(renderFull(block.landingPageViews)).not.toMatch(EXCLUDES_GOOGLE);
+    expect(renderFull(block.ctr)).not.toMatch(EXCLUDES_GOOGLE);
+  });
+
+  it("a google-scoped block yields NULL for the rates it can't support", () => {
+    // Both sides filter to platform = 'google' AND platform NOT IN ('google')
+    // → no rows → SUM is NULL → NULLIF → NULL → the UI renders an em-dash,
+    // never a 0% that would read as a real measurement.
+    const text = renderFull(platformMetrics("google").cvr);
+    expect(text).toMatch(/"platform" = 'google'/i);
+    expect(text).toMatch(EXCLUDES_GOOGLE);
+  });
+
+  it("the guard DERIVES from the field declaration, not a hand-list", () => {
+    // If google ever gains landing-page views, dropping `unavailableOn` is the
+    // only edit needed — this test documents the coupling.
+    expect(unavailableFieldsFor("google")).toContain("landing_page_views");
+    expect(unavailableFieldsFor("google")).toContain("add_payment");
+    expect(unavailableFieldsFor("instagram")).toEqual([]);
   });
 });

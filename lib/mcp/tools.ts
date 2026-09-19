@@ -87,7 +87,7 @@ const toField = z
 const platformsField = z
   .array(z.enum(platformEnum))
   .optional()
-  .describe("Restrict to these platforms (instagram, facebook, tiktok, snapchat).");
+  .describe(`Restrict to these platforms (${platformEnum.join(", ")}).`);
 const typesField = z
   .array(z.enum(creativeTypeEnum))
   .optional()
