@@ -1192,7 +1192,7 @@ This app is deployed and in production use. Treat `main` as shippable.
   queries, and the shared CONVENTIONS string states the reduced-metric rule.
   See tech-spec §5g.
 
-- **CANVAS (`/canvas`, 2026-09, phases C1 + C1.5) — the campaign↔creative
+- **CANVAS (`/canvas`, 2026-09, phases C1 + C1.5 + C2) — the campaign↔creative
   graph. READ-ONLY FACTS.** Ads section, between Campaigns and Trends. An edge exists
   because a creative SPENT (> 0) inside a campaign in the selected range, under
   the resolved Excluded toggle; nothing on the page is ever edited and every
@@ -1308,7 +1308,56 @@ This app is deployed and in production use. Treat `main` as shippable.
     `--surface`, edges via the platform vars), so all four themes hold. The
     top-bar screenshot button captures the canvas faithfully — React Flow
     renders DOM + SVG, and `modern-screenshot` handles both (verified).
-  - **C2 (pending): cluster views.** C1/C1.5 are the Network view only.
+  - **C2 (DONE, 2026-09): the VIEW SWITCHER — Network · By campaign · By
+    creative.** Same data, same filters, same clocks: `canvasGraph()` is
+    untouched and every view is a PURE function over what it returns
+    (`buildClusters` → `clusterBoxes` → `clusterFocus` in `lib/canvas.ts`). No
+    migration, no dependency.
+    - **`?view=` is URL-backed and validated** (`parseCanvasView`, derived from
+      `CANVAS_VIEWS`; anything unknown is the network, which is also the clean
+      URL). Deliberate: the comments system snapshots the query string, so a
+      comment reproduces the exact view. Switching is a re-layout of data
+      already on the client — `window.history.replaceState` (Next syncs
+      `useSearchParams`), NO server round-trip; the filter bar's own
+      `router.replace` carries the param along untouched.
+    - **THE CHIP CARRIES THE PAIRING.** In a cluster view an entity is drawn
+      once PER PAIRING (a creative in five campaigns appears five times — that
+      is the tree, embrace it), so the chip stands for the EDGE, not the
+      entity: **dashed + dimmed chip ≡ the network's dashed line** (paused
+      here), solid chip ≡ live here, and the border COLOR is still the entity's
+      own status. Liveness is the edge's `live` flag — one source
+      (`edgeIsLive`), never re-derived for chips. The legend says this in one
+      extra block, cluster views only; the chip tooltip is the EDGE's tooltip.
+      A paused chip dims by PARTS (hollow fill + ink-2 name), not by opacity:
+      a flat 0.6 measured 2.9:1 on Frost/Paper and any wrapper opacity drags
+      the dashed status border under 3:1 there.
+    - **Layout:** plain computed positions, NOT React Flow parent/group nodes
+      — nothing drags, and sub-flows would complicate `measured`, culling and
+      fitView for no gain. A cluster = a quiet frame (`pointer-events: none`,
+      so an empty click inside it still clears focus) + the header (the SAME
+      campaign/creative node component, same spend-scaled size) + a 2-column
+      chip grid: live chips first, then paused, each by spend desc. Clusters
+      wrap in rows by header spend desc; the column count follows the PANE
+      (`clusterColumnsFor` — one column on a phone). By campaign: idle-active
+      creatives form one trailing "Idle creatives" pseudo-cluster. By creative:
+      campaign chips are lean (platform dot + name + pairing spend, no health
+      count) and idle-active creatives are chipless headers, last.
+    - **Focus is held in ENTITY ids**, never occurrence ids — so clicking a
+      chip or header lights EVERY occurrence (each with its frame + header for
+      context), a header lights its whole cluster, and a view switch mid-focus
+      **RE-MAPS** the focus rather than clearing it. `CanvasFocusRequest.fit` is
+      `"none"` (click) · `"all"` (insight chips) · `"first"` (search — pans to
+      the first occurrence, focuses all). The three insights are unchanged;
+      "most shared" is best in By campaign (its chip's `title` says so).
+    - **Fit per view:** the network frames the whole graph; a cluster view
+      frames its top two rows (spend desc — fitting a tall board whole would
+      shrink every chip to nothing). **Cap:** `CANVAS_MAX_CHIPS` (500) by the
+      same top-spend rule (`capEdges`), idle chips filling what room remains,
+      with the same quiet note.
+    - **Rig gotcha:** when the Browser pane is HIDDEN, rAF, CSS transitions and
+      ResizeObserver all stall — computed opacities read one step stale, fit
+      animations never finish, and edges count 0 until a screenshot forces a
+      paint. Read inline styles, and shim rAF onto a timer in the rig's HTML.
 
 - **The Library's status STRIP is a FACET of the listing, not a query
   (2026-09).** It sits directly ABOVE the list (both views), not in the page

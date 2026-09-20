@@ -15,6 +15,7 @@ import {
   type Edge,
   type Node,
   type NodeProps,
+  type NodeTypes,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { CircleHelp, Film, Image as ImageIcon, Layers, Search, X } from "lucide-react";
@@ -33,13 +34,26 @@ import {
 import { int, longDate, pct1, roas, usd, usdCompact } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import {
+  ChipNodeView,
+  ClusterFrameView,
+  type ChipData,
+} from "@/components/canvas/cluster-nodes";
+import {
   CANVAS_NODE_HEIGHT,
   CANVAS_NODE_WIDTH,
+  canvasNodeSizes,
+  clusterBoxes,
+  clusterColumnsFor,
+  clusterFocus,
+  clusterFrameId,
+  clusterHeaderId,
   creativeSide,
   edgeWidth,
   focusFor,
   tripartiteBoxes,
+  type CanvasCluster,
   type CanvasSide,
+  type CanvasViewMode,
   type CanvasCampaignNode,
   type CanvasCreativeNode,
   type CanvasGraph,
@@ -57,10 +71,18 @@ import {
  */
 
 export interface CanvasFocusRequest {
-  /** The primary node ids — their edges and neighbours light up with them. */
+  /**
+   * The primary ENTITY ids (campaign / creative node ids) — never occurrence
+   * ids. That is what lets one focus mean the same thing in all three views,
+   * and survive a switch between them.
+   */
   ids: string[];
-  /** Pan/zoom to the focused subgraph (search + insight chips; not a click). */
-  fit: boolean;
+  /**
+   * Where to take the viewport: `"all"` frames everything lit (insight
+   * chips), `"first"` pans to the first occurrence (search — in a cluster
+   * view an entity can be lit in many places), `"none"` leaves it (a click).
+   */
+  fit: "none" | "all" | "first";
 }
 
 type PlatformKey = keyof typeof PLATFORM_COLOR;
@@ -71,6 +93,13 @@ const TYPE_ICON = { video: Film, image: ImageIcon, slides: Layers } as const;
 
 /** `scale` is the box's size factor (spend); `side` is a creative's flank. */
 type FlowNode = Node<{ node: CanvasNode; scale: number; side: CanvasSide | null }>;
+/**
+ * Any node on the canvas. `entityId` is the campaign/creative a node STANDS
+ * FOR — itself in the network view, the header's or chip's entity in a cluster
+ * view, null for a cluster frame. Clicks, hover and double-click all speak in
+ * entity ids.
+ */
+type AnyNode = Node<Record<string, unknown> & { entityId: string | null }>;
 
 // ── Nodes ────────────────────────────────────────────────────────────────────
 // Tokens only, so all four themes hold. Handles exist because edges need
@@ -206,7 +235,12 @@ const CreativeNodeView = memo(function CreativeNodeView({
   );
 });
 
-const NODE_TYPES = { campaign: CampaignNodeView, creative: CreativeNodeView };
+const NODE_TYPES = {
+  campaign: CampaignNodeView,
+  creative: CreativeNodeView,
+  chip: ChipNodeView,
+  frame: ClusterFrameView,
+} as unknown as NodeTypes;
 
 /** React Flow's chrome, re-pointed at the app's tokens — so the canvas, the
  *  minimap and the controls follow whichever of the four themes is active. */
@@ -236,11 +270,16 @@ interface Tip {
 
 function Flow({
   graph,
+  view,
+  clusters,
   focus,
   onFocus,
   onOpen,
 }: {
   graph: CanvasGraph;
+  view: CanvasViewMode;
+  /** The cluster model for the two tree views (empty in the network view). */
+  clusters: readonly CanvasCluster[];
   focus: CanvasFocusRequest | null;
   onFocus: (req: CanvasFocusRequest | null) => void;
   /** Double-click — the page decides where an entity's detail lives. */
@@ -266,18 +305,104 @@ function Flow({
     () => graph.edges.reduce((m, e) => Math.max(m, e.spend), 0),
     [graph],
   );
-  const lit = useMemo(
-    () => (focus ? focusFor(focus.ids, graph.edges) : null),
-    [focus, graph],
+  // Lit sets are FLOW-node ids. The network reads them off the edges; a
+  // cluster view maps the same entity ids onto every occurrence.
+  const litFor = useCallback(
+    (ids: readonly string[]) => {
+      if (view === "network") {
+        const f = focusFor(ids, graph.edges);
+        return { nodes: f.nodes, edges: f.edges, first: ids[0] ?? null };
+      }
+      const f = clusterFocus(ids, clusters);
+      return { nodes: f.lit, edges: new Set<string>(), first: f.first };
+    },
+    [view, graph, clusters],
   );
+  const lit = useMemo(() => (focus ? litFor(focus.ids) : null), [focus, litFor]);
   const preview = useMemo(
-    () => (!focus && hoverId ? focusFor([hoverId], graph.edges) : null),
-    [focus, hoverId, graph],
+    () => (!focus && hoverId ? litFor([hoverId]) : null),
+    [focus, hoverId, litFor],
   );
 
-  const nodes: FlowNode[] = useMemo(
+  // Cluster layout: the column count follows the PANE (one on a phone), and
+  // headers are the same spend-scaled size the network draws.
+  const paneWidth = useStore((st) => st.width);
+  const columns = clusterColumnsFor(paneWidth);
+  const clusterLayout = useMemo(
+    () => (view === "network" ? null : clusterBoxes(clusters, columns, canvasNodeSizes(graph))),
+    [view, clusters, columns, graph],
+  );
+
+  const dim = useCallback(
+    (id: string) =>
+      // Click-focus dims the rest to 15%; the hover preview only to 70%.
+      lit ? (lit.nodes.has(id) ? 1 : 0.15) : preview ? (preview.nodes.has(id) ? 1 : 0.7) : 1,
+    [lit, preview],
+  );
+
+  const clusterNodes: AnyNode[] = useMemo(() => {
+    if (!clusterLayout) return [];
+    const out: AnyNode[] = [];
+    const sized = (box: { x: number; y: number; width: number; height: number }) => ({
+      position: { x: box.x, y: box.y },
+      width: box.width,
+      height: box.height,
+      measured: { width: box.width, height: box.height },
+    });
+    for (const c of clusters) {
+      const frame = clusterLayout.frames.get(c.id);
+      if (!frame) continue;
+      const frameId = clusterFrameId(c.id);
+      out.push({
+        id: frameId,
+        type: "frame",
+        ...sized(frame),
+        zIndex: 0,
+        data: { entityId: null, kind: c.kind, count: c.chips.length },
+        // The frame is scenery: clicks fall through to the pane (so an empty
+        // click inside a cluster still clears focus).
+        style: { opacity: dim(frameId), transition: "opacity 120ms", pointerEvents: "none" },
+      });
+      const headerBox = clusterLayout.headers.get(c.id);
+      const header = c.headerId ? byId.get(c.headerId) : undefined;
+      if (headerBox && header) {
+        const id = clusterHeaderId(c.id);
+        out.push({
+          id,
+          type: header.kind,
+          ...sized(headerBox),
+          zIndex: 1,
+          data: {
+            entityId: header.id,
+            node: header,
+            scale: headerBox.width / CANVAS_NODE_WIDTH,
+            side: null,
+          },
+          style: { opacity: dim(id), transition: "opacity 120ms" },
+        });
+      }
+      for (const chip of c.chips) {
+        const box = clusterLayout.chips.get(chip.id);
+        const entity = byId.get(chip.entityId);
+        if (!box || !entity) continue;
+        out.push({
+          id: chip.id,
+          type: "chip",
+          ...sized(box),
+          zIndex: 1,
+          data: { entityId: entity.id, chip, entity } satisfies ChipData & { entityId: string },
+          style: { opacity: dim(chip.id), transition: "opacity 120ms" },
+        });
+      }
+    }
+    return out;
+  }, [clusterLayout, clusters, byId, dim]);
+
+  const networkNodes: AnyNode[] = useMemo(
     () =>
-      [...graph.campaigns, ...graph.creatives].map((n) => {
+      view !== "network"
+        ? []
+        : [...graph.campaigns, ...graph.creatives].map((n) => {
         const box = boxes.get(n.id) ?? {
           x: 0,
           y: 0,
@@ -297,23 +422,17 @@ function Flow({
           height: box.height,
           measured: { width: box.width, height: box.height },
           data: {
+            entityId: n.id,
             node: n,
             scale: box.width / CANVAS_NODE_WIDTH,
             side: n.kind === "creative" ? creativeSide(n.type) : null,
           },
-          style: {
-            // Click-focus dims the rest to 15%; the hover preview only to 70%.
-            opacity: lit
-              ? lit.nodes.has(n.id) ? 1 : 0.15
-              : preview
-                ? preview.nodes.has(n.id) ? 1 : 0.7
-                : 1,
-            transition: "opacity 120ms",
-          },
+          style: { opacity: dim(n.id), transition: "opacity 120ms" },
         };
       }),
-    [graph, boxes, lit, preview],
+    [view, graph, boxes, dim],
   );
+  const nodes = view === "network" ? networkNodes : clusterNodes;
 
   const creativeById = useMemo(
     () => new Map(graph.creatives.map((c) => [c.id, c])),
@@ -322,7 +441,8 @@ function Flow({
 
   const edges: Edge[] = useMemo(
     () =>
-      graph.edges.map((e) => {
+      // The cluster views have NO lines — the pairing's state rides on the chip.
+      (view === "network" ? graph.edges : []).map((e) => {
         // Edges route left → center and center → right, so a LEFT-flank
         // creative is the source and the campaign its target.
         const creative = creativeById.get(e.target);
@@ -351,7 +471,7 @@ function Flow({
           },
         };
       }),
-    [graph, creativeById, maxEdgeSpend, lit, preview],
+    [view, graph, creativeById, maxEdgeSpend, lit, preview],
   );
 
   // THE INITIAL FIT, done by hand. React Flow's own `fitView` prop resolves
@@ -359,18 +479,35 @@ function Flow({
   // (`measured`), so it fired before the pane had been measured (store width
   // 0) and framed the graph against nothing. Fit once the pane has a real
   // size, and again whenever the graph itself changes (a filter round-trip).
+  // PER VIEW: the network frames the whole graph; a cluster view frames its
+  // TOP TWO ROWS — order is spend desc, so that is the story, and a long board
+  // fitted whole would shrink every chip to nothing (pan or the minimap for
+  // the rest). Re-runs on a view switch and when the column count changes.
   const paneReady = useStore((st) => st.width > 0 && st.height > 0);
   useEffect(() => {
     if (!paneReady) return;
-    void flow.fitView({ padding: 0.15 });
-  }, [paneReady, graph, flow]);
-
-  // Pan/zoom to the focused subgraph when the request asks for it.
-  useEffect(() => {
-    if (!focus?.fit || !lit) return;
+    if (!clusterLayout) {
+      void flow.fitView({ padding: 0.15 });
+      return;
+    }
+    const top = clusterLayout.rows.slice(0, 2).flat();
+    if (top.length === 0) return;
     void flow.fitView({
-      nodes: [...lit.nodes].map((id) => ({ id })),
-      padding: 0.25,
+      nodes: top.map((id) => ({ id: clusterFrameId(id) })),
+      padding: 0.1,
+      maxZoom: 1.1,
+    });
+  }, [paneReady, graph, clusterLayout, flow]);
+
+  // Take the viewport where the focus request asks: everything lit (insight
+  // chips) or just the first occurrence (search).
+  useEffect(() => {
+    if (!focus || focus.fit === "none" || !lit) return;
+    const ids = focus.fit === "first" ? (lit.first ? [lit.first] : []) : [...lit.nodes];
+    if (ids.length === 0) return;
+    void flow.fitView({
+      nodes: ids.map((id) => ({ id })),
+      padding: focus.fit === "first" ? 1.2 : 0.25,
       duration: 400,
       maxZoom: 1.1,
     });
@@ -394,8 +531,51 @@ function Flow({
   }, []);
 
   const nodeTip = useCallback(
-    (e: React.MouseEvent, fn: FlowNode) => {
-      const n = fn.data.node;
+    (e: React.MouseEvent, fn: AnyNode) => {
+      if (fn.type === "chip") {
+        // A chip is a PAIRING: its tooltip is the edge's, not the entity's.
+        const { chip, entity } = fn.data as unknown as ChipData;
+        const edge = chip.edgeId ? graph.edges.find((x) => x.id === chip.edgeId) : undefined;
+        const camp = edge ? byId.get(edge.source) : undefined;
+        const share = edge && camp && camp.spend > 0 ? edge.spend / camp.spend : null;
+        setTip({
+          ...at(e),
+          body: (
+            <>
+              <p className="max-w-[16rem] truncate text-xs font-medium text-ink">{entity.name}</p>
+              {edge ? (
+                <>
+                  <p className="mt-0.5 text-[11px] text-ink-2">
+                    {edge.live ? (
+                      <span className="text-ink">live here</span>
+                    ) : (
+                      <>
+                        <span className="text-ink">paused here</span>
+                        {edge.lastSpendDay && <> since {longDate(edge.lastSpendDay)}</>}
+                      </>
+                    )}
+                    {" · "}
+                    <span className="num tabular-nums text-ink">{usd(edge.spend)}</span>
+                  </p>
+                  <p className="mt-0.5 max-w-[16rem] text-[11px] text-ink-3">
+                    {share === null ? "—" : pct1(share)} of{" "}
+                    <span className="text-ink-2">{camp?.name ?? "the campaign"}</span>
+                    &rsquo;s spend
+                  </p>
+                </>
+              ) : (
+                <p className="mt-0.5 text-[11px] text-ink-3">
+                  Active, but no spend in this range.
+                </p>
+              )}
+              <p className="mt-1 text-[10px] text-ink-3">Double-click to open</p>
+            </>
+          ),
+        });
+        return;
+      }
+      const n = (fn as unknown as FlowNode).data.node;
+      if (!n) return;
       setTip({
         ...at(e),
         body: (
@@ -416,7 +596,7 @@ function Flow({
         ),
       });
     },
-    [at],
+    [at, graph, byId],
   );
 
   const edgeTip = useCallback(
@@ -466,7 +646,8 @@ function Flow({
 
   const jumpTo = (n: CanvasNode) => {
     setQuery("");
-    onFocus({ ids: [n.id], fit: true });
+    // In a cluster view this lights EVERY occurrence and pans to the first.
+    onFocus({ ids: [n.id], fit: "first" });
   };
 
   return (
@@ -486,14 +667,20 @@ function Flow({
         edgesFocusable={false}
         zoomOnDoubleClick={false}
         onlyRenderVisibleElements
-        onNodeClick={(_, n) => onFocus({ ids: [n.id], fit: false })}
-        onNodeDoubleClick={(_, n) => onOpen((n as FlowNode).data.node)}
+        onNodeClick={(_, n) => {
+          const id = (n as AnyNode).data.entityId;
+          if (id) onFocus({ ids: [id], fit: "none" });
+        }}
+        onNodeDoubleClick={(_, n) => {
+          const entity = byId.get((n as AnyNode).data.entityId ?? "");
+          if (entity) onOpen(entity);
+        }}
         onPaneClick={() => onFocus(null)}
         onNodeMouseEnter={(e, n) => {
-          setHoverId(n.id);
-          nodeTip(e, n as FlowNode);
+          setHoverId((n as AnyNode).data.entityId);
+          nodeTip(e, n as AnyNode);
         }}
-        onNodeMouseMove={nodeTip}
+        onNodeMouseMove={(e, n) => nodeTip(e, n as AnyNode)}
         onNodeMouseLeave={() => {
           setHoverId(null);
           setTip(null);
@@ -509,7 +696,7 @@ function Flow({
             sits over React Flow's attribution (bottom-right, under the map). */}
         <Controls showInteractive={false} position="top-right" />
         <Panel position="bottom-left">
-          <Legend />
+          <Legend view={view} />
         </Panel>
         <MiniMap
           pannable
@@ -517,8 +704,10 @@ function Flow({
           position="bottom-right"
           className="!hidden rounded-lg border border-line sm:!block"
           nodeColor={(n) => {
-            const node = (n as FlowNode).data.node;
-            return node.kind === "campaign" ? platformColor(node.platform) : "var(--ink-3)";
+            if (n.type === "frame") return "transparent";
+            const d = (n as AnyNode).data as { node?: CanvasNode; entity?: CanvasNode };
+            const node = d.node ?? d.entity;
+            return node?.kind === "campaign" ? platformColor(node.platform) : "var(--ink-3)";
           }}
           nodeBorderRadius={4}
         />
@@ -581,7 +770,7 @@ const LEGEND_KEY = "cw-canvas-legend";
  * chip by default (the canvas is the point; the key is for the first visit
  * and the occasional doubt) and remembered per browser. Tokens only.
  */
-function Legend() {
+function Legend({ view }: { view: CanvasViewMode }) {
   const [open, setOpen] = useState(false);
   useEffect(() => {
     try {
@@ -643,6 +832,26 @@ function Legend() {
         colors. “3/5” = creatives currently spending there.
       </p>
 
+      {view !== "network" && (
+        // The one extra line the cluster views need: there are no lines to
+        // dash, so the pairing's state moves ONTO the duplicated chip.
+        <>
+          <p className="mb-1 mt-2.5 text-ink-3">Chip — a pairing, not the whole {view === "campaign" ? "creative" : "campaign"}</p>
+          <ul className="space-y-1">
+            <li className="flex items-center gap-1.5">
+              <span className="h-3 w-5 shrink-0 rounded-[3px] border-2 bg-surface" style={{ borderColor: "var(--ink-2)" }} />
+              Solid — live here
+            </li>
+            <li className="flex items-center gap-1.5">
+              <span className="h-3 w-5 shrink-0 rounded-[3px] border-2 border-dashed bg-transparent" style={{ borderColor: "var(--ink-2)" }} />
+              Dashed + dimmed — paused here (the network&rsquo;s dashed line)
+            </li>
+          </ul>
+        </>
+      )}
+
+      {view === "network" && (
+      <>
       <p className="mb-1 mt-2.5 text-ink-3">Line — is it spending here now?</p>
       <ul className="space-y-1">
         <li className="flex items-center gap-1.5">
@@ -658,9 +867,13 @@ function Legend() {
           Paused here — in the range, not the window
         </li>
       </ul>
+      </>
+      )}
 
       <p className="mt-2.5 text-ink-3">
-        Size and line weight — spend in the range. Line color — platform.
+        {view === "network"
+          ? "Size and line weight — spend in the range. Line color — platform."
+          : "Header size — spend in the range. A name repeats once per pairing."}
       </p>
     </div>
   );

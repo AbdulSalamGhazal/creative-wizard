@@ -238,6 +238,24 @@ export function tripartiteOrder(graph: Pick<CanvasGraph, "campaigns" | "creative
   return { left: flank("left"), center, right: flank("right") };
 }
 
+/**
+ * Every node's spend-scaled size — ONE function, so a campaign is drawn the
+ * same size as a network node and as a cluster header.
+ */
+export function canvasNodeSizes(
+  graph: Pick<CanvasGraph, "campaigns" | "creatives">,
+): (id: string) => { width: number; height: number } {
+  const maxCampaign = graph.campaigns.reduce((m, c) => Math.max(m, c.spend), 0);
+  const maxCreative = graph.creatives.reduce((m, c) => Math.max(m, c.spend), 0);
+  const scale = new Map<string, number>();
+  for (const c of graph.campaigns) scale.set(c.id, nodeScale(c.spend, maxCampaign));
+  for (const c of graph.creatives) scale.set(c.id, nodeScale(c.spend, maxCreative));
+  return (id) => {
+    const k = scale.get(id) ?? NODE_MIN_SCALE;
+    return { width: CANVAS_NODE_WIDTH * k, height: CANVAS_NODE_HEIGHT * k };
+  };
+}
+
 export interface CanvasBox {
   x: number;
   y: number;
@@ -256,16 +274,7 @@ export function tripartiteBoxes(
   graph: Pick<CanvasGraph, "campaigns" | "creatives" | "edges">,
 ): Map<string, CanvasBox> {
   const order = tripartiteOrder(graph);
-  const maxCampaign = graph.campaigns.reduce((m, c) => Math.max(m, c.spend), 0);
-  const maxCreative = graph.creatives.reduce((m, c) => Math.max(m, c.spend), 0);
-  const scale = new Map<string, number>();
-  for (const c of graph.campaigns) scale.set(c.id, nodeScale(c.spend, maxCampaign));
-  for (const c of graph.creatives) scale.set(c.id, nodeScale(c.spend, maxCreative));
-
-  const size = (id: string) => {
-    const k = scale.get(id) ?? NODE_MIN_SCALE;
-    return { width: CANVAS_NODE_WIDTH * k, height: CANVAS_NODE_HEIGHT * k };
-  };
+  const size = canvasNodeSizes(graph);
   const columnHeight = (ids: string[]) =>
     ids.reduce((h, id) => h + size(id).height, 0) +
     Math.max(0, ids.length - 1) * CANVAS_ROW_GAP;
@@ -407,4 +416,316 @@ export function canvasInsights(graph: Pick<CanvasGraph, "campaigns" | "creatives
   }
 
   return out;
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// C2 — THE VIEW SWITCHER. Same graph, same filters, same two clocks: every
+// cluster view below is a pure function over what `canvasGraph()` already
+// returns. Nothing here asks the database for anything.
+// ═════════════════════════════════════════════════════════════════════════════
+
+/** `?view=` — URL-backed so a comment's captured view reproduces it exactly. */
+export const CANVAS_VIEWS = ["network", "campaign", "creative"] as const;
+export type CanvasViewMode = (typeof CANVAS_VIEWS)[number];
+export const CANVAS_VIEW_LABEL: Record<CanvasViewMode, string> = {
+  network: "Network",
+  campaign: "By campaign",
+  creative: "By creative",
+};
+
+/** Anything that isn't a known view is the default — never an error. */
+export function parseCanvasView(value: string | null | undefined): CanvasViewMode {
+  return (CANVAS_VIEWS as readonly string[]).includes(value ?? "")
+    ? (value as CanvasViewMode)
+    : "network";
+}
+
+/**
+ * A CHIP is one occurrence inside a cluster, and it represents the PAIRING —
+ * this creative IN this campaign — not the entity in general. So it carries
+ * the edge's state: in the cluster views there are no lines to dash, and the
+ * live / paused-here signal moves ONTO the duplicated chip. `live` here is the
+ * edge's own `live`, never re-derived (one source).
+ */
+export interface CanvasChip {
+  /** Unique per occurrence — a creative in five campaigns is five chips. */
+  id: string;
+  /** The entity this chip stands for (a creative or campaign node id). */
+  entityId: string;
+  /** The pairing's edge; null for an idle creative (it has no pairing). */
+  edgeId: string | null;
+  /** The pairing's liveness. An idle chip has no pairing to pause → true. */
+  live: boolean;
+  /** The PAIRING's range spend (not the entity's total). */
+  spend: number;
+  lastSpendDay: string | null;
+}
+
+export interface CanvasCluster {
+  id: string;
+  /** "idle" = the trailing pseudo-cluster of creatives with no campaign here. */
+  kind: "campaign" | "creative" | "idle";
+  /** The header entity's node id; null for the idle pseudo-cluster. */
+  headerId: string | null;
+  chips: CanvasChip[];
+}
+
+/** Rendered chips are capped like edges are — duplication multiplies them. */
+export const CANVAS_MAX_CHIPS = 500;
+
+export interface CanvasClusters {
+  clusters: CanvasCluster[];
+  /** Set when the chip cap trimmed pairings — the page SAYS so. */
+  truncated: { shownChips: number; totalChips: number } | null;
+}
+
+/** Live first, then paused; each group by the pairing's spend desc. */
+function byPairingState(a: CanvasChip, b: CanvasChip): number {
+  if (a.live !== b.live) return a.live ? -1 : 1;
+  return b.spend - a.spend || a.entityId.localeCompare(b.entityId);
+}
+
+/**
+ * The cluster ("tree") views, built from the graph's edges:
+ *
+ *  - BY CAMPAIGN: one cluster per campaign (spend desc), its creatives as
+ *    chips. A creative in five campaigns appears five times — that IS the tree
+ *    semantics. Idle-active creatives (no campaign in range) form ONE trailing
+ *    "idle" pseudo-cluster.
+ *  - BY CREATIVE: the inverse — one cluster per creative (spend desc), its
+ *    campaigns as chips; idle-active creatives are CHIPLESS headers, last.
+ *
+ * The chip cap keeps the TOP pairings by spend (`capEdges`, the same rule as
+ * the network's scale cap) and reports what it trimmed. A header whose
+ * pairings were all trimmed is dropped with them; idle creatives fill
+ * whatever room is left.
+ */
+export function buildClusters(
+  graph: Pick<CanvasGraph, "campaigns" | "creatives" | "edges">,
+  view: Exclude<CanvasViewMode, "network">,
+  maxChips: number = CANVAS_MAX_CHIPS,
+): CanvasClusters {
+  const { kept, total } = capEdges(graph.edges, Number.POSITIVE_INFINITY, maxChips);
+  const connected = new Set(graph.edges.map((e) => e.target));
+  const idle = graph.creatives
+    .filter((c) => !connected.has(c.id))
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  const clusters: CanvasCluster[] = [];
+  let totalChips = total;
+  let shownChips = kept.length;
+
+  if (view === "campaign") {
+    const chipsOf = new Map<string, CanvasChip[]>();
+    for (const e of kept) {
+      const list = chipsOf.get(e.source) ?? [];
+      list.push({
+        id: `${e.source}>${e.target}`,
+        entityId: e.target,
+        edgeId: e.id,
+        live: e.live,
+        spend: e.spend,
+        lastSpendDay: e.lastSpendDay,
+      });
+      chipsOf.set(e.source, list);
+    }
+    const headers = [...graph.campaigns]
+      .filter((c) => chipsOf.has(c.id))
+      .sort((a, b) => b.spend - a.spend || a.name.localeCompare(b.name));
+    for (const c of headers) {
+      clusters.push({
+        id: `cl:${c.id}`,
+        kind: "campaign",
+        headerId: c.id,
+        chips: chipsOf.get(c.id)!.sort(byPairingState),
+      });
+    }
+    // The idle pseudo-cluster: its chips count toward the same cap.
+    totalChips += idle.length;
+    const room = Math.max(0, maxChips - kept.length);
+    const shownIdle = idle.slice(0, room);
+    shownChips += shownIdle.length;
+    if (shownIdle.length > 0) {
+      clusters.push({
+        id: "cl:idle",
+        kind: "idle",
+        headerId: null,
+        chips: shownIdle.map((c) => ({
+          id: `idle>${c.id}`,
+          entityId: c.id,
+          edgeId: null,
+          live: true,
+          spend: 0,
+          lastSpendDay: null,
+        })),
+      });
+    }
+  } else {
+    const chipsOf = new Map<string, CanvasChip[]>();
+    for (const e of kept) {
+      const list = chipsOf.get(e.target) ?? [];
+      list.push({
+        id: `${e.target}>${e.source}`,
+        entityId: e.source,
+        edgeId: e.id,
+        live: e.live,
+        spend: e.spend,
+        lastSpendDay: e.lastSpendDay,
+      });
+      chipsOf.set(e.target, list);
+    }
+    const headers = [...graph.creatives]
+      .filter((c) => chipsOf.has(c.id))
+      .sort((a, b) => b.spend - a.spend || a.name.localeCompare(b.name));
+    for (const c of headers) {
+      clusters.push({
+        id: `cl:${c.id}`,
+        kind: "creative",
+        headerId: c.id,
+        chips: chipsOf.get(c.id)!.sort(byPairingState),
+      });
+    }
+    // Idle-active creatives: chipless headers, grouped last.
+    for (const c of idle) {
+      clusters.push({ id: `cl:${c.id}`, kind: "creative", headerId: c.id, chips: [] });
+    }
+  }
+
+  return {
+    clusters,
+    truncated: shownChips < totalChips ? { shownChips, totalChips } : null,
+  };
+}
+
+// ── Cluster layout ───────────────────────────────────────────────────────────
+
+export const CHIP_WIDTH = 172;
+export const CHIP_HEIGHT = 34;
+export const CHIP_GAP = 8;
+export const CHIP_COLS = 2;
+export const CLUSTER_PAD = 12;
+export const CLUSTER_GAP = 28;
+/** Every cluster is one width, so they tile in clean wrapping rows. */
+export const CLUSTER_WIDTH = CHIP_COLS * CHIP_WIDTH + (CHIP_COLS - 1) * CHIP_GAP + 2 * CLUSTER_PAD;
+/** The idle pseudo-cluster has no header node — just a caption strip. */
+export const IDLE_CAPTION_HEIGHT = 22;
+
+export interface ClusterLayout {
+  /** The cluster's frame. */
+  frames: Map<string, CanvasBox>;
+  /** The header node's box, keyed by CLUSTER id (absent for the idle cluster). */
+  headers: Map<string, CanvasBox>;
+  /** Chip boxes, keyed by chip id. */
+  chips: Map<string, CanvasBox>;
+  /** Cluster ids row by row — what "fit the top rows" reads. */
+  rows: string[][];
+}
+
+/** How many cluster columns a pane of this width gets. One on a phone. */
+export function clusterColumnsFor(paneWidth: number): number {
+  if (paneWidth < 640) return 1;
+  if (paneWidth < 1024) return 2;
+  if (paneWidth < 1500) return 3;
+  return 4;
+}
+
+/**
+ * Clusters flow in WRAPPING ROWS of `columns`, in the order given (spend desc).
+ * A cluster's height is its header plus its chip grid, so it is sized by child
+ * count; each row is as tall as its tallest cluster, so nothing collides.
+ * `headerSize` supplies the header's box (the same spend-scaled size the
+ * network view draws) — it always fits, since the widest header (232 × 1.45)
+ * is narrower than a cluster's inner width.
+ */
+export function clusterBoxes(
+  clusters: readonly CanvasCluster[],
+  columns: number,
+  headerSize: (headerId: string) => { width: number; height: number },
+): ClusterLayout {
+  const cols = Math.max(1, Math.floor(columns));
+  const frames = new Map<string, CanvasBox>();
+  const headers = new Map<string, CanvasBox>();
+  const chips = new Map<string, CanvasBox>();
+  const rows: string[][] = [];
+
+  const topOf = (c: CanvasCluster) =>
+    c.headerId ? headerSize(c.headerId).height : IDLE_CAPTION_HEIGHT;
+  const heightOf = (c: CanvasCluster) => {
+    const chipRows = Math.ceil(c.chips.length / CHIP_COLS);
+    const grid =
+      chipRows > 0 ? CHIP_GAP + chipRows * CHIP_HEIGHT + (chipRows - 1) * CHIP_GAP : 0;
+    return CLUSTER_PAD + topOf(c) + grid + CLUSTER_PAD;
+  };
+
+  let y = 0;
+  for (let i = 0; i < clusters.length; i += cols) {
+    const row = clusters.slice(i, i + cols);
+    rows.push(row.map((c) => c.id));
+    row.forEach((c, col) => {
+      const x = col * (CLUSTER_WIDTH + CLUSTER_GAP);
+      frames.set(c.id, { x, y, width: CLUSTER_WIDTH, height: heightOf(c) });
+      if (c.headerId) {
+        const size = headerSize(c.headerId);
+        headers.set(c.id, { x: x + CLUSTER_PAD, y: y + CLUSTER_PAD, ...size });
+      }
+      const gridTop = y + CLUSTER_PAD + topOf(c) + CHIP_GAP;
+      c.chips.forEach((chip, n) => {
+        chips.set(chip.id, {
+          x: x + CLUSTER_PAD + (n % CHIP_COLS) * (CHIP_WIDTH + CHIP_GAP),
+          y: gridTop + Math.floor(n / CHIP_COLS) * (CHIP_HEIGHT + CHIP_GAP),
+          width: CHIP_WIDTH,
+          height: CHIP_HEIGHT,
+        });
+      });
+    });
+    y += Math.max(...row.map(heightOf)) + CLUSTER_GAP;
+  }
+  return { frames, headers, chips, rows };
+}
+
+// ── Cluster focus ────────────────────────────────────────────────────────────
+
+/** Flow-node ids for a cluster's parts — ONE naming scheme, shared with the UI. */
+export const clusterFrameId = (clusterId: string) => `f:${clusterId}`;
+export const clusterHeaderId = (clusterId: string) => `h:${clusterId}`;
+
+/**
+ * Focus in a cluster view, by ENTITY id — which is what makes it work across
+ * views (a focus survives a view switch: the same entity lights up in its new
+ * form) and what gives the tree its answer to "what does this connect to":
+ *
+ *  - a focused HEADER entity lights its whole cluster;
+ *  - a focused CHIP entity lights EVERY occurrence of it, plus the header of
+ *    each cluster it sits in (the thing it connects to) — sibling chips dim.
+ *
+ * Returns the lit FLOW-node ids (frames, headers, chips), and the first lit
+ * chip/header in layout order — what search pans to.
+ */
+export function clusterFocus(
+  primaryIds: readonly string[],
+  clusters: readonly CanvasCluster[],
+): { lit: Set<string>; first: string | null } {
+  const primary = new Set(primaryIds);
+  const lit = new Set<string>();
+  let first: string | null = null;
+  const note = (id: string) => {
+    if (first === null) first = id;
+  };
+  for (const c of clusters) {
+    if (c.headerId && primary.has(c.headerId)) {
+      lit.add(clusterFrameId(c.id));
+      lit.add(clusterHeaderId(c.id));
+      note(clusterHeaderId(c.id));
+      for (const chip of c.chips) lit.add(chip.id);
+      continue;
+    }
+    for (const chip of c.chips) {
+      if (!primary.has(chip.entityId)) continue;
+      lit.add(chip.id);
+      note(chip.id);
+      lit.add(clusterFrameId(c.id));
+      if (c.headerId) lit.add(clusterHeaderId(c.id));
+    }
+  }
+  return { lit, first };
 }

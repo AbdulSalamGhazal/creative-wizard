@@ -1,5 +1,20 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildClusters,
+  clusterBoxes,
+  clusterColumnsFor,
+  clusterFocus,
+  clusterFrameId,
+  clusterHeaderId,
+  parseCanvasView,
+  CHIP_COLS,
+  CHIP_GAP,
+  CHIP_HEIGHT,
+  CHIP_WIDTH,
+  CLUSTER_GAP,
+  CLUSTER_PAD,
+  CLUSTER_WIDTH,
+  IDLE_CAPTION_HEIGHT,
   campaignHealth,
   canvasInsights,
   capEdges,
@@ -413,5 +428,236 @@ describe("capEdges — the scale guardrail", () => {
     expect(nodes.size).toBeLessThanOrEqual(400);
     expect(r.total).toBe(3600);
     expect(r.truncated).toBe(true);
+  });
+});
+
+// ═══════════════════════════ C2 — the view switcher ═════════════════════════
+
+describe("parseCanvasView — ?view= validation", () => {
+  it("accepts the three views", () => {
+    expect(parseCanvasView("network")).toBe("network");
+    expect(parseCanvasView("campaign")).toBe("campaign");
+    expect(parseCanvasView("creative")).toBe("creative");
+  });
+  it("anything else is the default — never an error", () => {
+    for (const bad of [null, undefined, "", "trees", "Campaign", "network "]) {
+      expect(parseCanvasView(bad)).toBe("network");
+    }
+  });
+});
+
+describe("buildClusters — the trees", () => {
+  // `hub` runs in all three campaigns; `solo` in one; two idle creatives.
+  const graph = {
+    campaigns: [camp("small", 100), camp("big", 900), camp("mid", 400)],
+    creatives: [
+      cre("hub", 700), cre("solo", 300), cre("pausedBig", 250),
+      cre("idle-b", 0), cre("idle-a", 0),
+    ],
+    edges: [
+      edge("big", "hub", 500, true),
+      edge("big", "pausedBig", 250, false),
+      edge("big", "solo", 150, true),
+      edge("mid", "hub", 150, false),
+      edge("small", "hub", 50, true),
+    ],
+  };
+
+  describe("by campaign", () => {
+    const { clusters, truncated } = buildClusters(graph, "campaign");
+
+    it("one cluster per campaign, spend desc, then ONE trailing idle pseudo-cluster", () => {
+      expect(clusters.map((c) => c.headerId ?? c.kind)).toEqual(["big", "mid", "small", "idle"]);
+      expect(truncated).toBeNull();
+    });
+
+    it("DUPLICATION is the semantics: a creative in three campaigns is three chips", () => {
+      const occurrences = clusters.flatMap((c) => c.chips).filter((ch) => ch.entityId === "hub");
+      expect(occurrences).toHaveLength(3);
+      expect(new Set(occurrences.map((ch) => ch.id)).size).toBe(3); // distinct ids
+    });
+
+    it("the chip is the PAIRING — it carries the edge's own state and spend", () => {
+      const inMid = clusters.find((c) => c.headerId === "mid")!.chips[0]!;
+      expect(inMid.entityId).toBe("hub");
+      expect(inMid.live).toBe(false); // paused HERE…
+      expect(inMid.spend).toBe(150); // …the pairing's spend, not hub's 700
+      const inBig = clusters.find((c) => c.headerId === "big")!.chips.find((ch) => ch.entityId === "hub")!;
+      expect(inBig.live).toBe(true); // …while the same creative is live THERE
+      expect(inBig.edgeId).toBe("big|hub");
+    });
+
+    it("inside a cluster: live chips first, then paused, each by spend desc", () => {
+      const big = clusters.find((c) => c.headerId === "big")!;
+      // pausedBig (250) outspends solo (150) but is PAUSED, so it goes after.
+      expect(big.chips.map((ch) => ch.entityId)).toEqual(["hub", "solo", "pausedBig"]);
+    });
+
+    it("idle creatives are chips of the idle cluster, by name, with no pairing", () => {
+      const idle = clusters.at(-1)!;
+      expect(idle.headerId).toBeNull();
+      expect(idle.chips.map((ch) => ch.entityId)).toEqual(["idle-a", "idle-b"]);
+      expect(idle.chips.every((ch) => ch.edgeId === null && ch.live)).toBe(true);
+    });
+  });
+
+  describe("by creative (the inverse)", () => {
+    const { clusters } = buildClusters(graph, "creative");
+
+    it("one cluster per creative by spend; idle creatives are CHIPLESS headers, last", () => {
+      expect(clusters.map((c) => c.headerId)).toEqual(["hub", "solo", "pausedBig", "idle-a", "idle-b"]);
+      expect(clusters.slice(-2).every((c) => c.chips.length === 0)).toBe(true);
+    });
+
+    it("campaign chips carry that pairing's liveness, same ordering rule", () => {
+      const hub = clusters.find((c) => c.headerId === "hub")!;
+      // live: big (500), small (50) — then paused: mid (150).
+      expect(hub.chips.map((ch) => ch.entityId)).toEqual(["big", "small", "mid"]);
+      expect(hub.chips.map((ch) => ch.live)).toEqual([true, true, false]);
+    });
+  });
+
+  it("the chip CAP keeps the top pairings by spend and says what it trimmed", () => {
+    const { clusters, truncated } = buildClusters(graph, "campaign", 3);
+    const chips = clusters.flatMap((c) => c.chips);
+    expect(chips.map((ch) => ch.spend).sort((a, b) => b - a)).toEqual([500, 250, 150]);
+    // 5 pairings + 2 idle = 7 possible chips, 3 shown.
+    expect(truncated).toEqual({ shownChips: 3, totalChips: 7 });
+    // A campaign whose pairings were all trimmed goes with them…
+    expect(clusters.some((c) => c.headerId === "small")).toBe(false);
+    // …and idle creatives only fill room that is left (none here).
+    expect(clusters.some((c) => c.kind === "idle")).toBe(false);
+  });
+
+  it("the production cap holds under duplication", () => {
+    const campaigns = Array.from({ length: 30 }, (_, i) => camp(`c${i}`, 1000 - i));
+    const creatives = Array.from({ length: 30 }, (_, i) => cre(`k${i}`, 1000 - i));
+    const edges = campaigns.flatMap((c, ci) => creatives.map((k, ki) => edge(c.id, k.id, ci * 30 + ki + 1)));
+    const { clusters, truncated } = buildClusters({ campaigns, creatives, edges }, "creative");
+    expect(clusters.flatMap((c) => c.chips).length).toBe(500);
+    expect(truncated).toEqual({ shownChips: 500, totalChips: 900 });
+  });
+});
+
+describe("clusterBoxes — wrapping rows, sized by child count", () => {
+  const header = () => ({ width: 232, height: 56 });
+  const mk = (id: string, n: number, headerId: string | null = id) => ({
+    id: `cl:${id}`,
+    kind: headerId ? ("campaign" as const) : ("idle" as const),
+    headerId,
+    chips: Array.from({ length: n }, (_, i) => ({
+      id: `${id}>${i}`, entityId: `k${i}`, edgeId: `${id}|k${i}`, live: true, spend: 1, lastSpendDay: null,
+    })),
+  });
+  const clusters = [mk("A", 5), mk("B", 1), mk("C", 2), mk("D", 0), mk("idle", 3, null)];
+
+  it("wraps after `columns` clusters, in the given order", () => {
+    const l = clusterBoxes(clusters, 2, header);
+    expect(l.rows).toEqual([["cl:A", "cl:B"], ["cl:C", "cl:D"], ["cl:idle"]]);
+    expect(l.frames.get("cl:B")!.x).toBe(CLUSTER_WIDTH + CLUSTER_GAP);
+    expect(l.frames.get("cl:C")!.x).toBe(0); // wrapped
+  });
+
+  it("a cluster's height grows with its chip rows", () => {
+    const l = clusterBoxes(clusters, 4, header);
+    const h = (rows: number) =>
+      CLUSTER_PAD + 56 + (rows ? CHIP_GAP + rows * CHIP_HEIGHT + (rows - 1) * CHIP_GAP : 0) + CLUSTER_PAD;
+    expect(l.frames.get("cl:A")!.height).toBe(h(Math.ceil(5 / CHIP_COLS)));
+    expect(l.frames.get("cl:B")!.height).toBe(h(1));
+    expect(l.frames.get("cl:D")!.height).toBe(h(0)); // a chipless header
+  });
+
+  it("each row is as tall as its tallest cluster — rows never collide", () => {
+    const l = clusterBoxes(clusters, 2, header);
+    const rowOneBottom = l.frames.get("cl:A")!.y + l.frames.get("cl:A")!.height; // A is taller than B
+    expect(l.frames.get("cl:C")!.y).toBe(rowOneBottom + CLUSTER_GAP);
+    expect(l.frames.get("cl:D")!.y).toBe(l.frames.get("cl:C")!.y);
+  });
+
+  it("chips sit in a grid INSIDE their frame, under the header", () => {
+    const l = clusterBoxes(clusters, 4, header);
+    const frame = l.frames.get("cl:A")!;
+    const head = l.headers.get("cl:A")!;
+    expect(head.x).toBe(frame.x + CLUSTER_PAD);
+    for (let i = 0; i < 5; i++) {
+      const chip = l.chips.get(`A>${i}`)!;
+      expect(chip.x).toBeGreaterThanOrEqual(frame.x + CLUSTER_PAD);
+      expect(chip.x + chip.width).toBeLessThanOrEqual(frame.x + frame.width - CLUSTER_PAD);
+      expect(chip.y).toBeGreaterThanOrEqual(head.y + head.height + CHIP_GAP);
+      expect(chip.y + chip.height).toBeLessThanOrEqual(frame.y + frame.height - CLUSTER_PAD);
+    }
+    // Two per row: chip 2 starts the second row, directly under chip 0.
+    expect(l.chips.get("A>2")!.x).toBe(l.chips.get("A>0")!.x);
+    expect(l.chips.get("A>1")!.x).toBe(l.chips.get("A>0")!.x + CHIP_WIDTH + CHIP_GAP);
+  });
+
+  it("the idle pseudo-cluster has a caption strip instead of a header node", () => {
+    const l = clusterBoxes(clusters, 4, header);
+    expect(l.headers.has("cl:idle")).toBe(false);
+    const frame = l.frames.get("cl:idle")!;
+    expect(l.chips.get("idle>0")!.y).toBe(frame.y + CLUSTER_PAD + IDLE_CAPTION_HEIGHT + CHIP_GAP);
+  });
+
+  it("a phone gets ONE column; wider panes get more", () => {
+    expect(clusterColumnsFor(351)).toBe(1);
+    expect(clusterColumnsFor(800)).toBe(2);
+    expect(clusterColumnsFor(1200)).toBe(3);
+    expect(clusterColumnsFor(1700)).toBe(4);
+    const l = clusterBoxes(clusters, clusterColumnsFor(351), header);
+    expect(l.rows.every((r) => r.length === 1)).toBe(true);
+    expect([...l.frames.values()].every((f) => f.x === 0)).toBe(true);
+  });
+});
+
+describe("clusterFocus — by entity, so every duplicate lights", () => {
+  const graph = {
+    campaigns: [camp("A", 300), camp("B", 200)],
+    creatives: [cre("hub", 9), cre("onlyA", 5), cre("idle", 0)],
+    edges: [edge("A", "hub", 5), edge("A", "onlyA", 4), edge("B", "hub", 3)],
+  };
+  const { clusters } = buildClusters(graph, "campaign");
+
+  it("a CHIP entity lights EVERY occurrence, plus the header of each cluster it sits in", () => {
+    const { lit, first } = clusterFocus(["hub"], clusters);
+    expect(lit.has("A>hub")).toBe(true);
+    expect(lit.has("B>hub")).toBe(true);
+    expect(lit.has(clusterHeaderId("cl:A"))).toBe(true); // what it connects to
+    expect(lit.has(clusterHeaderId("cl:B"))).toBe(true);
+    expect(lit.has("A>onlyA")).toBe(false); // a sibling chip dims
+    // Search pans to the FIRST occurrence — cluster A leads (bigger spend).
+    expect(first).toBe("A>hub");
+  });
+
+  it("a HEADER entity lights its whole cluster, and only that one", () => {
+    const { lit, first } = clusterFocus(["A"], clusters);
+    expect(lit.has(clusterFrameId("cl:A"))).toBe(true);
+    expect(lit.has("A>hub")).toBe(true);
+    expect(lit.has("A>onlyA")).toBe(true);
+    expect(lit.has("B>hub")).toBe(false);
+    expect(first).toBe(clusterHeaderId("cl:A"));
+  });
+
+  it("an idle creative focuses as its chip in the idle cluster", () => {
+    const { lit } = clusterFocus(["idle"], clusters);
+    expect(lit.has("idle>idle")).toBe(true);
+    expect(lit.has(clusterFrameId("cl:idle"))).toBe(true);
+  });
+
+  it("the SAME entity ids re-map in the inverse view — a focus survives a view switch", () => {
+    const inverse = buildClusters(graph, "creative").clusters;
+    // `hub` was chips by campaign; by creative it is a header → its cluster.
+    const asHeader = clusterFocus(["hub"], inverse);
+    expect(asHeader.lit.has(clusterHeaderId("cl:hub"))).toBe(true);
+    expect(asHeader.lit.has("hub>A")).toBe(true);
+    expect(asHeader.lit.has("hub>B")).toBe(true);
+    // …and campaign `A`, a header before, is now every `A` chip.
+    const asChips = clusterFocus(["A"], inverse);
+    expect(asChips.lit.has("hub>A")).toBe(true);
+    expect(asChips.lit.has("onlyA>A")).toBe(true);
+    expect(asChips.lit.has("hub>B")).toBe(false);
+  });
+
+  it("nothing matched → nothing lit, no first", () => {
+    expect(clusterFocus(["ghost"], clusters)).toEqual({ lit: new Set(), first: null });
   });
 });
