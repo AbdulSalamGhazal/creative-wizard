@@ -11,29 +11,35 @@ import {
   ReactFlow,
   ReactFlowProvider,
   useReactFlow,
+  useStore,
   type Edge,
   type Node,
   type NodeProps,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { Film, Image as ImageIcon, Layers, Search } from "lucide-react";
+import { CircleHelp, Film, Image as ImageIcon, Layers, Search, X } from "lucide-react";
 import { PlatformDot } from "@/components/ui/platform-dot";
 import { PriorityStars } from "@/components/creative/priority-stars";
 import { PLATFORM_COLOR } from "@/lib/palette";
-import { STATUS_DOT, STATUS_LABEL } from "@/lib/creative-status";
+import {
+  CREATIVE_STATUSES,
+  STATUS_DOT,
+  STATUS_LABEL,
+} from "@/lib/creative-status";
 import {
   CAMPAIGN_STATUS_DOT,
   CAMPAIGN_STATUS_LABEL,
 } from "@/lib/campaign-status";
-import { int, pct1, roas, usd, usdCompact } from "@/lib/format";
+import { int, longDate, pct1, roas, usd, usdCompact } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import {
   CANVAS_NODE_HEIGHT,
   CANVAS_NODE_WIDTH,
-  bipartiteOrder,
-  bipartitePositions,
+  creativeSide,
   edgeWidth,
   focusFor,
+  tripartiteBoxes,
+  type CanvasSide,
   type CanvasCampaignNode,
   type CanvasCreativeNode,
   type CanvasGraph,
@@ -63,44 +69,90 @@ const platformColor = (p: string) =>
 
 const TYPE_ICON = { video: Film, image: ImageIcon, slides: Layers } as const;
 
-type FlowNode = Node<{ node: CanvasNode }>;
+/** `scale` is the box's size factor (spend); `side` is a creative's flank. */
+type FlowNode = Node<{ node: CanvasNode; scale: number; side: CanvasSide | null }>;
 
 // ── Nodes ────────────────────────────────────────────────────────────────────
 // Tokens only, so all four themes hold. Handles exist because edges need
-// anchors; they are invisible and inert (nothing connects on this page).
+// anchors; they are invisible and inert (nothing connects on this page), and
+// they sit on the node ROOT — outside the scaled body — so an edge always
+// leaves from the true box edge however big the node is drawn.
 const HANDLE = "!h-1 !w-1 !min-w-0 !border-0 !bg-transparent !opacity-0";
-const SHELL =
-  "h-full w-full rounded-lg border border-line bg-surface px-3 py-2 shadow-sm transition-colors hover:border-line-2";
+// STATUS BORDER is the headline signal: 2px in the status color. The status
+// WORD rides inside as well — a second color-coded dot would tell a
+// colorblind reader nothing the border hadn't already failed to.
+const SHELL = "rounded-lg border-2 bg-surface px-3 py-2 shadow-sm";
+
+/**
+ * The node body is laid out ONCE at the base size and scaled as a whole, so
+ * size-by-spend grows the box and its type together and reads as one signal.
+ */
+function Body({
+  scale,
+  borderColor,
+  className,
+  children,
+}: {
+  scale: number;
+  borderColor: string;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div
+      className={cn(SHELL, className)}
+      style={{
+        width: CANVAS_NODE_WIDTH,
+        height: CANVAS_NODE_HEIGHT,
+        transform: `scale(${scale})`,
+        transformOrigin: "top left",
+        borderColor,
+      }}
+    >
+      {children}
+    </div>
+  );
+}
 
 const CampaignNodeView = memo(function CampaignNodeView({
   data,
 }: NodeProps<FlowNode>) {
   const n = data.node as CanvasCampaignNode;
   return (
-    <div className={SHELL}>
-      <div className="flex items-center gap-1.5">
-        <PlatformDot platform={n.platform as PlatformKey} size="sm" />
-        <span className="truncate text-xs font-medium text-ink" title={n.name}>
-          {n.name}
-        </span>
-      </div>
-      <div className="mt-1.5 flex items-center gap-1.5">
-        <span className="rounded border border-line bg-surface-2 px-1.5 text-[10px] leading-5 text-ink-2">
-          {n.objective}
-        </span>
-        <span
-          className="h-1.5 w-1.5 shrink-0 rounded-full"
-          style={{ background: CAMPAIGN_STATUS_DOT[n.status] }}
-          role="img"
-          aria-label={CAMPAIGN_STATUS_LABEL[n.status]}
-          title={CAMPAIGN_STATUS_LABEL[n.status]}
-        />
-        <span className="num ml-auto text-xs tabular-nums text-ink">
-          {usdCompact(n.spend)}
-        </span>
-      </div>
-      <Handle type="source" position={Position.Right} className={HANDLE} isConnectable={false} />
-    </div>
+    <>
+      {/* Left flank feeds IN; the right flank is fed from OUT. */}
+      <Handle id="in" type="target" position={Position.Left} className={HANDLE} isConnectable={false} />
+      <Body scale={data.scale} borderColor={CAMPAIGN_STATUS_DOT[n.status]}>
+        <div className="flex items-center gap-1.5">
+          <PlatformDot platform={n.platform as PlatformKey} size="sm" />
+          <span className="truncate text-xs font-medium text-ink" title={n.name}>
+            {n.name}
+          </span>
+        </div>
+        <div className="mt-1.5 flex items-center gap-1.5">
+          <span className="truncate rounded border border-line bg-surface-2 px-1.5 text-[10px] leading-5 text-ink-2">
+            {n.objective}
+          </span>
+          <span className="shrink-0 text-[10px] text-ink-3">
+            {CAMPAIGN_STATUS_LABEL[n.status]}
+          </span>
+          <span
+            className={cn(
+              "num shrink-0 text-[10px] tabular-nums",
+              n.liveChildren === 0 ? "text-warn" : "text-ink-2",
+            )}
+            title={`${n.liveChildren} of ${n.totalChildren} creatives currently spending here`}
+            aria-label={`${n.liveChildren} of ${n.totalChildren} creatives currently spending here`}
+          >
+            {n.liveChildren}/{n.totalChildren}
+          </span>
+          <span className="num ml-auto shrink-0 text-xs tabular-nums text-ink">
+            {usdCompact(n.spend)}
+          </span>
+        </div>
+      </Body>
+      <Handle id="out" type="source" position={Position.Right} className={HANDLE} isConnectable={false} />
+    </>
   );
 });
 
@@ -109,40 +161,48 @@ const CreativeNodeView = memo(function CreativeNodeView({
 }: NodeProps<FlowNode>) {
   const n = data.node as CanvasCreativeNode;
   const TypeIcon = TYPE_ICON[n.type];
+  // The one handle faces the center: a LEFT-flank creative is an edge's
+  // source (its right side), a RIGHT-flank one its target (its left side).
+  const onLeft = data.side === "left";
   return (
-    <div className={cn(SHELL, "flex items-center gap-2")}>
-      <Handle type="target" position={Position.Left} className={HANDLE} isConnectable={false} />
-      {n.thumbnailUrl && (
-        // A background, not an <img>: a broken or slow thumbnail can't reflow
-        // the node, and the canvas never waits on it.
-        <span
-          className="h-9 w-9 shrink-0 rounded border border-line bg-surface-2 bg-cover bg-center"
-          style={{ backgroundImage: `url("${n.thumbnailUrl}")` }}
-          aria-hidden
-        />
+    <>
+      {!onLeft && (
+        <Handle type="target" position={Position.Left} className={HANDLE} isConnectable={false} />
       )}
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-1.5">
-          <TypeIcon className="h-3 w-3 shrink-0 text-ink-3" aria-hidden />
-          <span className="truncate font-mono text-[11px] text-ink" title={n.name}>
-            {n.name}
-          </span>
-        </div>
-        <div className="mt-1.5 flex items-center gap-1.5">
+      <Body
+        scale={data.scale}
+        borderColor={STATUS_DOT[n.status]}
+        className="flex items-center gap-2"
+      >
+        {n.thumbnailUrl && (
+          // A background, not an <img>: a broken or slow thumbnail can't reflow
+          // the node, and the canvas never waits on it.
           <span
-            className="h-1.5 w-1.5 shrink-0 rounded-full"
-            style={{ background: STATUS_DOT[n.status] }}
-            role="img"
-            aria-label={STATUS_LABEL[n.status]}
-            title={STATUS_LABEL[n.status]}
+            className="h-9 w-9 shrink-0 rounded border border-line bg-surface-2 bg-cover bg-center"
+            style={{ backgroundImage: `url("${n.thumbnailUrl}")` }}
+            aria-hidden
           />
-          <PriorityStars value={n.priority} className="scale-90 origin-left" />
-          <span className="num ml-auto text-xs tabular-nums text-ink">
-            {n.spend > 0 ? usdCompact(n.spend) : "idle"}
-          </span>
+        )}
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1.5">
+            <TypeIcon className="h-3 w-3 shrink-0 text-ink-3" aria-hidden />
+            <span className="truncate font-mono text-[11px] text-ink" title={n.name}>
+              {n.name}
+            </span>
+          </div>
+          <div className="mt-1.5 flex items-center gap-1.5">
+            <span className="shrink-0 text-[10px] text-ink-3">{STATUS_LABEL[n.status]}</span>
+            <PriorityStars value={n.priority} className="origin-left scale-90" />
+            <span className="num ml-auto shrink-0 text-xs tabular-nums text-ink">
+              {n.spend > 0 ? usdCompact(n.spend) : "idle"}
+            </span>
+          </div>
         </div>
-      </div>
-    </div>
+      </Body>
+      {onLeft && (
+        <Handle type="source" position={Position.Right} className={HANDLE} isConnectable={false} />
+      )}
+    </>
   );
 });
 
@@ -198,10 +258,10 @@ function Flow({
     return m;
   }, [graph]);
 
-  const positions = useMemo(
-    () => bipartitePositions(bipartiteOrder(graph)),
-    [graph],
-  );
+  const boxes = useMemo(() => tripartiteBoxes(graph), [graph]);
+  // HOVER PRE-FOCUS: a lighter preview of click-focus. It never fights a real
+  // focus — while one is active the hover id is simply ignored.
+  const [hoverId, setHoverId] = useState<string | null>(null);
   const maxEdgeSpend = useMemo(
     () => graph.edges.reduce((m, e) => Math.max(m, e.spend), 0),
     [graph],
@@ -210,48 +270,100 @@ function Flow({
     () => (focus ? focusFor(focus.ids, graph.edges) : null),
     [focus, graph],
   );
+  const preview = useMemo(
+    () => (!focus && hoverId ? focusFor([hoverId], graph.edges) : null),
+    [focus, hoverId, graph],
+  );
 
   const nodes: FlowNode[] = useMemo(
     () =>
-      [...graph.campaigns, ...graph.creatives].map((n) => ({
-        id: n.id,
-        type: n.kind,
-        position: positions.get(n.id) ?? { x: 0, y: 0 },
-        // Fixed size — see CANVAS_NODE_HEIGHT. `measured` is supplied too:
-        // this list is rebuilt on every focus change and culled off-screen
-        // (`onlyRenderVisibleElements`), so React Flow would otherwise have no
-        // measured size for most nodes — and `fitView({ nodes })` silently
-        // ignores any node without one (the viewport snapped to identity).
-        width: CANVAS_NODE_WIDTH,
-        height: CANVAS_NODE_HEIGHT,
-        measured: { width: CANVAS_NODE_WIDTH, height: CANVAS_NODE_HEIGHT },
-        data: { node: n },
-        style: {
-          opacity: lit && !lit.nodes.has(n.id) ? 0.15 : 1,
-          transition: "opacity 120ms",
-        },
-      })),
-    [graph, positions, lit],
+      [...graph.campaigns, ...graph.creatives].map((n) => {
+        const box = boxes.get(n.id) ?? {
+          x: 0,
+          y: 0,
+          width: CANVAS_NODE_WIDTH,
+          height: CANVAS_NODE_HEIGHT,
+        };
+        return {
+          id: n.id,
+          type: n.kind,
+          position: { x: box.x, y: box.y },
+          // SIZE BY SPEND, and known up front. `measured` is supplied too: this
+          // list is rebuilt on every focus change and culled off-screen
+          // (`onlyRenderVisibleElements`), so React Flow would otherwise have
+          // no measured size for most nodes — and `fitView({ nodes })`
+          // silently ignores any node without one.
+          width: box.width,
+          height: box.height,
+          measured: { width: box.width, height: box.height },
+          data: {
+            node: n,
+            scale: box.width / CANVAS_NODE_WIDTH,
+            side: n.kind === "creative" ? creativeSide(n.type) : null,
+          },
+          style: {
+            // Click-focus dims the rest to 15%; the hover preview only to 70%.
+            opacity: lit
+              ? lit.nodes.has(n.id) ? 1 : 0.15
+              : preview
+                ? preview.nodes.has(n.id) ? 1 : 0.7
+                : 1,
+            transition: "opacity 120ms",
+          },
+        };
+      }),
+    [graph, boxes, lit, preview],
+  );
+
+  const creativeById = useMemo(
+    () => new Map(graph.creatives.map((c) => [c.id, c])),
+    [graph],
   );
 
   const edges: Edge[] = useMemo(
     () =>
-      graph.edges.map((e) => ({
-        id: e.id,
-        source: e.source,
-        target: e.target,
-        // Wide enough to hover without pixel-hunting a 1px line.
-        interactionWidth: 14,
-        style: {
-          stroke: platformColor(e.platform),
-          strokeWidth: edgeWidth(e.spend, maxEdgeSpend),
-          // Subtle by default; full strength in focus; nearly gone when dimmed.
-          opacity: lit ? (lit.edges.has(e.id) ? 0.9 : 0.06) : 0.35,
-          transition: "opacity 120ms",
-        },
-      })),
-    [graph, maxEdgeSpend, lit],
+      graph.edges.map((e) => {
+        // Edges route left → center and center → right, so a LEFT-flank
+        // creative is the source and the campaign its target.
+        const creative = creativeById.get(e.target);
+        const onLeft = creative ? creativeSide(creative.type) === "left" : false;
+        // LIVE: solid, full platform color. PAUSED HERE: dashed and dimmed.
+        const base = e.live ? 0.85 : 0.45;
+        const strong = e.live ? 1 : 0.65;
+        const opacity = lit
+          ? lit.edges.has(e.id) ? strong : 0.06
+          : preview
+            ? preview.edges.has(e.id) ? strong : base * 0.7
+            : base;
+        return {
+          id: e.id,
+          ...(onLeft
+            ? { source: e.target, target: e.source, targetHandle: "in" }
+            : { source: e.source, sourceHandle: "out", target: e.target }),
+          // Wide enough to hover without pixel-hunting a 1px line.
+          interactionWidth: 14,
+          style: {
+            stroke: platformColor(e.platform),
+            strokeWidth: edgeWidth(e.spend, maxEdgeSpend),
+            strokeDasharray: e.live ? undefined : "6 5",
+            opacity,
+            transition: "opacity 120ms",
+          },
+        };
+      }),
+    [graph, creativeById, maxEdgeSpend, lit, preview],
   );
+
+  // THE INITIAL FIT, done by hand. React Flow's own `fitView` prop resolves
+  // the moment every node has dimensions — and ours are supplied up front
+  // (`measured`), so it fired before the pane had been measured (store width
+  // 0) and framed the graph against nothing. Fit once the pane has a real
+  // size, and again whenever the graph itself changes (a filter round-trip).
+  const paneReady = useStore((st) => st.width > 0 && st.height > 0);
+  useEffect(() => {
+    if (!paneReady) return;
+    void flow.fitView({ padding: 0.15 });
+  }, [paneReady, graph, flow]);
 
   // Pan/zoom to the focused subgraph when the request asks for it.
   useEffect(() => {
@@ -317,7 +429,18 @@ function Flow({
         ...at(e),
         body: (
           <>
-            <p className="num text-xs tabular-nums text-ink">{usd(edge.spend)}</p>
+            <p className="text-[11px] text-ink-2">
+              {edge.live ? (
+                <span className="text-ink">live</span>
+              ) : (
+                <>
+                  <span className="text-ink">paused here</span>
+                  {edge.lastSpendDay && <> since {longDate(edge.lastSpendDay)}</>}
+                </>
+              )}
+              {" · "}
+              <span className="num tabular-nums text-ink">{usd(edge.spend)}</span>
+            </p>
             <p className="mt-0.5 max-w-[16rem] text-[11px] text-ink-3">
               {share === null ? "—" : pct1(share)} of{" "}
               <span className="text-ink-2">{camp?.name ?? "the campaign"}</span>
@@ -353,7 +476,6 @@ function Flow({
         edges={edges}
         nodeTypes={NODE_TYPES}
         style={FLOW_THEME}
-        fitView
         fitViewOptions={{ padding: 0.15 }}
         minZoom={0.05}
         maxZoom={2}
@@ -367,16 +489,28 @@ function Flow({
         onNodeClick={(_, n) => onFocus({ ids: [n.id], fit: false })}
         onNodeDoubleClick={(_, n) => onOpen((n as FlowNode).data.node)}
         onPaneClick={() => onFocus(null)}
-        onNodeMouseEnter={nodeTip}
+        onNodeMouseEnter={(e, n) => {
+          setHoverId(n.id);
+          nodeTip(e, n as FlowNode);
+        }}
         onNodeMouseMove={nodeTip}
-        onNodeMouseLeave={() => setTip(null)}
+        onNodeMouseLeave={() => {
+          setHoverId(null);
+          setTip(null);
+        }}
         onEdgeMouseEnter={edgeTip}
         onEdgeMouseMove={edgeTip}
         onEdgeMouseLeave={() => setTip(null)}
         onMoveStart={() => setTip(null)}
       >
         <Background gap={24} size={1} />
-        <Controls showInteractive={false} position="bottom-left" />
+        {/* Four corners, one job each: search · zoom · legend · minimap. The
+            legend takes bottom-left, so the zoom controls moved up; nothing
+            sits over React Flow's attribution (bottom-right, under the map). */}
+        <Controls showInteractive={false} position="top-right" />
+        <Panel position="bottom-left">
+          <Legend />
+        </Panel>
         <MiniMap
           pannable
           zoomable
@@ -436,6 +570,98 @@ function Flow({
           {tip.body}
         </div>
       )}
+    </div>
+  );
+}
+
+const LEGEND_KEY = "cw-canvas-legend";
+
+/**
+ * The legend — every encoding on the canvas, in one place. Collapsed to a "?"
+ * chip by default (the canvas is the point; the key is for the first visit
+ * and the occasional doubt) and remembered per browser. Tokens only.
+ */
+function Legend() {
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    try {
+      setOpen(localStorage.getItem(LEGEND_KEY) === "open");
+    } catch {
+      /* storage unavailable — stay collapsed */
+    }
+  }, []);
+  const toggle = (next: boolean) => {
+    setOpen(next);
+    try {
+      if (next) localStorage.setItem(LEGEND_KEY, "open");
+      else localStorage.removeItem(LEGEND_KEY);
+    } catch {
+      /* ignore */
+    }
+  };
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => toggle(true)}
+        aria-label="Show the legend"
+        title="Legend"
+        className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-line bg-surface text-ink-2 hover:bg-surface-2 hover:text-ink"
+      >
+        <CircleHelp className="h-3.5 w-3.5" />
+      </button>
+    );
+  }
+
+  const swatch = "h-3 w-5 shrink-0 rounded-[3px] border-2 bg-surface";
+  return (
+    <div className="w-56 rounded-lg border border-line bg-surface p-3 text-[11px] text-ink-2 shadow-lg">
+      <div className="mb-2 flex items-center justify-between">
+        <span className="text-label text-ink-3">Legend</span>
+        <button
+          type="button"
+          onClick={() => toggle(false)}
+          aria-label="Hide the legend"
+          className="text-ink-3 hover:text-ink"
+        >
+          <X className="h-3.5 w-3.5" />
+        </button>
+      </div>
+
+      <p className="mb-1 text-ink-3">Border — status</p>
+      <ul className="grid grid-cols-2 gap-x-3 gap-y-1">
+        {CREATIVE_STATUSES.map((st) => (
+          <li key={st} className="flex items-center gap-1.5">
+            <span className={swatch} style={{ borderColor: STATUS_DOT[st] }} />
+            {STATUS_LABEL[st]}
+          </li>
+        ))}
+      </ul>
+      <p className="mt-1 text-[10px] text-ink-3">
+        Campaigns: {CAMPAIGN_STATUS_LABEL.active} / {CAMPAIGN_STATUS_LABEL.inactive}, same
+        colors. “3/5” = creatives currently spending there.
+      </p>
+
+      <p className="mb-1 mt-2.5 text-ink-3">Line — is it spending here now?</p>
+      <ul className="space-y-1">
+        <li className="flex items-center gap-1.5">
+          <svg width="20" height="6" aria-hidden className="shrink-0">
+            <line x1="0" y1="3" x2="20" y2="3" stroke="var(--ink-2)" strokeWidth="2" />
+          </svg>
+          Live — spent inside the status window
+        </li>
+        <li className="flex items-center gap-1.5">
+          <svg width="20" height="6" aria-hidden className="shrink-0">
+            <line x1="0" y1="3" x2="20" y2="3" stroke="var(--ink-2)" strokeWidth="2" strokeDasharray="5 4" opacity="0.6" />
+          </svg>
+          Paused here — in the range, not the window
+        </li>
+      </ul>
+
+      <p className="mt-2.5 text-ink-3">
+        Size and line weight — spend in the range. Line color — platform.
+      </p>
     </div>
   );
 }

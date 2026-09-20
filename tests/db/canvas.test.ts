@@ -10,6 +10,8 @@ vi.mock("@/lib/tenant", () => ({
 }));
 
 import { getActiveAccountId } from "@/lib/tenant";
+import { db } from "@/lib/db";
+import { performanceRecords } from "@/db/schema";
 import { canvasGraph } from "@/db/queries/canvas";
 import { campaignNodeId, creativeNodeId } from "@/lib/canvas";
 import { CREATIVE_STATUSES } from "@/lib/creative-status";
@@ -166,5 +168,103 @@ describe("canvasGraph — active-but-idle creatives", () => {
   it("idle creatives obey the account scope too", async () => {
     const g = await canvasGraph({ ...DEC, statuses: ALL });
     expect(g.creatives.some((c) => c.creativeId === CREATIVE_B)).toBe(false);
+  });
+});
+
+/**
+ * THE TWO CLOCKS, against the real query. The RANGE decides whether an edge
+ * exists; the STATUS WINDOW (24h here → the platform's latest spend day only)
+ * decides whether it is live. Fixture anchors: instagram's latest non-excluded
+ * spend day is Jan 2, facebook's is Jan 1.
+ */
+describe("canvasGraph — two clocks", () => {
+  const edgeId = (c: string, k: string) => `${campaignNodeId(c)}|${creativeNodeId(k)}`;
+
+  beforeAll(async () => {
+    // CREATIVE_2 spent on facebook/camp2 back on Dec 20 and never again there:
+    // facebook's latest day stays Jan 1, so this pair is PAUSED.
+    await db.insert(performanceRecords).values({
+      accountId: ACCOUNT_A,
+      creativeId: CREATIVE_2,
+      platform: "facebook",
+      campaignId: CAMPAIGN_2,
+      date: "2025-12-20",
+      spend: "50",
+      impressions: 500,
+      clicks: 10,
+      conversions: 1,
+      conversionValue: "80",
+      landingPageViews: 5,
+      rawPayload: {},
+      // The fixtures' account-A batch id.
+      uploadBatchId: "55555555-5555-5555-5555-555555555001",
+    });
+  });
+
+  it("in range + in window → the edge exists and is LIVE", async () => {
+    const g = await canvasGraph({ ...JAN, statuses: ALL });
+    const e = g.edges.find((x) => x.id === edgeId(CAMPAIGN_1, CREATIVE_1))!;
+    expect(e.live).toBe(true);
+    expect(e.lastSpendDay).toBe("2026-01-02"); // instagram's own latest day
+  });
+
+  it("in range + OUTSIDE the window → the edge exists but is PAUSED here", async () => {
+    const g = await canvasGraph({ from: "2025-12-01", to: "2026-01-03", statuses: ALL });
+    const e = g.edges.find((x) => x.id === edgeId(CAMPAIGN_2, CREATIVE_2))!;
+    expect(e).toBeDefined();
+    expect(e.spend).toBe(50);
+    expect(e.live).toBe(false);
+    expect(e.lastSpendDay).toBe("2025-12-20");
+  });
+
+  it("OUTSIDE the range → no edge at all", async () => {
+    // January doesn't contain the Dec 20 spend, so the pair isn't drawn.
+    const g = await canvasGraph({ ...JAN, statuses: ALL });
+    expect(g.edges.some((x) => x.id === edgeId(CAMPAIGN_2, CREATIVE_2))).toBe(false);
+  });
+
+  it("the clocks are INDEPENDENT: sums are clipped to the range, liveness is not", async () => {
+    // Range = Jan 1 only. The pair also spent on Jan 2 — outside this range,
+    // inside the window — so the edge carries Jan 1's 100 and is still LIVE.
+    const g = await canvasGraph({ from: "2026-01-01", to: "2026-01-01", statuses: ALL });
+    const e = g.edges.find((x) => x.id === edgeId(CAMPAIGN_1, CREATIVE_1))!;
+    expect(e.spend).toBe(100); // NOT 200 — Jan 2 is not in the range
+    expect(e.live).toBe(true);
+    expect(e.lastSpendDay).toBe("2026-01-02"); // read unclipped
+  });
+
+  it("later spend ALONE draws nothing — the range still decides existence", async () => {
+    // December holds camp2/CREATIVE_2 only; CREATIVE_1's January spend lies
+    // after the range and must not conjure an edge into it.
+    const g = await canvasGraph({ from: "2025-12-01", to: "2025-12-31", statuses: ALL });
+    expect(g.edges.map((x) => x.id)).toEqual([edgeId(CAMPAIGN_2, CREATIVE_2)]);
+  });
+
+  it("the campaign HEALTH count is live children / children in range", async () => {
+    const g = await canvasGraph({ from: "2025-12-01", to: "2026-01-03", statuses: ALL });
+    const camp2 = g.campaigns.find((c) => c.campaignId === CAMPAIGN_2)!;
+    // CREATIVE_1 is live there (Jan 1 = facebook's latest), CREATIVE_2 paused.
+    expect(camp2.liveChildren).toBe(1);
+    expect(camp2.totalChildren).toBe(2);
+
+    // A range holding ONLY the paused pair → 0/1, the "no live creatives" case.
+    const dec = await canvasGraph({ from: "2025-12-01", to: "2025-12-31", statuses: ALL });
+    const onlyPaused = dec.campaigns.find((c) => c.campaignId === CAMPAIGN_2)!;
+    expect(onlyPaused.liveChildren).toBe(0);
+    expect(onlyPaused.totalChildren).toBe(1);
+  });
+
+  it("health is a FACT — hiding a child by status doesn't restate it", async () => {
+    const all = await canvasGraph({ from: "2025-12-01", to: "2026-01-03", statuses: ALL });
+    const s2 = all.creatives.find((c) => c.creativeId === CREATIVE_2)!.status;
+    const s1 = all.creatives.find((c) => c.creativeId === CREATIVE_1)!.status;
+    if (s1 === s2) return; // same bucket in this fixture → nothing to hide apart
+    const g = await canvasGraph({
+      from: "2025-12-01",
+      to: "2026-01-03",
+      statuses: ALL.filter((s) => s !== s2),
+    });
+    const camp2 = g.campaigns.find((c) => c.campaignId === CAMPAIGN_2)!;
+    expect(camp2.totalChildren).toBe(2); // still two creatives spent there
   });
 });

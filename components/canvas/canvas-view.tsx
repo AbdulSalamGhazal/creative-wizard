@@ -126,8 +126,9 @@ export function CanvasView({
 
       <p className="text-[11px] text-ink-3">
         {int(graph.campaigns.length)} campaigns · {int(graph.creatives.length)}{" "}
-        creatives · {int(graph.edges.length)} connections. Line weight is spend in
-        the range; click to focus, double-click to open, Esc to clear.
+        creatives · {int(graph.edges.length)} connections. A solid line is
+        spending here now, a dashed one spent in the range but has stopped; click
+        to focus, double-click to open, Esc to clear.
       </p>
     </div>
   );

@@ -1,4 +1,4 @@
-import { and, between, eq, gt, inArray, or, sql, type SQL } from "drizzle-orm";
+import { and, eq, gt, gte, inArray, or, sql, type SQL } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
   campaigns,
@@ -6,20 +6,30 @@ import {
   performanceRecords,
   type platformEnum,
 } from "@/db/schema";
-import { sumConversionValue, sumConversions, sumSpend } from "@/lib/metrics";
-import { getActiveAccountId } from "@/lib/tenant";
-import { creativeStatusMap, statusFor } from "@/db/queries/creative-status";
+import { scopedMetrics } from "@/lib/metrics";
+import { getActiveAccountId, getActiveStatusWindowHours } from "@/lib/tenant";
+import {
+  creativeStatusMap,
+  platformSpendFreshness,
+  statusFor,
+} from "@/db/queries/creative-status";
 import {
   campaignStatusFor,
   campaignStatusMap,
 } from "@/db/queries/campaign-status";
-import type { CreativeStatus, CreativeStatusResult } from "@/lib/creative-status";
+import {
+  hoursToWindowDays,
+  type CreativeStatus,
+  type CreativeStatusResult,
+} from "@/lib/creative-status";
 import { sortStages, splitStageFilter } from "@/lib/funnel-stages";
 import {
   CANVAS_MAX_NODES,
+  campaignHealth,
   campaignNodeId,
   capEdges,
   creativeNodeId,
+  edgeIsLive,
   type CanvasCampaignNode,
   type CanvasCreativeNode,
   type CanvasCreativeType,
@@ -94,6 +104,13 @@ function scopedStatus(
  * because a creative SPENT (> 0) in a campaign inside the range, under the
  * resolved Excluded toggle.
  *
+ * TWO CLOCKS (see `edgeIsLive`): the RANGE decides whether an edge exists, the
+ * STATUS WINDOW decides whether it is live. So the scan is bounded BELOW by
+ * the range start only — the in-range sums are FILTERed to `date <= to`, while
+ * the pair's last spend day is read from the same rows unclipped, because
+ * "live" means spending NOW. Liveness is then judged in JS against the cached
+ * `platformSpendFreshness()`: no second scan.
+ *
  * Query discipline (`lib/db.ts` is `max: 1`): ONE aggregation scan of
  * `performance_records` builds every edge and both node sets; statuses derive
  * from the request's cached status inputs (never another status scan); and the
@@ -110,9 +127,12 @@ export async function canvasGraph(f: CanvasFilters): Promise<CanvasGraph> {
 
   const conds: SQL[] = [
     eq(performanceRecords.accountId, acct),
-    between(performanceRecords.date, f.from, f.to),
+    // Bounded below only — see the two-clocks note above.
+    gte(performanceRecords.date, f.from),
     ...creativeConds(f),
   ];
+  // The RANGE clock: every in-range figure is this FILTER over the scan.
+  const inRange = scopedMetrics(sql`${performanceRecords.date} <= ${f.to}`);
   if (!f.includeExcluded) {
     conds.push(eq(performanceRecords.excludedFromAggregates, false));
   }
@@ -120,7 +140,7 @@ export async function canvasGraph(f: CanvasFilters): Promise<CanvasGraph> {
     conds.push(inArray(performanceRecords.platform, f.platforms));
   }
 
-  const [rows, creativeStatuses, campaignStatuses] = await Promise.all([
+  const [rows, creativeStatuses, campaignStatuses, freshness, windowHours] = await Promise.all([
     db
       .select({
         campaignId: campaigns.id,
@@ -133,19 +153,25 @@ export async function canvasGraph(f: CanvasFilters): Promise<CanvasGraph> {
         priority: creatives.priority,
         stages: creatives.stages,
         thumbnailUrl: creatives.thumbnailUrl,
-        spend: sumSpend,
-        conversions: sumConversions,
-        revenue: sumConversionValue,
+        spend: inRange.spend,
+        conversions: inRange.conversions,
+        revenue: inRange.conversionValue,
+        // The WINDOW clock's input: the pair's last REAL-spend day, unclipped.
+        lastSpendDay: sql<string | null>`MAX(${performanceRecords.date}) FILTER (WHERE ${performanceRecords.spend} > 0)`,
       })
       .from(performanceRecords)
       .innerJoin(campaigns, eq(campaigns.id, performanceRecords.campaignId))
       .innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId))
       .where(and(...conds))
       .groupBy(campaigns.id, creatives.id)
-      .having(gt(sumSpend, 0)),
+      // An edge EXISTS only on in-range spend — later spend alone draws nothing.
+      .having(gt(inRange.spend, 0)),
     creativeStatusMap(),
     campaignStatusMap(),
+    platformSpendFreshness(),
+    getActiveStatusWindowHours(),
   ]);
+  const windowDays = hoursToWindowDays(windowHours);
 
   const shown = new Set<CreativeStatus>(f.statuses);
   const statusOf = (creativeId: string) =>
@@ -179,6 +205,8 @@ export async function canvasGraph(f: CanvasFilters): Promise<CanvasGraph> {
         spend,
         conversions,
         revenue,
+        liveChildren: 0, // filled from edge liveness below
+        totalChildren: 0,
       });
     }
 
@@ -211,7 +239,24 @@ export async function canvasGraph(f: CanvasFilters): Promise<CanvasGraph> {
       target: kid,
       platform: r.campaignPlatform,
       spend,
+      lastSpendDay: r.lastSpendDay,
+      live: edgeIsLive({
+        lastSpendDay: r.lastSpendDay,
+        platformLatestDay:
+          freshness[r.campaignPlatform as keyof typeof freshness] ?? null,
+        windowDays,
+      }),
     });
+  }
+
+  // HEALTH, over every scanned edge — a fact about the campaign, like its
+  // totals, so the status filter and the scale cap below can't restate it.
+  for (const [id, h] of campaignHealth(allEdges)) {
+    const node = campaignNodes.get(id);
+    if (node) {
+      node.liveChildren = h.live;
+      node.totalChildren = h.total;
+    }
   }
 
   // The status filter HIDES creatives (and the edges into them).

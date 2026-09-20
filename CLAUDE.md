@@ -1192,8 +1192,8 @@ This app is deployed and in production use. Treat `main` as shippable.
   queries, and the shared CONVENTIONS string states the reduced-metric rule.
   See tech-spec §5g.
 
-- **CANVAS (`/canvas`, 2026-09, phase C1) — the campaign↔creative graph.
-  READ-ONLY FACTS.** Ads section, between Campaigns and Trends. An edge exists
+- **CANVAS (`/canvas`, 2026-09, phases C1 + C1.5) — the campaign↔creative
+  graph. READ-ONLY FACTS.** Ads section, between Campaigns and Trends. An edge exists
   because a creative SPENT (> 0) inside a campaign in the selected range, under
   the resolved Excluded toggle; nothing on the page is ever edited and every
   control is a VIEWING tool. Nodes are NOT draggable, connectable or selectable
@@ -1223,20 +1223,70 @@ This app is deployed and in production use. Treat `main` as shippable.
     days); creative statuses default to everything but Terminated. **Google is
     ordinary data here** — the canvas is about who spent where, which google
     reports like everyone else, so its filter offers `ALL_PLATFORMS`.
-  - **Layout — bipartite, by hand, NO layout engine** (`lib/canvas.ts`, pure,
-    unit-tested). Campaigns left by spend desc; creatives right by the
-    BARYCENTER heuristic (average row of the campaigns feeding each one) so
-    edges cross less; ties by spend then name for a stable order; unconnected
-    creatives last. Edge width = sqrt(spend) inside a min/max, colored by the
-    CAMPAIGN's platform var, subtle until focused.
-  - **Nodes have FIXED dimensions AND carry `measured`.** The node list is
-    rebuilt on every focus change and culled off-screen
+  - **TWO CLOCKS, LOCKED (user-confirmed — do not merge them).**
+    (1) The **RANGE** (date picker) decides whether an edge EXISTS: any spend
+    for the (campaign, creative) pair inside it draws the edge. (2) The
+    **STATUS WINDOW** decides whether that edge is **LIVE** — the pair's last
+    spend day within `accounts.status_window_hours` of the campaign's
+    platform's OWN latest spend day. That is the system's one freshness rule
+    applied to a pair: `edgeIsLive` IS `deriveCampaignStatus`, not a copy.
+    **LIVE** draws solid, full platform color; **PAUSED HERE** (spent in the
+    range, not in the window) draws dashed at ~45%. The query serves both from
+    ONE scan: it is bounded BELOW by the range start only, the in-range sums
+    are `scopedMetrics`-FILTERed to `date <= to`, and the pair's last
+    real-spend day is read from the same rows UNCLIPPED — because "live" means
+    spending NOW, so an old range whose pair still runs today reads live, and
+    "paused here since <date>" never names a date the pair spent past. `HAVING`
+    in-range spend > 0 keeps existence on the range clock (later spend alone
+    draws nothing). Liveness is judged in JS against the cached
+    `platformSpendFreshness()` — no second scan.
+  - **Layout — TRIPARTITE, by hand, NO layout engine** (`lib/canvas.ts`, pure,
+    unit-tested; a user decision). Campaigns in the CENTER by spend desc;
+    creatives flank them BY TYPE — **video RIGHT, everything else LEFT**
+    (`creativeSide`). The BARYCENTER heuristic (average row of the campaigns
+    feeding each creative) runs PER SIDE against the center so edges cross
+    less; ties by spend then name for a stable order; idle creatives sit at the
+    bottom of their own type's side. Edges route left → center and center →
+    right (a left-flank creative is the React Flow SOURCE), the left flank is
+    right-aligned and the right flank left-aligned, so every edge leaves from
+    the side facing the center however wide its node is. Edge width =
+    sqrt(spend) inside a min/max, colored by the CAMPAIGN's platform var.
+  - **Node visuals (all user-approved).** **STATUS BORDER is the headline
+    signal** — 2px in the status color (`STATUS_DOT` / `CAMPAIGN_STATUS_DOT`),
+    measured ≥ 3.37:1 against both the node surface and the canvas on all four
+    themes. The status WORD rides inside too; the old inner dot is gone — a
+    second color-coded mark tells a colorblind reader nothing the border hadn't
+    already failed to. **SIZE BY SPEND**: `nodeScale` = sqrt(spend) against the
+    biggest node OF THE SAME KIND (campaign totals dwarf creative ones), within
+    0.85–1.45; the body is laid out once at the base size and scaled whole, so
+    box and type grow together; sizes feed the layout's spacing (each column
+    stacks by its nodes' own heights) so rows never collide. **CAMPAIGN HEALTH
+    "3/5"** = creatives with a LIVE edge to this campaign / creatives that
+    spent there in the range (`campaignHealth`, from edge liveness — one
+    source), counted over EVERY scanned edge, so like the totals it is a fact
+    the status filter and the scale cap can't restate. **HOVER PRE-FOCUS**: a
+    lighter preview of click-focus — the node's edges go full strength and the
+    rest dims only to 70%; an active click-focus always wins (the hover id is
+    ignored while one is set).
+  - **The legend is non-optional**: bottom-left, collapsed to a "?" chip by
+    default, remembered per browser (`cw-canvas-legend`). It states every
+    encoding — border = status, solid vs dashed = live vs paused here, size and
+    line weight = spend, line color = platform. The four corners each have one
+    job: search · zoom · legend · minimap; nothing covers React Flow's
+    attribution.
+  - **Nodes have KNOWN dimensions AND carry `measured`.** The node list is
+    rebuilt on every focus/hover change and culled off-screen
     (`onlyRenderVisibleElements`), so React Flow would otherwise have no
     measured size for most nodes — and `fitView({ nodes })` silently IGNORES a
-    node without one. That shipped for an hour in development: the minimap was
-    empty and an insight chip snapped the viewport to identity. Supplying
-    `width`/`height`/`measured` from the layout constants fixes both, and means
-    the canvas never waits on DOM measurement.
+    node without one (the minimap was empty and an insight chip snapped the
+    viewport to identity). Supplying `width`/`height`/`measured` from the
+    layout boxes fixes both. **The flip side, caught in C1.5: the INITIAL fit is
+    done by hand.** With `measured` supplied, React Flow's own `fitView` prop
+    resolves the instant nodes exist — BEFORE the pane has been measured (store
+    width 0) — and frames the graph against nothing; C1 shipped under-zoomed on
+    desktop because of it. `canvas-flow.tsx` fits in an effect gated on the
+    store's pane size, and again whenever the graph changes. Don't restore the
+    `fitView` prop.
   - **Focus** = the primary node(s), every edge touching one, and the
     neighbours at the other end (`focusFor`); everything else dims to 15%.
     Click a node, pick a search result, or click an insight chip (those two
@@ -1244,8 +1294,10 @@ This app is deployed and in production use. Treat `main` as shippable.
     Double-click opens the entity's detail page.
   - **The insights strip TELLS you the patterns** (`canvasInsights`, pure,
     computed from the same graph the canvas draws so a chip can never point at
-    a missing node): active campaigns running only non-active creatives ·
-    active creatives idle in the range · the most-shared creative (≥ 2
+    a missing node): **campaigns with no live creatives** (every edge into them
+    is paused here — the health count reads 0/N; defined on edge liveness, the
+    same source as the health count, which superseded C1's child-general-status
+    rule) · active creatives idle in the range · the most-shared creative (≥ 2
     campaigns; ties to the bigger spender). Zero-case chips are absent.
   - **Scale cap: ~400 nodes / ~800 edges** (`capEdges`) — keep the TOP edges by
     spend and SAY SO ("showing the top N of M connections by spend"); idle
@@ -1256,7 +1308,7 @@ This app is deployed and in production use. Treat `main` as shippable.
     `--surface`, edges via the platform vars), so all four themes hold. The
     top-bar screenshot button captures the canvas faithfully — React Flow
     renders DOM + SVG, and `modern-screenshot` handles both (verified).
-  - **C2 (pending): cluster views.** C1 is the Network view only.
+  - **C2 (pending): cluster views.** C1/C1.5 are the Network view only.
 
 - **The Library's status STRIP is a FACET of the listing, not a query
   (2026-09).** It sits directly ABOVE the list (both views), not in the page
