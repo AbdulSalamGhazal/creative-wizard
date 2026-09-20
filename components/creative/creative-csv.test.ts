@@ -26,7 +26,6 @@ const base: CreativeListRow = {
   spend30d: 6789,
   priority: 2,
   stages: ["Awareness", "Retargeting"],
-  isSystem: false,
   notes: 'Hook A, then B\nCTA: "buy now"',
   sourceLink: "https://example.com/ad?a=1,2",
   createdByName: "Salam Ghazal",

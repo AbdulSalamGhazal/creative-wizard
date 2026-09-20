@@ -147,12 +147,10 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
 
   // Stage 2 fatal: every required field must be present — EXCEPT one the
   // platform can't report at all (`unavailableOn`; the pipeline stores NULL
-  // for it below) or one the adapter can synthesize a value for (google has no
-  // creative column and campaign-level exports have no ad-group column).
+  // for it below).
   const missingHeaders: ValidationError[] = [];
   for (const required of adapter.requiredFields) {
     if (isFieldUnavailableOn(required, platform)) continue;
-    if (adapter.synthesizeAbsent?.[required] !== undefined) continue;
     if (fieldIndex[required] === undefined) {
       const firstCandidate = adapter.headerMap[required][0] ?? required;
       missingHeaders.push({
@@ -207,15 +205,6 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
     for (const f of Object.keys(fieldIndex) as InternalField[]) {
       allCells[f] = cell(f);
     }
-    // Absent COLUMN → the adapter's stand-in value (google's creative name and
-    // its "All" ad group). A column that exists but holds a blank cell is NOT
-    // covered here: that stays an E042 blank identity field.
-    for (const [f, value] of Object.entries(adapter.synthesizeAbsent ?? {}) as Array<
-      [InternalField, string]
-    >) {
-      if (fieldIndex[f] === undefined) allCells[f] = value;
-    }
-
     // skipRow rule (subtotal / grand-total rows).
     if (adapter.skipRow?.(allCells)) continue;
 

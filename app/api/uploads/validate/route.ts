@@ -15,7 +15,6 @@ import { MAX_FILE_BYTES } from "@/csv/parse";
 import { runPipeline, type ParsedRow } from "@/csv/pipeline";
 import { campaignPlatformCollisions } from "@/csv/cross-platform";
 import { resolveAdapter } from "@/db/queries/platforms";
-import { ensureGoogleCreative } from "@/db/queries/google";
 import { getActiveAccountId } from "@/lib/tenant";
 
 const VALIDATION_TTL_MS = 10 * 60 * 1000; // 10 minutes
@@ -102,15 +101,6 @@ export async function POST(request: NextRequest) {
   try {
   const buffer = new Uint8Array(await file.arrayBuffer());
   const acct = await getActiveAccountId();
-
-  // Google exports have no creative column: every row is stamped with the ONE
-  // system creative, which therefore has to EXIST before the names snapshot
-  // below — otherwise the first google upload fails E020 on every row. The
-  // helper is idempotent and account-scoped; the commit route calls it again
-  // inside its transaction so a concurrent commit can't race past it.
-  if (platform === "google") {
-    await ensureGoogleCreative(db, acct, user.id);
-  }
 
   // Snapshot of registered creative names (strict byte-equal matching),
   // scoped to the active brand so names only match within this account.

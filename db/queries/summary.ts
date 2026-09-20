@@ -515,12 +515,7 @@ export async function listCreativeSummary(
 
   // -------- WHERE clauses on creatives --------
   const acct = await getActiveAccountId();
-  const whereConds: SQL[] = [
-    eq(creatives.accountId, acct),
-    // …and the SYSTEM creative never appears here (belt and braces: the row
-    // would carry google's brand-level totals into a per-creative table).
-    eq(creatives.isSystem, false),
-  ];
+  const whereConds: SQL[] = [eq(creatives.accountId, acct)];
   if (filters.q) {
     whereConds.push(ilike(creatives.name, `%${filters.q}%`));
   }

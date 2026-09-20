@@ -243,13 +243,17 @@ export const creatives = pgTable(
      */
     stages: text("stages").array().notNull().default(sql`'{}'::text[]`),
     /**
-     * SYSTEM creative — created and owned by the app, not by a person. Today
-     * that means exactly one row per account: the "Google Ads" creative every
-     * google performance row hangs off (google exports carry no creative
-     * column). It is VISIBLE in the Library with a badge, and its priority /
-     * stage / thumbnail / notes are freely editable — but `patchCreative`
-     * REFUSES to rename it and `deleteCreative` REFUSES to delete it, because
-     * the upload pipeline resolves it BY NAME. Migration 0047.
+     * DEAD COLUMN as of 2026-09-20 — kept, never read.
+     *
+     * It marked the app-owned "Google Ads" creative of the original google
+     * design. That design was reversed by a user decision: google uploads now
+     * carry a creative column like every other platform, so there is no
+     * system-owned creative and nothing writes or reads this. No prod row ever
+     * had it set (the count was 0 when the machinery was removed).
+     *
+     * Kept unread rather than dropped, like `creatives.status` and
+     * `store_order_fields.show_in_table` — a later cleanup migration can drop
+     * the set together. Do NOT reintroduce reads. Migration 0047 added it.
      */
     isSystem: boolean("is_system").notNull().default(false),
     notes: text("notes"),

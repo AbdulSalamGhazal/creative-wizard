@@ -114,10 +114,6 @@ export function CreativeDetailHeader({
   // Read-only viewers see the same layout with every control disabled and no
   // Save bar (the server rejects a patch regardless — this is just UX).
   const locked = isPending || !canEdit;
-  // A system creative's NAME is what the upload pipeline matches google rows
-  // on, so it can't be edited here (the server refuses it either way). Every
-  // other field on it is ordinary editable metadata.
-  const nameLocked = locked || creative.isSystem;
 
   // Saved baseline (updated on successful save) + live drafts. Status is NOT
   // part of this editor — it's derived, with per-platform termination as the
@@ -302,12 +298,7 @@ export function CreativeDetailHeader({
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              disabled={nameLocked}
-              title={
-                creative.isSystem
-                  ? "System creative — uploads match it by name, so it can't be renamed."
-                  : undefined
-              }
+              disabled={locked}
               placeholder="Creative name"
               className={cn(
                 "w-full bg-transparent font-display text-3xl tracking-tight text-ink",
@@ -317,12 +308,6 @@ export function CreativeDetailHeader({
             />
             {nameTrimmed === "" && (
               <p className="text-[11px] text-neg">Name can&apos;t be empty.</p>
-            )}
-            {creative.isSystem && (
-              <p className="text-[11px] text-ink-3">
-                System creative — Google uploads match it by name, so the name
-                is fixed. Everything else here is editable.
-              </p>
             )}
           </div>
 

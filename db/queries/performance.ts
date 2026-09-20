@@ -1686,13 +1686,11 @@ export async function compareDimensions(): Promise<CompareDimensionRow[]> {
       and(
         eq(performanceRecords.accountId, acct),
         eq(performanceRecords.excludedFromAggregates, false),
-        // Compare is CREATIVE-level (its series are per creativeId), so BOTH
-        // creative-scope guards apply: no system creative, and no platform
-        // that has no creatives. Either one alone would usually do it —
-        // google's rows all hang off the system creative — but a stray row on
-        // an ordinary creative must not put Google back in the picker.
-        // (google, phase 2)
-        eq(creatives.isSystem, false),
+        // Compare is CREATIVE-level and compares platforms on metrics google
+        // doesn't report, so its rows stay out — which takes google's
+        // platform and campaigns out of the pickers with them. The creatives
+        // google names are ordinary creatives; they simply have no data on
+        // the platforms Compare covers.
         FUNNEL_PLATFORMS,
       ),
     )
@@ -1985,9 +1983,7 @@ export async function launchFatigue(
              )) AS eff_launch
       FROM creatives c
       JOIN products p ON p.id = c.product_id
-      -- Launches is a CREATIVE cohort view; the system creative isn't a launch
-      -- (it's app-owned, and google has no creative concept). google, phase 2.
-      WHERE c.account_id = ${acct} AND c.is_system = false${creativeWhere}
+      WHERE c.account_id = ${acct}${creativeWhere}
     )
     SELECT eff.id, eff.name, eff.type, eff.product_name, eff.derived,
            eff.eff_launch::text AS eff_launch,

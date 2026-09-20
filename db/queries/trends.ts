@@ -40,18 +40,15 @@ import type { CreativeStatus } from "@/lib/creative-status";
 type Platform = (typeof platformEnum)[number];
 
 /**
- * CREATIVE-LEVEL SCOPE (google, phase 2). Every query in this module groups by
- * a creative attribute (angle, type, the creative itself), and google has no
- * creative concept — its rows all hang off the ONE system creative. Two guards,
- * both derived, never a bare "google" literal:
- *   - platforms narrow to `PLATFORMS_WITH_CREATIVES`;
- *   - `creatives.is_system` rows are dropped (belt and braces: the system row
- *     never appears even if a google row somehow reached another platform).
- * The caller's own platform filter still applies on top.
+ * CREATIVE-LEVEL SCOPE (google). Every query in this module groups by a
+ * creative attribute (angle, type, the creative itself) and compares platforms
+ * on metrics google doesn't report, so google's ROWS stay out — derived from
+ * `PLATFORMS_WITH_CREATIVES`, never a bare "google" literal. The creatives
+ * google names are ordinary creatives; only the PLATFORM is scoped here. The
+ * caller's own platform filter still applies on top.
  */
 const CREATIVE_SCOPE: SQL[] = [
   inArray(performanceRecords.platform, [...PLATFORMS_WITH_CREATIVES]),
-  eq(creatives.isSystem, false),
 ];
 
 const num = (v: unknown): number => (v === null || v === undefined ? 0 : Number(v));

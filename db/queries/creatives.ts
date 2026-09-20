@@ -77,8 +77,6 @@ export interface CreativeListRow {
   priority: number | null;
   /** Manual funnel stage(s), in funnel order; empty = unassigned. */
   stages: string[];
-  /** App-owned row (the google system creative) — badged, un-renamable. */
-  isSystem: boolean;
   notes: string | null;
   sourceLink: string | null;
   /** Display name of the creator (joined from `users`), null if unresolvable. */
@@ -243,7 +241,6 @@ export async function listCreatives(
       // before) — the Library CSV exports the creative's full data.
       priority: creatives.priority,
       stages: creatives.stages,
-      isSystem: creatives.isSystem,
       notes: creatives.notes,
       sourceLink: creatives.sourceLink,
       createdAt: creatives.createdAt,
@@ -322,7 +319,6 @@ export async function listCreatives(
     priority: r.priority,
     // Stored unordered; presented in funnel order so every surface agrees.
     stages: sortStages(r.stages ?? []),
-    isSystem: r.isSystem,
     notes: r.notes,
     sourceLink: r.sourceLink,
     createdByName: r.createdByName,
@@ -470,8 +466,6 @@ export interface CreativeDetail {
   priority: number | null;
   /** Manual funnel stage(s), in funnel order; empty = unassigned. */
   stages: string[];
-  /** App-owned row (the google system creative) — un-renamable, un-deletable. */
-  isSystem: boolean;
   notes: string | null;
   sourceLink: string | null;
   createdAt: Date;
@@ -499,7 +493,6 @@ export const getCreativeByName = cache(async (
       launchDate: creatives.launchDate,
       priority: creatives.priority,
       stages: creatives.stages,
-      isSystem: creatives.isSystem,
       notes: creatives.notes,
       sourceLink: creatives.sourceLink,
       createdAt: creatives.createdAt,

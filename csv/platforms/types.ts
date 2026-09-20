@@ -137,19 +137,11 @@ export interface PlatformAdapter {
    */
   headerMap: Record<InternalField, string[]>;
   /**
-   * Internal fields that must be present in the header row. Two things excuse
-   * an absent column: the field is `unavailableOn` this platform, or the
-   * adapter can `synthesizeAbsent` a value for it.
+   * Internal fields that must be present in the header row. ONE thing excuses
+   * an absent column: the field is `unavailableOn` this platform (the
+   * platform cannot report it at all). Everything else is E010.
    */
   requiredFields: InternalField[];
-  /**
-   * Value to substitute when a field's COLUMN IS ABSENT from the file — for
-   * exports that genuinely don't have the column (Google has no creative
-   * column, and no ad-group column on campaign-level exports). A column that
-   * IS present but blank is untouched by this: that stays an E042 blank
-   * identity field, exactly as on every other platform.
-   */
-  synthesizeAbsent?: Partial<Record<InternalField, string>>;
   /** Accepted date formats; the pipeline tries each in order. */
   acceptedDateFormats: DateFormat[];
   /** Return true to silently skip a row (e.g. subtotal/grand-total rows). */

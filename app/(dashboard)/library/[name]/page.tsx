@@ -335,10 +335,8 @@ export default async function CreativeDetailPage({
         <AuditFeed rows={activity} />
       </div>
 
-      {/* ─────────── Danger zone (delete permission only) ───────────
-          A SYSTEM creative has no danger zone: every Google upload records
-          against it and `deleteCreative` refuses it server-side. */}
-      {canDelete && !creative.isSystem && (
+      {/* ─────────── Danger zone (delete permission only) ─────────── */}
+      {canDelete && (
         <div className="rounded-xl border border-neg/30 bg-neg/5 p-4 md:p-5">
           <div className="flex items-center justify-between gap-4 flex-wrap">
             <div>

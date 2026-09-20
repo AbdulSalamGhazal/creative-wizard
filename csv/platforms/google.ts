@@ -1,23 +1,23 @@
 /**
  * Google Ads CSV adapter.
  *
- * Two things make google different from the social adapters, both declared
- * rather than special-cased in the pipeline:
+ * Google is the STANDARD pipeline (2026-09-20, a user decision that superseded
+ * the original system-creative design): the export names its creative and its
+ * ad group like every other platform's does, and the ordinary identity rules
+ * apply — a missing column is E010, a blank identity cell E042, an unregistered
+ * creative E020. There is no google-specific copy and no google-specific
+ * creative machinery; the team prepares the two columns in the export and owns
+ * whatever creative(s) those rows name.
  *
- * 1. **No creative column.** Google reports campaigns/ad groups, not creative
- *    names, so every row is stamped with the ONE system creative
- *    (`GOOGLE_SYSTEM_CREATIVE_NAME`) through `synthesizeAbsent`. The pipeline's
- *    normal trim-then-exact matching then resolves it like any other name —
- *    `ensureGoogleCreative` guarantees the row exists before matching runs.
- * 2. **Thinner metrics.** No landing-page views, no cart/payment events, no
- *    video funnel: those fields are declared `unavailableOn: ["google"]` in
- *    `csv/platforms/types.ts`, which excuses the missing columns (no E010) and
- *    makes the pipeline store NULL instead of 0.
+ * What IS google-specific is its DATA SHAPE: no landing-page views, no cart or
+ * payment events, no video funnel. Those fields are declared
+ * `unavailableOn: ["google"]` in `csv/platforms/types.ts`, which excuses the
+ * missing columns (no E010) and makes the pipeline store NULL rather than 0 —
+ * and `lib/metrics.ts` derives its ratio guard from the same declaration.
  *
  * Headers are ASSUMED (Google's export lets you rename columns); admins fix
  * them per account in Upload ads → CSV mapping like every other platform.
  */
-import { GOOGLE_ADSET_FALLBACK, GOOGLE_SYSTEM_CREATIVE_NAME } from "@/lib/google";
 import {
   unavailableFieldsFor,
   type InternalField,
@@ -28,9 +28,7 @@ const UNAVAILABLE = new Set<InternalField>(unavailableFieldsFor("google"));
 
 /**
  * Everything google CAN report is required, derived from the unavailability
- * declaration so the two can never disagree. `creative_name` and `adset_name`
- * stay in the list — they're satisfied by `synthesizeAbsent` when the column
- * is missing, and still enforced when it's there.
+ * declaration so the two can never disagree.
  */
 const REQUIRED: InternalField[] = [
   "creative_name",
@@ -47,8 +45,7 @@ const REQUIRED: InternalField[] = [
 export const googleAdapter: PlatformAdapter = {
   platform: "google",
   headerMap: {
-    // No such column in any google export — synthesized below.
-    creative_name: [],
+    creative_name: ["Creative", "Creative name"],
     campaign_name: ["Campaign"],
     adset_name: ["Ad group", "Ad group name"],
     date: ["Day", "Date"],
@@ -68,10 +65,6 @@ export const googleAdapter: PlatformAdapter = {
     video_views_100: [],
   },
   requiredFields: REQUIRED,
-  synthesizeAbsent: {
-    creative_name: GOOGLE_SYSTEM_CREATIVE_NAME,
-    adset_name: GOOGLE_ADSET_FALLBACK,
-  },
   acceptedDateFormats: ["YYYY-MM-DD", "DD/MM/YYYY", "MM/DD/YYYY"],
   skipRow: (row) => {
     // Google exports end with summary rows whose FIRST column reads

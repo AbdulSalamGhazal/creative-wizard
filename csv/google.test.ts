@@ -5,16 +5,19 @@ import {
   isFieldUnavailableOn,
   unavailableFieldsFor,
 } from "@/csv/platforms/types";
-import { GOOGLE_SYSTEM_CREATIVE_NAME } from "@/lib/google";
 
 /**
- * The google adapter, end to end through the real pipeline. Two google-only
- * allowances are pinned here because both are easy to "fix" by accident:
- * the synthesized creative name / "All" ad group, and NULL (never 0) for the
- * metrics google simply doesn't report.
+ * The google adapter, end to end through the real pipeline.
+ *
+ * Google is the STANDARD pipeline (2026-09-20): its export names the creative
+ * and the ad group like every other platform's, and the ordinary identity
+ * errors apply. The ONLY google-specific behaviour left is its DATA SHAPE —
+ * the metrics it cannot report are NULL, never 0 — and that is what these
+ * tests exist to pin, alongside the fact that nothing else about it is
+ * special.
  */
-const REGISTERED = new Set([GOOGLE_SYSTEM_CREATIVE_NAME]);
-const CAMPAIGNS = new Set(["Search Brand ➤ All", "Search Brand ➤ Exact match"]);
+const REGISTERED = new Set(["URJ_GG_001", "URJ_GG_002"]);
+const CAMPAIGNS = new Set(["Search Brand ➤ Exact match", "Search Brand ➤ All"]);
 
 const run = (content: string, registeredCampaigns = CAMPAIGNS) =>
   runPipeline({
@@ -25,53 +28,84 @@ const run = (content: string, registeredCampaigns = CAMPAIGNS) =>
     registeredCampaigns,
   });
 
-const FULL_HEADER = "Day,Campaign,Ad group,Cost,Impressions,Clicks,Conversions,Conv. value";
-const CAMPAIGN_LEVEL_HEADER = "Day,Campaign,Cost,Impressions,Clicks,Conversions,Conv. value";
+const HEADER =
+  "Day,Campaign,Ad group,Creative,Cost,Impressions,Clicks,Conversions,Conv. value";
 
 describe("google adapter", () => {
-  it("parses a campaign+ad-group export, stamping the system creative on every row", async () => {
+  it("parses a standard export — the file names its creative and ad group", async () => {
     const csv = [
-      FULL_HEADER,
-      "2026-05-01,Search Brand,Exact match,1234.56,10000,500,25,4999.99",
-      "2026-05-02,Search Brand,Exact match,10,100,5,0,0",
+      HEADER,
+      "2026-05-01,Search Brand,Exact match,URJ_GG_001,1234.56,10000,500,25,4999.99",
+      "2026-05-02,Search Brand,Exact match,URJ_GG_002,10,100,5,0,0",
     ].join("\n");
     const result = await run(csv);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.rows).toHaveLength(2);
-    expect(result.rows.every((r) => r.creativeName === GOOGLE_SYSTEM_CREATIVE_NAME)).toBe(true);
+    expect(result.rows.map((r) => r.creativeName)).toEqual([
+      "URJ_GG_001",
+      "URJ_GG_002",
+    ]);
     // No platform tag for google — buildCampaignName leaves the name alone.
     expect(result.rows[0]!.campaignName).toBe("Search Brand ➤ Exact match");
     expect(result.rows[0]!.spend).toBe(1234.56);
     expect(result.rows[0]!.conversionValue).toBe(4999.99);
   });
 
-  it("synthesizes the ad group as “All” when the COLUMN is absent", async () => {
+  it("a missing CREATIVE column is the standard E010 — nothing is synthesized", async () => {
     const csv = [
-      CAMPAIGN_LEVEL_HEADER,
-      "2026-05-01,Search Brand,500,10000,500,25,2000",
-    ].join("\n");
-    const result = await run(csv);
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-    expect(result.rows[0]!.campaignName).toBe("Search Brand ➤ All");
-  });
-
-  it("a PRESENT-but-blank ad group is still E042 — synthesis is for absent COLUMNS", async () => {
-    const csv = [
-      FULL_HEADER,
-      "2026-05-01,Search Brand,,500,10000,500,25,2000",
+      "Day,Campaign,Ad group,Cost,Impressions,Clicks,Conversions,Conv. value",
+      "2026-05-01,Search Brand,Exact match,500,10000,500,25,2000",
     ].join("\n");
     const result = await run(csv);
     expect(result.ok).toBe(false);
     if (result.ok) return;
-    expect(result.errors.map((e) => e.code)).toContain("E042");
+    const missing = result.errors.filter((e) => e.code === "E010");
+    expect(missing).toHaveLength(1);
+    expect(missing[0]!.field).toBe("creative_name");
+  });
+
+  it("a missing AD GROUP column is the standard E010 too", async () => {
+    const csv = [
+      "Day,Campaign,Creative,Cost,Impressions,Clicks,Conversions,Conv. value",
+      "2026-05-01,Search Brand,URJ_GG_001,500,10000,500,25,2000",
+    ].join("\n");
+    const result = await run(csv);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.errors.filter((e) => e.code === "E010")[0]!.field).toBe(
+      "adset_name",
+    );
+  });
+
+  it("blank identity cells are the standard E042", async () => {
+    const csv = [
+      HEADER,
+      "2026-05-01,Search Brand,,URJ_GG_001,500,10000,500,25,2000",
+      "2026-05-02,Search Brand,Exact match,,500,10000,500,25,2000",
+    ].join("\n");
+    const result = await run(csv);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    const codes = result.errors.map((e) => e.code);
+    expect(codes).toContain("E042"); // blank ad group
+    expect(codes).toContain("E021"); // blank creative name
+  });
+
+  it("an unregistered creative is the standard E020", async () => {
+    const csv = [
+      HEADER,
+      "2026-05-01,Search Brand,Exact match,NOT_IN_LIBRARY,500,10000,500,25,2000",
+    ].join("\n");
+    const result = await run(csv);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.errors.map((e) => e.code)).toContain("E020");
   });
 
   it("stores NULL — not 0 — for every metric google doesn't report", async () => {
     const csv = [
-      FULL_HEADER,
-      "2026-05-01,Search Brand,Exact match,500,10000,500,25,2000",
+      HEADER,
+      "2026-05-01,Search Brand,Exact match,URJ_GG_001,500,10000,500,25,2000",
     ].join("\n");
     const result = await run(csv);
     expect(result.ok).toBe(true);
@@ -96,8 +130,8 @@ describe("google adapter", () => {
 
   it("no E010 for the columns google can't have, but a genuine miss still fails", async () => {
     const missingClicks = [
-      "Day,Campaign,Ad group,Cost,Impressions,Conversions,Conv. value",
-      "2026-05-01,Search Brand,Exact match,500,10000,25,2000",
+      "Day,Campaign,Ad group,Creative,Cost,Impressions,Conversions,Conv. value",
+      "2026-05-01,Search Brand,Exact match,URJ_GG_001,500,10000,25,2000",
     ].join("\n");
     const result = await run(missingClicks);
     expect(result.ok).toBe(false);
@@ -109,8 +143,8 @@ describe("google adapter", () => {
 
   it("tolerates thousands separators and currency symbols in the numbers", async () => {
     const csv = [
-      FULL_HEADER,
-      '2026-05-01,Search Brand,Exact match,"$12,345.67","1,000,000","12,345","1,234","98,765.43"',
+      HEADER,
+      '2026-05-01,Search Brand,Exact match,URJ_GG_001,"$12,345.67","1,000,000","12,345","1,234","98,765.43"',
     ].join("\n");
     const result = await run(csv);
     expect(result.ok).toBe(true);
@@ -125,9 +159,9 @@ describe("google adapter", () => {
 
   it("skips the export's trailing “Total: …” summary row", async () => {
     const csv = [
-      FULL_HEADER,
-      "2026-05-01,Search Brand,Exact match,500,10000,500,25,2000",
-      "Total: all campaigns,,,500,10000,500,25,2000",
+      HEADER,
+      "2026-05-01,Search Brand,Exact match,URJ_GG_001,500,10000,500,25,2000",
+      "Total: all campaigns,,,,500,10000,500,25,2000",
     ].join("\n");
     const result = await run(csv);
     expect(result.ok).toBe(true);
@@ -149,6 +183,9 @@ describe("google adapter", () => {
     for (const f of googleAdapter.requiredFields) {
       expect(isFieldUnavailableOn(f, "google")).toBe(false);
     }
+    // Identity is standard: both columns are required like everywhere else.
+    expect(googleAdapter.requiredFields).toContain("creative_name");
+    expect(googleAdapter.requiredFields).toContain("adset_name");
     // The social platforms are untouched: they report everything.
     expect(unavailableFieldsFor("tiktok")).toEqual([]);
   });

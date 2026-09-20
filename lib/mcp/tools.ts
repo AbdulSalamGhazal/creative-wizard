@@ -55,7 +55,7 @@ import {
 
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
 const CONVENTIONS =
-  "Money is USD. Dates are YYYY-MM-DD. Blended metrics (CTR, ROAS, CPA, CvR, VOC, CPM) are weighted from component sums, never averaged. Records marked excluded-from-aggregates are HIDDEN by default (the app's default view); pass include_excluded: true to count them. Every result echoes `excluded_records` so you never have to guess which convention produced a number. Google has no per-creative data — creative-level tools exclude it; campaign/brand-level tools include it.";
+  "Money is USD. Dates are YYYY-MM-DD. Blended metrics (CTR, ROAS, CPA, CvR, VOC, CPM) are weighted from component sums, never averaged. Records marked excluded-from-aggregates are HIDDEN by default (the app's default view); pass include_excluded: true to count them. Every result echoes `excluded_records` so you never have to guess which convention produced a number. Google reports a REDUCED metric set (no landing-page views, cart/payment events or video views), so it is left out of per-platform creative breakdowns and of every funnel surface; brand- and campaign-level tools include it.";
 
 /**
  * BREAKING CHANGE (2026-09): the creative-labeling concept "tag" was renamed
@@ -257,8 +257,6 @@ export function registerMcpTools(server: McpServer): void {
             product: c.productName,
             type: c.type,
             status: c.status,
-            /** App-owned row (the Google Ads system creative), not a real ad. */
-            isSystem: c.isSystem,
             priority: c.priority,
             stages: c.stages,
             angles: c.angles,
@@ -303,7 +301,6 @@ export function registerMcpTools(server: McpServer): void {
             name: creative.name,
             product: creative.productName,
             type: creative.type,
-            isSystem: creative.isSystem,
             priority: creative.priority,
             stages: creative.stages,
             angles: creative.angles,

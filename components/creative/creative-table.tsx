@@ -18,7 +18,6 @@ import { usePersistentHidden } from "@/components/ui/use-persistent-hidden";
 import type { CreativeListRow } from "@/db/queries/creatives";
 import type { CreativeSort } from "@/validators/creative";
 import { StatusBadge } from "@/components/creative/status-badge";
-import { SystemBadge } from "@/components/creative/system-badge";
 import { PriorityStars } from "@/components/creative/priority-stars";
 import { StageChips } from "@/components/creative/stage-chips";
 import { AngleChips } from "@/components/creative/angle-chips";
@@ -163,11 +162,8 @@ export function CreativeTable({
         sortable: true,
         href: detailHref,
         render: (r) => (
-          <span className="flex min-w-0 flex-col gap-1">
-            <span className="truncate font-mono text-xs text-ink" title={r.name}>
-              {r.name}
-            </span>
-            {r.isSystem && <SystemBadge className="self-start" />}
+          <span className="block truncate font-mono text-xs text-ink" title={r.name}>
+            {r.name}
           </span>
         ),
         csv: (r) => r.name,
