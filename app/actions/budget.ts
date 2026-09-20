@@ -52,7 +52,7 @@ export async function saveBudgetMonth(input: unknown): Promise<BudgetActionResul
     if (!parsed.success) {
       return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid plan" };
     }
-    const { month, allocations, plannedRevenueSar, reserveSpendUsd, dayWeights, note } =
+    const { month, allocations, plannedRevenueSar, reserveSpendUsd, dayWeights, note, source } =
       parsed.data;
 
     // Weights: within the month's real length and the allowed bounds. Weight 1
@@ -110,7 +110,9 @@ export async function saveBudgetMonth(input: unknown): Promise<BudgetActionResul
       entityLabel: `Plan for ${monthLabel(month)}`,
       actorUserId: user.id,
       meta: {
-        op: "save",
+        // The CSV upload shares this writer — `source` is what keeps the two
+        // apart in the trail (see planSourceSchema).
+        op: source === "upload" ? "upload" : "save",
         month,
         allocations: allocations.length,
         plannedSpendTotal: allocations.reduce((s, a) => s + a.plannedSpend, 0),

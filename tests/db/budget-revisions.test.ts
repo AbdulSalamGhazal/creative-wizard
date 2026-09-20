@@ -29,6 +29,7 @@ import {
   saveBudgetMonth,
 } from "@/app/actions/budget";
 import { getBudgetMonth, listPlanRevisions, plannedMonths } from "@/db/queries/budget";
+import { parsePlanCsvMatrix, planCsvTemplate } from "@/lib/budget-plan-csv";
 import { resetAndSeed } from "./fixtures";
 
 const MONTH = "2026-01";
@@ -238,6 +239,123 @@ describe("plan revisions — restore", () => {
     expect(after.plannedRevenueSar).toBe(25_000);
   });
 
+});
+
+describe("the CSV upload path — one writer, same guarantees", () => {
+  /** What the dialog hands `saveBudgetMonth` after a file parses. */
+  const uploadOf = (csv: string, over: Partial<{ revenue: number | null }> = {}) => {
+    const [head, ...body] = csv
+      .trim()
+      .split("\n")
+      .map((line) => line.split(",").map((c) => c.trim()));
+    const parsed = parsePlanCsvMatrix(head ?? [], body);
+    if (!parsed.ok) throw new Error(parsed.issues.map((i) => i.cell).join("; "));
+    return {
+      month: MONTH,
+      allocations: parsed.plan.allocations,
+      plannedRevenueSar: "revenue" in over ? (over.revenue ?? null) : 40_000,
+      reserveSpendUsd: parsed.plan.reserveSpendUsd,
+      dayWeights: [] as Array<{ day: number; weight: number }>,
+      note: "Uploaded from file",
+      source: "upload" as const,
+    };
+  };
+
+  const SHEET = `Platform,Awareness (USD),Activation (USD),Retargeting (USD),Other (USD)
+Instagram,3000,1500,,
+Snapchat,,,750,
+Reserve,400,,,`;
+
+  it("ROUND-TRIPS through getBudgetMonth and records a revision", async () => {
+    const res = await saveBudgetMonth(uploadOf(SHEET));
+    expect(res.ok).toBe(true);
+
+    const data = await getBudgetMonth(MONTH);
+    expect(
+      data.allocations
+        .map((a) => `${a.platform}|${a.objective}|${a.plannedSpend}`)
+        .sort(),
+    ).toEqual([
+      "instagram|Activation|1500",
+      "instagram|Awareness|3000",
+      "snapchat|Retargeting|750",
+    ]);
+    expect(data.reserveSpendUsd).toBeCloseTo(400, 2);
+    expect(data.plannedRevenueSar).toBeCloseTo(40_000, 2);
+
+    // The same revision guarantee the editor gets — the upload is not a
+    // parallel writer, so history can't gain a hole.
+    const revisions = await listPlanRevisions(MONTH);
+    expect(revisions).toHaveLength(1);
+    expect(revisions[0]!.note).toBe("Uploaded from file");
+    expect(revisions[0]!.allocationCount).toBe(3);
+    expect(revisions[0]!.plannedTotal).toBeCloseTo(5250, 2);
+    expect(revisions[0]!.reserveSpendUsd).toBeCloseTo(400, 2);
+  });
+
+  it("FULL REPLACE: what the sheet leaves out is dropped", async () => {
+    await saveBudgetMonth(PLAN_A); // instagram|Other + facebook|Awareness
+    await saveBudgetMonth(uploadOf(SHEET));
+
+    const data = await getBudgetMonth(MONTH);
+    // Not merged onto the old plan — facebook is gone, instagram re-cut.
+    expect(data.allocations.map((a) => a.platform).sort()).toEqual([
+      "instagram",
+      "instagram",
+      "snapchat",
+    ]);
+    expect(await listPlanRevisions(MONTH)).toHaveLength(2);
+  });
+
+  it("carries the stored day curve across untouched", async () => {
+    await saveBudgetMonth(PLAN_A); // day 15 weighted x2
+    const before = await getBudgetMonth(MONTH);
+    expect(before.dayWeightOverrides).toEqual({ 15: 2 });
+
+    // The dialog reads the stored weights and hands them straight back — the
+    // sheet carries money, not the calendar.
+    const upload = uploadOf(SHEET);
+    upload.dayWeights = Object.entries(before.dayWeightOverrides).map(([d, w]) => ({
+      day: Number(d),
+      weight: w,
+    }));
+    expect((await saveBudgetMonth(upload)).ok).toBe(true);
+    expect((await getBudgetMonth(MONTH)).dayWeightOverrides).toEqual({ 15: 2 });
+  });
+
+  it("a prefilled template round-trips to the SAME plan it was generated from", async () => {
+    await saveBudgetMonth(PLAN_A);
+    const stored = await getBudgetMonth(MONTH);
+
+    const csv = planCsvTemplate({
+      allocations: stored.allocations,
+      reserveSpendUsd: stored.reserveSpendUsd,
+    });
+    const upload = uploadOf(csv, { revenue: stored.plannedRevenueSar });
+    upload.dayWeights = Object.entries(stored.dayWeightOverrides).map(([d, w]) => ({
+      day: Number(d),
+      weight: w,
+    }));
+    expect((await saveBudgetMonth(upload)).ok).toBe(true);
+
+    const after = await getBudgetMonth(MONTH);
+    const shape = (d: typeof after) => ({
+      allocations: d.allocations
+        .map((a) => `${a.platform}|${a.objective}|${a.plannedSpend}`)
+        .sort(),
+      reserve: d.reserveSpendUsd,
+      revenue: d.plannedRevenueSar,
+      weights: d.dayWeightOverrides,
+    });
+    expect(shape(after)).toEqual(shape(stored));
+  });
+
+  it("still refuses a plan the schema rejects — validation is not bypassed", async () => {
+    const bad = { ...uploadOf(SHEET), allocations: [{ platform: "pinterest", objective: "Awareness", plannedSpend: 10 }] };
+    const res = await saveBudgetMonth(bad);
+    expect(res.ok).toBe(false);
+    expect(await listPlanRevisions(MONTH)).toHaveLength(0);
+  });
 });
 
 describe("plannedMonths()", () => {

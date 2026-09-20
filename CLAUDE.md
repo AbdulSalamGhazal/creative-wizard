@@ -1017,6 +1017,71 @@ This app is deployed and in production use. Treat `main` as shippable.
       "final for <month>"; future month → tick at 0, no verdict at all (nothing
       is expected yet, which must never read as 100% behind). Both fall out of
       `elapsedDaysInMonth`, not a special case.
+  - **Plan CSV upload (2026-09) — a path INTO the editor, not around it.**
+    "Upload plan…" sits beside Copy on the Plan tab (`budget.manage`) and is
+    scoped to the current `?month=`. **It is not a second writer**: the dialog
+    hands `saveBudgetMonth` exactly the shape the editor hands it, so it
+    inherits `planSchema` validation, the revision snapshot inside the write's
+    transaction, and the `budget.update` audit. The ONE difference is
+    `savePlanSchema.source` (`"editor"` | `"upload"`), which becomes the audit
+    meta's `op` — add a new plan-write path and it goes through here too, or
+    the revision history gains a hole.
+    - **The template DERIVES** (`lib/budget-plan-csv.ts`, pure, unit-tested):
+      a matrix of one column per `BUDGET_OBJECTIVES` bucket × one row per
+      `ALL_PLATFORMS` platform, plus a trailing **Reserve** row carrying one
+      amount in the first bucket column. Never hand-list either axis — a new
+      platform or bucket grows the template, the parser and the error messages
+      together. The currency is in **every column header** (`Awareness (USD)`)
+      rather than a comment line, so it survives the round trip; a column
+      headed `(SAR)` is an unknown column, on purpose.
+    - **The sheet is PREFILLED with the month's plan**, so the download doubles
+      as an export and download → edit → upload is the bulk-edit path.
+      Generate → parse → the same plan to the cent is unit-pinned AND
+      DB-pinned. A cell with no money is written BLANK, not `0`.
+    - **The sheet carries MONEY ONLY.** The revenue target is typed in the
+      dialog (SAR, prefilled — a user decision; one number doesn't belong in a
+      matrix) and the day-weight curve isn't in the sheet at all. Because the
+      write is a FULL REPLACE, the dialog reads the stored weights and hands
+      them straight back, and says so in its fine print — forget that and an
+      upload silently flattens the curve.
+    - **Validation is FORM validation, deliberately NOT the E/S catalog.**
+      `csv/errors.ts` is the contract for the ad-platform ingestion pipelines
+      (stable codes, per-row reports, a spec document); this is one person
+      typing config into four columns, and the answer is an inline message
+      naming the cell ("Row 3 · Instagram · Awareness — \"lots\" isn't a
+      number"). Adding config-entry codes to that catalog would blur what those
+      codes promise. Every bad cell is collected in ONE pass, and nothing is
+      written until they are all gone.
+      - Errors: unknown platform row · unknown or duplicate bucket column ·
+        duplicate platform row · non-numeric · negative · a row with cells to
+        SPARE · money in the Reserve row's other columns. Names match trimmed
+        and case-insensitively, against the display label OR the storage key.
+        An unrecognized row or column is an ERROR, **never silently dropped**.
+      - Lenient exactly twice, both where the SPREADSHEET is at fault: a row
+        SHORT of cells is padded with blanks (editors drop trailing commas),
+        and **an absent Reserve row is reserve 0 with a NOTICE**, not an error.
+        Blank = 0 is the system-wide convention, and the tolerant numerics
+        (`$`, thousands separators, a trailing unit, `—`/`n/a`) are the
+        adapters' own — `parseNumber`/`isEmptyMarker` moved to `csv/numeric.ts`
+        so this shares the code instead of copying it.
+    - **PREVIEW THEN CONFIRM.** The parsed matrix renders as a diff against the
+      current plan in the revisions drawer's language (current → uploaded;
+      cells struck-through old → new, rows marked new/dropped/changed), with
+      allocated · reserve · total **in USD AND SAR** — both currencies shown on
+      purpose, as the wrong-currency tripwire — plus the month's spend so far.
+      The revision note pre-fills "Uploaded from file" and stays editable.
+    - The 100% gate does NOT apply here: amounts are given directly, so
+      total = Σ + reserve by construction. Reopening the editor after an upload
+      reconstructs the shares exactly as it does after any save (the round trip
+      already held; it is pinned).
+    - **papaparse is imported ON DEMAND**, inside the file handler — it is
+      worth nothing until somebody picks a file, and a static import put all
+      of it in `/budget/plan`'s first load (29.6 kB → 40 kB; on demand,
+      33.5 kB). Same reasoning as React Flow on the Canvas.
+    - **`DialogContent` is a GRID**, so the preview matrix needs `min-w-0` on
+      its ancestor — without it the table's `min-w` widens the dialog and the
+      DIALOG scrolls sideways on a phone instead of the table's own container.
+
   - **Funnel audience (`/budget/audience`, 2026-09, migration 0042 additive).**
     Hand-measured audience sizes per funnel stage × platform, versus spend.
     **Stages DERIVE from `BUDGET_OBJECTIVES` minus "Other"** (`FUNNEL_STAGES` in

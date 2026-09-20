@@ -53,8 +53,20 @@ export const planSchema = z.object({
 /** A one-line "what changed?" stored on the revision. Optional everywhere. */
 export const planNoteSchema = z.string().trim().max(200).optional();
 
+/**
+ * Where a save came from. The CSV upload is NOT a second writer — it goes
+ * through `saveBudgetMonth` like the editor does, so it gets the same
+ * `planSchema` validation, the same revision snapshot and the same audit row.
+ * This field is the one thing that differs: it becomes the audit meta's `op`,
+ * so the trail can still tell a typed plan from an uploaded one.
+ */
+export const planSourceSchema = z.enum(["editor", "upload"]).default("editor");
+
 /** Save = a plan plus the optional note that explains it. */
-export const savePlanSchema = planSchema.extend({ note: planNoteSchema });
+export const savePlanSchema = planSchema.extend({
+  note: planNoteSchema,
+  source: planSourceSchema,
+});
 
 /** Copy a plan from ANY month that has one (not just the previous month). */
 export const copyPlanSchema = z

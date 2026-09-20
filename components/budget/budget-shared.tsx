@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -281,4 +282,32 @@ export function useFieldFlow(inputMode: "decimal" | "numeric" = "decimal") {
     },
   };
   return { formRef, fieldProps };
+}
+
+/**
+ * A numeric field with its unit INSIDE the box — the Budget module's house
+ * money input. Shared by the Plan cascade and the CSV upload dialog so the
+ * two never drift on padding or the unit's weight.
+ */
+export function UnitInput({
+  unit,
+  title,
+  wrapperClassName,
+  className,
+  ...props
+}: React.ComponentProps<typeof Input> & { unit: string; wrapperClassName?: string }) {
+  return (
+    <div className={cn("relative", wrapperClassName)} title={title}>
+      <Input
+        {...props}
+        className={cn("peer text-right num", unit.length > 1 ? "pr-11" : "pl-2 pr-6", className)}
+      />
+      <span
+        aria-hidden
+        className="pointer-events-none absolute inset-y-0 right-2.5 flex items-center text-[11px] text-ink-3 peer-disabled:opacity-50"
+      >
+        {unit}
+      </span>
+    </div>
+  );
 }

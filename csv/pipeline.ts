@@ -14,6 +14,7 @@
  * can be tested without a database.
  */
 import { parseCsv, type ParseInput } from "@/csv/parse";
+import { isEmptyMarker, parseNumber } from "@/csv/numeric";
 import { ADAPTERS } from "@/csv/platforms";
 import {
   isFieldUnavailableOn,
@@ -447,27 +448,6 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
 // ---------- helpers ----------
 
 /** True for the various "empty" representations the spec calls out. */
-function isEmptyMarker(s: string): boolean {
-  if (s === "") return true;
-  const v = s.trim().toLowerCase();
-  return v === "" || v === "-" || v === "—" || v === "n/a" || v === "null";
-}
-
-/** Parse `"1,234.56"` / `"$1,234"` / `"1234 USD"` to 1234.56. Returns null on failure. */
-function parseNumber(raw: string): number | null {
-  if (isEmptyMarker(raw)) return null;
-  let cleaned = raw.trim();
-  // strip leading currency symbols
-  cleaned = cleaned.replace(/^[$£€¥]+/u, "");
-  // strip thousand-separators
-  cleaned = cleaned.replace(/,/g, "");
-  // strip trailing unit / currency strings ("USD", "EGP", etc.)
-  cleaned = cleaned.replace(/[\sA-Za-z]+$/u, "");
-  if (cleaned === "" || cleaned === "-" || cleaned === ".") return null;
-  const n = Number(cleaned);
-  return Number.isFinite(n) ? n : null;
-}
-
 const MONTHS: Record<string, number> = {
   jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6,
   jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12,

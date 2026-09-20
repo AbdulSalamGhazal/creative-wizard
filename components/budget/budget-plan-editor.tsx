@@ -77,6 +77,7 @@ import type {
 import {
   BudgetMonthBar,
   CurrencyToggle,
+  UnitInput,
   formatSpend,
   platformAnchorId,
   platformLabel,
@@ -84,6 +85,7 @@ import {
   useFieldFlow,
 } from "@/components/budget/budget-shared";
 import { BudgetPlanRevisions } from "@/components/budget/budget-plan-revisions";
+import { BudgetPlanUpload } from "@/components/budget/budget-plan-upload";
 
 interface PlanRow {
   key: string;
@@ -824,6 +826,25 @@ export function BudgetPlanEditor({
 
         {canManage && !editing && (
           <>
+            {/* The CSV path — download the month as a matrix, edit, upload.
+                It writes through saveBudgetMonth like the editor does. */}
+            <BudgetPlanUpload
+              month={month}
+              current={{
+                allocations: data.allocations.map((a) => ({
+                  platform: a.platform,
+                  objective: a.objective,
+                  plannedSpend: a.plannedSpend,
+                })),
+                reserveSpendUsd: data.reserveSpendUsd,
+              }}
+              dayWeights={data.dayWeightOverrides}
+              plannedRevenueSar={data.plannedRevenueSar}
+              actualSpendToDate={round2(
+                data.actualSpendByCombo.reduce((s, c) => s + c.actualSpend, 0),
+              )}
+              usdToSarRate={rate}
+            />
             <Button
               type="button"
               variant="outline"
@@ -1763,25 +1784,3 @@ function DayCurveEditor({
  * floating beside it. The title sits on the wrapper: a disabled input takes no
  * pointer events, so a tooltip on the input itself would never show.
  */
-function UnitInput({
-  unit,
-  title,
-  wrapperClassName,
-  className,
-  ...props
-}: React.ComponentProps<typeof Input> & { unit: string; wrapperClassName?: string }) {
-  return (
-    <div className={cn("relative", wrapperClassName)} title={title}>
-      <Input
-        {...props}
-        className={cn("peer text-right num", unit.length > 1 ? "pr-11" : "pl-2 pr-6", className)}
-      />
-      <span
-        aria-hidden
-        className="pointer-events-none absolute inset-y-0 right-2.5 flex items-center text-[11px] text-ink-3 peer-disabled:opacity-50"
-      >
-        {unit}
-      </span>
-    </div>
-  );
-}
