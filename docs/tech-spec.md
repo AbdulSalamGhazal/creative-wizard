@@ -198,6 +198,17 @@ A **multi-tenant creative-performance analytics tool** for paid social. It manag
 - **Migration 0047** (additive) added `creatives.is_system`, now dead. The google-unavailable metric columns were ALREADY nullable, and the platform vocabulary needs no migration (platform is a varchar, not a PG enum).
 - **Palette:** `--google` (`#ea4335`, `#d93025` on the two light themes, AA on both).
 
+## 5h. Canvas (`/canvas`, phase C1 — 2026-09)
+
+- **What:** an interactive campaign↔creative graph in the Ads section (between Campaigns and Trends). **READ-ONLY FACTS** — an edge exists because a creative spent (> 0) inside a campaign in the selected range, under the resolved Excluded toggle. Nothing is editable; nodes don't drag, connect or select, and no position is saved.
+- **Dependency:** `@xyflow/react` **12.11.6**, exact-pinned and user-approved — *purpose-built node canvas (pan/zoom/minimap/focus) for the Canvas page; hand-rolling it is weeks of work.* One importer (`components/canvas/canvas-flow.tsx`), loaded through `next/dynamic` with `ssr: false`. In the build it is a single lazy chunk (~57 kB gz JS + ~2.6 kB gz CSS) referenced only by `/canvas`'s loadable manifest: it is in no route's first-load JS, and the shared first-load bundle is unchanged (148 kB).
+- **Query:** `canvasGraph(filters)` in `db/queries/canvas.ts` — ONE aggregation scan (`performance_records ⋈ campaigns ⋈ creatives`, grouped by the two ids, `HAVING SUM(spend) > 0`) yields the edges and both node sets; statuses come from the request's cached status inputs. Active-but-idle creatives (live by status, no edge in range) are added as unconnected nodes via one PK lookup, only when any exist. Node totals are the entity's true range spend under the SQL-level filters (platform · product · stage · excluded); the status filter and the scale cap hide without restating. Filters are URL-backed: range (resolved server-side → last 30 days), platforms, creative statuses (default: all but Terminated), products, stages, Excluded.
+- **Layout (pure, `lib/canvas.ts`):** bipartite, hand-computed — campaigns by spend desc on the left, creatives ordered by the barycenter heuristic on the right, unconnected last; edge width `sqrt(spend)` within a min/max, colored by the campaign's platform var. Nodes are fixed-size and carry `measured` so `fitView` and the minimap never depend on DOM measurement.
+- **Interactions:** click → focus (node + its edges + neighbours; the rest at 15%); empty click / Esc clears; double-click opens the detail page; hover tooltips (node: spend · conversions · ROAS; edge: spend + share of the campaign's spend); a type-ahead search that pans and focuses; React Flow's pan / zoom / fit / minimap (the minimap is hidden below `sm`).
+- **Insights strip:** `canvasInsights` (pure) — active campaigns running only non-active creatives · active creatives idle in the range · the most-shared creative. A chip focuses and fits its nodes; zero-case chips are absent; the strip and canvas give way to a designed empty state when nothing spent.
+- **Scale cap:** ~400 nodes / ~800 edges via `capEdges` — the top connections by spend, stated on the page.
+- **C2 (pending):** cluster views.
+
 ## 6. CSV ingestion (binding spec: `docs/validation-spec.md` v1.2)
 
 Five stages — parse → header mapping → row validation → cross-row/file checks → DB-level duplicate checks. Stages 1–2 fail fast; 3–5 collect all errors into one report. **All-or-nothing:** nothing is written unless the whole file is clean and the user confirms; the commit is a single transaction (batch row + chunked inserts), backstopped by the unique index. Error codes live exclusively in `csv/errors.ts`. Matching is deliberately *forgiving on whitespace* (cells trimmed; no NFC normalization; blank numeric cells read as 0) — this is intended behavior as of v1.2, do not "fix" it to strict. **Upsert mode** (opt-in per upload) skips the already-imported rejection and updates existing rows in place (batched `UPDATE … FROM VALUES`); built for rolling attribution backfills; updates are not rollback-able. XLSX is accepted alongside CSV.
@@ -246,6 +257,7 @@ Some pages are labelled differently from their route — the URL stayed put so b
 
 | Route | Label | Notes |
 |---|---|---|
+| `/canvas` | Canvas | The campaign↔creative graph (§5h); read-only; React Flow loads here only |
 | `/library` | Library | Renamed from `/creatives`; hosts the **Creatives / Products / Angles** tabs. The table view is on the shared `DataTable` (2026-09): server-side sort reflected from `?sort=`, a Columns menu (per-browser hidden set; notes / source link / thumbnail / created-by / created-at hidden by default), angle + stage cells capped so a row can never grow, and a full-record CSV independent of the visible columns. The status strip sits above the list as a filter facet |
 | `/summary` | Ads | URL unchanged (saved views hang off it); the sidebar SECTION is also "Ads", deliberately |
 | `/uploads` | Upload ads | Hosts the **History / CSV mapping** tabs |

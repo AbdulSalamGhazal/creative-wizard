@@ -19,6 +19,7 @@ If a rule here conflicts with one of those documents, the documents win — flag
 - Auth: custom HMAC-signed cookie sessions (`lib/auth-cookie.ts`) + bcrypt passwords (`lib/auth-password.ts`). Users created via `/admin/users`; first admin via `db/create-admin.ts`. NOT Auth.js/Google — those were never wired up. **Authorization is GRANULAR per-user permissions** (`lib/permissions.ts` catalog is the single source of truth) — see the Learned entry. Admins bypass every check; below admin, each capability is individually grantable and managed on the unified **Team** page (`/admin/users`).
 - Tailwind + shadcn/ui + shadcn charts (Recharts under the hood)
 - papaparse (CSV), Zod (validation)
+- **`@xyflow/react` (React Flow), EXACT-pinned `12.11.6`** — the one dependency added in months, user-approved. Justification: *purpose-built node canvas (pan/zoom/minimap/focus) for the Canvas page; hand-rolling it is weeks of work.* It is imported by ONE module (`components/canvas/canvas-flow.tsx`) and loaded with `next/dynamic` (`ssr: false`), so it ships as a lazy chunk on `/canvas` only — see the Canvas entry under Learned.
 - Vercel hosting. Vercel KV is NOT used (upload-validation sessions live in Postgres). **Vercel Blob IS used** for creative thumbnails: uploaded via `POST /api/uploads/thumbnail` (requires `creative.edit`; client downscales→WebP first), stored public, and the returned URL is saved to `creatives.thumbnail_url`. Requires `BLOB_READ_WRITE_TOKEN` (auto-added when a Blob store is connected to the project); the blob host is allow-listed in `next.config.ts` `images.remotePatterns`.
 
 Do not introduce a new dependency without a one-line justification in the PR description.
@@ -1049,7 +1050,8 @@ This app is deployed and in production use. Treat `main` as shippable.
 
 - **2026-09 IA pass — page names, routes, and where settings live.** The
   sidebar's Ads group reads **Dashboard · Library · Ads · Funnel · Campaigns ·
-  Trends · Compare · Upload ads** (order unchanged). Three renames, and only
+  Canvas · Trends · Compare · Upload ads** (Canvas was added later in 2026-09;
+  the rest of the order is unchanged). Three renames, and only
   ONE of them moved a URL:
   - **Library** — the Creatives page; the route really moved, `/creatives` →
     **`/library`** (`/creatives` and `/creatives/[name]` stay as PERMANENT
@@ -1189,6 +1191,72 @@ This app is deployed and in production use. Treat `main` as shippable.
   **MCP inherits all of it** — `get_summary`/`get_funnel` reuse the guarded
   queries, and the shared CONVENTIONS string states the reduced-metric rule.
   See tech-spec §5g.
+
+- **CANVAS (`/canvas`, 2026-09, phase C1) — the campaign↔creative graph.
+  READ-ONLY FACTS.** Ads section, between Campaigns and Trends. An edge exists
+  because a creative SPENT (> 0) inside a campaign in the selected range, under
+  the resolved Excluded toggle; nothing on the page is ever edited and every
+  control is a VIEWING tool. Nodes are NOT draggable, connectable or selectable
+  (React Flow makes that a first-class prop — it isn't awkward), and no
+  position is ever saved: these are facts, not a whiteboard.
+  - **The dependency:** `@xyflow/react` `12.11.6`, exact-pinned, user-approved
+    (see Stack for the justification line). ONE importer
+    (`components/canvas/canvas-flow.tsx`), loaded via `next/dynamic` +
+    `ssr: false` from `canvas-view.tsx`. Verified in the build: React Flow is a
+    single lazy chunk (~57 kB gz + ~2.6 kB gz CSS) referenced only by
+    `/canvas`'s loadable manifest — it is in NO route's first load, `/canvas`
+    included, and the shared first-load JS did not move. Keep it that way: do
+    not import `@xyflow/react` from a second module.
+  - **Data — `canvasGraph()` (`db/queries/canvas.ts`).** ONE aggregation scan
+    builds every edge and both node sets (`max: 1` discipline); statuses derive
+    from the cached status inputs (never another status scan). **"Active but
+    idle" creatives** — live by status, no edge in the range — are included as
+    unconnected nodes so their insight chip has something to focus; they cost
+    one PK lookup on `creatives`, and only when there are any. **Node totals
+    are the entity's TRUE range spend under the SQL-level filters** — the
+    status filter and the scale cap only HIDE things, they never restate a
+    number, so "42% of this campaign's spend" stays honest whatever is shown.
+    With a platform filter, a creative's status is the roll-up over the
+    SELECTED platforms (the Library's rule), or a TikTok-only creative would
+    read "active but idle" on an Instagram canvas when it is merely filtered
+    out. The range is resolved server-side (`resolvePreferredRange` → last 30
+    days); creative statuses default to everything but Terminated. **Google is
+    ordinary data here** — the canvas is about who spent where, which google
+    reports like everyone else, so its filter offers `ALL_PLATFORMS`.
+  - **Layout — bipartite, by hand, NO layout engine** (`lib/canvas.ts`, pure,
+    unit-tested). Campaigns left by spend desc; creatives right by the
+    BARYCENTER heuristic (average row of the campaigns feeding each one) so
+    edges cross less; ties by spend then name for a stable order; unconnected
+    creatives last. Edge width = sqrt(spend) inside a min/max, colored by the
+    CAMPAIGN's platform var, subtle until focused.
+  - **Nodes have FIXED dimensions AND carry `measured`.** The node list is
+    rebuilt on every focus change and culled off-screen
+    (`onlyRenderVisibleElements`), so React Flow would otherwise have no
+    measured size for most nodes — and `fitView({ nodes })` silently IGNORES a
+    node without one. That shipped for an hour in development: the minimap was
+    empty and an insight chip snapped the viewport to identity. Supplying
+    `width`/`height`/`measured` from the layout constants fixes both, and means
+    the canvas never waits on DOM measurement.
+  - **Focus** = the primary node(s), every edge touching one, and the
+    neighbours at the other end (`focusFor`); everything else dims to 15%.
+    Click a node, pick a search result, or click an insight chip (those two
+    also pan/zoom to the subgraph); empty-canvas click or Esc clears.
+    Double-click opens the entity's detail page.
+  - **The insights strip TELLS you the patterns** (`canvasInsights`, pure,
+    computed from the same graph the canvas draws so a chip can never point at
+    a missing node): active campaigns running only non-active creatives ·
+    active creatives idle in the range · the most-shared creative (≥ 2
+    campaigns; ties to the bigger spender). Zero-case chips are absent.
+  - **Scale cap: ~400 nodes / ~800 edges** (`capEdges`) — keep the TOP edges by
+    spend and SAY SO ("showing the top N of M connections by spend"); idle
+    creatives that don't fit the node budget are counted in the same note.
+    Never a hairball, never a silent truncation.
+  - **Theming:** React Flow's chrome is re-pointed at the app's tokens through
+    its `--xy-*` CSS variables (canvas = `--background`, minimap/controls =
+    `--surface`, edges via the platform vars), so all four themes hold. The
+    top-bar screenshot button captures the canvas faithfully — React Flow
+    renders DOM + SVG, and `modern-screenshot` handles both (verified).
+  - **C2 (pending): cluster views.** C1 is the Network view only.
 
 - **The Library's status STRIP is a FACET of the listing, not a query
   (2026-09).** It sits directly ABOVE the list (both views), not in the page

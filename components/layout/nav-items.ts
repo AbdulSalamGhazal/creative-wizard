@@ -18,6 +18,7 @@ import {
   Users,
   UsersRound,
   ScrollText,
+  Workflow,
 } from "lucide-react";
 import type { Permission } from "@/lib/permissions";
 
@@ -80,6 +81,8 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/summary", label: "Ads", icon: Table2, group: "ads" },
   { href: "/funnel", label: "Funnel", icon: Filter, group: "ads" },
   { href: "/campaigns", label: "Campaigns", icon: Megaphone, group: "ads" },
+  // The campaign↔creative graph — read-only, sits with the two things it joins.
+  { href: "/canvas", label: "Canvas", icon: Workflow, group: "ads" },
   // Trends is a hub, not a page: the href is its first child (used when the
   // desktop rail is collapsed to icons and by the mobile nav's parent link).
   {
