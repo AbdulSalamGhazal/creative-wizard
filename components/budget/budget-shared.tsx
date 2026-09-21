@@ -311,3 +311,84 @@ export function UnitInput({
     </div>
   );
 }
+
+/**
+ * One bar per day of the month, height = that day's planned money — the Plan
+ * tab's day-grain chart. Lifted out of the curve editor so the daily-mode tab
+ * and the upload preview draw the SAME bars: a month planned either way reads
+ * the same. Interactive only when `onSelectDay` is given.
+ */
+export function PlanDayBars({
+  values,
+  label,
+  emphasize,
+  selectedDay = null,
+  onSelectDay,
+  ariaLabel,
+  className,
+  tone = "muted",
+}: {
+  /**
+   * `muted`: the curve editor's reading — a grey bar is an ORDINARY day and the
+   * brand tint marks a weighted one. `data`: every bar IS the plan (a daily
+   * month, the upload preview), so every bar carries the brand — grey bars
+   * measured 1.2:1 on the dialog's background and all but vanished.
+   */
+  tone?: "muted" | "data";
+  /** Per day, index 0 = day 1. */
+  values: readonly number[];
+  /** A day's value as text (tooltips + aria). */
+  label: (value: number) => string;
+  /** Days drawn in the brand tint (weighted days on a curve). */
+  emphasize?: (day: number) => boolean;
+  selectedDay?: number | null;
+  onSelectDay?: (day: number | null) => void;
+  ariaLabel: string;
+  className?: string;
+}) {
+  const peak = Math.max(...values, 0) || 1;
+  return (
+    <div className={cn("flex h-28 items-end gap-px", className)} role="img" aria-label={ariaLabel}>
+      {values.map((value, i) => {
+        const day = i + 1;
+        const selected = selectedDay === day;
+        // Data bars are FULL brand — the only fill that clears 3:1 against both
+        // the panel and the dialog on all four themes (measured: 3.59–9.78;
+        // /70 fell to 2.3 on Midnight) — so selection there switches to ink.
+        const fill =
+          tone === "data"
+            ? selected
+              ? "bg-ink"
+              : "bg-[var(--brand)]"
+            : selected
+              ? "bg-[var(--brand)]"
+              : emphasize?.(day)
+                ? "bg-[var(--brand)]/60"
+                : "bg-surface-3";
+        const style = { height: `${Math.max(3, (value / peak) * 100)}%` };
+        const title = `Day ${day} · ${label(value)}`;
+        return onSelectDay ? (
+          <button
+            key={day}
+            type="button"
+            onClick={() => onSelectDay(selected ? null : day)}
+            title={title}
+            aria-label={title}
+            className={cn(
+              "min-w-0 flex-1 cursor-pointer rounded-t-[2px] transition-all hover:bg-[var(--brand)]/40",
+              fill,
+            )}
+            style={style}
+          />
+        ) : (
+          <div
+            key={day}
+            title={title}
+            className={cn("min-w-0 flex-1 rounded-t-[2px]", fill)}
+            style={style}
+          />
+        );
+      })}
+    </div>
+  );
+}

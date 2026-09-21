@@ -7,6 +7,9 @@ const snapshot = (over: Partial<BudgetPlanSnapshot> = {}): BudgetPlanSnapshot =>
   plannedRevenueSar: 25_000,
   reserveSpendUsd: 500,
   dayWeights: {},
+  mode: "curve",
+  days: [],
+  targetRoas: null,
   ...over,
 });
 

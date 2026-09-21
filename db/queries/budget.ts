@@ -4,6 +4,7 @@ import {
   accounts,
   budgetAllocations,
   budgetDayWeights,
+  budgetPlanDays,
   budgetPlanRevisions,
   budgetTargets,
   campaigns,
@@ -17,14 +18,22 @@ import {
   type BudgetPlanSnapshot,
 } from "@/validators/budget";
 import {
+  allocationsFromDays,
   budgetComboKey,
+  buildPlanSeries,
+  daysInMonth,
   isoPlusDays,
   mapWeightsToMonth,
   monthStartIso,
   nextMonthKey,
+  planSeriesSourceOf,
+  revenueFromRoas,
   toBudgetObjective,
   validateWeight,
   type BudgetObjective,
+  type PlanDayCell,
+  type PlanMode,
+  type PlanSeries,
 } from "@/lib/budget";
 
 /**
@@ -64,6 +73,12 @@ export interface BudgetMonthData {
   actualRevenueSar: number;
   actualOrders: number;
   usdToSarRate: number;
+  /** How the month is planned (absent targets row = curve). */
+  planMode: PlanMode;
+  /** Daily mode's cells, sparse; empty in curve mode. */
+  planDays: PlanDayCell[];
+  /** Daily mode's revenue link; null in curve mode. */
+  targetRoas: number | null;
 }
 
 /** Fold raw (platform, campaign objective) spend rows onto Budget's buckets. */
@@ -91,7 +106,7 @@ export async function getBudgetMonth(month: string): Promise<BudgetMonthData> {
   const acct = await getActiveAccountId();
   const { start, end } = monthBounds(month);
 
-  const [allocations, targetRows, weightRows, spendRows, revenueRow, rateRow] =
+  const [allocations, targetRows, weightRows, spendRows, revenueRow, rateRow, dayRows] =
     await Promise.all([
       db
         .select({
@@ -107,6 +122,8 @@ export async function getBudgetMonth(month: string): Promise<BudgetMonthData> {
         .select({
           planned: budgetTargets.plannedRevenueSar,
           reserve: budgetTargets.reserveSpendUsd,
+          mode: budgetTargets.planMode,
+          roas: budgetTargets.targetRoas,
         })
         .from(budgetTargets)
         .where(and(eq(budgetTargets.accountId, acct), eq(budgetTargets.month, start)))
@@ -150,7 +167,27 @@ export async function getBudgetMonth(month: string): Promise<BudgetMonthData> {
         .from(accounts)
         .where(eq(accounts.id, acct))
         .limit(1),
+      // Always read (a curve month simply has none) — knowing the mode first
+      // would cost a serial round-trip on the max:1 connection.
+      db
+        .select({
+          day: budgetPlanDays.day,
+          platform: budgetPlanDays.platform,
+          objective: budgetPlanDays.objective,
+          plannedSpend: budgetPlanDays.plannedSpend,
+        })
+        .from(budgetPlanDays)
+        .where(and(eq(budgetPlanDays.accountId, acct), eq(budgetPlanDays.month, start)))
+        .orderBy(asc(budgetPlanDays.day)),
     ]);
+
+  const planMode: PlanMode = targetRows[0]?.mode === "daily" ? "daily" : "curve";
+  const usdToSarRate = Number(rateRow[0]?.rate ?? 3.77);
+  const planDays = planMode === "daily" ? dayRows.map(toDayCell) : [];
+  const targetRoas =
+    planMode === "daily" && targetRows[0]?.roas != null ? Number(targetRows[0].roas) : null;
+  const storedRevenue =
+    targetRows[0] && Number(targetRows[0].planned) > 0 ? Number(targetRows[0].planned) : null;
 
   return {
     monthIso: start,
@@ -161,11 +198,14 @@ export async function getBudgetMonth(month: string): Promise<BudgetMonthData> {
       plannedSpend: Number(a.plannedSpend),
     })),
     // A zero stored revenue target reads as "no target" (rows can exist for
-    // the reserve alone, since planned_revenue_sar is NOT NULL).
+    // the reserve alone, since planned_revenue_sar is NOT NULL). A DAILY
+    // month's target is DERIVED — cells × target ROAS × the CURRENT rate — so
+    // it agrees with its series (the rate applies retroactively, like every
+    // other SAR figure in Budget); the stored column is a write-time echo.
     plannedRevenueSar:
-      targetRows[0] && Number(targetRows[0].planned) > 0
-        ? Number(targetRows[0].planned)
-        : null,
+      planMode === "daily"
+        ? dailyRevenueTarget(planDays, targetRoas, usdToSarRate)
+        : storedRevenue,
     reserveSpendUsd: targetRows[0] ? Number(targetRows[0].reserve) : 0,
     dayWeightOverrides: Object.fromEntries(
       weightRows.map((w) => [w.day, Number(w.weight)]),
@@ -176,8 +216,48 @@ export async function getBudgetMonth(month: string): Promise<BudgetMonthData> {
     actualSpendByCombo: bucketCombos(spendRows),
     actualRevenueSar: Number(revenueRow[0]?.revenue ?? 0),
     actualOrders: Number(revenueRow[0]?.orders ?? 0),
-    usdToSarRate: Number(rateRow[0]?.rate ?? 3.77),
+    usdToSarRate,
+    planMode,
+    planDays,
+    targetRoas,
   };
+}
+
+function toDayCell(r: {
+  day: number;
+  platform: string;
+  objective: string;
+  plannedSpend: string;
+}): PlanDayCell {
+  return {
+    day: r.day,
+    platform: r.platform,
+    objective: r.objective,
+    plannedSpend: Number(r.plannedSpend),
+  };
+}
+
+/** A daily month's revenue target: Σ cells × ROAS × rate (null = no ROAS). */
+function dailyRevenueTarget(
+  days: ReadonlyArray<PlanDayCell>,
+  roas: number | null,
+  rate: number,
+): number | null {
+  if (roas === null || roas <= 0) return null;
+  const spend = days.reduce((s, d) => s + d.plannedSpend, 0);
+  return spend > 0 ? revenueFromRoas(roas, spend, rate) : null;
+}
+
+/**
+ * THE plan series for a month — per-day planned spend by combo and per-day
+ * planned revenue, whichever mode the month is in (`buildPlanSeries`). The
+ * server-side entry point; client components build the same series from the
+ * `getBudgetMonth()` payload they already hold (`planSeriesSourceOf`), so
+ * there is one implementation of plan-to-date and no second fetch.
+ */
+export async function planSeriesForMonth(month: string): Promise<PlanSeries> {
+  const data = await getBudgetMonth(month);
+  return buildPlanSeries(planSeriesSourceOf(data, month));
 }
 
 /**
@@ -207,20 +287,46 @@ export interface BudgetPlanInput {
   reserveSpendUsd?: number;
   /** Day-weight overrides; only non-1 valid weights are persisted. */
   dayWeights?: Record<number, number>;
+  /** Plan mode (default curve). */
+  mode?: PlanMode;
+  /** Daily mode's cells — the truth; `allocations` is derived from them. */
+  days?: PlanDayCell[];
+  /** Daily mode's revenue link. */
+  targetRoas?: number | null;
 }
 
 /**
- * Replace a month's whole plan (allocations + revenue target) transactionally.
- * Full-replace semantics keeps the save path identical to the editor's draft
- * (what you see is exactly what's stored afterward).
+ * THE plan writer: replace a month's whole plan, transactionally (the caller
+ * owns the transaction). Every plan write — the editor's save, the sheet
+ * upload, copy, restore, the daily→curve collapse — lands here, and it
+ * returns the plan AS WRITTEN so the caller snapshots exactly that.
+ *
+ * - curve: allocations + target/reserve + day weights, as given; the month's
+ *   day cells are CLEARED (the revision that preceded this write keeps them).
+ * - daily: the day cells, verbatim (zero cells dropped, days past the month's
+ *   length refused upstream); the allocations are REWRITTEN as the cells' sums
+ *   — derived here, never trusted from the caller — so every monthly-total
+ *   consumer keeps working; the targets row always exists (it carries the
+ *   mode); day weights are left UNTOUCHED — dormant while the month is daily.
  */
 export async function replaceBudgetMonth(
   exec: Exec,
   acct: string,
   month: string,
-  plan: BudgetPlanInput,
-): Promise<void> {
+  input: BudgetPlanInput,
+): Promise<BudgetPlanInput> {
   const start = monthStartIso(month);
+  const mode: PlanMode = input.mode ?? "curve";
+  const days =
+    mode === "daily" ? (input.days ?? []).filter((d) => d.plannedSpend > 0) : [];
+  const plan: BudgetPlanInput = {
+    ...input,
+    mode,
+    days,
+    allocations: mode === "daily" ? allocationsFromDays(days) : input.allocations,
+    targetRoas: mode === "daily" ? (input.targetRoas ?? null) : null,
+  };
+
   await exec
     .delete(budgetAllocations)
     .where(and(eq(budgetAllocations.accountId, acct), eq(budgetAllocations.month, start)));
@@ -235,34 +341,68 @@ export async function replaceBudgetMonth(
       })),
     );
   }
+
+  await exec
+    .delete(budgetPlanDays)
+    .where(and(eq(budgetPlanDays.accountId, acct), eq(budgetPlanDays.month, start)));
+  if (days.length > 0) {
+    await exec.insert(budgetPlanDays).values(
+      days.map((d) => ({
+        accountId: acct,
+        month: start,
+        day: d.day,
+        platform: d.platform as (typeof budgetPlanDays.$inferInsert)["platform"],
+        objective: d.objective as (typeof budgetPlanDays.$inferInsert)["objective"],
+        plannedSpend: d.plannedSpend.toFixed(2),
+      })),
+    );
+  }
+
   await exec
     .delete(budgetTargets)
     .where(and(eq(budgetTargets.accountId, acct), eq(budgetTargets.month, start)));
   const reserve = plan.reserveSpendUsd ?? 0;
-  if (plan.plannedRevenueSar !== null || reserve > 0) {
+  if (mode === "daily" || plan.plannedRevenueSar !== null || reserve > 0) {
     await exec.insert(budgetTargets).values({
       accountId: acct,
       month: start,
       plannedRevenueSar: (plan.plannedRevenueSar ?? 0).toFixed(2),
       reserveSpendUsd: reserve.toFixed(2),
+      planMode: mode,
+      targetRoas: plan.targetRoas != null ? plan.targetRoas.toFixed(8) : null,
     });
   }
-  await exec
-    .delete(budgetDayWeights)
-    .where(and(eq(budgetDayWeights.accountId, acct), eq(budgetDayWeights.month, start)));
-  const weightEntries = Object.entries(plan.dayWeights ?? {})
-    .map(([d, w]) => ({ day: Number(d), weight: w }))
-    .filter((e) => e.day >= 1 && e.day <= 31 && e.weight !== 1 && validateWeight(e.weight));
-  if (weightEntries.length > 0) {
-    await exec.insert(budgetDayWeights).values(
-      weightEntries.map((e) => ({
-        accountId: acct,
-        month: start,
-        day: e.day,
-        weight: e.weight.toFixed(2),
-      })),
-    );
+
+  // Daily months leave the curve alone: it is dormant, not deleted.
+  if (mode === "curve") {
+    await exec
+      .delete(budgetDayWeights)
+      .where(and(eq(budgetDayWeights.accountId, acct), eq(budgetDayWeights.month, start)));
+    const weightEntries = Object.entries(plan.dayWeights ?? {})
+      .map(([d, w]) => ({ day: Number(d), weight: w }))
+      .filter((e) => e.day >= 1 && e.day <= 31 && e.weight !== 1 && validateWeight(e.weight));
+    if (weightEntries.length > 0) {
+      await exec.insert(budgetDayWeights).values(
+        weightEntries.map((e) => ({
+          accountId: acct,
+          month: start,
+          day: e.day,
+          weight: e.weight.toFixed(2),
+        })),
+      );
+    }
   }
+  return plan;
+}
+
+/** A month's stored plan mode (no targets row = curve). */
+export async function getPlanMode(exec: Exec, acct: string, month: string): Promise<PlanMode> {
+  const [row] = await exec
+    .select({ mode: budgetTargets.planMode })
+    .from(budgetTargets)
+    .where(and(eq(budgetTargets.accountId, acct), eq(budgetTargets.month, monthStartIso(month))))
+    .limit(1);
+  return row?.mode === "daily" ? "daily" : "curve";
 }
 
 /**
@@ -288,6 +428,8 @@ export async function copyBudgetMonth(
     .select({
       planned: budgetTargets.plannedRevenueSar,
       reserve: budgetTargets.reserveSpendUsd,
+      mode: budgetTargets.planMode,
+      roas: budgetTargets.targetRoas,
     })
     .from(budgetTargets)
     .where(and(eq(budgetTargets.accountId, acct), eq(budgetTargets.month, from)))
@@ -297,7 +439,30 @@ export async function copyBudgetMonth(
     .from(budgetDayWeights)
     .where(and(eq(budgetDayWeights.accountId, acct), eq(budgetDayWeights.month, from)));
 
-  const plan: BudgetPlanInput = {
+  // A DAILY source copies its days and its mode: the destination becomes a
+  // daily month too. Day numbers carry over; days past the destination's
+  // length are dropped (like weights), and the allocations are re-derived
+  // from the days that survive — by the writer, as always.
+  const mode: PlanMode = srcTarget[0]?.mode === "daily" ? "daily" : "curve";
+  const limit = daysInMonth(monthStartIso(toMonth));
+  const srcDays =
+    mode === "daily"
+      ? (
+          await exec
+            .select({
+              day: budgetPlanDays.day,
+              platform: budgetPlanDays.platform,
+              objective: budgetPlanDays.objective,
+              plannedSpend: budgetPlanDays.plannedSpend,
+            })
+            .from(budgetPlanDays)
+            .where(and(eq(budgetPlanDays.accountId, acct), eq(budgetPlanDays.month, from)))
+        )
+          .map(toDayCell)
+          .filter((d) => d.day <= limit)
+      : [];
+
+  const input: BudgetPlanInput = {
     allocations: src.map((a) => ({
       platform: a.platform,
       objective: a.objective,
@@ -311,9 +476,26 @@ export async function copyBudgetMonth(
       Object.fromEntries(srcWeights.map((w) => [w.day, Number(w.weight)])),
       toMonth,
     ),
+    mode,
+    days: srcDays,
+    targetRoas:
+      mode === "daily" && srcTarget[0]?.roas != null ? Number(srcTarget[0].roas) : null,
   };
-  await replaceBudgetMonth(exec, acct, toMonth, plan);
-  return { allocations: src.length, hasTarget: srcTarget.length > 0, plan };
+  if (mode === "daily") {
+    // The revenue echo follows the days that survived the copy.
+    const [rateRow] = await exec
+      .select({ rate: accounts.usdToSarRate })
+      .from(accounts)
+      .where(eq(accounts.id, acct))
+      .limit(1);
+    input.plannedRevenueSar = dailyRevenueTarget(
+      srcDays,
+      input.targetRoas ?? null,
+      Number(rateRow?.rate ?? 3.77),
+    );
+  }
+  const plan = await replaceBudgetMonth(exec, acct, toMonth, input);
+  return { allocations: plan.allocations.length, hasTarget: srcTarget.length > 0, plan };
 }
 
 // ── Pacing + History (v2) ────────────────────────────────────────────────────
@@ -435,13 +617,19 @@ export interface MonthPlanRow {
   /** YYYY-MM */
   month: string;
   allocations: Array<{ platform: string; objective: BudgetObjective; plannedSpend: number }>;
+  /** Stored target — for a DAILY month, the write-time echo; the series
+   *  (ROAS × the current rate) is the truth, which is why rows are consumed
+   *  through `buildPlanSeries` with the caller's rate. */
   plannedRevenueSar: number | null;
   reserveSpendUsd: number;
   dayWeights: Record<number, number>;
+  planMode: PlanMode;
+  planDays: PlanDayCell[];
+  targetRoas: number | null;
 }
 
 /**
- * The plans for every month a Pacing range touches — THREE queries total, one
+ * The plans for every month a Pacing range touches — FOUR queries total, one
  * per table with an `inArray` over the months, never a round-trip per month
  * (`lib/db.ts` is `max: 1`, so those would run serially). Months with no plan
  * simply come back empty, which the caller reads as "no plan", not "zero".
@@ -451,7 +639,7 @@ export async function budgetPlansForMonths(months: string[]): Promise<MonthPlanR
   const acct = await getActiveAccountId();
   const starts = months.map((m) => monthStartIso(m));
 
-  const [allocRows, targetRows, weightRows] = await Promise.all([
+  const [allocRows, targetRows, weightRows, dayRows] = await Promise.all([
     db
       .select({
         month: budgetAllocations.month,
@@ -468,6 +656,8 @@ export async function budgetPlansForMonths(months: string[]): Promise<MonthPlanR
         month: budgetTargets.month,
         planned: budgetTargets.plannedRevenueSar,
         reserve: budgetTargets.reserveSpendUsd,
+        mode: budgetTargets.planMode,
+        roas: budgetTargets.targetRoas,
       })
       .from(budgetTargets)
       .where(and(eq(budgetTargets.accountId, acct), inArray(budgetTargets.month, starts))),
@@ -481,6 +671,16 @@ export async function budgetPlansForMonths(months: string[]): Promise<MonthPlanR
       .where(
         and(eq(budgetDayWeights.accountId, acct), inArray(budgetDayWeights.month, starts)),
       ),
+    db
+      .select({
+        month: budgetPlanDays.month,
+        day: budgetPlanDays.day,
+        platform: budgetPlanDays.platform,
+        objective: budgetPlanDays.objective,
+        plannedSpend: budgetPlanDays.plannedSpend,
+      })
+      .from(budgetPlanDays)
+      .where(and(eq(budgetPlanDays.accountId, acct), inArray(budgetPlanDays.month, starts))),
   ]);
 
   const byMonth = new Map<string, MonthPlanRow>(
@@ -492,6 +692,9 @@ export async function budgetPlansForMonths(months: string[]): Promise<MonthPlanR
         plannedRevenueSar: null,
         reserveSpendUsd: 0,
         dayWeights: {},
+        planMode: "curve",
+        planDays: [],
+        targetRoas: null,
       },
     ]),
   );
@@ -507,6 +710,13 @@ export async function budgetPlansForMonths(months: string[]): Promise<MonthPlanR
     if (!row) continue;
     row.plannedRevenueSar = Number(r.planned) > 0 ? Number(r.planned) : null;
     row.reserveSpendUsd = Number(r.reserve);
+    row.planMode = r.mode === "daily" ? "daily" : "curve";
+    row.targetRoas = row.planMode === "daily" && r.roas != null ? Number(r.roas) : null;
+  }
+  for (const r of dayRows) {
+    const row = byMonth.get(r.month.slice(0, 7));
+    // Cells only count in a month that is actually daily.
+    if (row?.planMode === "daily") row.planDays.push(toDayCell(r));
   }
   for (const r of weightRows) {
     const row = byMonth.get(r.month.slice(0, 7));
@@ -541,6 +751,16 @@ export async function plannedMonths(): Promise<string[]> {
   return [...keys].sort((a, b) => (a < b ? 1 : -1));
 }
 
+/** Months planned DAY BY DAY (plan_mode = 'daily') — the Copy dialog says so. */
+export async function dailyPlannedMonths(): Promise<string[]> {
+  const acct = await getActiveAccountId();
+  const rows = await db
+    .select({ month: budgetTargets.month })
+    .from(budgetTargets)
+    .where(and(eq(budgetTargets.accountId, acct), eq(budgetTargets.planMode, "daily")));
+  return rows.map((r) => r.month.slice(0, 7)).sort((a, b) => (a < b ? 1 : -1));
+}
+
 export interface PlanRevisionRow {
   id: string;
   createdAt: string;
@@ -553,6 +773,10 @@ export interface PlanRevisionRow {
   plannedRevenueSar: number | null;
   reserveSpendUsd: number;
   weightOverrides: number;
+  /** How the plan was planned at that point (legacy snapshots = curve). */
+  mode: PlanMode;
+  /** Day cells in the snapshot (0 for a curve plan). */
+  dayCells: number;
   /**
    * The full snapshot, so the drawer can render the plan AND diff it against
    * the current one without a second round-trip. NULL when the stored shape no
@@ -605,6 +829,8 @@ export async function listPlanRevisions(
       plannedRevenueSar: snap?.plannedRevenueSar ?? null,
       reserveSpendUsd: snap?.reserveSpendUsd ?? 0,
       weightOverrides: snap ? Object.keys(snap.dayWeights).length : 0,
+      mode: snap?.mode ?? "curve",
+      dayCells: snap?.days.length ?? 0,
       snapshot: snap,
     };
   });

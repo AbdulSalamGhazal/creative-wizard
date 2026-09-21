@@ -24,12 +24,19 @@ import { getActiveAccountId } from "@/lib/tenant";
 import { db } from "@/lib/db";
 import { budgetPlanRevisions } from "@/db/schema";
 import {
+  convertPlanToCurve,
   copyBudgetFromMonth,
   restorePlanRevision,
   saveBudgetMonth,
 } from "@/app/actions/budget";
-import { getBudgetMonth, listPlanRevisions, plannedMonths } from "@/db/queries/budget";
-import { parsePlanCsvMatrix, planCsvTemplate } from "@/lib/budget-plan-csv";
+import {
+  budgetPlansForMonths,
+  dailyPlannedMonths,
+  getBudgetMonth,
+  listPlanRevisions,
+  planSeriesForMonth,
+  plannedMonths,
+} from "@/db/queries/budget";
 import { resetAndSeed } from "./fixtures";
 
 const MONTH = "2026-01";
@@ -241,120 +248,222 @@ describe("plan revisions — restore", () => {
 
 });
 
-describe("the CSV upload path — one writer, same guarantees", () => {
-  /** What the dialog hands `saveBudgetMonth` after a file parses. */
-  const uploadOf = (csv: string, over: Partial<{ revenue: number | null }> = {}) => {
-    const [head, ...body] = csv
-      .trim()
-      .split("\n")
-      .map((line) => line.split(",").map((c) => c.trim()));
-    const parsed = parsePlanCsvMatrix(head ?? [], body);
-    if (!parsed.ok) throw new Error(parsed.issues.map((i) => i.cell).join("; "));
-    return {
-      month: MONTH,
-      allocations: parsed.plan.allocations,
-      plannedRevenueSar: "revenue" in over ? (over.revenue ?? null) : 40_000,
-      reserveSpendUsd: parsed.plan.reserveSpendUsd,
-      dayWeights: [] as Array<{ day: number; weight: number }>,
-      note: "Uploaded from file",
-      source: "upload" as const,
-    };
-  };
+describe("DAILY plans — the upload path, one writer, one mode at a time", () => {
+  /** A daily upload as the dialog sends it (allocations empty on purpose). */
+  const upload = (
+    days: Array<{ day: number; platform: string; objective: string; plannedSpend: number }>,
+    over: Record<string, unknown> = {},
+  ) => ({
+    month: MONTH,
+    mode: "daily",
+    source: "upload",
+    days,
+    allocations: [],
+    plannedRevenueSar: null,
+    reserveSpendUsd: 300,
+    targetRoas: 2,
+    dayWeights: [],
+    note: "Uploaded from file",
+    ...over,
+  });
+  const DAYS = [
+    { day: 1, platform: "instagram", objective: "Awareness", plannedSpend: 100.1 },
+    { day: 2, platform: "instagram", objective: "Awareness", plannedSpend: 0.2 },
+    { day: 2, platform: "tiktok", objective: "Other", plannedSpend: 50 },
+    { day: 31, platform: "tiktok", objective: "Other", plannedSpend: 49.7 },
+  ];
+  const sortCells = (cells: Array<{ day: number; platform: string; objective: string; plannedSpend: number }>) =>
+    cells.map((c) => `${c.day}|${c.platform}|${c.objective}|${c.plannedSpend}`).sort();
 
-  const SHEET = `Platform,Awareness (USD),Activation (USD),Retargeting (USD),Other (USD)
-Instagram,3000,1500,,
-Snapchat,,,750,
-Reserve,400,,,`;
-
-  it("ROUND-TRIPS through getBudgetMonth and records a revision", async () => {
-    const res = await saveBudgetMonth(uploadOf(SHEET));
+  it("CONFIRM: days stored, mode + ROAS set, allocations = the SUMS, one revision", async () => {
+    const res = await saveBudgetMonth(upload(DAYS));
     expect(res.ok).toBe(true);
 
     const data = await getBudgetMonth(MONTH);
-    expect(
-      data.allocations
-        .map((a) => `${a.platform}|${a.objective}|${a.plannedSpend}`)
-        .sort(),
-    ).toEqual([
-      "instagram|Activation|1500",
-      "instagram|Awareness|3000",
-      "snapchat|Retargeting|750",
+    expect(data.planMode).toBe("daily");
+    expect(data.targetRoas).toBe(2);
+    expect(sortCells(data.planDays)).toEqual(sortCells(DAYS));
+    // The invariant every monthly consumer relies on: allocations are the
+    // cells' sums, derived by the writer (the client sent none).
+    expect(data.allocations.map((a) => `${a.platform}|${a.objective}|${a.plannedSpend}`).sort()).toEqual([
+      "instagram|Awareness|100.3",
+      "tiktok|Other|99.7",
     ]);
-    expect(data.reserveSpendUsd).toBeCloseTo(400, 2);
-    expect(data.plannedRevenueSar).toBeCloseTo(40_000, 2);
+    expect(data.reserveSpendUsd).toBe(300);
+    // Revenue target = Σ cells × ROAS × rate (fixtures' brand rate).
+    expect(data.plannedRevenueSar).toBeCloseTo(200 * 2 * data.usdToSarRate, 2);
 
-    // The same revision guarantee the editor gets — the upload is not a
-    // parallel writer, so history can't gain a hole.
-    const revisions = await listPlanRevisions(MONTH);
-    expect(revisions).toHaveLength(1);
-    expect(revisions[0]!.note).toBe("Uploaded from file");
-    expect(revisions[0]!.allocationCount).toBe(3);
-    expect(revisions[0]!.plannedTotal).toBeCloseTo(5250, 2);
-    expect(revisions[0]!.reserveSpendUsd).toBeCloseTo(400, 2);
+    const revs = await listPlanRevisions(MONTH);
+    expect(revs).toHaveLength(1);
+    expect(revs[0]!.mode).toBe("daily");
+    expect(revs[0]!.dayCells).toBe(4);
+    expect(revs[0]!.plannedTotal).toBeCloseTo(200, 2);
   });
 
-  it("FULL REPLACE: what the sheet leaves out is dropped", async () => {
-    await saveBudgetMonth(PLAN_A); // instagram|Other + facebook|Awareness
-    await saveBudgetMonth(uploadOf(SHEET));
-
-    const data = await getBudgetMonth(MONTH);
-    // Not merged onto the old plan — facebook is gone, instagram re-cut.
-    expect(data.allocations.map((a) => a.platform).sort()).toEqual([
-      "instagram",
-      "instagram",
-      "snapchat",
-    ]);
-    expect(await listPlanRevisions(MONTH)).toHaveLength(2);
+  it("planSeriesForMonth: a daily month's sums equal its cells", async () => {
+    await saveBudgetMonth(upload(DAYS));
+    const series = await planSeriesForMonth(MONTH);
+    expect(series.mode).toBe("daily");
+    const days = series.spendDays();
+    expect(days).toHaveLength(31);
+    expect(days[1]).toBeCloseTo(50.2, 9);
+    expect(series.spendToDate(0, 31)).toBeCloseTo(200, 9);
+    expect(series.spendToDate(0, 2, (p) => p === "instagram")).toBeCloseTo(100.3, 9);
   });
 
-  it("carries the stored day curve across untouched", async () => {
-    await saveBudgetMonth(PLAN_A); // day 15 weighted x2
-    const before = await getBudgetMonth(MONTH);
-    expect(before.dayWeightOverrides).toEqual({ 15: 2 });
+  it("planSeriesForMonth: a curve month is the curve (regression)", async () => {
+    await saveBudgetMonth(PLAN_A); // 1500 allocated, day 15 ×2, revenue 25k
+    const series = await planSeriesForMonth(MONTH);
+    expect(series.mode).toBe("curve");
+    // 31 days, weights sum 32: day 15 carries 2/32 of the plan.
+    expect(series.spendDays()[14]).toBeCloseTo((1500 * 2) / 32, 9);
+    expect(series.revenueToDate(31)).toBeCloseTo(25_000, 6);
+  });
 
-    // The dialog reads the stored weights and hands them straight back — the
-    // sheet carries money, not the calendar.
-    const upload = uploadOf(SHEET);
-    upload.dayWeights = Object.entries(before.dayWeightOverrides).map(([d, w]) => ({
-      day: Number(d),
-      weight: w,
-    }));
-    expect((await saveBudgetMonth(upload)).ok).toBe(true);
+  it("the stored day curve is left UNTOUCHED (dormant) by a daily write", async () => {
+    await saveBudgetMonth(PLAN_A); // day 15 ×2
+    await saveBudgetMonth(upload(DAYS));
     expect((await getBudgetMonth(MONTH)).dayWeightOverrides).toEqual({ 15: 2 });
   });
 
-  it("a prefilled template round-trips to the SAME plan it was generated from", async () => {
-    await saveBudgetMonth(PLAN_A);
-    const stored = await getBudgetMonth(MONTH);
-
-    const csv = planCsvTemplate({
-      allocations: stored.allocations,
-      reserveSpendUsd: stored.reserveSpendUsd,
-    });
-    const upload = uploadOf(csv, { revenue: stored.plannedRevenueSar });
-    upload.dayWeights = Object.entries(stored.dayWeightOverrides).map(([d, w]) => ({
-      day: Number(d),
-      weight: w,
-    }));
-    expect((await saveBudgetMonth(upload)).ok).toBe(true);
-
-    const after = await getBudgetMonth(MONTH);
-    const shape = (d: typeof after) => ({
-      allocations: d.allocations
-        .map((a) => `${a.platform}|${a.objective}|${a.plannedSpend}`)
-        .sort(),
-      reserve: d.reserveSpendUsd,
-      revenue: d.plannedRevenueSar,
-      weights: d.dayWeightOverrides,
-    });
-    expect(shape(after)).toEqual(shape(stored));
+  it("ONE MODE AT A TIME: the editor can't save over a daily month", async () => {
+    await saveBudgetMonth(upload(DAYS));
+    const res = await saveBudgetMonth(PLAN_A);
+    expect(res.ok).toBe(false);
+    expect(res.error).toContain("day by day");
+    expect((await getBudgetMonth(MONTH)).planMode).toBe("daily");
   });
 
-  it("still refuses a plan the schema rejects — validation is not bypassed", async () => {
-    const bad = { ...uploadOf(SHEET), allocations: [{ platform: "pinterest", objective: "Awareness", plannedSpend: 10 }] };
-    const res = await saveBudgetMonth(bad);
-    expect(res.ok).toBe(false);
+  it("re-upload to edit: a second sheet fully REPLACES the first's cells", async () => {
+    await saveBudgetMonth(upload(DAYS));
+    await saveBudgetMonth(upload([{ day: 5, platform: "google", objective: "Other", plannedSpend: 10 }]));
+    const data = await getBudgetMonth(MONTH);
+    expect(sortCells(data.planDays)).toEqual(["5|google|Other|10"]);
+    expect(data.allocations).toHaveLength(1);
+  });
+
+  it("refuses a day past the month's end, and duplicate cells", async () => {
+    const feb = await saveBudgetMonth(
+      upload([{ day: 30, platform: "instagram", objective: "Awareness", plannedSpend: 1 }], {
+        month: "2026-02",
+      }),
+    );
+    expect(feb.ok).toBe(false);
+    const dup = await saveBudgetMonth(upload([DAYS[0]!, DAYS[0]!]));
+    expect(dup.ok).toBe(false);
     expect(await listPlanRevisions(MONTH)).toHaveLength(0);
+  });
+
+  it("CONVERT: collapses to monthly sums, linear curve, SAR target, curve mode", async () => {
+    await saveBudgetMonth(PLAN_A); // leaves day 15 ×2 behind, dormant
+    await saveBudgetMonth(upload(DAYS));
+    const before = await getBudgetMonth(MONTH);
+
+    const res = await convertPlanToCurve({ month: MONTH });
+    expect(res.ok).toBe(true);
+    const after = await getBudgetMonth(MONTH);
+    expect(after.planMode).toBe("curve");
+    expect(after.planDays).toEqual([]);
+    expect(after.targetRoas).toBeNull();
+    // The monthly totals survive exactly; the target becomes a plain SAR one.
+    expect(after.allocations).toEqual(before.allocations.map((a) => ({ ...a, id: expect.any(String) })));
+    expect(after.plannedRevenueSar).toBeCloseTo(before.plannedRevenueSar!, 2);
+    expect(after.reserveSpendUsd).toBe(300);
+    // LINEAR thereafter — the dormant curve does not come back.
+    expect(after.dayWeightOverrides).toEqual({});
+
+    // Nothing is lost: the daily revision is still there to restore.
+    const revs = await listPlanRevisions(MONTH);
+    expect(revs[0]!.mode).toBe("curve");
+    expect(revs[0]!.note).toContain("collapsed");
+    expect(revs[1]!.mode).toBe("daily");
+
+    // Converting a curve month is refused.
+    expect((await convertPlanToCurve({ month: MONTH })).ok).toBe(false);
+  });
+
+  it("RESTORE across modes: a daily revision comes back daily; a curve one, curve", async () => {
+    await saveBudgetMonth(upload(DAYS));
+    await convertPlanToCurve({ month: MONTH });
+    const [curveRev, dailyRev] = await listPlanRevisions(MONTH);
+
+    expect((await restorePlanRevision({ revisionId: dailyRev!.id })).ok).toBe(true);
+    let data = await getBudgetMonth(MONTH);
+    expect(data.planMode).toBe("daily");
+    expect(sortCells(data.planDays)).toEqual(sortCells(DAYS));
+    expect(data.targetRoas).toBe(2);
+
+    expect((await restorePlanRevision({ revisionId: curveRev!.id })).ok).toBe(true);
+    data = await getBudgetMonth(MONTH);
+    expect(data.planMode).toBe("curve");
+    expect(data.planDays).toEqual([]);
+  });
+
+  it("a LEGACY snapshot (written before modes) restores as a curve month", async () => {
+    await saveBudgetMonth(upload(DAYS));
+    // Hand-write a pre-0048 snapshot: no mode, no days, no ROAS.
+    await db.insert(budgetPlanRevisions).values({
+      accountId: ACCOUNT_A,
+      month: "2026-01-01",
+      snapshot: {
+        allocations: [{ platform: "facebook", objective: "Awareness", plannedSpend: 700 }],
+        plannedRevenueSar: 9000,
+        reserveSpendUsd: 0,
+        dayWeights: { "3": 2 },
+      },
+      note: "legacy",
+      savedBy: USER,
+    });
+    const legacy = (await listPlanRevisions(MONTH)).find((r) => r.note === "legacy")!;
+    expect(legacy.mode).toBe("curve");
+    expect((await restorePlanRevision({ revisionId: legacy.id })).ok).toBe(true);
+    const data = await getBudgetMonth(MONTH);
+    expect(data.planMode).toBe("curve");
+    expect(data.planDays).toEqual([]);
+    expect(data.dayWeightOverrides).toEqual({ 3: 2 });
+    expect(data.plannedRevenueSar).toBe(9000);
+  });
+
+  it("COPY of a daily month copies its days + mode (days past the end dropped)", async () => {
+    await saveBudgetMonth(upload(DAYS)); // January: has a day-31 cell
+    const res = await copyBudgetFromMonth({ month: "2026-02", from: MONTH });
+    expect(res.ok).toBe(true);
+    const feb = await getBudgetMonth("2026-02");
+    expect(feb.planMode).toBe("daily");
+    expect(feb.targetRoas).toBe(2);
+    expect(sortCells(feb.planDays)).toEqual(sortCells(DAYS.filter((d) => d.day <= 28)));
+    // Allocations re-derived from the days that SURVIVED (49.7 on day 31 is gone).
+    expect(feb.allocations.find((a) => a.platform === "tiktok")!.plannedSpend).toBe(50);
+    const revs = await listPlanRevisions("2026-02");
+    expect(revs[0]!.mode).toBe("daily");
+  });
+
+  it("COPY of a curve month over a daily one makes it a curve month again", async () => {
+    await saveBudgetMonth({ ...PLAN_A, month: "2026-03" });
+    await saveBudgetMonth(upload(DAYS));
+    expect((await copyBudgetFromMonth({ month: MONTH, from: "2026-03" })).ok).toBe(true);
+    const data = await getBudgetMonth(MONTH);
+    expect(data.planMode).toBe("curve");
+    expect(data.planDays).toEqual([]);
+  });
+
+  it("budgetPlansForMonths carries the mode and cells for Pacing", async () => {
+    await saveBudgetMonth(upload(DAYS));
+    await saveBudgetMonth({ ...PLAN_A, month: "2026-02" });
+    const [jan, feb] = await budgetPlansForMonths(["2026-01", "2026-02"]);
+    expect(jan!.planMode).toBe("daily");
+    expect(jan!.planDays).toHaveLength(4);
+    expect(jan!.targetRoas).toBe(2);
+    expect(feb!.planMode).toBe("curve");
+    expect(feb!.planDays).toEqual([]);
+  });
+
+  it("dailyPlannedMonths lists the daily ones, account-scoped", async () => {
+    await saveBudgetMonth(upload(DAYS));
+    await saveBudgetMonth({ ...PLAN_A, month: "2026-02" });
+    expect(await dailyPlannedMonths()).toEqual([MONTH]);
+    setAccount(ACCOUNT_B);
+    expect(await dailyPlannedMonths()).toEqual([]);
   });
 });
 

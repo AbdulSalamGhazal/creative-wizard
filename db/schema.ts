@@ -19,7 +19,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { CAMPAIGN_OBJECTIVES } from "@/lib/campaign";
-import { BUDGET_OBJECTIVES } from "@/lib/budget";
+import { BUDGET_OBJECTIVES, PLAN_MODES } from "@/lib/budget";
 import { FUNNEL_STAGES } from "@/lib/audience";
 import { ALL_PLATFORMS } from "@/lib/palette";
 
@@ -816,6 +816,23 @@ export const budgetTargets = pgTable(
     reserveSpendUsd: numeric("reserve_spend_usd", { precision: 12, scale: 2 })
       .notNull()
       .default("0"),
+    /**
+     * How the month is planned (`PLAN_MODES`, migration 0048): `curve` (the
+     * editor + day-weight curve) or `daily` (explicit day cells in
+     * `budget_plan_days`, uploaded from a sheet). No row = curve.
+     */
+    planMode: varchar("plan_mode", { length: 8, enum: PLAN_MODES })
+      .notNull()
+      .default("curve"),
+    /**
+     * The daily-mode revenue link: SAR revenue per SAR of spend — the brand's
+     * ROAS convention (`roasThroughRate`), so revenue on day d = spend_d (USD)
+     * × target_roas × usd_to_sar_rate. NULL in curve mode, and in a daily month
+     * with no revenue target.
+     */
+    // 8 dp so a TYPED revenue target survives the round trip: at 4 dp,
+    // SAR 100,000 over $11k of spend read back as SAR 100,000.99.
+    targetRoas: numeric("target_roas", { precision: 14, scale: 8 }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -851,6 +868,41 @@ export const budgetDayWeights = pgTable(
       t.accountId,
       t.month,
       t.day,
+    ),
+  }),
+);
+
+/**
+ * Day-grain plan cells (migration 0048) — the truth of a `daily`-mode month:
+ * planned spend (USD) per day × platform × budget bucket. Values land ONLY via
+ * the sheet upload (and copy / restore of a daily plan); the month's
+ * `budget_allocations` are kept as their derived SUMS by the one plan writer,
+ * so every monthly-total consumer keeps working. A curve-mode write clears the
+ * month's rows (the revision keeps them). Sparse: a zero cell is not stored.
+ * Tenant table (§4.1).
+ */
+export const budgetPlanDays = pgTable(
+  "budget_plan_days",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    accountId: accountId(),
+    /** First day of the month (the module's monthStartIso convention). */
+    month: date("month").notNull(),
+    /** Day of month, 1..31 (code-validated ≤ the month's real length). */
+    day: smallint("day").notNull(),
+    platform: varchar("platform", { length: 16, enum: platformEnum }).notNull(),
+    objective: varchar("objective", { length: 16, enum: BUDGET_OBJECTIVES }).notNull(),
+    plannedSpend: numeric("planned_spend", { precision: 12, scale: 2 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    // Also the month read's index: (account_id, month) is its leading prefix.
+    accountMonthDayComboUnique: uniqueIndex("budget_plan_days_account_month_day_combo_idx").on(
+      t.accountId,
+      t.month,
+      t.day,
+      t.platform,
+      t.objective,
     ),
   }),
 );

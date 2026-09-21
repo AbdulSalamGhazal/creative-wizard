@@ -42,9 +42,10 @@ import {
   pacingVerdict,
   roasThroughRate,
   spendInDisplayCurrency,
+  buildPlanSeries,
   stitchPlanByDay,
   weekBucketsInRange,
-  type MonthPlan,
+  type PlanSeries,
   type RangeBucket,
 } from "@/lib/budget";
 import type { BudgetPacingSeries, MonthPlanRow } from "@/db/queries/budget";
@@ -229,46 +230,44 @@ export function BudgetPacing({
   }, [series.days]);
 
   // ── Plan per day, stitched across every month the range touches ────────────
-  const monthPlans: MonthPlan[] = useMemo(
+  // Each month contributes its SERIES — a curve month its curve-expanded
+  // allocations, a daily month its cells verbatim — so a range spanning both
+  // kinds of month compares honestly. Nothing here expands a curve itself.
+  const monthSeries: PlanSeries[] = useMemo(
     () =>
-      plans.map((p) => ({
-        month: p.month,
-        // A platform filter scopes the PLAN too, so the comparison stays honest.
-        plannedSpend: p.allocations
-          .filter((a) => inScope(a.platform))
-          .reduce((s, a) => s + a.plannedSpend, 0),
-        plannedRevenueSar: p.plannedRevenueSar,
-        dayWeights: p.dayWeights,
-      })),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [plans, platforms.join(",")],
+      plans.map((p) =>
+        buildPlanSeries({
+          month: p.month,
+          planMode: p.planMode,
+          allocations: p.allocations,
+          plannedRevenueSar: p.plannedRevenueSar,
+          dayWeights: p.dayWeights,
+          planDays: p.planDays,
+          targetRoas: p.targetRoas,
+          usdToSarRate: rate,
+        }),
+      ),
+    [plans, rate],
   );
 
   const planSpendPerDay = useMemo(() => {
-    if (!byObjective || activeMetric !== "spend") {
-      return new Map([[TOTAL_KEY, stitchPlanByDay(monthPlans, (m) => m.plannedSpend)]]);
-    }
-    // One stitched curve per objective bucket, each from its own scoped total.
+    // A platform filter scopes the PLAN too, so the comparison stays honest.
+    const scoped = (objective?: string) => (platform: string, o: string) =>
+      inScope(platform) && (objective === undefined || o === objective);
     const out = new Map<string, Map<string, number>>();
-    out.set(TOTAL_KEY, stitchPlanByDay(monthPlans, (m) => m.plannedSpend));
+    out.set(TOTAL_KEY, stitchPlanByDay(monthSeries, (m) => m.spendDays(scoped())));
+    if (!byObjective || activeMetric !== "spend") return out;
+    // One stitched series per objective bucket, each from its own slice.
     for (const objective of BUDGET_OBJECTIVES) {
-      const scoped = plans.map((p) => ({
-        month: p.month,
-        plannedSpend: p.allocations
-          .filter((a) => inScope(a.platform) && a.objective === objective)
-          .reduce((s, a) => s + a.plannedSpend, 0),
-        plannedRevenueSar: null,
-        dayWeights: p.dayWeights,
-      }));
-      out.set(objective, stitchPlanByDay(scoped, (m) => m.plannedSpend));
+      out.set(objective, stitchPlanByDay(monthSeries, (m) => m.spendDays(scoped(objective))));
     }
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [monthPlans, plans, byObjective, activeMetric, platforms.join(",")]);
+  }, [monthSeries, byObjective, activeMetric, platforms.join(",")]);
 
   const planRevenuePerDay = useMemo(
-    () => stitchPlanByDay(monthPlans, (m) => m.plannedRevenueSar),
-    [monthPlans],
+    () => stitchPlanByDay(monthSeries, (m) => m.revenueDays()),
+    [monthSeries],
   );
 
   // ── Buckets ────────────────────────────────────────────────────────────────

@@ -9,7 +9,8 @@ import { cn } from "@/lib/utils";
 import {
   BUDGET_OBJECTIVES,
   budgetComboKey,
-  curveExpected,
+  buildPlanSeries,
+  planSeriesSourceOf,
   pacingDeviation,
   pacingVerdict,
   spendInDisplayCurrency,
@@ -61,7 +62,8 @@ export function BudgetAllocationCheck({
 }) {
   const rate = data.usdToSarRate;
   const fmtSpend = (usdAmount: number) => formatSpend(usdAmount, currency, rate);
-  const weights = data.dayWeightOverrides;
+  // Plan-to-date through the month's series (curve or daily cells).
+  const series = useMemo(() => buildPlanSeries(planSeriesSourceOf(data, month)), [data, month]);
 
   const rows: CheckRow[] = useMemo(() => {
     const planned = new Map(
@@ -111,18 +113,23 @@ export function BudgetAllocationCheck({
   }, [rows]);
 
   const totalDeviation = isCurrentMonth
-    ? pacingDeviation(
-        totals.actual,
-        curveExpected(totals.planned, month, weights, elapsedDays),
-      )
+    ? pacingDeviation(totals.actual, series.spendToDate(totals.planned, elapsedDays))
     : null;
 
   const devCell = (dev: number | null) => <PacingDevCell deviation={dev} />;
 
   const columns: DataColumn<CheckRow>[] = useMemo(() => {
     const platformLabel = (r: CheckRow) => platformName(r.platform ?? "");
+    // A row's slice: its bucket, and its platform when it is a combo row.
     const rowDeviation = (r: CheckRow) =>
-      pacingDeviation(r.actual, curveExpected(r.planned, month, weights, elapsedDays));
+      pacingDeviation(
+        r.actual,
+        series.spendToDate(
+          r.planned,
+          elapsedDays,
+          (p, o) => o === r.objective && (r.platform === null || p === r.platform),
+        ),
+      );
 
     return [
       {
@@ -230,7 +237,7 @@ export function BudgetAllocationCheck({
       },
     ];
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currency, rate, totals, isCurrentMonth, elapsedDays, month, weights, totalDeviation]);
+  }, [currency, rate, totals, isCurrentMonth, elapsedDays, series, totalDeviation]);
 
   return (
     <DataTable<CheckRow>

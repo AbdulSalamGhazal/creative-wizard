@@ -51,8 +51,33 @@ import {
   distributeShareEvenly,
   moveMoney,
   normalizeShares,
-  type MonthPlan,
+  buildPlanSeries,
+  allocationsFromDays,
+  revenueFromRoas,
+  roasFromRevenue,
+  type PlanDayCell,
+  type PlanSeriesSource,
 } from "@/lib/budget";
+
+
+/** A one-allocation curve month as a series source. */
+function curveSource(o: {
+  month: string;
+  spend: number;
+  revenue?: number | null;
+  dayWeights?: Record<number, number>;
+}): PlanSeriesSource {
+  return {
+    month: o.month,
+    planMode: "curve",
+    allocations: o.spend > 0 ? [{ platform: "instagram", objective: "Awareness", plannedSpend: o.spend }] : [],
+    plannedRevenueSar: o.revenue ?? null,
+    dayWeights: o.dayWeights ?? {},
+    planDays: [],
+    targetRoas: null,
+    usdToSarRate: 3.75,
+  };
+}
 
 describe("month helpers", () => {
   it("month lengths incl. leap February", () => {
@@ -347,11 +372,11 @@ describe("plan stitching across months", () => {
   });
 
   it("a cross-month range equals the sum of its months", () => {
-    const months: MonthPlan[] = [
-      { month: "2026-09", plannedSpend: 3000, plannedRevenueSar: null, dayWeights: { 15: 2 } },
-      { month: "2026-10", plannedSpend: 6200, plannedRevenueSar: null, dayWeights: {} },
-    ];
-    const byDay = stitchPlanByDay(months, (m) => m.plannedSpend);
+    const months = [
+      curveSource({ month: "2026-09", spend: 3000, dayWeights: { 15: 2 } }),
+      curveSource({ month: "2026-10", spend: 6200 }),
+    ].map(buildPlanSeries);
+    const byDay = stitchPlanByDay(months, (m) => m.spendDays());
     const sum = (from: string, to: string) => {
       let total = 0;
       for (const [iso, value] of byDay) if (iso >= from && iso <= to) total += value;
@@ -365,14 +390,11 @@ describe("plan stitching across months", () => {
   });
 
   it("skips months with no plan instead of zero-filling them", () => {
-    const months: MonthPlan[] = [
-      { month: "2026-09", plannedSpend: 100, plannedRevenueSar: null, dayWeights: {} },
-      { month: "2026-10", plannedSpend: 0, plannedRevenueSar: null, dayWeights: {} },
-    ];
-    const byDay = stitchPlanByDay(
-      months,
-      (m) => m.plannedRevenueSar,
-    );
+    const months = [
+      curveSource({ month: "2026-09", spend: 100 }),
+      curveSource({ month: "2026-10", spend: 0 }),
+    ].map(buildPlanSeries);
+    const byDay = stitchPlanByDay(months, (m) => m.revenueDays());
     expect(byDay.size).toBe(0); // neither month has a revenue target
   });
 });
@@ -998,6 +1020,13 @@ describe("per-day plan dollars (curve chart)", () => {
 // A 30-day month (September) with a linear curve, so "expected by day 10" is
 // exactly a third of the plan and every number below is hand-checkable.
 const TRACKER_MONTH = "2026-09";
+/** The pre-modes world: every existing month is a curve month. */
+const CURVE_MODE = {
+  planMode: "curve" as const,
+  planDays: [],
+  targetRoas: null,
+  usdToSarRate: 3.75,
+};
 
 function trackerInput(over: Partial<TrackerInput> = {}): TrackerInput {
   return {
@@ -1018,6 +1047,7 @@ function trackerInput(over: Partial<TrackerInput> = {}): TrackerInput {
     reserveSpendUsd: 4000,
     dayWeightOverrides: {},
     actualRevenueSar: 90000,
+    ...CURVE_MODE,
     ...over,
   };
 }
@@ -1193,6 +1223,7 @@ describe("buildTrackerRows", () => {
         reserveSpendUsd: 0,
         dayWeightOverrides: {},
         actualRevenueSar: 0,
+        ...CURVE_MODE,
       },
       TRACKER_MONTH,
       day10,
@@ -1210,6 +1241,7 @@ describe("buildTrackerRows", () => {
           reserveSpendUsd: 500,
           dayWeightOverrides: {},
           actualRevenueSar: 0,
+          ...CURVE_MODE,
         },
         TRACKER_MONTH,
         day10,
@@ -1228,6 +1260,7 @@ describe("buildTrackerRows", () => {
         reserveSpendUsd: 0,
         dayWeightOverrides: {},
         actualRevenueSar: 0,
+        ...CURVE_MODE,
       },
       TRACKER_MONTH,
       day10,
@@ -1237,5 +1270,235 @@ describe("buildTrackerRows", () => {
     expect(t.platforms[0]!.unplanned).toBe(700);
     expect(t.platforms[0]!.buckets).toEqual([]);
     expect(t.platforms[0]!.deviation).toBeNull(); // nothing expected → no verdict
+  });
+});
+
+// ── The unified plan series (2026-09) ────────────────────────────────────────
+
+describe("buildPlanSeries — CURVE months are the pre-modes math, bit for bit", () => {
+  // A deliberately awkward month: cents, several combos, a lumpy curve, and a
+  // revenue target — the regression must hold on the hard case, not a flat one.
+  const src: PlanSeriesSource = {
+    month: "2026-09",
+    planMode: "curve",
+    allocations: [
+      { platform: "instagram", objective: "Awareness", plannedSpend: 12345.67 },
+      { platform: "instagram", objective: "Retargeting", plannedSpend: 3210.01 },
+      { platform: "tiktok", objective: "Activation", plannedSpend: 999.99 },
+      { platform: "google", objective: "Other", plannedSpend: 4000 },
+    ],
+    plannedRevenueSar: 187654.32,
+    dayWeights: { 1: 0.5, 10: 3, 11: 2.5, 25: 3, 29: 0.5 },
+    // Stray cells on a CURVE month must be ignored — only daily months read them.
+    planDays: [{ day: 3, platform: "instagram", objective: "Awareness", plannedSpend: 1 }],
+    targetRoas: null,
+    usdToSarRate: 3.75,
+  };
+  const series = buildPlanSeries(src);
+  const month = "2026-09";
+  const ov = src.dayWeights;
+  const total = src.allocations.reduce((s, a) => s + a.plannedSpend, 0);
+
+  it("fraction, spend-to-date and projection are EXACTLY the old functions", () => {
+    for (let d = 0; d <= 31; d++) {
+      expect(series.fraction(d)).toBe(curveFraction(month, ov, d));
+      expect(series.spendToDate(total, d)).toBe(curveExpected(total, month, ov, d));
+      expect(series.spendToDate(12345.67, d, (p, o) => p === "instagram" && o === "Awareness")).toBe(
+        curveExpected(12345.67, month, ov, d),
+      );
+      expect(series.projectedMonthEnd(5000, d)).toBe(projectedMonthEnd(5000, month, ov, d));
+      expect(series.revenueToDate(d)).toBe(curveExpected(187654.32, month, ov, d));
+    }
+  });
+
+  it("per-day series are EXACTLY monthDayIncrements (what Pacing and Overview used)", () => {
+    expect(series.spendDays()).toEqual(monthDayIncrements(monthStartIso(month), ov, total));
+    const ig = src.allocations
+      .filter((a) => a.platform === "instagram")
+      .reduce((s, a) => s + a.plannedSpend, 0);
+    expect(series.spendDays((p) => p === "instagram")).toEqual(
+      monthDayIncrements(monthStartIso(month), ov, ig),
+    );
+    expect(series.revenueDays()).toEqual(monthDayIncrements(monthStartIso(month), ov, 187654.32));
+    expect(series.plannedRevenueSar).toBe(187654.32);
+  });
+
+  it("no revenue target → no revenue series, and nothing expected", () => {
+    const s2 = buildPlanSeries({ ...src, plannedRevenueSar: null });
+    expect(s2.revenueDays()).toBeNull();
+    expect(s2.revenueToDate(15)).toBe(0);
+  });
+
+  it("stitching curve months matches the old per-month increments", () => {
+    const oct = buildPlanSeries({ ...src, month: "2026-10", dayWeights: {} });
+    const byDay = stitchPlanByDay([series, oct], (m) => m.spendDays());
+    expect(byDay.get("2026-09-10")).toBe(monthDayIncrements("2026-09-01", ov, total)[9]);
+    expect(byDay.get("2026-10-31")).toBe(monthDayIncrements("2026-10-01", {}, total)[30]);
+    expect(byDay.size).toBe(30 + 31);
+  });
+});
+
+describe("buildPlanSeries — DAILY months read their cells verbatim", () => {
+  const cells: PlanDayCell[] = [
+    { day: 1, platform: "instagram", objective: "Awareness", plannedSpend: 100.1 },
+    { day: 1, platform: "tiktok", objective: "Other", plannedSpend: 50.2 },
+    { day: 2, platform: "instagram", objective: "Awareness", plannedSpend: 0.3 },
+    { day: 15, platform: "instagram", objective: "Retargeting", plannedSpend: 400 },
+    { day: 30, platform: "tiktok", objective: "Other", plannedSpend: 49.4 },
+  ];
+  const src: PlanSeriesSource = {
+    month: "2026-09",
+    planMode: "daily",
+    // Deliberately WRONG allocations: a daily series must not read them.
+    allocations: [{ platform: "google", objective: "Other", plannedSpend: 99999 }],
+    plannedRevenueSar: 1,
+    dayWeights: { 1: 10 }, // dormant — must not shape anything
+    planDays: cells,
+    targetRoas: 2.5,
+    usdToSarRate: 3.75,
+  };
+  const series = buildPlanSeries(src);
+  const total = 100.1 + 50.2 + 0.3 + 400 + 49.4; // 600
+
+  it("the month's sums equal its cells", () => {
+    const days = series.spendDays();
+    expect(days).toHaveLength(30);
+    expect(days[0]).toBeCloseTo(150.3, 9);
+    expect(days[1]).toBeCloseTo(0.3, 9);
+    expect(days[14]).toBe(400);
+    expect(days[29]).toBeCloseTo(49.4, 9);
+    expect(days.reduce((s, v) => s + v, 0)).toBeCloseTo(total, 9);
+    expect(series.spendToDate(0, 30)).toBeCloseTo(total, 9);
+  });
+
+  it("a slice sums ITS cells — the plan argument is not used", () => {
+    const tiktok = (p: string) => p === "tiktok";
+    expect(series.spendToDate(123456, 1, tiktok)).toBeCloseTo(50.2, 9);
+    expect(series.spendToDate(123456, 29, tiktok)).toBeCloseTo(50.2, 9);
+    expect(series.spendToDate(123456, 30, tiktok)).toBeCloseTo(99.6, 9);
+    expect(series.spendDays((p, o) => p === "instagram" && o === "Retargeting")[14]).toBe(400);
+  });
+
+  it("the pacing shape is the cells' own cumulative share, not a curve", () => {
+    expect(series.fraction(0)).toBe(0);
+    expect(series.fraction(1)).toBeCloseTo(150.3 / total, 12);
+    expect(series.fraction(14)).toBeCloseTo(150.6 / total, 12);
+    expect(series.fraction(30)).toBeCloseTo(1, 12);
+    expect(series.projectedMonthEnd(300, 1)).toBeCloseTo(300 / (150.3 / total), 6);
+  });
+
+  it("revenue day d = spend day d × ROAS × rate; the target is their sum", () => {
+    const rev = series.revenueDays()!;
+    expect(rev[14]).toBeCloseTo(400 * 2.5 * 3.75, 9);
+    expect(series.revenueToDate(30)).toBeCloseTo(total * 2.5 * 3.75, 6);
+    expect(series.plannedRevenueSar).toBe(revenueFromRoas(2.5, total, 3.75));
+    expect(series.plannedRevenueSar).toBe(5625);
+  });
+
+  it("no ROAS → no revenue target at all", () => {
+    const s2 = buildPlanSeries({ ...src, targetRoas: null });
+    expect(s2.plannedRevenueSar).toBeNull();
+    expect(s2.revenueDays()).toBeNull();
+    expect(s2.revenueToDate(30)).toBe(0);
+  });
+
+  it("an EMPTY daily month still has a (linear) calendar", () => {
+    const s2 = buildPlanSeries({ ...src, planDays: [] });
+    expect(s2.fraction(15)).toBe(0.5);
+    expect(s2.spendDays().every((v) => v === 0)).toBe(true);
+  });
+
+  it("cells past the month's end are ignored rather than wrapped", () => {
+    const s2 = buildPlanSeries({
+      ...src,
+      planDays: [{ day: 31, platform: "instagram", objective: "Awareness", plannedSpend: 5 }],
+    });
+    expect(s2.spendDays().reduce((a, b) => a + b, 0)).toBe(0);
+  });
+
+  it("a range spanning a curve month and a daily month stitches both", () => {
+    const oct = buildPlanSeries(curveSource({ month: "2026-10", spend: 3100 }));
+    const byDay = stitchPlanByDay([series, oct], (m) => m.spendDays());
+    expect(byDay.get("2026-09-15")).toBe(400);
+    expect(byDay.get("2026-10-01")).toBeCloseTo(100, 9);
+  });
+});
+
+describe("allocationsFromDays — the derived-sums invariant", () => {
+  it("sums per combo, to the cent, in platform × bucket order, zeros dropped", () => {
+    const out = allocationsFromDays([
+      { day: 2, platform: "tiktok", objective: "Other", plannedSpend: 0.1 },
+      { day: 1, platform: "instagram", objective: "Retargeting", plannedSpend: 10 },
+      { day: 3, platform: "tiktok", objective: "Other", plannedSpend: 0.2 },
+      { day: 1, platform: "instagram", objective: "Awareness", plannedSpend: 5 },
+      { day: 4, platform: "google", objective: "Other", plannedSpend: 0 },
+    ]);
+    expect(out).toEqual([
+      { platform: "instagram", objective: "Awareness", plannedSpend: 5 },
+      { platform: "instagram", objective: "Retargeting", plannedSpend: 10 },
+      // 0.1 + 0.2 is 0.30000000000000004 in floats — stored as 0.3.
+      { platform: "tiktok", objective: "Other", plannedSpend: 0.3 },
+    ]);
+  });
+});
+
+describe("the revenue ⇄ ROAS dual entry", () => {
+  it("each side derives the other through spend and the rate", () => {
+    const spend = 10000;
+    const rate = 3.75;
+    expect(revenueFromRoas(3, spend, rate)).toBe(112500);
+    expect(roasFromRevenue(112500, spend, rate)).toBe(3);
+    // Round trip: revenue → ROAS → revenue is the same target.
+    const roas = roasFromRevenue(90000, spend, rate)!;
+    expect(revenueFromRoas(roas, spend, rate)).toBe(90000);
+  });
+
+  it("is the SAME framing Overview's target ROAS uses (roasThroughRate)", () => {
+    expect(roasFromRevenue(56250, 5000, 3.75)).toBe(roasThroughRate(56250, 5000, 3.75));
+  });
+
+  it("no spend → no ROAS (nothing for a target to ride on)", () => {
+    expect(roasFromRevenue(1000, 0, 3.75)).toBeNull();
+    expect(revenueFromRoas(3, 0, 3.75)).toBe(0);
+  });
+});
+
+describe("buildTrackerRows on a DAILY month", () => {
+  it("bars tick at the cells' own plan-to-date, not a curve's", () => {
+    const t = buildTrackerRows(
+      {
+        allocations: [
+          { platform: "instagram", objective: "Awareness", plannedSpend: 1000 },
+          { platform: "tiktok", objective: "Awareness", plannedSpend: 500 },
+        ],
+        actualSpendByCombo: [{ platform: "instagram", objective: "Awareness", actualSpend: 900 }],
+        plannedRevenueSar: null,
+        reserveSpendUsd: 0,
+        dayWeightOverrides: {},
+        actualRevenueSar: 0,
+        planMode: "daily",
+        // Instagram front-loads: 900 of its 1000 on day 1. TikTok all on day 30.
+        planDays: [
+          { day: 1, platform: "instagram", objective: "Awareness", plannedSpend: 900 },
+          { day: 20, platform: "instagram", objective: "Awareness", plannedSpend: 100 },
+          { day: 30, platform: "tiktok", objective: "Awareness", plannedSpend: 500 },
+        ],
+        targetRoas: 2,
+        usdToSarRate: 3.75,
+      },
+      "2026-09",
+      "2026-09-10",
+    );
+    const ig = t.platforms.find((p) => p.key === "instagram")!;
+    expect(ig.planToDate).toBe(900);
+    expect(ig.deviation).toBe(0); // exactly on its own plan
+    const tt = t.platforms.find((p) => p.key === "tiktok")!;
+    expect(tt.planToDate).toBe(0); // nothing expected yet — never "100% behind"
+    expect(tt.deviation).toBeNull();
+    expect(t.total.planToDate).toBe(900);
+    expect(t.curveElapsed).toBeCloseTo(900 / 1500, 12);
+    // Revenue follows the cells through the ROAS.
+    expect(t.revenue.target).toBe(revenueFromRoas(2, 1500, 3.75));
+    expect(t.revenue.planToDate).toBeCloseTo(900 * 2 * 3.75, 9);
   });
 });

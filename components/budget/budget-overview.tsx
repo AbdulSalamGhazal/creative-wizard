@@ -9,17 +9,16 @@ import { ALL_PLATFORMS, PLATFORM_LABEL } from "@/lib/palette";
 import { int, roas, sar, signedPct } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import {
-  curveExpected,
+  buildPlanSeries,
   daysInMonth,
   elapsedDaysInMonth,
   monthKey,
-  monthDayIncrements,
   monthLabel,
   monthStartIso,
   pacingDeviation,
   pacingTone,
   pacingVerdict,
-  projectedMonthEnd,
+  planSeriesSourceOf,
   roasThroughRate,
   validateRate,
   variancePct,
@@ -69,7 +68,9 @@ export function BudgetOverview({
   const isCurrentMonth = monthKey(today) === month;
   const totalDays = daysInMonth(monthStartIso(month));
   const elapsed = elapsedDaysInMonth(month, today);
-  const ov = data.dayWeightOverrides;
+  // Every plan-to-date number on this page comes from the month's SERIES —
+  // curve or daily, the verdicts read the same way.
+  const series = buildPlanSeries(planSeriesSourceOf(data, month));
 
   const plannedByCombo = new Set(
     data.allocations.map((a) => `${a.platform}|${a.objective}`),
@@ -82,29 +83,26 @@ export function BudgetOverview({
     .reduce((s, c) => s + c.actualSpend, 0);
 
   const spendDeviation = isCurrentMonth
-    ? pacingDeviation(totalActual, curveExpected(totalPlanned, month, ov, elapsed))
+    ? pacingDeviation(totalActual, series.spendToDate(totalPlanned, elapsed))
     : null;
   const revenueDeviation =
     isCurrentMonth && data.plannedRevenueSar !== null
-      ? pacingDeviation(
-          data.actualRevenueSar,
-          curveExpected(data.plannedRevenueSar, month, ov, elapsed),
-        )
+      ? pacingDeviation(data.actualRevenueSar, series.revenueToDate(elapsed))
       : null;
 
   // Today's slice of the curve, and what's left of the plan after actuals.
   // Floored at zero: "−$400 left" is not a useful thing to tell someone.
   const plannedToday = isCurrentMonth
-    ? (monthDayIncrements(monthStartIso(month), ov, totalPlanned)[elapsed - 1] ?? 0)
+    ? (series.spendDays()[elapsed - 1] ?? 0)
     : 0;
   const leftThisMonth = Math.max(0, round2(totalPlanned - totalActual));
 
   // Month-end projections (current month only): actual ÷ elapsed curve share.
   const projectedSpend = isCurrentMonth
-    ? projectedMonthEnd(totalActual, month, ov, elapsed)
+    ? series.projectedMonthEnd(totalActual, elapsed)
     : null;
   const projectedRevenue =
-    isCurrentMonth ? projectedMonthEnd(data.actualRevenueSar, month, ov, elapsed) : null;
+    isCurrentMonth ? series.projectedMonthEnd(data.actualRevenueSar, elapsed) : null;
 
   const actualRoas = roasThroughRate(data.actualRevenueSar, totalActual, rate);
   const targetRoas =
@@ -154,7 +152,7 @@ export function BudgetOverview({
     const hasPlanRows = data.allocations.some((a) => a.platform === p);
     const hasActualRows = data.actualSpendByCombo.some((c) => c.platform === p);
     const dev = isCurrentMonth
-      ? pacingDeviation(actual, curveExpected(planned, month, ov, elapsed))
+      ? pacingDeviation(actual, series.spendToDate(planned, elapsed, (pl) => pl === p))
       : null;
     return { platform: p, planned, actual, dev, shown: hasPlanRows || hasActualRows };
   }).filter((p) => p.shown);

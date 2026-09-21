@@ -4,8 +4,10 @@ import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowRightLeft,
+  CalendarDays,
   Check,
   CopyPlus,
+  Download,
   Pencil,
   RotateCcw,
   Scale,
@@ -40,6 +42,8 @@ import { pct1, plural, sar, usd } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import {
   BUDGET_OBJECTIVES,
+  buildPlanSeries,
+  planSeriesSourceOf,
   allocatableFromTotal,
   amountsFromShares,
   budgetComboKey,
@@ -66,6 +70,7 @@ import {
 import { WEIGHT_MAX, WEIGHT_MIN } from "@/validators/budget";
 import {
   saveBudgetMonth,
+  convertPlanToCurve,
   copyBudgetFromMonth,
   setUsdToSarRate,
 } from "@/app/actions/budget";
@@ -77,6 +82,7 @@ import type {
 import {
   BudgetMonthBar,
   CurrencyToggle,
+  PlanDayBars,
   UnitInput,
   formatSpend,
   platformAnchorId,
@@ -85,7 +91,7 @@ import {
   useFieldFlow,
 } from "@/components/budget/budget-shared";
 import { BudgetPlanRevisions } from "@/components/budget/budget-plan-revisions";
-import { BudgetPlanUpload } from "@/components/budget/budget-plan-upload";
+import { BudgetPlanUpload, downloadPlanSheet } from "@/components/budget/budget-plan-upload";
 
 interface PlanRow {
   key: string;
@@ -151,6 +157,7 @@ export function BudgetPlanEditor({
   today,
   data,
   plannedMonths,
+  dailyMonths,
   seed,
   revisions,
   canManage,
@@ -160,6 +167,8 @@ export function BudgetPlanEditor({
   data: BudgetMonthData;
   /** Months that already have a plan — the Copy dialog's options. */
   plannedMonths: string[];
+  /** The subset planned DAY BY DAY — copying one copies its days and mode. */
+  dailyMonths: string[];
   /**
    * The most recent planned month BEFORE this one, with its plan — the source
    * for "start from its shares". Null when there is no earlier plan; fetched
@@ -198,6 +207,16 @@ export function BudgetPlanEditor({
   /** "reserve" · "new" · a platform key. */
   const [moveFrom, setMoveFrom] = useState<string>("reserve");
   const [copyMode, setCopyMode] = useState<"amounts" | "shares">("amounts");
+  const [convertOpen, setConvertOpen] = useState(false);
+  const [convertNote, setConvertNote] = useState("");
+
+  /**
+   * ONE MODE AT A TIME (user-approved v1): a month planned day by day from a
+   * sheet is NOT editable here — no cascade, no Move money, no calendar. It
+   * reads, downloads, re-uploads, or is switched back to editor planning.
+   */
+  const isDaily = data.planMode === "daily";
+  const series = useMemo(() => buildPlanSeries(planSeriesSourceOf(data, month)), [data, month]);
   const [rateDraft, setRateDraft] = useState<string | null>(null);
 
   // Phone + keyboard flow for every numeric field in the cascade (shared with
@@ -637,6 +656,27 @@ export function BudgetPlanEditor({
   };
 
   const copyOptions = plannedMonths.filter((m) => m !== month);
+  const copyFromDaily = dailyMonths.includes(copyFrom);
+
+  const doConvert = async () => {
+    setIsPending(true);
+    try {
+      const res = await convertPlanToCurve({
+        month,
+        note: convertNote.trim() === "" ? undefined : convertNote.trim(),
+      });
+      if (!res.ok) {
+        toast.error(res.error ?? "Could not switch the plan");
+        return;
+      }
+      toast.success(`${monthLabel(month)} is planned in the editor again`);
+      setConvertOpen(false);
+      setConvertNote("");
+      router.refresh();
+    } finally {
+      setIsPending(false);
+    }
+  };
   /** Shares-mode needs the source month's PLAN, and only the seed month's is
    *  fetched — a deliberate limit, so Plan doesn't fetch every planned month. */
   const copySeed = seed && seed.month === copyFrom ? seed.plan : null;
@@ -693,7 +733,8 @@ export function BudgetPlanEditor({
     }
   };
 
-  const hasPlan = data.allocations.length > 0 || data.plannedRevenueSar !== null;
+  const hasPlan =
+    data.allocations.length > 0 || data.plannedRevenueSar !== null || isDaily;
 
   // ── Day-weight editing ─────────────────────────────────────────────────────
   const activeWeights = editing ? weightsDraft : data.dayWeightOverrides;
@@ -824,26 +865,30 @@ export function BudgetPlanEditor({
           canManage={canManage}
         />
 
+        {isDaily && (
+          <span
+            className="inline-flex items-center gap-1 rounded-full border border-brand/40 bg-[var(--brand-soft)] px-2 py-0.5 text-[11px] text-ink"
+            title="Planned from an uploaded sheet, one day at a time. The editor and the curve are read-only for this month."
+          >
+            <CalendarDays className="h-3 w-3" aria-hidden />
+            Day by day
+          </span>
+        )}
         {canManage && !editing && (
           <>
-            {/* The CSV path — download the month as a matrix, edit, upload.
-                It writes through saveBudgetMonth like the editor does. */}
+            {/* The sheet path — download the month at day grain, edit it,
+                upload it back. It writes through saveBudgetMonth like the
+                editor does, and plans the month day by day. */}
+            {isDaily && (
+              <Button type="button" variant="outline" size="sm" onClick={() => downloadPlanSheet(month, data)}>
+                <Download className="h-3.5 w-3.5" />
+                Download sheet
+              </Button>
+            )}
             <BudgetPlanUpload
               month={month}
-              current={{
-                allocations: data.allocations.map((a) => ({
-                  platform: a.platform,
-                  objective: a.objective,
-                  plannedSpend: a.plannedSpend,
-                })),
-                reserveSpendUsd: data.reserveSpendUsd,
-              }}
-              dayWeights={data.dayWeightOverrides}
-              plannedRevenueSar={data.plannedRevenueSar}
-              actualSpendToDate={round2(
-                data.actualSpendByCombo.reduce((s, c) => s + c.actualSpend, 0),
-              )}
-              usdToSarRate={rate}
+              data={data}
+              triggerLabel={isDaily ? "Upload new sheet…" : "Upload plan…"}
             />
             <Button
               type="button"
@@ -856,7 +901,7 @@ export function BudgetPlanEditor({
               <CopyPlus className="h-3.5 w-3.5" />
               Copy
             </Button>
-            {seed && (
+            {seed && !isDaily && (
               <Button
                 type="button"
                 variant="outline"
@@ -868,10 +913,17 @@ export function BudgetPlanEditor({
                 Start from {monthLabel(seed.month)}&rsquo;s shares
               </Button>
             )}
-            <Button type="button" size="sm" onClick={startEditing}>
-              <Pencil className="h-3.5 w-3.5" />
-              Edit plan
-            </Button>
+            {isDaily ? (
+              <Button type="button" size="sm" onClick={() => setConvertOpen(true)}>
+                <Pencil className="h-3.5 w-3.5" />
+                Switch to editor planning
+              </Button>
+            ) : (
+              <Button type="button" size="sm" onClick={startEditing}>
+                <Pencil className="h-3.5 w-3.5" />
+                Edit plan
+              </Button>
+            )}
           </>
         )}
         {editing && (
@@ -1244,6 +1296,11 @@ export function BudgetPlanEditor({
                   <span className="num tabular-nums text-ink">
                     {data.plannedRevenueSar !== null ? sar(data.plannedRevenueSar) : "—"}
                   </span>
+                  {isDaily && data.targetRoas !== null && (
+                    <span className="num text-[11px] text-ink-3" title="Each day's revenue target is that day's spend × this ROAS, through the brand rate.">
+                      ROAS {data.targetRoas.toFixed(2)}
+                    </span>
+                  )}
                 </span>
                 <span className="inline-flex items-center gap-2">
                   <span className="text-label text-ink-3">Reserve</span>
@@ -1320,7 +1377,15 @@ export function BudgetPlanEditor({
         </>
       )}
 
-      {/* ── 4. Day curve ─────────────────────────────────────────────── */}
+      {/* ── 4. The day grain: the curve, or — on a daily month — its cells ── */}
+      {isDaily ? (
+        <DailyPlanPanel
+          month={month}
+          values={series.spendDays()}
+          fmtSpend={fmtSpend}
+          dormantWeights={Object.keys(data.dayWeightOverrides).length}
+        />
+      ) : (
       <DayCurveEditor
         month={month}
         totalDays={totalDays}
@@ -1341,8 +1406,42 @@ export function BudgetPlanEditor({
         }}
         overrideCount={overrideCount}
       />
+      )}
 
       {/* Copy from any planned month */}
+      {/* Daily → editor planning: a COLLAPSE, said out loud */}
+      <Dialog open={convertOpen} onOpenChange={(o) => !isPending && setConvertOpen(o)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Switch {monthLabel(month)} to editor planning?</DialogTitle>
+            <DialogDescription>
+              The day-by-day detail is collapsed: each platform · bucket keeps its
+              monthly total ({fmtSpend(storedAllocated)} allocated), paced LINEARLY
+              from here on, and the target ROAS becomes a plain revenue target of{" "}
+              {data.plannedRevenueSar !== null ? sar(data.plannedRevenueSar) : "—"}.
+              Nothing is lost — the revision history keeps every day, and restoring
+              it brings the daily plan back.
+            </DialogDescription>
+          </DialogHeader>
+          <Input
+            value={convertNote}
+            onChange={(e) => setConvertNote(e.target.value.slice(0, NOTE_MAX))}
+            placeholder="Switched to editor planning — daily detail collapsed"
+            maxLength={NOTE_MAX}
+            className="h-8"
+            aria-label="Revision note"
+          />
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={() => setConvertOpen(false)} disabled={isPending}>
+              Cancel
+            </Button>
+            <Button type="button" onClick={doConvert} disabled={isPending}>
+              Collapse to monthly totals
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={copyOpen} onOpenChange={(o) => !isPending && setCopyOpen(o)}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
@@ -1362,13 +1461,25 @@ export function BudgetPlanEditor({
                 onChange={setCopyMode}
                 options={[
                   { value: "amounts", label: "Copy amounts" },
-                  { value: "shares", label: "Start from its shares" },
+                  {
+                    value: "shares",
+                    label: "Start from its shares",
+                    // Shares open the EDITOR, which a daily month doesn't have.
+                    disabled: isDaily,
+                    title: isDaily
+                      ? "This month is planned day by day — switch it to editor planning first."
+                      : undefined,
+                  },
                 ]}
               />
               <p className="text-[11px] text-ink-3">
                 {copyMode === "amounts"
-                  ? "Replaces this month's plan with that month's, dollar for dollar."
-                  : "Opens the editor with that month's split and curve — nothing is saved until you set a total and save."}
+                  ? copyFromDaily
+                    ? `${monthLabel(copyFrom)} is planned day by day — copying brings its days across and plans ${monthLabel(month)} day by day too (days past the month's end are dropped).`
+                    : "Replaces this month's plan with that month's, dollar for dollar."
+                  : copyFromDaily
+                    ? "Opens the editor with that month's bucket totals as shares (its daily shape isn't carried) — nothing is saved until you set a total and save."
+                    : "Opens the editor with that month's split and curve — nothing is saved until you set a total and save."}
               </p>
             </div>
             <div className="space-y-1.5">
@@ -1534,6 +1645,66 @@ const CURVE_PRESETS: Array<{
  * part people got wrong when it was invisible, so the bars ARE the explanation:
  * change a weight and every bar moves. Calendar and chart select in sync.
  */
+/**
+ * A daily month's day grain — read-only. The SAME bars the curve editor draws,
+ * fed by the month's series (its cells, verbatim), so both kinds of month read
+ * alike. No calendar and no weights: a daily month's shape IS its cells.
+ */
+function DailyPlanPanel({
+  month,
+  values,
+  fmtSpend,
+  dormantWeights,
+}: {
+  month: string;
+  values: number[];
+  fmtSpend: (usd: number) => string;
+  dormantWeights: number;
+}) {
+  const [selectedDay, setSelectedDay] = useState<number | null>(null);
+  const total = values.reduce((s, v) => s + v, 0);
+  const planned = values.filter((v) => v > 0).length;
+  const peakDay = values.indexOf(Math.max(...values)) + 1;
+  return (
+    <div className="space-y-3 rounded-lg border border-line bg-surface p-4">
+      <div>
+        <h3 className="text-sm font-medium text-ink">Planned day by day</h3>
+        <p className="text-[11px] text-ink-3">
+          From an uploaded sheet — each day carries exactly what the sheet said. To
+          change it, download the sheet, edit it and upload it again.
+          {dormantWeights > 0 &&
+            (dormantWeights === 1
+              ? " The old curve's one weighted day is kept, unused."
+              : ` The old curve's ${dormantWeights} weighted days are kept, unused.`)}
+        </p>
+      </div>
+      <PlanDayBars
+        values={values}
+        label={(v) => fmtSpend(v)}
+        selectedDay={selectedDay}
+        onSelectDay={setSelectedDay}
+        ariaLabel={`Planned spend per day for ${monthLabel(month)}, ${fmtSpend(total)} in all`}
+        tone="data"
+      />
+      <p className="text-[11px] text-ink-3">
+        {selectedDay !== null ? (
+          <>
+            Day {selectedDay} ·{" "}
+            <span className="num text-ink-2">{fmtSpend(values[selectedDay - 1] ?? 0)}</span>
+          </>
+        ) : total > 0 ? (
+          <>
+            {planned} of {values.length} days carry spend; the biggest is day {peakDay} at{" "}
+            <span className="num text-ink-2">{fmtSpend(values[peakDay - 1] ?? 0)}</span>.
+          </>
+        ) : (
+          <>The sheet planned no spend for this month.</>
+        )}
+      </p>
+    </div>
+  );
+}
+
 function DayCurveEditor({
   month,
   totalDays,
@@ -1572,7 +1743,6 @@ function DayCurveEditor({
   // The SAME numbers the pacing math uses — with no total yet, plot the shares
   // (a 100-unit pot) so the shape is still readable.
   const perDay = monthDayIncrements(startIso, weights, hasMoney ? plannedTotal : 100);
-  const peak = Math.max(...perDay, 1);
   const normalDay = monthDayIncrements(startIso, {}, hasMoney ? plannedTotal : 100)[0] ?? 0;
   const dayValue = (day: number) => perDay[day - 1] ?? 0;
   const label = (value: number) =>
@@ -1639,38 +1809,14 @@ function DayCurveEditor({
 
         {/* Live per-day bars — one per day, height = that day's planned money */}
         <div className="min-w-0 flex-1 space-y-2">
-          <div
-            className="flex h-28 items-end gap-px"
-            role="img"
-            aria-label={`Planned spend per day — ${label(normalDay)} on a normal day`}
-          >
-            {Array.from({ length: totalDays }, (_, i) => {
-              const day = i + 1;
-              const value = dayValue(day);
-              const overridden = weightOf(day) !== 1;
-              const selected = selectedDay === day;
-              return (
-                <button
-                  key={day}
-                  type="button"
-                  disabled={!editing}
-                  onClick={() => onSelectDay(selected ? null : day)}
-                  title={`Day ${day} · ×${weightOf(day)} · ${label(value)}`}
-                  aria-label={`Day ${day}, ${label(value)}`}
-                  className={cn(
-                    "min-w-0 flex-1 rounded-t-[2px] transition-all",
-                    selected
-                      ? "bg-[var(--brand)]"
-                      : overridden
-                        ? "bg-[var(--brand)]/60"
-                        : "bg-surface-3",
-                    editing && "cursor-pointer hover:bg-[var(--brand)]/40",
-                  )}
-                  style={{ height: `${Math.max(3, (value / peak) * 100)}%` }}
-                />
-              );
-            })}
-          </div>
+          <PlanDayBars
+            values={perDay}
+            label={(value) => label(value)}
+            emphasize={(day) => weightOf(day) !== 1}
+            selectedDay={selectedDay}
+            onSelectDay={editing ? onSelectDay : undefined}
+            ariaLabel={`Planned spend per day — ${label(normalDay)} on a normal day`}
+          />
           <p className="text-[11px] text-ink-3">
             {selectedDay !== null ? (
               <>

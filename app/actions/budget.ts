@@ -12,10 +12,12 @@ import {
   daysInMonth,
   monthLabel,
   monthStartIso,
+  revenueFromRoas,
   validateRate,
   validateWeight,
 } from "@/lib/budget";
 import {
+  convertPlanSchema,
   copyPlanSchema,
   planInputToSnapshot,
   planSchema,
@@ -25,9 +27,12 @@ import {
 } from "@/validators/budget";
 import {
   copyBudgetMonth,
+  getBudgetMonth,
+  getPlanMode,
   getPlanRevision,
   insertPlanRevision,
   replaceBudgetMonth,
+  type BudgetPlanInput,
 } from "@/db/queries/budget";
 import { actionError } from "@/lib/action-error";
 import { notifyRoutes } from "@/db/queries/notifications";
@@ -52,54 +57,72 @@ export async function saveBudgetMonth(input: unknown): Promise<BudgetActionResul
     if (!parsed.success) {
       return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid plan" };
     }
-    const { month, allocations, plannedRevenueSar, reserveSpendUsd, dayWeights, note, source } =
-      parsed.data;
-
-    // Weights: within the month's real length and the allowed bounds. Weight 1
-    // rows are simply not persisted (absent = 1).
-    const monthDays = daysInMonth(monthStartIso(month));
-    for (const w of dayWeights) {
-      if (w.day > monthDays) {
-        return { ok: false, error: `Day ${w.day} doesn't exist in ${monthLabel(month)}.` };
-      }
-      if (w.weight !== 1 && !validateWeight(w.weight)) {
-        return { ok: false, error: "Weights must be greater than 0 and at most 10." };
-      }
-    }
-    const weightDays = new Set(dayWeights.map((w) => w.day));
-    if (weightDays.size !== dayWeights.length) {
-      return { ok: false, error: "Duplicate day weight." };
-    }
-
-    // One row per platform×objective (the unique index would refuse anyway —
-    // catch it here with a friendlier message).
-    const combos = new Set(allocations.map((a) => `${a.platform}|${a.objective}`));
-    if (combos.size !== allocations.length) {
-      return { ok: false, error: "Duplicate platform × objective row." };
-    }
-
-    const acct = await getActiveAccountId();
-    const plan = {
+    const {
+      month,
       allocations,
       plannedRevenueSar,
       reserveSpendUsd,
+      dayWeights,
+      note,
+      source,
+      mode,
+      days,
+      targetRoas,
+    } = parsed.data;
+
+    const problem = planShapeProblem(month, parsed.data);
+    if (problem) return { ok: false, error: problem };
+
+    const acct = await getActiveAccountId();
+    // One mode at a time: the editor can't write over a day-by-day month —
+    // it has to be switched back to editor planning first (convertPlanToCurve),
+    // which says out loud that the daily detail is being collapsed.
+    if (source === "editor" && (await getPlanMode(db, acct, month)) === "daily") {
+      return {
+        ok: false,
+        error: `${monthLabel(month)} is planned day by day — switch it to editor planning first, or upload a new sheet.`,
+      };
+    }
+
+    const rate = mode === "daily" ? await brandRate(acct) : 0;
+    const toWrite: BudgetPlanInput = {
+      allocations,
+      // A daily month's target is DERIVED from its ROAS (the client's figure
+      // is only what it showed); the writer stores this echo.
+      plannedRevenueSar:
+        mode === "daily"
+          ? targetRoas === null
+            ? null
+            : revenueFromRoas(
+                targetRoas,
+                days.reduce((sum, d) => sum + d.plannedSpend, 0),
+                rate,
+              ) || null
+          : plannedRevenueSar,
+      reserveSpendUsd,
       dayWeights: Object.fromEntries(dayWeights.map((w) => [w.day, w.weight])),
+      mode,
+      days,
+      targetRoas,
     };
-    await db.transaction(async (tx) => {
-      await replaceBudgetMonth(tx, acct, month, plan);
+    const written = await db.transaction(async (tx) => {
+      const plan = await replaceBudgetMonth(tx, acct, month, toWrite);
       await insertPlanRevision(tx, acct, month, planInputToSnapshot(plan), note ?? null, user.id);
       // Inside the save's own transaction — see the notifications module rule.
       await notifyRoutes(tx, acct, "budget.plan_saved", {
-        title: `${monthLabel(month)}'s budget plan was saved`,
+        title: `${monthLabel(month)}'s budget plan was ${source === "upload" ? "uploaded" : "saved"}`,
         body: note?.trim()
           ? note.trim()
-          : `${allocations.length} ${
-              allocations.length === 1 ? "allocation" : "allocations"
-            }, ${usd(allocations.reduce((sum, a) => sum + a.plannedSpend, 0))} planned`,
+          : `${plan.allocations.length} ${
+              plan.allocations.length === 1 ? "allocation" : "allocations"
+            }, ${usd(plan.allocations.reduce((sum, a) => sum + a.plannedSpend, 0))} planned${
+              mode === "daily" ? ", day by day" : ""
+            }`,
         href: `/budget/plan?month=${month}`,
         actorUserId: user.id,
         entity: { type: "budget", id: monthStartIso(month) },
       });
+      return plan;
     });
 
     revalidateBudget();
@@ -114,12 +137,139 @@ export async function saveBudgetMonth(input: unknown): Promise<BudgetActionResul
         // apart in the trail (see planSourceSchema).
         op: source === "upload" ? "upload" : "save",
         month,
-        allocations: allocations.length,
-        plannedSpendTotal: allocations.reduce((s, a) => s + a.plannedSpend, 0),
-        plannedRevenueSar,
+        mode,
+        allocations: written.allocations.length,
+        plannedSpendTotal: written.allocations.reduce((sum, a) => sum + a.plannedSpend, 0),
+        plannedRevenueSar: written.plannedRevenueSar,
         reserveSpendUsd,
-        weightOverrides: dayWeights.filter((w) => w.weight !== 1).length,
+        weightOverrides: mode === "curve" ? dayWeights.filter((w) => w.weight !== 1).length : 0,
+        dayCells: written.days?.length ?? 0,
+        targetRoas: written.targetRoas ?? null,
         note: note ?? null,
+      },
+    });
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: errMsg(err) };
+  }
+}
+
+/**
+ * What `planSchema` can't see: the month's real length, and duplicates. Shared
+ * by save and restore, so a snapshot is held to the same rules as a typed plan.
+ */
+function planShapeProblem(
+  month: string,
+  plan: {
+    allocations: Array<{ platform: string; objective: string }>;
+    dayWeights: Array<{ day: number; weight: number }>;
+    mode: "curve" | "daily";
+    days: Array<{ day: number; platform: string; objective: string }>;
+  },
+): string | null {
+  // Weights: within the month's real length and the allowed bounds. Weight 1
+  // rows are simply not persisted (absent = 1).
+  const monthDays = daysInMonth(monthStartIso(month));
+  for (const w of plan.dayWeights) {
+    if (w.day > monthDays) return `Day ${w.day} doesn't exist in ${monthLabel(month)}.`;
+    if (w.weight !== 1 && !validateWeight(w.weight)) {
+      return "Weights must be greater than 0 and at most 10.";
+    }
+  }
+  if (new Set(plan.dayWeights.map((w) => w.day)).size !== plan.dayWeights.length) {
+    return "Duplicate day weight.";
+  }
+  // One row per platform×objective (the unique index would refuse anyway —
+  // catch it here with a friendlier message). Daily plans derive theirs.
+  if (plan.mode === "curve") {
+    const combos = new Set(plan.allocations.map((a) => `${a.platform}|${a.objective}`));
+    if (combos.size !== plan.allocations.length) return "Duplicate platform × objective row.";
+  }
+  for (const d of plan.days) {
+    if (d.day > monthDays) return `Day ${d.day} doesn't exist in ${monthLabel(month)}.`;
+  }
+  const cells = new Set(plan.days.map((d) => `${d.day}|${d.platform}|${d.objective}`));
+  if (cells.size !== plan.days.length) return "Duplicate day × platform × objective cell.";
+  return null;
+}
+
+async function brandRate(acct: string): Promise<number> {
+  const [row] = await db
+    .select({ rate: accounts.usdToSarRate })
+    .from(accounts)
+    .where(eq(accounts.id, acct))
+    .limit(1);
+  return Number(row?.rate ?? 3.77);
+}
+
+/**
+ * Switch a DAILY month back to editor planning. The day cells COLLAPSE to
+ * their monthly sums (which the allocations already are), the curve is reset
+ * to linear, the target ROAS becomes a plain SAR target at today's rate, and
+ * the month is curve mode again. Nothing is lost: the revision written by the
+ * daily plan's own save holds every cell, and this write records one too.
+ */
+export async function convertPlanToCurve(input: unknown): Promise<BudgetActionResult> {
+  try {
+    const user = await requirePermission("budget.manage");
+    const parsed = convertPlanSchema.safeParse(input);
+    if (!parsed.success) return { ok: false, error: "Invalid month." };
+    const { month, note } = parsed.data;
+
+    const current = await getBudgetMonth(month);
+    if (current.planMode !== "daily") {
+      return { ok: false, error: `${monthLabel(month)} is already planned in the editor.` };
+    }
+    const acct = await getActiveAccountId();
+    const plan: BudgetPlanInput = {
+      allocations: current.allocations.map((a) => ({
+        platform: a.platform,
+        objective: a.objective,
+        plannedSpend: a.plannedSpend,
+      })),
+      plannedRevenueSar: current.plannedRevenueSar,
+      reserveSpendUsd: current.reserveSpendUsd,
+      // LINEAR thereafter — the dormant curve from before the month went
+      // daily would otherwise quietly come back.
+      dayWeights: {},
+      mode: "curve",
+    };
+    const revisionNote =
+      note?.trim() || "Switched to editor planning — daily detail collapsed to monthly totals";
+    await db.transaction(async (tx) => {
+      const written = await replaceBudgetMonth(tx, acct, month, plan);
+      await insertPlanRevision(
+        tx,
+        acct,
+        month,
+        planInputToSnapshot(written),
+        revisionNote,
+        user.id,
+      );
+      await notifyRoutes(tx, acct, "budget.plan_saved", {
+        title: `${monthLabel(month)}'s plan was switched to editor planning`,
+        body: revisionNote,
+        href: `/budget/plan?month=${month}`,
+        actorUserId: user.id,
+        entity: { type: "budget", id: monthStartIso(month) },
+      });
+    });
+
+    revalidateBudget();
+    await logAudit({
+      action: AUDIT_ACTIONS.BUDGET_UPDATE,
+      entityType: "budget",
+      entityId: monthStartIso(month),
+      entityLabel: `Plan for ${monthLabel(month)}`,
+      actorUserId: user.id,
+      meta: {
+        op: "convert",
+        month,
+        from: "daily",
+        to: "curve",
+        collapsedDayCells: current.planDays.length,
+        allocations: plan.allocations.length,
+        plannedRevenueSar: plan.plannedRevenueSar,
       },
     });
     return { ok: true };
@@ -160,7 +310,9 @@ export async function copyBudgetFromMonth(input: unknown): Promise<BudgetActionR
         title: `${monthLabel(month)}'s plan was copied from ${monthLabel(from)}`,
         body: `${result.allocations} ${
           result.allocations === 1 ? "allocation" : "allocations"
-        } replaced${result.hasTarget ? ", revenue target included" : ""}.`,
+        } replaced${result.hasTarget ? ", revenue target included" : ""}${
+          result.plan.mode === "daily" ? " — planned day by day, like the source" : ""
+        }.`,
         href: `/budget/plan?month=${month}`,
         actorUserId: user.id,
         entity: { type: "budget", id: monthStartIso(month) },
@@ -178,7 +330,14 @@ export async function copyBudgetFromMonth(input: unknown): Promise<BudgetActionR
       entityId: monthStartIso(month),
       entityLabel: `Plan for ${monthLabel(month)}`,
       actorUserId: user.id,
-      meta: { op: "copy_from", from, allocations: copied.allocations, hasTarget: copied.hasTarget },
+      meta: {
+        op: "copy_from",
+        from,
+        mode: copied.plan.mode ?? "curve",
+        allocations: copied.allocations,
+        dayCells: copied.plan.days?.length ?? 0,
+        hasTarget: copied.hasTarget,
+      },
     });
     return { ok: true, copied: copied.allocations };
   } catch (err) {
@@ -212,25 +371,45 @@ export async function restorePlanRevision(input: unknown): Promise<BudgetActionR
       };
     }
 
+    const shape = planShapeProblem(revision.month, plan.data);
+    if (shape) return { ok: false, error: `This revision can't be restored — ${shape}` };
+
     const acct = await getActiveAccountId();
     const savedAt = new Date(revision.createdAt).toLocaleString("en-US", {
       dateStyle: "medium",
       timeStyle: "short",
       timeZone: "UTC",
     });
-    const restored = {
+    // The snapshot's MODE comes back with it: a daily revision restores as a
+    // daily month (its cells, its ROAS), a curve one — including every
+    // snapshot from before modes existed — as a curve month.
+    const restoredMode = plan.data.mode;
+    const rate = restoredMode === "daily" ? await brandRate(acct) : 0;
+    const restored: BudgetPlanInput = {
       allocations: plan.data.allocations,
-      plannedRevenueSar: plan.data.plannedRevenueSar,
+      plannedRevenueSar:
+        restoredMode === "daily"
+          ? plan.data.targetRoas === null
+            ? null
+            : revenueFromRoas(
+                plan.data.targetRoas,
+                plan.data.days.reduce((sum, d) => sum + d.plannedSpend, 0),
+                rate,
+              ) || null
+          : plan.data.plannedRevenueSar,
       reserveSpendUsd: plan.data.reserveSpendUsd,
       dayWeights: Object.fromEntries(plan.data.dayWeights.map((w) => [w.day, w.weight])),
+      mode: restoredMode,
+      days: plan.data.days,
+      targetRoas: plan.data.targetRoas,
     };
     await db.transaction(async (tx) => {
-      await replaceBudgetMonth(tx, acct, revision.month, restored);
+      const written = await replaceBudgetMonth(tx, acct, revision.month, restored);
       await insertPlanRevision(
         tx,
         acct,
         revision.month,
-        planInputToSnapshot(restored),
+        planInputToSnapshot(written),
         `Restored from ${savedAt} UTC`,
         user.id,
       );
@@ -255,6 +434,7 @@ export async function restorePlanRevision(input: unknown): Promise<BudgetActionR
         month: revision.month,
         revisionId: revision.id,
         restoredFrom: revision.createdAt,
+        mode: restoredMode,
         allocations: plan.data.allocations.length,
       },
     });

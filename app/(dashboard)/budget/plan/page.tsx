@@ -8,6 +8,7 @@ import { monthKey } from "@/lib/budget";
 import { MONTH_KEY } from "@/validators/budget";
 import {
   budgetPlansForMonths,
+  dailyPlannedMonths,
   getBudgetMonth,
   listPlanRevisions,
   plannedMonths,
@@ -37,10 +38,11 @@ export default async function BudgetPlanPage({
 
   const user = await auth();
   const canManage = user ? can(user, "budget.manage") : false;
-  const [data, months, revisions] = await Promise.all([
+  const [data, months, revisions, dailyMonths] = await Promise.all([
     getBudgetMonth(month),
     plannedMonths(),
     listPlanRevisions(month),
+    dailyPlannedMonths(),
   ]);
 
   // "Same split, new total" needs the source month's PLAN, not just its name.
@@ -71,6 +73,7 @@ export default async function BudgetPlanPage({
         today={today}
         data={data}
         plannedMonths={months}
+        dailyMonths={dailyMonths}
         seed={seed}
         revisions={revisions}
         canManage={canManage}

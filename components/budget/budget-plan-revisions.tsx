@@ -203,7 +203,14 @@ export function BudgetPlanRevisions({
                         </span>
                       </div>
                       <div className="flex flex-wrap items-baseline justify-between gap-x-3 text-[11px] text-ink-3">
-                        <span>{r.savedBy}</span>
+                        <span>
+                          {r.savedBy}
+                          {r.mode === "daily" && (
+                            <span className="ml-1.5 rounded bg-surface-2 px-1 text-eyebrow text-ink-3">
+                              day by day
+                            </span>
+                          )}
+                        </span>
                         <span className="num">
                           {plural(r.allocationCount, "allocation")}
                         </span>
@@ -279,7 +286,13 @@ export function BudgetPlanRevisions({
                       ? sar(selected.snapshot.plannedRevenueSar)
                       : "—"}{" "}
                     · reserve {usd(selected.snapshot.reserveSpendUsd)} ·{" "}
-                    {plural(selected.weightOverrides, "weighted day")}
+                    {selected.mode === "daily"
+                      ? `planned day by day (${plural(selected.dayCells, "day cell")}${
+                          selected.snapshot.targetRoas !== null
+                            ? `, ROAS ${selected.snapshot.targetRoas.toFixed(2)}`
+                            : ""
+                        }) — restoring brings the days back`
+                      : plural(selected.weightOverrides, "weighted day")}
                   </p>
 
                   {/* What restoring would change */}

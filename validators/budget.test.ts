@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { MONTH_KEY, planSchema, WEIGHT_MAX, WEIGHT_MIN } from "@/validators/budget";
+import {
+  MONTH_KEY,
+  planSchema,
+  savePlanSchema,
+  storedSnapshotSchema,
+  WEIGHT_MAX,
+  WEIGHT_MIN,
+} from "@/validators/budget";
 
 const base = {
   month: "2026-09",
@@ -54,5 +61,61 @@ describe("MONTH_KEY", () => {
     for (const m of ["2026-00", "2026-13", "2026-99", "2026-1", "26-01", "2026-ab"]) {
       expect(MONTH_KEY.test(m), `${m} should be rejected`).toBe(false);
     }
+  });
+});
+
+describe("plan modes — the source pins the mode", () => {
+  const base = {
+    month: "2026-09",
+    allocations: [],
+    plannedRevenueSar: null,
+    reserveSpendUsd: 0,
+  };
+  const cell = { day: 3, platform: "instagram", objective: "Awareness", plannedSpend: 10 };
+
+  it("an old-shape save (no mode) is a curve plan from the editor — unchanged", () => {
+    const r = savePlanSchema.safeParse(base);
+    expect(r.success).toBe(true);
+    if (r.success) {
+      expect(r.data.mode).toBe("curve");
+      expect(r.data.source).toBe("editor");
+      expect(r.data.days).toEqual([]);
+    }
+  });
+
+  it("the upload writes daily plans, and only daily plans", () => {
+    expect(
+      savePlanSchema.safeParse({ ...base, source: "upload", mode: "daily", days: [cell], targetRoas: 3 })
+        .success,
+    ).toBe(true);
+    expect(savePlanSchema.safeParse({ ...base, source: "upload" }).success).toBe(false);
+  });
+
+  it("the editor can't write a daily plan", () => {
+    expect(savePlanSchema.safeParse({ ...base, mode: "daily", days: [cell] }).success).toBe(false);
+  });
+
+  it("a curve plan can't smuggle day cells or a ROAS", () => {
+    expect(planSchema.safeParse({ ...base, days: [cell] }).success).toBe(false);
+    expect(planSchema.safeParse({ ...base, targetRoas: 2 }).success).toBe(false);
+  });
+
+  it("ROAS must be positive and sane", () => {
+    const daily = { ...base, mode: "daily", days: [cell] };
+    expect(planSchema.safeParse({ ...daily, targetRoas: 0 }).success).toBe(false);
+    expect(planSchema.safeParse({ ...daily, targetRoas: 5000 }).success).toBe(false);
+    expect(planSchema.safeParse({ ...daily, targetRoas: null }).success).toBe(true);
+  });
+
+  it("a legacy snapshot (no mode) reads back as a curve plan", () => {
+    const snap = storedSnapshotSchema.parse({
+      allocations: [{ platform: "instagram", objective: "Awareness", plannedSpend: 1 }],
+      plannedRevenueSar: null,
+      reserveSpendUsd: 0,
+      dayWeights: {},
+    });
+    expect(snap.mode).toBe("curve");
+    expect(snap.days).toEqual([]);
+    expect(snap.targetRoas).toBeNull();
   });
 });

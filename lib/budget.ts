@@ -7,6 +7,8 @@
  *   — warn-tinted, never green/red good/bad. Same philosophy as Reconciliation.
  */
 
+import { ALL_PLATFORMS } from "@/lib/palette";
+
 /** "2026-09" → "2026-09-01"; passes through a full ISO date's month. */
 export function monthStartIso(month: string): string {
   const m = month.match(/^(\d{4})-(\d{2})/);
@@ -298,6 +300,17 @@ export const BUDGET_OBJECTIVES = [
 
 export type BudgetObjective = (typeof BUDGET_OBJECTIVES)[number];
 
+/**
+ * How a month is planned — ONE mode at a time (2026-09, user-approved v1):
+ * - `curve`: monthly allocations per platform × bucket, spread across the days
+ *   by the shared day-weight curve. The editor, Move money and the calendar.
+ * - `daily`: explicit day-grain cells per platform × bucket, landed ONLY by the
+ *   sheet upload; the monthly allocations become their derived SUMS.
+ * App-side enum over `budget_targets.plan_mode` (varchar); absent row = curve.
+ */
+export const PLAN_MODES = ["curve", "daily"] as const;
+export type PlanMode = (typeof PLAN_MODES)[number];
+
 /** The three that map one-to-one; everything else falls into "Other". */
 const BUDGET_MAIN: ReadonlySet<string> = new Set(
   BUDGET_OBJECTIVES.filter((o) => o !== "Other"),
@@ -447,32 +460,238 @@ export function monthDayIncrements(
   return weights.map((w) => (planned * w) / total);
 }
 
-/** What a month contributes to a stitched plan: its scoped total + its curve. */
-export interface MonthPlan {
-  /** YYYY-MM */
-  month: string;
+// ── The unified plan series (2026-09) ────────────────────────────────────────
+// THE load-bearing abstraction for plan-to-date. A month is planned in one of
+// two modes (`PLAN_MODES`), and every consumer of "what should have happened by
+// day d" — Tracker, Pacing, Overview's verdicts and projections, the allocation
+// check, and any future alert evaluator — reads it through `buildPlanSeries`,
+// never by expanding a curve itself. Curve months reproduce the pre-modes math
+// bit for bit (pinned); daily months read their cells verbatim.
+
+/** One day-grain plan cell (daily mode): USD planned for a day × combo. */
+export interface PlanDayCell {
+  day: number;
+  platform: string;
+  objective: string;
   plannedSpend: number;
+}
+
+/** Everything a month's series is built from — structural, so both
+ *  `getBudgetMonth()` (via `planSeriesSourceOf`) and `budgetPlansForMonths()`
+ *  rows satisfy it without this module importing the DB layer. */
+export interface PlanSeriesSource {
+  /** YYYY-MM (or any ISO date inside the month). */
+  month: string;
+  planMode: PlanMode;
+  allocations: ReadonlyArray<{ platform: string; objective: string; plannedSpend: number }>;
   plannedRevenueSar: number | null;
+  /** Curve mode's day weights (dormant — ignored — in daily mode). */
   dayWeights: Record<number, number>;
+  /** Daily mode's cells (empty in curve mode). */
+  planDays: ReadonlyArray<PlanDayCell>;
+  /** Daily mode's revenue link (see `revenueFromRoas`); null = no target. */
+  targetRoas: number | null;
+  usdToSarRate: number;
+}
+
+/** Which platform × bucket combos a slice covers. */
+export type ComboMatch = (platform: string, objective: string) => boolean;
+export const EVERY_COMBO: ComboMatch = () => true;
+
+export interface PlanSeries {
+  month: string;
+  mode: PlanMode;
+  totalDays: number;
+  /**
+   * The month's pacing SHAPE: the share of the whole plan expected by the end
+   * of `throughDay`. Curve: the curve fraction. Daily: planned spend to date ÷
+   * the month's planned spend (linear when nothing is planned, so a daily
+   * month with no money still has a calendar).
+   */
+  fraction(throughDay: number): number;
+  /**
+   * Plan-to-date for a slice. `plan` is the slice's full-month plan as the
+   * caller already summed it — a curve month scales it by the shared curve
+   * (exactly `curveExpected`); a daily month ignores it and sums the slice's
+   * own cells, which equal `plan` over the whole month by the
+   * allocations-are-derived-sums invariant.
+   */
+  spendToDate(plan: number, throughDay: number, match?: ComboMatch): number;
+  /** Planned spend per day (index 0 = day 1) for a slice. */
+  spendDays(match?: ComboMatch): number[];
+  /** The month's revenue target, SAR — daily mode derives it from the ROAS. */
+  plannedRevenueSar: number | null;
+  revenueToDate(throughDay: number): number;
+  /** Planned revenue per day; null without a target. */
+  revenueDays(): number[] | null;
+  /** actual ÷ elapsed fraction; null when nothing is expected yet. */
+  projectedMonthEnd(actualToDate: number, throughDay: number): number | null;
 }
 
 /**
- * Planned amounts per ISO date across every month a range touches. Months with
- * no plan contribute nothing (not zero-filled days — the caller distinguishes
- * "no plan" from "planned zero" by the map being empty for that month).
+ * Daily mode's revenue link, in the brand's ROAS convention
+ * (`roasThroughRate`: SAR revenue ÷ (USD spend × rate)): revenue SAR = spend
+ * USD × ROAS × rate. Rounded to the cent — it is a target someone reads.
+ */
+export function revenueFromRoas(roas: number, spendUsd: number, rate: number): number {
+  return round2(roas * spendUsd * rate);
+}
+
+/** The inverse, for the dual-entry field — exactly `roasThroughRate`. */
+export function roasFromRevenue(
+  revenueSar: number,
+  spendUsd: number,
+  rate: number,
+): number | null {
+  return roasThroughRate(revenueSar, spendUsd, rate);
+}
+
+/**
+ * The monthly allocations a daily month's cells imply — the SUMS, per
+ * platform × bucket, rounded to the cent, zero combos dropped, in
+ * `ALL_PLATFORMS` × `BUDGET_OBJECTIVES` order. The one plan writer stores
+ * exactly this whenever it writes a daily month, which is what keeps every
+ * monthly-total consumer (copy, revision summaries, Overview's cards) working
+ * without knowing modes exist.
+ */
+export function allocationsFromDays(
+  days: ReadonlyArray<PlanDayCell>,
+): Array<{ platform: string; objective: BudgetObjective; plannedSpend: number }> {
+  const sums = new Map<string, number>();
+  for (const c of days) {
+    const key = budgetComboKey(c.platform, c.objective);
+    sums.set(key, (sums.get(key) ?? 0) + c.plannedSpend);
+  }
+  const out: Array<{ platform: string; objective: BudgetObjective; plannedSpend: number }> = [];
+  for (const platform of ALL_PLATFORMS) {
+    for (const objective of BUDGET_OBJECTIVES) {
+      const sum = round2(sums.get(budgetComboKey(platform, objective)) ?? 0);
+      if (sum > 0) out.push({ platform, objective, plannedSpend: sum });
+    }
+  }
+  return out;
+}
+
+const prefixSum = (values: readonly number[], throughDay: number): number => {
+  const upTo = Math.max(0, Math.min(values.length, Math.floor(throughDay)));
+  let sum = 0;
+  for (let i = 0; i < upTo; i++) sum += values[i]!;
+  return sum;
+};
+
+export function buildPlanSeries(src: PlanSeriesSource): PlanSeries {
+  const monthIso = monthStartIso(src.month);
+  const totalDays = daysInMonth(monthIso);
+  const month = monthIso.slice(0, 7);
+
+  if (src.planMode === "daily") {
+    const cells = src.planDays.filter((c) => c.day >= 1 && c.day <= totalDays);
+    const spendDays = (match: ComboMatch = EVERY_COMBO) => {
+      const out = new Array<number>(totalDays).fill(0);
+      for (const c of cells) if (match(c.platform, c.objective)) out[c.day - 1]! += c.plannedSpend;
+      return out;
+    };
+    const all = spendDays();
+    const monthTotal = all.reduce((s, v) => s + v, 0);
+    const fraction = (throughDay: number) => {
+      const d = Math.max(0, Math.min(totalDays, Math.floor(throughDay)));
+      return monthTotal > 0 ? prefixSum(all, d) / monthTotal : d / totalDays;
+    };
+    const roas = src.targetRoas;
+    const revenue =
+      roas !== null && roas > 0 ? all.map((v) => v * roas * src.usdToSarRate) : null;
+    return {
+      month,
+      mode: "daily",
+      totalDays,
+      fraction,
+      spendToDate: (_plan, throughDay, match = EVERY_COMBO) =>
+        prefixSum(spendDays(match), throughDay),
+      spendDays,
+      plannedRevenueSar:
+        revenue === null ? null : revenueFromRoas(roas!, monthTotal, src.usdToSarRate),
+      revenueToDate: (throughDay) => (revenue === null ? 0 : prefixSum(revenue, throughDay)),
+      revenueDays: () => (revenue === null ? null : [...revenue]),
+      projectedMonthEnd: (actualToDate, throughDay) => {
+        const f = fraction(throughDay);
+        return f > 0 ? actualToDate / f : null;
+      },
+    };
+  }
+
+  // Curve mode — TODAY'S MATH, UNCHANGED: these delegate to the same
+  // functions every page called before the series existed.
+  const weights = src.dayWeights;
+  const target = src.plannedRevenueSar;
+  return {
+    month,
+    mode: "curve",
+    totalDays,
+    fraction: (throughDay) => curveFraction(monthIso, weights, throughDay),
+    spendToDate: (plan, throughDay) => curveExpected(plan, monthIso, weights, throughDay),
+    spendDays: (match = EVERY_COMBO) =>
+      monthDayIncrements(
+        monthIso,
+        weights,
+        src.allocations
+          .filter((a) => match(a.platform, a.objective))
+          .reduce((s, a) => s + a.plannedSpend, 0),
+      ),
+    plannedRevenueSar: target,
+    revenueToDate: (throughDay) =>
+      target === null ? 0 : curveExpected(target, monthIso, weights, throughDay),
+    revenueDays: () =>
+      target === null ? null : monthDayIncrements(monthIso, weights, target),
+    projectedMonthEnd: (actualToDate, throughDay) =>
+      projectedMonthEnd(actualToDate, monthIso, weights, throughDay),
+  };
+}
+
+/**
+ * The series source for a month as `getBudgetMonth()` returns it (its weights
+ * field is `dayWeightOverrides`). Structural input, so this stays DB-free.
+ */
+export function planSeriesSourceOf(
+  data: {
+    allocations: ReadonlyArray<{ platform: string; objective: string; plannedSpend: number }>;
+    plannedRevenueSar: number | null;
+    dayWeightOverrides: Record<number, number>;
+    planMode: PlanMode;
+    planDays: ReadonlyArray<PlanDayCell>;
+    targetRoas: number | null;
+    usdToSarRate: number;
+  },
+  month: string,
+): PlanSeriesSource {
+  return {
+    month,
+    planMode: data.planMode,
+    allocations: data.allocations,
+    plannedRevenueSar: data.plannedRevenueSar,
+    dayWeights: data.dayWeightOverrides,
+    planDays: data.planDays,
+    targetRoas: data.targetRoas,
+    usdToSarRate: data.usdToSarRate,
+  };
+}
+
+/**
+ * Planned amounts per ISO date across every month a range touches, from each
+ * month's SERIES — so a range spanning a curve month and a daily month
+ * stitches both honestly. `pick` returning null means "no plan" (the month
+ * contributes nothing), which the caller distinguishes from a planned zero.
  */
 export function stitchPlanByDay(
-  months: MonthPlan[],
-  pick: (m: MonthPlan) => number | null,
+  series: readonly PlanSeries[],
+  pick: (s: PlanSeries) => number[] | null,
 ): Map<string, number> {
   const out = new Map<string, number>();
-  for (const m of months) {
-    const planned = pick(m);
-    if (planned === null) continue;
-    const start = monthStartIso(m.month);
-    const increments = monthDayIncrements(start, m.dayWeights, planned);
-    increments.forEach((value, i) => {
-      out.set(`${start.slice(0, 8)}${String(i + 1).padStart(2, "0")}`, value);
+  for (const s of series) {
+    const days = pick(s);
+    if (days === null) continue;
+    const prefix = monthStartIso(s.month).slice(0, 8);
+    days.forEach((value, i) => {
+      out.set(`${prefix}${String(i + 1).padStart(2, "0")}`, value);
     });
   }
   return out;
@@ -848,6 +1067,11 @@ export interface TrackerInput {
   reserveSpendUsd: number;
   dayWeightOverrides: Record<number, number>;
   actualRevenueSar: number;
+  /** Plan mode + its inputs — the tracker reads plan-to-date through the series. */
+  planMode: PlanMode;
+  planDays: ReadonlyArray<PlanDayCell>;
+  targetRoas: number | null;
+  usdToSarRate: number;
 }
 
 /** One bar: a full-month plan, the actual so far, and the curve's mark. */
@@ -883,7 +1107,7 @@ export interface TrackerData {
   /** Day N of M, by the module's elapsed convention (0 future, M past). */
   elapsedDays: number;
   totalDays: number;
-  /** The curve fraction elapsed — "plan expects P% spent". */
+  /** The plan's elapsed fraction — "plan expects P% spent" (curve or cells). */
   curveElapsed: number;
   isCurrentMonth: boolean;
   isPastMonth: boolean;
@@ -917,11 +1141,8 @@ function makeBar(
   label: string,
   plan: number,
   actual: number,
-  month: string,
-  overrides: Record<number, number>,
-  throughDay: number,
+  planToDate: number,
 ): TrackerBar {
-  const planToDate = curveExpected(plan, monthStartIso(month), overrides, throughDay);
   return {
     key,
     label,
@@ -939,7 +1160,9 @@ export function buildTrackerRows(
   todayIso: string,
 ): TrackerData {
   const monthIso = monthStartIso(month);
-  const ov = data.dayWeightOverrides;
+  // Plan-to-date comes from the month's SERIES — the tracker never expands a
+  // curve (or reads day cells) itself.
+  const series = buildPlanSeries(planSeriesSourceOf(data, month));
   const totalDays = daysInMonth(monthIso);
   const elapsedDays = elapsedDaysInMonth(month, todayIso);
   const todayMonth = monthKey(todayIso);
@@ -976,7 +1199,12 @@ export function buildTrackerRows(
       // A bar needs a track: spend with no plan can't be barred, it is
       // unplanned money and shows as an amount that draws down the reserve.
       if (plan > 0) {
-        buckets.push(makeBar(key, objective, plan, actual, month, ov, elapsedDays));
+        const planToDate = series.spendToDate(
+          plan,
+          elapsedDays,
+          (p, o) => p === platform && o === objective,
+        );
+        buckets.push(makeBar(key, objective, plan, actual, planToDate));
       } else if (actual > 0) {
         unplanned += actual;
       }
@@ -984,7 +1212,13 @@ export function buildTrackerRows(
     const plan = buckets.reduce((s, b) => s + b.plan, 0);
     const actual = buckets.reduce((s, b) => s + b.actual, 0) + unplanned;
     return {
-      ...makeBar(platform, platform, plan, actual, month, ov, elapsedDays),
+      ...makeBar(
+        platform,
+        platform,
+        plan,
+        actual,
+        series.spendToDate(plan, elapsedDays, (p) => p === platform),
+      ),
       buckets,
       unplanned: round2(unplanned),
     };
@@ -994,26 +1228,30 @@ export function buildTrackerRows(
 
   const totalPlan = data.allocations.reduce((s, a) => s + a.plannedSpend, 0);
   const totalActual = data.actualSpendByCombo.reduce((s, c) => s + c.actualSpend, 0);
-  const total = makeBar("total", "Total", totalPlan, totalActual, month, ov, elapsedDays);
+  const total = makeBar(
+    "total",
+    "Total",
+    totalPlan,
+    totalActual,
+    series.spendToDate(totalPlan, elapsedDays),
+  );
 
   const unplannedTotal = round2(platforms.reduce((s, p) => s + p.unplanned, 0));
 
   // The projection is a CURRENT-month reading: a past month is already final,
   // and a future one has nothing to extrapolate from.
   const projectedSpend = isCurrentMonth
-    ? projectedMonthEnd(totalActual, monthIso, ov, elapsedDays)
+    ? series.projectedMonthEnd(totalActual, elapsedDays)
     : null;
 
-  const target = data.plannedRevenueSar;
+  const target = series.plannedRevenueSar;
   const revenue: TrackerRevenue = {
     ...makeBar(
       "revenue",
       "Revenue",
       target ?? 0,
       data.actualRevenueSar,
-      month,
-      ov,
-      elapsedDays,
+      series.revenueToDate(elapsedDays),
     ),
     target,
   };
@@ -1022,7 +1260,7 @@ export function buildTrackerRows(
     month,
     elapsedDays,
     totalDays,
-    curveElapsed: curveFraction(monthIso, ov, elapsedDays),
+    curveElapsed: series.fraction(elapsedDays),
     isCurrentMonth,
     isPastMonth,
     isFutureMonth,

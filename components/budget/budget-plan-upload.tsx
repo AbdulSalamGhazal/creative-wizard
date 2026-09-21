@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Download, Upload } from "lucide-react";
+import { CalendarDays, Download, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,23 +19,39 @@ import { ALL_PLATFORMS } from "@/lib/palette";
 import { int, sar, usd } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { downloadCsv } from "@/lib/csv-export";
-import { BUDGET_OBJECTIVES, monthLabel, round2 } from "@/lib/budget";
 import {
+  BUDGET_OBJECTIVES,
+  monthLabel,
+  planSeriesSourceOf,
+  revenueFromRoas,
+  roasFromRevenue,
+  round2,
+} from "@/lib/budget";
+import {
+  changedDayCells,
   diffPlanCsv,
   parsePlanCsvMatrix,
+  planCsvDayTotals,
   planCsvFilename,
+  planCsvMonthly,
   planCsvTemplate,
+  planCsvTemplateCells,
   planCsvTotals,
+  type PlanChange,
   type PlanCsvIssue,
   type PlanCsvParsed,
-  type PlanCsvPlan,
-  type PlanChange,
 } from "@/lib/budget-plan-csv";
+import { TARGET_ROAS_MAX } from "@/validators/budget";
 import { saveBudgetMonth } from "@/app/actions/budget";
-import { UnitInput } from "@/components/budget/budget-shared";
+import type { BudgetMonthData } from "@/db/queries/budget";
+import { PlanDayBars, UnitInput } from "@/components/budget/budget-shared";
 
 const NOTE_MAX = 200;
 const DEFAULT_NOTE = "Uploaded from file";
+
+/** Target ROAS is stored to 8 dp (numeric(14,8)); the preview uses exactly that. */
+const roasStored = (value: number) => Math.round(value * 1e8) / 1e8;
+const numeric = (raw: string) => raw.replace(/[^0-9.]/g, "");
 
 /** What the file said, once it parsed — held until the author confirms. */
 interface Staged {
@@ -44,50 +60,64 @@ interface Staged {
 }
 
 /**
- * The Plan tab's CSV path: download the month's plan as a matrix, edit it in a
- * spreadsheet, upload it back. The upload is a FULL REPLACE of the month's
- * allocations and reserve, and it is deliberately NOT a second writer — it
- * hands `saveBudgetMonth` the same shape the editor does, so it inherits
- * `planSchema` validation, the revision snapshot and the `budget.update` audit
- * (tagged `op: "upload"`).
- *
- * The sheet carries MONEY ONLY. The revenue target is typed here (a user
- * decision — one number does not belong in a matrix) and the day-weight curve
- * is not in the sheet at all: because the write is a full replace, the stored
- * curve is passed straight back through, and the dialog says so.
+ * The revenue link is DUAL-ENTRY (the reserve's USD ⇄ % is the pattern): a
+ * target in SAR or a target ROAS, each deriving the other through the sheet's
+ * planned spend and the brand rate. Only the field being typed holds raw text,
+ * so the caret is never fought; the other shows the derived value.
+ */
+interface RevenueEntry {
+  source: "revenue" | "roas";
+  raw: string;
+}
+
+/** The month's day-grain sheet, prefilled — curve months come out curve-shaped. */
+export function downloadPlanSheet(month: string, data: BudgetMonthData): void {
+  const cells = planCsvTemplateCells(planSeriesSourceOf(data, month));
+  downloadCsv(planCsvFilename(month), planCsvTemplate(month, cells, data.reserveSpendUsd));
+}
+
+/**
+ * The Plan tab's sheet path, at DAY grain (supersedes 2d45cb3's monthly
+ * matrix): download the month as days × platform·bucket, edit, upload. The
+ * upload is a FULL REPLACE that plans the month in DAILY mode, and it is not a
+ * second writer — it hands `saveBudgetMonth` a daily plan (source "upload"),
+ * which inherits `planSchema` validation, the revision snapshot and the
+ * `budget.update` audit. The allocations are derived from the cells by the
+ * writer; the day weights are left alone (dormant while the month is daily).
  */
 export function BudgetPlanUpload({
   month,
-  current,
-  dayWeights,
-  plannedRevenueSar,
-  actualSpendToDate,
-  usdToSarRate,
+  data,
+  triggerLabel = "Upload plan…",
 }: {
   month: string;
-  /** The month's plan as it stands — prefills the template, anchors the diff. */
-  current: PlanCsvPlan;
-  /** Stored day weights, carried across the replace untouched. */
-  dayWeights: Record<number, number>;
-  plannedRevenueSar: number | null;
-  /** The month's spend so far, for context under the totals. */
-  actualSpendToDate: number;
-  usdToSarRate: number;
+  data: BudgetMonthData;
+  triggerLabel?: string;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [isPending, setIsPending] = useState(false);
   const [staged, setStaged] = useState<Staged | null>(null);
   const [issues, setIssues] = useState<PlanCsvIssue[]>([]);
-  const [revenue, setRevenue] = useState("");
+  const [entry, setEntry] = useState<RevenueEntry>({ source: "revenue", raw: "" });
   const [note, setNote] = useState(DEFAULT_NOTE);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  const rate = data.usdToSarRate;
+  const isDaily = data.planMode === "daily";
+  const current = { allocations: data.allocations, reserveSpendUsd: data.reserveSpendUsd };
 
   const reset = () => {
     setStaged(null);
     setIssues([]);
     setNote(DEFAULT_NOTE);
-    setRevenue(plannedRevenueSar === null ? "" : String(plannedRevenueSar));
+    // Prefill with what the month STORES: a daily month's ROAS, a curve
+    // month's SAR target.
+    setEntry(
+      isDaily && data.targetRoas !== null
+        ? { source: "roas", raw: String(data.targetRoas) }
+        : { source: "revenue", raw: data.plannedRevenueSar === null ? "" : String(data.plannedRevenueSar) },
+    );
     if (fileRef.current) fileRef.current.value = "";
   };
 
@@ -96,25 +126,19 @@ export function BudgetPlanUpload({
     setOpen(true);
   };
 
-  const downloadTemplate = () => {
-    downloadCsv(planCsvFilename(month), planCsvTemplate(current));
-  };
-
   const onFile = async (file: File | undefined) => {
     if (!file) return;
     setStaged(null);
     setIssues([]);
-    // papaparse is loaded HERE, not with the page: it is ~10 kB gzipped and
-    // it is worth nothing until somebody actually picks a file. Keeping the
-    // static import would have put all of it in /budget/plan's first load
-    // (measured: 29.6 kB → 40 kB) for a dialog most visits never open.
+    // papaparse loads HERE, not with the page — it is worth nothing until
+    // somebody picks a file (a static import cost /budget/plan ~6 kB).
     const { default: Papa } = await import("papaparse");
     Papa.parse<string[]>(file, {
       skipEmptyLines: "greedy",
       complete: (result) => {
         const rows = result.data.filter(Array.isArray);
         const [head, ...body] = rows;
-        const parsed = parsePlanCsvMatrix(head ?? [], body);
+        const parsed = parsePlanCsvMatrix(head ?? [], body, month);
         if (!parsed.ok) {
           setIssues(parsed.issues);
           return;
@@ -127,34 +151,63 @@ export function BudgetPlanUpload({
     });
   };
 
-  const totals = staged ? planCsvTotals(staged.plan) : null;
-  const diff = staged ? diffPlanCsv(current, staged.plan) : null;
-  const revenueValue = revenue.trim() === "" ? null : Number(revenue.trim());
-  const revenueInvalid =
-    revenueValue !== null && (!Number.isFinite(revenueValue) || revenueValue < 0);
+  // ── Derived preview ─────────────────────────────────────────────────────────
+  const monthly = staged ? planCsvMonthly(staged.plan) : null;
+  const totals = monthly ? planCsvTotals(monthly) : null;
+  const diff = monthly ? diffPlanCsv(current, monthly) : null;
+  const spend = totals?.allocated ?? 0;
+  const currentCells = planCsvTemplateCells(planSeriesSourceOf(data, month));
+  const cellsChanged = staged ? changedDayCells(currentCells, staged.plan.days) : 0;
+  const dayTotals = staged ? planCsvDayTotals(month, staged.plan.days) : [];
+
+  const typed = entry.raw.trim() === "" ? null : Number(entry.raw);
+  const typedValid = typed === null || (Number.isFinite(typed) && typed >= 0);
+  // The ROAS is what's STORED (8 dp); the revenue target is derived from it,
+  // so the preview shows the target exactly as it will read back.
+  const targetRoas: number | null = (() => {
+    if (typed === null || !typedValid || spend <= 0) return null;
+    if (entry.source === "roas") return typed > 0 ? roasStored(typed) : null;
+    const r = roasFromRevenue(typed, spend, rate);
+    return r !== null && r > 0 ? roasStored(r) : null;
+  })();
+  const targetRevenue = targetRoas === null ? null : revenueFromRoas(targetRoas, spend, rate);
+  const roasTooHigh = targetRoas !== null && targetRoas > TARGET_ROAS_MAX;
+  const revenueUnlinkable = typed !== null && typed > 0 && spend <= 0;
+
+  const revenueField =
+    entry.source === "revenue" ? entry.raw : targetRevenue === null ? "" : String(targetRevenue);
+  // Shown to 4 dp when derived — the stored 8 are for the round trip, not reading.
+  const roasField =
+    entry.source === "roas"
+      ? entry.raw
+      : targetRoas === null
+        ? ""
+        : String(Math.round(targetRoas * 1e4) / 1e4);
+
+  const blocked = !staged || isPending || !typedValid || roasTooHigh;
 
   const apply = async () => {
-    if (!staged || revenueInvalid) return;
+    if (!staged || blocked) return;
     setIsPending(true);
     try {
       const res = await saveBudgetMonth({
         month,
-        allocations: staged.plan.allocations,
-        plannedRevenueSar: revenueValue,
-        reserveSpendUsd: staged.plan.reserveSpendUsd,
-        // The sheet carries money, not the calendar — the stored curve rides
-        // through the full replace untouched.
-        dayWeights: Object.entries(dayWeights)
-          .filter(([, w]) => w !== 1)
-          .map(([d, w]) => ({ day: Number(d), weight: w })),
-        note: note.trim() === "" ? undefined : note.trim(),
+        mode: "daily",
         source: "upload",
+        days: staged.plan.days,
+        // Derived by the writer from the days; sent empty on purpose.
+        allocations: [],
+        plannedRevenueSar: targetRevenue,
+        reserveSpendUsd: staged.plan.reserveSpendUsd,
+        targetRoas,
+        dayWeights: [],
+        note: note.trim() === "" ? undefined : note.trim(),
       });
       if (!res.ok) {
         toast.error(res.error ?? "Could not apply the uploaded plan");
         return;
       }
-      toast.success(`${monthLabel(month)}'s plan replaced from ${staged.fileName}`);
+      toast.success(`${monthLabel(month)} is now planned day by day, from ${staged.fileName}`);
       setOpen(false);
       reset();
       router.refresh();
@@ -167,19 +220,19 @@ export function BudgetPlanUpload({
     <>
       <Button type="button" variant="outline" size="sm" onClick={openDialog}>
         <Upload className="h-3.5 w-3.5" />
-        Upload plan…
+        {triggerLabel}
       </Button>
 
-      <Dialog open={open} onOpenChange={(o) => !isPending && (o ? setOpen(true) : setOpen(false))}>
+      <Dialog open={open} onOpenChange={(o) => !isPending && setOpen(o)}>
         {/* The preview can be tall — the dialog scrolls rather than growing
             past a phone's viewport. */}
         <DialogContent className="max-h-[calc(100dvh-2rem)] gap-3 overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Upload {monthLabel(month)}&rsquo;s plan</DialogTitle>
+            <DialogTitle>Upload {monthLabel(month)}&rsquo;s plan, day by day</DialogTitle>
             <DialogDescription>
-              A spreadsheet of platforms × buckets in USD. Uploading REPLACES{" "}
-              {monthLabel(month)}&rsquo;s allocations and reserve entirely, and is
-              recorded as a plan revision you can roll back.
+              A sheet of days × platform · bucket, in USD. Uploading REPLACES{" "}
+              {monthLabel(month)}&rsquo;s allocations and reserve entirely and plans it day
+              by day; it is recorded as a plan revision you can roll back.
             </DialogDescription>
           </DialogHeader>
 
@@ -190,13 +243,20 @@ export function BudgetPlanUpload({
           <div className="min-w-0 space-y-4">
             {/* ── 1. The template ──────────────────────────────────────── */}
             <div className="flex flex-wrap items-center gap-2">
-              <Button type="button" variant="outline" size="sm" onClick={downloadTemplate}>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => downloadPlanSheet(month, data)}
+              >
                 <Download className="h-3.5 w-3.5" />
                 Download template
               </Button>
               <p className="min-w-0 flex-1 basis-48 text-[11px] text-ink-3">
-                Prefilled with {monthLabel(month)}&rsquo;s plan — edit the amounts and
-                upload it back. Amounts are <span className="text-ink-2">USD</span>.
+                {isDaily
+                  ? `Prefilled with ${monthLabel(month)}'s days exactly as planned.`
+                  : `Prefilled with ${monthLabel(month)}'s plan spread across its days by the plan curve — a ready-shaped start.`}{" "}
+                Amounts are <span className="text-ink-2">USD</span>.
               </p>
             </div>
 
@@ -218,7 +278,7 @@ export function BudgetPlanUpload({
                   {int(issues.length)} {issues.length === 1 ? "problem" : "problems"} in this
                   file — nothing has been changed.
                 </p>
-                <ul className="space-y-0.5">
+                <ul className="max-h-48 space-y-0.5 overflow-y-auto">
                   {issues.map((i, k) => (
                     <li key={`${i.cell}-${k}`} className="text-[11px] text-ink-2">
                       <span className="num text-ink-3">{i.cell}</span> — {i.message}
@@ -230,25 +290,59 @@ export function BudgetPlanUpload({
 
             {staged && totals && diff && (
               <>
-                {/* ── 3. The revenue target (typed, never in the sheet) ── */}
-                <label className="block space-y-1">
+                {!isDaily && (
+                  <p className="flex items-start gap-2 rounded-lg border border-warn/40 bg-warn/5 px-3 py-2 text-xs text-ink">
+                    <CalendarDays className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warn" aria-hidden />
+                    <span>
+                      This switches {monthLabel(month)} to day-by-day planning; the editor and
+                      curve become read-only for it.
+                    </span>
+                  </p>
+                )}
+
+                {/* ── 3. The revenue link (typed, never in the sheet) ───── */}
+                <div className="space-y-1">
                   <span className="text-label text-ink-3">Revenue target</span>
-                  <UnitInput
-                    unit="SAR"
-                    inputMode="decimal"
-                    value={revenue}
-                    onChange={(e) => setRevenue(e.target.value.replace(/[^0-9.]/g, ""))}
-                    className="h-9"
-                    wrapperClassName="max-w-[12rem]"
-                    aria-label="Revenue target in SAR"
-                  />
+                  <div className="flex flex-wrap items-center gap-2">
+                    <UnitInput
+                      unit="SAR"
+                      inputMode="decimal"
+                      value={revenueField}
+                      onChange={(e) => setEntry({ source: "revenue", raw: numeric(e.target.value) })}
+                      className="h-9"
+                      wrapperClassName="w-44"
+                      aria-label="Revenue target in SAR"
+                    />
+                    <span aria-hidden className="text-ink-3">
+                      ⇄
+                    </span>
+                    <UnitInput
+                      unit="ROAS"
+                      inputMode="decimal"
+                      value={roasField}
+                      onChange={(e) => setEntry({ source: "roas", raw: numeric(e.target.value) })}
+                      className="h-9"
+                      wrapperClassName="w-36"
+                      aria-label="Target ROAS"
+                    />
+                  </div>
                   <span className="block text-[11px] text-ink-3">
-                    Typed here, not in the sheet — one monthly total, in SAR.
-                    {plannedRevenueSar !== null && (
-                      <> Currently {sar(plannedRevenueSar)}.</>
-                    )}
+                    Either one fills the other, through the sheet&rsquo;s {usd(spend)} and the
+                    rate {rate.toFixed(2)}. The ROAS is what&rsquo;s kept: each day&rsquo;s revenue
+                    target is that day&rsquo;s spend × ROAS.
                   </span>
-                </label>
+                  {revenueUnlinkable && (
+                    <span className="block text-[11px] text-warn">
+                      The sheet plans no spend, so there is nothing for a revenue target to
+                      ride on — it will be left empty.
+                    </span>
+                  )}
+                  {roasTooHigh && (
+                    <span className="block text-[11px] text-warn">
+                      A target ROAS above {TARGET_ROAS_MAX} is almost certainly a typo.
+                    </span>
+                  )}
+                </div>
 
                 {/* ── 4. The preview ───────────────────────────────────── */}
                 <div className="min-w-0 space-y-2">
@@ -256,9 +350,9 @@ export function BudgetPlanUpload({
                     <h3 className="text-sm font-medium text-ink">What this would change</h3>
                     <span className="text-[11px] text-ink-3">
                       {staged.fileName} ·{" "}
-                      {diff.identical
-                        ? "no money moves"
-                        : `${int(diff.changedCells)} ${diff.changedCells === 1 ? "cell" : "cells"}`}
+                      {cellsChanged === 0
+                        ? "no day cell moves"
+                        : `${int(cellsChanged)} day ${cellsChanged === 1 ? "cell" : "cells"} changed`}
                     </span>
                   </div>
 
@@ -268,13 +362,13 @@ export function BudgetPlanUpload({
                     </p>
                   ))}
 
-                  {/* The matrix, scrolling in its own container so a phone
-                      never gets a sideways-scrolling PAGE. */}
+                  {/* Monthly totals per platform × bucket, diffed — the
+                      matrix scrolls in its own container on a phone. */}
                   <div className="-mx-1 overflow-x-auto px-1">
                     <table className="w-full min-w-[34rem] text-xs">
                       <thead>
                         <tr className="text-left text-ink-3">
-                          <th className="py-1 font-normal">Platform</th>
+                          <th className="py-1 font-normal">Month total</th>
                           {BUDGET_OBJECTIVES.map((o) => (
                             <th key={o} className="py-1 text-right font-normal">
                               {o}
@@ -287,7 +381,7 @@ export function BudgetPlanUpload({
                         {diff.rows.length === 0 && (
                           <tr>
                             <td colSpan={BUDGET_OBJECTIVES.length + 2} className="py-2 text-ink-3">
-                              No allocations on either side.
+                              No spend on either side.
                             </td>
                           </tr>
                         )}
@@ -337,41 +431,54 @@ export function BudgetPlanUpload({
                     </table>
                   </div>
 
+                  {/* The day grain, at a glance — the same bars the tab draws. */}
+                  <div className="space-y-1">
+                    <span className="text-label text-ink-3">Planned spend per day</span>
+                    <PlanDayBars
+                      values={dayTotals}
+                      label={(v) => usd(v)}
+                      ariaLabel={`Planned spend per day, ${usd(spend)} across ${dayTotals.length} days`}
+                      className="h-20"
+                      tone="data"
+                    />
+                  </div>
+
                   {/* ── 5. Totals — the wrong-currency tripwire ─────────── */}
                   <dl className="space-y-1 rounded-lg border border-line bg-surface-2/50 p-3 text-xs">
-                    <Line
-                      label="Allocated"
-                      value={totals.allocated}
-                      rate={usdToSarRate}
-                      change={diff.identical ? "same" : "changed"}
-                    />
+                    <Line label="Allocated" value={totals.allocated} rate={rate} />
                     <Line
                       label="Reserve"
                       value={totals.reserve}
-                      rate={usdToSarRate}
-                      change={diff.reserve.change}
-                      was={diff.reserve.prev}
+                      rate={rate}
+                      was={diff.reserve.change === "same" ? undefined : diff.reserve.prev}
                     />
                     <div className="flex flex-wrap items-baseline justify-between gap-x-3 border-t border-line pt-1">
                       <dt className="font-medium text-ink">Total budget</dt>
                       <dd className="num tabular-nums text-ink">
                         {usd(totals.total)}{" "}
+                        <span className="text-ink-3">· {sar(round2(totals.total * rate))}</span>
+                      </dd>
+                    </div>
+                    <div className="flex flex-wrap items-baseline justify-between gap-x-3">
+                      <dt className="text-ink-2">Revenue target</dt>
+                      <dd className="num tabular-nums text-ink-2">
+                        {targetRevenue === null ? "—" : sar(targetRevenue)}{" "}
                         <span className="text-ink-3">
-                          · {sar(round2(totals.total * usdToSarRate))}
+                          · ROAS {targetRoas === null ? "—" : targetRoas.toFixed(2)}
                         </span>
                       </dd>
                     </div>
                     <p className="text-[11px] text-ink-3">
-                      Both currencies are shown on purpose: if the sheet held SAR
-                      figures, the USD column is what would be stored.
-                      {" "}
-                      {monthLabel(month)} has spent {usd(actualSpendToDate)} so far.
+                      Both currencies are shown on purpose: if the sheet held SAR figures,
+                      the USD column is what would be stored. {monthLabel(month)} has spent{" "}
+                      {usd(data.actualSpendByCombo.reduce((s, c) => s + c.actualSpend, 0))} so
+                      far.
                     </p>
                   </dl>
 
                   <p className="text-[11px] text-ink-3">
-                    The plan curve is untouched — the sheet carries money, not the
-                    calendar. Day weights stay exactly as they are.
+                    The sheet carries money, not a curve — the month&rsquo;s day weights are
+                    left exactly as they are, dormant while it is planned day by day.
                   </p>
                 </div>
 
@@ -391,24 +498,21 @@ export function BudgetPlanUpload({
           </div>
 
           <DialogFooter>
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => setOpen(false)}
-              disabled={isPending}
-            >
+            <Button type="button" variant="ghost" onClick={() => setOpen(false)} disabled={isPending}>
               Cancel
             </Button>
             <Button
               type="button"
               onClick={apply}
-              disabled={!staged || isPending || revenueInvalid}
+              disabled={blocked}
               title={
-                staged
-                  ? revenueInvalid
+                !staged
+                  ? "Pick a .csv file first."
+                  : !typedValid
                     ? "The revenue target must be a number, and not negative."
-                    : undefined
-                  : "Pick a .csv file first."
+                    : roasTooHigh
+                      ? `The target ROAS must be at most ${TARGET_ROAS_MAX}.`
+                      : undefined
               }
             >
               Replace {monthLabel(month)}&rsquo;s plan
@@ -434,22 +538,18 @@ function Line({
   label,
   value,
   rate,
-  change,
   was,
 }: {
   label: string;
   value: number;
   rate: number;
-  change: PlanChange;
   was?: number;
 }) {
   return (
     <div className="flex flex-wrap items-baseline justify-between gap-x-3">
       <dt className="text-ink-2">
         {label}
-        {change !== "same" && was !== undefined && (
-          <span className="ml-1.5 num text-ink-3 line-through">{usd(was)}</span>
-        )}
+        {was !== undefined && <span className="ml-1.5 num text-ink-3 line-through">{usd(was)}</span>}
       </dt>
       <dd className="num tabular-nums text-ink-2">
         {usd(value)} <span className="text-ink-3">· {sar(round2(value * rate))}</span>

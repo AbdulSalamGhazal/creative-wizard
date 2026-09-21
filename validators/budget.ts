@@ -1,6 +1,11 @@
 import { z } from "zod";
 import { platformEnum } from "@/db/schema";
-import { BUDGET_OBJECTIVES, mergeAllocationsToBuckets } from "@/lib/budget";
+import {
+  BUDGET_OBJECTIVES,
+  PLAN_MODES,
+  mergeAllocationsToBuckets,
+  type PlanMode,
+} from "@/lib/budget";
 
 /**
  * Budget module input schemas. Spend is USD, revenue SAR (see lib/budget.ts for
@@ -21,7 +26,25 @@ export const MONTH_KEY = /^\d{4}-(0[1-9]|1[0-2])$/;
 export const WEIGHT_MIN = 0.5;
 export const WEIGHT_MAX = 10;
 
-/** A month's whole plan — full-replace semantics (see replaceBudgetMonth). */
+/** One day-grain cell of a daily-mode plan. */
+export const planDayCellSchema = z.object({
+  day: z.number().int().min(1).max(31),
+  platform: z.enum(platformEnum),
+  objective: z.enum(BUDGET_OBJECTIVES),
+  plannedSpend: z.number().min(0).max(99_999_999),
+});
+
+/** Target ROAS bounds — SAR revenue per SAR of spend; 1000× is a fat finger. */
+export const TARGET_ROAS_MAX = 1000;
+
+/**
+ * A month's whole plan — full-replace semantics (see replaceBudgetMonth).
+ *
+ * `mode` decides which half is the truth. `curve`: `allocations` + the day
+ * weights, and `days` must be empty. `daily`: `days` (+ `targetRoas`), and
+ * `allocations` is IGNORED — the writer derives it as the cells' sums, so a
+ * client can never store allocations that disagree with its days.
+ */
 export const planSchema = z.object({
   month: z.string().regex(MONTH_KEY),
   allocations: z
@@ -47,6 +70,20 @@ export const planSchema = z.object({
     )
     .max(31)
     .default([]),
+  mode: z.enum(PLAN_MODES).default("curve"),
+  days: z
+    .array(planDayCellSchema)
+    .max(31 * platformEnum.length * BUDGET_OBJECTIVES.length)
+    .default([]),
+  /** Daily mode's revenue link; must be null in curve mode. */
+  targetRoas: z.number().positive().max(TARGET_ROAS_MAX).nullable().default(null),
+}).superRefine((plan, ctx) => {
+  if (plan.mode === "curve" && plan.days.length > 0) {
+    ctx.addIssue({ code: "custom", message: "A curve-mode plan can't carry day cells." });
+  }
+  if (plan.mode === "curve" && plan.targetRoas !== null) {
+    ctx.addIssue({ code: "custom", message: "A target ROAS is only for day-by-day plans." });
+  }
 });
 
 
@@ -62,10 +99,30 @@ export const planNoteSchema = z.string().trim().max(200).optional();
  */
 export const planSourceSchema = z.enum(["editor", "upload"]).default("editor");
 
-/** Save = a plan plus the optional note that explains it. */
-export const savePlanSchema = planSchema.extend({
+/**
+ * Save = a plan plus the optional note that explains it, and where it came
+ * from. The source PINS the mode: the editor writes curve plans, the upload
+ * writes daily ones — so neither door can quietly open the other's mode.
+ */
+export const savePlanSchema = planSchema.and(
+  z.object({ note: planNoteSchema, source: planSourceSchema }),
+).superRefine((plan, ctx) => {
+  const expected: PlanMode = plan.source === "upload" ? "daily" : "curve";
+  if (plan.mode !== expected) {
+    ctx.addIssue({
+      code: "custom",
+      message:
+        plan.source === "upload"
+          ? "An uploaded plan is a day-by-day plan."
+          : "The editor saves curve plans — upload a sheet to plan day by day.",
+    });
+  }
+});
+
+/** Collapse a daily month back to editor planning (see convertPlanToCurve). */
+export const convertPlanSchema = z.object({
+  month: z.string().regex(MONTH_KEY),
   note: planNoteSchema,
-  source: planSourceSchema,
 });
 
 /** Copy a plan from ANY month that has one (not just the previous month). */
@@ -101,6 +158,23 @@ export const storedSnapshotSchema = z.object({
   reserveSpendUsd: z.number().default(0),
   /** `{ "15": 2 }` — only overridden days, same convention as the table. */
   dayWeights: z.record(z.string(), z.number()).default({}),
+  /**
+   * Plan mode (2026-09). Absent on every snapshot written before modes
+   * existed — those were all curve plans, so the default IS the truth.
+   */
+  mode: z.enum(PLAN_MODES).default("curve"),
+  /** Daily mode's cells; structural (strings) for the same reason as above. */
+  days: z
+    .array(
+      z.object({
+        day: z.number(),
+        platform: z.string(),
+        objective: z.string(),
+        plannedSpend: z.number(),
+      }),
+    )
+    .default([]),
+  targetRoas: z.number().nullable().default(null),
 });
 
 export type BudgetPlanSnapshot = z.infer<typeof storedSnapshotSchema>;
@@ -127,6 +201,11 @@ export function snapshotToPlanInput(
       day: Number(day),
       weight,
     })),
+    // The mode travels with the snapshot, so a restore re-applies the plan
+    // the way it was planned.
+    mode: snapshot.mode,
+    days: snapshot.days,
+    targetRoas: snapshot.mode === "daily" ? snapshot.targetRoas : null,
   };
 }
 
@@ -140,6 +219,9 @@ export function planInputToSnapshot(plan: {
   plannedRevenueSar: number | null;
   reserveSpendUsd?: number;
   dayWeights?: Record<number | string, number>;
+  mode?: PlanMode;
+  days?: Array<{ day: number; platform: string; objective: string; plannedSpend: number }>;
+  targetRoas?: number | null;
 }): BudgetPlanSnapshot {
   return {
     allocations: plan.allocations.map((a) => ({
@@ -154,5 +236,13 @@ export function planInputToSnapshot(plan: {
         .filter(([, w]) => w !== 1)
         .map(([day, w]) => [String(day), w]),
     ),
+    mode: plan.mode ?? "curve",
+    days: (plan.days ?? []).map((d) => ({
+      day: d.day,
+      platform: d.platform,
+      objective: d.objective,
+      plannedSpend: d.plannedSpend,
+    })),
+    targetRoas: plan.mode === "daily" ? (plan.targetRoas ?? null) : null,
   };
 }

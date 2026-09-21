@@ -912,6 +912,8 @@ This app is deployed and in production use. Treat `main` as shippable.
   a date range. Deviations everywhere are warn-tinted by |magnitude| — never
   green/red. Permission
   `budget.manage`; audit `budget.update`. Migrations 0035 + 0036 (additive).
+  **Plan modes (curve | daily, 0048) — see PLAN MODES below; every
+  plan-to-date number goes through the unified plan series.**
   - **The Plan tab is planning-only (2026-09).** `/budget/plan` carries intent
     and nothing else — Platform/objective · Planned · % share. The Actual,
     Pacing, Variance and Variance % columns and the "unplanned" ghost rows were
@@ -949,8 +951,9 @@ This app is deployed and in production use. Treat `main` as shippable.
     it, and every other platform's dollars are untouched (only their displayed shares move). Don't
     collapse them into one control — the difference is the whole point.
   - **Plan revisions (`budget_plan_revisions`, migration 0040, additive).**
-    Every write that changes a plan — `saveBudgetMonth`, `copyBudgetFromMonth`,
-    `restorePlanRevision` — appends a jsonb snapshot of the plan AS IT STANDS
+    Every write that changes a plan — `saveBudgetMonth` (editor AND sheet
+    upload), `copyBudgetFromMonth`, `restorePlanRevision`, `convertPlanToCurve`
+    — appends a jsonb snapshot of the plan AS IT STANDS
     AFTERWARDS, **inside the same transaction as the write**. Any new plan-write
     path must do the same, or the history silently gains a hole. A restore
     re-validates its snapshot through `planSchema` FIRST (a snapshot predating a
@@ -985,9 +988,10 @@ This app is deployed and in production use. Treat `main` as shippable.
     toggle that gives one series and one table block per bucket. **Revenue has
     no platform attribution anywhere in Budget** (that's Reconciliation), so a
     platform filter LOCKS the metric to Spend and the UI says why instead of
-    hiding it. Plans are per MONTH, so a range spreads each month's plan across
-    its days by the plan curve and stitches them (`stitchPlanByDay`);
-    `budgetPlansForMonths(months)` is THREE queries with an `inArray`, never one
+    hiding it. Plans are per MONTH, so a range takes each month's plan SERIES
+    (curve-spread or daily cells) and stitches them (`stitchPlanByDay`);
+    `budgetPlansForMonths(months)` is FOUR queries (one per plan table, incl.
+    `budget_plan_days` since 0048) with an `inArray`, never one
     per month, and `budgetPacingSeries(from, to)` stays two scans (`max: 1`).
     The objective on a spend row is the campaign's CURRENT objective seen
     through the bucket lens, so reclassifying a campaign restates budget
@@ -1000,7 +1004,7 @@ This app is deployed and in production use. Treat `main` as shippable.
     decision**. Nothing here is new data: it reads the SAME `getBudgetMonth()`
     payload and derives everything through `buildTrackerRows` (pure,
     unit-tested, in lib/budget.ts), which composes the module's existing
-    conventions — `curveExpected` for plan-to-date, `pacingDeviation` /
+    conventions — the plan SERIES for plan-to-date (curve or daily), `pacingDeviation` /
     `pacingTone` for the magnitude-based verdict, `projectedMonthEnd` for the
     "on this pace" line. **Never re-derive pacing in the page.**
     - **The bar says three things at once:** the TRACK is the row's full-month
@@ -1017,70 +1021,102 @@ This app is deployed and in production use. Treat `main` as shippable.
       "final for <month>"; future month → tick at 0, no verdict at all (nothing
       is expected yet, which must never read as 100% behind). Both fall out of
       `elapsedDaysInMonth`, not a special case.
-  - **Plan CSV upload (2026-09) — a path INTO the editor, not around it.**
-    "Upload plan…" sits beside Copy on the Plan tab (`budget.manage`) and is
-    scoped to the current `?month=`. **It is not a second writer**: the dialog
-    hands `saveBudgetMonth` exactly the shape the editor hands it, so it
-    inherits `planSchema` validation, the revision snapshot inside the write's
-    transaction, and the `budget.update` audit. The ONE difference is
-    `savePlanSchema.source` (`"editor"` | `"upload"`), which becomes the audit
-    meta's `op` — add a new plan-write path and it goes through here too, or
-    the revision history gains a hole.
-    - **The template DERIVES** (`lib/budget-plan-csv.ts`, pure, unit-tested):
-      a matrix of one column per `BUDGET_OBJECTIVES` bucket × one row per
-      `ALL_PLATFORMS` platform, plus a trailing **Reserve** row carrying one
-      amount in the first bucket column. Never hand-list either axis — a new
-      platform or bucket grows the template, the parser and the error messages
-      together. The currency is in **every column header** (`Awareness (USD)`)
-      rather than a comment line, so it survives the round trip; a column
-      headed `(SAR)` is an unknown column, on purpose.
-    - **The sheet is PREFILLED with the month's plan**, so the download doubles
-      as an export and download → edit → upload is the bulk-edit path.
-      Generate → parse → the same plan to the cent is unit-pinned AND
-      DB-pinned. A cell with no money is written BLANK, not `0`.
-    - **The sheet carries MONEY ONLY.** The revenue target is typed in the
-      dialog (SAR, prefilled — a user decision; one number doesn't belong in a
-      matrix) and the day-weight curve isn't in the sheet at all. Because the
-      write is a FULL REPLACE, the dialog reads the stored weights and hands
-      them straight back, and says so in its fine print — forget that and an
-      upload silently flattens the curve.
-    - **Validation is FORM validation, deliberately NOT the E/S catalog.**
-      `csv/errors.ts` is the contract for the ad-platform ingestion pipelines
-      (stable codes, per-row reports, a spec document); this is one person
-      typing config into four columns, and the answer is an inline message
-      naming the cell ("Row 3 · Instagram · Awareness — \"lots\" isn't a
-      number"). Adding config-entry codes to that catalog would blur what those
-      codes promise. Every bad cell is collected in ONE pass, and nothing is
-      written until they are all gone.
-      - Errors: unknown platform row · unknown or duplicate bucket column ·
-        duplicate platform row · non-numeric · negative · a row with cells to
-        SPARE · money in the Reserve row's other columns. Names match trimmed
-        and case-insensitively, against the display label OR the storage key.
-        An unrecognized row or column is an ERROR, **never silently dropped**.
-      - Lenient exactly twice, both where the SPREADSHEET is at fault: a row
-        SHORT of cells is padded with blanks (editors drop trailing commas),
-        and **an absent Reserve row is reserve 0 with a NOTICE**, not an error.
-        Blank = 0 is the system-wide convention, and the tolerant numerics
-        (`$`, thousands separators, a trailing unit, `—`/`n/a`) are the
-        adapters' own — `parseNumber`/`isEmptyMarker` moved to `csv/numeric.ts`
-        so this shares the code instead of copying it.
-    - **PREVIEW THEN CONFIRM.** The parsed matrix renders as a diff against the
-      current plan in the revisions drawer's language (current → uploaded;
-      cells struck-through old → new, rows marked new/dropped/changed), with
-      allocated · reserve · total **in USD AND SAR** — both currencies shown on
-      purpose, as the wrong-currency tripwire — plus the month's spend so far.
-      The revision note pre-fills "Uploaded from file" and stays editable.
-    - The 100% gate does NOT apply here: amounts are given directly, so
-      total = Σ + reserve by construction. Reopening the editor after an upload
-      reconstructs the shares exactly as it does after any save (the round trip
-      already held; it is pinned).
-    - **papaparse is imported ON DEMAND**, inside the file handler — it is
-      worth nothing until somebody picks a file, and a static import put all
-      of it in `/budget/plan`'s first load (29.6 kB → 40 kB; on demand,
-      33.5 kB). Same reasoning as React Flow on the Canvas.
-    - **`DialogContent` is a GRID**, so the preview matrix needs `min-w-0` on
-      its ancestor — without it the table's `min-w` widens the dialog and the
-      DIALOG scrolls sideways on a phone instead of the table's own container.
+  - **PLAN MODES (2026-09, migration 0048 additive) — a month is planned
+    EITHER by the curve system OR by explicit day cells, ONE MODE AT A TIME.**
+    `budget_targets.plan_mode` (`'curve'` | `'daily'`, app-side enum
+    `PLAN_MODES`; DEFAULT `'curve'`, no backfill — no targets row = curve).
+    - **curve** = everything above, UNCHANGED: the cascade editor, Move money,
+      the day-weight calendar.
+    - **daily** = `budget_plan_days` (day × platform × bucket, USD, sparse),
+      landed ONLY by the sheet upload (and copy / restore of a daily plan). The
+      revenue link is `budget_targets.target_roas` in the brand's ROAS
+      convention (`roasThroughRate`: SAR revenue ÷ (USD spend × rate)), so
+      revenue on day d = spend_d × ROAS × rate. A daily month's
+      `plannedRevenueSar` is DERIVED at read time (cells × ROAS × the CURRENT
+      rate — retroactive like every SAR figure here); the stored column is a
+      write-time echo, never the truth.
+    - **THE UNIFIED PLAN SERIES is the load-bearing abstraction.**
+      `buildPlanSeries` (pure, lib/budget.ts) → per-day planned spend for any
+      combo slice, per-day planned revenue, the month's pacing shape
+      (`fraction`), plan-to-date and the projection;
+      `planSeriesForMonth(month)` is the server entry, and client components
+      build the same series from the `getBudgetMonth()` payload
+      (`planSeriesSourceOf`). **EVERY consumer of plan-to-date reads through
+      it** — Tracker (`buildTrackerRows`), Pacing (`stitchPlanByDay` now
+      stitches SERIES, so a range spanning a curve month and a daily month is
+      honest), Overview's verdicts/projections/"planned today", the allocation
+      check — and so will the phase-3 alert evaluator. **Never expand a curve
+      (or read day cells) in a page again.** Curve months delegate to the old
+      functions and are pinned BIT-IDENTICAL (`toBe`, not `toBeCloseTo`);
+      daily months read their cells verbatim, their `fraction` is the cells'
+      cumulative share (linear when the month plans nothing), and a slice's
+      plan-to-date is its OWN cells — `spendToDate(plan, …)` ignores `plan` in
+      daily mode, which is why callers keep passing the curve's number.
+    - **ALLOCATIONS ARE DERIVED SUMS in daily mode.** `replaceBudgetMonth` is
+      the ONE plan writer (save, upload, copy, restore, convert all land there)
+      and it rewrites `budget_allocations` as `allocationsFromDays(days)` —
+      never trusting the client, which sends `allocations: []` — so every
+      monthly-total consumer (copy, revision summaries, Overview's cards,
+      "start from shares") keeps working without knowing modes exist. It
+      returns the plan AS WRITTEN; callers snapshot that. A daily write leaves
+      the day weights UNTOUCHED (dormant); a curve write CLEARS the month's
+      day cells (the prior revision keeps them).
+    - **One mode at a time, enforced twice.** `savePlanSchema.source` PINS the
+      mode (editor ⇒ curve, upload ⇒ daily), and `saveBudgetMonth` refuses an
+      editor save onto a daily month. The Plan tab on a daily month renders
+      the mode badge, read-only totals (platform → bucket), the daily bars
+      (`PlanDayBars`, the curve editor's bars lifted into budget-shared),
+      Download sheet / "Upload new sheet…", and **"Switch to editor planning"**
+      (`convertPlanToCurve`): the days COLLAPSE to their monthly sums, the
+      curve resets to LINEAR (the dormant weights must not resurface), the
+      ROAS becomes a plain SAR target at today's rate, mode → curve; the
+      dialog says so, and the daily plan stays one restore away. No cascade,
+      no Move money, no calendar on a daily month — **to edit it, re-upload.**
+    - **Revisions carry the mode.** The snapshot gained `{ mode, days,
+      targetRoas }`; legacy snapshots default to curve (which is what they
+      were), and a restore re-applies the snapshot's mode. Copy of a DAILY
+      month copies its days + mode (days past the destination's end dropped,
+      allocations re-derived from the survivors) and the Copy dialog says so;
+      "start from shares" on a daily source seeds from its bucket sums, and is
+      disabled INTO a daily month (it opens the editor).
+  - **THE SHEET (2026-09, day grain — SUPERSEDES 2d45cb3's monthly platform ×
+    bucket template; there is ONE template).** "Upload plan…" beside Copy
+    (`budget.manage`), scoped to `?month=`. Rows: Day 1..N, then ONE Reserve
+    row (one monthly USD amount, first value cell). Columns: `Day`, then one
+    per platform × bucket headed "Instagram · Awareness (USD)" — DERIVED from
+    `ALL_PLATFORMS` × `BUDGET_OBJECTIVES` (20 today) and the month's real
+    length; never hand-list either axis (`lib/budget-plan-csv.ts`, pure).
+    - **Prefilled from the plan series' source**: a daily month downloads its
+      cells verbatim (generate → parse → generate is BYTE-EQUAL, pinned); a
+      curve month downloads its allocations spread by the curve CENTS-EXACT
+      (`splitByWeights`, so every column sums to its allocation and an
+      unedited re-upload moves no cell) — seasonality already shaped.
+    - **Parsing carries 2d45cb3's conventions**: the adapters' tolerant
+      numerics (`csv/numeric.ts`), blank = 0, cell-named errors ("Row 4 ·
+      Day 3 · Facebook · Activation"), unknown/duplicate row or column = ERROR
+      (never dropped; columns match by NAME, any order, trimmed and
+      case-insensitive; only `(USD)` is stripped, so a `(SAR)` column is
+      unknown on purpose), short rows padded / long rows refused, absent
+      Reserve row = 0 with a notice. The Day column must be EXACTLY 1..N once
+      each (missing days listed as ranges). **Validation is FORM validation,
+      deliberately NOT the E/S catalog** — that catalog is the ingestion
+      pipelines' contract (stable codes, per-row reports, a spec); this is one
+      person typing a plan into a grid.
+    - **The dialog.** Revenue is DUAL-ENTRY — "Revenue target (SAR)" ⇄
+      "Target ROAS", linked live through the sheet's planned spend and the
+      brand rate (the reserve's USD ⇄ % pattern: only the typed field holds
+      raw text, no caret fights). The ROAS is what's STORED (8 dp — at 4 a typed SAR 100,000 read
+      back as 100,000.99), so the
+      preview shows the target exactly as it will read back. Preview:
+      per-platform × bucket monthly totals diffed against the current plan in
+      the revisions drawer's language, the daily bars, the USD + SAR tripwire
+      totals, the day cells changed, and — on a curve month — "This switches
+      <Month> to day-by-day planning; the editor and curve become read-only
+      for it." Confirm = `saveBudgetMonth({ mode: "daily", source: "upload",
+      days, targetRoas, … })`, audited `op: "upload"`; the revision note
+      pre-fills "Uploaded from file". papaparse is `import()`ed inside the
+      file handler (not in the page's first load); the preview needs
+      `min-w-0` on its ancestor because `DialogContent` is a grid.
 
   - **Funnel audience (`/budget/audience`, 2026-09, migration 0042 additive).**
     Hand-measured audience sizes per funnel stage × platform, versus spend.
