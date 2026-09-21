@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { CalendarDays, Download, Upload } from "lucide-react";
+import { CalendarDays, Download } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -85,46 +85,41 @@ export function downloadPlanSheet(month: string, data: BudgetMonthData): void {
  * `budget.update` audit. The allocations are derived from the cells by the
  * writer; the day weights are left alone (dormant while the month is daily).
  */
+/**
+ * CONTROLLED — the Plan tab opens it from three places (a daily month's
+ * primary button, the ⋯ menu, the empty state), so it owns no trigger. The
+ * parent remounts it per opening (`key`), which is what resets the draft: the
+ * state below initializes from the month's plan every time.
+ */
 export function BudgetPlanUpload({
   month,
   data,
-  triggerLabel = "Upload plan…",
+  open,
+  onOpenChange,
 }: {
   month: string;
   data: BudgetMonthData;
-  triggerLabel?: string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 }) {
   const router = useRouter();
-  const [open, setOpen] = useState(false);
   const [isPending, setIsPending] = useState(false);
   const [staged, setStaged] = useState<Staged | null>(null);
   const [issues, setIssues] = useState<PlanCsvIssue[]>([]);
-  const [entry, setEntry] = useState<RevenueEntry>({ source: "revenue", raw: "" });
+  const isDaily = data.planMode === "daily";
+  // Prefill with what the month STORES: a daily month's ROAS, a curve
+  // month's SAR target.
+  const [entry, setEntry] = useState<RevenueEntry>(() =>
+    isDaily && data.targetRoas !== null
+      ? { source: "roas", raw: String(data.targetRoas) }
+      : { source: "revenue", raw: data.plannedRevenueSar === null ? "" : String(data.plannedRevenueSar) },
+  );
   const [note, setNote] = useState(DEFAULT_NOTE);
   const fileRef = useRef<HTMLInputElement>(null);
+  const setOpen = onOpenChange;
 
   const rate = data.usdToSarRate;
-  const isDaily = data.planMode === "daily";
   const current = { allocations: data.allocations, reserveSpendUsd: data.reserveSpendUsd };
-
-  const reset = () => {
-    setStaged(null);
-    setIssues([]);
-    setNote(DEFAULT_NOTE);
-    // Prefill with what the month STORES: a daily month's ROAS, a curve
-    // month's SAR target.
-    setEntry(
-      isDaily && data.targetRoas !== null
-        ? { source: "roas", raw: String(data.targetRoas) }
-        : { source: "revenue", raw: data.plannedRevenueSar === null ? "" : String(data.plannedRevenueSar) },
-    );
-    if (fileRef.current) fileRef.current.value = "";
-  };
-
-  const openDialog = () => {
-    reset();
-    setOpen(true);
-  };
 
   const onFile = async (file: File | undefined) => {
     if (!file) return;
@@ -209,7 +204,6 @@ export function BudgetPlanUpload({
       }
       toast.success(`${monthLabel(month)} is now planned day by day, from ${staged.fileName}`);
       setOpen(false);
-      reset();
       router.refresh();
     } finally {
       setIsPending(false);
@@ -218,11 +212,6 @@ export function BudgetPlanUpload({
 
   return (
     <>
-      <Button type="button" variant="outline" size="sm" onClick={openDialog}>
-        <Upload className="h-3.5 w-3.5" />
-        {triggerLabel}
-      </Button>
-
       <Dialog open={open} onOpenChange={(o) => !isPending && setOpen(o)}>
         {/* The preview can be tall — the dialog scrolls rather than growing
             past a phone's viewport. */}

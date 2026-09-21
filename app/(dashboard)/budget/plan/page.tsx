@@ -7,7 +7,6 @@ import { monthKey } from "@/lib/budget";
 // produce a nonsense one. One regex, in the validators.
 import { MONTH_KEY } from "@/validators/budget";
 import {
-  budgetPlansForMonths,
   dailyPlannedMonths,
   getBudgetMonth,
   listPlanRevisions,
@@ -45,17 +44,10 @@ export default async function BudgetPlanPage({
     dailyPlannedMonths(),
   ]);
 
-  // "Same split, new total" needs the source month's PLAN, not just its name.
-  // Fetched only when an earlier planned month exists (three more serial
-  // queries on a max:1 connection — worth it here, and skipped entirely for a
-  // brand that has never planned).
+  // The empty state's "Copy <month>'s plan" needs only the month's NAME —
+  // the copy itself reads the plan server-side. (Its plan used to be fetched
+  // here for "start from shares", removed 2026-09.)
   const seedMonth = months.find((m) => m < month) ?? null;
-  const seed = seedMonth
-    ? {
-        month: seedMonth,
-        plan: (await budgetPlansForMonths([seedMonth]))[0]!,
-      }
-    : null;
 
   return (
     <PageShell>
@@ -74,7 +66,7 @@ export default async function BudgetPlanPage({
         data={data}
         plannedMonths={months}
         dailyMonths={dailyMonths}
-        seed={seed}
+        seedMonth={seedMonth}
         revisions={revisions}
         canManage={canManage}
       />

@@ -8,12 +8,14 @@ import {
   Check,
   CopyPlus,
   Download,
+  MoreHorizontal,
+  Trash2,
+  Upload,
   Pencil,
   RotateCcw,
   Scale,
   Split,
   Wallet,
-  Wand2,
   X,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -35,7 +37,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { DataTable, type DataColumn } from "@/components/ui/data-table";
-import { SegmentedControl } from "@/components/ui/segmented-control";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { PlatformDot } from "@/components/ui/platform-dot";
 import { ALL_PLATFORMS, PLATFORM_LABEL } from "@/lib/palette";
 import { pct1, plural, sar, usd } from "@/lib/format";
@@ -74,11 +82,7 @@ import {
   copyBudgetFromMonth,
   setUsdToSarRate,
 } from "@/app/actions/budget";
-import type {
-  BudgetMonthData,
-  MonthPlanRow,
-  PlanRevisionRow,
-} from "@/db/queries/budget";
+import type { BudgetMonthData, PlanRevisionRow } from "@/db/queries/budget";
 import {
   BudgetMonthBar,
   CurrencyToggle,
@@ -158,7 +162,7 @@ export function BudgetPlanEditor({
   data,
   plannedMonths,
   dailyMonths,
-  seed,
+  seedMonth,
   revisions,
   canManage,
 }: {
@@ -170,11 +174,11 @@ export function BudgetPlanEditor({
   /** The subset planned DAY BY DAY — copying one copies its days and mode. */
   dailyMonths: string[];
   /**
-   * The most recent planned month BEFORE this one, with its plan — the source
-   * for "start from its shares". Null when there is no earlier plan; fetched
-   * only in that case, so an unplanned brand pays nothing for it.
+   * The most recent planned month BEFORE this one — the empty state's "Copy
+   * <month>'s plan". A month NAME only: the plan itself is fetched by the copy,
+   * server side.
    */
-  seed: { month: string; plan: MonthPlanRow } | null;
+  seedMonth: string | null;
   revisions: PlanRevisionRow[];
   canManage: boolean;
 }) {
@@ -206,8 +210,17 @@ export function BudgetPlanEditor({
   const [movePlatform, setMovePlatform] = useState<string>(ALL_PLATFORMS[0]);
   /** "reserve" · "new" · a platform key. */
   const [moveFrom, setMoveFrom] = useState<string>("reserve");
-  const [copyMode, setCopyMode] = useState<"amounts" | "shares">("amounts");
   const [convertOpen, setConvertOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteNote, setDeleteNote] = useState("");
+  /** The upload dialog is controlled, and REMOUNTED per opening (`key`) so
+   *  its draft always starts from the month as it stands. */
+  const [uploadOpen, setUploadOpen] = useState(false);
+  const [uploadKey, setUploadKey] = useState(0);
+  const openUpload = () => {
+    setUploadKey((k) => k + 1);
+    setUploadOpen(true);
+  };
   const [convertNote, setConvertNote] = useState("");
 
   /**
@@ -485,56 +498,6 @@ export function BudgetPlanEditor({
         ? null
         : amountOf(moveFrom);
 
-  // ── Seed a plan from another month's SHARES ────────────────────────────────
-  /**
-   * "Same split, new total" — the common real task. This writes NOTHING: it
-   * opens edit mode with the source month's shares (and its curve) already in
-   * the draft, leaving the planner to type a total and save. Deliberately not
-   * the Copy action, which replaces the stored plan outright.
-   */
-  const startFromShares = (source: MonthPlanRow) => {
-    const allocated = round2(
-      source.allocations.reduce((sum, a) => sum + a.plannedSpend, 0),
-    );
-    const platformShares: Record<string, string> = {};
-    const objectiveShares: Record<string, string> = {};
-    for (const platform of ALL_PLATFORMS) {
-      const rows = source.allocations.filter((a) => a.platform === platform);
-      if (rows.length === 0) continue;
-      const platformSum = round2(rows.reduce((sum, a) => sum + a.plannedSpend, 0));
-      platformShares[platform] = String(shareFromAmount(platformSum, allocated));
-      for (const row of rows) {
-        objectiveShares[budgetComboKey(platform, row.objective)] = String(
-          shareFromAmount(row.plannedSpend, platformSum),
-        );
-      }
-    }
-    setDraft({
-      // The shares come across; the money does not — that's the point.
-      total: "",
-      reserve: "",
-      revenue: "",
-      platformShares,
-      objectiveShares,
-    });
-    setWeightsDraft(
-      Object.fromEntries(
-        Object.entries(source.dayWeights).map(([day, w]) => [
-          Number(day),
-          Math.min(WEIGHT_MAX, Math.max(WEIGHT_MIN, w)),
-        ]),
-      ),
-    );
-    setNote(`Started from ${monthLabel(source.month)}'s shares`);
-    setShareEdit(null);
-    setReservePctRaw(null);
-    setSelectedDay(null);
-    setCopyOpen(false);
-    setEditing(true);
-    // The one thing left to decide.
-    window.setTimeout(() => totalRef.current?.focus(), 0);
-  };
-
   // ── View-mode rows ─────────────────────────────────────────────────────────
   const storedAllocated = round2(
     data.allocations.reduce((s, a) => s + a.plannedSpend, 0),
@@ -677,14 +640,41 @@ export function BudgetPlanEditor({
       setIsPending(false);
     }
   };
-  /** Shares-mode needs the source month's PLAN, and only the seed month's is
-   *  fetched — a deliberate limit, so Plan doesn't fetch every planned month. */
-  const copySeed = seed && seed.month === copyFrom ? seed.plan : null;
-  /** Open the Copy dialog already pointed at a month, in amounts mode. */
-  const setCopySeedAndOpen = (from: string) => {
+  /** Open the Copy dialog already pointed at a month. */
+  const openCopyFrom = (from: string) => {
     setCopyFrom(from);
-    setCopyMode("amounts");
     setCopyOpen(true);
+  };
+
+  /**
+   * DELETE = an EMPTY full-replace through the one writer (saveBudgetMonth,
+   * source "delete") — never a parallel DELETE. So it leaves a revision like
+   * every other write, and the plan it removed stays restorable.
+   */
+  const doDelete = async () => {
+    setIsPending(true);
+    try {
+      const res = await saveBudgetMonth({
+        month,
+        mode: "curve",
+        source: "delete",
+        allocations: [],
+        plannedRevenueSar: null,
+        reserveSpendUsd: 0,
+        dayWeights: [],
+        note: deleteNote.trim() === "" ? undefined : deleteNote.trim(),
+      });
+      if (!res.ok) {
+        toast.error(res.error ?? "Could not delete the plan");
+        return;
+      }
+      toast.success(`${monthLabel(month)}'s plan deleted — it's in Revisions if you need it back`);
+      setDeleteOpen(false);
+      setDeleteNote("");
+      router.refresh();
+    } finally {
+      setIsPending(false);
+    }
   };
   const openCopy = () => {
     const prev = prevMonthKey(month);
@@ -812,6 +802,15 @@ export function BudgetPlanEditor({
   return (
     <div className="space-y-4" ref={formRef}>
       <BudgetMonthBar month={month} today={today} locked={editing}>
+        {isDaily && (
+          <span
+            className="inline-flex items-center gap-1 rounded-full border border-brand/40 bg-[var(--brand-soft)] px-2 py-0.5 text-[11px] text-ink"
+            title="Planned from an uploaded sheet, one day at a time. The editor and the curve are read-only for this month."
+          >
+            <CalendarDays className="h-3 w-3" aria-hidden />
+            Day by day
+          </span>
+        )}
         {/* Rate (display + inline edit) */}
         <span className="text-[11px] text-ink-3 num">
           1 USD ={" "}
@@ -865,58 +864,16 @@ export function BudgetPlanEditor({
           canManage={canManage}
         />
 
-        {isDaily && (
-          <span
-            className="inline-flex items-center gap-1 rounded-full border border-brand/40 bg-[var(--brand-soft)] px-2 py-0.5 text-[11px] text-ink"
-            title="Planned from an uploaded sheet, one day at a time. The editor and the curve are read-only for this month."
-          >
-            <CalendarDays className="h-3 w-3" aria-hidden />
-            Day by day
-          </span>
-        )}
         {canManage && !editing && (
-          <>
-            {/* The sheet path — download the month at day grain, edit it,
-                upload it back. It writes through saveBudgetMonth like the
-                editor does, and plans the month day by day. */}
-            {isDaily && (
-              <Button type="button" variant="outline" size="sm" onClick={() => downloadPlanSheet(month, data)}>
-                <Download className="h-3.5 w-3.5" />
-                Download sheet
-              </Button>
-            )}
-            <BudgetPlanUpload
-              month={month}
-              data={data}
-              triggerLabel={isDaily ? "Upload new sheet…" : "Upload plan…"}
-            />
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={copyOptions.length === 0 || isPending}
-              title={copyOptions.length === 0 ? "No other month has a plan to copy." : undefined}
-              onClick={openCopy}
-            >
-              <CopyPlus className="h-3.5 w-3.5" />
-              Copy
-            </Button>
-            {seed && !isDaily && (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => startFromShares(seed.plan)}
-                title={`Reuse ${monthLabel(seed.month)}'s split with a new total`}
-              >
-                <Wand2 className="h-3.5 w-3.5" />
-                Start from {monthLabel(seed.month)}&rsquo;s shares
-              </Button>
-            )}
+          // ONE primary per mode, then the ⋯ menu — adjacent, so they wrap
+          // onto a phone's second line TOGETHER. Everything a planner does
+          // less often lives in the menu (the toolbar pattern for
+          // action-heavy tabs; see the Budget bullets in CLAUDE.md).
+          <span className="inline-flex items-center gap-1.5">
             {isDaily ? (
-              <Button type="button" size="sm" onClick={() => setConvertOpen(true)}>
-                <Pencil className="h-3.5 w-3.5" />
-                Switch to editor planning
+              <Button type="button" size="sm" onClick={openUpload}>
+                <Upload className="h-3.5 w-3.5" />
+                Upload sheet
               </Button>
             ) : (
               <Button type="button" size="sm" onClick={startEditing}>
@@ -924,7 +881,66 @@ export function BudgetPlanEditor({
                 Edit plan
               </Button>
             )}
-          </>
+            {/* modal={false}: a menu item opens a Dialog, and a MODAL menu
+                closing underneath it can leave the body's pointer lock behind. */}
+            <DropdownMenu modal={false}>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="px-2"
+                  aria-label="More plan actions"
+                  disabled={isPending}
+                >
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                {!isDaily && (
+                  <DropdownMenuItem onSelect={openUpload}>
+                    <Upload />
+                    Upload plan…
+                  </DropdownMenuItem>
+                )}
+                {isDaily && (
+                  <DropdownMenuItem onSelect={() => downloadPlanSheet(month, data)}>
+                    <Download />
+                    Download sheet
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuItem
+                  onSelect={openCopy}
+                  disabled={copyOptions.length === 0}
+                  title={copyOptions.length === 0 ? "No other month has a plan to copy." : undefined}
+                >
+                  <CopyPlus />
+                  Copy from month…
+                </DropdownMenuItem>
+                {isDaily ? (
+                  <DropdownMenuItem onSelect={() => setConvertOpen(true)}>
+                    <Pencil />
+                    Switch to editor planning
+                  </DropdownMenuItem>
+                ) : (
+                  // Useful standalone too: a curve month downloads curve-shaped.
+                  <DropdownMenuItem onSelect={() => downloadPlanSheet(month, data)}>
+                    <Download />
+                    Download sheet
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  variant="destructive"
+                  onSelect={() => setDeleteOpen(true)}
+                  disabled={!hasPlan}
+                >
+                  <Trash2 />
+                  Delete plan
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </span>
         )}
         {editing && (
           <>
@@ -1335,41 +1351,40 @@ export function BudgetPlanEditor({
           ) : (
             <div className="rounded-lg border border-dashed border-line bg-surface px-6 py-10 text-center">
               <p className="text-sm text-ink-2">No plan for this month yet.</p>
-              {canManage && seed ? (
+              {canManage ? (
                 <>
                   <p className="mt-1 text-xs text-ink-3">
-                    {monthLabel(seed.month)} has one — reuse it, or start from a
-                    blank month.
+                    {seedMonth
+                      ? `${monthLabel(seedMonth)} has one — reuse it, plan from scratch, or upload a sheet.`
+                      : "Plan it in the editor, or upload a day-by-day sheet."}
                   </p>
+                  {/* The toolbar's hierarchy: one primary, the rest quieter. */}
                   <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
-                    <Button
-                      type="button"
-                      size="sm"
-                      onClick={() => setCopySeedAndOpen(seed.month)}
-                      disabled={isPending}
-                    >
-                      <CopyPlus className="h-3.5 w-3.5" />
-                      Copy {monthLabel(seed.month)}&rsquo;s plan
+                    <Button type="button" size="sm" onClick={startEditing} disabled={isPending}>
+                      <Pencil className="h-3.5 w-3.5" />
+                      Edit plan
                     </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => startFromShares(seed.plan)}
-                    >
-                      <Wand2 className="h-3.5 w-3.5" />
-                      Start from its shares
-                    </Button>
-                    <Button type="button" variant="ghost" size="sm" onClick={startEditing}>
-                      Start blank
+                    {seedMonth && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => openCopyFrom(seedMonth)}
+                        disabled={isPending}
+                      >
+                        <CopyPlus className="h-3.5 w-3.5" />
+                        Copy {monthLabel(seedMonth)}&rsquo;s plan
+                      </Button>
+                    )}
+                    <Button type="button" variant="outline" size="sm" onClick={openUpload} disabled={isPending}>
+                      <Upload className="h-3.5 w-3.5" />
+                      Upload
                     </Button>
                   </div>
                 </>
               ) : (
                 <p className="mt-1 text-xs text-ink-3">
-                  {canManage
-                    ? "Set a total budget to start planning."
-                    : "Ask someone with budget access to add a plan."}
+                  Ask someone with budget access to add a plan.
                 </p>
               )}
             </div>
@@ -1409,6 +1424,47 @@ export function BudgetPlanEditor({
       )}
 
       {/* Copy from any planned month */}
+      {canManage && (
+        <BudgetPlanUpload
+          key={uploadKey}
+          month={month}
+          data={data}
+          open={uploadOpen}
+          onOpenChange={setUploadOpen}
+        />
+      )}
+
+      {/* Delete: the house destructive pattern. No type-to-confirm — unlike
+          the cleanup tools this is revision-recoverable, and the dialog says so. */}
+      <Dialog open={deleteOpen} onOpenChange={(o) => !isPending && setDeleteOpen(o)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete {monthLabel(month)}&rsquo;s plan?</DialogTitle>
+            <DialogDescription>
+              Deletes {monthLabel(month)}&rsquo;s plan entirely. Recoverable — the previous
+              plan stays in Revisions.
+            </DialogDescription>
+          </DialogHeader>
+          <Input
+            value={deleteNote}
+            onChange={(e) => setDeleteNote(e.target.value.slice(0, NOTE_MAX))}
+            placeholder="Plan deleted"
+            maxLength={NOTE_MAX}
+            className="h-8"
+            aria-label="Revision note"
+          />
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={() => setDeleteOpen(false)} disabled={isPending}>
+              Cancel
+            </Button>
+            <Button type="button" variant="destructive" onClick={doDelete} disabled={isPending}>
+              <Trash2 className="h-3.5 w-3.5" />
+              Delete plan
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Daily → editor planning: a COLLAPSE, said out loud */}
       <Dialog open={convertOpen} onOpenChange={(o) => !isPending && setConvertOpen(o)}>
         <DialogContent className="sm:max-w-md">
@@ -1453,35 +1509,11 @@ export function BudgetPlanEditor({
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
-            <div className="space-y-1.5">
-              <span className="text-label text-ink-3">What to copy</span>
-              <SegmentedControl<"amounts" | "shares">
-                ariaLabel="What to copy"
-                value={copyMode}
-                onChange={setCopyMode}
-                options={[
-                  { value: "amounts", label: "Copy amounts" },
-                  {
-                    value: "shares",
-                    label: "Start from its shares",
-                    // Shares open the EDITOR, which a daily month doesn't have.
-                    disabled: isDaily,
-                    title: isDaily
-                      ? "This month is planned day by day — switch it to editor planning first."
-                      : undefined,
-                  },
-                ]}
-              />
+            {copyFromDaily && (
               <p className="text-[11px] text-ink-3">
-                {copyMode === "amounts"
-                  ? copyFromDaily
-                    ? `${monthLabel(copyFrom)} is planned day by day — copying brings its days across and plans ${monthLabel(month)} day by day too (days past the month's end are dropped).`
-                    : "Replaces this month's plan with that month's, dollar for dollar."
-                  : copyFromDaily
-                    ? "Opens the editor with that month's bucket totals as shares (its daily shape isn't carried) — nothing is saved until you set a total and save."
-                    : "Opens the editor with that month's split and curve — nothing is saved until you set a total and save."}
+                {`${monthLabel(copyFrom)} is planned day by day — copying brings its days across and plans ${monthLabel(month)} day by day too (days past the month's end are dropped).`}
               </p>
-            </div>
+            )}
             <div className="space-y-1.5">
             <span className="text-label text-ink-3">Copy from</span>
             <Select value={copyFrom} onValueChange={setCopyFrom}>
@@ -1504,25 +1536,10 @@ export function BudgetPlanEditor({
             </Button>
             <Button
               type="button"
-              onClick={() => {
-                if (copyMode === "shares") {
-                  const source = copySeed;
-                  if (!source) {
-                    toast.error("That month's plan isn't loaded — use Copy amounts.");
-                    return;
-                  }
-                  startFromShares(source);
-                  return;
-                }
-                void doCopy();
-              }}
+              onClick={() => void doCopy()}
               disabled={isPending || !copyFrom}
             >
-              {copyMode === "shares"
-                ? "Start from its shares"
-                : hasPlan
-                  ? "Replace this month"
-                  : "Copy plan"}
+              {hasPlan ? "Replace this month" : "Copy plan"}
             </Button>
           </DialogFooter>
         </DialogContent>

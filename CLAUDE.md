@@ -951,9 +951,9 @@ This app is deployed and in production use. Treat `main` as shippable.
     it, and every other platform's dollars are untouched (only their displayed shares move). Don't
     collapse them into one control — the difference is the whole point.
   - **Plan revisions (`budget_plan_revisions`, migration 0040, additive).**
-    Every write that changes a plan — `saveBudgetMonth` (editor AND sheet
-    upload), `copyBudgetFromMonth`, `restorePlanRevision`, `convertPlanToCurve`
-    — appends a jsonb snapshot of the plan AS IT STANDS
+    Every write that changes a plan — `saveBudgetMonth` (editor, sheet upload
+    AND delete), `copyBudgetFromMonth`, `restorePlanRevision`,
+    `convertPlanToCurve` — appends a jsonb snapshot of the plan AS IT STANDS
     AFTERWARDS, **inside the same transaction as the write**. Any new plan-write
     path must do the same, or the history silently gains a hole. A restore
     re-validates its snapshot through `planSchema` FIRST (a snapshot predating a
@@ -1056,8 +1056,8 @@ This app is deployed and in production use. Treat `main` as shippable.
       the ONE plan writer (save, upload, copy, restore, convert all land there)
       and it rewrites `budget_allocations` as `allocationsFromDays(days)` —
       never trusting the client, which sends `allocations: []` — so every
-      monthly-total consumer (copy, revision summaries, Overview's cards,
-      "start from shares") keeps working without knowing modes exist. It
+      monthly-total consumer (copy, revision summaries, Overview's cards)
+      keeps working without knowing modes exist. It
       returns the plan AS WRITTEN; callers snapshot that. A daily write leaves
       the day weights UNTOUCHED (dormant); a curve write CLEARS the month's
       day cells (the prior revision keeps them).
@@ -1076,12 +1076,15 @@ This app is deployed and in production use. Treat `main` as shippable.
       targetRoas }`; legacy snapshots default to curve (which is what they
       were), and a restore re-applies the snapshot's mode. Copy of a DAILY
       month copies its days + mode (days past the destination's end dropped,
-      allocations re-derived from the survivors) and the Copy dialog says so;
-      "start from shares" on a daily source seeds from its bucket sums, and is
-      disabled INTO a daily month (it opens the editor).
+      allocations re-derived from the survivors) and the Copy dialog says so.
+    - **SUPERSEDED (2026-09, user decision): "Start from shares" is GONE** —
+      redundant since the editor's total-rescale. Copy is single-purpose
+      again (replace with the source month's plan); the Plan page no longer
+      fetches a seed month's plan, only its name for the empty state.
   - **THE SHEET (2026-09, day grain — SUPERSEDES 2d45cb3's monthly platform ×
-    bucket template; there is ONE template).** "Upload plan…" beside Copy
-    (`budget.manage`), scoped to `?month=`. Rows: Day 1..N, then ONE Reserve
+    bucket template; there is ONE template).** Opened from a daily month's
+    primary "Upload sheet", a curve month's ⋯ "Upload plan…", or the empty
+    state (`budget.manage`), scoped to `?month=`. Rows: Day 1..N, then ONE Reserve
     row (one monthly USD amount, first value cell). Columns: `Day`, then one
     per platform × bucket headed "Instagram · Awareness (USD)" — DERIVED from
     `ALL_PLATFORMS` × `BUDGET_OBJECTIVES` (20 today) and the month's real
@@ -1117,6 +1120,45 @@ This app is deployed and in production use. Treat `main` as shippable.
       pre-fills "Uploaded from file". papaparse is `import()`ed inside the
       file handler (not in the page's first load); the preview needs
       `min-w-0` on its ancestor because `DialogContent` is a grid.
+
+  - **DELETE PLAN (2026-09) — through the one writer, recoverable.** ⋯ menu,
+    `budget.manage`. It is `saveBudgetMonth` with `source: "delete"` — an
+    EMPTY full-replace (allocations [], cells cleared, revenue null, reserve 0,
+    weights cleared, mode → curve, ROAS null), never a parallel DELETE. The
+    schema refuses a "delete" that carries any plan, and a month with nothing
+    to delete. Because it is the writer, it leaves a revision like every
+    write, audited `op: "delete"`, note pre-filled "Plan deleted". **The
+    safety story is Revisions**, so the confirm says "Deletes <Month>'s plan
+    entirely. Recoverable — the previous plan stays in Revisions." — the house
+    destructive dialog, NO type-to-confirm (that is for the unrecoverable
+    cleanup tools). To keep that promise TRUE for plans that predate
+    revisions (or whose latest revision no longer matches), the delete writes
+    a "Before deletion" snapshot first, in the same transaction.
+    `insertPlanRevision` stamps `clock_timestamp()`, not the column's `now()`:
+    `now()` is the TRANSACTION's start, so those two revisions tied and the
+    drawer's order was arbitrary. Restore round-trips a deleted daily month
+    (mode, cells, ROAS) as well as a curve one — DB-pinned.
+  - **THE PLAN TOOLBAR — the pattern for action-heavy tabs (2026-09, user-
+    approved).** `[rate inline edit] · [currency toggle] · [Revisions] ·
+    [PRIMARY] · [⋯ More]`: settings stay tiny and inline, ONE primary per
+    mode, Revisions always visible, everything rarer in the house
+    DropdownMenu (keyboard-reachable; the destructive item uses the
+    primitive's `variant="destructive"` after a separator).
+    - Curve month: primary **Edit plan**; ⋯ = Upload plan… · Copy from
+      month… · Download sheet · — · Delete plan.
+    - Daily month: primary **Upload sheet**; ⋯ = Download sheet · Copy from
+      month… · Switch to editor planning · — · Delete plan. The "Day by day"
+      badge sits first in the bar — it describes the month, it isn't an action.
+    - "Download sheet" is the same client-side template the dialog offers (a
+      curve month downloads curve-expanded — useful standalone).
+    - Primary + ⋯ are ONE inline group, so a phone wraps them together. Edit
+      mode swaps the whole group for note · Discard · Save, as before.
+    - The menu is `modal={false}`: its items open Dialogs, and a modal menu
+      closing underneath one can leave the body's pointer lock behind.
+    - The upload dialog is CONTROLLED (opened from three places) and remounted
+      per opening (`key`) — that is its reset.
+    - The empty state follows the same hierarchy: **Edit plan** (primary) ·
+      "Copy <month>'s plan" (when an earlier plan exists) · Upload.
 
   - **Funnel audience (`/budget/audience`, 2026-09, migration 0042 additive).**
     Hand-measured audience sizes per funnel stage × platform, versus spend.

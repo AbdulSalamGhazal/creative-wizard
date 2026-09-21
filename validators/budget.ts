@@ -96,8 +96,12 @@ export const planNoteSchema = z.string().trim().max(200).optional();
  * `planSchema` validation, the same revision snapshot and the same audit row.
  * This field is the one thing that differs: it becomes the audit meta's `op`,
  * so the trail can still tell a typed plan from an uploaded one.
+ *
+ * `delete` (2026-09) is the Plan tab's Delete plan: an EMPTY full-replace
+ * through the same writer — never a parallel DELETE — so it leaves a revision
+ * like every other write and the removed plan stays restorable.
  */
-export const planSourceSchema = z.enum(["editor", "upload"]).default("editor");
+export const planSourceSchema = z.enum(["editor", "upload", "delete"]).default("editor");
 
 /**
  * Save = a plan plus the optional note that explains it, and where it came
@@ -107,6 +111,20 @@ export const planSourceSchema = z.enum(["editor", "upload"]).default("editor");
 export const savePlanSchema = planSchema.and(
   z.object({ note: planNoteSchema, source: planSourceSchema }),
 ).superRefine((plan, ctx) => {
+  if (plan.source === "delete") {
+    // A delete carries NOTHING: the writer's empty full-replace is the whole
+    // operation, so "delete" can't be used to smuggle a plan past the guards.
+    const empty =
+      plan.mode === "curve" &&
+      plan.allocations.length === 0 &&
+      plan.days.length === 0 &&
+      plan.plannedRevenueSar === null &&
+      plan.reserveSpendUsd === 0 &&
+      plan.dayWeights.length === 0 &&
+      plan.targetRoas === null;
+    if (!empty) ctx.addIssue({ code: "custom", message: "A delete must be an empty plan." });
+    return;
+  }
   const expected: PlanMode = plan.source === "upload" ? "daily" : "curve";
   if (plan.mode !== expected) {
     ctx.addIssue({

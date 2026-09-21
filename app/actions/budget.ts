@@ -17,6 +17,7 @@ import {
   validateWeight,
 } from "@/lib/budget";
 import {
+  type BudgetPlanSnapshot,
   convertPlanSchema,
   copyPlanSchema,
   planInputToSnapshot,
@@ -30,6 +31,7 @@ import {
   getBudgetMonth,
   getPlanMode,
   getPlanRevision,
+  listPlanRevisions,
   insertPlanRevision,
   replaceBudgetMonth,
   type BudgetPlanInput,
@@ -74,6 +76,34 @@ export async function saveBudgetMonth(input: unknown): Promise<BudgetActionResul
     if (problem) return { ok: false, error: problem };
 
     const acct = await getActiveAccountId();
+
+    // DELETE: refuse a month with nothing to delete, and make sure the plan
+    // being removed is IN Revisions — the confirm dialog promises that. Every
+    // plan written since 0040 already has its revision; one that predates
+    // revisions (or whose latest revision no longer matches it) gets a
+    // "Before deletion" snapshot in the same transaction, first.
+    let beforeDelete: BudgetPlanSnapshot | null = null;
+    if (source === "delete") {
+      const current = await getBudgetMonth(month);
+      const hasPlan =
+        current.allocations.length > 0 ||
+        current.plannedRevenueSar !== null ||
+        current.reserveSpendUsd > 0 ||
+        current.planMode === "daily";
+      if (!hasPlan) return { ok: false, error: `${monthLabel(month)} has no plan to delete.` };
+      const snapshot = planInputToSnapshot({
+        allocations: current.allocations,
+        plannedRevenueSar: current.plannedRevenueSar,
+        reserveSpendUsd: current.reserveSpendUsd,
+        dayWeights: current.dayWeightOverrides,
+        mode: current.planMode,
+        days: current.planDays,
+        targetRoas: current.targetRoas,
+      });
+      const [latest] = await listPlanRevisions(month, 1);
+      if (!latest?.snapshot || !sameSnapshot(latest.snapshot, snapshot)) beforeDelete = snapshot;
+    }
+
     // One mode at a time: the editor can't write over a day-by-day month —
     // it has to be switched back to editor planning first (convertPlanToCurve),
     // which says out loud that the daily detail is being collapsed.
@@ -105,13 +135,21 @@ export async function saveBudgetMonth(input: unknown): Promise<BudgetActionResul
       days,
       targetRoas,
     };
+    const revisionNote = source === "delete" ? note?.trim() || "Plan deleted" : (note ?? null);
     const written = await db.transaction(async (tx) => {
+      if (beforeDelete) {
+        await insertPlanRevision(tx, acct, month, beforeDelete, "Before deletion", user.id);
+      }
       const plan = await replaceBudgetMonth(tx, acct, month, toWrite);
-      await insertPlanRevision(tx, acct, month, planInputToSnapshot(plan), note ?? null, user.id);
+      await insertPlanRevision(tx, acct, month, planInputToSnapshot(plan), revisionNote, user.id);
       // Inside the save's own transaction — see the notifications module rule.
       await notifyRoutes(tx, acct, "budget.plan_saved", {
-        title: `${monthLabel(month)}'s budget plan was ${source === "upload" ? "uploaded" : "saved"}`,
-        body: note?.trim()
+        title: `${monthLabel(month)}'s budget plan was ${
+          source === "upload" ? "uploaded" : source === "delete" ? "deleted" : "saved"
+        }`,
+        body: source === "delete"
+          ? `${revisionNote} — the previous plan is in Revisions.`
+          : note?.trim()
           ? note.trim()
           : `${plan.allocations.length} ${
               plan.allocations.length === 1 ? "allocation" : "allocations"
@@ -135,7 +173,7 @@ export async function saveBudgetMonth(input: unknown): Promise<BudgetActionResul
       meta: {
         // The CSV upload shares this writer — `source` is what keeps the two
         // apart in the trail (see planSourceSchema).
-        op: source === "upload" ? "upload" : "save",
+        op: source === "upload" ? "upload" : source === "delete" ? "delete" : "save",
         month,
         mode,
         allocations: written.allocations.length,
@@ -145,13 +183,40 @@ export async function saveBudgetMonth(input: unknown): Promise<BudgetActionResul
         weightOverrides: mode === "curve" ? dayWeights.filter((w) => w.weight !== 1).length : 0,
         dayCells: written.days?.length ?? 0,
         targetRoas: written.targetRoas ?? null,
-        note: note ?? null,
+        note: revisionNote,
+        ...(source === "delete" ? { snapshotBeforeDelete: beforeDelete !== null } : {}),
       },
     });
     return { ok: true };
   } catch (err) {
     return { ok: false, error: errMsg(err) };
   }
+}
+
+/**
+ * Two snapshots describe the same plan — compared on a canonical form (rows
+ * sorted, money to the cent, weight-1 days dropped), so storage order and
+ * float dust never count as a difference.
+ */
+function sameSnapshot(a: BudgetPlanSnapshot, b: BudgetPlanSnapshot): boolean {
+  const canon = (s: BudgetPlanSnapshot) =>
+    JSON.stringify({
+      allocations: s.allocations
+        .map((x) => `${x.platform}|${x.objective}|${x.plannedSpend.toFixed(2)}`)
+        .sort(),
+      days: s.days
+        .map((x) => `${x.day}|${x.platform}|${x.objective}|${x.plannedSpend.toFixed(2)}`)
+        .sort(),
+      revenue: s.plannedRevenueSar === null ? null : s.plannedRevenueSar.toFixed(2),
+      reserve: s.reserveSpendUsd.toFixed(2),
+      weights: Object.entries(s.dayWeights)
+        .filter(([, w]) => w !== 1)
+        .map(([d, w]) => `${Number(d)}:${w}`)
+        .sort(),
+      mode: s.mode,
+      roas: s.targetRoas,
+    });
+  return canon(a) === canon(b);
 }
 
 /**

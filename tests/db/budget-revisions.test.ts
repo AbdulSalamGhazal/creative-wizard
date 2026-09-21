@@ -22,7 +22,8 @@ vi.mock("@/lib/auth", () => ({
 
 import { getActiveAccountId } from "@/lib/tenant";
 import { db } from "@/lib/db";
-import { budgetPlanRevisions } from "@/db/schema";
+import { auditEvents, budgetPlanRevisions } from "@/db/schema";
+import { replaceBudgetMonth } from "@/db/queries/budget";
 import {
   convertPlanToCurve,
   copyBudgetFromMonth,
@@ -464,6 +465,132 @@ describe("DAILY plans — the upload path, one writer, one mode at a time", () =
     expect(await dailyPlannedMonths()).toEqual([MONTH]);
     setAccount(ACCOUNT_B);
     expect(await dailyPlannedMonths()).toEqual([]);
+  });
+});
+
+describe("DELETE plan — an empty full-replace through the one writer", () => {
+  /** Exactly what the Plan tab's Delete sends. */
+  const del = (over: Record<string, unknown> = {}) => ({
+    month: MONTH,
+    mode: "curve",
+    source: "delete",
+    allocations: [],
+    plannedRevenueSar: null,
+    reserveSpendUsd: 0,
+    dayWeights: [],
+    ...over,
+  });
+  const shape = (d: Awaited<ReturnType<typeof getBudgetMonth>>) => ({
+    allocations: d.allocations.map((a) => `${a.platform}|${a.objective}|${a.plannedSpend}`).sort(),
+    revenue: d.plannedRevenueSar,
+    reserve: d.reserveSpendUsd,
+    weights: d.dayWeightOverrides,
+    mode: d.planMode,
+    days: d.planDays.map((c) => `${c.day}|${c.platform}|${c.objective}|${c.plannedSpend}`).sort(),
+    roas: d.targetRoas,
+  });
+
+  it("CURVE month: empty month + the prior plan in Revisions → restore round-trips it", async () => {
+    await saveBudgetMonth(PLAN_A); // allocations, target, reserve, day 15 ×2
+    const before = shape(await getBudgetMonth(MONTH));
+
+    const res = await saveBudgetMonth(del());
+    expect(res.ok).toBe(true);
+    const after = await getBudgetMonth(MONTH);
+    expect(shape(after)).toEqual({
+      allocations: [],
+      revenue: null,
+      reserve: 0,
+      weights: {},
+      mode: "curve",
+      days: [],
+      roas: null,
+    });
+    // Gone from the planned months too — the tab shows its empty state.
+    expect(await plannedMonths()).not.toContain(MONTH);
+
+    const [deleted, prior] = await listPlanRevisions(MONTH);
+    expect(deleted!.note).toBe("Plan deleted");
+    expect(deleted!.allocationCount).toBe(0);
+    // The save's own revision already held the plan, so no extra snapshot.
+    expect(prior!.note).toBeNull();
+    expect(await listPlanRevisions(MONTH)).toHaveLength(2);
+
+    expect((await restorePlanRevision({ revisionId: prior!.id })).ok).toBe(true);
+    expect(shape(await getBudgetMonth(MONTH))).toEqual(before);
+  });
+
+  it("DAILY month: mode, cells and ROAS all come back on restore", async () => {
+    await saveBudgetMonth({
+      month: MONTH,
+      mode: "daily",
+      source: "upload",
+      days: [
+        { day: 1, platform: "instagram", objective: "Awareness", plannedSpend: 120.5 },
+        { day: 20, platform: "google", objective: "Other", plannedSpend: 80 },
+      ],
+      allocations: [],
+      plannedRevenueSar: null,
+      reserveSpendUsd: 50,
+      targetRoas: 2.5,
+      dayWeights: [],
+    });
+    const before = shape(await getBudgetMonth(MONTH));
+    expect(before.mode).toBe("daily");
+
+    expect((await saveBudgetMonth(del())).ok).toBe(true);
+    const after = await getBudgetMonth(MONTH);
+    // plan_mode back to curve (no targets row), target_roas null, cells gone.
+    expect(after.planMode).toBe("curve");
+    expect(after.targetRoas).toBeNull();
+    expect(after.planDays).toEqual([]);
+    expect(after.allocations).toEqual([]);
+
+    const prior = (await listPlanRevisions(MONTH))[1]!;
+    expect(prior.mode).toBe("daily");
+    expect((await restorePlanRevision({ revisionId: prior.id })).ok).toBe(true);
+    expect(shape(await getBudgetMonth(MONTH))).toEqual(before);
+  });
+
+  it("a plan with NO revision (written before revisions existed) gets one before it goes", async () => {
+    // Straight through the query layer — the way pre-0040 plans exist.
+    await replaceBudgetMonth(db, ACCOUNT_A, MONTH, {
+      allocations: [{ platform: "tiktok", objective: "Retargeting", plannedSpend: 900 }],
+      plannedRevenueSar: 12_000,
+    });
+    expect(await listPlanRevisions(MONTH)).toHaveLength(0);
+    const before = shape(await getBudgetMonth(MONTH));
+
+    expect((await saveBudgetMonth(del({ note: "Wrong month" }))).ok).toBe(true);
+    const [deleted, snapshot] = await listPlanRevisions(MONTH);
+    expect(deleted!.note).toBe("Wrong month");
+    expect(snapshot!.note).toBe("Before deletion");
+    expect((await restorePlanRevision({ revisionId: snapshot!.id })).ok).toBe(true);
+    expect(shape(await getBudgetMonth(MONTH))).toEqual(before);
+  });
+
+  it("audits op:\"delete\"", async () => {
+    await saveBudgetMonth(PLAN_A);
+    await saveBudgetMonth(del());
+    const rows = await db
+      .select({ meta: auditEvents.meta })
+      .from(auditEvents)
+      .where(eq(auditEvents.accountId, ACCOUNT_A));
+    const ops = rows.map((r) => (r.meta as { op?: string } | null)?.op);
+    expect(ops).toContain("delete");
+  });
+
+  it("refuses a month with nothing to delete, and a 'delete' that carries a plan", async () => {
+    const empty = await saveBudgetMonth(del());
+    expect(empty.ok).toBe(false);
+    expect(empty.error).toContain("no plan to delete");
+
+    await saveBudgetMonth(PLAN_A);
+    const smuggled = await saveBudgetMonth(
+      del({ allocations: [{ platform: "instagram", objective: "Other", plannedSpend: 1 }] }),
+    );
+    expect(smuggled.ok).toBe(false);
+    expect((await getBudgetMonth(MONTH)).allocations).toHaveLength(2);
   });
 });
 

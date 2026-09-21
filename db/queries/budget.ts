@@ -893,5 +893,10 @@ export async function insertPlanRevision(
     snapshot,
     note: note && note.length > 0 ? note : null,
     savedBy,
+    // clock_timestamp(), not the column's now(): now() is the TRANSACTION's
+    // start, so two revisions written in one transaction (Delete's "Before
+    // deletion" + "Plan deleted") tied and the drawer's newest-first order
+    // was arbitrary. Real insert time keeps them in the order written.
+    createdAt: sql`clock_timestamp()`,
   });
 }

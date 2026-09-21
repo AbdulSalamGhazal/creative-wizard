@@ -31,11 +31,11 @@ export const ALL_PLATFORMS = [
 export type PlatformKey = (typeof ALL_PLATFORMS)[number];
 
 /**
- * The CREATIVE-GRANULARITY platform set: every platform whose exports name the
- * creative that ran. **Google has no creative concept** — its exports are
- * campaign/ad-group rows, which the app parks on ONE system creative (the G1
- * bullet in CLAUDE.md) — so google-level data exists at brand and campaign
- * granularity only.
+ * The platform set for surfaces that compare platforms on metrics GOOGLE
+ * DOESN'T REPORT (funnel steps, video, creative-level comparisons). A PLATFORM
+ * rule, not a creative one: google uploads are standard and carry real
+ * creatives (the old system-creative design was removed — see the Google
+ * bullets in CLAUDE.md); its rows just can't be compared on those metrics.
  *
  * Every creative-level surface (Ads, Compare, by-angle, by-type, Video,
  * Launches) derives its platform set from THIS, and the funnel surfaces reuse
@@ -43,7 +43,7 @@ export type PlatformKey = (typeof ALL_PLATFORMS)[number];
  * (all-or-nothing, a user decision). Brand/campaign surfaces — Dashboard,
  * Trends over-time, Campaigns, Budget, Reconciliation — keep using
  * `ALL_PLATFORMS`. Never write a bare "google" literal at a consumer: derive
- * from here, or from `creatives.is_system`.
+ * from here. (`creatives.is_system` is a DEAD column — never a source.)
  */
 export const PLATFORMS_WITH_CREATIVES: readonly PlatformKey[] =
   ALL_PLATFORMS.filter((p) => p !== "google");
