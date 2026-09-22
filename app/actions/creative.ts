@@ -9,15 +9,13 @@ import {
   creatives,
   creativePlatformOverrides,
   creativeAngles,
-  creativeTypeEnum,
   performanceRecords,
   products,
 } from "@/db/schema";
 import {
   creativeCreateSchema,
+  creativePatchSchema,
   creativeTerminationSchema,
-  prioritySchema,
-  stagesSchema,
   sourceLinkSchema,
 } from "@/validators/creative";
 import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
@@ -324,36 +322,6 @@ export async function setCreativeTermination(
  * Notes are NOT handled here — they have their own inline editor
  * (`updateCreativeNotes` via NotesPanel), so this never clobbers them.
  */
-const creativePatchSchema = z
-  .object({
-    id: z.string().uuid(),
-    name: z.string().min(1).max(255).optional(),
-    productId: z.string().uuid().optional(),
-    type: z.enum(creativeTypeEnum).optional(),
-    thumbnailUrl: z.string().url().nullable().optional(),
-    launchDate: z
-      .string()
-      .date()
-      .nullable()
-      .optional()
-      .transform((v) => (v ? v : v === null ? null : undefined)),
-    // Manual Priority (1..3; null = unrated). Sent only when changed.
-    priority: prioritySchema.optional(),
-    // Manual Stage(s). Sent only when changed; [] clears to unassigned.
-    stages: stagesSchema.optional(),
-    angles: z.array(z.string().min(1).max(64)).max(50).optional(),
-  })
-  .refine(
-    (d) =>
-      d.name !== undefined ||
-      d.productId !== undefined ||
-      d.type !== undefined ||
-      d.thumbnailUrl !== undefined ||
-      d.launchDate !== undefined ||
-      d.priority !== undefined ||
-      d.angles !== undefined,
-    { message: "No fields to update." },
-  );
 
 export async function patchCreative(
   input: unknown,

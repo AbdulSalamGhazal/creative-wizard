@@ -167,3 +167,38 @@ export const creativeListFiltersSchema = z.object({
 });
 
 export type CreativeListFilterInput = z.infer<typeof creativeListFiltersSchema>;
+
+/**
+ * The creative detail page's inline-edit patch (`patchCreative` in
+ * app/actions/creative.ts). Every field is optional; only the fields present
+ * are written.
+ *
+ * "Is there anything to update?" is DERIVED from the object's own keys —
+ * every key except the non-field `id`. It used to be a hand-written list of
+ * fields, and `stages` was never added to it when the field shipped, so a
+ * patch changing ONLY the stage failed with "No fields to update." Derived,
+ * the next field added here can't repeat that.
+ */
+export const creativePatchSchema = z
+  .object({
+    id: z.string().uuid(),
+    name: z.string().min(1).max(255).optional(),
+    productId: z.string().uuid().optional(),
+    type: z.enum(creativeTypeEnum).optional(),
+    thumbnailUrl: z.string().url().nullable().optional(),
+    launchDate: z
+      .string()
+      .date()
+      .nullable()
+      .optional()
+      .transform((v) => (v ? v : v === null ? null : undefined)),
+    // Manual Priority (1..3; null = unrated). Sent only when changed.
+    priority: prioritySchema.optional(),
+    // Manual Stage(s). Sent only when changed; [] clears to unassigned.
+    stages: stagesSchema.optional(),
+    angles: z.array(z.string().min(1).max(64)).max(50).optional(),
+  })
+  .refine(
+    (d) => Object.entries(d).some(([key, value]) => key !== "id" && value !== undefined),
+    { message: "No fields to update." },
+  );
