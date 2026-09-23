@@ -35,6 +35,30 @@ describe("listCreativeSummary()", () => {
     expect(c1?.total.roas).toBeCloseTo(5, 4); // 2000 / 400
   });
 
+  it("Ads: the stage filter tells N/A apart from Unassigned", async () => {
+    const [c1] = await db
+      .select({ id: creatives.id })
+      .from(creatives)
+      .where(eq(creatives.name, "A-Creative-1"));
+    await db.update(creatives).set({ stages: ["N/A"] }).where(eq(creatives.id, c1!.id));
+
+    const na = await listCreativeSummary({ platforms: ["instagram"], stages: ["N/A"] });
+    expect(na.rows.map((r) => r.name)).toEqual(["A-Creative-1"]);
+
+    // The other fixture creative has no stages — Unassigned, never N/A.
+    const unassigned = await listCreativeSummary({
+      platforms: ["instagram"],
+      stages: ["unassigned"],
+    });
+    expect(unassigned.rows.map((r) => r.name)).not.toContain("A-Creative-1");
+
+    const funnel = await listCreativeSummary({ platforms: ["instagram"], stages: ["Awareness"] });
+    expect(funnel.rows.map((r) => r.name)).not.toContain("A-Creative-1");
+
+    // Put it back — this suite shares one seeded database.
+    await db.update(creatives).set({ stages: [] }).where(eq(creatives.id, c1!.id));
+  });
+
   it("respects the angles filter (regression: it used to ERROR, not filter)", async () => {
     // `= ANY(${array})` in a raw drizzle sql template expands to `ANY(($1,$2))`
     // — a row expression, not an array — so Postgres rejected the whole query

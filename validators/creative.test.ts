@@ -65,6 +65,17 @@ describe("creativePatchSchema", () => {
     expect(creativePatchSchema.safeParse({ id, stages: [] }).success).toBe(true);
   });
 
+  // N/A (2026-09) travels the SAME path — and its exclusivity holds here too.
+  it("accepts an N/A-only patch, and rejects N/A mixed with a funnel stage", () => {
+    const na = creativePatchSchema.safeParse({ id, stages: ["N/A"] });
+    expect(na.success).toBe(true);
+    if (na.success) expect(na.data.stages).toEqual(["N/A"]);
+
+    expect(creativePatchSchema.safeParse({ id, stages: ["N/A", "Awareness"] }).success).toBe(
+      false,
+    );
+  });
+
   it.each(Object.entries(SAMPLES))("accepts %s alone", (field, value) => {
     const res = creativePatchSchema.safeParse({ id, [field]: value });
     expect(res.success).toBe(true);

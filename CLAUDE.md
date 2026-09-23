@@ -356,8 +356,23 @@ This app is deployed and in production use. Treat `main` as shippable.
 - **Stage (2026-09) — the creative's MANUAL funnel declaration. A STANDING
   DECISION.** `creatives.stages text[] NOT NULL DEFAULT '{}'` (migration 0045,
   additive, GIN index — it's filtered by OVERLAP): any 1, 2 or all 3 of
-  **Awareness · Activation · Retargeting**. Empty = **unassigned**, a real
-  default state.
+  **Awareness · Activation · Retargeting**, or the explicit **N/A**.
+  - **THREE STATES, not two (2026-09).** `[]` **unassigned** = "not yet
+    declared" (a real default state); `["N/A"]` = "declared: **no clear
+    stage**" — someone looked; otherwise the declared stages. The Library/Ads
+    column renders unassigned as an em-dash and N/A as its own MUTED (dashed,
+    ink-3) chip: an absence and a declaration must never look alike.
+  - **N/A is EXCLUSIVE and CREATIVE-SIDE ONLY.** A creative is N/A or carries
+    real stages, never both — the picker normalizes (picking N/A clears the
+    rest and vice versa) and `stagesSchema` REJECTS the combination, so a
+    hand-rolled request can't store the contradiction; bulk import says the
+    same thing per row. The vocabulary split is the guard: `FUNNEL_STAGES`
+    stays EXACTLY the three (it feeds the Audience matrix and the
+    Budget-bucket mapping, where "N/A" would be nonsense) and the new
+    `CREATIVE_STAGE_OPTIONS = [...FUNNEL_STAGES, NA_STAGE]` is what the
+    creative side uses. **Never widen `FUNNEL_STAGES`**; a test pins its
+    length and asserts `lib/audience.ts` / `lib/budget.ts` never import the
+    creative vocabulary.
   - **NEVER auto-derived.** Not from the campaign objective a creative happens
     to run under, not from where it spends. It is the team saying where the
     creative sits, and nothing may infer it for them.
@@ -365,8 +380,9 @@ This app is deployed and in production use. Treat `main` as shippable.
     creative declared Retargeting can spend inside an Awareness campaign, and
     that mismatch is INFORMATION, not an error — never "fix" it, never warn on
     it, never reconcile the two.
-  - **One vocabulary, `lib/funnel-stages.ts`** (`FUNNEL_STAGES` / `STAGE_SHORT`
-    / `stageLabel` / `sortStages` / `compareStages`), derived from
+  - **One vocabulary, `lib/funnel-stages.ts`** (`FUNNEL_STAGES` /
+    `CREATIVE_STAGE_OPTIONS` / `STAGE_SHORT` / `stageLabel` / `sortStages` /
+    `compareStages`), derived from
     `BUDGET_OBJECTIVES` minus "Other" and RE-EXPORTED by `lib/audience.ts` —
     hoisted there so the creative and audience sides share one definition.
     Never re-list the stage names (not in SQL either: the Library and Summary
@@ -374,13 +390,24 @@ This app is deployed and in production use. Treat `main` as shippable.
     funnel order in an ORDER BY).
   - **Sort rule: by the EARLIEST stage in funnel order, UNASSIGNED LAST in both
     directions** ({Awareness, Retargeting} ranks as Awareness). Same shape as
-    Priority's unrated-last rule.
+    Priority's unrated-last rule. **N/A is a DECLARATION, so it sorts** — last
+    of the declared, ahead of unassigned: Awareness < Activation <
+    Retargeting < N/A < unassigned.
   - **Filter semantics: OVERLAP** — a creative matches if ANY selected stage is
-    on it; "Unassigned" matches the empty array. Surfaces: the detail header
-    (toggle chips in the draft/Save flow), the create form, bulk import (a
-    `stage`/`stages` column, full names or TOF/MOF/BOF), Library + Ads columns
-    (compact TOF/MOF/BOF chips, sortable, filterable, in both CSVs), and MCP
+    on it; **"N/A" and "Unassigned" are SEPARATE tokens** asking different
+    questions (the declaration vs. the empty array), and every filter bar
+    derives its options from `STAGE_FILTER_VALUES`, so Library, Ads and Canvas
+    all gained N/A at once. Surfaces: the detail header (toggle chips in the
+    draft/Save flow — the N/A chip sits behind a divider, muted), the create
+    form, bulk import (a `stage`/`stages` column, full names, TOF/MOF/BOF, or
+    `N/A`/`NA`), Library + Ads columns (compact chips, sortable, filterable, in
+    both CSVs — the CSV writes the literal `N/A`), and MCP
     (`list_creatives`/`get_creative` output + a `stages` filter).
+  - **"N/A" means different things on different surfaces — do not conflate.**
+    On the creative stage column it is a VALUE; on the ads/performance CSV
+    pipeline `csv/numeric.ts` reads "N/A" in a NUMERIC cell as an empty marker
+    (→ 0). They share no normalizer: the creative bulk import reads raw cells
+    from `csv/parse.ts`. A test pins both halves.
   - **Naming discipline, like Priority ≠ Rate:** **"Stage" is the CREATIVE's
     field; "Objective" stays campaigns-only; "bucket" is Budget's.** Don't let
     the three words drift into each other.

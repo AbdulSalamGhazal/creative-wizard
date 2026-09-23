@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { platformEnum, creativeTypeEnum } from "@/db/schema";
-import { FUNNEL_STAGES } from "@/lib/funnel-stages";
+import { CREATIVE_STAGE_OPTIONS, NA_STAGE } from "@/lib/funnel-stages";
 import { allowedAccountsForUser } from "@/lib/tenant";
 import {
   kpis,
@@ -102,10 +102,11 @@ const anglesField = z.array(z.string()).optional().describe("Restrict to these a
  * from the campaign objective it runs under or from where it spends.
  */
 const stagesField = z
-  .array(z.enum(FUNNEL_STAGES))
+  .array(z.enum(CREATIVE_STAGE_OPTIONS))
   .optional()
   .describe(
-    "Restrict to creatives carrying ANY of these manual funnel stages (Awareness, Activation, Retargeting).",
+    "Restrict to creatives carrying ANY of these manual funnel stages (Awareness, Activation, Retargeting). " +
+      `"${NA_STAGE}" is the explicit "no clear stage" declaration — different from a creative with no stages declared at all.`,
   );
 /**
  * The exclusion lever, on every tool whose numbers come from performance

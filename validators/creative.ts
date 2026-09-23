@@ -3,7 +3,8 @@ import { creativeTypeEnum, platformEnum } from "@/db/schema";
 import { CREATIVE_STATUSES } from "@/lib/creative-status";
 import { PRIORITY_FILTER_VALUES } from "@/lib/priority";
 import {
-  FUNNEL_STAGES,
+  CREATIVE_STAGE_OPTIONS,
+  NA_STAGE,
   STAGE_FILTER_VALUES,
   sortStages,
 } from "@/lib/funnel-stages";
@@ -44,7 +45,9 @@ export type PriorityInput = z.infer<typeof prioritySchema>;
 
 /**
  * Manual STAGE(S) — where the team declares this creative sits in the funnel.
- * Any 1..3 of `FUNNEL_STAGES`; empty = unassigned (a real default state).
+ * Any 1..3 of `FUNNEL_STAGES`, or the exclusive `N/A`; empty = unassigned.
+ * THREE STATES: unassigned = "not yet declared", N/A = "declared: no clear
+ * stage", otherwise the declared stages (see lib/funnel-stages.ts).
  *
  * NEVER auto-derived — not from the campaign objective it happens to run
  * under, not from where it spends. A creative declared Retargeting running in
@@ -54,8 +57,14 @@ export type PriorityInput = z.infer<typeof prioritySchema>;
  * stores as `[Awareness, Retargeting]` and a set never depends on click order.
  */
 export const stagesSchema = z
-  .array(z.enum(FUNNEL_STAGES))
-  .max(FUNNEL_STAGES.length)
+  .array(z.enum(CREATIVE_STAGE_OPTIONS))
+  .max(CREATIVE_STAGE_OPTIONS.length)
+  // N/A is EXCLUSIVE — "no clear stage" and "Awareness" can't both be true.
+  // The picker normalizes to that; this REJECTS it, so a hand-rolled request
+  // can never store the contradiction.
+  .refine((v) => !v.includes(NA_STAGE) || v.length === 1, {
+    message: `"${NA_STAGE}" can't be combined with a funnel stage.`,
+  })
   .transform((v) => sortStages(v));
 
 export type StagesInput = z.infer<typeof stagesSchema>;

@@ -15,7 +15,9 @@ import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
 import { getActiveAccountId } from "@/lib/tenant";
 import { actionError } from "@/lib/action-error";
 import {
+  CREATIVE_STAGE_OPTIONS,
   FUNNEL_STAGES,
+  NA_STAGE,
   STAGE_SHORT,
   sortStages,
 } from "@/lib/funnel-stages";
@@ -236,26 +238,39 @@ async function build(formData: FormData): Promise<BuildResult> {
     if (angles.some((t) => t.length > 64)) errors.push("An angle exceeds 64 characters.");
 
     // stages — optional; unassigned is a real state, so an empty cell is fine.
-    // Matched case-insensitively against the canonical funnel stages, by full
-    // name ("Awareness") or shorthand ("TOF").
+    // Matched case-insensitively against the creative stage vocabulary, by full
+    // name ("Awareness"), shorthand ("TOF") or — for N/A — the bare "NA".
+    //
+    // NOTE: "N/A" here is a STAGE VALUE, on the creative bulk-import's stage
+    // column. It is NOT the performance-CSV convention, where `csv/numeric.ts`
+    // reads "N/A" in a NUMERIC cell as an empty marker (→ 0). Different
+    // surfaces, different parsers: this file reads raw cells from
+    // `csv/parse.ts` and never touches that normalizer.
     const stageTokens = stagesRaw
       .split(/[;,]/)
       .map((t) => t.trim())
       .filter(Boolean);
     const stages: string[] = [];
     for (const token of stageTokens) {
-      const match = FUNNEL_STAGES.find(
+      const lower = token.toLowerCase();
+      const match = CREATIVE_STAGE_OPTIONS.find(
         (st) =>
-          st.toLowerCase() === token.toLowerCase() ||
-          STAGE_SHORT[st].toLowerCase() === token.toLowerCase(),
+          st.toLowerCase() === lower ||
+          STAGE_SHORT[st].toLowerCase() === lower ||
+          (st === NA_STAGE && lower === "na"),
       );
       if (!match) {
         errors.push(
-          `Invalid stage "${token}". Use ${FUNNEL_STAGES.join(", ")} (or TOF/MOF/BOF).`,
+          `Invalid stage "${token}". Use ${FUNNEL_STAGES.join(", ")} (or TOF/MOF/BOF), or ${NA_STAGE} for no clear stage.`,
         );
       } else if (!stages.includes(match)) {
         stages.push(match);
       }
+    }
+    // N/A is EXCLUSIVE — the same rule stagesSchema enforces, said per row so
+    // the author fixes the file rather than meeting a save-time error.
+    if (stages.includes(NA_STAGE) && stages.length > 1) {
+      errors.push(`"${NA_STAGE}" can't be combined with a funnel stage.`);
     }
 
     const ok = errors.length === 0;

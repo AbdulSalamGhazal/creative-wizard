@@ -86,6 +86,43 @@ describe("Library Priority — sort and filter", () => {
   });
 });
 
+/**
+ * N/A (2026-09) is a DECLARATION, not an absence: "we looked, there is no
+ * clear stage". Unassigned stays empty-only — the two must never match each
+ * other, on either surface.
+ */
+describe("Library Stage — N/A is its own filter, distinct from Unassigned", () => {
+  beforeEach(async () => {
+    await resetAndSeed();
+    setAccount(ACCOUNT_A);
+    await db.update(creatives).set({ stages: ["N/A"] }).where(eq(creatives.id, CREATIVE_1));
+    await db.update(creatives).set({ stages: [] }).where(eq(creatives.id, CREATIVE_2));
+  });
+
+  it("N/A matches ONLY the declared row; Unassigned ONLY the empty one", async () => {
+    const na = await listCreatives({ sort: "name-asc", stages: ["N/A"] });
+    expect(na.rows.map((r) => r.id)).toEqual([CREATIVE_1]);
+
+    const unassigned = await listCreatives({ sort: "name-asc", stages: ["unassigned"] });
+    expect(unassigned.rows.map((r) => r.id)).toEqual([CREATIVE_2]);
+
+    // A funnel stage matches neither of them.
+    expect((await listCreatives({ sort: "name-asc", stages: ["Awareness"] })).rows).toHaveLength(0);
+
+    // Both together = both rows.
+    const either = await listCreatives({ sort: "name-asc", stages: ["N/A", "unassigned"] });
+    expect(either.rows.map((r) => r.id).sort()).toEqual([CREATIVE_1, CREATIVE_2].sort());
+  });
+
+  it("reads back as N/A, and sorts ahead of unassigned in both directions", async () => {
+    const asc = await listCreatives({ sort: "stage-asc" });
+    expect(asc.rows.find((r) => r.id === CREATIVE_1)?.stages).toEqual(["N/A"]);
+    expect(asc.rows.map((r) => r.id)).toEqual([CREATIVE_1, CREATIVE_2]);
+    const desc = await listCreatives({ sort: "stage-desc" });
+    expect(desc.rows.map((r) => r.id)).toEqual([CREATIVE_1, CREATIVE_2]);
+  });
+});
+
 describe("Library Stage — overlap filter and funnel-order sort", () => {
   beforeEach(async () => {
     await resetAndSeed();

@@ -4,11 +4,15 @@ import {
   FUNNEL_STAGES as AUDIENCE_STAGES,
   stageLabel as audienceStageLabel,
 } from "@/lib/audience";
+import { readFileSync } from "node:fs";
 import {
+  CREATIVE_STAGE_OPTIONS,
   FUNNEL_STAGES,
+  NA_STAGE,
   STAGE_FILTER_VALUES,
   STAGE_SHORT,
   compareStages,
+  isCreativeStage,
   isFunnelStage,
   sortStages,
   splitStageFilter,
@@ -41,8 +45,9 @@ describe("one stage vocabulary, derived not re-listed", () => {
     expect(isFunnelStage("Awareness")).toBe(true);
   });
 
-  it("offers the three stages plus Unassigned as filter tokens", () => {
-    expect(STAGE_FILTER_VALUES).toEqual([...FUNNEL_STAGES, "unassigned"]);
+  it("offers every creative stage plus Unassigned as filter tokens", () => {
+    // The creative vocabulary (the funnel + N/A), then Unassigned last.
+    expect(STAGE_FILTER_VALUES).toEqual([...CREATIVE_STAGE_OPTIONS, "unassigned"]);
     expect(stageFilterLabel("unassigned")).toBe("Unassigned");
     expect(stageFilterLabel("Retargeting")).toBe("Retargeting · BOF");
   });
@@ -63,9 +68,10 @@ describe("stagesSchema", () => {
     expect(stagesSchema.safeParse(["awareness"]).success).toBe(false); // case matters
   });
 
-  it("caps at the number of stages that exist", () => {
+  it("caps at the number of stage values that exist", () => {
+    // One more than the vocabulary can't be anything but repetition.
     expect(
-      stagesSchema.safeParse([...FUNNEL_STAGES, "Awareness"]).success,
+      stagesSchema.safeParse([...CREATIVE_STAGE_OPTIONS, "Awareness"]).success,
     ).toBe(false);
     expect(stagesSchema.safeParse([...FUNNEL_STAGES]).success).toBe(true);
   });
@@ -164,6 +170,127 @@ describe("the filter parses additively on both surfaces", () => {
     expect(summaryFiltersSchema.parse({ hideIdentity: "stage,priority" }).hideIdentity).toEqual([
       "stage",
       "priority",
+    ]);
+  });
+});
+
+// ── N/A: the explicit "no clear stage" declaration (2026-09) ────────────────
+// THREE STATES: [] unassigned (not yet declared) · ["N/A"] declared, no clear
+// stage · ["Awareness", …] declared stages. N/A is CREATIVE-SIDE ONLY.
+
+describe("N/A is creative-side only — the funnel axis must never see it", () => {
+  it("FUNNEL_STAGES still has EXACTLY the three, and no N/A", () => {
+    expect(FUNNEL_STAGES).toHaveLength(3);
+    expect([...FUNNEL_STAGES]).toEqual(["Awareness", "Activation", "Retargeting"]);
+    expect((FUNNEL_STAGES as readonly string[]).includes(NA_STAGE)).toBe(false);
+    // Still the budget axis minus "Other" — the derivation is untouched.
+    expect([...FUNNEL_STAGES]).toEqual(BUDGET_OBJECTIVES.filter((o) => o !== "Other"));
+    // …and the audience module re-exports that same list.
+    expect([...AUDIENCE_STAGES]).toEqual([...FUNNEL_STAGES]);
+    expect((AUDIENCE_STAGES as readonly string[]).includes(NA_STAGE)).toBe(false);
+  });
+
+  it("CREATIVE_STAGE_OPTIONS is the funnel plus N/A, in that order", () => {
+    expect([...CREATIVE_STAGE_OPTIONS]).toEqual([...FUNNEL_STAGES, NA_STAGE]);
+    expect(isCreativeStage(NA_STAGE)).toBe(true);
+    expect(isFunnelStage(NA_STAGE)).toBe(false); // the guard the audience board uses
+  });
+
+  it("neither lib/audience.ts nor lib/budget.ts CONSUMES the creative vocabulary", () => {
+    // A source-level guard: the leak this separation exists to prevent would
+    // arrive as an import, and a type test can't see one that isn't there.
+    for (const file of ["lib/audience.ts", "lib/budget.ts"]) {
+      const src = readFileSync(file, "utf8");
+      expect(src).not.toContain("CREATIVE_STAGE_OPTIONS");
+      expect(src).not.toContain("NA_STAGE");
+      expect(src).not.toContain("isCreativeStage");
+    }
+  });
+
+  it("the audience side's labels are unchanged by N/A existing", () => {
+    expect(audienceStageLabel("Awareness")).toBe("Awareness · TOF");
+    expect(STAGE_SHORT.Awareness).toBe("TOF");
+    // N/A IS its own short form — there is no three-letter word for "no stage".
+    expect(STAGE_SHORT[NA_STAGE]).toBe(NA_STAGE);
+    expect(stageLabel(NA_STAGE)).toBe(NA_STAGE);
+  });
+});
+
+describe("N/A ordering and normalization", () => {
+  it("ranks after the three funnel stages", () => {
+    expect(stageRank(NA_STAGE)).toBe(3);
+    expect(stageRank("Retargeting")).toBeLessThan(stageRank(NA_STAGE));
+    expect(stageRank("nonsense")).toBeGreaterThan(stageRank(NA_STAGE));
+  });
+
+  it("sortStages keeps funnel order with N/A LAST, and still drops junk", () => {
+    expect(sortStages([NA_STAGE, "Retargeting", "Awareness"])).toEqual([
+      "Awareness",
+      "Retargeting",
+      NA_STAGE,
+    ]);
+    expect(sortStages([NA_STAGE, NA_STAGE])).toEqual([NA_STAGE]);
+    expect(sortStages(["Other", NA_STAGE])).toEqual([NA_STAGE]);
+  });
+
+  it("compareStages: Awareness < Activation < Retargeting < N/A < unassigned", () => {
+    const order = [["Awareness"], ["Activation"], ["Retargeting"], [NA_STAGE], []];
+    const shuffled = [[], [NA_STAGE], ["Retargeting"], ["Awareness"], ["Activation"]];
+    expect([...shuffled].sort((a, b) => compareStages(a, b, 1))).toEqual(order);
+    // Descending REVERSES the declared ones but keeps unassigned last.
+    expect([...shuffled].sort((a, b) => compareStages(a, b, -1))).toEqual([
+      [NA_STAGE],
+      ["Retargeting"],
+      ["Activation"],
+      ["Awareness"],
+      [],
+    ]);
+  });
+
+  it("N/A sorts as a DECLARATION, ahead of unassigned in both directions", () => {
+    expect(compareStages([NA_STAGE], [], 1)).toBeLessThan(0);
+    expect(compareStages([NA_STAGE], [], -1)).toBeLessThan(0);
+  });
+});
+
+describe("the stage FILTER gains N/A beside Unassigned", () => {
+  it("offers both, as separate tokens, N/A before Unassigned", () => {
+    expect([...STAGE_FILTER_VALUES]).toEqual([...FUNNEL_STAGES, NA_STAGE, "unassigned"]);
+    expect(stageFilterLabel(NA_STAGE)).toBe(NA_STAGE);
+    expect(stageFilterLabel("unassigned")).toBe("Unassigned");
+  });
+
+  it("splits N/A into the STAGE set — it is a value on the row, not an absence", () => {
+    expect(splitStageFilter([NA_STAGE])).toEqual({ stages: [NA_STAGE], unassigned: false });
+    expect(splitStageFilter([NA_STAGE, "unassigned", "Awareness"])).toEqual({
+      stages: ["Awareness", NA_STAGE],
+      unassigned: true,
+    });
+  });
+});
+
+describe("stagesSchema — N/A is EXCLUSIVE", () => {
+  it("accepts N/A alone", () => {
+    expect(stagesSchema.parse([NA_STAGE])).toEqual([NA_STAGE]);
+  });
+
+  it("REJECTS N/A combined with any funnel stage (a hand-rolled request)", () => {
+    for (const mix of [[NA_STAGE, "Awareness"], ["Retargeting", NA_STAGE]]) {
+      const res = stagesSchema.safeParse(mix);
+      expect(res.success).toBe(false);
+      if (!res.success) {
+        expect(res.error.issues[0]?.message).toBe(
+          `"${NA_STAGE}" can't be combined with a funnel stage.`,
+        );
+      }
+    }
+  });
+
+  it("still accepts the funnel stages and the empty (unassigned) set", () => {
+    expect(stagesSchema.parse([])).toEqual([]);
+    expect(stagesSchema.parse(["Retargeting", "Awareness"])).toEqual([
+      "Awareness",
+      "Retargeting",
     ]);
   });
 });
