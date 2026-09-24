@@ -220,3 +220,30 @@ describe("nextQueryString — writes in one tick COMPOSE", () => {
     expect(nextQueryString("a=1&b=2", null, (p) => p.delete("a"))).toBe("b=2");
   });
 });
+
+describe("a filter whose DEFAULT is non-empty declares its own active state", () => {
+  it("`active` overrides values.length — and Clear still empties it", () => {
+    const calls: string[] = [];
+    // Canvas statuses: the default IS three values, so "active" means the URL
+    // said something, not that anything is selected.
+    const def: FilterDef = {
+      key: "statuses",
+      label: "Status",
+      type: "multi",
+      options: opts("new", "active", "pause", "terminated"),
+      values: ["new", "active", "pause"],
+      active: false,
+      onChange: (next) => calls.push(`statuses:${next.join("|")}`),
+    };
+    expect(isFilterActive(def)).toBe(false);
+    expect(activeFilterCount([def])).toBe(0);
+    expect(filterChips([def])).toEqual([]);
+    clearFilters([def]);
+    expect(calls).toEqual([]); // nothing active → nothing cleared
+
+    const touched = { ...def, active: true } as FilterDef;
+    expect(activeFilterCount([touched])).toBe(1);
+    clearFilters([touched]);
+    expect(calls).toEqual(["statuses:"]); // empty → the page drops the param
+  });
+});

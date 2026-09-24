@@ -1,15 +1,7 @@
 "use client";
 
-import { Activity, Columns3, Layers, Target } from "lucide-react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
-import { useNavTransition } from "@/lib/nav-progress";
+import { Columns3, Layers } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
@@ -18,12 +10,13 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { DateRangePicker } from "@/components/filters/date-range-picker";
 import {
-  ClearButton,
   ExcludedToggle,
   FilterPill,
   FilterSearch,
 } from "@/components/filters/filter-pill";
-import { FilterSheet } from "@/components/filters/filter-sheet";
+import { FilterShell } from "@/components/filters/filter-shell";
+import { useFilterParams } from "@/components/filters/use-filter-params";
+import type { FilterDef } from "@/components/filters/filter-model";
 import { ViewsControl } from "@/components/summary/views-control";
 import { CAMPAIGN_TABLE_COLUMNS } from "@/components/portfolio/portfolio-table";
 import type { SummaryViewRow } from "@/db/queries/summary-views";
@@ -59,10 +52,8 @@ export function PortfolioFilterBar({
   /** The user's saved Excluded-toggle default (URL param overrides it). */
   includeExcludedDefault?: boolean;
 }) {
-  const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
-  const [, startTransition] = useNavTransition();
+  // The shell's batching writer — the only URL writer on a migrated bar.
+  const { searchParams, update } = useFilterParams();
 
   const from = searchParams.get("from");
   const to = searchParams.get("to");
@@ -90,20 +81,6 @@ export function PortfolioFilterBar({
     [searchParams],
   );
   const qParam = searchParams.get("q") ?? "";
-
-  const update = useCallback(
-    (mutate: (next: URLSearchParams) => void) => {
-      const next = new URLSearchParams(searchParams.toString());
-      mutate(next);
-      for (const [key, value] of [...next.entries()]) {
-        if (!value) next.delete(key);
-      }
-      const qs = next.toString();
-      const href = qs ? `${pathname}?${qs}` : pathname;
-      startTransition(() => router.replace(href, { scroll: false }));
-    },
-    [pathname, router, searchParams],
-  );
 
   // Debounced campaign search. The input is the source of truth while typing;
   // we only adopt a `q` change we DIDN'T originate (Clear, back/forward) so a
@@ -140,15 +117,12 @@ export function PortfolioFilterBar({
     });
   };
 
-  const toggleFromSet = (key: string, value: string, current: string[]) => {
-    const set = new Set(current);
-    if (set.has(value)) set.delete(value);
-    else set.add(value);
+  /** The shell hands back the WHOLE next value of a multi filter. */
+  const writeMulti = (key: string, values: readonly string[]) =>
     update((next) => {
-      if (set.size === 0) next.delete(key);
-      else next.set(key, [...set].join(","));
+      if (values.length === 0) next.delete(key);
+      else next.set(key, values.join(","));
     });
-  };
 
   const toggleColumn = (key: string) => {
     const set = new Set(hiddenCols);
@@ -168,227 +142,137 @@ export function PortfolioFilterBar({
     });
   };
 
-  const filtersActive =
-    !!from ||
-    !!to ||
-    !!qParam ||
-    includeExcluded ||
-    platforms.length > 0 ||
-    objectives.length > 0 ||
-    statuses.length > 0;
+  // ── TIER 2: one entry each; the shell derives panel, chips, badge, sheet ──
+  const filters: FilterDef[] = [
+    {
+      key: "objectives",
+      label: "Objectives",
+      type: "multi",
+      options: CAMPAIGN_OBJECTIVES.map((o) => ({ value: o, label: o })),
+      values: objectives,
+      onChange: (next) => writeMulti("objectives", next),
+    },
+    {
+      key: "statuses",
+      label: "Status",
+      type: "multi",
+      options: CAMPAIGN_STATUSES.map((s) => ({
+        value: s,
+        label: CAMPAIGN_STATUS_LABEL[s] ?? s,
+      })),
+      values: statuses,
+      onChange: (next) => writeMulti("statuses", next),
+    },
+  ];
 
-  const clearAll = () =>
-    update((next) => {
-      for (const k of [
-        "from",
-        "to",
-        "q",
-        "includeExcluded",
-        "platforms",
-        "objectives",
-        "statuses",
-      ]) {
-        next.delete(k);
-      }
-    });
-
-  // Sheet badge counts active filters (search sits in the mobile row).
-  const activeCount =
-    (from || to ? 1 : 0) +
-    (platforms.length > 0 ? 1 : 0) +
-    (objectives.length > 0 ? 1 : 0) +
-    (statuses.length > 0 ? 1 : 0) +
-    (includeExcluded ? 1 : 0);
-
-  const platformLabel =
-    platforms.length === 0
-      ? "All"
-      : platforms.length === 1
-        ? (PLATFORMS.find((p) => p.value === platforms[0])?.label ?? "1")
-        : `${platforms.length} selected`;
-  const objectiveLabel =
-    objectives.length === 0
-      ? "All"
-      : objectives.length === 1
-        ? objectives[0]!
-        : `${objectives.length} selected`;
-  const statusLabel =
-    statuses.length === 0
-      ? "Any"
-      : statuses.length === 1
-        ? (CAMPAIGN_STATUS_LABEL[
-            statuses[0] as keyof typeof CAMPAIGN_STATUS_LABEL
-          ] ?? statuses[0]!)
-        : `${statuses.length} selected`;
-  const shownCount = CAMPAIGN_TABLE_COLUMNS.filter(
-    (c) => !hiddenCols.has(c.key),
-  ).length;
-
-  const views_ = (
-    <ViewsControl
-      views={views}
-      currentUserId={currentUserId}
-      isAdmin={isAdmin}
-      page="campaigns"
-      clearLabel="Show all campaigns (ignore default)"
-    />
-  );
-
-  const search = (fullWidth: boolean) => (
-    <FilterSearch
-      value={qLocal}
-      onChange={setQLocal}
-      placeholder="Search campaigns…"
-      fullWidth={fullWidth}
-    />
-  );
-
-  // Canonical order: Date → dimension pills (Platforms, Objectives, Status).
-  const dimensionControls = (fullWidth: boolean) => (
-    <>
-      <DateRangePicker
-        from={from}
-        to={to}
-        onChange={setRange}
-        remember
-        fullWidth={fullWidth}
-        fallback={
-          defaultFrom && defaultTo
-            ? { from: defaultFrom, to: defaultTo }
-            : undefined
-        }
-      />
-
-      <FilterPill
-        icon={Layers}
-        label="Platforms"
-        value={platformLabel}
-        active={platforms.length > 0}
-        fullWidth={fullWidth}
-      >
-        {() => (
-          <DropdownMenuContent align="start" className="w-48">
-            <DropdownMenuLabel>Platforms</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            {PLATFORMS.map((p) => (
-              <DropdownMenuCheckboxItem
-                key={p.value}
-                checked={platforms.includes(p.value)}
-                onCheckedChange={() =>
-                  toggleFromSet("platforms", p.value, platforms)
-                }
-                onSelect={(e) => e.preventDefault()}
-              >
-                {p.label}
-              </DropdownMenuCheckboxItem>
-            ))}
-          </DropdownMenuContent>
-        )}
-      </FilterPill>
-
-      <FilterPill
-        icon={Target}
-        label="Objectives"
-        value={objectiveLabel}
-        active={objectives.length > 0}
-        fullWidth={fullWidth}
-      >
-        {() => (
-          <DropdownMenuContent align="start" className="w-48">
-            <DropdownMenuLabel>Objectives</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            {CAMPAIGN_OBJECTIVES.map((o) => (
-              <DropdownMenuCheckboxItem
-                key={o}
-                checked={objectives.includes(o)}
-                onCheckedChange={() => toggleFromSet("objectives", o, objectives)}
-                onSelect={(e) => e.preventDefault()}
-              >
-                {o}
-              </DropdownMenuCheckboxItem>
-            ))}
-          </DropdownMenuContent>
-        )}
-      </FilterPill>
-
-      <FilterPill
-        icon={Activity}
-        label="Status"
-        value={statusLabel}
-        active={statuses.length > 0}
-        fullWidth={fullWidth}
-      >
-        {() => (
-          <DropdownMenuContent align="start" className="w-44">
-            <DropdownMenuLabel>Status</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            {CAMPAIGN_STATUSES.map((s) => (
-              <DropdownMenuCheckboxItem
-                key={s}
-                checked={statuses.includes(s)}
-                onCheckedChange={() => toggleFromSet("statuses", s, statuses)}
-                onSelect={(e) => e.preventDefault()}
-              >
-                {CAMPAIGN_STATUS_LABEL[s]}
-              </DropdownMenuCheckboxItem>
-            ))}
-          </DropdownMenuContent>
-        )}
-      </FilterPill>
-    </>
-  );
-
-  const columnsPill = (fullWidth: boolean) => (
-    <FilterPill
-      icon={Columns3}
-      label="Columns"
-      value={`${shownCount} shown`}
-      active={hiddenCols.size > 0}
-      fullWidth={fullWidth}
-    >
-      {() => (
-        <DropdownMenuContent align="end" className="w-44 max-h-80 overflow-y-auto">
-          <DropdownMenuLabel>Columns</DropdownMenuLabel>
-          <DropdownMenuSeparator />
-          {CAMPAIGN_TABLE_COLUMNS.map((c) => (
-            <DropdownMenuCheckboxItem
-              key={c.key}
-              checked={!hiddenCols.has(c.key)}
-              onCheckedChange={() => toggleColumn(c.key)}
-              onSelect={(e) => e.preventDefault()}
-            >
-              {c.label}
-            </DropdownMenuCheckboxItem>
-          ))}
-        </DropdownMenuContent>
-      )}
-    </FilterPill>
-  );
+  const shownCount = CAMPAIGN_TABLE_COLUMNS.filter((c) => !hiddenCols.has(c.key)).length;
 
   return (
-    <div className="sticky top-14 z-10 -mx-6 px-6 py-3 border-b border-line bg-background/95 backdrop-blur">
-      {/* Desktop / wide */}
-      <div className="hidden lg:flex items-center gap-2 flex-wrap">
-        {views_}
-        {search(false)}
-        {dimensionControls(false)}
-        <div className="ml-auto flex items-center gap-2">
-          {columnsPill(false)}
-          <ExcludedToggle on={includeExcluded} onToggle={toggleExcluded} />
-          {filtersActive && <ClearButton onClick={clearAll} />}
-        </div>
-      </div>
-
-      {/* Mobile / tablet: search + a single Filters Sheet */}
-      <div className="flex lg:hidden items-center gap-2">
-        <div className="flex-1 min-w-0">{search(true)}</div>
-        <FilterSheet activeCount={activeCount} onClear={clearAll}>
-          {views_}
-          {dimensionControls(true)}
-          {columnsPill(true)}
-          <ExcludedToggle on={includeExcluded} onToggle={toggleExcluded} fullWidth />
-        </FilterSheet>
-      </div>
-    </div>
+    <FilterShell
+      filters={filters}
+      mobileLead={
+        <FilterSearch
+          fullWidth
+          value={qLocal}
+          onChange={setQLocal}
+          placeholder="Search campaigns…"
+        />
+      }
+      tier1={({ fullWidth }) => (
+        <>
+          <ViewsControl
+            views={views}
+            currentUserId={currentUserId}
+            isAdmin={isAdmin}
+            page="campaigns"
+            clearLabel="Show all campaigns (ignore default)"
+          />
+          {!fullWidth && (
+            <FilterSearch
+              value={qLocal}
+              onChange={setQLocal}
+              placeholder="Search campaigns…"
+            />
+          )}
+          <DateRangePicker
+            from={from}
+            to={to}
+            onChange={setRange}
+            remember
+            fullWidth={fullWidth}
+            fallback={
+              defaultFrom && defaultTo ? { from: defaultFrom, to: defaultTo } : undefined
+            }
+          />
+          <FilterPill
+            icon={Layers}
+            label="Platforms"
+            value={
+              platforms.length === 0
+                ? "All"
+                : platforms.length === 1
+                  ? (PLATFORMS.find((p) => p.value === platforms[0])?.label ?? "1")
+                  : `${platforms.length} selected`
+            }
+            active={platforms.length > 0}
+            fullWidth={fullWidth}
+          >
+            {() => (
+              <DropdownMenuContent align="start" className="w-48">
+                <DropdownMenuLabel>Platforms</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {PLATFORMS.map((p) => (
+                  <DropdownMenuCheckboxItem
+                    key={p.value}
+                    checked={platforms.includes(p.value)}
+                    onCheckedChange={() =>
+                      writeMulti(
+                        "platforms",
+                        platforms.includes(p.value)
+                          ? platforms.filter((v) => v !== p.value)
+                          : [...platforms, p.value],
+                      )
+                    }
+                    onSelect={(e) => e.preventDefault()}
+                  >
+                    {p.label}
+                  </DropdownMenuCheckboxItem>
+                ))}
+              </DropdownMenuContent>
+            )}
+          </FilterPill>
+        </>
+      )}
+      toolbar={({ fullWidth }) => (
+        <>
+          {/* TABLE control, not a filter — Clear never touches it. */}
+          <FilterPill
+            icon={Columns3}
+            label="Columns"
+            value={`${shownCount} shown`}
+            active={hiddenCols.size > 0}
+            fullWidth={fullWidth}
+          >
+            {() => (
+              <DropdownMenuContent align="end" className="max-h-80 w-44 overflow-y-auto">
+                <DropdownMenuLabel>Columns</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {CAMPAIGN_TABLE_COLUMNS.map((c) => (
+                  <DropdownMenuCheckboxItem
+                    key={c.key}
+                    checked={!hiddenCols.has(c.key)}
+                    onCheckedChange={() => toggleColumn(c.key)}
+                    onSelect={(e) => e.preventDefault()}
+                  >
+                    {c.label}
+                  </DropdownMenuCheckboxItem>
+                ))}
+              </DropdownMenuContent>
+            )}
+          </FilterPill>
+          <ExcludedToggle on={includeExcluded} onToggle={toggleExcluded} fullWidth={fullWidth} />
+        </>
+      )}
+    />
   );
 }

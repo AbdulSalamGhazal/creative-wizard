@@ -45,6 +45,12 @@ export interface MultiFilterDef extends FilterDefBase {
   emptyHint?: string;
   /** A muted line under the options (a cap notice, say). */
   note?: ReactNode;
+  /**
+   * Overrides "active = something is selected". For a filter whose DEFAULT is
+   * a non-empty set (Canvas's statuses default to all-but-terminated), active
+   * means "the URL says something", not "values.length > 0".
+   */
+  active?: boolean;
   /** Overrides the default "Label: A" / "Label: A +2" chip text. */
   chipFormat?: (values: readonly string[], options: readonly FilterOption[]) => string;
 }
@@ -55,6 +61,8 @@ export interface SingleFilterDef extends FilterDefBase {
   value: string | null;
   onChange: (next: string | null) => void;
   chipFormat?: (value: string, options: readonly FilterOption[]) => string;
+  /** Same override as the multi case. */
+  active?: boolean;
 }
 
 /**
@@ -81,9 +89,9 @@ export function optionLabel(options: readonly FilterOption[], value: string): st
 export function isFilterActive(def: FilterDef): boolean {
   switch (def.type) {
     case "multi":
-      return def.values.length > 0;
+      return def.active ?? def.values.length > 0;
     case "single":
-      return def.value !== null;
+      return def.active ?? def.value !== null;
     case "custom":
       return def.active;
   }

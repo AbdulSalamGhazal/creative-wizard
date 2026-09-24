@@ -3,26 +3,12 @@
 import {
   Check,
   ChevronDown,
-  CircleDot,
   LayoutGrid,
-  Flag,
-  Layers,
   MonitorSmartphone,
-  Package,
-  Shapes,
   Table as TableIcon,
-  Tag,
 } from "lucide-react";
 import { ALL_PLATFORMS, PLATFORM_LABEL } from "@/lib/palette";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
-import { useNavTransition } from "@/lib/nav-progress";
+import { useEffect, useRef, useState } from "react";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -32,12 +18,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  ClearButton,
-  FilterPill,
-  FilterSearch,
-} from "@/components/filters/filter-pill";
-import { FilterSheet } from "@/components/filters/filter-sheet";
+import { FilterPill, FilterSearch } from "@/components/filters/filter-pill";
+import { FilterShell } from "@/components/filters/filter-shell";
+import { useFilterParams } from "@/components/filters/use-filter-params";
+import type { FilterDef } from "@/components/filters/filter-model";
 import { cn } from "@/lib/utils";
 import {
   creativeSortValues,
@@ -123,10 +107,8 @@ const DROPDOWN_SORTS: CreativeSort[] = [
 ];
 
 export function LibraryFilterBar({ products, angles, views, currentUserId, isAdmin, includeExcluded }: Props) {
-  const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
-  const [, startTransition] = useNavTransition();
+  // The shell's batching writer — the only URL writer on a migrated bar.
+  const { searchParams, update } = useFilterParams();
 
   const productIds = csvParam(searchParams.get("productIds"));
   const types = csvParam(searchParams.get("types"));
@@ -156,20 +138,6 @@ export function LibraryFilterBar({ products, angles, views, currentUserId, isAdm
     setQInput(urlQ);
   }, [urlQ]);
 
-  const update = useCallback(
-    (mutate: (next: URLSearchParams) => void) => {
-      const next = new URLSearchParams(searchParams.toString());
-      mutate(next);
-      for (const [key, value] of [...next.entries()]) {
-        if (!value) next.delete(key);
-      }
-      const qs = next.toString();
-      const href = qs ? `${pathname}?${qs}` : pathname;
-      startTransition(() => router.replace(href, { scroll: false }));
-    },
-    [pathname, router, searchParams],
-  );
-
   // Debounce search input → URL. Compare the TRIMMED value so a trailing space
   // doesn't loop a no-op write; record the push so the URL echo is ignored.
   useEffect(() => {
@@ -185,15 +153,12 @@ export function LibraryFilterBar({ products, angles, views, currentUserId, isAdm
     return () => clearTimeout(id);
   }, [qInput, urlQ, update]);
 
-  const toggleMulti = (key: string, value: string, current: string[]) => {
-    const set = new Set(current);
-    if (set.has(value)) set.delete(value);
-    else set.add(value);
+  /** The shell hands back the WHOLE next value of a multi filter. */
+  const writeMulti = (key: string, values: readonly string[]) =>
     update((next) => {
-      if (set.size === 0) next.delete(key);
-      else next.set(key, [...set].join(","));
+      if (values.length === 0) next.delete(key);
+      else next.set(key, values.join(","));
     });
-  };
 
   const setSort = (s: CreativeSort) =>
     update((next) => {
@@ -207,271 +172,65 @@ export function LibraryFilterBar({ products, angles, views, currentUserId, isAdm
       else next.set("view", v);
     });
 
-  const filtersActive =
-    urlQ.length > 0 ||
-    productIds.length > 0 ||
-    types.length > 0 ||
-    statuses.length > 0 ||
-    priorities.length > 0 ||
-    stages.length > 0 ||
-    platforms.length > 0 ||
-    selectedAngles.length > 0;
-
-  // Sheet badge counts the dimension filters (search sits in the mobile row).
-  const activeCount =
-    (productIds.length > 0 ? 1 : 0) +
-    (types.length > 0 ? 1 : 0) +
-    (statuses.length > 0 ? 1 : 0) +
-    (priorities.length > 0 ? 1 : 0) +
-    (stages.length > 0 ? 1 : 0) +
-    (platforms.length > 0 ? 1 : 0) +
-    (selectedAngles.length > 0 ? 1 : 0);
-
-  const clearAll = () =>
-    update((next) => {
-      next.delete("q");
-      next.delete("productIds");
-      next.delete("types");
-      next.delete("statuses");
-      next.delete("priorities");
-      next.delete("stages");
-      next.delete("platforms");
-      next.delete("angles");
-    });
-
-  const productLabel = useMemo(() => {
-    if (productIds.length === 0) return "All";
-    if (productIds.length === 1) {
-      return products.find((p) => p.id === productIds[0])?.name ?? "1 selected";
-    }
-    return `${productIds.length} selected`;
-  }, [productIds, products]);
-
-  const views_ = (
-    <ViewsControl
-      views={views}
-      currentUserId={currentUserId}
-      isAdmin={isAdmin}
-      page="creatives"
-      clearLabel="Show all creatives (ignore default)"
-    />
-  );
-
-  // Dimension pills in canonical order (Products → Type → Status → Priority →
-  // Stage → Platforms → Angles). Rendered inline on desktop and stacked full-width in the mobile Sheet.
-  const dimensionControls = (fullWidth: boolean) => (
-    <>
-      <FilterPill
-        icon={Package}
-        label="Products"
-        value={productLabel}
-        active={productIds.length > 0}
-        fullWidth={fullWidth}
-      >
-        {() => (
-          <DropdownMenuContent align="start" className="w-56">
-            <DropdownMenuLabel>Products</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            {products.length === 0 && (
-              <div className="px-2 py-1.5 text-xs text-ink-3">No products yet</div>
-            )}
-            {products.map((p) => (
-              <DropdownMenuCheckboxItem
-                key={p.id}
-                checked={productIds.includes(p.id)}
-                onCheckedChange={() => toggleMulti("productIds", p.id, productIds)}
-              >
-                {p.name}
-              </DropdownMenuCheckboxItem>
-            ))}
-          </DropdownMenuContent>
-        )}
-      </FilterPill>
-
-      <FilterPill
-        icon={Shapes}
-        label="Types"
-        value={
-          types.length === 0
-            ? "All"
-            : types.length === 1
-              ? (TYPES.find((t) => t.value === types[0])?.label ?? "1")
-              : `${types.length} selected`
-        }
-        active={types.length > 0}
-        fullWidth={fullWidth}
-      >
-        {() => (
-          <DropdownMenuContent align="start" className="w-44">
-            <DropdownMenuLabel>Type</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            {TYPES.map((t) => (
-              <DropdownMenuCheckboxItem
-                key={t.value}
-                checked={types.includes(t.value)}
-                onCheckedChange={() => toggleMulti("types", t.value, types)}
-              >
-                {t.label}
-              </DropdownMenuCheckboxItem>
-            ))}
-          </DropdownMenuContent>
-        )}
-      </FilterPill>
-
-      <FilterPill
-        icon={CircleDot}
-        label="Status"
-        value={
-          statuses.length === 0
-            ? "Any"
-            : statuses.length === 1
-              ? (STATUSES.find((s) => s.value === statuses[0])?.label ?? "1")
-              : `${statuses.length} selected`
-        }
-        active={statuses.length > 0}
-        fullWidth={fullWidth}
-      >
-        {() => (
-          <DropdownMenuContent align="start" className="w-44">
-            <DropdownMenuLabel>Status</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            {STATUSES.map((s) => (
-              <DropdownMenuCheckboxItem
-                key={s.value}
-                checked={statuses.includes(s.value)}
-                onCheckedChange={() => toggleMulti("statuses", s.value, statuses)}
-              >
-                {s.label}
-              </DropdownMenuCheckboxItem>
-            ))}
-          </DropdownMenuContent>
-        )}
-      </FilterPill>
-
-      <FilterPill
-        icon={Flag}
-        label="Priority"
-        value={
-          priorities.length === 0
-            ? "Any"
-            : priorities.length === 1
-              ? (PRIORITY_FILTER_LABEL[priorities[0] as PriorityFilterValue] ?? "1")
-              : `${priorities.length} selected`
-        }
-        active={priorities.length > 0}
-        fullWidth={fullWidth}
-      >
-        {() => (
-          <DropdownMenuContent align="start" className="w-44">
-            <DropdownMenuLabel>Priority</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            {PRIORITY_FILTER_VALUES.map((v) => (
-              <DropdownMenuCheckboxItem
-                key={v}
-                checked={priorities.includes(v)}
-                onCheckedChange={() => toggleMulti("priorities", v, priorities)}
-              >
-                {PRIORITY_FILTER_LABEL[v]}
-              </DropdownMenuCheckboxItem>
-            ))}
-          </DropdownMenuContent>
-        )}
-      </FilterPill>
-
-      <FilterPill
-        icon={Layers}
-        label="Stage"
-        value={
-          stages.length === 0
-            ? "Any"
-            : stages.length === 1
-              ? stageFilterLabel(stages[0]!)
-              : `${stages.length} selected`
-        }
-        active={stages.length > 0}
-        fullWidth={fullWidth}
-      >
-        {() => (
-          <DropdownMenuContent align="start" className="w-52">
-            <DropdownMenuLabel>Stage</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            {STAGE_FILTER_VALUES.map((v) => (
-              <DropdownMenuCheckboxItem
-                key={v}
-                checked={stages.includes(v)}
-                onCheckedChange={() => toggleMulti("stages", v, stages)}
-              >
-                {stageFilterLabel(v)}
-              </DropdownMenuCheckboxItem>
-            ))}
-          </DropdownMenuContent>
-        )}
-      </FilterPill>
-
-      <FilterPill
-        icon={MonitorSmartphone}
-        label="Platforms"
-        value={
-          platforms.length === 0
-            ? "All"
-            : platforms.length === 1
-              ? (PLATFORMS.find((p) => p.value === platforms[0])?.label ?? "1")
-              : `${platforms.length} selected`
-        }
-        active={platforms.length > 0}
-        fullWidth={fullWidth}
-      >
-        {() => (
-          <DropdownMenuContent align="start" className="w-44">
-            <DropdownMenuLabel>Platform</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            {PLATFORMS.map((p) => (
-              <DropdownMenuCheckboxItem
-                key={p.value}
-                checked={platforms.includes(p.value)}
-                onCheckedChange={() => toggleMulti("platforms", p.value, platforms)}
-              >
-                {p.label}
-              </DropdownMenuCheckboxItem>
-            ))}
-          </DropdownMenuContent>
-        )}
-      </FilterPill>
-
-      <FilterPill
-        icon={Tag}
-        label="Angles"
-        value={
-          selectedAngles.length === 0
-            ? "Any"
-            : selectedAngles.length === 1
-              ? selectedAngles[0]!
-              : `${selectedAngles.length} selected`
-        }
-        active={selectedAngles.length > 0}
-        fullWidth={fullWidth}
-      >
-        {() => (
-          <DropdownMenuContent align="start" className="w-56">
-            <DropdownMenuLabel>Angles</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            {angles.length === 0 && (
-              <div className="px-2 py-1.5 text-xs text-ink-3">No angles yet</div>
-            )}
-            {angles.map((t) => (
-              <DropdownMenuCheckboxItem
-                key={t}
-                checked={selectedAngles.includes(t)}
-                onCheckedChange={() => toggleMulti("angles", t, selectedAngles)}
-              >
-                {t}
-              </DropdownMenuCheckboxItem>
-            ))}
-          </DropdownMenuContent>
-        )}
-      </FilterPill>
-    </>
-  );
+  // ── TIER 2: one entry each; the shell derives panel, chips, badge, sheet ──
+  // The status FACET STRIP above the list writes these same params — it is a
+  // summary of the listing, not a second filter bar, so its chips simply light
+  // up the shell's `statuses` chip too.
+  const filters: FilterDef[] = [
+    {
+      key: "productIds",
+      label: "Products",
+      type: "multi",
+      options: products.map((p) => ({ value: p.id, label: p.name })),
+      values: productIds,
+      onChange: (next) => writeMulti("productIds", next),
+      emptyHint: "No products yet",
+    },
+    {
+      key: "types",
+      label: "Type",
+      type: "multi",
+      options: TYPES.map((t) => ({ value: t.value, label: t.label })),
+      values: types,
+      onChange: (next) => writeMulti("types", next),
+    },
+    {
+      key: "statuses",
+      label: "Status",
+      type: "multi",
+      options: STATUSES.map((s) => ({ value: s.value, label: s.label })),
+      values: statuses,
+      onChange: (next) => writeMulti("statuses", next),
+    },
+    {
+      key: "angles",
+      label: "Angles",
+      type: "multi",
+      options: angles.map((a) => ({ value: a, label: a })),
+      values: selectedAngles,
+      onChange: (next) => writeMulti("angles", next),
+      emptyHint: "No angles yet",
+    },
+    {
+      key: "priorities",
+      label: "Priority",
+      type: "multi",
+      options: PRIORITY_FILTER_VALUES.map((v) => ({
+        value: v,
+        label: PRIORITY_FILTER_LABEL[v as PriorityFilterValue],
+      })),
+      values: priorities,
+      onChange: (next) => writeMulti("priorities", next),
+    },
+    {
+      key: "stages",
+      label: "Stage",
+      type: "multi",
+      options: STAGE_FILTER_VALUES.map((v) => ({ value: v, label: stageFilterLabel(v) })),
+      values: stages,
+      onChange: (next) => writeMulti("stages", next),
+    },
+  ];
 
   const sortControl = (fullWidth: boolean) => (
     <DropdownMenu>
@@ -479,15 +238,15 @@ export function LibraryFilterBar({ products, angles, views, currentUserId, isAdm
         <button
           type="button"
           className={cn(
-            "inline-flex items-center gap-2 h-8 px-3 rounded-md border border-line bg-surface text-xs text-ink-2 hover:text-ink hover:bg-surface-2 transition-colors",
+            "inline-flex h-8 items-center gap-2 rounded-md border border-line bg-surface px-3 text-xs text-ink-2 transition-colors hover:bg-surface-2 hover:text-ink",
             fullWidth && "w-full justify-between",
           )}
         >
-          <span className="inline-flex items-center gap-2 min-w-0">
-            <span className="text-ink-3 shrink-0">Sort</span>
-            <span className="text-ink truncate">{SORT_LABEL[sort]}</span>
+          <span className="inline-flex min-w-0 items-center gap-2">
+            <span className="shrink-0 text-ink-3">Sort</span>
+            <span className="truncate text-ink">{SORT_LABEL[sort]}</span>
           </span>
-          <ChevronDown className="w-3 h-3 text-ink-3 shrink-0" />
+          <ChevronDown className="h-3 w-3 shrink-0 text-ink-3" />
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-52">
@@ -496,7 +255,7 @@ export function LibraryFilterBar({ products, angles, views, currentUserId, isAdm
         {DROPDOWN_SORTS.map((s) => (
           <DropdownMenuItem key={s} onSelect={() => setSort(s)}>
             <span className="flex-1">{SORT_LABEL[s]}</span>
-            {sort === s && <Check className="w-3.5 h-3.5 text-brand" />}
+            {sort === s && <Check className="h-3.5 w-3.5 text-brand" />}
           </DropdownMenuItem>
         ))}
       </DropdownMenuContent>
@@ -504,68 +263,107 @@ export function LibraryFilterBar({ products, angles, views, currentUserId, isAdm
   );
 
   const viewToggle = (
-    <div className="inline-flex items-center rounded-md border border-line bg-surface h-8 p-0.5 shrink-0">
+    <div className="inline-flex h-8 shrink-0 items-center rounded-md border border-line bg-surface p-0.5">
       <button
         type="button"
         onClick={() => setView("grid")}
         aria-label="Grid view"
         className={cn(
-          "h-7 px-2 rounded transition-colors inline-flex items-center justify-center",
+          "inline-flex h-7 items-center justify-center rounded px-2 transition-colors",
           view === "grid" ? "bg-surface-3 text-ink" : "text-ink-3 hover:text-ink",
         )}
       >
-        <LayoutGrid className="w-3.5 h-3.5" />
+        <LayoutGrid className="h-3.5 w-3.5" />
       </button>
       <button
         type="button"
         onClick={() => setView("table")}
         aria-label="Table view"
         className={cn(
-          "h-7 px-2 rounded transition-colors inline-flex items-center justify-center",
+          "inline-flex h-7 items-center justify-center rounded px-2 transition-colors",
           view === "table" ? "bg-surface-3 text-ink" : "text-ink-3 hover:text-ink",
         )}
       >
-        <TableIcon className="w-3.5 h-3.5" />
+        <TableIcon className="h-3.5 w-3.5" />
       </button>
     </div>
   );
 
-  const search = (fullWidth: boolean) => (
-    <FilterSearch
-      value={qInput}
-      onChange={setQInput}
-      placeholder="Search name, angle, notes…"
-      fullWidth={fullWidth}
-    />
-  );
-
   return (
-    <div className="sticky top-14 z-10 -mx-6 px-6 py-3 border-b border-line bg-background/95 backdrop-blur">
-      {/* Desktop / wide */}
-      <div className="hidden lg:flex items-center gap-2 flex-wrap">
-        {views_}
-        {search(false)}
-        {dimensionControls(false)}
-        <div className="ml-auto flex items-center gap-2">
-          <ExcludedParamToggle on={includeExcluded} />
-          {filtersActive && <ClearButton onClick={clearAll} />}
-          {sortControl(false)}
+    <FilterShell
+      filters={filters}
+      mobileLead={
+        <FilterSearch
+          fullWidth
+          value={qInput}
+          onChange={setQInput}
+          placeholder="Search name, angle, notes…"
+        />
+      }
+      tier1={({ fullWidth }) => (
+        <>
+          {/* A view switch, not a filter — kept in tier 1 beside search. */}
+          <ViewsControl
+            views={views}
+            currentUserId={currentUserId}
+            isAdmin={isAdmin}
+            page="creatives"
+            clearLabel="Show all creatives (ignore default)"
+          />
+          {!fullWidth && (
+            <FilterSearch
+              value={qInput}
+              onChange={setQInput}
+              placeholder="Search name, angle, notes…"
+            />
+          )}
+          <FilterPill
+            icon={MonitorSmartphone}
+            label="Platforms"
+            value={
+              platforms.length === 0
+                ? "All"
+                : platforms.length === 1
+                  ? (PLATFORMS.find((p) => p.value === platforms[0])?.label ?? "1")
+                  : `${platforms.length} selected`
+            }
+            active={platforms.length > 0}
+            fullWidth={fullWidth}
+          >
+            {() => (
+              <DropdownMenuContent align="start" className="w-48">
+                <DropdownMenuLabel>Platforms</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {PLATFORMS.map((p) => (
+                  <DropdownMenuCheckboxItem
+                    key={p.value}
+                    checked={platforms.includes(p.value)}
+                    onCheckedChange={() =>
+                      writeMulti(
+                        "platforms",
+                        platforms.includes(p.value)
+                          ? platforms.filter((v) => v !== p.value)
+                          : [...platforms, p.value],
+                      )
+                    }
+                  >
+                    {p.label}
+                  </DropdownMenuCheckboxItem>
+                ))}
+              </DropdownMenuContent>
+            )}
+          </FilterPill>
+        </>
+      )}
+      toolbar={({ fullWidth }) => (
+        <>
+          {/* TABLE + data-scope controls — never filters, so Clear skips them. */}
+          {sortControl(fullWidth)}
           {viewToggle}
-        </div>
-      </div>
-
-      {/* Mobile / tablet: search + view toggle + a single Filters Sheet */}
-      <div className="flex lg:hidden items-center gap-2">
-        <div className="flex-1 min-w-0">{search(true)}</div>
-        {viewToggle}
-        <FilterSheet activeCount={activeCount} onClear={clearAll}>
-          {views_}
-          {dimensionControls(true)}
-          {sortControl(true)}
-          <ExcludedParamToggle on={includeExcluded} fullWidth />
-        </FilterSheet>
-      </div>
-    </div>
+          <ExcludedParamToggle on={includeExcluded} fullWidth={fullWidth} />
+        </>
+      )}
+    />
   );
 }
 
@@ -573,4 +371,3 @@ function csvParam(v: string | null): string[] {
   if (!v) return [];
   return v.split(",").filter(Boolean);
 }
-

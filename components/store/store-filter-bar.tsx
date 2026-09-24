@@ -1,16 +1,18 @@
 "use client";
 
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { DateRangePicker } from "@/components/filters/date-range-picker";
 import type { DateRangeValue } from "@/lib/date-presets";
-import { FilterSearch, ClearButton } from "@/components/filters/filter-pill";
-import { useNavTransition } from "@/lib/nav-progress";
+import { FilterSearch } from "@/components/filters/filter-pill";
+import { FilterShell } from "@/components/filters/filter-shell";
+import { useFilterParams } from "@/components/filters/use-filter-params";
 
 /**
  * Store orders filters — date range + order-id search ONLY (deliberate; no
- * status/platform/product filters). URL-backed; a search is debounced 250ms.
- * Any filter change resets to page 1.
+ * status/platform/product filters). On `FilterShell` (phase 2) as a ZERO-DEF
+ * page: the same bar, with no Filters button and no chips row, because there
+ * is no tier 2 to collapse. URL-backed; a search is debounced 250ms, and any
+ * filter change resets to page 1.
  */
 export function StoreFilterBar({
   from,
@@ -25,18 +27,15 @@ export function StoreFilterBar({
   resolvedRange: DateRangeValue;
   q: string;
 }) {
-  const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
-  const [, startNav] = useNavTransition();
+  const { update } = useFilterParams();
   const [qLocal, setQLocal] = useState(q);
 
-  const update = (mut: (p: URLSearchParams) => void) => {
-    const next = new URLSearchParams(searchParams.toString());
-    mut(next);
-    next.delete("page"); // any filter change → back to page 1
-    startNav(() => router.replace(`${pathname}?${next.toString()}`, { scroll: false }));
-  };
+  /** Any filter change → back to page 1. */
+  const write = (mutate: (p: URLSearchParams) => void) =>
+    update((next) => {
+      mutate(next);
+      next.delete("page");
+    });
 
   // Debounce the search box (250ms) before writing `?q=`.
   const first = useRef(true);
@@ -46,7 +45,7 @@ export function StoreFilterBar({
       return;
     }
     const t = setTimeout(() => {
-      update((p) => {
+      write((p) => {
         const v = qLocal.trim();
         if (v) p.set("q", v);
         else p.delete("q");
@@ -56,42 +55,34 @@ export function StoreFilterBar({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [qLocal]);
 
-  const setRange = (nf: string | null, nt: string | null) =>
-    update((p) => {
-      if (nf) p.set("from", nf);
-      else p.delete("from");
-      if (nt) p.set("to", nt);
-      else p.delete("to");
-    });
-
-  const hasFilter = Boolean(from || to || q);
-
   return (
-    <div className="sticky top-14 z-10 flex flex-wrap items-center gap-2 bg-background py-2">
-      <DateRangePicker
-        from={from}
-        to={to}
-        onChange={setRange}
-        remember
-        fallback={resolvedRange}
-      />
-      <FilterSearch
-        value={qLocal}
-        onChange={setQLocal}
-        placeholder="Search order ID…"
-      />
-      {hasFilter && (
-        <ClearButton
-          onClick={() => {
-            setQLocal("");
-            update((p) => {
-              p.delete("from");
-              p.delete("to");
-              p.delete("q");
-            });
-          }}
+    <FilterShell
+      filters={[]}
+      mobileLead={
+        <FilterSearch
+          fullWidth
+          value={qLocal}
+          onChange={setQLocal}
+          placeholder="Search order ID…"
+        />
+      }
+      tier1={({ fullWidth }) => (
+        <DateRangePicker
+          from={from}
+          to={to}
+          onChange={(nf, nt) =>
+            write((p) => {
+              if (nf) p.set("from", nf);
+              else p.delete("from");
+              if (nt) p.set("to", nt);
+              else p.delete("to");
+            })
+          }
+          remember
+          fullWidth={fullWidth}
+          fallback={resolvedRange}
         />
       )}
-    </div>
+    />
   );
 }

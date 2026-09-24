@@ -671,8 +671,11 @@ This app is deployed and in production use. Treat `main` as shippable.
   - **Filters → `components/filters/filter-shell.tsx` (`FilterShell`), 2026-09.**
     ONE primitive owns a page's whole filter surface the way `DataTable` owns a
     table — bar, panel, mobile sheet and chips — so no two pages can drift
-    again. **Hand-rolled filter bars are DEPRECATED**; phase 2 migrates
-    Library, Campaigns, Store Orders, Reconciliation, Pacing and Canvas.
+    again. **NEVER hand-roll a filter bar.** Every filter-bearing page is on it
+    (phase 2, 2026-09): **Ads · Library · Campaigns · Canvas · Store orders ·
+    Reconciliation · Budget Pacing**. (`FilterStrip` — the shared
+    Dashboard/Trends strip — is a different thing: one bar shared BY many
+    pages, not a page's own.)
     - **THREE TIERS.** (1) The page's 2–4 always-visible controls, passed as a
       `tier1({ fullWidth })` render prop into the sticky bar (`top-14 z-10`).
       (2) Everything else as a DECLARATIVE `FilterDef[]` — `{ key, label,
@@ -698,8 +701,20 @@ This app is deployed and in production use. Treat `main` as shippable.
       in `validators/summary.test.ts` that the Ads bar declares exactly its
       eight panel filters).
     - **The Excluded toggle is a DATA-SCOPE switch, not a filter** — it lives in
-      the `toolbar` slot with the table controls (Columns, CSV), stays visible
-      house-wide, and Clear never touches it.
+      the `toolbar` slot with the table controls (Columns, CSV, Sort, the
+      grid/table toggle), stays visible house-wide, and Clear never touches it.
+    - **ZERO-DEF PAGES** (Store orders · Reconciliation · Pacing): a page with
+      no tier-2 filters renders the SAME bar with no Filters button and no
+      chips row — consistency without a dead control. With nothing to collapse,
+      tier 1 simply wraps at every width instead of folding into the sheet.
+    - **A VIEW SWITCH IS NOT A FILTER.** Reconciliation's mode toggle (user
+      decision, 9c47d17), Pacing's group-by and objective breakdown, Library's
+      Views control: page-owned tier-1 slots, never defs — so Clear leaves them
+      alone and they stay visible.
+    - **`active` overrides "something is selected"** for a filter whose DEFAULT
+      is non-empty — Canvas's statuses default to all-but-terminated, so
+      "active" is "the URL says something", and clearing writes nothing, which
+      restores the default.
     - **`useFilterParams`** is the shell's URL writer: `router.replace`, empty
       keys dropped, `useNavTransition` for the progress bar — plus writes in one
       tick COMPOSE. Each write used to start from the render's `searchParams`
@@ -713,6 +728,22 @@ This app is deployed and in production use. Treat `main` as shippable.
       keeps its own component and contributes one chip per rule); toolbar =
       Columns · Excluded. **URL params are UNCHANGED** — every saved view keeps
       parsing, pinned by `validators/summary.test.ts`.
+    - **Per-page tiers (phase 2).** Library: tier 1 Views · search · platforms,
+      6 defs (product · type · status · angles · priority · stage), toolbar
+      Sort · grid/table · Excluded — and the status FACET STRIP above the list
+      is untouched: it is a summary of the listing that writes the same
+      `statuses` param, so its chips simply light the shell's chip too.
+      Campaigns: tier 1 Views · search · date · platforms, 2 defs (objective ·
+      status), toolbar Columns · Excluded. Canvas: tier 1 date · platforms,
+      3 defs (status · product · stage), toolbar Excluded — the canvas
+      toolbar (node search, view switcher) is NOT the filter bar and is
+      untouched. Store orders / Reconciliation / Pacing: zero defs.
+    - **Every migrated bar keeps its own q-adoption rule** (the input is the
+      source of truth while typing; only a `q` change it did NOT originate is
+      adopted) and writes the URL through `useFilterParams` and nothing else —
+      pinned by `components/filters/migrated-bars.test.ts`, which also checks
+      each bar's declared def keys against its params and every page's
+      round-trip.
   - **Chart header → `ChartHeader` in `chart-shell.tsx`** — the one canonical
     line-chart header row: Title (`text-sm font-medium text-ink`, sentence case)
     → MetricPicker/segmented control → right-aligned cluster (Group → Smooth →

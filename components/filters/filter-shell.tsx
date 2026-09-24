@@ -42,6 +42,7 @@ export function FilterShell({
   tier1,
   toolbar,
   mobileLead,
+  notes,
   panelTitle = "Filters",
 }: {
   filters: readonly FilterDef[];
@@ -51,11 +52,34 @@ export function FilterShell({
   toolbar?: (ctx: { fullWidth: boolean }) => React.ReactNode;
   /** Stays inline on the mobile row (the search box) — never in the sheet. */
   mobileLead?: React.ReactNode;
+  /** A full-width muted line under the controls — e.g. why a metric is locked. */
+  notes?: React.ReactNode;
   panelTitle?: string;
 }) {
   const count = activeFilterCount(filters);
   const chips = filterChips(filters);
   const clear = () => clearFilters(filters);
+
+  /**
+   * ZERO-DEF PAGES: a page whose tier 2 is empty (Store orders, Pacing,
+   * Reconciliation) gets the SAME bar with no Filters button and no chips row
+   * — consistency without a dead control. With nothing to collapse, tier 1
+   * simply wraps at every width instead of folding into the sheet.
+   */
+  if (filters.length === 0) {
+    return (
+      <div className="sticky top-14 z-10 -mx-6 space-y-2 border-b border-line bg-background/95 px-6 py-3 backdrop-blur">
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Fills the row on a phone, capped on a wide screen so it doesn't
+              stretch to the full page width. */}
+          {mobileLead && <div className="min-w-0 flex-1 lg:max-w-xs">{mobileLead}</div>}
+          {tier1?.({ fullWidth: false })}
+          {toolbar && <div className="ml-auto flex flex-wrap items-center gap-2">{toolbar({ fullWidth: false })}</div>}
+        </div>
+        {notes}
+      </div>
+    );
+  }
 
   return (
     <div className="sticky top-14 z-10 -mx-6 space-y-2 border-b border-line bg-background/95 px-6 py-3 backdrop-blur">
@@ -78,6 +102,8 @@ export function FilterShell({
           {toolbar?.({ fullWidth: true })}
         </FilterSheet>
       </div>
+
+      {notes}
 
       {chips.length > 0 && (
         <div className="flex flex-wrap items-center gap-1.5">

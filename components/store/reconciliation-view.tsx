@@ -2,7 +2,6 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Columns3, Download, Megaphone, Percent, Scale, ShoppingBag } from "lucide-react";
 import {
   DataTable,
@@ -20,12 +19,13 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { DateRangePicker } from "@/components/filters/date-range-picker";
+import { FilterShell } from "@/components/filters/filter-shell";
+import { useFilterParams } from "@/components/filters/use-filter-params";
 import type { DateRangeValue } from "@/lib/date-presets";
 import { PlatformDot } from "@/components/ui/platform-dot";
 import { PLATFORM_COLOR, PLATFORM_LABEL } from "@/lib/palette";
 import { sar, usd, isoDate, int, intCompact, pct1, signedPct } from "@/lib/format";
 import { downloadCsv, todayStamp, matrixToCsv } from "@/lib/csv-export";
-import { useNavTransition } from "@/lib/nav-progress";
 import {
   reconDelta,
   reconDeltaPct,
@@ -119,10 +119,7 @@ export function ReconciliationView({
   unmappedChannelCount,
   canConfig,
 }: Props) {
-  const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
-  const [, startNav] = useNavTransition();
+  const { update } = useFilterParams();
 
   // Client state only — no URL param has ever carried the mode, so a stale
   // "overview" value cannot arrive from a bookmark or a saved view.
@@ -132,12 +129,14 @@ export function ReconciliationView({
     () => new Set(["store_revenue", "spend"]),
   );
 
-  const setRange = (nf: string | null, nt: string | null) => {
-    const next = new URLSearchParams(searchParams.toString());
-    if (nf) next.set("from", nf); else next.delete("from");
-    if (nt) next.set("to", nt); else next.delete("to");
-    startNav(() => router.replace(`${pathname}?${next.toString()}`, { scroll: false }));
-  };
+  // The shell's batching writer — the only URL writer on a migrated bar.
+  const setRange = (nf: string | null, nt: string | null) =>
+    update((next) => {
+      if (nf) next.set("from", nf);
+      else next.delete("from");
+      if (nt) next.set("to", nt);
+      else next.delete("to");
+    });
 
   const lag = (day: string) => isWithinAttributionLag(day, maxHorizon);
 
@@ -491,55 +490,69 @@ export function ReconciliationView({
       {/* Filter + controls bar. The view toggle LEADS, then the range, then
           everything else is pushed right by `ml-auto`. On a phone the row wraps
           — and because the toggle is the first flex item, it stays first. */}
-      <div className="sticky top-14 z-10 -mx-6 flex flex-wrap items-center gap-2 border-b border-line bg-background/95 px-6 py-2 backdrop-blur">
-        <ModeToggle mode={mode} onChange={setMode} />
-        <DateRangePicker
-          from={from}
-          to={to}
-          onChange={setRange}
-          remember
-          fallback={resolvedRange}
-        />
-        <div className="ml-auto flex flex-wrap items-center gap-2">
-          <ExcludedParamToggle on={includeExcluded} />
-          {mode === "channel" && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button type="button" variant="outline" size="sm">
-                  <Columns3 className="h-3.5 w-3.5" />
-                  Columns
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48">
-                <DropdownMenuLabel>Context columns</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                {[
-                  { k: "store_revenue", label: "Revenue (SAR)" },
-                  { k: "spend", label: "Spend (USD)" },
-                ].map(({ k, label }) => (
-                  <DropdownMenuCheckboxItem
-                    key={k}
-                    checked={!hidden.has(k)}
-                    onCheckedChange={(on) =>
-                      setHidden((prev) => {
-                        const next = new Set(prev);
-                        if (on) next.delete(k); else next.add(k);
-                        return next;
-                      })
-                    }
-                  >
-                    {label}
-                  </DropdownMenuCheckboxItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
-          <Button type="button" variant="outline" size="sm" onClick={exportCsv} disabled={empty}>
-            <Download className="h-3.5 w-3.5" />
-            CSV
-          </Button>
-        </div>
-      </div>
+      {/* The bar is FilterShell's (phase 2) — a ZERO-DEF page: no tier-2
+          filters, so no Filters button and no chips row. The MODE TOGGLE is a
+          view switch, not a filter (user decision, 9c47d17), so it stays the
+          row's first element inside tier 1; Excluded, the per-mode Columns
+          menu and CSV are toolbar controls. */}
+      <FilterShell
+        filters={[]}
+        tier1={({ fullWidth }) => (
+          <>
+            <ModeToggle mode={mode} onChange={setMode} />
+            <DateRangePicker
+              from={from}
+              to={to}
+              onChange={setRange}
+              remember
+              fullWidth={fullWidth}
+              fallback={resolvedRange}
+            />
+          </>
+        )}
+        toolbar={() => (
+          <>
+            <ExcludedParamToggle on={includeExcluded} />
+            {mode === "channel" && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button type="button" variant="outline" size="sm">
+                    <Columns3 className="h-3.5 w-3.5" />
+                    Columns
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48">
+                  <DropdownMenuLabel>Context columns</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  {[
+                    { k: "store_revenue", label: "Revenue (SAR)" },
+                    { k: "spend", label: "Spend (USD)" },
+                  ].map(({ k, label }) => (
+                    <DropdownMenuCheckboxItem
+                      key={k}
+                      checked={!hidden.has(k)}
+                      onCheckedChange={(on) =>
+                        setHidden((prev) => {
+                          const next = new Set(prev);
+                          if (on) next.delete(k);
+                          else next.add(k);
+                          return next;
+                        })
+                      }
+                    >
+                      {label}
+                    </DropdownMenuCheckboxItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+            <Button type="button" variant="outline" size="sm" onClick={exportCsv} disabled={empty}>
+              <Download className="h-3.5 w-3.5" />
+              CSV
+            </Button>
+          </>
+        )}
+      />
 
       {/* Range summary — counts only, mode-independent (both modes reconcile to
           the same totals). Match rate = claimed / store orders. */}

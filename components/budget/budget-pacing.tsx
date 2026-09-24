@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useRouter, usePathname } from "next/navigation";
 import { Layers } from "lucide-react";
 import {
   Bar,
@@ -27,10 +26,11 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { FilterPill } from "@/components/filters/filter-pill";
+import { FilterShell } from "@/components/filters/filter-shell";
+import { useFilterParams } from "@/components/filters/use-filter-params";
 import { DateRangePicker } from "@/components/filters/date-range-picker";
 import { ALL_PLATFORMS, PLATFORM_LABEL, seriesColor } from "@/lib/palette";
 import { monthDay, roas as fmtRoas, sar, sarCompact, usdCompact } from "@/lib/format";
-import { useNavTransition } from "@/lib/nav-progress";
 import { cn } from "@/lib/utils";
 import {
   BUDGET_OBJECTIVES,
@@ -133,9 +133,8 @@ export function BudgetPacing({
   horizon: string | null;
   storeHorizon: string | null;
 }) {
-  const router = useRouter();
-  const pathname = usePathname();
-  const [, startNav] = useNavTransition();
+  // The shell's batching writer — the only URL writer on a migrated bar.
+  const { update } = useFilterParams();
 
   const [currency, pickCurrency] = useBudgetCurrency();
   const fmtSpend = (usdAmount: number) => formatSpend(usdAmount, currency, rate);
@@ -146,18 +145,24 @@ export function BudgetPacing({
   const [hidden, setHidden] = useState<Set<string>>(() => new Set());
 
   // ── URL-backed controls ────────────────────────────────────────────────────
-  const setParams = (next: Record<string, string | null>) => {
-    const params = new URLSearchParams();
-    params.set("from", from);
-    params.set("to", to);
-    params.set("groupBy", groupBy);
-    if (platforms.length > 0) params.set("platforms", platforms.join(","));
-    for (const [key, value] of Object.entries(next)) {
-      if (value === null || value === "") params.delete(key);
-      else params.set(key, value);
-    }
-    startNav(() => router.replace(`${pathname}?${params.toString()}`, { scroll: false }));
-  };
+  /**
+   * Pacing REBUILDS its query rather than mutating it — the page owns exactly
+   * from/to/groupBy/platforms and deliberately drops anything else it was
+   * handed (the Budget nav's `?month=`, say). Kept verbatim through the
+   * shell's writer, so the URL it produces is unchanged.
+   */
+  const setParams = (next: Record<string, string | null>) =>
+    update((params) => {
+      for (const key of [...params.keys()]) params.delete(key);
+      params.set("from", from);
+      params.set("to", to);
+      params.set("groupBy", groupBy);
+      if (platforms.length > 0) params.set("platforms", platforms.join(","));
+      for (const [key, value] of Object.entries(next)) {
+        if (value === null || value === "") params.delete(key);
+        else params.set(key, value);
+      }
+    });
   const setRange = (nextFrom: string | null, nextTo: string | null) => {
     if (!nextFrom || !nextTo) return; // Budget always compares a bounded range
     setParams({ from: nextFrom, to: nextTo });
@@ -670,78 +675,89 @@ export function BudgetPacing({
     <div className="space-y-4">
       {/* Controls — deliberately wrapping: on a phone they stack into rows
           rather than scrolling sideways. */}
-      <div className="sticky top-14 z-10 flex flex-wrap items-center gap-2 rounded-lg border border-line bg-surface px-3 py-2">
-        {/* Lifetime is hidden: an unbounded range has no plan to pace against,
-            so the preset would silently do nothing. */}
-        <DateRangePicker
-          from={from}
-          to={to}
-          onChange={setRange}
-          hidePresets={["lifetime"]}
-        />
+      {/* The house filter bar (FilterShell, phase 2). A ZERO-DEF page: group-by
+          and the objective breakdown are VIEW controls, not filters (the same
+          reasoning as Reconciliation's mode toggle), so they are page-owned
+          tier-1 slots and there is no Filters button or chips row. */}
+      <FilterShell
+        filters={[]}
+        tier1={({ fullWidth }) => (
+          <>
+            {/* Lifetime is hidden: an unbounded range has no plan to pace
+                against, so the preset would silently do nothing. */}
+            <DateRangePicker
+              from={from}
+              to={to}
+              onChange={setRange}
+              hidePresets={["lifetime"]}
+              fullWidth={fullWidth}
+            />
 
-        <FilterPill
-          icon={Layers}
-          label="Platforms"
-          value={platformFilterLabel}
-          active={platformFiltered}
-        >
-          {() => (
-            <DropdownMenuContent align="start" className="w-48">
-              <DropdownMenuLabel>Platforms</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              {ALL_PLATFORMS.map((p) => (
-                <DropdownMenuCheckboxItem
-                  key={p}
-                  checked={platforms.includes(p)}
-                  onCheckedChange={() => togglePlatform(p)}
-                  onSelect={(e) => e.preventDefault()}
-                >
-                  {PLATFORM_LABEL[p]}
-                </DropdownMenuCheckboxItem>
-              ))}
-            </DropdownMenuContent>
-          )}
-        </FilterPill>
+            <FilterPill
+              icon={Layers}
+              label="Platforms"
+              value={platformFilterLabel}
+              active={platformFiltered}
+              fullWidth={fullWidth}
+            >
+              {() => (
+                <DropdownMenuContent align="start" className="w-48">
+                  <DropdownMenuLabel>Platforms</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  {ALL_PLATFORMS.map((p) => (
+                    <DropdownMenuCheckboxItem
+                      key={p}
+                      checked={platforms.includes(p)}
+                      onCheckedChange={() => togglePlatform(p)}
+                      onSelect={(e) => e.preventDefault()}
+                    >
+                      {PLATFORM_LABEL[p]}
+                    </DropdownMenuCheckboxItem>
+                  ))}
+                </DropdownMenuContent>
+              )}
+            </FilterPill>
 
-        <SegmentedControl<GroupBy>
-          ariaLabel="Group by"
-          value={groupBy}
-          onChange={(g) => setParams({ groupBy: g })}
-          options={[
-            { value: "day", label: "Day" },
-            { value: "week", label: "Week" },
-            { value: "month", label: "Month" },
-          ]}
-        />
+            <SegmentedControl<GroupBy>
+              ariaLabel="Group by"
+              value={groupBy}
+              onChange={(g) => setParams({ groupBy: g })}
+              options={[
+                { value: "day", label: "Day" },
+                { value: "week", label: "Week" },
+                { value: "month", label: "Month" },
+              ]}
+            />
 
-        <SegmentedControl<string>
-          ariaLabel="Objective breakdown"
-          value={byObjective ? "on" : "off"}
-          onChange={(v) => setByObjective(v === "on")}
-          options={[
-            { value: "off", label: "Totals" },
-            { value: "on", label: "By objective" },
-          ]}
-        />
-
-        <div className="ml-auto flex items-center gap-2">
-          <CurrencyToggle currency={currency} onChange={pickCurrency} />
-        </div>
-
-        {metricLocked && (
-          <p className="w-full text-[11px] text-ink-3">
-            Showing spend: store revenue isn&rsquo;t attributed to a platform (that
-            lives on Reconciliation), so revenue and ROAS are all-platforms only.
-          </p>
+            <SegmentedControl<string>
+              ariaLabel="Objective breakdown"
+              value={byObjective ? "on" : "off"}
+              onChange={(v) => setByObjective(v === "on")}
+              options={[
+                { value: "off", label: "Totals" },
+                { value: "on", label: "By objective" },
+              ]}
+            />
+          </>
         )}
-        {byObjective && activeMetric !== "spend" && (
-          <p className="w-full text-[11px] text-ink-3">
-            The objective breakdown applies to spend — revenue and ROAS have no
-            objective split.
-          </p>
-        )}
-      </div>
+        toolbar={() => <CurrencyToggle currency={currency} onChange={pickCurrency} />}
+        notes={
+          <>
+            {metricLocked && (
+              <p className="text-[11px] text-ink-3">
+                Showing spend: store revenue isn&rsquo;t attributed to a platform (that
+                lives on Reconciliation), so revenue and ROAS are all-platforms only.
+              </p>
+            )}
+            {byObjective && activeMetric !== "spend" && (
+              <p className="text-[11px] text-ink-3">
+                The objective breakdown applies to spend — revenue and ROAS have no
+                objective split.
+              </p>
+            )}
+          </>
+        }
+      />
 
       {/* Chart */}
       <ChartShell
