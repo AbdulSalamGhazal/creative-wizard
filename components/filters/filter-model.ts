@@ -51,8 +51,14 @@ export interface MultiFilterDef extends FilterDefBase {
    * means "the URL says something", not "values.length > 0".
    */
   active?: boolean;
-  /** Overrides the default "Label: A" / "Label: A +2" chip text. */
+  /** Overrides the default "A" / "A +2" value wording (chips AND rows). */
   chipFormat?: (values: readonly string[], options: readonly FilterOption[]) => string;
+  /**
+   * Force the dialog to DRILL for this filter instead of opening a droplist.
+   * The depth is automatic (see `filterDepth`); this is the escape hatch for a
+   * page whose short option list still deserves the whole level.
+   */
+  depth?: FilterDepth;
 }
 
 export interface SingleFilterDef extends FilterDefBase {
@@ -63,6 +69,8 @@ export interface SingleFilterDef extends FilterDefBase {
   chipFormat?: (value: string, options: readonly FilterOption[]) => string;
   /** Same override as the multi case. */
   active?: boolean;
+  /** Same presentation hint as the multi case. */
+  depth?: FilterDepth;
 }
 
 /**
@@ -80,6 +88,33 @@ export interface CustomFilterDef extends FilterDefBase {
 }
 
 export type FilterDef = MultiFilterDef | SingleFilterDef | CustomFilterDef;
+
+/**
+ * How the dialog opens a filter — a compact droplist anchored to its row, or
+ * the whole second level.
+ */
+export type FilterDepth = "popover" | "drill";
+
+/** Above this many options a droplist stops being comfortable. */
+export const POPOVER_MAX_OPTIONS = 8;
+/** Above this many, a level-2 list needs a search box (angles, products). */
+export const SEARCH_MIN_OPTIONS = 12;
+
+/**
+ * AUTOMATIC from the def — no new config to keep in sync. A custom filter
+ * always takes the level (the metric builder needs the room); a long option
+ * list does too; everything else is a droplist.
+ */
+export function filterDepth(def: FilterDef): FilterDepth {
+  if (def.type === "custom") return "drill";
+  if (def.depth) return def.depth;
+  return def.options.length > POPOVER_MAX_OPTIONS ? "drill" : "popover";
+}
+
+/** A level-2 list long enough to need its own search box. */
+export function needsOptionSearch(def: FilterDef): boolean {
+  return def.type !== "custom" && def.options.length > SEARCH_MIN_OPTIONS;
+}
 
 /** An option's label, falling back to the raw value (a stale URL token). */
 export function optionLabel(options: readonly FilterOption[], value: string): string {
@@ -102,16 +137,40 @@ export function activeFilterCount(defs: readonly FilterDef[]): number {
   return defs.filter(isFilterActive).length;
 }
 
-/** "Label: A" for one value, "Label: A +2" for more — the house chip text. */
-export function defaultChipLabel(def: MultiFilterDef | SingleFilterDef): string {
+/**
+ * The VALUE half of a filter's wording — "A", "A +2", or whatever
+ * `chipFormat` says. ONE source: the chips read it with the label in front,
+ * the dialog's rows read it on its own.
+ */
+export function filterValueSummary(def: MultiFilterDef | SingleFilterDef): string {
   if (def.type === "single") {
     const value = def.value!;
-    return `${def.label}: ${def.chipFormat ? def.chipFormat(value, def.options) : optionLabel(def.options, value)}`;
+    return def.chipFormat ? def.chipFormat(value, def.options) : optionLabel(def.options, value);
   }
-  if (def.chipFormat) return `${def.label}: ${def.chipFormat(def.values, def.options)}`;
+  if (def.chipFormat) return def.chipFormat(def.values, def.options);
   const [first, ...rest] = def.values;
   const head = optionLabel(def.options, first!);
-  return rest.length === 0 ? `${def.label}: ${head}` : `${def.label}: ${head} +${rest.length}`;
+  return rest.length === 0 ? head : `${head} +${rest.length}`;
+}
+
+/** "Label: A" for one value, "Label: A +2" for more — the house chip text. */
+export function defaultChipLabel(def: MultiFilterDef | SingleFilterDef): string {
+  return `${def.label}: ${filterValueSummary(def)}`;
+}
+
+/**
+ * What a filter ROW shows on the right in the dialog: the same wording the
+ * chip uses, or a muted "Any" when the filter is off. A custom filter shows
+ * its own first chip (and how many more), since only it knows its rules.
+ */
+export function filterSummary(def: FilterDef): string {
+  if (!isFilterActive(def)) return "Any";
+  if (def.type === "custom") {
+    const [first, ...rest] = def.chips;
+    if (!first) return "On";
+    return rest.length === 0 ? first.label : `${first.label} +${rest.length}`;
+  }
+  return filterValueSummary(def);
 }
 
 /**

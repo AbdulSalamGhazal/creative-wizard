@@ -292,14 +292,6 @@ export function LibraryFilterBar({ products, angles, views, currentUserId, isAdm
   return (
     <FilterShell
       filters={filters}
-      mobileLead={
-        <FilterSearch
-          fullWidth
-          value={qInput}
-          onChange={setQInput}
-          placeholder="Search name, angle, notes…"
-        />
-      }
       tier1={({ fullWidth }) => (
         <>
           {/* A view switch, not a filter — kept in tier 1 beside search. */}
@@ -310,13 +302,11 @@ export function LibraryFilterBar({ products, angles, views, currentUserId, isAdm
             page="creatives"
             clearLabel="Show all creatives (ignore default)"
           />
-          {!fullWidth && (
-            <FilterSearch
+          <FilterSearch
               value={qInput}
               onChange={setQInput}
               placeholder="Search name, angle, notes…"
-            />
-          )}
+          />
           <FilterPill
             icon={MonitorSmartphone}
             label="Platforms"

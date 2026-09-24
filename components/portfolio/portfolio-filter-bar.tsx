@@ -170,14 +170,6 @@ export function PortfolioFilterBar({
   return (
     <FilterShell
       filters={filters}
-      mobileLead={
-        <FilterSearch
-          fullWidth
-          value={qLocal}
-          onChange={setQLocal}
-          placeholder="Search campaigns…"
-        />
-      }
       tier1={({ fullWidth }) => (
         <>
           <ViewsControl
@@ -187,13 +179,11 @@ export function PortfolioFilterBar({
             page="campaigns"
             clearLabel="Show all campaigns (ignore default)"
           />
-          {!fullWidth && (
-            <FilterSearch
+          <FilterSearch
               value={qLocal}
               onChange={setQLocal}
               placeholder="Search campaigns…"
-            />
-          )}
+          />
           <DateRangePicker
             from={from}
             to={to}

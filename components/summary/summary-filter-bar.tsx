@@ -486,29 +486,15 @@ export function SummaryFilterBar({
   return (
     <FilterShell
       filters={filters}
-      mobileLead={
-        // fullWidth: the mobile row gives it whatever is left beside the
-        // Filters button — its fixed w-64 would slide underneath.
-        <FilterSearch
-          fullWidth
-          value={qInput}
-          onChange={setQInput}
-          placeholder="Search creative name…"
-        />
-      }
       tier1={({ fullWidth }) => (
         <>
           <ViewsControl views={views} currentUserId={currentUserId} isAdmin={isAdmin} />
-          {!fullWidth && (
-            <>
-              <span className="h-5 w-px bg-line" aria-hidden />
+                        <span className="h-5 w-px bg-line" aria-hidden />
               <FilterSearch
                 value={qInput}
                 onChange={setQInput}
                 placeholder="Search creative name…"
               />
-            </>
-          )}
           <DateRangePicker
             from={from}
             to={to}

@@ -58,15 +58,13 @@ export function StoreFilterBar({
   return (
     <FilterShell
       filters={[]}
-      mobileLead={
+      tier1={({ fullWidth }) => (
+        <>
         <FilterSearch
-          fullWidth
           value={qLocal}
           onChange={setQLocal}
           placeholder="Search order ID…"
         />
-      }
-      tier1={({ fullWidth }) => (
         <DateRangePicker
           from={from}
           to={to}
@@ -82,6 +80,7 @@ export function StoreFilterBar({
           fullWidth={fullWidth}
           fallback={resolvedRange}
         />
+        </>
       )}
     />
   );

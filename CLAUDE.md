@@ -689,10 +689,34 @@ This app is deployed and in production use. Treat `main` as shippable.
       def to a config and asserts the badge, the chips and Clear all pick it up.
       The derivations live in `filter-model.ts` (pure, no React) so they can be
       tested in the node environment.
-    - **≥lg an anchored Popover panel** (grouped rows in a 2–3 column grid,
-      apply-on-change — no Apply button); **<lg the existing `FilterSheet`**,
-      fed by the SAME row renderer, so the sheet is no longer a hand-fed
-      parallel list.
+    - **PRESENTATION: a MASTER-DETAIL DIALOG (2026-09, user verdict — it
+      replaced the F1/F2 popover panel AND the mobile sheet; there is ONE
+      presentation now).** The Filters button opens a centered Dialog that goes
+      full-screen on a phone.
+      - **Level 1** is a settings screen, not a form dump: one row per def,
+        full-width click target, `label · current selection · chevron`, with a
+        muted "Any" when the filter is off. The summary is the SAME wording as
+        the chip (`filterSummary` → `filterValueSummary`, which `chipFormat`
+        overrides) — one source, so a row and its chip can never disagree.
+        Footer: "Clear filters" (the chips row's semantics) and **"Done", which
+        only CLOSES** — every change already applied when it was made.
+      - **Level 2, two depths, chosen AUTOMATICALLY by `filterDepth`:** a short
+        option list (≤ `POPOVER_MAX_OPTIONS`) drops a compact droplist anchored
+        to its row, over the dialog — a multi keeps it open per toggle and the
+        row's summary updates live; a longer list or a CUSTOM def drills the
+        whole dialog to its own level (`← back · label · per-filter Clear`),
+        with a search box past `SEARCH_MIN_OPTIONS` and the custom def's own
+        component filling the body. No new config field — a def may set
+        `depth` to force either way, and that hint is the only knob.
+      - **ESC HAS DEPTH:** it dismisses a droplist alone, goes BACK from level
+        2, and only closes the dialog from level 1. Focus returns to where you
+        came from at every step (the row, then the Filters button — which is a
+        real `DialogTrigger` so Radix restores it), arrow keys walk the rows,
+        and the drilled level focuses its search box, else Back. The slide is
+        `motion-safe:` only.
+      - **The dialog needs ONE flex column inside it**: `DialogContent` is a
+        grid, so at full height its rows distribute and the header floats
+        mid-screen on a phone.
     - **CLEAR CLEARS TIER-2 FILTERS AND NOTHING ELSE** (user decision, 2026-09,
       closing July's parked item): never sort, columns, the saved view, the date
       range or any tier-1 control. It is enforced by construction —
@@ -738,6 +762,11 @@ This app is deployed and in production use. Treat `main` as shippable.
       3 defs (status · product · stage), toolbar Excluded — the canvas
       toolbar (node search, view switcher) is NOT the filter bar and is
       untouched. Store orders / Reconciliation / Pacing: zero defs.
+    - **Tier 1 renders inline at every width** (it wraps on a phone) now that
+      there is no sheet to fold into — the `fullWidth` ctx is kept for the
+      controls that take it and is always false. `FilterSheet` survives only
+      for `FilterStrip` (the shared Dashboard/Trends strip, which is not a
+      shell consumer).
     - **Every migrated bar keeps its own q-adoption rule** (the input is the
       source of truth while typing; only a `q` change it did NOT originate is
       adopted) and writes the URL through `useFilterParams` and nothing else —

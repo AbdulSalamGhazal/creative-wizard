@@ -6,6 +6,12 @@ import {
   filterChips,
   isFilterActive,
   optionLabel,
+  filterDepth,
+  filterSummary,
+  filterValueSummary,
+  needsOptionSearch,
+  POPOVER_MAX_OPTIONS,
+  SEARCH_MIN_OPTIONS,
   toggleValue,
   type FilterDef,
 } from "@/components/filters/filter-model";
@@ -245,5 +251,88 @@ describe("a filter whose DEFAULT is non-empty declares its own active state", ()
     expect(activeFilterCount([touched])).toBe(1);
     clearFilters([touched]);
     expect(calls).toEqual(["statuses:"]); // empty → the page drops the param
+  });
+});
+
+// ── The master-detail dialog's model (2026-09) ──────────────────────────────
+
+describe("row summaries reuse the chip wording — ONE source", () => {
+  it('reads "Any" when off, and the chip\'s value half when on', () => {
+    const { defs } = config();
+    expect(filterSummary(defs[0]!)).toBe("Any");
+
+    const one = config({ types: ["video"] });
+    expect(filterSummary(one.defs[0]!)).toBe("Video");
+    expect(defaultChipLabel(one.defs[0] as never)).toBe("Type: Video");
+
+    const many = config({ types: ["video", "image", "slides"] });
+    expect(filterSummary(many.defs[0]!)).toBe("Video +2");
+    // The chip is the same words with the label in front.
+    expect(defaultChipLabel(many.defs[0] as never)).toBe(`Type: ${filterSummary(many.defs[0]!)}`);
+  });
+
+  it("a chipFormat override drives the row too", () => {
+    const def: FilterDef = {
+      key: "status",
+      label: "Live status",
+      type: "multi",
+      options: opts("active", "paused"),
+      values: ["active", "paused"],
+      onChange: () => {},
+      chipFormat: (v) => `Total · ${v.length}`,
+    };
+    expect(filterSummary(def)).toBe("Total · 2");
+    expect(filterValueSummary(def)).toBe("Total · 2");
+  });
+
+  it("a custom filter summarises its own chips", () => {
+    const { defs } = config({ metrics: true });
+    // Two rules → the first, and how many more.
+    expect(filterSummary(defs[2]!)).toBe("ROAS ≥ 2 +1");
+    const single: FilterDef = {
+      key: "rules",
+      label: "Rules",
+      type: "custom",
+      active: true,
+      chips: [{ key: "r1", label: "CPA ≤ 20", onRemove: () => {} }],
+      onClear: () => {},
+      render: () => null,
+    };
+    expect(filterSummary(single)).toBe("CPA ≤ 20");
+  });
+});
+
+describe("the depth threshold is AUTOMATIC", () => {
+  const listOf = (n: number): FilterDef => ({
+    key: "k",
+    label: "K",
+    type: "multi",
+    options: Array.from({ length: n }, (_, i) => ({ value: `v${i}`, label: `V${i}` })),
+    values: [],
+    onChange: () => {},
+  });
+
+  it("a short list drops a droplist; a long one takes the level", () => {
+    expect(filterDepth(listOf(POPOVER_MAX_OPTIONS))).toBe("popover");
+    expect(filterDepth(listOf(POPOVER_MAX_OPTIONS + 1))).toBe("drill");
+    expect(filterDepth(listOf(0))).toBe("popover");
+  });
+
+  it("a CUSTOM def always takes the level", () => {
+    const { defs } = config();
+    expect(filterDepth(defs[2]!)).toBe("drill"); // the metric builder
+  });
+
+  it("a def may FORCE the drill — the one presentation hint", () => {
+    expect(filterDepth({ ...listOf(3), depth: "drill" } as FilterDef)).toBe("drill");
+    // …and the hint can hold a long list in a droplist if a page insists.
+    expect(filterDepth({ ...listOf(30), depth: "popover" } as FilterDef)).toBe("popover");
+  });
+
+  it("only a long list earns a search box", () => {
+    expect(needsOptionSearch(listOf(SEARCH_MIN_OPTIONS))).toBe(false);
+    expect(needsOptionSearch(listOf(SEARCH_MIN_OPTIONS + 1))).toBe(true);
+    const { defs } = config();
+    expect(needsOptionSearch(defs[2]!)).toBe(false); // custom brings its own UI
   });
 });
