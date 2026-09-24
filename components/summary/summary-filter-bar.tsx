@@ -1,24 +1,8 @@
 "use client";
 
-import {
-  Activity,
-  Columns3,
-  Flag,
-  Layers,
-  Package,
-  Shapes,
-  Star,
-  Tag,
-} from "lucide-react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
-import { useNavTransition } from "@/lib/nav-progress";
+import { Columns3, Layers } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useFilterParams } from "@/components/filters/use-filter-params";
 import {
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
@@ -27,19 +11,22 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { DateRangePicker } from "@/components/filters/date-range-picker";
 import {
-  ClearButton,
   ExcludedToggle,
   FilterPill,
   FilterSearch,
 } from "@/components/filters/filter-pill";
-import { FilterSheet } from "@/components/filters/filter-sheet";
+import { FilterShell } from "@/components/filters/filter-shell";
+import type { FilterDef } from "@/components/filters/filter-model";
 import { cn } from "@/lib/utils";
 import {
   IDENTITY_COLUMN_KEYS,
   MAX_PLATFORMS,
   METRIC_COLUMN_KEYS,
+  metricConditionLabel,
+  parseMetricFilters,
   parseRateFilter,
   parseStatusFilter,
+  serializeMetricFilters,
   serializeRateFilter,
   serializeStatusFilter,
   type IdentityColumnKey,
@@ -54,10 +41,7 @@ import {
   type CreativeStatus,
 } from "@/lib/creative-status";
 import { PLATFORMS_WITH_CREATIVES, PLATFORM_LABEL } from "@/lib/palette";
-import {
-  STAGE_FILTER_VALUES,
-  stageFilterLabel,
-} from "@/lib/funnel-stages";
+import { STAGE_FILTER_VALUES, stageFilterLabel } from "@/lib/funnel-stages";
 import {
   PRIORITY_FILTER_LABEL,
   PRIORITY_FILTER_VALUES,
@@ -152,10 +136,9 @@ export function SummaryFilterBar({
   defaultTo,
   includeExcludedDefault,
 }: Props) {
-  const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
-  const [, startTransition] = useNavTransition();
+  // Writes COMPOSE within a tick — see useFilterParams. Clear touches every
+  // declared filter at once, and must land as ONE navigation.
+  const { searchParams, update } = useFilterParams();
 
   const from = searchParams.get("from");
   const to = searchParams.get("to");
@@ -237,20 +220,6 @@ export function SummaryFilterBar({
     setQInput(urlQ);
   }, [urlQ]);
 
-  const update = useCallback(
-    (mutate: (next: URLSearchParams) => void) => {
-      const next = new URLSearchParams(searchParams.toString());
-      mutate(next);
-      for (const [key, value] of [...next.entries()]) {
-        if (!value) next.delete(key);
-      }
-      const qs = next.toString();
-      const href = qs ? `${pathname}?${qs}` : pathname;
-      startTransition(() => router.replace(href, { scroll: false }));
-    },
-    [pathname, router, searchParams],
-  );
-
   // Debounce search → URL. Compare the TRIMMED input against the URL so a
   // trailing space the user just typed doesn't loop a no-op write.
   useEffect(() => {
@@ -290,15 +259,12 @@ export function SummaryFilterBar({
     });
   };
 
-  const toggleMulti = (key: string, value: string, current: string[]) => {
-    const set = new Set(current);
-    if (set.has(value)) set.delete(value);
-    else set.add(value);
+  /** The shell hands back the WHOLE next value of a multi filter. */
+  const writeMulti = (key: string, values: readonly string[]) =>
     update((next) => {
-      if (set.size === 0) next.delete(key);
-      else next.set(key, [...set].join(","));
+      if (values.length === 0) next.delete(key);
+      else next.set(key, values.join(","));
     });
-  };
 
   /**
    * Column visibility uses an opt-out URL pattern: the param holds *hidden*
@@ -365,12 +331,6 @@ export function SummaryFilterBar({
       if (ratings.length === 0) next.delete("rate");
       else next.set("rate", serializeRateFilter({ scope, ratings }));
     });
-  const toggleRating = (r: Rating) => {
-    const set = new Set(rateRatings);
-    if (set.has(r)) set.delete(r);
-    else set.add(r);
-    writeRate(rateScope, [...set]);
-  };
   const changeRateScope = (scope: MetricFilterScope) => {
     setRateScope(scope);
     if (rateRatings.length > 0) writeRate(scope, rateRatings);
@@ -383,495 +343,250 @@ export function SummaryFilterBar({
       if (statuses.length === 0) next.delete("status");
       else next.set("status", serializeStatusFilter({ scope, statuses }));
     });
-  const toggleStatus = (s: CreativeStatus) => {
-    const set = new Set(statusValues);
-    if (set.has(s)) set.delete(s);
-    else set.add(s);
-    writeStatus(statusScope, [...set]);
-  };
   const changeStatusScope = (scope: MetricFilterScope) => {
     setStatusScope(scope);
     if (statusValues.length > 0) writeStatus(scope, statusValues);
   };
 
-  const filtersActive =
-    urlQ.length > 0 ||
-    productIds.length > 0 ||
-    types.length > 0 ||
-    priorities.length > 0 ||
-    stages.length > 0 ||
-    selectedAngles.length > 0 ||
-    // A platform filter is "active" only when the URL explicitly sets it — the
-    // default (no param) resolves `platforms` to all 5, so `platforms.length`
-    // would otherwise be permanently truthy and pin the "Clear" button on.
-    rawPlatforms !== null ||
-    !!from ||
-    !!to ||
-    includeExcluded ||
-    rateRatings.length > 0 ||
-    statusValues.length > 0 ||
-    !!searchParams.get("metricFilters");
+  // Scopes a status/rate/metric rule can target: the blended total, or one of
+  // the platforms actually shown.
+  const scopeLabel = (scope: MetricFilterScope) =>
+    scope === "total"
+      ? "Total"
+      : (PLATFORM_LABEL[scope as keyof typeof PLATFORM_LABEL] ?? scope);
+  const scopeOptions: Array<{ value: MetricFilterScope; label: string }> = [
+    { value: "total", label: "Total" },
+    ...effectivePlatforms.map((p) => ({
+      value: p as MetricFilterScope,
+      label: scopeLabel(p as MetricFilterScope),
+    })),
+  ];
 
-  // Sheet badge counts active filters (search lives in the mobile row).
-  const activeCount =
-    (rawPlatforms !== null ? 1 : 0) +
-    (from || to ? 1 : 0) +
-    (productIds.length > 0 ? 1 : 0) +
-    (types.length > 0 ? 1 : 0) +
-    (priorities.length > 0 ? 1 : 0) +
-    (stages.length > 0 ? 1 : 0) +
-    (selectedAngles.length > 0 ? 1 : 0) +
-    (rateRatings.length > 0 ? 1 : 0) +
-    (statusValues.length > 0 ? 1 : 0) +
-    (searchParams.get("metricFilters") ? 1 : 0) +
-    (includeExcluded ? 1 : 0);
+  const metricConditions = useMemo(
+    () => parseMetricFilters(searchParams.get("metricFilters")),
+    [searchParams],
+  );
 
-  const clearAll = () =>
-    update((next) => {
-      [
-        "q",
-        "productIds",
-        "types",
-        "priorities",
-        "stages",
-        "angles",
-        "creatorIds",
-        "platforms",
-        "from",
-        "to",
-        "includeExcluded",
-        "sort",
-        "dir",
-        "hideIdentity",
-        "hideMetrics",
-        "hideRate",
-        "hideBlended",
-        "metricFilters",
-        "rate",
-        "status",
-      ].forEach((k) => next.delete(k));
-    });
+  // ── TIER 2: the panel's filters, DECLARED ─────────────────────────────────
+  // One entry each. The shell derives the panel row, the chip, the count badge
+  // and the mobile sheet from it — adding a filter here is the whole diff.
+  const filters: FilterDef[] = [
+    {
+      key: "status",
+      label: "Live status",
+      type: "multi",
+      options: CREATIVE_STATUSES.map((s) => ({
+        value: s,
+        label: STATUS_LABEL[s],
+        dot: STATUS_DOT[s],
+      })),
+      values: statusValues,
+      onChange: (next) => writeStatus(statusScope, next as CreativeStatus[]),
+      header: (
+        <ScopePicker
+          options={scopeOptions}
+          value={statusScope}
+          onChange={changeStatusScope}
+          ariaLabel="Status scope"
+        />
+      ),
+      // The scope is part of the question ("Instagram · 2"), so it rides the chip.
+      chipFormat: (v) => `${scopeLabel(statusScope)} · ${v.length}`,
+    },
+    {
+      key: "productIds",
+      label: "Products",
+      type: "multi",
+      options: products.map((p) => ({ value: p.id, label: p.name })),
+      values: productIds,
+      onChange: (next) => writeMulti("productIds", next),
+      emptyHint: "No products yet",
+    },
+    {
+      key: "types",
+      label: "Type",
+      type: "multi",
+      options: TYPES.map((t) => ({ value: t.value, label: t.label })),
+      values: types,
+      onChange: (next) => writeMulti("types", next),
+    },
+    {
+      key: "angles",
+      label: "Angles",
+      type: "multi",
+      options: angles.map((a) => ({ value: a, label: a })),
+      values: selectedAngles,
+      onChange: (next) => writeMulti("angles", next),
+      emptyHint: "No angles yet",
+    },
+    {
+      key: "priorities",
+      label: "Priority",
+      type: "multi",
+      options: PRIORITY_FILTER_VALUES.map((v) => ({
+        value: v,
+        label: PRIORITY_FILTER_LABEL[v as PriorityFilterValue],
+      })),
+      values: priorities,
+      onChange: (next) => writeMulti("priorities", next),
+    },
+    {
+      key: "stages",
+      label: "Stage",
+      type: "multi",
+      options: STAGE_FILTER_VALUES.map((v) => ({ value: v, label: stageFilterLabel(v) })),
+      values: stages,
+      onChange: (next) => writeMulti("stages", next),
+    },
+    {
+      key: "rate",
+      label: "Rate",
+      type: "multi",
+      options: RATING_VALUES.map((r) => ({
+        value: r,
+        label: RATING_META[r as Rating].label,
+      })),
+      values: rateRatings,
+      onChange: (next) => writeRate(rateScope, next as Rating[]),
+      header: (
+        <ScopePicker
+          options={scopeOptions}
+          value={rateScope}
+          onChange={changeRateScope}
+          ariaLabel="Rate scope"
+        />
+      ),
+      chipFormat: (v) => `${scopeLabel(rateScope)} · ${v.length}`,
+    },
+    {
+      // The rule builder keeps its own component — a CUSTOM def, so the badge,
+      // the chips and Clear still work without the shell knowing its shape.
+      key: "metricFilters",
+      label: "Metric rules",
+      type: "custom",
+      active: metricConditions.length > 0,
+      chips: metricConditions.map((c, i) => ({
+        key: `metricFilters:${i}`,
+        label: metricConditionLabel(c, scopeLabel),
+        onRemove: () =>
+          update((next) => {
+            const rest = metricConditions.filter((_, j) => j !== i);
+            if (rest.length === 0) next.delete("metricFilters");
+            else next.set("metricFilters", serializeMetricFilters(rest));
+          }),
+      })),
+      onClear: () => update((next) => next.delete("metricFilters")),
+      render: () => <MetricFilterControl platforms={effectivePlatforms} />,
+    },
+  ];
 
   const hiddenColumnsCount =
     hiddenIdentity.length + hiddenMetrics.length + (rateHidden ? 1 : 0);
 
-  const productLabel = useMemo(() => {
-    if (productIds.length === 0) return "All";
-    if (productIds.length === 1) {
-      return products.find((p) => p.id === productIds[0])?.name ?? "1 selected";
-    }
-    return `${productIds.length} selected`;
-  }, [productIds, products]);
-
-  // Scopes the Rate filter can target: the blended total + each shown platform.
-  const rateScopeOptions: Array<{ value: MetricFilterScope; label: string }> = [
-    { value: "total", label: "Total" },
-    ...effectivePlatforms.map((p) => ({
-      value: p as MetricFilterScope,
-      label: PLATFORM_LABEL[p as keyof typeof PLATFORM_LABEL] ?? p,
-    })),
-  ];
-  const rateLabel =
-    rateRatings.length === 0
-      ? "Any"
-      : `${rateScope === "total" ? "Total" : PLATFORM_LABEL[rateScope as keyof typeof PLATFORM_LABEL] ?? rateScope} · ${rateRatings.length}`;
-
-  // Scopes the Status filter can target: the general roll-up (Total) + each
-  // shown platform's per-platform status.
-  const statusScopeOptions: Array<{ value: MetricFilterScope; label: string }> = [
-    { value: "total", label: "Total" },
-    ...effectivePlatforms.map((p) => ({
-      value: p as MetricFilterScope,
-      label: PLATFORM_LABEL[p as keyof typeof PLATFORM_LABEL] ?? p,
-    })),
-  ];
-  const statusLabel =
-    statusValues.length === 0
-      ? "Any"
-      : `${statusScope === "total" ? "Total" : PLATFORM_LABEL[statusScope as keyof typeof PLATFORM_LABEL] ?? statusScope} · ${statusValues.length}`;
-
-  // Dimension pills + the Columns pill, rendered inline on desktop and stacked
-  // full-width inside the mobile Sheet — the same pattern (and the same
-  // canonical ordering) the Library bar uses, so the two read identically.
-  const dimensionControls = (inSheet: boolean) => (
-    <>
-        {/* Platforms — select any number */}
-        <FilterPill
-          fullWidth={inSheet}
-          icon={Layers}
-          label="Platforms"
-          value={
-            platforms.length === 0
-              ? "None"
-              : platforms.length >= ALL_PLATFORM_VALUES.length
-                ? "All"
-                : platforms.length === 1
-                  ? (PLATFORMS.find((p) => p.value === platforms[0])?.label ?? "1")
-                  : `${platforms.length} selected`
-          }
-          active={platforms.length < ALL_PLATFORM_VALUES.length}
-        >
-          {() => (
-            <DropdownMenuContent align="start" className="w-56">
-              <DropdownMenuLabel>
-                Platforms · show any
-              </DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              {PLATFORMS.map((p) => {
-                const checked = platforms.includes(p.value);
-                const disabled = !checked && platforms.length >= MAX_PLATFORMS;
-                return (
-                  <DropdownMenuCheckboxItem
-                    key={p.value}
-                    checked={checked}
-                    disabled={disabled}
-                    onCheckedChange={() => togglePlatform(p.value)}
-                    onSelect={(e) => e.preventDefault()}
-                  >
-                    <span className={cn(disabled && "text-ink-3")}>
-                      {p.label}
-                    </span>
-                  </DropdownMenuCheckboxItem>
-                );
-              })}
-              <DropdownMenuSeparator />
-              <DropdownMenuCheckboxItem
-                checked={!blendedHidden}
-                onCheckedChange={toggleBlended}
-                onSelect={(e) => e.preventDefault()}
-              >
-                Blended total (weighted)
-              </DropdownMenuCheckboxItem>
-              {platforms.length >= MAX_PLATFORMS && (
-                <div className="px-2 py-1.5 text-[10px] text-ink-3">
-                  Deselect a platform to add another.
-                </div>
-              )}
-            </DropdownMenuContent>
+  return (
+    <FilterShell
+      filters={filters}
+      mobileLead={
+        // fullWidth: the mobile row gives it whatever is left beside the
+        // Filters button — its fixed w-64 would slide underneath.
+        <FilterSearch
+          fullWidth
+          value={qInput}
+          onChange={setQInput}
+          placeholder="Search creative name…"
+        />
+      }
+      tier1={({ fullWidth }) => (
+        <>
+          <ViewsControl views={views} currentUserId={currentUserId} isAdmin={isAdmin} />
+          {!fullWidth && (
+            <>
+              <span className="h-5 w-px bg-line" aria-hidden />
+              <FilterSearch
+                value={qInput}
+                onChange={setQInput}
+                placeholder="Search creative name…"
+              />
+            </>
           )}
-        </FilterPill>
-
-        {/* Product */}
-        <FilterPill
-          fullWidth={inSheet}
-          icon={Package}
-          label="Products"
-          value={productLabel}
-          active={productIds.length > 0}
-        >
-          {() => (
-            <DropdownMenuContent align="start" className="w-56">
-              <DropdownMenuLabel>Products</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              {products.length === 0 && (
-                <div className="px-2 py-1.5 text-xs text-ink-3">
-                  No products yet
-                </div>
-              )}
-              {products.map((p) => (
-                <DropdownMenuCheckboxItem
-                  key={p.id}
-                  checked={productIds.includes(p.id)}
-                  onCheckedChange={() =>
-                    toggleMulti("productIds", p.id, productIds)
-                  }
-                  onSelect={(e) => e.preventDefault()}
-                >
-                  {p.name}
-                </DropdownMenuCheckboxItem>
-              ))}
-            </DropdownMenuContent>
-          )}
-        </FilterPill>
-
-        {/* Type */}
-        <FilterPill
-          fullWidth={inSheet}
-          icon={Shapes}
-          label="Types"
-          value={
-            types.length === 0
-              ? "All"
-              : types.length === 1
-                ? (TYPES.find((t) => t.value === types[0])?.label ?? "1")
-                : `${types.length} selected`
-          }
-          active={types.length > 0}
-        >
-          {() => (
-            <DropdownMenuContent align="start" className="w-44">
-              <DropdownMenuLabel>Type</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              {TYPES.map((t) => (
-                <DropdownMenuCheckboxItem
-                  key={t.value}
-                  checked={types.includes(t.value)}
-                  onCheckedChange={() => toggleMulti("types", t.value, types)}
-                  onSelect={(e) => e.preventDefault()}
-                >
-                  {t.label}
-                </DropdownMenuCheckboxItem>
-              ))}
-            </DropdownMenuContent>
-          )}
-        </FilterPill>
-
-        {/* Priority — the team's MANUAL judgment (distinct from Rate, which is
-            computed). Star stays Rate's icon here; this pill takes the flag. */}
-        <FilterPill
-          fullWidth={inSheet}
-          icon={Flag}
-          label="Priority"
-          value={
-            priorities.length === 0
-              ? "Any"
-              : priorities.length === 1
-                ? (PRIORITY_FILTER_LABEL[priorities[0] as PriorityFilterValue] ?? "1")
-                : `${priorities.length} selected`
-          }
-          active={priorities.length > 0}
-        >
-          {() => (
-            <DropdownMenuContent align="start" className="w-44">
-              <DropdownMenuLabel>Priority</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              {PRIORITY_FILTER_VALUES.map((v) => (
-                <DropdownMenuCheckboxItem
-                  key={v}
-                  checked={priorities.includes(v)}
-                  onCheckedChange={() => toggleMulti("priorities", v, priorities)}
-                  onSelect={(e) => e.preventDefault()}
-                >
-                  {PRIORITY_FILTER_LABEL[v]}
-                </DropdownMenuCheckboxItem>
-              ))}
-            </DropdownMenuContent>
-          )}
-        </FilterPill>
-
-        {/* Stage — the team's MANUAL funnel declaration on the creative,
-            a different axis from the campaign objective it runs under. */}
-        <FilterPill
-          fullWidth={inSheet}
-          icon={Layers}
-          label="Stage"
-          value={
-            stages.length === 0
-              ? "Any"
-              : stages.length === 1
-                ? stageFilterLabel(stages[0]!)
-                : `${stages.length} selected`
-          }
-          active={stages.length > 0}
-        >
-          {() => (
-            <DropdownMenuContent align="start" className="w-52">
-              <DropdownMenuLabel>Stage</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              {STAGE_FILTER_VALUES.map((v) => (
-                <DropdownMenuCheckboxItem
-                  key={v}
-                  checked={stages.includes(v)}
-                  onCheckedChange={() => toggleMulti("stages", v, stages)}
-                  onSelect={(e) => e.preventDefault()}
-                >
-                  {stageFilterLabel(v)}
-                </DropdownMenuCheckboxItem>
-              ))}
-            </DropdownMenuContent>
-          )}
-        </FilterPill>
-
-        {/* Angles */}
-        <FilterPill
-          fullWidth={inSheet}
-          icon={Tag}
-          label="Angles"
-          value={
-            selectedAngles.length === 0
-              ? "Any"
-              : selectedAngles.length === 1
-                ? selectedAngles[0]!
-                : `${selectedAngles.length} selected`
-          }
-          active={selectedAngles.length > 0}
-        >
-          {() => (
-            <DropdownMenuContent align="start" className="w-56 max-h-72 overflow-y-auto">
-              <DropdownMenuLabel>Angles</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              {angles.length === 0 && (
-                <div className="px-2 py-1.5 text-xs text-ink-3">No angles yet</div>
-              )}
-              {angles.map((t) => (
-                <DropdownMenuCheckboxItem
-                  key={t}
-                  checked={selectedAngles.includes(t)}
-                  onCheckedChange={() => toggleMulti("angles", t, selectedAngles)}
-                  onSelect={(e) => e.preventDefault()}
-                >
-                  {t}
-                </DropdownMenuCheckboxItem>
-              ))}
-            </DropdownMenuContent>
-          )}
-        </FilterPill>
-
-        {/* Rate filter — keep only creatives at a given rating, on a chosen scope */}
-        <FilterPill
-          fullWidth={inSheet}
-          icon={Star}
-          label="Rate"
-          value={rateLabel}
-          active={rateRatings.length > 0}
-        >
-          {() => (
-            <DropdownMenuContent align="start" className="w-56">
-              <DropdownMenuLabel>Scope</DropdownMenuLabel>
-              <div className="px-2 pb-2 flex flex-wrap gap-1">
-                {rateScopeOptions.map((s) => (
-                  <button
-                    key={s.value}
-                    type="button"
-                    onClick={() => changeRateScope(s.value)}
-                    className={cn(
-                      "px-2 h-6 rounded text-[11px] border transition-colors",
-                      rateScope === s.value
-                        ? "border-brand/50 text-ink bg-[var(--brand-soft)]"
-                        : "border-line text-ink-2 hover:text-ink hover:bg-surface-2",
-                    )}
-                  >
-                    {s.label}
-                  </button>
-                ))}
-              </div>
-              <DropdownMenuSeparator />
-              <DropdownMenuLabel>Rating</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              {RATING_VALUES.map((r) => (
-                <DropdownMenuCheckboxItem
-                  key={r}
-                  checked={rateRatings.includes(r as Rating)}
-                  onCheckedChange={() => toggleRating(r as Rating)}
-                  onSelect={(e) => e.preventDefault()}
-                >
-                  <span
-                    className={cn(
-                      "inline-flex items-center justify-center h-5 px-1.5 rounded text-[10px] border whitespace-nowrap",
-                      RATING_META[r as Rating].badgeClass,
-                    )}
-                  >
-                    {RATING_META[r as Rating].label}
-                  </span>
-                </DropdownMenuCheckboxItem>
-              ))}
-              {rateRatings.length > 0 && (
-                <>
-                  <DropdownMenuSeparator />
-                  <button
-                    type="button"
-                    onClick={() => writeRate(rateScope, [])}
-                    className="w-full text-left px-2 py-1.5 text-xs text-ink-2 hover:text-ink hover:bg-surface-2 transition-colors"
-                  >
-                    Clear rating filter
-                  </button>
-                </>
-              )}
-            </DropdownMenuContent>
-          )}
-        </FilterPill>
-
-        {/* Dynamic-status filter — keep only creatives at a given live status,
-            on a chosen scope (general roll-up or one platform). */}
-        <FilterPill
-          fullWidth={inSheet}
-          icon={Activity}
-          label="Live status"
-          value={statusLabel}
-          active={statusValues.length > 0}
-        >
-          {() => (
-            <DropdownMenuContent align="start" className="w-56">
-              <DropdownMenuLabel>Scope</DropdownMenuLabel>
-              <div className="px-2 pb-2 flex flex-wrap gap-1">
-                {statusScopeOptions.map((s) => (
-                  <button
-                    key={s.value}
-                    type="button"
-                    onClick={() => changeStatusScope(s.value)}
-                    className={cn(
-                      "px-2 h-6 rounded text-[11px] border transition-colors",
-                      statusScope === s.value
-                        ? "border-brand/50 text-ink bg-[var(--brand-soft)]"
-                        : "border-line text-ink-2 hover:text-ink hover:bg-surface-2",
-                    )}
-                  >
-                    {s.label}
-                  </button>
-                ))}
-              </div>
-              <DropdownMenuSeparator />
-              <DropdownMenuLabel>Status</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              {/* All four statuses are valid on every scope. On a platform,
-                  "new" = the creative never ran there (matches the "N" chip in
-                  that platform's column); the query maps no-presence to new. */}
-              {CREATIVE_STATUSES.map((s) => (
-                <DropdownMenuCheckboxItem
-                  key={s}
-                  checked={statusValues.includes(s)}
-                  onCheckedChange={() => toggleStatus(s)}
-                  onSelect={(e) => e.preventDefault()}
-                >
-                  <span className="inline-flex items-center gap-1.5">
-                    <span
-                      className="h-1.5 w-1.5 rounded-full shrink-0"
-                      style={{ background: STATUS_DOT[s] }}
-                    />
-                    <span>{STATUS_LABEL[s]}</span>
-                  </span>
-                </DropdownMenuCheckboxItem>
-              ))}
-              {statusValues.length > 0 && (
-                <>
-                  <DropdownMenuSeparator />
-                  <button
-                    type="button"
-                    onClick={() => writeStatus(statusScope, [])}
-                    className="w-full text-left px-2 py-1.5 text-xs text-ink-2 hover:text-ink hover:bg-surface-2 transition-colors"
-                  >
-                    Clear status filter
-                  </button>
-                </>
-              )}
-            </DropdownMenuContent>
-          )}
-        </FilterPill>
-
-        {/* Numeric metric filters (ROAS ≥ 2, Spend ≥ 500, …) */}
-        <MetricFilterControl platforms={effectivePlatforms} />
-    </>
-  );
-
-  const columnsControl = (inSheet: boolean) => (
-    <>
-          {/* Columns visibility — opt-out (URL only lists hidden columns) */}
+          <DateRangePicker
+            from={from}
+            to={to}
+            onChange={applyRange}
+            remember
+            fullWidth={fullWidth}
+            fallback={
+              defaultFrom && defaultTo ? { from: defaultFrom, to: defaultTo } : undefined
+            }
+          />
+          {/* Platforms is tier 1 on Ads: it chooses the table's COLUMN GROUPS,
+              not just which rows survive — so it stays visible, and Clear
+              (tier-2 only) leaves it alone. */}
           <FilterPill
-            fullWidth={inSheet}
+            fullWidth={fullWidth}
+            icon={Layers}
+            label="Platforms"
+            value={
+              platforms.length === 0
+                ? "None"
+                : platforms.length >= ALL_PLATFORM_VALUES.length
+                  ? "All"
+                  : platforms.length === 1
+                    ? (PLATFORMS.find((p) => p.value === platforms[0])?.label ?? "1")
+                    : `${platforms.length} selected`
+            }
+            active={platforms.length < ALL_PLATFORM_VALUES.length}
+          >
+            {() => (
+              <DropdownMenuContent align="start" className="w-56">
+                <DropdownMenuLabel>Platforms · show any</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {PLATFORMS.map((p) => {
+                  const checked = platforms.includes(p.value);
+                  const disabled = !checked && platforms.length >= MAX_PLATFORMS;
+                  return (
+                    <DropdownMenuCheckboxItem
+                      key={p.value}
+                      checked={checked}
+                      disabled={disabled}
+                      onCheckedChange={() => togglePlatform(p.value)}
+                      onSelect={(e) => e.preventDefault()}
+                    >
+                      <span className={cn(disabled && "text-ink-3")}>{p.label}</span>
+                    </DropdownMenuCheckboxItem>
+                  );
+                })}
+                <DropdownMenuSeparator />
+                <DropdownMenuCheckboxItem
+                  checked={!blendedHidden}
+                  onCheckedChange={toggleBlended}
+                  onSelect={(e) => e.preventDefault()}
+                >
+                  Blended total (weighted)
+                </DropdownMenuCheckboxItem>
+                {platforms.length >= MAX_PLATFORMS && (
+                  <div className="px-2 py-1.5 text-[10px] text-ink-3">
+                    Deselect a platform to add another.
+                  </div>
+                )}
+              </DropdownMenuContent>
+            )}
+          </FilterPill>
+        </>
+      )}
+      toolbar={({ fullWidth }) => (
+        <>
+          {/* TABLE controls, not filters — they stay where table controls live,
+              and Clear never touches them. */}
+          <FilterPill
+            fullWidth={fullWidth}
             icon={Columns3}
             label="Columns"
-            value={
-              hiddenColumnsCount === 0
-                ? "All shown"
-                : `${hiddenColumnsCount} hidden`
-            }
+            value={hiddenColumnsCount === 0 ? "All shown" : `${hiddenColumnsCount} hidden`}
             active={hiddenColumnsCount > 0}
           >
             {() => (
-              <DropdownMenuContent
-                align="end"
-                className="w-64 max-h-[28rem] overflow-y-auto"
-              >
+              <DropdownMenuContent align="end" className="w-64 max-h-[28rem] overflow-y-auto">
                 <DropdownMenuLabel>Identity columns</DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <div className="px-2 py-1.5 text-[10px] text-ink-3">
@@ -881,9 +596,7 @@ export function SummaryFilterBar({
                   <DropdownMenuCheckboxItem
                     key={k}
                     checked={!hiddenIdentity.includes(k)}
-                    onCheckedChange={() =>
-                      toggleColumn("hideIdentity", k, hiddenIdentity)
-                    }
+                    onCheckedChange={() => toggleColumn("hideIdentity", k, hiddenIdentity)}
                     onSelect={(e) => e.preventDefault()}
                   >
                     {IDENTITY_LABELS[k]}
@@ -900,9 +613,7 @@ export function SummaryFilterBar({
                   <DropdownMenuCheckboxItem
                     key={k}
                     checked={!hiddenMetrics.includes(k)}
-                    onCheckedChange={() =>
-                      toggleColumn("hideMetrics", k, hiddenMetrics)
-                    }
+                    onCheckedChange={() => toggleColumn("hideMetrics", k, hiddenMetrics)}
                     onSelect={(e) => e.preventDefault()}
                   >
                     {METRIC_LABELS[k]}
@@ -929,7 +640,7 @@ export function SummaryFilterBar({
                     <button
                       type="button"
                       onClick={showAllColumns}
-                      className="w-full text-left px-2 py-1.5 text-xs text-ink-2 hover:text-ink hover:bg-surface-2 transition-colors"
+                      className="w-full px-2 py-1.5 text-left text-xs text-ink-2 transition-colors hover:bg-surface-2 hover:text-ink"
                     >
                       Show all columns
                     </button>
@@ -938,65 +649,48 @@ export function SummaryFilterBar({
               </DropdownMenuContent>
             )}
           </FilterPill>
-    </>
+          {/* Data SCOPE, not a filter — house-wide convention: always visible. */}
+          <ExcludedToggle
+            on={includeExcluded}
+            onToggle={toggleExcluded}
+            fullWidth={fullWidth}
+          />
+        </>
+      )}
+    />
   );
+}
 
+/** The scope row a status/rate filter carries above its options. */
+function ScopePicker({
+  options,
+  value,
+  onChange,
+  ariaLabel,
+}: {
+  options: ReadonlyArray<{ value: MetricFilterScope; label: string }>;
+  value: MetricFilterScope;
+  onChange: (next: MetricFilterScope) => void;
+  ariaLabel: string;
+}) {
   return (
-    <div className="sticky top-14 z-10 -mx-6 px-6 py-3 border-b border-line bg-background/95 backdrop-blur">
-      {/* Desktop: everything inline */}
-      <div className="hidden lg:flex items-center gap-2 flex-wrap">
-        <ViewsControl views={views} currentUserId={currentUserId} isAdmin={isAdmin} />
-        <span className="w-px h-5 bg-line" aria-hidden />
-        <FilterSearch
-          value={qInput}
-          onChange={setQInput}
-          placeholder="Search creative name…"
-        />
-        <DateRangePicker
-          from={from}
-          to={to}
-          onChange={applyRange}
-          remember
-          fallback={
-            defaultFrom && defaultTo ? { from: defaultFrom, to: defaultTo } : undefined
-          }
-        />
-        {dimensionControls(false)}
-        <div className="ml-auto flex items-center gap-2">
-          {columnsControl(false)}
-          <ExcludedToggle on={includeExcluded} onToggle={toggleExcluded} />
-          {filtersActive && <ClearButton onClick={clearAll} />}
-        </div>
-      </div>
-
-      {/* Mobile / tablet: search stays inline, everything else collapses into a
-          single Filters Sheet. This was lost in the filter-convergence pass —
-          the bar computed activeCount but rendered no Sheet at all, so below
-          `lg` the page had no way to filter. */}
-      <div className="flex lg:hidden items-center gap-2">
-        <div className="flex-1 min-w-0">
-          <FilterSearch
-            value={qInput}
-            onChange={setQInput}
-            placeholder="Search creative name…"
-          />
-        </div>
-        <FilterSheet activeCount={activeCount} onClear={clearAll}>
-          <ViewsControl views={views} currentUserId={currentUserId} isAdmin={isAdmin} />
-          <DateRangePicker
-            from={from}
-            to={to}
-            onChange={applyRange}
-            remember
-            fallback={
-              defaultFrom && defaultTo ? { from: defaultFrom, to: defaultTo } : undefined
-            }
-          />
-          {dimensionControls(true)}
-          {columnsControl(true)}
-          <ExcludedToggle on={includeExcluded} onToggle={toggleExcluded} fullWidth />
-        </FilterSheet>
-      </div>
+    <div className="flex flex-wrap gap-1" role="group" aria-label={ariaLabel}>
+      {options.map((s) => (
+        <button
+          key={s.value}
+          type="button"
+          onClick={() => onChange(s.value)}
+          aria-pressed={value === s.value}
+          className={cn(
+            "h-6 rounded border px-2 text-[11px] transition-colors",
+            value === s.value
+              ? "border-brand/50 bg-[var(--brand-soft)] text-ink"
+              : "border-line text-ink-2 hover:bg-surface-2 hover:text-ink",
+          )}
+        >
+          {s.label}
+        </button>
+      ))}
     </div>
   );
 }

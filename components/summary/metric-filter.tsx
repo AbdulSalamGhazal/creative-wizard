@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 import {
   METRIC_COLUMN_KEYS,
   METRIC_FILTER_OPS,
+  METRIC_OP_SYMBOL as OP_SYMBOL,
   METRIC_META,
   parseMetricFilters,
   serializeMetricFilters,
@@ -29,11 +30,6 @@ interface Props {
   platforms: string[];
 }
 
-const OP_SYMBOL: Record<MetricFilterOp, string> = {
-  gte: "≥",
-  lte: "≤",
-  eq: "=",
-};
 const OP_LABEL: Record<MetricFilterOp, string> = {
   gte: "≥  at least",
   lte: "≤  at most",

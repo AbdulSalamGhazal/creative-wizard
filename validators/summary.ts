@@ -104,6 +104,13 @@ export const METRIC_META: Record<
   cvr: { label: "CvR", unit: "pct" },
 };
 
+/** Operator symbols, shared by the rule builder and the filter chips. */
+export const METRIC_OP_SYMBOL: Record<"gte" | "lte" | "eq", string> = {
+  gte: "\u2265",
+  lte: "\u2264",
+  eq: "=",
+};
+
 /** Numeric comparison operators for metric filters. */
 export const METRIC_FILTER_OPS = ["gte", "lte", "eq"] as const;
 export type MetricFilterOp = (typeof METRIC_FILTER_OPS)[number];
@@ -358,3 +365,21 @@ export const summaryFiltersSchema = z.object({
 });
 
 export type SummaryFilters = z.infer<typeof summaryFiltersSchema>;
+
+/**
+ * One metric rule in words — "ROAS ≥ 2", "Instagram CPA ≤ $20". Shared by the
+ * rule builder and the FilterShell chips so a rule reads identically wherever
+ * it appears.
+ */
+export function metricConditionLabel(
+  c: MetricFilterCondition,
+  scopeLabel?: (scope: MetricFilterScope) => string,
+): string {
+  const { label, unit } = METRIC_META[c.metric];
+  // Pin the locale (undefined = runtime default → SSR/client drift) and keep
+  // the up-to-4-decimal precision a rate threshold needs.
+  const body = c.value.toLocaleString("en-US", { maximumFractionDigits: 4 });
+  const value = `${unit === "usd" ? "$" : ""}${body}${unit === "pct" ? "%" : unit === "x" ? "\u00d7" : ""}`;
+  const scope = c.scope === "total" ? "" : `${scopeLabel?.(c.scope) ?? c.scope} `;
+  return `${scope}${label} ${METRIC_OP_SYMBOL[c.op]} ${value}`;
+}

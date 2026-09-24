@@ -668,6 +668,51 @@ This app is deployed and in production use. Treat `main` as shippable.
     `legend` slot (in both the inline card and the fullscreen overlay), never in
     the header zone; a "Show all" reset chip appears (via `onShowAll`) while any
     series is hidden.
+  - **Filters → `components/filters/filter-shell.tsx` (`FilterShell`), 2026-09.**
+    ONE primitive owns a page's whole filter surface the way `DataTable` owns a
+    table — bar, panel, mobile sheet and chips — so no two pages can drift
+    again. **Hand-rolled filter bars are DEPRECATED**; phase 2 migrates
+    Library, Campaigns, Store Orders, Reconciliation, Pacing and Canvas.
+    - **THREE TIERS.** (1) The page's 2–4 always-visible controls, passed as a
+      `tier1({ fullWidth })` render prop into the sticky bar (`top-14 z-10`).
+      (2) Everything else as a DECLARATIVE `FilterDef[]` — `{ key, label,
+      type: "multi" | "single" | "custom", options, values, onChange }` (+
+      `header` for a scope picker, `emptyHint`, `chipFormat`). (3) A chips row
+      under the bar, only while tier-2 filters are on.
+    - **THE ACCEPTANCE CRITERION (user requirement): adding a filter to a page
+      is adding ONE FilterDef — zero shell edits.** From that entry the shell
+      derives the panel row, the chip, the count badge AND the mobile
+      presentation. Pinned by `filter-model.test.ts`, which adds a brand-new
+      def to a config and asserts the badge, the chips and Clear all pick it up.
+      The derivations live in `filter-model.ts` (pure, no React) so they can be
+      tested in the node environment.
+    - **≥lg an anchored Popover panel** (grouped rows in a 2–3 column grid,
+      apply-on-change — no Apply button); **<lg the existing `FilterSheet`**,
+      fed by the SAME row renderer, so the sheet is no longer a hand-fed
+      parallel list.
+    - **CLEAR CLEARS TIER-2 FILTERS AND NOTHING ELSE** (user decision, 2026-09,
+      closing July's parked item): never sort, columns, the saved view, the date
+      range or any tier-1 control. It is enforced by construction —
+      `clearFilters` only walks the declared defs, so there is no param list to
+      drift — and pinned twice (`filter-model.test.ts`, and a source-level guard
+      in `validators/summary.test.ts` that the Ads bar declares exactly its
+      eight panel filters).
+    - **The Excluded toggle is a DATA-SCOPE switch, not a filter** — it lives in
+      the `toolbar` slot with the table controls (Columns, CSV), stays visible
+      house-wide, and Clear never touches it.
+    - **`useFilterParams`** is the shell's URL writer: `router.replace`, empty
+      keys dropped, `useNavTransition` for the progress bar — plus writes in one
+      tick COMPOSE. Each write used to start from the render's `searchParams`
+      snapshot, so Clear (one write per filter) had only its LAST write survive.
+      Any multi-write action needs this; `nextQueryString` is the pure part and
+      is unit-pinned.
+    - **Ads (`/summary`) is the template** (migrated 2026-09): tier 1 = Views ·
+      search · date · platforms (platforms picks the table's COLUMN GROUPS, so
+      it is deliberately tier 1); tier 2 = status · product · type · angles ·
+      priority · stage · rate · the metric-rule builder (a `custom` def that
+      keeps its own component and contributes one chip per rule); toolbar =
+      Columns · Excluded. **URL params are UNCHANGED** — every saved view keeps
+      parsing, pinned by `validators/summary.test.ts`.
   - **Chart header → `ChartHeader` in `chart-shell.tsx`** — the one canonical
     line-chart header row: Title (`text-sm font-medium text-ink`, sentence case)
     → MetricPicker/segmented control → right-aligned cluster (Group → Smooth →
