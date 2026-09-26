@@ -27,7 +27,8 @@ import { ACCOUNT_A, ACCOUNT_B } from "./config";
  */
 
 // Fixed ids so tests can reference specific rows.
-const USER = "11111111-1111-1111-1111-111111111111";
+/** The seeded harness user — an admin on both brands. */
+export const USER = "11111111-1111-1111-1111-111111111111";
 export const PRODUCT_A = "22222222-2222-2222-2222-2222222222a1";
 export const PRODUCT_B = "22222222-2222-2222-2222-2222222222b1";
 export const CREATIVE_1 = "33333333-3333-3333-3333-333333333001"; // A · video

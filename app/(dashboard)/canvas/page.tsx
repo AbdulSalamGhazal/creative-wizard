@@ -2,6 +2,7 @@ import { PageShell } from "@/components/layout/page-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { defaultDateRange, presetLabel } from "@/lib/date-presets";
 import {
+  resolveFilterPrefs,
   resolveIncludeExcluded,
   resolvePreferredRange,
 } from "@/db/queries/user-prefs";
@@ -33,29 +34,43 @@ export default async function CanvasPage({
   searchParams: Promise<SearchParams>;
 }) {
   const params = await searchParams;
+
+  // The product dropdown doubles as the pref resolver's vocabulary: a
+  // remembered product that was since deleted is dropped, not queried.
+  const products = await listProducts();
+
+  // REMEMBERED FILTERS (migration 0049): URL wins, else this user's saved value
+  // for this brand, else the page default — the date range's rule, generalized.
+  const pref = await resolveFilterPrefs(
+    [
+      { key: "platforms" },
+      { key: "statuses" },
+      { key: "productIds", allow: products.map((p) => p.id) },
+      { key: "stages" },
+    ],
+    (key: string) => pickFirst(params[key]),
+  );
+
   const parsed = canvasFiltersSchema.parse({
     from: pickFirst(params.from),
     to: pickFirst(params.to),
-    platforms: pickFirst(params.platforms),
-    statuses: pickFirst(params.statuses),
-    productIds: pickFirst(params.productIds),
-    stages: pickFirst(params.stages),
+    platforms: pref.platforms,
+    statuses: pref.statuses,
+    productIds: pref.productIds,
+    stages: pref.stages,
   });
 
   // The range is resolved HERE and the one value feeds both the query and the
   // picker's label — a fresh URL runs the last 30 days, and says so.
-  const [range, includeExcluded, products] = await Promise.all([
+  const [range, includeExcluded] = await Promise.all([
     resolvePreferredRange(parsed.from, parsed.to, defaultDateRange(30)),
     resolveIncludeExcluded(pickFirst(params.includeExcluded)),
-    listProducts(),
   ]);
 
-  // No `statuses` param → the default (terminated hidden). An explicit param
-  // is taken as written.
+  // No `statuses` at all — URL or remembered — → the default (terminated
+  // hidden). An explicit value, from either source, is taken as written.
   const statuses =
-    pickFirst(params.statuses) === undefined
-      ? CANVAS_DEFAULT_STATUSES
-      : parsed.statuses;
+    pref.statuses === undefined ? CANVAS_DEFAULT_STATUSES : parsed.statuses;
 
   const graph = await canvasGraph({
     from: range.from,
@@ -74,6 +89,7 @@ export default async function CanvasPage({
         subtitle="Which creatives run in which campaigns — a line wherever one spent inside the other in this range. Click to focus, double-click to open."
       />
       <CanvasFilterBar
+        resolvedFilters={pref}
         products={products}
         resolvedRange={range}
         effectiveStatuses={statuses}

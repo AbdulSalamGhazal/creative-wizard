@@ -42,6 +42,7 @@ export function CanvasFilterBar({
   resolvedRange,
   effectiveStatuses,
   includeExcludedDefault,
+  resolvedFilters,
 }: {
   products: Array<{ id: string; name: string }>;
   /** What the query actually ran — the picker's label falls back to it. */
@@ -49,18 +50,28 @@ export function CanvasFilterBar({
   /** The statuses in force (the URL's, or the terminated-hidden default). */
   effectiveStatuses: readonly string[];
   includeExcludedDefault: boolean;
+  /**
+   * Remembered filters, as the server resolved them for this render (URL →
+   * this user's saved value for this brand → nothing). The bar reads its own
+   * params through them, so the chips say what actually ran.
+   */
+  resolvedFilters?: Record<string, string | undefined>;
+
 }) {
-  const { searchParams, update } = useFilterParams();
+  // `resolvedFilters` is the server's URL→preference→default answer: a
+  // remembered filter shows its chip on a bare URL, and removing that chip
+  // deletes the preference instead of resurrecting it.
+  const { searchParams, update, get } = useFilterParams(resolvedFilters);
 
   const from = searchParams.get("from");
   const to = searchParams.get("to");
   const rawIncludeExcluded = searchParams.get("includeExcluded");
   const includeExcluded =
     rawIncludeExcluded !== null ? rawIncludeExcluded === "1" : includeExcludedDefault;
-  const platforms = useMemo(() => csv(searchParams.get("platforms")), [searchParams]);
-  const productIds = useMemo(() => csv(searchParams.get("productIds")), [searchParams]);
-  const stages = useMemo(() => csv(searchParams.get("stages")), [searchParams]);
-  const statusesInUrl = searchParams.get("statuses") !== null;
+  const platforms = useMemo(() => csv(get("platforms")), [get]);
+  const productIds = useMemo(() => csv(get("productIds")), [get]);
+  const stages = useMemo(() => csv(get("stages")), [get]);
+  const statusesInUrl = get("statuses") !== null;
 
   const writeMulti = (key: string, values: readonly string[]) =>
     update((next) => {

@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
+import { setPersistedKeys } from "@/lib/filter-prefs";
 import {
   activeFilterCount,
   clearFilters,
@@ -20,6 +21,7 @@ import {
   filterSummary,
   isFilterActive,
   needsOptionSearch,
+  persistedFilterKeys,
   toggleValue,
   type FilterDef,
   type FilterOption,
@@ -78,6 +80,13 @@ export function FilterShell({
   const count = activeFilterCount(filters);
   const chips = filterChips(filters);
   const clear = () => clearFilters(filters);
+
+  // Which of THIS page's params are remembered: every standard def (a custom
+  // def, or one a page opts out of, is excluded) plus `platforms` — the tier-1
+  // control every page shares, and the reason a zero-def page like Pacing
+  // remembers anything at all. Declared with the filters, obeyed by the one
+  // writer. See lib/filter-prefs.
+  setPersistedKeys(["platforms", ...persistedFilterKeys(filters)]);
 
   return (
     <div className="sticky top-14 z-10 -mx-6 space-y-2 border-b border-line bg-background/95 px-6 py-3 backdrop-blur">

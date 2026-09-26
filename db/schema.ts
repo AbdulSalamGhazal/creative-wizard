@@ -511,6 +511,46 @@ export const uploadValidationSessions = pgTable(
 );
 
 /**
+ * Remembered FILTER preferences — the date range's behaviour, generalized
+ * (migration 0049). One row per (user, brand, filter key); `values` is the
+ * param's comma-separated parts, so the resolver can hand a page exactly the
+ * string the URL would have carried.
+ *
+ * PER BRAND BY DESIGN: switching brands shows that brand's remembered filters,
+ * and a brand you have never filtered starts at the page defaults. Sharing
+ * across pages is by KEY — `platforms`/`productIds`/`stages` are the same
+ * question everywhere they appear, while `objectives` exists only where a page
+ * declares it. A cleared filter DELETES its row, which is what stops a filter
+ * resurrecting on the next bare navigation.
+ *
+ * Deliberately NOT audited: preference churn is noise, the same reasoning as
+ * notification reads. Tenant table (§4.1).
+ */
+export const userFilterPrefs = pgTable(
+  "user_filter_prefs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    accountId: accountId(),
+    /** The URL param name — `platforms`, `stages`, `productIds`… */
+    filterKey: varchar("filter_key", { length: 32 }).notNull(),
+    /** The param's parts; an empty set is never stored (the row is deleted). */
+    values: text("values").array().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    // Also the read's index: one lookup per (user, brand) serves every key.
+    userAccountKeyUnique: uniqueIndex("user_filter_prefs_user_account_key_idx").on(
+      t.userId,
+      t.accountId,
+      t.filterKey,
+    ),
+  }),
+);
+
+/**
  * Saved "Views" — named snapshots of a page's full filter/column/sort
  * configuration, stored as the raw URL query string. Team-visible (this is
  * an internal tool, so a teammate's "High-ROAS" view is useful to everyone);

@@ -134,7 +134,14 @@ export function BudgetPacing({
   storeHorizon: string | null;
 }) {
   // The shell's batching writer — the only URL writer on a migrated bar.
-  const { update } = useFilterParams();
+  // The platform selection is the only remembered filter here, and the page
+  // already resolved it (URL → this user's saved value → all platforms) into
+  // `platforms`. Handing that back as the writer's baseline is what makes
+  // DESELECTING a remembered platform delete the preference: the param may
+  // never have been in the URL at all.
+  const { update } = useFilterParams({
+    platforms: platforms.length > 0 ? platforms.join(",") : undefined,
+  });
 
   const [currency, pickCurrency] = useBudgetCurrency();
   const fmtSpend = (usdAmount: number) => formatSpend(usdAmount, currency, rate);

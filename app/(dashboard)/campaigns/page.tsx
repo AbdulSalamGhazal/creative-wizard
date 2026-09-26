@@ -6,7 +6,12 @@ import {
   type PortfolioFilters,
 } from "@/db/queries/portfolio";
 import { portfolioFiltersSchema } from "@/validators/portfolio";
-import { getPreferredRange, resolveIncludeExcluded } from "@/db/queries/user-prefs";
+import {
+  getPreferredRange,
+  resolveFilterPrefs,
+  resolveIncludeExcluded,
+} from "@/db/queries/user-prefs";
+import { VIEW_MARKER_PARAM } from "@/validators/user-prefs";
 import {
   getDefaultSummaryView,
   listSummaryViews,
@@ -48,18 +53,30 @@ export default async function CampaignsPage({
   if (Object.keys(params).length === 0) {
     const def = await getDefaultSummaryView(user.id, "campaigns");
     if (def && def.query.trim().length > 0) {
-      redirect(`/campaigns?${def.query}`);
+      // The marker says "a saved view owns this state" — the remembered
+      // filters below then no-op (transient, so it never lands in a view).
+      redirect(`/campaigns?${def.query}&${VIEW_MARKER_PARAM}=${def.id}`);
     }
   }
 
   const rawFrom = pickFirst(params.from);
   const rawTo = pickFirst(params.to);
+  // REMEMBERED FILTERS (migration 0049): URL wins, else this user's saved value
+  // for this brand, else the page default — the date range's rule, generalized.
+  // Suppressed while a saved view is applied, or once the URL states its
+  // filters in full. All three keys have fixed vocabularies, so the validator
+  // below is the guard against a retired value.
+  const pref = await resolveFilterPrefs(
+    [{ key: "platforms" }, { key: "objectives" }, { key: "statuses" }],
+    (key: string) => pickFirst(params[key]),
+  );
+
   const parsed = portfolioFiltersSchema.parse({
     from: rawFrom,
     to: rawTo,
-    platforms: pickFirst(params.platforms),
-    objectives: pickFirst(params.objectives),
-    statuses: pickFirst(params.statuses),
+    platforms: pref.platforms,
+    objectives: pref.objectives,
+    statuses: pref.statuses,
     q: pickFirst(params.q),
     includeExcluded: pickFirst(params.includeExcluded),
     sort: pickFirst(params.sort),
@@ -119,6 +136,7 @@ export default async function CampaignsPage({
 
       <Suspense fallback={<FilterBarSkeleton />}>
         <PortfolioFilterBar
+          resolvedFilters={pref}
           includeExcludedDefault={includeExcluded}
           defaultFrom={from}
           defaultTo={to}

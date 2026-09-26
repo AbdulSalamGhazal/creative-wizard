@@ -29,9 +29,16 @@ export interface FilterChip {
 }
 
 interface FilterDefBase {
-  /** Stable id — also the React key and the chip key prefix. */
+  /** Stable id — also the React key, the chip key prefix AND the URL param. */
   key: string;
   label: string;
+  /**
+   * Remember this filter per user, per brand (migration 0049), so it applies
+   * again wherever the same KEY exists. Defaults to TRUE for a standard def
+   * and FALSE for a custom one — a remembered metric-rule set is more surprise
+   * than help. A page may override either way.
+   */
+  persist?: boolean;
 }
 
 export interface MultiFilterDef extends FilterDefBase {
@@ -207,6 +214,20 @@ export function clearFilters(defs: readonly FilterDef[]): void {
     else if (def.type === "single") def.onChange(null);
     else def.onClear();
   }
+}
+
+/** Whether a def's value is remembered — the default depends on its kind. */
+export function isPersistedDef(def: FilterDef): boolean {
+  return def.persist ?? def.type !== "custom";
+}
+
+/**
+ * The keys a page's defs remember. The shell writes these through on every
+ * change it makes, so adding a filter also gets it remembered — with no
+ * second list to keep in sync.
+ */
+export function persistedFilterKeys(defs: readonly FilterDef[]): string[] {
+  return defs.filter(isPersistedDef).map((d) => d.key);
 }
 
 /** Toggle one value of a multi filter — the shell's checkbox handler. */

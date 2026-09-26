@@ -15,6 +15,7 @@ import { MONTH_KEY } from "@/validators/budget";
 import { budgetPacingSeries, budgetPlansForMonths, getUsdToSarRate } from "@/db/queries/budget";
 import { dataHorizon, storeDataHorizon } from "@/db/queries/series-bounds";
 import { BudgetPacing, type GroupBy } from "@/components/budget/budget-pacing";
+import { resolveFilterPrefs } from "@/db/queries/user-prefs";
 
 export const dynamic = "force-dynamic";
 
@@ -79,7 +80,16 @@ export default async function BudgetPacingPage({
       ? "month"
       : "day";
 
-  const platforms = (sp.platforms ?? "")
+  // REMEMBERED FILTERS (migration 0049): the platform picker is the only filter
+  // on this page, and it is remembered per user per brand — URL wins, else the
+  // saved value, else all platforms.
+  const platformsParam = (
+    await resolveFilterPrefs([{ key: "platforms", allow: ALL_PLATFORMS }], (key) =>
+      key === "platforms" ? sp.platforms : undefined,
+    )
+  ).platforms;
+
+  const platforms = (platformsParam ?? "")
     .split(",")
     .map((p) => p.trim())
     .filter((p): p is (typeof ALL_PLATFORMS)[number] =>

@@ -242,6 +242,15 @@ This app is deployed and in production use. Treat `main` as shippable.
   follow this or its label lies**; cleanup tools are the one sanctioned
   exception — their picker IS the filter state (seeded client-side), not a
   window a query silently widened.
+  **This generalized in 2026-09 to EVERY main filter** (migration 0049,
+  `resolveFilterPrefs`): the same URL → saved preference → page default
+  resolution, run on the server, for platforms/status/product/type/angles/
+  priority/stage/objective/rate — and the same two rules follow it. Pass the
+  RAW params (a validator's output is already defaulted and masks the
+  preference), and hand the resolved values BACK to the bar (`resolvedFilters`
+  → `get(key)`), because a filter the query ran and the chips don't show is the
+  same lie in a different control. See the FilterShell entry for the whole
+  mechanism.
 
 - **Forgiving CSV matching is INTENTIONAL as of 2026-07 (validation-spec v1.2).**
   The pipeline trims cells then matches creative names byte-exactly (case-
@@ -767,6 +776,53 @@ This app is deployed and in production use. Treat `main` as shippable.
       controls that take it and is always false. `FilterSheet` survives only
       for `FilterStrip` (the shared Dashboard/Trends strip, which is not a
       shell consumer).
+    - **REMEMBERED FILTERS (migration 0049, 2026-09, user decision).** Every
+      main filter persists PER USER, PER BRAND and applies again wherever the
+      SAME key exists — the date-range rule, generalized ("apply it when that
+      exact filter exists, otherwise don't"). It is sharing by KEY, so the Ads
+      stage filter is the Library stage filter and nothing has to be declared
+      twice.
+      - **Who participates:** the tier-1 `platforms` control on every shell page
+        + every STANDARD tier-2 def (status per its own vocabulary, product,
+        type, angles, priority, stage, objective, rate). **Excluded:** custom
+        defs (`FilterDef.persist` defaults `true` for standard, `false` for
+        custom — the metric-rule builder is not remembered), and, centrally,
+        `NEVER_PERSIST_FILTER_KEYS` (search, sort, columns, views, group-by,
+        the date range and the Excluded toggle, which have their own older
+        mechanisms on `users`). A page declares nothing: `FilterShell` derives
+        the list from its own defs (`persistedFilterKeys`) and hands it to the
+        writer as an ALLOW list.
+      - **Storage:** `user_filter_prefs` — one row per (user, brand, key), the
+        param's parts as `text[]`. A CLEARED filter DELETES its row; that is
+        what stops a filter resurrecting itself. No audit rows (preference
+        churn is noise — the same reasoning as notification reads).
+      - **Resolution is SERVER-side** (`resolveFilterPrefs` in
+        `db/queries/user-prefs.ts`): ONE read for all of a page's keys,
+        `cache()`-deduped, then per key **URL → preference → page default**.
+        Pages feed the result into their existing validators exactly where
+        `searchParams` went before — pass RAW params, never validator output,
+        or the defaults mask the preference. Id-shaped keys pass an `allow`
+        list (products, angles): a remembered value that no longer exists is
+        dropped silently, never queried.
+      - **TWO SUPPRESSIONS, both central so no page can forget them.** A saved
+        view owns the filter state, including what it leaves out — the
+        default-view redirect and the Views control stamp `sv=<id>`
+        (`VIEW_MARKER_PARAM`; NOT `view`, which is Library's grid/table mode),
+        and removing the default restores preferences. And once the user
+        touches any filter the writer stamps `fx=1`
+        (`FILTERS_EXPLICIT_PARAM`) — from then on that URL states its filters
+        in full and preferences are not re-applied on top of it. Both are
+        transient: the Views control strips them before saving or comparing.
+      - **Write-through lives in `useFilterParams`**, not in any bar: it diffs
+        the params it started from against what it wrote and queues each
+        changed key (`lib/filter-prefs.ts` — ~400ms debounce, one call per
+        burst, merged by key, fire-and-forget, `console.warn` on failure, no
+        `revalidatePath`). The baseline is the EFFECTIVE params (URL +
+        resolved), and the write materialises them into the URL, so removing a
+        remembered chip is a real change — a delete — and not a no-op.
+      - **The chips never lie:** a bar reads its own params through
+        `get(key)` (URL → the server's resolved value), so a bare URL shows the
+        remembered filter as a chip, and with `fx` present the URL alone wins.
     - **Every migrated bar keeps its own q-adoption rule** (the input is the
       source of truth while typing; only a `q` change it did NOT originate is
       adopted) and writes the URL through `useFilterParams` and nothing else —

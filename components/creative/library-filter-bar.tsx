@@ -51,6 +51,12 @@ interface Props {
   views: SummaryViewRow[];
   currentUserId: string;
   isAdmin: boolean;
+  /**
+   * Remembered filters, as the server resolved them for this render (URL →
+   * this user's saved value for this brand → nothing). The bar reads its own
+   * params through them, so the chips say what actually ran.
+   */
+  resolvedFilters?: Record<string, string | undefined>;
 }
 
 const TYPES = [
@@ -106,17 +112,28 @@ const DROPDOWN_SORTS: CreativeSort[] = [
   "created-desc",
 ];
 
-export function LibraryFilterBar({ products, angles, views, currentUserId, isAdmin, includeExcluded }: Props) {
+export function LibraryFilterBar({
+  products,
+  angles,
+  views,
+  currentUserId,
+  isAdmin,
+  includeExcluded,
+  resolvedFilters,
+}: Props) {
   // The shell's batching writer — the only URL writer on a migrated bar.
-  const { searchParams, update } = useFilterParams();
+  // `resolvedFilters` is the server's URL→preference→default answer: a
+  // remembered filter shows its chip on a bare URL, and removing that chip
+  // deletes the preference instead of resurrecting it.
+  const { searchParams, update, get } = useFilterParams(resolvedFilters);
 
-  const productIds = csvParam(searchParams.get("productIds"));
-  const types = csvParam(searchParams.get("types"));
-  const statuses = csvParam(searchParams.get("statuses"));
-  const platforms = csvParam(searchParams.get("platforms"));
-  const selectedAngles = csvParam(searchParams.get("angles"));
-  const priorities = csvParam(searchParams.get("priorities"));
-  const stages = csvParam(searchParams.get("stages"));
+  const productIds = csvParam(get("productIds"));
+  const types = csvParam(get("types"));
+  const statuses = csvParam(get("statuses"));
+  const platforms = csvParam(get("platforms"));
+  const selectedAngles = csvParam(get("angles"));
+  const priorities = csvParam(get("priorities"));
+  const stages = csvParam(get("stages"));
   const sortParam = (searchParams.get("sort") ?? "launched-desc") as CreativeSort;
   const sort = creativeSortValues.includes(sortParam) ? sortParam : "launched-desc";
   const viewParam = (searchParams.get("view") ?? "table") as CreativeView;

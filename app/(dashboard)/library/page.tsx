@@ -18,7 +18,8 @@ import { PageShell } from "@/components/layout/page-shell";
 import { CreativeGrid } from "@/components/creative/creative-grid";
 import { CreativeTable } from "@/components/creative/creative-table";
 import { CreativeStatusSummary } from "@/components/creative/creative-status-summary";
-import { resolveIncludeExcluded } from "@/db/queries/user-prefs";
+import { resolveFilterPrefs, resolveIncludeExcluded } from "@/db/queries/user-prefs";
+import { VIEW_MARKER_PARAM } from "@/validators/user-prefs";
 
 export const dynamic = "force-dynamic";
 
@@ -88,19 +89,42 @@ export default async function CreativesPage({
   if (Object.keys(params).length === 0) {
     const def = await getDefaultSummaryView(user.id, "creatives");
     if (def && def.query.trim().length > 0) {
-      redirect(`/library?${def.query}`);
+      // The marker says "a saved view owns this state" — the remembered
+      // filters below then no-op. (It is NOT `view`: here that's grid/table.)
+      redirect(`/library?${def.query}&${VIEW_MARKER_PARAM}=${def.id}`);
     }
   }
 
+  // The dropdown sources double as the pref resolver's vocabulary: a
+  // remembered product or angle that was since deleted is dropped, not queried.
+  const [products, allAngles] = await Promise.all([listProducts(), listAllAngles()]);
+
+  // REMEMBERED FILTERS (migration 0049): URL wins, else this user's saved value
+  // for this brand, else the page default — the date range's rule, generalized.
+  // Suppressed while a saved view is applied, or once the URL states its
+  // filters in full (`resolveFilterPrefs` checks both).
+  const pref = await resolveFilterPrefs(
+    [
+      { key: "platforms" },
+      { key: "statuses" },
+      { key: "productIds", allow: products.map((p) => p.id) },
+      { key: "types" },
+      { key: "angles", allow: allAngles },
+      { key: "priorities" },
+      { key: "stages" },
+    ],
+    (key: string) => pickFirst(params[key]),
+  );
+
   const parsed = creativeListFiltersSchema.parse({
     q: pickFirst(params.q),
-    productIds: pickFirst(params.productIds),
-    types: pickFirst(params.types),
-    statuses: pickFirst(params.statuses),
-    priorities: pickFirst(params.priorities),
-    stages: pickFirst(params.stages),
-    platforms: pickFirst(params.platforms),
-    angles: pickFirst(params.angles),
+    productIds: pref.productIds,
+    types: pref.types,
+    statuses: pref.statuses,
+    priorities: pref.priorities,
+    stages: pref.stages,
+    platforms: pref.platforms,
+    angles: pref.angles,
     sort: pickFirst(params.sort),
     view: pickFirst(params.view),
   });
@@ -111,7 +135,7 @@ export default async function CreativesPage({
     pickFirst(params.includeExcluded),
   );
 
-  const [listResult, products, allAngles, views] = await Promise.all([
+  const [listResult, views] = await Promise.all([
     listCreatives({
       q: parsed.q,
       productIds: parsed.productIds.length > 0 ? parsed.productIds : undefined,
@@ -124,8 +148,6 @@ export default async function CreativesPage({
       sort: parsed.sort,
       includeExcluded,
     }),
-    listProducts(),
-    listAllAngles(),
     listSummaryViews(user.id, "creatives"),
   ]);
 
@@ -155,6 +177,7 @@ export default async function CreativesPage({
       <LibraryHeader canCreate={can(user, "creative.create")} />
       <PageTabs tabs={tabs} active={activeTab} />
       <LibraryFilterBar
+        resolvedFilters={pref}
         products={products}
         angles={allAngles}
         includeExcluded={includeExcluded}

@@ -9,7 +9,12 @@ import {
   listSummaryViews,
 } from "@/db/queries/summary-views";
 import { summaryFiltersSchema } from "@/validators/summary";
-import { resolvePreferredRange, resolveIncludeExcluded } from "@/db/queries/user-prefs";
+import {
+  resolveFilterPrefs,
+  resolvePreferredRange,
+  resolveIncludeExcluded,
+} from "@/db/queries/user-prefs";
+import { VIEW_MARKER_PARAM } from "@/validators/user-prefs";
 import { LIFETIME_FLOOR, presetLabel, todayIso } from "@/lib/date-presets";
 import { PLATFORMS_WITH_CREATIVES } from "@/lib/palette";
 import { requireAuth } from "@/lib/auth";
@@ -44,20 +49,44 @@ export default async function SummaryPage({
   if (Object.keys(params).length === 0) {
     const def = await getDefaultSummaryView(user.id, "summary");
     if (def && def.query.trim().length > 0) {
-      redirect(`/summary?${def.query}`);
+      // The view marker says "a saved view owns this state" — the remembered
+      // filters below then no-op (it's transient, so it never lands in a view).
+      redirect(`/summary?${def.query}&${VIEW_MARKER_PARAM}=${def.id}`);
     }
   }
+
+  // The dropdown sources double as the pref resolver's vocabulary: a
+  // remembered product that was since deleted must be dropped, not queried.
+  const [products, angles] = await Promise.all([listProducts(), listAllAngles()]);
+
+  // REMEMBERED FILTERS (migration 0049): URL wins, else this user's saved
+  // value for this brand, else the page default — the date range's rule,
+  // generalized. Suppressed while a saved view is applied, or once the URL
+  // states its filters in full (`resolveFilterPrefs` checks both).
+  const pref = await resolveFilterPrefs(
+    [
+      { key: "platforms" },
+      { key: "status" },
+      { key: "productIds", allow: products.map((p) => p.id) },
+      { key: "types" },
+      { key: "angles", allow: angles },
+      { key: "priorities" },
+      { key: "stages" },
+      { key: "rate" },
+    ],
+    (key: string) => pickFirst(params[key]),
+  );
 
   const parsed = summaryFiltersSchema.parse({
     from: pickFirst(params.from),
     to: pickFirst(params.to),
     q: pickFirst(params.q),
-    productIds: pickFirst(params.productIds),
-    platforms: pickFirst(params.platforms),
-    types: pickFirst(params.types),
-    angles: pickFirst(params.angles),
-    priorities: pickFirst(params.priorities),
-    stages: pickFirst(params.stages),
+    productIds: pref.productIds,
+    platforms: pref.platforms,
+    types: pref.types,
+    angles: pref.angles,
+    priorities: pref.priorities,
+    stages: pref.stages,
     creatorIds: pickFirst(params.creatorIds),
     includeExcluded: pickFirst(params.includeExcluded),
     sort: pickFirst(params.sort),
@@ -67,8 +96,8 @@ export default async function SummaryPage({
     hideRate: pickFirst(params.hideRate),
     hideBlended: pickFirst(params.hideBlended),
     metricFilters: pickFirst(params.metricFilters),
-    rate: pickFirst(params.rate),
-    status: pickFirst(params.status),
+    rate: pref.rate,
+    status: pref.status,
   });
 
   // Three independent preference reads that used to await one after another,
@@ -96,17 +125,12 @@ export default async function SummaryPage({
   // `platforms=none` sentinel (the user deselected every platform) parses to []
   // and shows nothing. A subset → just those (the query drops google again).
   const effectivePlatforms =
-    pickFirst(params.platforms) === undefined
+    pref.platforms === undefined
       ? [...PLATFORMS_WITH_CREATIVES]
       : parsed.platforms;
 
   // Filter dropdowns + the query run in parallel.
-  const [
-    { rows, platforms: selectedPlatforms, effectiveSort },
-    products,
-    angles,
-    views,
-  ] = await Promise.all([
+  const [{ rows, platforms: selectedPlatforms, effectiveSort }, views] = await Promise.all([
     listCreativeSummary({
       from: range.from,
       to: range.to,
@@ -127,8 +151,6 @@ export default async function SummaryPage({
       statusFilter: parsed.status,
       ratingConfig,
     }),
-    listProducts(),
-    listAllAngles(),
     listSummaryViews(user.id, "summary"),
   ]);
 
@@ -149,6 +171,7 @@ export default async function SummaryPage({
   return (
     <PageShell>
       <SummaryFilterBar
+        resolvedFilters={pref}
           includeExcludedDefault={includeExcluded}
         products={products}
         angles={angles}

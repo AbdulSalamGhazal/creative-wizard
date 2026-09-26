@@ -42,6 +42,7 @@ export function PortfolioFilterBar({
   currentUserId,
   isAdmin,
   includeExcludedDefault,
+  resolvedFilters,
 }: {
   /** Effective default range (user's saved choice) for the picker label. */
   defaultFrom?: string;
@@ -51,9 +52,19 @@ export function PortfolioFilterBar({
   isAdmin: boolean;
   /** The user's saved Excluded-toggle default (URL param overrides it). */
   includeExcludedDefault?: boolean;
+  /**
+   * Remembered filters, as the server resolved them for this render (URL →
+   * this user's saved value for this brand → nothing). The bar reads its own
+   * params through them, so the chips say what actually ran.
+   */
+  resolvedFilters?: Record<string, string | undefined>;
+
 }) {
   // The shell's batching writer — the only URL writer on a migrated bar.
-  const { searchParams, update } = useFilterParams();
+  // `resolvedFilters` is the server's URL→preference→default answer: a
+  // remembered filter shows its chip on a bare URL, and removing that chip
+  // deletes the preference instead of resurrecting it.
+  const { searchParams, update, get } = useFilterParams(resolvedFilters);
 
   const from = searchParams.get("from");
   const to = searchParams.get("to");
@@ -65,16 +76,16 @@ export function PortfolioFilterBar({
       ? rawIncludeExcluded === "1"
       : (includeExcludedDefault ?? false);
   const platforms = useMemo(
-    () => csv(searchParams.get("platforms")),
-    [searchParams],
+    () => csv(get("platforms")),
+    [get],
   );
   const objectives = useMemo(
-    () => csv(searchParams.get("objectives")),
-    [searchParams],
+    () => csv(get("objectives")),
+    [get],
   );
   const statuses = useMemo(
-    () => csv(searchParams.get("statuses")),
-    [searchParams],
+    () => csv(get("statuses")),
+    [get],
   );
   const hiddenCols = useMemo(
     () => new Set(csv(searchParams.get("hide"))),

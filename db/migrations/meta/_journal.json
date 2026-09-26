@@ -344,6 +344,13 @@
       "when": 1789975039307,
       "tag": "0048_budget_plan_modes",
       "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1790415507638,
+      "tag": "0049_user_filter_prefs",
+      "breakpoints": true
     }
   ]
 }

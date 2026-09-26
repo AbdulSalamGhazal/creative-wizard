@@ -67,6 +67,12 @@ interface Props {
   defaultTo?: string;
   /** The user's saved Excluded-toggle default (URL param overrides it). */
   includeExcludedDefault?: boolean;
+  /**
+   * Remembered filters, as the server resolved them for this render (URL →
+   * this user's saved value for this brand → nothing). The bar reads its own
+   * params through them, so the chips say what actually ran.
+   */
+  resolvedFilters?: Record<string, string | undefined>;
 }
 
 // Derived from the canonical enums so the option lists can never drift from the
@@ -135,27 +141,31 @@ export function SummaryFilterBar({
   defaultFrom,
   defaultTo,
   includeExcludedDefault,
+  resolvedFilters,
 }: Props) {
   // Writes COMPOSE within a tick — see useFilterParams. Clear touches every
   // declared filter at once, and must land as ONE navigation.
-  const { searchParams, update } = useFilterParams();
+  // `resolvedFilters` is the server's URL→preference→default answer: a
+  // remembered filter shows its chip on a bare URL, and removing that chip
+  // deletes the preference instead of resurrecting it.
+  const { searchParams, update, get } = useFilterParams(resolvedFilters);
 
   const from = searchParams.get("from");
   const to = searchParams.get("to");
   // No `platforms` param → all platforms (the default). The "none" sentinel →
   // nothing selected (user cleared them). Otherwise the listed subset.
-  const rawPlatforms = searchParams.get("platforms");
+  const rawPlatforms = get("platforms");
   const platforms =
     rawPlatforms === null
       ? ALL_PLATFORM_VALUES
       : rawPlatforms === PLATFORMS_NONE
         ? []
         : csv(rawPlatforms).slice(0, MAX_PLATFORMS);
-  const productIds = csv(searchParams.get("productIds"));
-  const types = csv(searchParams.get("types"));
-  const priorities = csv(searchParams.get("priorities"));
-  const stages = csv(searchParams.get("stages"));
-  const selectedAngles = csv(searchParams.get("angles"));
+  const productIds = csv(get("productIds"));
+  const types = csv(get("types"));
+  const priorities = csv(get("priorities"));
+  const stages = csv(get("stages"));
+  const selectedAngles = csv(get("angles"));
   // Effective Excluded state: explicit URL param wins, else the saved
   // per-user preference the server resolved into `includeExcludedDefault`.
   const rawIncludeExcluded = searchParams.get("includeExcluded");
@@ -177,7 +187,7 @@ export function SummaryFilterBar({
   // Rate filter — scope is kept in local state so the user can pick a scope
   // before any ratings are checked (the URL only carries it once a rating is
   // selected). Re-sync if the URL scope changes (e.g. a view is applied).
-  const rateParam = searchParams.get("rate");
+  const rateParam = get("rate");
   const parsedRate = useMemo(() => parseRateFilter(rateParam), [rateParam]);
   const rateRatings = parsedRate?.ratings ?? [];
   const [rateScope, setRateScope] = useState<MetricFilterScope>(
@@ -189,7 +199,7 @@ export function SummaryFilterBar({
 
   // Dynamic-status filter — same shape as the rate filter: scope in local state
   // (so a scope can be picked before any status is checked), statuses in the URL.
-  const statusParam = searchParams.get("status");
+  const statusParam = get("status");
   const parsedStatus = useMemo(() => parseStatusFilter(statusParam), [statusParam]);
   const statusValues = parsedStatus?.statuses ?? [];
   const [statusScope, setStatusScope] = useState<MetricFilterScope>(

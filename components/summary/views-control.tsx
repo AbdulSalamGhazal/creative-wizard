@@ -17,6 +17,7 @@ import {
   setDefaultView,
 } from "@/app/actions/summary-view";
 import type { SummaryViewRow } from "@/db/queries/summary-views";
+import { FILTERS_EXPLICIT_PARAM, VIEW_MARKER_PARAM } from "@/validators/user-prefs";
 
 interface Props {
   views: SummaryViewRow[];
@@ -29,7 +30,7 @@ interface Props {
 }
 
 /** Non-filter params that shouldn't be saved into or compared against a view. */
-const TRANSIENT_PARAMS = new Set(["view"]);
+const TRANSIENT_PARAMS = new Set(["view", VIEW_MARKER_PARAM, FILTERS_EXPLICIT_PARAM]);
 
 /** Order-independent comparison of two query strings, ignoring transient params. */
 function sameQuery(a: string, b: string): boolean {
@@ -80,7 +81,7 @@ export function ViewsControl({
   const hasDefault = views.some((v) => v.isDefault);
 
   const applyView = useCallback(
-    (query: string) => {
+    (query: string, viewId: string) => {
       setOpen(false);
       const clean = cleanQuery(query);
       if (clean === "") {
@@ -92,10 +93,12 @@ export function ViewsControl({
         // so it's harmless when no default exists, and routing through it
         // unconditionally removes the dependency on a possibly-stale `hasDefault`
         // (a flakiness source right after toggling a default).
-        router.push(`${pathname}?view=none`, { scroll: false });
+        router.push(`${pathname}?view=none&${VIEW_MARKER_PARAM}=${viewId}`, { scroll: false });
         return;
       }
-      router.push(`${pathname}?${clean}`, { scroll: false });
+      // The marker rides along so the server skips remembered filters: an
+      // applied view owns the whole filter state, including what it leaves out.
+      router.push(`${pathname}?${clean}&${VIEW_MARKER_PARAM}=${viewId}`, { scroll: false });
     },
     [pathname, router],
   );
@@ -193,7 +196,7 @@ export function ViewsControl({
                 >
                   <button
                     type="button"
-                    onClick={() => applyView(v.query)}
+                    onClick={() => applyView(v.query, v.id)}
                     className="flex items-center gap-2 flex-1 min-w-0 text-left"
                   >
                     {isActive ? (
