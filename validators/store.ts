@@ -1,8 +1,28 @@
 import { z } from "zod";
 import { platformEnum } from "@/db/schema";
-import { CHANNEL_DESTINATIONS } from "@/store/channels";
+import { CHANNEL_DESTINATIONS, UNMAPPED_CHANNEL } from "@/store/channels";
+import { UNATTRIBUTED } from "@/store/sources";
 
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * A comma-separated URL param narrowed to a known vocabulary: unknown parts
+ * are DROPPED silently (a retired platform, a hand-edited link, a remembered
+ * value from another page), never an error and never a filter nobody asked
+ * for. Empty → `[]`, which the queries read as "no filter".
+ */
+function csvOf<T extends string>(allowed: readonly T[]) {
+  const set = new Set<string>(allowed);
+  return z
+    .string()
+    .optional()
+    .transform((s) =>
+      (s ?? "")
+        .split(",")
+        .map((v) => v.trim())
+        .filter((v): v is T => set.has(v)),
+    );
+}
 
 /** URL filters for the Store orders table — date range + order-id search ONLY. */
 export const storeOrdersFiltersSchema = z.object({
@@ -61,6 +81,28 @@ export const storeChannelMappingSchema = z.object({
 });
 
 export type StoreChannelMappingInput = z.infer<typeof storeChannelMappingSchema>;
+
+/**
+ * URL filters for Store Insights — the date range, the two mapped-bucket
+ * filters, and the analyzed dimension. `by` is validated against the DERIVED
+ * dimension list on the page (a field can be deleted), so it is a plain string
+ * here; the csv helpers keep the two bucket lists tied to their vocabularies.
+ */
+export const storeInsightsFiltersSchema = z.object({
+  from: z.string().regex(ISO).optional(),
+  to: z.string().regex(ISO).optional(),
+  by: z
+    .string()
+    .max(64)
+    .optional()
+    .transform((s) => (s && s.trim() ? s.trim() : undefined)),
+  /** Platform buckets: the four platforms, or the Unattributed sentinel. */
+  platforms: csvOf([...platformEnum, UNATTRIBUTED]),
+  /** Channel buckets: Website / Application, or the Unmapped sentinel. */
+  channels: csvOf([...CHANNEL_DESTINATIONS, UNMAPPED_CHANNEL]),
+});
+
+export type StoreInsightsFilterInput = z.infer<typeof storeInsightsFiltersSchema>;
 
 /** URL filters for the Reconciliation page — date range only. */
 export const reconciliationFiltersSchema = z.object({

@@ -14,6 +14,7 @@ import {
   UNMAPPED_CHANNEL,
   type ChannelDestination,
 } from "@/store/channels";
+import { UNATTRIBUTED } from "@/store/sources";
 
 /**
  * Store → Reconciliation queries. Compares store ORDER COUNTS (from
@@ -27,8 +28,12 @@ import {
 
 export type ReconPlatform = (typeof platformEnum)[number];
 
-/** Sentinel bucket for store orders not attributed to any ad platform. */
-export const UNATTRIBUTED = "__unattr__";
+/**
+ * Sentinel bucket for store orders not attributed to any ad platform. Defined
+ * in `store/sources.ts` (beside the channel sentinel, importable by client
+ * code) and re-exported here, where it has always been imported from.
+ */
+export { UNATTRIBUTED };
 
 export interface ReconOverviewRow {
   day: string;

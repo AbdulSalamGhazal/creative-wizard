@@ -973,6 +973,53 @@ This app is deployed and in production use. Treat `main` as shippable.
   the two tiers differ on purpose. `createAccount` seeds all five rows (3 core +
   these 2); migration 0046 promotes an existing field KEEPING its label and
   headers, or seeds it where missing.
+- **Store → Insights (`/store/insights`, 2026-09) is STORE FACTS ONLY, SAR ONLY
+  — a STANDING user decision.** No spend, no ROAS, no platform-claimed
+  conversions, ever: Reconciliation owns claimed-vs-store and Budget owns the
+  money plans, and a third surface mixing them is a second, disagreeing
+  reconciliation. Every figure comes from `store_orders`. **NO period
+  comparison in v1** (user decision) — the selected range only, so no tile
+  carries a delta and nothing implies a trend the page didn't measure.
+  Read-open to any brand member, like Orders.
+  - **TWO SCANS per render, both bounded by the resolved range and both
+    carrying the SAME filters** (`db/queries/store-insights.ts`): the per-day
+    orders+revenue series (the KPIs are summed from it in JS, never re-queried)
+    and ONE `GROUP BY` over the chosen dimension. `lib/db.ts` is `max: 1`, so
+    an extra scan is a serial round-trip; never fetch per value. The range is
+    resolved SERVER-side (`resolvePreferredRange` → last 30 days) like every
+    other range-filtered page.
+  - **The "Analyze by" list is DERIVED from `store_order_fields`** — never
+    hand-listed, so a field added in Order fields appears with its configured
+    label: system-required first, then the account's customs by `sort_order`,
+    then the two mapped LENSES ("Platform (via UTM mapping)", "Channel
+    (Website / Application)"). The three CORE fields are excluded on purpose
+    (`order_id` is unique per row, `order_date` IS the trend, `total_amount` is
+    the measure). Default = UTM source. The choice is URL-backed (`?by=`),
+    validated against the derived list (a DELETED field's remembered value
+    falls back, never scans a column nobody offers) and remembered per user per
+    brand like a filter (0049; it is declared through FilterShell's
+    `persistKeys` because it sits with the analyzer, not in the bar).
+  - **LENS CONSISTENCY IS AN INVARIANT:** the two lenses bucket EXACTLY as
+    Reconciliation does — the same unique mappings, the same
+    `COALESCE(mapping, sentinel)`, the same Unattributed / Unmapped semantics
+    (the sentinels now live in `store/sources.ts` + `store/channels.ts`, which
+    `db/queries/reconciliation.ts` re-exports). Pinned in
+    `tests/db/store-insights.test.ts` against `reconciliationByPlatform` /
+    `reconciliationByChannel` output on shared fixtures: the two pages must
+    never tell different stories about the same day.
+  - **A BLANK value is its own visible bucket** ("No UTM source", named from
+    the field's own label), never dropped and never merged — a blank cell and
+    an absent column are the same answer. Values + blank sum to the range total
+    BY CONSTRUCTION (one GROUP BY, no fan-out), which is test-pinned, and the
+    `%`-of-orders share bar is a share of that total.
+  - **Long tail:** past `TOP_VALUE_LIMIT` (40) values the tail folds into ONE
+    "Other (N values)" row that KEEPS its orders and revenue, so the totals
+    still reconcile; it sinks to the bottom whatever the sort (a null
+    `sortValue`, the primitive's own rule) because it is a summary, not a
+    value. **The CSV exports the FULL breakdown regardless** — the fold is a
+    reading aid, an export is data. The query caps groups at
+    `BREAKDOWN_GROUP_CAP`, since a free-text field can have as many values as
+    there are orders.
 - **Store → Reconciliation is COUNTS ONLY, by explicit user decision (2026-08).**
   `/store/reconciliation` compares store ORDER COUNTS vs platform-claimed
   CONVERSION counts per day. **Δ = claimed − store as of 2026-09-19 — the

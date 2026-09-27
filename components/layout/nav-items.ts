@@ -1,5 +1,6 @@
 import {
   BarChartHorizontal,
+  ChartPie,
   LayoutDashboard,
   Images,
   GitCompare,
@@ -132,6 +133,15 @@ export const NAV_ITEMS: NavItem[] = [
     href: "/store/orders",
     label: "Orders",
     icon: ShoppingBag,
+    group: "store",
+  },
+  {
+    // What the orders themselves say (volume, revenue, AOV, breakdowns) —
+    // store facts only, no ads side. Sits BETWEEN the raw table and the
+    // ads-vs-store comparison, which is the order you read them in.
+    href: "/store/insights",
+    label: "Insights",
+    icon: ChartPie,
     group: "store",
   },
   {

@@ -62,6 +62,7 @@ export function FilterShell({
   tier1,
   toolbar,
   notes,
+  persistKeys,
   panelTitle = "Filters",
 }: {
   filters: readonly FilterDef[];
@@ -75,6 +76,15 @@ export function FilterShell({
   toolbar?: (ctx: { fullWidth: boolean }) => React.ReactNode;
   /** A full-width muted line under the controls — e.g. why a metric is locked. */
   notes?: React.ReactNode;
+  /**
+   * Extra URL params this page REMEMBERS (0049) although they aren't defs —
+   * a page-owned control that is a filtering choice in everything but
+   * placement, like Insights' "Analyze by" (`?by=`). `platforms` is the
+   * built-in instance of the same idea; everything else must be declared,
+   * because the writer sees every param a bar touches and a view control must
+   * never be mistaken for a filter.
+   */
+  persistKeys?: readonly string[];
   panelTitle?: string;
 }) {
   const count = activeFilterCount(filters);
@@ -86,7 +96,11 @@ export function FilterShell({
   // control every page shares, and the reason a zero-def page like Pacing
   // remembers anything at all. Declared with the filters, obeyed by the one
   // writer. See lib/filter-prefs.
-  setPersistedKeys(["platforms", ...persistedFilterKeys(filters)]);
+  setPersistedKeys([
+    "platforms",
+    ...persistedFilterKeys(filters),
+    ...(persistKeys ?? []),
+  ]);
 
   return (
     <div className="sticky top-14 z-10 -mx-6 space-y-2 border-b border-line bg-background/95 px-6 py-3 backdrop-blur">
