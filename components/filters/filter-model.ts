@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import type { LucideIcon } from "lucide-react";
 
 /**
  * The declarative filter model behind `FilterShell` — PURE, no React, no DOM,
@@ -32,6 +33,13 @@ interface FilterDefBase {
   /** Stable id — also the React key, the chip key prefix AND the URL param. */
   key: string;
   label: string;
+  /**
+   * The dialog row's leading icon. A def rarely sets this: `filterIcon`
+   * derives one from the KEY (see `filter-icons.ts`), so the same filter
+   * carries the same icon on every page. An explicit one WINS, and a key with
+   * no mapping simply renders none.
+   */
+  icon?: LucideIcon;
   /**
    * Remember this filter per user, per brand (migration 0049), so it applies
    * again wherever the same KEY exists. Defaults to TRUE for a standard def

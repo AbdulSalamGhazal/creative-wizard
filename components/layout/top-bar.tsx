@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { Menu } from "lucide-react";
 import type { SessionUser } from "@/lib/auth";
+import type { ToastScope } from "@/lib/notifications";
 import { UserMenu } from "@/components/auth/user-menu";
 import { CommandPalette } from "@/components/layout/command-palette";
 import { NotificationBell } from "@/components/layout/notification-bell";
@@ -22,6 +23,9 @@ interface Props {
   activeAccountId: string;
   /** The user's effective permission keys — drives which nav items appear. */
   granted: string[];
+  /** Which arrivals may toast (migration 0050) — the bell obeys it, the menu
+   *  shows it. */
+  toastScope: ToastScope;
 }
 
 export function TopBar({
@@ -30,6 +34,7 @@ export function TopBar({
   accounts,
   activeAccountId,
   granted,
+  toastScope,
 }: Props) {
   return (
     <header className="border-b border-line sticky top-0 z-20 bg-background">
@@ -68,7 +73,7 @@ export function TopBar({
           <CommentToggle />
           {/* The bell is the ONLY entry to notifications — there is no sidebar
               item for them, on purpose. */}
-          <NotificationBell />
+          <NotificationBell accountId={activeAccountId} toastScope={toastScope} />
           <UserMenu
             user={{
               name: user.name,
@@ -76,6 +81,7 @@ export function TopBar({
               role: user.role,
               initials: initials(user.name),
             }}
+            toastScope={toastScope}
           />
         </div>
       </div>

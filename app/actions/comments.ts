@@ -14,6 +14,7 @@ import {
   type CommentAnchorType,
 } from "@/lib/comments";
 import { createNotifications } from "@/db/queries/notifications";
+import { COMMENT_EVENT_TYPES, categoryForType } from "@/lib/notifications";
 import {
   anchorBelongsToAccount,
   getComment,
@@ -146,8 +147,8 @@ export async function createComment(input: unknown): Promise<CommentActionResult
         ...split.mention.map((recipientUserId) => ({
           accountId: acct,
           recipientUserId,
-          category: "mention" as const,
-          type: "comment.mention",
+          category: categoryForType(COMMENT_EVENT_TYPES.MENTION),
+          type: COMMENT_EVENT_TYPES.MENTION,
           title: `${user.name} mentioned you on ${anchor.label}`,
           body: preview,
           href,
@@ -158,8 +159,8 @@ export async function createComment(input: unknown): Promise<CommentActionResult
         ...split.reply.map((recipientUserId) => ({
           accountId: acct,
           recipientUserId,
-          category: "reply" as const,
-          type: "comment.reply",
+          category: categoryForType(COMMENT_EVENT_TYPES.REPLY),
+          type: COMMENT_EVENT_TYPES.REPLY,
           title: `${user.name} replied on ${anchor.label}`,
           body: preview,
           href,

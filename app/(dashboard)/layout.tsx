@@ -12,6 +12,7 @@ import {
   CommentPanelProvider,
 } from "@/components/comments/comment-drawer";
 import { NoBrandAccess } from "@/components/layout/no-brand-access";
+import { getToastScope } from "@/db/queries/user-prefs";
 import { db } from "@/lib/db";
 import { creatives, products } from "@/db/schema";
 import { eq } from "drizzle-orm";
@@ -52,6 +53,10 @@ export default async function DashboardLayout({
     .orderBy(asc(creatives.name))
     .limit(500);
 
+  // Which arrivals may toast for this user (migration 0050). Read once here
+  // and handed down: the bell obeys it, the account menu shows it.
+  const toastScope = await getToastScope();
+
   return (
     <PermissionsProvider granted={granted}>
       {/* Which thing the comment drawer points at — an entity page registers
@@ -66,6 +71,7 @@ export default async function DashboardLayout({
               accounts={accounts.map((a) => ({ id: a.id, name: a.name }))}
               activeAccountId={acct}
               granted={granted}
+              toastScope={toastScope}
             />
             <div className="flex flex-1">
               {/* Suspense: Sidebar reads useSearchParams (Budget month links). */}

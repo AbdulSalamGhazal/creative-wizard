@@ -13,6 +13,7 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { setPersistedKeys } from "@/lib/filter-prefs";
+import { anyFilterIcon, filterIcon } from "@/components/filters/filter-icons";
 import {
   activeFilterCount,
   clearFilters,
@@ -170,6 +171,7 @@ function FilterDialog({
   const [open, setOpen] = useState(false);
   /** null = level 1; a def key = drilled into that filter. */
   const [detailKey, setDetailKey] = useState<string | null>(null);
+  const showIcons = anyFilterIcon(filters);
   const rowRefs = useRef<Map<string, HTMLButtonElement | null>>(new Map());
   const detail = filters.find((d) => d.key === detailKey) ?? null;
 
@@ -264,6 +266,9 @@ function FilterDialog({
                   <FilterListRow
                     key={def.key}
                     def={def}
+                    // All rows reserve the icon slot or none do, so the labels
+                    // line up whether or not every key has a mapping.
+                    reserveIcon={showIcons}
                     ref={(el) => {
                       rowRefs.current.set(def.key, el);
                     }}
@@ -307,15 +312,19 @@ function FilterDialog({
 const FilterListRow = function FilterListRow({
   def,
   onDrill,
+  reserveIcon,
   ref,
 }: {
   def: FilterDef;
   onDrill: () => void;
+  /** Keep the leading slot even when THIS def has no icon (alignment). */
+  reserveIcon: boolean;
   ref: (el: HTMLButtonElement | null) => void;
 }) {
   const [openPopover, setOpenPopover] = useState(false);
   const drills = filterDepth(def) === "drill";
   const active = isFilterActive(def);
+  const Icon = filterIcon(def);
 
   const row = (
     <button
@@ -325,6 +334,13 @@ const FilterListRow = function FilterListRow({
       aria-haspopup={drills ? "dialog" : "listbox"}
       className="flex w-full items-center gap-3 border-b border-line px-4 py-3 text-left transition-colors last:border-b-0 hover:bg-surface-2 focus-visible:bg-surface-2 focus-visible:outline-none"
     >
+      {reserveIcon && (
+        // Muted and fixed-width: the icon is a landmark for the row, not a
+        // second signal — the summary on the right is what carries state.
+        <span className="flex w-4 shrink-0 justify-center" aria-hidden>
+          {Icon && <Icon className="h-3.5 w-3.5 text-ink-3" />}
+        </span>
+      )}
       <span className="min-w-0 flex-1 truncate text-xs text-ink">{def.label}</span>
       <span
         className={cn("max-w-[10rem] truncate text-xs", active ? "text-ink-2" : "text-ink-3")}

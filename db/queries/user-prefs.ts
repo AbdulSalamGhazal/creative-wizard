@@ -11,6 +11,11 @@ import {
 } from "@/validators/user-prefs";
 import { resolveIncludeExcludedValue } from "@/lib/exclusion-rules";
 import {
+  DEFAULT_TOAST_SCOPE,
+  toToastScope,
+  type ToastScope,
+} from "@/lib/notifications";
+import {
   decodePreferredRange,
   todayIso,
   type DateRangeValue,
@@ -57,6 +62,22 @@ export async function resolvePreferredRange(
   }
   return (await getPreferredRange()) ?? fallback;
 }
+
+/**
+ * Which arriving notifications may toast for the signed-in user (migration
+ * 0050). `cache()`-deduped per request; a signed-out read or a value that
+ * outlived the vocabulary falls back to the default rather than throwing.
+ */
+export const getToastScope = cache(async (): Promise<ToastScope> => {
+  const user = await auth();
+  if (!user) return DEFAULT_TOAST_SCOPE;
+  const [row] = await db
+    .select({ scope: users.toastScope })
+    .from(users)
+    .where(eq(users.id, user.id))
+    .limit(1);
+  return toToastScope(row?.scope);
+});
 
 /**
  * The signed-in user's remembered Excluded-toggle state, or null when they

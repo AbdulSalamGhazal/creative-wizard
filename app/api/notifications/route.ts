@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { recentNotifications, unreadCount } from "@/db/queries/notifications";
-import { categoryForType } from "@/lib/notifications";
+import { categoryForType, safeHref } from "@/lib/notifications";
 
 export const dynamic = "force-dynamic";
 
@@ -14,7 +14,11 @@ export const dynamic = "force-dynamic";
  * trusted from the cookie alone. The queries are self-scoping, so there is no
  * id in this request at all — nothing to tamper with.
  *
- * The response is deliberately minimal: it is polled.
+ * The response is deliberately minimal: it is polled. It carries `type`
+ * alongside the derived category because the ARRIVAL TOASTER needs both to
+ * decide whether an item is personal (a DIRECT event is personal but its
+ * category is "system"), and hrefs are `safeHref`'d HERE so a stored link can
+ * never reach a client as something navigable that isn't an in-app path.
  */
 export async function GET() {
   const user = await auth();
@@ -29,9 +33,10 @@ export async function GET() {
       count,
       items: recent.map((n) => ({
         id: n.id,
+        type: n.type,
         category: categoryForType(n.type),
         title: n.title,
-        href: n.href,
+        href: safeHref(n.href),
         actor: n.actorName,
         createdAt: n.createdAt,
         read: n.readAt !== null,

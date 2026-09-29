@@ -48,6 +48,10 @@ import {
   unarchiveNotification,
 } from "@/app/actions/notifications";
 import { updateUserBrands } from "@/app/actions/user";
+import { setToastScope } from "@/app/actions/user-prefs";
+import { getToastScope } from "@/db/queries/user-prefs";
+import { isPersonalNotification } from "@/lib/notifications";
+import { GET } from "@/app/api/notifications/route";
 import { resetAndSeed } from "./fixtures";
 
 const setAccount = (id: string) => vi.mocked(getActiveAccountId).mockResolvedValue(id);
@@ -404,5 +408,97 @@ describe("createNotifications", () => {
         .from(notifications)
         .where(and(eq(notifications.accountId, ACCOUNT_A), eq(notifications.type, "upload.committed"))),
     ).toHaveLength(2);
+  });
+});
+
+// ── Toasts (migration 0050) ──────────────────────────────────────────────────
+// The setting is per user and global across brands; the poll payload is what
+// the toaster reads, so it has to carry the type (a DIRECT event is personal
+// while its category says "system") and a href that is already safe.
+
+describe("toast scope — the setting", () => {
+  it("defaults to personal for every user, with no backfill", async () => {
+    const [row] = await db
+      .select({ scope: users.toastScope })
+      .from(users)
+      .where(eq(users.id, ALICE));
+    expect(row!.scope).toBe("personal");
+    expect(await getToastScope()).toBe("personal");
+  });
+
+  it("round-trips a chosen value, for the CALLER only", async () => {
+    expect(await setToastScope("all")).toEqual({ ok: true });
+    expect(await getToastScope()).toBe("all");
+
+    // Bob is untouched — the action's subject is the session user, and there
+    // is no id in its input to point anywhere else.
+    const [bob] = await db
+      .select({ scope: users.toastScope })
+      .from(users)
+      .where(eq(users.id, BOB));
+    expect(bob!.scope).toBe("personal");
+
+    expect(await setToastScope("off")).toEqual({ ok: true });
+    expect(await getToastScope()).toBe("off");
+  });
+
+  it("refuses a value outside the vocabulary, writing nothing", async () => {
+    await setToastScope("all");
+    for (const bad of ["ALL", "", "everything", 1, null, undefined, { scope: "all" }]) {
+      expect(await setToastScope(bad)).toEqual({ ok: false });
+    }
+    expect(await getToastScope()).toBe("all");
+  });
+
+  it("is global across brands — the same person, the same setting", async () => {
+    await setToastScope("off");
+    setAccount(ACCOUNT_B);
+    expect(await getToastScope()).toBe("off");
+    setAccount(ACCOUNT_A);
+  });
+});
+
+describe("the poll payload carries what the toaster needs", () => {
+  it("returns id, type, category, title, actor and a safe href", async () => {
+    await db.insert(notifications).values({
+      accountId: ACCOUNT_A,
+      recipientUserId: ALICE,
+      category: "mention",
+      type: "comment.mention",
+      title: "Sara mentioned you",
+      actorUserId: BOB,
+      href: "/go/comment/abc",
+    });
+
+    const res = await GET();
+    const body = (await res.json()) as {
+      count: number;
+      items: Array<Record<string, unknown>>;
+    };
+    expect(body.count).toBe(1);
+    const item = body.items[0]!;
+    // `type` rides along BECAUSE of the toaster: personal-ness needs it.
+    expect(item.type).toBe("comment.mention");
+    expect(item.category).toBe("mention");
+    expect(item.title).toBe("Sara mentioned you");
+    expect(item.actor).toBe("Bob");
+    expect(item.href).toBe("/go/comment/abc");
+    expect(item.read).toBe(false);
+    expect(isPersonalNotification(item as { type: string; category: string })).toBe(true);
+  });
+
+  it("drops an href that isn't an in-app path — the bell is not a redirect", async () => {
+    await db.insert(notifications).values({
+      accountId: ACCOUNT_A,
+      recipientUserId: ALICE,
+      category: "system",
+      type: "upload.committed",
+      title: "Upload committed",
+      href: "https://evil.example.com/steal",
+    });
+
+    const res = await GET();
+    const body = (await res.json()) as { items: Array<{ href: string | null }> };
+    expect(body.items[0]!.href).toBeNull();
   });
 });

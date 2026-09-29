@@ -3,7 +3,8 @@
 import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import { useTheme } from "next-themes";
-import { Camera, KeyRound, LogOut, Palette, Plug } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Bell, Camera, KeyRound, LogOut, Palette, Plug } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -18,6 +19,13 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { signOut } from "@/app/actions/session";
+import { setToastScope } from "@/app/actions/user-prefs";
+import {
+  TOAST_SCOPES,
+  TOAST_SCOPE_HINT,
+  TOAST_SCOPE_LABEL,
+  type ToastScope,
+} from "@/lib/notifications";
 import { ChangePasswordDialog } from "@/components/auth/change-password-dialog";
 import { captureScreenshot } from "@/lib/screenshot";
 
@@ -28,6 +36,9 @@ interface Props {
     role: "admin" | "editor" | "viewer";
     initials: string;
   };
+  /** Which arrivals may toast (migration 0050) — the current value, from the
+   *  server; the submenu writes it and refreshes. */
+  toastScope: ToastScope;
 }
 
 /**
@@ -69,11 +80,26 @@ function Swatches({ colors }: { colors: readonly string[] }) {
  * always-expanded section: the menu stays short, and the four swatches appear
  * only when asked for.
  */
-export function UserMenu({ user }: Props) {
+export function UserMenu({ user, toastScope }: Props) {
+  const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [changeOpen, setChangeOpen] = useState(false);
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
+  // Optimistic: the check moves now, the server catches up on refresh.
+  const [scope, setScope] = useState<ToastScope>(toastScope);
+  useEffect(() => setScope(toastScope), [toastScope]);
+
+  const changeScope = (next: string) => {
+    const value = next as ToastScope;
+    setScope(value);
+    startTransition(async () => {
+      await setToastScope(value);
+      // The layout reads the setting server-side and hands it to the bell —
+      // refresh so the bell obeys the new value without a reload.
+      router.refresh();
+    });
+  };
 
   // Leave the radio group uncontrolled until mounted to avoid a hydration
   // mismatch (the stored theme is only known on the client).
@@ -144,6 +170,40 @@ export function UserMenu({ user }: Props) {
             <Camera className="w-3.5 h-3.5" />
             Copy screenshot
           </DropdownMenuItem>
+
+          {/* Notifications: the same submenu shape as Theme. The setting is
+              about INTERRUPTION only — the badge, the tab title and the bell
+              keep working on "Off". */}
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger>
+              <Bell className="w-3.5 h-3.5" />
+              Notifications
+              <span className="ml-auto text-[11px] text-ink-3">
+                {TOAST_SCOPE_LABEL[scope]}
+              </span>
+            </DropdownMenuSubTrigger>
+            <DropdownMenuSubContent className="w-60" data-screenshot-exclude>
+              <DropdownMenuLabel className="text-ink-3 text-eyebrow font-normal">
+                Toasts
+              </DropdownMenuLabel>
+              <DropdownMenuRadioGroup value={scope} onValueChange={changeScope}>
+                {TOAST_SCOPES.map((value) => (
+                  <DropdownMenuRadioItem
+                    key={value}
+                    value={value}
+                    className="items-start gap-2"
+                  >
+                    <span className="flex flex-col gap-0.5">
+                      <span>{TOAST_SCOPE_LABEL[value]}</span>
+                      <span className="text-[11px] text-ink-3">
+                        {TOAST_SCOPE_HINT[value]}
+                      </span>
+                    </span>
+                  </DropdownMenuRadioItem>
+                ))}
+              </DropdownMenuRadioGroup>
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
 
           {/* Theme is a SUBMENU: one row that opens the four swatches on
               hover, focus, → or Enter (Radix handles all four). The menu stays

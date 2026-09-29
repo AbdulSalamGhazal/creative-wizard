@@ -157,12 +157,50 @@ This app is deployed and in production use. Treat `main` as shippable.
      archived rows stay searchable in the Archived tab. Nothing hard-deletes.
   5. **Individual notifications are NOT audited** (they'd mirror `audit_events`
      row for row); only `notify.routes_update` is.
+  - **NOTICEABLE (2026-09, migration 0050) — three escalations, all fed by the
+    bell's EXISTING poll: no second timer, no second endpoint.**
+    - **ARRIVAL TOASTS.** Each poll diffs its feed against `lastToastedId`, a
+      per-BRAND pointer in this browser's localStorage (guarded reads/writes —
+      a private window or blocked storage must not break the bell). **A FIRST
+      LOAD NEVER TOASTS**: a null pointer just adopts the newest id, because
+      opening the app is not an event; only what arrives while it is open is.
+      A pointer that has fallen out of the feed window reads as "all of these
+      are new", which the burst rule then collapses. More than
+      `TOAST_BURST_LIMIT` (3) arrivals in one poll become ONE summary toast
+      ("4 new notifications" → /notifications) instead of a stack; at or below
+      it, one toast each, oldest first, with the actor as the description and
+      an Open action that runs the same mark-read-then-navigate flow the
+      popover does. An item already read elsewhere never toasts.
+    - **TOAST SCOPE — a per-user setting (`users.toast_scope`), default
+      `personal`** (user decision), in the avatar menu's Notifications submenu
+      (the Theme submenu's shape). `personal` = a mention or a reply, or a
+      DIRECT event (one natural recipient — `user.brand_granted`), derived by
+      `isPersonalNotification`, never a second hand-kept list. `all` = every
+      notification; `off` silences **toasts only** — the badge, the tab title
+      and the bell still work, because not being interrupted is different from
+      not being told. The action is self-only (the session user is the
+      subject; there is no id in its input), validated against the vocabulary,
+      and NOT audited — preference churn, like notification reads.
+    - **TAB TITLE + BELL.** Unread prefixes `document.title` with "(N) "
+      (capped "9+", `titleWithUnread`); it re-applies after route changes
+      (Next rewrites the title on navigation) and ALWAYS strips an existing
+      prefix first, so counts can never stack. The bell shakes ONCE when the
+      count INCREASES — never a persistent animation, keyframes behind
+      `prefers-reduced-motion`, and the FIRST loaded count is a baseline, not
+      an increase (arriving at a page with unread items must not shake, for
+      the same reason it must not toast).
   Vocabulary is `lib/notifications.ts` and everything derives from it —
   `EVENT_TYPES` (the routable catalog; the config tab's rows), the five
   categories (phase 1 produces `system` only), `POLL_MS` (the ONE polling knob),
   `safeHref` (an href is data: in-app paths only, never an open redirect).
   `notifications.dedupe_key` is RESERVED for phase-3 alert upserts — its unique
-  index is partial so today's NULLs never collide. See tech-spec §5f.
+  index is partial so today's NULLs never collide. **`categoryForType` is the
+  ONE derivation of a row's category** and knows all three families: the
+  routable catalog, the DIRECT events, and the COMMENT events
+  (`COMMENT_EVENT_TYPES`). It missed the last of those until 2026-09, so every
+  mention and reply rendered as a "System" chip in the bell and on the page —
+  a stored `category` column that nothing read. Add a family here, not a
+  fourth mapping at a call site. See tech-spec §5f.
   - **Phase 2 — comments, mentions, replies (2026-09, migration 0044).**
     Anchors: creative · campaign · budget month · an allow-listed aggregate
     page (`COMMENTABLE_VIEWS` in lib/comments.ts). Invariants, all deliberate:
@@ -776,6 +814,19 @@ This app is deployed and in production use. Treat `main` as shippable.
       controls that take it and is always false. `FilterSheet` survives only
       for `FilterStrip` (the shared Dashboard/Trends strip, which is not a
       shell consumer).
+    - **ROW ICONS (2026-09): one map, keyed by the URL PARAM**
+      (`filter-icons.ts` — `platforms`→Share2, `status`/`statuses`→Activity,
+      `productIds`→Package, `types`→Shapes, `angles`→Tag, `priorities`→Flag
+      (the priority pill's own mark), `stages`→Layers, `objectives`→Target,
+      `rate`→Gauge, `channels`→Globe). A def may set `icon` and that WINS, but
+      the default comes from the key, so the same filter wears the same icon on
+      every page that has it — a page declares a filter, not a look. An
+      unmapped key renders NO icon and the rows still align (the slot is
+      reserved for the whole list or for none of it); `metricFilters` is the
+      one deliberate bare row. Level 1 only — the CHIPS stay icon-free, since a
+      chip is already the filter's name and value. `filter-icons.test.ts` pins
+      every declared def key to the map, so a new filter can't ship without
+      one.
     - **REMEMBERED FILTERS (migration 0049, 2026-09, user decision).** Every
       main filter persists PER USER, PER BRAND and applies again wherever the
       SAME key exists — the date-range rule, generalized ("apply it when that

@@ -84,6 +84,16 @@ export const users = pgTable("users", {
    * `preferredDateRange`; resolution: URL param → this → hidden.
    */
   includeExcluded: boolean("include_excluded"),
+  /**
+   * Which arriving notifications pop a TOAST while the app is open (migration
+   * 0050): `personal` (mentions, replies and events addressed to you — the
+   * default), `all`, or `off`. App-side enum, no DB enum — the vocabulary
+   * lives in `lib/notifications.ts` with the predicate that decides what
+   * "personal" means. Per-user and global, like the range and Excluded prefs.
+   * The badge, the tab title and the bell are NOT affected by `off`: this
+   * setting is about interruption, not about knowing.
+   */
+  toastScope: varchar("toast_scope", { length: 8 }).notNull().default("personal"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

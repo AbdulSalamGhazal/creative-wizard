@@ -330,3 +330,37 @@ body {
   text-transform: uppercase;
   letter-spacing: 0.14em;
 }
+
+/* The notification bell's arrival nudge — ONE brief shake when the unread
+   count goes UP, never a persistent animation (a permanently animated icon
+   stops being a signal within a day). Behind `prefers-reduced-motion`: with
+   the preference set the class simply does nothing, and the badge still
+   changes, so nobody loses the information. */
+@keyframes bell-shake {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+  15% {
+    transform: rotate(-12deg);
+  }
+  30% {
+    transform: rotate(10deg);
+  }
+  45% {
+    transform: rotate(-7deg);
+  }
+  60% {
+    transform: rotate(5deg);
+  }
+  75% {
+    transform: rotate(-2deg);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .bell-shake {
+    animation: bell-shake 700ms ease-in-out;
+    transform-origin: 50% 20%;
+  }
+}

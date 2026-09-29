@@ -130,6 +130,27 @@ const DIRECT_CATEGORY: Record<DirectEventType, NotificationCategory> = {
 };
 
 /**
+ * COMMENT events (phase 2). Like the direct ones they bypass routing — a
+ * comment reaches you because it mentioned you or replied to you, never
+ * because of a route — so they are not in `EVENT_TYPES` either. They ARE in
+ * the category map, because the page's chip, the bell and the arrival toaster
+ * all derive a category from the stored type, and a mention that reads
+ * "System" is the same bug in three places.
+ */
+export const COMMENT_EVENT_TYPES = {
+  MENTION: "comment.mention",
+  REPLY: "comment.reply",
+} as const;
+
+export type CommentEventType =
+  (typeof COMMENT_EVENT_TYPES)[keyof typeof COMMENT_EVENT_TYPES];
+
+const COMMENT_CATEGORY: Record<CommentEventType, NotificationCategory> = {
+  "comment.mention": "mention",
+  "comment.reply": "reply",
+};
+
+/**
  * The category a stored `type` belongs to. Rows outlive catalog entries — a
  * retired event type keeps its history — so an unknown type reads as "system"
  * rather than breaking the page's filter.
@@ -137,7 +158,11 @@ const DIRECT_CATEGORY: Record<DirectEventType, NotificationCategory> = {
 export function categoryForType(type: string): NotificationCategory {
   const routed = eventMeta(type);
   if (routed) return routed.category;
-  return DIRECT_CATEGORY[type as DirectEventType] ?? "system";
+  return (
+    COMMENT_CATEGORY[type as CommentEventType] ??
+    DIRECT_CATEGORY[type as DirectEventType] ??
+    "system"
+  );
 }
 
 /** Rows per page on /notifications. Server-paginated — never an unbounded read. */
@@ -173,4 +198,161 @@ export function safeHref(href: string | null | undefined): string | null {
   if (!href) return null;
   if (!href.startsWith("/") || href.startsWith("//")) return null;
   return href;
+}
+
+// ── Arrival toasts (2026-09) ─────────────────────────────────────────────────
+// Three escalations turn a quiet badge into something you actually notice: a
+// toast when something arrives while you are looking at the app, an unread
+// count in the TAB TITLE, and one brief shake of the bell. All three read the
+// SAME poll the bell already runs — no second timer, no second endpoint.
+
+/**
+ * Whose arrivals interrupt you. Per user, global across brands (migration
+ * 0050), default `personal` — a system feed that toasts everything trains
+ * people to dismiss without reading, which is the failure mode this setting
+ * exists to avoid.
+ *
+ * `off` silences the TOAST ONLY: the badge, the tab title and the bell keep
+ * working, because not being interrupted is different from not being told.
+ */
+export const TOAST_SCOPES = ["personal", "all", "off"] as const;
+export type ToastScope = (typeof TOAST_SCOPES)[number];
+
+export const TOAST_SCOPE_LABEL: Record<ToastScope, string> = {
+  personal: "Personal only",
+  all: "Everything",
+  off: "Off",
+};
+
+/** What each option means, for the menu's second line. */
+export const TOAST_SCOPE_HINT: Record<ToastScope, string> = {
+  personal: "Mentions, replies and anything addressed to you",
+  all: "Every notification you receive",
+  off: "Badge and bell only — never a toast",
+};
+
+export const DEFAULT_TOAST_SCOPE: ToastScope = "personal";
+
+export function isToastScope(value: unknown): value is ToastScope {
+  return typeof value === "string" && (TOAST_SCOPES as readonly string[]).includes(value);
+}
+
+/** A stored value that predates (or outlives) the vocabulary reads as the default. */
+export function toToastScope(value: unknown): ToastScope {
+  return isToastScope(value) ? value : DEFAULT_TOAST_SCOPE;
+}
+
+/** The categories that are personal BY DEFINITION — somebody addressed you. */
+const PERSONAL_CATEGORIES: readonly NotificationCategory[] = ["mention", "reply"];
+
+/**
+ * "Personal" — the one definition, derived rather than listed twice: a mention
+ * or a reply (somebody wrote to you), or a DIRECT event, which has exactly one
+ * natural recipient and is therefore about you by construction
+ * (`user.brand_granted` today). Everything else — an upload finishing, a plan
+ * saved — went to a routing list, not to you.
+ */
+export function isPersonalNotification(item: {
+  category?: string | null;
+  type?: string | null;
+}): boolean {
+  const category = item.category ?? (item.type ? categoryForType(item.type) : null);
+  if (category && (PERSONAL_CATEGORIES as readonly string[]).includes(category)) {
+    return true;
+  }
+  const type = item.type;
+  if (!type) return false;
+  return Object.values(DIRECT_EVENT_TYPES).includes(type as DirectEventType);
+}
+
+/** Does this arrival interrupt, under the user's setting? */
+export function shouldToast(
+  item: { category?: string | null; type?: string | null },
+  scope: ToastScope,
+): boolean {
+  if (scope === "off") return false;
+  if (scope === "all") return true;
+  return isPersonalNotification(item);
+}
+
+/** More new arrivals than this in one poll collapse into ONE summary toast. */
+export const TOAST_BURST_LIMIT = 3;
+
+export interface ToastableItem {
+  id: string;
+  category?: string | null;
+  type?: string | null;
+  read?: boolean;
+}
+
+/**
+ * The arrivals a poll should toast, given what was toasted last time.
+ *
+ * Rules, all deliberate:
+ *  · `lastToastedId === null` is a FIRST LOAD — nothing toasts. Opening the
+ *    app is not an event; only things that arrive while it is open are.
+ *  · items are newest-first (the feed's order), so everything ahead of the
+ *    pointer is new. A pointer that is no longer in the window (more arrived
+ *    than the feed returns, or it was archived) means everything shown is
+ *    newer than it — the burst rule below keeps that to one toast.
+ *  · an item already READ elsewhere never toasts.
+ */
+export function newArrivals(
+  items: readonly ToastableItem[],
+  lastToastedId: string | null,
+): ToastableItem[] {
+  if (items.length === 0) return [];
+  if (lastToastedId === null) return [];
+  const at = items.findIndex((i) => i.id === lastToastedId);
+  const fresh = at === -1 ? [...items] : items.slice(0, at);
+  return fresh.filter((i) => i.read !== true);
+}
+
+export type ToastPlan =
+  | { kind: "none" }
+  | { kind: "items"; items: ToastableItem[] }
+  | { kind: "summary"; count: number };
+
+/**
+ * What to show for one poll: nothing, a toast per arrival, or — past
+ * `TOAST_BURST_LIMIT` — one summary. A burst is usually a batch job finishing;
+ * six stacked toasts is noise, and "6 new notifications" is the same
+ * information in one line.
+ */
+export function toastPlan(
+  items: readonly ToastableItem[],
+  lastToastedId: string | null,
+  scope: ToastScope,
+): ToastPlan {
+  const fresh = newArrivals(items, lastToastedId).filter((i) => shouldToast(i, scope));
+  if (fresh.length === 0) return { kind: "none" };
+  if (fresh.length > TOAST_BURST_LIMIT) return { kind: "summary", count: fresh.length };
+  // Oldest first, so a stack reads top-down in the order things happened.
+  return { kind: "items", items: [...fresh].reverse() };
+}
+
+/** "4 new notifications" — the summary toast's line. */
+export function burstSummary(count: number): string {
+  return `${count} new notification${count === 1 ? "" : "s"}`;
+}
+
+/** Per-brand, per-browser pointer: the newest id this browser has toasted. */
+export function toastedStorageKey(accountId: string): string {
+  return `cw-toasted:${accountId}`;
+}
+
+/**
+ * The document title with the unread count in front — "(3) Ads", capped like
+ * the badge ("9+"). Any existing prefix is stripped first, so re-applying
+ * after a route change can never stack them ("(3) (2) Ads").
+ */
+export function titleWithUnread(title: string, unread: number): string {
+  const base = stripUnreadPrefix(title);
+  const badge = badgeCount(unread);
+  return badge ? `(${badge}) ${base}` : base;
+}
+
+/** The title without its "(N) " prefix — the inverse, so the pair is testable. */
+export function stripUnreadPrefix(title: string): string {
+  return title.replace(/^\(\d+\+?\)\s+/, "");
 }

@@ -9,6 +9,7 @@ import { getActiveAccountId } from "@/lib/tenant";
 import { writeFilterPrefs } from "@/db/queries/user-prefs";
 import { filterPrefsSchema } from "@/validators/user-prefs";
 import { decodePreferredRange, todayIso } from "@/lib/date-presets";
+import { isToastScope } from "@/lib/notifications";
 
 /**
  * Persist the user's chosen date range as their default. `value` is a preset
@@ -29,6 +30,31 @@ export async function setPreferredRange(value: string): Promise<void> {
     revalidatePath("/", "layout");
   } catch {
     // Remembering the range is best-effort; a failure must not break the pick.
+  }
+}
+
+/**
+ * Persist which arriving notifications may toast (migration 0050). SELF-ONLY —
+ * `requireAuth()` is the subject, there is no id in the input — validated
+ * against the vocabulary, and NOT audited: a preference change is churn, not
+ * history (the same reasoning as notification reads). `revalidatePath` so the
+ * layout re-renders with the new value, like the other two prefs here.
+ */
+export async function setToastScope(value: unknown): Promise<{ ok: boolean }> {
+  try {
+    if (!isToastScope(value)) return { ok: false };
+    const user = await requireAuth();
+    await db.update(users).set({ toastScope: value }).where(eq(users.id, user.id));
+    // The write is the point; refreshing the layout is a convenience, and
+    // outside a request scope (a test, a background call) it throws.
+    try {
+      revalidatePath("/", "layout");
+    } catch (err) {
+      console.warn("revalidatePath after toast-scope change failed:", err);
+    }
+    return { ok: true };
+  } catch {
+    return { ok: false };
   }
 }
 
