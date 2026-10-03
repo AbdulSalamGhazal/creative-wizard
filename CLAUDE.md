@@ -231,6 +231,19 @@ This app is deployed and in production use. Treat `main` as shippable.
       `prefers-reduced-motion`, and the FIRST loaded count is a baseline, not
       an increase (arriving at a page with unread items must not shake, for
       the same reason it must not toast).
+  - **THE PAGE READS LIKE A FEED (2026-10):** DAY GROUPS (Today · Yesterday ·
+    the date, labelled in UTC like every other date here), an actor AVATAR
+    (initials + a colour derived from the name, `lib/avatar.ts`) carrying the
+    category glyph, and a BURST COLLAPSE — consecutive same-anchor rows within
+    one day fold into "5 updates on «anchor»", expandable, with mark-read
+    acting on the GROUP. The grouping is pure (`groupNotifications`): runs must
+    be CONSECUTIVE (an unrelated row breaks one — the feed stays
+    chronological), never cross a day, and a single row is never wrapped.
+    Category glyphs live in the SAME map as the filter icons
+    (`filter-icons.ts` → `CATEGORY_ICONS`), so the app has one place that
+    decides what a concept looks like. Row actions appear on hover/focus and
+    are always visible where there is no hover — the comment menu's precedent.
+    Tabs, search, filters and pagination are unchanged.
   Vocabulary is `lib/notifications.ts` and everything derives from it —
   `EVENT_TYPES` (the routable catalog; the config tab's rows), the five
   categories (phase 1 produces `system` only), `POLL_MS` (the ONE polling knob),
@@ -288,6 +301,48 @@ This app is deployed and in production use. Treat `main` as shippable.
       neither hides the icon. Valid view paths DERIVE from `NAV_ITEMS` (admin
       included, `/notifications` excluded) — never re-list them. `/go/comment`
       lands with `?comment=<id>`, which opens the panel on that comment.
+    - **ANCHOR-FOLLOWING (2026-10, user decision).** A new TOP-LEVEL comment
+      also notifies everyone who has commented on that ANCHOR before (any
+      thread on it) — type `comment.anchor_activity`, category `reply`, worded
+      "«Actor» commented on «anchor» — where you commented". A REPLY still
+      reaches its own thread only: pinging every past commenter on the page for
+      a reply is noise. Recipients derive from the `comments` table itself (one
+      bounded `SELECT DISTINCT` inside the create transaction) — **no new
+      storage, no subscription table**.
+      - **ONE ROW PER PERSON PER COMMENT, by priority: mention > reply >
+        anchor activity** (`splitCommentRecipients`). Someone mentioned in a
+        comment that also replies to their thread on an anchor they follow gets
+        exactly ONE notification — the mention. The actor never hears about
+        their own comment.
+      - **Comment notifications are stamped with the ANCHOR** (`entity_type` /
+        `entity_id`), not the individual comment — the comment id already rides
+        in the href, and the anchor is what lets /notifications collapse "5
+        updates on «Hero v2»" into one row. Rows written before 2026-10 carry
+        the comment and simply never group.
+    - **ONE COMPOSER — create, reply AND edit (2026-10).** The edit path used
+      to be a bare `<Textarea>` beside the real composer, which is exactly why
+      typing "@" while editing did nothing: the picker, the keyboard handling
+      and the mention registration all lived in the composer. The fix is
+      STRUCTURAL — `CommentComposer` takes a value, a submit label and what
+      submitting MEANS, and all three callers use it — rather than a second
+      copy of the wiring that would drift again.
+      - **An edit can ADD a mention**, so `updateComment` takes the mention set
+        as it stands after the edit, diffs it, and notifies the NEW names only,
+        in the same transaction as the body write. **Removing a mention drops
+        its row but RETRACTS NOTHING** — you cannot un-tell someone, and the
+        notification they already received stays.
+      - **MARKDOWN-LITE (user-approved scope): bold, italic and `- ` bullet
+        lists. Nothing else — and LINKS ARE NOT MARKDOWN** (a bare http(s) URL
+        auto-links with `rel="noopener noreferrer nofollow"`; a markdown link
+        stays literal text, which is how `[x](javascript:…)` is refused).
+        Comments are stored as PLAIN TEXT; `lib/comment-markdown.ts` renders
+        them, and **it is the only place in the app that turns user input into
+        HTML**. ITS ORDER IS THE SECURITY MODEL: escape the whole body FIRST,
+        then transform — so a new pattern goes AFTER the escape, never before,
+        and is matched against escaped text. `CommentBody` is the one component
+        that sets that HTML. The toolbar (B · I · list · @, ⌘/Ctrl+B/I) only
+        INSERTS SYNTAX around the selection — the field never becomes a rich
+        editor, so what you see in the box is what is stored.
 
 - **Sparse audience snapshots: carry forward, never interpolate (2026-09).**
   `audience_snapshots` holds only the days somebody actually MEASURED an

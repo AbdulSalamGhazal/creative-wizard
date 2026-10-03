@@ -1,4 +1,5 @@
 import { PageShell } from "@/components/layout/page-shell";
+import { todayIso } from "@/lib/date-presets";
 import { PageHeader } from "@/components/layout/page-header";
 import { listNotifications, type NotificationTab } from "@/db/queries/notifications";
 import { isNotificationCategory } from "@/lib/notifications";
@@ -58,6 +59,9 @@ export default async function NotificationsPage({
         page={data.page}
         pageSize={data.pageSize}
         unread={data.unread}
+        // The day headers' clock, resolved on the SERVER in UTC — the house
+        // date discipline, so "Today" means the same thing for everyone.
+        today={todayIso()}
       />
     </PageShell>
   );

@@ -29,6 +29,7 @@ import {
 import { useCommentAnchor } from "@/components/comments/comment-anchor-context";
 import { CommentThread } from "@/components/comments/comment-thread";
 import { CommentComposer } from "@/components/comments/comment-composer";
+import { createComment } from "@/app/actions/comments";
 import type { CommentRow } from "@/db/queries/comments";
 
 /**
@@ -414,13 +415,29 @@ function CommentPanelBody({
             )}
             <CommentComposer
               key={`${anchorKey}:${replyTo ?? "root"}`}
-              anchorType={anchor.type}
-              anchorId={anchor.id}
-              parentId={replyTo}
               placeholder={replyTo ? "Write a reply…" : "Write a comment… (@ to mention)"}
-              onPosted={() => {
+              rows={replyTo ? 2 : 3}
+              submitLabel={replyTo ? "Reply" : "Post"}
+              ariaLabel={replyTo ? "Write a reply" : "Write a comment"}
+              // The VIEW is captured HERE, at submit time, from the LIVE
+              // location — what the reader was looking at when they posted.
+              onSubmit={(body, mentionUserIds) =>
+                createComment({
+                  anchorType: anchor.type,
+                  anchorId: anchor.id,
+                  parentId: replyTo,
+                  body,
+                  viewQuery:
+                    typeof window === "undefined"
+                      ? ""
+                      : window.location.search.replace(/^\?/, ""),
+                  mentionUserIds,
+                })
+              }
+              onSubmitted={() => {
                 setReplyTo(null);
                 void load();
+                router.refresh();
               }}
             />
           </div>

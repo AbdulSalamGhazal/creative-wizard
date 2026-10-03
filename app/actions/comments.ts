@@ -16,9 +16,12 @@ import {
 import { createNotifications } from "@/db/queries/notifications";
 import { COMMENT_EVENT_TYPES, categoryForType } from "@/lib/notifications";
 import {
+  anchorParticipants,
   anchorBelongsToAccount,
   getComment,
   insertMentions,
+  mentionsOf,
+  replaceMentions,
   lastCommentDeleter,
   threadParticipants,
 } from "@/db/queries/comments";
@@ -130,19 +133,31 @@ export async function createComment(input: unknown): Promise<CommentActionResult
       const commentId = row!.id;
       await insertMentions(tx, commentId, mentioned);
 
-      // Who hears about this, and how. A top-level comment with no mentions
-      // reaches nobody — commenting is not a way to page the team.
+      // Who hears about this, and how. A REPLY reaches its thread; a
+      // TOP-LEVEL comment reaches everyone who has commented on this anchor
+      // before (2026-10) — one bounded query, and only on the path that needs
+      // it. Priority is mention > reply > anchor activity, one row per person.
       const participants = parentId
         ? await threadParticipants(tx, acct, parentId)
         : [];
+      const followers = parentId
+        ? []
+        : await anchorParticipants(tx, acct, anchorType as CommentAnchorType, anchorId);
       const split = splitCommentRecipients({
         actorUserId: user.id,
         mentioned,
         participants,
+        anchorParticipants: followers,
       });
 
       const href = `/go/comment/${commentId}`;
       const preview = body.length > 140 ? `${body.slice(0, 139)}…` : body;
+      /**
+       * The notification is stamped with the ANCHOR, not the comment: the
+       * comment id already rides in the href, and stamping the anchor is what
+       * lets /notifications group "5 updates on «Hero v2»" into one row.
+       */
+      const entity = { entityType: anchorType, entityId: anchorId };
       await createNotifications(tx, [
         ...split.mention.map((recipientUserId) => ({
           accountId: acct,
@@ -153,8 +168,7 @@ export async function createComment(input: unknown): Promise<CommentActionResult
           body: preview,
           href,
           actorUserId: user.id,
-          entityType: "comment",
-          entityId: commentId,
+          ...entity,
         })),
         ...split.reply.map((recipientUserId) => ({
           accountId: acct,
@@ -165,8 +179,18 @@ export async function createComment(input: unknown): Promise<CommentActionResult
           body: preview,
           href,
           actorUserId: user.id,
-          entityType: "comment",
-          entityId: commentId,
+          ...entity,
+        })),
+        ...split.anchorActivity.map((recipientUserId) => ({
+          accountId: acct,
+          recipientUserId,
+          category: categoryForType(COMMENT_EVENT_TYPES.ANCHOR_ACTIVITY),
+          type: COMMENT_EVENT_TYPES.ANCHOR_ACTIVITY,
+          title: `${user.name} commented on ${anchor.label} — where you commented`,
+          body: preview,
+          href,
+          actorUserId: user.id,
+          ...entity,
         })),
       ]);
 
@@ -199,10 +223,64 @@ export async function updateComment(input: unknown): Promise<CommentActionResult
       return { ok: false, error: "You can only edit your own comments." };
     }
 
-    await db
-      .update(comments)
-      .set({ body: parsed.data.body, editedAt: new Date() })
-      .where(and(eq(comments.id, parsed.data.id), eq(comments.accountId, acct)));
+    /**
+     * AN EDIT CAN ADD A MENTION, and a mention that notifies nobody is a
+     * broken promise — the picker said "Notifying Sara". So the edit diffs the
+     * mention set and notifies the NEW names only, inside the same transaction
+     * as the body write. Removing a mention drops its row (nothing highlights
+     * any more) but RETRACTS NOTHING: you cannot un-tell someone.
+     */
+    const nextMentions = parsed.data.mentionUserIds;
+    let added: string[] = [];
+    if (nextMentions !== undefined) {
+      const members = new Set((await brandMembers()).map((m) => m.id));
+      const outsiders = nextMentions.filter((id) => !members.has(id));
+      if (outsiders.length > 0) {
+        return {
+          ok: false,
+          error: "You can only mention people with access to this brand.",
+        };
+      }
+    }
+    const anchor = await anchorBelongsToAccount(
+      existing.anchorType as CommentAnchorType,
+      existing.anchorId,
+      acct,
+    );
+
+    await db.transaction(async (tx) => {
+      await tx
+        .update(comments)
+        .set({ body: parsed.data.body, editedAt: new Date() })
+        .where(and(eq(comments.id, parsed.data.id), eq(comments.accountId, acct)));
+
+      if (nextMentions === undefined) return;
+      const before = new Set(await mentionsOf(tx, parsed.data.id));
+      const next = [...new Set(nextMentions)];
+      await replaceMentions(tx, parsed.data.id, next);
+      added = next.filter((id) => !before.has(id) && id !== user.id);
+      if (added.length === 0 || !anchor.ok) return;
+
+      const preview =
+        parsed.data.body.length > 140
+          ? `${parsed.data.body.slice(0, 139)}…`
+          : parsed.data.body;
+      await createNotifications(
+        tx,
+        added.map((recipientUserId) => ({
+          accountId: acct,
+          recipientUserId,
+          category: categoryForType(COMMENT_EVENT_TYPES.MENTION),
+          type: COMMENT_EVENT_TYPES.MENTION,
+          title: `${user.name} mentioned you on ${anchor.label}`,
+          body: preview,
+          href: `/go/comment/${parsed.data.id}`,
+          actorUserId: user.id,
+          entityType: existing.anchorType,
+          entityId: existing.anchorId,
+        })),
+      );
+    });
 
     revalidateComments();
     await logAudit({

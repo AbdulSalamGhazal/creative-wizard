@@ -196,6 +196,33 @@ export async function threadParticipants(
 }
 
 /**
+ * Everyone who has already commented on this ANCHOR — any thread on it, the
+ * authors only (a mention elsewhere on the page is not participation). ONE
+ * bounded query, inside the caller's transaction; deleted comments still
+ * count, because having said something is not undone by removing it.
+ */
+export async function anchorParticipants(
+  exec: Exec,
+  accountId: string,
+  anchorType: CommentAnchorType,
+  anchorId: string,
+): Promise<string[]> {
+  const rows = await exec
+    .selectDistinct({ authorUserId: comments.authorUserId })
+    .from(comments)
+    .where(
+      and(
+        eq(comments.accountId, accountId),
+        eq(comments.anchorType, anchorType),
+        eq(comments.anchorId, anchorId),
+      ),
+    );
+  return rows
+    .map((r) => r.authorUserId)
+    .filter((id): id is string => id !== null);
+}
+
+/**
  * The CURRENT path of what a comment is about — looked up at click time, which
  * is the whole reason the `/go/comment/[id]` resolver exists: creatives and
  * campaigns are addressed by NAME, and a rename would rot a stored link.
@@ -254,6 +281,30 @@ export async function insertMentions(
   await tx
     .insert(commentMentions)
     .values(unique.map((userId) => ({ commentId, userId })));
+}
+
+/** The user ids currently recorded as mentioned on one comment. */
+export async function mentionsOf(exec: Exec, commentId: string): Promise<string[]> {
+  const rows = await exec
+    .select({ userId: commentMentions.userId })
+    .from(commentMentions)
+    .where(eq(commentMentions.commentId, commentId));
+  return rows.map((r) => r.userId);
+}
+
+/**
+ * Replace one comment's mention rows with `userIds` — the edit path's writer.
+ * Removing a mention removes the ROW (the "@Name" is gone from the body, so
+ * nothing should highlight), but it never retracts a notification that was
+ * already delivered: you cannot un-tell someone.
+ */
+export async function replaceMentions(
+  exec: Exec,
+  commentId: string,
+  userIds: string[],
+): Promise<void> {
+  await exec.delete(commentMentions).where(eq(commentMentions.commentId, commentId));
+  await insertMentions(exec, commentId, userIds);
 }
 
 /**

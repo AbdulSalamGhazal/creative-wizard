@@ -157,6 +157,183 @@ describe("mentions", () => {
   });
 });
 
+describe("anchor-following — a new top-level comment reaches prior commenters", () => {
+  it("notifies everyone who has commented on this anchor, minus the author", async () => {
+    // Bob and Carol have both said something here before.
+    setUser(BOB, "Bob");
+    await createComment({ ...onCreative, body: "Bob was here" });
+    setUser(CAROL, "Carol");
+    await createComment({ ...onCreative, body: "Carol too" });
+    await db.delete(notifications);
+
+    setUser(ALICE, "Alice");
+    const res = await createComment({ ...onCreative, body: "Fresh eyes on this" });
+    expect(res.ok).toBe(true);
+
+    const rows = await db.select().from(notifications);
+    expect(rows.map((r) => r.recipientUserId).sort()).toEqual([BOB, CAROL].sort());
+    for (const row of rows) {
+      expect(row.type).toBe("comment.anchor_activity");
+      expect(row.category).toBe("reply"); // conversation, not a system event
+      expect(row.title).toContain("Alice commented on");
+      expect(row.title).toContain("where you commented");
+      expect(row.href).toBe(`/go/comment/${res.id}`);
+      // Stamped with the ANCHOR, which is what lets the page group a burst.
+      expect(row.entityType).toBe("creative");
+      expect(row.entityId).toBe(CREATIVE_1);
+    }
+  });
+
+  it("MENTION WINS over anchor-following — one row per person per comment", async () => {
+    setUser(BOB, "Bob");
+    await createComment({ ...onCreative, body: "Bob was here" });
+    setUser(CAROL, "Carol");
+    await createComment({ ...onCreative, body: "Carol too" });
+    await db.delete(notifications);
+
+    setUser(ALICE, "Alice");
+    await createComment({
+      ...onCreative,
+      body: "@Bob specifically",
+      mentionUserIds: [BOB],
+    });
+
+    const rows = await db.select().from(notifications);
+    expect(rows).toHaveLength(2);
+    const byUser = new Map(rows.map((r) => [r.recipientUserId, r]));
+    expect(byUser.get(BOB)?.category).toBe("mention");
+    expect(byUser.get(BOB)?.type).toBe("comment.mention");
+    expect(byUser.get(CAROL)?.type).toBe("comment.anchor_activity");
+  });
+
+  it("does NOT double up with a thread reply — the reply wins, and only once", async () => {
+    // Bob opens a thread; Carol has commented elsewhere on the same anchor.
+    setUser(BOB, "Bob");
+    const root = await createComment({ ...onCreative, body: "Thread root" });
+    setUser(CAROL, "Carol");
+    await createComment({ ...onCreative, body: "Separate comment" });
+    await db.delete(notifications);
+
+    // A REPLY reaches its thread only — not every past commenter on the page.
+    setUser(ALICE, "Alice");
+    await createComment({ ...onCreative, parentId: root.id, body: "Replying" });
+
+    const rows = await db.select().from(notifications);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.recipientUserId).toBe(BOB);
+    expect(rows[0]!.type).toBe("comment.reply");
+  });
+
+  it("stays on ITS anchor — commenting on a campaign doesn't ping a creative's people", async () => {
+    setUser(BOB, "Bob");
+    await createComment({ ...onCreative, body: "On the creative" });
+    await db.delete(notifications);
+
+    setUser(ALICE, "Alice");
+    await createComment({
+      anchorType: "campaign",
+      anchorId: CAMPAIGN_1,
+      body: "On the campaign",
+    });
+    expect(await db.select().from(notifications)).toHaveLength(0);
+  });
+
+  it("is account-scoped — another brand's commenters are not reachable", async () => {
+    // Bob comments on brand B's campaign.
+    setAccount(ACCOUNT_B);
+    setUser(BOB, "Bob");
+    await createComment({
+      anchorType: "campaign",
+      anchorId: CAMPAIGN_B,
+      body: "Brand B comment",
+    });
+    await db.delete(notifications);
+
+    // A comment in brand A on ITS creative reaches nobody from brand B.
+    setAccount(ACCOUNT_A);
+    setUser(ALICE, "Alice");
+    await createComment({ ...onCreative, body: "Brand A comment" });
+    expect(await db.select().from(notifications)).toHaveLength(0);
+  });
+});
+
+describe("editing can ADD a mention — and notifies it", () => {
+  it("notifies a newly added mention, once, with the mention wording", async () => {
+    const res = await createComment({ ...onCreative, body: "No mentions yet" });
+    await db.delete(notifications);
+
+    const edit = await updateComment({
+      id: res.id,
+      body: "No mentions yet @Bob",
+      mentionUserIds: [BOB],
+    });
+    expect(edit.ok).toBe(true);
+
+    const rows = await db.select().from(notifications);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.recipientUserId).toBe(BOB);
+    expect(rows[0]!.type).toBe("comment.mention");
+    expect(rows[0]!.title).toContain("Alice mentioned you on");
+  });
+
+  it("does not re-notify a mention that was already there", async () => {
+    const res = await createComment({
+      ...onCreative,
+      body: "@Bob look",
+      mentionUserIds: [BOB],
+    });
+    await db.delete(notifications);
+
+    await updateComment({
+      id: res.id,
+      body: "@Bob look again",
+      mentionUserIds: [BOB],
+    });
+    expect(await db.select().from(notifications)).toHaveLength(0);
+  });
+
+  it("REMOVING a mention drops the row but retracts nothing", async () => {
+    const res = await createComment({
+      ...onCreative,
+      body: "@Bob look",
+      mentionUserIds: [BOB],
+    });
+    const delivered = await db.select().from(notifications);
+    expect(delivered).toHaveLength(1);
+
+    await updateComment({ id: res.id, body: "never mind", mentionUserIds: [] });
+    // The highlight is gone…
+    const [thread] = await listComments("creative", CREATIVE_1);
+    expect(thread!.mentions).toEqual([]);
+    // …and the notification Bob already received still exists. You cannot
+    // un-tell someone.
+    expect(await db.select().from(notifications)).toHaveLength(1);
+  });
+
+  it("refuses a mention outside the brand, and writes nothing", async () => {
+    const res = await createComment({ ...onCreative, body: "Plain" });
+    const edit = await updateComment({
+      id: res.id,
+      body: "Plain @Outsider",
+      mentionUserIds: [OUTSIDER],
+    });
+    expect(edit.ok).toBe(false);
+    const [thread] = await listComments("creative", CREATIVE_1);
+    expect(thread!.body).toBe("Plain");
+  });
+
+  it("an edit that doesn't send mentions leaves them alone", async () => {
+    const res = await createComment({
+      ...onCreative,
+      body: "@Bob look",
+      mentionUserIds: [BOB],
+    });
+    await updateComment({ id: res.id, body: "@Bob look harder" });
+    const [thread] = await listComments("creative", CREATIVE_1);
+    expect(thread!.mentions.map((m) => m.userId)).toEqual([BOB]);
+  });
+});
+
 describe("replies", () => {
   it("notifies the thread — root author, repliers, prior mentions — minus the actor and anyone newly mentioned", async () => {
     // Alice opens a thread and mentions Carol.

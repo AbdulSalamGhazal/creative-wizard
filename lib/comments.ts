@@ -133,14 +133,23 @@ export interface RecipientSplit {
   mention: string[];
   /** Told "someone replied in a thread you're in" — category `reply`. */
   reply: string[];
+  /**
+   * Told "someone commented where you have commented" — ANCHOR-FOLLOWING
+   * (2026-10). The weakest claim on someone's attention, so it loses every
+   * overlap.
+   */
+  anchorActivity: string[];
 }
 
 /**
  * Who hears about one comment, and in which flavour.
  *
- * MENTION WINS: someone both mentioned in this comment and party to the thread
- * gets exactly one notification, the mention. Nobody ever gets two rows for one
- * comment, and the actor is never told about their own.
+ * ONE ROW PER PERSON PER COMMENT, highest claim first:
+ * **mention > reply > anchor activity**. Someone mentioned in a comment that
+ * also replies to their thread on an anchor they follow gets exactly ONE
+ * notification — the mention — and the actor is never told about their own.
+ * The priority is the point: a mention is "you specifically", a reply is "your
+ * conversation", anchor activity is "somewhere you have been".
  */
 export function splitCommentRecipients(input: {
   actorUserId: string;
@@ -149,16 +158,26 @@ export function splitCommentRecipients(input: {
   /**
    * The thread's participants — root author, every replier, and everyone
    * mentioned earlier in it. Empty for a top-level comment, which is why a
-   * top-level comment with no mentions notifies nobody.
+   * top-level comment with no mentions notifies nobody *through this bucket*.
    */
   participants: readonly string[];
+  /**
+   * Everyone who has commented on this ANCHOR before (any thread). Passed only
+   * for a TOP-LEVEL comment: a reply already reaches its own thread, and
+   * pinging every past commenter on the page for it would be noise.
+   */
+  anchorParticipants?: readonly string[];
 }): RecipientSplit {
   const mention = [...new Set(input.mentioned)].filter(
     (id) => id !== input.actorUserId,
   );
   const taken = new Set([...mention, input.actorUserId]);
   const reply = [...new Set(input.participants)].filter((id) => !taken.has(id));
-  return { mention, reply };
+  for (const id of reply) taken.add(id);
+  const anchorActivity = [...new Set(input.anchorParticipants ?? [])].filter(
+    (id) => !taken.has(id),
+  );
+  return { mention, reply, anchorActivity };
 }
 
 /**

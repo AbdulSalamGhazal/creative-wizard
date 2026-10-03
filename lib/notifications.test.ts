@@ -14,8 +14,13 @@ import {
   categoryForType,
   eventMeta,
   isEventType,
+  anchorLabelFromTitle,
+  burstLabel,
+  dayGroupLabel,
+  groupNotifications,
   isNotificationCategory,
   isPersonalNotification,
+  utcDay,
   isToastScope,
   newArrivals,
   safeHref,
@@ -270,5 +275,139 @@ describe("the tab title", () => {
     expect(titleWithUnread(once, 0)).toBe("Ads");
     expect(stripUnreadPrefix("(9+) Library")).toBe("Library");
     expect(stripUnreadPrefix("Library")).toBe("Library");
+  });
+});
+
+// ── The page's reading aids (2026-10) ───────────────────────────────────────
+
+describe("day groups", () => {
+  const today = "2026-10-04";
+
+  it("names today and yesterday, and dates everything older", () => {
+    expect(dayGroupLabel("2026-10-04", today)).toBe("Today");
+    expect(dayGroupLabel("2026-10-03", today)).toBe("Yesterday");
+    expect(dayGroupLabel("2026-09-28", today)).toBe("Sep 28, 2026");
+  });
+
+  it("reads the day in UTC, not the machine's timezone", () => {
+    // 23:30Z belongs to the 4th wherever the reader happens to be sitting.
+    expect(utcDay("2026-10-04T23:30:00.000Z")).toBe("2026-10-04");
+    expect(utcDay(new Date("2026-10-04T00:05:00.000Z"))).toBe("2026-10-04");
+  });
+});
+
+describe("burst collapse", () => {
+  const today = "2026-10-04";
+  const row = (
+    id: string,
+    at: string,
+    entity: [string, string] | null = ["creative", "c1"],
+  ) => ({
+    id,
+    createdAt: `${at}T10:00:00.000Z`,
+    entityType: entity?.[0] ?? null,
+    entityId: entity?.[1] ?? null,
+  });
+
+  it("folds a consecutive same-anchor run into ONE item", () => {
+    const groups = groupNotifications(
+      [
+        row("a", "2026-10-04"),
+        row("b", "2026-10-04"),
+        row("c", "2026-10-04"),
+      ],
+      today,
+    );
+    expect(groups).toHaveLength(1);
+    expect(groups[0]!.items).toHaveLength(1);
+    expect(groups[0]!.items[0]!.collapsed).toBe(true);
+    expect(groups[0]!.items[0]!.rows.map((r) => r.id)).toEqual(["a", "b", "c"]);
+  });
+
+  it("leaves a SINGLE row untouched — nothing hides behind a disclosure", () => {
+    const groups = groupNotifications([row("a", "2026-10-04")], today);
+    expect(groups[0]!.items[0]!.collapsed).toBe(false);
+    expect(groups[0]!.items[0]!.rows).toHaveLength(1);
+  });
+
+  it("breaks a run when something unrelated lands between", () => {
+    const groups = groupNotifications(
+      [
+        row("a", "2026-10-04"),
+        row("x", "2026-10-04", ["campaign", "k1"]),
+        row("b", "2026-10-04"),
+      ],
+      today,
+    );
+    // Chronology wins: three items, none collapsed.
+    expect(groups[0]!.items.map((i) => i.rows.length)).toEqual([1, 1, 1]);
+  });
+
+  it("NEVER merges across a day — yesterday's five aren't today's", () => {
+    const groups = groupNotifications(
+      [
+        row("a", "2026-10-04"),
+        row("b", "2026-10-04"),
+        row("c", "2026-10-03"),
+        row("d", "2026-10-03"),
+      ],
+      today,
+    );
+    expect(groups.map((g) => g.label)).toEqual(["Today", "Yesterday"]);
+    expect(groups[0]!.items[0]!.rows.map((r) => r.id)).toEqual(["a", "b"]);
+    expect(groups[1]!.items[0]!.rows.map((r) => r.id)).toEqual(["c", "d"]);
+  });
+
+  it("never groups rows with no anchor, however many there are", () => {
+    const groups = groupNotifications(
+      [row("a", "2026-10-04", null), row("b", "2026-10-04", null)],
+      today,
+    );
+    expect(groups[0]!.items).toHaveLength(2);
+    expect(groups[0]!.items.every((i) => !i.collapsed)).toBe(true);
+  });
+
+  it("keeps the feed's order inside and between groups", () => {
+    const groups = groupNotifications(
+      [
+        row("a", "2026-10-04"),
+        row("b", "2026-10-04"),
+        row("x", "2026-10-04", ["campaign", "k1"]),
+        row("y", "2026-10-02", ["campaign", "k1"]),
+      ],
+      today,
+    );
+    expect(groups.map((g) => g.day)).toEqual(["2026-10-04", "2026-10-02"]);
+    expect(groups[0]!.items.map((i) => i.rows[0]!.id)).toEqual(["a", "x"]);
+  });
+
+  it("phrases the collapsed line, with and without a name", () => {
+    expect(burstLabel(5, "Hero v2")).toBe("5 updates on Hero v2");
+    expect(burstLabel(1, "Hero v2")).toBe("1 update on Hero v2");
+    expect(burstLabel(3, null)).toBe("3 updates");
+  });
+
+  it("reads the anchor name back out of a comment title, conservatively", () => {
+    expect(
+      anchorLabelFromTitle("Sara mentioned you on Hero v2", COMMENT_EVENT_TYPES.MENTION),
+    ).toBe("Hero v2");
+    expect(
+      anchorLabelFromTitle(
+        "Omar commented on Hero v2 — where you commented",
+        COMMENT_EVENT_TYPES.ANCHOR_ACTIVITY,
+      ),
+    ).toBe("Hero v2");
+    // Not the comment family, or not the shape → name nothing rather than guess.
+    expect(anchorLabelFromTitle("Ads upload committed", "upload.committed")).toBeNull();
+    expect(anchorLabelFromTitle("Something happened", COMMENT_EVENT_TYPES.REPLY)).toBeNull();
+  });
+});
+
+describe("anchor-following is a reply, with its own type", () => {
+  it("categorises as reply, and is personal", () => {
+    expect(categoryForType(COMMENT_EVENT_TYPES.ANCHOR_ACTIVITY)).toBe("reply");
+    expect(
+      isPersonalNotification({ type: COMMENT_EVENT_TYPES.ANCHOR_ACTIVITY }),
+    ).toBe(true);
   });
 });

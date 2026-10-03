@@ -140,6 +140,14 @@ const DIRECT_CATEGORY: Record<DirectEventType, NotificationCategory> = {
 export const COMMENT_EVENT_TYPES = {
   MENTION: "comment.mention",
   REPLY: "comment.reply",
+  /**
+   * ANCHOR-FOLLOWING (2026-10, user decision): a new TOP-LEVEL comment tells
+   * everyone who has commented on that anchor before. Category `reply` — it is
+   * conversation, not a system event — but its own TYPE, so the wording can
+   * say what actually happened ("…where you commented") and the page can group
+   * it.
+   */
+  ANCHOR_ACTIVITY: "comment.anchor_activity",
 } as const;
 
 export type CommentEventType =
@@ -148,6 +156,7 @@ export type CommentEventType =
 const COMMENT_CATEGORY: Record<CommentEventType, NotificationCategory> = {
   "comment.mention": "mention",
   "comment.reply": "reply",
+  "comment.anchor_activity": "reply",
 };
 
 /**
@@ -355,4 +364,128 @@ export function titleWithUnread(title: string, unread: number): string {
 /** The title without its "(N) " prefix — the inverse, so the pair is testable. */
 export function stripUnreadPrefix(title: string): string {
   return title.replace(/^\(\d+\+?\)\s+/, "");
+}
+
+// ── The /notifications page's reading aids (2026-10) ────────────────────────
+// A feed is only useful if it can be SCANNED. Three pure helpers do that work
+// — day groups, a burst collapse, and the anchor key both depend on — so the
+// page stays a renderer and the rules are testable without a DOM.
+
+/** A row's day, in UTC — the house's date discipline, no local-time drift. */
+export function utcDay(date: Date | string): string {
+  return new Date(date).toISOString().slice(0, 10);
+}
+
+/**
+ * "Today" · "Yesterday" · "3 Oct 2026". Relative to `todayIso` so the caller
+ * owns the clock (and a test can fix it).
+ */
+export function dayGroupLabel(day: string, todayIso: string): string {
+  if (day === todayIso) return "Today";
+  const yesterday = new Date(`${todayIso}T00:00:00Z`);
+  yesterday.setUTCDate(yesterday.getUTCDate() - 1);
+  if (day === yesterday.toISOString().slice(0, 10)) return "Yesterday";
+  // en-US, the app's pinned locale (same as `monthLabel`) — one date dialect.
+  return new Date(`${day}T00:00:00Z`).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+}
+
+/**
+ * What a notification is ABOUT, for grouping: the entity it was stamped with.
+ * Comment notifications stamp the ANCHOR (the creative/campaign/view the
+ * conversation hangs on), not the individual comment — that is what makes "5
+ * updates on «Hero v2»" possible at all. A row with no entity never groups.
+ */
+export function anchorKeyOf(row: {
+  entityType: string | null;
+  entityId: string | null;
+}): string | null {
+  if (!row.entityType || !row.entityId) return null;
+  return `${row.entityType}:${row.entityId}`;
+}
+
+/** Consecutive same-anchor rows from this many upwards collapse into one. */
+export const BURST_COLLAPSE_MIN = 2;
+
+export interface NotificationGroupItem<T> {
+  /** Stable key for React, and the id a group's actions act through. */
+  key: string;
+  /** The rows this item stands for — one, or the whole collapsed run. */
+  rows: T[];
+  /** True when `rows` is a collapsed burst rather than a single row. */
+  collapsed: boolean;
+}
+
+export interface NotificationDayGroup<T> {
+  day: string;
+  label: string;
+  items: Array<NotificationGroupItem<T>>;
+}
+
+/**
+ * Group a page of notifications into DAYS, collapsing consecutive runs that
+ * share an anchor.
+ *
+ * Deliberate: runs must be CONSECUTIVE (an unrelated row between two updates
+ * breaks the run — the feed stays chronological, which is the only ordering a
+ * reader can trust) and never cross a day boundary (yesterday's five and
+ * today's one are not "six today"). A single row is never wrapped, so nothing
+ * hides behind a disclosure that didn't need one.
+ */
+export function groupNotifications<
+  T extends { id: string; createdAt: Date | string; entityType: string | null; entityId: string | null },
+>(rows: readonly T[], todayIso: string): Array<NotificationDayGroup<T>> {
+  const days: Array<NotificationDayGroup<T>> = [];
+  for (const row of rows) {
+    const day = utcDay(row.createdAt);
+    let group = days.at(-1);
+    if (!group || group.day !== day) {
+      group = { day, label: dayGroupLabel(day, todayIso), items: [] };
+      days.push(group);
+    }
+    const key = anchorKeyOf(row);
+    const last = group.items.at(-1);
+    const lastKey = last ? anchorKeyOf(last.rows[0]!) : null;
+    if (key !== null && last && lastKey === key) {
+      last.rows.push(row);
+      last.collapsed = last.rows.length >= BURST_COLLAPSE_MIN;
+      continue;
+    }
+    group.items.push({ key: row.id, rows: [row], collapsed: false });
+  }
+  return days;
+}
+
+/** "5 updates on Hero v2" — the collapsed row's line. */
+export function burstLabel(count: number, anchorLabel: string | null): string {
+  const what = anchorLabel ? ` on ${anchorLabel}` : "";
+  return `${count} update${count === 1 ? "" : "s"}${what}`;
+}
+
+/**
+ * The anchor's name for a collapsed burst, read back out of the TITLE.
+ *
+ * `notifications` stores no anchor label, and resolving one per group would be
+ * a query per distinct anchor for a cosmetic line — so this reads the title
+ * the producer wrote, and ONLY for the comment family, whose wording this
+ * codebase owns ("X mentioned you on «label»", "X commented on «label» — where
+ * you commented"). Anything else returns null and the burst simply says "5
+ * updates", which is still true. It is deliberately conservative: a title that
+ * doesn't match the shape names nothing rather than guessing.
+ */
+export function anchorLabelFromTitle(
+  title: string,
+  type: string,
+): string | null {
+  if (!Object.values(COMMENT_EVENT_TYPES).includes(type as CommentEventType)) {
+    return null;
+  }
+  const at = title.lastIndexOf(" on ");
+  if (at === -1) return null;
+  const tail = title.slice(at + 4).split(" — ")[0]!.trim();
+  return tail === "" ? null : tail;
 }

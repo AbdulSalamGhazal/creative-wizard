@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import {
   Archive,
@@ -20,10 +20,15 @@ import { cn } from "@/lib/utils";
 import {
   CATEGORY_LABEL,
   NOTIFICATION_CATEGORIES,
+  anchorLabelFromTitle,
+  burstLabel,
   categoryForType,
+  groupNotifications,
   safeHref,
   type NotificationCategory,
 } from "@/lib/notifications";
+import { categoryIcon } from "@/components/filters/filter-icons";
+import { avatarColor, initialsOf } from "@/lib/avatar";
 import {
   archiveAllRead,
   archiveNotification,
@@ -52,6 +57,7 @@ export function NotificationCenter({
   page,
   pageSize,
   unread,
+  today,
 }: {
   tab: NotificationTab;
   categories: string[];
@@ -61,12 +67,16 @@ export function NotificationCenter({
   page: number;
   pageSize: number;
   unread: number;
+  /** Today in UTC, from the server — the day headers' clock. */
+  today: string;
 }) {
   const router = useRouter();
   const pathname = usePathname();
   const [, startNav] = useNavTransition();
   const [isPending, startTransition] = useTransition();
   const [search, setSearch] = useState(q);
+  /** Which collapsed bursts the reader has opened (by their first row's id). */
+  const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
 
   // The URL is the state: a filtered view is shareable, and Back works.
   useEffect(() => setSearch(q), [q]);
@@ -118,6 +128,9 @@ export function NotificationCenter({
     }
     if (href) router.push(href);
   };
+
+  /** Day groups, with consecutive same-anchor runs collapsed. Pure helper. */
+  const days = useMemo(() => groupNotifications(rows, today), [rows, today]);
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const emptyCopy =
@@ -221,95 +234,128 @@ export function NotificationCenter({
         </div>
       </div>
 
-      {/* List */}
+      {/* List — day groups, each a chronological run of rows and collapsed
+          bursts. The grouping is pure (`groupNotifications`); this renders it. */}
       {rows.length === 0 ? (
         <div className="rounded-lg border border-dashed border-line bg-surface px-6 py-10 text-center">
           <h3 className="text-sm font-medium text-ink">{emptyCopy.title}</h3>
           <p className="mx-auto mt-1 max-w-prose text-xs text-ink-3">{emptyCopy.body}</p>
         </div>
       ) : (
-        <ul className="divide-y divide-line rounded-lg border border-line bg-surface">
-          {rows.map((row) => {
-            const category = categoryForType(row.type);
-            const unreadRow = row.readAt === null;
-            return (
-              <li
-                key={row.id}
-                className={cn(
-                  "flex flex-col gap-2 px-3 py-3 sm:flex-row sm:items-start",
-                  unreadRow && "bg-[var(--brand-soft)]/30",
-                )}
-              >
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="rounded-sm border border-line px-1.5 py-0.5 text-[10px] text-ink-3">
-                      {CATEGORY_LABEL[category]}
-                    </span>
-                    <span className="text-[11px] text-ink-3">
-                      {row.actorName ?? "System"} · {relativeTime(row.createdAt)}
-                    </span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => open(row)}
-                    className={cn(
-                      "mt-1 block text-left text-sm",
-                      unreadRow ? "font-medium text-ink" : "text-ink-2",
-                      safeHref(row.href) && "hover:underline",
-                    )}
-                  >
-                    {row.title}
-                  </button>
-                  {row.body && (
-                    <p className="mt-0.5 line-clamp-2 text-xs text-ink-3">{row.body}</p>
-                  )}
-                </div>
-
-                {/* Row actions stay reachable at 375px: they wrap under the
-                    text rather than being squeezed beside it. */}
-                <div className="flex shrink-0 items-center gap-1.5 sm:pt-1">
-                  {row.archivedAt === null ? (
-                    <>
-                      {unreadRow && (
-                        <Button
+        <div className="space-y-4">
+          {days.map((day) => (
+            <section key={day.day} className="space-y-1.5">
+              <h3 className="text-label text-ink-3">{day.label}</h3>
+              <ul className="divide-y divide-line rounded-lg border border-line bg-surface">
+                {day.items.map((item) => {
+                  const first = item.rows[0]!;
+                  const isOpen = expanded.has(item.key);
+                  const unreadInGroup = item.rows.filter((r) => r.readAt === null);
+                  if (!item.collapsed) {
+                    return (
+                      <li key={item.key}>
+                        <NotificationRow
+                          row={first}
+                          isPending={isPending}
+                          onOpen={open}
+                          onAct={act}
+                        />
+                      </li>
+                    );
+                  }
+                  return (
+                    <li key={item.key} className="px-3 py-2">
+                      {/* ONE row for a run of updates on the same thing. The
+                          count is the point — five lines saying "Sara
+                          commented" tell you less than one saying five. */}
+                      <div className="group/burst flex flex-wrap items-center gap-2">
+                        <button
                           type="button"
-                          variant="ghost"
-                          size="xs"
-                          disabled={isPending}
-                          onClick={() => act(() => markNotificationRead({ id: row.id }))}
+                          onClick={() =>
+                            setExpanded((prev) => {
+                              const next = new Set(prev);
+                              if (next.has(item.key)) next.delete(item.key);
+                              else next.add(item.key);
+                              return next;
+                            })
+                          }
+                          aria-expanded={isOpen}
+                          className="inline-flex min-w-0 items-center gap-2 text-left text-sm text-ink"
                         >
-                          <Check className="h-3.5 w-3.5" />
-                          Read
-                        </Button>
+                          <ChevronRight
+                            className={cn(
+                              "h-3.5 w-3.5 shrink-0 text-ink-3 transition-transform",
+                              isOpen && "rotate-90",
+                            )}
+                            aria-hidden
+                          />
+                          <span className="truncate">
+                            {burstLabel(
+                              item.rows.length,
+                              anchorLabelFromTitle(first.title, first.type),
+                            )}
+                          </span>
+                          {unreadInGroup.length > 0 && (
+                            <span className="num rounded-full bg-brand px-1.5 text-[10px] leading-4 text-[var(--primary-foreground)]">
+                              {unreadInGroup.length}
+                            </span>
+                          )}
+                        </button>
+                        <span className="text-[11px] text-ink-3">
+                          {relativeTime(first.createdAt)}
+                        </span>
+                        {/* Mark-read acts on the GROUP: the collapse is the row
+                            now, so its action has to be the row's action. */}
+                        <span
+                          className={cn(
+                            "ml-auto flex items-center gap-1.5",
+                            ACTION_REVEAL,
+                            "group-hover/burst:opacity-100 group-focus-within/burst:opacity-100",
+                          )}
+                        >
+                          {unreadInGroup.length > 0 && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="xs"
+                              disabled={isPending}
+                              onClick={() =>
+                                act(async () => {
+                                  for (const r of unreadInGroup) {
+                                    await markNotificationRead({ id: r.id });
+                                  }
+                                  return { ok: true };
+                                })
+                              }
+                            >
+                              <Check className="h-3.5 w-3.5" />
+                              Read all
+                            </Button>
+                          )}
+                        </span>
+                      </div>
+                      {isOpen && (
+                        <ul className="mt-1 divide-y divide-line border-t border-line">
+                          {item.rows.map((row) => (
+                            <li key={row.id}>
+                              <NotificationRow
+                                row={row}
+                                nested
+                                isPending={isPending}
+                                onOpen={open}
+                                onAct={act}
+                              />
+                            </li>
+                          ))}
+                        </ul>
                       )}
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="xs"
-                        disabled={isPending}
-                        onClick={() => act(() => archiveNotification({ id: row.id }))}
-                      >
-                        <Archive className="h-3.5 w-3.5" />
-                        Clear
-                      </Button>
-                    </>
-                  ) : (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="xs"
-                      disabled={isPending}
-                      onClick={() => act(() => unarchiveNotification({ id: row.id }))}
-                    >
-                      <ArchiveRestore className="h-3.5 w-3.5" />
-                      Restore
-                    </Button>
-                  )}
-                </div>
-              </li>
-            );
-          })}
-        </ul>
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          ))}
+        </div>
       )}
 
       {/* Pager */}
@@ -345,6 +391,134 @@ export function NotificationCenter({
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * Row actions appear on HOVER or FOCUS and are ALWAYS visible where there is no
+ * hover (touch) — the comment menu's precedent, so the list stays quiet
+ * without hiding anything from a finger.
+ */
+const ACTION_REVEAL =
+  "opacity-0 transition-opacity focus-within:opacity-100 [@media(hover:none)]:opacity-100";
+
+/** One notification: who, what, when — and the actions, on hover. */
+function NotificationRow({
+  row,
+  nested = false,
+  isPending,
+  onOpen,
+  onAct,
+}: {
+  row: NotificationRow;
+  /** Inside an expanded burst — indented, no day context of its own. */
+  nested?: boolean;
+  isPending: boolean;
+  onOpen: (row: NotificationRow) => void;
+  onAct: (fn: () => Promise<{ ok: boolean; error?: string; affected?: number }>) => void;
+}) {
+  const category = categoryForType(row.type);
+  const Icon = categoryIcon(category);
+  const unreadRow = row.readAt === null;
+  const actor = row.actorName;
+
+  return (
+    <div
+      className={cn(
+        "group/row flex gap-3 px-3 py-3",
+        nested && "pl-6",
+        unreadRow && "bg-[var(--brand-soft)]/30",
+      )}
+    >
+      {/* Who it was — initials in their own deterministic colour — with the
+          category glyph tucked against it, so the kind reads at a glance. */}
+      <span className="relative mt-0.5 shrink-0" aria-hidden>
+        <span
+          className="flex h-7 w-7 items-center justify-center rounded-full text-[10px] font-semibold text-[var(--primary-foreground)]"
+          style={{ background: actor ? avatarColor(actor) : "var(--surface-3)" }}
+        >
+          {actor ? initialsOf(actor) : <Icon className="h-3.5 w-3.5 text-ink-2" />}
+        </span>
+        {actor && (
+          <span className="absolute -bottom-0.5 -right-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full border border-line bg-surface">
+            <Icon className="h-2.5 w-2.5 text-ink-3" />
+          </span>
+        )}
+      </span>
+
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="rounded-sm border border-line px-1.5 py-0.5 text-[10px] text-ink-3">
+            {CATEGORY_LABEL[category]}
+          </span>
+          <span className="text-[11px] text-ink-3">
+            {actor ?? "System"} · {relativeTime(row.createdAt)}
+          </span>
+        </div>
+        <button
+          type="button"
+          onClick={() => onOpen(row)}
+          className={cn(
+            "mt-1 block text-left text-sm",
+            unreadRow ? "font-medium text-ink" : "text-ink-2",
+            safeHref(row.href) && "hover:underline",
+          )}
+        >
+          {row.title}
+        </button>
+        {row.body && (
+          <p className="mt-0.5 line-clamp-2 text-xs text-ink-3">{row.body}</p>
+        )}
+      </div>
+
+      <div
+        className={cn(
+          "flex shrink-0 items-start gap-1.5",
+          ACTION_REVEAL,
+          "group-hover/row:opacity-100",
+        )}
+      >
+        {row.archivedAt === null ? (
+          <>
+            {unreadRow && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="xs"
+                disabled={isPending}
+                aria-label="Mark as read"
+                onClick={() => onAct(() => markNotificationRead({ id: row.id }))}
+              >
+                <Check className="h-3.5 w-3.5" />
+                Read
+              </Button>
+            )}
+            <Button
+              type="button"
+              variant="ghost"
+              size="xs"
+              disabled={isPending}
+              aria-label="Clear notification"
+              onClick={() => onAct(() => archiveNotification({ id: row.id }))}
+            >
+              <Archive className="h-3.5 w-3.5" />
+              Clear
+            </Button>
+          </>
+        ) : (
+          <Button
+            type="button"
+            variant="ghost"
+            size="xs"
+            disabled={isPending}
+            onClick={() => onAct(() => unarchiveNotification({ id: row.id }))}
+          >
+            <ArchiveRestore className="h-3.5 w-3.5" />
+            Restore
+          </Button>
+        )}
+      </div>
     </div>
   );
 }

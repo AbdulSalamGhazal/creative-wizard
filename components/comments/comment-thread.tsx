@@ -4,7 +4,6 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { Eye, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,12 +13,12 @@ import {
 import { relativeTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import {
-  COMMENT_MAX,
-  highlightMentions,
   normalizeQuery,
   showViewChip,
 } from "@/lib/comments";
 import { deleteComment, restoreComment, updateComment } from "@/app/actions/comments";
+import { CommentBody } from "@/components/comments/comment-body";
+import { CommentComposer } from "@/components/comments/comment-composer";
 import type { CommentRow } from "@/db/queries/comments";
 
 /** How long the Undo toast stays — and so how long a delete can be undone. */
@@ -61,7 +60,6 @@ export function CommentThread({
 }) {
   const [isPending, startTransition] = useTransition();
   const [editing, setEditing] = useState<string | null>(null);
-  const [draft, setDraft] = useState("");
   const endRef = useRef<HTMLDivElement>(null);
   const highlightRef = useRef<HTMLDivElement>(null);
 
@@ -81,18 +79,6 @@ export function CommentThread({
     list.push(c);
     repliesOf.set(c.parentId, list);
   }
-
-  const saveEdit = (id: string) => {
-    startTransition(async () => {
-      const res = await updateComment({ id, body: draft.trim() });
-      if (!res.ok) {
-        toast.error(res.error ?? "Couldn't save that edit.");
-        return;
-      }
-      setEditing(null);
-      onChanged();
-    });
-  };
 
   const undo = async (id: string) => {
     const res = await restoreComment({ id });
@@ -128,10 +114,7 @@ export function CommentThread({
     const hasView = !deleted && normalizeQuery(comment.viewQuery) !== "";
     const differs = !deleted && showViewChip(comment.viewQuery, currentQuery);
     const highlighted = highlightId === comment.id;
-    const segments = highlightMentions(
-      comment.body,
-      comment.mentions.map((m) => m.name ?? ""),
-    );
+    const mentionNames = comment.mentions.map((m) => m.name ?? "");
 
     return (
       <div
@@ -191,7 +174,6 @@ export function CommentThread({
                   <DropdownMenuItem
                     onSelect={() => {
                       setEditing(comment.id);
-                      setDraft(comment.body);
                     }}
                   >
                     <Pencil className="h-3.5 w-3.5" />
@@ -216,40 +198,31 @@ export function CommentThread({
         {deleted ? (
           <p className="mt-1 text-xs italic text-ink-3">Comment deleted</p>
         ) : editing === comment.id ? (
-          <div className="mt-1 space-y-2" onClick={(e) => e.stopPropagation()}>
-            <Textarea
-              value={draft}
-              onChange={(e) => setDraft(e.target.value.slice(0, COMMENT_MAX))}
+          // THE SAME COMPOSER as create and reply — which is why "@" works
+          // here at all. It was a bare Textarea until 2026-10.
+          <div className="mt-1" onClick={(e) => e.stopPropagation()}>
+            <CommentComposer
+              initialValue={comment.body}
+              initialMentions={comment.mentions
+                .filter((m) => m.name !== null)
+                .map((m) => ({ id: m.userId, name: m.name! }))}
               rows={3}
-              className="text-sm"
-              aria-label="Edit comment"
+              autoFocus
+              submitLabel="Save"
+              ariaLabel="Edit comment"
+              placeholder="Edit your comment…"
+              onSubmit={(body, mentionUserIds) =>
+                updateComment({ id: comment.id, body, mentionUserIds })
+              }
+              onSubmitted={() => {
+                setEditing(null);
+                onChanged();
+              }}
+              onCancel={() => setEditing(null)}
             />
-            <div className="flex items-center gap-2">
-              <Button
-                type="button"
-                size="xs"
-                disabled={draft.trim() === "" || isPending}
-                onClick={() => saveEdit(comment.id)}
-              >
-                Save
-              </Button>
-              <Button type="button" variant="ghost" size="xs" onClick={() => setEditing(null)}>
-                Cancel
-              </Button>
-            </div>
           </div>
         ) : (
-          <p className="mt-1 whitespace-pre-wrap text-sm text-ink-2">
-            {segments.map((seg, i) =>
-              seg.mention ? (
-                <span key={i} className="rounded-sm bg-[var(--brand-soft)] px-1 text-ink">
-                  {seg.text}
-                </span>
-              ) : (
-                <span key={i}>{seg.text}</span>
-              ),
-            )}
-          </p>
+          <CommentBody body={comment.body} mentionNames={mentionNames} />
         )}
 
         {!deleted && editing !== comment.id && (

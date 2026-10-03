@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
-import { AtSign, Send } from "lucide-react";
+import { AtSign, Bold, Italic, List, Send } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -18,54 +17,76 @@ import {
   detectMentionQuery,
   insertMentionToken,
   matchMembers,
-  type CommentAnchorType,
   type MentionQuery,
 } from "@/lib/comments";
-import { createComment } from "@/app/actions/comments";
+import { applyMarkdownTool, type MarkdownTool } from "@/lib/comment-markdown";
 
-interface Member {
+export interface ComposerMember {
   id: string;
   name: string;
   email?: string | null;
 }
 
+export interface ComposerResult {
+  ok: boolean;
+  error?: string;
+}
+
 /**
- * The composer: a body, INLINE @ mentions, and — the point of the whole
- * feature — the VIEW captured at post time.
+ * THE ONE COMPOSER — create, reply AND edit (2026-10).
+ *
+ * It used to be the create/reply composer only, and the edit path was a bare
+ * `<Textarea>` beside it. That is why typing "@" while editing did nothing: the
+ * picker, the keyboard handling and the mention registration all lived here,
+ * and the edit path had none of them. The fix is STRUCTURAL — one component,
+ * three callers — rather than a second copy of the wiring that would drift
+ * again. The caller supplies the starting value, the submit label and what
+ * submitting MEANS; everything about editing text is in here.
  *
  * Typing "@" (at the start, or after a space) opens the member list right
  * above the composer; typing on filters it by name or email; ↑/↓ move, Enter or
  * Tab inserts "@Name" and registers the mention, Escape closes and leaves the
- * "@" as plain text. Mentions still travel as explicit ids — the text is never
- * parsed at submit — and a name deleted from the body before posting is simply
- * not sent.
+ * "@" as plain text. Mentions travel as explicit ids — the text is never
+ * parsed at submit — and a name deleted from the body before submitting is
+ * simply not sent. On an EDIT the caller seeds the mentions already recorded,
+ * so the same rules decide what survives.
  *
- * The capture reads the LIVE location when Post is pressed, not when the panel
- * rendered: what the reader was looking at when they hit Post is what the
- * comment is about.
+ * MARKDOWN-LITE: the toolbar inserts the syntax (**bold**, *italic*, "- "
+ * lists) around the selection; ⌘/Ctrl+B and ⌘/Ctrl+I do the same from the
+ * keyboard. The body is stored as PLAIN TEXT — rendering is
+ * `lib/comment-markdown.ts`'s job, and nothing here ever produces HTML.
  */
 export function CommentComposer({
-  anchorType,
-  anchorId,
-  parentId = null,
+  initialValue = "",
+  initialMentions = [],
   placeholder = "Write a comment…",
   autoFocus = false,
-  onPosted,
+  rows = 3,
+  submitLabel = "Post",
+  ariaLabel = "Write a comment",
+  onSubmit,
+  onSubmitted,
   onCancel,
 }: {
-  anchorType: CommentAnchorType;
-  anchorId: string;
-  parentId?: string | null;
+  /** The text to start from — "" to create, the stored body to edit. */
+  initialValue?: string;
+  /** Mentions already recorded (edit), so removing one is detectable. */
+  initialMentions?: ComposerMember[];
   placeholder?: string;
   autoFocus?: boolean;
-  onPosted?: () => void;
+  rows?: number;
+  submitLabel?: string;
+  ariaLabel?: string;
+  /** What submitting means. The composer owns the text; the caller owns the verb. */
+  onSubmit: (body: string, mentionUserIds: string[]) => Promise<ComposerResult>;
+  /** Ran after a successful submit (clear, close, refresh — the caller's call). */
+  onSubmitted?: () => void;
   onCancel?: () => void;
 }) {
-  const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const [body, setBody] = useState("");
-  const [mentions, setMentions] = useState<Member[]>([]);
-  const [members, setMembers] = useState<Member[] | null>(null);
+  const [body, setBody] = useState(initialValue);
+  const [mentions, setMentions] = useState<ComposerMember[]>(initialMentions);
+  const [members, setMembers] = useState<ComposerMember[] | null>(null);
   const [token, setToken] = useState<MentionQuery | null>(null);
   /** The "@" position Escape dismissed — stays closed until you leave it. */
   const [dismissedAt, setDismissedAt] = useState<number | null>(null);
@@ -85,7 +106,7 @@ export function CommentComposer({
       try {
         const res = await fetch("/api/brand-members", { cache: "no-store" });
         if (!res.ok) return;
-        const data = (await res.json()) as { members: Member[] };
+        const data = (await res.json()) as { members: ComposerMember[] };
         if (live) setMembers(data.members ?? []);
       } catch {
         if (live) setMembers([]);
@@ -104,7 +125,24 @@ export function CommentComposer({
     if (next?.query !== token?.query) setCursor(0);
   };
 
-  const pick = (member: Member) => {
+  /** Toolbar + shortcut: insert markdown syntax around the selection. */
+  const applyTool = (tool: MarkdownTool) => {
+    const el = textareaRef.current;
+    if (!el) return;
+    const next = applyMarkdownTool(
+      body,
+      el.selectionStart ?? body.length,
+      el.selectionEnd ?? body.length,
+      tool,
+    );
+    setBody(next.text.slice(0, COMMENT_MAX));
+    requestAnimationFrame(() => {
+      el.focus();
+      el.setSelectionRange(next.start, next.end);
+    });
+  };
+
+  const pick = (member: ComposerMember) => {
     const el = textareaRef.current;
     if (!token || !el) return;
     const caret = el.selectionStart ?? body.length;
@@ -139,31 +177,22 @@ export function CommentComposer({
     });
   };
 
-  const post = () => {
+  const submit = () => {
     const text = body.trim();
     if (!text) return;
-    const search =
-      typeof window === "undefined" ? "" : window.location.search.replace(/^\?/, "");
-
     startTransition(async () => {
-      const res = await createComment({
-        anchorType,
-        anchorId,
-        parentId,
-        body: text,
-        viewQuery: search,
-        // Only the mentions whose "@Name" survived editing actually count.
-        mentionUserIds: activeMentions(text, mentions).map((m) => m.id),
-      });
+      // Only the mentions whose "@Name" survived editing actually count — on
+      // an edit that is also how a REMOVED mention stops being one.
+      const res = await onSubmit(
+        text,
+        activeMentions(text, mentions).map((m) => m.id),
+      );
       if (!res.ok) {
-        toast.error(res.error ?? "Couldn't post that comment.");
+        toast.error(res.error ?? "Couldn't save that.");
         return;
       }
-      setBody("");
-      setMentions([]);
       setToken(null);
-      onPosted?.();
-      router.refresh();
+      onSubmitted?.();
     });
   };
 
@@ -192,9 +221,9 @@ export function CommentComposer({
               }
               placeholder={placeholder}
               autoFocus={autoFocus}
-              rows={parentId ? 2 : 3}
+              rows={rows}
               className="min-h-16 text-sm"
-              aria-label={parentId ? "Write a reply" : "Write a comment"}
+              aria-label={ariaLabel}
               aria-expanded={pickerOpen}
               aria-autocomplete="list"
               onKeyDown={(e) => {
@@ -226,11 +255,17 @@ export function CommentComposer({
                     return;
                   }
                 }
-                // Enter posts, Shift+Enter breaks the line — the convention
+                // ⌘/Ctrl+B and ⌘/Ctrl+I, the shortcuts every editor has.
+                if ((e.metaKey || e.ctrlKey) && (e.key === "b" || e.key === "i")) {
+                  e.preventDefault();
+                  applyTool(e.key === "b" ? "bold" : "italic");
+                  return;
+                }
+                // Enter submits, Shift+Enter breaks the line — the convention
                 // every chat surface uses.
                 if (e.key === "Enter" && !e.shiftKey) {
                   e.preventDefault();
-                  post();
+                  submit();
                 }
                 if (e.key === "Escape" && onCancel) onCancel();
               }}
@@ -285,18 +320,23 @@ export function CommentComposer({
       </Popover>
 
       <div className="flex flex-wrap items-center gap-2">
-        {/* Secondary now: typing "@" is the primary way in. The button just
-            types the "@" for you. */}
-        <Button
-          type="button"
-          variant="ghost"
-          size="xs"
-          onClick={startMention}
-          className="text-ink-3"
-        >
-          <AtSign className="h-3 w-3" />
-          Mention
-        </Button>
+        {/* The tools INSERT SYNTAX — they never switch the field into a rich
+            editor. What you see in the box is what is stored. */}
+        <div className="flex items-center gap-0.5">
+          <ToolButton label="Bold (⌘B)" onClick={() => applyTool("bold")}>
+            <Bold className="h-3 w-3" />
+          </ToolButton>
+          <ToolButton label="Italic (⌘I)" onClick={() => applyTool("italic")}>
+            <Italic className="h-3 w-3" />
+          </ToolButton>
+          <ToolButton label="Bullet list" onClick={() => applyTool("list")}>
+            <List className="h-3 w-3" />
+          </ToolButton>
+          {/* Typing "@" is still the primary way in; the button types it. */}
+          <ToolButton label="Mention someone" onClick={startMention}>
+            <AtSign className="h-3 w-3" />
+          </ToolButton>
+        </div>
 
         {activeMentions(body, mentions).length > 0 && (
           <span className="min-w-0 truncate text-[11px] text-ink-3">
@@ -318,14 +358,44 @@ export function CommentComposer({
           <Button
             type="button"
             size="xs"
-            onClick={post}
+            onClick={submit}
             disabled={body.trim() === "" || isPending}
           >
             <Send className="h-3 w-3" />
-            {parentId ? "Reply" : "Post"}
+            {submitLabel}
           </Button>
         </span>
       </div>
     </div>
+  );
+}
+
+/** One toolbar button — icon only, with the name in its tooltip and label. */
+function ToolButton({
+  label,
+  onClick,
+  children,
+}: {
+  label: string;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="xs"
+      // mousedown, not click: the textarea keeps its focus and its selection,
+      // which is the thing the tool is about to wrap.
+      onMouseDown={(e) => {
+        e.preventDefault();
+        onClick();
+      }}
+      aria-label={label}
+      title={label}
+      className="h-6 w-6 p-0 text-ink-3"
+    >
+      {children}
+    </Button>
   );
 }

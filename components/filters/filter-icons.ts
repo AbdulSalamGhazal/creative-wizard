@@ -1,14 +1,19 @@
 import {
   Activity,
+  AtSign,
+  Bell,
+  Clock,
   Flag,
   Gauge,
   Globe,
   Layers,
   Package,
+  Reply,
   Share2,
   Shapes,
   Tag,
   Target,
+  TriangleAlert,
   type LucideIcon,
 } from "lucide-react";
 import type { FilterDef } from "@/components/filters/filter-model";
@@ -49,4 +54,24 @@ export function filterIcon(def: FilterDef): LucideIcon | null {
  *  for all of them or none, so labels line up either way. */
 export function anyFilterIcon(defs: readonly FilterDef[]): boolean {
   return defs.some((d) => filterIcon(d) !== null);
+}
+
+/**
+ * NOTIFICATION CATEGORY glyphs, in the SAME map file as the filter icons
+ * (2026-10) — one place where the app decides what a concept looks like. The
+ * two keyspaces don't overlap today (filters are URL params, these are
+ * categories), and keeping them together is what stops a third icon map from
+ * appearing the next time something needs a glyph.
+ */
+export const CATEGORY_ICONS: Readonly<Record<string, LucideIcon>> = {
+  system: Bell,
+  mention: AtSign,
+  reply: Reply,
+  alert: TriangleAlert,
+  reminder: Clock,
+};
+
+/** A category's glyph, or the system bell for a category nobody mapped. */
+export function categoryIcon(category: string): LucideIcon {
+  return CATEGORY_ICONS[category] ?? Bell;
 }

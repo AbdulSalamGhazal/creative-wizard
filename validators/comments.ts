@@ -70,6 +70,13 @@ export const createCommentSchema = z
 export const updateCommentSchema = z.object({
   id: z.string().uuid(),
   body: bodySchema,
+  /**
+   * The mention set AS IT STANDS AFTER THE EDIT — the composer sends the whole
+   * set, not a diff, because the server is the only place that can decide what
+   * is new (and therefore what notifies). Absent = "no change", so an older
+   * client editing a body can't silently drop its mentions.
+   */
+  mentionUserIds: z.array(z.string().uuid()).max(50).optional(),
 });
 
 export const deleteCommentSchema = z.object({ id: z.string().uuid() });
