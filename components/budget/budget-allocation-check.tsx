@@ -51,13 +51,18 @@ export function BudgetAllocationCheck({
   month,
   data,
   currency,
-  elapsedDays,
+  coverageDay,
   isCurrentMonth,
 }: {
   month: string;
   data: BudgetMonthData;
   currency: BudgetCurrency;
-  elapsedDays: number;
+  /**
+   * How far each platform's comparison may count — DATA COVERAGE, not the
+   * calendar (`makeCoverageDay`). An objective row spans platforms, so it
+   * expects the sum of its children's expectations.
+   */
+  coverageDay: (platform: string) => number;
   isCurrentMonth: boolean;
 }) {
   const rate = data.usdToSarRate;
@@ -112,24 +117,45 @@ export function BudgetAllocationCheck({
     };
   }, [rows]);
 
+  /**
+   * A row's expectation: its own slice, through ITS platform's coverage. An
+   * objective row has no single platform, so it sums its combos — the same
+   * "total = Σ rows" rule the Tracker's brand bar follows.
+   */
+  const expectationOf = (r: CheckRow): number =>
+    r.platform !== null
+      ? series.spendToDate(
+          r.planned,
+          coverageDay(r.platform),
+          (p, o) => p === r.platform && o === r.objective,
+        )
+      : rows
+          .filter((c) => c.kind === "combo" && c.objective === r.objective)
+          .reduce(
+            (s, c) =>
+              s +
+              series.spendToDate(
+                c.planned,
+                coverageDay(c.platform!),
+                (p, o) => p === c.platform && o === c.objective,
+              ),
+            0,
+          );
+
   const totalDeviation = isCurrentMonth
-    ? pacingDeviation(totals.actual, series.spendToDate(totals.planned, elapsedDays))
+    ? pacingDeviation(
+        totals.actual,
+        rows
+          .filter((r) => r.kind === "combo")
+          .reduce((s, r) => s + expectationOf(r), 0),
+      )
     : null;
 
   const devCell = (dev: number | null) => <PacingDevCell deviation={dev} />;
 
   const columns: DataColumn<CheckRow>[] = useMemo(() => {
     const platformLabel = (r: CheckRow) => platformName(r.platform ?? "");
-    // A row's slice: its bucket, and its platform when it is a combo row.
-    const rowDeviation = (r: CheckRow) =>
-      pacingDeviation(
-        r.actual,
-        series.spendToDate(
-          r.planned,
-          elapsedDays,
-          (p, o) => o === r.objective && (r.platform === null || p === r.platform),
-        ),
-      );
+    const rowDeviation = (r: CheckRow) => pacingDeviation(r.actual, expectationOf(r));
 
     return [
       {
@@ -237,7 +263,7 @@ export function BudgetAllocationCheck({
       },
     ];
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currency, rate, totals, isCurrentMonth, elapsedDays, series, totalDeviation]);
+  }, [currency, rate, totals, isCurrentMonth, coverageDay, series, totalDeviation]);
 
   return (
     <DataTable<CheckRow>

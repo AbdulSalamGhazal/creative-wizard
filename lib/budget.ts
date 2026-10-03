@@ -51,7 +51,13 @@ export function monthLabel(month: string): string {
 
 /**
  * Elapsed days of `month` as of `todayIso`, clamped to [0, daysInMonth].
- * Day 1 counts as 1 elapsed day (pacing assumes the day's spend is in flight).
+ * Day 1 counts as 1 elapsed day.
+ *
+ * This is the CALENDAR position — "Day 12 of 30", "planned for today" — and
+ * that is all it is for. **Pacing COMPARISONS no longer anchor here**: they
+ * anchor to DATA COVERAGE (`coverageDayInMonth`), because actuals end at the
+ * last upload while the calendar does not, and comparing the two makes every
+ * platform look a day behind. See the coverage block below.
  */
 export function elapsedDaysInMonth(month: string, todayIso: string): number {
   const total = daysInMonth(monthStartIso(month));
@@ -93,6 +99,108 @@ export function pacingVerdict(deviation: number | null): string {
   const pct = Math.round(Math.abs(deviation) * 100);
   if (pct === 0) return "on track";
   return `${pct}% ${deviation > 0 ? "ahead" : "behind"}`;
+}
+
+// ── Data coverage: what a pacing comparison is allowed to anchor to ─────────
+// STANDING DECISION (2026-10, user-reported bug): Budget pacing COMPARISONS
+// anchor to DATA COVERAGE, per platform — never to the calendar. "Planned so
+// far" means "planned through the days this platform's data actually covers".
+//
+// The bug it fixes: the tick, the deviations and the projection counted TODAY
+// as fully elapsed while actuals stopped at the last upload, so a brand that
+// spent exactly to plan read as ~a day behind every morning — and worse the
+// longer an upload lagged. Nothing about the plan changed; the yardstick was
+// measuring days nobody had reported yet.
+
+/** Latest UPLOADED day per platform (ISO), as `platformHorizons()` returns it. */
+export type PlatformCoverage = Readonly<Record<string, string | null | undefined>>;
+
+/**
+ * How many days of `month` one platform's data COVERS, clamped to
+ * [0, daysInMonth] — the day a pacing comparison may count through.
+ *
+ * Deliberately NOT the status system's freshness: that one needs spend > 0,
+ * because it answers "is this still running". A $0 day is still a reported
+ * day, so it covers.
+ *
+ *  · no data at all, or data that stops before this month → 0. Nothing is
+ *    expected yet, so the row's deviation is null — never "100% behind".
+ *  · a PAST month → the whole month. It is over, the comparison is final, and
+ *    this keeps every historical number identical to what it was.
+ *  · a FUTURE month → 0, as before.
+ */
+export function coverageDayInMonth(
+  month: string,
+  coverageIso: string | null | undefined,
+  todayIso: string,
+): number {
+  const total = daysInMonth(monthStartIso(month));
+  const todayMonth = monthKey(todayIso);
+  if (todayMonth > month) return total; // past month: final, clamp to full
+  if (todayMonth < month) return 0; // future month: nothing expected
+  if (!coverageIso) return 0; // current month, no data for this platform
+  const coverageMonth = monthKey(coverageIso);
+  if (coverageMonth < month) return 0; // data stops before this month
+  if (coverageMonth > month) return total; // data runs past it (clock skew)
+  return Math.min(total, Math.max(0, Number(coverageIso.slice(8, 10))));
+}
+
+/**
+ * The anchor, as a function of platform: how many days of `month` this
+ * platform's comparison may count through. Built once per render and shared by
+ * every pacing surface (Tracker, Overview, the allocation check) so the rule
+ * lives in ONE place. No coverage read → the calendar, i.e. the old behaviour.
+ */
+export function makeCoverageDay(
+  month: string,
+  todayIso: string,
+  coverage?: PlatformCoverage,
+): (platform: string) => number {
+  if (coverage === undefined) {
+    const elapsed = elapsedDaysInMonth(month, todayIso);
+    return () => elapsed;
+  }
+  return (platform: string) =>
+    coverageDayInMonth(month, coverage[platform], todayIso);
+}
+
+/** The latest day ANY platform covers — the "data through" the pages print. */
+export function latestCoverage(coverage: PlatformCoverage): string | null {
+  return Object.values(coverage).reduce<string | null>(
+    (a, d) => (d ? (a === null || d > a ? d : a) : a),
+    null,
+  );
+}
+
+export interface CoverageSummary {
+  /** The latest day ANY of these platforms covers — the header's "data through". */
+  through: string | null;
+  /** Platforms whose coverage trails `through` by more than a day, worst first. */
+  laggards: Array<{ platform: string; date: string | null }>;
+}
+
+/**
+ * What the header says about coverage: the overall "data through" day, and the
+ * platforms that trail it by MORE THAN ONE DAY — a one-day spread is the
+ * normal shape of an upload morning and naming it would be noise.
+ */
+export function coverageSummary(
+  coverage: PlatformCoverage,
+  platforms: readonly string[],
+): CoverageSummary {
+  const dates = platforms.map((p) => coverage[p] ?? null);
+  const through = dates.reduce<string | null>(
+    (a, d) => (d !== null && (a === null || d > a) ? d : a),
+    null,
+  );
+  if (through === null) return { through: null, laggards: [] };
+  const laggards = platforms
+    .map((platform) => ({ platform, date: coverage[platform] ?? null }))
+    // `isoDaysBetween` is inclusive of both ends, so a one-day gap has 2 days
+    // in it; anything longer than that is a real lag worth naming.
+    .filter((p) => p.date === null || isoDaysBetween(p.date, through).length > 2)
+    .sort((a, b) => (a.date ?? "").localeCompare(b.date ?? ""));
+  return { through, laggards };
 }
 
 /** Variance = actual − planned (same currency as the inputs). */
@@ -1104,11 +1212,18 @@ export interface TrackerRevenue extends TrackerBar {
 
 export interface TrackerData {
   month: string;
-  /** Day N of M, by the module's elapsed convention (0 future, M past). */
+  /** Day N of M, by the module's CALENDAR convention (0 future, M past). */
   elapsedDays: number;
   totalDays: number;
-  /** The plan's elapsed fraction — "plan expects P% spent" (curve or cells). */
+  /**
+   * The plan's expected fraction AT COVERAGE — "plan expects P% spent". With
+   * per-platform coverage it is the plan-weighted blend (Σ expectations ÷
+   * total plan), which is exactly the curve fraction when every platform
+   * covers the same day.
+   */
   curveElapsed: number;
+  /** What the comparisons actually anchored to (null = the calendar). */
+  coverage: CoverageSummary | null;
   isCurrentMonth: boolean;
   isPastMonth: boolean;
   isFutureMonth: boolean;
@@ -1136,6 +1251,13 @@ export interface TrackerData {
 
 const comboKey = (platform: string, objective: string) => `${platform}|${objective}`;
 
+/**
+ * The key the REVENUE side's coverage travels under (the store horizon). Store
+ * orders and ad exports are uploaded separately, so the revenue bar must pace
+ * against its own last uploaded day — not the ads one, and not the calendar.
+ */
+export const REVENUE_COVERAGE_KEY = "__revenue__";
+
 function makeBar(
   key: string,
   label: string,
@@ -1154,10 +1276,131 @@ function makeBar(
   };
 }
 
+// ── Tracker views (2026-10) ─────────────────────────────────────────────────
+// The bars and the table read the SAME `buildTrackerRows` output — there is no
+// second math path — so everything a view needs beyond those rows is a pure
+// derivation here, where it can be tested.
+
+/**
+ * Is this row far enough off its pace to be worth looking at? The shared
+ * magnitude threshold, in both directions: ahead and behind are both
+ * deviations (the module never colours one of them "good"). A row with no
+ * verdict yet is not off-pace — it is unjudged.
+ */
+export function isOffPace(bar: Pick<TrackerBar, "deviation">): boolean {
+  return pacingTone(bar.deviation) === "warn";
+}
+
+export interface TrackerCounts {
+  ahead: number;
+  onTrack: number;
+  behind: number;
+}
+
+/**
+ * The summary strip's triage, at BUCKET-ROW granularity (the grain somebody
+ * can act on). Rows with no expectation yet are counted in none of the three:
+ * "on track" has to mean "measured and fine", or the strip quietly launders
+ * rows nobody can judge.
+ */
+export function trackerCounts(
+  platforms: readonly TrackerPlatform[],
+): TrackerCounts {
+  const counts: TrackerCounts = { ahead: 0, onTrack: 0, behind: 0 };
+  for (const p of platforms) {
+    for (const b of p.buckets) {
+      if (b.deviation === null || !Number.isFinite(b.deviation)) continue;
+      if (!isOffPace(b)) counts.onTrack += 1;
+      else if (b.deviation > 0) counts.ahead += 1;
+      else counts.behind += 1;
+    }
+  }
+  return counts;
+}
+
+export interface TrackerViewFilters {
+  /** Empty = every platform (the zero-config default). */
+  platforms?: readonly string[];
+  /** Empty = every bucket. */
+  buckets?: readonly string[];
+  /** Hide anything inside the warn threshold — including the unjudged. */
+  offPaceOnly?: boolean;
+}
+
+/**
+ * Narrow the CARDS/ROWS a view shows. The header's brand total is deliberately
+ * NOT recomputed: it is the month's verdict, the same number Overview reports,
+ * and a filter is a reading aid rather than a different month. The page says
+ * when a filter is hiding something.
+ *
+ * A platform card survives if the platform passes AND at least one of its
+ * buckets does; its bucket list is narrowed to those. `offPaceOnly` applies to
+ * the buckets and then to the card itself.
+ */
+export function filterTrackerPlatforms(
+  platforms: readonly TrackerPlatform[],
+  f: TrackerViewFilters,
+): TrackerPlatform[] {
+  const wantPlatform = (p: string) =>
+    !f.platforms || f.platforms.length === 0 || f.platforms.includes(p);
+  const wantBucket = (b: string) =>
+    !f.buckets || f.buckets.length === 0 || f.buckets.includes(b);
+  const out: TrackerPlatform[] = [];
+  for (const p of platforms) {
+    if (!wantPlatform(p.key)) continue;
+    const buckets = p.buckets
+      .filter((b) => wantBucket(b.label))
+      .filter((b) => !f.offPaceOnly || isOffPace(b));
+    if (p.buckets.length === 0) {
+      // An unplanned-only platform has no bucket rows at all. It survives
+      // unless the reader asked for specific buckets (it has none of them) or
+      // for off-pace rows and this card isn't one.
+      if (f.buckets && f.buckets.length > 0) continue;
+      if (f.offPaceOnly && !isOffPace(p)) continue;
+      out.push({ ...p, buckets: [] });
+      continue;
+    }
+    if (buckets.length === 0) continue;
+    out.push({ ...p, buckets });
+  }
+  return out;
+}
+
+/** Rows in the bars view: by plan size (the default) or most off-pace first. */
+export function sortTrackerPlatforms(
+  platforms: readonly TrackerPlatform[],
+  rank: "plan" | "offpace",
+): TrackerPlatform[] {
+  if (rank === "plan") return [...platforms];
+  // Drama on request: biggest |deviation| first, the unjudged last (they are
+  // missing information, not a small miss — the house's null rule).
+  return [...platforms].sort((a, b) => {
+    const av = a.deviation === null ? -1 : Math.abs(a.deviation);
+    const bv = b.deviation === null ? -1 : Math.abs(b.deviation);
+    return bv - av || b.plan - a.plan;
+  });
+}
+
+/**
+ * A row's own month-end projection: actual ÷ the share of its plan the
+ * reported days account for. NULL when nothing is expected yet (no plan, or no
+ * coverage), which is the same rule the brand projection follows.
+ */
+export function rowProjection(bar: TrackerBar): number | null {
+  if (bar.plan <= 0 || bar.planToDate <= 0) return null;
+  return round2((bar.actual * bar.plan) / bar.planToDate);
+}
+
 export function buildTrackerRows(
   data: TrackerInput,
   month: string,
   todayIso: string,
+  /**
+   * Latest uploaded day per platform. Omitted = the old calendar anchoring,
+   * which is what a caller without a coverage read gets (and what every past
+   * month resolves to anyway).
+   */
+  coverage?: PlatformCoverage,
 ): TrackerData {
   const monthIso = monthStartIso(month);
   // Plan-to-date comes from the month's SERIES — the tracker never expands a
@@ -1165,6 +1408,10 @@ export function buildTrackerRows(
   const series = buildPlanSeries(planSeriesSourceOf(data, month));
   const totalDays = daysInMonth(monthIso);
   const elapsedDays = elapsedDaysInMonth(month, todayIso);
+  // THE ANCHOR: each platform is compared through the days ITS data covers,
+  // never through the calendar (see `coverageDayInMonth`). Without a coverage
+  // read the two are the same thing.
+  const coverageDay = makeCoverageDay(month, todayIso, coverage);
   const todayMonth = monthKey(todayIso);
   const isCurrentMonth = todayMonth === month;
   const isPastMonth = todayMonth > month;
@@ -1201,7 +1448,7 @@ export function buildTrackerRows(
       if (plan > 0) {
         const planToDate = series.spendToDate(
           plan,
-          elapsedDays,
+          coverageDay(platform),
           (p, o) => p === platform && o === objective,
         );
         buckets.push(makeBar(key, objective, plan, actual, planToDate));
@@ -1217,7 +1464,7 @@ export function buildTrackerRows(
         platform,
         plan,
         actual,
-        series.spendToDate(plan, elapsedDays, (p) => p === platform),
+        series.spendToDate(plan, coverageDay(platform), (p) => p === platform),
       ),
       buckets,
       unplanned: round2(unplanned),
@@ -1228,22 +1475,37 @@ export function buildTrackerRows(
 
   const totalPlan = data.allocations.reduce((s, a) => s + a.plannedSpend, 0);
   const totalActual = data.actualSpendByCombo.reduce((s, c) => s + c.actualSpend, 0);
-  const total = makeBar(
-    "total",
-    "Total",
-    totalPlan,
-    totalActual,
-    series.spendToDate(totalPlan, elapsedDays),
+  // The brand's expectation is the SUM OF THE ROWS' expectations, not a second
+  // calculation over the whole plan: with platforms covering different days
+  // those are different numbers, and the one the cards add up to is the honest
+  // one. (Uniform coverage makes them identical — the curve is linear in plan.)
+  const totalPlanToDate = round2(
+    platforms.reduce((s, p) => s + p.planToDate, 0),
   );
+  const total = makeBar("total", "Total", totalPlan, totalActual, totalPlanToDate);
+  /**
+   * The elapsed fraction AT COVERAGE: the plan-weighted share the rows expect.
+   * The projection divides by this, so a platform whose data lags no longer
+   * drags the month's forecast down with it.
+   */
+  const coverageFraction =
+    totalPlan > 0 ? totalPlanToDate / totalPlan : series.fraction(elapsedDays);
 
   const unplannedTotal = round2(platforms.reduce((s, p) => s + p.unplanned, 0));
 
   // The projection is a CURRENT-month reading: a past month is already final,
-  // and a future one has nothing to extrapolate from.
-  const projectedSpend = isCurrentMonth
-    ? series.projectedMonthEnd(totalActual, elapsedDays)
-    : null;
+  // and a future one has nothing to extrapolate from. It divides by the
+  // COVERAGE fraction — actual ÷ "how much of the plan the reported days
+  // account for" — so a lagging upload no longer reads as underspending.
+  const projectedSpend =
+    isCurrentMonth && coverageFraction > 0
+      ? round2(totalActual / coverageFraction)
+      : null;
 
+  // Revenue has its OWN pipeline and therefore its own coverage: the store
+  // horizon, passed under the `revenueCoverageKey` sentinel so one map carries
+  // both sides. Same rule — compare through the days the data covers.
+  const revenueDay = coverageDay(REVENUE_COVERAGE_KEY);
   const target = series.plannedRevenueSar;
   const revenue: TrackerRevenue = {
     ...makeBar(
@@ -1251,7 +1513,7 @@ export function buildTrackerRows(
       "Revenue",
       target ?? 0,
       data.actualRevenueSar,
-      series.revenueToDate(elapsedDays),
+      series.revenueToDate(revenueDay),
     ),
     target,
   };
@@ -1260,7 +1522,16 @@ export function buildTrackerRows(
     month,
     elapsedDays,
     totalDays,
-    curveElapsed: series.fraction(elapsedDays),
+    curveElapsed: coverageFraction,
+    coverage:
+      coverage === undefined
+        ? null
+        : // Only PLANNED platforms are paced, so only they can lag: naming a
+          // platform that has nothing to be compared against would be noise.
+          coverageSummary(
+            coverage,
+            platforms.filter((p) => p.plan > 0).map((p) => p.key),
+          ),
     isCurrentMonth,
     isPastMonth,
     isFutureMonth,

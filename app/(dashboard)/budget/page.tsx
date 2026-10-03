@@ -2,12 +2,12 @@ import { auth, can } from "@/lib/auth";
 import { PageShell } from "@/components/layout/page-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { todayIso } from "@/lib/date-presets";
-import { monthKey } from "@/lib/budget";
+import { latestCoverage, monthKey } from "@/lib/budget";
 // Month 01-12 only — `2026-13` must fall back to the current month, not
 // produce a nonsense one. One regex, in the validators.
 import { MONTH_KEY } from "@/validators/budget";
 import { getBudgetMonth, plannedMonths } from "@/db/queries/budget";
-import { dataHorizon, storeDataHorizon } from "@/db/queries/series-bounds";
+import { platformHorizons, storeDataHorizon } from "@/db/queries/series-bounds";
 import { BudgetOverview } from "@/components/budget/budget-overview";
 import { CommentAnchor } from "@/components/comments/comment-anchor-context";
 
@@ -35,14 +35,19 @@ export default async function BudgetOverviewPage({
   const canManage = user ? can(user, "budget.manage") : false;
   // Ads and store data arrive on separate schedules, so the horizon note needs
   // BOTH — this page reports revenue and orders alongside spend.
-  const [data, horizon, storeHorizon, months] = await Promise.all([
+  // PER-PLATFORM coverage, not one overall horizon: every pacing comparison on
+  // this page anchors to the days a platform's data actually covers, and the
+  // note's "data through" is the latest of them — so this replaces the old
+  // `dataHorizon()` call rather than adding a query.
+  const [data, coverage, storeHorizon, months] = await Promise.all([
     getBudgetMonth(month),
-    dataHorizon(),
+    platformHorizons(),
     storeDataHorizon(),
     // One cheap month-grain query, for the rollover nudge on an empty month.
     plannedMonths(),
   ]);
   const seedMonth = months.find((m) => m < month) ?? null;
+  const horizon = latestCoverage(coverage);
 
   return (
     <PageShell>
@@ -59,6 +64,7 @@ export default async function BudgetOverviewPage({
         today={today}
         data={data}
         horizon={horizon}
+        coverage={coverage}
         storeHorizon={storeHorizon}
         seedMonth={seedMonth}
         canManage={canManage}

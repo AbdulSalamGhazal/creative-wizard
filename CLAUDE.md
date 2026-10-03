@@ -1282,17 +1282,73 @@ This app is deployed and in production use. Treat `main` as shippable.
     The objective on a spend row is the campaign's CURRENT objective seen
     through the bucket lens, so reclassifying a campaign restates budget
     history. `budgetHistory()` was deleted — month grouping replaced it.
-  - **Tracker (`/budget/tracker`, 2026-09) — the ZERO-CONFIGURATION daily
-    pace board.** One question, answered in bars: who's ahead, who's behind,
-    by how much. The month and the currency are its ONLY controls and that
-    absence is the feature — **Pacing is the analysis tool** (ranges, grouping,
-    platform slicing) and **Overview is the month's verdict, untouched by user
-    decision**. Nothing here is new data: it reads the SAME `getBudgetMonth()`
-    payload and derives everything through `buildTrackerRows` (pure,
-    unit-tested, in lib/budget.ts), which composes the module's existing
-    conventions — the plan SERIES for plan-to-date (curve or daily), `pacingDeviation` /
-    `pacingTone` for the magnitude-based verdict, `projectedMonthEnd` for the
-    "on this pace" line. **Never re-derive pacing in the page.**
+  - **PACING COMPARES AGAINST DATA COVERAGE, NEVER THE CALENDAR (2026-10,
+    standing decision — a user-reported bug).** "Planned so far" means
+    "planned through the days THIS PLATFORM's data covers". Actuals end at the
+    last upload; the calendar does not; comparing the two made every platform
+    read ~a day behind every morning, and worse the longer an upload lagged.
+    - The coverage read is `platformHorizons()` — MAX(date) per platform,
+      account-scoped, **not** the status system's `spend > 0` freshness (that
+      answers "is it still running"; a $0 day still COVERS). It REPLACES the
+      pages' `dataHorizon()` call rather than adding one — the overall "data
+      through" is just the latest of them (`latestCoverage`).
+    - `makeCoverageDay` is the one rule (`coverageDayInMonth`): no data, or
+      data that stops before the month → **0, so the row expects nothing and
+      has no verdict — never "100% behind"**; a PAST month → the full month, so
+      history is bit-identical to before (regression-pinned); a future month →
+      0. Every pacing surface shares it: Tracker, Overview's verdicts and
+      projections, the allocation check.
+    - **A total is the SUM of its rows' expectations**, not a second
+      calculation over the whole plan — with coverage diverging those differ,
+      and the one the cards add to is the honest one. The projection divides by
+      the COVERAGE fraction (Σ expectations ÷ plan), so a lagging upload stops
+      forecasting a shortfall that isn't there. Revenue paces against the STORE
+      horizon (`REVENUE_COVERAGE_KEY`) — separate pipeline, separate coverage.
+    - **"Planned for today" on Overview stays CALENDAR-based** — "what does the
+      plan put on today" is a different question and has an answer before
+      today's data exists. `elapsedDaysInMonth` keeps its calendar display uses
+      ("Day 21 of 30") and nothing else.
+    - The header says what it counted through, and names any platform trailing
+      the rest by more than a day ("TikTok data ends 2026-09-13"); every bar's
+      aria-label speaks its OWN anchor.
+  - **Tracker (`/budget/tracker`, 2026-09) — the daily pace board.** One
+    question, answered in bars: who's ahead, who's behind, by how much.
+    **THE BARE PAGE IS THE PRODUCT — zero configuration is its identity**, so
+    the 2026-10 controls (platform · bucket · off-pace-only · the view · the
+    row order) are OPT-IN and REMEMBERED (0049) rather than decisions anyone
+    has to make to read it. **Pacing is still the analysis tool** (ranges,
+    grouping) and **Overview is still the month's verdict**. Nothing here is
+    new data: it reads the SAME `getBudgetMonth()` payload and derives
+    everything through `buildTrackerRows` (pure, unit-tested, in lib/budget.ts),
+    which composes the module's existing conventions — the plan SERIES for
+    plan-to-date (curve or daily), `pacingDeviation` / `pacingTone` for the
+    magnitude-based verdict, the coverage-anchored projection for the "on this
+    pace" line. **Never re-derive pacing in the page.**
+    - **TWO VIEWS, ONE SET OF ROWS (`?board=bars|table`).** BARS is the default
+      and unchanged. TABLE is a DataTable of the same `buildTrackerRows`
+      output — platform subtotal + bucket rows, Plan · Actual · Expected · Δ ·
+      Δ% · Projection, sorted by Δ% desc, totals pinned, CSV — for when you
+      want to rank and export rather than scan. **No second math path.**
+    - **Opt-in controls, each remembered:** tier-1 `platforms` (the shared
+      key), tier-2 `buckets` and `offpace` ("Off-pace only" — it hides rows
+      within the warn threshold in BOTH directions, which is why it is not
+      called "problems"), and the page-owned `board` / `rank` through
+      FilterShell's `persistKeys`. The names dodge keys other pages own:
+      `buckets` (Campaigns' `objectives` is a different vocabulary), `board`
+      (`view` is never persisted and is Library's grid/table), `rank`
+      (`order` is Campaigns' COLUMN order).
+    - **Filtering is a reading aid, not a different month**: the header's
+      brand total is never recomputed from the visible rows, and the page says
+      "Showing 2 of 4 platforms" when something is hidden.
+    - **The summary strip** counts BUCKET rows — "N ahead · N on track · N
+      behind" — and a row with no verdict is counted in none of them. The
+      behind chip is the page's one shortcut: it applies the off-pace filter
+      (the same filter the bar's chip shows and clears), and the counts
+      deliberately IGNORE that filter so the chip you clicked can take you
+      back.
+    - **Row order (`?rank=`) defaults to BY PLAN SIZE** — the earlier
+      predictability-beats-drama decision stands; "Most off-pace first" is a
+      choice, not the default.
     - **The bar says three things at once:** the TRACK is the row's full-month
       plan, the FILL is actual month-to-date, and the TICK is where the plan
       curve says today should be. Pure CSS, tokens only (surface-2 / brand /

@@ -10,8 +10,10 @@ vi.mock("@/lib/tenant", () => ({
 }));
 
 import { getActiveAccountId } from "@/lib/tenant";
+import { and, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { performanceRecords } from "@/db/schema";
+import { coverageDayInMonth } from "@/lib/budget";
 import { creativeDailyMetrics } from "@/db/queries/performance";
 import { funnelDaily } from "@/db/queries/funnel";
 import {
@@ -100,6 +102,27 @@ describe("series-bounds — horizon / first-ever anchors", () => {
     expect(ph.instagram).toBe("2026-03-15");
     expect(ph.facebook).toBe("2026-03-25");
     expect(ph.tiktok).toBe("2026-03-31");
+  });
+
+  it("a $0 day still COVERS — the Budget pacing anchor is not the status rule", async () => {
+    // Budget's coverage question is "how far does this platform's data reach",
+    // which a zero-spend day answers. (The status system's freshness needs
+    // spend > 0 because it asks a different question: "is this still running".)
+    await db.insert(performanceRecords).values([
+      rec(CREATIVE_1, "facebook", CAMPAIGN_2, day(28), { spend: 0 }),
+    ]);
+    const ph = await platformHorizons();
+    expect(ph.facebook).toBe("2026-03-28");
+    // …and the Tracker counts the month through exactly that day.
+    expect(coverageDayInMonth("2026-03", ph.facebook, "2026-03-30")).toBe(28);
+    await db
+      .delete(performanceRecords)
+      .where(
+        and(
+          eq(performanceRecords.accountId, ACCOUNT_A),
+          eq(performanceRecords.date, day(28)),
+        ),
+      );
   });
 
   it("creativePlatformFirstDays is unbounded by any window (sees the 2026-01 fixture)", async () => {

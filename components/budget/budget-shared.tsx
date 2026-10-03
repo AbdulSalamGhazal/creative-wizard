@@ -102,18 +102,30 @@ export function BudgetMonthBar({
   today,
   children,
   locked = false,
+  onMonthChange,
 }: {
   month: string; // YYYY-MM
   today: string; // ISO date
   children?: React.ReactNode;
   /** Freeze month navigation — an open draft belongs to THIS month. */
   locked?: boolean;
+  /**
+   * Write the month yourself. The default push REPLACES the query with
+   * `?month=`, which is right for a page whose only state is the month — but
+   * a page with view state (the Tracker) must keep it, so it hands the write
+   * to its own params writer instead.
+   */
+  onMonthChange?: (month: string) => void;
 }) {
   const router = useRouter();
   const pathname = usePathname();
   const [, startNav] = useNavTransition();
   const go = (m: string) => {
     if (locked) return;
+    if (onMonthChange) {
+      onMonthChange(m);
+      return;
+    }
     startNav(() => router.replace(`${pathname}?month=${m}`, { scroll: false }));
   };
   const lockedTitle = locked ? "Finish editing first" : undefined;

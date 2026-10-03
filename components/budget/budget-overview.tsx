@@ -9,9 +9,11 @@ import { ALL_PLATFORMS, PLATFORM_LABEL } from "@/lib/palette";
 import { int, roas, sar, signedPct } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import {
+  REVENUE_COVERAGE_KEY,
   buildPlanSeries,
   daysInMonth,
   elapsedDaysInMonth,
+  makeCoverageDay,
   monthKey,
   monthLabel,
   monthStartIso,
@@ -23,6 +25,7 @@ import {
   validateRate,
   variancePct,
   round2,
+  type PlatformCoverage,
 } from "@/lib/budget";
 import type { BudgetMonthData } from "@/db/queries/budget";
 import {
@@ -48,6 +51,7 @@ export function BudgetOverview({
   data,
   horizon,
   storeHorizon,
+  coverage,
   seedMonth,
   canManage,
 }: {
@@ -57,6 +61,13 @@ export function BudgetOverview({
   horizon: string | null;
   /** The STORE horizon — this page shows revenue and orders too. */
   storeHorizon: string | null;
+  /**
+   * Latest uploaded day PER PLATFORM. Every pacing comparison below anchors to
+   * it rather than to the calendar (see `makeCoverageDay`): actuals end at the
+   * last upload, so counting today as elapsed made every verdict read a day
+   * behind. "Planned today" is the one exception — it is a calendar question.
+   */
+  coverage: PlatformCoverage;
   /** The most recent planned month before this one — drives the rollover nudge. */
   seedMonth: string | null;
   canManage: boolean;
@@ -68,6 +79,10 @@ export function BudgetOverview({
   const isCurrentMonth = monthKey(today) === month;
   const totalDays = daysInMonth(monthStartIso(month));
   const elapsed = elapsedDaysInMonth(month, today);
+  // The pacing anchor, per platform (the calendar still drives "Day N" and
+  // "planned for today" below).
+  const coverageDay = makeCoverageDay(month, today, coverage);
+  const revenueDay = coverageDay(REVENUE_COVERAGE_KEY);
   // Every plan-to-date number on this page comes from the month's SERIES —
   // curve or daily, the verdicts read the same way.
   const series = buildPlanSeries(planSeriesSourceOf(data, month));
@@ -82,27 +97,50 @@ export function BudgetOverview({
     .filter((c) => !plannedByCombo.has(`${c.platform}|${c.objective}`))
     .reduce((s, c) => s + c.actualSpend, 0);
 
+  // The brand's expectation is the SUM of the platforms' expectations — with
+  // coverage diverging those differ, and the sum is the one the per-platform
+  // rows add up to.
+  const spendToDate = ALL_PLATFORMS.reduce(
+    (sum, p) =>
+      sum +
+      series.spendToDate(
+        data.allocations
+          .filter((a) => a.platform === p)
+          .reduce((s, a) => s + a.plannedSpend, 0),
+        coverageDay(p),
+        (pl) => pl === p,
+      ),
+    0,
+  );
   const spendDeviation = isCurrentMonth
-    ? pacingDeviation(totalActual, series.spendToDate(totalPlanned, elapsed))
+    ? pacingDeviation(totalActual, spendToDate)
     : null;
   const revenueDeviation =
     isCurrentMonth && data.plannedRevenueSar !== null
-      ? pacingDeviation(data.actualRevenueSar, series.revenueToDate(elapsed))
+      ? pacingDeviation(data.actualRevenueSar, series.revenueToDate(revenueDay))
       : null;
 
   // Today's slice of the curve, and what's left of the plan after actuals.
   // Floored at zero: "−$400 left" is not a useful thing to tell someone.
+  // DELIBERATELY CALENDAR-based: "what does the plan put on today" is a
+  // different question from "how are we pacing", and it has an answer before
+  // today's data exists.
   const plannedToday = isCurrentMonth
     ? (series.spendDays()[elapsed - 1] ?? 0)
     : 0;
   const leftThisMonth = Math.max(0, round2(totalPlanned - totalActual));
 
-  // Month-end projections (current month only): actual ÷ elapsed curve share.
-  const projectedSpend = isCurrentMonth
-    ? series.projectedMonthEnd(totalActual, elapsed)
+  // Month-end projections (current month only): actual ÷ the share of the plan
+  // the REPORTED days account for, so a lagging upload doesn't forecast a
+  // shortfall that isn't there.
+  const coverageFraction = totalPlanned > 0 ? spendToDate / totalPlanned : 0;
+  const projectedSpend =
+    isCurrentMonth && coverageFraction > 0
+      ? round2(totalActual / coverageFraction)
+      : null;
+  const projectedRevenue = isCurrentMonth
+    ? series.projectedMonthEnd(data.actualRevenueSar, revenueDay)
     : null;
-  const projectedRevenue =
-    isCurrentMonth ? series.projectedMonthEnd(data.actualRevenueSar, elapsed) : null;
 
   const actualRoas = roasThroughRate(data.actualRevenueSar, totalActual, rate);
   const targetRoas =
@@ -152,7 +190,10 @@ export function BudgetOverview({
     const hasPlanRows = data.allocations.some((a) => a.platform === p);
     const hasActualRows = data.actualSpendByCombo.some((c) => c.platform === p);
     const dev = isCurrentMonth
-      ? pacingDeviation(actual, series.spendToDate(planned, elapsed, (pl) => pl === p))
+      ? pacingDeviation(
+          actual,
+          series.spendToDate(planned, coverageDay(p), (pl) => pl === p),
+        )
       : null;
     return { platform: p, planned, actual, dev, shown: hasPlanRows || hasActualRows };
   }).filter((p) => p.shown);
@@ -439,7 +480,7 @@ export function BudgetOverview({
           month={month}
           data={data}
           currency={currency}
-          elapsedDays={elapsed}
+          coverageDay={coverageDay}
           isCurrentMonth={isCurrentMonth}
         />
       </section>
