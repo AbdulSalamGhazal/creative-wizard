@@ -232,6 +232,60 @@ describe("MCP tools — brand scoping for a restricted user", () => {
     expect(empty.creatives).toHaveLength(0);
   });
 
+  it("diagnose_campaign returns the bundle envelope, instructions and all", async () => {
+    const tools = loadTools();
+    const res = await runWithMcpActor({ user: restricted, tokenId: "t" }, () =>
+      tools.get("diagnose_campaign")!(
+        { campaign: "Camp One ➤ Broad (IG)", window_days: 30, include_excluded: false },
+        {},
+      ),
+    );
+    expect(res.isError).toBeUndefined();
+    const b = parse(res);
+    // The house envelope: brand + range + the exclusion echo.
+    expect(b.brand.id).toBe(ACCOUNT_A);
+    expect(b.range.from).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(b.range.to).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(b.excluded_records).toBe("hidden");
+    // …and the bundle's own sections, including the two authored blocks that
+    // make it usable by a model that has never seen this system.
+    for (const key of [
+      "meta",
+      "series",
+      "creatives",
+      "benchmarks",
+      "budget",
+      "conventions",
+      "instructions",
+    ]) {
+      expect(b[key], `${key} missing from the bundle`).toBeDefined();
+    }
+    expect(b.meta.name).toBe("Camp One ➤ Broad (IG)");
+    expect(b.instructions).toMatch(/INTERVIEW RULE/);
+    expect(b.conventions).toMatch(/REACH AND FREQUENCY ARE NOT TRACKED/);
+  });
+
+  it("diagnose_campaign refuses an unknown campaign and names the way out", async () => {
+    const tools = loadTools();
+    const res = await runWithMcpActor({ user: restricted, tokenId: "t" }, () =>
+      tools.get("diagnose_campaign")!({ campaign: "Nope ➤ None (IG)" }, {}),
+    );
+    expect(res.isError).toBe(true);
+    expect(res.content[0]!.text).toMatch(/list_campaigns/);
+  });
+
+  it("diagnose_campaign cannot reach a brand the caller isn't a member of", async () => {
+    const tools = loadTools();
+    const res = await runWithMcpActor({ user: restricted, tokenId: "t" }, () =>
+      tools.get("diagnose_campaign")!(
+        { brand: "Account B", campaign: "Camp B ➤ Broad (IG)" },
+        {},
+      ),
+    );
+    expect(res.isError).toBe(true);
+    expect(res.content[0]!.text).toMatch(/Unknown brand|allowed brands/i);
+  });
+
   it("allowedAccountsForUser mirrors the scoping (belt-and-braces)", async () => {
     const brands = await allowedAccountsForUser(restricted);
     expect(brands.map((b) => b.id)).toEqual([ACCOUNT_A]);

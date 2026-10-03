@@ -32,6 +32,8 @@ import { listCreativeSummary } from "@/db/queries/summary";
 import { getRatingConfig } from "@/db/queries/rating";
 import { funnelOverview } from "@/db/queries/funnel";
 import { platformHorizons, dataHorizon } from "@/db/queries/series-bounds";
+import { campaignDiagnosisInput } from "@/db/queries/diagnosis";
+import { serializeDiagnosis } from "@/lib/diagnosis";
 import {
   currentActor,
   withBrand,
@@ -592,6 +594,50 @@ export function registerMcpTools(server: McpServer): void {
           latestOverall: overall,
           latestPerPlatform: perPlatform,
         });
+      }),
+  );
+
+  // 11 ─ diagnose_campaign ---------------------------------------------------
+  server.registerTool(
+    "diagnose_campaign",
+    {
+      description:
+        "Returns a full diagnostic bundle for ONE campaign PLUS embedded instructions — the campaign's daily series and weekly history, every creative in it with cross-campaign context, this brand's same-platform benchmarks, the budget position, and the house conventions. FOLLOW THE EMBEDDED INSTRUCTIONS EXACTLY: interview the user for the data this system does not have (reach and frequency, explicitly) BEFORE concluding anything, then render the report as an artifact. This system does not diagnose — you do, from this bundle.",
+      inputSchema: {
+        brand: brandField,
+        campaign: z
+          .string()
+          .describe("Exact campaign name, as returned by list_campaigns."),
+        window_days: z
+          .number()
+          .int()
+          .min(7)
+          .max(120)
+          .optional()
+          .default(30)
+          .describe("How many days of DAILY detail to include (7-120, default 30). Everything before it arrives as weekly rollups."),
+        include_excluded: includeExcludedField,
+      },
+    },
+    async (args) =>
+      withBrand(args.brand, async (brand) => {
+        const input = await campaignDiagnosisInput(brand, args.campaign, {
+          windowDays: args.window_days,
+          includeExcluded: args.include_excluded,
+          todayIso: isoToday(),
+        });
+        if (!input) {
+          throw new McpToolError(
+            `No campaign named "${args.campaign}" in ${brand.name}. Call list_campaigns to get the exact names.`,
+          );
+        }
+        const bundle = serializeDiagnosis(input);
+        return ok(
+          brand,
+          rangeEcho(input.window.from, input.window.to),
+          bundle as unknown as Record<string, unknown>,
+          excludedEcho(args.include_excluded),
+        );
       }),
   );
 }

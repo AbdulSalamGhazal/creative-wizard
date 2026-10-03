@@ -61,6 +61,38 @@ Do not introduce a new dependency without a one-line justification in the PR des
 - The dashboard must feel polished. Every page has tailored skeletons. Empty states are designed-out, not blank.
 - Use shadcn primitives. Don't reinvent components that exist.
 - Every new route sets a `metadata.title` (matching its sidebar/h1 label); detail routes use `generateMetadata` over a `cache()`-deduped query so the tab title and the page share one fetch. The root layout's `%s · Wizard` template adds the suffix — don't repeat it, and never add a `metadata.icons` key (the tab icon is the `app/icon.png` file convention).
+- **AI CAMPAIGN DIAGNOSIS (2026-10) — the system ASSEMBLES and INSTRUCTS; it
+  does not diagnose.** User decision ("option 2"): one read-only MCP tool,
+  `diagnose_campaign`, returns a complete diagnostic bundle for one campaign
+  plus the instructions for producing the report, and the user's OWN Claude
+  does the thinking. **Nothing in this path calls an AI, holds an API key, or
+  writes** — that was the point of choosing it, and adding any of those makes
+  it a different feature. **It stays read-only like every other MCP tool;
+  never add a mutating path for this.**
+  - **Three layers, deliberately separate:** `lib/diagnosis.ts` is PURE (the
+    bundle's shape, the serializer, the authored conventions + instructions),
+    `db/queries/diagnosis.ts` assembles it from the queries the pages already
+    use, and `lib/mcp/tools.ts` only wraps it in the house envelope. A future
+    in-system page (option 3) renders the SAME bundle from the SAME serializer
+    — which is why assembly never happens inside the MCP tool.
+  - **THE INTERVIEW RULE is the feature's spine** (user decision): the
+    instructions tell the model to ask for what the system does not have —
+    **reach and frequency explicitly** — and WAIT, before any verdict; if the
+    user declines, every dependent conclusion must be marked as resting on an
+    assumption. A right diagnosis outranks a fast one.
+  - **The bundle must not lie by omission:** NULLs are preserved (a metric the
+    campaign's platform cannot report is `null`, never 0 — `nullUnavailable`),
+    a no-data day carries `records: 0` so a gap can't read as a measured zero,
+    caps (20 creatives / 26 weeks) are REPORTED when they bite, and the
+    conventions block names what is absent (no reach/frequency, store
+    attribution is platform-level only, no audience/placement/creative-asset
+    data) so a confident model can't invent it.
+  - **The report contract** (user-approved order): Verdict → Do this →
+    Creative cards → Funnel vs benchmark → Budget context → Fine print,
+    rendered as ONE self-contained HTML artifact, in English. The instructions
+    and the section order are string-pinned by tests — a careless edit there
+    degrades every diagnosis silently.
+
 - **Store module (2026-07) — a **Store** sidebar section split into `/store/uploads` (upload history + `/new` flow) and `/store/orders` (orders table); `/store` redirects to `/store/orders`. Manual Salla order uploads, PARALLEL to the ads pipeline (never touch `csv/`, `upload_batches`, `performance_records` for it).** Own error catalog `store/errors.ts` (S-codes; reuses `csv/parse.ts` for parsing only), EXPLICIT header mapping from `store_order_fields.headers` (case-insensitive trim, no auto-detect). Grain = one order (`store_orders`); exactly 3 CORE fields (`order_id`/`order_date`/`total_amount`) locked by `CORE_KEYS` in `store/fields.ts` — only label + headers editable, seeded per account (migration 0030 + `createAccount`). Custom fields → `attributes` jsonb. Upsert toggle like the ads upload; rollback deletes a batch's INSERTS only (updates keep their original `upload_batch_id`). **Currency is SAR, module-local (`sar()` in `lib/format.ts`) — NEVER convert to USD here** (ad-spend blending is a later phase). Config = the **Order fields** tab on `/store/uploads` (`config.store`); upload = `store.upload`. Migration 0030 (additive: `store_orders`/`store_order_fields`/`store_upload_batches` + core seed). Orders table is server-paginated (100/page) — never an unbounded query. **Every defined field is offered in the Orders Columns menu** (viewer's per-browser choice, persisted as a HIDDEN-key set so new fields default visible); the per-field `show_in_table` toggle was RETIRED 2026-08 (column kept dead, no longer read — like `creatives.status`; don't reintroduce reads). **Sanctioned `store_orders` delete paths = batch rollback + the order-cleanup tool** (`/store/uploads`, `store.cleanup`, in the editor preset): filtered hard-delete (date range / batch / order-id[s], ≥1 required), preview → type-DELETE-to-confirm → account-scoped transactional delete, audited `store.bulk_delete` (count from the actual DELETE, never an empty `inArray`) — mirrors the ads `upload.cleanup` tool. No other code deletes from `store_orders`.
 - **MCP server (2026-07) — `/api/mcp/mcp`, bearer-authed, strictly READ-ONLY.** A remote MCP server (`mcp-handler`, route `app/api/mcp/[transport]/route.ts`) lets each user connect their own LLM to read-only analytics. Auth = personal access tokens (`api_tokens`; `lib/api-token.ts` — SHA-256 stored, raw `cwz_…` shown once, constant-time verify, revoke); `/api/mcp` is EXCLUDED from `middleware.ts` (its own bearer gate). Cookieless tenancy: `runWithTenant(accountId, userId, fn)` (`lib/tenant.ts` + `lib/tenant-context.ts` ALS) that `getActiveAccountId()`/`auth()` consult first — validates the account is ALLOWED for the user. **Add a tool ONLY via the registered-tool pattern in `lib/mcp/tools.ts`: a Zod input schema + `withBrand` + reuse a `db/queries/*` fn (never raw SQL), compact JSON out with a `{brand,range}` echo. NEVER add a mutating tool** (v1 is read-only; the whole design assumes it). Endpoint is `/api/mcp/mcp` (mcp-handler appends the transport segment to the `/api/mcp` basePath), not `/api/mcp`. Migration 0029 (additive `api_tokens`). OAuth 2.1 web-connector flow is a deliberate Phase-2 non-goal.
 - Tabular figures (`font-variant-numeric: tabular-nums`) on every number in tables.
