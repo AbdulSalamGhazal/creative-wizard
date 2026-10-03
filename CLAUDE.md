@@ -75,11 +75,21 @@ Do not introduce a new dependency without a one-line justification in the PR des
     use, and `lib/mcp/tools.ts` only wraps it in the house envelope. A future
     in-system page (option 3) renders the SAME bundle from the SAME serializer
     — which is why assembly never happens inside the MCP tool.
-  - **THE INTERVIEW RULE is the feature's spine** (user decision): the
-    instructions tell the model to ask for what the system does not have —
-    **reach and frequency explicitly** — and WAIT, before any verdict; if the
-    user declines, every dependent conclusion must be marked as resting on an
-    assumption. A right diagnosis outranks a fast one.
+  - **THE INTERVIEW RULE is the feature's spine** (user decision), TUNED
+    2026-10 from the first real transcript: the model asks for what the system
+    does not have — **reach and frequency explicitly** — but **does NOT block
+    the report on it**. Every section the bundle can answer ships; a
+    conclusion that genuinely needs the missing data (any fatigue/saturation
+    call) asks for it AT THAT POINT, marks that section "PENDING YOUR DATA",
+    and is completed when the user answers. If they decline, every dependent
+    conclusion is marked as resting on an assumption. A right diagnosis still
+    outranks a fast one — the tuning changed the SCOPE of the wait, not the
+    standard.
+  - **The artifact rule is imperative, not a preference** — it did not fire
+    when it read as one. The report MUST be created as an artifact (one
+    self-contained HTML document), never as chat text or markdown tables; chat
+    gets at most one sentence pointing to it; and data supplied later UPDATES
+    the artifact (or issues a v2) rather than being answered in chat.
   - **The bundle must not lie by omission:** NULLs are preserved (a metric the
     campaign's platform cannot report is `null`, never 0 — `nullUnavailable`),
     a no-data day carries `records: 0` so a gap can't read as a measured zero,

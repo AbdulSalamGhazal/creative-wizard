@@ -344,13 +344,29 @@ describe("the conventions block", () => {
 describe("the instructions", () => {
   const t = DIAGNOSIS_INSTRUCTIONS;
 
-  it("puts the INTERVIEW rule first and makes it outrank the rest", () => {
-    expect(t).toMatch(/THE INTERVIEW RULE — THIS OUTRANKS EVERYTHING ELSE/);
+  it("asks where it matters instead of blocking the whole report", () => {
+    // Tuned 2026-10 from the first real transcript: the old wording stopped
+    // everything on one missing number, which left the reader with nothing.
+    expect(t).toMatch(/THE INTERVIEW RULE — ASK WHERE IT MATTERS, DO NOT BLOCK THE REPORT/);
     expect(t.indexOf("INTERVIEW RULE")).toBeLessThan(t.indexOf("EVIDENCE RULE"));
-    expect(t).toMatch(/WAIT for the reply/);
+    expect(t).toMatch(/DELIVER EVERY SECTION THE BUNDLE CAN ALREADY ANSWER/);
+    expect(t).toMatch(/ask for it AT THAT POINT/);
+    expect(t).toMatch(/PENDING YOUR DATA/);
+    expect(t).toMatch(/never as an upfront questionnaire/);
+    expect(t).not.toMatch(/WAIT for the reply/);
+  });
+
+  it("still needs reach and frequency before any fatigue call", () => {
     expect(t).toMatch(/REACH and FREQUENCY/);
+    expect(t).toMatch(/fatigue or saturation call/);
+    expect(t).toMatch(/COMPLETE the pending section and reissue/);
+  });
+
+  it("keeps the standard while changing the scope of the wait", () => {
+    expect(t).toMatch(/A right diagnosis still outranks a fast one/);
+    expect(t).toMatch(/SCOPE of the wait, not the standard/);
     // The escape hatch, and its price.
-    expect(t).toMatch(/If the user declines/);
+    expect(t).toMatch(/If they decline/);
     expect(t).toMatch(/MARK every conclusion that depends on the gap/);
   });
 
@@ -378,11 +394,28 @@ describe("the instructions", () => {
     }
   });
 
-  it("requires ONE self-contained artifact, readable either way round", () => {
-    expect(t).toMatch(/ONE self-contained HTML artifact/);
+  it("makes the artifact mechanical and non-optional", () => {
+    // It did not fire in practice when it read as a preference, so the wording
+    // is now imperative and names the failure mode it has to prevent.
+    expect(t).toMatch(/YOUR FINAL REPORT MUST BE CREATED AS AN ARTIFACT/);
+    expect(t).toMatch(/ONE self-contained HTML document/);
+    expect(t).toMatch(/using your artifact capability|made with your artifact capability/);
+    expect(t).toMatch(/NEVER deliver the report as chat text/);
+    expect(t).toMatch(/NEVER as markdown tables/);
+    expect(t).toMatch(/AT MOST ONE SENTENCE pointing to the artifact/);
+    expect(t).toMatch(/UPDATE THE ARTIFACT — or issue a v2 artifact/);
+    expect(t).toMatch(/rather than answering in chat tables/);
+  });
+
+  it("keeps the layout contract, including the pending marker", () => {
+    expect(t).toMatch(/severity-toned verdict banner/);
+    expect(t).toMatch(/responsive grid of creative cards/);
+    expect(t).toMatch(/simple CSS bars for the funnel/);
     expect(t).toMatch(/light and dark/);
     expect(t).toMatch(/no network, no build step/);
-    expect(t).toMatch(/the artifact IS the deliverable/);
+    expect(t).toMatch(/PENDING YOUR DATA" in place/);
+    expect(t).toMatch(/never silently omitted/);
+    expect(t).toMatch(/The artifact IS the deliverable/);
   });
 
   it("names the role and the language", () => {
