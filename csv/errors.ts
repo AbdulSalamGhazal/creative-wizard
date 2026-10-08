@@ -35,6 +35,8 @@ export const errorCodes = {
   E061: "ERROR",
   W001: "WARNING",
   W002: "WARNING",
+  // W003: the workbook had more than one sheet; we read the FIRST and say which.
+  W003: "WARNING",
 } as const;
 
 export type ErrorCode = keyof typeof errorCodes;

@@ -43,6 +43,7 @@ import {
 } from "@/lib/budget-plan-csv";
 import { TARGET_ROAS_MAX } from "@/validators/budget";
 import { saveBudgetMonth } from "@/app/actions/budget";
+import { readSheetRows } from "@/app/actions/sheet";
 import type { BudgetMonthData } from "@/db/queries/budget";
 import { PlanDayBars, UnitInput } from "@/components/budget/budget-shared";
 
@@ -121,10 +122,45 @@ export function BudgetPlanUpload({
   const rate = data.usdToSarRate;
   const current = { allocations: data.allocations, reserveSpendUsd: data.reserveSpendUsd };
 
+  /** Rows → the staged plan, shared by both file formats. */
+  const stageRows = (fileName: string, rows: string[][], notices: string[] = []) => {
+    const [head, ...body] = rows;
+    const parsed = parsePlanCsvMatrix(head ?? [], body, month);
+    if (!parsed.ok) {
+      setIssues(parsed.issues);
+      return;
+    }
+    // A reader notice (a multi-sheet workbook) rides with the plan's own
+    // notices, so the preview shows every caveat in one place.
+    setStaged({
+      fileName,
+      plan: notices.length === 0
+        ? parsed.plan
+        : { ...parsed.plan, notices: [...notices, ...parsed.plan.notices] },
+    });
+  };
+
   const onFile = async (file: File | undefined) => {
     if (!file) return;
     setStaged(null);
     setIssues([]);
+
+    // A WORKBOOK goes to the server, where the app's one conversion layer
+    // reads it (dates as ISO, formulas as their values, blanks as ""). Doing
+    // it here would put a spreadsheet reader in this page's bundle for a
+    // format most uploads aren't.
+    if (/\.(xlsx|xlsm|xls)$/i.test(file.name)) {
+      const form = new FormData();
+      form.set("file", file);
+      const res = await readSheetRows(form);
+      if (!res.ok || !res.rows) {
+        setIssues([{ cell: "File", message: res.error ?? "That file could not be read." }]);
+        return;
+      }
+      stageRows(file.name, res.rows, res.notices ?? []);
+      return;
+    }
+
     // papaparse loads HERE, not with the page — it is worth nothing until
     // somebody picks a file (a static import cost /budget/plan ~6 kB).
     const { default: Papa } = await import("papaparse");
@@ -132,13 +168,7 @@ export function BudgetPlanUpload({
       skipEmptyLines: "greedy",
       complete: (result) => {
         const rows = result.data.filter(Array.isArray);
-        const [head, ...body] = rows;
-        const parsed = parsePlanCsvMatrix(head ?? [], body, month);
-        if (!parsed.ok) {
-          setIssues(parsed.issues);
-          return;
-        }
-        setStaged({ fileName: file.name, plan: parsed.plan });
+        stageRows(file.name, rows as string[][]);
       },
       error: (err: Error) => {
         setIssues([{ cell: "File", message: err.message || "That file could not be read." }]);
@@ -251,11 +281,11 @@ export function BudgetPlanUpload({
 
             {/* ── 2. The file ──────────────────────────────────────────── */}
             <label className="block space-y-1">
-              <span className="text-label text-ink-3">Plan file (.csv)</span>
+              <span className="text-label text-ink-3">Plan file (.csv or .xlsx)</span>
               <Input
                 ref={fileRef}
                 type="file"
-                accept=".csv,text/csv"
+                accept=".csv,.xlsx,.xlsm,.xls,text/csv"
                 onChange={(e) => void onFile(e.target.files?.[0])}
                 className="h-9 cursor-pointer file:mr-3 file:cursor-pointer file:rounded file:border-0 file:bg-surface-2 file:px-2 file:py-1 file:text-xs file:text-ink-2"
               />

@@ -16,6 +16,8 @@ export interface StoreParseSuccess {
   header: string[]; // trimmed
   rows: string[][]; // aligned to header length; missing cells ""
   rowNumbers: number[]; // 1-based original file row numbers, parallel to rows
+  /** Parse-level notices (today: "this workbook had several sheets"). */
+  warnings: StoreValidationError[];
 }
 export interface StoreParseFailure {
   ok: false;
@@ -31,13 +33,26 @@ const CODE_MAP: Record<string, StoreErrorCode> = {
   E004: "S004",
 };
 
+// …and the parse-level WARNINGS the shared parser can raise.
+const WARNING_MAP: Record<string, StoreErrorCode> = {
+  W003: "S061",
+};
+
 export function parseStoreFile(input: ParseInput): StoreParseResult {
   const res = parseFile(input);
   if (!res.ok) {
     const code = CODE_MAP[res.error.code] ?? "S002";
     return { ok: false, error: err(code, res.error.message) };
   }
-  return { ok: true, header: res.header, rows: res.rows, rowNumbers: res.rowNumbers };
+  return {
+    ok: true,
+    header: res.header,
+    rows: res.rows,
+    rowNumbers: res.rowNumbers,
+    // The ads catalog never leaks into store errors — the first-sheet notice
+    // is re-coded, like every other shared-parser message.
+    warnings: res.warnings.map((w) => err(WARNING_MAP[w.code] ?? "S060", w.message)),
+  };
 }
 
 /**

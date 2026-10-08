@@ -21,6 +21,7 @@ export const storeErrorCodes = {
   S050: "ERROR", // duplicate order_id within the file
   S051: "ERROR", // order_id already imported (strict, non-upsert mode)
   S060: "WARNING", // file column ignored (no field maps to it)
+  S061: "WARNING", // workbook had several sheets; the first one was read
 } as const;
 
 export type StoreErrorCode = keyof typeof storeErrorCodes;

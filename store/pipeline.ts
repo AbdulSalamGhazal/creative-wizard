@@ -73,6 +73,8 @@ export function runStorePipeline(input: StorePipelineInput): StorePipelineResult
     fileName: input.fileName,
   });
   if (!parsed.ok) return { ok: false, errors: [parsed.error], warnings };
+  // Parse-level notices (a multi-sheet workbook) travel with the rest.
+  warnings.push(...parsed.warnings);
   const { header, rows, rowNumbers } = parsed;
 
   // ── Stage 2: header mapping (fail fast) ───────────────────────────────────

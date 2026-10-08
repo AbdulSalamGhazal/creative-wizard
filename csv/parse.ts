@@ -2,7 +2,11 @@
  * Parse layer for CSV + XLSX.
  *
  * Wraps papaparse (text/csv, text/tsv, .csv) and SheetJS (.xlsx, .xls) so the
- * pipeline can treat both as the same `header + rows` shape.
+ * pipeline can treat both as the same `header + rows` shape. **This is the ONE
+ * conversion layer**: every upload surface (ads, store orders, bulk creative
+ * import, the budget plan sheet) comes through here, so a workbook and a CSV
+ * reach the validators as byte-identical rows of strings and nothing
+ * downstream knows which it was.
  *
  * Quirks from docs/validation-spec.md §6:
  *  - 10 MB upper bound (Stage 1 / E001).
@@ -74,6 +78,18 @@ function hasXlsxMagic(bytes: Uint8Array): boolean {
   return true;
 }
 
+/**
+ * Is this plainly a BINARY file rather than mis-encoded text? A NUL byte in
+ * the first few KB is the classic test — no text encoding this app accepts
+ * produces one, and every binary container (PDF, PNG, legacy .xls, a zip)
+ * does almost immediately.
+ */
+function looksBinary(bytes: Uint8Array): boolean {
+  const end = Math.min(bytes.length, 4096);
+  for (let i = 0; i < end; i++) if (bytes[i] === 0) return true;
+  return false;
+}
+
 function isExcelExtension(fileName?: string): boolean {
   if (!fileName) return false;
   const lower = fileName.toLowerCase();
@@ -131,14 +147,24 @@ export function parseFile(input: ParseInput): ParseResult {
   if (text === null && bytes) {
     text = decodeUtf8Strict(bytes);
     if (text === null) {
+      // Two different failures wear the same symptom. A file that is plainly
+      // BINARY (a PDF, an image, an .xls renamed) is not an encoding problem,
+      // and telling someone to "save as UTF-8" sends them nowhere.
       return {
         ok: false,
-        error: {
-          code: "E004",
-          severity: "FATAL",
-          message:
-            "The file encoding is not supported. Save as UTF-8 and re-upload.",
-        },
+        error: looksBinary(bytes)
+          ? {
+              code: "E002",
+              severity: "FATAL",
+              message:
+                "This doesn't look like a CSV or Excel file. Upload a .csv or .xlsx export.",
+            }
+          : {
+              code: "E004",
+              severity: "FATAL",
+              message:
+                "The file encoding is not supported. Save as UTF-8 and re-upload.",
+            },
       };
     }
   }
@@ -190,6 +216,33 @@ function parseCsvText(text: string): ParseResult {
   return rowsToResult(parsed.data);
 }
 
+/**
+ * Why a workbook couldn't be read, in words the uploader can act on. A
+ * password-protected file is the common one and deserves its own sentence —
+ * "could not be parsed" sends someone hunting for a formatting problem that
+ * isn't there.
+ */
+export function xlsxFailure(err: unknown): ValidationError {
+  const message = err instanceof Error ? err.message : String(err ?? "");
+  // Only a PASSWORD signal gets the password sentence. SheetJS also throws
+  // "Unsupported ZIP encryption" for a truncated or corrupt zip, and telling
+  // someone to remove a password they never set is a dead end.
+  if (/password/i.test(message)) {
+    return {
+      code: "E002",
+      severity: "FATAL",
+      message:
+        "This workbook is password-protected. Remove the password (File → Info → Protect Workbook) and upload it again.",
+    };
+  }
+  return {
+    code: "E002",
+    severity: "FATAL",
+    message:
+      "This Excel file could not be read — it may be corrupt or only partly downloaded. Re-save it as .xlsx and try again.",
+  };
+}
+
 function parseXlsx(bytes: Uint8Array): ParseResult {
   let workbook: XLSX.WorkBook;
   try {
@@ -197,15 +250,8 @@ function parseXlsx(bytes: Uint8Array): ParseResult {
     // objects internally so we can re-serialize them in our preferred format
     // below. Without it, Excel's serial-date numbers leak through.
     workbook = XLSX.read(bytes, { type: "array", cellDates: true });
-  } catch {
-    return {
-      ok: false,
-      error: {
-        code: "E002",
-        severity: "FATAL",
-        message: "The .xlsx file could not be parsed.",
-      },
-    };
+  } catch (err) {
+    return { ok: false, error: xlsxFailure(err) };
   }
   const sheetName = workbook.SheetNames[0];
   if (!sheetName) {
@@ -246,17 +292,56 @@ function parseXlsx(bytes: Uint8Array): ParseResult {
         return `${y}-${m}-${d}`;
       }
       if (typeof cell === "number") {
-        // Integer numbers come out clean; floats keep their precision.
-        return Number.isInteger(cell) ? cell.toString() : String(cell);
+        return numberToPlainString(cell);
       }
+      if (typeof cell === "boolean") return cell ? "TRUE" : "FALSE";
       return String(cell);
     }),
   );
 
-  return rowsToResult(rows);
+  const result = rowsToResult(rows);
+  // A workbook with several sheets is read FIRST-SHEET-ONLY, and says so:
+  // silently ignoring four other tabs is how someone uploads the summary tab
+  // and wonders where their data went.
+  if (result.ok && workbook.SheetNames.length > 1) {
+    result.warnings = [
+      ...result.warnings,
+      {
+        code: "W003",
+        severity: "WARNING",
+        message: `This workbook has ${workbook.SheetNames.length} sheets — only the first one (\u201C${sheetName}\u201D) was read.`,
+      },
+    ];
+  }
+  return result;
 }
 
 // ---------------------------------------------------------------------------
+
+/**
+ * A cell's number as a PLAIN decimal string — never `1e+21`, never a locale
+ * separator. The validators parse these back with `Number()`, and a
+ * spreadsheet full of large ids or spends must not arrive in exponent form
+ * (which is one of the two things CSV exports get wrong and a workbook
+ * otherwise gets right).
+ */
+export function numberToPlainString(n: number): string {
+  if (!Number.isFinite(n)) return "";
+  const s = n.toString();
+  if (!s.includes("e") && !s.includes("E")) return s;
+  // Exponent form → fixed notation, by hand. `toFixed` can't do it: it
+  // returns exponent form again at 1e21 and above, and caps at 100 decimals
+  // below.
+  const m = /^(-?)(\d+)(?:\.(\d+))?[eE]([+-]?\d+)$/.exec(s);
+  if (!m) return s;
+  const [, sign = "", intPart = "0", fracPart = "", expPart = "0"] = m;
+  const digits = intPart + fracPart;
+  // Where the decimal point lands inside `digits`.
+  const point = Number(expPart) + intPart.length;
+  if (point <= 0) return `${sign}0.${"0".repeat(-point)}${digits}`;
+  if (point >= digits.length) return `${sign}${digits}${"0".repeat(point - digits.length)}`;
+  return `${sign}${digits.slice(0, point)}.${digits.slice(point)}`;
+}
 
 function rowsToResult(raw: string[][] | unknown[][]): ParseResult {
   const all = (raw as string[][]).filter((r) => r && r.some((c) => (c ?? "") !== ""));

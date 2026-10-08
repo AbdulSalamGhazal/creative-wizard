@@ -54,6 +54,7 @@ Do not introduce a new dependency without a one-line justification in the PR des
 - Stages 1–2 fail fast. Stages 3–5 collect errors.
 - Creative-name matching is **trim-then-exact** — cells are whitespace-trimmed, then matched byte-exactly (case-sensitive, NO Unicode normalization). Blank/`-`/`—`/`N/A`/`null` numeric cells read as `0` in every numeric column; a required numeric field errors only when its COLUMN is absent (E010), never per blank cell. (v1.2 decision — see validation-spec §4/§5.1.)
 - All-or-nothing: nothing is written to `performance_records` unless the entire file is clean and the user confirms.
+- **CSV *or* XLSX everywhere, through ONE conversion layer (2026-10).** All four upload surfaces (ads uploads, store order uploads, the Budget plan sheet, the bulk creative import) take `.csv`, `.xlsx`, `.xlsm`, `.xls`; `csv/parse.ts` routes by extension OR `PK\x03\x04` magic bytes and converts the FIRST worksheet to the same rows of strings papaparse yields — dates → ISO UTC (`YYYY-MM-DD`), numbers → plain decimals (never `1e+21`), formulas → cached values, booleans → `TRUE`/`FALSE`, blanks → `""`. **Nothing downstream may branch on the format**; validators see strings either way. A multi-sheet workbook reads the first sheet and SAYS SO (W003 → S061 in the store catalog), surfaced wherever warnings already are. Unreadable files split three ways on purpose: password-protected (its own sentence), corrupt/partial (`.xlsx` re-save), and non-spreadsheet binary (E002 "This doesn't look like a CSV or Excel file", decided by a NUL byte in the first 4 KB — never E004 "encoding"). **The workbook reader is SheetJS (`xlsx`), already a dependency — do NOT add a second one** (`exceljs` was proposed and declined). The Budget plan sheet parses CSV in the browser and posts a WORKBOOK to `readSheetRows` (`app/actions/sheet.ts`, read-only server action) so /budget/plan's bundle stays free of a spreadsheet reader; `csv/xlsx.test.ts` builds its workbooks in-test with `XLSX.write` rather than committing binary fixtures.
 - Every error has a code from a catalog — now TWO of them: `csv/errors.ts` (E-codes, ads performance uploads) and `store/errors.ts` (S-codes, Store order uploads). Never invent ad-hoc error messages; pick the catalog for the domain.
 
 ## UI rules
@@ -1557,7 +1558,10 @@ This app is deployed and in production use. Treat `main` as shippable.
       for it." Confirm = `saveBudgetMonth({ mode: "daily", source: "upload",
       days, targetRoas, … })`, audited `op: "upload"`; the revision note
       pre-fills "Uploaded from file". papaparse is `import()`ed inside the
-      file handler (not in the page's first load); the preview needs
+      file handler (not in the page's first load) and a `.xlsx` goes to
+      `readSheetRows` instead — same parse layer, server-side, so the bundle
+      never gains a workbook reader; a reader notice joins the plan's own
+      notices above the preview; the preview needs
       `min-w-0` on its ancestor because `DialogContent` is a grid.
 
   - **DELETE PLAN (2026-09) — through the one writer, recoverable.** ⋯ menu,

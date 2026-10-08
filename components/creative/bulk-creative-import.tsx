@@ -123,6 +123,14 @@ export function BulkCreativeImport({ products }: Props) {
         )}
       </div>
 
+      {preview?.notices && preview.notices.length > 0 && (
+        <ul className="space-y-1 rounded-lg border border-line bg-surface-2 p-3 text-xs text-ink-2">
+          {preview.notices.map((n) => (
+            <li key={n}>{n}</li>
+          ))}
+        </ul>
+      )}
+
       {/* Preview */}
       {preview?.ok && preview.rows.length > 0 && (
         <div className="space-y-3">

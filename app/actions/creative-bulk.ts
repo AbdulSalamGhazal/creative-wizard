@@ -50,6 +50,8 @@ export interface BulkPreview {
   ok: boolean;
   /** Fatal parse/structure error (no per-row data). */
   error?: string;
+  /** Reader notices (a multi-sheet workbook) — the file still parsed. */
+  notices?: string[];
   rows: BulkRowResult[];
   total: number;
   validCount: number;
@@ -144,6 +146,8 @@ async function build(formData: FormData): Promise<BuildResult> {
     return { ...empty, preview: { ...empty.preview, error: parsed.error.message } };
   }
 
+  const notices = parsed.warnings.map((w) => w.message);
+
   const idx = {
     name: indexFor(parsed.header, "name"),
     product: indexFor(parsed.header, "product"),
@@ -158,6 +162,7 @@ async function build(formData: FormData): Promise<BuildResult> {
       ...empty,
       preview: {
         ...empty.preview,
+        notices: notices.length > 0 ? notices : undefined,
         error:
           'The file must have a "name" column and a "product" column (header row required).',
       },
@@ -305,6 +310,7 @@ async function build(formData: FormData): Promise<BuildResult> {
   const errorCount = rows.filter((r) => !r.ok).length;
   const preview: BulkPreview = {
     ok: true,
+    notices: notices.length > 0 ? notices : undefined,
     rows,
     total: rows.length,
     validCount: rows.length - errorCount,

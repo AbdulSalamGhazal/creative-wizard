@@ -59,9 +59,21 @@ Validation runs as a five-stage pipeline. The first two stages are **fail-fast**
   fallback originally planned here was never implemented and is formally
   dropped; the W001 code stays reserved but unused. Exports from all four
   platforms are UTF-8 in practice.)*
-- **XLSX ingestion:** `.xlsx` files are accepted alongside `.csv`. The first
-  sheet is converted in-memory (dates read as real Date cells) and then flows
-  through the identical pipeline — every rule below applies unchanged.
+- **XLSX ingestion:** `.xlsx` / `.xlsm` / `.xls` files are accepted alongside
+  `.csv`, routed by extension **or** by the `PK\x03\x04` magic bytes (a
+  workbook renamed `.txt` still reads). The FIRST worksheet is converted
+  in-memory to rows of strings and then flows through the identical pipeline —
+  every rule below applies unchanged. Conversion rules (`csv/parse.ts`, the one
+  layer): date cells → ISO `YYYY-MM-DD` in UTC (both the 1900 and 1904
+  workbook date systems, since SheetJS resolves the epoch before we see a
+  `Date`); numbers → plain decimal strings, never exponent form; formulas →
+  their cached value; booleans → `TRUE`/`FALSE`; empty cells → `""`. A workbook
+  with several sheets still reads the first one, and says so (W003).
+- A file that is neither (a PDF, an image, an `.xls` renamed) is rejected as
+  E002 "This doesn't look like a CSV or Excel file", not as an encoding problem
+  — a NUL byte in the first 4 KB is the test. A workbook that cannot be opened
+  is E002 with the reason split out: password-protected gets its own sentence,
+  everything else reads as corrupt or partly downloaded.
 
 ### 3.2 Stage 2 — Schema
 
@@ -165,6 +177,9 @@ Applies to: `spend`, `impressions`, `clicks`, `conversions`, `conversion_value`,
 | Trailing empty columns                                    | Ignored.                                                                                |
 | Quote-wrapped fields containing commas                    | Handled per RFC 4180.                                                                   |
 | Mixed line endings (CRLF / LF)                            | Normalized at parse time.                                                               |
+| A workbook with several sheets                            | First sheet only, with a W003 warning naming it (S061 on the store side).               |
+| A number Excel shows as `1E+21`                           | Written as plain digits — the validators parse strings, and exponent form reads as 0.    |
+| A password-protected workbook                             | E002, with the password instruction rather than "could not be parsed".                   |
 
 ---
 
@@ -198,6 +213,7 @@ Every error carries a stable code, a severity, a template, and an example. Codes
 | E061  | ERROR    | Row {n}: campaign `'{name}'` is not registered. Register it before importing.                             | —                                                                                                             |
 | W001  | WARNING  | *(reserved — the Windows-1256 fallback was never implemented; see §3.1)*                                  | —                                                                                                             |
 | W002  | WARNING  | Unknown column ignored: `{column}`.                                                                       | "Unknown column ignored: `Custom note`."                                                                      |
+| W003  | WARNING  | This workbook has {n} sheets — only the first one ("{sheet}") was read.                                    | "This workbook has 3 sheets — only the first one (“Summary”) was read."                                        |
 
 The error report rendered to the user is a virtualized list (scrollable, copy-pasteable, exportable as CSV) so that files with hundreds of errors remain reviewable.
 
