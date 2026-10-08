@@ -2,10 +2,17 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { Package, Sparkles } from "lucide-react";
 import {
+  CATEGORY_ICONS,
   FILTER_KEY_ICONS,
   anyFilterIcon,
+  categoryIcon,
   filterIcon,
 } from "@/components/filters/filter-icons";
+import {
+  CATEGORY_LABEL,
+  COMMENT_EVENT_TYPES,
+  categoryForType,
+} from "@/lib/notifications";
 import type { FilterDef } from "@/components/filters/filter-model";
 
 const multi = (key: string, extra: Partial<FilterDef> = {}): FilterDef =>
@@ -78,4 +85,27 @@ describe("every declared filter resolves through the one map", () => {
       }
     });
   }
+});
+
+describe("the notifications page can render a comment reaction", () => {
+  // The page's glyph and chip BOTH derive from `categoryForType(row.type)`, so
+  // a type the category map doesn't know would render as a System bell with a
+  // "System" label — the exact failure that once hid every mention. This pins
+  // the whole path for every comment type, reactions included.
+  it("gives every comment event type the same glyph as its category", () => {
+    for (const type of Object.values(COMMENT_EVENT_TYPES)) {
+      const category = categoryForType(type);
+      expect(CATEGORY_ICONS[category], `${type} → ${category}`).toBeTruthy();
+      expect(categoryIcon(category)).toBe(CATEGORY_ICONS[category]);
+      expect(CATEGORY_LABEL[category]).toBeTruthy();
+    }
+    // A reaction is conversation: the Reply glyph and the "Replies" chip.
+    const category = categoryForType(COMMENT_EVENT_TYPES.REACTION);
+    expect(categoryIcon(category)).toBe(CATEGORY_ICONS.reply);
+    expect(CATEGORY_LABEL[category]).toBe("Replies");
+  });
+
+  it("falls back to the bell only for a type nobody maps", () => {
+    expect(categoryIcon(categoryForType("retired.event"))).toBe(CATEGORY_ICONS.system);
+  });
 });

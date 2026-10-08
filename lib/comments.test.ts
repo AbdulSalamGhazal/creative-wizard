@@ -2,12 +2,18 @@ import { describe, expect, it } from "vitest";
 import {
   COMMENTABLE_VIEWS,
   COMMENT_PARAM,
+  COMMENT_REACTIONS,
+  COMMENT_REACTION_KEYS,
   MENTION_QUERY_MAX,
   activeMentions,
   buildCommentTarget,
+  composerStateAfterSubmit,
   detectMentionQuery,
   insertMentionToken,
+  isCommentReaction,
   matchMembers,
+  reactionEmoji,
+  reactionTooltip,
   highlightMentions,
   isCommentableView,
   monthAnchorLabel,
@@ -269,5 +275,71 @@ describe("inline @ — inserting and filtering", () => {
     // Both were picked; Bob's token was then deleted from the draft.
     expect(activeMentions("@Ann thoughts?", picked).map((m) => m.id)).toEqual(["1"]);
     expect(activeMentions("no tokens left", picked)).toEqual([]);
+  });
+});
+
+describe("the reaction vocabulary", () => {
+  // The KEYS are stored in `comment_reactions`, so they are effectively schema:
+  // renaming one orphans every row that carries it. The emoji is presentation.
+  it("is exactly five kinds, with stable keys", () => {
+    expect(COMMENT_REACTION_KEYS).toEqual(["up", "heart", "party", "laugh", "wow"]);
+    expect(COMMENT_REACTIONS).toHaveLength(5);
+  });
+
+  it("gives every kind an emoji and a label, and no duplicates", () => {
+    for (const r of COMMENT_REACTIONS) {
+      expect(r.emoji.length).toBeGreaterThan(0);
+      expect(r.label.length).toBeGreaterThan(0);
+    }
+    expect(new Set(COMMENT_REACTIONS.map((r) => r.emoji)).size).toBe(5);
+    expect(new Set(COMMENT_REACTION_KEYS).size).toBe(5);
+  });
+
+  it("validates a kind against the vocabulary, deriving it", () => {
+    for (const key of COMMENT_REACTION_KEYS) expect(isCommentReaction(key)).toBe(true);
+    expect(isCommentReaction("thumbsdown")).toBe(false);
+    expect(isCommentReaction("")).toBe(false);
+  });
+
+  it("renders a RETIRED kind as its raw key rather than dropping it", () => {
+    // Rows outlive catalogs — the same rule `categoryForType` follows.
+    expect(reactionEmoji("up")).toBe(COMMENT_REACTIONS[0].emoji);
+    expect(reactionEmoji("shrug")).toBe("shrug");
+  });
+
+  it("names a few reactors in the tooltip and counts the rest", () => {
+    expect(
+      reactionTooltip({ kind: "up", count: 1, mine: true, names: ["Sara Khan"] }),
+    ).toBe(`Sara Khan reacted ${reactionEmoji("up")}`);
+    expect(
+      reactionTooltip({ kind: "up", count: 2, mine: false, names: ["Sara", "Omar"] }),
+    ).toBe(`Sara and Omar reacted ${reactionEmoji("up")}`);
+    expect(
+      reactionTooltip({ kind: "heart", count: 9, mine: false, names: ["A", "B", "C"] }),
+    ).toBe(`A, B, C and 6 others reacted ${reactionEmoji("heart")}`);
+    // No names at hand (a deleted account) still says something true.
+    expect(reactionTooltip({ kind: "wow", count: 3, mine: false, names: [] })).toBe(
+      `3 people reacted ${reactionEmoji("wow")}`,
+    );
+  });
+});
+
+describe("what the composer keeps after a submit", () => {
+  const typed = { body: "half a thought", mentions: [{ id: "u1" }] };
+
+  it("empties the box on success — the create composer stays mounted", () => {
+    // The drawer's create composer is NOT remounted after a post (its `key`
+    // only changes when `replyTo` does), which is exactly why the sent text
+    // used to sit there.
+    expect(composerStateAfterSubmit({ ok: true }, typed)).toEqual({
+      body: "",
+      mentions: [],
+    });
+  });
+
+  it("KEEPS every character when the submit failed", () => {
+    // Losing someone's typed comment to a network blink is the worse bug.
+    expect(composerStateAfterSubmit({ ok: false }, typed)).toEqual(typed);
+    expect(composerStateAfterSubmit({ ok: false }, typed).mentions).toBe(typed.mentions);
   });
 });

@@ -4,6 +4,7 @@ import {
   auditEvents,
   campaigns,
   commentMentions,
+  commentReactions,
   comments,
   creatives,
   users,
@@ -11,10 +12,13 @@ import {
 import { getActiveAccountId } from "@/lib/tenant";
 import {
   COMMENT_THREAD_LIMIT,
+  REACTION_TOOLTIP_NAMES,
   monthAnchorLabel,
   viewLabel,
   type CommentAnchorType,
+  type CommentReactionTally,
 } from "@/lib/comments";
+import { auth } from "@/lib/auth";
 
 /** `db` or an open transaction — writers always pass their own `tx`. */
 type Exec = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
@@ -39,14 +43,17 @@ export interface CommentRow {
   createdAt: Date;
   /** Explicitly mentioned users, for highlighting and for the reply set. */
   mentions: Array<{ userId: string; name: string | null }>;
+  /** Reaction tallies, aggregated per kind — never a query per comment. */
+  reactions: CommentReactionTally[];
 }
 
 /**
  * One anchor's conversation: the newest `COMMENT_THREAD_LIMIT` top-level
  * comments and every reply under them, oldest-first within each thread.
  *
- * THREE bounded queries — the thread ids, the comments, the mentions — never a
- * query per thread (`lib/db.ts` is `max: 1`).
+ * FOUR bounded queries — the thread ids, the comments, the mentions and the
+ * reactions — never a query per thread or per comment (`lib/db.ts` is
+ * `max: 1`, so fewer queries is the only lever).
  */
 export async function listComments(
   anchorType: CommentAnchorType,
@@ -112,7 +119,69 @@ export async function listComments(
     byComment.set(m.commentId, list);
   }
 
-  return rows.map((r) => ({ ...r, mentions: byComment.get(r.id) ?? [] }));
+  const reactions = await reactionsFor(
+    rows.map((r) => r.id),
+    acct,
+  );
+
+  return rows.map((r) => ({
+    ...r,
+    mentions: byComment.get(r.id) ?? [],
+    // A soft-deleted comment shows NO reactions — the body is gone, so a row
+    // of pills under "Comment deleted" would be reacting to nothing.
+    reactions: r.deletedAt === null ? (reactions.get(r.id) ?? []) : [],
+  }));
+}
+
+/**
+ * Reaction tallies for a set of comments, grouped per kind: ONE query, however
+ * many comments and reactors there are. `mine` is resolved from the SESSION
+ * user here rather than taken from the caller, so a client cannot ask whose
+ * reaction it is seeing.
+ *
+ * Names are capped at `REACTION_TOOLTIP_NAMES` for the tooltip — a pill with 40
+ * reactors has no business shipping 40 names to the browser, and the count is
+ * what the UI actually renders.
+ */
+export async function reactionsFor(
+  commentIds: string[],
+  accountId: string,
+): Promise<Map<string, CommentReactionTally[]>> {
+  const out = new Map<string, CommentReactionTally[]>();
+  if (commentIds.length === 0) return out;
+  const me = await auth();
+
+  const rows = await db
+    .select({
+      commentId: commentReactions.commentId,
+      kind: commentReactions.kind,
+      userId: commentReactions.userId,
+      name: users.name,
+      createdAt: commentReactions.createdAt,
+    })
+    .from(commentReactions)
+    .leftJoin(users, eq(users.id, commentReactions.userId))
+    .where(
+      and(
+        eq(commentReactions.accountId, accountId),
+        inArray(commentReactions.commentId, commentIds),
+      ),
+    )
+    .orderBy(asc(commentReactions.createdAt));
+
+  for (const row of rows) {
+    const list = out.get(row.commentId) ?? [];
+    let tally = list.find((t) => t.kind === row.kind);
+    if (!tally) {
+      tally = { kind: row.kind, count: 0, mine: false, names: [] };
+      list.push(tally);
+      out.set(row.commentId, list);
+    }
+    tally.count += 1;
+    if (me && row.userId === me.id) tally.mine = true;
+    if (tally.names.length < REACTION_TOOLTIP_NAMES && row.name) tally.names.push(row.name);
+  }
+  return out;
 }
 
 /** How many live comments an anchor carries — the header button's badge. */

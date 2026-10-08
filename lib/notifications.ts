@@ -148,6 +148,13 @@ export const COMMENT_EVENT_TYPES = {
    * it.
    */
   ANCHOR_ACTIVITY: "comment.anchor_activity",
+  /**
+   * A REACTION on your comment (2026-10, user decision: "notify like a reply").
+   * Category `reply` — somebody responded to you, directly and by name; it is
+   * conversation, not a system event. On ADD only: removing a reaction retracts
+   * nothing, because you cannot un-tell someone.
+   */
+  REACTION: "comment.reaction",
 } as const;
 
 export type CommentEventType =
@@ -157,6 +164,7 @@ const COMMENT_CATEGORY: Record<CommentEventType, NotificationCategory> = {
   "comment.mention": "mention",
   "comment.reply": "reply",
   "comment.anchor_activity": "reply",
+  "comment.reaction": "reply",
 };
 
 /**

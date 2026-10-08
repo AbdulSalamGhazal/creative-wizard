@@ -2,6 +2,7 @@ import { z } from "zod";
 import {
   COMMENT_ANCHOR_TYPES,
   COMMENT_MAX,
+  COMMENT_REACTION_KEYS,
   VIEW_QUERY_MAX,
   isCommentableView,
 } from "@/lib/comments";
@@ -83,6 +84,15 @@ export const deleteCommentSchema = z.object({ id: z.string().uuid() });
 
 /** Undo a delete — only ever offered in the toast that follows it. */
 export const restoreCommentSchema = z.object({ id: z.string().uuid() });
+
+/**
+ * Toggling a reaction. The kind is validated against the VOCABULARY, derived —
+ * a hand-made request cannot store a sixth kind nobody can render.
+ */
+export const toggleReactionSchema = z.object({
+  commentId: z.string().uuid(),
+  kind: z.enum(COMMENT_REACTION_KEYS as unknown as [string, ...string[]]),
+});
 
 /** Reading a thread: the anchor, same shape rules as posting to it. */
 export const listCommentsSchema = z

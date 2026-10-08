@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils";
 import {
   COMMENT_MAX,
   activeMentions,
+  composerStateAfterSubmit,
   detectMentionQuery,
   insertMentionToken,
   matchMembers,
@@ -187,11 +188,22 @@ export function CommentComposer({
         text,
         activeMentions(text, mentions).map((m) => m.id),
       );
+      // THE COMPOSER CLEANS ITS OWN STATE. The drawer's create composer stays
+      // MOUNTED after a post (its `key` only changes when `replyTo` does), so
+      // without this the sent text sat in the box; reply and edit only looked
+      // right because those instances unmount. Fixing it per-caller with a key
+      // trick would leave the next caller to rediscover the same bug. A FAILED
+      // submit keeps every character — `composerStateAfterSubmit` holds that
+      // asymmetry, and a test pins both halves.
+      const next = composerStateAfterSubmit(res, { body, mentions });
+      setBody(next.body);
+      setMentions(next.mentions);
       if (!res.ok) {
         toast.error(res.error ?? "Couldn't save that.");
         return;
       }
       setToken(null);
+      setDismissedAt(null);
       onSubmitted?.();
     });
   };

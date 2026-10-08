@@ -93,6 +93,93 @@ export interface CommentAnchor {
   id: string;
 }
 
+/**
+ * REACTIONS (2026-10) — exactly five, and the SHORT KEY is what is stored.
+ *
+ * The key is the durable thing: rows in `comment_reactions` carry it, so the
+ * five keys are effectively schema and must not be renamed. The emoji is
+ * presentation and could change without a migration. Everything — the picker,
+ * the pills, the validator, the notification wording — derives from this array;
+ * never re-list the kinds at a consumer.
+ */
+export const COMMENT_REACTIONS = [
+  { key: "up", emoji: "\u{1F44D}", label: "Thumbs up" },
+  { key: "heart", emoji: "\u{2764}\u{FE0F}", label: "Heart" },
+  { key: "party", emoji: "\u{1F389}", label: "Party" },
+  { key: "laugh", emoji: "\u{1F602}", label: "Laugh" },
+  { key: "wow", emoji: "\u{1F62E}", label: "Wow" },
+] as const;
+
+export type CommentReaction = (typeof COMMENT_REACTIONS)[number]["key"];
+
+/** Derived — never hand-list the keys. */
+export const COMMENT_REACTION_KEYS: readonly CommentReaction[] = COMMENT_REACTIONS.map(
+  (r) => r.key,
+);
+
+export function isCommentReaction(value: string): value is CommentReaction {
+  return (COMMENT_REACTION_KEYS as readonly string[]).includes(value);
+}
+
+/**
+ * How a kind RENDERS. A stored kind that is no longer in the vocabulary falls
+ * back to the raw key rather than disappearing — rows outlive catalogs, the
+ * same rule `categoryForType` follows for notification types.
+ */
+export function reactionEmoji(kind: string): string {
+  return COMMENT_REACTIONS.find((r) => r.key === kind)?.emoji ?? kind;
+}
+
+export function reactionLabel(kind: string): string {
+  return COMMENT_REACTIONS.find((r) => r.key === kind)?.label ?? kind;
+}
+
+/** One kind's tally on one comment — what the thread payload carries. */
+export interface CommentReactionTally {
+  kind: string;
+  count: number;
+  /** Did the current reader react this way? Drives the tint and the toggle. */
+  mine: boolean;
+  /** A few reactor names for the tooltip — not the whole list. */
+  names: string[];
+}
+
+/** How many names a pill's tooltip spells out before saying "and N more". */
+export const REACTION_TOOLTIP_NAMES = 5;
+
+/** "Sara, Omar and 3 others reacted 👍" — the pill's tooltip, one rule. */
+export function reactionTooltip(tally: CommentReactionTally): string {
+  const emoji = reactionEmoji(tally.kind);
+  const shown = tally.names.slice(0, REACTION_TOOLTIP_NAMES);
+  // No names at hand (deleted accounts) still says something true, and must not
+  // then count those same people again as "others".
+  if (shown.length === 0) {
+    return `${tally.count} ${tally.count === 1 ? "person" : "people"} reacted ${emoji}`;
+  }
+  const rest = Math.max(0, tally.count - shown.length);
+  const people =
+    rest > 0
+      ? `${shown.join(", ")} and ${rest} ${rest === 1 ? "other" : "others"}`
+      : shown.length === 1
+        ? shown[0]!
+        : `${shown.slice(0, -1).join(", ")} and ${shown[shown.length - 1]}`;
+  return `${people} reacted ${emoji}`;
+}
+
+/**
+ * What the composer KEEPS after a submit, in one place because the asymmetry is
+ * the whole rule: a success empties the box (the drawer's create composer stays
+ * mounted, so without this the sent text sat there), and a FAILURE preserves
+ * every character — losing someone's typed comment to a network blink is the
+ * worse bug.
+ */
+export function composerStateAfterSubmit<M>(
+  result: { ok: boolean },
+  current: { body: string; mentions: M[] },
+): { body: string; mentions: M[] } {
+  return result.ok ? { body: "", mentions: [] } : current;
+}
+
 /** The anchor a plain page gets: itself, if it is commentable. */
 export function viewAnchorFor(pathname: string): CommentAnchor | null {
   return isCommentableView(pathname) ? { type: "view", id: pathname } : null;

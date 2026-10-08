@@ -3,12 +3,13 @@
 import { revalidatePath } from "next/cache";
 import { and, eq, isNotNull, isNull } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { auditEvents, comments } from "@/db/schema";
+import { auditEvents, commentReactions, comments } from "@/db/schema";
 import { can, requireAuth } from "@/lib/auth";
 import { getActiveAccountId } from "@/lib/tenant";
 import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
 import { actionError } from "@/lib/action-error";
 import {
+  reactionEmoji,
   rootParentId,
   splitCommentRecipients,
   type CommentAnchorType,
@@ -19,6 +20,7 @@ import {
   anchorParticipants,
   anchorBelongsToAccount,
   getComment,
+  resolveAnchorPath,
   insertMentions,
   mentionsOf,
   replaceMentions,
@@ -30,6 +32,7 @@ import {
   createCommentSchema,
   deleteCommentSchema,
   restoreCommentSchema,
+  toggleReactionSchema,
   updateCommentSchema,
 } from "@/validators/comments";
 
@@ -368,6 +371,95 @@ export async function deleteComment(input: unknown): Promise<CommentActionResult
 
     revalidateComments();
     return { ok: true };
+  } catch (err) {
+    return { ok: false, error: errMsg(err) };
+  }
+}
+
+/**
+ * React to a comment, or take your reaction back — ONE action, because the two
+ * are the same click. The unique key `(comment, user, kind)` IS the toggle: the
+ * delete either removes the row or matches nothing, and only then do we insert.
+ *
+ * No permission beyond brand membership: whoever can read the thread and reply
+ * to it can react to it. NOT audited, for the same reason notification reads
+ * aren't — this is preference churn, and an audit log full of 👍 helps nobody.
+ *
+ * NOTIFYING IS ADD-ONLY, and goes to the comment's AUTHOR alone (the user's
+ * decision: "like a reply"). Removing a reaction retracts nothing — you cannot
+ * un-tell someone — and reacting to your own comment tells nobody.
+ */
+export async function toggleReaction(
+  input: unknown,
+): Promise<CommentActionResult & { reacted?: boolean }> {
+  try {
+    const user = await requireAuth();
+    const parsed = toggleReactionSchema.safeParse(input);
+    if (!parsed.success) return { ok: false, error: "That reaction isn't available." };
+    const acct = await getActiveAccountId();
+
+    // The comment is re-validated ACCOUNT-SCOPED, like every other write here:
+    // another brand's comment id is simply "not found".
+    const comment = await getComment(parsed.data.commentId, acct);
+    if (!comment) return { ok: false, error: "That comment no longer exists." };
+    // A soft-deleted comment takes no new reactions — there is nothing left to
+    // react to, and the UI hides the controls for the same reason.
+    if (comment.deletedAt) return { ok: false, error: "That comment was deleted." };
+
+    const { commentId, kind } = parsed.data;
+
+    const reacted = await db.transaction(async (tx) => {
+      const removed = await tx
+        .delete(commentReactions)
+        .where(
+          and(
+            eq(commentReactions.commentId, commentId),
+            eq(commentReactions.userId, user.id),
+            eq(commentReactions.kind, kind),
+          ),
+        )
+        .returning({ id: commentReactions.id });
+      if (removed.length > 0) return false;
+
+      await tx.insert(commentReactions).values({
+        commentId,
+        userId: user.id,
+        accountId: acct,
+        kind,
+      });
+
+      // Reacting to your own comment notifies nobody, and an author whose row
+      // is gone (deleted user) has nobody to notify either.
+      if (!comment.authorUserId || comment.authorUserId === user.id) return true;
+
+      const anchor = await resolveAnchorPath(
+        comment.anchorType as CommentAnchorType,
+        comment.anchorId,
+        acct,
+      );
+      await createNotifications(tx, [
+        {
+          accountId: acct,
+          recipientUserId: comment.authorUserId,
+          category: categoryForType(COMMENT_EVENT_TYPES.REACTION),
+          type: COMMENT_EVENT_TYPES.REACTION,
+          title: `${user.name} reacted ${reactionEmoji(kind)} to your comment${
+            anchor ? ` on ${anchor.label}` : ""
+          }`,
+          body: comment.body.length > 140 ? `${comment.body.slice(0, 139)}\u2026` : comment.body,
+          href: `/go/comment/${commentId}`,
+          actorUserId: user.id,
+          // Stamped with the ANCHOR like every comment notification, so the
+          // page can collapse a burst of reactions into one row.
+          entityType: comment.anchorType,
+          entityId: comment.anchorId,
+        },
+      ]);
+      return true;
+    });
+
+    revalidateComments();
+    return { ok: true, reacted };
   } catch (err) {
     return { ok: false, error: errMsg(err) };
   }

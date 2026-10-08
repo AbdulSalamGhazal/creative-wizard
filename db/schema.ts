@@ -1495,6 +1495,41 @@ export const comments = pgTable(
  * is exactly what the author chose. Mentioned users must be members of the
  * comment's brand (checked in the action).
  */
+/**
+ * REACTIONS on a comment (2026-10) — one row per (comment, user, kind), so the
+ * unique index IS the toggle: a second click deletes the row it would have
+ * duplicated. `kind` is a short key from `COMMENT_REACTIONS` (lib/comments.ts),
+ * stored as text like every other app-side vocabulary here — adding a sixth
+ * reaction is a code change, not a migration.
+ *
+ * `account_id` follows the house tenancy pattern even though the comment it
+ * hangs off already carries one: every read is then scoped the same way as
+ * everything else, with no join required to know whose row this is.
+ */
+export const commentReactions = pgTable(
+  "comment_reactions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    commentId: uuid("comment_id")
+      .notNull()
+      .references(() => comments.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    accountId: accountId(),
+    kind: varchar("kind", { length: 16 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    oneEach: uniqueIndex("comment_reactions_comment_user_kind_idx").on(
+      t.commentId,
+      t.userId,
+      t.kind,
+    ),
+    commentIdx: index("comment_reactions_comment_idx").on(t.commentId),
+  }),
+);
+
 export const commentMentions = pgTable(
   "comment_mentions",
   {

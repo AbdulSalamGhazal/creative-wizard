@@ -310,12 +310,17 @@ function CommentPanelBody({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [anchorKey, setCount]);
 
-  // A new page is a new conversation; the panel itself stays open.
+  // A new page is a new conversation; the panel itself stays open. The
+  // HIGHLIGHT goes with the old one: it points at a comment id that does not
+  // exist in this thread, and the thread's scroll effect would then find
+  // nothing to scroll to — leaving the new conversation parked at the top
+  // instead of at its newest message.
   useEffect(() => {
     setRows(null);
     setReplyTo(null);
+    setHighlightId(null);
     void load();
-  }, [load]);
+  }, [load, setHighlightId]);
 
   const title = !anchor
     ? "Comments"
@@ -436,6 +441,11 @@ function CommentPanelBody({
               }
               onSubmitted={() => {
                 setReplyTo(null);
+                // Your own post is the newest thing in the thread, so land
+                // there: a highlight left over from a deep link or a
+                // click-to-apply would otherwise keep the thread scrolled to
+                // somebody else's older comment.
+                setHighlightId(null);
                 void load();
                 router.refresh();
               }}

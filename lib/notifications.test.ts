@@ -73,6 +73,18 @@ describe("the catalog", () => {
     expect(isEventType(DIRECT_EVENT_TYPES.BRAND_GRANTED)).toBe(false);
   });
 
+  it("files comment.reaction as a REPLY — the family-miss that bit mentions once", () => {
+    // `categoryForType` must know all the comment types, not most of them: when
+    // it missed COMMENT_EVENT_TYPES it rendered every mention as a "System"
+    // chip in three places at once. A reaction is addressed AT YOU, so it
+    // belongs with replies.
+    expect(categoryForType(COMMENT_EVENT_TYPES.REACTION)).toBe("reply");
+    // And no comment type may fall through to "system".
+    for (const type of Object.values(COMMENT_EVENT_TYPES)) {
+      expect(categoryForType(type), type).not.toBe("system");
+    }
+  });
+
   it("maps a stored type to its category, including retired ones", () => {
     expect(categoryForType("upload.committed")).toBe("system");
     expect(categoryForType(DIRECT_EVENT_TYPES.BRAND_GRANTED)).toBe("system");
@@ -121,6 +133,16 @@ describe("what counts as PERSONAL", () => {
     expect(isPersonalNotification({ category: "reply" })).toBe(true);
     expect(isPersonalNotification({ type: COMMENT_EVENT_TYPES.MENTION })).toBe(true);
     expect(isPersonalNotification({ type: COMMENT_EVENT_TYPES.REPLY })).toBe(true);
+  });
+
+  it("is a REACTION on your comment — one natural recipient, so it toasts", () => {
+    // It must toast under the DEFAULT `personal` scope: somebody reacted to
+    // something you wrote, which is the definition of addressed to you.
+    expect(isPersonalNotification({ type: COMMENT_EVENT_TYPES.REACTION })).toBe(true);
+    expect(shouldToast({ type: COMMENT_EVENT_TYPES.REACTION }, "personal")).toBe(true);
+    expect(shouldToast({ type: COMMENT_EVENT_TYPES.REACTION }, "all")).toBe(true);
+    // "off" silences toasts only — the bell and the badge still count it.
+    expect(shouldToast({ type: COMMENT_EVENT_TYPES.REACTION }, "off")).toBe(false);
   });
 
   it("is a DIRECT event, whose category is nonetheless 'system'", () => {

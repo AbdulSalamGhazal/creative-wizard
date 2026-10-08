@@ -30,15 +30,25 @@ vi.mock("@/lib/auth", () => ({
 import { auth, can, requireAuth } from "@/lib/auth";
 import { getActiveAccountId } from "@/lib/tenant";
 import { db } from "@/lib/db";
-import { auditEvents, campaigns, comments, creatives, notifications, users } from "@/db/schema";
+import {
+  auditEvents,
+  campaigns,
+  commentReactions,
+  comments,
+  creatives,
+  notifications,
+  users,
+} from "@/db/schema";
 import {
   createComment,
   deleteComment,
   restoreComment,
+  toggleReaction,
   updateComment,
 } from "@/app/actions/comments";
 import { listComments, resolveAnchorPath } from "@/db/queries/comments";
-import { buildCommentTarget } from "@/lib/comments";
+import { buildCommentTarget, reactionEmoji } from "@/lib/comments";
+import { COMMENT_EVENT_TYPES } from "@/lib/notifications";
 import { CREATIVE_1, CAMPAIGN_1, CAMPAIGN_B, resetAndSeed } from "./fixtures";
 
 const setAccount = (id: string) => vi.mocked(getActiveAccountId).mockResolvedValue(id);
@@ -590,5 +600,135 @@ describe("the /go resolver's reason to exist", () => {
     });
     // A pathname the nav doesn't offer resolves to nothing.
     expect(await resolveAnchorPath("view", "/uploads/new", ACCOUNT_A)).toBeNull();
+  });
+});
+
+describe("reactions", () => {
+  /** Post one comment as `author` and hand back its id. */
+  async function aComment(author: string, name: string, body = "Worth a look") {
+    setUser(author, name);
+    const res = await createComment({ ...onCreative, body });
+    expect(res.ok).toBe(true);
+    return res.id!;
+  }
+
+  const reactionsOn = async (commentId: string) => {
+    const thread = await listComments("creative", CREATIVE_1);
+    return thread.find((c) => c.id === commentId)?.reactions ?? [];
+  };
+
+  it("toggles: a click adds, the same click again takes it back", async () => {
+    const id = await aComment(ALICE, "Alice");
+    setUser(BOB, "Bob");
+
+    const added = await toggleReaction({ commentId: id, kind: "up" });
+    expect(added).toMatchObject({ ok: true, reacted: true });
+    expect(await db.select().from(commentReactions)).toHaveLength(1);
+
+    const removed = await toggleReaction({ commentId: id, kind: "up" });
+    expect(removed).toMatchObject({ ok: true, reacted: false });
+    expect(await db.select().from(commentReactions)).toHaveLength(0);
+
+    // Removal retracts NOTHING: the notification the add produced stays.
+    const notes = await db
+      .select()
+      .from(notifications)
+      .where(eq(notifications.type, COMMENT_EVENT_TYPES.REACTION));
+    expect(notes).toHaveLength(1);
+  });
+
+  it("holds one row per (comment, user, kind) — different kinds coexist", async () => {
+    const id = await aComment(ALICE, "Alice");
+    setUser(BOB, "Bob");
+    await toggleReaction({ commentId: id, kind: "up" });
+    await toggleReaction({ commentId: id, kind: "heart" });
+    setUser(CAROL, "Carol");
+    await toggleReaction({ commentId: id, kind: "up" });
+
+    const tallies = await reactionsOn(id);
+    const up = tallies.find((t) => t.kind === "up");
+    expect(up?.count).toBe(2);
+    expect(tallies.find((t) => t.kind === "heart")?.count).toBe(1);
+    // `mine` is resolved from the SESSION user, never from the caller.
+    expect(up?.mine).toBe(true); // Carol reacted 👍
+    expect(tallies.find((t) => t.kind === "heart")?.mine).toBe(false);
+    expect(up?.names).toEqual(["Bob", "Carol"]);
+  });
+
+  it("refuses a kind that isn't in the vocabulary", async () => {
+    const id = await aComment(ALICE, "Alice");
+    setUser(BOB, "Bob");
+    const res = await toggleReaction({ commentId: id, kind: "thumbsdown" });
+    expect(res.ok).toBe(false);
+    expect(await db.select().from(commentReactions)).toHaveLength(0);
+  });
+
+  it("notifies the AUTHOR, stamped with the anchor, with the emoji in the words", async () => {
+    const id = await aComment(ALICE, "Alice");
+    setUser(BOB, "Bob");
+    await toggleReaction({ commentId: id, kind: "party" });
+
+    const [note] = await db
+      .select()
+      .from(notifications)
+      .where(eq(notifications.type, COMMENT_EVENT_TYPES.REACTION));
+    expect(note?.recipientUserId).toBe(ALICE);
+    expect(note?.actorUserId).toBe(BOB);
+    expect(note?.category).toBe("reply");
+    expect(note?.title).toContain("Bob reacted");
+    expect(note?.title).toContain(reactionEmoji("party"));
+    // Stamped with the ANCHOR, not the comment — that is what lets the page
+    // collapse a burst of reactions into one row.
+    expect(note?.entityType).toBe("creative");
+    expect(note?.entityId).toBe(CREATIVE_1);
+    expect(note?.href).toBe(`/go/comment/${id}`);
+    expect(note?.accountId).toBe(ACCOUNT_A);
+  });
+
+  it("tells NOBODY when you react to your own comment", async () => {
+    const id = await aComment(ALICE, "Alice");
+    const res = await toggleReaction({ commentId: id, kind: "up" });
+    expect(res).toMatchObject({ ok: true, reacted: true });
+    expect(await db.select().from(commentReactions)).toHaveLength(1);
+    const notes = await db
+      .select()
+      .from(notifications)
+      .where(eq(notifications.type, COMMENT_EVENT_TYPES.REACTION));
+    expect(notes).toHaveLength(0);
+  });
+
+  it("refuses a comment in ANOTHER brand — the id alone identifies nothing", async () => {
+    const id = await aComment(ALICE, "Alice");
+    setAccount(ACCOUNT_B);
+    setUser(BOB, "Bob");
+    const res = await toggleReaction({ commentId: id, kind: "up" });
+    expect(res.ok).toBe(false);
+    expect(await db.select().from(commentReactions)).toHaveLength(0);
+  });
+
+  it("refuses a DELETED comment, and hides the reactions it already had", async () => {
+    const id = await aComment(ALICE, "Alice");
+    setUser(BOB, "Bob");
+    await toggleReaction({ commentId: id, kind: "up" });
+    expect(await reactionsOn(id)).toHaveLength(1);
+
+    setUser(ALICE, "Alice");
+    expect((await deleteComment({ id })).ok).toBe(true);
+
+    setUser(BOB, "Bob");
+    const res = await toggleReaction({ commentId: id, kind: "heart" });
+    expect(res.ok).toBe(false);
+    // The row survives (the delete is soft) but the thread shows none: there
+    // is nothing left to react to under "Comment deleted".
+    expect(await db.select().from(commentReactions)).toHaveLength(1);
+    expect(await reactionsOn(id)).toEqual([]);
+  });
+
+  it("goes away with its comment — the FK cascades", async () => {
+    const id = await aComment(ALICE, "Alice");
+    setUser(BOB, "Bob");
+    await toggleReaction({ commentId: id, kind: "wow" });
+    await db.delete(comments).where(eq(comments.id, id));
+    expect(await db.select().from(commentReactions)).toHaveLength(0);
   });
 });
