@@ -17,9 +17,18 @@ import { verifySessionTokenEdge } from "@/lib/session-edge";
  * and user existence stay in `auth()`/`requireAuth()` at the page/action layer.
  *
  * `/api/mcp` is EXCLUDED from this gate (like `/api/health`): the MCP server has
- * its OWN auth — a per-user bearer token verified in the route handler
- * (`verifyApiToken`) — and receives no session cookie. The exclusion is in the
- * matcher below; it does NOT widen the web app's cookie protection.
+ * its OWN auth — a bearer token (personal `cwz_` key or an OAuth access token)
+ * verified in the route handler — and receives no session cookie. The exclusion
+ * is in the matcher below; it does NOT widen the web app's cookie protection.
+ *
+ * `/api/oauth` and `/.well-known` are excluded for the same kind of reason, and
+ * each endpoint there states its own rule: registration, token and the discovery
+ * documents are PUBLIC and cookie-free (an OAuth client calls them before any
+ * user is involved), while `/api/oauth/authorize` DOES need a session and checks
+ * for one itself — it must bounce a signed-out visitor to /signin, and this gate
+ * answers an /api/ path with a 401 JSON, which would end a browser sign-in flow
+ * in a blank error instead of a login form. The consent screen (`/oauth/consent`)
+ * is NOT excluded: it is ordinary app UI behind the normal cookie gate.
  */
 
 const SESSION_COOKIE = "ccms_session";
@@ -50,6 +59,6 @@ export const config = {
   // ROOT-level .svg filename — a nested path like /admin/export.svg still hits
   // auth (the old `.*\.svg$` exempted every .svg-suffixed path app-wide).
   matcher: [
-    "/((?!_next/static|_next/image|signin|api/health|api/mcp|favicon.ico|icon.svg|[^/]*\\.svg$).*)",
+    "/((?!_next/static|_next/image|signin|api/health|api/mcp|api/oauth|\\.well-known|favicon.ico|icon.svg|[^/]*\\.svg$).*)",
   ],
 };

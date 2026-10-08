@@ -131,6 +131,110 @@ export const apiTokens = pgTable(
 );
 
 /**
+ * OAuth 2.1 — the three tables behind the browser sign-in flow for MCP
+ * (`/api/oauth/*`, see lib/oauth.ts). Global like `users` and `api_tokens`: a
+ * grant belongs to a USER, and brand scope follows that user's memberships at
+ * call time, exactly as a personal token does.
+ *
+ * NOTHING SECRET IS STORED IN THE CLEAR anywhere below: client secrets,
+ * authorization codes, access tokens and refresh tokens are all kept as their
+ * SHA-256 (`*_hash`), so a database dump cannot be replayed against the API.
+ */
+export const oauthClients = pgTable("oauth_clients", {
+  /** The public `client_id` handed to the client at registration. */
+  id: uuid("id").primaryKey().defaultRandom(),
+  /** What the client called itself (RFC 7591 `client_name`) — shown on consent. */
+  clientName: varchar("client_name", { length: 120 }).notNull(),
+  /**
+   * The EXACT redirect URIs this client may use. Matching is string-exact and
+   * https-only (see `isAllowedRedirectUri`): no wildcards, no prefix matching,
+   * no scheme coercion — the open-redirect hole in every half-built OAuth
+   * server. Stored as a text[] in registration order.
+   */
+  redirectUris: text("redirect_uris").array().notNull(),
+  /** "none" (public + PKCE, what claude.ai uses) or "client_secret_post". */
+  tokenEndpointAuthMethod: varchar("token_endpoint_auth_method", { length: 32 })
+    .notNull()
+    .default("none"),
+  /** SHA-256 of the client secret — only for `client_secret_post` clients. */
+  clientSecretHash: text("client_secret_hash"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/**
+ * Authorization codes — single-use, 10 minutes, bound to the client, the exact
+ * redirect_uri, the PKCE challenge and the user who consented. `consumed_at` is
+ * set by an atomic `UPDATE … WHERE consumed_at IS NULL RETURNING`, which is what
+ * makes a replay lose the race instead of minting a second token pair.
+ */
+export const oauthCodes = pgTable(
+  "oauth_codes",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    /** SHA-256 of the code. The raw value exists only in the redirect URL. */
+    codeHash: text("code_hash").notNull().unique(),
+    clientId: uuid("client_id")
+      .notNull()
+      .references(() => oauthClients.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    /** The redirect_uri this code was issued for — the token call must match it. */
+    redirectUri: text("redirect_uri").notNull(),
+    /** The S256 code_challenge; the verifier presented at /token must hash to it. */
+    codeChallenge: text("code_challenge").notNull(),
+    scope: text("scope"),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    /** Non-null = already redeemed. A second redemption is a replay (RFC 6749 §10.5). */
+    consumedAt: timestamp("consumed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    userIdx: index("oauth_codes_user_idx").on(t.userId),
+    expiresIdx: index("oauth_codes_expires_idx").on(t.expiresAt),
+  }),
+);
+
+/**
+ * Access + refresh tokens, one row each, tied together by `family_id` — the
+ * lineage that starts at one authorization code and continues through every
+ * refresh rotation. OAuth 2.1 reuse detection works on the family: presenting
+ * an already-rotated refresh token revokes the WHOLE family, because either the
+ * client or an attacker has a stale copy and we cannot tell which.
+ */
+export const oauthTokens = pgTable(
+  "oauth_tokens",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    /** "access" | "refresh" — app-side vocabulary (lib/oauth.ts), no DB enum. */
+    kind: varchar("kind", { length: 8 }).notNull(),
+    /** SHA-256 of the raw token. Raw values are returned once and never stored. */
+    tokenHash: text("token_hash").notNull().unique(),
+    /** The grant lineage. Shared by every access/refresh token descended from one code. */
+    familyId: uuid("family_id").notNull(),
+    clientId: uuid("client_id")
+      .notNull()
+      .references(() => oauthClients.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    scope: text("scope"),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    /** Set when a refresh token is rotated OUT — a later use of it is reuse. */
+    rotatedAt: timestamp("rotated_at", { withTimezone: true }),
+    /** Set by revoke (user action) or by family revocation on reuse detection. */
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    /** Stamped on MCP calls (throttled), so the grants list can show recency. */
+    lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    familyIdx: index("oauth_tokens_family_idx").on(t.familyId),
+    userIdx: index("oauth_tokens_user_idx").on(t.userId),
+  }),
+);
+
+/**
  * Brands / tenants. Global (shared across the app); every tenant-scoped table
  * carries an `account_id` FK to this table. Users are global too — any user can
  * switch to any account via the brand switcher.

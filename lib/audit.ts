@@ -57,6 +57,9 @@ export const AUDIT_ACTIONS = {
   // Personal API access tokens (MCP)
   TOKEN_CREATE: "token.create",
   TOKEN_REVOKE: "token.revoke",
+  // OAuth connections (a browser sign-in from Claude, instead of a pasted key)
+  OAUTH_GRANT: "oauth.grant",
+  OAUTH_REVOKE: "oauth.revoke",
 
   // Store module (Salla orders)
   STORE_FIELDS_UPDATE: "store.fields_update",
@@ -233,6 +236,8 @@ export const AUDIT_LABELS: Record<AuditAction, string> = {
   "user.password_reset": "Reset user password",
   "token.create": "Created API token",
   "token.revoke": "Revoked API token",
+  "oauth.grant": "Connected an app",
+  "oauth.revoke": "Disconnected an app",
   "store.fields_update": "Updated store fields",
   "store.upload_commit": "Committed store upload",
   "store.upload_rollback": "Rolled back store upload",
@@ -295,6 +300,8 @@ export const AUDIT_CATEGORIES: Record<AuditAction, AuditEntityType> = {
   "user.password_reset": "user",
   "token.create": "user",
   "token.revoke": "user",
+  "oauth.grant": "user",
+  "oauth.revoke": "user",
   "store.fields_update": "store",
   "store.upload_commit": "store",
   "store.upload_rollback": "store",

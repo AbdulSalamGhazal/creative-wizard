@@ -358,6 +358,13 @@
       "when": 1790670269510,
       "tag": "0050_toast_scope",
       "breakpoints": true
+    },
+    {
+      "idx": 51,
+      "version": "7",
+      "when": 1791457221808,
+      "tag": "0051_oauth_clients_codes_tokens",
+      "breakpoints": true
     }
   ]
 }

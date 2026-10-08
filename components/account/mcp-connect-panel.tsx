@@ -5,9 +5,13 @@ import { Check, Copy } from "lucide-react";
 import { toast } from "sonner";
 
 /**
- * Copy-paste "How to connect" snippets for the read-only MCP server. Static —
- * the user substitutes their own token (created above). The URL is the deployed
- * streamable-HTTP endpoint.
+ * How to connect. TWO PATHS, and the order is the recommendation: sign-in
+ * (OAuth 2.1 — paste the URL, approve the window, no secret to store) first,
+ * then the personal-token snippets for clients that can't do a browser sign-in.
+ *
+ * The token path is NOT deprecated copy: `mcp-remote` and the desktop clients
+ * register `http://localhost` callbacks, which this authorization server refuses
+ * on purpose (https only), so a key is the right answer there — see lib/oauth.ts.
  */
 
 // The Streamable-HTTP endpoint. mcp-handler serves the transport at
@@ -57,11 +61,32 @@ export function McpConnectPanel() {
       <div className="border-b border-line px-4 py-3">
         <h2 className="text-sm font-medium text-ink">How to connect</h2>
         <p className="text-xs text-ink-3">
-          Replace <code className="font-mono">YOUR_TOKEN</code> with a token from
-          above. The connection is read-only.
+          Signing in is the simplest path; the token snippets are for clients
+          that can&rsquo;t open a browser window. Either way, read-only.
         </p>
       </div>
       <div className="space-y-4 p-4">
+        {/* The primary path. Deliberately not a code block — there is nothing
+            to copy but the URL, and a snippet would make it look harder. */}
+        <div className="space-y-1.5 rounded-md border border-brand/30 bg-brand/5 p-3">
+          <div className="text-label text-ink-2">Claude (web, desktop or mobile) — recommended</div>
+          <ol className="list-decimal space-y-1 pl-4 text-[11px] leading-relaxed text-ink-2">
+            <li>
+              In Claude, add a custom connector with this URL:{" "}
+              <code className="font-mono text-ink">{MCP_URL}</code>
+            </li>
+            <li>A Wizard window opens — sign in if you aren&rsquo;t already.</li>
+            <li>
+              Approve the connection. It appears under{" "}
+              <span className="text-ink">Connected apps</span> above, and you can
+              revoke it there any time.
+            </li>
+          </ol>
+          <p className="text-[11px] text-ink-3">
+            Nothing to paste or store: the connection is granted by signing in,
+            and it reads only the brands and data you can see.
+          </p>
+        </div>
         {/* Renaming a tool's field is a breaking change for already-connected
             clients, so it's called out here as well as in every affected tool
             description. */}
@@ -75,6 +100,11 @@ export function McpConnectPanel() {
           <code className="font-mono">tags</code> field and filter are now{" "}
           <code className="font-mono">angles</code>. Update any saved prompts —{" "}
           <code className="font-mono">tags</code> is no longer accepted.
+        </p>
+        <p className="text-[11px] text-ink-3">
+          For the clients below, replace{" "}
+          <code className="font-mono">YOUR_TOKEN</code> with a personal access
+          token from above (they sign in with a header, not a browser window).
         </p>
         {SNIPPETS.map((s) => (
           <Snippet key={s.label} {...s} />
