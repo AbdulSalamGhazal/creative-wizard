@@ -180,6 +180,7 @@ Applies to: `spend`, `impressions`, `clicks`, `conversions`, `conversion_value`,
 | A workbook with several sheets                            | First sheet only, with a W003 warning naming it (S061 on the store side).               |
 | A number Excel shows as `1E+21`                           | Written as plain digits — the validators parse strings, and exponent form reads as 0.    |
 | A password-protected workbook                             | E002, with the password instruction rather than "could not be parsed".                   |
+| Fractional conversions (Google data-driven attribution)    | Rounded to the NEAREST whole number at normalization, with a W004 warning per field. Google's DDA splits one conversion across touchpoints, so a day reads `11.5`; the count columns are `integer`, and an unrounded value made Postgres reject the WHOLE commit (22P02 `invalid input syntax for type integer`) — a 400-row file imported nothing. Money columns are `numeric(14,4)` and keep every decimal. |
 
 ---
 
@@ -213,6 +214,7 @@ Every error carries a stable code, a severity, a template, and an example. Codes
 | E061  | ERROR    | Row {n}: campaign `'{name}'` is not registered. Register it before importing.                             | —                                                                                                             |
 | W001  | WARNING  | *(reserved — the Windows-1256 fallback was never implemented; see §3.1)*                                  | —                                                                                                             |
 | W002  | WARNING  | Unknown column ignored: `{column}`.                                                                       | "Unknown column ignored: `Custom note`."                                                                      |
+| W004  | WARNING  | {n} fractional values in `'{field}'` were rounded to the nearest whole number — {Label} is stored as a whole count.                                        | "2 fractional values in `'conversions'` were rounded to the nearest whole number — Conversions is stored as a whole count. Google's data-driven attribution reports conversions fractionally." |
 | W003  | WARNING  | This workbook has {n} sheets — only the first one ("{sheet}") was read.                                    | "This workbook has 3 sheets — only the first one (“Summary”) was read."                                        |
 
 The error report rendered to the user is a virtualized list (scrollable, copy-pasteable, exportable as CSV) so that files with hundreds of errors remain reviewable.

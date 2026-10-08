@@ -50,6 +50,17 @@ export interface FieldMeta {
   label: string;
   required: boolean;
   /**
+   * How the field is STORED, and the one fact the pipeline needs from it: a
+   * `count` lands in an **INTEGER** column of `performance_records`, so a
+   * fractional cell must be rounded before the commit — Google's data-driven
+   * attribution reports `11.5` conversions, and Postgres rejects the whole
+   * transaction (22P02) rather than truncating. `money` is `numeric(14,4)` and
+   * KEEPS its decimals. Declared here because this file is the one place that
+   * knows what a field is; the pipeline derives its rounding set from it, so a
+   * new metric cannot be added without saying which kind it is.
+   */
+  kind: "text" | "date" | "money" | "count";
+  /**
    * Platforms whose exports simply DO NOT CARRY this metric. This is the ONE
    * declaration of that fact, and three separate behaviours derive from it:
    *   1. the E010 required-column check SKIPS the field for those platforms
@@ -72,23 +83,23 @@ export interface FieldMeta {
 const GOOGLE_ONLY: readonly Platform[] = ["google"];
 
 export const FIELD_META: Record<InternalField, FieldMeta> = {
-  creative_name: { label: "Creative name", required: true },
-  campaign_name: { label: "Campaign name", required: true },
-  adset_name: { label: "Ad set name", required: true },
-  date: { label: "Date", required: true },
-  spend: { label: "Spend", required: true },
-  impressions: { label: "Impressions", required: true },
-  clicks: { label: "Clicks", required: true },
-  conversions: { label: "Conversions", required: true },
-  conversion_value: { label: "Conversion value", required: true },
-  landing_page_views: { label: "Landing page views", required: true, unavailableOn: GOOGLE_ONLY },
-  add_to_cart: { label: "Add to cart (ATC)", required: false, unavailableOn: GOOGLE_ONLY },
-  add_payment: { label: "Add payment (AP)", required: false, unavailableOn: GOOGLE_ONLY },
-  video_views_2s: { label: "Video views 2s", required: true, unavailableOn: GOOGLE_ONLY },
-  video_views_25: { label: "Video views 25%", required: true, unavailableOn: GOOGLE_ONLY },
-  video_views_50: { label: "Video views 50%", required: true, unavailableOn: GOOGLE_ONLY },
-  video_views_75: { label: "Video views 75%", required: true, unavailableOn: GOOGLE_ONLY },
-  video_views_100: { label: "Video views 100%", required: true, unavailableOn: GOOGLE_ONLY },
+  creative_name: { kind: "text", label: "Creative name", required: true },
+  campaign_name: { kind: "text", label: "Campaign name", required: true },
+  adset_name: { kind: "text", label: "Ad set name", required: true },
+  date: { kind: "date", label: "Date", required: true },
+  spend: { kind: "money", label: "Spend", required: true },
+  impressions: { kind: "count", label: "Impressions", required: true },
+  clicks: { kind: "count", label: "Clicks", required: true },
+  conversions: { kind: "count", label: "Conversions", required: true },
+  conversion_value: { kind: "money", label: "Conversion value", required: true },
+  landing_page_views: { kind: "count", label: "Landing page views", required: true, unavailableOn: GOOGLE_ONLY },
+  add_to_cart: { kind: "count", label: "Add to cart (ATC)", required: false, unavailableOn: GOOGLE_ONLY },
+  add_payment: { kind: "count", label: "Add payment (AP)", required: false, unavailableOn: GOOGLE_ONLY },
+  video_views_2s: { kind: "count", label: "Video views 2s", required: true, unavailableOn: GOOGLE_ONLY },
+  video_views_25: { kind: "count", label: "Video views 25%", required: true, unavailableOn: GOOGLE_ONLY },
+  video_views_50: { kind: "count", label: "Video views 50%", required: true, unavailableOn: GOOGLE_ONLY },
+  video_views_75: { kind: "count", label: "Video views 75%", required: true, unavailableOn: GOOGLE_ONLY },
+  video_views_100: { kind: "count", label: "Video views 100%", required: true, unavailableOn: GOOGLE_ONLY },
 };
 
 /**
@@ -100,6 +111,14 @@ export const FIELD_LIST: ReadonlyArray<{
   label: string;
   required: boolean;
 }> = INTERNAL_FIELDS.map((key) => ({ key, ...FIELD_META[key] }));
+
+/**
+ * The fields stored as INTEGER counts, derived from `FIELD_META` — the set the
+ * pipeline rounds. Never hand-list it at a consumer.
+ */
+export const COUNT_FIELDS: readonly InternalField[] = INTERNAL_FIELDS.filter(
+  (f) => FIELD_META[f].kind === "count",
+);
 
 /** True when `platform` cannot report `field` at all (see `unavailableOn`). */
 export function isFieldUnavailableOn(

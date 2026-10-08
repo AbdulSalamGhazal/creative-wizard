@@ -37,6 +37,10 @@ export const errorCodes = {
   W002: "WARNING",
   // W003: the workbook had more than one sheet; we read the FIRST and say which.
   W003: "WARNING",
+  // W004: fractional values in a COUNT column were rounded to the nearest whole
+  // number. Google's data-driven attribution reports conversions fractionally
+  // ("11.5"), and those columns are integers — see docs/validation-spec.md §6.
+  W004: "WARNING",
 } as const;
 
 export type ErrorCode = keyof typeof errorCodes;

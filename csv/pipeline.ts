@@ -17,6 +17,8 @@ import { parseCsv, type ParseInput } from "@/csv/parse";
 import { isEmptyMarker, parseNumber } from "@/csv/numeric";
 import { ADAPTERS } from "@/csv/platforms";
 import {
+  COUNT_FIELDS,
+  FIELD_META,
   isFieldUnavailableOn,
   type DateFormat,
   type InternalField,
@@ -191,6 +193,26 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
    * editors or diff/read tools) - do not "fix" an apparent missing delimiter.
    */
   const seenKeys = new Map<string, number[]>();
+
+  /**
+   * COUNT fields land in INTEGER columns, and a platform may report them
+   * fractionally — Google's data-driven attribution splits one conversion
+   * across touchpoints, so a day reads `11.5`. Those cells are rounded to the
+   * nearest whole number HERE, at normalization, so the preview, the summary
+   * totals and the committed rows all state the same number; rounding at
+   * insert instead would make the confirmation screen a lie. Money fields
+   * (`numeric(14,4)`) keep every decimal.
+   *
+   * Per field: how many cells the rounding actually CHANGED (→ W004).
+   */
+  const roundedCells = new Map<InternalField, number>();
+  const asCount = (field: InternalField, value: number): number => {
+    const whole = Math.round(value);
+    if (whole !== value) roundedCells.set(field, (roundedCells.get(field) ?? 0) + 1);
+    return whole;
+  };
+  const asCountOrNull = (field: InternalField, value: number | null): number | null =>
+    value === null ? null : asCount(field, value);
 
   for (let i = 0; i < parsed.rows.length; i++) {
     const csvRow = parsed.rows[i]!;
@@ -379,19 +401,18 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
       campaignName,
       date: canonicalDate,
       spend,
-      impressions: Math.floor(impressions),
-      clicks: Math.floor(clicks),
-      conversions,
+      impressions: asCount("impressions", impressions),
+      clicks: asCount("clicks", clicks),
+      conversions: asCountOrNull("conversions", conversions),
       conversionValue,
-      landingPageViews:
-        landingPageViews === null ? null : Math.floor(landingPageViews),
-      addToCart: addToCart === null ? null : Math.floor(addToCart),
-      addPayment: addPayment === null ? null : Math.floor(addPayment),
-      videoViews2s: videoViews2s === null ? null : Math.floor(videoViews2s),
-      videoViews25: videoViews25 === null ? null : Math.floor(videoViews25),
-      videoViews50: videoViews50 === null ? null : Math.floor(videoViews50),
-      videoViews75: videoViews75 === null ? null : Math.floor(videoViews75),
-      videoViews100: videoViews100 === null ? null : Math.floor(videoViews100),
+      landingPageViews: asCountOrNull("landing_page_views", landingPageViews),
+      addToCart: asCountOrNull("add_to_cart", addToCart),
+      addPayment: asCountOrNull("add_payment", addPayment),
+      videoViews2s: asCountOrNull("video_views_2s", videoViews2s),
+      videoViews25: asCountOrNull("video_views_25", videoViews25),
+      videoViews50: asCountOrNull("video_views_50", videoViews50),
+      videoViews75: asCountOrNull("video_views_75", videoViews75),
+      videoViews100: asCountOrNull("video_views_100", videoViews100),
       rawPayload,
     });
 
@@ -417,6 +438,26 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
         value: parts[0],
       });
     }
+  }
+
+  // W004 — rounding is never silent. One line per field, in the canonical
+  // field order, counting only the cells whose value actually CHANGED; a file
+  // of whole numbers says nothing at all.
+  for (const field of COUNT_FIELDS) {
+    const n = roundedCells.get(field);
+    if (!n) continue;
+    warnings.push({
+      code: "W004",
+      severity: "WARNING",
+      message:
+        `${n} fractional ${n === 1 ? "value" : "values"} in \`'${field}'\` ${n === 1 ? "was" : "were"} rounded to the nearest whole number — ${FIELD_META[field].label} is stored as a whole count.` +
+        // The why, where it IS the explanation: Google's data-driven
+        // attribution splits one conversion across touchpoints.
+        (field === "conversions"
+          ? " Google's data-driven attribution reports conversions fractionally."
+          : ""),
+      field,
+    });
   }
 
   // ---------- Stage 5 — already imported (blocking) ----------

@@ -324,3 +324,89 @@ describe("CSV pipeline — campaign registration (E061)", () => {
   });
 });
 
+
+describe("CSV pipeline — fractional counts (W004)", () => {
+  // Google's data-driven attribution splits a conversion across touchpoints, so
+  // a day reads "11.5". The count columns are INTEGER, and before this the
+  // conversions cell reached the commit unrounded — Postgres rejected the whole
+  // transaction with 22P02 `invalid input syntax for type integer: "11.5"`.
+  it("rounds fractional counts to the nearest whole number", async () => {
+    const res = await run(
+      `${META_HEADER}\n` +
+        `${row({ conv: "11.5", lpv: "10.4", imps: "100.5", clicks: "0.5" })}\n`,
+    );
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    const r = res.rows[0]!;
+    expect(r.conversions).toBe(12);
+    expect(r.landingPageViews).toBe(10);
+    expect(r.impressions).toBe(101);
+    expect(r.clicks).toBe(1);
+    // Integer-clean: what the preview shows is what the integer columns take.
+    for (const v of [r.impressions, r.clicks, r.conversions, r.landingPageViews]) {
+      expect(Number.isInteger(v)).toBe(true);
+    }
+  });
+
+  it("warns once per field, counting the cells it changed", async () => {
+    const res = await run(
+      `${META_HEADER}\n` +
+        `${row({ date: "2026-05-01", conv: "11.5", lpv: "2.5" })}\n` +
+        `${row({ date: "2026-05-02", conv: "3.25", lpv: "4" })}\n` +
+        `${row({ date: "2026-05-03", conv: "7", lpv: "9" })}\n`,
+    );
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    const w = res.warnings.filter((x) => x.code === "W004");
+    expect(w).toHaveLength(2);
+    const conv = w.find((x) => x.field === "conversions");
+    expect(conv?.message).toContain("2 fractional values");
+    expect(conv?.message).toContain("Google's data-driven attribution");
+    // The Google sentence belongs to conversions only — it is not an
+    // explanation for a fractional video view.
+    const lpv = w.find((x) => x.field === "landing_page_views");
+    expect(lpv?.message).toContain("1 fractional value");
+    expect(lpv?.message).toContain("was rounded to the nearest whole number");
+    expect(lpv?.message).not.toContain("Google");
+  });
+
+  it("says NOTHING for a whole-number file — the common path is untouched", async () => {
+    const whole = `${META_HEADER}\n${row({})}\n${row({ date: "2026-05-02", conv: "3" })}\n`;
+    const res = await run(whole);
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.warnings.filter((w) => w.code === "W004")).toEqual([]);
+    // And the values are exactly what the file said.
+    expect(res.rows.map((r) => [r.impressions, r.clicks, r.conversions])).toEqual([
+      [100, 5, 0],
+      [100, 5, 3],
+    ]);
+  });
+
+  it("does NOT round money — spend and revenue keep their decimals", async () => {
+    const res = await run(
+      `${META_HEADER}\n${row({ spend: "10.49", convVal: "1234.567", conv: "2.5" })}\n`,
+    );
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.rows[0]?.spend).toBe(10.49);
+    expect(res.rows[0]?.conversionValue).toBe(1234.567);
+    // The count beside them still rounded, so the two rules are independent.
+    expect(res.rows[0]?.conversions).toBe(3);
+    expect(res.warnings.filter((w) => w.code === "W004").map((w) => w.field)).toEqual([
+      "conversions",
+    ]);
+  });
+
+  it("rounds a .5 UP, and a value already whole is not counted as changed", async () => {
+    const res = await run(
+      `${META_HEADER}\n${row({ conv: "0.5", imps: "100.0", clicks: "5" })}\n`,
+    );
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.rows[0]?.conversions).toBe(1);
+    expect(res.warnings.filter((w) => w.code === "W004").map((w) => w.field)).toEqual([
+      "conversions",
+    ]);
+  });
+});
