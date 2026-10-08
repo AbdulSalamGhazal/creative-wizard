@@ -356,6 +356,24 @@ describe("the instructions", () => {
     expect(t).not.toMatch(/WAIT for the reply/);
   });
 
+  it("makes the model restate the artifact promise in its own chat messages", () => {
+    // Turn-distance decay: by the time the report is written, rule 4 sits two
+    // or three turns back behind a ~26K-token bundle, and in practice the
+    // report came back as chat text. Appending this sentence to the model's
+    // OWN question puts the commitment one turn from the deliverable.
+    // Verbatim, so a paraphrase trips THIS test by name.
+    expect(t).toContain(
+      "When you answer, I'll update the report as an artifact — never as chat text.",
+    );
+    expect(t).toMatch(/must END with this exact sentence/);
+    expect(t).toMatch(/do not drop or paraphrase it/);
+    // It belongs to the interview rule — the message that asks is the message
+    // that promises.
+    expect(t.indexOf("must END with this exact sentence")).toBeLessThan(
+      t.indexOf("2. THE EVIDENCE RULE"),
+    );
+  });
+
   it("still needs reach and frequency before any fatigue call", () => {
     expect(t).toMatch(/REACH and FREQUENCY/);
     expect(t).toMatch(/fatigue or saturation call/);
@@ -405,6 +423,10 @@ describe("the instructions", () => {
     expect(t).toMatch(/AT MOST ONE SENTENCE pointing to the artifact/);
     expect(t).toMatch(/UPDATE THE ARTIFACT — or issue a v2 artifact/);
     expect(t).toMatch(/rather than answering in chat tables/);
+    // Every VERSION, not just the first one — the reissue is where it slipped.
+    expect(t).toMatch(/THIS RULE APPLIES TO EVERY VERSION/);
+    expect(t).toMatch(/every reissue after the user supplies data/);
+    expect(t).toMatch(/Distance from this instruction is not an excuse/);
   });
 
   it("keeps the layout contract, including the pending marker", () => {
