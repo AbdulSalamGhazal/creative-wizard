@@ -358,6 +358,35 @@ This app is deployed and in production use. Treat `main` as shippable.
         that sets that HTML. The toolbar (B · I · list · @, ⌘/Ctrl+B/I) only
         INSERTS SYNTAX around the selection — the field never becomes a rich
         editor, so what you see in the box is what is stored.
+    - **The composer CLEARS ITSELF on success — and only on success (2026-10,
+      user-reported).** The drawer's create composer stays MOUNTED after a post
+      (its `key` only changes when `replyTo` does), so the sent text used to sit
+      in the box; reply and edit only looked right because those instances
+      unmount. The rule is `composerStateAfterSubmit` (pure, pinned both ways):
+      success empties body AND mentions, a FAILED submit keeps every character —
+      losing a typed comment to a network blink is the worse bug. Fix state in
+      the COMPOSER, never with a `key` trick at one caller. The same sweep found
+      the drawer's `highlightId` was never cleared: it outlived the post (so the
+      thread scrolled to someone else's comment instead of yours) and the page
+      (so the next thread didn't scroll at all). It is cleared on post and on
+      anchor change.
+    - **REACTIONS (2026-10, migration 0052) — five kinds, and the toggle is the
+      unique key.** 👍 `up` · ❤️ `heart` · 🎉 `party` · 😂 `laugh` · 😮 `wow`,
+      declared ONCE as `COMMENT_REACTIONS` in lib/comments.ts and derived
+      everywhere; **the short KEY is stored, so the keys are effectively schema**
+      (the emoji is presentation, and a retired kind renders as its raw key).
+      `toggleReaction` deletes first and inserts only if nothing was removed, so
+      a second click takes yours back and a race can't duplicate a row; the
+      comment is re-validated ACCOUNT-SCOPED, a soft-deleted comment is refused,
+      and the kind is checked against the vocabulary. Membership is the only
+      permission, and it is NOT audited (preference churn, like reads).
+      **Notifying is ADD-ONLY and goes to the AUTHOR alone** (user decision,
+      "like a reply"): type `comment.reaction`, category `reply`, anchor-stamped
+      like every comment notification, through `/go/comment/[id]`. Reacting to
+      your own comment notifies nobody; REMOVING one retracts nothing. Tallies
+      ride the EXISTING thread payload (one bounded query for the thread, never
+      one per comment) with `mine` resolved server-side; a deleted comment
+      carries none, and editing never touches reactions.
 
 - **Sparse audience snapshots: carry forward, never interpolate (2026-09).**
   `audience_snapshots` holds only the days somebody actually MEASURED an
