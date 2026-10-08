@@ -90,7 +90,19 @@ Do not introduce a new dependency without a one-line justification in the PR des
     when it read as one. The report MUST be created as an artifact (one
     self-contained HTML document), never as chat text or markdown tables; chat
     gets at most one sentence pointing to it; and data supplied later UPDATES
-    the artifact (or issues a v2) rather than being answered in chat.
+    the artifact (or issues a v2) rather than being answered in chat. **It
+    binds EVERY version** — the first report with its PENDING sections and
+    every reissue.
+  - **SELF-COMMITMENT (2026-10) — the model restates the promise in its own
+    words.** Rule 1 requires every chat message that asks the user for data to
+    END with the verbatim sentence "When you answer, I'll update the report as
+    an artifact — never as chat text." WHY: our instructions are DATA to the
+    consuming Claude app, and the designed flow puts 2–3 turns between them and
+    the report (tool call → question → answer → report) behind a ~26K-token
+    bundle — in practice the report came back as chat text. A commitment the
+    model wrote itself one turn earlier is what it actually re-reads. **Do not
+    delete either sentence as redundant; both are string-pinned** by named
+    tests in `lib/diagnosis.test.ts`.
   - **The bundle must not lie by omission:** NULLs are preserved (a metric the
     campaign's platform cannot report is `null`, never 0 — `nullUnavailable`),
     a no-data day carries `records: 0` so a gap can't read as a measured zero,
