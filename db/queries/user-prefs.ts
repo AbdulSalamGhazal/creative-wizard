@@ -1,7 +1,7 @@
 import { cache } from "react";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { userFilterPrefs, users } from "@/db/schema";
+import { userFilterPrefs, userTablePrefs, users } from "@/db/schema";
 import { auth } from "@/lib/auth";
 import { getActiveAccountId } from "@/lib/tenant";
 import {
@@ -9,6 +9,11 @@ import {
   prefsSuppressed,
   type FilterPrefEntry,
 } from "@/validators/user-prefs";
+import {
+  EMPTY_TABLE_PREF,
+  type TableColumnPref,
+  type TableKey,
+} from "@/lib/table-columns";
 import { resolveIncludeExcludedValue } from "@/lib/exclusion-rules";
 import {
   DEFAULT_TOAST_SCOPE,
@@ -229,4 +234,99 @@ export async function writeFilterPrefs(
         set: { values: sql`excluded.values`, updatedAt: new Date() },
       });
   }
+}
+
+// ── Remembered table columns (2026-10, migration 0053) ──────────────────────
+
+/**
+ * Every table preference this user has in this brand, as one read.
+ * `cache()`-deduped like `getFilterPrefs`, so a page with two tables still
+ * costs ONE round-trip (`lib/db.ts` is `max: 1` — fewer queries is the lever).
+ */
+export const getTablePrefs = cache(
+  async (): Promise<Map<string, TableColumnPref>> => {
+    const user = await auth();
+    if (!user) return new Map();
+    const acct = await getActiveAccountId();
+    const rows = await db
+      .select({
+        key: userTablePrefs.tableKey,
+        hidden: userTablePrefs.hidden,
+        order: userTablePrefs.colOrder,
+      })
+      .from(userTablePrefs)
+      .where(
+        and(eq(userTablePrefs.userId, user.id), eq(userTablePrefs.accountId, acct)),
+      );
+    return new Map(rows.map((r) => [r.key, { hidden: r.hidden, order: r.order }]));
+  },
+);
+
+/**
+ * The remembered columns for the tables a page renders — the shape
+ * `resolveFilterPrefs` has, for the other half of a table's state. A key with
+ * no row comes back as the EMPTY pref, so a caller never branches on null; the
+ * merge against the live column config happens at the consumer
+ * (`resolveColumnPrefs`), which is the only place that knows today's columns.
+ */
+export async function resolveTablePrefs(
+  keys: readonly TableKey[],
+): Promise<Record<string, TableColumnPref>> {
+  const out: Record<string, TableColumnPref> = {};
+  if (keys.length === 0) return out;
+  const prefs = await getTablePrefs();
+  for (const key of keys) out[key] = prefs.get(key) ?? EMPTY_TABLE_PREF;
+  return out;
+}
+
+/**
+ * Write-through for one table's columns. An all-default choice (nothing hidden,
+ * no custom order) DELETES the row rather than storing an empty one: a user who
+ * resets must land on the config next time, not on a stored "no opinion" that
+ * outlives a future column change.
+ */
+export async function writeTablePrefs(
+  userId: string,
+  accountId: string,
+  entry: { tableKey: string; hidden: string[]; order: string[] },
+): Promise<void> {
+  if (entry.hidden.length === 0 && entry.order.length === 0) {
+    await deleteTablePref(userId, accountId, entry.tableKey);
+    return;
+  }
+  await db
+    .insert(userTablePrefs)
+    .values({
+      userId,
+      accountId,
+      tableKey: entry.tableKey,
+      hidden: entry.hidden,
+      colOrder: entry.order,
+      updatedAt: new Date(),
+    })
+    .onConflictDoUpdate({
+      target: [userTablePrefs.userId, userTablePrefs.accountId, userTablePrefs.tableKey],
+      set: {
+        hidden: sql`excluded.hidden`,
+        colOrder: sql`excluded.col_order`,
+        updatedAt: new Date(),
+      },
+    });
+}
+
+/** Reset — the row goes, so the next read falls through to the config. */
+export async function deleteTablePref(
+  userId: string,
+  accountId: string,
+  tableKey: string,
+): Promise<void> {
+  await db
+    .delete(userTablePrefs)
+    .where(
+      and(
+        eq(userTablePrefs.userId, userId),
+        eq(userTablePrefs.accountId, accountId),
+        eq(userTablePrefs.tableKey, tableKey),
+      ),
+    );
 }

@@ -26,6 +26,8 @@ import { CampaignCreativesTable } from "@/components/campaign/campaign-creatives
 import { CampaignEditDialog } from "@/components/campaign/campaign-edit-dialog";
 import { DeleteCampaignDialog } from "@/components/campaign/delete-campaign-dialog";
 import { CampaignRecordsTable } from "@/components/campaign/campaign-records-table";
+import { resolveTablePrefs } from "@/db/queries/user-prefs";
+import { TABLE_KEYS } from "@/lib/table-columns";
 import { CollapsibleSection } from "@/components/ui/collapsible-section";
 import { parseCampaignName } from "@/lib/campaign";
 import { campaignStatusFor, campaignStatusMap } from "@/db/queries/campaign-status";
@@ -111,16 +113,27 @@ export default async function CampaignDetailPage({
 
   // Effective Excluded state: URL param wins, else the user's saved default.
   const inc = await resolveIncludeExcluded(sp.includeExcluded);
-  const [analytics, creativeRows, daily, records, byDay, horizon, campaignFirst] =
-    await Promise.all([
-      campaignAnalytics(decoded, range, inc),
-      campaignCreatives(decoded, range, inc),
-      campaignDailyByCreative(decoded, range, inc),
-      campaignRecords(decoded, range, inc),
-      campaignRecordsByDay(decoded, range, inc),
-      dataHorizon(),
-      registry ? campaignFirstDay(registry.id) : Promise.resolve(null),
-    ]);
+  const [
+    analytics,
+    creativeRows,
+    daily,
+    records,
+    byDay,
+    horizon,
+    campaignFirst,
+    tablePrefs,
+  ] = await Promise.all([
+    campaignAnalytics(decoded, range, inc),
+    campaignCreatives(decoded, range, inc),
+    campaignDailyByCreative(decoded, range, inc),
+    campaignRecords(decoded, range, inc),
+    campaignRecordsByDay(decoded, range, inc),
+    dataHorizon(),
+    registry ? campaignFirstDay(registry.id) : Promise.resolve(null),
+    // Remembered columns for the records table — ONE read, cache()-deduped,
+    // resolved here so the table renders the user's choice on first paint.
+    resolveTablePrefs([TABLE_KEYS.CAMPAIGN_RECORDS]),
+  ]);
 
   // Edge-fill bounds for the campaign's GROUP line: trailing zeros to the data
   // horizon (a paused campaign shows the pause), leading zeros from the window
@@ -235,7 +248,12 @@ export default async function CampaignDetailPage({
         title="Row data"
         subtitle={`${records.length}${records.length >= 2000 ? "+" : ""} records`}
       >
-        <CampaignRecordsTable records={records} byDay={byDay} campaign={decoded} />
+        <CampaignRecordsTable
+          records={records}
+          byDay={byDay}
+          campaign={decoded}
+          columnPref={tablePrefs[TABLE_KEYS.CAMPAIGN_RECORDS]}
+        />
       </CollapsibleSection>
 
       {/* ─────────── Danger zone (delete permission only) ─────────── */}

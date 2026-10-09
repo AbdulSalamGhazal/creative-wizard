@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ArrowDown, ArrowUp, ArrowUpDown, GripVertical } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { DownloadCsvButton } from "@/components/ui/download-csv-button";
+import { TableColumnsControl } from "@/components/ui/table-columns-control";
 import { rowsToCsv, type CsvColumn } from "@/lib/csv-export";
 
 /**
@@ -16,6 +17,13 @@ import { rowsToCsv, type CsvColumn } from "@/lib/csv-export";
  * State is CONTROLLED: the consumer owns `sort`/`dir`/`order`/`hidden` (so it
  * can back them with the URL for saved views, or with local state) and gets
  * `onSort`/`onReorder` callbacks. Column widths are ephemeral (internal).
+ *
+ * COLUMNS CONTROL (2026-10): pass `columnsKey` and the table renders its OWN
+ * corner control — a slim row above the header, flush with the table's right
+ * edge — listing this config's columns. It belongs to the table, not to a page
+ * toolbar, so every future DataTable gets it by passing the key;
+ * `useTableColumns` supplies the key, the state and the handlers as one
+ * spreadable object, and remembers the choice per user per brand.
  */
 export interface DataColumn<T> {
   key: string;
@@ -74,6 +82,11 @@ export function DataTable<T>({
   dir = "desc",
   hidden = [],
   order = [],
+  columnsKey,
+  onToggleColumn,
+  onMoveColumn,
+  onResetColumns,
+  columnsDirty = false,
   onSort,
   onReorder,
   onRowClick,
@@ -92,6 +105,17 @@ export function DataTable<T>({
   dir?: "asc" | "desc";
   hidden?: string[];
   order?: string[];
+  /**
+   * Turns on the table's own columns control. A key from the `TABLE_KEYS`
+   * registry — the same key its preference is stored under. Spread
+   * `useTableColumns(...).tableProps` to wire this and the three handlers.
+   */
+  columnsKey?: string;
+  onToggleColumn?: (key: string) => void;
+  onMoveColumn?: (key: string, delta: number) => void;
+  onResetColumns?: () => void;
+  /** Is anything non-default saved? Drives the button's dot and Reset. */
+  columnsDirty?: boolean;
   onSort?: (key: string, dir: "asc" | "desc") => void;
   onReorder?: (order: string[]) => void;
   onRowClick?: (row: T) => void;
@@ -218,15 +242,32 @@ export function DataTable<T>({
     return rowsToCsv(sorted, csvCols);
   }, [csvFileName, cols, sorted]);
 
+  const columnsControl = columnsKey && onToggleColumn && onMoveColumn && onResetColumns && (
+    <TableColumnsControl
+      columnsKey={columnsKey}
+      // The LIVE display order, pinned first — the control is a view of the
+      // table it sits on, never a second list a page has to keep in step.
+      items={ordered.map((c) => ({ key: c.key, label: c.label, pinned: c.pinned }))}
+      hidden={hidden}
+      dirty={columnsDirty}
+      onToggle={onToggleColumn}
+      onMove={onMoveColumn}
+      onReset={onResetColumns}
+    />
+  );
+
   if (rows.length === 0) {
+    // The control still renders with no rows: somebody who filtered a column
+    // out of sight must be able to bring it back without first finding data.
     return (
-      <>
+      <div className="space-y-2">
+        {columnsControl}
         {empty ?? (
           <div className="h-32 flex items-center justify-center text-ink-3 text-sm border border-dashed border-line rounded-lg">
             No rows.
           </div>
         )}
-      </>
+      </div>
     );
   }
 
@@ -241,6 +282,9 @@ export function DataTable<T>({
           <DownloadCsvButton csvContent={csvContent} filename={`${csvFileName}.csv`} />
         </div>
       )}
+      {/* The corner control sits with the TABLE, right-aligned directly above
+          its header — not in the page's toolbar row. */}
+      {columnsControl}
       <div className="rounded-lg border border-line bg-surface overflow-auto max-h-[70vh]">
       <table className={cn(minWidthClass, "w-full text-xs num", evenColumns && "table-fixed")}>
         <thead className="sticky top-0 z-20 bg-surface">

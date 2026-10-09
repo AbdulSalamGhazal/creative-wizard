@@ -1,6 +1,6 @@
 "use client";
 
-import { Columns3, Layers } from "lucide-react";
+import { Layers } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   DropdownMenuCheckboxItem,
@@ -18,7 +18,6 @@ import { FilterShell } from "@/components/filters/filter-shell";
 import { useFilterParams } from "@/components/filters/use-filter-params";
 import type { FilterDef } from "@/components/filters/filter-model";
 import { ViewsControl } from "@/components/summary/views-control";
-import { CAMPAIGN_TABLE_COLUMNS } from "@/components/portfolio/portfolio-table";
 import type { SummaryViewRow } from "@/db/queries/summary-views";
 import { ALL_PLATFORMS, PLATFORM_LABEL } from "@/lib/palette";
 import { CAMPAIGN_OBJECTIVES } from "@/lib/campaign";
@@ -87,10 +86,6 @@ export function PortfolioFilterBar({
     () => csv(get("statuses")),
     [get],
   );
-  const hiddenCols = useMemo(
-    () => new Set(csv(searchParams.get("hide"))),
-    [searchParams],
-  );
   const qParam = searchParams.get("q") ?? "";
 
   // Debounced campaign search. The input is the source of truth while typing;
@@ -135,16 +130,6 @@ export function PortfolioFilterBar({
       else next.set(key, values.join(","));
     });
 
-  const toggleColumn = (key: string) => {
-    const set = new Set(hiddenCols);
-    if (set.has(key)) set.delete(key);
-    else set.add(key);
-    update((next) => {
-      if (set.size === 0) next.delete("hide");
-      else next.set("hide", [...set].join(","));
-    });
-  };
-
   const toggleExcluded = () => {
     const nextOn = !includeExcluded;
     void setIncludeExcludedPref(nextOn); // remember as this user's default
@@ -176,7 +161,6 @@ export function PortfolioFilterBar({
     },
   ];
 
-  const shownCount = CAMPAIGN_TABLE_COLUMNS.filter((c) => !hiddenCols.has(c.key)).length;
 
   return (
     <FilterShell
@@ -246,31 +230,8 @@ export function PortfolioFilterBar({
       )}
       toolbar={({ fullWidth }) => (
         <>
-          {/* TABLE control, not a filter — Clear never touches it. */}
-          <FilterPill
-            icon={Columns3}
-            label="Columns"
-            value={`${shownCount} shown`}
-            active={hiddenCols.size > 0}
-            fullWidth={fullWidth}
-          >
-            {() => (
-              <DropdownMenuContent align="end" className="max-h-80 w-44 overflow-y-auto">
-                <DropdownMenuLabel>Columns</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                {CAMPAIGN_TABLE_COLUMNS.map((c) => (
-                  <DropdownMenuCheckboxItem
-                    key={c.key}
-                    checked={!hiddenCols.has(c.key)}
-                    onCheckedChange={() => toggleColumn(c.key)}
-                    onSelect={(e) => e.preventDefault()}
-                  >
-                    {c.label}
-                  </DropdownMenuCheckboxItem>
-                ))}
-              </DropdownMenuContent>
-            )}
-          </FilterPill>
+          {/* The Columns dropdown that lived here is GONE (2026-10): columns
+              belong to the TABLE, which now carries its own corner control. */}
           <ExcludedToggle on={includeExcluded} onToggle={toggleExcluded} fullWidth={fullWidth} />
         </>
       )}

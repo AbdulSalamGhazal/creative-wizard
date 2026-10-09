@@ -7,6 +7,8 @@ import { resolvePreferredRange } from "@/db/queries/user-prefs";
 import { defaultDateRange } from "@/lib/date-presets";
 import { StoreFilterBar } from "@/components/store/store-filter-bar";
 import { StoreOrdersTable } from "@/components/store/store-orders-table";
+import { resolveTablePrefs } from "@/db/queries/user-prefs";
+import { TABLE_KEYS } from "@/lib/table-columns";
 
 export const dynamic = "force-dynamic";
 
@@ -47,9 +49,12 @@ export default async function StoreOrdersPage({
   // and the count header, pagination and CSV all follow what's shown.
   const range = await resolvePreferredRange(f.from, f.to, defaultDateRange());
 
-  const [fields, orders] = await Promise.all([
+  const [fields, orders, tablePrefs] = await Promise.all([
     listStoreFields(),
     listStoreOrders({ ...f, from: range.from, to: range.to }),
+    // The viewer's remembered columns (2026-10) — per user per brand now,
+    // where this used to be a localStorage set per browser.
+    resolveTablePrefs([TABLE_KEYS.STORE_ORDERS]),
   ]);
 
   return (
@@ -77,6 +82,7 @@ export default async function StoreOrdersPage({
           sort={f.sort}
           dir={f.dir}
           canUpload={canUpload}
+          columnPref={tablePrefs[TABLE_KEYS.STORE_ORDERS]}
         />
       </div>
     </PageShell>

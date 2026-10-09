@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isTableKey } from "@/lib/table-columns";
 
 /**
  * The param that says "a saved view owns this URL's filter state". Written by
@@ -80,6 +81,32 @@ export const filterPrefsSchema = z.object({
 });
 
 export type FilterPrefEntry = z.infer<typeof filterPrefEntrySchema>;
+
+/**
+ * A table's remembered columns (2026-10). `tableKey` is checked against the
+ * REGISTRY, so a hand-made request cannot create rows for tables that don't
+ * exist; the arrays are capped because a column config is small by nature.
+ */
+export const tableColumnsSchema = z.object({
+  tableKey: z
+    .string()
+    .min(1)
+    .max(48)
+    .refine(isTableKey, { message: "Unknown table." }),
+  hidden: z.array(z.string().min(1).max(64)).max(100),
+  order: z.array(z.string().min(1).max(64)).max(100),
+});
+
+/** Reset = delete the row, so the next bare visit starts at the config. */
+export const resetTableColumnsSchema = z.object({
+  tableKey: z
+    .string()
+    .min(1)
+    .max(48)
+    .refine(isTableKey, { message: "Unknown table." }),
+});
+
+export type TableColumnsInput = z.infer<typeof tableColumnsSchema>;
 
 /**
  * When preferences must NOT be resolved: the URL already states its filters in

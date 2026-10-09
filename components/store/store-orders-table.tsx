@@ -3,19 +3,12 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { ChevronLeft, ChevronRight, Columns3, Download, ShoppingBag } from "lucide-react";
+import { ChevronLeft, ChevronRight, Download, ShoppingBag } from "lucide-react";
 import { toast } from "sonner";
 import { DataTable, type DataColumn } from "@/components/ui/data-table";
-import { usePersistentHidden } from "@/components/ui/use-persistent-hidden";
+import { useTableColumns } from "@/components/ui/use-table-columns";
+import { TABLE_KEYS, type TableColumnPref } from "@/lib/table-columns";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuCheckboxItem,
-  DropdownMenuContent,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { sar, isoDate, int, num } from "@/lib/format";
 import { downloadCsv, todayStamp } from "@/lib/csv-export";
 import { useNavTransition } from "@/lib/nav-progress";
@@ -37,6 +30,7 @@ export function StoreOrdersTable({
   sort,
   dir,
   canUpload,
+  columnPref,
 }: {
   rows: StoreOrderRow[];
   fields: StoreField[];
@@ -47,6 +41,8 @@ export function StoreOrdersTable({
   sort: SortKey;
   dir: "asc" | "desc";
   canUpload: boolean;
+  /** Remembered columns for this user in this brand, resolved server-side. */
+  columnPref?: TableColumnPref;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -61,12 +57,19 @@ export function StoreOrdersTable({
     () => ["order_date", "total_amount", ...customCols.map((c) => c.key)],
     [customCols],
   );
-  // Persist what's HIDDEN, not what's visible: a newly-added field isn't in the
-  // stored set, so it shows up by default until the viewer hides it.
-  const [hiddenSet, setHiddenSet] = usePersistentHidden<string>(
-    "cw-cols-hidden:store-orders",
-  );
-  const hidden = hideableKeys.filter((k) => hiddenSet.has(k));
+  /**
+   * Still HIDDEN-key semantics — a field added in Order fields is not in the
+   * stored set, so it appears for everyone until they hide it — but the store
+   * moved (2026-10) from this browser's localStorage to the user's account,
+   * per brand, like the remembered filters. Old localStorage values are NOT
+   * migrated: a viewer re-hides once.
+   */
+  const cols = useTableColumns({
+    tableKey: TABLE_KEYS.STORE_ORDERS,
+    hideable: hideableKeys,
+    defaults: hideableKeys,
+    initial: columnPref,
+  });
 
   // Core columns sort server-side (URL); custom columns sort client-side over
   // the current page (acceptable v1). `clientSort` overrides the URL sort.
@@ -210,45 +213,9 @@ export function StoreOrdersTable({
 
   return (
     <div className="space-y-2">
-      {/* Toolbar: Columns dropdown + Download CSV */}
+      {/* The Columns dropdown that used to live here is GONE — the control
+          belongs to the table now (its corner button, above the header). */}
       <div className="flex items-center justify-end gap-2">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button type="button" variant="outline" size="sm">
-              <Columns3 className="h-3.5 w-3.5" />
-              Columns
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-48">
-            <DropdownMenuLabel>Show columns</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuCheckboxItem checked disabled>
-              Order ID
-            </DropdownMenuCheckboxItem>
-            {hideableKeys.map((k) => {
-              // Read the label off the column definition — the menu used to
-              // re-derive it, so a renamed column showed one name in the header
-              // and another in this list.
-              const label = columns.find((c) => c.key === k)?.label ?? k;
-              return (
-                <DropdownMenuCheckboxItem
-                  key={k}
-                  checked={!hiddenSet.has(k)}
-                  onCheckedChange={(on) =>
-                    setHiddenSet((prev) => {
-                      const nextSet = new Set(prev);
-                      if (on) nextSet.delete(k);
-                      else nextSet.add(k);
-                      return nextSet;
-                    })
-                  }
-                >
-                  {label}
-                </DropdownMenuCheckboxItem>
-              );
-            })}
-          </DropdownMenuContent>
-        </DropdownMenu>
         <ExportButton searchParams={searchParams} />
       </div>
 
@@ -258,7 +225,7 @@ export function StoreOrdersTable({
         rowKey={(r) => r.id}
         sort={activeSort}
         dir={activeDir}
-        hidden={hidden}
+        {...cols.tableProps}
         onSort={onSort}
         showTotals={rows.length > 0}
         minWidthClass="min-w-[720px]"

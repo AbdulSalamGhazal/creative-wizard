@@ -3,6 +3,8 @@
 import { useMemo } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { DataTable, type DataColumn } from "@/components/ui/data-table";
+import { useTableColumns } from "@/components/ui/use-table-columns";
+import { TABLE_KEYS } from "@/lib/table-columns";
 import { useNavTransition } from "@/lib/nav-progress";
 import { withDateRange } from "@/lib/url";
 import { int, isoDate, pct, roas, usd } from "@/lib/format";
@@ -48,6 +50,9 @@ export const CAMPAIGN_TABLE_COLUMNS = COLS_META.filter((c) => !c.pinned).map((c)
   label: c.label,
 }));
 
+/** Their keys in config order — what a saved order is merged against. */
+const CAMPAIGN_COLUMN_KEYS = CAMPAIGN_TABLE_COLUMNS.map((c) => c.key);
+
 const DASH = "—";
 const fUsd = (v: number | null) => (v === null ? DASH : usd(v));
 const fRatio = (v: number | null) => roas(v);
@@ -77,6 +82,28 @@ export function PortfolioTable({
     mut(next);
     startNav(() => router.push(`${pathname}?${next.toString()}`, { scroll: false }));
   };
+
+  /**
+   * THE URL-BACKED SHAPE. Saved views snapshot the query string, so `hide` and
+   * `order` must keep living there — a column change writes the URL (views stay
+   * comparable, unchanged) AND the preference, which is what a later BARE visit
+   * starts from. The hook holds no state here; the server already resolved
+   * URL → view → preference → default and handed the answer in as `hidden`/
+   * `order`.
+   */
+  const cols = useTableColumns({
+    tableKey: TABLE_KEYS.CAMPAIGNS,
+    hideable: CAMPAIGN_COLUMN_KEYS,
+    defaults: CAMPAIGN_COLUMN_KEYS,
+    value: { hidden, order },
+    onChange: (next) =>
+      pushParams((p) => {
+        if (next.hidden.length === 0) p.delete("hide");
+        else p.set("hide", next.hidden.join(","));
+        if (next.order.length === 0) p.delete("order");
+        else p.set("order", next.order.join(","));
+      }),
+  });
 
   // Weighted totals from the visible rows.
   const totals = useMemo(() => {
@@ -235,15 +262,13 @@ export function PortfolioTable({
       rowKey={(r) => r.campaign}
       sort={sort}
       dir={dir}
-      hidden={hidden}
-      order={order}
+      {...cols.tableProps}
       onSort={(key, d) =>
         pushParams((p) => {
           p.set("sort", key);
           p.set("dir", d);
         })
       }
-      onReorder={(o) => pushParams((p) => p.set("order", o.join(",")))}
       onRowClick={(r) =>
         startNav(() => router.push(
           withDateRange(

@@ -6,8 +6,16 @@ import { db } from "@/lib/db";
 import { users } from "@/db/schema";
 import { requireAuth } from "@/lib/auth";
 import { getActiveAccountId } from "@/lib/tenant";
-import { writeFilterPrefs } from "@/db/queries/user-prefs";
-import { filterPrefsSchema } from "@/validators/user-prefs";
+import {
+  deleteTablePref,
+  writeFilterPrefs,
+  writeTablePrefs,
+} from "@/db/queries/user-prefs";
+import {
+  filterPrefsSchema,
+  resetTableColumnsSchema,
+  tableColumnsSchema,
+} from "@/validators/user-prefs";
 import { decodePreferredRange, todayIso } from "@/lib/date-presets";
 import { isToastScope } from "@/lib/notifications";
 
@@ -98,6 +106,46 @@ export async function setFilterPrefs(input: unknown): Promise<{ ok: boolean }> {
     await writeFilterPrefs(user.id, acct, parsed.data.entries);
     // No revalidatePath: the URL the user is already on is the truth for this
     // navigation; the preference is for the NEXT bare one.
+    return { ok: true };
+  } catch {
+    return { ok: false };
+  }
+}
+
+/**
+ * Write-through for a table's remembered columns (2026-10). Called
+ * fire-and-forget by `useTableColumns` after a visibility toggle or a reorder,
+ * on the filters' terms: SELF-ONLY (the session user is the subject — there is
+ * no user id in the input), account-scoped, validated against the TABLE_KEYS
+ * registry, and NOT audited, because preference churn is noise.
+ *
+ * Best-effort by design: remembering a column choice must never block or delay
+ * the interaction that caused it, so a failure returns quietly and the caller
+ * warns.
+ */
+export async function setTableColumns(input: unknown): Promise<{ ok: boolean }> {
+  try {
+    const parsed = tableColumnsSchema.safeParse(input);
+    if (!parsed.success) return { ok: false };
+    const user = await requireAuth();
+    const acct = await getActiveAccountId();
+    await writeTablePrefs(user.id, acct, parsed.data);
+    // No revalidatePath: what is on screen is already right; the preference is
+    // for the NEXT bare visit.
+    return { ok: true };
+  } catch {
+    return { ok: false };
+  }
+}
+
+/** "Reset to default" — DELETE the row, the filters' cleared-row rule. */
+export async function resetTableColumns(input: unknown): Promise<{ ok: boolean }> {
+  try {
+    const parsed = resetTableColumnsSchema.safeParse(input);
+    if (!parsed.success) return { ok: false };
+    const user = await requireAuth();
+    const acct = await getActiveAccountId();
+    await deleteTablePref(user.id, acct, parsed.data.tableKey);
     return { ok: true };
   } catch {
     return { ok: false };

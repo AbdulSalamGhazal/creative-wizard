@@ -372,6 +372,13 @@
       "when": 1791483371530,
       "tag": "0052_comment_reactions",
       "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "7",
+      "when": 1791565777496,
+      "tag": "0053_user_table_prefs",
+      "breakpoints": true
     }
   ]
 }

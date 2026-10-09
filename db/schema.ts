@@ -665,6 +665,51 @@ export const userFilterPrefs = pgTable(
 );
 
 /**
+ * Remembered TABLE COLUMNS (2026-10, phase 1) — which columns a user hides and
+ * in what order, per table, per brand. The filters' architecture applied to the
+ * other half of a table's state (`user_filter_prefs` is the sibling).
+ *
+ * HIDDEN-KEY SEMANTICS, like the per-browser menu this replaces: `hidden` lists
+ * what is OFF, so a column added later is visible to everyone rather than
+ * missing for anyone who had ever touched the menu. `col_order` holds only the
+ * non-pinned keys and is MERGED against today's config on read
+ * (`mergeColumnOrder`), so a stale order neither drops a new column nor
+ * resurrects a deleted one. Reset DELETES the row — the filters' rule, and what
+ * stops a preference resurrecting itself.
+ *
+ * `table_key` is validated against the `TABLE_KEYS` registry in
+ * `lib/table-columns.ts` before any write, so the table cannot fill with junk.
+ * Deliberately NOT audited: preference churn, like filters and notification
+ * reads. Tenant table (§4.1).
+ */
+export const userTablePrefs = pgTable(
+  "user_table_prefs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    accountId: accountId(),
+    /** A key from the TABLE_KEYS registry — "campaigns", "store-orders"… */
+    tableKey: varchar("table_key", { length: 48 }).notNull(),
+    /** Column keys that are OFF. Absent = visible. */
+    hidden: text("hidden").array().notNull(),
+    /** The non-pinned column order. Empty = the config's own order. */
+    colOrder: text("col_order").array().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    // Also the read's index: one lookup per (user, brand) serves every table.
+    userAccountTableUnique: uniqueIndex("user_table_prefs_user_account_table_idx").on(
+      t.userId,
+      t.accountId,
+      t.tableKey,
+    ),
+  }),
+);
+
+/**
  * Saved "Views" — named snapshots of a page's full filter/column/sort
  * configuration, stored as the raw URL query string. Team-visible (this is
  * an internal tool, so a teammate's "High-ROAS" view is useful to everyone);

@@ -10,8 +10,14 @@ import {
   getPreferredRange,
   resolveFilterPrefs,
   resolveIncludeExcluded,
+  resolveTablePrefs,
 } from "@/db/queries/user-prefs";
-import { VIEW_MARKER_PARAM } from "@/validators/user-prefs";
+import { VIEW_MARKER_PARAM, isSavedViewApplied } from "@/validators/user-prefs";
+import {
+  TABLE_KEYS,
+  parseColumnList,
+  resolveColumnPrefs,
+} from "@/lib/table-columns";
 import {
   getDefaultSummaryView,
   listSummaryViews,
@@ -21,7 +27,10 @@ import Link from "next/link";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PortfolioFilterBar } from "@/components/portfolio/portfolio-filter-bar";
-import { PortfolioTable } from "@/components/portfolio/portfolio-table";
+import {
+  CAMPAIGN_TABLE_COLUMNS,
+  PortfolioTable,
+} from "@/components/portfolio/portfolio-table";
 import { PageShell } from "@/components/layout/page-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { FilterBarSkeleton } from "@/components/layout/page-skeletons";
@@ -70,6 +79,22 @@ export default async function CampaignsPage({
     [{ key: "platforms" }, { key: "objectives" }, { key: "statuses" }],
     (key: string) => pickFirst(params[key]),
   );
+
+  // COLUMNS follow the same architecture as the filters, with one more step:
+  // URL → applied saved view → this user's preference → the config's own
+  // order. The view suppression reuses the filters' `sv` marker rather than a
+  // parallel one, so a view still owns everything its URL states.
+  const tablePrefs = await resolveTablePrefs([TABLE_KEYS.CAMPAIGNS]);
+  const columns = resolveColumnPrefs({
+    url: {
+      hidden: parseColumnList(pickFirst(params.hide)),
+      order: parseColumnList(pickFirst(params.order)),
+    },
+    viewApplied: isSavedViewApplied((key: string) => pickFirst(params[key])),
+    pref: tablePrefs[TABLE_KEYS.CAMPAIGNS],
+    hideable: CAMPAIGN_TABLE_COLUMNS.map((c) => c.key),
+    defaults: CAMPAIGN_TABLE_COLUMNS.map((c) => c.key),
+  });
 
   const parsed = portfolioFiltersSchema.parse({
     from: rawFrom,
@@ -150,8 +175,8 @@ export default async function CampaignsPage({
         rows={campaigns}
         sort={parsed.sort}
         dir={parsed.dir}
-        hidden={parsed.hide}
-        order={parsed.order}
+        hidden={columns.hidden}
+        order={columns.order}
       />
     </PageShell>
   );

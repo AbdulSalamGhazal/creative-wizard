@@ -3,6 +3,8 @@
 import { useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { DataTable, type DataColumn } from "@/components/ui/data-table";
+import { useTableColumns } from "@/components/ui/use-table-columns";
+import { TABLE_KEYS, type TableColumnPref } from "@/lib/table-columns";
 import { DownloadCsvButton } from "@/components/ui/download-csv-button";
 import { rowsToCsv } from "@/lib/csv-export";
 import { int, usd } from "@/lib/format";
@@ -66,19 +68,42 @@ function sortRows<T>(rows: T[], getVal: (r: T) => SortVal, dir: SortDir): T[] {
   });
 }
 
+/**
+ * The non-pinned column keys, in config order — what the columns control
+ * reorders and what a saved order is merged against. Derived from the same
+ * METRIC_COLS the table renders, so a new metric needs no second list.
+ *
+ * Both modes share ONE preference: they are the same table with the same
+ * metrics, and remembering "hide the video columns" twice would be a trap.
+ */
+const RECORD_COLUMN_KEYS = [
+  "creativeName",
+  "platform",
+  "records",
+  ...METRIC_COLS.map((c) => c.key as string),
+];
+
 export function CampaignRecordsTable({
   records,
   byDay,
   campaign,
+  columnPref,
 }: {
   records: CampaignRecordRow[];
   byDay: CampaignDayRow[];
   campaign: string;
+  /** This user's remembered columns for this brand, resolved server-side. */
+  columnPref?: TableColumnPref;
 }) {
   const [mode, setMode] = useState<Mode>("raw");
   const [sortKey, setSortKey] = useState<string>("date");
   const [dir, setDir] = useState<SortDir>(-1);
-  const [order, setOrder] = useState<string[]>([]);
+  const cols = useTableColumns({
+    tableKey: TABLE_KEYS.CAMPAIGN_RECORDS,
+    hideable: RECORD_COLUMN_KEYS,
+    defaults: RECORD_COLUMN_KEYS,
+    initial: columnPref,
+  });
 
   const getVal = (r: CampaignRecordRow | CampaignDayRow, key: string): SortVal => {
     if (key === "date") return r.date;
@@ -225,8 +250,8 @@ export function CampaignRecordsTable({
     sort: sortKey,
     dir: (dir === 1 ? "asc" : "desc") as "asc" | "desc",
     onSort,
-    order,
-    onReorder: setOrder,
+    // Key, state and handlers in one object — the whole columns control.
+    ...cols.tableProps,
     minWidthClass: "min-w-[1100px]",
   };
 
