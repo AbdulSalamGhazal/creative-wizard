@@ -18,21 +18,47 @@ import {
 import { toggleReaction } from "@/app/actions/comments";
 
 /**
- * Reactions under a comment: the tallies that exist, as pills, plus one button
- * that opens the five.
+ * Reactions on a comment, in TWO pieces because they belong in two places —
+ * the house order (and everyone else's): **body → action row → pills last**.
  *
- * ONE COMPONENT for both presentations — the docked panel and the phone Sheet
- * render the same thread, so this is written once and appears in both.
+ *   · `ReactionPicker` sits in the ACTION ROW beside Reply, so a comment has
+ *     exactly one row of affordances rather than a widget wedged between the
+ *     message and its own actions.
+ *   · `ReactionPills` is the comment's CLOSING LINE — the tallies that exist,
+ *     and nothing at all when there are none (an empty strip is a control
+ *     pretending to be content).
+ *
+ * ONE COMPONENT FILE for both presentations: the docked panel and the phone
+ * Sheet render the same thread, so this is written once and appears in both.
  *
  * A pill is a TOGGLE, not an add: clicking your own takes it back. The server
  * decides which way the click went (the unique key is the toggle), and the
- * thread reloads from `onChanged` rather than this component guessing — one
+ * thread reloads from `onChanged` rather than either piece guessing — one
  * source of truth, and a failed toggle can't leave a phantom pill behind.
  *
- * A soft-deleted comment renders none of this: the caller doesn't mount it, and
- * the action refuses a reaction on a deleted comment anyway.
+ * A soft-deleted comment renders neither piece: the caller doesn't mount them,
+ * and the action refuses a reaction on a deleted comment anyway.
  */
-export function CommentReactions({
+
+/** The shared click: toggle on the server, then let the thread reload. */
+function useToggleReaction(commentId: string, onChanged: () => void) {
+  const [isPending, startTransition] = useTransition();
+  const toggle = (kind: string, after?: () => void) => {
+    startTransition(async () => {
+      const res = await toggleReaction({ commentId, kind });
+      if (!res.ok) {
+        toast.error(res.error ?? "Couldn't save that reaction.");
+        return;
+      }
+      after?.();
+      onChanged();
+    });
+  };
+  return { isPending, toggle };
+}
+
+/** The add-reaction button + its five. Lives in the action row. */
+export function ReactionPicker({
   commentId,
   reactions,
   onChanged,
@@ -41,22 +67,58 @@ export function CommentReactions({
   reactions: CommentReactionTally[];
   onChanged: () => void;
 }) {
-  const [isPending, startTransition] = useTransition();
-  const [pickerOpen, setPickerOpen] = useState(false);
-
-  const toggle = (kind: string) => {
-    startTransition(async () => {
-      const res = await toggleReaction({ commentId, kind });
-      if (!res.ok) {
-        toast.error(res.error ?? "Couldn't save that reaction.");
-        return;
-      }
-      setPickerOpen(false);
-      onChanged();
-    });
-  };
-
+  const [open, setOpen] = useState(false);
+  const { isPending, toggle } = useToggleReaction(commentId, onChanged);
   const mineKinds = new Set(reactions.filter((r) => r.mine).map((r) => r.kind));
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          disabled={isPending}
+          aria-label="Add a reaction"
+          className="inline-flex h-6 items-center rounded-md px-1.5 text-ink-3 transition-colors hover:bg-surface-2 hover:text-ink"
+        >
+          <SmilePlus className="h-3.5 w-3.5" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-auto p-1">
+        <div className="flex items-center gap-0.5">
+          {COMMENT_REACTIONS.map((r) => (
+            <button
+              key={r.key}
+              type="button"
+              disabled={isPending}
+              onClick={() => toggle(r.key, () => setOpen(false))}
+              aria-label={r.label}
+              aria-pressed={mineKinds.has(r.key)}
+              className={cn(
+                "rounded-md px-1.5 py-1 text-base leading-none transition-colors hover:bg-surface-2",
+                mineKinds.has(r.key) && "bg-[var(--brand-soft)]",
+              )}
+            >
+              <span aria-hidden>{r.emoji}</span>
+            </button>
+          ))}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+/** The tallies, as toggle pills. Renders NOTHING when there are none. */
+export function ReactionPills({
+  commentId,
+  reactions,
+  onChanged,
+}: {
+  commentId: string;
+  reactions: CommentReactionTally[];
+  onChanged: () => void;
+}) {
+  const { isPending, toggle } = useToggleReaction(commentId, onChanged);
+  if (reactions.length === 0) return null;
 
   return (
     // The row sits inside an otherwise-clickable comment (clicking a comment
@@ -87,39 +149,6 @@ export function CommentReactions({
           <span className="num">{r.count}</span>
         </button>
       ))}
-
-      <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
-        <PopoverTrigger asChild>
-          <button
-            type="button"
-            disabled={isPending}
-            aria-label="Add a reaction"
-            className="inline-flex items-center rounded-full border border-line bg-surface-2 px-1.5 py-0.5 text-ink-3 transition-colors hover:text-ink"
-          >
-            <SmilePlus className="h-3 w-3" />
-          </button>
-        </PopoverTrigger>
-        <PopoverContent align="start" className="w-auto p-1">
-          <div className="flex items-center gap-0.5">
-            {COMMENT_REACTIONS.map((r) => (
-              <button
-                key={r.key}
-                type="button"
-                disabled={isPending}
-                onClick={() => toggle(r.key)}
-                aria-label={r.label}
-                aria-pressed={mineKinds.has(r.key)}
-                className={cn(
-                  "rounded-md px-1.5 py-1 text-base leading-none transition-colors hover:bg-surface-2",
-                  mineKinds.has(r.key) && "bg-[var(--brand-soft)]",
-                )}
-              >
-                <span aria-hidden>{r.emoji}</span>
-              </button>
-            ))}
-          </div>
-        </PopoverContent>
-      </Popover>
     </div>
   );
 }

@@ -19,7 +19,10 @@ import {
 import { deleteComment, restoreComment, updateComment } from "@/app/actions/comments";
 import { CommentBody } from "@/components/comments/comment-body";
 import { CommentComposer } from "@/components/comments/comment-composer";
-import { CommentReactions } from "@/components/comments/comment-reactions";
+import {
+  ReactionPicker,
+  ReactionPills,
+} from "@/components/comments/comment-reactions";
 import type { CommentRow } from "@/db/queries/comments";
 
 /** How long the Undo toast stays — and so how long a delete can be undone. */
@@ -226,30 +229,38 @@ export function CommentThread({
           <CommentBody body={comment.body} mentionNames={mentionNames} />
         )}
 
-        {/* Reactions sit under the body — a deleted comment shows none (the
-            payload returns none either), and an edit in progress keeps the row
-            out of the way. Editing never touches them. */}
+        {/* The house order, and everyone else's: body → ACTION ROW → the
+            reaction pills as the comment's closing line. Reply and
+            add-reaction are one row of affordances; a comment with no
+            reactions ends after it, with no empty strip. */}
         {!deleted && editing !== comment.id && (
-          <CommentReactions
-            commentId={comment.id}
-            reactions={comment.reactions}
-            onChanged={onChanged}
-          />
-        )}
-
-        {!deleted && editing !== comment.id && (
-          // Reply is the ONLY visible action; it stays live inside an
-          // otherwise-clickable row.
-          <div className="mt-1" onClick={(e) => e.stopPropagation()}>
-            <Button
-              type="button"
-              variant="ghost"
-              size="xs"
-              onClick={() => onReply(comment.parentId ?? comment.id)}
+          <>
+            <div
+              className="mt-1 flex items-center gap-1"
+              onClick={(e) => e.stopPropagation()}
             >
-              Reply
-            </Button>
-          </div>
+              {/* Reply stays the one VISIBLE verb; Edit/Delete remain behind
+                  the "…" menu above. */}
+              <Button
+                type="button"
+                variant="ghost"
+                size="xs"
+                onClick={() => onReply(comment.parentId ?? comment.id)}
+              >
+                Reply
+              </Button>
+              <ReactionPicker
+                commentId={comment.id}
+                reactions={comment.reactions}
+                onChanged={onChanged}
+              />
+            </div>
+            <ReactionPills
+              commentId={comment.id}
+              reactions={comment.reactions}
+              onChanged={onChanged}
+            />
+          </>
         )}
       </div>
     );
