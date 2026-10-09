@@ -140,6 +140,21 @@ Do not introduce a new dependency without a one-line justification in the PR des
 
 - Make small, reviewable changes. One feature per PR or session.
 - Add a test alongside any non-trivial logic, especially in `csv/` and `db/queries/`.
+- **Judgment calls are REPORTED, never silent.** Every report ends with a
+  **Judgment calls** section: each decision the brief left open — placement,
+  ordering, wording, empty states, naming, defaults — with what was chosen and
+  why, in one line each. "None" is a valid entry; an unstated judgment call is
+  not. A brief cannot specify everything, so the ambiguity is expected; what
+  must not happen is resolving it invisibly, because a reviewer reading the
+  logic has no way to know a choice was ever made. This is the CLAUDE.md-edit
+  discipline (surface it, don't decide it quietly) extended to design.
+- **A UI rig check verifies the COMPOSED SURFACE, not the component.** The rig
+  pass shows the whole unit the change lands in — the full comment row, the
+  full toolbar, the full card — with ALL its siblings, in EVERY state the
+  change adds (including the empty one), at desktop and 375px. "The widget
+  renders" is not a pass: reaction pills shipped wedged between a message and
+  its own Reply button because the rig showed the pills alone, and every
+  checkpoint after that read logic rather than JSX order.
 - **Two test suites.** `npm test` (or `npx vitest run`) is the pure-unit suite —
   no DB, no docker, always safe in CI. `npm run test:db` is the **real-database**
   suite (`tests/db/**`, config `vitest.config.db.ts`): its globalSetup creates a
