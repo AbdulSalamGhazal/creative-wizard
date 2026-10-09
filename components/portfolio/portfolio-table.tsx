@@ -8,50 +8,27 @@ import { TABLE_KEYS } from "@/lib/table-columns";
 import { useNavTransition } from "@/lib/nav-progress";
 import { withDateRange } from "@/lib/url";
 import { int, isoDate, pct, roas, usd } from "@/lib/format";
-import { METRIC_LABEL } from "@/lib/metric-labels";
 import { PLATFORM_LABEL } from "@/lib/palette";
 import { PlatformDot } from "@/components/ui/platform-dot";
 import { CampaignStatusBadge } from "@/components/campaign/campaign-status-badge";
 import { CAMPAIGN_STATUS_LABEL, CAMPAIGN_STATUS_ORDER } from "@/lib/campaign-status";
+import {
+  CAMPAIGN_COLS_META,
+  CAMPAIGN_COLUMN_KEYS,
+} from "@/components/portfolio/portfolio-columns";
 import type { PortfolioCampaignRow } from "@/db/queries/portfolio";
 
-type Align = "left" | "right";
-
-const COLS_META: Array<{
-  key: string;
-  label: string;
-  align: Align;
-  sortable: boolean;
-  pinned?: boolean;
-  defaultSortDir?: "asc" | "desc";
-}> = [
-  { key: "campaign", label: "Campaign", align: "left", sortable: true, pinned: true, defaultSortDir: "asc" },
-  { key: "objective", label: "Objective", align: "left", sortable: true, defaultSortDir: "asc" },
-  { key: "status", label: "Status", align: "left", sortable: true, defaultSortDir: "asc" },
-  { key: "platforms", label: "Platform", align: "left", sortable: false },
-  { key: "creatives", label: "Creatives", align: "right", sortable: true },
-  { key: "spend", label: "Spend", align: "right", sortable: true },
-  { key: "impressions", label: METRIC_LABEL.impressions, align: "right", sortable: true },
-  { key: "clicks", label: "Clicks", align: "right", sortable: true },
-  { key: "orders", label: METRIC_LABEL.conversions, align: "right", sortable: true },
-  { key: "revenue", label: METRIC_LABEL.revenue, align: "right", sortable: true },
-  { key: "cpa", label: "CPA", align: "right", sortable: true },
-  { key: "roas", label: "ROAS", align: "right", sortable: true },
-  { key: "aov", label: "AOV", align: "right", sortable: true },
-  { key: "ctr", label: "CTR", align: "right", sortable: true },
-  { key: "cpm", label: "CPM", align: "right", sortable: true },
-  { key: "cvr", label: "CvR", align: "right", sortable: true },
-  { key: "lastDate", label: "Last", align: "right", sortable: true },
-];
-
-/** Hideable columns (everything but the identity column) — for a Columns control. */
-export const CAMPAIGN_TABLE_COLUMNS = COLS_META.filter((c) => !c.pinned).map((c) => ({
-  key: c.key,
-  label: c.label,
-}));
-
-/** Their keys in config order — what a saved order is merged against. */
-const CAMPAIGN_COLUMN_KEYS = CAMPAIGN_TABLE_COLUMNS.map((c) => c.key);
+/**
+ * The column META lives in a NON-client module (`portfolio-columns.ts`) because
+ * the server page needs it too, and a server component cannot read a value out
+ * of a `"use client"` module — it gets a client-reference proxy and throws at
+ * request time. Re-exported here for the callers that already import it from
+ * the table.
+ */
+export {
+  CAMPAIGN_TABLE_COLUMNS,
+  CAMPAIGN_COLUMN_KEYS,
+} from "@/components/portfolio/portfolio-columns";
 
 const DASH = "—";
 const fUsd = (v: number | null) => (v === null ? DASH : usd(v));
@@ -227,7 +204,7 @@ export function PortfolioTable({
       return (r[key as keyof PortfolioCampaignRow] as number | null) ?? null;
     };
 
-    return COLS_META.map((m) => ({
+    return CAMPAIGN_COLS_META.map((m) => ({
       key: m.key,
       label: m.label,
       align: m.align,

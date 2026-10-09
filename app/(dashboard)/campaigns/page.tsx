@@ -27,10 +27,12 @@ import Link from "next/link";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PortfolioFilterBar } from "@/components/portfolio/portfolio-filter-bar";
-import {
-  CAMPAIGN_TABLE_COLUMNS,
-  PortfolioTable,
-} from "@/components/portfolio/portfolio-table";
+import { PortfolioTable } from "@/components/portfolio/portfolio-table";
+// Column META comes from the NON-client module: a server component may import
+// a client COMPONENT, never a VALUE out of a `"use client"` file (it would be
+// a client-reference proxy here, and reading it throws at request time —
+// invisible to typecheck and to `next build`).
+import { CAMPAIGN_TABLE_COLUMNS } from "@/components/portfolio/portfolio-columns";
 import { PageShell } from "@/components/layout/page-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { FilterBarSkeleton } from "@/components/layout/page-skeletons";
