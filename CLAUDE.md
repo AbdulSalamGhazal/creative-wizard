@@ -829,6 +829,38 @@ This app is deployed and in production use. Treat `main` as shippable.
     The Columns dropdown lives in each consumer's toolbar and drives `hidden`.
     (The old hand-rolled `creative-platform-table.tsx` — expandable per-platform
     rows — was replaced by this and DELETED.)
+  - **TABLE COLUMNS — ONE control, and it lives on the PRIMITIVE (2026-10,
+    phase 1).** Every `DataTable` passes a **`columnsKey`** from the
+    `TABLE_KEYS` registry (`lib/table-columns.ts`) and gets the control for
+    free: one ghost button in the table's own corner — a slim row above the
+    header, flush with its right edge — because columns belong to the TABLE,
+    not to a page toolbar. **It is the ONLY columns UI**; the hand-rolled
+    toolbar dropdowns are retired as each table migrates (Campaigns and Store
+    orders already lost theirs), so never add a new one. The popover lists the
+    live `DataColumn` config in display order — a page never lists its columns
+    twice — pinned column first as a LOCKED row, and reordering is never
+    drag-only (up/down buttons, Alt+↑/↓, Space to toggle). **Named exemptions:**
+    the Budget plan editor (an editor, not a data table) and Tracker's bars
+    view; the grouped-header twins (Ads summary, Reconciliation's Platforms)
+    are phase 2, not exemptions.
+  - **The state is the filters' architecture, not a second one** (migration
+    0053, `user_table_prefs`): per user, per brand, HIDDEN-key semantics (a
+    column absent from `hidden` is VISIBLE, so a new column appears for
+    everyone), `col_order` MERGED against the live config on read
+    (`mergeColumnOrder` — stale keys dropped, new keys anchored to their config
+    neighbours, never appended), server-side `cache()`-deduped resolution
+    (`resolveTablePrefs`), and a debounced fire-and-forget write
+    (`lib/table-prefs.ts`) through a self-only, registry-validated, NOT-audited
+    action. **Reset DELETES the row — and so does an all-default choice**: the
+    filters' cleared-row rule is what stops a preference resurrecting itself.
+  - **Precedence is ONE rule: URL → applied saved view → preference → config**
+    (`resolveColumnPrefs`). A saved view owns the columns its query states
+    INCLUDING the ones it leaves out, and it reuses the filters' `sv` marker —
+    never fork a second suppression. A URL-backed table (saved views snapshot
+    the query string) writes BOTH the URL and the preference on a change; a
+    plain one takes the server-resolved value as `initial` and owns it from
+    there. Both go through `useTableColumns`, whose `tableProps` spreads the
+    whole control onto the table.
   - **The LIBRARY table (2026-09) — DataTable, with three things worth keeping.**
     (1) **Sorting stays SERVER-side.** No column carries a `sortValue`, so
     DataTable never re-sorts locally: the query layer owns the derived-status
