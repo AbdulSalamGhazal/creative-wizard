@@ -879,6 +879,43 @@ This app is deployed and in production use. Treat `main` as shippable.
     plain one takes the server-resolved value as `initial` and owns it from
     there. Both go through `useTableColumns`, whose `tableProps` spreads the
     whole control onto the table.
+  - **PHASE 2 (2026-10) — the sweep is DONE; no table is off the system.** Every
+    `DataTable` passes a `columnsKey`, every toolbar Columns dropdown is gone
+    (Ads · Library · Store orders · Campaigns · Trends ×2 · Reconciliation), and
+    `components/ui/table-columns-coverage.test.ts` fails the build if a table
+    ships without a key, if an exemption goes stale, or if the retired
+    per-browser hooks (`usePersistentHidden`/`usePersistentVisible`, deleted)
+    come back. **The two EXEMPTIONS, and the reasons:** the Budget plan editor
+    (an editor, not a data table — its columns are the plan's own axes) and
+    Tracker's BARS view (a chart made of rows; its table view carries the
+    control).
+  - **The GROUPED twins keep their structure and share the button.** Ads lists
+    platform GROUPS (reorder) plus the identity and per-group metric columns;
+    a group is NOT hideable, because a group exists when the platforms FILTER
+    selects it and two controls for one thing is worse than one. **Its four URL
+    params are UNCHANGED** — `joinAdsHidden`/`splitAdsHidden` in
+    `components/summary/summary-columns.ts` (a NON-client module, so the server
+    page may read it) are the only translation, because every saved view is a
+    stored query string. Reconciliation's Platforms hides its three leading
+    context columns and reorders its groups; its four sub-columns (Store ·
+    Claim · Δ · Δ%) are the comparison itself and never hide. Channels has its
+    OWN key — a different column universe — and the mode toggle stays page
+    state, because a view switch is not a column.
+  - **Preferences reach the client through ONE read.** The dashboard layout
+    resolves every table's preference (`cache()`-deduped) into
+    `TablePrefsProvider`; a table reads its own entry by key. **A new table
+    needs no page edit** — which also keeps server pages, and the RSC boundary,
+    out of it.
+  - **"Default" is the TABLE's default, not "nothing hidden"** (phase 2
+    correction). Library, both Trends tables and Reconciliation's Channels ship
+    with a collapsed tail as `defaultHidden`, so an EMPTY hidden set is a real
+    choice there and is STORED. The decision moved to the client, which knows
+    the config (`isDefaultColumnState`): `writeTablePrefs` always upserts, and
+    a state matching the table's default routes to the DELETE instead.
+  - **Still off the system, deliberately:** `compare-totals-table`,
+    `top-creatives`, `creative-records-table` — hand-rolled tables, so the
+    control needs a `DataTable` migration first (P3, with
+    `campaign-funnel-table` and `launch-fatigue`).
   - **The LIBRARY table (2026-09) — DataTable, with three things worth keeping.**
     (1) **Sorting stays SERVER-side.** No column carries a `sortValue`, so
     DataTable never re-sorts locally: the query layer owns the derived-status
@@ -886,10 +923,12 @@ This app is deployed and in production use. Treat `main` as shippable.
     only reflects the URL's `?sort=`. Its header keeps the Library's
     THREE-state cycle (desc → asc → back to the page default) by interpreting
     `onSort` itself — DataTable proposes a direction, the consumer decides what
-    the URL says. (2) **A Columns menu** on the shared hidden-key pattern
-    (`usePersistentHidden`, per browser), with notes / source link / thumbnail /
-    created-by / created-at hidden on a first visit. A key absent from the
-    stored set is VISIBLE, so a column added later still shows up. (3) **Cells
+    the URL says. (2) **A Columns control** — the table's own corner button since
+    phase 2 (per user per brand; the per-browser `usePersistentHidden` is
+    gone and its localStorage values were NOT migrated), with notes / source
+    link / thumbnail / created-by / created-at as its `defaultHidden`. A key
+    absent from the stored set is VISIBLE, so a column added later still shows
+    up. (3) **Cells
     that cannot grow the row.** `AngleChips` renders at most two width-capped,
     truncated chips plus a "+N" whose tooltip names the rest, and `StageChips`
     takes `nowrap`; measured against the built CSS, the Angles cell is 271px
