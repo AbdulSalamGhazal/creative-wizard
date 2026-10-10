@@ -21,6 +21,8 @@ import { MetricPicker } from "@/components/charts/metric-picker";
 import { SeriesLegend } from "@/components/charts/series-legend";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { DataTable, type DataColumn } from "@/components/ui/data-table";
+import { useTableColumns } from "@/components/ui/use-table-columns";
+import { TABLE_KEYS } from "@/lib/table-columns";
 import { DateRangePicker } from "@/components/filters/date-range-picker";
 import { PlatformDot } from "@/components/ui/platform-dot";
 import { ALL_PLATFORMS, PLATFORM_COLOR, PLATFORM_LABEL } from "@/lib/palette";
@@ -358,6 +360,14 @@ export function AudienceBoard({
       csv: (r) => r.lastMeasured ?? "",
     },
   ];
+  // The table's own columns control, remembered per user per brand.
+  const columnKeys = columns.filter((c) => !c.pinned).map((c) => c.key);
+  const cols = useTableColumns({
+    tableKey: TABLE_KEYS.BUDGET_AUDIENCE,
+    hideable: columnKeys,
+    defaults: columnKeys,
+  });
+
 
   return (
     <div className="space-y-4">
@@ -640,6 +650,7 @@ export function AudienceBoard({
           {/* Comparison */}
           <DataTable<PairStats>
             columns={columns}
+            {...cols.tableProps}
             rows={rows}
             rowKey={(r) => audienceKey(r.platform, r.stage)}
             showTotals={rows.length > 0}

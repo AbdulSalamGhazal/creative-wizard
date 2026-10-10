@@ -2,19 +2,10 @@
 
 import { useMemo } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Columns3 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuCheckboxItem,
-  DropdownMenuContent,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { DataTable, type DataColumn } from "@/components/ui/data-table";
 import { DownloadCsvButton } from "@/components/ui/download-csv-button";
-import { usePersistentHidden } from "@/components/ui/use-persistent-hidden";
+import { useTableColumns } from "@/components/ui/use-table-columns";
+import { TABLE_KEYS } from "@/lib/table-columns";
 import type { CreativeListRow } from "@/db/queries/creatives";
 import type { CreativeSort } from "@/validators/creative";
 import { StatusBadge } from "@/components/creative/status-badge";
@@ -87,9 +78,11 @@ const SORTS = {
 type SortKey = keyof typeof SORTS;
 
 /**
- * Hidden on a first visit — the declutter the table needed. They are ordinary
- * columns otherwise: the Columns menu restores them, the choice persists per
- * browser, and the CSV carries them regardless.
+ * Hidden on a FIRST VISIT — the declutter the table needed. They are ordinary
+ * columns otherwise: the corner control restores them, the choice is remembered
+ * per user per brand (2026-10 — it used to be this browser's localStorage, and
+ * those values are NOT migrated), and **the CSV carries every column
+ * regardless of what the menu hides** (pinned by creative-csv.test.ts).
  */
 const DEFAULT_HIDDEN = [
   "notes",
@@ -115,10 +108,6 @@ export function CreativeTable({
   const [, startNav] = useNavTransition();
   const currentSort = (searchParams.get("sort") as CreativeSort) ?? DEFAULT_SORT;
 
-  const [hiddenSet, setHiddenSet] = usePersistentHidden<string>(
-    "cw-cols-hidden:library",
-    DEFAULT_HIDDEN,
-  );
 
   const detailHref = (r: CreativeListRow) =>
     `/library/${encodeURIComponent(r.name)}${listCtx ? `?${listCtx}` : ""}`;
@@ -284,7 +273,13 @@ export function CreativeTable({
     [listCtx],
   );
 
-  const hideable = columns.filter((c) => !c.pinned);
+  const columnKeys = columns.filter((c) => !c.pinned).map((c) => c.key);
+  const cols = useTableColumns({
+    tableKey: TABLE_KEYS.LIBRARY,
+    hideable: columnKeys,
+    defaults: columnKeys,
+    defaultHidden: DEFAULT_HIDDEN,
+  });
   const csvContent = rowsToCsv(rows, CSV_COLUMNS);
 
   return (
@@ -295,37 +290,6 @@ export function CreativeTable({
           {total !== undefined ? ` of ${total}` : ""} creatives
         </p>
         <div className="flex items-center gap-2">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button type="button" variant="outline" size="sm">
-                <Columns3 className="h-3.5 w-3.5" />
-                Columns
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="max-h-80 w-48 overflow-auto">
-              <DropdownMenuLabel>Show columns</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuCheckboxItem checked disabled>
-                Creative
-              </DropdownMenuCheckboxItem>
-              {hideable.map((c) => (
-                <DropdownMenuCheckboxItem
-                  key={c.key}
-                  checked={!hiddenSet.has(c.key)}
-                  onCheckedChange={(on) =>
-                    setHiddenSet((prev) => {
-                      const next = new Set(prev);
-                      if (on) next.delete(c.key);
-                      else next.add(c.key);
-                      return next;
-                    })
-                  }
-                >
-                  {c.label}
-                </DropdownMenuCheckboxItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
           <DownloadCsvButton
             csvContent={csvContent}
             filename={`creatives-${todayStamp()}.csv`}
@@ -339,7 +303,7 @@ export function CreativeTable({
         rowKey={(r) => r.id}
         sort={active.key}
         dir={active.dir}
-        hidden={[...hiddenSet]}
+        {...cols.tableProps}
         onSort={onSort}
         onRowClick={(r) => startNav(() => router.push(detailHref(r)))}
         minWidthClass="min-w-[900px]"

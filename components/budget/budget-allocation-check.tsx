@@ -3,6 +3,8 @@
 import { useMemo } from "react";
 import { Wallet } from "lucide-react";
 import { DataTable, type DataColumn } from "@/components/ui/data-table";
+import { useTableColumns } from "@/components/ui/use-table-columns";
+import { TABLE_KEYS } from "@/lib/table-columns";
 import { PlatformDot } from "@/components/ui/platform-dot";
 import { signedPct } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -264,10 +266,19 @@ export function BudgetAllocationCheck({
     ];
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currency, rate, totals, isCurrentMonth, coverageDay, series, totalDeviation]);
+  // The table's own columns control, remembered per user per brand.
+  const columnKeys = columns.filter((c) => !c.pinned).map((c) => c.key);
+  const cols = useTableColumns({
+    tableKey: TABLE_KEYS.BUDGET_ALLOCATION,
+    hideable: columnKeys,
+    defaults: columnKeys,
+  });
+
 
   return (
     <DataTable<CheckRow>
       columns={columns}
+      {...cols.tableProps}
       rows={rows}
       rowKey={(r) => r.key}
       showTotals={rows.length > 0}

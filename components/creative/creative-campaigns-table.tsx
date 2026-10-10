@@ -5,6 +5,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useNavTransition } from "@/lib/nav-progress";
 import { withDateRange } from "@/lib/url";
 import { DataTable, type DataColumn } from "@/components/ui/data-table";
+import { useTableColumns } from "@/components/ui/use-table-columns";
+import { TABLE_KEYS } from "@/lib/table-columns";
 import { PlatformDot } from "@/components/ui/platform-dot";
 import { PLATFORM_LABEL } from "@/lib/palette";
 import { METRIC_LABEL } from "@/lib/metric-labels";
@@ -225,6 +227,20 @@ export function CreativeCampaignsTable({ campaigns, platforms }: Props) {
     setDir(d);
   };
 
+  /**
+   * ONE key for both modes. Only the PINNED identity column differs
+   * ("campaign" vs "platform") and a pinned column is never hidden or
+   * reordered, so the two modes offer exactly the same nine metric columns —
+   * remembering them twice would mean hiding CPA in one mode and finding it
+   * back in the other.
+   */
+  const columnKeys = campaignColumns.filter((c) => !c.pinned).map((c) => c.key);
+  const cols = useTableColumns({
+    tableKey: TABLE_KEYS.CREATIVE_CAMPAIGNS,
+    hideable: columnKeys,
+    defaults: columnKeys,
+  });
+
   const empty = (
     <div className="h-32 flex items-center justify-center text-ink-3 text-sm border border-dashed border-line rounded-lg">
       No campaign activity for this creative.
@@ -271,6 +287,7 @@ export function CreativeCampaignsTable({ campaigns, platforms }: Props) {
           sort={sort}
           dir={dir}
           onSort={onSort}
+          {...cols.tableProps}
           onRowClick={(r) =>
             startNav(() =>
               router.push(
@@ -294,6 +311,7 @@ export function CreativeCampaignsTable({ campaigns, platforms }: Props) {
           sort={sort}
           dir={dir}
           onSort={onSort}
+          {...cols.tableProps}
           showTotals
           empty={empty}
         />

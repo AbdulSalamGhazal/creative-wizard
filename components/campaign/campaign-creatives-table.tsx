@@ -3,6 +3,8 @@
 import { useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { DataTable, type DataColumn } from "@/components/ui/data-table";
+import { useTableColumns } from "@/components/ui/use-table-columns";
+import { TABLE_KEYS } from "@/lib/table-columns";
 import { withDateRange } from "@/lib/url";
 import { seriesColor } from "@/lib/palette";
 import { int, pct, roas, usd } from "@/lib/format";
@@ -34,7 +36,6 @@ export function CampaignCreativesTable({
   const searchParams = useSearchParams();
   const [sort, setSort] = useState("spend");
   const [dir, setDir] = useState<SortDir>("desc");
-  const [order, setOrder] = useState<string[]>([]);
 
   // Color by rank in the spend-sorted list — the chart/KPIs use the same map,
   // so a creative is the same color everywhere. Keyed off the original order.
@@ -108,6 +109,14 @@ export function CampaignCreativesTable({
     },
   ];
 
+  // The columns control, from the live config — one key for this table.
+  const columnKeys = columns.filter((c) => !c.pinned).map((c) => c.key);
+  const cols = useTableColumns({
+    tableKey: TABLE_KEYS.CAMPAIGN_CREATIVES,
+    hideable: columnKeys,
+    defaults: columnKeys,
+  });
+
   if (creatives.length === 0) {
     return (
       <div className="rounded-lg border border-dashed border-line bg-surface px-6 py-8 text-center text-ink-3 text-sm">
@@ -127,8 +136,7 @@ export function CampaignCreativesTable({
         setSort(key);
         setDir(d);
       }}
-      order={order}
-      onReorder={setOrder}
+      {...cols.tableProps}
       onRowClick={(r) =>
         startNav(() => router.push(
           withDateRange(

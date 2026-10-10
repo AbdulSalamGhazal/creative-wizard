@@ -2,7 +2,10 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { Columns3, Download, Megaphone, Percent, Scale, ShoppingBag } from "lucide-react";
+import { Download, Megaphone, Percent, Scale, ShoppingBag } from "lucide-react";
+import { useTableColumns } from "@/components/ui/use-table-columns";
+import { TableColumnsControl } from "@/components/ui/table-columns-control";
+import { TABLE_KEYS } from "@/lib/table-columns";
 import {
   DataTable,
   compareSortValues,
@@ -10,14 +13,6 @@ import {
 } from "@/components/ui/data-table";
 import { MetricCard, type BreakdownBar } from "@/components/overview/metric-card";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuCheckboxItem,
-  DropdownMenuContent,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { DateRangePicker } from "@/components/filters/date-range-picker";
 import { FilterShell } from "@/components/filters/filter-shell";
 import { useFilterParams } from "@/components/filters/use-filter-params";
@@ -124,10 +119,53 @@ export function ReconciliationView({
   // Client state only — no URL param has ever carried the mode, so a stale
   // "overview" value cannot arrive from a bookmark or a saved view.
   const [mode, setMode] = useState<Mode>("channel");
-  // The two context columns are hidden by default (counts-only page).
-  const [hidden, setHidden] = useState<Set<string>>(
-    () => new Set(["store_revenue", "spend"]),
-  );
+  /** Channels' hideable columns, in display order (`day` is the pinned one). */
+  const CHANNEL_HIDEABLE = [
+    "store_orders",
+    "website",
+    "application",
+    "unmapped",
+    "claimed",
+    "delta_incl",
+    "delta_incl_pct",
+    "delta_excl",
+    "delta_excl_pct",
+    "store_revenue",
+    "spend",
+  ];
+  const CHANNEL_DEFAULT_HIDDEN = ["store_revenue", "spend"];
+  /** The Platforms view's leading context columns (Day is its pinned one). */
+  const PLATFORM_LEADING_KEYS = ["store_total", "unattributed", "unattributed_pct"];
+
+  /**
+   * CHANNELS columns — remembered per user per brand (2026-10). The two money
+   * context columns stay hidden by default; this page is counts-only, and they
+   * are context, not content.
+   *
+   * The two views get SEPARATE keys: they are different column universes
+   * (Channels is flat; Platforms is a per-platform group of four), so one
+   * remembered set could never describe both. The MODE toggle itself stays
+   * page state — a view switch is not a column.
+   */
+  const channelCols = useTableColumns({
+    tableKey: TABLE_KEYS.RECON_CHANNELS,
+    hideable: CHANNEL_HIDEABLE,
+    defaults: CHANNEL_HIDEABLE,
+    defaultHidden: CHANNEL_DEFAULT_HIDDEN,
+  });
+  const hidden = useMemo(() => new Set(channelCols.hidden), [channelCols.hidden]);
+
+  /**
+   * PLATFORMS columns — its own key and its own universe: the three leading
+   * context columns hide, and the per-platform GROUPS reorder. The four
+   * sub-columns inside a group (Store · Claim · Δ · Δ%) are the comparison
+   * itself, so they are not hideable — there would be nothing left to read.
+   */
+  const platformCols = useTableColumns({
+    tableKey: TABLE_KEYS.RECON_PLATFORMS,
+    hideable: PLATFORM_LEADING_KEYS,
+    defaults: platforms as string[],
+  });
 
   // The shell's batching writer — the only URL writer on a migrated bar.
   const setRange = (nf: string | null, nt: string | null) =>
@@ -513,39 +551,8 @@ export function ReconciliationView({
         toolbar={() => (
           <>
             <ExcludedParamToggle on={includeExcluded} />
-            {mode === "channel" && (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button type="button" variant="outline" size="sm">
-                    <Columns3 className="h-3.5 w-3.5" />
-                    Columns
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-48">
-                  <DropdownMenuLabel>Context columns</DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  {[
-                    { k: "store_revenue", label: "Revenue (SAR)" },
-                    { k: "spend", label: "Spend (USD)" },
-                  ].map(({ k, label }) => (
-                    <DropdownMenuCheckboxItem
-                      key={k}
-                      checked={!hidden.has(k)}
-                      onCheckedChange={(on) =>
-                        setHidden((prev) => {
-                          const next = new Set(prev);
-                          if (on) next.delete(k);
-                          else next.add(k);
-                          return next;
-                        })
-                      }
-                    >
-                      {label}
-                    </DropdownMenuCheckboxItem>
-                  ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            )}
+            {/* The Columns dropdown that lived here is GONE (2026-10): each
+                view's table carries its own corner control. */}
             <Button type="button" variant="outline" size="sm" onClick={exportCsv} disabled={empty}>
               <Download className="h-3.5 w-3.5" />
               CSV
@@ -651,7 +658,7 @@ export function ReconciliationView({
           rowKey={(r) => r.day}
           sort={sort.key}
           dir={sort.dir}
-          hidden={[...hidden]}
+          {...channelCols.tableProps}
           onSort={(key, dir) => setSort({ key, dir })}
           showTotals={channelRows.length > 0}
           evenColumns
@@ -666,6 +673,7 @@ export function ReconciliationView({
         <ByPlatformTable
           rows={byPlatform}
           platforms={platforms}
+          cols={platformCols}
           lag={lag}
           totals={bpTotals}
         />
@@ -766,16 +774,62 @@ const SUB = "px-1.5 py-1 text-right text-[10px] font-medium uppercase tracking-[
 function ByPlatformTable({
   rows,
   platforms,
+  cols,
   lag,
   totals,
 }: {
   rows: ReconByPlatformRow[];
   platforms: PlatformKey[];
+  /** The columns control's state — groups reorder, leading columns hide. */
+  cols: ReturnType<typeof useTableColumns>;
   lag: (day: string) => boolean;
   /** Range totals (computed once by the parent, shared with the KPI tiles). */
   totals: { store: Record<string, number>; claimed: Record<string, number>; unattributed: number; storeOrders: number };
 }) {
+  const hiddenSet = new Set(cols.hidden);
+  const show = (key: string) => !hiddenSet.has(key);
+  // The group order the control holds; platforms it doesn't know append.
+  const leadingCount = [
+    show("store_total"),
+    show("unattributed"),
+    show("unattributed_pct"),
+  ].filter(Boolean).length;
+  const ordered: PlatformKey[] = [
+    ...cols.order.filter((p): p is PlatformKey => (platforms as string[]).includes(p)),
+    ...platforms.filter((p) => !cols.order.includes(p)),
+  ];
+
   return (
+    <div className="space-y-2">
+    <div className="flex justify-end">
+      <TableColumnsControl
+        columnsKey={TABLE_KEYS.RECON_PLATFORMS}
+        items={[
+          { key: "day", label: "Day", section: "Columns", pinned: true },
+          { key: "store_total", label: "Store total", section: "Columns", reorderable: false },
+          { key: "unattributed", label: "Unattributed", section: "Columns", reorderable: false },
+          {
+            key: "unattributed_pct",
+            label: "Unattributed %",
+            section: "Columns",
+            reorderable: false,
+          },
+          ...ordered.map((p) => ({
+            key: p as string,
+            label: PLATFORM_LABEL[p],
+            section: "Platform groups",
+            // A platform group exists because that platform has data; the
+            // control orders them, it doesn't invent or remove them.
+            hideable: false,
+          })),
+        ]}
+        hidden={cols.hidden}
+        dirty={cols.tableProps.columnsDirty}
+        onToggle={cols.tableProps.onToggleColumn}
+        onMove={cols.tableProps.onMoveColumn}
+        onReset={cols.tableProps.onResetColumns}
+      />
+    </div>
     <div className="overflow-x-auto rounded-lg border border-line bg-surface">
       <table className="w-full min-w-[720px] border-collapse text-xs num">
         <thead className="sticky top-0 z-20 bg-surface">
@@ -787,13 +841,15 @@ function ByPlatformTable({
             >
               Day
             </th>
-            <th
-              colSpan={3}
-              className="border-l border-line px-1.5 py-1.5 text-center text-label text-ink-3"
-            >
-              Store
-            </th>
-            {platforms.map((p) => (
+            {leadingCount > 0 && (
+              <th
+                colSpan={leadingCount}
+                className="border-l border-line px-1.5 py-1.5 text-center text-label text-ink-3"
+              >
+                Store
+              </th>
+            )}
+            {ordered.map((p) => (
               <th
                 key={p}
                 colSpan={4}
@@ -809,10 +865,14 @@ function ByPlatformTable({
           </tr>
           {/* Sub-labels */}
           <tr className="border-b border-line text-ink-3">
-            <th className={cn(SUB, "border-l border-line")}>Total</th>
-            <th className={SUB}>Unattr.</th>
-            <th className={SUB} title="Unattributed ÷ store total">%</th>
-            {platforms.map((p) => (
+            {show("store_total") && (
+              <th className={cn(SUB, "border-l border-line")}>Total</th>
+            )}
+            {show("unattributed") && <th className={SUB}>Unattr.</th>}
+            {show("unattributed_pct") && (
+              <th className={SUB} title="Unattributed ÷ store total">%</th>
+            )}
+            {ordered.map((p) => (
               <SubHead key={p} />
             ))}
           </tr>
@@ -823,12 +883,20 @@ function ByPlatformTable({
               <td className="sticky left-0 z-10 bg-surface px-1.5 py-1.5 text-left">
                 <DayCell day={r.day} isLag={lag(r.day)} />
               </td>
-              <td className={cn(CELL, "border-l border-line")}>{intCompact(r.storeOrders)}</td>
-              <td className={cn(CELL, "text-ink-3")}>{intCompact(r.unattributed)}</td>
-              <td className={CELL}>
-                <PctCell pct={unattributedShare(r.unattributed, r.storeOrders)} />
-              </td>
-              {platforms.map((p) => (
+              {show("store_total") && (
+                <td className={cn(CELL, "border-l border-line")}>
+                  {intCompact(r.storeOrders)}
+                </td>
+              )}
+              {show("unattributed") && (
+                <td className={cn(CELL, "text-ink-3")}>{intCompact(r.unattributed)}</td>
+              )}
+              {show("unattributed_pct") && (
+                <td className={CELL}>
+                  <PctCell pct={unattributedShare(r.unattributed, r.storeOrders)} />
+                </td>
+              )}
+              {ordered.map((p) => (
                 <GroupCells
                   key={p}
                   store={r.storeByPlatform[p] ?? 0}
@@ -845,12 +913,20 @@ function ByPlatformTable({
             </td>
             {/* Every footer figure below is computed from the range SUMS, not
                 from averaging the per-day numbers. */}
-            <td className={cn(CELL, "border-l border-line")}>{intCompact(totals.storeOrders)}</td>
-            <td className={cn(CELL, "text-ink-3")}>{intCompact(totals.unattributed)}</td>
-            <td className={CELL}>
-              <PctCell pct={unattributedShare(totals.unattributed, totals.storeOrders)} />
-            </td>
-            {platforms.map((p) => (
+            {show("store_total") && (
+              <td className={cn(CELL, "border-l border-line")}>
+                {intCompact(totals.storeOrders)}
+              </td>
+            )}
+            {show("unattributed") && (
+              <td className={cn(CELL, "text-ink-3")}>{intCompact(totals.unattributed)}</td>
+            )}
+            {show("unattributed_pct") && (
+              <td className={CELL}>
+                <PctCell pct={unattributedShare(totals.unattributed, totals.storeOrders)} />
+              </td>
+            )}
+            {ordered.map((p) => (
               <GroupCells
                 key={p}
                 store={totals.store[p] ?? 0}
@@ -860,6 +936,7 @@ function ByPlatformTable({
           </tr>
         </tfoot>
       </table>
+    </div>
     </div>
   );
 }

@@ -31,6 +31,20 @@ export interface ColumnsControlItem {
   key: string;
   label: string;
   pinned?: boolean;
+  /**
+   * A heading this item sits under. The GROUPED tables (Ads, Reconciliation's
+   * Platforms) manage two different things — platform column GROUPS and the
+   * individual columns inside them — and the control has to say which is
+   * which. Items with no section render as one plain list, as every flat table
+   * does.
+   */
+  section?: string;
+  /** Default true. A platform group is reordered but not hidden (the platform
+   *  FILTER decides whether it exists at all — two controls for one thing is
+   *  worse than one). */
+  hideable?: boolean;
+  /** Default true. */
+  reorderable?: boolean;
 }
 
 export function TableColumnsControl({
@@ -55,7 +69,7 @@ export function TableColumnsControl({
   const [open, setOpen] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
   const hiddenSet = new Set(hidden);
-  const movable = items.filter((c) => !c.pinned);
+  const movable = items.filter((c) => !c.pinned && c.hideable !== false);
   const shown = movable.filter((c) => !hiddenSet.has(c.key)).length;
 
   /** Arrow keys walk the rows; Space toggles; Alt+↑/↓ moves. */
@@ -114,7 +128,15 @@ export function TableColumnsControl({
           <div ref={listRef} className="max-h-72 overflow-y-auto py-1">
             {items.map((item, i) => {
               const isHidden = hiddenSet.has(item.key);
+              const canHide = item.hideable !== false;
+              const canMove = item.reorderable !== false;
+              const sectionLabel =
+                item.section && item.section !== items[i - 1]?.section ? item.section : null;
               return (
+                <div key={`wrap-${item.key}`}>
+                {sectionLabel && (
+                  <p className="px-2 pb-1 pt-2 text-eyebrow text-ink-3">{sectionLabel}</p>
+                )}
                 <div
                   key={item.key}
                   data-col-row
@@ -136,7 +158,10 @@ export function TableColumnsControl({
                   ) : (
                     <>
                       <span
-                        draggable
+                        draggable={canMove}
+                        // A grip on a row that cannot move is a lie about what
+                        // the mouse can do — the slot stays, so rows align.
+                        aria-hidden={!canMove}
                         onDragStart={(e) =>
                           e.dataTransfer.setData("text/column", item.key)
                         }
@@ -148,17 +173,27 @@ export function TableColumnsControl({
                           onMove(from, order.indexOf(item.key) - order.indexOf(from));
                         }}
                         title="Drag to reorder"
-                        className="cursor-grab text-ink-3/50 transition-colors hover:text-ink active:cursor-grabbing"
+                        className={cn(
+                          "text-ink-3/50 transition-colors",
+                          canMove
+                            ? "cursor-grab hover:text-ink active:cursor-grabbing"
+                            : "invisible",
+                        )}
                       >
                         <GripVertical className="h-3 w-3" />
                       </span>
-                      <input
-                        id={`${columnsKey}-col-${item.key}`}
-                        type="checkbox"
-                        checked={!isHidden}
-                        onChange={() => onToggle(item.key)}
-                        className="h-3 w-3 shrink-0 accent-[var(--brand)]"
-                      />
+                      {canHide ? (
+                        <input
+                          id={`${columnsKey}-col-${item.key}`}
+                          type="checkbox"
+                          checked={!isHidden}
+                          onChange={() => onToggle(item.key)}
+                          className="h-3 w-3 shrink-0 accent-[var(--brand)]"
+                        />
+                      ) : (
+                        // Always present: its platform is chosen by the filter.
+                        <span className="h-3 w-3 shrink-0" aria-hidden />
+                      )}
                       <label
                         htmlFor={`${columnsKey}-col-${item.key}`}
                         className={cn(
@@ -170,7 +205,12 @@ export function TableColumnsControl({
                       </label>
                       {/* Visible on hover/focus, but ALWAYS reachable by tab —
                           hiding an affordance from the keyboard is hiding it. */}
-                      <span className="flex items-center opacity-0 transition-opacity focus-within:opacity-100 group-focus-within:opacity-100 group-hover:opacity-100">
+                      <span
+                        className={cn(
+                          "flex items-center opacity-0 transition-opacity focus-within:opacity-100 group-focus-within:opacity-100 group-hover:opacity-100",
+                          !canMove && "hidden",
+                        )}
+                      >
                         <button
                           type="button"
                           aria-label={`Move ${item.label} up`}
@@ -192,6 +232,7 @@ export function TableColumnsControl({
                       </span>
                     </>
                   )}
+                </div>
                 </div>
               );
             })}

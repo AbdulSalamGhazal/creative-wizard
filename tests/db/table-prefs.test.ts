@@ -89,21 +89,28 @@ describe("writing and reading one table's columns", () => {
     expect(await db.select().from(userTablePrefs)).toHaveLength(1);
   });
 
-  it("stores nothing for an all-default choice — and clears what was there", async () => {
+  it("UPSERTS whatever it is given — the client decides what 'default' means", async () => {
+    // Phase 2: some tables ship with columns hidden, so an EMPTY hidden set is
+    // a real choice ("show me everything") that has to survive. The writer
+    // therefore stores what it is told; `isDefaultColumnState` on the client
+    // routes a default state to the DELETE instead (unit-pinned).
     await writeTablePrefs(USER, ACCOUNT_A, {
-      tableKey: TABLE_KEYS.CAMPAIGNS,
-      hidden: ["cpm"],
+      tableKey: TABLE_KEYS.LIBRARY,
+      hidden: ["notes"],
       order: [],
     });
-    expect(await rowFor(TABLE_KEYS.CAMPAIGNS)).toBeTruthy();
-    // Un-hiding the last column is the same as resetting: no row, so a future
-    // column change can't be haunted by a stored "no opinion".
+    expect(await rowFor(TABLE_KEYS.LIBRARY)).toEqual({ hidden: ["notes"], order: [] });
+
     await writeTablePrefs(USER, ACCOUNT_A, {
-      tableKey: TABLE_KEYS.CAMPAIGNS,
+      tableKey: TABLE_KEYS.LIBRARY,
       hidden: [],
       order: [],
     });
-    expect(await rowFor(TABLE_KEYS.CAMPAIGNS)).toBeUndefined();
+    expect(await rowFor(TABLE_KEYS.LIBRARY)).toEqual({ hidden: [], order: [] });
+
+    // …and the reset path is what removes it.
+    await deleteTablePref(USER, ACCOUNT_A, TABLE_KEYS.LIBRARY);
+    expect(await rowFor(TABLE_KEYS.LIBRARY)).toBeUndefined();
   });
 
   it("reset DELETES the row — the filters' cleared-row rule", async () => {

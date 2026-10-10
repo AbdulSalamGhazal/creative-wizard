@@ -2,17 +2,10 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { Columns3, Hash } from "lucide-react";
-import {
-  DropdownMenu,
-  DropdownMenuCheckboxItem,
-  DropdownMenuContent,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { Hash } from "lucide-react";
 import { DataTable, type DataColumn } from "@/components/ui/data-table";
-import { usePersistentVisible } from "@/components/ui/use-persistent-visible";
+import { useTableColumns } from "@/components/ui/use-table-columns";
+import { TABLE_KEYS } from "@/lib/table-columns";
 import { DeltaBadge } from "@/components/kpi/delta-badge";
 import { int, pct, roas, usd } from "@/lib/format";
 import { METRIC_LABEL } from "@/lib/metric-labels";
@@ -62,6 +55,10 @@ const DEFAULT_VISIBLE = new Set<Key>([
   "creatives", "spend", "conversions", "ctr", "cvr", "cpa", "roas", "hookRate",
 ]);
 
+/** The first-visit state, as the columns system states it: what is HIDDEN. */
+const DEFAULT_HIDDEN = COLS.filter((c) => !DEFAULT_VISIBLE.has(c.key)).map((c) => c.key);
+const COLUMN_KEYS = COLS.map((c) => c.key as string);
+
 type Mode = "values" | "rank" | "avg" | "prev";
 
 const MODES: { k: Mode; label: string }[] = [
@@ -74,13 +71,16 @@ const MODES: { k: Mode; label: string }[] = [
 const ABSENT: Delta = { pct: null, mode: "absent" };
 
 export function AngleRollupTable({ rows }: { rows: AngleRollupRow[] }) {
-  const [visible, setVisible] = usePersistentVisible<Key>(
-    "cw-cols:angle-rollup",
-    DEFAULT_VISIBLE,
-  );
+  // Columns are remembered per user per brand now (2026-10) — the per-browser
+  // visible-set is gone, and the first-visit tail is `defaultHidden`.
+  const cols = useTableColumns({
+    tableKey: TABLE_KEYS.TRENDS_ANGLES,
+    hideable: COLUMN_KEYS,
+    defaults: COLUMN_KEYS,
+    defaultHidden: DEFAULT_HIDDEN,
+  });
   const [sortKey, setSortKey] = useState<string>("spend");
   const [dir, setDir] = useState<"asc" | "desc">("desc");
-  const [order, setOrder] = useState<string[]>([]);
   const [mode, setMode] = useState<Mode>("values");
 
   // Per-column rank maps (good direction) and cross-angle averages.
@@ -99,14 +99,6 @@ export function AngleRollupTable({ rows }: { rows: AngleRollupRow[] }) {
     }
     return { rankMaps, avgs };
   }, [rows]);
-
-  const toggleCol = (key: Key) =>
-    setVisible((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
 
   // Every mode keeps the value visible; non-default modes append an indicator.
   const cell = (r: AngleRollupRow, c: Col) => {
@@ -187,11 +179,6 @@ export function AngleRollupTable({ rows }: { rows: AngleRollupRow[] }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, rankMaps, avgs]);
 
-  const hidden = useMemo(
-    () => COLS.filter((c) => !visible.has(c.key)).map((c) => c.key),
-    [visible],
-  );
-
   const modeHint =
     mode === "rank" ? "Each cell is the angle's rank among all angles for that metric."
     : mode === "avg" ? "Each cell is the delta vs the average angle this period."
@@ -218,28 +205,6 @@ export function AngleRollupTable({ rows }: { rows: AngleRollupRow[] }) {
         </div>
         <div className="flex items-center gap-3">
           {modeHint && <span className="text-[11px] text-ink-3 hidden md:inline">{modeHint}</span>}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button type="button" className="inline-flex items-center gap-2 h-8 px-3 rounded-md border border-line text-xs text-ink-2 bg-surface hover:bg-surface-2 hover:text-ink transition-colors">
-                <Columns3 className="w-3.5 h-3.5" /> Columns{" "}
-                <span className="text-ink-3">{visible.size}</span>
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-52 max-h-96 overflow-y-auto">
-              <DropdownMenuLabel>Columns</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              {COLS.map((c) => (
-                <DropdownMenuCheckboxItem
-                  key={c.key}
-                  checked={visible.has(c.key)}
-                  onCheckedChange={() => toggleCol(c.key)}
-                  onSelect={(e) => e.preventDefault()}
-                >
-                  {c.label}
-                </DropdownMenuCheckboxItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
         </div>
       </div>
 
@@ -249,13 +214,11 @@ export function AngleRollupTable({ rows }: { rows: AngleRollupRow[] }) {
         rowKey={(r) => r.angle}
         sort={sortKey}
         dir={dir}
-        hidden={hidden}
-        order={order}
+        {...cols.tableProps}
         onSort={(key, d) => {
           setSortKey(key);
           setDir(d);
         }}
-        onReorder={setOrder}
         csvFileName="by-angle"
         minWidthClass="min-w-[760px]"
         empty={

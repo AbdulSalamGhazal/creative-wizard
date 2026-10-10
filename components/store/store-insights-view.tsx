@@ -20,6 +20,8 @@ import { MetricPicker } from "@/components/charts/metric-picker";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { Button } from "@/components/ui/button";
 import { DataTable, type DataColumn } from "@/components/ui/data-table";
+import { useTableColumns } from "@/components/ui/use-table-columns";
+import { TABLE_KEYS } from "@/lib/table-columns";
 import { MetricCard } from "@/components/overview/metric-card";
 import { DateRangePicker } from "@/components/filters/date-range-picker";
 import { FilterShell } from "@/components/filters/filter-shell";
@@ -294,6 +296,14 @@ export function StoreInsightsView({
       },
     ];
   }, [dimension, totals.orders, totals.revenue, empty]);
+  // The table's own columns control, remembered per user per brand.
+  const columnKeys = columns.filter((c) => !c.pinned).map((c) => c.key);
+  const cols = useTableColumns({
+    tableKey: TABLE_KEYS.STORE_INSIGHTS,
+    hideable: columnKeys,
+    defaults: columnKeys,
+  });
+
 
   /**
    * CSV exports the FULL breakdown — every value the range scan returned, not
@@ -607,6 +617,7 @@ export function StoreInsightsView({
           <>
             <DataTable
               columns={columns}
+              {...cols.tableProps}
               rows={rows}
               rowKey={(r) => r.value ?? "__blank__"}
               sort="orders"

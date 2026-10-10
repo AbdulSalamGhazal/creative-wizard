@@ -12,7 +12,9 @@ import {
   CommentPanelProvider,
 } from "@/components/comments/comment-drawer";
 import { NoBrandAccess } from "@/components/layout/no-brand-access";
-import { getToastScope } from "@/db/queries/user-prefs";
+import { getToastScope, resolveTablePrefs } from "@/db/queries/user-prefs";
+import { TABLE_KEY_LIST } from "@/lib/table-columns";
+import { TablePrefsProvider } from "@/components/ui/table-prefs-context";
 import { db } from "@/lib/db";
 import { creatives, products } from "@/db/schema";
 import { eq } from "drizzle-orm";
@@ -57,8 +59,14 @@ export default async function DashboardLayout({
   // and handed down: the bell obeys it, the account menu shows it.
   const toastScope = await getToastScope();
 
+  // Every table's remembered columns, in ONE cache()-deduped read, handed to
+  // the client once. A table anywhere under this layout reads its own entry by
+  // key — no page has to thread a prop, and a NEW table needs no page edit.
+  const tablePrefs = await resolveTablePrefs(TABLE_KEY_LIST);
+
   return (
     <PermissionsProvider granted={granted}>
+      <TablePrefsProvider prefs={tablePrefs}>
       {/* Which thing the comment drawer points at — an entity page registers
           itself, everything else derives from the pathname. */}
       <CommentAnchorProvider>
@@ -105,6 +113,7 @@ export default async function DashboardLayout({
           </div>
         </CommentPanelProvider>
       </CommentAnchorProvider>
+      </TablePrefsProvider>
     </PermissionsProvider>
   );
 }

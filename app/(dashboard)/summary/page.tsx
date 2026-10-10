@@ -14,7 +14,17 @@ import {
   resolvePreferredRange,
   resolveIncludeExcluded,
 } from "@/db/queries/user-prefs";
-import { VIEW_MARKER_PARAM } from "@/validators/user-prefs";
+import { VIEW_MARKER_PARAM, isSavedViewApplied } from "@/validators/user-prefs";
+import { TABLE_KEYS, resolveColumnPrefs } from "@/lib/table-columns";
+import { resolveTablePrefs } from "@/db/queries/user-prefs";
+// Plain modules, never the `"use client"` table: a server component may import
+// a client COMPONENT, never a VALUE out of a client module.
+import {
+  ADS_HIDEABLE_KEYS,
+  ADS_TOTAL_KEY,
+  joinAdsHidden,
+  splitAdsHidden,
+} from "@/components/summary/summary-columns";
 import { LIFETIME_FLOOR, presetLabel, todayIso } from "@/lib/date-presets";
 import { PLATFORMS_WITH_CREATIVES } from "@/lib/palette";
 import { requireAuth } from "@/lib/auth";
@@ -168,6 +178,31 @@ export default async function SummaryPage({
         ? "all platforms"
         : selectedPlatforms.join(", ");
 
+  // COLUMNS: URL → applied saved view → this user's preference → the config.
+  // The URL keeps its four params untouched (every saved view is a stored
+  // query string); `splitAdsHidden`/`joinAdsHidden` translate them to and from
+  // the one flat list the columns system speaks.
+  const adsPrefs = await resolveTablePrefs([TABLE_KEYS.ADS_SUMMARY]);
+  const columnState = resolveColumnPrefs({
+    url: {
+      hidden: joinAdsHidden({
+        identity: parsed.hideIdentity,
+        metrics: parsed.hideMetrics,
+        rate: parsed.hideRate,
+        blended: parsed.hideBlended,
+      }),
+      // Group order has no URL param — it is preference-only.
+      order: [],
+    },
+    viewApplied: isSavedViewApplied((key: string) => pickFirst(params[key])),
+    pref: adsPrefs[TABLE_KEYS.ADS_SUMMARY],
+    hideable: ADS_HIDEABLE_KEYS,
+    // The ORDER universe is the platform groups (plus the blended total),
+    // which is what the control reorders.
+    defaults: [...selectedPlatforms, ADS_TOTAL_KEY],
+  });
+  const columns = splitAdsHidden(columnState.hidden);
+
   return (
     <PageShell>
       <SummaryFilterBar
@@ -207,11 +242,12 @@ export default async function SummaryPage({
         sort={effectiveSort}
         pathname="/summary"
         baseParams={baseParams.toString()}
-        hiddenIdentity={new Set(parsed.hideIdentity)}
-        hiddenMetrics={new Set(parsed.hideMetrics)}
+        hiddenIdentity={new Set(columns.identity)}
+        hiddenMetrics={new Set(columns.metrics)}
+        columnOrder={columnState.order}
         ratingConfig={ratingConfig}
-        showRate={!parsed.hideRate}
-        showBlended={!parsed.hideBlended}
+        showRate={!columns.rate}
+        showBlended={!columns.blended}
       />
     </PageShell>
   );

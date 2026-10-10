@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   TABLE_KEYS,
   TABLE_KEY_LIST,
+  isDefaultColumnState,
   isTableKey,
   mergeColumnOrder,
   mergeHiddenColumns,
@@ -172,5 +173,55 @@ describe("parseColumnList", () => {
     expect(parseColumnList("")).toEqual([]);
     expect(parseColumnList(null)).toEqual([]);
     expect(parseColumnList(undefined)).toEqual([]);
+  });
+});
+
+describe("the default-state rule (phase 2)", () => {
+  // Some tables ship with a collapsed tail, so "nothing hidden" is a real
+  // choice there and must be STORED; matching the table's own default is what
+  // deletes the row.
+  it("matches an empty default", () => {
+    expect(isDefaultColumnState({ hidden: [], order: [] })).toBe(true);
+    expect(isDefaultColumnState({ hidden: ["a"], order: [] })).toBe(false);
+    expect(isDefaultColumnState({ hidden: [], order: ["b", "a"] })).toBe(false);
+  });
+
+  it("matches a NON-empty default, regardless of order", () => {
+    const def = ["notes", "createdAt"];
+    expect(isDefaultColumnState({ hidden: ["createdAt", "notes"], order: [] }, def)).toBe(
+      true,
+    );
+    // Showing everything is NOT the default for such a table — it is stored.
+    expect(isDefaultColumnState({ hidden: [], order: [] }, def)).toBe(false);
+    expect(isDefaultColumnState({ hidden: ["notes"], order: [] }, def)).toBe(false);
+    expect(
+      isDefaultColumnState({ hidden: ["notes", "createdAt", "x"], order: [] }, def),
+    ).toBe(false);
+  });
+});
+
+describe("the phase-2 registry", () => {
+  it("covers every table the sweep wired, with stable keys", () => {
+    // The keys are STORED, so renaming one orphans every row that carries it.
+    expect([...TABLE_KEY_LIST].sort()).toEqual(
+      [
+        "ads-summary",
+        "budget-allocation",
+        "budget-audience",
+        "budget-pacing",
+        "budget-tracker",
+        "campaign-creatives",
+        "campaign-records",
+        "campaigns",
+        "creative-campaigns",
+        "library",
+        "recon-channels",
+        "recon-platforms",
+        "store-insights",
+        "store-orders",
+        "trends-angles",
+        "trends-video",
+      ].sort(),
+    );
   });
 });

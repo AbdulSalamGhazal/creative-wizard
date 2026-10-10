@@ -29,6 +29,34 @@ export const TABLE_KEYS = {
   CAMPAIGNS: "campaigns",
   /** /store/orders → the orders table. */
   STORE_ORDERS: "store-orders",
+
+  // ── Phase 2 (2026-10): the rest of the tables ──────────────────────────
+  /** Library (`/library`) — the creatives table. */
+  LIBRARY: "library",
+  /** Ads (`/summary`) — the grouped platform-group table. */
+  ADS_SUMMARY: "ads-summary",
+  /** Campaign detail → the creatives that ran in it. */
+  CAMPAIGN_CREATIVES: "campaign-creatives",
+  /** Creative detail → its campaigns/platforms table (both modes). */
+  CREATIVE_CAMPAIGNS: "creative-campaigns",
+  /** Trends → By angle. */
+  TRENDS_ANGLES: "trends-angles",
+  /** Trends → Video diagnostics. */
+  TRENDS_VIDEO: "trends-video",
+  /** Store → Insights, the breakdown table. */
+  STORE_INSIGHTS: "store-insights",
+  /** Store → Reconciliation, Channels view. */
+  RECON_CHANNELS: "recon-channels",
+  /** Store → Reconciliation, Platforms view (its own column universe). */
+  RECON_PLATFORMS: "recon-platforms",
+  /** Budget → Pacing, the per-bucket table. */
+  BUDGET_PACING: "budget-pacing",
+  /** Budget → Overview, the allocation check. */
+  BUDGET_ALLOCATION: "budget-allocation",
+  /** Budget → Tracker, the TABLE view (the bars view is exempt). */
+  BUDGET_TRACKER: "budget-tracker",
+  /** Budget → Audience, the pair board. */
+  BUDGET_AUDIENCE: "budget-audience",
 } as const;
 
 export type TableKey = (typeof TABLE_KEYS)[keyof typeof TABLE_KEYS];
@@ -149,6 +177,25 @@ export function resolveColumnPrefs(input: ColumnPrecedenceInput): TableColumnPre
         : [];
 
   return { hidden, order };
+}
+
+/**
+ * Is this state the table's DEFAULT — nothing to remember?
+ *
+ * Phase 2 made this non-trivial: some tables ship with columns hidden on a
+ * first visit (the Library's notes/thumbnail/…, Trends' long metric tail), so
+ * "nothing hidden" is a real opinion there, not the absence of one. The CLIENT
+ * decides, because only it knows the config; the row is then deleted (reset)
+ * or upserted accordingly.
+ */
+export function isDefaultColumnState(
+  state: TableColumnPref,
+  defaultHidden: readonly string[] = [],
+): boolean {
+  if (state.order.length > 0) return false;
+  if (state.hidden.length !== defaultHidden.length) return false;
+  const want = new Set(defaultHidden);
+  return state.hidden.every((k) => want.has(k));
 }
 
 /**

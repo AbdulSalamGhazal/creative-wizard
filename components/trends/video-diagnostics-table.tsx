@@ -3,18 +3,10 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Columns3 } from "lucide-react";
 import { withDateRange } from "@/lib/url";
-import {
-  DropdownMenu,
-  DropdownMenuCheckboxItem,
-  DropdownMenuContent,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { DataTable, type DataColumn } from "@/components/ui/data-table";
-import { usePersistentVisible } from "@/components/ui/use-persistent-visible";
+import { useTableColumns } from "@/components/ui/use-table-columns";
+import { TABLE_KEYS } from "@/lib/table-columns";
 import { int, pct, roas, usd } from "@/lib/format";
 import { METRIC_LABEL } from "@/lib/metric-labels";
 import { StatusBadge } from "@/components/creative/status-badge";
@@ -61,6 +53,10 @@ const DEFAULT_VISIBLE = new Set<Key>([
   "productName", "spend", "hookRate", "holdRate", "completeRate", "cvr", "roas",
 ]);
 
+/** The first-visit state, as the columns system states it: what is HIDDEN. */
+const DEFAULT_HIDDEN = COLS.filter((c) => !DEFAULT_VISIBLE.has(c.key)).map((c) => c.key);
+const COLUMN_KEYS = COLS.map((c) => c.key as string);
+
 export function VideoDiagnosticsTable({
   rows,
   medianHookRate,
@@ -75,21 +71,15 @@ export function VideoDiagnosticsTable({
   const searchParams = useSearchParams();
   const rangeFrom = searchParams.get("from");
   const rangeTo = searchParams.get("to");
-  const [visible, setVisible] = usePersistentVisible<Key>(
-    "cw-cols:video-diagnostics",
-    DEFAULT_VISIBLE,
-  );
+  // Per user per brand (2026-10); the collapsed metric tail is the default.
+  const cols = useTableColumns({
+    tableKey: TABLE_KEYS.TRENDS_VIDEO,
+    hideable: COLUMN_KEYS,
+    defaults: COLUMN_KEYS,
+    defaultHidden: DEFAULT_HIDDEN,
+  });
   const [sortKey, setSortKey] = useState<string>("spend");
   const [dir, setDir] = useState<"asc" | "desc">("desc");
-  const [order, setOrder] = useState<string[]>([]);
-
-  const toggleCol = (k: Key) =>
-    setVisible((prev) => {
-      const next = new Set(prev);
-      if (next.has(k)) next.delete(k);
-      else next.add(k);
-      return next;
-    });
 
   const columns = useMemo<DataColumn<VideoDiagnosticRow>[]>(() => {
     const medianFor = (m?: "hook" | "hold" | "complete") =>
@@ -149,10 +139,6 @@ export function VideoDiagnosticsTable({
     return [nameCol, ...metricCols];
   }, [medianHookRate, medianHoldRate, medianCompleteRate, rangeFrom, rangeTo]);
 
-  const hidden = useMemo(
-    () => COLS.filter((c) => !visible.has(c.key)).map((c) => c.key),
-    [visible],
-  );
 
   return (
     <div className="space-y-2">
@@ -160,28 +146,6 @@ export function VideoDiagnosticsTable({
         <span className="text-[11px] text-ink-3">
           {rows.length} video{rows.length === 1 ? "" : "s"} · rates below the median are amber
         </span>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button type="button" className="inline-flex items-center gap-2 h-8 px-3 rounded-md border border-line text-xs text-ink-2 bg-surface hover:bg-surface-2 hover:text-ink transition-colors">
-              <Columns3 className="w-3.5 h-3.5" /> Columns{" "}
-              <span className="text-ink-3">{visible.size}</span>
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-52 max-h-96 overflow-y-auto">
-            <DropdownMenuLabel>Columns</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            {COLS.map((c) => (
-              <DropdownMenuCheckboxItem
-                key={c.key}
-                checked={visible.has(c.key)}
-                onCheckedChange={() => toggleCol(c.key)}
-                onSelect={(e) => e.preventDefault()}
-              >
-                {c.label}
-              </DropdownMenuCheckboxItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
       </div>
 
       <DataTable
@@ -190,14 +154,12 @@ export function VideoDiagnosticsTable({
         rowKey={(r) => r.creativeId}
         sort={sortKey}
         dir={dir}
-        hidden={hidden}
-        order={order}
+        {...cols.tableProps}
         csvFileName="video-diagnostics"
         onSort={(key, d) => {
           setSortKey(key);
           setDir(d);
         }}
-        onReorder={setOrder}
         minWidthClass="min-w-[760px]"
         empty={
           <div className="rounded-lg border border-dashed border-line bg-surface px-6 py-12 text-center">

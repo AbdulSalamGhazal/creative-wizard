@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
+import { useNavTransition } from "@/lib/nav-progress";
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { withDateRange } from "@/lib/url";
@@ -26,6 +28,18 @@ import {
 } from "@/validators/summary";
 import { StatusSquare } from "@/components/creative/status-badge";
 import { DownloadCsvButton } from "@/components/ui/download-csv-button";
+import { TableColumnsControl } from "@/components/ui/table-columns-control";
+import { useTableColumns } from "@/components/ui/use-table-columns";
+import { TABLE_KEYS } from "@/lib/table-columns";
+import {
+  ADS_HIDEABLE_KEYS,
+  ADS_RATE_KEY,
+  ADS_TOTAL_KEY,
+  IDENTITY_LABELS,
+  METRIC_LABELS,
+  joinAdsHidden,
+  splitAdsHidden,
+} from "@/components/summary/summary-columns";
 import { rowsToCsv, todayStamp, type CsvColumn } from "@/lib/csv-export";
 import { PriorityStars } from "@/components/creative/priority-stars";
 import { StageChips } from "@/components/creative/stage-chips";
@@ -42,6 +56,8 @@ interface Props {
   baseParams: string;
   /** Identity columns to suppress (Creative name is always shown). */
   hiddenIdentity?: Set<IdentityColumnKey>;
+  /** The remembered GROUP order (server-resolved); the control reorders it. */
+  columnOrder?: string[];
   /** Metric columns to suppress — applies to every platform + total group. */
   hiddenMetrics?: Set<MetricColumnKey>;
   /** Rating config (default + per-platform overrides) driving the Rate column. */
@@ -55,7 +71,6 @@ interface Props {
 /** Text identity columns the user can drag to resize. Numeric columns stay auto-sized. */
 const RESIZABLE_IDENTITY = new Set(["name", "product", "creator"]);
 const COL_WIDTHS_KEY = "summary-col-widths";
-const PLATFORM_ORDER_KEY = "summary-platform-order";
 const MIN_COL_WIDTH = 80;
 
 /** A small colored pill for a creative's rating, centered in the cell. */
@@ -156,6 +171,7 @@ export function SummaryTable({
   baseParams,
   hiddenIdentity,
   hiddenMetrics,
+  columnOrder,
   ratingConfig,
   showRate = true,
   showBlended,
@@ -180,7 +196,97 @@ export function SummaryTable({
 
   // ---- Resizable text columns -------------------------------------------
   const [widths, setWidths] = useState<Record<string, number>>({});
-  const [platformOrder, setPlatformOrder] = useState<string[]>([]);
+  // The GROUP order. Seeded from the server-resolved preference (per user, per
+  // brand since 2026-10 — it was this browser's localStorage) and moved by the
+  // corner control.
+  const [platformOrder, setPlatformOrder] = useState<string[]>(columnOrder ?? []);
+
+  /**
+   * THE COLUMNS CONTROL on a GROUPED table (2026-10, phase 2).
+   *
+   * Two different things are managed here and the control says which is which:
+   * the platform GROUPS (reorder — a group EXISTS because the platforms filter
+   * selected it, so there is no second checkbox for that) and the columns
+   * inside every group (hide). The URL params are UNTOUCHED — four of them,
+   * three shapes — and `splitAdsHidden`/`joinAdsHidden` are the only
+   * translation, because every saved view is a stored query string.
+   */
+  const router = useRouter();
+  const tablePathname = usePathname();
+  const [, startNav] = useNavTransition();
+  const groupKeys: string[] = [
+    ...(platforms as string[]),
+    ...(showTotal ? [ADS_TOTAL_KEY] : []),
+  ];
+  const currentHidden = joinAdsHidden({
+    identity: [...(hiddenIdentity ?? [])],
+    metrics: [...(hiddenMetrics ?? [])],
+    rate: !showRate,
+    blended: showBlended === false,
+  });
+  const cols = useTableColumns({
+    tableKey: TABLE_KEYS.ADS_SUMMARY,
+    hideable: ADS_HIDEABLE_KEYS,
+    // The ORDER universe is the GROUPS; the hidden universe is the columns.
+    defaults: groupKeys,
+    value: { hidden: currentHidden, order: platformOrder },
+    onChange: (next) => {
+      setPlatformOrder(next.order);
+      const parts = splitAdsHidden(next.hidden);
+      const params = new URLSearchParams(baseParams);
+      const setCsv = (key: string, values: string[]) => {
+        if (values.length === 0) params.delete(key);
+        else params.set(key, values.join(","));
+      };
+      setCsv("hideIdentity", parts.identity);
+      setCsv("hideMetrics", parts.metrics);
+      if (parts.rate) params.set("hideRate", "1");
+      else params.delete("hideRate");
+      if (parts.blended) params.set("hideBlended", "1");
+      else params.delete("hideBlended");
+      const query = params.toString();
+      startNav(() =>
+        router.replace(query ? `${tablePathname}?${query}` : tablePathname, {
+          scroll: false,
+        }),
+      );
+    },
+  });
+
+  /** What the popover lists: the groups, then the columns inside them. */
+  const controlItems = [
+    ...groupKeys.map((g) => ({
+      key: g,
+      label:
+        g === ADS_TOTAL_KEY
+          ? "Blended total"
+          : ((PLATFORM_LABEL as Record<string, string>)[g] ?? g),
+      section: "Column groups",
+      // A platform group is REORDERED here; whether it exists at all is the
+      // platforms filter's question. The Blended total is this table's own,
+      // so it can be hidden.
+      hideable: g === ADS_TOTAL_KEY,
+    })),
+    { key: "name", label: "Creative", section: "Identity columns", pinned: true },
+    ...Object.entries(IDENTITY_LABELS).map(([key, label]) => ({
+      key,
+      label,
+      section: "Identity columns",
+      reorderable: false,
+    })),
+    {
+      key: ADS_RATE_KEY,
+      label: "Rate",
+      section: "In every group",
+      reorderable: false,
+    },
+    ...Object.entries(METRIC_LABELS).map(([key, label]) => ({
+      key,
+      label,
+      section: "In every group",
+      reorderable: false,
+    })),
+  ];
   const thRefs = useRef<Record<string, HTMLTableCellElement | null>>({});
 
   useEffect(() => {
@@ -192,23 +298,6 @@ export function SummaryTable({
       }
     } catch {
       /* ignore malformed storage */
-    }
-  }, []);
-
-  // User-defined platform column order (persisted to localStorage). Platforms
-  // not yet in the saved order (new selections) append at the end. Kept above
-  // any early return so the Rules of Hooks hold (hooks run every render).
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(PLATFORM_ORDER_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw) as unknown;
-        if (Array.isArray(parsed)) {
-          setPlatformOrder(parsed.filter((x): x is string => typeof x === "string"));
-        }
-      }
-    } catch {
-      /* ignore malformed value */
     }
   }, []);
 
@@ -321,26 +410,15 @@ export function SummaryTable({
 
   // Reorderable column groups: each selected platform PLUS (when shown) the
   // blended "total" group. The ◀▶ controls move any of them — total included.
-  const allGroups: string[] = [...(platforms as string[])];
-  if (showTotal) allGroups.push("total");
+  // The group order comes from the columns hook now (URL-less, remembered per
+  // user per brand); the ◀▶ header controls and the popover's arrows move the
+  // same list.
   const orderedGroups: string[] = [
-    ...platformOrder.filter((g) => allGroups.includes(g)),
-    ...allGroups.filter((g) => !platformOrder.includes(g)),
+    ...cols.order.filter((g) => groupKeys.includes(g)),
+    ...groupKeys.filter((g) => !cols.order.includes(g)),
   ];
   const moveGroup = (g: string, dir: -1 | 1) => {
-    const cur = [...orderedGroups];
-    const i = cur.indexOf(g);
-    const a = cur[i];
-    const b = cur[i + dir];
-    if (a === undefined || b === undefined) return;
-    cur[i] = b;
-    cur[i + dir] = a;
-    setPlatformOrder(cur);
-    try {
-      localStorage.setItem(PLATFORM_ORDER_KEY, JSON.stringify(cur));
-    } catch {
-      /* ignore */
-    }
+    cols.tableProps.onMoveColumn(g, dir);
   };
 
   // Totals / weighted-average footer over the currently visible (filtered)
@@ -406,10 +484,20 @@ export function SummaryTable({
 
   return (
     <div className="space-y-2">
-      <div className="flex items-center justify-end">
+      <div className="flex items-center justify-end gap-1">
         <DownloadCsvButton
           csvContent={csvContent}
           filename={`summary-${todayStamp()}.csv`}
+        />
+        {/* The table's own corner control — the toolbar's Columns pill is gone. */}
+        <TableColumnsControl
+          columnsKey={TABLE_KEYS.ADS_SUMMARY}
+          items={controlItems}
+          hidden={cols.hidden}
+          dirty={cols.tableProps.columnsDirty}
+          onToggle={cols.tableProps.onToggleColumn}
+          onMove={cols.tableProps.onMoveColumn}
+          onReset={cols.tableProps.onResetColumns}
         />
       </div>
       <div className="max-h-[70vh] overflow-auto rounded-lg border border-line bg-surface">

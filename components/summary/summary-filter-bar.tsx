@@ -1,6 +1,6 @@
 "use client";
 
-import { Columns3, Layers } from "lucide-react";
+import { Layers } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useFilterParams } from "@/components/filters/use-filter-params";
 import {
@@ -19,9 +19,7 @@ import { FilterShell } from "@/components/filters/filter-shell";
 import type { FilterDef } from "@/components/filters/filter-model";
 import { cn } from "@/lib/utils";
 import {
-  IDENTITY_COLUMN_KEYS,
   MAX_PLATFORMS,
-  METRIC_COLUMN_KEYS,
   metricConditionLabel,
   parseMetricFilters,
   parseRateFilter,
@@ -29,8 +27,6 @@ import {
   serializeMetricFilters,
   serializeRateFilter,
   serializeStatusFilter,
-  type IdentityColumnKey,
-  type MetricColumnKey,
   type MetricFilterScope,
 } from "@/validators/summary";
 import { RATING_META, RATING_VALUES, type Rating } from "@/lib/rating";
@@ -99,33 +95,6 @@ const ALL_PLATFORM_VALUES = PLATFORMS.map((p) => p.value);
 // from an absent param (which defaults to all). Parses to [] server-side.
 const PLATFORMS_NONE = "none";
 
-/** Human labels for the Columns dropdown — must match the keys in validators/summary. */
-const IDENTITY_LABELS: Record<IdentityColumnKey, string> = {
-  product: "Product",
-  type: "Type",
-  priority: "Priority",
-  stage: "Stage",
-  creator: "Creator",
-  launch: "Launch date",
-};
-const METRIC_LABELS: Record<MetricColumnKey, string> = {
-  spend: "Spend",
-  impressions: "Impressions",
-  clicks: "Clicks",
-  conversions: "Conversions",
-  ctr: "CTR",
-  cpm: "CPM",
-  cpc: "CPC",
-  cpa: "CPA",
-  roas: "ROAS",
-  hook_rate: "Hook rate",
-  hold_rate: "Hold rate",
-  complete_rate: "Complete rate",
-  landing_page_views: "Landing page views",
-  voc: "VOC",
-  cvr: "CvR",
-};
-
 function csv(v: string | null): string[] {
   if (!v) return [];
   return v.split(",").filter(Boolean);
@@ -173,15 +142,6 @@ export function SummaryFilterBar({
     rawIncludeExcluded !== null
       ? rawIncludeExcluded === "1"
       : (includeExcludedDefault ?? false);
-  const hiddenIdentity = csv(searchParams.get("hideIdentity")).filter(
-    (k): k is IdentityColumnKey =>
-      (IDENTITY_COLUMN_KEYS as readonly string[]).includes(k),
-  );
-  const hiddenMetrics = csv(searchParams.get("hideMetrics")).filter(
-    (k): k is MetricColumnKey =>
-      (METRIC_COLUMN_KEYS as readonly string[]).includes(k),
-  );
-  const rateHidden = searchParams.get("hideRate") === "1";
   const blendedHidden = searchParams.get("hideBlended") === "1";
 
   // Rate filter — scope is kept in local state so the user can pick a scope
@@ -281,27 +241,7 @@ export function SummaryFilterBar({
    * columns, so the default "show all" needs no URL state. Visible = checked;
    * unchecking adds the key to the hidden list.
    */
-  const toggleColumn = (
-    paramKey: "hideIdentity" | "hideMetrics",
-    columnKey: string,
-    currentHidden: string[],
-  ) => {
-    const set = new Set(currentHidden);
-    if (set.has(columnKey)) set.delete(columnKey);
-    else set.add(columnKey);
-    update((next) => {
-      if (set.size === 0) next.delete(paramKey);
-      else next.set(paramKey, [...set].join(","));
-    });
-  };
 
-  // The Rate column is a single boolean (shown by default). Unchecking sets
-  // hideRate=1; checking removes the param.
-  const toggleRate = () =>
-    update((next) => {
-      if (rateHidden) next.delete("hideRate");
-      else next.set("hideRate", "1");
-    });
 
   // Blended Total is a single boolean (shown by default), toggled like Rate.
   const toggleBlended = () =>
@@ -310,12 +250,6 @@ export function SummaryFilterBar({
       else next.set("hideBlended", "1");
     });
 
-  const showAllColumns = () =>
-    update((next) => {
-      next.delete("hideIdentity");
-      next.delete("hideMetrics");
-      next.delete("hideRate");
-    });
 
   const applyRange = (nextFrom: string | null, nextTo: string | null) => {
     update((next) => {
@@ -490,8 +424,6 @@ export function SummaryFilterBar({
     },
   ];
 
-  const hiddenColumnsCount =
-    hiddenIdentity.length + hiddenMetrics.length + (rateHidden ? 1 : 0);
 
   return (
     <FilterShell
@@ -572,79 +504,10 @@ export function SummaryFilterBar({
       )}
       toolbar={({ fullWidth }) => (
         <>
-          {/* TABLE controls, not filters — they stay where table controls live,
-              and Clear never touches them. */}
-          <FilterPill
-            fullWidth={fullWidth}
-            icon={Columns3}
-            label="Columns"
-            value={hiddenColumnsCount === 0 ? "All shown" : `${hiddenColumnsCount} hidden`}
-            active={hiddenColumnsCount > 0}
-          >
-            {() => (
-              <DropdownMenuContent align="end" className="w-64 max-h-[28rem] overflow-y-auto">
-                <DropdownMenuLabel>Identity columns</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <div className="px-2 py-1.5 text-[10px] text-ink-3">
-                  Creative name is always shown.
-                </div>
-                {IDENTITY_COLUMN_KEYS.map((k) => (
-                  <DropdownMenuCheckboxItem
-                    key={k}
-                    checked={!hiddenIdentity.includes(k)}
-                    onCheckedChange={() => toggleColumn("hideIdentity", k, hiddenIdentity)}
-                    onSelect={(e) => e.preventDefault()}
-                  >
-                    {IDENTITY_LABELS[k]}
-                  </DropdownMenuCheckboxItem>
-                ))}
-
-                <DropdownMenuSeparator />
-                <DropdownMenuLabel>Metric columns</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <div className="px-2 py-1.5 text-[10px] text-ink-3">
-                  Applies to every platform group and the Blended total.
-                </div>
-                {METRIC_COLUMN_KEYS.map((k) => (
-                  <DropdownMenuCheckboxItem
-                    key={k}
-                    checked={!hiddenMetrics.includes(k)}
-                    onCheckedChange={() => toggleColumn("hideMetrics", k, hiddenMetrics)}
-                    onSelect={(e) => e.preventDefault()}
-                  >
-                    {METRIC_LABELS[k]}
-                  </DropdownMenuCheckboxItem>
-                ))}
-
-                <DropdownMenuSeparator />
-                <DropdownMenuLabel>Rating</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <div className="px-2 py-1.5 text-[10px] text-ink-3">
-                  Leads each platform group and the Blended total.
-                </div>
-                <DropdownMenuCheckboxItem
-                  checked={!rateHidden}
-                  onCheckedChange={toggleRate}
-                  onSelect={(e) => e.preventDefault()}
-                >
-                  Rate
-                </DropdownMenuCheckboxItem>
-
-                {hiddenColumnsCount > 0 && (
-                  <>
-                    <DropdownMenuSeparator />
-                    <button
-                      type="button"
-                      onClick={showAllColumns}
-                      className="w-full px-2 py-1.5 text-left text-xs text-ink-2 transition-colors hover:bg-surface-2 hover:text-ink"
-                    >
-                      Show all columns
-                    </button>
-                  </>
-                )}
-              </DropdownMenuContent>
-            )}
-          </FilterPill>
+          {/* The Columns pill that lived here is GONE (2026-10, phase 2):
+              columns belong to the TABLE, which carries its own corner
+              control. The URL params it wrote are UNCHANGED — saved views
+              still parse exactly as before. */}
           {/* Data SCOPE, not a filter — house-wide convention: always visible. */}
           <ExcludedToggle
             on={includeExcluded}

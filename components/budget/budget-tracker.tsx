@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { PlatformDot } from "@/components/ui/platform-dot";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { DataTable, type DataColumn } from "@/components/ui/data-table";
+import { useTableColumns } from "@/components/ui/use-table-columns";
+import { TABLE_KEYS } from "@/lib/table-columns";
 import { FilterPill } from "@/components/filters/filter-pill";
 import { FilterShell } from "@/components/filters/filter-shell";
 import {
@@ -886,10 +888,19 @@ function TrackerTable({
     ];
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rows, currency, isCurrentMonth]);
+  // The table's own columns control, remembered per user per brand.
+  const columnKeys = columns.filter((c) => !c.pinned).map((c) => c.key);
+  const cols = useTableColumns({
+    tableKey: TABLE_KEYS.BUDGET_TRACKER,
+    hideable: columnKeys,
+    defaults: columnKeys,
+  });
+
 
   return (
     <DataTable<TrackerTableRow>
       columns={columns}
+      {...cols.tableProps}
       rows={rows}
       rowKey={(r) => r.key}
       // Worst pace first: the table exists to be ranked, and this is the

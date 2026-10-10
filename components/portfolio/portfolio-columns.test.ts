@@ -7,6 +7,11 @@ import {
   isSavedViewApplied,
 } from "@/validators/user-prefs";
 import { parseColumnList, resolveColumnPrefs } from "@/lib/table-columns";
+import {
+  ADS_HIDEABLE_KEYS,
+  joinAdsHidden,
+  splitAdsHidden,
+} from "@/components/summary/summary-columns";
 
 /**
  * REGRESSION for the columns move (2026-10): the control left the Campaigns
@@ -124,5 +129,55 @@ describe("the old toolbar dropdowns are gone", () => {
       expect(src, file).toContain("useTableColumns");
       expect(src, file).toContain("cols.tableProps");
     }
+  });
+});
+
+describe("the grouped twins keep their URL contract (phase 2)", () => {
+  it("Ads' four column params round-trip through the flat hidden list", () => {
+    // The columns system speaks ONE list; the Ads table speaks four params of
+    // three shapes. If this translation drifts, every saved view drifts.
+    const parts = {
+      identity: ["product", "creator"] as never,
+      metrics: ["cpm", "roas"] as never,
+      rate: true,
+      blended: false,
+    };
+    const flat = joinAdsHidden(parts);
+    expect(flat).toEqual(["product", "creator", "cpm", "roas", "rate"]);
+    expect(splitAdsHidden(flat)).toEqual({
+      identity: ["product", "creator"],
+      metrics: ["cpm", "roas"],
+      rate: true,
+      blended: false,
+    });
+  });
+
+  it("round-trips the empty case and ignores keys it doesn't own", () => {
+    const empty = { identity: [], metrics: [], rate: false, blended: false } as never;
+    expect(joinAdsHidden(empty)).toEqual([]);
+    expect(splitAdsHidden([])).toEqual({
+      identity: [],
+      metrics: [],
+      rate: false,
+      blended: false,
+    });
+    // A platform group key lives in the ORDER, never in the hidden list's
+    // identity/metric halves.
+    expect(splitAdsHidden(["instagram", "total"]).identity).toEqual([]);
+    expect(splitAdsHidden(["instagram", "total"]).blended).toBe(true);
+  });
+
+  it("a saved view's columns still win over a preference on the Ads table", () => {
+    const applied = raw(`hideMetrics=cpm&${VIEW_MARKER_PARAM}=v9`);
+    const resolved = resolveColumnPrefs({
+      url: { hidden: parseColumnList(applied("hideMetrics")) },
+      viewApplied: isSavedViewApplied(applied),
+      pref: { hidden: ["roas"], order: ["tiktok", "instagram"] },
+      hideable: ADS_HIDEABLE_KEYS,
+      defaults: ["instagram", "tiktok"],
+    });
+    expect(resolved.hidden).toEqual(["cpm"]);
+    // …and the view owns the ORDER it doesn't state, too.
+    expect(resolved.order).toEqual([]);
   });
 });

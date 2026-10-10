@@ -19,6 +19,8 @@ import { MetricPicker } from "@/components/charts/metric-picker";
 import { SeriesLegend } from "@/components/charts/series-legend";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { DataTable, type DataColumn } from "@/components/ui/data-table";
+import { useTableColumns } from "@/components/ui/use-table-columns";
+import { TABLE_KEYS } from "@/lib/table-columns";
 import {
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
@@ -666,6 +668,14 @@ export function BudgetPacing({
     return cols;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeMetric, byObjective, currency, rate, rows, groupBy, hasSpendPlan]);
+  // The table's own columns control, remembered per user per brand.
+  const columnKeys = columns.filter((c) => !c.pinned).map((c) => c.key);
+  const cols = useTableColumns({
+    tableKey: TABLE_KEYS.BUDGET_PACING,
+    hideable: columnKeys,
+    defaults: columnKeys,
+  });
+
 
   /** Why Revenue and ROAS are unavailable under a platform filter. */
   const allPlatformsOnly =
@@ -925,6 +935,7 @@ export function BudgetPacing({
       {/* Period table */}
       <DataTable<BucketRow>
         columns={columns}
+        {...cols.tableProps}
         rows={rows}
         rowKey={(r) => r.bucket.key}
         showTotals={rows.length > 0}

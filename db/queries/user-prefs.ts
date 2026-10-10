@@ -280,20 +280,20 @@ export async function resolveTablePrefs(
 }
 
 /**
- * Write-through for one table's columns. An all-default choice (nothing hidden,
- * no custom order) DELETES the row rather than storing an empty one: a user who
- * resets must land on the config next time, not on a stored "no opinion" that
- * outlives a future column change.
+ * Write-through for one table's columns — always an UPSERT.
+ *
+ * Whether a state is "the default" is decided by the CLIENT
+ * (`isDefaultColumnState`), because only it knows the config: some tables ship
+ * with columns hidden on a first visit, so an EMPTY hidden set is a real
+ * opinion there ("show me everything") and must be stored. A default state
+ * deletes the row instead, through `deleteTablePref` — that is still what stops
+ * a stored "no opinion" outliving a future column change.
  */
 export async function writeTablePrefs(
   userId: string,
   accountId: string,
   entry: { tableKey: string; hidden: string[]; order: string[] },
 ): Promise<void> {
-  if (entry.hidden.length === 0 && entry.order.length === 0) {
-    await deleteTablePref(userId, accountId, entry.tableKey);
-    return;
-  }
   await db
     .insert(userTablePrefs)
     .values({

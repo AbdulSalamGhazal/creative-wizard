@@ -1,8 +1,10 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { queueTablePrefs, resetTablePrefsNow } from "@/lib/table-prefs";
+import { useTablePref } from "@/components/ui/table-prefs-context";
 import {
+  isDefaultColumnState,
   mergeColumnOrder,
   mergeHiddenColumns,
   moveColumn,
@@ -46,6 +48,7 @@ export function useTableColumns({
   tableKey,
   hideable,
   defaults,
+  defaultHidden = [],
   initial,
   value,
   onChange,
@@ -55,17 +58,32 @@ export function useTableColumns({
   hideable: readonly string[];
   /** The non-pinned column keys in config order. */
   defaults: readonly string[];
-  /** The server-resolved preference, for the local shape. */
+  /**
+   * Columns hidden on a FIRST visit — the table's own default. Several tables
+   * ship with a long metric tail collapsed; with one of these set, "nothing
+   * hidden" is a real choice and is stored, while matching this set is the
+   * default and deletes the row.
+   */
+  defaultHidden?: readonly string[];
+  /**
+   * The server-resolved preference. OPTIONAL since phase 2: the dashboard
+   * layout provides every table's preference through context, so a table only
+   * passes this when it has a more specific source.
+   */
   initial?: TableColumnPref;
   /** The current value, for the URL-backed shape. Presence = controlled. */
   value?: TableColumnPref;
   /** Where a change goes besides the preference (the URL writer). */
   onChange?: (next: TableColumnPref) => void;
 }): UseTableColumnsResult {
+  const fromContext = useTablePref(tableKey);
+  const source = initial ?? fromContext;
+  // No stored preference → the table's own first-visit default.
+  const hasPref = source.hidden.length > 0 || source.order.length > 0;
   const seed = useMemo<TableColumnPref>(
     () => ({
-      hidden: mergeHiddenColumns(initial?.hidden ?? [], hideable),
-      order: initial?.order?.length ? mergeColumnOrder(initial.order, defaults) : [],
+      hidden: mergeHiddenColumns(hasPref ? source.hidden : defaultHidden, hideable),
+      order: source.order.length ? mergeColumnOrder(source.order, defaults) : [],
     }),
     // The seed is exactly that — later server values arrive through `value`
     // (controlled) or not at all, so re-seeding on every render would fight the
@@ -76,21 +94,45 @@ export function useTableColumns({
   const [local, setLocal] = useState<TableColumnPref>(seed);
 
   const controlled = value !== undefined;
+
+  /**
+   * OPTIMISTIC, controlled shape only. A URL-backed table's `value` arrives
+   * from the server, so between a click and the navigation landing the open
+   * popover would keep showing the OLD columns — most visibly after Reset,
+   * which also waits for its delete first. Holding the new value here makes the
+   * control answer instantly; the effect below drops it the moment the real
+   * value catches up, so the server stays the source of truth.
+   */
+  const [optimistic, setOptimistic] = useState<TableColumnPref | null>(null);
+  const valueKey = controlled ? JSON.stringify(value) : "";
+  const lastValueKey = useRef(valueKey);
+  useEffect(() => {
+    if (valueKey === lastValueKey.current) return;
+    lastValueKey.current = valueKey;
+    setOptimistic(null);
+  }, [valueKey]);
+
   const current = useMemo<TableColumnPref>(() => {
-    const src = controlled ? value! : local;
+    const src = controlled ? (optimistic ?? value!) : local;
     return {
       hidden: mergeHiddenColumns(src.hidden, hideable),
       order: src.order.length > 0 ? mergeColumnOrder(src.order, defaults) : [],
     };
-  }, [controlled, value, local, hideable, defaults]);
+  }, [controlled, value, optimistic, local, hideable, defaults]);
 
   const apply = useCallback(
     (next: TableColumnPref) => {
-      if (!controlled) setLocal(next);
+      if (controlled) setOptimistic(next);
+      else setLocal(next);
       onChange?.(next);
-      queueTablePrefs({ tableKey, hidden: next.hidden, order: next.order });
+      // Back at the table's own default? Then there is nothing to remember —
+      // DELETE the row rather than store a "no opinion" that would outlive the
+      // next column change. (With a non-empty `defaultHidden`, an EMPTY hidden
+      // set is NOT the default and is stored.)
+      if (isDefaultColumnState(next, defaultHidden)) void resetTablePrefsNow(tableKey);
+      else queueTablePrefs({ tableKey, hidden: next.hidden, order: next.order });
     },
-    [controlled, onChange, tableKey],
+    [controlled, onChange, tableKey, defaultHidden],
   );
 
   const onReorder = useCallback(
@@ -132,14 +174,17 @@ export function useTableColumns({
    * goes through the same call so a pending toggle can't recreate the row.
    */
   const onResetColumns = useCallback(() => {
-    const empty: TableColumnPref = { hidden: [], order: [] };
+    // "Default" is the table's own first-visit state, not necessarily nothing.
+    const empty: TableColumnPref = { hidden: [...defaultHidden], order: [] };
     if (!controlled) {
       setLocal(empty);
       void resetTablePrefsNow(tableKey);
       return;
     }
+    // The control snaps to defaults NOW; the delete and the navigation follow.
+    setOptimistic(empty);
     void resetTablePrefsNow(tableKey).then(() => onChange?.(empty));
-  }, [controlled, onChange, tableKey]);
+  }, [controlled, onChange, tableKey, defaultHidden]);
 
   return {
     hidden: current.hidden,
@@ -152,7 +197,9 @@ export function useTableColumns({
       onToggleColumn,
       onMoveColumn,
       onResetColumns,
-      columnsDirty: current.hidden.length > 0 || current.order.length > 0,
+      // "Dirty" means AWAY FROM THE TABLE'S DEFAULT, which is not the same as
+      // "something is hidden" once a table ships with a collapsed tail.
+      columnsDirty: !isDefaultColumnState(current, defaultHidden),
     },
   };
 }
