@@ -14,6 +14,7 @@ import {
   TABLE_PREF_DEBOUNCE_MS,
   mergeTableEntries,
   queueTablePrefs,
+  resetTablePrefsNow,
 } from "@/lib/table-prefs";
 import { TABLE_KEYS } from "@/lib/table-columns";
 
@@ -39,14 +40,12 @@ describe("merging a burst", () => {
     expect(merged.find((e) => e.tableKey === "campaigns")?.hidden).toEqual(["a", "b"]);
   });
 
-  it("lets a RESET win over an earlier toggle in the same burst", () => {
+  it("leaves other tables alone", () => {
     const merged = mergeTableEntries(
       [{ tableKey: "campaigns", hidden: ["a"], order: [] }],
-      [{ tableKey: "campaigns", hidden: [], order: [], reset: true }],
+      [{ tableKey: "store-orders", hidden: ["z"], order: [] }],
     );
-    expect(merged).toEqual([
-      { tableKey: "campaigns", hidden: [], order: [], reset: true },
-    ]);
+    expect(merged.map((e) => e.tableKey).sort()).toEqual(["campaigns", "store-orders"]);
   });
 });
 
@@ -65,16 +64,37 @@ describe("the queue", () => {
     });
   });
 
-  it("routes a reset to the DELETE action, not to a write of empties", () => {
-    queueTablePrefs({
-      tableKey: TABLE_KEYS.STORE_ORDERS,
-      hidden: [],
-      order: [],
-      reset: true,
-    });
-    vi.advanceTimersByTime(TABLE_PREF_DEBOUNCE_MS);
+  it("a reset DELETES, and is awaited rather than debounced", async () => {
+    // The caller can wait on it, which is the whole point: on a URL-backed
+    // table the navigation that follows must not race the delete.
+    await resetTablePrefsNow(TABLE_KEYS.STORE_ORDERS);
     expect(resetMock).toHaveBeenCalledWith({ tableKey: TABLE_KEYS.STORE_ORDERS });
     expect(setMock).not.toHaveBeenCalled();
+  });
+
+  it("a reset CANCELS a queued write for that table — no resurrection", async () => {
+    // The sharp case: hide a column, then reset within the debounce window.
+    // If the queued write survived, it would land AFTER the delete and
+    // recreate the row the user just cleared.
+    queueTablePrefs({ tableKey: TABLE_KEYS.CAMPAIGNS, hidden: ["cpm"], order: [] });
+    await resetTablePrefsNow(TABLE_KEYS.CAMPAIGNS);
+    vi.advanceTimersByTime(TABLE_PREF_DEBOUNCE_MS * 3);
+    expect(resetMock).toHaveBeenCalledTimes(1);
+    expect(setMock).not.toHaveBeenCalled();
+  });
+
+  it("a reset leaves ANOTHER table's queued write alone", async () => {
+    queueTablePrefs({ tableKey: TABLE_KEYS.CAMPAIGNS, hidden: ["cpm"], order: [] });
+    queueTablePrefs({ tableKey: TABLE_KEYS.STORE_ORDERS, hidden: ["city"], order: [] });
+    await resetTablePrefsNow(TABLE_KEYS.CAMPAIGNS);
+    vi.advanceTimersByTime(TABLE_PREF_DEBOUNCE_MS);
+    expect(resetMock).toHaveBeenCalledWith({ tableKey: TABLE_KEYS.CAMPAIGNS });
+    expect(setMock).toHaveBeenCalledTimes(1);
+    expect(setMock).toHaveBeenCalledWith({
+      tableKey: TABLE_KEYS.STORE_ORDERS,
+      hidden: ["city"],
+      order: [],
+    });
   });
 
   it("writes two different tables in the same burst, once each", () => {

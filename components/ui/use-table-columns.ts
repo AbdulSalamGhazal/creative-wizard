@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
-import { queueTablePrefs } from "@/lib/table-prefs";
+import { queueTablePrefs, resetTablePrefsNow } from "@/lib/table-prefs";
 import {
   mergeColumnOrder,
   mergeHiddenColumns,
@@ -118,11 +118,27 @@ export function useTableColumns({
     [apply, current.hidden, current.order, defaults],
   );
 
+  /**
+   * Reset is the one path that WAITS for its write.
+   *
+   * On a URL-backed table the reset strips `hide`/`order` from the URL, and a
+   * bare URL reads as "no opinion" — so the server falls through to the
+   * preference. With the delete still in the debounce, the row the user just
+   * reset is re-applied by the very next render and the control looks broken
+   * (it did, on /campaigns). So: drop any queued write for this table, delete
+   * the row, THEN navigate. A deliberate click can afford the round-trip.
+   *
+   * The local shape has no such race — its own state wins immediately — but it
+   * goes through the same call so a pending toggle can't recreate the row.
+   */
   const onResetColumns = useCallback(() => {
     const empty: TableColumnPref = { hidden: [], order: [] };
-    if (!controlled) setLocal(empty);
-    onChange?.(empty);
-    queueTablePrefs({ tableKey, ...empty, reset: true });
+    if (!controlled) {
+      setLocal(empty);
+      void resetTablePrefsNow(tableKey);
+      return;
+    }
+    void resetTablePrefsNow(tableKey).then(() => onChange?.(empty));
   }, [controlled, onChange, tableKey]);
 
   return {
