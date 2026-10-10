@@ -155,6 +155,17 @@ Do not introduce a new dependency without a one-line justification in the PR des
   renders" is not a pass: reaction pills shipped wedged between a message and
   its own Reply button because the rig showed the pills alone, and every
   checkpoint after that read logic rather than JSX order.
+  **A change to a SERVER page's imports or data flow is verified against a REAL
+  Next render of that route** — signed in, in a browser — not against the rig
+  and not against green gates. The rig bundles with esbuild and never renders
+  on a server; typecheck, `next build` and both test suites are equally blind
+  to the RSC boundary. /campaigns shipped broken because a server page read a
+  value out of a `"use client"` module (every export of one is a
+  client-reference proxy on the server, so touching it throws at request time).
+  The rule that prevents it: **a server component may import a client
+  COMPONENT, never a VALUE from a client module** — shared data goes in a plain
+  module both sides import, and `app/rsc-boundary.test.ts` now fails the build
+  if that line is crossed.
 - **Two test suites.** `npm test` (or `npx vitest run`) is the pure-unit suite —
   no DB, no docker, always safe in CI. `npm run test:db` is the **real-database**
   suite (`tests/db/**`, config `vitest.config.db.ts`): its globalSetup creates a
