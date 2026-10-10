@@ -864,6 +864,13 @@ This app is deployed and in production use. Treat `main` as shippable.
     (`lib/table-prefs.ts`) through a self-only, registry-validated, NOT-audited
     action. **Reset DELETES the row — and so does an all-default choice**: the
     filters' cleared-row rule is what stops a preference resurrecting itself.
+    **A preference write that a NAVIGATION depends on is awaited; every other
+    one is fire-and-forget.** On a URL-backed table a reset strips `hide`/
+    `order`, and a bare URL is indistinguishable from "no opinion" — so the
+    server falls through to the preference and re-applies the row the user just
+    cleared. `resetTablePrefsNow` therefore waits for the delete AND cancels any
+    queued write for that table before the URL changes; per-toggle writes stay
+    debounced and unawaited, because they never race a render that reads them.
   - **Precedence is ONE rule: URL → applied saved view → preference → config**
     (`resolveColumnPrefs`). A saved view owns the columns its query states
     INCLUDING the ones it leaves out, and it reuses the filters' `sv` marker —
