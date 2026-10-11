@@ -915,7 +915,22 @@ This app is deployed and in production use. Treat `main` as shippable.
   - **Still off the system, deliberately:** `compare-totals-table`,
     `top-creatives`, `creative-records-table` — hand-rolled tables, so the
     control needs a `DataTable` migration first (P3, with
-    `campaign-funnel-table` and `launch-fatigue`).
+    `campaign-funnel-table`).
+  - **PHASE 3 (2026-10) — the hand-rolled tables, one change each. DONE:
+    Trends → Launches** (`launch-fatigue.tsx`, key `trends-launches`). **The
+    WRAPPER still owns the sort**: `compareRows` is a ROW comparator — Status is
+    a composite (tier → biggest drop → newest launch) that no scalar `sortValue`
+    can express — so no column carries one, `DataTable` never re-sorts locally,
+    and a window with NO ROAS still sorts as 0 rather than last (pinned in
+    `components/trends/launch-fatigue.test.ts`, with the ASC-first set behind the
+    exported `firstDir`). Window columns still derive from `FATIGUE_WINDOWS`.
+    Three deliberate changes ride the house conventions: **Creative is PINNED**
+    and therefore leads (it was second, behind Status — the table is wide and the
+    identity must stay in view while the windows scroll), `border-l` between
+    EVERY column replaces the bespoke borders-only-before-the-windows rule, and
+    **widths are ephemeral** — `launch-col-widths` is retired and its stored
+    values were NOT migrated, as the Library's and Store orders' were not.
+    `LaunchFatigueSummary`, `DecayBar` and the legend are untouched.
   - **The LIBRARY table (2026-09) — DataTable, with three things worth keeping.**
     (1) **Sorting stays SERVER-side.** No column carries a `sortValue`, so
     DataTable never re-sorts locally: the query layer owns the derived-status
@@ -1212,9 +1227,10 @@ This app is deployed and in production use. Treat `main` as shippable.
     page ships its own tailored `loading.tsx` and works at 375px. If a primitive
     doesn't fit, EXTEND it — don't fork it.
   - **DEFERRED (its own session):** migrate `campaign-funnel-table.tsx` (330 loc,
-    own sort + drag-resize) and `launch-fatigue.tsx` (734 loc) onto `DataTable`.
-    These are large rewrites of live tables and warrant a dedicated, carefully-
-    verified change rather than being bundled into the consistency sweep.
+    own sort + drag-resize) onto `DataTable`. This is a large rewrite of a live
+    table and warrants a dedicated, carefully-verified change rather than being
+    bundled into the consistency sweep. (`launch-fatigue.tsx` was the other one
+    and LANDED 2026-10 — see the phase-3 entry.)
 
 - **Authorization is GRANULAR per-user permissions (2026-07) — DERIVE from the
   catalog, never re-list.** The old two-tier `requireEditor`/`requireAdmin` model
