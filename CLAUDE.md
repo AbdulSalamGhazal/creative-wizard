@@ -843,21 +843,34 @@ This app is deployed and in production use. Treat `main` as shippable.
   - **TABLE COLUMNS — ONE control, and it lives on the PRIMITIVE (2026-10,
     phase 1).** Every `DataTable` passes a **`columnsKey`** from the
     `TABLE_KEYS` registry (`lib/table-columns.ts`) and gets the control for
-    free: one ghost button in the table's own corner — a slim row above the
-    header, flush with its right edge — because columns belong to the TABLE,
-    not to a page toolbar. **It is the ONLY columns UI**; the hand-rolled
-    toolbar dropdowns are retired as each table migrates (Campaigns and Store
-    orders already lost theirs), so never add a new one. The popover lists the
-    live `DataColumn` config in display order — a page never lists its columns
-    twice — pinned column first as a LOCKED row, and reordering is never
-    drag-only (up/down buttons, Alt+↑/↓, Space to toggle). **Named exemptions:**
-    the Budget plan editor (an editor, not a data table) and Tracker's bars
+    free: one ghost button in the table's own corner, because columns belong
+    to the TABLE, not to a page toolbar. **It is the ONLY columns UI**; the
+    hand-rolled toolbar dropdowns are retired as each table migrates
+    (Campaigns and Store orders already lost theirs), so never add a new one.
+    The popover lists the live `DataColumn` config in display order — a page
+    never lists its columns twice — pinned column first as a LOCKED row, and
+    reordering is never drag-only (up/down buttons, Alt+↑/↓, Space to toggle).
+    **Named exemptions:** the Budget plan editor (an editor, not a data table) and Tracker's bars
     view; the grouped-header twins (Ads summary, Reconciliation's Platforms)
     are phase 2, not exemptions.
+  - **IT LIVES IN THE HEADER ROW AND COSTS ZERO VERTICAL PIXELS (2026-10,
+    user-reported).** It shipped as a slim row ABOVE the header, which added a
+    whole line under every page's title and toolbar — a tax every page pays
+    forever for a button most visits never press. `TableCorner` now floats it
+    at the right-hand end of the table's own header row: positioned against
+    the table FRAME, so it holds the right edge while the table scrolls
+    sideways and stays over the sticky header while it scrolls down, with a
+    backdrop (a label underneath must not smudge into it) and `pr-10` on the
+    last header cell so they keep apart at rest. The grouped twins place the
+    same corner themselves and give their first banner row the shared `h-8`,
+    so it lands in the FIRST of their two header rows. **Never give the
+    control a row of its own again** — `table-columns-coverage.test.ts` pins
+    that every placement goes through `TableCorner`.
   - **The state is the filters' architecture, not a second one** (migration
     0053, `user_table_prefs`): per user, per brand, HIDDEN-key semantics (a
     column absent from `hidden` is VISIBLE, so a new column appears for
-    everyone), `col_order` MERGED against the live config on read
+    everyone — EXCEPT a `defaultHidden` one, which is the opt-in marker's
+    whole subject, below), `col_order` MERGED against the live config on read
     (`mergeColumnOrder` — stale keys dropped, new keys anchored to their config
     neighbours, never appended), server-side `cache()`-deduped resolution
     (`resolveTablePrefs`), and a debounced fire-and-forget write
@@ -912,6 +925,32 @@ This app is deployed and in production use. Treat `main` as shippable.
     choice there and is STORED. The decision moved to the client, which knows
     the config (`isDefaultColumnState`): `writeTablePrefs` always upserts, and
     a state matching the table's default routes to the DELETE instead.
+  - **THE CATALOG IS THE AVAILABLE DATA, NOT THE CURRENT COLUMNS (2026-10,
+    user-reported).** The control was only toggling the columns a page had
+    already chosen to draw; the requirement was that it offers what the page
+    HAS. So **a table OFFERS every field its query already carries at the
+    row's grain, `defaultHidden`** — nothing looks different until somebody
+    opts in. **The admission price is an existing SELECT (or a PK join off a
+    column already read); NEVER a new scan or a per-row query** — `lib/db.ts`
+    is `max: 1`, so a column is never worth a round-trip. A field that costs
+    more is EXCLUDED and the reason is written down (tech-spec §UI) — that
+    list is part of the rule, not a gap in it. **URL-BACKED tables are out of
+    scope** (Campaigns, Ads): their column state is a stored query string that
+    every saved view carries, so a new column there is visible-by-default by
+    that contract and `defaultHidden` cannot reach it.
+  - **A GROWING CATALOG NEEDS AN OPT-IN MARKER.** Plain hidden-key semantics
+    say an unmentioned key is VISIBLE — right for a column that ships visible,
+    exactly wrong for one that ships hidden, because the next catalog addition
+    would then pop open for precisely the people who have ever set their
+    columns. So for a `defaultHidden` column **absence means HIDDEN and the
+    opt-in is stored explicitly as `!key`** (`SHOW_MARKER`):
+    `mergeHiddenColumns` decodes once at the hook's seed, `encodeHiddenColumns`
+    re-encodes on every write, a table with no `defaultHidden` behaves exactly
+    as before, and the GROWN default is still the default (matching it deletes
+    the row). One cost, accepted and written down: a preference saved BEFORE a
+    table gained its `defaultHidden` set carries no markers, so a tail column
+    that user had opened reads as hidden again — one click, once, on the four
+    phase-2 tables that shipped a collapsed tail.
   - **Still off the system, deliberately:** `compare-totals-table`,
     `top-creatives`, `creative-records-table` — hand-rolled tables, so the
     control needs a `DataTable` migration first (P3, with
