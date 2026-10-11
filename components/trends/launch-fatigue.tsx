@@ -331,6 +331,8 @@ export type SortKey =
   | "launched"
   | "spend"
   | FatigueWindowKey
+  /** Per-window spend: `w1Spend` … — the opt-in columns. */
+  | `${FatigueWindowKey}Spend`
   | "fatigue";
 type Dir = "asc" | "desc";
 
@@ -355,7 +357,20 @@ const COLUMN_KEYS: SortKey[] = [
   "spend",
   ...FATIGUE_WINDOWS.map((w) => w.key as SortKey),
   "fatigue",
+  ...FATIGUE_WINDOWS.map((w) => spendKey(w.key)),
 ];
+
+/**
+ * Per-window SPEND, offered and hidden by default (2026-10): the assessment
+ * already carries each window's spend — the total Spend column is its sum —
+ * and "the ROAS halved" reads differently when the second window carried $200
+ * than when it carried $12,000. Derived from `FATIGUE_WINDOWS` like every
+ * other window column, so a fourth window brings its own.
+ */
+function spendKey(key: FatigueWindowKey): SortKey {
+  return `${key}Spend` as SortKey;
+}
+const SPEND_KEYS: SortKey[] = FATIGUE_WINDOWS.map((w) => spendKey(w.key));
 
 export function LaunchFatigueTable({ rows }: { rows: LaunchFatigueViewRow[] }) {
   const [sortKey, setSortKey] = useState<SortKey>("status");
@@ -395,6 +410,16 @@ export function LaunchFatigueTable({ rows }: { rows: LaunchFatigueViewRow[] }) {
           w1Roas={w.key === "w1" ? null : r.assessment.w1.roas}
         />
       ),
+    }));
+
+    const spendCols: DataColumn<LaunchFatigueViewRow>[] = FATIGUE_WINDOWS.map((w) => ({
+      key: spendKey(w.key),
+      label: `${w.short} spend`,
+      align: "right" as const,
+      sortable: true,
+      defaultSortDir: "desc" as const,
+      render: (r) => <span className="text-ink-2">{usd(r.assessment[w.key].spend)}</span>,
+      csv: (r) => r.assessment[w.key].spend,
     }));
 
     return [
@@ -504,6 +529,7 @@ export function LaunchFatigueTable({ rows }: { rows: LaunchFatigueViewRow[] }) {
         },
         csv: (r) => r.assessment.drop,
       },
+      ...spendCols,
     ];
   }, []);
 
@@ -513,6 +539,7 @@ export function LaunchFatigueTable({ rows }: { rows: LaunchFatigueViewRow[] }) {
     tableKey: TABLE_KEYS.TRENDS_LAUNCHES,
     hideable: COLUMN_KEYS,
     defaults: COLUMN_KEYS,
+    defaultHidden: SPEND_KEYS,
   });
 
   return (
@@ -663,6 +690,12 @@ export function compareRows(
     case "w2":
     case "w3":
       return (aa[key].roas ?? 0) - (bb[key].roas ?? 0);
+    case "w1Spend":
+    case "w2Spend":
+    case "w3Spend": {
+      const w = key.slice(0, 2) as FatigueWindowKey;
+      return aa[w].spend - bb[w].spend;
+    }
     case "fatigue":
       return (aa.drop ?? 0) - (bb.drop ?? 0);
     case "status": {

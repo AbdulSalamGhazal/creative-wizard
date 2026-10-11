@@ -527,6 +527,12 @@ export interface CampaignCreativeRow {
   type: CreativeType;
   status: CreativeStatus;
   thumbnailUrl: string | null;
+  /** Creative-identity fields the table OFFERS as opt-in columns (2026-10).
+   *  They ride the join this query already makes — no extra scan. */
+  productName: string;
+  stages: string[];
+  priority: number | null;
+  launchDate: string | null;
   spend: number;
   impressions: number;
   clicks: number;
@@ -551,6 +557,12 @@ export async function campaignCreatives(
       name: creatives.name,
       type: creatives.type,
       thumbnailUrl: creatives.thumbnailUrl,
+      // Identity fields for the table's opt-in columns. `products` is a PK
+      // join off a column this query already reads — one more join, no scan.
+      productName: products.name,
+      stages: creatives.stages,
+      priority: creatives.priority,
+      launchDate: creatives.launchDate,
       spend: sumSpend,
       impressions: sumImpressions,
       clicks: sumClicks,
@@ -564,6 +576,7 @@ export async function campaignCreatives(
     })
     .from(performanceRecords)
     .innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId))
+    .innerJoin(products, eq(products.id, creatives.productId))
     .innerJoin(campaigns, eq(campaigns.id, performanceRecords.campaignId))
     .where(detailCond(name, range, acct, includeExcluded))
     .groupBy(
@@ -571,6 +584,10 @@ export async function campaignCreatives(
       creatives.name,
       creatives.type,
       creatives.thumbnailUrl,
+      products.name,
+      creatives.stages,
+      creatives.priority,
+      creatives.launchDate,
     )
     .orderBy(desc(sumSpend));
 
@@ -583,6 +600,10 @@ export async function campaignCreatives(
     type: r.type as CreativeType,
     status: statusFor(sMap, r.creativeId).general,
     thumbnailUrl: r.thumbnailUrl,
+    productName: r.productName,
+    stages: r.stages,
+    priority: r.priority,
+    launchDate: r.launchDate,
     spend: num(r.spend),
     impressions: num(r.impressions),
     clicks: num(r.clicks),

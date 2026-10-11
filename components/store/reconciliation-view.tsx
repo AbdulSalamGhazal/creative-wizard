@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Download, Megaphone, Percent, Scale, ShoppingBag } from "lucide-react";
 import { useTableColumns } from "@/components/ui/use-table-columns";
-import { TableColumnsControl } from "@/components/ui/table-columns-control";
+import { TableColumnsControl, TableCorner } from "@/components/ui/table-columns-control";
 import { TABLE_KEYS } from "@/lib/table-columns";
 import {
   DataTable,
@@ -799,9 +799,7 @@ function ByPlatformTable({
     ...platforms.filter((p) => !cols.order.includes(p)),
   ];
 
-  return (
-    <div className="space-y-2">
-    <div className="flex justify-end">
+  const control = (
       <TableColumnsControl
         columnsKey={TABLE_KEYS.RECON_PLATFORMS}
         items={[
@@ -829,7 +827,11 @@ function ByPlatformTable({
         onMove={cols.tableProps.onMoveColumn}
         onReset={cols.tableProps.onResetColumns}
       />
-    </div>
+  );
+
+  return (
+    <div className="space-y-2">
+    <div className="relative">
     <div className="overflow-x-auto rounded-lg border border-line bg-surface">
       <table className="w-full min-w-[720px] border-collapse text-xs num">
         <thead className="sticky top-0 z-20 bg-surface">
@@ -844,7 +846,7 @@ function ByPlatformTable({
             {leadingCount > 0 && (
               <th
                 colSpan={leadingCount}
-                className="border-l border-line px-1.5 py-1.5 text-center text-label text-ink-3"
+                className="h-8 border-l border-line px-1.5 py-1.5 text-center text-label text-ink-3"
               >
                 Store
               </th>
@@ -853,7 +855,8 @@ function ByPlatformTable({
               <th
                 key={p}
                 colSpan={4}
-                className="border-l border-line px-1.5 py-1.5 text-center text-label"
+                // h-8: the banner row hosts the corner control (see TableCorner).
+                className="h-8 border-l border-line px-1.5 py-1.5 text-center text-label"
                 style={{ color: PLATFORM_COLOR[p] }}
               >
                 <span className="inline-flex items-center gap-1">
@@ -936,6 +939,9 @@ function ByPlatformTable({
           </tr>
         </tfoot>
       </table>
+    </div>
+    {/* In the header's FIRST row (the group banners), not a row of its own. */}
+    <TableCorner>{control}</TableCorner>
     </div>
     </div>
   );

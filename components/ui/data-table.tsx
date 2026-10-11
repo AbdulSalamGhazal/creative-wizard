@@ -5,7 +5,7 @@ import Link from "next/link";
 import { ArrowDown, ArrowUp, ArrowUpDown, GripVertical } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { DownloadCsvButton } from "@/components/ui/download-csv-button";
-import { TableColumnsControl } from "@/components/ui/table-columns-control";
+import { TableColumnsControl, TableCorner } from "@/components/ui/table-columns-control";
 import { rowsToCsv, type CsvColumn } from "@/lib/csv-export";
 
 /**
@@ -19,9 +19,9 @@ import { rowsToCsv, type CsvColumn } from "@/lib/csv-export";
  * `onSort`/`onReorder` callbacks. Column widths are ephemeral (internal).
  *
  * COLUMNS CONTROL (2026-10): pass `columnsKey` and the table renders its OWN
- * corner control — a slim row above the header, flush with the table's right
- * edge — listing this config's columns. It belongs to the table, not to a page
- * toolbar, so every future DataTable gets it by passing the key;
+ * corner control — floating at the right-hand end of the HEADER ROW, costing
+ * no vertical space — listing this config's columns. It belongs to the table,
+ * not to a page toolbar, so every future DataTable gets it by passing the key;
  * `useTableColumns` supplies the key, the state and the handlers as one
  * spreadable object, and remembers the choice per user per brand.
  */
@@ -260,8 +260,10 @@ export function DataTable<T>({
     // The control still renders with no rows: somebody who filtered a column
     // out of sight must be able to bring it back without first finding data.
     return (
-      <div className="space-y-2">
-        {columnsControl}
+      <div className="relative space-y-2">
+        {/* No header to float over — the control still has to be reachable, so
+            it hangs from the top-right of the empty state's own box. */}
+        {columnsControl && <TableCorner>{columnsControl}</TableCorner>}
         {empty ?? (
           <div className="h-32 flex items-center justify-center text-ink-3 text-sm border border-dashed border-line rounded-lg">
             No rows.
@@ -282,9 +284,10 @@ export function DataTable<T>({
           <DownloadCsvButton csvContent={csvContent} filename={`${csvFileName}.csv`} />
         </div>
       )}
-      {/* The corner control sits with the TABLE, right-aligned directly above
-          its header — not in the page's toolbar row. */}
-      {columnsControl}
+      {/* The corner control floats in the table's own header row — see
+          `TableCorner`. The wrapper is what it is positioned against, so it
+          holds the right edge while the table scrolls sideways under it. */}
+      <div className="relative">
       <div className="rounded-lg border border-line bg-surface overflow-auto max-h-[70vh]">
       <table className={cn(minWidthClass, "w-full text-xs num", evenColumns && "table-fixed")}>
         <thead className="sticky top-0 z-20 bg-surface">
@@ -301,6 +304,9 @@ export function DataTable<T>({
                     "group/th relative font-medium px-3 py-2 whitespace-nowrap bg-surface-2/40",
                     c.align === "right" ? "text-right" : "text-left",
                     border(i),
+                    // Room for the corner control at rest (scrolled right, the
+                    // button's own backdrop does the work instead).
+                    columnsControl && i === cols.length - 1 && "pr-10",
                     pinnedCls(c, "z-30 bg-surface-2"),
                   )}
                 >
@@ -420,6 +426,8 @@ export function DataTable<T>({
           </tfoot>
         )}
       </table>
+      </div>
+      {columnsControl && <TableCorner>{columnsControl}</TableCorner>}
       </div>
     </div>
   );

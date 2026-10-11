@@ -28,7 +28,7 @@ import {
 } from "@/validators/summary";
 import { StatusSquare } from "@/components/creative/status-badge";
 import { DownloadCsvButton } from "@/components/ui/download-csv-button";
-import { TableColumnsControl } from "@/components/ui/table-columns-control";
+import { TableColumnsControl, TableCorner } from "@/components/ui/table-columns-control";
 import { useTableColumns } from "@/components/ui/use-table-columns";
 import { TABLE_KEYS } from "@/lib/table-columns";
 import {
@@ -489,17 +489,8 @@ export function SummaryTable({
           csvContent={csvContent}
           filename={`summary-${todayStamp()}.csv`}
         />
-        {/* The table's own corner control — the toolbar's Columns pill is gone. */}
-        <TableColumnsControl
-          columnsKey={TABLE_KEYS.ADS_SUMMARY}
-          items={controlItems}
-          hidden={cols.hidden}
-          dirty={cols.tableProps.columnsDirty}
-          onToggle={cols.tableProps.onToggleColumn}
-          onMove={cols.tableProps.onMoveColumn}
-          onReset={cols.tableProps.onResetColumns}
-        />
       </div>
+      <div className="relative">
       <div className="max-h-[70vh] overflow-auto rounded-lg border border-line bg-surface">
       <table className="text-xs num min-w-max">
         {/* Two-row header: top row = group banners; bottom = column labels.
@@ -512,7 +503,9 @@ export function SummaryTable({
                 next row still align under it. */}
             <th
               style={widthStyle("name")}
-              className="sticky left-0 z-30 bg-surface-2 px-3 py-1.5 text-eyebrow text-ink-3 text-left"
+              // `h-8` matches a DataTable header row: the corner control floats
+              // in THIS row, and a 24px banner would make it straddle both.
+              className="sticky left-0 z-30 h-8 bg-surface-2 px-3 py-1.5 text-eyebrow text-ink-3 text-left"
             >
               Creative
             </th>
@@ -771,6 +764,20 @@ export function SummaryTable({
           </tfoot>
         )}
       </table>
+      </div>
+      {/* The table's own corner control, in its header row — the toolbar's
+          Columns pill is gone and so is the slim row it used to own. */}
+      <TableCorner>
+        <TableColumnsControl
+          columnsKey={TABLE_KEYS.ADS_SUMMARY}
+          items={controlItems}
+          hidden={cols.hidden}
+          dirty={cols.tableProps.columnsDirty}
+          onToggle={cols.tableProps.onToggleColumn}
+          onMove={cols.tableProps.onMoveColumn}
+          onReset={cols.tableProps.onResetColumns}
+        />
+      </TableCorner>
       </div>
     </div>
   );

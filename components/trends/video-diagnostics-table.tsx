@@ -47,6 +47,18 @@ const COLS: Col[] = [
   { key: "roas", label: "ROAS", kind: "num", fmt: fRatio },
   { key: "costPerHook", label: "Cost/hook", kind: "num", fmt: fUsd },
   { key: "costPerCompletion", label: "Cost/compl.", kind: "num", fmt: fUsd },
+  // ── Offered, hidden by default (2026-10): the RAW COUNTS behind the rates.
+  // The query has always returned them, and a retention curve is unreadable
+  // without its denominator — "Hold 48%" of 300 plays is not the same finding
+  // as 48% of 300,000.
+  { key: "v2s", label: "Plays 2s", kind: "num", fmt: fInt },
+  { key: "v25", label: "Plays 25%", kind: "num", fmt: fInt },
+  { key: "v50", label: "Plays 50%", kind: "num", fmt: fInt },
+  { key: "v75", label: "Plays 75%", kind: "num", fmt: fInt },
+  { key: "v100", label: "Plays 100%", kind: "num", fmt: fInt },
+  { key: "clicks", label: "Clicks", kind: "num", fmt: fInt },
+  { key: "conversions", label: METRIC_LABEL.conversions, kind: "num", fmt: fInt },
+  { key: "revenue", label: METRIC_LABEL.revenue, kind: "num", fmt: fUsd },
 ];
 
 const DEFAULT_VISIBLE = new Set<Key>([

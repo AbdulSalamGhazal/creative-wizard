@@ -119,16 +119,73 @@ export function mergeColumnOrder(
 }
 
 /**
+ * The marker for a column the user has deliberately turned ON.
+ *
+ * It only ever appears for a `defaultHidden` column, and it exists because the
+ * catalog GROWS: a table offers every field its query already carries, hidden
+ * until opted in (2026-10). Under plain hidden-key semantics a key the stored
+ * preference doesn't mention is VISIBLE — which is right for a column that
+ * ships visible and exactly wrong for one that ships hidden, because the next
+ * catalog addition would then pop open on everybody who has ever touched that
+ * table's columns. So a `defaultHidden` key's absence means HIDDEN, and the
+ * opt-in is stored explicitly as `!key`.
+ */
+export const SHOW_MARKER = "!";
+
+/**
  * A saved hidden set against today's columns: unknown keys dropped (a column
  * that was removed must not keep a dead entry alive), duplicates collapsed.
- * Everything not listed is visible — that is the whole semantic.
+ *
+ * Everything not listed is visible — that is the whole semantic — EXCEPT the
+ * table's own `defaultHidden` set, which is hidden unless the row opts it in
+ * with `!key` (see `SHOW_MARKER`). Passing no `defaultHidden` is the old
+ * behaviour, unchanged.
+ *
+ * NOTE, deliberately: a preference written BEFORE a table gained its
+ * `defaultHidden` set carries no `!` markers, so a tail column that user had
+ * opted into reads as hidden again — one click, once, on the four tables that
+ * shipped a collapsed tail in phase 2. The alternative is every future catalog
+ * column opening itself on every existing preference, forever.
  */
 export function mergeHiddenColumns(
   saved: readonly string[],
   hideable: readonly string[],
+  defaultHidden: readonly string[] = [],
 ): string[] {
   const allowed = new Set(hideable);
-  return [...new Set(saved.filter((k) => allowed.has(k)))];
+  const shown = new Set<string>();
+  const out: string[] = [];
+  for (const entry of saved) {
+    if (entry.startsWith(SHOW_MARKER)) {
+      shown.add(entry.slice(SHOW_MARKER.length));
+      continue;
+    }
+    if (allowed.has(entry)) out.push(entry);
+  }
+  for (const key of defaultHidden) {
+    if (allowed.has(key) && !shown.has(key)) out.push(key);
+  }
+  return [...new Set(out)];
+}
+
+/**
+ * The inverse of `mergeHiddenColumns`: the effective hidden set as it is
+ * STORED. Hidden keys go in as themselves; a `defaultHidden` column the user
+ * has opened goes in as `!key`, which is the only record that the choice was
+ * ever made.
+ */
+export function encodeHiddenColumns(
+  hidden: readonly string[],
+  hideable: readonly string[],
+  defaultHidden: readonly string[] = [],
+): string[] {
+  const allowed = new Set(hideable);
+  const hiddenSet = new Set(hidden);
+  const out = [...new Set(hidden.filter((k) => allowed.has(k)))];
+  for (const key of defaultHidden) {
+    if (allowed.has(key) && !hiddenSet.has(key)) out.push(`${SHOW_MARKER}${key}`);
+  }
+  return out;
 }
 
 /** Encode/decode for the URL-backed tables (`?hide=`, `?order=`). */

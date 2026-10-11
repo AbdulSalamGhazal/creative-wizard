@@ -46,8 +46,13 @@ function weightedTotals(rows: PlatformMixRow[]): Totals {
   );
 }
 
-/** The 9 metric columns, shared by both modes. Generic over the row type so a
- *  CampaignMixRow or a PlatformMixRow both satisfy it. */
+/** The metric columns, shared by both modes. Generic over the row type so a
+ *  CampaignMixRow or a PlatformMixRow both satisfy it.
+ *
+ *  The last three are the RAW COUNTS the rates are built from — the query has
+ *  always returned them, so the table offers them (hidden until asked for),
+ *  which is what makes a "—" rate explainable: VOC is blank because nobody
+ *  reported LP views, not because it was zero. */
 function metricColumns<T extends PlatformMixRow>(totals: Totals): DataColumn<T>[] {
   return [
     {
@@ -132,8 +137,51 @@ function metricColumns<T extends PlatformMixRow>(totals: Totals): DataColumn<T>[
       sortValue: (r) => r.cvr,
       total: () => pct(totals.cvr),
     },
+    // ── Offered, hidden by default: the raw counts behind the rates ──
+    {
+      key: "impressions",
+      label: METRIC_LABEL.impressions,
+      align: "right",
+      sortable: true,
+      render: (r) => <span className="text-ink-2">{int(r.impressions)}</span>,
+      sortValue: (r) => r.impressions,
+      total: () => <span>{int(totals.impressions)}</span>,
+    },
+    {
+      key: "clicks",
+      label: "Clicks",
+      align: "right",
+      sortable: true,
+      render: (r) => <span className="text-ink-2">{int(r.clicks)}</span>,
+      sortValue: (r) => r.clicks,
+      total: () => <span>{int(totals.clicks)}</span>,
+    },
+    {
+      key: "landingPageViews",
+      label: "LP views",
+      align: "right",
+      sortable: true,
+      // NULL means "this platform never reported it" — never 0 (the google
+      // rule). The dash is the honest answer and sorts last either way.
+      render: (r) =>
+        r.landingPageViews === null ? (
+          <span className="text-ink-3">—</span>
+        ) : (
+          <span className="text-ink-2">{int(r.landingPageViews)}</span>
+        ),
+      sortValue: (r) => r.landingPageViews,
+      total: () =>
+        totals.landingPageViews === null ? (
+          <span className="text-ink-3">—</span>
+        ) : (
+          <span>{int(totals.landingPageViews)}</span>
+        ),
+    },
   ];
 }
+
+/** Hidden until opted in — the catalog grew, the default view did not. */
+const DEFAULT_HIDDEN = ["impressions", "clicks", "landingPageViews"];
 
 /**
  * This creative's performance, one row per campaign it ran in (default) or per
@@ -239,6 +287,7 @@ export function CreativeCampaignsTable({ campaigns, platforms }: Props) {
     tableKey: TABLE_KEYS.CREATIVE_CAMPAIGNS,
     hideable: columnKeys,
     defaults: columnKeys,
+    defaultHidden: DEFAULT_HIDDEN,
   });
 
   const empty = (

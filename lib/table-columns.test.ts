@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   TABLE_KEYS,
   TABLE_KEY_LIST,
+  encodeHiddenColumns,
   isDefaultColumnState,
   isTableKey,
   mergeColumnOrder,
@@ -87,6 +88,67 @@ describe("mergeHiddenColumns", () => {
 
   it("drops unknown keys and duplicates", () => {
     expect(mergeHiddenColumns(["b", "gone", "b"], DEFAULTS)).toEqual(["b"]);
+  });
+});
+
+describe("a GROWING catalog: defaultHidden columns and the opt-in marker", () => {
+  // The 2026-10 rule: a table offers every field its query already carries,
+  // hidden until opted in. That only works if a column added TOMORROW stays
+  // shut for somebody who set their columns YESTERDAY — plain hidden-key
+  // semantics would open it for exactly the people who have an opinion.
+  const HIDEABLE = ["a", "b", "c", "d"];
+  const DEFAULT_HIDDEN = ["c", "d"];
+
+  it("hides the default-hidden set when there is no preference at all", () => {
+    expect(mergeHiddenColumns([], HIDEABLE, DEFAULT_HIDDEN)).toEqual(["c", "d"]);
+  });
+
+  it("KEEPS them hidden for a preference written before they existed", () => {
+    // The pre-existing row says only "I hid b". It cannot have an opinion
+    // about `c`/`d`, so they stay hidden rather than popping open.
+    expect(mergeHiddenColumns(["b"], HIDEABLE, DEFAULT_HIDDEN)).toEqual(["b", "c", "d"]);
+  });
+
+  it("opens exactly the one the row opted into, and no other", () => {
+    expect(mergeHiddenColumns(["b", "!c"], HIDEABLE, DEFAULT_HIDDEN)).toEqual(["b", "d"]);
+    expect(mergeHiddenColumns(["!c", "!d"], HIDEABLE, DEFAULT_HIDDEN)).toEqual([]);
+  });
+
+  it("round-trips: what the hook stores decodes back to what the user sees", () => {
+    const seen = ["b", "d"]; // b hidden by choice, d still at its default
+    const stored = encodeHiddenColumns(seen, HIDEABLE, DEFAULT_HIDDEN);
+    expect(stored).toEqual(["b", "d", "!c"]);
+    expect(mergeHiddenColumns(stored, HIDEABLE, DEFAULT_HIDDEN)).toEqual(seen);
+  });
+
+  it("never leaks a marker or an unknown key into the visible state", () => {
+    expect(mergeHiddenColumns(["!gone", "gone", "b"], HIDEABLE, DEFAULT_HIDDEN)).toEqual([
+      "b",
+      "c",
+      "d",
+    ]);
+    expect(encodeHiddenColumns(["b", "gone"], HIDEABLE, DEFAULT_HIDDEN)).toEqual([
+      "b",
+      "!c",
+      "!d",
+    ]);
+  });
+
+  it("is unchanged for a table with no default-hidden set", () => {
+    // Every table that shipped before this rule behaves exactly as it did.
+    expect(mergeHiddenColumns(["b"], HIDEABLE)).toEqual(["b"]);
+    expect(encodeHiddenColumns(["b"], HIDEABLE)).toEqual(["b"]);
+  });
+
+  it("the GROWN default is still the default — it deletes the row", () => {
+    // Adding catalog columns grows `defaultHidden`, so "untouched" grows with
+    // it: the state that matches is still the one that stores nothing.
+    expect(
+      isDefaultColumnState({ hidden: ["c", "d"], order: [] }, DEFAULT_HIDDEN),
+    ).toBe(true);
+    expect(isDefaultColumnState({ hidden: ["c"], order: [] }, DEFAULT_HIDDEN)).toBe(
+      false,
+    );
   });
 });
 

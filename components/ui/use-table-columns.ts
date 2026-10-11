@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { queueTablePrefs, resetTablePrefsNow } from "@/lib/table-prefs";
 import { useTablePref } from "@/components/ui/table-prefs-context";
 import {
+  encodeHiddenColumns,
   isDefaultColumnState,
   mergeColumnOrder,
   mergeHiddenColumns,
@@ -78,11 +79,13 @@ export function useTableColumns({
 }): UseTableColumnsResult {
   const fromContext = useTablePref(tableKey);
   const source = initial ?? fromContext;
-  // No stored preference → the table's own first-visit default.
-  const hasPref = source.hidden.length > 0 || source.order.length > 0;
   const seed = useMemo<TableColumnPref>(
     () => ({
-      hidden: mergeHiddenColumns(hasPref ? source.hidden : defaultHidden, hideable),
+      // DECODE once: no stored preference gives the table's own first-visit
+      // default, and a stored one keeps every `defaultHidden` column hidden
+      // unless it carries that column's explicit opt-in. From here the state
+      // is plain hidden keys; only the WRITE re-encodes.
+      hidden: mergeHiddenColumns(source.hidden, hideable, defaultHidden),
       order: source.order.length ? mergeColumnOrder(source.order, defaults) : [],
     }),
     // The seed is exactly that — later server values arrive through `value`
@@ -115,6 +118,9 @@ export function useTableColumns({
   const current = useMemo<TableColumnPref>(() => {
     const src = controlled ? (optimistic ?? value!) : local;
     return {
+      // Already decoded (local) or plain URL keys (controlled — and no
+      // URL-backed table ships a `defaultHidden` set, by construction: its
+      // columns live in saved views, which state them in full).
       hidden: mergeHiddenColumns(src.hidden, hideable),
       order: src.order.length > 0 ? mergeColumnOrder(src.order, defaults) : [],
     };
@@ -130,9 +136,16 @@ export function useTableColumns({
       // next column change. (With a non-empty `defaultHidden`, an EMPTY hidden
       // set is NOT the default and is stored.)
       if (isDefaultColumnState(next, defaultHidden)) void resetTablePrefsNow(tableKey);
-      else queueTablePrefs({ tableKey, hidden: next.hidden, order: next.order });
+      else
+        queueTablePrefs({
+          tableKey,
+          // ENCODE: a `defaultHidden` column the user has opened is stored as
+          // its own opt-in, so tomorrow's new catalog column stays shut.
+          hidden: encodeHiddenColumns(next.hidden, hideable, defaultHidden),
+          order: next.order,
+        });
     },
-    [controlled, onChange, tableKey, defaultHidden],
+    [controlled, onChange, tableKey, defaultHidden, hideable],
   );
 
   const onReorder = useCallback(

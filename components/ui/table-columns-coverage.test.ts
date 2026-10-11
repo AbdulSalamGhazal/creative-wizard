@@ -18,6 +18,12 @@ import { TABLE_KEY_LIST } from "@/lib/table-columns";
 
 const REPO = process.cwd();
 
+/** The two grouped-header tables, which place the control themselves. */
+const GROUPED_TWINS = [
+  "components/summary/summary-table.tsx",
+  "components/store/reconciliation-view.tsx",
+];
+
 /**
  * Tables that deliberately have NO columns control. Each line is a decision,
  * not an oversight — adding one here should feel like it needs an argument.
@@ -80,6 +86,16 @@ describe("every table has the columns control", () => {
     }
   });
 
+  it("the control is only ever placed by TableCorner", () => {
+    // Part of the 2026-10 fix: the button lives IN the header row, costing no
+    // vertical space. Every file that renders the control renders it inside
+    // the shared corner — a hand-placed one is how the extra line comes back.
+    for (const file of ["components/ui/data-table.tsx", ...GROUPED_TWINS]) {
+      const src = readFileSync(path.join(REPO, file), "utf8");
+      expect(src, file).toContain("TableCorner");
+    }
+  });
+
   it("every key a table passes is in the registry", () => {
     const keys = new Set<string>(TABLE_KEY_LIST);
     const used = new Set<string>();
@@ -99,5 +115,66 @@ describe("every table has the columns control", () => {
     const declaredNames = new Set([...declared].map((m) => m[1]!));
     for (const name of used) expect(declaredNames.has(name), `TABLE_KEYS.${name}`).toBe(true);
     expect(keys.size).toBe(declaredNames.size);
+  });
+});
+
+/**
+ * THE CATALOG RULE (2026-10): a table OFFERS every field its query already
+ * carries at the row's grain, `defaultHidden`, so nothing changes until
+ * somebody opts in. These are source-level guards in the house style — the
+ * point of the rule is that the next person adds a field to the query AND to
+ * the catalog, and a test is what notices when they don't.
+ */
+describe("the catalog offers the data the page already has", () => {
+  const OFFERED: Record<string, string[]> = {
+    // Campaign detail → creatives: the creative's own identity.
+    "components/campaign/campaign-creatives-table.tsx": [
+      "status",
+      "type",
+      "productName",
+      "stages",
+      "priority",
+      "launchDate",
+    ],
+    // Creative detail → campaigns/platforms: the counts behind the rates.
+    "components/creative/creative-campaigns-table.tsx": [
+      "impressions",
+      "clicks",
+      "landingPageViews",
+    ],
+    // Trends → Video: the raw plays a retention rate is a fraction of.
+    "components/trends/video-diagnostics-table.tsx": [
+      "v2s",
+      "v25",
+      "v50",
+      "v75",
+      "v100",
+      "clicks",
+      "conversions",
+      "revenue",
+    ],
+  };
+
+  it("each table declares its added columns", () => {
+    for (const [file, keys] of Object.entries(OFFERED)) {
+      const src = readFileSync(path.join(REPO, file), "utf8");
+      for (const key of keys) {
+        expect(src, `${file} → ${key}`).toContain(`key: "${key}"`);
+      }
+    }
+  });
+
+  it("…and ships them HIDDEN, so no page changed shape", () => {
+    // A catalog column that arrives visible is a redesign nobody asked for.
+    for (const file of [
+      "components/campaign/campaign-creatives-table.tsx",
+      "components/creative/creative-campaigns-table.tsx",
+      "components/trends/video-diagnostics-table.tsx",
+      "components/trends/launch-fatigue.tsx",
+      "components/budget/audience-board.tsx",
+    ]) {
+      const src = readFileSync(path.join(REPO, file), "utf8");
+      expect(src, file).toContain("defaultHidden");
+    }
   });
 });

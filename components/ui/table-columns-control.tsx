@@ -12,10 +12,12 @@ import { cn } from "@/lib/utils";
 /**
  * The ONE columns control, living on `DataTable` itself (2026-10).
  *
- * It sits in the table's own corner — a slim row immediately above the header,
- * flush with the table's right edge — because columns belong to the TABLE, not
- * to a page toolbar. Every table that passes a `columnsKey` gets it, and the
- * toolbar dropdowns pages used to hand-roll are retired as they migrate.
+ * It sits in the table's own corner — floating at the right-hand end of the
+ * HEADER ROW itself (`TableCorner` below) — because columns belong to the
+ * TABLE, not to a page toolbar, and because a control that costs a whole line
+ * of vertical space above every table is a tax every page pays forever. Every
+ * table that passes a `columnsKey` gets it, and the toolbar dropdowns pages
+ * used to hand-roll are retired as they migrate.
  *
  * THE LIST IS THE COLUMN CONFIG, in current display order: a page never lists
  * its columns twice, so a renamed or added column appears here by itself. The
@@ -98,7 +100,6 @@ export function TableColumnsControl({
   };
 
   return (
-    <div className="flex justify-end">
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <button
@@ -250,6 +251,32 @@ export function TableColumnsControl({
           </div>
         </PopoverContent>
       </Popover>
+  );
+}
+
+/**
+ * THE CONTROL'S HOME: the table's own top-right corner, floating INSIDE the
+ * header row and costing ZERO vertical pixels (2026-10 — it used to own a slim
+ * row of its own above the header, which added a line under every page's title
+ * and toolbar; the user called that what it was).
+ *
+ * Rendered as a sibling of the table's SCROLL CONTAINER inside a `relative`
+ * wrapper, so it stays pinned to the right edge of the frame however far the
+ * table is scrolled sideways, and stays over the header however far it is
+ * scrolled down (the header is sticky). `h-8` is the header row's own height —
+ * every `DataTable` header is `px-3 py-2` around a 16px line, and the two
+ * grouped-header twins give their first banner row the same `h-8` so the
+ * control lands in the FIRST row there too.
+ *
+ * The backdrop is not decoration: at a scroll position where a column label
+ * sits under the button, the two would otherwise read as one smudge.
+ */
+export function TableCorner({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="pointer-events-none absolute right-0 top-0 z-40 flex h-8 items-center pr-1">
+      <div className="pointer-events-auto rounded-md bg-surface-2/85 backdrop-blur-sm">
+        {children}
+      </div>
     </div>
   );
 }

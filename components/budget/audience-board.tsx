@@ -70,6 +70,10 @@ interface PairStats {
   snapshots: number;
   lastMeasured: string | null;
   lastAge: number | null;
+  /** The last KNOWN size on the carried-forward series — what the glance
+   *  matrix above shows. Null before the pair's first measurement (unknown is
+   *  not zero — the sparse-snapshot rule). */
+  latestSize: number | null;
 }
 
 /**
@@ -206,6 +210,7 @@ export function AudienceBoard({
           ).length,
           lastMeasured: last?.asOf ?? null,
           lastAge: last?.asOf ? stalenessDays(last.asOf, today) : null,
+          latestSize: last?.size ?? null,
         });
       }
     }
@@ -280,6 +285,20 @@ export function AudienceBoard({
       sortValue: (r) => platformLabel(r.platform),
       csv: (r) => platformLabel(r.platform),
       defaultSortDir: "asc",
+    },
+    {
+      // Offered, hidden by default: the matrix's number, in the table — an
+      // average over a range and the size as it stands today answer two
+      // different questions, and reading them side by side is the point.
+      key: "latestSize",
+      label: "Latest audience",
+      align: "right",
+      sortable: true,
+      render: (r) => (
+        <span className="num">{r.latestSize === null ? "—" : int(r.latestSize)}</span>
+      ),
+      sortValue: (r) => r.latestSize,
+      csv: (r) => r.latestSize,
     },
     {
       key: "avgSize",
@@ -366,6 +385,7 @@ export function AudienceBoard({
     tableKey: TABLE_KEYS.BUDGET_AUDIENCE,
     hideable: columnKeys,
     defaults: columnKeys,
+    defaultHidden: ["latestSize"],
   });
 
 
