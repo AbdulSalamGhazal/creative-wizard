@@ -1,11 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import {
-  ArrowDown,
-  ArrowUp,
-  ArrowUpDown,
   Circle,
   Clock,
   Minus,
@@ -14,6 +11,9 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { DataTable, type DataColumn } from "@/components/ui/data-table";
+import { useTableColumns } from "@/components/ui/use-table-columns";
+import { TABLE_KEYS } from "@/lib/table-columns";
 import { ratio, roas, usd } from "@/lib/format";
 import {
   FATIGUE_TIER_ORDER,
@@ -322,13 +322,10 @@ function DecayBar({
 }
 
 /* ------------------------------------------------------------------ */
-/* Table (sortable + drag-to-resize)                                   */
+/* Table — on the shared DataTable primitive (2026-10)                  */
 /* ------------------------------------------------------------------ */
 
-const COL_WIDTHS_KEY = "launch-col-widths";
-const MIN_COL_WIDTH = 160;
-
-type SortKey =
+export type SortKey =
   | "status"
   | "creative"
   | "launched"
@@ -337,81 +334,42 @@ type SortKey =
   | "fatigue";
 type Dir = "asc" | "desc";
 
-/** Columns whose first click sorts ascending (the rest sort descending first). */
-const ASC_FIRST = new Set<SortKey>(["status", "creative", "launched"]);
+/**
+ * Columns whose first click sorts ASCENDING (the rest sort descending first).
+ * Carried over verbatim — it is now each column's `defaultSortDir`, which is
+ * how DataTable asks the same question.
+ */
+export const ASC_FIRST = new Set<SortKey>(["status", "creative", "launched"]);
 
-const COLUMNS: Array<{
-  key: SortKey;
-  label: string;
-  numeric: boolean;
-  resizable?: boolean;
-}> = [
-  { key: "status", label: "Status", numeric: false },
-  { key: "creative", label: "Creative", numeric: false, resizable: true },
-  { key: "launched", label: "Launched", numeric: false },
-  { key: "spend", label: "Spend", numeric: true },
-  ...FATIGUE_WINDOWS.map((w) => ({
-    key: w.key as SortKey,
-    label: w.label,
-    numeric: true,
-  })),
-  { key: "fatigue", label: "Fatigue", numeric: true },
+/** The one place that decides a column's first-click direction. */
+export const firstDir = (key: SortKey): Dir => (ASC_FIRST.has(key) ? "asc" : "desc");
+
+/**
+ * The column set. The WINDOW columns derive from `FATIGUE_WINDOWS` — never
+ * hand-listed, so adding a fourth window is a one-line change in
+ * `lib/launch-fatigue.ts`.
+ */
+const COLUMN_KEYS: SortKey[] = [
+  "status",
+  "launched",
+  "spend",
+  ...FATIGUE_WINDOWS.map((w) => w.key as SortKey),
+  "fatigue",
 ];
 
 export function LaunchFatigueTable({ rows }: { rows: LaunchFatigueViewRow[] }) {
   const [sortKey, setSortKey] = useState<SortKey>("status");
   const [dir, setDir] = useState<Dir>("asc");
 
-  // ---- Resizable Creative column (persisted to localStorage) ----
-  const [widths, setWidths] = useState<Record<string, number>>({});
-  const thRefs = useRef<Record<string, HTMLTableCellElement | null>>({});
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(COL_WIDTHS_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw) as Record<string, number>;
-        if (parsed && typeof parsed === "object") setWidths(parsed);
-      }
-    } catch {
-      /* ignore malformed storage */
-    }
-  }, []);
-  const startResize = useCallback(
-    (key: string, e: React.MouseEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
-      const startX = e.clientX;
-      const measured = thRefs.current[key]?.getBoundingClientRect().width ?? 280;
-      const startW = widths[key] ?? measured;
-      const onMove = (ev: MouseEvent) => {
-        const w = Math.max(MIN_COL_WIDTH, Math.round(startW + (ev.clientX - startX)));
-        setWidths((prev) => ({ ...prev, [key]: w }));
-      };
-      const onUp = () => {
-        window.removeEventListener("mousemove", onMove);
-        window.removeEventListener("mouseup", onUp);
-        document.body.style.userSelect = "";
-        setWidths((prev) => {
-          try {
-            localStorage.setItem(COL_WIDTHS_KEY, JSON.stringify(prev));
-          } catch {
-            /* ignore */
-          }
-          return prev;
-        });
-      };
-      window.addEventListener("mousemove", onMove);
-      window.addEventListener("mouseup", onUp);
-      document.body.style.userSelect = "none";
-    },
-    [widths],
-  );
-  const widthStyle = (key: string): React.CSSProperties | undefined => {
-    const w = widths[key];
-    return w ? { width: w, minWidth: w, maxWidth: w } : undefined;
-  };
-
-  // ---- Sorting (client-side; every row is already loaded) ----
+  /**
+   * THE WRAPPER OWNS THE SORT, like the Library and the campaign-records
+   * table. `compareRows` is a ROW comparator — status is a composite (tier,
+   * then biggest drop, then newest launch) that no single `sortValue` scalar
+   * can express — so no column carries one and DataTable never re-sorts
+   * locally; it renders the rows already in order and drives the header
+   * clicks. That keeps this migration behaviour-identical, nulls and all
+   * (a window with no ROAS still sorts as 0, exactly as before).
+   */
   const sorted = useMemo(() => {
     const arr = [...rows];
     arr.sort((a, b) => {
@@ -421,182 +379,179 @@ export function LaunchFatigueTable({ rows }: { rows: LaunchFatigueViewRow[] }) {
     return arr;
   }, [rows, sortKey, dir]);
 
-  const onSort = (key: SortKey) => {
-    if (sortKey === key) {
-      setDir((d) => (d === "asc" ? "desc" : "asc"));
-    } else {
-      setSortKey(key);
-      setDir(ASC_FIRST.has(key) ? "asc" : "desc");
-    }
-  };
+  const columns = useMemo<DataColumn<LaunchFatigueViewRow>[]>(() => {
+    const windowCols: DataColumn<LaunchFatigueViewRow>[] = FATIGUE_WINDOWS.map((w) => ({
+      key: w.key,
+      label: w.label,
+      align: "right" as const,
+      sortable: true,
+      defaultSortDir: firstDir(w.key as SortKey),
+      render: (r) => (
+        <WindowCell
+          label={w.label}
+          metrics={r.assessment[w.key]}
+          state={windowState(r.daysSinceLaunch, w.startDay, w.endDay)}
+          daysSinceLaunch={r.daysSinceLaunch}
+          w1Roas={w.key === "w1" ? null : r.assessment.w1.roas}
+        />
+      ),
+    }));
 
-  if (rows.length === 0) {
-    return (
-      <div className="rounded-lg border border-dashed border-line bg-surface px-6 py-16 text-center">
-        <p className="text-ink-2 text-sm">No launched creatives match these filters.</p>
-        <p className="text-ink-3 text-xs mt-1">
-          Widen the launch-date range or clear filters.
-        </p>
-      </div>
-    );
-  }
+    return [
+      {
+        // The identity column, and therefore the PINNED one: this table is
+        // wide (three windows plus fatigue), and scrolling right without the
+        // creative's name in view makes every other cell unreadable. Pinning
+        // moves it first — DataTable always renders the pinned column there.
+        key: "creative",
+        label: "Creative",
+        align: "left",
+        sortable: true,
+        pinned: true,
+        defaultSortDir: firstDir("creative"),
+        render: (r) => (
+          <div className="max-w-[20rem]">
+            <Link
+              href={r.href}
+              title={r.name}
+              className="block truncate font-medium text-ink transition-colors hover:text-brand"
+            >
+              {r.name}
+            </Link>
+            <div className="truncate text-[11px] text-ink-3">
+              {r.productName} · {r.type}
+            </div>
+          </div>
+        ),
+        csv: (r) => r.name,
+      },
+      {
+        key: "status",
+        label: "Status",
+        align: "left",
+        sortable: true,
+        defaultSortDir: firstDir("status"),
+        render: (r) => (
+          <StatusBadge tier={r.assessment.tier} daysSinceLaunch={r.daysSinceLaunch} />
+        ),
+        csv: (r) => r.assessment.tier,
+      },
+      {
+        key: "launched",
+        label: "Launched",
+        align: "left",
+        sortable: true,
+        defaultSortDir: firstDir("launched"),
+        render: (r) => (
+          <>
+            <div className="flex items-center gap-1.5">
+              <span
+                className="tabular-nums text-ink-2"
+                title={r.derived ? undefined : "Manual launch date set on the creative."}
+              >
+                {r.derived ? "≈ " : ""}
+                {r.launchDate}
+              </span>
+              {r.derived && (
+                <span
+                  className="rounded border border-warn/30 bg-warn/5 px-1 py-0.5 text-[9px] leading-none text-warn/90"
+                  title="Estimated from the first day with spend — no manual launch date is set on this creative."
+                >
+                  est.
+                </span>
+              )}
+            </div>
+            <div className="text-[11px] text-ink-3">{r.daysSinceLaunch}d ago</div>
+          </>
+        ),
+        csv: (r) => r.launchDate,
+      },
+      {
+        key: "spend",
+        label: "Spend",
+        align: "right",
+        sortable: true,
+        defaultSortDir: firstDir("spend"),
+        render: (r) => <span className="text-ink-2">{usd(totalSpend(r.assessment))}</span>,
+        csv: (r) => totalSpend(r.assessment),
+      },
+      ...windowCols,
+      {
+        key: "fatigue",
+        label: "Fatigue",
+        align: "right",
+        sortable: true,
+        defaultSortDir: firstDir("fatigue"),
+        render: (r) => {
+          const drop = r.assessment.drop;
+          if (drop === null) {
+            return (
+              <span className="text-ink-3" title="Not enough history yet to measure decay.">
+                —
+              </span>
+            );
+          }
+          return (
+            <span
+              className={cn(
+                "font-medium",
+                drop > 0.001 ? "text-neg" : drop < -0.001 ? "text-pos" : "text-ink-2",
+              )}
+            >
+              {fmtPct(-drop)}
+            </span>
+          );
+        },
+        csv: (r) => r.assessment.drop,
+      },
+    ];
+  }, []);
+
+  // The columns control, free from the primitive (phase 2): the layout already
+  // serves this user's preference, so there is no page change to make.
+  const cols = useTableColumns({
+    tableKey: TABLE_KEYS.TRENDS_LAUNCHES,
+    hideable: COLUMN_KEYS,
+    defaults: COLUMN_KEYS,
+  });
 
   return (
     <div className="space-y-2">
-      <div className="max-h-[70vh] overflow-auto rounded-lg border border-line bg-surface">
-        <table className="w-full text-xs num min-w-max">
-          <thead>
-            <tr className="text-left text-label text-ink-3 border-b border-line">
-              {COLUMNS.map((col) => {
-                const active = sortKey === col.key;
-                const isWindow = col.key === "w1" || col.key === "w2" || col.key === "w3";
-                return (
-                  <th
-                    key={col.key}
-                    ref={
-                      col.resizable
-                        ? (el) => {
-                            thRefs.current[col.key] = el;
-                          }
-                        : undefined
-                    }
-                    style={col.resizable ? widthStyle(col.key) : undefined}
-                    className={cn(
-                      "relative font-medium px-3 py-2.5 sticky top-0 z-10 bg-surface",
-                      col.numeric ? "text-right" : "text-left",
-                      (col.key === "fatigue" || isWindow) && "border-l border-line",
-                      col.resizable && widths[col.key] ? "" : "whitespace-nowrap",
-                    )}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => onSort(col.key)}
-                      className={cn(
-                        "inline-flex items-center gap-1 hover:text-ink transition-colors max-w-full",
-                        col.numeric && "justify-end w-full",
-                        active && "text-brand",
-                      )}
-                    >
-                      <span className={col.resizable && widths[col.key] ? "truncate" : ""}>
-                        {col.label}
-                      </span>
-                      <SortIcon active={active} dir={dir} />
-                    </button>
-                    {col.resizable && (
-                      <span
-                        role="separator"
-                        aria-orientation="vertical"
-                        aria-label={`Resize ${col.label} column`}
-                        onMouseDown={(e) => startResize(col.key, e)}
-                        className="absolute top-0 right-0 h-full w-1.5 cursor-col-resize select-none hover:bg-brand/40 active:bg-brand/60"
-                      />
-                    )}
-                  </th>
-                );
-              })}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-line">
-            {sorted.map((r) => {
-              const a = r.assessment;
-              const drop = a.drop;
-              return (
-                <tr
-                  key={r.creativeId}
-                  className={cn(
-                    "hover:bg-surface-2/40 transition-colors",
-                    TIER_META[a.tier].row,
-                    a.tier === "low" && "opacity-60",
-                  )}
-                >
-                  <td className="px-3 py-2.5 whitespace-nowrap">
-                    <StatusBadge tier={a.tier} daysSinceLaunch={r.daysSinceLaunch} />
-                  </td>
-                  <td
-                    style={widthStyle("creative")}
-                    className={cn("px-3 py-2.5", widths.creative ? "" : "max-w-[20rem]")}
-                  >
-                    <Link
-                      href={r.href}
-                      title={r.name}
-                      className="block truncate font-medium text-ink hover:text-brand transition-colors"
-                    >
-                      {r.name}
-                    </Link>
-                    <div className="text-[11px] text-ink-3 truncate">
-                      {r.productName} · {r.type}
-                    </div>
-                  </td>
-                  <td className="px-3 py-2.5 whitespace-nowrap">
-                    <div className="flex items-center gap-1.5">
-                      <span
-                        className={cn("tabular-nums", r.derived ? "text-ink-2 italic" : "text-ink-2")}
-                        title={
-                          r.derived
-                            ? undefined
-                            : "Manual launch date set on the creative."
-                        }
-                      >
-                        {r.derived ? "≈ " : ""}
-                        {r.launchDate}
-                      </span>
-                      {r.derived && (
-                        <span
-                          className="text-[9px] leading-none px-1 py-0.5 rounded border border-warn/30 text-warn/90 bg-warn/5"
-                          title="Estimated from the first day with spend — no manual launch date is set on this creative."
-                        >
-                          est.
-                        </span>
-                      )}
-                    </div>
-                    <div className="text-[11px] text-ink-3">{r.daysSinceLaunch}d ago</div>
-                  </td>
-                  <td className="px-3 py-2.5 text-right tabular-nums text-ink-2 whitespace-nowrap">
-                    {usd(totalSpend(a))}
-                  </td>
-                  {FATIGUE_WINDOWS.map((w) => (
-                    <WindowCell
-                      key={w.key}
-                      label={w.label}
-                      metrics={a[w.key]}
-                      state={windowState(r.daysSinceLaunch, w.startDay, w.endDay)}
-                      daysSinceLaunch={r.daysSinceLaunch}
-                      w1Roas={w.key === "w1" ? null : a.w1.roas}
-                    />
-                  ))}
-                  <td className="px-3 py-2.5 text-right tabular-nums whitespace-nowrap border-l border-line">
-                    {drop === null ? (
-                      <span
-                        className="text-ink-3"
-                        title="Not enough history yet to measure decay."
-                      >
-                        —
-                      </span>
-                    ) : (
-                      <span
-                        className={cn(
-                          "font-medium",
-                          drop > 0.001 ? "text-neg" : drop < -0.001 ? "text-pos" : "text-ink-2",
-                        )}
-                      >
-                        {fmtPct(-drop)}
-                      </span>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+      <DataTable
+        columns={columns}
+        rows={sorted}
+        rowKey={(r) => r.creativeId}
+        sort={sortKey}
+        dir={dir}
+        onSort={(key, d) => {
+          setSortKey(key as SortKey);
+          setDir(d);
+        }}
+        {...cols.tableProps}
+        rowClassName={(r) =>
+          cn(TIER_META[r.assessment.tier].row, r.assessment.tier === "low" && "opacity-60")
+        }
+        minWidthClass="min-w-max"
+        empty={
+          <div className="rounded-lg border border-dashed border-line bg-surface px-6 py-16 text-center">
+            <p className="text-sm text-ink-2">No launched creatives match these filters.</p>
+            <p className="mt-1 text-xs text-ink-3">
+              Widen the launch-date range or clear filters.
+            </p>
+          </div>
+        }
+      />
 
       <FatigueLegend />
     </div>
   );
 }
 
-/** A window cell. Distinguishes "window hasn't started yet" from "ran but spent
- *  nothing here" from "window still in progress" — see point 2. */
+/**
+ * A window cell's CONTENT. Distinguishes "window hasn't started yet" from "ran
+ * but spent nothing here" from "window still in progress" — see point 2. The
+ * `<td>` is DataTable's now; the three states and their wording are unchanged.
+ */
 function WindowCell({
   label,
   metrics,
@@ -610,16 +565,14 @@ function WindowCell({
   daysSinceLaunch: number;
   w1Roas: number | null;
 }) {
-  const cell = "px-3 py-2.5 text-right tabular-nums whitespace-nowrap border-l border-line";
-
   if (state === "not_started") {
     return (
-      <td
-        className={cell}
+      <span
+        className="text-ink-3/40"
         title={`${label} haven’t elapsed yet — launched ${daysSinceLaunch}d ago.`}
       >
-        <span className="text-ink-3/40">–</span>
-      </td>
+        –
+      </span>
     );
   }
 
@@ -630,39 +583,37 @@ function WindowCell({
         ? `${label}: no spend yet — window still in progress.`
         : `${label}: no spend — paused or off during this window.`;
     return (
-      <td className={cell} title={title}>
-        <Circle className="inline w-3 h-3 text-ink-3/70" aria-hidden />
-      </td>
+      <span title={title}>
+        <Circle className="inline h-3 w-3 text-ink-3/70" aria-hidden />
+      </span>
     );
   }
 
   const delta = deltaVs(metrics.roas, w1Roas);
   return (
-    <td className={cell}>
-      <span className="text-ink inline-flex items-center justify-end gap-1">
-        {state === "in_progress" && (
+    <span className="inline-flex items-center justify-end gap-1 text-ink">
+      {state === "in_progress" && (
+        <span
+          title={`${label} still in progress — ROAS so far, through day ${daysSinceLaunch + 1}.`}
+          className="inline-flex"
+        >
+          <Clock className="h-3 w-3 text-ink-3/70" aria-hidden />
+        </span>
+      )}
+      <span>
+        {roas(metrics.roas)}
+        {delta !== null && (
           <span
-            title={`${label} still in progress — ROAS so far, through day ${daysSinceLaunch + 1}.`}
-            className="inline-flex"
+            className={cn(
+              "ml-1 text-[11px]",
+              delta < -0.001 ? "text-neg" : delta > 0.001 ? "text-pos" : "text-ink-3",
+            )}
           >
-            <Clock className="w-3 h-3 text-ink-3/70" aria-hidden />
+            {fmtPct(delta)}
           </span>
         )}
-        <span>
-          {roas(metrics.roas)}
-          {delta !== null && (
-            <span
-              className={cn(
-                "ml-1 text-[11px]",
-                delta < -0.001 ? "text-neg" : delta > 0.001 ? "text-pos" : "text-ink-3",
-              )}
-            >
-              {fmtPct(delta)}
-            </span>
-          )}
-        </span>
       </span>
-    </td>
+    </span>
   );
 }
 
@@ -688,20 +639,13 @@ function FatigueLegend() {
   );
 }
 
-function SortIcon({ active, dir }: { active: boolean; dir: Dir }) {
-  if (!active) {
-    return <ArrowUpDown className="w-3 h-3 text-ink-3 opacity-60" aria-hidden />;
-  }
-  return dir === "asc" ? (
-    <ArrowUp className="w-3 h-3 text-brand" aria-hidden />
-  ) : (
-    <ArrowDown className="w-3 h-3 text-brand" aria-hidden />
-  );
-}
-
-/** Comparator for the table. `status` reproduces the default tiered order
+/**
+ * EXPORTED for the unit test, which pins the order this table has always had —
+ * the migration to `DataTable` must not change a single row's position.
+ *
+ * Comparator for the table. `status` reproduces the default tiered order
  *  (worst-first, biggest drop first, then newest launch). */
-function compareRows(
+export function compareRows(
   a: LaunchFatigueViewRow,
   b: LaunchFatigueViewRow,
   key: SortKey,

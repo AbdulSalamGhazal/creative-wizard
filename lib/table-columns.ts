@@ -57,6 +57,10 @@ export const TABLE_KEYS = {
   BUDGET_TRACKER: "budget-tracker",
   /** Budget → Audience, the pair board. */
   BUDGET_AUDIENCE: "budget-audience",
+
+  // ── Phase 3 (2026-10): the hand-rolled tables, as they migrate ────────
+  /** Trends → Launches, the launch-fatigue table. */
+  TRENDS_LAUNCHES: "trends-launches",
 } as const;
 
 export type TableKey = (typeof TABLE_KEYS)[keyof typeof TABLE_KEYS];

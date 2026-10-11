@@ -200,8 +200,8 @@ describe("the default-state rule (phase 2)", () => {
   });
 });
 
-describe("the phase-2 registry", () => {
-  it("covers every table the sweep wired, with stable keys", () => {
+describe("the registry", () => {
+  it("covers every table on the system, with stable keys", () => {
     // The keys are STORED, so renaming one orphans every row that carries it.
     expect([...TABLE_KEY_LIST].sort()).toEqual(
       [
@@ -220,6 +220,7 @@ describe("the phase-2 registry", () => {
         "store-insights",
         "store-orders",
         "trends-angles",
+        "trends-launches",
         "trends-video",
       ].sort(),
     );
