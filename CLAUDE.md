@@ -155,6 +155,15 @@ Do not introduce a new dependency without a one-line justification in the PR des
   renders" is not a pass: reaction pills shipped wedged between a message and
   its own Reply button because the rig showed the pills alone, and every
   checkpoint after that read logic rather than JSX order.
+  **AND THE RIG MUST USE THE REAL FONTS.** The app's font vars are
+  Next-generated and do not resolve outside it, so an esbuild rig silently
+  renders in TIMES — every width measured in one is then measured in the wrong
+  font, and Times is narrower than Plus Jakarta Sans, so a layout defect reads
+  as SMALLER than it is (this hid a 298px pinned cell inside a 291px frame).
+  Point `--font-ui` / `--font-mono` / `--font-display` at the webfonts the rig
+  already loads before trusting a single pixel, and check
+  `getComputedStyle(el).fontFamily` once per rig. A measurement governed by a
+  `max-width` is font-independent and can be trusted either way.
   **A change to a SERVER page's imports or data flow is verified against a REAL
   Next render of that route** — signed in, in a browser — not against the rig
   and not against green gates. The rig bundles with esbuild and never renders
@@ -529,6 +538,11 @@ This app is deployed and in production use. Treat `main` as shippable.
   false-flagged this as a `split("")` bug; it is correct. Confirm with
   `python3 -c '...repr(line)'` before "fixing", and use Python (not the Edit
   tool) to modify those lines — Edit can't match the control char.
+  `db/queries/funnel.ts` joined this convention in 2026-10 for the same reason
+  and one more: its composite map key used U+0000, and a single NUL byte makes
+  **grep treat the whole FILE as binary** — `grep -rn "CampaignFunnelRow" db/`
+  returned nothing and every code search silently skipped the file (git diffs
+  it as `Bin` too). U+0001 greps normally; U+0000 never again.
 - **Creative detail page edits EVERYTHING inline; there is no `/edit` route.**
   The detail header (`components/creative/creative-detail-header.tsx`, a client
   component) is a full editor for name / product / type / status / thumbnail /
@@ -951,10 +965,6 @@ This app is deployed and in production use. Treat `main` as shippable.
     table gained its `defaultHidden` set carries no markers, so a tail column
     that user had opened reads as hidden again — one click, once, on the four
     phase-2 tables that shipped a collapsed tail.
-  - **Still off the system, deliberately:** `compare-totals-table`,
-    `top-creatives`, `creative-records-table` — hand-rolled tables, so the
-    control needs a `DataTable` migration first (P3, with
-    `campaign-funnel-table`).
   - **PHASE 3 (2026-10) — the hand-rolled tables, one change each. DONE:
     Trends → Launches** (`launch-fatigue.tsx`, key `trends-launches`). **The
     WRAPPER still owns the sort**: `compareRows` is a ROW comparator — Status is
@@ -970,6 +980,68 @@ This app is deployed and in production use. Treat `main` as shippable.
     **widths are ephemeral** — `launch-col-widths` is retired and its stored
     values were NOT migrated, as the Library's and Store orders' were not.
     `LaunchFatigueSummary`, `DecayBar` and the legend are untouched.
+    **Funnel → By campaign** (`campaign-funnel-table.tsx`, key
+    `funnel-campaigns`): the same four decisions plus two of its own. The
+    THREE-STATE header cycle is the pure `nextSort` — desc → asc → back to the
+    table's default — because DataTable PROPOSES a direction and the consumer
+    decides what the table does; a TEXT column therefore never shows
+    descending, which is what it always did. **The totals row is untouched
+    math:** `funnelTotals` keeps an unreported step NULL so it renders "—" and
+    not 0%, and a source guard fails the build if a `?? 0` ever lands on a
+    totals value. Catalog: clicks · LP views · revenue, `defaultHidden`;
+    `funnel-col-widths` retired un-migrated.
+    **Compare → A/B totals** (`compare-totals-table.tsx`, key
+    `compare-totals`): flat, so the plain migration; `compare-totals-cols`
+    retired un-migrated. **Nothing in it sorts** — the rows are the
+    comparison's two SIDES, and ranking them would break the pairing the
+    colours, the chart and the controls share. Its old DEFAULT_VISIBLE is
+    DERIVED as `defaultHidden`, not restated. The catalog excludes
+    `funnelCpm`/`funnelCtr`, the funnel-scoped twins of cpm/ctr, which beside
+    them would read as a second, silently different CPM. The old
+    refuse-to-hide-the-last-metric guard is gone; Reset covers it.
+    **Dashboard → Top creatives** (`top-creatives.tsx`, key `top-creatives`):
+    in `components/charts/`, but a real table with a real columns menu. **Two
+    controls, two jobs** — the segmented RANKING control is page-owned and
+    decides what "top" MEANS (cheapest-first for a cost metric; rows missing
+    the metric last in BOTH directions; the limit applied after ordering, all
+    pinned through the pure `rankRows`), the columns control is the table's,
+    and nothing in the header sorts. The ranked metric is FORCE-SHOWN through
+    the new **`DataColumn.lockedVisible`**, which also renders that row in the
+    control WITHOUT a checkbox rather than with one that does nothing. The `#`
+    rank folds into the pinned identity cell, because a separate leading
+    column could only be pinned by making the ORDINAL sticky and letting the
+    name scroll away.
+    **Creative detail → its raw records** (`creative-records-table.tsx`, key
+    `creative-records-detail`) — **the last one. No table in the app is
+    hand-rolled any more.** Its all-or-nothing "All columns" button WAS a
+    columns control, so it became `defaultHidden`: the same first view, but
+    one field opens without the other eight. **The CSV stays the full record,
+    in the ON-SCREEN sort** — which is why the wrapper keeps the comparator
+    instead of handing sorting to the primitive. NULL still reads as ZERO in
+    its sort. The Excluded BADGE moved into the pinned Date cell (the
+    campaign-records precedent) so it survives a sideways scroll; the
+    exclude/re-include ACTION is its own column, marked `lockedVisible`
+    because it is the only way to exclude a record and a hidden action is one
+    nobody can find. Catalog: the exclusion's own provenance
+    (`excludedReason`, `excludedAt`) is offered now — the row always carried
+    it, and it lived only in a tooltip.
+  - **A PINNED COLUMN MUST FIT THE FRAME (2026-10).** A sticky cell wider than
+    the visible scroll frame STOPS PINNING: past that width its left edge
+    scrolls away and cannot be recovered, so on a phone the identity column —
+    the one thing every other cell is read against — is the first casualty.
+    Pinning is what makes a width cap load-bearing; an unpinned first cell
+    never had to fit anything, which is why four tables inherited caps that
+    had never been tested. Every pinned cell that renders FREE TEXT therefore
+    carries a PHONE-ONLY cap (12rem, or tighter when the cell also holds a
+    dot, an eyebrow or a badge; `sm:` restores the table's own cap, so desktop
+    is untouched), and a cap needs `truncate` beside it or it simply overflows
+    — the Library's name had `truncate` with no width to truncate AGAINST and
+    looked capped for months. A pinned cell rendering a CLOSED vocabulary (a
+    date, a platform, a bucket, a stage) measures 96–215px and needs nothing.
+    Measured before → after at 375px scrolled fully right: Library 407/−81 →
+    217/+1 · campaign creatives 423/−96 → 217/+1 · creative campaigns
+    502/−176 → 225/+1 · by-angle 351/−25 → 201/+1 · Budget Pacing's week label
+    plus its "through …" suffix 298 against a 291px frame.
   - **The LIBRARY table (2026-09) — DataTable, with three things worth keeping.**
     (1) **Sorting stays SERVER-side.** No column carries a `sortValue`, so
     DataTable never re-sorts locally: the query layer owns the derived-status
