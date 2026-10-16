@@ -10,7 +10,9 @@ import {
   type SortKey,
 } from "@/components/funnel/campaign-funnel-table";
 import type { CampaignFunnelRow } from "@/db/queries/funnel";
-import type { Platform } from "@/lib/palette";
+
+/** The row's own platform type — `platformEnum`'s member, as funnel.ts has it. */
+type Platform = CampaignFunnelRow["platform"];
 
 /**
  * REGRESSION for the P3 migration (2026-10): the per-campaign funnel table
@@ -42,7 +44,7 @@ const row = (
   purchaseRate: 0.5,
   cvr: 0.125,
   roas: 3,
-  spendDelta: { value: 0, pct: null, direction: "flat" } as CampaignFunnelRow["spendDelta"],
+  spendDelta: { pct: null, mode: "absent" },
   ...over,
 });
 
