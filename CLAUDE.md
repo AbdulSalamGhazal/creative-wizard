@@ -91,14 +91,31 @@ Do not introduce a new dependency without a one-line justification in the PR des
 
 - Make small, reviewable changes. One feature per PR or session.
 - Add a test alongside any non-trivial logic, especially in `csv/` and `db/queries/`.
-- **Judgment calls are REPORTED, never silent.** Every report ends with a
-  **Judgment calls** section: each decision the brief left open — placement,
-  ordering, wording, empty states, naming, defaults — with what was chosen and
-  why, in one line each. "None" is a valid entry; an unstated judgment call is
-  not. A brief cannot specify everything, so the ambiguity is expected; what
-  must not happen is resolving it invisibly, because a reviewer reading the
-  logic has no way to know a choice was ever made. This is the CLAUDE.md-edit
-  discipline (surface it, don't decide it quietly) extended to design.
+- **TWO CLASSES OF AMBIGUITY, and only one of them is yours to settle.**
+  A brief cannot specify everything, so ambiguity is expected; what must not
+  happen is resolving the wrong kind of it alone.
+  - **Convention-level** — which hook, how the code is structured, naming,
+    file layout, anything the user cannot see. **Decide it, and REPORT it** in
+    the Judgment calls section: what was chosen and why, one line each. "None"
+    is a valid entry; an unstated judgment call is not, because a reviewer
+    reading the logic has no way to know a choice was ever made.
+  - **Requirement-shaping** — anything the user could look at and say "that
+    is not what I meant": where new UI goes or whether it appears at all,
+    scope boundaries, wording they will read, what data is offered or hidden,
+    any behaviour beyond the brief's letter. **STOP and ask.** Send the
+    options with a recommendation instead of building a guess. A round-trip
+    costs a message; a guess that reaches production costs the feature's
+    credibility, and we have paid that.
+  - **The test is one question: could the user see this and object?** If yes,
+    it is requirement-shaping, however small it looks from inside the code.
+    Being unsure is itself an answer — ask.
+- **Every feature report ends with a UX REVIEW.** Walk the checklist in
+  `docs/decisions/ux-standards.md` and state each line pass / fail / n-a —
+  honestly, which means a fail is either FIXED before reporting or raised as a
+  decision, never quietly marked n-a. It covers consistency with the house
+  patterns, feedback on every action, every state designed, no dead ends,
+  discoverability, copy, economy, and the phone. It is about the QUALITY of
+  the experience, not colour or theming — the palette is settled.
 - **A UI rig check verifies the COMPOSED SURFACE, not the component.** The rig
   pass shows the whole unit the change lands in — the full comment row, the
   full toolbar, the full card — with ALL its siblings, in EVERY state the
@@ -126,6 +143,15 @@ Do not introduce a new dependency without a one-line justification in the PR des
   COMPONENT, never a VALUE from a client module** — shared data goes in a plain
   module both sides import, and `app/rsc-boundary.test.ts` now fails the build
   if that line is crossed.
+  **WALK THE FEATURE, NOT THE COMPONENTS.** Before reporting, traverse the
+  finished work AS THE USER: the full click path end to end, across every
+  surface it touched, in every state (empty · one · many · long values ·
+  error), at desktop and 375px. The composed-surface pass proves a UNIT; the
+  walk proves the SEAMS between units, which is where the bugs that shipped
+  actually lived — reaction pills wedged against a Reply button, a comment
+  drawer's highlight outliving its own post. Report it as its own line:
+  **Walked: <path>, states covered: <list>**. A feature you have not walked is
+  a feature you are describing, not one you have seen.
   **Know what each check PROVES, because they are not interchangeable.** A
   **307** on a dashboard route proves middleware and routing are intact and
   NOTHING about the page: a page with a deliberately broken import still
@@ -370,6 +396,16 @@ this map is still a rule you broke.
 - Counts round at normalization and say so (W004).
 
 → **`docs/decisions/uploads-csv.md`**
+
+### UX standards
+
+- Name the house pattern before inventing one; extend, never fork.
+- Every action gives feedback; every state is designed; no dead ends.
+- A feature nobody can find does not exist.
+- Friction scales with irreversibility; the phone is a first-class render.
+- **Quality of the experience — NOT colour or theming.**
+
+→ **`docs/decisions/ux-standards.md`**
 
 
 ## Learned
