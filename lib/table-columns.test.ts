@@ -278,6 +278,7 @@ describe("the registry", () => {
         "compare-totals",
         "funnel-campaigns",
         "creative-campaigns",
+        "creative-records-detail",
         "library",
         "recon-channels",
         "recon-platforms",

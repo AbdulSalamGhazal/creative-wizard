@@ -67,6 +67,8 @@ export const TABLE_KEYS = {
   COMPARE_TOTALS: "compare-totals",
   /** Dashboard → the Top-creatives leaderboard. */
   TOP_CREATIVES: "top-creatives",
+  /** Creative detail → its raw performance records. */
+  CREATIVE_RECORDS: "creative-records-detail",
 } as const;
 
 export type TableKey = (typeof TABLE_KEYS)[keyof typeof TABLE_KEYS];
