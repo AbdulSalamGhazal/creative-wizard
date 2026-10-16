@@ -1,20 +1,18 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
+import { useMemo, useState } from "react";
+import { DataTable, type DataColumn } from "@/components/ui/data-table";
+import { useTableColumns } from "@/components/ui/use-table-columns";
+import { TABLE_KEYS } from "@/lib/table-columns";
 import { DeltaBadge } from "@/components/kpi/delta-badge";
 import { int, pct, roas, usd } from "@/lib/format";
 import { METRIC_LABEL } from "@/lib/metric-labels";
 import { funnelTotals } from "@/lib/funnel-totals";
 import { PLATFORM_LABEL } from "@/lib/palette";
 import { PlatformDot } from "@/components/ui/platform-dot";
-import { cn } from "@/lib/utils";
 import type { CampaignFunnelRow } from "@/db/queries/funnel";
 
-const COL_WIDTHS_KEY = "funnel-col-widths";
-const MIN_COL_WIDTH = 140;
-
-type SortKey =
+export type SortKey =
   | "campaign"
   | "platform"
   | "spend"
@@ -29,273 +27,227 @@ type SortKey =
   | "addToCart"
   | "addPayment"
   | "roas"
-  | "impressions";
+  | "impressions"
+  // Offered, hidden by default — the counts the rates are built from.
+  | "clicks"
+  | "landingPageViews"
+  | "conversionValue";
 type Dir = "asc" | "desc";
 
-const TEXT_KEYS = new Set<SortKey>(["campaign", "platform"]);
+/** The two text columns ascend on first click; every number descends. */
+export const TEXT_KEYS = new Set<SortKey>(["campaign", "platform"]);
 
-const COLUMNS: Array<{ key: SortKey; label: string; numeric: boolean }> = [
-  { key: "campaign", label: "Campaign", numeric: false },
-  { key: "platform", label: "Platform", numeric: false },
-  { key: "spend", label: "Spend", numeric: true },
-  { key: "cpm", label: "CPM", numeric: true },
-  { key: "ctr", label: "CTR", numeric: true },
-  { key: "voc", label: "VOC", numeric: true },
-  { key: "atcRate", label: "ATC%", numeric: true },
-  { key: "apRate", label: "AP%", numeric: true },
-  { key: "purchaseRate", label: "CvR (AP)", numeric: true },
-  { key: "cvr", label: "CvR (LP)", numeric: true },
-  { key: "conversions", label: METRIC_LABEL.conversions, numeric: true },
-  { key: "addToCart", label: "ATC", numeric: true },
-  { key: "addPayment", label: "AP", numeric: true },
-  { key: "roas", label: "ROAS", numeric: true },
-  { key: "impressions", label: METRIC_LABEL.impressions, numeric: true },
-];
+/** The one place that decides a column's first-click direction. */
+export const firstDir = (key: SortKey): Dir => (TEXT_KEYS.has(key) ? "asc" : "desc");
+
+/** The table's default: biggest spender first. The third click returns here. */
+export const DEFAULT_SORT: { key: SortKey; dir: Dir } = { key: "spend", dir: "desc" };
 
 /**
- * Per-campaign funnel table. One row per (platform, campaign_name). Every
- * column sorts (click to cycle); the Campaign column is drag-resizable with the
- * width persisted to localStorage — same behaviour as the Summary table. Sticky
- * header + footer, internal scroll.
+ * EXPORTED for the unit test, which pins the order this table has always had —
+ * the migration to `DataTable` must not move a single row.
+ *
+ * Campaign sorts by name; platform sorts by LABEL with the campaign name as
+ * the tiebreak (so a platform's rows read alphabetically inside it); every
+ * other column is numeric, and **a null rate sorts as 0** — not last. That is
+ * this table's long-standing behaviour and it is deliberately NOT the
+ * primitive's "nulls sink" rule, so no column carries a `sortValue` and the
+ * wrapper owns the sort (the Library / launch-fatigue precedent).
+ */
+export function compareRows(
+  a: CampaignFunnelRow,
+  b: CampaignFunnelRow,
+  key: SortKey,
+): number {
+  if (key === "campaign") return a.campaign.localeCompare(b.campaign);
+  if (key === "platform") {
+    return (
+      PLATFORM_LABEL[a.platform].localeCompare(PLATFORM_LABEL[b.platform]) ||
+      a.campaign.localeCompare(b.campaign)
+    );
+  }
+  return (a[key] ?? 0) - (b[key] ?? 0);
+}
+
+/**
+ * The THREE-STATE header cycle, as a pure function of what the header click
+ * proposes: desc → asc → back to the table's default (spend desc). DataTable
+ * proposes a direction; this consumer decides what the table actually does —
+ * the same deal the Library's server-sorted header makes.
+ */
+export function nextSort(
+  current: { key: SortKey; dir: Dir },
+  clicked: SortKey,
+): { key: SortKey; dir: Dir } {
+  if (current.key !== clicked) return { key: clicked, dir: firstDir(clicked) };
+  if (current.dir === "desc") return { key: clicked, dir: "asc" };
+  return { ...DEFAULT_SORT };
+}
+
+/** Columns a first visit does not show: every rate's own denominator, plus
+ *  revenue. The query has always returned them. */
+const DEFAULT_HIDDEN: SortKey[] = ["clicks", "landingPageViews", "conversionValue"];
+
+/**
+ * Per-campaign funnel table. One row per (platform, campaign_name), on the
+ * shared `DataTable`: sort, resize, reorder and the columns control all come
+ * from the primitive. Column widths are ephemeral now (the old
+ * `funnel-col-widths` localStorage key is retired, its values not migrated —
+ * the Library's and Store orders' were not either).
+ *
+ * THE TOTALS ROW IS UNTOUCHED MATH: `funnelTotals` is the JS mirror of the SQL
+ * ratio guard — additive columns sum, rate columns recombine from component
+ * sums, and a row that never reported a step joins NEITHER side of that
+ * ratio, so a column nobody reported renders "—" rather than a fabricated 0%.
  */
 export function CampaignFunnelTable({ rows }: { rows: CampaignFunnelRow[] }) {
-  const [sortKey, setSortKey] = useState<SortKey>("spend");
-  const [dir, setDir] = useState<Dir>("desc");
+  const [sort, setSort] = useState<{ key: SortKey; dir: Dir }>(DEFAULT_SORT);
 
-  // ---- Resizable Campaign column ----
-  const [widths, setWidths] = useState<Record<string, number>>({});
-  const thRefs = useRef<Record<string, HTMLTableCellElement | null>>({});
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(COL_WIDTHS_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw) as Record<string, number>;
-        if (parsed && typeof parsed === "object") setWidths(parsed);
-      }
-    } catch {
-      /* ignore malformed storage */
-    }
-  }, []);
-  const startResize = useCallback(
-    (key: string, e: React.MouseEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
-      const startX = e.clientX;
-      const measured = thRefs.current[key]?.getBoundingClientRect().width ?? 280;
-      const startW = widths[key] ?? measured;
-      const onMove = (ev: MouseEvent) => {
-        const w = Math.max(MIN_COL_WIDTH, Math.round(startW + (ev.clientX - startX)));
-        setWidths((prev) => ({ ...prev, [key]: w }));
-      };
-      const onUp = () => {
-        window.removeEventListener("mousemove", onMove);
-        window.removeEventListener("mouseup", onUp);
-        document.body.style.userSelect = "";
-        setWidths((prev) => {
-          try {
-            localStorage.setItem(COL_WIDTHS_KEY, JSON.stringify(prev));
-          } catch {
-            /* ignore */
-          }
-          return prev;
-        });
-      };
-      window.addEventListener("mousemove", onMove);
-      window.addEventListener("mouseup", onUp);
-      document.body.style.userSelect = "none";
-    },
-    [widths],
-  );
-  const widthStyle = (key: string): React.CSSProperties | undefined => {
-    const w = widths[key];
-    return w ? { width: w, minWidth: w, maxWidth: w } : undefined;
-  };
-
-  // ---- Sorting (client-side; all rows are loaded) ----
   const sorted = useMemo(() => {
     const arr = [...rows];
     arr.sort((a, b) => {
-      let cmp: number;
-      if (sortKey === "campaign") {
-        cmp = a.campaign.localeCompare(b.campaign);
-      } else if (sortKey === "platform") {
-        cmp =
-          PLATFORM_LABEL[a.platform].localeCompare(PLATFORM_LABEL[b.platform]) ||
-          a.campaign.localeCompare(b.campaign);
-      } else {
-        // Null rates sort as 0 (consistent with the Summary table).
-        const av = a[sortKey] ?? 0;
-        const bv = b[sortKey] ?? 0;
-        cmp = av - bv;
-      }
-      return dir === "asc" ? cmp : -cmp;
+      const c = compareRows(a, b, sort.key);
+      return sort.dir === "asc" ? c : -c;
     });
     return arr;
-  }, [rows, sortKey, dir]);
+  }, [rows, sort]);
 
-  // Pinned footer: additive columns sum; rate columns are weighted averages
-  // recomputed from component sums (never an average of ratios) by the shared
-  // pure helper, which also skips rows that didn't report a side — so a
-  // platform with no mid-funnel data can't inflate a rate, and a column
-  // nobody reported renders "—" instead of a fabricated 0%.
   const totals = useMemo(() => funnelTotals(rows), [rows]);
 
-  const onSort = (key: SortKey) => {
-    if (sortKey === key) {
-      // desc → asc → reset to default (spend desc)
-      if (dir === "desc") setDir("asc");
-      else {
-        setSortKey("spend");
-        setDir("desc");
-      }
-    } else {
-      setSortKey(key);
-      setDir(TEXT_KEYS.has(key) ? "asc" : "desc");
-    }
-  };
+  const columns = useMemo<DataColumn<CampaignFunnelRow>[]>(() => {
+    /** Every numeric column is the same cell with a different formatter. */
+    const num = (
+      key: SortKey,
+      label: string,
+      render: (r: CampaignFunnelRow) => React.ReactNode,
+      total: () => React.ReactNode,
+      csv: (r: CampaignFunnelRow) => number | null,
+    ): DataColumn<CampaignFunnelRow> => ({
+      key,
+      label,
+      align: "right",
+      sortable: true,
+      defaultSortDir: firstDir(key),
+      render,
+      total,
+      csv,
+    });
 
-  if (rows.length === 0) {
-    return (
-      <div className="rounded-lg border border-dashed border-line bg-surface px-6 py-12 text-center">
-        <p className="text-ink-2 text-sm">No campaign activity in this window.</p>
-      </div>
-    );
-  }
+    return [
+      {
+        key: "campaign",
+        label: "Campaign",
+        align: "left",
+        sortable: true,
+        pinned: true,
+        defaultSortDir: firstDir("campaign"),
+        render: (r) => (
+          <span className="block max-w-[22rem] truncate text-ink" title={r.campaign}>
+            {r.campaign}
+          </span>
+        ),
+        total: () => <span className="text-ink">Total · {rows.length}</span>,
+        csv: (r) => r.campaign,
+      },
+      {
+        key: "platform",
+        label: "Platform",
+        align: "left",
+        sortable: true,
+        defaultSortDir: firstDir("platform"),
+        render: (r) => (
+          <span className="inline-flex items-center gap-1.5 text-ink-2">
+            <PlatformDot platform={r.platform} />
+            {PLATFORM_LABEL[r.platform]}
+          </span>
+        ),
+        csv: (r) => PLATFORM_LABEL[r.platform],
+      },
+      num(
+        "spend",
+        "Spend",
+        (r) => (
+          <span className="inline-flex items-center justify-end gap-1.5 text-ink">
+            {usd(r.spend)}
+            <DeltaBadge delta={r.spendDelta} />
+          </span>
+        ),
+        () => <span className="text-ink">{usd(totals.spend)}</span>,
+        (r) => r.spend,
+      ),
+      num("cpm", "CPM", (r) => <span className="text-ink">{usd(r.cpm)}</span>, () => usd(totals.cpm), (r) => r.cpm),
+      num("ctr", "CTR", (r) => <span className="text-ink">{pct(r.ctr)}</span>, () => pct(totals.ctr), (r) => r.ctr),
+      num("voc", "VOC", (r) => <span className="text-ink">{pct(r.voc)}</span>, () => pct(totals.voc), (r) => r.voc),
+      num("atcRate", "ATC%", (r) => <span className="text-ink">{pct(r.atcRate)}</span>, () => pct(totals.atcRate), (r) => r.atcRate),
+      num("apRate", "AP%", (r) => <span className="text-ink">{pct(r.apRate)}</span>, () => pct(totals.apRate), (r) => r.apRate),
+      num(
+        "purchaseRate",
+        "CvR (AP)",
+        (r) => <span className="text-ink">{pct(r.purchaseRate)}</span>,
+        () => pct(totals.purchaseRate),
+        (r) => r.purchaseRate,
+      ),
+      num("cvr", "CvR (LP)", (r) => <span className="text-ink">{pct(r.cvr)}</span>, () => pct(totals.cvr), (r) => r.cvr),
+      num(
+        "conversions",
+        METRIC_LABEL.conversions,
+        (r) => <span className="text-ink-2">{int(r.conversions)}</span>,
+        () => int(totals.conversions),
+        (r) => r.conversions,
+      ),
+      num("addToCart", "ATC", (r) => <span className="text-ink-2">{int(r.addToCart)}</span>, () => int(totals.addToCart), (r) => r.addToCart),
+      num("addPayment", "AP", (r) => <span className="text-ink-2">{int(r.addPayment)}</span>, () => int(totals.addPayment), (r) => r.addPayment),
+      num("roas", "ROAS", (r) => <span className="text-ink">{roas(r.roas)}</span>, () => roas(totals.roas), (r) => r.roas),
+      num(
+        "impressions",
+        METRIC_LABEL.impressions,
+        (r) => <span className="text-ink-2">{int(r.impressions)}</span>,
+        () => int(totals.impressions),
+        (r) => r.impressions,
+      ),
+      // ── Offered, hidden by default: the denominators behind the rates ──
+      num("clicks", "Clicks", (r) => <span className="text-ink-2">{int(r.clicks)}</span>, () => int(totals.clicks), (r) => r.clicks),
+      num(
+        "landingPageViews",
+        "LP views",
+        (r) => <span className="text-ink-2">{int(r.landingPageViews)}</span>,
+        () => int(totals.landingPageViews),
+        (r) => r.landingPageViews,
+      ),
+      num(
+        "conversionValue",
+        METRIC_LABEL.revenue,
+        (r) => <span className="text-ink">{usd(r.conversionValue)}</span>,
+        () => usd(totals.conversionValue),
+        (r) => r.conversionValue,
+      ),
+    ];
+  }, [rows.length, totals]);
+
+  const columnKeys = columns.filter((c) => !c.pinned).map((c) => c.key);
+  const cols = useTableColumns({
+    tableKey: TABLE_KEYS.FUNNEL_CAMPAIGNS,
+    hideable: columnKeys,
+    defaults: columnKeys,
+    defaultHidden: DEFAULT_HIDDEN,
+  });
 
   return (
-    <div className="max-h-[70vh] overflow-auto rounded-lg border border-line bg-surface">
-      <table className="w-full text-sm num">
-        <thead>
-          <tr className="text-left text-label text-ink-3">
-            {COLUMNS.map((col) => {
-              const active = sortKey === col.key;
-              const resizable = col.key === "campaign";
-              return (
-                <th
-                  key={col.key}
-                  ref={
-                    resizable
-                      ? (el) => {
-                          thRefs.current[col.key] = el;
-                        }
-                      : undefined
-                  }
-                  style={resizable ? widthStyle(col.key) : undefined}
-                  className={cn(
-                    "relative font-medium px-3 py-2.5 sticky top-0 z-10 bg-surface border-b border-line",
-                    col.numeric ? "text-right" : "text-left",
-                    resizable && widths[col.key] ? "" : "whitespace-nowrap",
-                  )}
-                >
-                  <button
-                    type="button"
-                    onClick={() => onSort(col.key)}
-                    className={cn(
-                      "inline-flex items-center gap-1 hover:text-ink transition-colors max-w-full",
-                      col.numeric && "justify-end w-full",
-                      active && "text-brand",
-                    )}
-                  >
-                    <span className={resizable && widths[col.key] ? "truncate" : ""}>
-                      {col.label}
-                    </span>
-                    <SortIcon active={active} dir={dir} />
-                  </button>
-                  {resizable && (
-                    <span
-                      role="separator"
-                      aria-orientation="vertical"
-                      aria-label="Resize Campaign column"
-                      onMouseDown={(e) => startResize(col.key, e)}
-                      className="absolute top-0 right-0 h-full w-1.5 cursor-col-resize select-none hover:bg-brand/40 active:bg-brand/60"
-                    />
-                  )}
-                </th>
-              );
-            })}
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-line">
-          {sorted.map((r) => (
-            <tr
-              key={`${r.platform}::${r.campaign}`}
-              className="hover:bg-surface-2/60 transition-colors"
-            >
-              <td
-                style={widthStyle("campaign")}
-                className={cn("px-3 py-2.5", widths.campaign ? "" : "max-w-[22rem]")}
-              >
-                <span className="block truncate text-ink" title={r.campaign}>
-                  {r.campaign}
-                </span>
-              </td>
-              <td className="px-3 py-2.5 whitespace-nowrap">
-                <span className="inline-flex items-center gap-1.5 text-ink-2">
-                  <PlatformDot platform={r.platform} />
-                  {PLATFORM_LABEL[r.platform]}
-                </span>
-              </td>
-              <td className="px-3 py-2.5 text-right text-ink tabular-nums">
-                <span className="inline-flex items-center gap-1.5 justify-end">
-                  {usd(r.spend)}
-                  <DeltaBadge delta={r.spendDelta} />
-                </span>
-              </td>
-              <td className="px-3 py-2.5 text-right text-ink tabular-nums">{usd(r.cpm)}</td>
-              <td className="px-3 py-2.5 text-right text-ink tabular-nums">{pct(r.ctr)}</td>
-              <td className="px-3 py-2.5 text-right text-ink tabular-nums">{pct(r.voc)}</td>
-              <td className="px-3 py-2.5 text-right text-ink tabular-nums">{pct(r.atcRate)}</td>
-              <td className="px-3 py-2.5 text-right text-ink tabular-nums">{pct(r.apRate)}</td>
-              <td className="px-3 py-2.5 text-right text-ink tabular-nums">{pct(r.purchaseRate)}</td>
-              <td className="px-3 py-2.5 text-right text-ink tabular-nums">{pct(r.cvr)}</td>
-              <td className="px-3 py-2.5 text-right text-ink-2 tabular-nums">{int(r.conversions)}</td>
-              <td className="px-3 py-2.5 text-right text-ink-2 tabular-nums">{int(r.addToCart)}</td>
-              <td className="px-3 py-2.5 text-right text-ink-2 tabular-nums">{int(r.addPayment)}</td>
-              <td className="px-3 py-2.5 text-right text-ink tabular-nums">
-                {roas(r.roas)}
-              </td>
-              <td className="px-3 py-2.5 text-right text-ink-2 tabular-nums">{int(r.impressions)}</td>
-            </tr>
-          ))}
-        </tbody>
-        <tfoot>
-          <tr className="font-semibold [&>td]:sticky [&>td]:bottom-0 [&>td]:z-10 [&>td]:bg-surface-2 [&>td]:border-t [&>td]:border-line">
-            <td
-              style={widthStyle("campaign")}
-              className={cn("px-3 py-2 text-ink", widths.campaign ? "truncate" : "")}
-            >
-              Total · {rows.length}
-            </td>
-            <td className="px-3 py-2 text-ink-3" />
-            <td className="px-3 py-2 text-right text-ink tabular-nums">{usd(totals.spend)}</td>
-            <td className="px-3 py-2 text-right text-ink tabular-nums">{usd(totals.cpm)}</td>
-            <td className="px-3 py-2 text-right text-ink tabular-nums">{pct(totals.ctr)}</td>
-            <td className="px-3 py-2 text-right text-ink tabular-nums">{pct(totals.voc)}</td>
-            <td className="px-3 py-2 text-right text-ink tabular-nums">{pct(totals.atcRate)}</td>
-            <td className="px-3 py-2 text-right text-ink tabular-nums">{pct(totals.apRate)}</td>
-            <td className="px-3 py-2 text-right text-ink tabular-nums">{pct(totals.purchaseRate)}</td>
-            <td className="px-3 py-2 text-right text-ink tabular-nums">{pct(totals.cvr)}</td>
-            <td className="px-3 py-2 text-right text-ink tabular-nums">{int(totals.conversions)}</td>
-            <td className="px-3 py-2 text-right text-ink tabular-nums">{int(totals.addToCart)}</td>
-            <td className="px-3 py-2 text-right text-ink tabular-nums">{int(totals.addPayment)}</td>
-            <td className="px-3 py-2 text-right text-ink tabular-nums">
-              {roas(totals.roas)}
-            </td>
-            <td className="px-3 py-2 text-right text-ink tabular-nums">{int(totals.impressions)}</td>
-          </tr>
-        </tfoot>
-      </table>
-    </div>
-  );
-}
-
-function SortIcon({ active, dir }: { active: boolean; dir: Dir }) {
-  if (!active) {
-    return <ArrowUpDown className="w-3 h-3 text-ink-3 opacity-60" aria-hidden />;
-  }
-  return dir === "asc" ? (
-    <ArrowUp className="w-3 h-3 text-brand" aria-hidden />
-  ) : (
-    <ArrowDown className="w-3 h-3 text-brand" aria-hidden />
+    <DataTable
+      columns={columns}
+      rows={sorted}
+      rowKey={(r) => `${r.platform}::${r.campaign}`}
+      sort={sort.key}
+      dir={sort.dir}
+      onSort={(key) => setSort((prev) => nextSort(prev, key as SortKey))}
+      {...cols.tableProps}
+      showTotals
+      minWidthClass="min-w-max"
+      empty={
+        <div className="rounded-lg border border-dashed border-line bg-surface px-6 py-12 text-center">
+          <p className="text-ink-2 text-sm">No campaign activity in this window.</p>
+        </div>
+      }
+    />
   );
 }

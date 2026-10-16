@@ -61,6 +61,8 @@ export const TABLE_KEYS = {
   // ── Phase 3 (2026-10): the hand-rolled tables, as they migrate ────────
   /** Trends → Launches, the launch-fatigue table. */
   TRENDS_LAUNCHES: "trends-launches",
+  /** Funnel → the per-campaign funnel table. */
+  FUNNEL_CAMPAIGNS: "funnel-campaigns",
 } as const;
 
 export type TableKey = (typeof TABLE_KEYS)[keyof typeof TABLE_KEYS];
