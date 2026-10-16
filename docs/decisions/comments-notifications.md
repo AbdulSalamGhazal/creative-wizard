@@ -1,0 +1,241 @@
+# Comments & notifications
+
+> **Read this file before changing this domain.** CLAUDE.md carries the
+> sharpest invariants; everything below is the full set plus the history
+> that produced them. The history is MOVED VERBATIM from CLAUDE.md's old
+> Learned section — if it disagrees with the invariants above it, the
+> invariants win and the history is telling you why the rule exists.
+
+## Invariants
+
+- **Producers write notifications INSIDE the transaction of the thing they
+  describe** (`notifyRoutes(tx, …)`), or use an `afterWrite(tx, result)` hook.
+- Every read and write is self-scoped: `recipient_user_id` = the session user
+  AND `account_id` = the active brand. An id alone never identifies a row.
+- **Silent by default** — no routes for an event notifies nobody, and the actor
+  is always excluded from their own event.
+- **Archive, never delete.** Individual notifications are NOT audited; only
+  `notify.routes_update` is.
+- `categoryForType` is the ONE derivation of a row's category, and knows all
+  three families. Add a family there, never a fourth mapping at a call site.
+- A comment notifies only by MENTION, REPLY or ANCHOR ACTIVITY, and
+  `splitCommentRecipients` gives **one row per person per comment** by priority
+  mention > reply > anchor.
+- Mentions are stored EXPLICITLY from the picker, never parsed from body text;
+  a non-member mention is REFUSED, not dropped.
+- Threads are FLAT — the server re-parents a reply-to-a-reply onto the root.
+- Delete is SOFT; `restoreComment` is allowed only for whoever performed the
+  delete, checked against the `comment.delete` audit row written in the same
+  transaction — keep that row in-transaction or undo silently breaks.
+- **`lib/comment-markdown.ts` is the only place user input becomes HTML, and
+  its ORDER is the security model**: escape the whole body first, then
+  transform. A new pattern goes AFTER the escape, never before.
+- A FIRST LOAD never toasts and the bell never shakes on a baseline count;
+  `off` silences toasts only — the badge and the tab title still work.
+- Reactions: toggle = delete-then-insert (a race cannot duplicate); notifying
+  is ADD-ONLY and goes to the author alone; removing one retracts nothing.
+
+## History and rationale
+
+*Moved verbatim from CLAUDE.md (2026-10). Line references are to the file
+as it stood before the restructure.*
+
+### Notifications (phases 1–2, comments, reactions)
+
+<!-- was CLAUDE.md L230–425 -->
+
+- **Notifications (2026-09, phase 1 — the spine). Five invariants, all
+  deliberate.** Per-user in-app notifications: a top-bar bell, `/notifications`
+  (no sidebar entry — the bell is the way in), and routing configured on
+  Configuration → Notifications. Migration **0043** (additive: `notifications`
+  + `notification_routes`).
+  1. **Producers write INSIDE the transaction of the thing they describe.**
+     `notifyRoutes(tx, accountId, eventType, {...})` takes the caller's `tx`, so
+     a notification can never outlive a rolled-back write. Where a query helper
+     owns the transaction, give it an `afterWrite(tx, result)` hook (see
+     `writeStoreBatch`) instead of opening a second one. One routes read + one
+     bulk insert per producer — `lib/db.ts` is `max: 1`.
+  2. **Self-scoping on every notification read and write:**
+     `recipient_user_id = the session user` AND `account_id = the active brand`.
+     An id alone never identifies a row; someone else's simply matches nothing.
+     Reading your own needs NO permission — `notify.manage` gates the ROUTING
+     config only. Pinned by tests/db/notifications.test.ts.
+  3. **Silent by default.** No `notification_routes` rows for an event = it
+     notifies nobody, and the actor is always excluded from their own event.
+  4. **Archive, never delete.** "Clear" sets `archived_at`; restore reverses it;
+     archived rows stay searchable in the Archived tab. Nothing hard-deletes.
+  5. **Individual notifications are NOT audited** (they'd mirror `audit_events`
+     row for row); only `notify.routes_update` is.
+  - **NOTICEABLE (2026-09, migration 0050) — three escalations, all fed by the
+    bell's EXISTING poll: no second timer, no second endpoint.**
+    - **ARRIVAL TOASTS.** Each poll diffs its feed against `lastToastedId`, a
+      per-BRAND pointer in this browser's localStorage (guarded reads/writes —
+      a private window or blocked storage must not break the bell). **A FIRST
+      LOAD NEVER TOASTS**: a null pointer just adopts the newest id, because
+      opening the app is not an event; only what arrives while it is open is.
+      A pointer that has fallen out of the feed window reads as "all of these
+      are new", which the burst rule then collapses. More than
+      `TOAST_BURST_LIMIT` (3) arrivals in one poll become ONE summary toast
+      ("4 new notifications" → /notifications) instead of a stack; at or below
+      it, one toast each, oldest first, with the actor as the description and
+      an Open action that runs the same mark-read-then-navigate flow the
+      popover does. An item already read elsewhere never toasts.
+    - **TOAST SCOPE — a per-user setting (`users.toast_scope`), default
+      `personal`** (user decision), in the avatar menu's Notifications submenu
+      (the Theme submenu's shape). `personal` = a mention or a reply, or a
+      DIRECT event (one natural recipient — `user.brand_granted`), derived by
+      `isPersonalNotification`, never a second hand-kept list. `all` = every
+      notification; `off` silences **toasts only** — the badge, the tab title
+      and the bell still work, because not being interrupted is different from
+      not being told. The action is self-only (the session user is the
+      subject; there is no id in its input), validated against the vocabulary,
+      and NOT audited — preference churn, like notification reads.
+    - **TAB TITLE + BELL.** Unread prefixes `document.title` with "(N) "
+      (capped "9+", `titleWithUnread`); it re-applies after route changes
+      (Next rewrites the title on navigation) and ALWAYS strips an existing
+      prefix first, so counts can never stack. The bell shakes ONCE when the
+      count INCREASES — never a persistent animation, keyframes behind
+      `prefers-reduced-motion`, and the FIRST loaded count is a baseline, not
+      an increase (arriving at a page with unread items must not shake, for
+      the same reason it must not toast).
+  - **THE PAGE READS LIKE A FEED (2026-10):** DAY GROUPS (Today · Yesterday ·
+    the date, labelled in UTC like every other date here), an actor AVATAR
+    (initials + a colour derived from the name, `lib/avatar.ts`) carrying the
+    category glyph, and a BURST COLLAPSE — consecutive same-anchor rows within
+    one day fold into "5 updates on «anchor»", expandable, with mark-read
+    acting on the GROUP. The grouping is pure (`groupNotifications`): runs must
+    be CONSECUTIVE (an unrelated row breaks one — the feed stays
+    chronological), never cross a day, and a single row is never wrapped.
+    Category glyphs live in the SAME map as the filter icons
+    (`filter-icons.ts` → `CATEGORY_ICONS`), so the app has one place that
+    decides what a concept looks like. Row actions appear on hover/focus and
+    are always visible where there is no hover — the comment menu's precedent.
+    Tabs, search, filters and pagination are unchanged.
+  Vocabulary is `lib/notifications.ts` and everything derives from it —
+  `EVENT_TYPES` (the routable catalog; the config tab's rows), the five
+  categories (phase 1 produces `system` only), `POLL_MS` (the ONE polling knob),
+  `safeHref` (an href is data: in-app paths only, never an open redirect).
+  `notifications.dedupe_key` is RESERVED for phase-3 alert upserts — its unique
+  index is partial so today's NULLs never collide. **`categoryForType` is the
+  ONE derivation of a row's category** and knows all three families: the
+  routable catalog, the DIRECT events, and the COMMENT events
+  (`COMMENT_EVENT_TYPES`). It missed the last of those until 2026-09, so every
+  mention and reply rendered as a "System" chip in the bell and on the page —
+  a stored `category` column that nothing read. Add a family here, not a
+  fourth mapping at a call site. See tech-spec §5f.
+  - **Phase 2 — comments, mentions, replies (2026-09, migration 0044).**
+    Anchors: creative · campaign · budget month · an allow-listed aggregate
+    page (`COMMENTABLE_VIEWS` in lib/comments.ts). Invariants, all deliberate:
+    (a) **every comment captures the commenter's current view** — the query
+    string, read from the LIVE location at post time, so a deep link reproduces
+    what they were looking at; (b) a comment notifies ONLY by mention or reply
+    — a top-level comment with no mentions reaches nobody, and **mention wins**
+    so one comment never produces two rows for one person; (c) mentions are
+    stored EXPLICITLY from the picker, never parsed out of body text, and a
+    non-member mention is REFUSED, not dropped; (d) threads are FLAT — the
+    server re-parents a reply-to-a-reply onto the thread's root; (e) `anchor_id`
+    has no FK, so the action re-validates the anchor account-scoped and
+    allow-lists `view` pathnames; (f) delete is SOFT (the row renders "Comment
+    deleted" so replies keep their place), edit is author-only, admins may
+    delete anyone's; (g) notification links go through **`/go/comment/[id]`**,
+    which resolves the anchor at CLICK time — creatives and campaigns are
+    addressed by name, so a stored link would rot on the next rename.
+    `comment.update`/`comment.delete` are audited; creation is not.
+    - **Relocated to GLOBAL CHROME (2026-09) — a DOCKED panel, not a modal.**
+      ONE surface: the top-bar comment icon TOGGLES a 380px `<aside>` in the
+      dashboard layout's content row, beside the page column (`flex-1 min-w-0`).
+      The page SQUEEZES and stays fully interactive — no backdrop, no focus
+      trap, no scroll lock; clicking the page never closes it. It PERSISTS
+      across navigation (shows each page's thread; a quiet "no comments here" on
+      anchor-less pages), open state in localStorage. **Below `lg` it falls back
+      to the full-width overlay Sheet** — don't dock on a phone. No per-page
+      panels or header buttons (removed). Chat order (oldest top, newest bottom,
+      composer pinned below, scrolled to the end on open). **Clicking a comment
+      that carries a view APPLIES that view to the page beside the panel**, which
+      stays open — the panel is a set of saved states, and this is the point of
+      capturing the view at all. Reply is the only visible row action; Edit and
+      Delete live behind a "…" menu. **Delete = UNDO toast (8s), never a
+      confirm**: `restoreComment` is allowed ONLY for whoever performed the
+      delete (author, or the admin who removed it), checked against the
+      `comment.delete` audit row that `deleteComment` writes INSIDE its own
+      transaction — keep that row in-transaction or undo silently breaks.
+      **Inline @**: typing "@" at text start or after whitespace opens the picker
+      (never mid-word or in an email); mentions stay explicit ids, never parsed
+      at submit. Anchors come
+      from a client `CommentAnchorProvider` in the dashboard layout: an entity
+      page renders `<CommentAnchor type id />` and WINS on its own pathname,
+      everything else derives a `view` anchor from the pathname, and a page with
+      neither hides the icon. Valid view paths DERIVE from `NAV_ITEMS` (admin
+      included, `/notifications` excluded) — never re-list them. `/go/comment`
+      lands with `?comment=<id>`, which opens the panel on that comment.
+    - **ANCHOR-FOLLOWING (2026-10, user decision).** A new TOP-LEVEL comment
+      also notifies everyone who has commented on that ANCHOR before (any
+      thread on it) — type `comment.anchor_activity`, category `reply`, worded
+      "«Actor» commented on «anchor» — where you commented". A REPLY still
+      reaches its own thread only: pinging every past commenter on the page for
+      a reply is noise. Recipients derive from the `comments` table itself (one
+      bounded `SELECT DISTINCT` inside the create transaction) — **no new
+      storage, no subscription table**.
+      - **ONE ROW PER PERSON PER COMMENT, by priority: mention > reply >
+        anchor activity** (`splitCommentRecipients`). Someone mentioned in a
+        comment that also replies to their thread on an anchor they follow gets
+        exactly ONE notification — the mention. The actor never hears about
+        their own comment.
+      - **Comment notifications are stamped with the ANCHOR** (`entity_type` /
+        `entity_id`), not the individual comment — the comment id already rides
+        in the href, and the anchor is what lets /notifications collapse "5
+        updates on «Hero v2»" into one row. Rows written before 2026-10 carry
+        the comment and simply never group.
+    - **ONE COMPOSER — create, reply AND edit (2026-10).** The edit path used
+      to be a bare `<Textarea>` beside the real composer, which is exactly why
+      typing "@" while editing did nothing: the picker, the keyboard handling
+      and the mention registration all lived in the composer. The fix is
+      STRUCTURAL — `CommentComposer` takes a value, a submit label and what
+      submitting MEANS, and all three callers use it — rather than a second
+      copy of the wiring that would drift again.
+      - **An edit can ADD a mention**, so `updateComment` takes the mention set
+        as it stands after the edit, diffs it, and notifies the NEW names only,
+        in the same transaction as the body write. **Removing a mention drops
+        its row but RETRACTS NOTHING** — you cannot un-tell someone, and the
+        notification they already received stays.
+      - **MARKDOWN-LITE (user-approved scope): bold, italic and `- ` bullet
+        lists. Nothing else — and LINKS ARE NOT MARKDOWN** (a bare http(s) URL
+        auto-links with `rel="noopener noreferrer nofollow"`; a markdown link
+        stays literal text, which is how `[x](javascript:…)` is refused).
+        Comments are stored as PLAIN TEXT; `lib/comment-markdown.ts` renders
+        them, and **it is the only place in the app that turns user input into
+        HTML**. ITS ORDER IS THE SECURITY MODEL: escape the whole body FIRST,
+        then transform — so a new pattern goes AFTER the escape, never before,
+        and is matched against escaped text. `CommentBody` is the one component
+        that sets that HTML. The toolbar (B · I · list · @, ⌘/Ctrl+B/I) only
+        INSERTS SYNTAX around the selection — the field never becomes a rich
+        editor, so what you see in the box is what is stored.
+    - **The composer CLEARS ITSELF on success — and only on success (2026-10,
+      user-reported).** The drawer's create composer stays MOUNTED after a post
+      (its `key` only changes when `replyTo` does), so the sent text used to sit
+      in the box; reply and edit only looked right because those instances
+      unmount. The rule is `composerStateAfterSubmit` (pure, pinned both ways):
+      success empties body AND mentions, a FAILED submit keeps every character —
+      losing a typed comment to a network blink is the worse bug. Fix state in
+      the COMPOSER, never with a `key` trick at one caller. The same sweep found
+      the drawer's `highlightId` was never cleared: it outlived the post (so the
+      thread scrolled to someone else's comment instead of yours) and the page
+      (so the next thread didn't scroll at all). It is cleared on post and on
+      anchor change.
+    - **REACTIONS (2026-10, migration 0052) — five kinds, and the toggle is the
+      unique key.** 👍 `up` · ❤️ `heart` · 🎉 `party` · 😂 `laugh` · 😮 `wow`,
+      declared ONCE as `COMMENT_REACTIONS` in lib/comments.ts and derived
+      everywhere; **the short KEY is stored, so the keys are effectively schema**
+      (the emoji is presentation, and a retired kind renders as its raw key).
+      `toggleReaction` deletes first and inserts only if nothing was removed, so
+      a second click takes yours back and a race can't duplicate a row; the
+      comment is re-validated ACCOUNT-SCOPED, a soft-deleted comment is refused,
+      and the kind is checked against the vocabulary. Membership is the only
+      permission, and it is NOT audited (preference churn, like reads).
+      **Notifying is ADD-ONLY and goes to the AUTHOR alone** (user decision,
+      "like a reply"): type `comment.reaction`, category `reply`, anchor-stamped
+      like every comment notification, through `/go/comment/[id]`. Reacting to
+      your own comment notifies nobody; REMOVING one retracts nothing. Tallies
+      ride the EXISTING thread payload (one bounded query for the thread, never
+      one per comment) with `mine` resolved server-side; a deleted comment
+      carries none, and editing never touches reactions.
