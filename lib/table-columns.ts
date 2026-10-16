@@ -65,6 +65,8 @@ export const TABLE_KEYS = {
   FUNNEL_CAMPAIGNS: "funnel-campaigns",
   /** Compare → the A/B totals table. */
   COMPARE_TOTALS: "compare-totals",
+  /** Dashboard → the Top-creatives leaderboard. */
+  TOP_CREATIVES: "top-creatives",
 } as const;
 
 export type TableKey = (typeof TABLE_KEYS)[keyof typeof TABLE_KEYS];

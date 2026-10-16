@@ -43,6 +43,14 @@ export interface DataColumn<T> {
   /** Raw value for CSV export. Falls back to `sortValue` when omitted. */
   csv?: (row: T) => string | number | null;
   /**
+   * This column cannot be hidden RIGHT NOW, for a reason the consumer owns —
+   * the dashboard's Top-creatives table force-shows whatever metric the table
+   * is currently ranked by, so you can always see what you sorted on. The
+   * column stays visible whatever `hidden` says, and the control renders it
+   * without a checkbox rather than with one that does nothing.
+   */
+  lockedVisible?: boolean;
+  /**
    * Destination for this cell's content as a real `<Link>` (typically the
    * pinned identity column) so Cmd/Ctrl/middle-click opens a new tab — plain
    * `onRowClick` (router.push) can't. Left-click still navigates; the link
@@ -160,7 +168,7 @@ export function DataTable<T>({
   }, [columns, order, pinnedCol]);
 
   const cols = useMemo(
-    () => ordered.filter((c) => c.pinned || !hiddenSet.has(c.key)),
+    () => ordered.filter((c) => c.pinned || c.lockedVisible || !hiddenSet.has(c.key)),
     [ordered, hiddenSet],
   );
 
@@ -247,7 +255,14 @@ export function DataTable<T>({
       columnsKey={columnsKey}
       // The LIVE display order, pinned first — the control is a view of the
       // table it sits on, never a second list a page has to keep in step.
-      items={ordered.map((c) => ({ key: c.key, label: c.label, pinned: c.pinned }))}
+      items={ordered.map((c) => ({
+        key: c.key,
+        label: c.label,
+        pinned: c.pinned,
+        // A locked column shows no checkbox — a checkbox that cannot change
+        // anything is a lie about what the control does.
+        hideable: c.lockedVisible ? false : undefined,
+      }))}
       hidden={hidden}
       dirty={columnsDirty}
       onToggle={onToggleColumn}

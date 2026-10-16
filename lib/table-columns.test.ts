@@ -283,6 +283,7 @@ describe("the registry", () => {
         "recon-platforms",
         "store-insights",
         "store-orders",
+        "top-creatives",
         "trends-angles",
         "trends-launches",
         "trends-video",

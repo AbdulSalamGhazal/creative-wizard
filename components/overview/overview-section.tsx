@@ -344,8 +344,8 @@ export async function OverviewSection({
         <CorrelationMatrix rows={metricRows} />
       </div>
 
-      {/* Top creatives (title + ranking metric + column toggles live in the
-          table's own toolbar) */}
+      {/* Top creatives (title + ranking metric live in its own toolbar; the
+          COLUMNS control is in the table's header row, like every table) */}
       <Card>
         <CardContent>
           <TopCreativesTable rows={topRows} />
