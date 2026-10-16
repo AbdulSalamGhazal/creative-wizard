@@ -31,7 +31,15 @@ Do not introduce a new dependency without a one-line justification in the PR des
 - Files: kebab-case. Components: PascalCase. Functions and variables: camelCase. Constants: UPPER_SNAKE.
 - Each route's page renders one composed view; data fetching lives in `db/queries/*`, not inline in pages.
 - All inputs (route handler bodies, form data, URL params used as filters) are validated through Zod schemas in `validators/`.
-- No raw SQL except in `db/queries/performance.ts` for analytical aggregations — and there, wrap with a typed helper.
+- Raw `sql` templates live in the QUERY LAYER (`db/queries/*`) and in
+  `lib/metrics.ts`, the fragment library — plus five named sites that each
+  carry their reason in `db/raw-sql.test.ts` (schema defaults, the seed,
+  OAuth's atomic single-use `UPDATE`, the audience upsert's `excluded.*`, the
+  sign-in `LOWER(email)`, the health probe's `select 1`). **No component, page
+  or validator may use raw SQL** — that is the half that matters, because a
+  query written outside the layer skips the account scoping the layer applies
+  for everybody. (The old rule named one file while sixteen used `sql`; a rule
+  that is simply false teaches people to skim the section it lives in.)
 
 ## Database rules
 
@@ -118,6 +126,15 @@ Do not introduce a new dependency without a one-line justification in the PR des
   COMPONENT, never a VALUE from a client module** — shared data goes in a plain
   module both sides import, and `app/rsc-boundary.test.ts` now fails the build
   if that line is crossed.
+  **Know what each check PROVES, because they are not interchangeable.** A
+  **307** on a dashboard route proves middleware and routing are intact and
+  NOTHING about the page: a page with a deliberately broken import still
+  returns 307, because the redirect happens before the page module is ever
+  loaded (measured 2026-10, after a session's worth of reports had quietly
+  claimed otherwise). **`next build`** is what proves every page's module
+  graph resolves — the same broken import fails it. **Only a signed-in render
+  proves the page RENDERS.** Say which one you did; never let the cheap check
+  stand in for the expensive one.
 - **Two test suites.** `npm test` (or `npx vitest run`) is the pure-unit suite —
   no DB, no docker, always safe in CI. `npm run test:db` is the **real-database**
   suite (`tests/db/**`, config `vitest.config.db.ts`): its globalSetup creates a
