@@ -142,7 +142,14 @@ export function CampaignFunnelTable({ rows }: { rows: CampaignFunnelRow[] }) {
         pinned: true,
         defaultSortDir: firstDir("campaign"),
         render: (r) => (
-          <span className="block max-w-[22rem] truncate text-ink" title={r.campaign}>
+          // The cap is RESPONSIVE because this column is PINNED: a sticky cell
+          // wider than the visible frame cannot stay pinned, so on a phone the
+          // name's first characters scroll off the left edge. Desktop keeps
+          // the full 22rem.
+          <span
+            className="block max-w-[12rem] truncate text-ink sm:max-w-[22rem]"
+            title={r.campaign}
+          >
             {r.campaign}
           </span>
         ),

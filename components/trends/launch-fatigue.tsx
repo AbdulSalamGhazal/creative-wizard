@@ -435,7 +435,10 @@ export function LaunchFatigueTable({ rows }: { rows: LaunchFatigueViewRow[] }) {
         pinned: true,
         defaultSortDir: firstDir("creative"),
         render: (r) => (
-          <div className="max-w-[20rem]">
+          // Responsive cap: the column is PINNED, and a sticky cell wider than
+          // the visible frame stops pinning — on a phone the name would scroll
+          // off the left edge. Desktop is unchanged.
+          <div className="max-w-[12rem] sm:max-w-[20rem]">
             <Link
               href={r.href}
               title={r.name}
