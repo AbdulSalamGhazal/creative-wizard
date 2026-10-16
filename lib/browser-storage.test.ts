@@ -10,8 +10,9 @@ import path from "node:path";
  * ACCOUNT, per brand (`user_table_prefs`, `user_filter_prefs`, `users.*`) — so
  * they follow the person to another machine and can be reasoned about on the
  * server. Phase 2 deleted the per-browser hooks and retired four localStorage
- * keys; phase 3 retired two more. The rule only holds while nothing quietly
- * adds a seventh.
+ * keys; phase 3 retired two more; the census retired the last one (the Ads
+ * table's drag-widths, 2026-10). **No column state lives in this browser any
+ * more** — the list below is six per-viewer conveniences and nothing else.
  *
  * (That the retired HOOKS stay deleted is already pinned, correctly scoped to
  * `components/`, by `components/ui/table-columns-coverage.test.ts` — this file
@@ -35,8 +36,6 @@ const ALLOWED: Record<string, string> = {
     "the USD/SAR display toggle, which is explicitly display-only (ROAS always computes through the brand rate)",
   "components/layout/notification-bell.tsx":
     "`lastToastedId` per brand — a pointer to what THIS browser has already interrupted you about; it must not follow you to another device",
-  "components/summary/summary-table.tsx":
-    "the Ads table's drag-resized identity-column widths — THE ONE SURVIVING COLUMN-STATE KEY. The Ads table is a grouped twin and never moved onto DataTable, so the ephemeral-width rule never reached it. Flagged in docs/rules-census.md; it is drift, not a decision",
 };
 
 function walk(dir: string, out: string[] = []): string[] {

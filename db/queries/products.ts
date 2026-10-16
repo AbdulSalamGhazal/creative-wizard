@@ -31,3 +31,36 @@ export async function countCreativesPerProduct(): Promise<Map<string, number>> {
     .groupBy(creatives.productId);
   return new Map(rows.map((r) => [r.productId, Number(r.c)]));
 }
+
+/** One row of the Catalog admin's product table. */
+export interface ProductAdminRow {
+  id: string;
+  name: string;
+  slug: string;
+  status: "active" | "archived";
+  createdAt: Date;
+}
+
+/**
+ * Every product in the brand, active and archived, for the Catalog admin.
+ *
+ * `listProducts` above is deliberately not this: that one feeds filter
+ * dropdowns and is scoped to ACTIVE products. The admin table has to show the
+ * archived ones too, which is a different question and gets its own function
+ * rather than a boolean argument.
+ */
+export async function listProductsForAdmin(): Promise<ProductAdminRow[]> {
+  const acct = await getActiveAccountId();
+  const rows = await db
+    .select({
+      id: products.id,
+      name: products.name,
+      slug: products.slug,
+      status: products.status,
+      createdAt: products.createdAt,
+    })
+    .from(products)
+    .where(eq(products.accountId, acct))
+    .orderBy(asc(products.name));
+  return rows as ProductAdminRow[];
+}

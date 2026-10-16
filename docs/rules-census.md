@@ -11,13 +11,13 @@
 | | rules | share |
 |---|---:|---:|
 | enforced | 133 | 72% |
-| guard added | 8 | 4% |
-| prose | 43 | 23% |
+| guard added | 9 | 5% |
+| prose | 42 | 23% |
 | **total** | **184** | |
 
-141 of 184 rules (77%) are checked by something that runs.
+142 of 184 rules (77%) are checked by something that runs.
 
-The five guards written for this census, each demonstrated to BITE by
+The six guards written for this census, each demonstrated to BITE by
 introducing the violation and watching it fail:
 
 | guard | holds |
@@ -27,6 +27,7 @@ introducing the violation and watching it fail:
 | `lib/browser-storage.test.ts` | per-browser storage stays a short, argued allowlist |
 | `components/data-access.test.ts` | components don't reach past the query layer |
 | `lib/dependency-shape.test.ts` | the one added dependency stays pinned, single-importer, lazy |
+| `db/raw-sql.test.ts` | raw SQL stays in the query layer; components and validators never |
 
 ## CLAUDE.md
 
@@ -57,9 +58,9 @@ introducing the violation and watching it fail:
 | strict: true; never `any` | enforced | `npm run typecheck`; eslint `@typescript-eslint/no-explicit-any` |
 | Server Components by default; 'use client' only when needed | prose | a judgment per file |
 | kebab-case files, PascalCase components, UPPER_SNAKE constants | prose | convention; a linter rule would be noisy on legitimate exceptions |
-| Data fetching lives in db/queries/*, not inline in pages | **guard added** | NEW `app/routes.test.ts` sibling check is partial — see census note |
+| Data fetching lives in db/queries/*, not inline in pages | **guard added** | NEW `components/data-access.test.ts` — no exceptions |
 | All inputs validated through Zod in validators/ | enforced | `validators/*.test.ts` (5 files) pin the schemas; actions call them |
-| No raw SQL except db/queries/performance.ts | prose | **STALE — see findings.** 16 files use `sql``; the rule as written is false |
+| Raw SQL stays in the query layer, lib/metrics.ts + 5 named sites | **guard added** | NEW `db/raw-sql.test.ts` — rule reworded to match reality, then made checkable |
 
 ### Database rules
 
@@ -351,28 +352,30 @@ introducing the violation and watching it fail:
 | Upsert reuses import validation; updates aren't rollback-able | enforced | `tests/db/performance.test.ts` |
 | Four sanctioned exits from performance_records | enforced | `tests/db/cleanup.test.ts` |
 
-## Findings — rules that reality disagrees with
+## Findings — raised by the census, all four resolved
 
 Walking the rules turned up three places where the written rule and the
-code have drifted. None is fixed here: each is a decision, not a typo.
+code had drifted, plus a documentation overlap. The user decided each one;
+this is where they landed.
 
-1. **"No raw SQL except `db/queries/performance.ts`" is false as written.**
-   Sixteen files use a `sql` template, including most of `db/queries/*`,
-   `lib/metrics.ts` (by design — it IS the fragment library) and three
-   outside the query layer: `app/actions/audience.ts`, `app/actions/session.ts`,
-   `app/api/health/route.ts`. Either the rule should say "inside the query
-   layer and `lib/metrics.ts`", or those three callers should move. Left as
-   prose until someone decides which.
-2. **A component queries the database inline.**
-   `components/product/products-admin.tsx` imports `db` + drizzle + the
-   schema and runs its own query, against the Code-conventions rule. It is
-   recorded in `components/data-access.test.ts` as a KNOWN VIOLATION rather
-   than an exemption — the list may shrink, not grow.
-3. **One column-state key still lives in `localStorage`.**
-   `components/summary/summary-table.tsx` persists its drag-resized identity
-   column widths per browser. The Ads table is a grouped twin that never
-   moved onto `DataTable`, so the ephemeral-width rule never reached it.
-   Allowed in `lib/browser-storage.test.ts` with that said out loud.
+1. **The raw-SQL rule was false as written** — it named one file; sixteen
+   used a `sql` template. REWORDED to the line worth defending (raw SQL
+   lives in the query layer and `lib/metrics.ts`, plus five named sites
+   each carrying its reason) and then PROMOTED: `db/raw-sql.test.ts` holds
+   it, with a separate assertion that no component or validator may use
+   raw SQL at all — the half that cannot be weakened by adding a file to
+   the list.
+2. **A component queried the database inline.** FIXED:
+   `products-admin.tsx` now calls `listProductsForAdmin()` in the query
+   layer, and `components/data-access.test.ts` carries no exceptions.
+3. **One column-state key survived in `localStorage`.** ALIGNED: the Ads
+   table's drag-widths are ephemeral like every other table's, the key is
+   retired un-migrated, and no column state lives in a browser any more.
+4. **`docs/tech-spec.md` restated rules the decisions files own.** DEDUPED:
+   four pure restatements became pointers; the eight passages where the
+   overlap IS the architecture keep their text and gain a `Rules:` line.
+   Tech-spec remains binding for architecture; the contract is the
+   decisions file.
 
 ## Not enforceable, and why that is fine
 

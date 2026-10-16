@@ -1,11 +1,11 @@
-import { asc, eq } from "drizzle-orm";
-import { db } from "@/lib/db";
-import { products } from "@/db/schema";
 import { ProductCreateForm } from "@/components/product/product-create-form";
 import { ProductRowActions } from "@/components/product/product-row-actions";
-import { countCreativesPerProduct } from "@/db/queries/products";
+import {
+  countCreativesPerProduct,
+  listProductsForAdmin,
+  type ProductAdminRow,
+} from "@/db/queries/products";
 import { isoDate } from "@/lib/format";
-import { getActiveAccountId } from "@/lib/tenant";
 
 /**
  * Products management section — the body of the former /admin/products page,
@@ -13,19 +13,8 @@ import { getActiveAccountId } from "@/lib/tenant";
  * product; products with creatives can be archived but not deleted.
  */
 export async function ProductsAdmin() {
-  const acct = await getActiveAccountId();
   const [list, creativeCounts] = await Promise.all([
-    db
-      .select({
-        id: products.id,
-        name: products.name,
-        slug: products.slug,
-        status: products.status,
-        createdAt: products.createdAt,
-      })
-      .from(products)
-      .where(eq(products.accountId, acct))
-      .orderBy(asc(products.name)),
+    listProductsForAdmin(),
     countCreativesPerProduct(),
   ]);
 
@@ -57,13 +46,7 @@ function ProductTable({
   counts,
 }: {
   title: string;
-  rows: Array<{
-    id: string;
-    name: string;
-    slug: string;
-    status: "active" | "archived";
-    createdAt: Date;
-  }>;
+  rows: ProductAdminRow[];
   counts: Map<string, number>;
 }) {
   if (rows.length === 0) {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useNavTransition } from "@/lib/nav-progress";
@@ -70,7 +70,6 @@ interface Props {
 
 /** Text identity columns the user can drag to resize. Numeric columns stay auto-sized. */
 const RESIZABLE_IDENTITY = new Set(["name", "product", "creator"]);
-const COL_WIDTHS_KEY = "summary-col-widths";
 const MIN_COL_WIDTH = 80;
 
 /** A small colored pill for a creative's rating, centered in the cell. */
@@ -160,7 +159,11 @@ function pickMetric(block: PlatformMetricBlock, key: string): number | null {
  *
  * Metric column headers are sort Links (cycle desc → asc → reset). The text
  * identity columns (Creative / Product / Creator) are drag-resizable via a
- * handle on the right edge of each header; widths persist to localStorage.
+ * handle on the right edge of each header; widths are EPHEMERAL, like every
+ * DataTable's (2026-10 — `summary-col-widths` retired un-migrated, so a
+ * resize lasts the visit). A column CHOICE is remembered per user per brand;
+ * a dragged width is a momentary reading aid, and one place for that state
+ * beats two.
  * Numeric columns stay content-sized.
  */
 export function SummaryTable({
@@ -289,18 +292,6 @@ export function SummaryTable({
   ];
   const thRefs = useRef<Record<string, HTMLTableCellElement | null>>({});
 
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(COL_WIDTHS_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw) as Record<string, number>;
-        if (parsed && typeof parsed === "object") setWidths(parsed);
-      }
-    } catch {
-      /* ignore malformed storage */
-    }
-  }, []);
-
   const startResize = useCallback(
     (key: string, e: React.MouseEvent) => {
       e.preventDefault();
@@ -317,14 +308,6 @@ export function SummaryTable({
         window.removeEventListener("mousemove", onMove);
         window.removeEventListener("mouseup", onUp);
         document.body.style.userSelect = "";
-        setWidths((prev) => {
-          try {
-            localStorage.setItem(COL_WIDTHS_KEY, JSON.stringify(prev));
-          } catch {
-            /* ignore */
-          }
-          return prev;
-        });
       };
       window.addEventListener("mousemove", onMove);
       window.addEventListener("mouseup", onUp);
