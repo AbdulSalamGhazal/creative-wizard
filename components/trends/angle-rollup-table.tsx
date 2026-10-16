@@ -157,10 +157,13 @@ export function AngleRollupTable({ rows }: { rows: AngleRollupRow[] }) {
       render: (r) => (
         <Link
           href={`/library?angles=${encodeURIComponent(r.angle)}`}
-          className="inline-flex items-center gap-1.5 text-ink hover:text-brand transition-colors"
+          className="inline-flex max-w-[11rem] items-center gap-1.5 text-ink transition-colors hover:text-brand sm:max-w-none"
+          title={r.angle}
         >
-          <Hash className="w-3 h-3 text-ink-3" />
-          {r.angle}
+          <Hash className="w-3 h-3 shrink-0 text-ink-3" />
+          {/* An angle is user-created text; the phone cap keeps this pinned
+              cell inside the frame, and `truncate` needs it to bite. */}
+          <span className="truncate">{r.angle}</span>
         </Link>
       ),
     };

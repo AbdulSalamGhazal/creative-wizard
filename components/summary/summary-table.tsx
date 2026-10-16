@@ -640,7 +640,13 @@ export function SummaryTable({
                             title={r.name}
                             className={
                               "font-mono text-ink text-xs hover:text-brand transition-colors " +
-                              (w ? "block truncate" : "")
+                              // No pinned WIDTH set? Then cap it on a phone
+                              // anyway: this cell is sticky, and a sticky cell
+                              // wider than the frame stops pinning. A pinned
+                              // width keeps today's behaviour exactly.
+                              (w
+                                ? "block truncate"
+                                : "block max-w-[9rem] truncate sm:max-w-none")
                             }
                           >
                             {r.name}

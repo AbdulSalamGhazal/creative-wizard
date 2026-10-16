@@ -22,6 +22,7 @@ import { Button } from "@/components/ui/button";
 import { DataTable, type DataColumn } from "@/components/ui/data-table";
 import { useTableColumns } from "@/components/ui/use-table-columns";
 import { TABLE_KEYS } from "@/lib/table-columns";
+import { cn } from "@/lib/utils";
 import { MetricCard } from "@/components/overview/metric-card";
 import { DateRangePicker } from "@/components/filters/date-range-picker";
 import { FilterShell } from "@/components/filters/filter-shell";
@@ -211,9 +212,13 @@ export function StoreInsightsView({
         csv: (r) => r.label,
         render: (r) => (
           <span
-            className={
-              r.value === null || r.value === OTHER_VALUE ? "text-ink-2" : "text-ink"
-            }
+            className={cn(
+              // A dimension VALUE is free text (a UTM string, a city, any
+              // custom field) — it needs something to truncate against, and
+              // the phone cap keeps this pinned cell inside the frame.
+              "block max-w-[12rem] truncate sm:max-w-none",
+              r.value === null || r.value === OTHER_VALUE ? "text-ink-2" : "text-ink",
+            )}
             title={r.label}
           >
             {r.label}

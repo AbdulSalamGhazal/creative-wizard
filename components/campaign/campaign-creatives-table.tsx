@@ -119,7 +119,11 @@ export function CampaignCreativesTable({
             className="w-2 h-2 rounded-full shrink-0"
             style={{ background: colorById.get(r.creativeId) }}
           />
-          <span className="truncate font-mono text-xs" title={r.name}>
+          {/* Phone-only cap: a pinned cell wider than the frame stops pinning. */}
+          <span
+            className="max-w-[11rem] truncate font-mono text-xs sm:max-w-none"
+            title={r.name}
+          >
             {r.name}
           </span>
         </span>

@@ -434,10 +434,15 @@ export function BudgetPacing({
     label: groupBy === "week" ? "Week" : groupBy === "month" ? "Month" : "Day",
     pinned: true,
     render: (r) => (
-      <span className="inline-flex items-center gap-1.5">
-        <span className="num tabular-nums">{r.bucket.label}</span>
+      // Phone-only cap: a WEEK label plus the "through …" suffix measures
+      // ~298px, wider than a 375px viewport's scroll frame — and this cell is
+      // pinned, so past that it stops pinning and scrolls off the left edge.
+      <span className="inline-flex max-w-[12rem] items-center gap-1.5 sm:max-w-none">
+        <span className="num truncate tabular-nums">{r.bucket.label}</span>
         {r.spendPartial && r.spendThrough && (
-          <span className="text-label text-ink-3">through {monthDay(r.spendThrough)}</span>
+          <span className="shrink-0 text-label text-ink-3">
+            through {monthDay(r.spendThrough)}
+          </span>
         )}
       </span>
     ),

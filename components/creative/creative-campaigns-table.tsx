@@ -217,7 +217,10 @@ export function CreativeCampaignsTable({ campaigns, platforms }: Props) {
               {PLATFORM_LABEL[r.platform]}
             </span>
             <span
-              className="block truncate max-w-[18rem] text-ink"
+              // Phone-only tightening: the cell also carries the dot and the
+              // platform eyebrow, and a pinned cell wider than the frame stops
+              // pinning. Desktop keeps the full 18rem.
+              className="block max-w-[7rem] truncate text-ink sm:max-w-[18rem]"
               title={r.campaign}
             >
               {r.campaign}

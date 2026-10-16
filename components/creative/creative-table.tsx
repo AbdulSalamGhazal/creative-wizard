@@ -151,7 +151,14 @@ export function CreativeTable({
         sortable: true,
         href: detailHref,
         render: (r) => (
-          <span className="block truncate font-mono text-xs text-ink" title={r.name}>
+          // The cap is what `truncate` truncates against, and it is PHONE-ONLY:
+          // this column is pinned, and a sticky cell wider than the visible
+          // frame stops pinning (the name's first characters would scroll off
+          // the left edge). Desktop is unchanged.
+          <span
+            className="block max-w-[12rem] truncate font-mono text-xs text-ink sm:max-w-none"
+            title={r.name}
+          >
             {r.name}
           </span>
         ),

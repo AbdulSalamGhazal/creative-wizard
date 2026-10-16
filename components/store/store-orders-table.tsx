@@ -84,7 +84,12 @@ export function StoreOrdersTable({
         label: "Order ID",
         pinned: true,
         sortable: true,
-        render: (r) => <span className="font-mono text-xs">{r.orderId}</span>,
+        render: (r) => (
+          // Short in practice, unbounded by type — and this cell is pinned.
+          <span className="block max-w-[12rem] truncate font-mono text-xs sm:max-w-none">
+            {r.orderId}
+          </span>
+        ),
         sortValue: (r) => r.orderId,
         csv: (r) => r.orderId,
         total: () => (
