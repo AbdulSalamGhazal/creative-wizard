@@ -275,6 +275,7 @@ describe("the registry", () => {
         "campaign-creatives",
         "campaign-records",
         "campaigns",
+        "compare-totals",
         "funnel-campaigns",
         "creative-campaigns",
         "library",

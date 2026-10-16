@@ -63,6 +63,8 @@ export const TABLE_KEYS = {
   TRENDS_LAUNCHES: "trends-launches",
   /** Funnel → the per-campaign funnel table. */
   FUNNEL_CAMPAIGNS: "funnel-campaigns",
+  /** Compare → the A/B totals table. */
+  COMPARE_TOTALS: "compare-totals",
 } as const;
 
 export type TableKey = (typeof TABLE_KEYS)[keyof typeof TABLE_KEYS];

@@ -1,21 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { ChevronDown, SlidersHorizontal } from "lucide-react";
-import {
-  DropdownMenu,
-  DropdownMenuCheckboxItem,
-  DropdownMenuContent,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { useMemo } from "react";
+import { DataTable, type DataColumn } from "@/components/ui/data-table";
+import { useTableColumns } from "@/components/ui/use-table-columns";
+import { TABLE_KEYS } from "@/lib/table-columns";
 import { COMPARE_COLORS } from "@/components/charts/compare-chart";
 import { int, pct, roas, usd } from "@/lib/format";
 import type { Kpis } from "@/db/queries/performance";
 
+type MetricKey = Exclude<keyof Kpis, "funnelCpm" | "funnelCtr">;
+
 type ColumnDef = {
-  key: keyof Kpis;
+  key: MetricKey;
   label: string;
   fmt: (v: number | null) => string;
   /** Stronger ink for the headline metrics. */
@@ -23,9 +19,11 @@ type ColumnDef = {
 };
 
 /**
- * Every metric available on the A/B totals table. The user toggles which ones
- * show via the "Columns" menu; the choice persists in localStorage. Spend +
- * Selection are always shown.
+ * Every metric the A/B totals table offers. `funnelCpm`/`funnelCtr` are
+ * DELIBERATELY absent: they are `cpm`/`ctr` restricted to the platforms that
+ * report a funnel, they exist for the dashboard's funnel-rates card alone, and
+ * beside their unrestricted twins here they would read as a second, silently
+ * different CPM. See `Kpis` for the rule.
  */
 const COLUMNS: ColumnDef[] = [
   { key: "spend", label: "Spend", fmt: (v) => usd(v), strong: true },
@@ -45,7 +43,8 @@ const COLUMNS: ColumnDef[] = [
   { key: "holdRate", label: "Hold rate", fmt: (v) => pct(v) },
 ];
 
-const DEFAULT_VISIBLE: Array<keyof Kpis> = [
+/** The metrics a first visit shows; the rest are one click away. */
+const DEFAULT_VISIBLE: MetricKey[] = [
   "spend",
   "impressions",
   "ctr",
@@ -54,7 +53,10 @@ const DEFAULT_VISIBLE: Array<keyof Kpis> = [
   "roas",
   "hookRate",
 ];
-const STORAGE_KEY = "compare-totals-cols";
+/** The same statement in the columns system's own terms: what is HIDDEN. */
+const DEFAULT_HIDDEN = COLUMNS.filter(
+  (c) => !DEFAULT_VISIBLE.includes(c.key),
+).map((c) => c.key as string);
 
 export interface CompareSideTotals {
   label: string;
@@ -62,126 +64,85 @@ export interface CompareSideTotals {
   totals: Kpis;
 }
 
+/**
+ * The A/B totals table — one row per SIDE, on the shared `DataTable`.
+ *
+ * NOTHING SORTS HERE, on purpose: the rows are the comparison's two sides in
+ * the order the page defines them, and re-ordering them by a metric would
+ * break the pairing the colours, the chart and the controls all rely on. So no
+ * column is `sortable` and the table takes no `onSort`.
+ *
+ * The columns control is the shared one (key `compare-totals`, per user per
+ * brand). The old per-browser `compare-totals-cols` localStorage key is
+ * retired and its values were NOT migrated, as the Library's and Store orders'
+ * were not.
+ */
 export function CompareTotalsTable({ sides }: { sides: CompareSideTotals[] }) {
-  const [visible, setVisible] = useState<string[]>(DEFAULT_VISIBLE as string[]);
+  const columns = useMemo<DataColumn<CompareSideTotals>[]>(
+    () => [
+      {
+        key: "label",
+        label: "Side",
+        align: "left",
+        pinned: true,
+        render: (s) => (
+          <span className="inline-flex items-center gap-2 whitespace-nowrap font-medium text-ink">
+            <span
+              className="h-2 w-2 shrink-0 rounded-sm"
+              style={{
+                background:
+                  COMPARE_COLORS[sides.indexOf(s) % COMPARE_COLORS.length],
+              }}
+            />
+            {s.label}
+          </span>
+        ),
+        csv: (s) => s.label,
+      },
+      {
+        key: "selection",
+        label: "Selection",
+        align: "left",
+        render: (s) => (
+          <span className="whitespace-nowrap text-xs text-ink-3">{s.selection}</span>
+        ),
+        csv: (s) => s.selection,
+      },
+      ...COLUMNS.map<DataColumn<CompareSideTotals>>((c) => ({
+        key: c.key,
+        label: c.label,
+        align: "right",
+        render: (s) => (
+          <span className={c.strong ? "text-ink" : "text-ink-2"}>
+            {c.fmt(s.totals[c.key])}
+          </span>
+        ),
+        csv: (s) => s.totals[c.key],
+      })),
+    ],
+    [sides],
+  );
 
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        const arr = JSON.parse(raw) as unknown;
-        if (Array.isArray(arr)) {
-          const valid = arr.filter((k): k is string =>
-            COLUMNS.some((c) => c.key === k),
-          );
-          if (valid.length > 0) setVisible(valid);
-        }
-      }
-    } catch {
-      /* ignore malformed storage */
-    }
-  }, []);
-
-  const toggle = (key: string) => {
-    setVisible((prev) => {
-      const next = prev.includes(key)
-        ? prev.filter((k) => k !== key)
-        : [...prev, key];
-      if (next.length === 0) return prev; // keep at least one metric
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-      } catch {
-        /* ignore */
-      }
-      return next;
-    });
-  };
-
-  // Render in the canonical COLUMNS order regardless of toggle order.
-  const cols = COLUMNS.filter((c) => visible.includes(c.key as string));
+  const columnKeys = columns.filter((c) => !c.pinned).map((c) => c.key);
+  const cols = useTableColumns({
+    tableKey: TABLE_KEYS.COMPARE_TOTALS,
+    hideable: columnKeys,
+    defaults: columnKeys,
+    defaultHidden: DEFAULT_HIDDEN,
+  });
 
   return (
-    <div className="space-y-2">
-      <div className="flex justify-end">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button
-              type="button"
-              className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-line text-xs text-ink-2 hover:text-ink hover:bg-surface-2 transition-colors"
-            >
-              <SlidersHorizontal className="w-3.5 h-3.5" />
-              Columns
-              <ChevronDown className="w-3 h-3 text-ink-3" />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent
-            align="end"
-            className="w-48 max-h-[60vh] overflow-y-auto"
-          >
-            <DropdownMenuLabel>Metric columns</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            {COLUMNS.map((c) => (
-              <DropdownMenuCheckboxItem
-                key={c.key as string}
-                checked={visible.includes(c.key as string)}
-                onCheckedChange={() => toggle(c.key as string)}
-                onSelect={(e) => e.preventDefault()}
-              >
-                {c.label}
-              </DropdownMenuCheckboxItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
-
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm num">
-          <thead>
-            <tr className="text-left text-label text-ink-3">
-              <th className="font-medium px-2 py-2">Side</th>
-              <th className="font-medium px-2 py-2">Selection</th>
-              {cols.map((c) => (
-                <th
-                  key={c.key as string}
-                  className="font-medium px-2 py-2 text-right whitespace-nowrap"
-                >
-                  {c.label}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-line">
-            {sides.map((s, i) => (
-              <tr key={s.label} className="hover:bg-surface-2/60 transition-colors">
-                <td className="px-2 py-2.5">
-                  <span className="inline-flex items-center gap-2 text-ink font-medium whitespace-nowrap">
-                    <span
-                      className="w-2 h-2 rounded-sm shrink-0"
-                      style={{
-                        background: COMPARE_COLORS[i % COMPARE_COLORS.length],
-                      }}
-                    />
-                    {s.label}
-                  </span>
-                </td>
-                <td className="px-2 py-2.5 text-ink-3 text-xs whitespace-nowrap">
-                  {s.selection}
-                </td>
-                {cols.map((c) => (
-                  <td
-                    key={c.key as string}
-                    className={`px-2 py-2.5 text-right tabular-nums ${
-                      c.strong ? "text-ink" : "text-ink-2"
-                    }`}
-                  >
-                    {c.fmt(s.totals[c.key] as number | null)}
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
+    <DataTable
+      columns={columns}
+      rows={sides}
+      rowKey={(s) => s.label}
+      {...cols.tableProps}
+      minWidthClass="min-w-max"
+      empty={
+        <div className="rounded-lg border border-dashed border-line bg-surface px-6 py-8 text-center text-sm text-ink-2">
+          Pick a side to compare.
+        </div>
+      }
+    />
   );
 }
