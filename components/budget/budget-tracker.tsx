@@ -647,16 +647,23 @@ function rowsByPlatform(platforms: readonly TrackerPlatform[]): TrackerTableRow[
   return out;
 }
 
-/** objective → its platforms, unplanned combos badged: the allocation check. */
+/**
+ * objective → its platforms, unplanned combos badged: the allocation check.
+ * The sort keys carry the FUNNEL position (groups come out of
+ * `groupTrackerByObjective` in `BUDGET_OBJECTIVES` order), so sorting the
+ * identity column keeps every objective's rows under it in funnel order —
+ * subtotal first, then its platforms, planned before unplanned.
+ */
 function rowsByObjective(platforms: readonly TrackerPlatform[]): TrackerTableRow[] {
   const out: TrackerTableRow[] = [];
-  for (const g of groupTrackerByObjective(platforms)) {
+  groupTrackerByObjective(platforms).forEach((g, i) => {
+    const order = String(i).padStart(2, "0");
     out.push({
       key: g.key,
       kind: "subtotal",
       platform: null,
       label: g.label,
-      sortKey: g.label,
+      sortKey: order,
       bar: g,
       // An objective nobody planned for reads "—" like its rows, not a $0 plan.
       unplanned: g.rows.every((r) => r.unplanned),
@@ -667,12 +674,12 @@ function rowsByObjective(platforms: readonly TrackerPlatform[]): TrackerTableRow
         kind: "row",
         platform: r.platform,
         label: platformLabel(r.platform),
-        sortKey: `${g.label}|${r.platform}${r.unplanned ? "|unplanned" : ""}`,
+        sortKey: `${order}|${r.platform}|${r.unplanned ? 1 : 0}`,
         bar: r,
         unplanned: r.unplanned,
       });
     }
-  }
+  });
   return out;
 }
 
@@ -688,6 +695,12 @@ function rowsByObjective(platforms: readonly TrackerPlatform[]): TrackerTableRow
  * check that used to live on Overview). Subtotals are styled as "this row is
  * the sum of the ones under it", and the totals row sums the subtotals, so
  * both groupings foot to the same month.
+ *
+ * Default sort differs by grouping ON PURPOSE: by platform the table exists to
+ * be ranked, so it opens Δ% desc; by objective the GROUPING is the reading
+ * (an unplanned row has no Δ% and would sink out of its objective), so it
+ * opens on the identity column, funnel order. Sorting another column by hand
+ * may interleave either grouping — that is the reader's choice.
  */
 function TrackerTable({
   platforms,
@@ -847,10 +860,11 @@ function TrackerTable({
       {...cols.tableProps}
       rows={rows}
       rowKey={(r) => r.key}
-      // Worst pace first: the table exists to be ranked, and this is the
-      // ranking somebody opens it for.
-      sort="deviation"
-      dir="desc"
+      // By platform: worst pace first — the ranking somebody opens it for.
+      // By objective: the groups themselves, or an unplanned row (no Δ%)
+      // sinks to the bottom and reads as another objective's money.
+      sort={group === "objective" ? "item" : "deviation"}
+      dir={group === "objective" ? "asc" : "desc"}
       showTotals={rows.length > 0}
       minWidthClass="min-w-[760px]"
       rowClassName={(r) =>
