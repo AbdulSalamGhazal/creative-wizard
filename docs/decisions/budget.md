@@ -381,13 +381,20 @@ as it stood before the restructure.*
     - **Row order (`?rank=`) defaults to BY PLAN SIZE** — the earlier
       predictability-beats-drama decision stands; "Most off-pace first" is a
       choice, not the default.
-    - **The bar says three things at once:** the TRACK is the row's full-month
-      plan, the FILL is actual month-to-date, and the TICK is where the plan
-      curve says today should be. Pure CSS, tokens only (surface-2 / brand /
-      ink-3), warn-tinted by |deviation| through the shared threshold. The tick
+    - **The bar says four things at once (three until 2026-10-17):** the
+      TRACK is the row's full-month plan, the FILL is actual month-to-date,
+      the TICK is where the plan curve says today should be, and the PALE
+      EXTENSION past the fill is the month-end projection — the same
+      `t.projectedSpend` / `rowProjection` / `t.projectedRevenue` number the
+      "on this pace" lines print, passed through `PaceBar`'s `projection`
+      prop (the Overview hero bar's grammar), CURRENT MONTH ONLY: a past
+      month is final and a future month has nothing to project, so neither
+      draws one. Pure CSS, tokens only (surface-2 / brand / ink-3),
+      warn-tinted by |deviation| through the shared threshold. The tick
       stands 4px PROUD of the track — against the fill it is nearly invisible
       (1.06:1 on Midnight), and it is the whole point of the bar. Every bar
-      carries an aria-label that says the numbers in words.
+      carries an aria-label that says the numbers in words, the projection
+      included.
     - **A row with no plan gets NO bar** — there is no track to draw against.
       Unplanned spend is an amount-only line per platform: on a PLANNED
       platform it names the bucket(s) with no allocation (objective drift); a
