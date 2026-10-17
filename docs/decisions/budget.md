@@ -254,7 +254,12 @@ as it stood before the restructure.*
       `platform` is the table above; `objective` is the allocation check —
       objective subtotal → its platforms, unplanned combos badged — from
       `groupTrackerByObjective`, with the totals row summing whichever
-      subtotals are shown so both groupings foot to the same month.
+      subtotals are shown so both groupings foot to the same month. The
+      objective grouping OPENS on the identity column in funnel order — a
+      Δ% ranking would sink an unplanned row (it has no Δ%) out of its
+      objective and under another's heading — while the platform grouping
+      keeps Δ% desc; the bucket filter governs unplanned rows too, and
+      "Off-pace only" drops them (no verdict is not off-pace).
     - **Opt-in controls, each remembered:** tier-1 `platforms` (the shared
       key), tier-2 `buckets` and `offpace` ("Off-pace only" — it hides rows
       within the warn threshold in BOTH directions, which is why it is not
