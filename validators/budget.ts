@@ -323,3 +323,27 @@ export const trackerFiltersSchema = z.object({
 });
 
 export type TrackerFiltersInput = z.infer<typeof trackerFiltersSchema>;
+
+// ── Pacing view state (2026-10) ──────────────────────────────────────────────
+// Pacing's two view controls are REMEMBERED like the Tracker's board/rank/
+// group (FilterShell persistKeys). The names dodge keys other pages own:
+// `split` (not `group` — the Tracker's table grouping — and not `objectives`,
+// Campaigns' filter) and `shape` (not `view`, which is never persisted and is
+// Library's grid/table).
+
+/** How the series and the table blocks are split: not at all, per platform,
+ *  or per objective bucket. A platform split LOCKS the metric to Spend —
+ *  revenue has no platform attribution anywhere in Budget. */
+export const PACING_SPLITS = ["none", "platform", "objective"] as const;
+export type PacingSplit = (typeof PACING_SPLITS)[number];
+
+/** The chart's shape: running totals, per-period amounts, or per-period
+ *  actual − plan around zero (not available for ROAS). */
+export const PACING_SHAPES = ["cumulative", "period", "deviation"] as const;
+export type PacingShape = (typeof PACING_SHAPES)[number];
+
+export const pacingViewSchema = z.object({
+  split: z.enum(PACING_SPLITS).catch("none"),
+  shape: z.enum(PACING_SHAPES).catch("cumulative"),
+});
+export type PacingViewInput = z.infer<typeof pacingViewSchema>;

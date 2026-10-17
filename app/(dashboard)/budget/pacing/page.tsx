@@ -11,7 +11,7 @@ import {
   prevMonthKey,
 } from "@/lib/budget";
 import { ALL_PLATFORMS } from "@/lib/palette";
-import { MONTH_KEY } from "@/validators/budget";
+import { MONTH_KEY, PACING_SHAPES, PACING_SPLITS, pacingViewSchema } from "@/validators/budget";
 import { budgetPacingSeries, budgetPlansForMonths, getUsdToSarRate } from "@/db/queries/budget";
 import { dataHorizon, storeDataHorizon } from "@/db/queries/series-bounds";
 import { BudgetPacing, type GroupBy } from "@/components/budget/budget-pacing";
@@ -44,6 +44,8 @@ export default async function BudgetPacingPage({
     groupBy?: string;
     granularity?: string;
     platforms?: string;
+    split?: string;
+    shape?: string;
   }>;
 }) {
   const sp = await searchParams;
@@ -77,11 +79,18 @@ export default async function BudgetPacingPage({
   // REMEMBERED FILTERS (migration 0049): the platform picker is the only filter
   // on this page, and it is remembered per user per brand — URL wins, else the
   // saved value, else all platforms.
-  const platformsParam = (
-    await resolveFilterPrefs([{ key: "platforms", allow: ALL_PLATFORMS }], (key) =>
-      key === "platforms" ? sp.platforms : undefined,
-    )
-  ).platforms;
+  // REMEMBERED (0049): the platform filter, and — since 2026-10 — the two view
+  // controls (`split`, `shape`), URL → this user's saved value → the default.
+  const pref = await resolveFilterPrefs(
+    [
+      { key: "platforms", allow: ALL_PLATFORMS },
+      { key: "split", allow: PACING_SPLITS },
+      { key: "shape", allow: PACING_SHAPES },
+    ],
+    (key) => (key === "platforms" ? sp.platforms : key === "split" ? sp.split : key === "shape" ? sp.shape : undefined),
+  );
+  const platformsParam = pref.platforms;
+  const view = pacingViewSchema.parse({ split: pref.split, shape: pref.shape });
 
   const platforms = (platformsParam ?? "")
     .split(",")
@@ -106,13 +115,15 @@ export default async function BudgetPacingPage({
       <PageHeader
         eyebrow="Budget"
         title="Pacing"
-        subtitle="Actual against the plan curve over any range — grouped by day, week or month, filtered by platform, and broken down by objective. Spend is raw, unfiltered totals."
+        subtitle="Actual against the plan curve over any range — grouped by day, week or month, split by platform or objective, as running totals, per-period amounts or the drift from plan. Spend is raw, unfiltered totals."
       />
       <BudgetPacing
         from={from}
         to={to}
         groupBy={groupBy}
         platforms={platforms}
+        split={view.split}
+        shape={view.shape}
         series={series}
         plans={plans}
         rate={rate}
