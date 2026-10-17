@@ -2130,6 +2130,57 @@ describe("the view derivations", () => {
     expect(shown.find((p) => p.key === "instagram")!.buckets).toHaveLength(1);
   });
 
+  it("the bucket filter follows unplanned money too, and off-pace drops it", () => {
+    const t = buildTrackerRows(
+      trackerInput({
+        actualSpendByCombo: [
+          { platform: "instagram", objective: "Awareness", actualSpend: 4000 },
+          { platform: "instagram", objective: "Retargeting", actualSpend: 6000 },
+          // Drift: no plan row for instagram × Other, nor tiktok × Activation.
+          { platform: "instagram", objective: "Other", actualSpend: 900 },
+          { platform: "tiktok", objective: "Awareness", actualSpend: 2000 },
+          { platform: "tiktok", objective: "Activation", actualSpend: 300 },
+          // An unplanned-only platform.
+          { platform: "google", objective: "Other", actualSpend: 500 },
+        ],
+      }),
+      TRACKER_MONTH,
+      "2026-09-10",
+    );
+    // Asking for Awareness keeps the Awareness bars and NO unplanned line:
+    // "Other · unplanned" is not Awareness money.
+    const awareness = filterTrackerPlatforms(t.platforms, { buckets: ["Awareness"] });
+    expect(awareness.map((p) => p.key).sort()).toEqual(["instagram", "tiktok"]);
+    for (const p of awareness) {
+      expect(p.buckets.map((b) => b.label)).toEqual(["Awareness"]);
+      expect(p.unplannedBuckets).toEqual([]);
+      expect(p.unplanned).toBe(0);
+    }
+    // Asking for Other keeps only the platforms with Other money — and only
+    // that money: instagram's planned buckets are filtered away, google's
+    // unplanned-only card survives on its matching bucket.
+    const other = filterTrackerPlatforms(t.platforms, { buckets: ["Other"] });
+    expect(other.map((p) => p.key).sort()).toEqual(["google", "instagram"]);
+    const ig = other.find((p) => p.key === "instagram")!;
+    expect(ig.buckets).toEqual([]);
+    expect(ig.unplannedBuckets).toEqual([{ key: "instagram|Other", label: "Other", actual: 900 }]);
+    expect(ig.unplanned).toBe(900);
+    // Two unplanned buckets, one asked for → the sum is recomputed.
+    const activation = filterTrackerPlatforms(t.platforms, { buckets: ["Activation"] });
+    expect(activation.map((p) => p.key)).toEqual(["tiktok"]);
+    expect(activation[0]!.unplanned).toBe(300);
+    expect(activation[0]!.buckets).toEqual([]);
+    // Off-pace only: an unplanned row has no verdict, so it is never off-pace
+    // — it goes, and so does a card left with nothing.
+    const offPace = filterTrackerPlatforms(t.platforms, { offPaceOnly: true });
+    expect(offPace.every((p) => p.unplannedBuckets.length === 0 && p.unplanned === 0)).toBe(true);
+    expect(offPace.some((p) => p.key === "google")).toBe(false);
+    // No filter at all leaves every row as built.
+    const all = filterTrackerPlatforms(t.platforms, {});
+    expect(all.find((p) => p.key === "instagram")!.unplanned).toBe(900);
+    expect(all.find((p) => p.key === "google")!.unplanned).toBe(500);
+  });
+
   it("the platform and bucket filters narrow rows, never the maths", () => {
     const t = built();
     const ig = filterTrackerPlatforms(t.platforms, { platforms: ["instagram"] });

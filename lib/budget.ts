@@ -1516,8 +1516,12 @@ export interface TrackerViewFilters {
  * when a filter is hiding something.
  *
  * A platform card survives if the platform passes AND at least one of its
- * buckets does; its bucket list is narrowed to those. `offPaceOnly` applies to
- * the buckets and then to the card itself.
+ * rows does — a planned bucket or an unplanned one. Unplanned money follows
+ * the SAME bucket predicate (asking for Awareness must not keep an "Other ·
+ * unplanned" line), `unplanned` is recomputed as the survivors' sum, and
+ * "off-pace only" drops unplanned rows outright: a row with no verdict is not
+ * off-pace, which is also why the summary strip counts it in none of its
+ * three.
  */
 export function filterTrackerPlatforms(
   platforms: readonly TrackerPlatform[],
@@ -1533,17 +1537,19 @@ export function filterTrackerPlatforms(
     const buckets = p.buckets
       .filter((b) => wantBucket(b.label))
       .filter((b) => !f.offPaceOnly || isOffPace(b));
-    if (p.buckets.length === 0) {
-      // An unplanned-only platform has no bucket rows at all. It survives
-      // unless the reader asked for specific buckets (it has none of them) or
-      // for off-pace rows and this card isn't one.
-      if (f.buckets && f.buckets.length > 0) continue;
-      if (f.offPaceOnly && !isOffPace(p)) continue;
-      out.push({ ...p, buckets: [] });
-      continue;
-    }
-    if (buckets.length === 0) continue;
-    out.push({ ...p, buckets });
+    const unplannedBuckets = f.offPaceOnly
+      ? []
+      : p.unplannedBuckets.filter((u) => wantBucket(u.label));
+    // A platform with nothing left to show — no planned bucket and no
+    // unplanned money in the asked-for buckets — is hidden, whether it was
+    // planned or unplanned-only.
+    if (buckets.length === 0 && unplannedBuckets.length === 0) continue;
+    out.push({
+      ...p,
+      buckets,
+      unplannedBuckets,
+      unplanned: round2(unplannedBuckets.reduce((s, u) => s + u.actual, 0)),
+    });
   }
   return out;
 }
