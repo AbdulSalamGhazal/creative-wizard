@@ -5,8 +5,10 @@ import { Layers } from "lucide-react";
 import {
   Bar,
   CartesianGrid,
+  Cell,
   ComposedChart,
   Line,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -31,8 +33,8 @@ import { FilterPill } from "@/components/filters/filter-pill";
 import { FilterShell } from "@/components/filters/filter-shell";
 import { useFilterParams } from "@/components/filters/use-filter-params";
 import { DateRangePicker } from "@/components/filters/date-range-picker";
-import { ALL_PLATFORMS, PLATFORM_LABEL, seriesColor } from "@/lib/palette";
-import { monthDay, roas as fmtRoas, sar, sarCompact, usdCompact } from "@/lib/format";
+import { ALL_PLATFORMS, PLATFORM_COLOR, PLATFORM_LABEL, seriesColor } from "@/lib/palette";
+import { monthDay, roas as fmtRoas, sar, sarCompact, signedPct, usdCompact } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import {
   BUDGET_OBJECTIVES,
@@ -43,24 +45,223 @@ import {
   pacingTone,
   pacingVerdict,
   roasThroughRate,
+  round2,
   spendInDisplayCurrency,
   buildPlanSeries,
   stitchPlanByDay,
   weekBucketsInRange,
   type PlanSeries,
   type RangeBucket,
+  type TrackerBar,
 } from "@/lib/budget";
+import type { PacingShape, PacingSplit } from "@/validators/budget";
 import type { BudgetPacingSeries, MonthPlanRow } from "@/db/queries/budget";
 import {
   CurrencyToggle,
+  Hero,
+  HeroVerdict,
   HorizonNote,
+  PaceBar,
   PacingDevCell,
+  anchorWords,
   formatSpend,
   platformLabel,
   useBudgetCurrency,
+  type HeroState,
 } from "@/components/budget/budget-shared";
 
 export type GroupBy = "day" | "week" | "month";
+
+interface RangeSide {
+  state: HeroState;
+  /** The last covered day inside the range (null = none yet). */
+  through: string | null;
+  bar: TrackerBar;
+  projected: number | null;
+  /**
+   * Months in the range with actuals but NO plan on this side, and what was
+   * spent (or earned) in them through coverage. A range like Apr–Sep with one
+   * planned month has a plan to show but no pace to judge: the whole range's
+   * actual against one month's expectation would read "+3206%", and a
+   * projection over it is noise — so the card says this instead.
+   */
+  unplanned: { months: number; amount: number };
+}
+
+interface RangeCardData {
+  spend: RangeSide;
+  revenue: RangeSide;
+  roas: {
+    state: HeroState;
+    through: string | null;
+    actual: number | null;
+    /** The on-plan ROAS to date (over the whole range before it starts). */
+    target: number | null;
+    projected: number | null;
+  };
+}
+
+/**
+ * The ROAS card's bar: a ratio against a target, so plan = tick = the target
+ * and there is no verdict before any spend (actual null).
+ */
+function roasBar(target: number, actual: number | null): TrackerBar {
+  return {
+    key: "roas",
+    label: "ROAS",
+    plan: target,
+    actual: actual ?? 0,
+    planToDate: target,
+    delta: (actual ?? 0) - target,
+    deviation: actual === null ? null : pacingDeviation(actual, target),
+  };
+}
+
+/**
+ * The Overview's hero card, for a date range: the big number is the range's
+ * actual, the context says what was planned for the range, ONE PaceBar
+ * (track = the range's plan, fill = actual, tick = expected through coverage,
+ * pale extension = projection) and the verdict line. A fully covered range
+ * is "final for <range>"; a range with no plan shows the number and says so.
+ */
+function RangeCard({
+  metric,
+  title,
+  card,
+  fmtSpend,
+  rate,
+}: {
+  metric: Metric;
+  title: string;
+  card: RangeCardData;
+  fmtSpend: (usd: number) => string;
+  rate: number;
+}) {
+  if (metric === "roas") {
+    const r = card.roas;
+    const rateNote = `at ${rate.toFixed(2)} SAR/USD`;
+    if (r.target === null) {
+      return (
+        <Hero
+          label="ROAS"
+          value={fmtRoas(r.actual)}
+          context={<>no plan for this range · {rateNote}</>}
+        />
+      );
+    }
+    const actual = r.actual ?? 0;
+    const scale = Math.max(actual, r.target, r.projected ?? 0) * 1.15;
+    const bar = roasBar(r.target, r.actual);
+    if (r.state === "future") {
+      return (
+        <Hero
+          label="ROAS"
+          value={fmtRoas(r.target)}
+          aside={<span className="text-[11px] text-ink-3">on plan</span>}
+          context={<>for {title} · {rateNote}</>}
+        >
+          <div className="mt-3">
+            <PaceBar bar={bar} fmt={fmtRoas} name="ROAS" scale={scale} anchor="when it starts" />
+          </div>
+        </Hero>
+      );
+    }
+    return (
+      <Hero
+        label="ROAS"
+        value={fmtRoas(r.actual)}
+        context={
+          <>
+            on plan <span className="num tabular-nums text-ink-2">{fmtRoas(r.target)}</span> for{" "}
+            {title} · {rateNote}
+          </>
+        }
+      >
+        <div className="mt-3">
+          <PaceBar
+            bar={bar}
+            fmt={fmtRoas}
+            name="ROAS"
+            scale={scale}
+            projection={r.state === "live" ? r.projected : null}
+            anchor={anchorWords(r.through)}
+          />
+        </div>
+        <HeroVerdict
+          bar={bar}
+          fmt={fmtRoas}
+          projected={r.state === "live" ? r.projected : null}
+          state={r.state}
+          finalLabel={title}
+          variant="target"
+          vsLabel="vs plan"
+        />
+      </Hero>
+    );
+  }
+
+  const side = metric === "revenue" ? card.revenue : card.spend;
+  const fmt = metric === "revenue" ? sar : fmtSpend;
+  const label = metric === "revenue" ? "Revenue" : "Spend";
+  const { bar } = side;
+  if (bar.plan <= 0) {
+    return <Hero label={label} value={fmt(bar.actual)} context="no plan for this range" />;
+  }
+  if (side.state === "future") {
+    return (
+      <Hero
+        label={label}
+        value={fmt(bar.plan)}
+        aside={<span className="text-[11px] text-ink-3">planned</span>}
+        context={<>for {title}</>}
+      >
+        <div className="mt-3">
+          <PaceBar bar={bar} fmt={fmt} name={label} anchor="when it starts" />
+        </div>
+      </Hero>
+    );
+  }
+  return (
+    <Hero
+      label={label}
+      value={fmt(bar.actual)}
+      context={
+        <>
+          of <span className="num tabular-nums text-ink-2">{fmt(bar.plan)}</span> planned for {title}
+        </>
+      }
+    >
+      <div className="mt-3">
+        <PaceBar
+          bar={bar}
+          fmt={fmt}
+          name={label}
+          projection={side.state === "live" ? side.projected : null}
+          anchor={anchorWords(side.through)}
+        />
+      </div>
+      {side.unplanned.months > 0 ? (
+        // Part of the range has actuals and no plan: the bar still shows the
+        // range's plan against everything that happened, but a verdict and a
+        // projection over that comparison would be noise — say why instead.
+        <p className="mt-2 text-xs text-ink-3">
+          <span className="num tabular-nums text-ink-2">{fmt(side.unplanned.amount)}</span> of it
+          fell in {side.unplanned.months === 1 ? "a month" : `${side.unplanned.months} months`}{" "}
+          with no plan — nothing to pace the whole range against.
+        </p>
+      ) : (
+        <HeroVerdict
+          bar={bar}
+          fmt={fmt}
+          projected={side.projected}
+          state={side.state}
+          finalLabel={title}
+          vsLabel={metric === "revenue" ? "vs target" : "vs plan"}
+        />
+      )}
+    </Hero>
+  );
+}
 
 /**
  * "Sep 1 – Sep 30" within a year; "Oct 1, 2025 – Sep 30, 2026" across one.
@@ -71,7 +272,9 @@ function rangeTitle(from: string, to: string): string {
   return `${monthDay(from)}, ${from.slice(0, 4)} – ${monthDay(to)}, ${to.slice(0, 4)}`;
 }
 type Metric = "spend" | "revenue" | "roas";
-type View = "cumulative" | "period";
+
+/** A platform's series key — prefixed so it can never collide with a bucket name. */
+const platformKey = (platform: string) => `p:${platform}`;
 
 /** The chart/table series: totals, or one per budget objective bucket. */
 interface SeriesDef {
@@ -112,12 +315,22 @@ interface BucketRow {
  * (that lives on Reconciliation), deviations are warn-tinted by magnitude rather
  * than green/red, and a period past its side's data horizon is UNKNOWN — an
  * em-dash and a line that stops, never a zero.
+ *
+ * 2026-10: the page answers "where and when did we drift" as well as "did we
+ * follow the curve" — a RANGE CARD (the Overview's hero card for the range,
+ * fed by the table's own totals), a three-way SPLIT (none · platform ·
+ * objective; a platform split locks the metric to Spend like the platform
+ * filter does) and a third chart SHAPE, Deviation (per-period actual − plan
+ * around zero, warn-tinted by magnitude). Split and shape are remembered
+ * per user per brand like the Tracker's view controls.
  */
 export function BudgetPacing({
   from,
   to,
   groupBy,
   platforms,
+  split,
+  shape,
   series,
   plans,
   rate,
@@ -129,6 +342,10 @@ export function BudgetPacing({
   groupBy: GroupBy;
   /** Empty = every platform. */
   platforms: string[];
+  /** The remembered split (URL → preference → "none"). */
+  split: PacingSplit;
+  /** The remembered chart shape (URL → preference → "cumulative"). */
+  shape: PacingShape;
   series: BudgetPacingSeries;
   plans: MonthPlanRow[];
   rate: number;
@@ -143,14 +360,16 @@ export function BudgetPacing({
   // never have been in the URL at all.
   const { update } = useFilterParams({
     platforms: platforms.length > 0 ? platforms.join(",") : undefined,
+    // The two view controls are remembered too; their defaults are "absent",
+    // so choosing the default again deletes the preference (the house rule).
+    split: split === "none" ? undefined : split,
+    shape: shape === "cumulative" ? undefined : shape,
   });
 
   const [currency, pickCurrency] = useBudgetCurrency();
   const fmtSpend = (usdAmount: number) => formatSpend(usdAmount, currency, rate);
 
   const [metric, setMetric] = useState<Metric>("spend");
-  const [view, setView] = useState<View>("cumulative");
-  const [byObjective, setByObjective] = useState(false);
   const [hidden, setHidden] = useState<Set<string>>(() => new Set());
 
   // ── URL-backed controls ────────────────────────────────────────────────────
@@ -167,6 +386,8 @@ export function BudgetPacing({
       params.set("to", to);
       params.set("groupBy", groupBy);
       if (platforms.length > 0) params.set("platforms", platforms.join(","));
+      if (split !== "none") params.set("split", split);
+      if (shape !== "cumulative") params.set("shape", shape);
       for (const [key, value] of Object.entries(next)) {
         if (value === null || value === "") params.delete(key);
         else params.set(key, value);
@@ -183,16 +404,40 @@ export function BudgetPacing({
     setParams({ platforms: next.join(",") });
   };
 
-  // A platform filter scopes the spend side only; store revenue has no
-  // attribution, so revenue and ROAS drop back to Spend rather than silently
-  // mixing a filtered numerator with an unfiltered denominator.
+  // A platform filter — or a platform SPLIT — scopes the spend side only;
+  // store revenue has no attribution, so revenue and ROAS drop back to Spend
+  // rather than silently mixing a filtered numerator with an unfiltered
+  // denominator.
   const platformFiltered = platforms.length > 0;
-  const metricLocked = platformFiltered && metric !== "spend";
+  const spendOnly = platformFiltered || split === "platform";
+  const metricLocked = spendOnly && metric !== "spend";
   const activeMetric: Metric = metricLocked ? "spend" : metric;
+  // ROAS has no per-period difference worth drawing (a ratio of two
+  // cumulatives), so Deviation is unavailable there and falls back.
+  const activeShape: PacingShape =
+    activeMetric === "roas" && shape === "deviation" ? "cumulative" : shape;
+
+  // ── Actual per day, scoped by the platform filter ──────────────────────────
+  const inScope = (platform: string) =>
+    platforms.length === 0 || platforms.includes(platform);
+
+  /**
+   * The platforms a platform split draws: in scope, and with a plan or any
+   * spend somewhere in the range — a platform with neither has nothing to
+   * show, and five empty blocks would be the "super detailed" the page must
+   * not be. Always in `ALL_PLATFORMS` order.
+   */
+  const platformKeys = useMemo(() => {
+    const seen = new Set<string>();
+    for (const r of series.spend) seen.add(r.platform);
+    for (const p of plans) for (const a of p.allocations) seen.add(a.platform);
+    return ALL_PLATFORMS.filter((p) => inScope(p) && seen.has(p));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [series.spend, plans, platforms.join(",")]);
 
   // ── Series ─────────────────────────────────────────────────────────────────
   const seriesDefs: SeriesDef[] = useMemo(() => {
-    if (!byObjective || activeMetric !== "spend") {
+    if (split === "none" || activeMetric !== "spend") {
       return [
         {
           key: TOTAL_KEY,
@@ -201,12 +446,20 @@ export function BudgetPacing({
         },
       ];
     }
+    if (split === "platform") {
+      // Each platform in its own colour — the tokens PlatformDot uses.
+      return platformKeys.map((p) => ({
+        key: platformKey(p),
+        label: PLATFORM_LABEL[p],
+        color: PLATFORM_COLOR[p],
+      }));
+    }
     return BUDGET_OBJECTIVES.map((o, i) => ({
       key: o,
       label: o,
       color: seriesColor(i),
     }));
-  }, [byObjective, activeMetric]);
+  }, [split, activeMetric, platformKeys]);
 
   const shown = new Set(seriesDefs.filter((s) => !hidden.has(s.key)).map((s) => s.key));
   const toggleSeries = (key: string) =>
@@ -216,10 +469,6 @@ export function BudgetPacing({
       else next.add(key);
       return next;
     });
-
-  // ── Actual per day, scoped by the platform filter ──────────────────────────
-  const inScope = (platform: string) =>
-    platforms.length === 0 || platforms.includes(platform);
 
   const spendPerDay = useMemo(() => {
     const out = new Map<string, Map<string, number>>();
@@ -232,6 +481,7 @@ export function BudgetPacing({
       if (!inScope(r.platform)) continue;
       add(TOTAL_KEY, r.date, r.spend);
       add(r.objective, r.date, r.spend);
+      add(platformKey(r.platform), r.date, r.spend);
     }
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -270,14 +520,25 @@ export function BudgetPacing({
       inScope(platform) && (objective === undefined || o === objective);
     const out = new Map<string, Map<string, number>>();
     out.set(TOTAL_KEY, stitchPlanByDay(monthSeries, (m) => m.spendDays(scoped())));
-    if (!byObjective || activeMetric !== "spend") return out;
+    if (split === "none" || activeMetric !== "spend") return out;
+    if (split === "platform") {
+      // One stitched series per platform — its OWN allocations through the
+      // series' slice machinery, never a curve expanded here.
+      for (const platform of platformKeys) {
+        out.set(
+          platformKey(platform),
+          stitchPlanByDay(monthSeries, (m) => m.spendDays((pl) => pl === platform)),
+        );
+      }
+      return out;
+    }
     // One stitched series per objective bucket, each from its own slice.
     for (const objective of BUDGET_OBJECTIVES) {
       out.set(objective, stitchPlanByDay(monthSeries, (m) => m.spendDays(scoped(objective))));
     }
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [monthSeries, byObjective, activeMetric, platforms.join(",")]);
+  }, [monthSeries, split, activeMetric, platformKeys, platforms.join(",")]);
 
   const planRevenuePerDay = useMemo(
     () => stitchPlanByDay(monthSeries, (m) => m.revenueDays()),
@@ -316,7 +577,7 @@ export function BudgetPacing({
         for (const iso of isoDaysBetween(bucket.start, last)) fn(iso);
       };
 
-      for (const key of [TOTAL_KEY, ...BUDGET_OBJECTIVES]) {
+      for (const key of [TOTAL_KEY, ...BUDGET_OBJECTIVES, ...platformKeys.map(platformKey)]) {
         let actual = 0;
         if (!spendUnknown) {
           const days = spendPerDay.get(key);
@@ -363,7 +624,7 @@ export function BudgetPacing({
         revenuePartial,
       };
     });
-  }, [buckets, spendPerDay, planSpendPerDay, revenuePerDay, planRevenuePerDay, horizon, storeHorizon]);
+  }, [buckets, spendPerDay, planSpendPerDay, revenuePerDay, planRevenuePerDay, horizon, storeHorizon, platformKeys]);
 
   // ── Chart ──────────────────────────────────────────────────────────────────
   const toDisplay = (usdAmount: number) => spendInDisplayCurrency(usdAmount, currency, rate);
@@ -376,38 +637,49 @@ export function BudgetPacing({
     () =>
       rows.map((r) => {
         const point: Record<string, string | number | null> = { label: r.bucket.label };
+        const cumulative = activeShape === "cumulative";
         if (activeMetric === "roas") {
-          const actualRevenue = view === "cumulative" ? r.revenueCum : r.revenue;
+          const actualRevenue = cumulative ? r.revenueCum : r.revenue;
           const actualSpend =
-            view === "cumulative" ? (r.spendCum.get(TOTAL_KEY) ?? 0) : (r.spend.get(TOTAL_KEY) ?? 0);
-          const planRevenue = view === "cumulative" ? r.planRevenueCum : r.planRevenue;
+            cumulative ? (r.spendCum.get(TOTAL_KEY) ?? 0) : (r.spend.get(TOTAL_KEY) ?? 0);
+          const planRevenue = cumulative ? r.planRevenueCum : r.planRevenue;
           const planSpend =
-            view === "cumulative"
-              ? (r.planSpendCum.get(TOTAL_KEY) ?? 0)
-              : (r.planSpend.get(TOTAL_KEY) ?? 0);
+            cumulative ? (r.planSpendCum.get(TOTAL_KEY) ?? 0) : (r.planSpend.get(TOTAL_KEY) ?? 0);
           point[TOTAL_KEY] =
             r.spendUnknown || r.revenueUnknown ? null : roasOf(actualRevenue, actualSpend);
           point[`plan_${TOTAL_KEY}`] = roasOf(planRevenue, planSpend);
           return point;
         }
         if (activeMetric === "revenue") {
-          point[TOTAL_KEY] = r.revenueUnknown ? null : view === "cumulative" ? r.revenueCum : r.revenue;
-          const plan = view === "cumulative" ? r.planRevenueCum : r.planRevenue;
+          point[TOTAL_KEY] = r.revenueUnknown ? null : cumulative ? r.revenueCum : r.revenue;
+          const plan = cumulative ? r.planRevenueCum : r.planRevenue;
           point[`plan_${TOTAL_KEY}`] = plan > 0 ? plan : null;
+          // Deviation: this period's actual − plan. Unknown period → nothing
+          // (not zero); no plan → nothing to deviate from.
+          const dev =
+            r.revenueUnknown || r.planRevenue <= 0 ? null : r.revenue - r.planRevenue;
+          point[`dev_${TOTAL_KEY}`] = dev;
+          point[`warn_${TOTAL_KEY}`] =
+            dev !== null && pacingTone(pacingDeviation(r.revenue, r.planRevenue)) === "warn" ? 1 : 0;
           return point;
         }
         for (const def of seriesDefs) {
-          const actual =
-            view === "cumulative" ? r.spendCum.get(def.key) : r.spend.get(def.key);
+          const actual = cumulative ? r.spendCum.get(def.key) : r.spend.get(def.key);
           point[def.key] = r.spendUnknown ? null : toDisplay(actual ?? 0);
-          const plan =
-            view === "cumulative" ? r.planSpendCum.get(def.key) : r.planSpend.get(def.key);
+          const plan = cumulative ? r.planSpendCum.get(def.key) : r.planSpend.get(def.key);
           point[`plan_${def.key}`] = plan && plan > 0 ? toDisplay(plan) : null;
+          const periodActual = r.spend.get(def.key) ?? 0;
+          const periodPlan = r.planSpend.get(def.key) ?? 0;
+          const dev =
+            r.spendUnknown || periodPlan <= 0 ? null : toDisplay(periodActual - periodPlan);
+          point[`dev_${def.key}`] = dev;
+          point[`warn_${def.key}`] =
+            dev !== null && pacingTone(pacingDeviation(periodActual, periodPlan)) === "warn" ? 1 : 0;
         }
         return point;
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [rows, seriesDefs, view, activeMetric, currency, rate],
+    [rows, seriesDefs, activeShape, activeMetric, currency, rate],
   );
 
   const fmtValue = (v: number) =>
@@ -592,20 +864,32 @@ export function BudgetPacing({
       ];
     }
 
-    // Spend. One block per objective when the breakdown is on, else totals.
+    // Spend. One block per objective or per platform when split, else totals.
     const cols: DataColumn<BucketRow>[] = [periodCol];
-    const blockKeys = byObjective ? [...BUDGET_OBJECTIVES, TOTAL_KEY] : [TOTAL_KEY];
+    const isSplit = split !== "none";
+    const blockKeys =
+      split === "objective"
+        ? [...BUDGET_OBJECTIVES, TOTAL_KEY]
+        : split === "platform"
+          ? [...platformKeys.map(platformKey), TOTAL_KEY]
+          : [TOTAL_KEY];
+    const blockName = (key: string) =>
+      key === TOTAL_KEY
+        ? "Total"
+        : key.startsWith("p:")
+          ? platformLabel(key.slice(2))
+          : key;
     for (const key of blockKeys) {
       const isTotal = key === TOTAL_KEY;
-      const name = isTotal ? "Total" : key;
+      const name = blockName(key);
       cols.push(
         {
           key: `${key}_actual`,
-          label: byObjective ? `${name} actual` : `Spend (${currency})`,
+          label: isSplit ? `${name} actual` : `Spend (${currency})`,
           align: "right",
           render: (r) =>
             r.spendUnknown ? dash : (
-              <span className={cn("num tabular-nums", isTotal && byObjective && "font-medium")}>
+              <span className={cn("num tabular-nums", isTotal && isSplit && "font-medium")}>
                 {fmtSpend(r.spend.get(key) ?? 0)}
               </span>
             ),
@@ -624,7 +908,7 @@ export function BudgetPacing({
         },
         {
           key: `${key}_plan`,
-          label: byObjective
+          label: isSplit
             ? `${name} plan-to-date`
             : `Plan-to-date (${currency})`,
           align: "right",
@@ -653,7 +937,7 @@ export function BudgetPacing({
         },
         {
           key: `${key}_dev`,
-          label: byObjective ? `${name} pacing` : "Pacing",
+          label: isSplit ? `${name} pacing` : "Pacing",
           align: "right",
           render: (r) =>
             r.spendUnknown || !hasSpendPlan
@@ -672,7 +956,7 @@ export function BudgetPacing({
     }
     return cols;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeMetric, byObjective, currency, rate, rows, groupBy, hasSpendPlan]);
+  }, [activeMetric, split, platformKeys, currency, rate, rows, groupBy, hasSpendPlan]);
   // The table's own columns control, remembered per user per brand.
   const columnKeys = columns.filter((c) => !c.pinned).map((c) => c.key);
   const cols = useTableColumns({
@@ -682,7 +966,140 @@ export function BudgetPacing({
   });
 
 
-  /** Why Revenue and ROAS are unavailable under a platform filter. */
+  // ── The range card ─────────────────────────────────────────────────────────
+  // The Overview's hero card for the RANGE. Its numbers are the table's own
+  // totals — actual at the last known row, plan at the last row — with the
+  // expectation cut at the coverage DAY from the same stitched per-day plan
+  // the rows are summed from (under Day grouping that is the totals row's
+  // plan-to-date exactly; under Week/Month it is the honest number for a
+  // partial last period). Never a second computation over the plan.
+  const rangeCard = useMemo(() => {
+    const clip = (h: string | null): string | null =>
+      h && h >= from ? (h < to ? h : to) : null;
+    const spendThrough = clip(horizon);
+    const revenueThrough = clip(storeHorizon);
+    const sumThrough = (map: Map<string, number> | undefined, through: string | null) => {
+      if (!map || !through) return 0;
+      let total = 0;
+      for (const iso of isoDaysBetween(from, through)) total += map.get(iso) ?? 0;
+      return total;
+    };
+    const stateOf = (through: string | null): HeroState =>
+      through === null ? "future" : through >= to ? "final" : "live";
+    const bar = (key: string, label: string, plan: number, actual: number, expected: number): TrackerBar => ({
+      key,
+      label,
+      plan,
+      actual,
+      planToDate: expected,
+      delta: round2(actual - expected),
+      deviation: pacingDeviation(actual, expected),
+    });
+    // actual ÷ (expected ÷ plan): the module's coverage-fraction projection,
+    // only while the range is still running.
+    const project = (plan: number, actual: number, expected: number, state: HeroState) =>
+      state === "live" && plan > 0 && expected > 0 ? round2((actual * plan) / expected) : null;
+
+    // Months that have actuals through coverage but no plan on a side —
+    // the one case where "actual vs the range's plan" has no honest verdict.
+    const unplannedIn = (
+      actualMap: Map<string, number> | undefined,
+      through: string | null,
+      planned: (month: string) => boolean,
+    ) => {
+      const byMonth = new Map<string, number>();
+      if (actualMap && through) {
+        for (const iso of isoDaysBetween(from, through)) {
+          const v = actualMap.get(iso) ?? 0;
+          if (v > 0) byMonth.set(iso.slice(0, 7), (byMonth.get(iso.slice(0, 7)) ?? 0) + v);
+        }
+      }
+      let months = 0;
+      let amount = 0;
+      for (const [month, v] of byMonth) {
+        if (planned(month)) continue;
+        months += 1;
+        amount += v;
+      }
+      return { months, amount: round2(amount) };
+    };
+    const spendPlanned = (month: string) =>
+      plans.some((p) => p.month === month && p.allocations.length > 0);
+    const revenuePlanned = (month: string) =>
+      plans.some(
+        (p) => p.month === month && (p.plannedRevenueSar !== null || p.targetRoas !== null),
+      );
+
+    const spendPlan = lastRow?.planSpendCum.get(TOTAL_KEY) ?? 0;
+    const spendActual = lastKnownSpend?.spendCum.get(TOTAL_KEY) ?? 0;
+    const spendExpected = sumThrough(planSpendPerDay.get(TOTAL_KEY), spendThrough);
+    const spendState = stateOf(spendThrough);
+    const spendUnplanned = unplannedIn(spendPerDay.get(TOTAL_KEY), spendThrough, spendPlanned);
+    const spend = {
+      state: spendState,
+      through: spendThrough,
+      bar: bar("spend", "Spend", spendPlan, spendActual, spendExpected),
+      projected:
+        spendUnplanned.months > 0
+          ? null
+          : project(spendPlan, spendActual, spendExpected, spendState),
+      unplanned: spendUnplanned,
+    };
+
+    const revenuePlan = lastRow?.planRevenueCum ?? 0;
+    const revenueActual = lastKnownRevenue?.revenueCum ?? 0;
+    const revenueExpected = sumThrough(planRevenuePerDay, revenueThrough);
+    const revenueState = stateOf(revenueThrough);
+    const revenueUnplanned = unplannedIn(revenuePerDay, revenueThrough, revenuePlanned);
+    const revenue = {
+      state: revenueState,
+      through: revenueThrough,
+      bar: bar("revenue", "Revenue", revenuePlan, revenueActual, revenueExpected),
+      projected:
+        revenueUnplanned.months > 0
+          ? null
+          : project(revenuePlan, revenueActual, revenueExpected, revenueState),
+      unplanned: revenueUnplanned,
+    };
+
+    // ROAS needs BOTH sides through the same day: the earlier of the two.
+    const roasThrough =
+      spendThrough && revenueThrough
+        ? spendThrough < revenueThrough
+          ? spendThrough
+          : revenueThrough
+        : null;
+    const roasState = stateOf(roasThrough);
+    const roasActual = roasOf(
+      sumThrough(revenuePerDay, roasThrough),
+      sumThrough(spendPerDay.get(TOTAL_KEY), roasThrough),
+    );
+    // The on-plan ROAS to date — the ROAS metric's own definition.
+    const roasTarget = roasOf(
+      sumThrough(planRevenuePerDay, roasThrough),
+      sumThrough(planSpendPerDay.get(TOTAL_KEY), roasThrough),
+    );
+    // Over the whole range, for a range that hasn't started.
+    const roasRangeTarget = roasOf(revenuePlan, spendPlan);
+    const roasProjected =
+      roasState === "live" && spend.projected !== null && revenue.projected !== null
+        ? roasOf(revenue.projected, spend.projected)
+        : null;
+    return {
+      spend,
+      revenue,
+      roas: {
+        state: roasState,
+        through: roasThrough,
+        actual: roasActual,
+        target: roasTarget ?? roasRangeTarget,
+        projected: roasProjected,
+      },
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows, plans, planSpendPerDay, planRevenuePerDay, spendPerDay, revenuePerDay, horizon, storeHorizon, from, to, rate]);
+
+  /** Why Revenue and ROAS are unavailable under a platform filter or split. */
   const allPlatformsOnly =
     "All-platforms only — revenue isn't attributed to platforms";
 
@@ -703,6 +1120,10 @@ export function BudgetPacing({
           tier-1 slots and there is no Filters button or chips row. */}
       <FilterShell
         filters={[]}
+        // The two view controls are remembered per user per brand (0049) —
+        // declared here so the shell's writer treats them as preferences,
+        // like the Tracker's board / rank / group.
+        persistKeys={["split", "shape"]}
         tier1={({ fullWidth }) => (
           <>
             {/* Lifetime is hidden: an unbounded range has no plan to pace
@@ -751,13 +1172,16 @@ export function BudgetPacing({
               ]}
             />
 
-            <SegmentedControl<string>
-              ariaLabel="Objective breakdown"
-              value={byObjective ? "on" : "off"}
-              onChange={(v) => setByObjective(v === "on")}
+            {/* Split by: none · platform · objective. A VIEW control, not a
+                filter (Clear never touches it), remembered per user. */}
+            <SegmentedControl<PacingSplit>
+              ariaLabel="Split by"
+              value={split}
+              onChange={(v) => setParams({ split: v === "none" ? null : v })}
               options={[
-                { value: "off", label: "Totals" },
-                { value: "on", label: "By objective" },
+                { value: "none", label: "None" },
+                { value: "platform", label: "Platform" },
+                { value: "objective", label: "Objective" },
               ]}
             />
           </>
@@ -771,14 +1195,23 @@ export function BudgetPacing({
                 lives on Reconciliation), so revenue and ROAS are all-platforms only.
               </p>
             )}
-            {byObjective && activeMetric !== "spend" && (
+            {split === "objective" && activeMetric !== "spend" && (
               <p className="text-[11px] text-ink-3">
-                The objective breakdown applies to spend — revenue and ROAS have no
+                The objective split applies to spend — revenue and ROAS have no
                 objective split.
               </p>
             )}
           </>
         }
+      />
+
+      {/* The range card — the month's hero card, for this range */}
+      <RangeCard
+        metric={activeMetric}
+        title={rangeTitle(from, to)}
+        card={rangeCard}
+        fmtSpend={fmtSpend}
+        rate={rate}
       />
 
       {/* Chart */}
@@ -796,7 +1229,9 @@ export function BudgetPacing({
               onShowAll={() => setHidden(new Set())}
             />
             <p className="text-[11px] text-ink-3">
-              Solid = actual · dashed = the plan, spread by each month&rsquo;s plan curve.
+              {activeShape === "deviation"
+                ? "Bars = this period\u2019s actual minus its plan · tinted when the period is off pace by 15% or more · no bar where the period has no plan or no data yet."
+                : "Solid = actual · dashed = the plan, spread by each month\u2019s plan curve."}
             </p>
           </div>
         }
@@ -811,17 +1246,20 @@ export function BudgetPacing({
                     { value: "spend", label: "Spend" },
                     // Locked under a platform filter — shown, not hidden, so the
                     // reader can see the option exists and why it can't be used.
+                    // Locked under a platform filter OR a platform split —
+                    // shown, not hidden, so the reader can see the option
+                    // exists and why it can't be used.
                     {
                       value: "revenue",
                       label: "Revenue",
-                      disabled: platformFiltered,
-                      title: allPlatformsOnly,
+                      disabled: spendOnly,
+                      title: spendOnly ? allPlatformsOnly : undefined,
                     },
                     {
                       value: "roas",
                       label: "ROAS",
-                      disabled: platformFiltered,
-                      title: allPlatformsOnly,
+                      disabled: spendOnly,
+                      title: spendOnly ? allPlatformsOnly : undefined,
                     },
                   ]}
                   value={activeMetric}
@@ -830,13 +1268,22 @@ export function BudgetPacing({
               }
               controls={
                 <>
-                  <SegmentedControl<View>
+                  <SegmentedControl<PacingShape>
                     ariaLabel="Chart view"
-                    value={view}
-                    onChange={setView}
+                    value={activeShape}
+                    onChange={(v) => setParams({ shape: v === "cumulative" ? null : v })}
                     options={[
                       { value: "cumulative", label: "Cumulative" },
                       { value: "period", label: "Per-period" },
+                      {
+                        value: "deviation",
+                        label: "Deviation",
+                        disabled: activeMetric === "roas",
+                        title:
+                          activeMetric === "roas"
+                            ? "ROAS is a ratio of two running totals — it has no per-period difference to draw"
+                            : undefined,
+                      },
                     ]}
                   />
                   <ExpandButton inFull={inFull} onClick={toggleExpand} />
@@ -864,6 +1311,73 @@ export function BudgetPacing({
                   <Tooltip
                     content={(p: TooltipProps<number, string>) => {
                       if (!p.active || !p.payload?.length) return null;
+                      if (activeShape === "deviation") {
+                        // Actual, plan and the signed difference per series —
+                        // the row is the period itself.
+                        const row = rows.find((r) => r.bucket.label === p.label);
+                        return (
+                          <ChartTooltip>
+                            <div className="font-medium text-ink mb-1">{p.label}</div>
+                            {seriesDefs
+                              .filter((def) => shown.has(def.key))
+                              .map((def) => {
+                                const isRevenue = activeMetric === "revenue";
+                                const unknown = row
+                                  ? isRevenue
+                                    ? row.revenueUnknown
+                                    : row.spendUnknown
+                                  : true;
+                                const actual = row
+                                  ? isRevenue
+                                    ? row.revenue
+                                    : (row.spend.get(def.key) ?? 0)
+                                  : 0;
+                                const plan = row
+                                  ? isRevenue
+                                    ? row.planRevenue
+                                    : (row.planSpend.get(def.key) ?? 0)
+                                  : 0;
+                                const show = (v: number) =>
+                                  isRevenue ? sar(v) : fmtSpend(v);
+                                const diff = actual - plan;
+                                return (
+                                  <div key={def.key} className="mb-1 last:mb-0">
+                                    <div className="flex items-center gap-2">
+                                      <span
+                                        className="h-2 w-2 rounded-full"
+                                        style={{ background: def.color }}
+                                      />
+                                      <span className="text-ink-2">{def.label}</span>
+                                    </div>
+                                    <div className="grid grid-cols-[auto_1fr] gap-x-3 pl-4 text-ink-3">
+                                      <span>actual</span>
+                                      <span className="num tabular-nums text-right text-ink">
+                                        {unknown ? "—" : show(actual)}
+                                      </span>
+                                      <span>plan</span>
+                                      <span className="num tabular-nums text-right text-ink">
+                                        {plan > 0 ? show(plan) : "—"}
+                                      </span>
+                                      <span>Δ</span>
+                                      <span
+                                        className={cn(
+                                          "num tabular-nums text-right",
+                                          !unknown && plan > 0 && pacingTone(pacingDeviation(actual, plan)) === "warn"
+                                            ? "text-warn"
+                                            : "text-ink",
+                                        )}
+                                      >
+                                        {unknown || plan <= 0
+                                          ? "—"
+                                          : `${diff > 0 ? "+" : diff < 0 ? "−" : ""}${show(Math.abs(diff))} (${signedPct(pacingDeviation(actual, plan), 0)})`}
+                                      </span>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                          </ChartTooltip>
+                        );
+                      }
                       return (
                         <ChartTooltip>
                           <div className="font-medium text-ink mb-1">{p.label}</div>
@@ -892,7 +1406,32 @@ export function BudgetPacing({
                       );
                     }}
                   />
-                  {seriesDefs
+                  {activeShape === "deviation" && (
+                    <ReferenceLine y={0} stroke="var(--ink-3)" strokeWidth={1} />
+                  )}
+                  {activeShape === "deviation"
+                    ? // Per-period actual − plan around zero, each bar tinted
+                      // by ITS period's magnitude — the series colour when the
+                      // period is within the threshold, warn when it is not.
+                      seriesDefs
+                        .filter((def) => shown.has(def.key))
+                        .map((def) => (
+                          <Bar
+                            key={`dev_${def.key}`}
+                            dataKey={`dev_${def.key}`}
+                            fill={def.color}
+                            radius={[2, 2, 2, 2]}
+                            isAnimationActive={false}
+                          >
+                            {chartData.map((pt, i) => (
+                              <Cell
+                                key={i}
+                                fill={pt[`warn_${def.key}`] === 1 ? "var(--warn)" : def.color}
+                              />
+                            ))}
+                          </Bar>
+                        ))
+                    : seriesDefs
                     .filter((def) => shown.has(def.key))
                     .flatMap((def) => [
                       <Line
@@ -908,7 +1447,7 @@ export function BudgetPacing({
                         connectNulls={false}
                         isAnimationActive={false}
                       />,
-                      view === "period" && activeMetric !== "roas" ? (
+                      activeShape === "period" && activeMetric !== "roas" ? (
                         <Bar
                           key={def.key}
                           dataKey={def.key}
@@ -945,7 +1484,7 @@ export function BudgetPacing({
         rowKey={(r) => r.bucket.key}
         showTotals={rows.length > 0}
         minWidthClass={
-          byObjective && activeMetric === "spend" ? "min-w-[1600px]" : "min-w-[720px]"
+          split !== "none" && activeMetric === "spend" ? "min-w-[1600px]" : "min-w-[720px]"
         }
         csvFileName={`budget-pacing-${from}-to-${to}-${groupBy}-${currency.toLowerCase()}`}
         rowClassName={(r) => cn(r.spendUnknown && "opacity-60")}
