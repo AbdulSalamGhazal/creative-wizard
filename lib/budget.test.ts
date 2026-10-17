@@ -63,6 +63,10 @@ import {
   roasFromRevenue,
   reserveUsed,
   groupTrackerByObjective,
+  splitTotalByShares,
+  sharesFromStoredPlan,
+  sendRemainderToReserve,
+  distributePlatformsEvenly,
   cumulativeSums,
   cumulativeRoas,
   monthChartPoints,
@@ -808,6 +812,152 @@ describe("planning cascade", () => {
       expect(sharesComplete(shares)).toBe(true);
     });
   });
+
+  // ── The reserve as a share of the total (2026-10-17) ─────────────────────
+  describe("the reserve as one of the shares", () => {
+    const allocations = [
+      { platform: "instagram", objective: "Awareness", plannedSpend: 5_400 },
+      { platform: "instagram", objective: "Retargeting", plannedSpend: 3_600 },
+      { platform: "facebook", objective: "Activation", plannedSpend: 9_000 },
+    ];
+
+    it("splits the total with the reserve first, parts summing to the total", () => {
+      const split = splitTotalByShares(20_000, 10, [45, 45]);
+      expect(split.reserve).toBe(2_000);
+      expect(split.platforms).toEqual([9_000, 9_000]);
+      // Thirds across reserve + two platforms: rounded together, exact in all.
+      const thirds = splitTotalByShares(10_000, 100 / 3, [100 / 3, 100 / 3]);
+      expect(round2(thirds.reserve + sum(thirds.platforms))).toBe(10_000);
+      // No reserve share → no reserve amount, platforms take it all.
+      expect(splitTotalByShares(10_000, 0, [60, 40])).toEqual({ reserve: 0, platforms: [6_000, 4_000] });
+      // Nothing yet → nothing placed.
+      expect(splitTotalByShares(0, 10, [90])).toEqual({ reserve: 0, platforms: [0] });
+    });
+
+    it("rebuilds the cascade from a stored plan — shares of the TOTAL, in ALL_PLATFORMS order", () => {
+      const shares = sharesFromStoredPlan(allocations, 2_000);
+      expect(shares.total).toBe(20_000);
+      expect(shares.reserveShare).toBeCloseTo(10, 9);
+      expect(Object.keys(shares.platformShares)).toEqual(["instagram", "facebook"]);
+      expect(shares.platformShares.instagram).toBeCloseTo(45, 9);
+      expect(shares.platformShares.facebook).toBeCloseTo(45, 9);
+      expect(shares.objectiveShares["instagram|Awareness"]).toBeCloseTo(60, 9);
+      expect(shares.objectiveShares["instagram|Retargeting"]).toBeCloseTo(40, 9);
+      expect(shares.objectiveShares["facebook|Activation"]).toBeCloseTo(100, 9);
+      // The first level is whole as rebuilt.
+      expect(
+        sharesComplete([shares.reserveShare, ...Object.values(shares.platformShares)]),
+      ).toBe(true);
+    });
+
+    it("ROUND-TRIPS: stored → shares → amounts is cents-equal, reserve included", () => {
+      const cases: Array<{ rows: typeof allocations; reserve: number }> = [
+        { rows: allocations, reserve: 2_000 },
+        {
+          rows: [
+            { platform: "instagram", objective: "Other", plannedSpend: 3_000 },
+            { platform: "facebook", objective: "Awareness", plannedSpend: 3_000 },
+          ],
+          reserve: 500,
+        },
+        {
+          rows: [
+            { platform: "tiktok", objective: "Awareness", plannedSpend: 1_111.11 },
+            { platform: "tiktok", objective: "Activation", plannedSpend: 2_222.22 },
+            { platform: "snapchat", objective: "Retargeting", plannedSpend: 3_333.33 },
+            { platform: "google", objective: "Other", plannedSpend: 1.01 },
+          ],
+          reserve: 0.07,
+        },
+        { rows: allocations, reserve: 0 },
+      ];
+      for (const { rows, reserve } of cases) {
+        const shares = sharesFromStoredPlan(rows, reserve);
+        const platforms = Object.keys(shares.platformShares);
+        const split = splitTotalByShares(
+          shares.total,
+          shares.reserveShare,
+          platforms.map((p) => shares.platformShares[p]!),
+        );
+        expect(split.reserve, `reserve ${reserve}`).toBe(round2(reserve));
+        platforms.forEach((platform, i) => {
+          const mine = rows.filter((r) => r.platform === platform);
+          expect(split.platforms[i], platform).toBe(round2(sum(mine.map((r) => r.plannedSpend))));
+          const objectiveAmounts = amountsFromShares(
+            split.platforms[i]!,
+            BUDGET_OBJECTIVES.map((o) => shares.objectiveShares[`${platform}|${o}`] ?? 0),
+          );
+          BUDGET_OBJECTIVES.forEach((o, j) => {
+            const stored = mine.find((r) => r.objective === o)?.plannedSpend ?? 0;
+            expect(objectiveAmounts[j], `${platform} ${o}`).toBe(stored);
+          });
+        });
+      }
+    });
+
+    it("a month with no plan rebuilds as nothing", () => {
+      expect(sharesFromStoredPlan([], 0)).toEqual({
+        total: 0,
+        reserveShare: 0,
+        platformShares: {},
+        objectiveShares: {},
+      });
+      // Reserve-only: 100% reserve, no platforms.
+      expect(sharesFromStoredPlan([], 500).reserveShare).toBe(100);
+    });
+
+    it("send the rest to reserve: the whole gap, platforms untouched", () => {
+      expect(sendRemainderToReserve(10, [50, 25])).toBeCloseTo(25, 9);
+      expect(sendRemainderToReserve(0, [60, 40])).toBe(0); // already whole
+      // Over-assigned: the reserve gives back what it can…
+      expect(sendRemainderToReserve(20, [60, 30])).toBeCloseTo(10, 9);
+      // …but cannot go negative — then the move isn't possible.
+      expect(sendRemainderToReserve(5, [60, 50])).toBeNull();
+    });
+
+    it("the fixers work at FULL precision, so the money lands on the stored cents", () => {
+      // The September case: $6,000 allocated + $500 reserve, reserve retyped
+      // as 20%, then "Send the rest to reserve" — the reserve must come back
+      // as exactly $500, not $499.85.
+      const shares = sharesFromStoredPlan(
+        [
+          { platform: "instagram", objective: "Other", plannedSpend: 3_000 },
+          { platform: "facebook", objective: "Awareness", plannedSpend: 3_000 },
+        ],
+        500,
+      );
+      const platforms = [shares.platformShares.instagram!, shares.platformShares.facebook!];
+      const fixed = sendRemainderToReserve(20, platforms)!;
+      expect(splitTotalByShares(shares.total, fixed, platforms)).toEqual({
+        reserve: 500,
+        platforms: [3_000, 3_000],
+      });
+      // Distribute: the gap left by a lowered platform share spreads evenly and
+      // the amounts still sum to the total exactly.
+      const padded = distributePlatformsEvenly(shares.reserveShare, [40, platforms[1]!]);
+      const split = splitTotalByShares(shares.total, shares.reserveShare, padded);
+      expect(round2(split.reserve + split.platforms.reduce((a, b) => a + b, 0))).toBe(6_500);
+      expect(sharesComplete([shares.reserveShare, ...padded])).toBe(true);
+    });
+
+    it("distribute remaining evenly pads the PLATFORMS and holds the reserve", () => {
+      expect(distributePlatformsEvenly(10, [50, 20])).toEqual([60, 30]);
+      // Indivisible: still lands on exactly 100 with the reserve.
+      const fixed = distributePlatformsEvenly(10, [0, 0, 0]);
+      expect(sharesComplete([10, ...fixed])).toBe(true);
+      expect(distributePlatformsEvenly(10, [])).toEqual([]);
+      // Whole already: no-op.
+      expect(distributePlatformsEvenly(10, [45, 45])).toEqual([45, 45]);
+      // Over-assigned: taken back evenly, never below zero.
+      expect(distributePlatformsEvenly(10, [70, 40])).toEqual([60, 30]);
+      expect(distributePlatformsEvenly(10, [5, 125])).toEqual([0, 105]);
+    });
+
+    it("normalize scales reserve and platforms TOGETHER", () => {
+      // 3:1:1 of 50% → 60/20/20, the reserve included in the scaling.
+      expect(normalizeShares([30, 10, 10])).toEqual([60, 20, 20]);
+    });
+  });
 });
 
 /**
@@ -895,34 +1045,45 @@ describe("plan save gate", () => {
     share,
     objectiveShares,
   });
+  // The reserve is one of the shares (2026-10-17): 10% reserve + 55% + 35%.
   const complete = {
     total: 10_000,
-    reserve: 1_000,
+    reserveShare: 10,
     hasRevenueTarget: true,
     platforms: [
-      platform("Instagram", 60, [50, 50, 0, 0]),
-      platform("TikTok", 40, [100, 0, 0, 0]),
+      platform("Instagram", 55, [50, 50, 0, 0]),
+      platform("TikTok", 35, [100, 0, 0, 0]),
     ],
   };
 
   it("passes a fully-assigned plan", () => {
     expect(planGateProblems(complete)).toEqual([]);
+    // A plan with NO reserve is still whole when the platforms reach 100.
+    expect(
+      planGateProblems({
+        ...complete,
+        reserveShare: 0,
+        platforms: [platform("Instagram", 60, [50, 50, 0, 0]), platform("TikTok", 40, [100, 0, 0, 0])],
+      }),
+    ).toEqual([]);
   });
 
-  it("names the platform gap precisely", () => {
+  it("names the first-level gap precisely, reserve included", () => {
     const problems = planGateProblems({
       ...complete,
       platforms: [platform("Instagram", 60, [100, 0, 0, 0])],
     });
-    expect(problems).toContain("Platform shares: 60.0% — 40.0% unassigned");
+    expect(problems).toContain(
+      "Shares of the total: 70.0% (reserve 10.0% + platforms 60.0%) — 30.0% unassigned",
+    );
   });
 
   it("names the objective gap precisely, per platform", () => {
     const problems = planGateProblems({
       ...complete,
       platforms: [
-        platform("Instagram", 60, [50, 50, 0, 0]),
-        platform("Snapchat", 40, [85, 0, 0, 0]),
+        platform("Instagram", 55, [50, 50, 0, 0]),
+        platform("Snapchat", 35, [85, 0, 0, 0]),
       ],
     });
     expect(problems).toEqual(["Snapchat objectives: 85.0% — 15.0% unassigned"]);
@@ -933,7 +1094,9 @@ describe("plan save gate", () => {
       ...complete,
       platforms: [platform("Instagram", 60, [100, 0, 0, 0]), platform("TikTok", 60, [100, 0, 0, 0])],
     });
-    expect(problems[0]).toBe("Platform shares: 120.0% — 20.0% over");
+    expect(problems[0]).toBe(
+      "Shares of the total: 130.0% (reserve 10.0% + platforms 120.0%) — 30.0% over",
+    );
   });
 
   it("never blocks on a rounding artifact", () => {
@@ -941,10 +1104,30 @@ describe("plan save gate", () => {
     expect(
       planGateProblems({
         ...complete,
+        reserveShare: 0,
         platforms: [
           platform("A", 33.3, [33.3, 33.3, 33.4, 0]),
           platform("B", 33.3, [100, 0, 0, 0]),
           platform("C", 33.4, [100, 0, 0, 0]),
+        ],
+      }),
+    ).toEqual([]);
+    // …and not on the long decimals a reserve share reconstructed from cents has.
+    const shares = sharesFromStoredPlan(
+      [
+        { platform: "instagram", objective: "Awareness", plannedSpend: 3_333.33 },
+        { platform: "tiktok", objective: "Awareness", plannedSpend: 3_333.33 },
+      ],
+      3_333.34,
+    );
+    expect(
+      planGateProblems({
+        total: shares.total,
+        reserveShare: shares.reserveShare,
+        hasRevenueTarget: false,
+        platforms: [
+          platform("Instagram", shares.platformShares.instagram!, [100, 0, 0, 0]),
+          platform("TikTok", shares.platformShares.tiktok!, [100, 0, 0, 0]),
         ],
       }),
     ).toEqual([]);
@@ -955,7 +1138,7 @@ describe("plan save gate", () => {
       expect(
         planGateProblems({
           total: 0,
-          reserve: 0,
+          reserveShare: 0,
           hasRevenueTarget: true,
           platforms: [],
         }),
@@ -966,7 +1149,7 @@ describe("plan save gate", () => {
       expect(
         planGateProblems({
           total: 0,
-          reserve: 500,
+          reserveShare: 5,
           hasRevenueTarget: true,
           platforms: [],
         }),
@@ -975,15 +1158,22 @@ describe("plan save gate", () => {
 
     it("an empty month asks for one or the other", () => {
       expect(
-        planGateProblems({ total: 0, reserve: 0, hasRevenueTarget: false, platforms: [] }),
+        planGateProblems({ total: 0, reserveShare: 0, hasRevenueTarget: false, platforms: [] }),
       ).toEqual(["Set a total budget, or just a revenue target."]);
     });
   });
 
   it("catches a reserve larger than the total", () => {
+    // A typed reserve AMOUNT above the total back-computes to a share over 100.
     expect(
-      planGateProblems({ ...complete, total: 500, reserve: 1_000 }),
+      planGateProblems({ ...complete, reserveShare: shareFromAmount(1_000, 500) }),
     ).toContain("The reserve is larger than the total budget.");
+  });
+
+  it("a month that is ALL reserve still needs a platform", () => {
+    expect(
+      planGateProblems({ ...complete, reserveShare: 100, platforms: [] }),
+    ).toEqual(["Give at least one platform a share."]);
   });
 
   it("asks for a platform when a budget is set but nothing is split", () => {

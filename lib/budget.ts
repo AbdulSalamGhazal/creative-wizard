@@ -1083,11 +1083,126 @@ export function clampRangeMonths(
   };
 }
 
+// ── The reserve as a SHARE of the total (2026-10-17, user decision) ──────────
+// "The reserve should be within the percentages." The cascade is total →
+// shares of the TOTAL, where the reserve is one share beside the platforms →
+// each platform's objective shares. Storage is unchanged (the reserve's
+// derived amount lands in budget_targets.reserve_spend_usd, the platform ×
+// objective amounts in budget_allocations); these helpers are the one place
+// the share ↔ amount arithmetic lives, so no component re-derives it.
+
+export interface TotalSplit {
+  /** The reserve's derived amount — the FIRST share of the total. */
+  reserve: number;
+  /** One amount per platform share, in the order given. */
+  platforms: number[];
+}
+
+/**
+ * Amounts over the TOTAL with the reserve as the first share: one
+ * `amountsFromShares` call, so the reserve and the platforms are rounded
+ * TOGETHER by largest remainder and the parts sum to the total exactly once
+ * the shares reach 100%.
+ */
+export function splitTotalByShares(
+  total: number,
+  reserveShare: number,
+  platformShares: readonly number[],
+): TotalSplit {
+  const [reserve = 0, ...platforms] = amountsFromShares(total, [reserveShare, ...platformShares]);
+  return { reserve, platforms };
+}
+
+export interface StoredPlanShares {
+  /** Σ allocations + reserve — the number every share is a share of. */
+  total: number;
+  /** reserve ÷ total, as a percentage (0 with no total). */
+  reserveShare: number;
+  /** platform → Σ(its allocations) ÷ total — only planned platforms. */
+  platformShares: Record<string, number>;
+  /** `platform|objective` → allocation ÷ platform amount. */
+  objectiveShares: Record<string, number>;
+}
+
+/**
+ * The cascade rebuilt from what is STORED, at full precision: every share is
+ * its amount over its parent, so deriving straight back through
+ * `splitTotalByShares` / `amountsFromShares` gives the stored cents again (a
+ * round-trip is exact — pinned). Platforms come out in `ALL_PLATFORMS` order.
+ */
+export function sharesFromStoredPlan(
+  allocations: ReadonlyArray<{ platform: string; objective: string; plannedSpend: number }>,
+  reserve: number,
+): StoredPlanShares {
+  const allocated = round2(allocations.reduce((s, a) => s + a.plannedSpend, 0));
+  const total = round2(allocated + reserve);
+  const platformShares: Record<string, number> = {};
+  const objectiveShares: Record<string, number> = {};
+  for (const platform of ALL_PLATFORMS) {
+    const rows = allocations.filter((a) => a.platform === platform);
+    if (rows.length === 0) continue;
+    const platformSum = round2(rows.reduce((s, a) => s + a.plannedSpend, 0));
+    platformShares[platform] = shareFromAmount(platformSum, total);
+    for (const row of rows) {
+      objectiveShares[budgetComboKey(platform, row.objective)] = shareFromAmount(
+        row.plannedSpend,
+        platformSum,
+      );
+    }
+  }
+  return {
+    total,
+    reserveShare: shareFromAmount(reserve, total),
+    platformShares,
+    objectiveShares,
+  };
+}
+
+/** The exact gap to 100% — FULL precision, unlike `shareRemainder`'s 2dp. */
+function exactRemainder(shares: readonly number[]): number {
+  return 100 - shares.reduce((s, v) => s + (Number.isFinite(v) ? v : 0), 0);
+}
+
+/**
+ * "Send the rest to reserve": the whole gap between the shares and 100% goes
+ * into the reserve, platforms untouched. FULL precision on purpose: the
+ * platform shares reconstructed from stored cents are long decimals, and a
+ * reserve rounded to 2dp of a percent would land $0.15 off the cents they
+ * leave (7.69% of $6,500 is $499.85, not the $500 that was stored). An
+ * over-assigned split can only be absorbed if the reserve is big enough to
+ * give it back; otherwise null — the move isn't possible and the button
+ * should not offer it.
+ */
+export function sendRemainderToReserve(
+  reserveShare: number,
+  platformShares: readonly number[],
+): number | null {
+  const next = reserveShare + exactRemainder([reserveShare, ...platformShares]);
+  if (next < -SHARE_EPSILON) return null;
+  return Math.max(0, next);
+}
+
+/**
+ * "Distribute remaining evenly": the gap to 100% spread equally across the
+ * platforms, the reserve held where it is — undecided money is not pushed
+ * into the reserve by this button (that is the other one). Full precision,
+ * like the reserve fixer, so the derived amounts sum to the total exactly;
+ * an over-assignment is taken back evenly, each platform floored at 0.
+ */
+export function distributePlatformsEvenly(
+  reserveShare: number,
+  platformShares: readonly number[],
+): number[] {
+  if (platformShares.length === 0) return [...platformShares];
+  const each = exactRemainder([reserveShare, ...platformShares]) / platformShares.length;
+  return platformShares.map((share) => Math.max(0, share + each));
+}
+
 // ── The Plan editor's save gate ──────────────────────────────────────────────
 
 export interface PlanGatePlatform {
   label: string;
-  /** Share of the allocatable, as typed. */
+  /** Share of the TOTAL, as typed. */
   share: number;
   /** The four objective shares under it, as typed. */
   objectiveShares: number[];
@@ -1095,7 +1210,8 @@ export interface PlanGatePlatform {
 
 export interface PlanGateInput {
   total: number;
-  reserve: number;
+  /** The reserve's share of the total, as typed (0 = none). */
+  reserveShare: number;
   /** A revenue target on its own is a valid plan — see below. */
   hasRevenueTarget: boolean;
   platforms: PlanGatePlatform[];
@@ -1107,19 +1223,21 @@ const asPct = (share: number) => `${share.toFixed(1)}%`;
  * Why the plan can't be saved yet, in the planner's words — empty means it can.
  *
  * The 100% rule is deliberate: money you haven't decided on belongs in the
- * RESERVE, not in a silent gap. The one exception is a month planned only as a
- * REVENUE TARGET, which the storage layer has always supported (a target row
- * with no allocations); there is no spend budget to share out, so the share
- * rules simply don't apply — but a reserve can't exist either, since it is
- * carved out of a total.
+ * RESERVE, not in a silent gap — and since 2026-10-17 the reserve is one of
+ * the shares, so the first level is "reserve + platforms = 100% of the
+ * total". The one exception is a month planned only as a REVENUE TARGET,
+ * which the storage layer has always supported (a target row with no
+ * allocations); there is no spend budget to share out, so the share rules
+ * simply don't apply — but a reserve can't exist either, since it is carved
+ * out of a total.
  */
 export function planGateProblems(input: PlanGateInput): string[] {
-  const { total, reserve, hasRevenueTarget, platforms } = input;
+  const { total, reserveShare, hasRevenueTarget, platforms } = input;
   const out: string[] = [];
 
   if (total <= 0) {
     if (hasRevenueTarget) {
-      if (reserve > 0) {
+      if (reserveShare > 0) {
         out.push("A reserve needs a total budget to be carved out of.");
       }
       return out;
@@ -1128,20 +1246,25 @@ export function planGateProblems(input: PlanGateInput): string[] {
     return out;
   }
 
-  if (reserve > total) out.push("The reserve is larger than the total budget.");
+  if (reserveShare > 100 + SHARE_EPSILON) {
+    out.push("The reserve is larger than the total budget.");
+  }
   if (platforms.length === 0) {
     out.push("Give at least one platform a share.");
     return out;
   }
 
-  const shares = platforms.map((p) => p.share);
+  const shares = [reserveShare, ...platforms.map((p) => p.share)];
   if (!sharesComplete(shares)) {
     const left = shareRemainder(shares);
     const assigned = asPct(100 - left);
+    const parts = `reserve ${asPct(reserveShare)} + platforms ${asPct(
+      platforms.reduce((s, p) => s + p.share, 0),
+    )}`;
     out.push(
       left > 0
-        ? `Platform shares: ${assigned} — ${asPct(left)} unassigned`
-        : `Platform shares: ${assigned} — ${asPct(-left)} over`,
+        ? `Shares of the total: ${assigned} (${parts}) — ${asPct(left)} unassigned`
+        : `Shares of the total: ${assigned} (${parts}) — ${asPct(-left)} over`,
     );
   }
   for (const platform of platforms) {
