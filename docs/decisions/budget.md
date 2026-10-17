@@ -258,6 +258,50 @@ as it stood before the restructure.*
     The objective on a spend row is the campaign's CURRENT objective seen
     through the bucket lens, so reclassifying a campaign restates budget
     history. `budgetHistory()` was deleted — month grouping replaced it.
+    - **PACING GOT ITS POINT BACK (2026-10-17, user decision: "visually rich
+      but neat — where and when did we drift").** Three additions, nothing
+      removed. (1) **A RANGE CARD** above the chart — the Overview's hero card
+      (`Hero` / `HeroVerdict` / `anchorWords`, now in budget-shared) for the
+      RANGE, following the active metric: the big number is the range's
+      actual, "of <plan> planned for <range>", one `PaceBar` (track = the
+      range's plan, fill = actual, tick = expected through COVERAGE, pale
+      extension = projection) and the verdict line. Its numbers are the
+      table's own totals — actual at the last known row, plan at the last row
+      — with the expectation cut at the coverage DAY from the same stitched
+      per-day plan the rows sum (equal to the totals row's plan-to-date under
+      Day grouping; the honest number for a partial last Week/Month). The
+      projection is actual ÷ (expected ÷ plan), only while the range's end
+      lies past coverage; a fully covered range says "final for <range>"; a
+      range with no plan shows the number and "no plan for this range"; a
+      range that hasn't started shows the plan with a "planned" aside. ROAS
+      is the ratio bar (0..max×1.15, tick = on-plan ROAS to date, both sides
+      cut at the EARLIER of the two coverages). (2) **SPLIT BY: none ·
+      platform · objective** (`?split=`, `PACING_SPLITS`, remembered through
+      `persistKeys`) replaces the Totals / By objective toggle. Objective is
+      the old breakdown unchanged; **platform** draws one series per platform
+      in its `PLATFORM_COLOR`, each with its own dashed plan line from the
+      stitched series' slice (`spendDays((pl) => pl === platform)` — never a
+      curve expanded in the page), and one table block per platform in the
+      objective blocks' shape — only platforms with a plan or spend in the
+      range, in `ALL_PLATFORMS` order. **A platform split LOCKS the metric to
+      Spend exactly like the platform filter** (same note, same disabled
+      picker options): revenue has no platform attribution anywhere in
+      Budget. (3) **A THIRD CHART SHAPE, DEVIATION** (`?shape=cumulative|
+      period|deviation`, `PACING_SHAPES`, remembered): per-period actual −
+      plan as bars around a zero `ReferenceLine`, one bar series per split
+      series, each BAR warn-tinted when ITS period's |deviation| ≥
+      `PACING_WARN_THRESHOLD` (through `pacingTone`) and the series colour
+      otherwise; the tooltip shows actual, plan and the signed difference
+      with %. A period past the side's coverage draws nothing (unknown ≠ 0);
+      a period with no plan draws nothing and reads "—". ROAS has no
+      per-period difference, so Deviation is DISABLED with a title saying why
+      and ROAS on Deviation falls back to Cumulative. The table STAYS visible
+      and unchanged in shape (it gained the platform blocks). The two params
+      dodge keys other pages own (`split`, not `group`/`objectives`; `shape`,
+      not `view`); there was no URL alias to keep — the old objective toggle
+      was component state. Saved views were NOT enabled: the house Views
+      control is a per-page tier-1 component (Ads · Library · Campaigns),
+      so Pacing would need new UI, which the brief excluded.
   - **PACING COMPARES AGAINST DATA COVERAGE, NEVER THE CALENDAR (2026-10,
     standing decision — a user-reported bug).** "Planned so far" means
     "planned through the days THIS PLATFORM's data covers". Actuals end at the
@@ -532,6 +576,11 @@ as it stood before the restructure.*
     rebuild also fixed a latent bug: the old page passed platform coverage
     WITHOUT the store key, so its revenue verdict was always null in the
     current month; the page now builds the same coverage map the Tracker does.
+    (2026-10-17, PR 3: `Hero`, `HeroVerdict` and `anchorWords` MOVED from
+    budget-overview.tsx into budget-shared.tsx so the Pacing page's range
+    card is the same card; `HeroVerdict` speaks a `state: live | final |
+    future` + `finalLabel` instead of the month's three clocks, and the
+    Overview renders identically.)
     - **The reserve rule changed with it (user decision, 2026-10-17).** "Used"
       had been the sum of actual spend on platform × objective combos with no
       plan row. September's local data showed Facebook UNDER its plan yet
