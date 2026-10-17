@@ -28,6 +28,7 @@ import {
   REVENUE_COVERAGE_KEY,
   buildTrackerRows,
   filterTrackerPlatforms,
+  groupTrackerByObjective,
   monthLabel,
   pacingTone,
   rowProjection,
@@ -38,12 +39,17 @@ import {
   type TrackerCounts,
   type TrackerPlatform,
 } from "@/lib/budget";
-import type { TrackerFiltersInput } from "@/validators/budget";
+import type { TrackerFiltersInput, TrackerGroup } from "@/validators/budget";
 import type { BudgetMonthData } from "@/db/queries/budget";
 import {
+  Amounts,
   BudgetMonthBar,
+  CoverageLaggards,
+  CoverageLine,
   CurrencyToggle,
   HorizonNote,
+  PaceBar,
+  Verdict,
   formatSpend,
   platformLabel,
   useBudgetCurrency,
@@ -193,7 +199,7 @@ export function BudgetTracker({
           they were, and the new ones join them rather than replacing them. */}
       <FilterShell
         filters={defs}
-        persistKeys={["board", "rank"]}
+        persistKeys={["board", "rank", "group"]}
         tier1={() => (
           <>
             <BudgetMonthBar
@@ -267,6 +273,20 @@ export function BudgetTracker({
                 ]}
               />
             )}
+            {/* The table's grouping: platform → buckets, or objective →
+                platforms (the allocation check's reading, moved here from
+                Overview in 2026-10). The bars are always per platform. */}
+            {filters.board === "table" && (
+              <SegmentedControl<TrackerGroup>
+                ariaLabel="Group rows by"
+                value={filters.group}
+                onChange={(v) => writeOne("group", v, "platform")}
+                options={[
+                  { value: "platform", label: "By platform" },
+                  { value: "objective", label: "By objective" },
+                ]}
+              />
+            )}
             <CurrencyToggle currency={currency} onChange={pickCurrency} />
           </>
         )}
@@ -294,34 +314,15 @@ export function BudgetTracker({
           {/* ── Header strip: where the month is, and where it's heading ── */}
           <section className="rounded-lg border border-line bg-surface px-4 py-4">
             <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-              <p className="text-sm text-ink">
-                {t.isFutureMonth ? (
-                  <>Not started — {monthLabel(month)} is ahead of us</>
-                ) : (
-                  <>
-                    Day{" "}
-                    <span className="num tabular-nums">{t.elapsedDays}</span> of{" "}
-                    <span className="num tabular-nums">{t.totalDays}</span>
-                    {/* What the comparisons below actually counted through —
-                        the last uploaded day, not today. */}
-                    {t.coverage?.through && (
-                      <span className="text-ink-3">
-                        {" · data through "}
-                        <span className="num tabular-nums">
-                          {t.coverage.through}
-                        </span>
-                      </span>
-                    )}
-                    <span className="text-ink-3">
-                      {" · plan expects "}
-                      <span className="num tabular-nums">
-                        {Math.round(t.curveElapsed * 100)}%
-                      </span>
-                      {" spent"}
-                    </span>
-                  </>
-                )}
-              </p>
+              <CoverageLine t={t}>
+                <span className="text-ink-3">
+                  {" · plan expects "}
+                  <span className="num tabular-nums">
+                    {Math.round(t.curveElapsed * 100)}%
+                  </span>
+                  {" spent"}
+                </span>
+              </CoverageLine>
               <Verdict bar={t.total} fmt={fmtSpend} />
             </div>
 
@@ -373,22 +374,7 @@ export function BudgetTracker({
               )}
             </p>
 
-            {/* One platform's data lagging the rest changes what its row is
-                compared against, so the page says which one rather than
-                leaving a quietly different yardstick unexplained. */}
-            {t.coverage && t.coverage.laggards.length > 0 && (
-              <p className="mt-1 text-[11px] text-ink-3">
-                {t.coverage.laggards
-                  .map(
-                    (l) =>
-                      `${platformLabel(l.platform)} data ${
-                        l.date ? `ends ${l.date}` : "hasn't arrived"
-                      }`,
-                  )
-                  .join(" · ")}
-                {" — paced against what each one covers"}
-              </p>
-            )}
+            <CoverageLaggards coverage={t.coverage} className="mt-1" />
           </section>
 
           {/* ── Triage: how many rows are where, and one click to the ones
@@ -412,6 +398,7 @@ export function BudgetTracker({
           {filters.board === "table" ? (
             <TrackerTable
               platforms={shown}
+              group={filters.group}
               month={month}
               currency={currency}
               fmt={fmtSpend}
@@ -485,14 +472,19 @@ export function BudgetTracker({
                   )}
 
                   {p.unplanned > 0 && (
-                    // No bar: there is no plan to bar against. The words carry
-                    // the meaning — this money comes out of the reserve.
+                    // No bar: there is no plan to bar against. On a planned
+                    // platform this is objective DRIFT — the money is inside
+                    // the platform's plan, just not in the bucket it was
+                    // planned for; only a platform with no plan at all draws
+                    // the reserve (see `reserveUsed`).
                     <p className="mt-3 border-t border-line pt-2 text-xs text-ink-3">
                       Unplanned{" "}
                       <span className="num tabular-nums text-ink-2">
                         {fmtSpend(p.unplanned)}
-                      </span>{" "}
-                      — draws down the reserve
+                      </span>
+                      {p.plan > 0
+                        ? ` — no allocation for ${p.unplannedBuckets.map((u) => u.label).join(", ")}`
+                        : " — no plan for this platform; draws down the reserve"}
                     </p>
                   )}
                 </li>
@@ -513,14 +505,18 @@ export function BudgetTracker({
                 <span className="num tabular-nums">{fmtSpend(t.reserve)}</span>
                 <span className="text-ink-3"> — carved out of the total</span>
               </span>
+              {/* What the reserve has absorbed: spend beyond a PLATFORM's whole
+                  plan (2026-10-17 rule), never the unplanned-bucket sum. */}
               <span
                 className={cn(
                   "num tabular-nums",
-                  t.unplannedTotal > t.reserve ? "text-warn" : "text-ink-3",
+                  t.reserveUsed > t.reserve ? "text-warn" : "text-ink-3",
                 )}
               >
-                Unplanned spend {fmtSpend(t.unplannedTotal)}
-                {t.unplannedTotal > t.reserve && " — past the reserve"}
+                Used {fmtSpend(t.reserveUsed)}
+                {t.reserveUsed > t.reserve
+                  ? " — past the reserve"
+                  : " — spend beyond a platform\u2019s plan"}
               </span>
             </p>
 
@@ -549,121 +545,6 @@ export function BudgetTracker({
           both — a later day is not a zero, just not uploaded yet. */}
       <HorizonNote horizon={horizon} storeHorizon={storeHorizon} />
     </div>
-  );
-}
-
-/** Share of the track a value occupies, clamped to [0, 100]. */
-function pctOfPlan(value: number, plan: number): number {
-  if (plan <= 0) return 0;
-  return Math.max(0, Math.min(100, (value / plan) * 100));
-}
-
-/**
- * THE BAR. Pure CSS, no chart library: the track is the row's FULL month plan,
- * the fill is the actual so far, and the tick is where the plan curve says we
- * should be today. Warn-tinted by |deviation| through the shared threshold —
- * ahead and behind are both deviations, never good/bad green/red.
- *
- * The aria-label says the whole thing in words, because a bar a screen reader
- * can't read is decoration.
- */
-function PaceBar({
-  bar,
-  fmt,
-  name,
-  small = false,
-  anchor = "by today",
-}: {
-  bar: TrackerBar;
-  fmt: (v: number) => string;
-  name: string;
-  small?: boolean;
-  /** What the expectation is measured THROUGH — coverage, not the calendar. */
-  anchor?: string;
-}) {
-  const fill = pctOfPlan(bar.actual, bar.plan);
-  const tick = pctOfPlan(bar.planToDate, bar.plan);
-  const warn = pacingTone(bar.deviation) === "warn";
-  const words = `${name}: ${fmt(bar.actual)} of ${fmt(bar.plan)}, should be ${fmt(
-    bar.planToDate,
-  )} ${anchor}${
-    bar.deviation === null
-      ? ""
-      : bar.delta === 0
-        ? " — on track"
-        : ` — ${bar.delta > 0 ? "ahead" : "behind"} ${fmt(Math.abs(bar.delta))}`
-  }`;
-  return (
-    <div
-      role="img"
-      aria-label={words}
-      title={words}
-      className={cn(
-        "relative w-full rounded-full bg-surface-2",
-        small ? "h-1.5" : "h-2",
-      )}
-    >
-      <div
-        className={cn(
-          "absolute inset-y-0 left-0 rounded-full transition-[width]",
-          warn ? "bg-warn" : "bg-brand",
-        )}
-        style={{ width: `${fill}%` }}
-      />
-      {/* The curve's mark for today — the whole point of the bar, so it stands
-          slightly PROUD of the track (and is 2px wide) instead of vanishing
-          under the fill when the two coincide. Hidden at 0: a future month
-          expects nothing, and a mark at the origin would read as a sliver. */}
-      {tick > 0 && (
-        <div
-          className="absolute -inset-y-1 w-0.5 -translate-x-px rounded-full bg-ink-3"
-          style={{ left: `${tick}%` }}
-        />
-      )}
-    </div>
-  );
-}
-
-/** "$8,140 of $18,000" — wraps as a pair on a phone. */
-function Amounts({ bar, fmt }: { bar: TrackerBar; fmt: (v: number) => string }) {
-  return (
-    <p className="mt-1 text-[11px] text-ink-3">
-      <span className="num tabular-nums text-ink-2">{fmt(bar.actual)}</span> of{" "}
-      <span className="num tabular-nums">{fmt(bar.plan)}</span>
-    </p>
-  );
-}
-
-/**
- * "▲ ahead $1,860 (+31%)" / "▼ behind …" / "on track" / "—". Warn-tinted by
- * MAGNITUDE (the shared `pacingTone`), so neither direction reads as good news.
- */
-function Verdict({
-  bar,
-  fmt,
-  small = false,
-}: {
-  bar: TrackerBar;
-  fmt: (v: number) => string;
-  small?: boolean;
-}) {
-  const warn = pacingTone(bar.deviation) === "warn";
-  const cls = cn(
-    "num tabular-nums",
-    small ? "text-[11px]" : "text-xs",
-    warn ? "text-warn" : "text-ink-3",
-  );
-  // No expectation yet (future month, or nothing planned) → no verdict at all.
-  if (bar.deviation === null) return <span className={cls}>—</span>;
-  if (Math.round(bar.delta) === 0) return <span className={cls}>on track</span>;
-  // The percentage IS the deviation — one source, not a second derivation.
-  const pct = bar.deviation;
-  const ahead = bar.delta > 0;
-  return (
-    <span className={cls}>
-      {ahead ? "▲" : "▼"} {ahead ? "ahead" : "behind"} {fmt(Math.abs(bar.delta))}
-      {pct !== null && ` (${signedPct(pct, 0)})`}
-    </span>
   );
 }
 
@@ -724,32 +605,71 @@ function SummaryStrip({
   );
 }
 
-/** One table row: a platform subtotal, or one of its buckets. */
+/** One table row: a subtotal (a platform, or an objective), or a line under it. */
 interface TrackerTableRow {
   key: string;
-  kind: "platform" | "bucket";
-  platform: string;
+  kind: "subtotal" | "row";
+  /** The platform behind the dot — null on an objective subtotal. */
+  platform: string | null;
   label: string;
+  /** Keeps a subtotal and its lines together when the identity column sorts. */
+  sortKey: string;
   bar: TrackerBar;
+  /** An objective-grouped line with no plan row for this combo. */
+  unplanned: boolean;
 }
 
-function tableRows(platforms: readonly TrackerPlatform[]): TrackerTableRow[] {
+/** platform → its bucket bars: today's table. */
+function rowsByPlatform(platforms: readonly TrackerPlatform[]): TrackerTableRow[] {
   const out: TrackerTableRow[] = [];
   for (const p of platforms) {
     out.push({
       key: p.key,
-      kind: "platform",
+      kind: "subtotal",
       platform: p.key,
       label: platformLabel(p.key),
+      sortKey: p.key,
       bar: p,
+      unplanned: false,
     });
     for (const b of p.buckets) {
       out.push({
         key: `${p.key}|${b.key}`,
-        kind: "bucket",
+        kind: "row",
         platform: p.key,
         label: b.label,
+        sortKey: `${p.key}|${b.label}`,
         bar: b,
+        unplanned: false,
+      });
+    }
+  }
+  return out;
+}
+
+/** objective → its platforms, unplanned combos badged: the allocation check. */
+function rowsByObjective(platforms: readonly TrackerPlatform[]): TrackerTableRow[] {
+  const out: TrackerTableRow[] = [];
+  for (const g of groupTrackerByObjective(platforms)) {
+    out.push({
+      key: g.key,
+      kind: "subtotal",
+      platform: null,
+      label: g.label,
+      sortKey: g.label,
+      bar: g,
+      // An objective nobody planned for reads "—" like its rows, not a $0 plan.
+      unplanned: g.rows.every((r) => r.unplanned),
+    });
+    for (const r of g.rows) {
+      out.push({
+        key: r.key,
+        kind: "row",
+        platform: r.platform,
+        label: platformLabel(r.platform),
+        sortKey: `${g.label}|${r.platform}${r.unplanned ? "|unplanned" : ""}`,
+        bar: r,
+        unplanned: r.unplanned,
       });
     }
   }
@@ -762,44 +682,66 @@ function tableRows(platforms: readonly TrackerPlatform[]): TrackerTableRow[] {
  * line is worst" and "give me the numbers" — neither re-derives anything,
  * both read `buildTrackerRows`.
  *
- * Platform subtotals are styled like the allocation check's objective rows
- * (the module's existing grammar for "this row is the sum of the ones under
- * it"), and they sort with their buckets rather than above them.
+ * Two groupings of ONE set of rows (`?group=`): by platform (subtotal → its
+ * buckets, today's table) or by objective (subtotal → its platforms, with an
+ * "unplanned" badge on a combo that spent without a plan row — the allocation
+ * check that used to live on Overview). Subtotals are styled as "this row is
+ * the sum of the ones under it", and the totals row sums the subtotals, so
+ * both groupings foot to the same month.
  */
 function TrackerTable({
   platforms,
+  group,
   month,
   currency,
   fmt,
   isCurrentMonth,
 }: {
   platforms: readonly TrackerPlatform[];
+  group: TrackerGroup;
   month: string;
   currency: string;
   fmt: (v: number) => string;
   isCurrentMonth: boolean;
 }) {
-  const rows = useMemo(() => tableRows(platforms), [platforms]);
+  const rows = useMemo(
+    () => (group === "objective" ? rowsByObjective(platforms) : rowsByPlatform(platforms)),
+    [platforms, group],
+  );
 
   const columns: DataColumn<TrackerTableRow>[] = useMemo(() => {
     const num = (v: number) => <span className="num tabular-nums">{fmt(v)}</span>;
-    const totals = rows.filter((r) => r.kind === "platform");
+    // The footer sums the SUBTOTALS — platforms or objectives — and the two
+    // groupings foot to the same month (a regroup moves money, never loses it).
+    const totals = rows.filter((r) => r.kind === "subtotal");
     const sum = (pick: (b: TrackerBar) => number) =>
       totals.reduce((s, r) => s + pick(r.bar), 0);
+    const unplannedBadge = (
+      <span className="rounded bg-surface-2 px-1.5 py-0.5 text-eyebrow text-ink-3">
+        unplanned
+      </span>
+    );
     return [
       {
         key: "item",
-        label: "Platform / bucket",
+        label: group === "objective" ? "Objective / platform" : "Platform / bucket",
         pinned: true,
         sortable: true,
-        sortValue: (r) => `${r.platform}${r.kind === "platform" ? "" : `|${r.label}`}`,
+        sortValue: (r) => r.sortKey,
         defaultSortDir: "asc",
-        csv: (r) => (r.kind === "platform" ? r.label : `  ${r.label}`),
+        csv: (r) =>
+          r.kind === "subtotal" ? r.label : `  ${r.label}${r.unplanned ? " (unplanned)" : ""}`,
         render: (r) =>
-          r.kind === "platform" ? (
+          r.kind === "subtotal" ? (
             <span className="inline-flex items-center gap-2 font-medium">
+              {r.platform !== null && <PlatformDot platform={r.platform as never} size="sm" />}
+              {r.label}
+            </span>
+          ) : group === "objective" ? (
+            <span className="inline-flex items-center gap-2 pl-6 text-ink-2">
               <PlatformDot platform={r.platform as never} size="sm" />
               {r.label}
+              {r.unplanned && unplannedBadge}
             </span>
           ) : (
             <span className="pl-6 text-ink-2">{r.label}</span>
@@ -811,7 +753,9 @@ function TrackerTable({
         align: "right",
         sortable: true,
         sortValue: (r) => r.bar.plan,
-        render: (r) => num(r.bar.plan),
+        // An unplanned combo has no plan at all — a dash, never a fabricated $0.
+        render: (r) => (r.unplanned ? <span className="num text-ink-3">—</span> : num(r.bar.plan)),
+        csv: (r) => (r.unplanned ? null : r.bar.plan),
         total: () => num(sum((b) => b.plan)),
       },
       {
@@ -887,7 +831,7 @@ function TrackerTable({
       },
     ];
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rows, currency, isCurrentMonth]);
+  }, [rows, group, currency, isCurrentMonth]);
   // The table's own columns control, remembered per user per brand.
   const columnKeys = columns.filter((c) => !c.pinned).map((c) => c.key);
   const cols = useTableColumns({
@@ -909,8 +853,13 @@ function TrackerTable({
       dir="desc"
       showTotals={rows.length > 0}
       minWidthClass="min-w-[760px]"
-      rowClassName={(r) => (r.kind === "platform" ? "bg-surface-2/40" : "")}
-      csvFileName={`budget-tracker-${month}-${currency.toLowerCase()}`}
+      rowClassName={(r) =>
+        cn(
+          r.kind === "subtotal" && "bg-surface-2/40",
+          r.kind === "row" && r.unplanned && "opacity-70",
+        )
+      }
+      csvFileName={`budget-tracker-${month}-${group}-${currency.toLowerCase()}`}
       empty={
         <p className="text-sm text-ink-3">
           Nothing matches these filters — clear one to see the board again.

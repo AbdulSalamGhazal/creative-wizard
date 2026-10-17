@@ -3,8 +3,8 @@ import { PageHeader } from "@/components/layout/page-header";
 import { todayIso } from "@/lib/date-presets";
 import {
   clampRangeMonths,
-  daysInMonth,
   isValidIsoDate,
+  monthEndIso,
   monthKey,
   monthStartIso,
   monthsInRange,
@@ -22,12 +22,6 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "Pacing" };
 
 const GROUP_BYS: GroupBy[] = ["day", "week", "month"];
-
-/** Last day of the month a YYYY-MM key names. */
-function monthEndIso(month: string): string {
-  const start = monthStartIso(month);
-  return `${start.slice(0, 8)}${daysInMonth(start)}`;
-}
 
 /**
  * Budget Pacing — plan vs actual over any date range, grouped by day, calendar

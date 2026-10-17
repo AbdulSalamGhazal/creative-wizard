@@ -299,6 +299,15 @@ export type TrackerBoard = (typeof TRACKER_BOARDS)[number];
 export const TRACKER_RANKS = ["plan", "offpace"] as const;
 export type TrackerRank = (typeof TRACKER_RANKS)[number];
 
+/**
+ * How the TABLE view groups the same rows (2026-10): platform → its buckets
+ * (the default, today's table), or objective → its platforms — the allocation
+ * check's reading, which moved here from Overview. Only the table has a
+ * grouping; the bars are always per platform.
+ */
+export const TRACKER_GROUPS = ["platform", "objective"] as const;
+export type TrackerGroup = (typeof TRACKER_GROUPS)[number];
+
 export const trackerFiltersSchema = z.object({
   platforms: csvOf([...platformEnum]),
   buckets: csvOf([...BUDGET_OBJECTIVES]),
@@ -310,6 +319,7 @@ export const trackerFiltersSchema = z.object({
     .transform((s) => s === "1"),
   board: z.enum(TRACKER_BOARDS).catch("bars"),
   rank: z.enum(TRACKER_RANKS).catch("plan"),
+  group: z.enum(TRACKER_GROUPS).catch("platform"),
 });
 
 export type TrackerFiltersInput = z.infer<typeof trackerFiltersSchema>;

@@ -12,6 +12,7 @@ import { ALL_PLATFORMS } from "@/lib/palette";
 import { resolveFilterPrefs } from "@/db/queries/user-prefs";
 import {
   TRACKER_BOARDS,
+  TRACKER_GROUPS,
   TRACKER_RANKS,
   trackerFiltersSchema,
 } from "@/validators/budget";
@@ -60,6 +61,7 @@ export default async function BudgetTrackerPage({
       { key: "offpace", allow: ["1"] },
       { key: "board", allow: TRACKER_BOARDS },
       { key: "rank", allow: TRACKER_RANKS },
+      { key: "group", allow: TRACKER_GROUPS },
     ],
     (key: string) => pick(sp[key]),
   );
@@ -69,6 +71,7 @@ export default async function BudgetTrackerPage({
     offpace: pref.offpace,
     board: pref.board,
     rank: pref.rank,
+    group: pref.group,
   });
 
   const user = await auth();

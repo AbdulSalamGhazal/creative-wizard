@@ -12,16 +12,20 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { longDate, sar, usd } from "@/lib/format";
+import { longDate, sar, signedPct, usd } from "@/lib/format";
 import { PLATFORM_LABEL } from "@/lib/palette";
 import { cn } from "@/lib/utils";
 import {
   monthKey,
+  monthLabel,
   nextMonthKey,
   pacingTone,
   pacingVerdict,
   prevMonthKey,
   spendInDisplayCurrency,
+  type CoverageSummary,
+  type TrackerBar,
+  type TrackerData,
 } from "@/lib/budget";
 import { useNavTransition } from "@/lib/nav-progress";
 import { SegmentedControl } from "@/components/ui/segmented-control";
@@ -402,5 +406,267 @@ export function PlanDayBars({
         );
       })}
     </div>
+  );
+}
+
+// ── The pace bar and its words (lifted from the Tracker, 2026-10) ───────────
+// The Overview's pace board and hero cards draw the SAME bar the Tracker does,
+// so the three pieces live here and both pages import them — extend, never
+// fork. The hero cards needed three things the Tracker's rows never did (a
+// projection extension, a reserve tail, a ratio scale), so those are optional
+// props on the one component rather than a second bar.
+
+/** Share of the scale a value occupies, clamped to [0, 100]. */
+function pctOfScale(value: number, scale: number): number {
+  if (scale <= 0) return 0;
+  return Math.max(0, Math.min(100, (value / scale) * 100));
+}
+
+/**
+ * THE BAR. Pure CSS, no chart library: the track is the row's FULL month plan,
+ * the fill is the actual so far, and the tick is where the plan curve says we
+ * should be today. Warn-tinted by |deviation| through the shared threshold —
+ * ahead and behind are both deviations, never good/bad green/red.
+ *
+ * Optional, for the Overview's hero cards: `projection` draws a paler
+ * extension from the fill's end to the month-end projection; `reserve` adds a
+ * dashed tail after the plan's end (the reserve carved out beyond the
+ * allocated plan — the fill may run into it); `scale` replaces the cumulative
+ * track with a plain 0..scale axis (a ratio like ROAS has no month to fill,
+ * so the whole width is the scale and the tick is the target); `tone` forces
+ * the tint where there is no deviation to judge (the reserve row).
+ *
+ * The aria-label says the whole thing in words, because a bar a screen reader
+ * can't read is decoration.
+ */
+export function PaceBar({
+  bar,
+  fmt,
+  name,
+  small = false,
+  anchor = "by today",
+  projection = null,
+  reserve = 0,
+  scale,
+  tone,
+  words: wordsOverride,
+}: {
+  bar: TrackerBar;
+  fmt: (v: number) => string;
+  name: string;
+  small?: boolean;
+  /** What the expectation is measured THROUGH — coverage, not the calendar. */
+  anchor?: string;
+  /** Replace the spoken label entirely (a bar whose track is not a plan). */
+  words?: string;
+  /** Month-end projection; drawn only when it runs past the fill. */
+  projection?: number | null;
+  /** A reserve beyond the plan — the dashed tail. */
+  reserve?: number;
+  /** A ratio's axis: the bar runs 0..scale and the track spans all of it. */
+  scale?: number;
+  /** Override the tint when the row has no deviation of its own to judge. */
+  tone?: "muted" | "warn";
+}) {
+  const max = scale ?? bar.plan + reserve;
+  const trackPct = scale !== undefined || reserve <= 0 ? 100 : pctOfScale(bar.plan, max);
+  const fill = pctOfScale(bar.actual, max);
+  const tick = pctOfScale(bar.planToDate, max);
+  const projected =
+    projection !== null && projection > bar.actual ? pctOfScale(projection, max) : null;
+  const warn = (tone ?? pacingTone(bar.deviation)) === "warn";
+  const words =
+    wordsOverride ??
+    `${name}: ${fmt(bar.actual)} of ${fmt(bar.plan)}, should be ${fmt(bar.planToDate)} ${anchor}${
+    bar.deviation === null
+      ? ""
+      : bar.delta === 0
+        ? " — on track"
+        : ` — ${bar.delta > 0 ? "ahead" : "behind"} ${fmt(Math.abs(bar.delta))}`
+  }${projection !== null ? `; projected to end at ${fmt(projection)}` : ""}${
+    reserve > 0 ? `; ${fmt(reserve)} reserve beyond the plan` : ""
+  }`;
+  return (
+    <div
+      role="img"
+      aria-label={words}
+      title={words}
+      className={cn("relative w-full", small ? "h-1.5" : "h-2")}
+    >
+      {/* The track: the plan (or the whole axis, for a ratio). */}
+      <div
+        className="absolute inset-y-0 left-0 rounded-full bg-surface-2"
+        style={{ width: `${trackPct}%` }}
+      />
+      {/* The reserve tail: money carved out beyond the plan — an outline, not
+          a track, because nothing is EXPECTED to be spent there. */}
+      {trackPct < 100 && (
+        <div
+          className="absolute inset-y-0 right-0 rounded-full border border-dashed border-line-2"
+          style={{ left: `calc(${trackPct}% + 2px)` }}
+        />
+      )}
+      {/* The projection: where this pace lands, paler than what has happened. */}
+      {projected !== null && projected > fill && (
+        <div
+          className={cn("absolute inset-y-0 rounded-r-full", warn ? "bg-warn/30" : "bg-brand/30")}
+          style={{ left: `${fill}%`, width: `${projected - fill}%` }}
+        />
+      )}
+      <div
+        className={cn(
+          "absolute inset-y-0 left-0 rounded-full transition-[width]",
+          warn ? "bg-warn" : "bg-brand",
+        )}
+        style={{ width: `${fill}%` }}
+      />
+      {/* The curve's mark for today — the whole point of the bar, so it stands
+          slightly PROUD of the track (and is 2px wide) instead of vanishing
+          under the fill when the two coincide. Hidden at 0: a future month
+          expects nothing, and a mark at the origin would read as a sliver. */}
+      {tick > 0 && (
+        <div
+          className="absolute -inset-y-1 w-0.5 -translate-x-px rounded-full bg-ink-3"
+          style={{ left: `${tick}%` }}
+        />
+      )}
+    </div>
+  );
+}
+
+/** "$8,140 of $18,000" — wraps as a pair on a phone. */
+export function Amounts({ bar, fmt }: { bar: TrackerBar; fmt: (v: number) => string }) {
+  return (
+    <p className="mt-1 text-[11px] text-ink-3">
+      <span className="num tabular-nums text-ink-2">{fmt(bar.actual)}</span> of{" "}
+      <span className="num tabular-nums">{fmt(bar.plan)}</span>
+    </p>
+  );
+}
+
+/**
+ * "▲ ahead $1,860 (+31%)" / "▼ behind …" / "on track" / "—". Warn-tinted by
+ * MAGNITUDE (the shared `pacingTone`), so neither direction reads as good news.
+ * `variant="target"` is the ROAS card's reading of the same deviation — "above
+ * target by 0.12× (+14%)" / "on target" — a ratio against a target, not a
+ * cumulative against a curve.
+ */
+export function Verdict({
+  bar,
+  fmt,
+  small = false,
+  variant = "pace",
+}: {
+  bar: TrackerBar;
+  fmt: (v: number) => string;
+  small?: boolean;
+  variant?: "pace" | "target";
+}) {
+  const warn = pacingTone(bar.deviation) === "warn";
+  const cls = cn(
+    "num tabular-nums",
+    small ? "text-[11px]" : "text-xs",
+    warn ? "text-warn" : "text-ink-3",
+  );
+  // No expectation yet (future month, or nothing planned) → no verdict at all.
+  if (bar.deviation === null) return <span className={cls}>—</span>;
+  // Zero is judged by what will be SHOWN: whole dollars on a pace bar, the
+  // ratio's own formatted precision on a target.
+  const onTrack =
+    variant === "target"
+      ? fmt(Math.abs(bar.delta)) === fmt(0)
+      : Math.round(bar.delta) === 0;
+  if (onTrack) {
+    return <span className={cls}>{variant === "target" ? "on target" : "on track"}</span>;
+  }
+  // The percentage IS the deviation — one source, not a second derivation.
+  const pct = bar.deviation;
+  const ahead = bar.delta > 0;
+  const words =
+    variant === "target"
+      ? ahead
+        ? "above target by"
+        : "below target by"
+      : ahead
+        ? "▲ ahead"
+        : "▼ behind";
+  return (
+    <span className={cls}>
+      {words} {fmt(Math.abs(bar.delta))}
+      {pct !== null && ` (${signedPct(pct, 0)})`}
+    </span>
+  );
+}
+
+// ── What the comparisons counted through (2026-10) ──────────────────────────
+// The Tracker's header and the Overview's month bar name the SAME anchor in
+// the same words, from the same `buildTrackerRows` output — so the two pages
+// can never disagree about which day the month was judged through.
+
+/**
+ * "Day N of M · data through D" (or "Not started — <Month> is ahead of us").
+ * `children` is the page's own addition on the same line (the Tracker's
+ * "plan expects P% spent"); the wrapper's text size comes from `className`.
+ */
+export function CoverageLine({
+  t,
+  children,
+  className,
+}: {
+  t: Pick<TrackerData, "month" | "elapsedDays" | "totalDays" | "coverage" | "isFutureMonth">;
+  children?: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <p className={cn("text-sm text-ink", className)}>
+      {t.isFutureMonth ? (
+        <>Not started — {monthLabel(t.month)} is ahead of us</>
+      ) : (
+        <>
+          Day <span className="num tabular-nums">{t.elapsedDays}</span> of{" "}
+          <span className="num tabular-nums">{t.totalDays}</span>
+          {/* What the comparisons actually counted through — the last
+              uploaded day, not today. */}
+          {t.coverage?.through && (
+            <span className="text-ink-3">
+              {" · data through "}
+              <span className="num tabular-nums">{t.coverage.through}</span>
+            </span>
+          )}
+          {children}
+        </>
+      )}
+    </p>
+  );
+}
+
+/** "TikTok data ends 2026-09-13 · Google data hasn't arrived" — or "". */
+export function laggardWords(laggards: CoverageSummary["laggards"]): string {
+  return laggards
+    .map(
+      (l) =>
+        `${platformLabel(l.platform)} data ${l.date ? `ends ${l.date}` : "hasn’t arrived"}`,
+    )
+    .join(" · ");
+}
+
+/**
+ * One platform's data lagging the rest changes what its row is compared
+ * against, so the page says which one rather than leaving a quietly different
+ * yardstick unexplained. Renders nothing when nobody lags.
+ */
+export function CoverageLaggards({
+  coverage,
+  className,
+}: {
+  coverage: CoverageSummary | null;
+  className?: string;
+}) {
+  if (!coverage || coverage.laggards.length === 0) return null;
+  return (
+    <p className={cn("text-[11px] text-ink-3", className)}>
+      {laggardWords(coverage.laggards)}
+      {" — paced against what each one covers"}
+    </p>
   );
 }
