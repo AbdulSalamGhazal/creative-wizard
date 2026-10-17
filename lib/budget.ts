@@ -27,6 +27,12 @@ export function daysInMonth(monthIso: string): number {
   return new Date(Date.UTC(y!, m!, 0)).getUTCDate();
 }
 
+/** The last day of the month a YYYY-MM key names ("2026-09" → "2026-09-30"). */
+export function monthEndIso(month: string): string {
+  const start = monthStartIso(month);
+  return `${start.slice(0, 8)}${String(daysInMonth(start)).padStart(2, "0")}`;
+}
+
 /** Previous / next month keys ("2026-09" → "2026-08" / "2026-10"). */
 export function prevMonthKey(month: string): string {
   const [y, m] = month.split("-").map(Number);
@@ -148,7 +154,7 @@ export function coverageDayInMonth(
 /**
  * The anchor, as a function of platform: how many days of `month` this
  * platform's comparison may count through. Built once per render and shared by
- * every pacing surface (Tracker, Overview, the allocation check) so the rule
+ * every pacing surface (Tracker — both views — and Overview) so the rule
  * lives in ONE place. No coverage read → the calendar, i.e. the old behaviour.
  */
 export function makeCoverageDay(
@@ -571,8 +577,8 @@ export function monthDayIncrements(
 // ── The unified plan series (2026-09) ────────────────────────────────────────
 // THE load-bearing abstraction for plan-to-date. A month is planned in one of
 // two modes (`PLAN_MODES`), and every consumer of "what should have happened by
-// day d" — Tracker, Pacing, Overview's verdicts and projections, the allocation
-// check, and any future alert evaluator — reads it through `buildPlanSeries`,
+// day d" — Tracker (both groupings), Pacing, Overview's cards, chart and pace
+// board, and any future alert evaluator — reads it through `buildPlanSeries`,
 // never by expanding a curve itself. Curve months reproduce the pre-modes math
 // bit for bit (pinned); daily months read their cells verbatim.
 
@@ -1151,6 +1157,166 @@ export function planGateProblems(input: PlanGateInput): string[] {
   return out;
 }
 
+// ── The reserve: what the month has DRAWN (2026-10-17, user decision) ───────
+
+/**
+ * How much of the reserve the month has drawn: Σ over platforms of
+ * max(0, actual − planned), where `planned` is the platform's WHOLE allocation
+ * across its buckets (0 for a platform with no plan at all). Spend beyond the
+ * plan at PLATFORM level is what the reserve absorbs; money that lands in a
+ * different objective bucket of a planned platform is objective DRIFT — the
+ * Tracker shows it as an unplanned row — not a reserve draw. The old rule
+ * (every combo with no plan row) read September's Facebook as "past the
+ * reserve" while it was under its own plan. Platforms never net against each
+ * other: one platform's underspend does not pay for another's overshoot.
+ */
+export function reserveUsed(
+  allocations: ReadonlyArray<{ platform: string; plannedSpend: number }>,
+  actualSpendByCombo: ReadonlyArray<{ platform: string; actualSpend: number }>,
+): number {
+  const planned = new Map<string, number>();
+  for (const a of allocations) {
+    planned.set(a.platform, (planned.get(a.platform) ?? 0) + a.plannedSpend);
+  }
+  const actual = new Map<string, number>();
+  for (const c of actualSpendByCombo) {
+    actual.set(c.platform, (actual.get(c.platform) ?? 0) + c.actualSpend);
+  }
+  let used = 0;
+  for (const [platform, spent] of actual) {
+    used += Math.max(0, spent - (planned.get(platform) ?? 0));
+  }
+  return round2(used);
+}
+
+// ── The Overview chart: one month, cumulative (2026-10) ─────────────────────
+// Day-grain running totals for a single month, where the actual line STOPS at
+// the side's data coverage (a later day is unknown, never zero), the plan is
+// the series' own per-day values summed, and the projection is a straight line
+// from the last known point to the month-end projection — the SAME number the
+// hero card prints, so the chart and the card can never disagree.
+
+/** Running totals of per-day values (index 0 = day 1). */
+export function cumulativeSums(days: readonly number[]): number[] {
+  const out: number[] = [];
+  let run = 0;
+  for (const v of days) {
+    run += v;
+    out.push(run);
+  }
+  return out;
+}
+
+/**
+ * Cumulative ROAS per day — each day's revenue-to-date over spend-to-date,
+ * through the brand rate. Null wherever nothing has been spent yet (a ratio
+ * over zero is no reading at all, not a zero one).
+ */
+export function cumulativeRoas(
+  revenueCumulative: readonly number[],
+  spendCumulative: readonly number[],
+  rate: number,
+): (number | null)[] {
+  return spendCumulative.map((spend, i) =>
+    roasThroughRate(revenueCumulative[i] ?? 0, spend, rate),
+  );
+}
+
+export interface MonthChartPoint {
+  /** 1-based day of the month. */
+  day: number;
+  /** Cumulative actual; null past the side's coverage (unknown ≠ 0). */
+  actual: number | null;
+  /** Cumulative plan; null when the month plans nothing on this side. */
+  plan: number | null;
+  /** The projection, from the last actual point to month end; null elsewhere. */
+  projection: number | null;
+}
+
+/**
+ * The chart's points for one metric. `actualCumulative` and `planCumulative`
+ * are per-day CUMULATIVE values (index 0 = day 1); the actual line stops at
+ * `throughDay` and the projection runs from that point to `projected` at the
+ * last day, so its endpoint is the hero card's number. No projection when the
+ * month is over (nothing left to project), when nothing is known yet, or when
+ * the caller has none.
+ */
+export function monthChartPoints(input: {
+  totalDays: number;
+  actualCumulative: ReadonlyArray<number | null>;
+  /** Days of the month the actual side covers (0..totalDays). */
+  throughDay: number;
+  planCumulative: ReadonlyArray<number | null> | null;
+  projected: number | null;
+}): MonthChartPoint[] {
+  const { totalDays, actualCumulative, planCumulative, projected } = input;
+  const through = Math.max(0, Math.min(totalDays, Math.floor(input.throughDay)));
+  const last = through > 0 ? (actualCumulative[through - 1] ?? null) : null;
+  const project = projected !== null && last !== null && through < totalDays;
+  return Array.from({ length: totalDays }, (_, i) => {
+    const day = i + 1;
+    let projection: number | null = null;
+    if (project && day >= through) {
+      const t = (day - through) / (totalDays - through);
+      projection = last! + (projected! - last!) * t;
+    }
+    return {
+      day,
+      actual: day <= through ? (actualCumulative[i] ?? null) : null,
+      plan: planCumulative === null ? null : (planCumulative[i] ?? null),
+      projection,
+    };
+  });
+}
+
+// ── The ROAS card (2026-10) ─────────────────────────────────────────────────
+
+export interface RoasFigures {
+  /** Month-to-date ROAS through the rate; null before any spend. */
+  actual: number | null;
+  /** The month's target ROAS; null without a revenue target and a spend plan. */
+  target: number | null;
+  /** projected revenue ÷ (projected spend × rate); null unless both exist. */
+  projected: number | null;
+  /** (actual − target) ÷ target — the card's verdict; null without both. */
+  deviation: number | null;
+}
+
+/**
+ * The ROAS card's numbers, all through `roasThroughRate`. The target is the
+ * revenue target over the planned spend — a CURVE month's reading; a DAILY
+ * month passes its stored `targetRoas` instead (the revenue target was derived
+ * from it, so dividing back would only re-find it to the cent). The deviation
+ * is `pacingDeviation` against the target, so the card's warn tint rides the
+ * same threshold as every other pacing verdict.
+ */
+export function roasFigures(input: {
+  actualRevenueSar: number;
+  actualSpendUsd: number;
+  plannedRevenueSar: number | null;
+  plannedSpendUsd: number;
+  /** A daily month's stored target; null makes the function derive it. */
+  targetRoas: number | null;
+  projectedRevenueSar: number | null;
+  projectedSpendUsd: number | null;
+  rate: number;
+}): RoasFigures {
+  const actual = roasThroughRate(input.actualRevenueSar, input.actualSpendUsd, input.rate);
+  const target =
+    input.targetRoas !== null && input.targetRoas > 0
+      ? input.targetRoas
+      : input.plannedRevenueSar !== null && input.plannedSpendUsd > 0
+        ? roasThroughRate(input.plannedRevenueSar, input.plannedSpendUsd, input.rate)
+        : null;
+  const projected =
+    input.projectedRevenueSar !== null && input.projectedSpendUsd !== null
+      ? roasThroughRate(input.projectedRevenueSar, input.projectedSpendUsd, input.rate)
+      : null;
+  const deviation =
+    actual !== null && target !== null ? pacingDeviation(actual, target) : null;
+  return { actual, target, projected, deviation };
+}
+
 // ── Tracker (2026-09) ────────────────────────────────────────────────────────
 // The zero-configuration daily pace board: for every row that has a plan, how
 // far through it we are against where the curve says we should be. Pure, so
@@ -1201,8 +1367,14 @@ export interface TrackerBar {
 export interface TrackerPlatform extends TrackerBar {
   /** One bar per PLANNED bucket, in funnel order. */
   buckets: TrackerBar[];
-  /** Spend in buckets with no plan — no bar, it draws down the reserve. */
+  /**
+   * Spend in buckets with no plan row — no bar (there is no track). On a
+   * platform that HAS a plan this is objective DRIFT; only spend beyond the
+   * platform's whole plan draws the reserve (`reserveUsed`).
+   */
   unplanned: number;
+  /** The same money, one row per unplanned bucket (funnel order). */
+  unplannedBuckets: Array<{ key: string; label: string; actual: number }>;
 }
 
 export interface TrackerRevenue extends TrackerBar {
@@ -1239,12 +1411,22 @@ export interface TrackerData {
   projectedPctOfPlan: number | null;
   /** Cards, richest plan first; a platform with neither plan nor spend is out. */
   platforms: TrackerPlatform[];
-  /** Σ unplanned across platforms — what the reserve has absorbed. */
+  /** Σ unplanned across platforms — spend in buckets with no plan row. */
   unplannedTotal: number;
   reserve: number;
-  /** Reserve minus unplanned spend, floored at 0. */
+  /**
+   * What the reserve has absorbed: Σ platforms max(0, actual − plan) — the
+   * platform-level rule (`reserveUsed`), never the unplanned-bucket sum.
+   */
+  reserveUsed: number;
+  /** Reserve minus what it has absorbed, floored at 0. */
   reserveRemaining: number;
   revenue: TrackerRevenue;
+  /**
+   * Month-end revenue projection, CURRENT MONTH ONLY, through the store's own
+   * coverage (the same rule as `projectedSpend`); null otherwise.
+   */
+  projectedRevenue: number | null;
   /** False → the page shows its "plan this month first" hint, not a zero board. */
   hasPlan: boolean;
 }
@@ -1381,6 +1563,74 @@ export function sortTrackerPlatforms(
   });
 }
 
+/** One platform's line inside an objective group. */
+export interface TrackerObjectiveRow extends TrackerBar {
+  platform: string;
+  /** Spend with no plan row for this objective × platform. */
+  unplanned: boolean;
+}
+
+/** An objective bucket across platforms — the allocation check's reading. */
+export interface TrackerObjective extends TrackerBar {
+  rows: TrackerObjectiveRow[];
+}
+
+/**
+ * The Tracker's rows REGROUPED by objective (the table's `group=objective`,
+ * 2026-10 — where the Overview's allocation check went). Nothing is
+ * re-derived: every planned line is the platform's own bucket bar, an
+ * unplanned combo is its amount with no expectation (no track, no verdict),
+ * and an objective's expectation is the SUM of its rows' — the same rule the
+ * brand total follows. Σ actual over the groups equals Σ actual over the
+ * platforms, so the table still reconciles to the raw month total.
+ */
+export function groupTrackerByObjective(
+  platforms: readonly TrackerPlatform[],
+): TrackerObjective[] {
+  const out: TrackerObjective[] = [];
+  for (const objective of BUDGET_OBJECTIVES) {
+    const rows: TrackerObjectiveRow[] = [];
+    for (const p of platforms) {
+      const planned = p.buckets.find((b) => b.label === objective);
+      if (planned) {
+        rows.push({
+          ...planned,
+          key: `${objective}|${p.key}`,
+          label: p.key,
+          platform: p.key,
+          unplanned: false,
+        });
+      }
+      const drift = p.unplannedBuckets.find((u) => u.label === objective);
+      if (drift) {
+        rows.push({
+          key: `${objective}|${p.key}|unplanned`,
+          label: p.key,
+          platform: p.key,
+          plan: 0,
+          actual: drift.actual,
+          planToDate: 0,
+          delta: drift.actual,
+          deviation: null,
+          unplanned: true,
+        });
+      }
+    }
+    if (rows.length === 0) continue;
+    out.push({
+      ...makeBar(
+        objective,
+        objective,
+        rows.reduce((s, r) => s + r.plan, 0),
+        round2(rows.reduce((s, r) => s + r.actual, 0)),
+        rows.reduce((s, r) => s + r.planToDate, 0),
+      ),
+      rows,
+    });
+  }
+  return out;
+}
+
 /**
  * A row's own month-end projection: actual ÷ the share of its plan the
  * reported days account for. NULL when nothing is expected yet (no plan, or no
@@ -1438,13 +1688,15 @@ export function buildTrackerRows(
   const platforms: TrackerPlatform[] = platformKeys.map((platform) => {
     // Buckets in FUNNEL ORDER, derived — never a re-listed vocabulary.
     const buckets: TrackerBar[] = [];
+    const unplannedBuckets: TrackerPlatform["unplannedBuckets"] = [];
     let unplanned = 0;
     for (const objective of BUDGET_OBJECTIVES) {
       const key = comboKey(platform, objective);
       const plan = planByCombo.get(key) ?? 0;
       const actual = actualByCombo.get(key) ?? 0;
       // A bar needs a track: spend with no plan can't be barred, it is
-      // unplanned money and shows as an amount that draws down the reserve.
+      // unplanned money and shows as an amount (objective drift on a planned
+      // platform; a reserve draw only when the platform overshoots its plan).
       if (plan > 0) {
         const planToDate = series.spendToDate(
           plan,
@@ -1454,6 +1706,7 @@ export function buildTrackerRows(
         buckets.push(makeBar(key, objective, plan, actual, planToDate));
       } else if (actual > 0) {
         unplanned += actual;
+        unplannedBuckets.push({ key, label: objective, actual: round2(actual) });
       }
     }
     const plan = buckets.reduce((s, b) => s + b.plan, 0);
@@ -1468,6 +1721,7 @@ export function buildTrackerRows(
       ),
       buckets,
       unplanned: round2(unplanned),
+      unplannedBuckets,
     };
   });
   // Richest plan first; ties (and unplanned-only platforms) by actual spend.
@@ -1492,6 +1746,8 @@ export function buildTrackerRows(
     totalPlan > 0 ? totalPlanToDate / totalPlan : series.fraction(elapsedDays);
 
   const unplannedTotal = round2(platforms.reduce((s, p) => s + p.unplanned, 0));
+  // The reserve is drawn by PLATFORM-level overshoot, not by bucket drift.
+  const used = reserveUsed(data.allocations, data.actualSpendByCombo);
 
   // The projection is a CURRENT-month reading: a past month is already final,
   // and a future one has nothing to extrapolate from. It divides by the
@@ -1517,6 +1773,12 @@ export function buildTrackerRows(
     ),
     target,
   };
+  // Revenue's projection divides by the STORE's covered share of the curve —
+  // its own pipeline, its own coverage — and like spend it is a current-month
+  // reading only.
+  const projectedRevenue = isCurrentMonth
+    ? series.projectedMonthEnd(data.actualRevenueSar, revenueDay)
+    : null;
 
   return {
     month,
@@ -1542,8 +1804,10 @@ export function buildTrackerRows(
     platforms,
     unplannedTotal,
     reserve: data.reserveSpendUsd,
-    reserveRemaining: Math.max(0, round2(data.reserveSpendUsd - unplannedTotal)),
+    reserveUsed: used,
+    reserveRemaining: Math.max(0, round2(data.reserveSpendUsd - used)),
     revenue,
+    projectedRevenue,
     hasPlan:
       data.allocations.length > 0 ||
       data.plannedRevenueSar !== null ||

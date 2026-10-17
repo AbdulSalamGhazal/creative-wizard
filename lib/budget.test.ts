@@ -61,6 +61,13 @@ import {
   allocationsFromDays,
   revenueFromRoas,
   roasFromRevenue,
+  reserveUsed,
+  groupTrackerByObjective,
+  cumulativeSums,
+  cumulativeRoas,
+  monthChartPoints,
+  roasFigures,
+  monthEndIso,
   type PlanDayCell,
   type PlanSeriesSource,
 } from "@/lib/budget";
@@ -1115,7 +1122,7 @@ describe("buildTrackerRows", () => {
     ]);
   });
 
-  it("spend in an UNPLANNED bucket is an amount, not a bar — it draws the reserve", () => {
+  it("spend in an UNPLANNED bucket is an amount, not a bar — drift, not a reserve draw", () => {
     const t = buildTrackerRows(
       trackerInput({
         actualSpendByCombo: [
@@ -1130,11 +1137,16 @@ describe("buildTrackerRows", () => {
     const ig = t.platforms.find((p) => p.key === "instagram")!;
     expect(ig.buckets.some((b) => b.label === "Other")).toBe(false);
     expect(ig.unplanned).toBe(1500);
+    expect(ig.unplannedBuckets).toEqual([
+      { key: "instagram|Other", label: "Other", actual: 1500 },
+    ]);
     // It still counts in the platform's and the brand's actual…
     expect(ig.actual).toBe(5500);
     expect(t.unplannedTotal).toBe(1500);
-    // …and it is what the reserve has absorbed: 4,000 − 1,500.
-    expect(t.reserveRemaining).toBe(2500);
+    // …but Instagram is UNDER its 30,000 plan, so this is objective DRIFT, not
+    // a reserve draw (2026-10-17 rule): the reserve is untouched.
+    expect(t.reserveUsed).toBe(0);
+    expect(t.reserveRemaining).toBe(4000);
   });
 
   it("the reserve never goes negative — overspend past it just reads 0 left", () => {
@@ -1149,6 +1161,8 @@ describe("buildTrackerRows", () => {
       day10,
     );
     expect(t.unplannedTotal).toBe(9000);
+    // TikTok planned 6,000 and spent 9,000 → 3,000 drawn, more than the reserve.
+    expect(t.reserveUsed).toBe(3000);
     expect(t.reserveRemaining).toBe(0);
   });
 
@@ -1276,6 +1290,255 @@ describe("buildTrackerRows", () => {
     expect(t.platforms[0]!.unplanned).toBe(700);
     expect(t.platforms[0]!.buckets).toEqual([]);
     expect(t.platforms[0]!.deviation).toBeNull(); // nothing expected → no verdict
+    // A platform with NO plan at all draws the reserve for everything it spends.
+    expect(t.reserveUsed).toBe(700);
+  });
+
+  it("projects revenue at month end through the STORE's coverage, current month only", () => {
+    // 90,000 SAR through a third of the curve → 270,000 by month end.
+    const t = buildTrackerRows(trackerInput(), TRACKER_MONTH, day10, {
+      instagram: day10,
+      tiktok: day10,
+      [REVENUE_COVERAGE_KEY]: day10,
+    });
+    expect(t.projectedRevenue).toBeCloseTo(270000, 6);
+    // The store lagging two days changes the divisor, not the actual.
+    const lag = buildTrackerRows(trackerInput(), TRACKER_MONTH, day10, {
+      instagram: day10,
+      tiktok: day10,
+      [REVENUE_COVERAGE_KEY]: "2026-09-08",
+    });
+    expect(lag.projectedRevenue).toBeCloseTo(90000 / (8 / 30), 6);
+    // Past and future months project nothing.
+    expect(buildTrackerRows(trackerInput(), TRACKER_MONTH, "2026-10-05").projectedRevenue).toBeNull();
+    expect(buildTrackerRows(trackerInput(), TRACKER_MONTH, "2026-08-20").projectedRevenue).toBeNull();
+  });
+});
+
+// ── The reserve: the platform-level rule (2026-10-17) ───────────────────────
+
+describe("reserveUsed — spend beyond a platform's plan, never bucket drift", () => {
+  it("the September case: a platform under its plan in the wrong bucket draws nothing", () => {
+    // Facebook planned 3,000 in Awareness and spent 1,266 — all of it in Other.
+    // The old combo rule read 1,266 "past the reserve"; the platform is under plan.
+    expect(
+      reserveUsed(
+        [
+          { platform: "facebook", plannedSpend: 3000 },
+          { platform: "instagram", plannedSpend: 3000 },
+        ],
+        [
+          { platform: "facebook", actualSpend: 1266 },
+          { platform: "instagram", actualSpend: 1156 },
+        ],
+      ),
+    ).toBe(0);
+  });
+
+  it("sums a platform's buckets before comparing, and counts only the overshoot", () => {
+    expect(
+      reserveUsed(
+        [
+          { platform: "instagram", plannedSpend: 1000 },
+          { platform: "instagram", plannedSpend: 2000 },
+        ],
+        [
+          { platform: "instagram", actualSpend: 2500 },
+          { platform: "instagram", actualSpend: 1000 }, // 3,500 of 3,000 → 500 over
+        ],
+      ),
+    ).toBe(500);
+  });
+
+  it("platforms never net: an underspend elsewhere does not pay for an overshoot", () => {
+    expect(
+      reserveUsed(
+        [
+          { platform: "instagram", plannedSpend: 3000 },
+          { platform: "tiktok", plannedSpend: 3000 },
+        ],
+        [
+          { platform: "instagram", actualSpend: 3500 }, // +500
+          { platform: "tiktok", actualSpend: 1000 }, // −2,000, ignored
+        ],
+      ),
+    ).toBe(500);
+  });
+
+  it("a platform with no plan at all draws the reserve for everything it spends", () => {
+    expect(
+      reserveUsed(
+        [{ platform: "instagram", plannedSpend: 3000 }],
+        [{ platform: "google", actualSpend: 700 }],
+      ),
+    ).toBe(700);
+    expect(reserveUsed([], [{ platform: "google", actualSpend: 700 }])).toBe(700);
+  });
+
+  it("nothing spent, or everything under plan, is zero — and cents round", () => {
+    expect(reserveUsed([{ platform: "instagram", plannedSpend: 100 }], [])).toBe(0);
+    expect(
+      reserveUsed(
+        [{ platform: "instagram", plannedSpend: 100 }],
+        [{ platform: "instagram", actualSpend: 100.004 }],
+      ),
+    ).toBe(0);
+    expect(
+      reserveUsed(
+        [{ platform: "instagram", plannedSpend: 100 }],
+        [{ platform: "instagram", actualSpend: 100.015 }],
+      ),
+    ).toBe(0.02);
+  });
+});
+
+// ── The Overview chart (2026-10) ────────────────────────────────────────────
+
+describe("the Overview chart series", () => {
+  it("monthEndIso names the month's last day", () => {
+    expect(monthEndIso("2026-09")).toBe("2026-09-30");
+    expect(monthEndIso("2026-02")).toBe("2026-02-28");
+    expect(monthEndIso("2028-02")).toBe("2028-02-29");
+    expect(monthEndIso("2026-10-17")).toBe("2026-10-31");
+  });
+
+  it("cumulativeSums runs the totals forward", () => {
+    expect(cumulativeSums([1, 2, 3, 0, 4])).toEqual([1, 3, 6, 6, 10]);
+    expect(cumulativeSums([])).toEqual([]);
+  });
+
+  it("cumulativeRoas is revenue-to-date over spend-to-date, null before any spend", () => {
+    const roas = cumulativeRoas([0, 750, 1500], [0, 100, 200], 3.75);
+    expect(roas[0]).toBeNull();
+    expect(roas[1]).toBeCloseTo(2, 9);
+    expect(roas[2]).toBeCloseTo(2, 9);
+  });
+
+  it("the actual line stops at coverage; the projection ends on the card's number", () => {
+    const points = monthChartPoints({
+      totalDays: 5,
+      actualCumulative: [10, 20, 30, 0, 0],
+      throughDay: 3,
+      planCumulative: [8, 16, 24, 32, 40],
+      projected: 50,
+    });
+    expect(points.map((p) => p.day)).toEqual([1, 2, 3, 4, 5]);
+    expect(points.map((p) => p.actual)).toEqual([10, 20, 30, null, null]);
+    expect(points.map((p) => p.plan)).toEqual([8, 16, 24, 32, 40]);
+    // From the last actual point (day 3 = 30) straight to 50 on day 5.
+    expect(points.map((p) => p.projection)).toEqual([null, null, 30, 40, 50]);
+  });
+
+  it("no projection on a finished month, before any data, or without one to draw", () => {
+    const done = monthChartPoints({
+      totalDays: 3,
+      actualCumulative: [1, 2, 3],
+      throughDay: 3,
+      planCumulative: null,
+      projected: 9,
+    });
+    expect(done.every((p) => p.projection === null)).toBe(true);
+    expect(done.every((p) => p.plan === null)).toBe(true);
+    expect(done.map((p) => p.actual)).toEqual([1, 2, 3]);
+
+    const nothing = monthChartPoints({
+      totalDays: 3,
+      actualCumulative: [1, 2, 3],
+      throughDay: 0,
+      planCumulative: [1, 2, 3],
+      projected: 9,
+    });
+    expect(nothing.every((p) => p.actual === null && p.projection === null)).toBe(true);
+
+    const none = monthChartPoints({
+      totalDays: 3,
+      actualCumulative: [1, 2, 3],
+      throughDay: 2,
+      planCumulative: [1, 2, 3],
+      projected: null,
+    });
+    expect(none.every((p) => p.projection === null)).toBe(true);
+    expect(none.map((p) => p.actual)).toEqual([1, 2, null]);
+  });
+
+  it("a ratio with no reading at coverage (ROAS before spend) projects nothing", () => {
+    const points = monthChartPoints({
+      totalDays: 4,
+      actualCumulative: [null, null, null, null],
+      throughDay: 2,
+      planCumulative: [2, 2, 2, 2],
+      projected: 2.5,
+    });
+    expect(points.every((p) => p.projection === null)).toBe(true);
+    expect(points.map((p) => p.actual)).toEqual([null, null, null, null]);
+  });
+
+  it("clamps a coverage day outside the month", () => {
+    const over = monthChartPoints({
+      totalDays: 3,
+      actualCumulative: [1, 2, 3],
+      throughDay: 9,
+      planCumulative: null,
+      projected: 5,
+    });
+    expect(over.map((p) => p.actual)).toEqual([1, 2, 3]);
+    expect(over.every((p) => p.projection === null)).toBe(true);
+  });
+});
+
+// ── The ROAS card (2026-10) ─────────────────────────────────────────────────
+
+describe("roasFigures", () => {
+  const base = {
+    actualRevenueSar: 90000,
+    actualSpendUsd: 12000,
+    plannedRevenueSar: 300000,
+    plannedSpendUsd: 36000,
+    targetRoas: null,
+    projectedRevenueSar: 270000,
+    projectedSpendUsd: 36000,
+    rate: 3.75,
+  };
+
+  it("a CURVE month: target = revenue target over planned spend, through the rate", () => {
+    const r = roasFigures(base);
+    expect(r.actual).toBeCloseTo(2, 9); // 90,000 ÷ (12,000 × 3.75)
+    expect(r.target).toBeCloseTo(300000 / (36000 * 3.75), 9); // 2.2222…
+    expect(r.projected).toBeCloseTo(2, 9);
+    // 10% under target — the same magnitude rule as every other verdict.
+    expect(r.deviation).toBeCloseTo(-0.1, 9);
+    expect(pacingTone(r.deviation)).toBe("muted");
+  });
+
+  it("a DAILY month's stored target wins over the derived one", () => {
+    const r = roasFigures({ ...base, targetRoas: 2.5 });
+    expect(r.target).toBe(2.5);
+    expect(r.deviation).toBeCloseTo(-0.2, 9);
+    expect(pacingTone(r.deviation)).toBe("warn");
+  });
+
+  it("no spend → no actual and no verdict; no target → no verdict", () => {
+    const quiet = roasFigures({ ...base, actualSpendUsd: 0 });
+    expect(quiet.actual).toBeNull();
+    expect(quiet.deviation).toBeNull();
+    expect(quiet.target).not.toBeNull();
+    const untargeted = roasFigures({ ...base, plannedRevenueSar: null });
+    expect(untargeted.target).toBeNull();
+    expect(untargeted.deviation).toBeNull();
+    expect(untargeted.actual).toBeCloseTo(2, 9);
+  });
+
+  it("the projection needs BOTH projections", () => {
+    expect(roasFigures({ ...base, projectedRevenueSar: null }).projected).toBeNull();
+    expect(roasFigures({ ...base, projectedSpendUsd: null }).projected).toBeNull();
+    expect(roasFigures({ ...base, projectedSpendUsd: 0 }).projected).toBeNull();
+  });
+
+  it("an unusable rate yields nothing, never Infinity", () => {
+    const r = roasFigures({ ...base, rate: 0 });
+    expect(r.actual).toBeNull();
+    expect(r.target).toBeNull();
+    expect(r.projected).toBeNull();
   });
 });
 
@@ -1890,6 +2153,57 @@ describe("the view derivations", () => {
       "tiktok",
       "instagram",
     ]);
+  });
+
+  it("regroups by objective without re-deriving: bucket bars move, unplanned combos join, sums reconcile", () => {
+    const t = buildTrackerRows(
+      trackerInput({
+        actualSpendByCombo: [
+          { platform: "instagram", objective: "Awareness", actualSpend: 4000 },
+          { platform: "instagram", objective: "Retargeting", actualSpend: 6000 },
+          { platform: "tiktok", objective: "Awareness", actualSpend: 2000 },
+          // No plan row for tiktok × Other → an unplanned line in Other.
+          { platform: "tiktok", objective: "Other", actualSpend: 900 },
+        ],
+      }),
+      TRACKER_MONTH,
+      "2026-09-10",
+    );
+    const groups = groupTrackerByObjective(t.platforms);
+    expect(groups.map((g) => g.label)).toEqual(["Awareness", "Retargeting", "Other"]);
+
+    const awareness = groups[0]!;
+    // Instagram 18,000 + TikTok 6,000 planned; 4,000 + 2,000 spent; 6,000 + 2,000 expected.
+    expect(awareness.plan).toBe(24000);
+    expect(awareness.actual).toBe(6000);
+    expect(awareness.planToDate).toBeCloseTo(8000, 6);
+    expect(awareness.deviation).toBeCloseTo(-0.25, 9);
+    expect(awareness.rows.map((r) => r.platform)).toEqual(["instagram", "tiktok"]);
+    // Each row IS the platform's own bucket bar — the same object's numbers.
+    const igAwareness = t.platforms.find((p) => p.key === "instagram")!.buckets[0]!;
+    expect(awareness.rows[0]!.planToDate).toBe(igAwareness.planToDate);
+    expect(awareness.rows[0]!.deviation).toBe(igAwareness.deviation);
+
+    const other = groups[2]!;
+    expect(other.rows).toHaveLength(1);
+    expect(other.rows[0]).toMatchObject({
+      platform: "tiktok",
+      unplanned: true,
+      plan: 0,
+      actual: 900,
+      planToDate: 0,
+      deviation: null,
+    });
+    // An objective with only unplanned money expects nothing → no verdict.
+    expect(other.plan).toBe(0);
+    expect(other.deviation).toBeNull();
+
+    // The reconcile reading: regrouping moves money, never loses it.
+    const byObjective = groups.reduce((s, g) => s + g.actual, 0);
+    const byPlatform = t.platforms.reduce((s, p) => s + p.actual, 0);
+    expect(byObjective).toBeCloseTo(byPlatform, 6);
+    expect(byObjective).toBeCloseTo(12900, 6);
+    expect(groups.reduce((s, g) => s + g.plan, 0)).toBe(t.total.plan);
   });
 
   it("a row's projection divides by its OWN covered share", () => {
