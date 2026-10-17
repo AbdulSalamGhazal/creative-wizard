@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { displayValueFontSize } from "@/components/overview/metric-card";
 import { longDate, sar, signedPct, usd } from "@/lib/format";
 import { PLATFORM_LABEL } from "@/lib/palette";
 import { cn } from "@/lib/utils";
@@ -23,6 +24,7 @@ import {
   pacingVerdict,
   prevMonthKey,
   spendInDisplayCurrency,
+  variancePct,
   type CoverageSummary,
   type TrackerBar,
   type TrackerData,
@@ -669,4 +671,111 @@ export function CoverageLaggards({
       {" — paced against what each one covers"}
     </p>
   );
+}
+
+// ── The hero card (lifted from the Overview, 2026-10) ────────────────────────
+// The Overview's three hero cards and the Pacing page's range card are ONE
+// card: a label row, the big number, its context line, a PaceBar and a verdict
+// line. It lives here so the two pages cannot drift.
+
+/** Where the thing being paced stands in time. */
+export type HeroState = "live" | "final" | "future";
+
+/**
+ * The card shell: a label row (with an optional aside, like the order count),
+ * the big number, its context line, then whatever the metric adds — a bar
+ * and a verdict. Sized like the Dashboard's KPI tiles so the number never
+ * wraps at 375px.
+ */
+export function Hero({
+  label,
+  value,
+  aside,
+  context,
+  children,
+}: {
+  label: string;
+  value: string;
+  aside?: ReactNode;
+  context: ReactNode;
+  children?: ReactNode;
+}) {
+  return (
+    <section className="@container min-w-0 rounded-lg border border-line bg-surface px-4 py-3">
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="text-label text-ink-3">{label}</span>
+        {aside}
+      </div>
+      <div
+        className="mt-1.5 whitespace-nowrap font-display leading-none num tabular-nums text-ink"
+        style={{ fontSize: displayValueFontSize(value, "2.2rem") }}
+      >
+        {value}
+      </div>
+      <p className="mt-1 text-xs text-ink-3">{context}</p>
+      {children}
+    </section>
+  );
+}
+
+/**
+ * "▲ ahead $X (+Y%) · projected $Z (+W% vs plan, within reserve)" while the
+ * thing is LIVE; "final for <label>" once it is over; nothing before it
+ * starts. The projection is judged against the plan with the shared magnitude
+ * tone; the reserve note says whether an overshoot still fits inside the
+ * money held back.
+ */
+export function HeroVerdict({
+  bar,
+  fmt,
+  projected,
+  reserve = 0,
+  state,
+  finalLabel,
+  variant = "pace",
+  vsLabel = "vs plan",
+}: {
+  bar: TrackerBar;
+  fmt: (v: number) => string;
+  projected: number | null;
+  reserve?: number;
+  state: HeroState;
+  /** What "final for …" names — a month, or a range title. */
+  finalLabel: string;
+  variant?: "pace" | "target";
+  vsLabel?: string;
+}) {
+  if (state === "final") {
+    return <p className="mt-2 text-xs text-ink-3">final for {finalLabel}</p>;
+  }
+  if (state !== "live") return null;
+  const pct = projected !== null && bar.plan > 0 ? variancePct(projected, bar.plan) : null;
+  // The reserve exists to absorb exactly this overshoot — say whether it does.
+  const reserveNote =
+    projected !== null && reserve > 0 && bar.plan > 0 && projected > bar.plan
+      ? projected <= bar.plan + reserve
+        ? ", within reserve"
+        : ", over even with reserve"
+      : "";
+  return (
+    <p className="mt-2 flex flex-wrap items-baseline gap-x-1.5 text-xs">
+      <Verdict bar={bar} fmt={fmt} variant={variant} />
+      {projected !== null && (
+        <span
+          className={cn(
+            "num tabular-nums",
+            pacingTone(pct) === "warn" ? "text-warn" : "text-ink-3",
+          )}
+        >
+          · projected {fmt(projected)}
+          {pct !== null && ` (${signedPct(pct, 0)} ${vsLabel}${reserveNote})`}
+        </span>
+      )}
+    </p>
+  );
+}
+
+/** "by 2026-09-05 (the last day of data)" — the bar's aria anchor, in the Tracker's words. */
+export function anchorWords(through: string | null): string {
+  return through ? `by ${through} (the last day of data)` : "— no data yet";
 }

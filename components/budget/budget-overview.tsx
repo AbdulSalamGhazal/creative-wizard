@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowRight } from "lucide-react";
@@ -21,7 +21,6 @@ import { ChartHeader, ChartShell, ExpandButton } from "@/components/charts/chart
 import { ChartTooltip } from "@/components/charts/chart-tooltip";
 import { MetricPicker } from "@/components/charts/metric-picker";
 import { SeriesLegend } from "@/components/charts/series-legend";
-import { displayValueFontSize } from "@/components/overview/metric-card";
 import { ALL_PLATFORMS } from "@/lib/palette";
 import {
   int,
@@ -29,7 +28,6 @@ import {
   roas as fmtRoas,
   sar,
   sarCompact,
-  signedPct,
   usdCompact,
 } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -46,13 +44,11 @@ import {
   monthEndIso,
   monthLabel,
   monthStartIso,
-  pacingTone,
   planSeriesSourceOf,
   roasFigures,
   sortTrackerPlatforms,
   spendInDisplayCurrency,
   validateRate,
-  variancePct,
   type MonthChartPoint,
   type PlatformCoverage,
   type TrackerBar,
@@ -64,13 +60,17 @@ import {
   CoverageLaggards,
   CoverageLine,
   CurrencyToggle,
+  Hero,
+  HeroVerdict,
   HorizonNote,
   PaceBar,
   Verdict,
+  anchorWords,
   formatSpend,
   laggardWords,
   platformLabel,
   useBudgetCurrency,
+  type HeroState,
 } from "@/components/budget/budget-shared";
 
 /**
@@ -262,99 +262,15 @@ export function BudgetOverview({
 }
 
 // ── Hero cards ───────────────────────────────────────────────────────────────
+// `Hero`, `HeroVerdict` and `anchorWords` live in budget-shared (2026-10):
+// the Pacing page's range card is the same card for a date range.
 
-/**
- * The card shell: a label row (with an optional aside, like the order count),
- * the big number, its context line, then whatever the metric adds — a bar
- * and a verdict. Sized like the Dashboard's KPI tiles so the number never
- * wraps at 375px.
- */
-function Hero({
-  label,
-  value,
-  aside,
-  context,
-  children,
-}: {
-  label: string;
-  value: string;
-  aside?: ReactNode;
-  context: ReactNode;
-  children?: ReactNode;
-}) {
-  return (
-    <section className="@container min-w-0 rounded-lg border border-line bg-surface px-4 py-3">
-      <div className="flex items-baseline justify-between gap-2">
-        <span className="text-label text-ink-3">{label}</span>
-        {aside}
-      </div>
-      <div
-        className="mt-1.5 whitespace-nowrap font-display leading-none num tabular-nums text-ink"
-        style={{ fontSize: displayValueFontSize(value, "2.2rem") }}
-      >
-        {value}
-      </div>
-      <p className="mt-1 text-xs text-ink-3">{context}</p>
-      {children}
-    </section>
-  );
-}
-
-/**
- * "▲ ahead $X (+Y%) · projected $Z (+W% vs plan, within reserve)" for the
- * current month; "final for <Month>" once it is over. The projection is
- * judged against the plan with the shared magnitude tone; the reserve note
- * says whether an overshoot still fits inside the money held back.
- */
-function HeroVerdict({
-  bar,
-  fmt,
-  projected,
-  reserve = 0,
-  isCurrentMonth,
-  isPastMonth,
-  month,
-  variant = "pace",
-  vsLabel = "vs plan",
-}: {
-  bar: TrackerBar;
-  fmt: (v: number) => string;
-  projected: number | null;
-  reserve?: number;
-  isCurrentMonth: boolean;
+/** The month's three clocks as the hero card's one state. */
+function heroState(t: {
   isPastMonth: boolean;
-  month: string;
-  variant?: "pace" | "target";
-  vsLabel?: string;
-}) {
-  if (isPastMonth) {
-    return <p className="mt-2 text-xs text-ink-3">final for {monthLabel(month)}</p>;
-  }
-  if (!isCurrentMonth) return null;
-  const pct = projected !== null && bar.plan > 0 ? variancePct(projected, bar.plan) : null;
-  // The reserve exists to absorb exactly this overshoot — say whether it does.
-  const reserveNote =
-    projected !== null && reserve > 0 && bar.plan > 0 && projected > bar.plan
-      ? projected <= bar.plan + reserve
-        ? ", within reserve"
-        : ", over even with reserve"
-      : "";
-  return (
-    <p className="mt-2 flex flex-wrap items-baseline gap-x-1.5 text-xs">
-      <Verdict bar={bar} fmt={fmt} variant={variant} />
-      {projected !== null && (
-        <span
-          className={cn(
-            "num tabular-nums",
-            pacingTone(pct) === "warn" ? "text-warn" : "text-ink-3",
-          )}
-        >
-          · projected {fmt(projected)}
-          {pct !== null && ` (${signedPct(pct, 0)} ${vsLabel}${reserveNote})`}
-        </span>
-      )}
-    </p>
-  );
+  isCurrentMonth: boolean;
+}): HeroState {
+  return t.isPastMonth ? "final" : t.isCurrentMonth ? "live" : "future";
 }
 
 function SpendCard({
@@ -418,9 +334,8 @@ function SpendCard({
         fmt={fmt}
         projected={t.projectedSpend}
         reserve={reserve}
-        isCurrentMonth={t.isCurrentMonth}
-        isPastMonth={t.isPastMonth}
-        month={month}
+        state={heroState(t)}
+        finalLabel={monthLabel(month)}
       />
     </Hero>
   );
@@ -483,9 +398,8 @@ function RevenueCard({
         bar={bar}
         fmt={sar}
         projected={t.projectedRevenue}
-        isCurrentMonth={t.isCurrentMonth}
-        isPastMonth={t.isPastMonth}
-        month={month}
+        state={heroState(t)}
+        finalLabel={monthLabel(month)}
         vsLabel="vs target"
       />
     </Hero>
@@ -588,11 +502,6 @@ function RoasCard({
       )}
     </Hero>
   );
-}
-
-/** "by 2026-09-05 (the last day of data)" — the bar's aria anchor, in the Tracker's words. */
-function anchorWords(through: string | null): string {
-  return through ? `by ${through} (the last day of data)` : "— no data yet";
 }
 
 // ── The chart ────────────────────────────────────────────────────────────────
