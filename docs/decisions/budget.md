@@ -111,23 +111,60 @@ as it stood before the restructure.*
   **Plan modes (curve | daily, 0048) — see PLAN MODES below; every
   plan-to-date number goes through the unified plan series.**
   - **The Plan tab is planning-only (2026-09).** `/budget/plan` carries intent
-    and nothing else — Platform/objective · Planned · % share. The Actual,
-    Pacing, Variance and Variance % columns and the "unplanned" ghost rows were
-    REMOVED; plan-vs-actual lives on Overview and the Pacing page.
-    `getBudgetMonth()` still returns `actualSpendByCombo` for its other
-    callers — don't reshape it; the Plan page just ignores it.
-  - **The Plan editor is a TOP-DOWN CASCADE (2026-09): targets → platform
-    shares → objective shares → day curve.** Percentages are the PRIMARY input;
-    amounts are derived cents-exactly from them (amounts stay editable and
-    back-compute their share against a held parent). `budget_allocations
-    .planned_spend` (USD) is still the only storage — SAVE stores the derived
-    amounts, EDIT reconstructs the shares from them (total = Σ allocations +
-    reserve) at full precision, so a round-trip is exact. Pure helpers in
-    `lib/budget.ts`: `allocatableFromTotal`, `reserveShare`/`reserveFromShare`,
-    `amountsFromShares`, `shareFromAmount`, `sharesComplete`,
-    `distributeShareEvenly`, `normalizeShares`, `moveMoney` — plus the cents-exact
-    `splitByWeights`/`distributeRemainder` they build on. Never re-derive this
-    math per component.
+    and nothing else. The Actual, Pacing, Variance and Variance % columns and
+    the "unplanned" ghost rows were REMOVED in 2026-09; plan-vs-actual lives on
+    Overview and the Pacing page. `getBudgetMonth()` still returns
+    `actualSpendByCombo` for its other callers — don't reshape it; the Plan
+    page just ignores it.
+    - **VIEW MODE IS VISUAL (2026-10-17, user decision: the table was "flimsy,
+      mostly useless").** The Platform/objective · Planned · % share DataTable
+      and its CSV are GONE (Download sheet covers export). Top to bottom: the
+      targets strip (Total budget · Revenue target · Reserve amount + % of
+      total · "Implied ROAS target <x>× at <rate>" — revenue target ÷
+      (ALLOCATED spend × rate), the Overview's `roasFigures` reading, so the
+      pages agree; a daily month shows its stored target ROAS in that slot,
+      which is the same number by construction); a COMPOSITION BAR — one
+      stacked bar of the total, planned platforms in `ALL_PLATFORMS` order in
+      their `PLATFORM_COLOR` tokens, the reserve LAST as a dashed outline (the
+      Overview hero bar's reserve-tail grammar), a segment under 6% keeping its
+      colour but dropping its inline label, a wrapping legend (dot · name ·
+      amount · % of total) and an aria-label saying the split in words;
+      read-only PLATFORM CARDS in the editor's own 2×2 grid and geometry (so
+      "Edit plan" turns the same cards into inputs) — dot + name, amount and %
+      of total, a mini stacked bar of the objectives (`seriesColor` tokens),
+      one row per planned objective (name · amount · % of the platform);
+      unplanned platforms are not shown; a daily month's cards show the
+      derived monthly totals. The plan curve panel COLLAPSES to one line —
+      "Plan curve · every day equal" (`CollapsibleSection`, still opens) —
+      while every weight is 1, and shows as before when weighted; in edit mode
+      it is always open. The `#platform-<key>` anchor ids stay on the cards
+      (nothing links to them any more since the Overview rebuild; they cost
+      nothing). The toolbar, empty state, Copy, Delete, Upload, Revisions,
+      the note field, Discard/Save and the `key={month}` remount are
+      unchanged.
+  - **The Plan editor is a TOP-DOWN CASCADE (2026-09; reshaped 2026-10-17):
+    targets → shares of the TOTAL (the reserve first, then the platforms) →
+    objective shares → day curve.** Percentages are the PRIMARY input; amounts
+    are derived cents-exactly from them (amounts stay editable and
+    back-compute their share against a held parent — the TOTAL for the reserve
+    and the platforms, the platform for its objectives). Storage is
+    unchanged: `budget_targets.reserve_spend_usd` holds the reserve's derived
+    amount and `budget_allocations.planned_spend` (USD) the derived platform ×
+    objective amounts — SAVE stores the derived amounts, EDIT reconstructs the
+    shares from them (`sharesFromStoredPlan`: total = Σ allocations + reserve,
+    reserve share = reserve ÷ total, platform share = Σ its allocations ÷
+    total, objective share = allocation ÷ platform) at full precision, so a
+    round-trip is exact (unit-pinned, reserve included). Pure helpers in
+    `lib/budget.ts`: `splitTotalByShares` (ONE `amountsFromShares` over the
+    total with the reserve as the first share, so reserve and platforms round
+    together), `sharesFromStoredPlan`, `sendRemainderToReserve`,
+    `distributePlatformsEvenly`, `allocatableFromTotal`, `amountsFromShares`,
+    `shareFromAmount`, `sharesComplete`, `normalizeShares`, `moveMoney` — plus
+    the cents-exact `splitByWeights`/`distributeRemainder` they build on.
+    (`reserveShare`/`reserveFromShare` remain for the upload dialog's reserve
+    field.) Never re-derive this math per component. Targets carries "Total
+    budget", "Revenue target" and a live read-only "Implied ROAS target" =
+    revenue ÷ (allocated × rate), "—" until both are set.
   - **The RESERVE is part of the TOTAL, not on top of it (2026-09 framing).**
     `allocatable = total − reserve`; the reserve is money carved out and not yet
     allocated. Storage (`budget_targets.reserve_spend_usd`) is UNCHANGED, and it
@@ -135,12 +172,32 @@ as it stood before the restructure.*
     only. "Used" is the platform-level rule (`reserveUsed`, 2026-10-17): spend
     beyond a platform's whole plan draws the reserve down; a planned platform
     spending in a different bucket is drift, not a draw.
-  - **Save is BLOCKED below 100% (user decision).** Platform shares must reach
-    exactly 100% of the allocatable and every planned platform's objective
-    shares must reach exactly 100%; the banner names each gap and "Distribute
-    remaining evenly" fixes it in one click. Money not yet committed belongs in
-    the RESERVE, never in a gap. Rounding must never block — `SHARE_EPSILON`
-    tolerates float dust only, and derived amounts are cents-exact.
+    - **The reserve is ENTERED as a share (2026-10-17, user decision: "the
+      reserve should be within the percentages").** It used to be typed as an
+      amount BEFORE the percentages (type a reserve, then split what was
+      left); now it is one share of the total beside the platforms — the
+      FIRST row of "Split the budget", labelled "Reserve — held back, not
+      paced", with the same share-%/USD pair a platform has, no objective rows,
+      allowed to be 0. Changing the total rescales the reserve with everything
+      else (the focus note says so); Move money's semantics are unchanged
+      (reserve → platform, platform → platform, new money → platform; dollars
+      move, other platforms' dollars untouched) and its result is mapped back
+      onto shares of the new total at full precision.
+  - **Save is BLOCKED below 100% (user decision).** Reserve share + platform
+    shares must reach exactly 100% of the TOTAL (2026-10-17; before that the
+    platforms alone reached 100% of the allocatable) and every planned
+    platform's objective shares must reach exactly 100%; the header counter
+    reads "<sum> of 100%" over reserve + platforms, the banner names each gap
+    (naming the reserve: "Shares of the total: 70.0% (reserve 10.0% +
+    platforms 60.0%) — 30.0% unassigned"), and THREE fixers close it in one
+    click: "Distribute remaining evenly" spreads the gap across the ACTIVE
+    platforms only (never the reserve), "Send the rest to reserve" puts the
+    whole gap in the reserve (offered only when the reserve can absorb it —
+    an over-assigned split it cannot give back is not offered), "Normalize to
+    100%" scales reserve and platforms together. Money not yet committed
+    belongs in the RESERVE, never in a gap. Rounding must never block —
+    `SHARE_EPSILON` tolerates float dust only, and derived amounts are
+    cents-exact.
   - **Two mid-month operations, KEEP THEM DISTINCT.** Changing the total (or
     reserve) RESCALES everything through the current shares. "Move money"
     moves money: the source (the reserve or a platform) falls by the amount —
