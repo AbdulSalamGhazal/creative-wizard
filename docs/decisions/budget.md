@@ -29,6 +29,19 @@
   expectations, not a second calculation over the whole plan.
 - The reserve is part of the total, carved out of it, and sits OUTSIDE the
   curve. Save is blocked below 100% — uncommitted money belongs in the reserve.
+- **Reserve USED = Σ over platforms of max(0, actual − planned)**, where
+  `planned` is the platform's whole allocation across its buckets (0 for a
+  platform with no plan). Spend beyond the plan at PLATFORM level draws the
+  reserve; money that lands in a different objective bucket of a planned
+  platform is objective DRIFT — shown as an unplanned row — never a reserve
+  draw. One helper, `reserveUsed`, and every "reserve used" on every surface
+  reads it (2026-10-17, user decision).
+- **The Overview is three hero cards, one chart and the pace board** — every
+  number on it is `buildTrackerRows` (the Tracker's rows) or the plan series;
+  it never carries a second math path. ROAS has equal billing with spend and
+  revenue.
+- **The allocation check lives on the Tracker's table view (`group=objective`)**
+  — the same `buildTrackerRows` output regrouped, never a second derivation.
 - Budget's objective axis is `BUDGET_OBJECTIVES` (buckets), applied at every
   layer and never re-listed.
 - Audience snapshots: carry forward as a STEP, never interpolate; before the
@@ -79,19 +92,20 @@ as it stood before the restructure.*
   weights stored in `budget_day_weights`; no-overrides ≡ v1 linear, unit-pinned;
   ONE curve for spend AND revenue; projection = actual ÷ elapsed curve
   fraction) plus a **reserve** (`budget_targets.reserve_spend_usd`, part of the
-  total and carved out of it, deliberately OUTSIDE the curve; "used" = the
-  month's unplanned actual spend).
+  total and carved out of it, deliberately OUTSIDE the curve; "used" = Σ
+  platforms max(0, actual − plan), the platform-level rule — see the 2026-10-17
+  entry; it was the sum of unplanned combos until then).
   Standing decisions: actual spend deliberately applies **NO exclusion
   filtering** anywhere in Budget (raw `performance_records` totals, per-day
   included — budget totals may differ from dashboards; never "fix" this);
   revenue = store FACTS as a monthly total only (no breakdown; claimed-vs-real
   lives on Reconciliation); the USD↔SAR toggle is display-only (localStorage)
   but ROAS is ALWAYS computed through the per-brand `accounts.usd_to_sar_rate`
-  (default 3.77). The spend table's Unplanned bucket must reconcile its actual
-  total to the raw month total exactly (harness-pinned). A period past its
-  side's horizon renders as an em-dash (unknown ≠ 0). Pacing VERDICTS (Overview's
-  tiles and its allocation check) are current-month-only; the **Pacing page** is
-  a date range. Deviations everywhere are warn-tinted by |magnitude| — never
+  (default 3.77). The Tracker table's unplanned rows must reconcile the actual
+  total to the raw month total exactly (harness-pinned on the query). A period
+  past its side's horizon renders as an em-dash (unknown ≠ 0). Pacing VERDICTS
+  (Overview's hero cards and its pace board) are current-month-only; the
+  **Pacing page** is a date range. Deviations everywhere are warn-tinted by |magnitude| — never
   green/red. Permission
   `budget.manage`; audit `budget.update`. Migrations 0035 + 0036 (additive).
   **Plan modes (curve | daily, 0048) — see PLAN MODES below; every
@@ -118,8 +132,9 @@ as it stood before the restructure.*
     `allocatable = total − reserve`; the reserve is money carved out and not yet
     allocated. Storage (`budget_targets.reserve_spend_usd`) is UNCHANGED, and it
     still sits OUTSIDE the plan curve — the curve paces the ALLOCATED plan
-    only. Overview's "used = the month's unplanned actual spend" reading still
-    holds: spend outside the plan draws the reserve down.
+    only. "Used" is the platform-level rule (`reserveUsed`, 2026-10-17): spend
+    beyond a platform's whole plan draws the reserve down; a planned platform
+    spending in a different bucket is drift, not a draw.
   - **Save is BLOCKED below 100% (user decision).** Platform shares must reach
     exactly 100% of the allocatable and every planned platform's objective
     shares must reach exactly 100%; the banner names each gap and "Distribute
@@ -158,10 +173,18 @@ as it stood before the restructure.*
     table, deletes, then re-inserts, because a data-modifying CTE doesn't order
     its DELETE against the outer INSERT and the unique index would abort.
     **Never re-list the buckets** — derive from `BUDGET_OBJECTIVES`.
-  - **The allocation check lives on OVERVIEW (2026-09), grouped by bucket.**
-    Planned vs actual per bucket × platform with unplanned rows; the
-    reconcile-to-raw-month-total invariant is enforced HERE and pinned by
-    tests/db/budget.test.ts.
+  - **The allocation check lives on the Tracker's table view, `group=objective`
+    (2026-10; it was a table of its own on Overview from 2026-09).** Objective
+    subtotal → its platforms, an "unplanned" badge on a combo with no plan
+    row, the table's own columns (Plan · Actual · Expected · Δ · Δ% ·
+    Projection) — all `buildTrackerRows` output regrouped by
+    `groupTrackerByObjective`, no second math path, no re-derived
+    expectations; totals pinned, CSV for both groupings. The
+    reconcile-to-raw-month-total invariant is the QUERY's and stays pinned by
+    tests/db/budget.test.ts; the regroup is pinned to move money without losing
+    it in lib/budget.test.ts. `components/budget/budget-allocation-check.tsx`
+    and `TABLE_KEYS.BUDGET_ALLOCATION` were deleted (no stored prefs carried
+    the key).
   - **Pacing is a DATE RANGE, not a month (2026-09).** URL-backed
     `from`/`to`/`groupBy`/`platforms`; group by Day / Week / Month (weeks are
     Sunday-start calendar weeks CLIPPED to the range); a platform multi-select
@@ -192,18 +215,19 @@ as it stood before the restructure.*
       data that stops before the month → **0, so the row expects nothing and
       has no verdict — never "100% behind"**; a PAST month → the full month, so
       history is bit-identical to before (regression-pinned); a future month →
-      0. Every pacing surface shares it: Tracker, Overview's verdicts and
-      projections, the allocation check.
+      0. Every pacing surface shares it: Tracker (both views), Overview's hero
+      cards, chart and pace board.
     - **A total is the SUM of its rows' expectations**, not a second
       calculation over the whole plan — with coverage diverging those differ,
       and the one the cards add to is the honest one. The projection divides by
       the COVERAGE fraction (Σ expectations ÷ plan), so a lagging upload stops
       forecasting a shortfall that isn't there. Revenue paces against the STORE
       horizon (`REVENUE_COVERAGE_KEY`) — separate pipeline, separate coverage.
-    - **"Planned for today" on Overview stays CALENDAR-based** — "what does the
-      plan put on today" is a different question and has an answer before
-      today's data exists. `elapsedDaysInMonth` keeps its calendar display uses
-      ("Day 21 of 30") and nothing else.
+    - **"Planned for today" on Overview stayed CALENDAR-based** while it
+      existed — "what does the plan put on today" is a different question and
+      has an answer before today's data exists. The 2026-10 Overview rebuild
+      removed that line; `elapsedDaysInMonth` keeps its calendar display uses
+      ("Day 21 of 30", the chart's Today marker) and nothing else.
     - The header says what it counted through, and names any platform trailing
       the rest by more than a day ("TikTok data ends 2026-09-13"); every bar's
       aria-label speaks its OWN anchor.
@@ -225,11 +249,17 @@ as it stood before the restructure.*
       output — platform subtotal + bucket rows, Plan · Actual · Expected · Δ ·
       Δ% · Projection, sorted by Δ% desc, totals pinned, CSV — for when you
       want to rank and export rather than scan. **No second math path.**
+      Since 2026-10 the table has a GROUPING (`?group=platform|objective`,
+      `TRACKER_GROUPS`, visible only while the table board is active):
+      `platform` is the table above; `objective` is the allocation check —
+      objective subtotal → its platforms, unplanned combos badged — from
+      `groupTrackerByObjective`, with the totals row summing whichever
+      subtotals are shown so both groupings foot to the same month.
     - **Opt-in controls, each remembered:** tier-1 `platforms` (the shared
       key), tier-2 `buckets` and `offpace` ("Off-pace only" — it hides rows
       within the warn threshold in BOTH directions, which is why it is not
-      called "problems"), and the page-owned `board` / `rank` through
-      FilterShell's `persistKeys`. The names dodge keys other pages own:
+      called "problems"), and the page-owned `board` / `rank` / `group`
+      through FilterShell's `persistKeys`. The names dodge keys other pages own:
       `buckets` (Campaigns' `objectives` is a different vocabulary), `board`
       (`view` is never persisted and is Library's grid/table), `rank`
       (`order` is Campaigns' COLUMN order).
@@ -253,8 +283,10 @@ as it stood before the restructure.*
       (1.06:1 on Midnight), and it is the whole point of the bar. Every bar
       carries an aria-label that says the numbers in words.
     - **A row with no plan gets NO bar** — there is no track to draw against.
-      Unplanned spend is an amount-only line per platform ("draws down the
-      reserve"), which is the same reserve framing Overview uses.
+      Unplanned spend is an amount-only line per platform: on a PLANNED
+      platform it names the bucket(s) with no allocation (objective drift); a
+      platform with no plan at all "draws down the reserve" — the same
+      platform-level reserve rule Overview's reserve row uses (2026-10-17).
     - Past month → the tick sits at 100% and the projection is replaced by
       "final for <month>"; future month → tick at 0, no verdict at all (nothing
       is expected yet, which must never read as 100% behind). Both fall out of
@@ -401,6 +433,56 @@ as it stood before the restructure.*
     - The empty state follows the same hierarchy: **Edit plan** (primary) ·
       "Copy <month>'s plan" (when an earlier plan exists) · Upload.
 
+  - **THE OVERVIEW REBUILD (2026-10-17, user decision) — fewer, stronger
+    elements; one chart; the pace board.** The page had grown four metric
+    tiles, a verdict line, a reserve strip, a revenue strip that repeated the
+    tiles, per-platform cards with two numbers and a dot, and an allocation
+    table that was the Tracker's table transposed — and no chart. It is now,
+    top to bottom: the month bar with the Tracker's own coverage line ("Day N
+    of M · data through D", laggards named — `CoverageLine` /
+    `CoverageLaggards` in budget-shared, shared with the Tracker's header);
+    three HERO CARDS (Spend · Revenue · ROAS) each with a big number, a
+    context line, ONE bullet bar — the Tracker's `PaceBar`, lifted into
+    budget-shared and extended with a projection extension, a dashed reserve
+    tail and a ratio scale rather than forked — and a verdict line; ONE
+    cumulative chart (ChartShell + MetricPicker Spend | Revenue | ROAS; the
+    actual line stops at the side's coverage, the plan is dashed, a dotted
+    projection runs from the last actual point to the SAME month-end number
+    the card prints, a Today marker shows the upload gap; "Open in Pacing"
+    links the month's range); and THE PACE BOARD — `buildTrackerRows`'
+    platform rows sorted most-off-pace first (`sortTrackerPlatforms(...,
+    "offpace")`), each with its bucket rows, a platform row opening the
+    Tracker filtered to it, and the Reserve as the last row (used of reserve,
+    "past the reserve" when over). **ROAS has equal billing** because the user
+    may miss the whole spend or the whole revenue but must follow the ROAS
+    target: target = revenue target ÷ (planned spend × rate) on a curve month,
+    the stored target on a daily one (`roasFigures`); its bar is a 0..max×1.15
+    axis with the target as the tick; projected ROAS = projected revenue ÷
+    (projected spend × rate). Current month only for verdicts and projections;
+    a past month's cards say "final for <Month>"; a future month shows plan /
+    target with no fill and no verdict; a card with no plan shows the actual
+    and "no plan" / "no target". **Every number is `buildTrackerRows`** (the
+    hero total IS `t.total`, the projection IS `t.projectedSpend`;
+    `projectedRevenue` and `reserveUsed` joined `TrackerData` for it) or the
+    plan series (`cumulativeSums`, `cumulativeRoas`, `monthChartPoints` — pure,
+    unit-tested); per-day actuals are `budgetPacingSeries(monthStart,
+    monthEnd)` fetched in the page beside `getBudgetMonth` — no new scan. The
+    rebuild also fixed a latent bug: the old page passed platform coverage
+    WITHOUT the store key, so its revenue verdict was always null in the
+    current month; the page now builds the same coverage map the Tracker does.
+    - **The reserve rule changed with it (user decision, 2026-10-17).** "Used"
+      had been the sum of actual spend on platform × objective combos with no
+      plan row. September's local data showed Facebook UNDER its plan yet
+      "past the reserve", because its campaigns sat in a different objective
+      bucket from the one planned. The new rule is platform-level —
+      `reserveUsed(allocations, actualSpendByCombo)` = Σ platforms max(0,
+      actual − planned) — and bucket-level mismatch is objective DRIFT, named
+      as such on the Tracker ("Unplanned $X — no allocation for Other") and
+      visible in the Tracker table's objective grouping. Everywhere "reserve
+      used" shows reads the one helper: the Overview's reserve row and its
+      spend card's "within reserve / over even with reserve" note, the
+      Tracker footer ("Used $X — past the reserve"). `unplannedTotal` is still
+      reported (it is the drift total) but no longer drives the reserve.
   - **Funnel audience (`/budget/audience`, 2026-09, migration 0042 additive).**
     Hand-measured audience sizes per funnel stage × platform, versus spend.
     **Stages DERIVE from `BUDGET_OBJECTIVES` minus "Other"** (`FUNNEL_STAGES` in

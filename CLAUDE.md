@@ -269,6 +269,7 @@ this map is still a rule you broke.
 - Pacing compares against DATA COVERAGE, never the calendar.
 - `replaceBudgetMonth` is the ONE plan writer; revisions are written in its transaction.
 - Revenue has no platform attribution anywhere in Budget.
+- Reserve USED = Σ platforms max(0, actual − plan) — platform overshoot, never bucket drift.
 
 → **`docs/decisions/budget.md`**
 
