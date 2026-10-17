@@ -36,7 +36,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { DataTable, type DataColumn } from "@/components/ui/data-table";
+import { CollapsibleSection } from "@/components/ui/collapsible-section";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -45,8 +45,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { PlatformDot } from "@/components/ui/platform-dot";
-import { ALL_PLATFORMS, PLATFORM_LABEL } from "@/lib/palette";
-import { pct1, plural, sar, usd } from "@/lib/format";
+import { ALL_PLATFORMS, PLATFORM_COLOR, PLATFORM_LABEL, seriesColor } from "@/lib/palette";
+import { pct1, plural, roas as fmtRoas, sar, usd } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import {
   BUDGET_OBJECTIVES,
@@ -56,6 +56,7 @@ import {
   amountsFromShares,
   budgetComboKey,
   daysInMonth,
+  distributePlatformsEvenly,
   distributeShareEvenly,
   monthDayIncrements,
   monthLabel,
@@ -65,12 +66,14 @@ import {
   monthStartIso,
   pctShare,
   prevMonthKey,
-  reserveFromShare,
-  reserveShare,
+  roasThroughRate,
   round2,
+  sendRemainderToReserve,
   shareFromAmount,
+  shareRemainder,
   sharesComplete,
-  spendInDisplayCurrency,
+  sharesFromStoredPlan,
+  splitTotalByShares,
   validateRate,
   validateWeight,
   type BudgetObjective,
@@ -97,16 +100,6 @@ import {
 import { BudgetPlanRevisions } from "@/components/budget/budget-plan-revisions";
 import { BudgetPlanUpload, downloadPlanSheet } from "@/components/budget/budget-plan-upload";
 
-interface PlanRow {
-  key: string;
-  kind: "platform" | "combo";
-  platform: string;
-  objective: string | null;
-  planned: number;
-  /** Percent of the row's parent (platform → allocatable, objective → platform). */
-  share: number | null;
-}
-
 const WEIGHT_STEP = 0.5;
 const NOTE_MAX = 200;
 
@@ -116,14 +109,19 @@ const parse = (raw: string | undefined) => {
   return Number.isFinite(n) ? n : 0;
 };
 
-/** The editor's draft: shares are primary, amounts are derived from them. */
+/**
+ * The editor's draft: shares are primary, amounts are derived from them. Since
+ * 2026-10-17 the RESERVE IS ONE OF THE SHARES — "the reserve should be within
+ * the percentages" — so the first level is reserve + platforms = 100% of the
+ * total, and the reserve's USD figure is derived like any platform's.
+ */
 interface Draft {
   /** Total spend budget, USD — the number everything else is a share of. */
   total: string;
-  /** Reserve, USD. Carved OUT of the total: allocatable = total − reserve. */
-  reserve: string;
+  /** The reserve's share of the TOTAL, as typed. Held back, not paced. */
+  reserveShare: string;
   revenue: string;
-  /** platform → share of the allocatable, as typed. */
+  /** platform → share of the TOTAL, as typed. */
   platformShares: Record<string, string>;
   /** `platform|objective` → share of THAT platform's amount. */
   objectiveShares: Record<string, string>;
@@ -131,30 +129,42 @@ interface Draft {
 
 const emptyDraft: Draft = {
   total: "",
-  reserve: "",
+  reserveShare: "",
   revenue: "",
   platformShares: {},
   objectiveShares: {},
 };
 
+/** The reserve's shareCell key — it sits beside the platforms' `p:<key>`. */
+const RESERVE_KEY = "reserve";
+
 /**
  * The Plan page body — a PURE PLANNING surface, edited TOP-DOWN (2026-09).
  *
- * Edit mode is a cascade: a total spend budget and a revenue target, a reserve
- * carved out of the total (money deliberately not decided yet), then percentage
- * shares down two levels — each platform's share of the allocatable, and each
- * objective's share of its platform. Percentages are the primary input and the
- * dollar amounts are derived from them cents-exactly, which is what makes
- * "change the total" a clean rescale: every share holds, every amount follows.
+ * Edit mode is a cascade: a total spend budget and a revenue target, then
+ * percentage shares OF THE TOTAL — the reserve first (money deliberately not
+ * decided yet, held back and never paced), then each platform — and inside a
+ * platform, each objective's share of it. Percentages are the primary input
+ * and the dollar amounts are derived from them cents-exactly, which is what
+ * makes "change the total" a clean rescale: every share holds (the reserve's
+ * too), every amount follows.
  *
  * Save is blocked until the shares add to exactly 100% at both levels — money
- * you don't want to commit belongs in the reserve, not in a gap. Moving money
- * out of the reserve later is a separate, explicit operation that leaves every
- * other platform's dollars alone.
+ * you don't want to commit belongs in the reserve, not in a gap, and "Send the
+ * rest to reserve" does exactly that in one click. Moving money out of the
+ * reserve later is a separate, explicit operation that leaves every other
+ * platform's dollars alone.
  *
- * Storage is unchanged: derived amounts land in `budget_allocations`, and
- * opening the editor reconstructs the shares from them, so a round-trip is
- * exact.
+ * View mode is a VISUAL read of the plan (2026-10): the targets strip, a
+ * composition bar of the total (platforms in their colours, the reserve as a
+ * dashed outline — the Overview hero bar's grammar), read-only platform cards
+ * in the editor's own grid, and the plan curve collapsed to one line while
+ * every day is equal.
+ *
+ * Storage is unchanged: the reserve's derived amount lands in
+ * `budget_targets.reserve_spend_usd` and the derived platform × objective
+ * amounts in `budget_allocations`; opening the editor reconstructs the shares
+ * from them (`sharesFromStoredPlan`), so a round-trip is exact.
  */
 export function BudgetPlanEditor({
   month,
@@ -199,8 +209,6 @@ export function BudgetPlanEditor({
   /** The share cell being typed in — raw text, so a keystroke isn't reformatted
    *  out from under the caret by the recomputed value. */
   const [shareEdit, setShareEdit] = useState<{ key: string; raw: string } | null>(null);
-  /** Same idea for the reserve's % field: the raw text while it has focus. */
-  const [reservePctRaw, setReservePctRaw] = useState<string | null>(null);
   const [totalFocused, setTotalFocused] = useState(false);
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const [copyOpen, setCopyOpen] = useState(false);
@@ -238,34 +246,24 @@ export function BudgetPlanEditor({
   const totalRef = useRef<HTMLInputElement>(null);
 
   /**
-   * Rebuild the cascade from what's stored: the total is the allocated sum plus
-   * the reserve, and every share is its amount over its parent — at full
-   * precision, so deriving straight back gives the same amounts to the cent.
+   * Rebuild the cascade from what's stored (`sharesFromStoredPlan`): the total
+   * is the allocated sum plus the reserve, the reserve's share is its amount
+   * over the total, and every platform/objective share is its amount over its
+   * parent — at full precision, so deriving straight back gives the same
+   * amounts to the cent (unit-pinned).
    */
   const startEditing = () => {
-    const allocated = round2(
-      data.allocations.reduce((s, a) => s + a.plannedSpend, 0),
-    );
-    const reserve = data.reserveSpendUsd;
-    const platformShares: Record<string, string> = {};
-    const objectiveShares: Record<string, string> = {};
-    for (const platform of ALL_PLATFORMS) {
-      const rows = data.allocations.filter((a) => a.platform === platform);
-      const platformSum = round2(rows.reduce((s, a) => s + a.plannedSpend, 0));
-      if (platformSum <= 0 && rows.length === 0) continue;
-      platformShares[platform] = String(shareFromAmount(platformSum, allocated));
-      for (const row of rows) {
-        objectiveShares[budgetComboKey(platform, row.objective)] = String(
-          shareFromAmount(row.plannedSpend, platformSum),
-        );
-      }
-    }
+    const stored = sharesFromStoredPlan(data.allocations, data.reserveSpendUsd);
     setDraft({
-      total: allocated + reserve > 0 ? String(round2(allocated + reserve)) : "",
-      reserve: reserve > 0 ? String(reserve) : "",
+      total: stored.total > 0 ? String(stored.total) : "",
+      reserveShare: stored.reserveShare > 0 ? String(stored.reserveShare) : "",
       revenue: data.plannedRevenueSar === null ? "" : String(data.plannedRevenueSar),
-      platformShares,
-      objectiveShares,
+      platformShares: Object.fromEntries(
+        Object.entries(stored.platformShares).map(([p, share]) => [p, String(share)]),
+      ),
+      objectiveShares: Object.fromEntries(
+        Object.entries(stored.objectiveShares).map(([k, share]) => [k, String(share)]),
+      ),
     });
     // A stored weight below the editor's floor (a legacy row, or one written
     // before the bounds tightened) would fail save validation with a raw zod
@@ -281,7 +279,6 @@ export function BudgetPlanEditor({
     );
     setNote("");
     setShareEdit(null);
-    setReservePctRaw(null);
     setSelectedDay(null);
     setEditing(true);
   };
@@ -291,14 +288,12 @@ export function BudgetPlanEditor({
     setWeightsDraft({});
     setNote("");
     setShareEdit(null);
-    setReservePctRaw(null);
     setSelectedDay(null);
   };
 
   // ── Derivation ─────────────────────────────────────────────────────────────
   const total = round2(parse(draft.total));
-  const reserve = round2(parse(draft.reserve));
-  const allocatable = allocatableFromTotal(total, reserve);
+  const reserveShareValue = parse(draft.reserveShare);
 
   /** Platforms carrying a share — the ones the cascade is actually planning. */
   const activePlatforms: string[] = useMemo(
@@ -310,9 +305,25 @@ export function BudgetPlanEditor({
   );
 
   const platformShareList = activePlatforms.map((p) => parse(draft.platformShares[p]));
-  const platformAmounts = amountsFromShares(allocatable, platformShareList);
+  // ONE split of the total: the reserve and the platforms are rounded together.
+  const split = splitTotalByShares(total, reserveShareValue, platformShareList);
+  const reserve = split.reserve;
+  const platformAmounts = split.platforms;
+  const allocatable = allocatableFromTotal(total, reserve);
+  /** The first level as a whole — what the header counter and the gate judge. */
+  const totalShareList = [reserveShareValue, ...platformShareList];
+  const totalShareSum = totalShareList.reduce((s, v) => s + v, 0);
+  const totalSharesOk = sharesComplete(totalShareList);
   const amountOf = (platform: string) =>
     platformAmounts[activePlatforms.indexOf(platform)] ?? 0;
+  /**
+   * Revenue target ÷ (ALLOCATED spend × rate): the reserve is not expected to
+   * be spent, so the ROAS the plan implies is over what is — exactly how the
+   * Overview's `roasFigures` derives its target, so the two pages agree.
+   */
+  const draftRevenue = parse(draft.revenue);
+  const impliedRoas =
+    draftRevenue > 0 && allocatable > 0 ? roasThroughRate(draftRevenue, allocatable, rate) : null;
 
   const objectiveSharesOf = (platform: string) =>
     BUDGET_OBJECTIVES.map((o) => parse(draft.objectiveShares[budgetComboKey(platform, o)]));
@@ -324,7 +335,7 @@ export function BudgetPlanEditor({
     if (!editing) return [];
     return planGateProblems({
       total,
-      reserve,
+      reserveShare: reserveShareValue,
       hasRevenueTarget: draft.revenue.trim() !== "",
       platforms: activePlatforms.map((platform) => ({
         label: platformLabel(platform),
@@ -333,7 +344,7 @@ export function BudgetPlanEditor({
       })),
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editing, draft, total, reserve, activePlatforms]);
+  }, [editing, draft, total, reserveShareValue, activePlatforms]);
 
   const canSave = editing && problems.length === 0;
 
@@ -356,7 +367,10 @@ export function BudgetPlanEditor({
 
   /** A typed dollar amount becomes a share of its parent, parent held fixed. */
   const setPlatformAmount = (platform: string, rawAmount: string) =>
-    setPlatformShare(platform, String(shareFromAmount(parse(rawAmount), allocatable)));
+    setPlatformShare(platform, String(shareFromAmount(parse(rawAmount), total)));
+  const setReserveShare = (raw: string) => setField({ reserveShare: raw });
+  const setReserveAmount = (rawAmount: string) =>
+    setReserveShare(String(shareFromAmount(parse(rawAmount), total)));
   const setObjectiveAmount = (platform: string, objective: string, rawAmount: string) =>
     setObjectiveShare(
       platform,
@@ -378,15 +392,30 @@ export function BudgetPlanEditor({
     });
   };
 
-  /** Scale a level's shares to exactly 100%, keeping their proportions. */
-  const normalizePlatforms = () => {
-    const fixed = normalizeShares(platformShareList);
+  /**
+   * Scale the first level to exactly 100%, keeping proportions — the reserve
+   * and the platforms TOGETHER, since the reserve is one of the shares.
+   */
+  const normalizeTotalShares = () => {
+    const [fixedReserve = 0, ...fixed] = normalizeShares(totalShareList);
     setDraft((d) => {
       const next = { ...d.platformShares };
       activePlatforms.forEach((p, i) => (next[p] = String(fixed[i] ?? 0)));
-      return { ...d, platformShares: next };
+      return {
+        ...d,
+        reserveShare: fixedReserve > 0 ? String(fixedReserve) : "",
+        platformShares: next,
+      };
     });
   };
+  /** The whole gap into the reserve; platforms untouched. */
+  const sendRestToReserve = () => {
+    const next = sendRemainderToReserve(reserveShareValue, platformShareList);
+    if (next === null) return;
+    setField({ reserveShare: next > 0 ? String(next) : "" });
+  };
+  const canSendToReserve =
+    !totalSharesOk && sendRemainderToReserve(reserveShareValue, platformShareList) !== null;
   const normalizeObjectives = (platform: string) => {
     const fixed = normalizeShares(objectiveSharesOf(platform));
     setDraft((d) => {
@@ -398,8 +427,9 @@ export function BudgetPlanEditor({
     });
   };
 
+  /** The gap spread across the ACTIVE platforms — never into the reserve. */
   const distributePlatforms = () => {
-    const fixed = distributeShareEvenly(platformShareList);
+    const fixed = distributePlatformsEvenly(reserveShareValue, platformShareList);
     setDraft((d) => {
       const next = { ...d.platformShares };
       activePlatforms.forEach((p, i) => (next[p] = String(fixed[i] ?? 0)));
@@ -454,13 +484,21 @@ export function BudgetPlanEditor({
       return;
     }
 
+    // moveMoney speaks in AMOUNTS (and shares of the allocatable, which this
+    // draft no longer stores); the dollars it returns are cents-exact, so each
+    // platform's share of the NEW total — and the reserve's — is its amount
+    // over that total at full precision, and the derived amounts come back
+    // identical (the stored-plan round-trip rule).
     setDraft((d) => {
       const shares = { ...d.platformShares };
-      activePlatforms.forEach((p, i) => (shares[p] = String(result.shares[i] ?? 0)));
+      activePlatforms.forEach(
+        (p, i) => (shares[p] = String(shareFromAmount(result.amounts[i] ?? 0, result.total))),
+      );
+      const nextReserve = shareFromAmount(result.reserve, result.total);
       return {
         ...d,
         total: String(result.total),
-        reserve: result.reserve > 0 ? String(result.reserve) : "",
+        reserveShare: nextReserve > 0 ? String(nextReserve) : "",
         platformShares: shares,
       };
     });
@@ -498,86 +536,42 @@ export function BudgetPlanEditor({
         ? null
         : amountOf(moveFrom);
 
-  // ── View-mode rows ─────────────────────────────────────────────────────────
+  // ── View-mode model ────────────────────────────────────────────────────────
   const storedAllocated = round2(
     data.allocations.reduce((s, a) => s + a.plannedSpend, 0),
   );
-
-  const rows: PlanRow[] = useMemo(() => {
-    const out: PlanRow[] = [];
-    for (const platform of ALL_PLATFORMS) {
-      const mine = data.allocations.filter((a) => a.platform === platform);
-      if (mine.length === 0) continue;
-      const platformSum = round2(mine.reduce((s, a) => s + a.plannedSpend, 0));
-      out.push({
-        key: platform,
-        kind: "platform",
-        platform,
-        objective: null,
-        planned: platformSum,
-        share: pctShare(platformSum, storedAllocated),
-      });
-      for (const objective of BUDGET_OBJECTIVES) {
-        const row = mine.find((a) => a.objective === objective);
-        if (!row) continue;
-        out.push({
-          key: budgetComboKey(platform, objective),
-          kind: "combo",
-          platform,
-          objective,
-          planned: row.plannedSpend,
-          share: pctShare(row.plannedSpend, platformSum),
-        });
-      }
-    }
-    return out;
-  }, [data.allocations, storedAllocated]);
-
-  const columns: DataColumn<PlanRow>[] = useMemo(
-    () => [
-      {
-        key: "item",
-        label: "Platform / objective",
-        pinned: true,
-        render: (r) =>
-          r.kind === "platform" ? (
-            <span className="inline-flex items-center gap-2 font-medium">
-              <PlatformDot platform={r.platform as never} size="sm" />
-              {platformLabel(r.platform)}
-            </span>
-          ) : (
-            <span className="inline-flex items-center gap-2 pl-6">{r.objective}</span>
-          ),
-        csv: (r) =>
-          r.kind === "platform" ? platformLabel(r.platform) : `  ${r.objective}`,
-        total: () => <span className="text-ink-3">Total</span>,
-      },
-      {
-        key: "planned",
-        label: `Planned (${currency})`,
-        align: "right",
-        render: (r) => <span className="num tabular-nums">{fmtSpend(r.planned)}</span>,
-        csv: (r) => spendInDisplayCurrency(r.planned, currency, rate).toFixed(2),
-        total: () => (
-          <span className="num tabular-nums font-semibold">{fmtSpend(storedAllocated)}</span>
-        ),
-      },
-      {
-        key: "share",
-        label: "% share",
-        align: "right",
-        render: (r) => (
-          <span className="num tabular-nums text-ink-3">
-            {r.share === null ? "—" : pct1(r.share / 100)}
-          </span>
-        ),
-        csv: (r) => (r.share === null ? "" : r.share.toFixed(1)),
-        total: () => <span className="num tabular-nums text-ink-3">100.0%</span>,
-      },
-    ],
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [currency, rate, storedAllocated],
+  const storedTotal = round2(storedAllocated + data.reserveSpendUsd);
+  /** Planned platforms in ALL_PLATFORMS order, each with its objective rows. */
+  const viewPlatforms = useMemo(
+    () =>
+      ALL_PLATFORMS.flatMap((platform) => {
+        const mine = data.allocations.filter((a) => a.platform === platform);
+        if (mine.length === 0) return [];
+        const amount = round2(mine.reduce((s, a) => s + a.plannedSpend, 0));
+        return [
+          {
+            platform,
+            amount,
+            objectives: BUDGET_OBJECTIVES.flatMap((objective, i) => {
+              const row = mine.find((a) => a.objective === objective);
+              return row ? [{ objective, amount: row.plannedSpend, color: seriesColor(i) }] : [];
+            }),
+          },
+        ];
+      }),
+    [data.allocations],
   );
+  /**
+   * The ROAS the stored plan implies: revenue ÷ (allocated × rate). On a daily
+   * month this IS the stored target ROAS (the revenue target was derived from
+   * it), so the strip shows one figure either way.
+   */
+  const storedImpliedRoas =
+    isDaily && data.targetRoas !== null
+      ? data.targetRoas
+      : data.plannedRevenueSar !== null && storedAllocated > 0
+        ? roasThroughRate(data.plannedRevenueSar, storedAllocated, rate)
+        : null;
 
   // ── Actions ────────────────────────────────────────────────────────────────
   const save = async () => {
@@ -747,6 +741,28 @@ export function BudgetPlanEditor({
   const overrideCount = Object.values(activeWeights).filter(
     (w) => w !== 1 && validateWeight(w),
   ).length;
+  const curveEditor = (
+    <DayCurveEditor
+      month={month}
+      totalDays={totalDays}
+      weightOf={weightOf}
+      /** The pot the bars divide up: the draft's allocated amount while
+       *  editing, the stored allocated total otherwise. */
+      plannedTotal={editing ? allocatable : storedAllocated}
+      weights={activeWeights}
+      fmtSpend={fmtSpend}
+      editing={editing}
+      selectedDay={selectedDay}
+      onSelectDay={setSelectedDay}
+      onBump={bump}
+      onSetWeight={setWeight}
+      onResetAll={() => {
+        setWeightsDraft({});
+        setSelectedDay(null);
+      }}
+      overrideCount={overrideCount}
+    />
+  );
 
   /**
    * A share input + the amount it derives — the cascade's one repeated unit.
@@ -975,14 +991,15 @@ export function BudgetPlanEditor({
             <div>
               <h3 className="text-sm font-medium text-ink">Targets</h3>
               <p className="text-[11px] text-ink-3">
-                The reserve is part of the total, held back to decide later —
-                everything below shares out what&rsquo;s left.
+                The total is what everything below is a share of — the reserve
+                included. The revenue target is read against what is actually
+                allocated.
               </p>
             </div>
             {/* One baseline grid: every field is a single-line label over an
-                h-9 input with its unit inside the box. The reserve column is a
-                little wider because it holds a pair. */}
-            <div className="grid gap-x-6 gap-y-3 sm:max-w-3xl sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.4fr)]">
+                h-9 input with its unit inside the box; the third column is the
+                live read-only figure the two inputs imply. */}
+            <div className="grid gap-x-6 gap-y-3 sm:max-w-3xl sm:grid-cols-3">
               <label className="min-w-0 space-y-1">
                 <span className="block truncate text-label text-ink-3">Total budget</span>
                 <UnitInput
@@ -1013,52 +1030,25 @@ export function BudgetPlanEditor({
                   aria-label="Planned monthly revenue (SAR)"
                 />
               </label>
+              {/* Live, read-only: what the two inputs imply, against ALLOCATED
+                  spend (the reserve is held back, not spent). The h-9 box keeps
+                  it on the inputs' baseline. */}
               <div className="min-w-0 space-y-1">
-                <span className="block truncate text-label text-ink-3">Reserve (of the total)</span>
-                <div className="grid grid-cols-[minmax(0,1fr)_5rem] gap-1.5">
-                  <UnitInput
-                    unit="USD"
-                    {...fieldProps}
-                    value={draft.reserve}
-                    onChange={(e) => {
-                      setReservePctRaw(null);
-                      setField({ reserve: numeric(e.target.value) });
-                    }}
-                    placeholder="0"
-                    aria-label="Reserve (USD)"
-                  />
-                  {/* Buffered like the share inputs: while focused it holds the
-                      raw text (so "1" isn't reformatted to "1.0" under the
-                      caret) and commits the derived reserve on every change;
-                      blur hands it back to the formatted 1dp value. */}
-                  <UnitInput
-                    unit="%"
-                    {...fieldProps}
-                    value={
-                      reservePctRaw ??
-                      (total > 0 && reserve > 0
-                        ? (reserveShare(reserve, total) ?? 0).toFixed(1)
-                        : "")
-                    }
-                    onChange={(e) => {
-                      const raw = numeric(e.target.value);
-                      setReservePctRaw(raw);
-                      const next = raw === "" ? 0 : reserveFromShare(parse(raw), total);
-                      setField({ reserve: next > 0 ? String(next) : "" });
-                    }}
-                    onBlur={() => setReservePctRaw(null)}
-                    placeholder="0"
-                    aria-label="Reserve (% of total)"
-                    disabled={total <= 0}
-                    title={total <= 0 ? "Set a total budget first" : undefined}
-                  />
+                <span className="block truncate text-label text-ink-3">Implied ROAS target</span>
+                <div
+                  className="flex h-9 items-baseline gap-2 rounded-md border border-dashed border-line px-3"
+                  aria-live="polite"
+                  title="Revenue target ÷ (allocated spend × rate). The reserve is not expected to be spent."
+                >
+                  <span className="num tabular-nums text-sm text-ink">{fmtRoas(impliedRoas)}</span>
+                  <span className="num truncate text-[11px] text-ink-3">at {rate.toFixed(2)} SAR/USD</span>
                 </div>
               </div>
             </div>
             <p className="flex flex-wrap gap-x-4 gap-y-1">
               {/* Each label + value wraps as a unit at 375px. */}
               <span className="whitespace-nowrap">
-                <span className="text-label text-ink-3">Allocatable</span>{" "}
+                <span className="text-label text-ink-3">Allocated</span>{" "}
                 <span className="num text-sm text-ink-2">{usd(allocatable)}</span>
               </span>
               {reserve > 0 && (
@@ -1071,8 +1061,8 @@ export function BudgetPlanEditor({
             {totalFocused && (
               <p className="text-[11px] text-ink-3">
                 Changing the total rescales every amount through the shares below —
-                a platform on 50% stays on 50%. To hand money to ONE platform, use
-                Move money instead.
+                the reserve and each platform keep their percentages. To hand money
+                to ONE platform, use Move money instead.
               </p>
             )}
           </section>
@@ -1083,37 +1073,48 @@ export function BudgetPlanEditor({
               <div>
                 <h3 className="text-sm font-medium text-ink">Split the budget</h3>
                 <p className="text-[11px] text-ink-3">
-                  Each platform takes a share of the allocatable; inside it, each
-                  objective takes a share of the platform.
+                  The reserve and each platform take a share of the total; inside
+                  a platform, each objective takes a share of it.
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <span
-                  className={cn(
-                    "num text-[11px]",
-                    sharesComplete(platformShareList) ? "text-ink-3" : "text-warn",
-                  )}
+                  className={cn("num text-[11px]", totalSharesOk ? "text-ink-3" : "text-warn")}
                 >
-                  {pct1(
-                    platformShareList.reduce((s, v) => s + v, 0) / 100,
-                  )}{" "}
-                  of 100%
+                  {pct1(totalShareSum / 100)} of 100%
                 </span>
-                {!sharesComplete(platformShareList) && activePlatforms.length > 0 && (
+                {!totalSharesOk && activePlatforms.length > 0 && (
                   <>
+                    {/* Three different intents: pad the gap across the platforms,
+                        park the whole gap in the reserve, or scale everything
+                        (reserve included) so the ratios survive. */}
                     <Button type="button" variant="outline" size="xs" onClick={distributePlatforms}>
                       <Split className="h-3 w-3" />
                       Distribute remaining evenly
                     </Button>
-                    {/* Two different intents: pad the gap equally, or scale
-                        what's there so the ratios survive. */}
-                    {platformShareList.reduce((sum, v) => sum + v, 0) > 0 && (
+                    {canSendToReserve && (
                       <Button
                         type="button"
                         variant="outline"
                         size="xs"
-                        onClick={normalizePlatforms}
-                        title="Scale these shares proportionally so they total 100%"
+                        onClick={sendRestToReserve}
+                        title={
+                          shareRemainder(totalShareList) > 0
+                            ? "Put everything not yet assigned into the reserve"
+                            : "Take the over-assigned share back out of the reserve"
+                        }
+                      >
+                        <Wallet className="h-3 w-3" />
+                        Send the rest to reserve
+                      </Button>
+                    )}
+                    {totalShareSum > 0 && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="xs"
+                        onClick={normalizeTotalShares}
+                        title="Scale the reserve and every platform proportionally so they total 100%"
                       >
                         <Scale className="h-3 w-3" />
                         Normalize to 100%
@@ -1134,6 +1135,29 @@ export function BudgetPlanEditor({
                     <ArrowRightLeft className="h-3 w-3" />
                     Move money
                   </Button>
+                )}
+              </div>
+            </div>
+
+            {/* THE RESERVE ROW — first (user decision): the same share-primary
+                pair a platform has, no objectives beneath it, and it may be 0.
+                In DOM order it precedes the cards, so Enter-advance reaches it
+                right after the targets. */}
+            <div className="@container flex flex-wrap items-center justify-between gap-x-3 gap-y-2 rounded-lg border border-dashed border-line-2 bg-surface px-3 py-2.5">
+              <div className="min-w-0">
+                <span className="block text-sm font-medium text-ink">Reserve</span>
+                <span className="block text-[11px] text-ink-3">held back, not paced</span>
+              </div>
+              <div className="@min-[18.75rem]:ml-auto">
+                {shareCell(
+                  RESERVE_KEY,
+                  reserveShareValue,
+                  reserve,
+                  setReserveShare,
+                  setReserveAmount,
+                  "Reserve share of the total budget",
+                  "Reserve amount in USD",
+                  total <= 0 ? { amount: "Set a total budget first" } : {},
                 )}
               </div>
             </div>
@@ -1197,9 +1221,9 @@ export function BudgetPlanEditor({
                             amountOf(platform),
                             (raw) => setPlatformShare(platform, raw),
                             (raw) => setPlatformAmount(platform, raw),
-                            `${label} share of the allocatable budget`,
+                            `${label} share of the total budget`,
                             `${label} amount in USD`,
-                            allocatable <= 0 ? { amount: "Set a total budget first" } : {},
+                            total <= 0 ? { amount: "Set a total budget first" } : {},
                           )
                         ) : (
                           <span className="text-[11px] text-ink-3">Not planned this month</span>
@@ -1300,53 +1324,121 @@ export function BudgetPlanEditor({
               hint card, AND an empty table stacked on top of each other. */}
           {hasPlan ? (
             <>
+              {/* 1. The targets strip */}
               <div className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-lg border border-line bg-surface px-4 py-3 text-sm">
                 <span className="inline-flex items-center gap-2">
                   <span className="text-label text-ink-3">Total budget</span>
-                  <span className="num tabular-nums text-ink">
-                    {fmtSpend(storedAllocated + data.reserveSpendUsd)}
-                  </span>
+                  <span className="num tabular-nums text-ink">{fmtSpend(storedTotal)}</span>
                 </span>
                 <span className="inline-flex items-center gap-2">
                   <span className="text-label text-ink-3">Revenue target (SAR)</span>
                   <span className="num tabular-nums text-ink">
                     {data.plannedRevenueSar !== null ? sar(data.plannedRevenueSar) : "—"}
                   </span>
-                  {isDaily && data.targetRoas !== null && (
-                    <span className="num text-[11px] text-ink-3" title="Each day's revenue target is that day's spend × this ROAS, through the brand rate.">
-                      ROAS {data.targetRoas.toFixed(2)}
-                    </span>
-                  )}
                 </span>
                 <span className="inline-flex items-center gap-2">
                   <span className="text-label text-ink-3">Reserve</span>
                   <span className="num tabular-nums text-ink">
                     {data.reserveSpendUsd > 0 ? fmtSpend(data.reserveSpendUsd) : "—"}
                   </span>
+                  {data.reserveSpendUsd > 0 && storedTotal > 0 && (
+                    <span className="num tabular-nums text-[11px] text-ink-3">
+                      {pct1((pctShare(data.reserveSpendUsd, storedTotal) ?? 0) / 100)} of total
+                    </span>
+                  )}
                 </span>
-                <span className="text-[11px] text-ink-3">
-                  Held back from the total — allocated {fmtSpend(storedAllocated)}.
+                <span
+                  className="inline-flex items-center gap-2"
+                  title={
+                    isDaily
+                      ? "Each day's revenue target is that day's spend × this ROAS, through the brand rate."
+                      : "Revenue target ÷ (allocated spend × rate). The reserve is not expected to be spent."
+                  }
+                >
+                  <span className="text-label text-ink-3">
+                    {isDaily ? "Target ROAS" : "Implied ROAS target"}
+                  </span>
+                  <span className="num tabular-nums text-ink">{fmtRoas(storedImpliedRoas)}</span>
+                  <span className="num text-[11px] text-ink-3">at {rate.toFixed(2)} SAR/USD</span>
                 </span>
               </div>
 
-              <DataTable<PlanRow>
-                columns={columns}
-                rows={rows}
-                rowKey={(r) => r.key}
-                rowId={(r) => (r.kind === "platform" ? platformAnchorId(r.platform) : undefined)}
-                showTotals={rows.length > 0}
-                minWidthClass="min-w-[520px]"
-                csvFileName={`budget-plan-${month}-${currency.toLowerCase()}`}
-                rowClassName={(r) =>
-                  cn(r.kind === "platform" && "bg-surface-2/50 font-medium scroll-mt-24")
-                }
-                empty={
-                  <div className="flex flex-col items-center gap-2 py-12 text-center">
-                    <Wallet className="h-6 w-6 text-ink-3" />
-                    <p className="text-sm text-ink-2">Nothing planned for this month.</p>
-                  </div>
-                }
+              {/* 2. The composition bar — how the total is split */}
+              <CompositionBar
+                total={storedTotal}
+                platforms={viewPlatforms}
+                reserve={data.reserveSpendUsd}
+                fmt={fmtSpend}
               />
+
+              {/* 3. The platform cards — read-only, the editor's own grid, so
+                  "Edit plan" turns these same cards into inputs */}
+              {viewPlatforms.length > 0 && (
+                <ul className="grid gap-3 sm:grid-cols-2">
+                  {viewPlatforms.map((p) => (
+                    <li
+                      key={p.platform}
+                      id={platformAnchorId(p.platform)}
+                      className="flex scroll-mt-24 flex-col gap-3 rounded-lg border border-line bg-surface-2/50 p-3"
+                    >
+                      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                        <span className="inline-flex items-center gap-2 text-sm font-medium text-ink">
+                          <PlatformDot platform={p.platform} size="sm" />
+                          {PLATFORM_LABEL[p.platform]}
+                        </span>
+                        <span className="num tabular-nums text-sm text-ink">
+                          {fmtSpend(p.amount)}
+                          <span className="ml-1.5 text-[11px] text-ink-3">
+                            {pct1((pctShare(p.amount, storedTotal) ?? 0) / 100)} of total
+                          </span>
+                        </span>
+                      </div>
+                      {/* The objective split, as a bar and as rows. */}
+                      <div
+                        className="flex h-1.5 w-full gap-px overflow-hidden rounded-full bg-surface-2"
+                        role="img"
+                        aria-label={`${PLATFORM_LABEL[p.platform]}: ${p.objectives
+                          .map((o) => `${o.objective} ${pct1((pctShare(o.amount, p.amount) ?? 0) / 100)}`)
+                          .join(", ")}`}
+                      >
+                        {p.objectives.map((o) => (
+                          <span
+                            key={o.objective}
+                            className="h-full"
+                            style={{
+                              width: `${pctShare(o.amount, p.amount) ?? 0}%`,
+                              background: o.color,
+                            }}
+                          />
+                        ))}
+                      </div>
+                      <ul className="space-y-1 border-t border-line pt-2">
+                        {p.objectives.map((o) => (
+                          <li
+                            key={o.objective}
+                            className="flex items-baseline justify-between gap-3 text-xs"
+                          >
+                            <span className="inline-flex min-w-0 items-center gap-2 text-ink-2">
+                              <span
+                                className="h-2 w-2 shrink-0 rounded-full"
+                                style={{ background: o.color }}
+                                aria-hidden
+                              />
+                              <span className="truncate">{o.objective}</span>
+                            </span>
+                            <span className="num tabular-nums text-ink-2">
+                              {fmtSpend(o.amount)}
+                              <span className="ml-1.5 text-[11px] text-ink-3">
+                                {pct1((pctShare(o.amount, p.amount) ?? 0) / 100)}
+                              </span>
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </>
           ) : (
             <div className="rounded-lg border border-dashed border-line bg-surface px-6 py-10 text-center">
@@ -1400,27 +1492,15 @@ export function BudgetPlanEditor({
           fmtSpend={fmtSpend}
           dormantWeights={Object.keys(data.dayWeightOverrides).length}
         />
+      ) : !editing && hasPlan && overrideCount === 0 ? (
+        // Every day equal: nothing to read in a calendar of ones, so the panel
+        // collapses to one line that still opens. In edit mode it is always
+        // open (the curve is being set).
+        <CollapsibleSection title="Plan curve" subtitle="every day equal">
+          {curveEditor}
+        </CollapsibleSection>
       ) : (
-      <DayCurveEditor
-        month={month}
-        totalDays={totalDays}
-        weightOf={weightOf}
-        /** The pot the bars divide up: the draft's allocatable while editing,
-         *  the stored allocated total otherwise. */
-        plannedTotal={editing ? allocatable : storedAllocated}
-        weights={activeWeights}
-        fmtSpend={fmtSpend}
-        editing={editing}
-        selectedDay={selectedDay}
-        onSelectDay={setSelectedDay}
-        onBump={bump}
-        onSetWeight={setWeight}
-        onResetAll={() => {
-          setWeightsDraft({});
-          setSelectedDay(null);
-        }}
-        overrideCount={overrideCount}
-      />
+        curveEditor
       )}
 
       {/* Copy from any planned month */}
@@ -1619,6 +1699,104 @@ export function BudgetPlanEditor({
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+/** Below this share a segment keeps its colour but drops its inline label. */
+const LABEL_MIN_SHARE = 6;
+
+/**
+ * One horizontal stacked bar of the TOTAL: the planned platforms in
+ * `ALL_PLATFORMS` order, each in its platform colour, then the reserve LAST as
+ * a dashed outline rather than a fill — the Overview hero bar's grammar, so
+ * the two pages read alike (the reserve is money held back, not a track).
+ * Below it, a legend row that wraps on a phone. The bar says the split in
+ * words for a screen reader.
+ */
+function CompositionBar({
+  total,
+  platforms,
+  reserve,
+  fmt,
+}: {
+  total: number;
+  platforms: ReadonlyArray<{ platform: (typeof ALL_PLATFORMS)[number]; amount: number }>;
+  reserve: number;
+  fmt: (usd: number) => string;
+}) {
+  if (total <= 0) return null;
+  const share = (amount: number) => pctShare(amount, total) ?? 0;
+  const segments = [
+    ...platforms.map((p) => ({
+      key: p.platform as string,
+      label: PLATFORM_LABEL[p.platform],
+      amount: p.amount,
+      color: PLATFORM_COLOR[p.platform],
+      reserve: false,
+    })),
+    ...(reserve > 0
+      ? [{ key: "reserve", label: "Reserve", amount: reserve, color: null, reserve: true }]
+      : []),
+  ];
+  const words = `${fmt(total)} in all: ${segments
+    .map((s) => `${s.label} ${fmt(s.amount)} (${pct1(share(s.amount) / 100)})`)
+    .join(", ")}`;
+  return (
+    <section className="space-y-2 rounded-lg border border-line bg-surface p-4">
+      <div className="flex items-baseline justify-between gap-3">
+        <h3 className="text-sm font-medium text-ink">How the total splits</h3>
+        <span className="num tabular-nums text-xs text-ink-3">{fmt(total)}</span>
+      </div>
+      <div role="img" aria-label={words} title={words} className="flex h-7 w-full gap-0.5">
+        {segments.map((s) => {
+          const pct = share(s.amount);
+          return (
+            // Each segment is a container: the label shows only once the
+            // segment is wide enough for it (the % past ~2.75rem, the name past
+            // ~7rem), so a phone never shows a clipped "7…" — the legend below
+            // carries every name and number regardless.
+            <div
+              key={s.key}
+              className={cn(
+                "@container flex min-w-0 items-center justify-center overflow-hidden rounded-md text-[10px] font-medium",
+                s.reserve
+                  ? "border border-dashed border-line-2 text-ink-3"
+                  : "text-[var(--background)]",
+              )}
+              style={{ width: `${pct}%`, background: s.color ?? undefined }}
+            >
+              {pct >= LABEL_MIN_SHARE && (
+                <span className="hidden whitespace-nowrap px-1.5 num tabular-nums @min-[2.75rem]:inline">
+                  <span className="hidden @min-[7rem]:inline">{s.label} </span>
+                  {pct1(pct / 100)}
+                </span>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      <ul className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
+        {segments.map((s) => (
+          <li key={s.key} className="inline-flex items-center gap-1.5">
+            {s.reserve ? (
+              <span
+                className="h-2 w-2 shrink-0 rounded-full border border-dashed border-line-2"
+                aria-hidden
+              />
+            ) : (
+              <span
+                className="h-2 w-2 shrink-0 rounded-full"
+                style={{ background: s.color ?? undefined }}
+                aria-hidden
+              />
+            )}
+            <span className="text-ink-2">{s.label}</span>
+            <span className="num tabular-nums text-ink">{fmt(s.amount)}</span>
+            <span className="num tabular-nums text-ink-3">{pct1(share(s.amount) / 100)}</span>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 

@@ -29,8 +29,9 @@ const GROUPED_TWINS = [
  * not an oversight — adding one here should feel like it needs an argument.
  */
 const EXEMPT: Record<string, string> = {
-  "components/budget/budget-plan-editor.tsx":
-    "an EDITOR, not a data table — its columns are the plan's own axes (platform × bucket), and hiding one would hide money being planned",
+  // The Budget plan editor used to be listed here (an editor, not a data
+  // table); its view-mode DataTable went in 2026-10 — the visual view has no
+  // table at all — so the exemption went with it.
   "components/budget/budget-tracker.tsx":
     "the BARS view is a chart made of rows; its TABLE view carries the control (same file, one DataTable each)",
 };
