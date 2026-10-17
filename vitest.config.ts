@@ -7,8 +7,12 @@ export default defineConfig({
     include: ["**/*.test.ts"],
     // `tests/db/**` is the real-database suite — it needs docker + ccms_test and
     // runs via `npm run test:db` (vitest.config.db.ts). Keep the default suite
-    // pure-unit so CI/dev without docker stays green.
-    exclude: ["node_modules", ".next", "tests/db/**"],
+    // pure-unit so CI/dev without docker stays green. `.claude/**` holds the
+    // app's nested git worktrees (`.claude/worktrees/<branch>/`), each a whole
+    // copy of the repo: without the exclude a run from the main checkout
+    // collects every worktree's specs too (331 files, 158 failures against the
+    // wrong tree).
+    exclude: ["node_modules", ".next", "tests/db/**", ".claude/**"],
     setupFiles: ["./vitest.setup.ts"],
   },
   resolve: {

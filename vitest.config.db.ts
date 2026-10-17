@@ -12,6 +12,9 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["tests/db/**/*.test.ts"],
+    // The nested worktrees under `.claude/worktrees/` are whole repo copies —
+    // never collect theirs (see vitest.config.ts).
+    exclude: ["node_modules", ".claude/**"],
     globalSetup: ["./tests/db/global-setup.ts"],
     env: { DATABASE_URL: TEST_DATABASE_URL },
     fileParallelism: false,
