@@ -175,7 +175,15 @@ export function BudgetOverview({
         <BudgetMonthBar month={month} today={today}>
           <CurrencyToggle currency={currency} onChange={pickCurrency} />
         </BudgetMonthBar>
-        <EmptyMonth month={month} seedMonth={seedMonth} canManage={canManage} go={go} />
+        <EmptyMonth
+          month={month}
+          seedMonth={seedMonth}
+          canManage={canManage}
+          spent={t.total.actual}
+          revenue={data.actualRevenueSar}
+          fmt={fmtSpend}
+          go={go}
+        />
         <HorizonNote horizon={horizon} storeHorizon={storeHorizon} />
       </div>
     );
@@ -1132,17 +1140,43 @@ function EmptyMonth({
   month,
   seedMonth,
   canManage,
+  spent,
+  revenue,
+  fmt,
   go,
 }: {
   month: string;
   seedMonth: string | null;
   canManage: boolean;
+  /** Raw month-to-date spend (USD) and store revenue (SAR) — a month with
+   *  uploads but no plan still says what happened. */
+  spent: number;
+  revenue: number;
+  fmt: (v: number) => string;
   go: (href: string) => (e: React.MouseEvent<HTMLAnchorElement>) => void;
 }) {
   const planHref = `/budget/plan?month=${month}`;
   return (
     <div className="rounded-lg border border-dashed border-line bg-surface px-6 py-10 text-center">
       <p className="text-sm text-ink-2">No plan for this month yet.</p>
+      {/* Every brand's first month has uploads and no plan: the money is
+          real, so it is named — only the pacing is missing. */}
+      {(spent > 0 || revenue > 0) && (
+        <p className="mt-1 text-xs text-ink-3">
+          {spent > 0 && (
+            <>
+              <span className="num tabular-nums text-ink-2">{fmt(spent)}</span> spent
+            </>
+          )}
+          {spent > 0 && revenue > 0 && " and "}
+          {revenue > 0 && (
+            <>
+              <span className="num tabular-nums text-ink-2">{sar(revenue)}</span> in revenue
+            </>
+          )}
+          {" so far — nothing to pace it against yet."}
+        </p>
+      )}
       {canManage ? (
         seedMonth ? (
           <>
