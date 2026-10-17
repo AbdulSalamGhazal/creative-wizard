@@ -327,7 +327,16 @@ export function BudgetTracker({
             </div>
 
             <div className="mt-3">
-              <PaceBar bar={t.total} fmt={fmtSpend} name="Total" anchor={anchorFor()} />
+              {/* The projection rides the bar as the pale extension (the
+                  Overview hero bar's grammar) — the SAME number the line
+                  below prints, current month only (a past month is final). */}
+              <PaceBar
+                bar={t.total}
+                fmt={fmtSpend}
+                name="Total"
+                anchor={anchorFor()}
+                projection={t.isCurrentMonth ? t.projectedSpend : null}
+              />
             </div>
 
             <p className="mt-2 text-xs text-ink-3">
@@ -429,6 +438,7 @@ export function BudgetTracker({
                         fmt={fmtSpend}
                         name={platformLabel(p.key)}
                         anchor={anchorFor(p.key)}
+                        projection={t.isCurrentMonth ? rowProjection(p) : null}
                       />
                       <Amounts bar={p} fmt={fmtSpend} />
                       {/* The card's own "on this pace" line — the same
@@ -463,6 +473,7 @@ export function BudgetTracker({
                               name={b.label}
                               small
                               anchor={anchorFor(p.key)}
+                              projection={t.isCurrentMonth ? rowProjection(b) : null}
                             />
                             <Amounts bar={b} fmt={fmtSpend} />
                           </div>
@@ -532,6 +543,7 @@ export function BudgetTracker({
                     fmt={sar}
                     name="Revenue"
                     anchor={anchorFor(REVENUE_COVERAGE_KEY)}
+                    projection={t.isCurrentMonth ? t.projectedRevenue : null}
                   />
                   <Amounts bar={t.revenue} fmt={sar} />
                 </div>
