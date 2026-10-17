@@ -51,8 +51,6 @@ export const TABLE_KEYS = {
   RECON_PLATFORMS: "recon-platforms",
   /** Budget → Pacing, the per-bucket table. */
   BUDGET_PACING: "budget-pacing",
-  /** Budget → Overview, the allocation check. */
-  BUDGET_ALLOCATION: "budget-allocation",
   /** Budget → Tracker, the TABLE view (the bars view is exempt). */
   BUDGET_TRACKER: "budget-tracker",
   /** Budget → Audience, the pair board. */
