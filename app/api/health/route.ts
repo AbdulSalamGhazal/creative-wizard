@@ -7,10 +7,18 @@ import { db } from "@/lib/db";
  * BetterStack, etc.) at https://creative.urjwan.com/api/health so you hear
  * about an outage from the monitor, not from a user.
  *
- * No auth and no sensitive data — just a status + round-trip time.
+ * No auth and no sensitive data — just a status + round-trip time, plus the
+ * short git commit Vercel built from (VERCEL_GIT_COMMIT_SHA; null locally),
+ * so "is the latest deploy actually live?" is one curl, not a guess.
  */
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+/** The short sha of the commit this deployment was built from, or null. */
+function deployedCommit(): string | null {
+  const sha = process.env.VERCEL_GIT_COMMIT_SHA;
+  return sha ? sha.slice(0, 7) : null;
+}
 
 export async function GET(): Promise<Response> {
   const started = Date.now();
@@ -23,7 +31,7 @@ export async function GET(): Promise<Response> {
       ),
     ]);
     return Response.json(
-      { status: "ok", db: "up", ms: Date.now() - started },
+      { status: "ok", db: "up", ms: Date.now() - started, commit: deployedCommit() },
       { headers: { "cache-control": "no-store" } },
     );
   } catch (err) {
