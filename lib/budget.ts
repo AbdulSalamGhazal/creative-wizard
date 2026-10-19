@@ -7,6 +7,7 @@
  *   — warn-tinted, never green/red good/bad. Same philosophy as Reconciliation.
  */
 
+import { signedPct } from "@/lib/format";
 import { ALL_PLATFORMS } from "@/lib/palette";
 
 /** "2026-09" → "2026-09-01"; passes through a full ISO date's month. */
@@ -117,6 +118,23 @@ export function pacingTone(deviation: number | null): PacingTone {
     direction: deviation > 0 ? "ahead" : "behind",
     strength: Math.abs(deviation) >= PACING_WARN_THRESHOLD ? "strong" : "faint",
   };
+}
+
+/**
+ * The shown percentage rounds to 0% — judged exactly as `signedPct` prints
+ * it, so a cell and a verdict can never disagree about a zero.
+ */
+export function pctReadsZero(deviation: number | null): boolean {
+  return deviation !== null && Number.isFinite(deviation) && signedPct(deviation, 0) === "0%";
+}
+
+/**
+ * A pace verdict reads "on track" when what is SHOWN says so: the delta
+ * rounds to zero whole dollars, or the percentage rounds to 0% (2026-10-19 —
+ * a −$5 miss on a $9,000 plan is not a verdict, it is noise).
+ */
+export function paceReadsOnTrack(bar: Pick<TrackerBar, "delta" | "deviation">): boolean {
+  return Math.round(bar.delta) === 0 || pctReadsZero(bar.deviation);
 }
 
 /** The tone the tint reads as "strong" — past the magnitude threshold. */

@@ -22,8 +22,10 @@ import {
   elapsedDaysInMonth,
   pacingDeviation,
   isOffPace,
+  paceReadsOnTrack,
   pacingTone,
   pacingVerdict,
+  pctReadsZero,
   variance,
   variancePct,
   roasThroughRate,
@@ -1018,6 +1020,20 @@ describe("pacing range guards", () => {
  * zero plan (a spend plan with no revenue target, say) used to tint every row
  * warn off an Infinity.
  */
+describe("on track is judged by what is SHOWN", () => {
+  it("a −$5 delta on a $9,000 plan reads on track — the percent rounds to 0%", () => {
+    expect(paceReadsOnTrack({ delta: -5, deviation: -5 / 9000 })).toBe(true);
+    expect(pctReadsZero(-5 / 9000)).toBe(true);
+  });
+  it("a real miss still reads as one, and no deviation is not a zero", () => {
+    expect(paceReadsOnTrack({ delta: -1844, deviation: -0.61 })).toBe(false);
+    expect(paceReadsOnTrack({ delta: 46, deviation: 0.01 })).toBe(false);
+    expect(paceReadsOnTrack({ delta: 0.4, deviation: null })).toBe(true);
+    expect(pctReadsZero(null)).toBe(false);
+    expect(pctReadsZero(Infinity)).toBe(false);
+  });
+});
+
 describe("pacing verdicts on non-finite input", () => {
   it("treats Infinity and NaN as muted, never a verdict", () => {
     expect(pacingTone(Infinity).direction).toBe("muted");

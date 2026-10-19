@@ -646,7 +646,14 @@ as it stood before the restructure.*
     (`components/ui/info-tip.tsx`) is the ⓘ**: the house Popover + `title`
     pattern (there is no tooltip primitive) — hover reads the title, click /
     Enter / Space opens the popover so a phone reaches it, Escape closes it.
-    Tracker and Pacing changed only through the shared pieces.
+    Tracker and Pacing changed only through the shared pieces. Two review
+    fixes rode in the same PR: every READING on the Overview — board verdicts
+    and amounts, the reserve and unplanned lines, the hero verdict lines — is
+    whole dollars / whole SAR through `formatSpend`'s `whole` option (`sar0`
+    for revenue), while the hero big numbers and the Plan page keep their
+    cents because those are exact facts; and a verdict whose shown percent
+    rounds to 0% reads "on track" (`paceReadsOnTrack` / `pctReadsZero`, the
+    one judgment the Verdict and `PacingDevCell` share).
   - **Funnel audience (`/budget/audience`, 2026-09, migration 0042 additive).**
     Hand-measured audience sizes per funnel stage × platform, versus spend.
     **Stages DERIVE from `BUDGET_OBJECTIVES` minus "Other"** (`FUNNEL_STAGES` in

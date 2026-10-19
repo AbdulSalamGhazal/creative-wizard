@@ -39,6 +39,11 @@ const sarFormatter = new Intl.NumberFormat("en-US", {
   style: "currency",
   currency: "SAR",
 });
+const sar0Formatter = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "SAR",
+  maximumFractionDigits: 0,
+});
 const sarCompactFormatter = new Intl.NumberFormat("en-US", {
   style: "currency",
   currency: "SAR",
@@ -153,6 +158,12 @@ export function usd0(value: number | null | undefined): string {
 export function sar(value: number | null | undefined): string {
   if (value === null || value === undefined || Number.isNaN(value)) return EM_DASH;
   return sarFormatter.format(value);
+}
+
+/** SAR with no fils (e.g. "SAR 1,235") — a READING, where the cents are noise. */
+export function sar0(value: number | null | undefined): string {
+  if (value === null || value === undefined || Number.isNaN(value)) return EM_DASH;
+  return sar0Formatter.format(value);
 }
 
 /** Compact SAR for tight spaces (e.g. "SAR 1.2M"). */

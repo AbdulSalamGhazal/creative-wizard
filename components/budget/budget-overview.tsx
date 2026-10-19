@@ -28,6 +28,7 @@ import {
   monthDay,
   roas as fmtRoas,
   sar,
+  sar0,
   sarCompact,
   usdCompact,
 } from "@/lib/format";
@@ -124,6 +125,9 @@ export function BudgetOverview({
   const [currency, pickCurrency] = useBudgetCurrency();
   const rate = data.usdToSarRate;
   const fmtSpend = (usdAmount: number) => formatSpend(usdAmount, currency, rate);
+  // READINGS — verdicts, board amounts, the reserve row — in whole dollars;
+  // the hero big numbers keep their cents because they are the exact actual.
+  const fmtWhole = (usdAmount: number) => formatSpend(usdAmount, currency, rate, { whole: true });
   const router = useRouter();
   const [, startNav] = useNavTransition();
   /** Every link on this page navigates through the progress bar. */
@@ -217,7 +221,13 @@ export function BudgetOverview({
 
       {/* ── The three hero cards ──────────────────────────────────────────── */}
       <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-        <SpendCard t={t} reserve={data.reserveSpendUsd} fmt={fmtSpend} month={month} />
+        <SpendCard
+          t={t}
+          reserve={data.reserveSpendUsd}
+          fmt={fmtSpend}
+          fmtWhole={fmtWhole}
+          month={month}
+        />
         <RevenueCard
           t={t}
           orders={data.actualOrders}
@@ -258,7 +268,7 @@ export function BudgetOverview({
       />
 
       {/* ── The pace board ────────────────────────────────────────────────── */}
-      <PaceBoard t={t} month={month} fmt={fmtSpend} coverage={coverage} go={go} />
+      <PaceBoard t={t} month={month} fmt={fmtWhole} coverage={coverage} go={go} />
 
       <HorizonNote horizon={horizon} storeHorizon={storeHorizon} />
     </div>
@@ -281,11 +291,15 @@ function SpendCard({
   t,
   reserve,
   fmt,
+  fmtWhole,
   month,
 }: {
   t: ReturnType<typeof buildTrackerRows>;
   reserve: number;
+  /** The exact figure — the big number and its "of … + … reserve" line. */
   fmt: (v: number) => string;
+  /** The reading — the bar's words and the verdict line, whole dollars. */
+  fmtWhole: (v: number) => string;
   month: string;
 }) {
   const bar = t.total;
@@ -308,7 +322,7 @@ function SpendCard({
         }
       >
         <div className="mt-3">
-          <PaceBar bar={bar} fmt={fmt} name="Spend" reserve={reserve} anchor="when it starts" />
+          <PaceBar bar={bar} fmt={fmtWhole} name="Spend" reserve={reserve} anchor="when it starts" />
         </div>
       </Hero>
     );
@@ -332,7 +346,7 @@ function SpendCard({
       <div className="mt-3">
         <PaceBar
           bar={bar}
-          fmt={fmt}
+          fmt={fmtWhole}
           name="Spend"
           reserve={reserve}
           projection={t.isCurrentMonth ? t.projectedSpend : null}
@@ -341,7 +355,7 @@ function SpendCard({
       </div>
       <HeroVerdict
         bar={bar}
-        fmt={fmt}
+        fmt={fmtWhole}
         projected={t.projectedSpend}
         reserve={reserve}
         state={heroState(t)}
@@ -378,7 +392,7 @@ function RevenueCard({
         aside={<span className="text-[11px] text-ink-3">target</span>}
       >
         <div className="mt-3">
-          <PaceBar bar={bar} fmt={sar} name="Revenue" anchor="when it starts" />
+          <PaceBar bar={bar} fmt={sar0} name="Revenue" anchor="when it starts" />
         </div>
       </Hero>
     );
@@ -397,7 +411,7 @@ function RevenueCard({
       <div className="mt-3">
         <PaceBar
           bar={bar}
-          fmt={sar}
+          fmt={sar0}
           name="Revenue"
           projection={t.isCurrentMonth ? t.projectedRevenue : null}
           anchor={anchorWords(storeThrough)}
@@ -405,7 +419,7 @@ function RevenueCard({
       </div>
       <HeroVerdict
         bar={bar}
-        fmt={sar}
+        fmt={sar0}
         projected={t.projectedRevenue}
         state={heroState(t)}
         finalLabel={monthLabel(month)}

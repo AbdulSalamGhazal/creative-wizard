@@ -13,7 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { displayValueFontSize } from "@/components/overview/metric-card";
-import { longDate, sar, signedPct, usd } from "@/lib/format";
+import { longDate, sar, sar0, signedPct, usd, usd0 } from "@/lib/format";
 import { PLATFORM_LABEL } from "@/lib/palette";
 import { cn } from "@/lib/utils";
 import {
@@ -22,8 +22,10 @@ import {
   monthKey,
   monthLabel,
   nextMonthKey,
+  paceReadsOnTrack,
   pacingTone,
   pacingVerdict,
+  pctReadsZero,
   prevMonthKey,
   spendInDisplayCurrency,
   variancePct,
@@ -68,10 +70,16 @@ export function useBudgetCurrency(): [BudgetCurrency, (c: BudgetCurrency) => voi
 }
 
 /** Format a USD spend figure in the chosen display currency via the rate. */
-export function formatSpend(usdAmount: number, currency: BudgetCurrency, rate: number): string {
-  return currency === "SAR"
-    ? sar(spendInDisplayCurrency(usdAmount, "SAR", rate))
-    : usd(usdAmount);
+export function formatSpend(
+  usdAmount: number,
+  currency: BudgetCurrency,
+  rate: number,
+  /** `whole`: no cents — for a READING (a verdict, a board amount), never a fact. */
+  opts: { whole?: boolean } = {},
+): string {
+  const shown = currency === "SAR" ? spendInDisplayCurrency(usdAmount, "SAR", rate) : usdAmount;
+  if (opts.whole) return currency === "SAR" ? sar0(shown) : usd0(shown);
+  return currency === "SAR" ? sar(shown) : usd(shown);
 }
 
 /** The USD / SAR segmented toggle. */
@@ -281,7 +289,7 @@ export function PacingDevCell({ deviation }: { deviation: number | null }) {
   const unknown = deviation === null || !Number.isFinite(deviation);
   const text = unknown ? "—" : signedPct(deviation, 0);
   // Judged by what is SHOWN: a deviation that rounds to 0% is on track.
-  const tone = unknown || text === "0%" ? MUTED_TONE : pacingTone(deviation);
+  const tone = unknown || pctReadsZero(deviation) ? MUTED_TONE : pacingTone(deviation);
   const words = pacingVerdict(deviation);
   return (
     <span className={cn("num tabular-nums text-xs", toneText(tone))} title={words}>
@@ -619,12 +627,13 @@ export function Verdict({
   if (bar.deviation === null) {
     return <span className={cn("num tabular-nums text-ink-3", size)}>—</span>;
   }
-  // Zero is judged by what will be SHOWN: whole dollars on a pace bar, the
-  // ratio's own formatted precision on a target.
+  // Zero is judged by what will be SHOWN: whole dollars or a percent that
+  // rounds to 0% on a pace bar (the shared `paceReadsOnTrack`), the ratio's
+  // own formatted precision on a target.
   const onTrack =
     variant === "target"
-      ? fmt(Math.abs(bar.delta)) === fmt(0)
-      : Math.round(bar.delta) === 0;
+      ? fmt(Math.abs(bar.delta)) === fmt(0) || pctReadsZero(bar.deviation)
+      : paceReadsOnTrack(bar);
   if (onTrack) {
     return (
       <span className={cn("num tabular-nums text-ink-3", size)}>
