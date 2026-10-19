@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { runPipeline } from "@/csv/pipeline";
+import { runPipeline, type ExistingRecord } from "@/csv/pipeline";
 
 const REGISTERED = new Set(["URJ_VID_001", "URJ_VID_002", "URJ_IMG_010"]);
 
@@ -49,13 +49,15 @@ const row = (fields: {
 async function run(
   csv: string,
   opts: {
-    findExistingBatch?: (
+    findExisting?: (
       n: string,
       p: string,
       campaign: string,
       d: string,
-    ) => Promise<string | null>;
+    ) => Promise<ExistingRecord[]>;
+    allowExisting?: boolean;
     registeredCampaigns?: Set<string>;
+    registeredLandingCodes?: Set<string>;
   } = {},
 ) {
   return runPipeline({
@@ -63,7 +65,9 @@ async function run(
     platform: "instagram",
     registeredNames: REGISTERED,
     registeredCampaigns: opts.registeredCampaigns,
-    findExistingBatch: opts.findExistingBatch,
+    registeredLandingCodes: opts.registeredLandingCodes,
+    findExisting: opts.findExisting,
+    allowExisting: opts.allowExisting,
   });
 }
 
@@ -238,9 +242,9 @@ describe("CSV pipeline — Stage 4 (intra-file duplicates)", () => {
 });
 
 describe("CSV pipeline — Stage 5 (database duplicates)", () => {
-  it("rejects E051 when findExistingBatch returns a batch id", async () => {
+  it("rejects E051 when the same identity is already stored", async () => {
     const res = await run(`${META_HEADER}\n${row({})}\n`, {
-      findExistingBatch: async () => "batch-abc",
+      findExisting: async () => [{ landingCode: null, batchId: "batch-abc" }],
     });
     expect(res.ok).toBe(false);
     if (!res.ok) {
@@ -253,9 +257,9 @@ describe("CSV pipeline — Stage 5 (database duplicates)", () => {
   it("passes the combined campaign name to the existing-batch lookup", async () => {
     let seenCampaign: string | null = null;
     const res = await run(`${META_HEADER}\n${row({ campaign: "Holiday" })}\n`, {
-      findExistingBatch: async (_n, _p, campaign) => {
+      findExisting: async (_n, _p, campaign) => {
         seenCampaign = campaign;
-        return null;
+        return [];
       },
     });
     expect(res.ok).toBe(true);
@@ -408,5 +412,168 @@ describe("CSV pipeline — fractional counts (W004)", () => {
     expect(res.warnings.filter((w) => w.code === "W004").map((w) => w.field)).toEqual([
       "conversions",
     ]);
+  });
+});
+
+describe("CSV pipeline — landing-page codes (` @code`)", () => {
+  const LANDING = new Set(["lp2", "ramadan-sale"]);
+  const stored =
+    (records: ExistingRecord[]) =>
+    async (): Promise<ExistingRecord[]> =>
+      records;
+
+  it("splits the code off and matches the creative on the name before it", async () => {
+    const res = await run(
+      `${META_HEADER}\n${row({ name: "URJ_VID_001 @lp2" })}\n${row({ name: "URJ_VID_002" })}\n`,
+      { registeredLandingCodes: LANDING },
+    );
+    expect(res.ok).toBe(true);
+    if (res.ok) {
+      expect(res.rows[0]).toMatchObject({ creativeName: "URJ_VID_001", landingCode: "lp2" });
+      expect(res.rows[1]).toMatchObject({ creativeName: "URJ_VID_002", landingCode: null });
+    }
+  });
+
+  it("trims the cell before splitting (trim-then-exact)", async () => {
+    const res = await run(`${META_HEADER}\n${row({ name: "  URJ_VID_001 @lp2  " })}\n`, {
+      registeredLandingCodes: LANDING,
+    });
+    expect(res.ok).toBe(true);
+    if (res.ok) expect(res.rows[0]?.landingCode).toBe("lp2");
+  });
+
+  it.each([
+    ["URJ_VID_001 @"],
+    ["URJ_VID_001 @ lp2"],
+    ["URJ_VID_001 @lp2 @ramadan-sale"],
+    ["URJ_VID_001  @lp2"],
+    ["URJ_VID_001 @lp.2"],
+  ])("rejects a malformed code in %j with E022", async (name) => {
+    const res = await run(`${META_HEADER}\n${row({ name })}\n`, {
+      registeredLandingCodes: LANDING,
+    });
+    expect(res.ok).toBe(false);
+    if (!res.ok) {
+      expect(res.errors.map((e) => e.code)).toEqual(["E022"]);
+      expect(res.errors[0]?.message).toContain("malformed landing page code");
+    }
+  });
+
+  it("reads a name with no space before the @ as a plain (unregistered) name", async () => {
+    const res = await run(`${META_HEADER}\n${row({ name: "URJ_VID_001@lp2" })}\n`, {
+      registeredLandingCodes: LANDING,
+    });
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.errors.map((e) => e.code)).toEqual(["E020"]);
+  });
+
+  it("rejects an unregistered code with E023, matching it case-sensitively", async () => {
+    const res = await run(`${META_HEADER}\n${row({ name: "URJ_VID_001 @LP2" })}\n`, {
+      registeredLandingCodes: LANDING,
+    });
+    expect(res.ok).toBe(false);
+    if (!res.ok) {
+      expect(res.errors.map((e) => e.code)).toEqual(["E023"]);
+      expect(res.errors[0]?.message).toContain("Library → Landing pages");
+    }
+  });
+
+  it("reports both E020 and E023 when neither half is registered", async () => {
+    const res = await run(`${META_HEADER}\n${row({ name: "NOPE @nope" })}\n`, {
+      registeredLandingCodes: LANDING,
+    });
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.errors.map((e) => e.code).sort()).toEqual(["E020", "E023"]);
+  });
+
+  it("allows the same creative, campaign and day to two landing pages (an A/B test)", async () => {
+    const res = await run(
+      `${META_HEADER}\n${row({})}\n${row({ name: "URJ_VID_001 @lp2", spend: "7" })}\n`,
+      { registeredLandingCodes: LANDING },
+    );
+    expect(res.ok).toBe(true);
+    if (res.ok) expect(res.rows).toHaveLength(2);
+  });
+
+  it("still rejects the same landing page twice in one file (E050)", async () => {
+    const res = await run(
+      `${META_HEADER}\n${row({ name: "URJ_VID_001 @lp2" })}\n${row({ name: "URJ_VID_001 @lp2", spend: "7" })}\n`,
+      { registeredLandingCodes: LANDING },
+    );
+    expect(res.ok).toBe(false);
+    if (!res.ok) {
+      expect(res.errors[0]?.code).toBe("E050");
+      expect(res.errors[0]?.message).toContain("URJ_VID_001 @lp2");
+    }
+  });
+
+  it("E051 needs the SAME landing page; another stored page the file also carries is fine", async () => {
+    const res = await run(
+      `${META_HEADER}\n${row({})}\n${row({ name: "URJ_VID_001 @lp2" })}\n`,
+      {
+        registeredLandingCodes: LANDING,
+        findExisting: stored([{ landingCode: "lp2", batchId: "b1" }]),
+      },
+    );
+    expect(res.ok).toBe(false);
+    if (!res.ok) {
+      expect(res.errors.map((e) => e.code)).toEqual(["E051"]);
+      expect(res.errors[0]?.message).toContain("URJ_VID_001 @lp2");
+    }
+  });
+
+  it("rejects a renamed ad (the day stored under another page the file lacks) with E052", async () => {
+    const res = await run(`${META_HEADER}\n${row({ name: "URJ_VID_001 @lp2" })}\n`, {
+      registeredLandingCodes: LANDING,
+      findExisting: stored([{ landingCode: null, batchId: "b1" }]),
+    });
+    expect(res.ok).toBe(false);
+    if (!res.ok) {
+      expect(res.errors.map((e) => e.code)).toEqual(["E052"]);
+      expect(res.errors[0]?.message).toContain("different landing page");
+      expect(res.errors[0]?.message).toContain("b1");
+    }
+  });
+
+  it("guards the rename in the other direction too (code removed)", async () => {
+    const res = await run(`${META_HEADER}\n${row({})}\n`, {
+      registeredLandingCodes: LANDING,
+      findExisting: stored([{ landingCode: "lp2", batchId: "b1" }]),
+    });
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.errors.map((e) => e.code)).toEqual(["E052"]);
+  });
+
+  it("upsert skips E051 but still applies the rename guard", async () => {
+    const same = await run(`${META_HEADER}\n${row({ name: "URJ_VID_001 @lp2" })}\n`, {
+      registeredLandingCodes: LANDING,
+      allowExisting: true,
+      findExisting: stored([{ landingCode: "lp2", batchId: "b1" }]),
+    });
+    expect(same.ok).toBe(true);
+
+    const renamed = await run(`${META_HEADER}\n${row({ name: "URJ_VID_001 @lp2" })}\n`, {
+      registeredLandingCodes: LANDING,
+      allowExisting: true,
+      findExisting: stored([{ landingCode: null, batchId: "b1" }]),
+    });
+    expect(renamed.ok).toBe(false);
+    if (!renamed.ok) expect(renamed.errors.map((e) => e.code)).toEqual(["E052"]);
+  });
+
+  it("asks the store once per day, whatever the number of landing pages", async () => {
+    let calls = 0;
+    const res = await run(
+      `${META_HEADER}\n${row({})}\n${row({ name: "URJ_VID_001 @lp2" })}\n${row({ name: "URJ_VID_001 @ramadan-sale" })}\n`,
+      {
+        registeredLandingCodes: LANDING,
+        findExisting: async () => {
+          calls++;
+          return [];
+        },
+      },
+    );
+    expect(res.ok).toBe(true);
+    expect(calls).toBe(1);
   });
 });

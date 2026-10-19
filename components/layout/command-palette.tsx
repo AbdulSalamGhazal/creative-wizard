@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Hash,
+  Link2,
   Images,
   Package,
   Plus,
@@ -55,6 +56,7 @@ const EXTRA_PAGES: Array<{
 }> = [
   { href: "/library/new", label: "New creative", icon: Plus, perm: "creative.create" },
   { href: "/library?tab=products", label: "Library · Products", icon: Package, perm: "catalog.products" },
+  { href: "/library?tab=landing-pages", label: "Library · Landing pages", icon: Link2, perm: "catalog.landing_pages" },
   { href: "/library?tab=angles", label: "Library · Angles", icon: Hash, perm: "catalog.angles" },
   { href: "/uploads/new", label: "New ad upload", icon: Upload, perm: "upload.import" },
   { href: "/uploads?tab=mapping", label: "Upload ads · CSV mapping", icon: Settings, perm: "config.mappings" },

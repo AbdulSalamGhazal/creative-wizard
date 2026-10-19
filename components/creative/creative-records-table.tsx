@@ -21,6 +21,7 @@ const CSV_COLUMNS: CsvColumn<CreativeRecordRow>[] = [
   { key: "date", label: "Date", value: (r) => r.date },
   { key: "platform", label: "Platform", value: (r) => r.platform },
   { key: "campaignName", label: "Campaign Name", value: (r) => r.campaignName },
+  { key: "landingPage", label: "Landing page", value: (r) => (r.landingPageCode ? `@${r.landingPageCode}` : "") },
   { key: "spend", label: "Spend (USD)", value: (r) => r.spend },
   { key: "impressions", label: "Impressions", value: (r) => r.impressions },
   { key: "clicks", label: "Clicks", value: (r) => r.clicks },
@@ -74,6 +75,9 @@ const METRICS: Array<{
  *  which until now lived only in a tooltip and the CSV. */
 const PROVENANCE_KEYS = ["excludedReason", "excludedAt"];
 const DEFAULT_HIDDEN = [
+  // The ` @code` landing page (2026-10) — most rows go to the product's own
+  // page, so it's offered, not shown.
+  "landingPage",
   ...METRICS.filter((m) => !m.on).map((m) => m.key),
   ...PROVENANCE_KEYS,
 ];
@@ -95,6 +99,7 @@ export function compareRecords(
   const pick = (r: CreativeRecordRow): string => {
     if (key === "platform") return PLATFORM_LABEL[r.platform];
     if (key === "campaign") return r.campaignName;
+    if (key === "landingPage") return r.landingPageCode ?? "";
     if (key === "excludedReason") return r.excludedReason ?? "";
     if (key === "excludedAt") return r.excludedAt ? r.excludedAt.toISOString() : "";
     return r.date;
@@ -190,6 +195,28 @@ export function CreativeRecordsTable({ rows, title = "All records" }: Props) {
             {r.campaignName}
           </span>
         ),
+      },
+      {
+        key: "landingPage",
+        label: "Landing page",
+        align: "left",
+        sortable: true,
+        defaultSortDir: "asc",
+        // The code is what the ad name carries; the page's name rides the
+        // title. A dash is the product's own page.
+        render: (r) =>
+          r.landingPageCode ? (
+            <span
+              className="block max-w-[8rem] truncate font-mono text-xs text-ink-2 sm:max-w-[12rem]"
+              title={r.landingPageName ?? undefined}
+            >
+              @{r.landingPageCode}
+            </span>
+          ) : (
+            <span className="text-ink-3" title="The product's own page">
+              —
+            </span>
+          ),
       },
       ...METRICS.map<DataColumn<CreativeRecordRow>>((m) => ({
         key: m.key,

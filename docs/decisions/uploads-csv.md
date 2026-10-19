@@ -15,6 +15,19 @@
   missing required column is E010. This is a decision, not a bug.
 - **CSV or XLSX through ONE conversion layer** — nothing downstream may branch
   on the format. SheetJS is the reader; never add a second one.
+- **An ad name may end in ` @code`** — one space, `@`, the code of a landing
+  page registered on the Library's Landing pages tab. `lib/landing-code.ts`
+  splits the trimmed cell at the FIRST ` @`; the creative matches on the part
+  before it (trim-then-exact, unchanged), the code matches the registry
+  exactly and case-sensitively. Malformed → E022, unregistered → E023. No
+  marker = the product's own page (`landing_page_id` NULL).
+- **The landing page is part of the record identity** (`perf_identity_uq`,
+  NULLS NOT DISTINCT): E050, E051 and the upsert partition all key on it, so
+  one creative may run to two pages in one ad set on one day.
+- **A landing code can't change on a live ad (E052, both modes).** Platforms
+  export a live ad's CURRENT name for every past day; a day already stored
+  under a different landing page that the file does not also carry is a
+  rename, and importing it would count the day twice.
 - COUNT metrics round to the nearest whole number at NORMALIZATION and say so
   (W004); which fields are counts is declared once in `FIELD_META.kind`.
 - Adding an internal field means all five places; the mapping UI DERIVES from
@@ -94,3 +107,33 @@ as it stood before the restructure.*
   field that isn't described everywhere (verified by injecting a probe field →
   5 adapter errors + 1 FIELD_META error). New optional metrics go in
   `FIELD_META` with `required: false` so existing uploads keep validating.
+
+### Landing-page codes in ad names (2026-10)
+
+- **The ask:** some ads send traffic to a landing page instead of the product's
+  own page; the team marks them by ending the ad name with ` @code`. The
+  upload must accept those names, attach the row to the registered creative,
+  and keep the code. Decided with the user before building (reviewer pass):
+  the code joins the record identity (an A/B test runs `Promo_01` and
+  `Promo_01 @lp2` in one ad set on one day — without it, E050 rejected the
+  whole file); a code changing on a live ad is refused (E052); the parse is
+  strict (one space, `@`, letters/digits/`-`/`_`; anything else E022, case
+  matters); creative names may not contain ` @`; all platforms; and — added
+  by the user — a **landing-page registry** (name, code, link, optional short
+  description) on the Library's Landing pages tab beside Products, with
+  uploads rejecting an unregistered code (E023, wording approved).
+- **Why E052 needs the "file does not also carry it" clause:** checking only
+  "stored under a different page" would refuse a legitimate upsert re-upload of
+  an A/B day (both pages stored, both in the file). The rename signature is a
+  stored page the file has NO row for that day.
+- **Schema:** migration 0054 — `landing_pages` table, nullable
+  `performance_records.landing_page_id` (no cascade), and the old unique index
+  replaced by the `perf_identity_uq` constraint. A constraint, not an index,
+  because only drizzle's `unique()` builder can say NULLS NOT DISTINCT
+  (Postgres 15+). Once a record uses a landing page its code is locked and it
+  can't be deleted (`app/actions/landing-page.ts`).
+- **Visibility, deliberately minimal for now:** the upload summary card lists
+  the codes in the file with their row counts (main-page rows aren't listed),
+  and the creative's records table offers a `defaultHidden` "Landing page"
+  column. No breakdowns or filters by landing page until that feature exists.
+

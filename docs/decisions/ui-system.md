@@ -18,6 +18,8 @@
   `useNavTransition`, or the progress bar never shows.
 - Nav is ONE source (`nav-items.ts`) for both the desktop and mobile navs.
 - Empty states are designed, numbers are tabular, dash means NULL.
+- A horizontal scroll box that holds `sr-only` text is `relative`, or the
+  label escapes it and widens the page at 375px.
 
 ## History and rationale
 
@@ -255,3 +257,20 @@ as it stood before the restructure.*
   creative). Code identifiers for the Ads page (`SummaryTable`,
   `listCreativeSummary`, `validators/summary`) likewise keep the "summary"
   name — the route did not move.
+
+### The tab row scrolls instead of wrapping (2026-10)
+
+- The Library gained a fourth tab (Landing pages) and, at 375px, the shared
+  `PageTabs` row wrapped "Landing pages" onto two lines — the row had no
+  overflow rule because three tabs had always fitted. Extended, not forked:
+  tabs are `whitespace-nowrap shrink-0`, the row scrolls sideways (scrollbar
+  hidden, the cut-off last tab is the cue), and the active tab is scrolled
+  into view on mount/switch. The border moved to an INNER row so each tab's
+  `-mb-px` underline still lands on the line without giving the scroll box a
+  1px vertical overflow. Every page using `PageTabs` gets the same behaviour.
+- Same pass, a trap worth naming: an `sr-only` label (absolutely positioned)
+  inside a horizontally scrolling table escapes the scroll box unless the box
+  is `relative` — it is positioned against the page instead, and widened the
+  375px page to 817px. A scroll wrapper that holds `sr-only` text gets
+  `relative`.
+

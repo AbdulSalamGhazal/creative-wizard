@@ -1,6 +1,6 @@
 # Urjwan Creative Management System — Validation Specification
 
-**Version:** 1.2
+**Version:** 1.3
 **Owner:** Salam — Urjwan
 **Related document:** `urjwan-ccms-prd.md`
 **Status:** Live — updated 2026-07 to document production behavior (upsert mode,
@@ -8,6 +8,10 @@ XLSX ingestion, the campaign registry / E060 / E061, and the encoding decision).
 v1.2 blesses the implemented **trim-then-exact** creative-name matching and the
 **blank-numeric-cell → 0** rule as the intended contract (see §4 / §5.1); the
 prior "known divergence" is now a settled decision, not a bug.
+v1.3 (2026-10) adds **landing-page codes**: an ad name may end in ` @code`
+naming a registered landing page (§4.2, E022 / E023), the landing page joins
+the record identity (§3.4 / §3.5), and a code that changed on a live ad is
+refused (E052).
 Per-platform header mappings are DB-driven (`/admin/catalog?tab=mappings`), so
 §9's static tables are historical.
 
@@ -30,7 +34,7 @@ The validation layer obeys these rules without exception:
 1. **All-or-nothing.** A single error rejects the entire file. No partial imports, no "import what you can."
 2. **Collect all errors.** Validation does not stop at the first row-level error. Every problem in the file is surfaced in one report.
 3. **Deterministic.** The same input file produces the same result every time.
-4. **Idempotent.** A record is uniquely keyed by `(creative, platform, campaign, date)`, where the campaign is resolved through the campaigns **registry** (stored as a `campaign_id` FK — see §4.1). The same creative can run in multiple campaigns on the same day (distinct keys → allowed), but re-uploading the *same* campaign's day is rejected as a duplicate — no silent double-counting. (Upsert mode deliberately relaxes this — see §8.1.)
+4. **Idempotent.** A record is uniquely keyed by `(creative, platform, campaign, date, landing page)`, where the campaign is resolved through the campaigns **registry** (stored as a `campaign_id` FK — see §4.1) and the landing page through the landing-page registry (NULL = the product's own page — see §4.2). The same creative can run in multiple campaigns, or to multiple landing pages, on the same day (distinct keys → allowed), but re-uploading the *same* campaign's day is rejected as a duplicate — no silent double-counting. (Upsert mode deliberately relaxes this — see §8.1.)
 5. **Read-only until success.** Nothing is written to the database until validation passes end-to-end and the user confirms import.
 6. **Never modifies the input.** The original CSV file is preserved as uploaded; transformations happen on parsed in-memory data.
 
@@ -90,7 +94,11 @@ For each row, the following are checked **independently** (one row can produce m
 - Numeric fields parse and are non-negative (E040, E041)
 - Date field parses and is not in the future (E030, E031)
 - Creative-name field is non-empty (E021)
-- Creative-name field matches a registered name in the library (E020)
+- A ` @code` suffix on the creative-name field is well-formed (E022) — §4.2
+- Creative-name field (the part before any ` @code`) matches a registered name
+  in the library (E020)
+- The ` @code` names a **registered landing page** for this account (E023) —
+  like campaigns, a landing page must exist before an upload references it
 - Campaign (+ ad set) resolves to a **registered campaign** for this account
   (E061) — like creatives, a campaign must be created in the system before an
   upload can reference it, otherwise a rename at the source would silently
@@ -101,14 +109,15 @@ For each row, the following are checked **independently** (one row can produce m
 
 ### 3.4 Stage 4 — Intra-file duplicates
 
-Rows are keyed by `(creative_name, campaign_name, date)` (platform is constant per file). Two rows that share a key are a duplicate within the file → **E050** (reported once, listing the row numbers). Different campaigns are distinct keys, so a creative running in several campaigns on the same day is allowed.
+Rows are keyed by `(creative_name, campaign_name, date, landing_code)` (platform is constant per file; no code = the product's own page). Two rows that share a key are a duplicate within the file → **E050** (reported once, listing the row numbers). Different campaigns — or different landing pages — are distinct keys, so a creative running in several campaigns, or to several landing pages in one ad set, on the same day is allowed.
 
 ### 3.5 Stage 5 — Database duplicates
 
-Each distinct `(creative_name, platform, campaign_name, date)` from the file is checked against existing data:
+Each distinct `(creative_name, platform, campaign_name, date)` from the file is looked up once, returning the landing page of every record already stored for it:
 
-- If a record already exists for that key → **E051** (blocking), naming the existing batch so the user can roll it back and re-import.
-- The database enforces this with a unique index on `(creative_id, platform, campaign_id, date)` — the campaign name from the file is resolved to its registry row's id at commit time.
+- If a record already exists with the **same landing page** → **E051** (blocking), naming the existing batch so the user can roll it back and re-import. Upsert mode skips this (§8.1).
+- If the day is stored under a **different landing page that the file does not also carry** for that day → **E052** (blocking, in BOTH modes). Platforms export a live ad's *current* name for every past day, so an ad renamed from `X` to `X @lp2` would otherwise re-import its old days as new rows and count them twice. A file that carries both pages for the day is an A/B test, not a rename, and passes.
+- The database enforces the identity with the unique constraint `perf_identity_uq` on `(creative_id, platform, campaign_id, date, landing_page_id)` **NULLS NOT DISTINCT** (two main-page rows are still a duplicate) — the campaign name and landing code from the file are resolved to their registry rows' ids at commit time.
 
 ---
 
@@ -136,6 +145,29 @@ dialog); unregistered → E061, registered on another platform → E060. The per
 row stores the registry row's `campaign_id` (uuid FK), so renaming a campaign
 is a single registry update — historical rows follow automatically.
 
+
+### 4.2 Landing-page codes (v1.3)
+
+An ad that sends traffic somewhere other than the product's own page carries
+the code of a registered landing page at the end of its name:
+`<creative name> @<code>` — exactly one space, `@`, then letters, digits, `-`
+or `_` (≤ 64). The rules live in `lib/landing-code.ts`:
+
+- The cell is trimmed (§4), then split at the FIRST ` @`. The creative is
+  matched on the part before it, trim-then-exact as always (E020); the code is
+  matched against the account's landing pages **exactly, case-sensitively**
+  (E023).
+- Anything after the marker that is not one valid code is **E022**: `X @`,
+  `X @ lp2`, `X @a @b`, and `X  @lp2` (two spaces). `X@lp2` has no marker and
+  is read as a plain name (so E020 if unregistered — no "did you mean").
+- No marker = the product's own page; the record stores `landing_page_id`
+  NULL.
+- Creative names may not contain ` @` (create, rename, bulk import), so a
+  registered name can always be matched.
+- Codes are registered on the Library's **Landing pages** tab. A code is
+  unique per account (a case-only variant is refused too); once a record uses
+  it, the code is locked and the page can't be deleted.
+
 ---
 
 ## 5. Field Validation Rules
@@ -162,7 +194,7 @@ Applies to: `spend`, `impressions`, `clicks`, `conversions`, `conversion_value`,
 ### 5.3 Creative-name field
 
 - Required, non-empty (an empty cell → E021).
-- **Trimmed**, then matched against the library **byte-exactly** — case-sensitive, no case folding, no Unicode normalization. See §4.
+- **Trimmed**, then split at an optional ` @code` landing-page suffix (§4.2), then the part before it is matched against the library **byte-exactly** — case-sensitive, no case folding, no Unicode normalization. See §4.
 
 ---
 
@@ -203,6 +235,8 @@ Every error carries a stable code, a severity, a template, and an example. Codes
 | E012  | FATAL    | Duplicate header column: `{column}`.                                                                      | "Duplicate header column: `Impressions`."                                                                     |
 | E020  | ERROR    | Row {n}: creative `'{name}'` is not registered in the library.                                            | "Row 47: creative `'URJ_VID_023'` is not registered in the library."                                          |
 | E021  | ERROR    | Row {n}: creative name is empty.                                                                          | —                                                                                                             |
+| E022  | ERROR    | Row {n}: `'{cell}'` has a malformed landing page code. Use `Name @code` — one space, then @ and letters, digits, - or _. | "Row 12: `'Promo_01 @ lp2'` has a malformed landing page code. …" |
+| E023  | ERROR    | Row {n}: landing page `'@{code}'` is not registered. Add it in Library → Landing pages first.              | "Row 12: landing page `'@lp2'` is not registered. Add it in Library → Landing pages first." |
 | E030  | ERROR    | Row {n}: invalid date `'{value}'`.                                                                        | "Row 12: invalid date `'31/13/2026'`."                                                                        |
 | E031  | ERROR    | Row {n}: date `'{value}'` is in the future.                                                               | "Row 12: date `'2027-01-01'` is in the future."                                                               |
 | E040  | ERROR    | Row {n}: `'{field}'` is not a valid number (`'{value}'`).                                                 | "Row 88: `'Spend'` is not a valid number (`'twelve'`)."                                                       |
@@ -210,6 +244,7 @@ Every error carries a stable code, a severity, a template, and an example. Codes
 | E042  | ERROR    | Row {n}: required field `'{field}'` is missing. *(Identity fields only — `date`, `campaign_name`, `adset_name`. A blank numeric cell is `0`, never E042; a missing required column is E010.)* | "Row 88: required field `'campaign_name'` is missing." |
 | E050  | ERROR    | Rows {rows}: duplicate within file — same creative `'{name}'`, campaign `'{campaign}'`, platform `{platform}`, date `{date}`. | — |
 | E051  | ERROR    | Row(s) {rows}: `'{name}'` / campaign `'{campaign}'` on `{platform}` for `{date}` was already imported (batch {id}).         | — |
+| E052  | ERROR    | Row(s) {rows}: `'{name}'` / campaign `'{campaign}'` on `{platform}` for `{date}` was already imported under a different landing page (`'{stored}'`, batch {id}). A live ad's landing page code can't change — rename the ad back on the platform, or roll back that batch. | — |
 | E060  | ERROR    | Campaign `'{name}'` already exists on `{platform}` — one campaign belongs to one platform.                | "Campaign `'Summer ➤ Broad'` already exists on tiktok."                                                       |
 | E061  | ERROR    | Row {n}: campaign `'{name}'` is not registered. Register it before importing.                             | —                                                                                                             |
 | W001  | WARNING  | *(reserved — the Windows-1256 fallback was never implemented; see §3.1)*                                  | —                                                                                                             |
@@ -238,9 +273,10 @@ The New-upload form has an **upsert** toggle, built for TikTok-style rolling
 attribution backfill (re-upload the same window daily; old days gain their
 late-attributed conversions, the newest day is inserted):
 
-- Runs the **same full validation pipeline**, but **skips the E051 check**.
+- Runs the **same full validation pipeline**, but **skips the E051 check**
+  (the landing-page rename guard, E052, still applies).
 - Validated rows are partitioned against the unique identity
-  `(creative, platform, campaign, date)`: **new** rows are inserted under a
+  `(creative, platform, campaign, date, landing page)`: **new** rows are inserted under a
   fresh batch; **existing** rows are UPDATEd in place (full row,
   last-value-wins on every metric column; identity, batch ownership and
   exclusion flags untouched).

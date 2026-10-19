@@ -11,7 +11,8 @@
 - A perf row's campaign is a **FK to the `campaigns` registry**; display names
   come from `campaigns.name`, never a text column.
 - The registry name format is built ONLY through `buildCampaignName()`.
-- Duplicates are keyed on (creative, platform, campaign_id, date) — E050 intra
+- Duplicates are keyed on (creative, platform, campaign_id, date, landing page)
+  (the landing page joined the key in 2026-10 — see uploads-csv.md) — E050 intra
   file, E051 already-imported.
 - The objective vocabulary is `CAMPAIGN_OBJECTIVES`; retired values never
   return, and a rename must sweep saved views.

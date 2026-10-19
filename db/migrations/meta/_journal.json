@@ -379,6 +379,13 @@
       "when": 1791565777496,
       "tag": "0053_user_table_prefs",
       "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1792440971596,
+      "tag": "0054_landing_pages",
+      "breakpoints": true
     }
   ]
 }

@@ -15,6 +15,7 @@ import {
   jsonb,
   primaryKey,
   index,
+  unique,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
@@ -422,6 +423,35 @@ export const campaigns = pgTable(
   }),
 );
 
+/**
+ * Landing pages (2026-10) — the registry behind the `@code` suffix an ad name
+ * carries when its traffic goes somewhere other than the product's own page
+ * (see lib/landing-code.ts). Like campaigns, a code must be registered before
+ * an upload may reference it (E023). `code` is stored WITHOUT the `@`, unique
+ * per account (the action also refuses a case-only variant, so `LP2` and
+ * `lp2` can never both exist); once a record points here the code is locked
+ * and the row can't be deleted — the FK on performance_records has no cascade.
+ */
+export const landingPages = pgTable(
+  "landing_pages",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    accountId: accountId(),
+    name: varchar("name", { length: 255 }).notNull(),
+    code: varchar("code", { length: 64 }).notNull(),
+    description: varchar("description", { length: 200 }),
+    url: text("url").notNull(),
+    createdByUserId: uuid("created_by_user_id")
+      .notNull()
+      .references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    accountCodeIdx: uniqueIndex("landing_pages_account_code_idx").on(t.accountId, t.code),
+  }),
+);
+
 export const creativeAngles = pgTable(
   "creative_angles",
   {
@@ -811,6 +841,13 @@ export const performanceRecords = pgTable(
     campaignId: uuid("campaign_id")
       .notNull()
       .references(() => campaigns.id),
+    /**
+     * The landing page this row's ad sent traffic to — the `@code` suffix on
+     * the ad name (lib/landing-code.ts). NULL = the product's own page. Part
+     * of the record identity: the same creative may run to two pages in one
+     * ad set on one day. NO cascade — a landing page in use can't be deleted.
+     */
+    landingPageId: uuid("landing_page_id").references(() => landingPages.id),
     spend: numeric("spend", { precision: 14, scale: 4 }).notNull(),
     impressions: integer("impressions").notNull(),
     clicks: integer("clicks").notNull(),
@@ -861,12 +898,18 @@ export const performanceRecords = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }),
   },
   (t) => ({
-    // Unique on the FULL dedup key. The same creative can run on the same
-    // platform/date across different campaigns (allowed), but not the same
-    // campaign twice — campaign_id disambiguates.
-    creativePlatformCampaignIdDateIdx: uniqueIndex(
-      "perf_creative_platform_campaign_id_date_idx",
-    ).on(t.creativeId, t.platform, t.campaignId, t.date),
+    // Unique on the FULL identity. The same creative can run on the same
+    // platform/date across different campaigns (allowed), and within one
+    // campaign to different landing pages (2026-10), but not the same pair
+    // twice. NULLS NOT DISTINCT: two main-page rows (landing_page_id NULL)
+    // for one (creative, platform, campaign, date) are still a duplicate.
+    // A constraint, not an index, because only drizzle's unique() builder
+    // can say NULLS NOT DISTINCT; Postgres backs it with the same btree.
+    identityUq: unique("perf_identity_uq")
+      .on(t.creativeId, t.platform, t.campaignId, t.date, t.landingPageId)
+      .nullsNotDistinct(),
+    // The landing-page lock and delete guard ask "does any record use it?".
+    landingPageIdx: index("perf_landing_page_idx").on(t.landingPageId),
     accountDateIdx: index("perf_account_date_idx").on(t.accountId, t.date),
     // Speeds the per-campaign queries (campaign detail + the campaigns table),
     // which filter by (account_id, campaign_id, date).

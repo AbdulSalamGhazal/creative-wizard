@@ -8,6 +8,7 @@ import { allowedAccountsForUser } from "@/lib/tenant";
 import {
   campaigns,
   creatives,
+  landingPages,
   performanceRecords,
   platformEnum,
   uploadBatches,
@@ -195,6 +196,37 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // Resolve landing_page_id from the registry (account-scoped), the same way.
+  // Codes were validated as registered at validate-time (E023); a landing page
+  // deleted since (only possible while unused) → 422.
+  const landingCodes = [
+    ...new Set(
+      payload.rows.flatMap((r) => (r.landingCode == null ? [] : [r.landingCode])),
+    ),
+  ];
+  const landingRows = landingCodes.length
+    ? await db
+        .select({ id: landingPages.id, code: landingPages.code })
+        .from(landingPages)
+        .where(
+          and(
+            eq(landingPages.accountId, acct),
+            inArray(landingPages.code, landingCodes),
+          ),
+        )
+    : [];
+  const landingIdByCode = new Map(landingRows.map((l) => [l.code, l.id]));
+  const missingLanding = landingCodes.filter((c) => !landingIdByCode.has(c));
+  if (missingLanding.length > 0) {
+    return NextResponse.json(
+      {
+        error: "Some landing pages were removed since validation.",
+        missing: missingLanding.map((c) => `@${c}`),
+      },
+      { status: 422 },
+    );
+  }
+
   // Column values for one performance_records row. Identity columns
   // (creative/platform/campaign/date) are added separately for inserts;
   // updates only overwrite these metric columns. Video-funnel metrics apply
@@ -281,6 +313,10 @@ export async function POST(request: NextRequest) {
         creativeId: idByName.get(r.creativeName)!,
         platform,
         campaignId: campaignIdByName.get(r.campaignName)!,
+        // `== null` also covers a session validated before landing codes
+        // existed (its rows carry no `landingCode` key at all).
+        landingPageId:
+          r.landingCode == null ? null : landingIdByCode.get(r.landingCode)!,
         date: r.date,
         ...metricValues(r),
         uploadBatchId: batch.id,
@@ -322,7 +358,7 @@ export async function POST(request: NextRequest) {
       }
 
       // Re-stamp the updated rows against active rules too. A row's identity
-      // (creative/platform/campaign/date) can't change on upsert, so this is a
+      // (creative/platform/campaign/date/landing page) can't change on upsert, so this is a
       // safety net rather than a correction path — but it keeps a record that
       // somehow sits inside an active rule's scope from surviving un-excluded.
       const updatedIds = updateRows.map((u) => u.id);

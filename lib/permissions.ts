@@ -55,6 +55,7 @@ export const PERMISSION_GROUPS = [
     label: "Catalog & config",
     perms: [
       { key: "catalog.products", label: "Manage products" },
+      { key: "catalog.landing_pages", label: "Manage landing pages" },
       { key: "catalog.angles", label: "Manage angles" },
       { key: "config.rating", label: "Edit rating rules" },
       { key: "config.mappings", label: "Edit CSV mappings" },

@@ -6,6 +6,7 @@ import { can, requirePermission } from "@/lib/auth";
 import {
   campaigns,
   creatives,
+  landingPages,
   performanceRecords,
   platformEnum,
   uploadBatches,
@@ -118,6 +119,14 @@ export async function POST(request: NextRequest) {
     .where(eq(campaigns.accountId, acct));
   const registeredCampaigns = new Set(allCampaigns.map((r) => r.name));
 
+  // Registered landing-page codes (no `@`), scoped to the active brand. A
+  // row's ` @code` must be one of them (E023) — see lib/landing-code.ts.
+  const allLandingPages = await db
+    .select({ code: landingPages.code })
+    .from(landingPages)
+    .where(eq(landingPages.accountId, acct));
+  const registeredLandingCodes = new Set(allLandingPages.map((r) => r.code));
+
   const adapter = await resolveAdapter(platform);
 
   const result = await runPipeline({
@@ -126,37 +135,43 @@ export async function POST(request: NextRequest) {
     adapter,
     registeredNames,
     registeredCampaigns,
-    // In upsert mode we DON'T reject existing rows (no E051) — the pipeline
-    // skips Stage 5 entirely when findExistingBatch is omitted, and we
-    // partition new-vs-existing below instead.
-    findExistingBatch: upsert
-      ? undefined
-      : async (name, plat, campaignName, date) => {
-          const [row] = await db
-            .select({ batchId: performanceRecords.uploadBatchId })
-            .from(performanceRecords)
-            .innerJoin(
-              creatives,
-              eq(creatives.id, performanceRecords.creativeId),
-            )
-            .innerJoin(
-              uploadBatches,
-              eq(uploadBatches.id, performanceRecords.uploadBatchId),
-            )
-            .innerJoin(campaigns, eq(campaigns.id, performanceRecords.campaignId))
-            .where(
-              and(
-                eq(performanceRecords.accountId, acct),
-                eq(creatives.name, name),
-                eq(performanceRecords.platform, plat),
-                eq(campaigns.name, campaignName),
-                eq(performanceRecords.date, date),
-                eq(uploadBatches.status, "active"),
-              ),
-            )
-            .limit(1);
-          return row?.batchId ?? null;
-        },
+    registeredLandingCodes,
+    // In upsert mode we DON'T reject existing rows (no E051) — we partition
+    // new-vs-existing below instead. Stage 5 still runs in both modes: the
+    // landing-page rename guard (E052) protects upserts too.
+    allowExisting: upsert,
+    findExisting: async (name, plat, campaignName, date) => {
+      const rows = await db
+        .select({
+          batchId: performanceRecords.uploadBatchId,
+          landingCode: landingPages.code,
+        })
+        .from(performanceRecords)
+        .innerJoin(
+          creatives,
+          eq(creatives.id, performanceRecords.creativeId),
+        )
+        .innerJoin(
+          uploadBatches,
+          eq(uploadBatches.id, performanceRecords.uploadBatchId),
+        )
+        .innerJoin(campaigns, eq(campaigns.id, performanceRecords.campaignId))
+        .leftJoin(
+          landingPages,
+          eq(landingPages.id, performanceRecords.landingPageId),
+        )
+        .where(
+          and(
+            eq(performanceRecords.accountId, acct),
+            eq(creatives.name, name),
+            eq(performanceRecords.platform, plat),
+            eq(campaigns.name, campaignName),
+            eq(performanceRecords.date, date),
+            eq(uploadBatches.status, "active"),
+          ),
+        );
+      return rows;
+    },
   });
 
   if (!result.ok) {
@@ -247,6 +262,7 @@ export async function POST(request: NextRequest) {
               creativeId: performanceRecords.creativeId,
               campaignName: campaigns.name,
               date: performanceRecords.date,
+              landingCode: landingPages.code,
             })
             .from(performanceRecords)
             .innerJoin(
@@ -254,6 +270,10 @@ export async function POST(request: NextRequest) {
               eq(uploadBatches.id, performanceRecords.uploadBatchId),
             )
             .innerJoin(campaigns, eq(campaigns.id, performanceRecords.campaignId))
+            .leftJoin(
+              landingPages,
+              eq(landingPages.id, performanceRecords.landingPageId),
+            )
             .where(
               and(
                 eq(performanceRecords.accountId, acct),
@@ -268,9 +288,10 @@ export async function POST(request: NextRequest) {
 
     const SEP = "\u0001";
     const idByIdentity = new Map<string, number>();
+    // The full identity, landing page included ("" = the product's page).
     for (const e of existing) {
       idByIdentity.set(
-        `${e.creativeId}${SEP}${e.campaignName}${SEP}${e.date}`,
+        `${e.creativeId}${SEP}${e.campaignName}${SEP}${e.date}${SEP}${e.landingCode ?? ""}`,
         e.id,
       );
     }
@@ -279,7 +300,7 @@ export async function POST(request: NextRequest) {
       const cid = idByName.get(r.creativeName);
       if (cid === undefined) return null;
       const hit = idByIdentity.get(
-        `${cid}${SEP}${r.campaignName}${SEP}${r.date}`,
+        `${cid}${SEP}${r.campaignName}${SEP}${r.date}${SEP}${r.landingCode ?? ""}`,
       );
       return hit ?? null;
     });
@@ -290,9 +311,19 @@ export async function POST(request: NextRequest) {
   // Build summary
   const dates = result.rows.map((r) => r.date).sort();
   const creativesCount = new Set(result.rows.map((r) => r.creativeName)).size;
+  // Rows per landing page, so the summary shows the ` @code` split happened.
+  // Rows without a code (the product's own page) aren't listed.
+  const landingRowCounts = new Map<string, number>();
+  for (const r of result.rows) {
+    if (r.landingCode === null) continue;
+    landingRowCounts.set(r.landingCode, (landingRowCounts.get(r.landingCode) ?? 0) + 1);
+  }
   const summary = {
     rows: result.rows.length,
     creatives: creativesCount,
+    landingPages: [...landingRowCounts]
+      .map(([code, rows]) => ({ code, rows }))
+      .sort((a, b) => b.rows - a.rows || a.code.localeCompare(b.code)),
     dateRange:
       dates.length > 0
         ? { from: dates[0]!, to: dates[dates.length - 1]! }
@@ -347,6 +378,8 @@ export interface ValidationPayload {
   summary: {
     rows: number;
     creatives: number;
+    /** Rows per landing-page code (no `@`); empty when every row is main-page. */
+    landingPages: { code: string; rows: number }[];
     dateRange: { from: string; to: string } | null;
     /** Present only for upsert validations. */
     upsert?: true;

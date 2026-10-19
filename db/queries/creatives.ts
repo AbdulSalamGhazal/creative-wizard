@@ -16,6 +16,7 @@ import {
   campaigns,
   creatives,
   creativeAngles,
+  landingPages,
   performanceRecords,
   products,
   angles,
@@ -594,6 +595,9 @@ export interface CreativeRecordRow {
   id: number;
   platform: (typeof platformEnum)[number];
   campaignName: string;
+  /** The ` @code` landing page (code without `@`); null = the product's page. */
+  landingPageCode: string | null;
+  landingPageName: string | null;
   date: string;
   spend: number;
   impressions: number;
@@ -636,6 +640,8 @@ export async function creativeRecords(
       conversions: performanceRecords.conversions,
       conversionValue: performanceRecords.conversionValue,
       campaignName: campaigns.name,
+      landingPageCode: landingPages.code,
+      landingPageName: landingPages.name,
       landingPageViews: performanceRecords.landingPageViews,
       addToCart: performanceRecords.addToCart,
       addPayment: performanceRecords.addPayment,
@@ -651,6 +657,9 @@ export async function creativeRecords(
     })
     .from(performanceRecords)
     .innerJoin(campaigns, eq(campaigns.id, performanceRecords.campaignId))
+    // A PK join off a column the row already carries — the admission price
+    // for a defaultHidden column (docs/decisions/tables-columns.md).
+    .leftJoin(landingPages, eq(landingPages.id, performanceRecords.landingPageId))
     .where(
       and(
         eq(performanceRecords.accountId, acct),
@@ -672,6 +681,8 @@ export async function creativeRecords(
     conversions: r.conversions,
     conversionValue: r.conversionValue === null ? null : Number(r.conversionValue),
     campaignName: r.campaignName,
+    landingPageCode: r.landingPageCode,
+    landingPageName: r.landingPageName,
     landingPageViews: r.landingPageViews,
     addToCart: r.addToCart,
     addPayment: r.addPayment,

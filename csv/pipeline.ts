@@ -26,12 +26,17 @@ import {
 } from "@/csv/platforms/types";
 import type { ValidationError } from "@/csv/errors";
 import { buildCampaignName } from "@/lib/campaign";
+import { splitLandingCode, withLandingCode } from "@/lib/landing-code";
 
 type Platform = PlatformAdapter["platform"];
 
 export interface ParsedRow {
   rowNumber: number;
+  /** The registered creative's name — the cell BEFORE any ` @code` suffix. */
   creativeName: string;
+  /** The ` @code` suffix's landing-page code (no `@`), or null for the
+   *  product's own page. Part of the record identity. */
+  landingCode: string | null;
   date: string; // canonical YYYY-MM-DD
   spend: number;
   impressions: number;
@@ -78,13 +83,29 @@ export interface PipelineInput extends ParseInput {
   /** Registered campaign names (the built campaign_name). When provided, a row
    *  whose campaign isn't registered is rejected (E061). Omit to skip the check. */
   registeredCampaigns?: Set<string>;
-  /** Returns the existing batch id for a (name, platform, campaign, date) tuple, or null. */
-  findExistingBatch?: (
+  /** Registered landing-page codes (no `@`). When provided, a row whose
+   *  ` @code` isn't registered is rejected (E023). Omit to skip the check. */
+  registeredLandingCodes?: Set<string>;
+  /**
+   * The ACTIVE records already stored for a (creative, platform, campaign,
+   * date) — one entry per landing page. Drives Stage 5; omit to skip it.
+   */
+  findExisting?: (
     creativeName: string,
     platform: Platform,
     campaignName: string,
     date: string,
-  ) => Promise<string | null>;
+  ) => Promise<ExistingRecord[]>;
+  /** Upsert mode: an exact identity match is about to be UPDATED, so it is not
+   *  E051. The landing-page guard (E052) applies either way. */
+  allowExisting?: boolean;
+}
+
+/** One stored record for a (creative, platform, campaign, date). */
+export interface ExistingRecord {
+  /** null = the product's own page. */
+  landingCode: string | null;
+  batchId: string;
 }
 
 export async function runPipeline(input: PipelineInput): Promise<PipelineResult> {
@@ -233,23 +254,58 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
 
     const errorsForRow: ValidationError[] = [];
 
-    // E021 / E020 — creative_name
-    const creativeName = allCells.creative_name ?? "";
-    if (creativeName === "") {
+    // E021 / E022 / E020 / E023 — creative_name and its optional ` @code`
+    // landing-page suffix (lib/landing-code.ts). The creative matches on the
+    // part BEFORE the marker, trim-then-exact as always; the code matches the
+    // landing-page registry exactly.
+    const creativeCell = allCells.creative_name ?? "";
+    let creativeName = creativeCell;
+    let landingCode: string | null = null;
+    if (creativeCell === "") {
       errorsForRow.push({
         code: "E021",
         severity: "ERROR",
         message: `Row ${rowNumber}: creative name is empty.`,
         row: rowNumber,
       });
-    } else if (!input.registeredNames.has(creativeName)) {
-      errorsForRow.push({
-        code: "E020",
-        severity: "ERROR",
-        message: `Row ${rowNumber}: creative \`'${creativeName}'\` is not registered in the library.`,
-        row: rowNumber,
-        value: creativeName,
-      });
+    } else {
+      const split = splitLandingCode(creativeCell);
+      if (!split.ok) {
+        errorsForRow.push({
+          code: "E022",
+          severity: "ERROR",
+          message: `Row ${rowNumber}: \`'${creativeCell}'\` has a malformed landing page code. Use \`Name @code\` — one space, then @ and letters, digits, - or _.`,
+          row: rowNumber,
+          field: "creative_name",
+          value: creativeCell,
+        });
+      } else {
+        creativeName = split.name;
+        landingCode = split.code;
+        if (!input.registeredNames.has(creativeName)) {
+          errorsForRow.push({
+            code: "E020",
+            severity: "ERROR",
+            message: `Row ${rowNumber}: creative \`'${creativeName}'\` is not registered in the library.`,
+            row: rowNumber,
+            value: creativeName,
+          });
+        }
+        if (
+          landingCode !== null &&
+          input.registeredLandingCodes &&
+          !input.registeredLandingCodes.has(landingCode)
+        ) {
+          errorsForRow.push({
+            code: "E023",
+            severity: "ERROR",
+            message: `Row ${rowNumber}: landing page \`'@${landingCode}'\` is not registered. Add it in Library → Landing pages first.`,
+            row: rowNumber,
+            field: "creative_name",
+            value: landingCode,
+          });
+        }
+      }
     }
 
     // E030 / E031 — date
@@ -398,6 +454,7 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
     accepted.push({
       rowNumber,
       creativeName,
+      landingCode,
       campaignName,
       date: canonicalDate,
       spend,
@@ -417,25 +474,27 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
     });
 
     // Stage 4 — index this row by the full dedup key (creative, campaign,
-    // date; platform is constant per file).
-    const key = `${creativeName}${campaignName}${canonicalDate}`;
+    // date, landing page; platform is constant per file). A landing code is
+    // never empty, so "" unambiguously stands for the product's own page.
+    const key = `${creativeName}${campaignName}${canonicalDate}${landingCode ?? ""}`;
     const list = seenKeys.get(key);
     if (list) list.push(rowNumber);
     else seenKeys.set(key, [rowNumber]);
   }
 
-  // Stage 4 emit — reject intra-file duplicates on (creative, campaign, date).
-  // Different campaigns are distinct keys, so legitimate multi-campaign rows
-  // are allowed.
+  // Stage 4 emit — reject intra-file duplicates on (creative, campaign, date,
+  // landing page). Different campaigns or landing pages are distinct keys, so
+  // a creative running in several of either on the same day is allowed.
   for (const [k, rowNums] of seenKeys) {
     if (rowNums.length > 1) {
       const parts = k.split("");
+      const shown = withLandingCode(parts[0]!, parts[3] || null);
       collected.push({
         code: "E050",
         severity: "ERROR",
-        message: `Rows ${rowNums.join(", ")}: duplicate within file — same creative \`'${parts[0]}'\`, campaign \`'${parts[1]}'\`, platform \`${platform}\`, date \`${parts[2]}\`.`,
+        message: `Rows ${rowNums.join(", ")}: duplicate within file — same creative \`'${shown}'\`, campaign \`'${parts[1]}'\`, platform \`${platform}\`, date \`${parts[2]}\`.`,
         rows: rowNums,
-        value: parts[0],
+        value: shown,
       });
     }
   }
@@ -461,20 +520,57 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
   }
 
   // ---------- Stage 5 — already imported (blocking) ----------
-  // A row matching (creative, platform, campaign, date) already in the DB is a
-  // true duplicate now that campaign disambiguates multi-campaign rows.
-  if (input.findExistingBatch && accepted.length > 0) {
+  // Per (creative, platform, campaign, date), the stored rows' landing pages.
+  //  - The SAME landing page is a true duplicate → E051 (upsert updates it
+  //    instead).
+  //  - A DIFFERENT landing page stored for that day, which this file does not
+  //    also carry, means the ad was renamed on the platform: platforms export
+  //    a live ad's CURRENT name for every past day, so importing would count
+  //    the day twice → E052, in BOTH modes. A file that carries both pages for
+  //    the day is an A/B test, not a rename, and passes.
+  if (input.findExisting && accepted.length > 0) {
+    const dayKey = (parts: string[]) => parts.slice(0, 3).join("");
+    const codesInFile = new Map<string, Set<string>>();
+    for (const k of seenKeys.keys()) {
+      const parts = k.split("");
+      const set = codesInFile.get(dayKey(parts)) ?? new Set<string>();
+      set.add(parts[3]!);
+      codesInFile.set(dayKey(parts), set);
+    }
+    const stored = new Map<string, ExistingRecord[]>();
     for (const [k, rowNums] of seenKeys) {
       if (rowNums.length > 1) continue; // already reported as E050
       const parts = k.split("");
-      const batchId = await input.findExistingBatch(parts[0]!, platform, parts[1]!, parts[2]!);
-      if (batchId) {
+      const [name, campaign, day] = [parts[0]!, parts[1]!, parts[2]!];
+      const code = parts[3] || null;
+      let existing = stored.get(dayKey(parts));
+      if (!existing) {
+        existing = await input.findExisting(name, platform, campaign, day);
+        stored.set(dayKey(parts), existing);
+      }
+      const shown = withLandingCode(name, code);
+      const same = existing.find((e) => e.landingCode === code);
+      if (same) {
+        if (!input.allowExisting) {
+          collected.push({
+            code: "E051",
+            severity: "ERROR",
+            message: `Row(s) ${rowNums.join(", ")}: \`'${shown}'\` / campaign \`'${campaign}'\` on \`${platform}\` for \`${day}\` was already imported (batch ${same.batchId}). Roll back that batch to re-import.`,
+            rows: rowNums,
+            value: shown,
+          });
+        }
+        continue;
+      }
+      const carried = codesInFile.get(dayKey(parts))!;
+      const renamed = existing.find((e) => !carried.has(e.landingCode ?? ""));
+      if (renamed) {
         collected.push({
-          code: "E051",
+          code: "E052",
           severity: "ERROR",
-          message: `Row(s) ${rowNums.join(", ")}: \`'${parts[0]}'\` / campaign \`'${parts[1]}'\` on \`${platform}\` for \`${parts[2]}\` was already imported (batch ${batchId}). Roll back that batch to re-import.`,
+          message: `Row(s) ${rowNums.join(", ")}: \`'${shown}'\` / campaign \`'${campaign}'\` on \`${platform}\` for \`${day}\` was already imported under a different landing page (\`'${withLandingCode(name, renamed.landingCode)}'\`, batch ${renamed.batchId}). A live ad's landing page code can't change — rename the ad back on the platform, or roll back that batch.`,
           rows: rowNums,
-          value: parts[0],
+          value: shown,
         });
       }
     }

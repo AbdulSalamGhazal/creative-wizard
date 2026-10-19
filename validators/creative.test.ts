@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { creativePatchSchema, prioritySchema } from "@/validators/creative";
+import {
+  creativeCreateSchema,
+  creativePatchSchema,
+  LANDING_MARKER_NAME_ERROR,
+  prioritySchema,
+} from "@/validators/creative";
 
 // Priority is the team's MANUAL 1..3 importance judgment (null = unrated).
 // It must reject anything that isn't an integer 1, 2, 3, or null — no 0 (unrated
@@ -97,5 +102,28 @@ describe("creativePatchSchema", () => {
     expect(creativePatchSchema.safeParse({ id, name: undefined, stages: undefined }).success).toBe(
       false,
     );
+  });
+});
+
+describe("creative names and the landing-page marker", () => {
+  const base = {
+    productId: "22222222-2222-2222-2222-2222222222a1",
+    type: "video" as const,
+  };
+
+  it("refuses a name containing ` @` on create and on rename", () => {
+    const created = creativeCreateSchema.safeParse({ ...base, name: "Summer @sale" });
+    expect(created.success).toBe(false);
+    if (!created.success) expect(created.error.issues[0]?.message).toBe(LANDING_MARKER_NAME_ERROR);
+
+    const renamed = creativePatchSchema.safeParse({
+      id: "33333333-3333-3333-3333-333333333001",
+      name: "Summer @sale",
+    });
+    expect(renamed.success).toBe(false);
+  });
+
+  it("still allows an @ with no space before it", () => {
+    expect(creativeCreateSchema.safeParse({ ...base, name: "Summer@sale" }).success).toBe(true);
   });
 });

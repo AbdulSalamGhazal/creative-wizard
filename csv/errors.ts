@@ -14,6 +14,12 @@ export const errorCodes = {
   E012: "FATAL",
   E020: "ERROR",
   E021: "ERROR",
+  // E022: the creative-name cell has a ` @` landing-page marker, but what
+  // follows isn't one valid code (`X @`, `X @ lp2`, `X @a @b`, two spaces).
+  // E023: the ` @code` isn't a registered landing page — like campaigns (E061),
+  // a landing page must exist before an upload may reference it.
+  E022: "ERROR",
+  E023: "ERROR",
   E030: "ERROR",
   E031: "ERROR",
   E040: "ERROR",
@@ -25,6 +31,10 @@ export const errorCodes = {
   // distinct and allowed; only true duplicates are rejected.
   E050: "ERROR",
   E051: "ERROR",
+  // E052: the same (creative, platform, campaign, date) is stored under a
+  // DIFFERENT landing page that this file doesn't also carry — the ad was
+  // renamed on the platform, and importing would count that day twice.
+  E052: "ERROR",
   // E060: a campaign name in this file already exists on a DIFFERENT platform.
   // A campaign name must belong to one platform — the app treats the same name
   // as one campaign, so allowing it on two platforms would silently merge them.

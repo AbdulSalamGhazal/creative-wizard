@@ -5,6 +5,7 @@ import {
   GitBranch,
   Images,
   Layers3,
+  Link2,
   LogIn,
   LogOut,
   Package,
@@ -82,6 +83,8 @@ function entityHref(row: AuditFeedRow): string | null {
       return "/uploads";
     case "product":
       return "/library?tab=products";
+    case "landing_page":
+      return "/library?tab=landing-pages";
     case "angle":
       return "/library?tab=angles";
     case "user":
@@ -106,6 +109,9 @@ function ActionIcon({ action }: { action: AuditAction }) {
     "product.create": Package,
     "product.archive": Package,
     "product.restore": Package,
+    "landing_page.create": Link2,
+    "landing_page.update": Link2,
+    "landing_page.delete": Link2,
     "user.invite": UserPlus,
     "user.role_change": Users,
     "user.permissions_update": Users,
@@ -254,6 +260,15 @@ function metaSummary(row: AuditFeedRow): string | null {
     case "product.create": {
       const slug = m.slug as string | undefined;
       return slug ? `slug: ${slug}` : null;
+    }
+    case "landing_page.create":
+    case "landing_page.delete": {
+      const code = m.code as string | undefined;
+      return code ? `@${code}` : null;
+    }
+    case "landing_page.update": {
+      const changed = (m.changed as string[] | undefined) ?? [];
+      return changed.length ? `changed ${changed.join(", ")}` : null;
     }
     case "mapping.add":
     case "mapping.remove": {

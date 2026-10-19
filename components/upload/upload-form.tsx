@@ -18,6 +18,7 @@ type Platform = (typeof PLATFORMS)[number]["value"];
 interface Summary {
   rows: number;
   creatives: number;
+  landingPages?: { code: string; rows: number }[];
   dateRange: { from: string; to: string } | null;
   upsert?: true;
   newRows?: number;
@@ -286,7 +287,7 @@ export function UploadForm() {
               </span>
               <span className="block text-[11px] text-ink-3 leading-relaxed">
                 {upsert
-                  ? "Matching rows (same creative · platform · campaign ➤ adset · date) are overwritten in place; new rows are inserted. Use for re-uploading a window after attribution lands."
+                  ? "Matching rows (same creative · platform · campaign ➤ adset · date · landing page) are overwritten in place; new rows are inserted. Use for re-uploading a window after attribution lands."
                   : "Off — a strict import. Rows already in the database are rejected as duplicates."}
               </span>
             </span>

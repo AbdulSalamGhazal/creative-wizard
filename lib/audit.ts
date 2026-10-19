@@ -47,6 +47,11 @@ export const AUDIT_ACTIONS = {
   PRODUCT_ARCHIVE: "product.archive",
   PRODUCT_RESTORE: "product.restore",
 
+  // Landing pages (the ` @code` registry)
+  LANDING_PAGE_CREATE: "landing_page.create",
+  LANDING_PAGE_UPDATE: "landing_page.update",
+  LANDING_PAGE_DELETE: "landing_page.delete",
+
   // Users
   USER_INVITE: "user.invite",
   USER_ROLE_CHANGE: "user.role_change",
@@ -122,6 +127,7 @@ export type AuditAction = (typeof AUDIT_ACTIONS)[keyof typeof AUDIT_ACTIONS];
 export type AuditEntityType =
   | "creative"
   | "product"
+  | "landing_page"
   | "user"
   | "upload"
   | "exclusion"
@@ -229,6 +235,9 @@ export const AUDIT_LABELS: Record<AuditAction, string> = {
   "product.create": "Created product",
   "product.archive": "Archived product",
   "product.restore": "Restored product",
+  "landing_page.create": "Created landing page",
+  "landing_page.update": "Edited landing page",
+  "landing_page.delete": "Deleted landing page",
   "user.invite": "Invited user",
   "user.role_change": "Changed user role",
   "user.permissions_update": "Updated user access",
@@ -293,6 +302,9 @@ export const AUDIT_CATEGORIES: Record<AuditAction, AuditEntityType> = {
   "product.create": "product",
   "product.archive": "product",
   "product.restore": "product",
+  "landing_page.create": "landing_page",
+  "landing_page.update": "landing_page",
+  "landing_page.delete": "landing_page",
   "user.invite": "user",
   "user.role_change": "user",
   "user.permissions_update": "user",

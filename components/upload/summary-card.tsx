@@ -7,6 +7,8 @@ import type { ValidationError } from "@/csv/errors";
 interface Summary {
   rows: number;
   creatives: number;
+  /** Rows per ` @code` landing page; absent/empty when every row is main-page. */
+  landingPages?: { code: string; rows: number }[];
   dateRange: { from: string; to: string } | null;
   upsert?: true;
   newRows?: number;
@@ -21,6 +23,7 @@ export function SummaryCard({
   warnings: ValidationError[];
 }) {
   const isUpsert = summary.upsert === true;
+  const landing = summary.landingPages ?? [];
   return (
     <div className="rounded-lg border border-pos/30 bg-pos/5 overflow-hidden">
       <div className="px-4 py-3 border-b border-pos/20 flex items-center gap-2">
@@ -62,6 +65,29 @@ export function SummaryCard({
           }
         />
       </div>
+
+      {/* The ` @code` split, made visible: which landing pages this file's
+          rows go to, and how many rows each. Main-page rows aren't listed. */}
+      {landing.length > 0 && (
+        <div className="px-4 pb-4 -mt-1">
+          <div className="text-eyebrow text-ink-3 mb-1.5">Landing pages</div>
+          <ul className="flex flex-wrap gap-1.5">
+            {landing.map((l) => (
+              <li
+                key={l.code}
+                title={`${int(l.rows)} ${l.rows === 1 ? "row" : "rows"}`}
+                className="inline-flex max-w-full items-center gap-1.5 rounded-md border border-line bg-surface-2 px-2 py-0.5 text-xs"
+              >
+                <span className="truncate font-mono text-ink-2">@{l.code}</span>
+                <span className="num text-ink-3">
+                  {int(l.rows)}
+                  <span className="sr-only">{l.rows === 1 ? " row" : " rows"}</span>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {warnings.length > 0 && (
         <div className="border-t border-pos/20 bg-warn/5">

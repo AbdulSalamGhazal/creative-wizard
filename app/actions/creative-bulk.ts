@@ -21,6 +21,8 @@ import {
   STAGE_SHORT,
   sortStages,
 } from "@/lib/funnel-stages";
+import { hasLandingMarker } from "@/lib/landing-code";
+import { LANDING_MARKER_NAME_ERROR } from "@/validators/creative";
 
 /**
  * Bulk-create creatives from a CSV/XLSX upload.
@@ -209,6 +211,7 @@ async function build(formData: FormData): Promise<BuildResult> {
     // name
     if (!name) errors.push("Name is required.");
     else if (name.length > 255) errors.push("Name exceeds 255 characters.");
+    else if (hasLandingMarker(name)) errors.push(LANDING_MARKER_NAME_ERROR);
     else if (existingNames.has(name)) errors.push("A creative with this name already exists.");
     else if (seenInFile.has(name)) errors.push("Duplicate name within this file.");
 

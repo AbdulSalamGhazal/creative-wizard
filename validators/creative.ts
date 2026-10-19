@@ -8,6 +8,7 @@ import {
   STAGE_FILTER_VALUES,
   sortStages,
 } from "@/lib/funnel-stages";
+import { hasLandingMarker } from "@/lib/landing-code";
 
 // Initial sketch; see docs/prd.md §5.1.
 // The creative attribute set is expected to evolve during development.
@@ -69,8 +70,22 @@ export const stagesSchema = z
 
 export type StagesInput = z.infer<typeof stagesSchema>;
 
+/** Shown wherever a creative name is refused for carrying the marker. */
+export const LANDING_MARKER_NAME_ERROR =
+  "A creative name can't contain “ @” — uploads read what follows it as a landing page code.";
+
+/**
+ * A creative's name. It may not contain ` @`: an upload splits the ad name
+ * there (lib/landing-code.ts), so such a creative could never be matched.
+ */
+export const creativeNameSchema = z
+  .string()
+  .min(1)
+  .max(255)
+  .refine((v) => !hasLandingMarker(v), { message: LANDING_MARKER_NAME_ERROR });
+
 export const creativeCreateSchema = z.object({
-  name: z.string().min(1).max(255),
+  name: creativeNameSchema,
   productId: z.string().uuid(),
   type: z.enum(creativeTypeEnum),
   thumbnailUrl: z.string().url().optional(),
@@ -191,7 +206,7 @@ export type CreativeListFilterInput = z.infer<typeof creativeListFiltersSchema>;
 export const creativePatchSchema = z
   .object({
     id: z.string().uuid(),
-    name: z.string().min(1).max(255).optional(),
+    name: creativeNameSchema.optional(),
     productId: z.string().uuid().optional(),
     type: z.enum(creativeTypeEnum).optional(),
     thumbnailUrl: z.string().url().nullable().optional(),

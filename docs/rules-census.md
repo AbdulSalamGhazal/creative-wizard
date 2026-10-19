@@ -68,7 +68,7 @@ introducing the violation and watching it fail:
 |---|---|---|
 | Schema changes go through migrations; never edit a generated one | prose | a process rule about files we don't regenerate |
 | Every filtered/joined/sorted column has an index | prose | requires a query plan, not a grep |
-| performance_records unique on (creative, platform, campaign, date) | enforced | `tests/db/performance.test.ts` + the unique index itself |
+| performance_records unique on (creative, platform, campaign, date, landing page) NULLS NOT DISTINCT | enforced | `tests/db/landing-pages.test.ts` + the `perf_identity_uq` constraint itself |
 | Exactly four sanctioned exit paths from performance_records | enforced | `tests/db/cleanup.test.ts`, `tests/db/creatives.test.ts` (deletion summaries) |
 | Every creative has a product_id | enforced | `validators/creative.test.ts` + NOT NULL + `tests/db/creative-patch.test.ts` |
 
@@ -175,7 +175,7 @@ introducing the violation and watching it fail:
 |---|---|---|
 | A perf row's campaign is a FK; names from campaigns.name | enforced | `tests/db/portfolio.test.ts` |
 | Name format only through buildCampaignName() | enforced | `lib/campaign.test.ts` |
-| Duplicates keyed (creative, platform, campaign_id, date) → E050/E051 | enforced | `csv/pipeline.test.ts` |
+| Duplicates keyed (creative, platform, campaign_id, date, landing page) → E050/E051; a changed code on a live ad → E052 | enforced | `csv/pipeline.test.ts` |
 | Objective vocabulary is CAMPAIGN_OBJECTIVES; retired values never return | enforced | `lib/campaign.test.ts` |
 | Deleting a campaign keeps its creatives | enforced | `tests/db/cleanup.test.ts` |
 

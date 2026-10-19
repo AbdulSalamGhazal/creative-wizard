@@ -3,6 +3,8 @@ import { listCreatives, listAllAngles } from "@/db/queries/creatives";
 import { listAngles } from "@/db/queries/angles";
 import { ProductsAdmin } from "@/components/product/products-admin";
 import { AnglesTable } from "@/components/angle/angles-table";
+import { LandingPagesTable } from "@/components/landing-page/landing-pages-table";
+import { listLandingPagesForAdmin } from "@/db/queries/landing-pages";
 import { PageTabs, type PageTab } from "@/components/layout/page-tabs";
 import type { Permission } from "@/lib/permissions";
 import { listProducts } from "@/db/queries/products";
@@ -36,12 +38,15 @@ export const metadata = { title: "Library" };
  * The page's tab row. Products and Angles are the vocabulary-management
  * surfaces relocated from Configuration in the 2026-09 IA pass: they describe
  * creatives, so they now live with them instead of in a separate admin page.
+ * Landing pages (2026-10) joined them beside Products: the registry behind an
+ * ad name's ` @code` suffix (lib/landing-code.ts).
  * Each is gated by the same permission it always was, so the tab is invisible
  * (and its content unreachable) without it. Creatives is always present.
  */
 const TABS = [
   { key: "creatives", label: "Creatives", perm: null },
   { key: "products", label: "Products", perm: "catalog.products" },
+  { key: "landing-pages", label: "Landing pages", perm: "catalog.landing_pages" },
   { key: "angles", label: "Angles", perm: "catalog.angles" },
 ] as const satisfies ReadonlyArray<{
   key: string;
@@ -72,7 +77,7 @@ export default async function CreativesPage({
     ? (requestedTab as TabKey)
     : "creatives";
 
-  // Products / Angles are self-contained admin surfaces — return before the
+  // Products / Landing pages / Angles are self-contained admin surfaces — return before the
   // listing's queries so switching tabs doesn't pay for the creative list.
   if (activeTab !== "creatives") {
     return (
@@ -80,6 +85,9 @@ export default async function CreativesPage({
         <LibraryHeader canCreate={can(user, "creative.create")} />
         <PageTabs tabs={tabs} active={activeTab} />
         {activeTab === "products" && <ProductsAdmin />}
+        {activeTab === "landing-pages" && (
+          <LandingPagesTable rows={await listLandingPagesForAdmin()} />
+        )}
         {activeTab === "angles" && <AnglesTable rows={await listAngles()} />}
       </PageShell>
     );

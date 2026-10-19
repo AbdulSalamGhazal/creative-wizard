@@ -14,6 +14,8 @@ const row = (over: Partial<CreativeRecordRow> = {}): CreativeRecordRow => ({
   id: 1,
   platform: "instagram",
   campaignName: "Holiday ➤ Broad (IG)",
+  landingPageCode: null,
+  landingPageName: null,
   date: "2026-10-01",
   spend: 100,
   impressions: 8000,

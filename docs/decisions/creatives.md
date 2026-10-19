@@ -10,6 +10,10 @@
 
 - **Every creative has a required `product_id`.** Never let one be saved
   without it.
+- **A creative name never contains ` @`** (create, rename, bulk import —
+  `creativeNameSchema` / `hasLandingMarker`): uploads split an ad name there
+  for its landing-page code, so such a creative could never be matched. See
+  uploads-csv.md.
 - The detail page edits EVERYTHING inline — there is no `/edit` route, and
   `patchCreative` never touches notes.
 - **Priority = manual judgment; Rate = computed performance.** Never conflate

@@ -19,6 +19,7 @@ const CATEGORY_LABELS: Record<AuditEntityType, string> = {
   creative: "Creatives",
   campaign: "Campaigns",
   product: "Products",
+  landing_page: "Landing pages",
   angle: "Angles",
   // Legacy: rows written before the 2026-09 tag → angle rename.
   tag: "Tags (legacy)",
