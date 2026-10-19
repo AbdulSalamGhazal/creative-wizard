@@ -51,7 +51,9 @@ export const TABLE_KEYS = {
   RECON_PLATFORMS: "recon-platforms",
   /** Budget → Pacing, the per-bucket table. */
   BUDGET_PACING: "budget-pacing",
-  /** Budget → Tracker, the TABLE view (the bars view is exempt). */
+  /** Budget → Pacing, the BOARD's table view. The key is the Tracker's (the
+   *  page it replaced, 2026-10-19) — stored, so renaming it would orphan
+   *  every remembered column choice. */
   BUDGET_TRACKER: "budget-tracker",
   /** Budget → Audience, the pair board. */
   BUDGET_AUDIENCE: "budget-audience",

@@ -20,6 +20,7 @@ import { ChartTooltip } from "@/components/charts/chart-tooltip";
 import { MetricPicker } from "@/components/charts/metric-picker";
 import { SeriesLegend } from "@/components/charts/series-legend";
 import { SegmentedControl } from "@/components/ui/segmented-control";
+import { CollapsibleSection } from "@/components/ui/collapsible-section";
 import { DataTable, type DataColumn } from "@/components/ui/data-table";
 import { useTableColumns } from "@/components/ui/use-table-columns";
 import { TABLE_KEYS } from "@/lib/table-columns";
@@ -31,6 +32,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { FilterPill } from "@/components/filters/filter-pill";
 import { FilterShell } from "@/components/filters/filter-shell";
+import type { FilterDef } from "@/components/filters/filter-model";
 import { useFilterParams } from "@/components/filters/use-filter-params";
 import { DateRangePicker } from "@/components/filters/date-range-picker";
 import { ALL_PLATFORMS, PACING_COLOR, PLATFORM_COLOR, PLATFORM_LABEL, seriesColor } from "@/lib/palette";
@@ -39,25 +41,37 @@ import { cn } from "@/lib/utils";
 import {
   BUDGET_OBJECTIVES,
   MUTED_TONE,
+  PACING_WARN_THRESHOLD,
+  TOTAL_SERIES_KEY,
+  buildPlanSeries,
+  buildPlanSpendPerDay,
+  buildRangeBoard,
+  buildSpendPerDay,
   dayBucketsInRange,
+  filterTrackerPlatforms,
   isStrongTone,
   isoDaysBetween,
   monthBucketsInRange,
   pacingDeviation,
   pacingTone,
   pacingVerdict,
-  type PacingTone,
+  platformSeriesKey,
+  reserveUsed,
   roasThroughRate,
   round2,
+  sortTrackerPlatforms,
   spendInDisplayCurrency,
-  buildPlanSeries,
   stitchPlanByDay,
+  trackerCounts,
   weekBucketsInRange,
+  type PacingTone,
   type PlanSeries,
+  type PlatformCoverage,
   type RangeBucket,
   type TrackerBar,
 } from "@/lib/budget";
-import type { PacingShape, PacingSplit } from "@/validators/budget";
+import type { PacingShape, PacingSplit, PacingViewInput } from "@/validators/budget";
+import { PacingBoard } from "@/components/budget/pacing-board";
 import type { BudgetPacingSeries, MonthPlanRow } from "@/db/queries/budget";
 import {
   CurrencyToggle,
@@ -292,8 +306,8 @@ function rangeTitle(from: string, to: string): string {
 }
 type Metric = "spend" | "revenue" | "roas";
 
-/** A platform's series key — prefixed so it can never collide with a bucket name. */
-const platformKey = (platform: string) => `p:${platform}`;
+/** A platform's series key — the module's, so the board and the chart agree. */
+const platformKey = platformSeriesKey;
 
 /** The chart/table series: totals, or one per budget objective bucket. */
 interface SeriesDef {
@@ -302,7 +316,7 @@ interface SeriesDef {
   color: string;
 }
 
-const TOTAL_KEY = "total";
+const TOTAL_KEY = TOTAL_SERIES_KEY;
 
 interface BucketRow {
   bucket: RangeBucket;
@@ -342,8 +356,16 @@ interface BucketRow {
  * objective; a platform split locks the metric to Spend like the platform
  * filter does) and a third chart SHAPE, Deviation (per-period actual − plan
  * around zero, each bar in its direction colour past the threshold). Split
- * and shape are remembered
- * per user per brand like the Tracker's view controls.
+ * and shape are remembered per user per brand.
+ *
+ * 2026-10-19 (user decision): THE TRACKER MERGED IN. Below the chart sits the
+ * BOARD — one row per platform for the RANGE with its stage rows, each a
+ * PaceBar with the projection extension, a daily sparkline (actual over plan)
+ * and what each remaining day needs — built by `buildRangeBoard` from the
+ * SAME per-day maps the chart and the period table are summed from. Its
+ * table view, row order, grouping and tier-2 filters (`board` · `rank` ·
+ * `group` · `buckets` · `offpace`) are the Tracker's, remembered under the
+ * same keys; the per-period table lives under the chart, closed by default.
  */
 export function BudgetPacing({
   from,
@@ -352,6 +374,10 @@ export function BudgetPacing({
   platforms,
   split,
   shape,
+  view,
+  resolved,
+  coverage,
+  canManage,
   series,
   plans,
   rate,
@@ -367,6 +393,13 @@ export function BudgetPacing({
   split: PacingSplit;
   /** The remembered chart shape (URL → preference → "cumulative"). */
   shape: PacingShape;
+  /** The board's remembered controls and tier-2 filters (URL → preference → default). */
+  view: Pick<PacingViewInput, "board" | "rank" | "group" | "buckets" | "offpace">;
+  /** What the server resolved for every remembered key — the writer's baseline (0049). */
+  resolved: Record<string, string | undefined>;
+  /** Latest uploaded day per platform — the board's anchor, never the calendar. */
+  coverage: PlatformCoverage;
+  canManage: boolean;
   series: BudgetPacingSeries;
   plans: MonthPlanRow[];
   rate: number;
@@ -385,6 +418,13 @@ export function BudgetPacing({
     // so choosing the default again deletes the preference (the house rule).
     split: split === "none" ? undefined : split,
     shape: shape === "cumulative" ? undefined : shape,
+    // The board's remembered controls and tier-2 filters, as the server
+    // resolved them — so deselecting a remembered one deletes the preference.
+    buckets: resolved.buckets,
+    offpace: resolved.offpace,
+    board: resolved.board,
+    rank: resolved.rank,
+    group: resolved.group,
   });
 
   const [currency, pickCurrency] = useBudgetCurrency();
@@ -409,6 +449,11 @@ export function BudgetPacing({
       if (platforms.length > 0) params.set("platforms", platforms.join(","));
       if (split !== "none") params.set("split", split);
       if (shape !== "cumulative") params.set("shape", shape);
+      if (view.buckets.length > 0) params.set("buckets", view.buckets.join(","));
+      if (view.offpace) params.set("offpace", "1");
+      if (view.board !== "bars") params.set("board", view.board);
+      if (view.rank !== "plan") params.set("rank", view.rank);
+      if (view.group !== "platform") params.set("group", view.group);
       for (const [key, value] of Object.entries(next)) {
         if (value === null || value === "") params.delete(key);
         else params.set(key, value);
@@ -424,6 +469,52 @@ export function BudgetPacing({
       : [...platforms, platform];
     setParams({ platforms: next.join(",") });
   };
+  // The board's writers: a remembered control (its default deletes the
+  // preference), a multi filter, a flag — through the shell's one writer.
+  const writeOne = (key: string, value: string, fallback: string) =>
+    update((p) => {
+      if (value === fallback) p.delete(key);
+      else p.set(key, value);
+    });
+  const writeMulti = (key: string, values: readonly string[]) =>
+    update((p) => {
+      if (values.length === 0) p.delete(key);
+      else p.set(key, values.join(","));
+    });
+  const writeFlag = (key: string, on: boolean) =>
+    update((p) => {
+      if (on) p.set(key, "1");
+      else p.delete(key);
+    });
+
+  // Tier 2: the bucket slice, and the one toggle that makes a long board short.
+  const defs: FilterDef[] = [
+    {
+      key: "buckets",
+      label: "Bucket",
+      type: "multi",
+      options: BUDGET_OBJECTIVES.map((o) => ({ value: o, label: o })),
+      values: view.buckets,
+      onChange: (next) => writeMulti("buckets", next),
+    },
+    {
+      key: "offpace",
+      label: "Off-pace only",
+      type: "multi",
+      // ONE option, deliberately: the shell's multi gives it a chip, a count
+      // and a Clear for free, and the label says exactly what it hides —
+      // "off-pace" is both directions, not just the bad news.
+      options: [
+        {
+          value: "1",
+          label: `Hide rows within ${Math.round(PACING_WARN_THRESHOLD * 100)}% of pace`,
+        },
+      ],
+      values: view.offpace ? ["1"] : [],
+      onChange: (next) => writeFlag("offpace", next.length > 0),
+      chipFormat: () => "On",
+    },
+  ];
 
   // A platform filter — or a platform SPLIT — scopes the spend side only;
   // store revenue has no attribution, so revenue and ROAS drop back to Spend
@@ -491,22 +582,13 @@ export function BudgetPacing({
       return next;
     });
 
-  const spendPerDay = useMemo(() => {
-    const out = new Map<string, Map<string, number>>();
-    const add = (key: string, date: string, value: number) => {
-      let days = out.get(key);
-      if (!days) out.set(key, (days = new Map()));
-      days.set(date, (days.get(date) ?? 0) + value);
-    };
-    for (const r of series.spend) {
-      if (!inScope(r.platform)) continue;
-      add(TOTAL_KEY, r.date, r.spend);
-      add(r.objective, r.date, r.spend);
-      add(platformKey(r.platform), r.date, r.spend);
-    }
-    return out;
+  // Keyed by total · objective · platform · platform × objective — the chart,
+  // the period table and the board sum from this ONE map.
+  const spendPerDay = useMemo(
+    () => buildSpendPerDay(series.spend, inScope),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [series.spend, platforms.join(",")]);
+    [series.spend, platforms.join(",")],
+  );
 
   const revenuePerDay = useMemo(() => {
     const out = new Map<string, number>();
@@ -535,31 +617,14 @@ export function BudgetPacing({
     [plans, rate],
   );
 
-  const planSpendPerDay = useMemo(() => {
-    // A platform filter scopes the PLAN too, so the comparison stays honest.
-    const scoped = (objective?: string) => (platform: string, o: string) =>
-      inScope(platform) && (objective === undefined || o === objective);
-    const out = new Map<string, Map<string, number>>();
-    out.set(TOTAL_KEY, stitchPlanByDay(monthSeries, (m) => m.spendDays(scoped())));
-    if (split === "none" || activeMetric !== "spend") return out;
-    if (split === "platform") {
-      // One stitched series per platform — its OWN allocations through the
-      // series' slice machinery, never a curve expanded here.
-      for (const platform of platformKeys) {
-        out.set(
-          platformKey(platform),
-          stitchPlanByDay(monthSeries, (m) => m.spendDays((pl) => pl === platform)),
-        );
-      }
-      return out;
-    }
-    // One stitched series per objective bucket, each from its own slice.
-    for (const objective of BUDGET_OBJECTIVES) {
-      out.set(objective, stitchPlanByDay(monthSeries, (m) => m.spendDays(scoped(objective))));
-    }
-    return out;
+  // The plan under the same keys, every slice stitched through the series'
+  // own machinery (never a curve expanded here); the platform filter scopes
+  // the plan too, so the comparison stays honest.
+  const planSpendPerDay = useMemo(
+    () => buildPlanSpendPerDay(monthSeries, platformKeys, inScope),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [monthSeries, split, activeMetric, platformKeys, platforms.join(",")]);
+    [monthSeries, platformKeys, platforms.join(",")],
+  );
 
   const planRevenuePerDay = useMemo(
     () => stitchPlanByDay(monthSeries, (m) => m.revenueDays()),
@@ -1120,6 +1185,55 @@ export function BudgetPacing({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rows, plans, planSpendPerDay, planRevenuePerDay, spendPerDay, revenuePerDay, horizon, storeHorizon, from, to, rate]);
 
+  // ── The board ──────────────────────────────────────────────────────────────
+  // The Tracker's rows for the RANGE, from the same per-day maps as above.
+  const boardData = useMemo(
+    () =>
+      buildRangeBoard({
+        from,
+        to,
+        spendPerDay,
+        planSpendPerDay,
+        platforms: platformKeys,
+        coverage,
+      }),
+    [from, to, spendPerDay, planSpendPerDay, platformKeys, coverage],
+  );
+  // The view's own rows: filtered, then ordered. The triage counts ignore the
+  // off-pace toggle — otherwise the chip you clicked to get here would read 0.
+  const boardRows = useMemo(
+    () =>
+      sortTrackerPlatforms(
+        filterTrackerPlatforms(boardData.platforms, {
+          buckets: view.buckets,
+          offPaceOnly: view.offpace,
+        }),
+        view.rank,
+      ),
+    [boardData.platforms, view.buckets, view.offpace, view.rank],
+  );
+  const boardCounts = useMemo(
+    () => trackerCounts(filterTrackerPlatforms(boardData.platforms, { buckets: view.buckets })),
+    [boardData.platforms, view.buckets],
+  );
+  // The reserve is a MONTH's figure (the platform-level rule, `reserveUsed`):
+  // read when the range sits inside one planned month, a dash otherwise.
+  const singleMonth = from.slice(0, 7) === to.slice(0, 7) ? from.slice(0, 7) : null;
+  const monthPlan = singleMonth ? plans.find((p) => p.month === singleMonth) : undefined;
+  const boardReserve =
+    monthPlan && monthPlan.allocations.length > 0
+      ? {
+          kind: "month" as const,
+          used: reserveUsed(
+            monthPlan.allocations,
+            boardData.platforms.map((p) => ({ platform: p.key, actualSpend: p.actual })),
+          ),
+          reserve: monthPlan.reserveSpendUsd,
+        }
+      : { kind: "none" as const };
+  // READINGS on the board are whole dollars; the period table keeps its cents.
+  const fmtWhole = (usdAmount: number) => formatSpend(usdAmount, currency, rate, { whole: true });
+
   /** Why Revenue and ROAS are unavailable under a platform filter or split. */
   const allPlatformsOnly =
     "All-platforms only — revenue isn't attributed to platforms";
@@ -1135,16 +1249,16 @@ export function BudgetPacing({
     <div className="space-y-4">
       {/* Controls — deliberately wrapping: on a phone they stack into rows
           rather than scrolling sideways. */}
-      {/* The house filter bar (FilterShell, phase 2). A ZERO-DEF page: group-by
-          and the objective breakdown are VIEW controls, not filters (the same
-          reasoning as Reconciliation's mode toggle), so they are page-owned
-          tier-1 slots and there is no Filters button or chips row. */}
+      {/* The house filter bar (FilterShell, phase 2). Group-by and the split
+          are VIEW controls, not filters (the same reasoning as Reconciliation's
+          mode toggle), so they are page-owned tier-1 slots; the board's bucket
+          slice and off-pace toggle are the page's two tier-2 filters. */}
       <FilterShell
-        filters={[]}
-        // The two view controls are remembered per user per brand (0049) —
-        // declared here so the shell's writer treats them as preferences,
-        // like the Tracker's board / rank / group.
-        persistKeys={["split", "shape"]}
+        filters={defs}
+        // The view controls — the chart's two and the board's three — are
+        // remembered per user per brand (0049): declared here so the shell's
+        // writer treats them as preferences, never as filters Clear can reach.
+        persistKeys={["split", "shape", "board", "rank", "group"]}
         tier1={({ fullWidth }) => (
           <>
             {/* Lifetime is hidden: an unbounded range has no plan to pace
@@ -1500,18 +1614,48 @@ export function BudgetPacing({
         )}
       </ChartShell>
 
-      {/* Period table */}
-      <DataTable<BucketRow>
-        columns={columns}
-        {...cols.tableProps}
-        rows={rows}
-        rowKey={(r) => r.bucket.key}
-        showTotals={rows.length > 0}
-        minWidthClass={
-          split !== "none" && activeMetric === "spend" ? "min-w-[1600px]" : "min-w-[720px]"
-        }
-        csvFileName={`budget-pacing-${from}-to-${to}-${groupBy}-${currency.toLowerCase()}`}
-        rowClassName={(r) => cn(r.spendUnknown && "opacity-60")}
+      {/* The per-period table — data, with its cents — under the chart and
+          closed by default; the board below is the page's reading. */}
+      <CollapsibleSection
+        title="Periods"
+        subtitle={`${rows.length} ${groupBy === "day" ? "days" : groupBy === "week" ? "weeks" : "months"}`}
+      >
+        <DataTable<BucketRow>
+          columns={columns}
+          {...cols.tableProps}
+          rows={rows}
+          rowKey={(r) => r.bucket.key}
+          showTotals={rows.length > 0}
+          minWidthClass={
+            split !== "none" && activeMetric === "spend" ? "min-w-[1600px]" : "min-w-[720px]"
+          }
+          csvFileName={`budget-pacing-${from}-to-${to}-${groupBy}-${currency.toLowerCase()}`}
+          rowClassName={(r) => cn(r.spendUnknown && "opacity-60")}
+        />
+      </CollapsibleSection>
+
+      {/* The board: every platform's pace for the range, with its stages. */}
+      <PacingBoard
+        from={from}
+        to={to}
+        title={rangeTitle(from, to)}
+        rows={boardRows}
+        totalRows={boardData.platforms.length}
+        counts={boardCounts}
+        coverage={coverage}
+        board={view.board}
+        rank={view.rank}
+        group={view.group}
+        offPace={view.offpace}
+        onBoard={(v) => writeOne("board", v, "bars")}
+        onRank={(v) => writeOne("rank", v, "plan")}
+        onGroup={(v) => writeOne("group", v, "platform")}
+        onBehind={() => writeFlag("offpace", !view.offpace)}
+        reserve={boardReserve}
+        fmt={fmtWhole}
+        currency={currency}
+        planMonth={singleMonth}
+        canManage={canManage}
       />
 
       <HorizonNote horizon={horizon} storeHorizon={storeHorizon} />

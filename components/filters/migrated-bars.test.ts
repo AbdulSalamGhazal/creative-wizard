@@ -63,7 +63,8 @@ const PAGES = {
   // Zero-def pages: the same bar with no Filters button and no chips row.
   storeOrders: { file: "components/store/store-filter-bar.tsx", defs: [] },
   reconciliation: { file: "components/store/reconciliation-view.tsx", defs: [] },
-  pacing: { file: "components/budget/budget-pacing.tsx", defs: [] },
+  // Pacing gained the Tracker's two tier-2 filters with the merge (2026-10-19).
+  pacing: { file: "components/budget/budget-pacing.tsx", defs: ["buckets", "offpace"] },
 } as const;
 
 describe("each migrated bar declares exactly its tier-2 filters", () => {
@@ -78,7 +79,7 @@ describe("each migrated bar declares exactly its tier-2 filters", () => {
   }
 
   it("the zero-def pages render no Filters button (filters={[]})", () => {
-    for (const page of ["storeOrders", "reconciliation", "pacing"] as const) {
+    for (const page of ["storeOrders", "reconciliation"] as const) {
       expect(readFileSync(PAGES[page].file, "utf8")).toContain("filters={[]}");
     }
   });

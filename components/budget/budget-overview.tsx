@@ -32,7 +32,6 @@ import {
   sarCompact,
   usdCompact,
 } from "@/lib/format";
-import { cn } from "@/lib/utils";
 import { useNavTransition } from "@/lib/nav-progress";
 import {
   REVENUE_COVERAGE_KEY,
@@ -68,12 +67,13 @@ import {
   HeroVerdict,
   HorizonNote,
   PaceBar,
+  ReserveAmounts,
+  ReserveVerdict,
   Verdict,
   anchorWords,
   formatSpend,
   laggardWords,
   platformLabel,
-  toneText,
   useBudgetCurrency,
   type HeroState,
 } from "@/components/budget/budget-shared";
@@ -898,7 +898,7 @@ function PaceBoard({
       </header>
       <ul className="divide-y divide-line">
         {rows.map((p) => {
-          const href = `/budget/tracker?month=${month}&platforms=${p.key}`;
+          const href = `/budget/pacing?from=${monthStartIso(month)}&to=${monthEndIso(month)}&platforms=${p.key}`;
           const lag = laggard(p.key);
           return (
             <li key={p.key} className="px-4 py-3">
@@ -906,7 +906,7 @@ function PaceBoard({
                 href={href}
                 onClick={go(href)}
                 className="group -mx-2 block rounded-md px-2 py-1 transition-colors hover:bg-surface-2/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50"
-                aria-label={`${platformLabel(p.key)} — open in the Tracker`}
+                aria-label={`${platformLabel(p.key)} — open in Pacing`}
               >
                 <div className={grid}>
                   <div className="flex items-center justify-between gap-2">
@@ -1022,60 +1022,6 @@ function PaceBoard({
       </ul>
     </section>
   );
-}
-
-/** "$800 of $2,000 used" — the reserve row's amounts, in the pace rows' grammar. */
-function ReserveAmounts({
-  used,
-  reserve,
-  fmt,
-  className,
-}: {
-  used: number;
-  reserve: number;
-  fmt: (v: number) => string;
-  className?: string;
-}) {
-  return (
-    <p className={cn("mt-1 text-[11px] text-ink-3", className)}>
-      <span className="num tabular-nums text-ink">{fmt(used)}</span>
-      {reserve > 0 && (
-        <>
-          {" "}
-          of <span className="num tabular-nums text-ink-2">{fmt(reserve)}</span>
-        </>
-      )}{" "}
-      used
-    </p>
-  );
-}
-
-/**
- * "$1,200 left" while the reserve holds; "−$300" in the behind colour once
- * spend has gone past it — the sign and the colour say it, the words stay for
- * the screen reader.
- */
-function ReserveVerdict({
-  used,
-  reserve,
-  fmt,
-}: {
-  used: number;
-  reserve: number;
-  fmt: (v: number) => string;
-}) {
-  if (used > reserve) {
-    const over = used - reserve;
-    return (
-      <span
-        className={cn("num tabular-nums text-xs", toneText(BEHIND_STRONG))}
-        title={`past the reserve by ${fmt(over)}`}
-      >
-        <span className="sr-only">past the reserve by </span>&minus;{fmt(over)}
-      </span>
-    );
-  }
-  return <span className="num tabular-nums text-xs text-ink-3">{fmt(reserve - used)} left</span>;
 }
 
 function BucketRow({

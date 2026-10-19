@@ -29,11 +29,11 @@ const GROUPED_TWINS = [
  * not an oversight — adding one here should feel like it needs an argument.
  */
 const EXEMPT: Record<string, string> = {
-  // The Budget plan editor used to be listed here (an editor, not a data
-  // table); its view-mode DataTable went in 2026-10 — the visual view has no
-  // table at all — so the exemption went with it.
-  "components/budget/budget-tracker.tsx":
-    "the BARS view is a chart made of rows; its TABLE view carries the control (same file, one DataTable each)",
+  // Two tables used to be listed here and both earned their way off: the
+  // Budget plan editor (an editor, not a data table; its view-mode DataTable
+  // went in 2026-10) and the Tracker's bars view (a chart made of rows; the
+  // Tracker merged into Pacing in 2026-10-19 and its board is not a DataTable,
+  // while its table view carries the control). Empty is the goal.
 };
 
 function walk(dir: string, out: string[] = []): string[] {

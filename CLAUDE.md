@@ -282,6 +282,7 @@ this map is still a rule you broke.
 - Verdicts are coloured by DIRECTION — ahead `--ahead` (blue), behind `--behind` (the warn
   amber), on track muted; |deviation| vs `PACING_WARN_THRESHOLD` decides strong vs faint.
   Never green/red. One helper, `pacingTone`; tokens only through `lib/palette.ts`.
+- Tracker merged into Pacing (2026-10-19); the board is range-based, one math path with the chart.
 
 → **`docs/decisions/budget.md`**
 

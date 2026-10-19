@@ -74,8 +74,10 @@ as it stood before the restructure.*
     The popover lists the live `DataColumn` config in display order — a page
     never lists its columns twice — pinned column first as a LOCKED row, and
     reordering is never drag-only (up/down buttons, Alt+↑/↓, Space to toggle).
-    **Named exemption:** Tracker's bars
-    view (the Budget plan editor was exempt too until its view-mode table went in 2026-10); the grouped-header twins (Ads summary, Reconciliation's Platforms)
+    **Named exemptions:** none left since 2026-10-19 (Tracker's bars view
+    until the Tracker merged into Pacing — Pacing's board is rows, not a
+    DataTable, and its table view carries the control; the Budget plan editor
+    until its view-mode table went in 2026-10); the grouped-header twins (Ads summary, Reconciliation's Platforms)
     are phase 2, not exemptions.
   - **IT LIVES IN THE HEADER ROW AND COSTS ZERO VERTICAL PIXELS (2026-10,
     user-reported).** It shipped as a slim row ABOVE the header, which added a
@@ -122,8 +124,9 @@ as it stood before the restructure.*
     `components/ui/table-columns-coverage.test.ts` fails the build if a table
     ships without a key, if an exemption goes stale, or if the retired
     per-browser hooks (`usePersistentHidden`/`usePersistentVisible`, deleted)
-    come back. **The ONE EXEMPTION, and the reason:** Tracker's BARS view (a chart made
-    of rows; its table view carries the control). The Budget plan editor was
+    come back. **The exemption list is EMPTY (2026-10-19):** Tracker's BARS view was
+    the last (a chart made of rows; its table view carried the control) until
+    the Tracker merged into Pacing, whose board is not a DataTable. The Budget plan editor was
     the other (an editor, not a data table — its columns were the plan's own
     axes) until 2026-10, when its view-mode table became a visual read with
     no table at all.

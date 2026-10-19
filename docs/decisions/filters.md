@@ -138,7 +138,8 @@ as it stood before the restructure.*
     - **The Excluded toggle is a DATA-SCOPE switch, not a filter** — it lives in
       the `toolbar` slot with the table controls (Columns, CSV, Sort, the
       grid/table toggle), stays visible house-wide, and Clear never touches it.
-    - **ZERO-DEF PAGES** (Store orders · Reconciliation · Pacing): a page with
+    - **ZERO-DEF PAGES** (Store orders · Reconciliation; Pacing was one until
+      the Tracker's `buckets` / `offpace` moved onto it, 2026-10-19): a page with
       no tier-2 filters renders the SAME bar with no Filters button and no
       chips row — consistency without a dead control. With nothing to collapse,
       tier 1 simply wraps at every width instead of folding into the sheet.
@@ -172,7 +173,8 @@ as it stood before the restructure.*
       status), toolbar Columns · Excluded. Canvas: tier 1 date · platforms,
       3 defs (status · product · stage), toolbar Excluded — the canvas
       toolbar (node search, view switcher) is NOT the filter bar and is
-      untouched. Store orders / Reconciliation / Pacing: zero defs.
+      untouched. Store orders / Reconciliation: zero defs (Pacing has two
+      since 2026-10-19).
     - **Tier 1 renders inline at every width** (it wraps on a phone) now that
       there is no sheet to fold into — the `fullWidth` ctx is kept for the
       controls that take it and is always false. `FilterSheet` survives only

@@ -89,8 +89,8 @@ as it stood before the restructure.*
 <!-- was CLAUDE.md L1545–1890 -->
 
 - **Budget module (2026-09, v2) — raw actuals BY DECISION.** Its own sidebar
-  section of 5 pages (`/budget` Overview · `/budget/plan` · `/budget/tracker` ·
-  `/budget/pacing` · `/budget/audience`);
+  section of 4 pages (`/budget` Overview · `/budget/plan` · `/budget/pacing` ·
+  `/budget/audience`; `/budget/tracker` redirects to Pacing since 2026-10-19);
   Overview and Plan share `?month=` (nav links preserve it), Pacing takes a date
   range. The old **Daily** and **History** pages MERGED into Pacing and are
   permanent redirects to it (History asks for the last 12 months grouped by
@@ -313,6 +313,55 @@ as it stood before the restructure.*
       was component state. Saved views were NOT enabled: the house Views
       control is a per-page tier-1 component (Ads · Library · Campaigns),
       so Pacing would need new UI, which the brief excluded.
+    - **THE BOARD (2026-10-19, user decision — the Tracker merged in: "it
+      should be richer, more informative … merge both pages").** Below the
+      chart, for the RANGE (never month-only): one row per platform in scope
+      — biggest plan first, unplanned last — with its stage rows beneath, in
+      the Overview's grid grammar (label · bar · sparkline · figures; every
+      bar starts at one x, every figure right-aligned in one fixed column at
+      both levels), every bar a `PaceBar` with the projection extension, and
+      two readings the Overview's board lacks: a SPARKLINE (the range's daily
+      actual, solid, over its daily plan, dashed — the house `Sparkline` with
+      its `compare` series on one shared y-scale, so a day over plan reads
+      above the dashed line; empty past coverage; hidden below `sm`, where a
+      phone-width bar has no room beside it) and NEEDED PER DAY ("needs
+      $700/day": max(0, plan − actual) ÷ the days left after coverage — "—"
+      once the range is covered, with no plan, or with nothing left). ONE
+      MATH PATH: `buildRangeBoard` (lib/budget.ts) sums the SAME per-day maps
+      the chart and the period table use — `buildSpendPerDay` /
+      `buildPlanSpendPerDay`, keyed by total · objective · platform ·
+      platform × objective — plan over the whole range, actual and expected
+      through the platform's OWN coverage (`platformHorizons()`, which
+      REPLACED the page's `dataHorizon()` read; the overall horizon is
+      `latestCoverage` of it), deviation through `pacingDeviation`, projection
+      = actual × plan ÷ expected while the range runs (`rangeProjection`);
+      unit-pinned: for a single-month range the platform rows equal
+      `buildTrackerRows`' for that month. The summary strip (N ahead · N on
+      track · N behind, bucket rows; the behind chip applies the off-pace
+      filter and the counts ignore it) heads the board beside its title —
+      no sentence under it. The RESERVE row (the platform-level `reserveUsed`)
+      is read when the range sits inside ONE planned month — the range's
+      actuals, in scope, against that month's reserve — and is a dash with
+      the reason on hover otherwise (a judgment call: a multi-month reserve
+      has no honest single figure). Spend only: revenue has no platform
+      attribution, and the range card carries Revenue and ROAS. READINGS are
+      whole dollars (`formatSpend`'s `whole`); the period table keeps its
+      cents. **Board | Table** (`board`, remembered, Board default; the
+      stored values are the Tracker's `bars` | `table`): the table is the
+      Tracker's DataTable over the board's rows — Plan · Actual · Expected ·
+      Δ · Δ% · Projection · Needed/day — grouped by platform or objective
+      (`group`, remembered; the allocation check's reading with the unplanned
+      badge, objective mode opening grouped by identity; an objective
+      subtotal's anchor is the LATEST of its platforms' coverage), totals
+      pinned, CSV in the display currency, `TABLE_KEYS.BUDGET_TRACKER` kept
+      so remembered column choices survive. Row order `rank` (plan | offpace)
+      and the tier-2 `buckets` / `offpace` filters moved here under the same
+      stored keys (Pacing is no longer a zero-def page); the platform filter
+      is the shared tier-1 one. The per-period table sits under the chart in
+      a `CollapsibleSection` titled "Periods", CLOSED by default, with its own
+      CSV and columns key. Page order: controls → range card → chart (+
+      collapsed Periods) → board. `components/budget/pacing-board.tsx` draws
+      it; `budget-pacing.tsx` feeds it.
   - **PACING COMPARES AGAINST DATA COVERAGE, NEVER THE CALENDAR (2026-10,
     standing decision — a user-reported bug).** "Planned so far" means
     "planned through the days THIS PLATFORM's data covers". Actuals end at the
@@ -327,8 +376,8 @@ as it stood before the restructure.*
       data that stops before the month → **0, so the row expects nothing and
       has no verdict — never "100% behind"**; a PAST month → the full month, so
       history is bit-identical to before (regression-pinned); a future month →
-      0. Every pacing surface shares it: Tracker (both views), Overview's hero
-      cards, chart and pace board.
+      0. Every pacing surface shares it: Pacing's board (both views),
+      Overview's hero cards, chart and pace board.
     - **A total is the SUM of its rows' expectations**, not a second
       calculation over the whole plan — with coverage diverging those differ,
       and the one the cards add to is the honest one. The projection divides by
@@ -343,79 +392,19 @@ as it stood before the restructure.*
     - The header says what it counted through, and names any platform trailing
       the rest by more than a day ("TikTok data ends 2026-09-13"); every bar's
       aria-label speaks its OWN anchor.
-  - **Tracker (`/budget/tracker`, 2026-09) — the daily pace board.** One
-    question, answered in bars: who's ahead, who's behind, by how much.
-    **THE BARE PAGE IS THE PRODUCT — zero configuration is its identity**, so
-    the 2026-10 controls (platform · bucket · off-pace-only · the view · the
-    row order) are OPT-IN and REMEMBERED (0049) rather than decisions anyone
-    has to make to read it. **Pacing is still the analysis tool** (ranges,
-    grouping) and **Overview is still the month's verdict**. Nothing here is
-    new data: it reads the SAME `getBudgetMonth()` payload and derives
-    everything through `buildTrackerRows` (pure, unit-tested, in lib/budget.ts),
-    which composes the module's existing conventions — the plan SERIES for
-    plan-to-date (curve or daily), `pacingDeviation` / `pacingTone` for the
-    magnitude-based verdict, the coverage-anchored projection for the "on this
-    pace" line. **Never re-derive pacing in the page.**
-    - **TWO VIEWS, ONE SET OF ROWS (`?board=bars|table`).** BARS is the default
-      and unchanged. TABLE is a DataTable of the same `buildTrackerRows`
-      output — platform subtotal + bucket rows, Plan · Actual · Expected · Δ ·
-      Δ% · Projection, sorted by Δ% desc, totals pinned, CSV — for when you
-      want to rank and export rather than scan. **No second math path.**
-      Since 2026-10 the table has a GROUPING (`?group=platform|objective`,
-      `TRACKER_GROUPS`, visible only while the table board is active):
-      `platform` is the table above; `objective` is the allocation check —
-      objective subtotal → its platforms, unplanned combos badged — from
-      `groupTrackerByObjective`, with the totals row summing whichever
-      subtotals are shown so both groupings foot to the same month. The
-      objective grouping OPENS on the identity column in funnel order — a
-      Δ% ranking would sink an unplanned row (it has no Δ%) out of its
-      objective and under another's heading — while the platform grouping
-      keeps Δ% desc; the bucket filter governs unplanned rows too, and
-      "Off-pace only" drops them (no verdict is not off-pace).
-    - **Opt-in controls, each remembered:** tier-1 `platforms` (the shared
-      key), tier-2 `buckets` and `offpace` ("Off-pace only" — it hides rows
-      within the warn threshold in BOTH directions, which is why it is not
-      called "problems"), and the page-owned `board` / `rank` / `group`
-      through FilterShell's `persistKeys`. The names dodge keys other pages own:
-      `buckets` (Campaigns' `objectives` is a different vocabulary), `board`
-      (`view` is never persisted and is Library's grid/table), `rank`
-      (`order` is Campaigns' COLUMN order).
-    - **Filtering is a reading aid, not a different month**: the header's
-      brand total is never recomputed from the visible rows, and the page says
-      "Showing 2 of 4 platforms" when something is hidden.
-    - **The summary strip** counts BUCKET rows — "N ahead · N on track · N
-      behind" — and a row with no verdict is counted in none of them. The
-      behind chip is the page's one shortcut: it applies the off-pace filter
-      (the same filter the bar's chip shows and clears), and the counts
-      deliberately IGNORE that filter so the chip you clicked can take you
-      back.
-    - **Row order (`?rank=`) defaults to BY PLAN SIZE** — the earlier
-      predictability-beats-drama decision stands; "Most off-pace first" is a
-      choice, not the default.
-    - **The bar says four things at once (three until 2026-10-17):** the
-      TRACK is the row's full-month plan, the FILL is actual month-to-date,
-      the TICK is where the plan curve says today should be, and the PALE
-      EXTENSION past the fill is the month-end projection — the same
-      `t.projectedSpend` / `rowProjection` / `t.projectedRevenue` number the
-      "on this pace" lines print, passed through `PaceBar`'s `projection`
-      prop (the Overview hero bar's grammar), CURRENT MONTH ONLY: a past
-      month is final and a future month has nothing to project, so neither
-      draws one. Pure CSS, tokens only (surface-2 / brand / ink-3),
-      the fill in the DIRECTION colour past the shared threshold and the
-      brand colour inside it. The tick
-      stands 4px PROUD of the track — against the fill it is nearly invisible
-      (1.06:1 on Midnight), and it is the whole point of the bar. Every bar
-      carries an aria-label that says the numbers in words, the projection
-      included.
-    - **A row with no plan gets NO bar** — there is no track to draw against.
-      Unplanned spend is an amount-only line per platform: on a PLANNED
-      platform it names the bucket(s) with no allocation (objective drift); a
-      platform with no plan at all "draws down the reserve" — the same
-      platform-level reserve rule Overview's reserve row uses (2026-10-17).
-    - Past month → the tick sits at 100% and the projection is replaced by
-      "final for <month>"; future month → tick at 0, no verdict at all (nothing
-      is expected yet, which must never read as 100% behind). Both fall out of
-      `elapsedDaysInMonth`, not a special case.
+  - **Tracker (`/budget/tracker`, 2026-09 → MERGED INTO PACING 2026-10-19,
+    user decision: "if the tracker offers the same bar as the overview, why
+    have it then?").** The route is a permanent redirect to `/budget/pacing`:
+    `?month=` becomes that month's `from`/`to` (no month → Pacing's default,
+    the current month) and every other param carries across verbatim, since
+    Pacing reads the same keys — `board`, `rank`, `group`, `buckets`,
+    `offpace`, stored preferences included. Its board, table view, summary
+    strip and controls live on as PACING'S BOARD (below), range-based now;
+    `buildTrackerRows` stays for the Overview; `PaceBar`, `Verdict`,
+    `Amounts`, `CoverageLine` stay in budget-shared; the Budget nav lists four
+    pages. The month-only rules it carried (the bar's four things, "a row
+    with no plan gets no bar", the summary strip's counts, by-plan-size
+    order) are the board's rules — see the Pacing entry.
   - **PLAN MODES (2026-09, migration 0048 additive) — a month is planned
     EITHER by the curve system OR by explicit day cells, ONE MODE AT A TIME.**
     `budget_targets.plan_mode` (`'curve'` | `'daily'`, app-side enum
