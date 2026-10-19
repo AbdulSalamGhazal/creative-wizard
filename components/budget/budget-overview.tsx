@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowRight } from "lucide-react";
+import { InfoTip } from "@/components/ui/info-tip";
 import {
   CartesianGrid,
   ComposedChart,
@@ -46,6 +47,7 @@ import {
   monthStartIso,
   planSeriesSourceOf,
   roasFigures,
+  MUTED_TONE,
   sortTrackerPlatforms,
   spendInDisplayCurrency,
   validateRate,
@@ -56,6 +58,7 @@ import {
 import type { BudgetMonthData, BudgetPacingSeries } from "@/db/queries/budget";
 import {
   Amounts,
+  BEHIND_STRONG,
   BudgetMonthBar,
   CoverageLaggards,
   CoverageLine,
@@ -69,6 +72,7 @@ import {
   formatSpend,
   laggardWords,
   platformLabel,
+  toneText,
   useBudgetCurrency,
   type HeroState,
 } from "@/components/budget/budget-shared";
@@ -295,7 +299,13 @@ function SpendCard({
         label="Spend"
         value={fmt(bar.plan)}
         aside={<span className="text-[11px] text-ink-3">planned</span>}
-        context={reserve > 0 ? <>allocated · + {fmt(reserve)} reserve</> : "allocated"}
+        context={
+          reserve > 0 ? (
+            <>
+              + <span className="num tabular-nums text-ink-2">{fmt(reserve)}</span> reserve
+            </>
+          ) : null
+        }
       >
         <div className="mt-3">
           <PaceBar bar={bar} fmt={fmt} name="Spend" reserve={reserve} anchor="when it starts" />
@@ -366,7 +376,6 @@ function RevenueCard({
         label="Revenue"
         value={sar(bar.target)}
         aside={<span className="text-[11px] text-ink-3">target</span>}
-        context="store revenue target"
       >
         <div className="mt-3">
           <PaceBar bar={bar} fmt={sar} name="Revenue" anchor="when it starts" />
@@ -381,7 +390,7 @@ function RevenueCard({
       aside={ordersAside}
       context={
         <>
-          of <span className="num tabular-nums text-ink-2">{sar(bar.target)}</span> target
+          of <span className="num tabular-nums text-ink-2">{sar(bar.target)}</span>
         </>
       }
     >
@@ -681,19 +690,12 @@ function MonthChart({
     <ChartShell
       ariaLabel="Budget month — expanded"
       legend={
-        <div className="space-y-1">
-          <SeriesLegend
-            items={legendItems}
-            shown={shown}
-            onToggle={toggle}
-            onShowAll={() => setHidden(new Set())}
-          />
-          <p className="text-[11px] text-ink-3">
-            Solid = actual, to the last day of data · dashed = {planLabel.toLowerCase()}, by the
-            plan curve
-            {hasProjection && " · dotted = where this pace lands"}
-          </p>
-        </div>
+        <SeriesLegend
+          items={legendItems}
+          shown={shown}
+          onToggle={toggle}
+          onShowAll={() => setHidden(new Set())}
+        />
       }
     >
       {({ inFull, toggleExpand }) => (
@@ -839,10 +841,14 @@ function MonthChart({
 // ── The pace board ───────────────────────────────────────────────────────────
 
 /**
- * One row per platform — the Tracker's rows, most off-pace first, the
- * unjudged last — each followed by its buckets, smaller and indented, and the
+ * One row per platform — the Tracker's rows, biggest plan first, the
+ * unplanned last — each followed by its buckets, smaller and indented, and the
  * Reserve as the last row. A platform row opens the Tracker filtered to it.
- * Bars share one grid so their tracks line up and the eye can compare them.
+ * Every row is the SAME grid: label · bar · figures, so every bar starts at
+ * one x and every verdict and amount sits right-aligned in one fixed column at
+ * both levels; the label is muted, the amount is ink, the verdict is its
+ * direction colour. On a phone the verdict rides the label's line and the
+ * amounts sit under the bar.
  */
 function PaceBoard({
   t,
@@ -857,7 +863,7 @@ function PaceBoard({
   coverage: PlatformCoverage;
   go: (href: string) => (e: React.MouseEvent<HTMLAnchorElement>) => void;
 }) {
-  const rows = useMemo(() => sortTrackerPlatforms(t.platforms, "offpace"), [t.platforms]);
+  const rows = useMemo(() => sortTrackerPlatforms(t.platforms, "plan"), [t.platforms]);
   const anchorFor = (key: string) =>
     t.coverage ? anchorWords(coverage[key] ?? null) : "by today";
   const laggard = (key: string) => t.coverage?.laggards.find((l) => l.platform === key) ?? null;
@@ -865,18 +871,16 @@ function PaceBoard({
   const showReserve = t.reserve > 0 || t.reserveUsed > 0;
   if (rows.length === 0 && !showReserve) return null;
 
-  // name · bar (+ amounts) · verdict — the verdict rides the name's line on a
+  // label · bar · figures — the figures column is FIXED so verdicts and
+  // amounts line up down the board; the verdict rides the label's line on a
   // phone so the bar gets the full width there.
   const grid =
-    "grid gap-x-4 gap-y-1 sm:grid-cols-[minmax(7rem,9rem)_minmax(0,1fr)_minmax(9rem,auto)] sm:items-center";
+    "grid gap-x-4 gap-y-1 sm:grid-cols-[minmax(7rem,9rem)_minmax(0,1fr)_11rem] sm:items-center";
 
   return (
     <section className="rounded-lg border border-line bg-surface">
-      <header className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-line px-4 py-2.5">
+      <header className="border-b border-line px-4 py-2.5">
         <h2 className="text-sm font-medium text-ink">Pace board</h2>
-        <p className="text-[11px] text-ink-3">
-          Most off-pace first · a platform opens the Tracker
-        </p>
       </header>
       <ul className="divide-y divide-line">
         {rows.map((p) => {
@@ -892,7 +896,7 @@ function PaceBoard({
               >
                 <div className={grid}>
                   <div className="flex items-center justify-between gap-2">
-                    <span className="inline-flex min-w-0 items-center gap-2 text-sm font-medium text-ink">
+                    <span className="inline-flex min-w-0 items-center gap-2 text-sm font-medium text-ink-2">
                       <PlatformDot platform={p.key as never} size="sm" />
                       <span className="truncate">{platformLabel(p.key)}</span>
                       <ArrowRight className="h-3 w-3 shrink-0 text-ink-3 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100" />
@@ -910,24 +914,31 @@ function PaceBoard({
                           name={platformLabel(p.key)}
                           anchor={anchorFor(p.key)}
                         />
-                        <Amounts bar={p} fmt={fmt} />
+                        <Amounts bar={p} fmt={fmt} className="sm:hidden" />
                       </>
                     ) : (
                       // No plan → no track to draw against; the amount carries it.
-                      <p className="text-[11px] text-ink-3">
-                        <span className="num tabular-nums text-ink-2">{fmt(p.actual)}</span>{" "}
-                        spent — no plan for this platform; draws down the reserve
+                      <p
+                        className="text-[11px] text-ink-3"
+                        title="No plan for this platform this month — its spend draws on the reserve"
+                      >
+                        <span className="num tabular-nums text-ink">{fmt(p.actual)}</span> spent ·
+                        no plan
                       </p>
                     )}
                   </div>
                   <div className="hidden text-right sm:block">
                     <Verdict bar={p} fmt={fmt} />
+                    {p.plan > 0 && <Amounts bar={p} fmt={fmt} className="mt-0.5" />}
                   </div>
                 </div>
               </Link>
               {lag && (
-                <p className="mt-1 text-[11px] text-ink-3 sm:pl-[calc(9rem+1rem)]">
-                  {laggardWords([lag])} — paced against what it covers
+                <p
+                  className="mt-1 text-[11px] text-ink-3 sm:pl-[calc(9rem+1rem)]"
+                  title="Paced against the days its data covers, not the calendar"
+                >
+                  {laggardWords([lag])}
                 </p>
               )}
               {p.buckets.length > 0 && (
@@ -938,10 +949,13 @@ function PaceBoard({
                 </ul>
               )}
               {p.unplanned > 0 && p.plan > 0 && (
-                <p className="mt-1.5 pl-5 text-[11px] text-ink-3">
+                <p
+                  className="mt-1.5 pl-5 text-[11px] text-ink-3"
+                  title={`No allocation for ${p.unplannedBuckets.map((u) => u.label).join(", ")} — spend in a bucket the plan has no line for`}
+                >
                   Unplanned{" "}
-                  <span className="num tabular-nums text-ink-2">{fmt(p.unplanned)}</span>
-                  {` — no allocation for ${p.unplannedBuckets.map((u) => u.label).join(", ")}`}
+                  <span className="num tabular-nums text-ink">{fmt(p.unplanned)}</span>
+                  {` · ${p.unplannedBuckets.map((u) => u.label).join(", ")}`}
                 </p>
               )}
             </li>
@@ -951,9 +965,15 @@ function PaceBoard({
           <li className="px-4 py-3">
             <div className={grid}>
               <div className="flex items-center justify-between gap-2">
-                <span className="text-sm font-medium text-ink">Reserve</span>
+                <span className="inline-flex items-center gap-1.5 text-sm font-medium text-ink-2">
+                  Reserve
+                  <InfoTip label="What the reserve absorbs">
+                    Spend beyond a platform&rsquo;s whole plan draws on the reserve. It is carved
+                    out of the total and not paced.
+                  </InfoTip>
+                </span>
                 <span className="sm:hidden">
-                  <ReserveVerdict over={reserveOver} remaining={t.reserveRemaining} fmt={fmt} />
+                  <ReserveVerdict used={t.reserveUsed} reserve={t.reserve} fmt={fmt} />
                 </span>
               </div>
               <div>
@@ -970,22 +990,17 @@ function PaceBoard({
                     }}
                     fmt={fmt}
                     name="Reserve"
-                    tone={reserveOver ? "warn" : "muted"}
+                    tone={reserveOver ? BEHIND_STRONG : MUTED_TONE}
                     words={`Reserve: ${fmt(t.reserveUsed)} used of ${fmt(t.reserve)}${
                       reserveOver ? " — past the reserve" : ""
                     }`}
                   />
                 )}
-                <p className={cn("mt-1 text-[11px]", reserveOver ? "text-warn" : "text-ink-3")}>
-                  <span className={cn("num tabular-nums", !reserveOver && "text-ink-2")}>
-                    {fmt(t.reserveUsed)}
-                  </span>{" "}
-                  of <span className="num tabular-nums">{fmt(t.reserve)}</span> used — spend beyond
-                  a platform&rsquo;s plan
-                </p>
+                <ReserveAmounts used={t.reserveUsed} reserve={t.reserve} fmt={fmt} className="sm:hidden" />
               </div>
               <div className="hidden text-right sm:block">
-                <ReserveVerdict over={reserveOver} remaining={t.reserveRemaining} fmt={fmt} />
+                <ReserveVerdict used={t.reserveUsed} reserve={t.reserve} fmt={fmt} />
+                <ReserveAmounts used={t.reserveUsed} reserve={t.reserve} fmt={fmt} className="mt-0.5" />
               </div>
             </div>
           </li>
@@ -995,20 +1010,58 @@ function PaceBoard({
   );
 }
 
+/** "$800 of $2,000 used" — the reserve row's amounts, in the pace rows' grammar. */
+function ReserveAmounts({
+  used,
+  reserve,
+  fmt,
+  className,
+}: {
+  used: number;
+  reserve: number;
+  fmt: (v: number) => string;
+  className?: string;
+}) {
+  return (
+    <p className={cn("mt-1 text-[11px] text-ink-3", className)}>
+      <span className="num tabular-nums text-ink">{fmt(used)}</span>
+      {reserve > 0 && (
+        <>
+          {" "}
+          of <span className="num tabular-nums text-ink-2">{fmt(reserve)}</span>
+        </>
+      )}{" "}
+      used
+    </p>
+  );
+}
+
+/**
+ * "$1,200 left" while the reserve holds; "−$300" in the behind colour once
+ * spend has gone past it — the sign and the colour say it, the words stay for
+ * the screen reader.
+ */
 function ReserveVerdict({
-  over,
-  remaining,
+  used,
+  reserve,
   fmt,
 }: {
-  over: boolean;
-  remaining: number;
+  used: number;
+  reserve: number;
   fmt: (v: number) => string;
 }) {
-  return over ? (
-    <span className="num text-xs text-warn">past the reserve</span>
-  ) : (
-    <span className="num tabular-nums text-xs text-ink-3">{fmt(remaining)} left</span>
-  );
+  if (used > reserve) {
+    const over = used - reserve;
+    return (
+      <span
+        className={cn("num tabular-nums text-xs", toneText(BEHIND_STRONG))}
+        title={`past the reserve by ${fmt(over)}`}
+      >
+        <span className="sr-only">past the reserve by </span>&minus;{fmt(over)}
+      </span>
+    );
+  }
+  return <span className="num tabular-nums text-xs text-ink-3">{fmt(reserve - used)} left</span>;
 }
 
 function BucketRow({
@@ -1027,17 +1080,18 @@ function BucketRow({
     // platform's and the eye can compare the two bars directly.
     <li className={grid}>
       <div className="flex items-center justify-between gap-2 pl-5">
-        <span className="truncate text-xs text-ink-2">{bar.label}</span>
+        <span className="truncate text-xs text-ink-3">{bar.label}</span>
         <span className="sm:hidden">
           <Verdict bar={bar} fmt={fmt} small />
         </span>
       </div>
       <div>
         <PaceBar bar={bar} fmt={fmt} name={bar.label} small anchor={anchor} />
-        <Amounts bar={bar} fmt={fmt} />
+        <Amounts bar={bar} fmt={fmt} className="sm:hidden" />
       </div>
       <div className="hidden text-right sm:block">
         <Verdict bar={bar} fmt={fmt} small />
+        <Amounts bar={bar} fmt={fmt} className="mt-0.5" />
       </div>
     </li>
   );
