@@ -17,6 +17,8 @@ import { longDate, sar, signedPct, usd } from "@/lib/format";
 import { PLATFORM_LABEL } from "@/lib/palette";
 import { cn } from "@/lib/utils";
 import {
+  MUTED_TONE,
+  isStrongTone,
   monthKey,
   monthLabel,
   nextMonthKey,
@@ -26,6 +28,7 @@ import {
   spendInDisplayCurrency,
   variancePct,
   type CoverageSummary,
+  type PacingTone,
   type TrackerBar,
   type TrackerData,
 } from "@/lib/budget";
@@ -237,20 +240,53 @@ export function HorizonNote({
   );
 }
 
+// ── The tone, as classes (2026-10-19) ───────────────────────────────────────
+// The DIRECTION picks the colour, the strength picks the tint: strong is the
+// token, faint is the same token at 70% (never a second hex), muted is ink-3.
+// Every literal is spelled out so Tailwind's scanner sees it.
+const TONE_TEXT = {
+  ahead: { strong: "text-ahead", faint: "text-ahead/70" },
+  behind: { strong: "text-behind", faint: "text-behind/70" },
+} as const;
+
+/** The text colour for a tone; `muted` is what a no-verdict reads in. */
+export function toneText(tone: PacingTone, muted = "text-ink-3"): string {
+  return tone.direction === "muted" ? muted : TONE_TEXT[tone.direction][tone.strength];
+}
+
 /**
- * One pacing deviation, warn-tinted by MAGNITUDE — over- and under-pace are
- * both deviations, never good/bad green/red. Every Budget surface renders a
- * deviation through this, so the threshold and the wording can't drift.
+ * A bar's fill: the direction colour only PAST the threshold (a strong tone),
+ * the brand colour otherwise — a bar inside the threshold is on its pace, and
+ * a faint-tinted track would read as a sick one. `pale` is the projection
+ * extension's version of the same colour.
+ */
+export function toneFill(tone: PacingTone): { fill: string; pale: string } {
+  if (!isStrongTone(tone)) return { fill: "bg-brand", pale: "bg-brand/30" };
+  return tone.direction === "ahead"
+    ? { fill: "bg-ahead", pale: "bg-ahead/30" }
+    : { fill: "bg-behind", pale: "bg-behind/30" };
+}
+
+/** The two strong tones by name — for a count or a reading with no deviation to grade. */
+export const AHEAD_STRONG: PacingTone = { direction: "ahead", strength: "strong" };
+export const BEHIND_STRONG: PacingTone = { direction: "behind", strength: "strong" };
+
+/**
+ * One pacing deviation as a signed percentage in its direction colour —
+ * "+12%" / "−8%" / "0%" / "—" — with the direction word kept for the screen
+ * reader ("Show, don't label"). Every Budget table renders a deviation through
+ * this, so the threshold and the grammar can't drift.
  */
 export function PacingDevCell({ deviation }: { deviation: number | null }) {
+  const unknown = deviation === null || !Number.isFinite(deviation);
+  const text = unknown ? "—" : signedPct(deviation, 0);
+  // Judged by what is SHOWN: a deviation that rounds to 0% is on track.
+  const tone = unknown || text === "0%" ? MUTED_TONE : pacingTone(deviation);
+  const words = pacingVerdict(deviation);
   return (
-    <span
-      className={cn(
-        "num text-xs",
-        pacingTone(deviation) === "warn" ? "text-warn" : "text-ink-3",
-      )}
-    >
-      {pacingVerdict(deviation)}
+    <span className={cn("num tabular-nums text-xs", toneText(tone))} title={words}>
+      {tone.direction !== "muted" && <span className="sr-only">{tone.direction} </span>}
+      {text}
     </span>
   );
 }
@@ -467,8 +503,8 @@ export function PaceBar({
   reserve?: number;
   /** A ratio's axis: the bar runs 0..scale and the track spans all of it. */
   scale?: number;
-  /** Override the tint when the row has no deviation of its own to judge. */
-  tone?: "muted" | "warn";
+  /** Override the tone when the row has no deviation of its own to judge. */
+  tone?: PacingTone;
 }) {
   const max = scale ?? bar.plan + reserve;
   const trackPct = scale !== undefined || reserve <= 0 ? 100 : pctOfScale(bar.plan, max);
@@ -476,7 +512,13 @@ export function PaceBar({
   const tick = pctOfScale(bar.planToDate, max);
   const projected =
     projection !== null && projection > bar.actual ? pctOfScale(projection, max) : null;
-  const warn = (tone ?? pacingTone(bar.deviation)) === "warn";
+  const { fill: fillClass } = toneFill(tone ?? pacingTone(bar.deviation));
+  // The projection is judged on its OWN question — where this pace lands vs
+  // the whole plan — so its tint can differ from the fill's (behind today,
+  // but landing inside the plan).
+  const { pale: projectionClass } = toneFill(
+    projection !== null && bar.plan > 0 ? pacingTone(variancePct(projection, bar.plan)) : MUTED_TONE,
+  );
   const words =
     wordsOverride ??
     `${name}: ${fmt(bar.actual)} of ${fmt(bar.plan)}, should be ${fmt(bar.planToDate)} ${anchor}${
@@ -511,15 +553,12 @@ export function PaceBar({
       {/* The projection: where this pace lands, paler than what has happened. */}
       {projected !== null && projected > fill && (
         <div
-          className={cn("absolute inset-y-0 rounded-r-full", warn ? "bg-warn/30" : "bg-brand/30")}
+          className={cn("absolute inset-y-0 rounded-r-full", projectionClass)}
           style={{ left: `${fill}%`, width: `${projected - fill}%` }}
         />
       )}
       <div
-        className={cn(
-          "absolute inset-y-0 left-0 rounded-full transition-[width]",
-          warn ? "bg-warn" : "bg-brand",
-        )}
+        className={cn("absolute inset-y-0 left-0 rounded-full transition-[width]", fillClass)}
         style={{ width: `${fill}%` }}
       />
       {/* The curve's mark for today — the whole point of the bar, so it stands
@@ -536,22 +575,33 @@ export function PaceBar({
   );
 }
 
-/** "$8,140 of $18,000" — wraps as a pair on a phone. */
-export function Amounts({ bar, fmt }: { bar: TrackerBar; fmt: (v: number) => string }) {
+/** "$8,140 of $18,000" — the actual in ink, the plan quieter; wraps as a pair on a phone. */
+export function Amounts({
+  bar,
+  fmt,
+  className,
+}: {
+  bar: TrackerBar;
+  fmt: (v: number) => string;
+  className?: string;
+}) {
   return (
-    <p className="mt-1 text-[11px] text-ink-3">
-      <span className="num tabular-nums text-ink-2">{fmt(bar.actual)}</span> of{" "}
-      <span className="num tabular-nums">{fmt(bar.plan)}</span>
+    <p className={cn("mt-1 text-[11px] text-ink-3", className)}>
+      <span className="num tabular-nums text-ink">{fmt(bar.actual)}</span> of{" "}
+      <span className="num tabular-nums text-ink-2">{fmt(bar.plan)}</span>
     </p>
   );
 }
 
 /**
- * "▲ ahead $1,860 (+31%)" / "▼ behind …" / "on track" / "—". Warn-tinted by
- * MAGNITUDE (the shared `pacingTone`), so neither direction reads as good news.
- * `variant="target"` is the ROAS card's reading of the same deviation — "above
- * target by 0.12× (+14%)" / "on target" — a ratio against a target, not a
- * cumulative against a curve.
+ * "+$1,590 (+17%)" in the ahead colour / "−$1,844 (−61%)" in the behind
+ * colour / "on track" / "—". The sign and the colour say the direction, so
+ * the word doesn't ("Show, don't label", 2026-10-19) — it stays for the screen
+ * reader and the hover. The DIRECTION picks the colour, the magnitude only
+ * its strength (the shared `pacingTone`), so neither direction reads as good
+ * news. `variant="target"` is the ROAS card's reading of the same deviation —
+ * "+0.20× (+14%)" / "on target" — a ratio against a target, not a cumulative
+ * against a curve.
  */
 export function Verdict({
   bar,
@@ -564,14 +614,11 @@ export function Verdict({
   small?: boolean;
   variant?: "pace" | "target";
 }) {
-  const warn = pacingTone(bar.deviation) === "warn";
-  const cls = cn(
-    "num tabular-nums",
-    small ? "text-[11px]" : "text-xs",
-    warn ? "text-warn" : "text-ink-3",
-  );
+  const size = small ? "text-[11px]" : "text-xs";
   // No expectation yet (future month, or nothing planned) → no verdict at all.
-  if (bar.deviation === null) return <span className={cls}>—</span>;
+  if (bar.deviation === null) {
+    return <span className={cn("num tabular-nums text-ink-3", size)}>—</span>;
+  }
   // Zero is judged by what will be SHOWN: whole dollars on a pace bar, the
   // ratio's own formatted precision on a target.
   const onTrack =
@@ -579,23 +626,30 @@ export function Verdict({
       ? fmt(Math.abs(bar.delta)) === fmt(0)
       : Math.round(bar.delta) === 0;
   if (onTrack) {
-    return <span className={cls}>{variant === "target" ? "on target" : "on track"}</span>;
+    return (
+      <span className={cn("num tabular-nums text-ink-3", size)}>
+        {variant === "target" ? "on target" : "on track"}
+      </span>
+    );
   }
-  // The percentage IS the deviation — one source, not a second derivation.
-  const pct = bar.deviation;
   const ahead = bar.delta > 0;
+  // The percentage IS the deviation — one source, not a second derivation.
+  const figure = `${ahead ? "+" : "\u2212"}${fmt(Math.abs(bar.delta))} (${signedPct(bar.deviation, 0)})`;
   const words =
     variant === "target"
       ? ahead
         ? "above target by"
         : "below target by"
       : ahead
-        ? "▲ ahead"
-        : "▼ behind";
+        ? "ahead by"
+        : "behind by";
   return (
-    <span className={cls}>
-      {words} {fmt(Math.abs(bar.delta))}
-      {pct !== null && ` (${signedPct(pct, 0)})`}
+    <span
+      className={cn("num tabular-nums", size, toneText(pacingTone(bar.deviation)))}
+      title={`${words} ${fmt(Math.abs(bar.delta))} (${signedPct(bar.deviation, 0)})`}
+    >
+      <span className="sr-only">{words} </span>
+      {figure}
     </span>
   );
 }
@@ -697,7 +751,7 @@ export function Hero({
   label: string;
   value: string;
   aside?: ReactNode;
-  context: ReactNode;
+  context?: ReactNode;
   children?: ReactNode;
 }) {
   return (
@@ -712,18 +766,21 @@ export function Hero({
       >
         {value}
       </div>
-      <p className="mt-1 text-xs text-ink-3">{context}</p>
+      {/* A card with nothing left to say under its number says nothing. */}
+      {context !== null && context !== undefined && context !== "" && (
+        <p className="mt-1 text-xs text-ink-3">{context}</p>
+      )}
       {children}
     </section>
   );
 }
 
 /**
- * "▲ ahead $X (+Y%) · projected $Z (+W% vs plan, within reserve)" while the
- * thing is LIVE; "final for <label>" once it is over; nothing before it
- * starts. The projection is judged against the plan with the shared magnitude
- * tone; the reserve note says whether an overshoot still fits inside the
- * money held back.
+ * "+$X (+Y%) · projected $Z (+W% vs plan, within reserve)" while the thing is
+ * LIVE; "final for <label>" once it is over; nothing before it starts. The
+ * projection is judged on its own question — projected vs the whole plan —
+ * and coloured by that direction; the reserve note says whether an overshoot
+ * still fits inside the money held back.
  */
 export function HeroVerdict({
   bar,
@@ -761,12 +818,7 @@ export function HeroVerdict({
     <p className="mt-2 flex flex-wrap items-baseline gap-x-1.5 text-xs">
       <Verdict bar={bar} fmt={fmt} variant={variant} />
       {projected !== null && (
-        <span
-          className={cn(
-            "num tabular-nums",
-            pacingTone(pct) === "warn" ? "text-warn" : "text-ink-3",
-          )}
-        >
+        <span className={cn("num tabular-nums", toneText(pacingTone(pct)))}>
           · projected {fmt(projected)}
           {pct !== null && ` (${signedPct(pct, 0)} ${vsLabel}${reserveNote})`}
         </span>

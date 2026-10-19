@@ -88,14 +88,40 @@ export function pacingDeviation(
 /** |deviation| at/above this is a "large" pacing miss → strong warn tint. */
 export const PACING_WARN_THRESHOLD = 0.15;
 
+export type PacingDirection = "ahead" | "behind" | "muted";
+export type PacingStrength = "strong" | "faint";
+
 /**
- * Tone for a pacing deviation — magnitude-based, like Reconciliation's Δ.
- * A non-finite deviation (dividing by a zero plan) is NOT a big miss, it is no
- * verdict at all: it must never light up as a warning.
+ * How a pacing deviation is COLOURED (2026-10-19, user decision — see
+ * docs/decisions/budget.md): the DIRECTION picks the colour (ahead blue,
+ * behind amber, muted for no verdict), the magnitude threshold picks only the
+ * STRENGTH of the tint. Never green/red: over- and under-pace are both
+ * deviations, and the colour says which way, not whether it is good.
  */
-export function pacingTone(deviation: number | null): "muted" | "warn" {
-  if (deviation === null || !Number.isFinite(deviation)) return "muted";
-  return Math.abs(deviation) >= PACING_WARN_THRESHOLD ? "warn" : "muted";
+export interface PacingTone {
+  direction: PacingDirection;
+  /** |deviation| ≥ PACING_WARN_THRESHOLD → "strong"; inside it → "faint". */
+  strength: PacingStrength;
+}
+
+/** No verdict — nothing expected yet, or exactly on the curve. */
+export const MUTED_TONE: PacingTone = { direction: "muted", strength: "faint" };
+
+/**
+ * A non-finite deviation (dividing by a zero plan) is NOT a big miss, it is
+ * no verdict at all: it must never light up.
+ */
+export function pacingTone(deviation: number | null): PacingTone {
+  if (deviation === null || !Number.isFinite(deviation) || deviation === 0) return MUTED_TONE;
+  return {
+    direction: deviation > 0 ? "ahead" : "behind",
+    strength: Math.abs(deviation) >= PACING_WARN_THRESHOLD ? "strong" : "faint",
+  };
+}
+
+/** The tone the tint reads as "strong" — past the magnitude threshold. */
+export function isStrongTone(tone: PacingTone): boolean {
+  return tone.direction !== "muted" && tone.strength === "strong";
 }
 
 /** "on track" / "12% ahead" / "8% behind" (rounded, magnitude-worded). */
@@ -1593,7 +1619,7 @@ function makeBar(
  * verdict yet is not off-pace — it is unjudged.
  */
 export function isOffPace(bar: Pick<TrackerBar, "deviation">): boolean {
-  return pacingTone(bar.deviation) === "warn";
+  return isStrongTone(pacingTone(bar.deviation));
 }
 
 export interface TrackerCounts {

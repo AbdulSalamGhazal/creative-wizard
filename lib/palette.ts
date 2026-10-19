@@ -56,6 +56,17 @@ export const PLATFORM_COLOR: Record<PlatformKey, string> = {
   google: "var(--google)", // red (darker red on light themes)
 };
 
+/**
+ * Pacing DIRECTION colours (Budget verdicts): ahead is a dedicated blue,
+ * behind follows the theme's warn amber — see docs/decisions/budget.md. The
+ * CSS tokens, for Recharts fills and inline styles; class consumers use the
+ * `text-/bg-ahead|behind` utilities mapped from the same vars.
+ */
+export const PACING_COLOR = {
+  ahead: "var(--ahead)",
+  behind: "var(--behind)",
+} as const;
+
 export const PLATFORM_LABEL: Record<PlatformKey, string> = {
   instagram: "Instagram",
   facebook: "Facebook",

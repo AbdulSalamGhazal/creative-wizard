@@ -21,6 +21,7 @@ import {
   monthLabel,
   elapsedDaysInMonth,
   pacingDeviation,
+  isOffPace,
   pacingTone,
   pacingVerdict,
   variance,
@@ -123,11 +124,18 @@ describe("pacing", () => {
     expect(pacingDeviation(1200, 1000)).toBeCloseTo(0.2, 6);
     expect(pacingDeviation(800, 1000)).toBeCloseTo(-0.2, 6);
   });
-  it("tone warns by |magnitude| — ahead and behind alike", () => {
-    expect(pacingTone(null)).toBe("muted");
-    expect(pacingTone(0.1)).toBe("muted");
-    expect(pacingTone(PACING_WARN_THRESHOLD)).toBe("warn");
-    expect(pacingTone(-PACING_WARN_THRESHOLD)).toBe("warn");
+  it("tone: the DIRECTION picks the colour, the magnitude only its strength", () => {
+    expect(pacingTone(null)).toEqual({ direction: "muted", strength: "faint" });
+    expect(pacingTone(0)).toEqual({ direction: "muted", strength: "faint" });
+    expect(pacingTone(0.1)).toEqual({ direction: "ahead", strength: "faint" });
+    expect(pacingTone(-0.1)).toEqual({ direction: "behind", strength: "faint" });
+    expect(pacingTone(PACING_WARN_THRESHOLD)).toEqual({ direction: "ahead", strength: "strong" });
+    expect(pacingTone(-PACING_WARN_THRESHOLD)).toEqual({ direction: "behind", strength: "strong" });
+    // Off-pace is the strong tint in EITHER direction — never one of them.
+    expect(isOffPace({ deviation: PACING_WARN_THRESHOLD })).toBe(true);
+    expect(isOffPace({ deviation: -PACING_WARN_THRESHOLD })).toBe(true);
+    expect(isOffPace({ deviation: 0.1 })).toBe(false);
+    expect(isOffPace({ deviation: null })).toBe(false);
   });
   it("verdict words the magnitude", () => {
     expect(pacingVerdict(null)).toBe("—");
@@ -1011,13 +1019,13 @@ describe("pacing range guards", () => {
  * warn off an Infinity.
  */
 describe("pacing verdicts on non-finite input", () => {
-  it("treats Infinity and NaN as muted, never warn", () => {
-    expect(pacingTone(Infinity)).toBe("muted");
-    expect(pacingTone(-Infinity)).toBe("muted");
-    expect(pacingTone(NaN)).toBe("muted");
-    expect(pacingTone(null)).toBe("muted");
-    // …and a real miss still warns.
-    expect(pacingTone(0.4)).toBe("warn");
+  it("treats Infinity and NaN as muted, never a verdict", () => {
+    expect(pacingTone(Infinity).direction).toBe("muted");
+    expect(pacingTone(-Infinity).direction).toBe("muted");
+    expect(pacingTone(NaN).direction).toBe("muted");
+    expect(pacingTone(null).direction).toBe("muted");
+    // …and a real miss still reads strong.
+    expect(pacingTone(0.4)).toEqual({ direction: "ahead", strength: "strong" });
   });
 
   it("renders the dash rather than 'Infinity% ahead'", () => {
@@ -1697,14 +1705,14 @@ describe("roasFigures", () => {
     expect(r.projected).toBeCloseTo(2, 9);
     // 10% under target — the same magnitude rule as every other verdict.
     expect(r.deviation).toBeCloseTo(-0.1, 9);
-    expect(pacingTone(r.deviation)).toBe("muted");
+    expect(pacingTone(r.deviation)).toEqual({ direction: "behind", strength: "faint" });
   });
 
   it("a DAILY month's stored target wins over the derived one", () => {
     const r = roasFigures({ ...base, targetRoas: 2.5 });
     expect(r.target).toBe(2.5);
     expect(r.deviation).toBeCloseTo(-0.2, 9);
-    expect(pacingTone(r.deviation)).toBe("warn");
+    expect(pacingTone(r.deviation)).toEqual({ direction: "behind", strength: "strong" });
   });
 
   it("no spend → no actual and no verdict; no target → no verdict", () => {
@@ -2091,7 +2099,7 @@ describe("pacing with platforms at DIFFERENT coverage", () => {
     const snap = t.platforms.find((p) => p.key === "snapchat")!;
     expect(snap.planToDate).toBe(0);
     expect(snap.deviation).toBeNull();
-    expect(pacingTone(snap.deviation)).toBe("muted");
+    expect(pacingTone(snap.deviation).direction).toBe("muted");
   });
 
   it("the brand total is the SUM of the rows, not a second calculation", () => {

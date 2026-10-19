@@ -33,17 +33,20 @@ import { FilterPill } from "@/components/filters/filter-pill";
 import { FilterShell } from "@/components/filters/filter-shell";
 import { useFilterParams } from "@/components/filters/use-filter-params";
 import { DateRangePicker } from "@/components/filters/date-range-picker";
-import { ALL_PLATFORMS, PLATFORM_COLOR, PLATFORM_LABEL, seriesColor } from "@/lib/palette";
+import { ALL_PLATFORMS, PACING_COLOR, PLATFORM_COLOR, PLATFORM_LABEL, seriesColor } from "@/lib/palette";
 import { monthDay, roas as fmtRoas, sar, sarCompact, signedPct, usdCompact } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import {
   BUDGET_OBJECTIVES,
+  MUTED_TONE,
   dayBucketsInRange,
+  isStrongTone,
   isoDaysBetween,
   monthBucketsInRange,
   pacingDeviation,
   pacingTone,
   pacingVerdict,
+  type PacingTone,
   roasThroughRate,
   round2,
   spendInDisplayCurrency,
@@ -66,11 +69,27 @@ import {
   anchorWords,
   formatSpend,
   platformLabel,
+  toneText,
   useBudgetCurrency,
   type HeroState,
 } from "@/components/budget/budget-shared";
 
 export type GroupBy = "day" | "week" | "month";
+
+/**
+ * A deviation bar's colour code for the chart row: +1 ahead / −1 behind once
+ * the period's |deviation| passes the threshold (the bar takes its direction
+ * colour), 0 otherwise (the series colour). Numeric so it rides the point.
+ */
+function strongToneCode(tone: PacingTone): 1 | -1 | 0 {
+  if (!isStrongTone(tone)) return 0;
+  return tone.direction === "ahead" ? 1 : -1;
+}
+
+/** The fill a deviation bar takes for its code — the direction colour, or the series'. */
+function deviationFill(code: string | number | null | undefined, seriesColor: string): string {
+  return code === 1 ? PACING_COLOR.ahead : code === -1 ? PACING_COLOR.behind : seriesColor;
+}
 
 interface RangeSide {
   state: HeroState;
@@ -312,8 +331,9 @@ interface BucketRow {
  * day-weight curve and re-summed per bucket; a range that spans months stitches
  * several curves together (`stitchPlanByDay`). Standing decisions hold: spend is
  * RAW (no exclusion filtering), store revenue has NO per-platform attribution
- * (that lives on Reconciliation), deviations are warn-tinted by magnitude rather
- * than green/red, and a period past its side's data horizon is UNKNOWN — an
+ * (that lives on Reconciliation), deviations are coloured by DIRECTION (ahead
+ * blue, behind amber, strong past the magnitude threshold) rather than
+ * green/red, and a period past its side's data horizon is UNKNOWN — an
  * em-dash and a line that stops, never a zero.
  *
  * 2026-10: the page answers "where and when did we drift" as well as "did we
@@ -321,7 +341,8 @@ interface BucketRow {
  * fed by the table's own totals), a three-way SPLIT (none · platform ·
  * objective; a platform split locks the metric to Spend like the platform
  * filter does) and a third chart SHAPE, Deviation (per-period actual − plan
- * around zero, warn-tinted by magnitude). Split and shape are remembered
+ * around zero, each bar in its direction colour past the threshold). Split
+ * and shape are remembered
  * per user per brand like the Tracker's view controls.
  */
 export function BudgetPacing({
@@ -659,8 +680,8 @@ export function BudgetPacing({
           const dev =
             r.revenueUnknown || r.planRevenue <= 0 ? null : r.revenue - r.planRevenue;
           point[`dev_${TOTAL_KEY}`] = dev;
-          point[`warn_${TOTAL_KEY}`] =
-            dev !== null && pacingTone(pacingDeviation(r.revenue, r.planRevenue)) === "warn" ? 1 : 0;
+          point[`tone_${TOTAL_KEY}`] =
+            dev === null ? 0 : strongToneCode(pacingTone(pacingDeviation(r.revenue, r.planRevenue)));
           return point;
         }
         for (const def of seriesDefs) {
@@ -673,8 +694,8 @@ export function BudgetPacing({
           const dev =
             r.spendUnknown || periodPlan <= 0 ? null : toDisplay(periodActual - periodPlan);
           point[`dev_${def.key}`] = dev;
-          point[`warn_${def.key}`] =
-            dev !== null && pacingTone(pacingDeviation(periodActual, periodPlan)) === "warn" ? 1 : 0;
+          point[`tone_${def.key}`] =
+            dev === null ? 0 : strongToneCode(pacingTone(pacingDeviation(periodActual, periodPlan)));
         }
         return point;
       }),
@@ -782,9 +803,9 @@ export function BudgetPacing({
               <span
                 className={cn(
                   "num tabular-nums text-xs",
-                  // Same magnitude rule as every other deviation in Budget —
-                  // a ROAS miss is judged as a share of the planned ROAS.
-                  pacingTone(diff / p) === "warn" ? "text-warn" : "text-ink-3",
+                  // Same direction + threshold rule as every other deviation
+                  // in Budget — a ROAS miss is judged as a share of the planned ROAS.
+                  toneText(pacingTone(diff / p)),
                 )}
               >
                 {diff > 0 ? "+" : diff < 0 ? "−" : ""}
@@ -1362,9 +1383,12 @@ export function BudgetPacing({
                                       <span
                                         className={cn(
                                           "num tabular-nums text-right",
-                                          !unknown && plan > 0 && pacingTone(pacingDeviation(actual, plan)) === "warn"
-                                            ? "text-warn"
-                                            : "text-ink",
+                                          toneText(
+                                            !unknown && plan > 0
+                                              ? pacingTone(pacingDeviation(actual, plan))
+                                              : MUTED_TONE,
+                                            "text-ink",
+                                          ),
                                         )}
                                       >
                                         {unknown || plan <= 0
@@ -1410,9 +1434,9 @@ export function BudgetPacing({
                     <ReferenceLine y={0} stroke="var(--ink-3)" strokeWidth={1} />
                   )}
                   {activeShape === "deviation"
-                    ? // Per-period actual − plan around zero, each bar tinted
-                      // by ITS period's magnitude — the series colour when the
-                      // period is within the threshold, warn when it is not.
+                    ? // Per-period actual − plan around zero, each bar coloured
+                      // by ITS period's verdict — the series colour inside the
+                      // threshold, the direction colour (ahead / behind) past it.
                       seriesDefs
                         .filter((def) => shown.has(def.key))
                         .map((def) => (
@@ -1426,7 +1450,7 @@ export function BudgetPacing({
                             {chartData.map((pt, i) => (
                               <Cell
                                 key={i}
-                                fill={pt[`warn_${def.key}`] === 1 ? "var(--warn)" : def.color}
+                                fill={deviationFill(pt[`tone_${def.key}`], def.color)}
                               />
                             ))}
                           </Bar>

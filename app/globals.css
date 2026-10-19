@@ -50,6 +50,13 @@
   --pos: #5ee6a8;
   --neg: #ff6b6b;
   --warn: #f5c97a;
+  /* Pacing DIRECTION (Budget verdicts — docs/decisions/budget.md): ahead is
+     a dedicated blue (the facebook family is its reference hue, but it is
+     its own token so a platform colour and a verdict colour can part ways);
+     behind FOLLOWS --warn in every theme. Never green/red. Faint tints are
+     these tokens at reduced opacity (text-ahead/70), never a second hex. */
+  --ahead: #5aa0ff;
+  --behind: #f5c97a;
 
   /* ---------------------------------------------------------------
    * Data-viz palette — chart series, product/type slices, and the
@@ -150,6 +157,8 @@
   --brand: #f59e0b;
   --brand-2: #fbbf24;
   --primary-foreground: #1a1205;
+  --ahead: #5aa0ff;
+  --behind: #f5c97a;
 }
 
 /* LIGHT themes — both excluded from the `dark:` variant above; each re-tunes
@@ -174,6 +183,10 @@
   --brand-2: #60a5fa;
   --primary-foreground: #ffffff;
   --popover: var(--surface);
+  /* Frost's accent is itself a blue, so ahead takes the sky side of the
+     family (sky-700) to stay apart from a brand-coloured bar. */
+  --ahead: #0369a1;
+  --behind: #a8730f;
 }
 
 /* PAPER — warm cream / paper + caramel accent. The warm counterpart to
@@ -195,6 +208,8 @@
   --brand-2: #d97706;
   --primary-foreground: #ffffff;
   --popover: var(--surface);
+  --ahead: #0369a1;
+  --behind: #a8730f;
 }
 
 /* ---------------------------------------------------------------
@@ -257,6 +272,8 @@
   --color-pos: var(--pos);
   --color-neg: var(--neg);
   --color-warn: var(--warn);
+  --color-ahead: var(--ahead);
+  --color-behind: var(--behind);
   --color-instagram: var(--instagram);
   --color-facebook: var(--facebook);
   --color-tiktok: var(--tiktok);

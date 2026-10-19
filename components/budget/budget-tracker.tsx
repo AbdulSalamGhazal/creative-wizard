@@ -42,7 +42,9 @@ import {
 import type { TrackerFiltersInput, TrackerGroup } from "@/validators/budget";
 import type { BudgetMonthData } from "@/db/queries/budget";
 import {
+  AHEAD_STRONG,
   Amounts,
+  BEHIND_STRONG,
   BudgetMonthBar,
   CoverageLaggards,
   CoverageLine,
@@ -52,6 +54,7 @@ import {
   Verdict,
   formatSpend,
   platformLabel,
+  toneText,
   useBudgetCurrency,
 } from "@/components/budget/budget-shared";
 
@@ -357,10 +360,10 @@ export function BudgetTracker({
                     <span
                       className={cn(
                         "num tabular-nums",
-                        pacingTone(t.projectedPctOfPlan === null ? null : t.projectedPctOfPlan - 1) ===
-                          "warn"
-                          ? "text-warn"
-                          : "text-ink-2",
+                        toneText(
+                          pacingTone(t.projectedPctOfPlan === null ? null : t.projectedPctOfPlan - 1),
+                          "text-ink-2",
+                        ),
                       )}
                     >
                       {fmtSpend(t.projectedSpend)}
@@ -521,7 +524,7 @@ export function BudgetTracker({
               <span
                 className={cn(
                   "num tabular-nums",
-                  t.reserveUsed > t.reserve ? "text-warn" : "text-ink-3",
+                  t.reserveUsed > t.reserve ? toneText(BEHIND_STRONG) : "text-ink-3",
                 )}
               >
                 Used {fmtSpend(t.reserveUsed)}
@@ -581,8 +584,13 @@ function SummaryStrip({
   const chip = "inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs";
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <span className={cn(chip, "border-line text-ink-2")}>
-        <span className="num tabular-nums text-ink">{counts.ahead}</span> ahead
+      {/* Each chip reads in its direction colour once it counts anything —
+          the same tokens the verdicts use, so the strip and the rows agree. */}
+      <span className={cn(chip, counts.ahead > 0 ? "border-ahead/50 text-ahead" : "border-line text-ink-2")}>
+        <span className={cn("num tabular-nums", counts.ahead > 0 ? toneText(AHEAD_STRONG) : "text-ink")}>
+          {counts.ahead}
+        </span>{" "}
+        ahead
       </span>
       <span className={cn(chip, "border-line text-ink-2")}>
         <span className="num tabular-nums text-ink">{counts.onTrack}</span> on track
@@ -599,15 +607,12 @@ function SummaryStrip({
         className={cn(
           chip,
           "transition-colors",
-          counts.behind > 0 ? "border-warn/50 text-warn" : "border-line text-ink-2",
+          counts.behind > 0 ? "border-behind/50 text-behind" : "border-line text-ink-2",
           offPace && "bg-surface-2",
         )}
       >
         <span
-          className={cn(
-            "num tabular-nums",
-            counts.behind > 0 ? "text-warn" : "text-ink",
-          )}
+          className={cn("num tabular-nums", counts.behind > 0 ? toneText(BEHIND_STRONG) : "text-ink")}
         >
           {counts.behind}
         </span>{" "}
@@ -809,10 +814,7 @@ function TrackerTable({
         sortValue: (r) => r.bar.delta,
         render: (r) => (
           <span
-            className={cn(
-              "num tabular-nums",
-              pacingTone(r.bar.deviation) === "warn" ? "text-warn" : "text-ink-2",
-            )}
+            className={cn("num tabular-nums", toneText(pacingTone(r.bar.deviation), "text-ink-2"))}
           >
             {r.bar.delta > 0 ? "+" : ""}
             {fmt(r.bar.delta)}
@@ -829,10 +831,7 @@ function TrackerTable({
         csv: (r) => r.bar.deviation,
         render: (r) => (
           <span
-            className={cn(
-              "num tabular-nums",
-              pacingTone(r.bar.deviation) === "warn" ? "text-warn" : "text-ink-3",
-            )}
+            className={cn("num tabular-nums", toneText(pacingTone(r.bar.deviation)))}
           >
             {r.bar.deviation === null ? "—" : signedPct(r.bar.deviation, 0)}
           </span>
