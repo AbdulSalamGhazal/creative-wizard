@@ -198,7 +198,7 @@ export function PacingBoard({
                     <PlatformDot platform={p.key as never} size="sm" />
                     <span className="truncate">{platformLabel(p.key)}</span>
                   </span>
-                  <span className="sm:hidden">
+                  <span className="sm:hidden" title={unplannedWords(p, fmt)}>
                     <Verdict bar={p} fmt={fmt} />
                   </span>
                 </div>
@@ -227,7 +227,7 @@ export function PacingBoard({
                   )}
                 </div>
                 <div className="hidden sm:block">{p.plan > 0 && <DailySpark row={p} />}</div>
-                <div className="hidden text-right sm:block">
+                <div className="hidden text-right sm:block" title={unplannedWords(p, fmt)}>
                   <Verdict bar={p} fmt={fmt} />
                   {p.plan > 0 && (
                     <>
@@ -245,7 +245,7 @@ export function PacingBoard({
                           under its platform's and the eye compares the two. */}
                       <div className="flex items-center justify-between gap-2 pl-5">
                         <span className="truncate text-xs text-ink-3">{b.label}</span>
-                        <span className="sm:hidden">
+                        <span className="sm:hidden" title={unplannedWords(b, fmt)}>
                           <Verdict bar={b} fmt={fmt} small />
                         </span>
                       </div>
@@ -264,7 +264,7 @@ export function PacingBoard({
                       <div className="hidden sm:block">
                         <DailySpark row={b} small />
                       </div>
-                      <div className="hidden text-right sm:block">
+                      <div className="hidden text-right sm:block" title={unplannedWords(b, fmt)}>
                         <Verdict bar={b} fmt={fmt} small />
                         <Amounts bar={b} fmt={fmt} className="mt-0.5" />
                         <Needed row={b} from={from} to={to} fmt={fmt} small />
@@ -356,6 +356,16 @@ export function PacingBoard({
       )}
     </section>
   );
+}
+
+/**
+ * Why a row shows amounts and no verdict: it spent in months the plan does
+ * not cover — the range card's own rule, on hover.
+ */
+function unplannedWords(row: RangeBar, fmt: (v: number) => string): string | undefined {
+  const { months, amount } = row.unplannedMonths;
+  if (months === 0) return undefined;
+  return `${fmt(amount)} of it fell in ${months === 1 ? "a month" : `${months} months`} with no plan — nothing to pace the whole range against`;
 }
 
 /**
@@ -508,7 +518,8 @@ function rowsByPlatform(platforms: readonly RangePlatform[]): BoardTableRow[] {
       sortKey: p.key,
       bar: p,
       through: p.through,
-      unplanned: false,
+      // A platform with spend and no plan at all reads "—", never a $0 plan.
+      unplanned: p.plan <= 0 && p.actual > 0,
     });
     for (const b of p.buckets) {
       out.push({
@@ -646,6 +657,7 @@ function BoardTable({
             <span className="inline-flex items-center gap-2 font-medium">
               {r.platform !== null && <PlatformDot platform={r.platform as never} size="sm" />}
               {r.label}
+              {r.unplanned && unplannedBadge}
             </span>
           ) : group === "objective" ? (
             <span className="inline-flex items-center gap-2 pl-6 text-ink-2">
@@ -693,14 +705,23 @@ function BoardTable({
         sortable: true,
         sortValue: (r) => r.bar.delta,
         render: (r) => (
+          // The same sign grammar as the Verdict: a true minus, never a hyphen.
           <span
             className={cn("num tabular-nums", toneText(pacingTone(r.bar.deviation), "text-ink-2"))}
           >
-            {r.bar.delta > 0 ? "+" : ""}
-            {fmt(r.bar.delta)}
+            {r.bar.delta > 0 ? "+" : r.bar.delta < 0 ? "\u2212" : ""}
+            {fmt(Math.abs(r.bar.delta))}
           </span>
         ),
-        total: () => num(sum((b) => b.delta)),
+        total: () => {
+          const d = sum((b) => b.delta);
+          return (
+            <span className="num tabular-nums">
+              {d > 0 ? "+" : d < 0 ? "\u2212" : ""}
+              {fmt(Math.abs(d))}
+            </span>
+          );
+        },
       },
       {
         key: "deviation",

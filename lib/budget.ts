@@ -1959,6 +1959,13 @@ export interface RangeBar extends TrackerBar {
   projection: number | null;
   neededPerDay: number | null;
   daily: DailyPair;
+  /**
+   * Months in the range where this row spent but had NO plan, and how much —
+   * the range card's rule: actual against a plan that covers only part of the
+   * range has no honest verdict, so such a row keeps its amounts and loses
+   * its deviation, projection and needed/day.
+   */
+  unplannedMonths: { months: number; amount: number };
 }
 
 export interface RangePlatform extends TrackerPlatform, RangeBar {
@@ -2014,6 +2021,26 @@ export function buildRangeBoard(input: RangeBoardInput): RangeBoard {
     const plan = round2(sum(planMap, to));
     const actual = round2(sum(actualMap, through));
     const expected = round2(sum(planMap, through));
+    // Spend in a month this row has no plan for: the comparison has no honest
+    // verdict (the range card's rule), so the row keeps its amounts only.
+    const plannedMonths = new Set<string>();
+    for (const d of days) if ((planMap?.get(d) ?? 0) > 0) plannedMonths.add(d.slice(0, 7));
+    const unplannedByMonth = new Map<string, number>();
+    if (actualMap && through !== null) {
+      for (const d of days) {
+        if (d > through) break;
+        const v = actualMap.get(d) ?? 0;
+        const month = d.slice(0, 7);
+        if (v > 0 && !plannedMonths.has(month)) {
+          unplannedByMonth.set(month, (unplannedByMonth.get(month) ?? 0) + v);
+        }
+      }
+    }
+    const unplannedMonths = {
+      months: unplannedByMonth.size,
+      amount: round2([...unplannedByMonth.values()].reduce((a, b) => a + b, 0)),
+    };
+    const judged = unplannedMonths.months === 0;
     const base = {
       key,
       label,
@@ -2021,14 +2048,15 @@ export function buildRangeBoard(input: RangeBoardInput): RangeBoard {
       actual,
       planToDate: expected,
       delta: round2(actual - expected),
-      deviation: pacingDeviation(actual, expected),
+      deviation: judged ? pacingDeviation(actual, expected) : null,
     };
     return {
       ...base,
       through,
-      projection: rangeProjection(base, through, to),
-      neededPerDay: neededPerDay(base, through, from, to),
+      projection: judged ? rangeProjection(base, through, to) : null,
+      neededPerDay: judged ? neededPerDay(base, through, from, to) : null,
       daily: { plan: series(planMap, to), actual: series(actualMap, through) },
+      unplannedMonths,
     };
   };
 

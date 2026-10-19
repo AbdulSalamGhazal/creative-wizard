@@ -336,7 +336,11 @@ as it stood before the restructure.*
       `latestCoverage` of it), deviation through `pacingDeviation`, projection
       = actual × plan ÷ expected while the range runs (`rangeProjection`);
       unit-pinned: for a single-month range the platform rows equal
-      `buildTrackerRows`' for that month. The summary strip (N ahead · N on
+      `buildTrackerRows`' for that month. A row that spent in a month it has
+      NO plan for keeps its amounts and loses its verdict, projection and
+      needed/day (`unplannedMonths`, the reason on hover) — the range card's
+      own rule, so a six-month range with one planned month cannot read
+      "+456%". The summary strip (N ahead · N on
       track · N behind, bucket rows; the behind chip applies the off-pace
       filter and the counts ignore it) heads the board beside its title —
       no sentence under it. The RESERVE row (the platform-level `reserveUsed`)

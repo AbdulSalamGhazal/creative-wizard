@@ -2599,6 +2599,35 @@ describe("buildRangeBoard", () => {
     expect(neededPerDay({ plan: 0, actual: 10 }, through, from, to)).toBeNull();
   });
 
+  it("a row that spent in a month with no plan keeps its amounts and loses its verdict — the range card's rule", () => {
+    // Aug has spend and no plan; Sep is planned. Over Aug 1 – Sep 30 the
+    // Instagram rows compare two months of spend to one month of plan.
+    const augRows = isoDaysBetween("2026-08-01", "2026-08-31").map((date) => ({
+      date,
+      platform: "instagram",
+      objective: "Awareness",
+      spend: 100,
+    }));
+    const b = buildRangeBoard({
+      from: "2026-08-01",
+      to,
+      spendPerDay: buildSpendPerDay([...augRows, ...dailyRows], every),
+      planSpendPerDay: buildPlanSpendPerDay(monthSeries, ["instagram", "tiktok"], every),
+      platforms: ["instagram", "tiktok"],
+      coverage,
+    });
+    const ig = b.platforms.find((p) => p.key === "instagram")!;
+    expect(ig.unplannedMonths).toEqual({ months: 1, amount: 3100 });
+    expect(ig.actual).toBeCloseTo(13100, 2);
+    expect(ig.deviation).toBeNull();
+    expect(ig.projection).toBeNull();
+    expect(ig.neededPerDay).toBeNull();
+    // TikTok only spent in September — judged as before.
+    const tt = b.platforms.find((p) => p.key === "tiktok")!;
+    expect(tt.unplannedMonths.months).toBe(0);
+    expect(tt.deviation).not.toBeNull();
+  });
+
   it("spend in a bucket with no plan is unplanned money, and a platform with no plan sorts last", () => {
     const rows = [
       ...dailyRows,
