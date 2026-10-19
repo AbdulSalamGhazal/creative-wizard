@@ -607,12 +607,46 @@ as it stood before the restructure.*
       bucket from the one planned. The new rule is platform-level —
       `reserveUsed(allocations, actualSpendByCombo)` = Σ platforms max(0,
       actual − planned) — and bucket-level mismatch is objective DRIFT, named
-      as such on the Tracker ("Unplanned $X — no allocation for Other") and
+      as such on the Tracker ("Unplanned $X — no allocation for Other"; the
+      Overview says "Unplanned $X · Other" since the 2026-10-19 style pass) and
       visible in the Tracker table's objective grouping. Everywhere "reserve
       used" shows reads the one helper: the Overview's reserve row and its
       spend card's "within reserve / over even with reserve" note, the
       Tracker footer ("Used $X — past the reserve"). `unplannedTotal` is still
       reported (it is the drift total) but no longer drives the reserve.
+  - **THE STYLE PASS (2026-10-19, user decision) — "structure good, style
+    bad".** The user's review of the rebuilt Overview and the visual Plan page
+    produced two rules and one pass. The rules: **Show, don't label**
+    (ux-standards.md — when a sign, a colour or a position already says it,
+    the word is noise) and **verdicts are coloured by DIRECTION** (ahead a
+    dedicated blue `--ahead`, behind the theme's warn amber `--behind`, on
+    track muted; the magnitude threshold now decides only strong vs faint —
+    "warn-tinted by |magnitude|" is retired). `pacingTone` returns
+    `{ direction, strength }`; `toneText` / `toneFill` in budget-shared turn
+    it into classes (faint = the token at 70%, never a new hex); the bars take
+    the direction colour only PAST the threshold and the brand colour inside
+    it, and a projection extension is judged on its own question (projected
+    vs the whole plan). The Verdict is "+$1,590 (+17%)" / "−$1,844 (−61%)",
+    the word kept in `sr-only` text and the hover; `PacingDevCell` is "+12%".
+    The pass: the Overview's pace board is ordered BY PLAN SIZE (unplanned
+    last — the Tracker's default, so the two pages agree), loses its header
+    sentence, and is ONE grid with a fixed figures column (every bar starts
+    at one x; verdict and amounts right-aligned at both levels; labels muted,
+    amounts ink); the chart caption is gone (the legend says it); the hero
+    context lines dropped the words the number carries ("of $18,000 + $2,000
+    reserve" stays, "store revenue target" and "allocated" went; ROAS keeps
+    "target" because a ratio has no "of"); the reserve row's explanation is
+    an ⓘ and "past the reserve" reads "−$300" in amber; "Unplanned $X — no
+    allocation for Other" is "Unplanned $X · Other" with the sentence on
+    hover. On Plan: the sentences under Targets and Split the budget went,
+    the implied-ROAS formula, the reserve's "held back, not paced" and the
+    curve panel's description are ⓘ tooltips beside their labels, "of total"
+    after a share went where position says it, and the composition bar lost
+    its header line (the strip above states the total). **`InfoTip`
+    (`components/ui/info-tip.tsx`) is the ⓘ**: the house Popover + `title`
+    pattern (there is no tooltip primitive) — hover reads the title, click /
+    Enter / Space opens the popover so a phone reaches it, Escape closes it.
+    Tracker and Pacing changed only through the shared pieces.
   - **Funnel audience (`/budget/audience`, 2026-09, migration 0042 additive).**
     Hand-measured audience sizes per funnel stage × platform, versus spend.
     **Stages DERIVE from `BUDGET_OBJECTIVES` minus "Other"** (`FUNNEL_STAGES` in
