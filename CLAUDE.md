@@ -74,6 +74,15 @@ Do not introduce a new dependency without a one-line justification in the PR des
 - Tabular figures (`font-variant-numeric: tabular-nums`) on every number in tables.
 - USD formatting: `Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' })`.
 - Dates: ISO format in tables, friendlier formats in chart tooltips and headers.
+- **Show, don't label (2026-10-19, user rule).** When a sign, a colour or a
+  position already says it, the word is noise: a pacing verdict is
+  "−$1,844 (−61%)" in the behind colour, never "▼ behind $1,844"; a section's
+  purpose is its title, not a sentence under it; a unit is printed once; a
+  helper sentence that genuinely matters becomes an ⓘ tooltip (`InfoTip`, the
+  house popover + title pattern, keyboard-reachable), not body copy.
+  Accessibility keeps every word — `aria-label`, `title` or `sr-only` text say
+  "ahead", "behind", "projected". The test: if the visual conveys it in under
+  a second, the text is noise. → `docs/decisions/ux-standards.md`
 
 ## Never
 
@@ -270,6 +279,9 @@ this map is still a rule you broke.
 - `replaceBudgetMonth` is the ONE plan writer; revisions are written in its transaction.
 - Revenue has no platform attribution anywhere in Budget.
 - Reserve USED = Σ platforms max(0, actual − plan) — platform overshoot, never bucket drift.
+- Verdicts are coloured by DIRECTION — ahead `--ahead` (blue), behind `--behind` (the warn
+  amber), on track muted; |deviation| vs `PACING_WARN_THRESHOLD` decides strong vs faint.
+  Never green/red. One helper, `pacingTone`; tokens only through `lib/palette.ts`.
 
 → **`docs/decisions/budget.md`**
 

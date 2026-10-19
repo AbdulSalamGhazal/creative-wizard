@@ -54,6 +54,20 @@
   works at 375px: no page-level horizontal scroll, touch targets reachable,
   toolbars that wrap rather than overflow, and sticky/pinned elements that
   still fit the frame. Check it on the surface itself, not in theory.
+- **Show, don't label (2026-10-19, user rule).** A sign, a colour or a
+  position that already says it makes the word noise. A pacing verdict is
+  "−$1,844 (−61%)" in the behind colour, never "▼ behind $1,844 (−61%)"; a
+  section's purpose is its title, not a sentence under it; a unit is printed
+  once, and not where position already says it ("46.2%" on a card whose
+  header is the total, not "46.2% of total"); a helper sentence that
+  genuinely matters becomes an ⓘ tooltip — `InfoTip`, the house popover +
+  title pattern, keyboard-reachable — rather than body copy. Accessibility
+  keeps every word: `aria-label`, `title` or `sr-only` text still say
+  "ahead", "behind", "projected". The test is one second: if the visual
+  conveys it in under a second, the text is noise. It came from the Budget
+  style pass — the Overview said "▼ behind" beside a minus sign in an amber
+  verdict, and the Plan page explained each section in a sentence the eye
+  had to read past to reach the numbers.
 - **Walk the journey before you report it.** The composed-surface rig proves a
   unit; the WALK proves the path between units. Both are required, and the
   walk is where seam bugs live.

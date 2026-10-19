@@ -36,6 +36,15 @@
   platform is objective DRIFT — shown as an unplanned row — never a reserve
   draw. One helper, `reserveUsed`, and every "reserve used" on every surface
   reads it (2026-10-17, user decision).
+- **Pacing verdicts are coloured by DIRECTION, never green/red.** Ahead reads
+  in `--ahead` (a dedicated blue), behind in `--behind` (the theme's warn
+  amber), on track muted; the magnitude threshold (`PACING_WARN_THRESHOLD`)
+  decides only STRONG vs FAINT tint of that colour (faint = the same token at
+  reduced opacity, never a new hex). One helper, `pacingTone`, returns
+  direction + strength, and every consumer — Verdict, PaceBar, PacingDevCell,
+  the Pacing deviation bars, the Tracker's chips, the reserve rows — reads
+  it; the tokens reach code only through `lib/palette.ts` and the
+  `text-/bg-ahead|behind` utilities (2026-10-19, user decision).
 - **The Overview is three hero cards, one chart and the pace board** — every
   number on it is `buildTrackerRows` (the Tracker's rows) or the plan series;
   it never carries a second math path. ROAS has equal billing with spend and
@@ -105,8 +114,10 @@ as it stood before the restructure.*
   total to the raw month total exactly (harness-pinned on the query). A period
   past its side's horizon renders as an em-dash (unknown ≠ 0). Pacing VERDICTS
   (Overview's hero cards and its pace board) are current-month-only; the
-  **Pacing page** is a date range. Deviations everywhere are warn-tinted by |magnitude| — never
-  green/red. Permission
+  **Pacing page** is a date range. Deviations everywhere are coloured by
+  DIRECTION — ahead blue, behind amber, strong past the magnitude threshold
+  and faint inside it (2026-10-19; warn-tinted by |magnitude| until then) —
+  never green/red. Permission
   `budget.manage`; audit `budget.update`. Migrations 0035 + 0036 (additive).
   **Plan modes (curve | daily, 0048) — see PLAN MODES below; every
   plan-to-date number goes through the unified plan series.**
@@ -289,9 +300,9 @@ as it stood before the restructure.*
       Budget. (3) **A THIRD CHART SHAPE, DEVIATION** (`?shape=cumulative|
       period|deviation`, `PACING_SHAPES`, remembered): per-period actual −
       plan as bars around a zero `ReferenceLine`, one bar series per split
-      series, each BAR warn-tinted when ITS period's |deviation| ≥
-      `PACING_WARN_THRESHOLD` (through `pacingTone`) and the series colour
-      otherwise; the tooltip shows actual, plan and the signed difference
+      series, each BAR in its DIRECTION colour (ahead blue / behind amber)
+      when ITS period's |deviation| ≥ `PACING_WARN_THRESHOLD` (through
+      `pacingTone`) and the series colour otherwise; the tooltip shows actual, plan and the signed difference
       with %. A period past the side's coverage draws nothing (unknown ≠ 0);
       a period with no plan draws nothing and reads "—". ROAS has no
       per-period difference, so Deviation is DISABLED with a title saying why
@@ -390,7 +401,8 @@ as it stood before the restructure.*
       prop (the Overview hero bar's grammar), CURRENT MONTH ONLY: a past
       month is final and a future month has nothing to project, so neither
       draws one. Pure CSS, tokens only (surface-2 / brand / ink-3),
-      warn-tinted by |deviation| through the shared threshold. The tick
+      the fill in the DIRECTION colour past the shared threshold and the
+      brand colour inside it. The tick
       stands 4px PROUD of the track — against the fill it is nearly invisible
       (1.06:1 on Midnight), and it is the whole point of the bar. Every bar
       carries an aria-label that says the numbers in words, the projection
