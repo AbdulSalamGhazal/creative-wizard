@@ -283,57 +283,37 @@ export function planInputToSnapshot(plan: {
   };
 }
 
-// ── Tracker view state (2026-10) ─────────────────────────────────────────────
-// The Tracker's zero-config default is its identity, so every control here is
-// OPT-IN and REMEMBERED (0049) rather than a new mandatory decision. The param
-// names avoid the keys other pages already own: `buckets` (not `objectives` —
-// Campaigns' vocabulary is a different axis), `board` (not `view`, which the
-// preference layer never persists and Library uses for grid/table), and `rank`
-// (not `order`, which is Campaigns' COLUMN order).
+// ── Pacing view state (2026-10; the Tracker's controls merged in 2026-10-19) ──
+// Everything here is REMEMBERED per user per brand (0049, FilterShell
+// persistKeys) and OPT-IN — the bare page reads without a decision. The STORED
+// KEY NAMES are the Tracker's (`board`, `rank`, `group`, `buckets`, `offpace`)
+// and its values (`bars` | `table`), so a choice remembered on the old page
+// carries over; only the constants were renamed with the merge. The names
+// dodge keys other pages own: `buckets` (not `objectives` — Campaigns'
+// vocabulary is a different axis), `board` (not `view`, which the preference
+// layer never persists and Library uses for grid/table), `rank` (not `order`,
+// Campaigns' COLUMN order), `split` (not `group`, the board's table grouping)
+// and `shape` (not `view`).
 
-/** The Tracker's two readings of the same rows. */
-export const TRACKER_BOARDS = ["bars", "table"] as const;
-export type TrackerBoard = (typeof TRACKER_BOARDS)[number];
+/** The board's two readings of the same rows: the bars, or a table. */
+export const PACING_BOARDS = ["bars", "table"] as const;
+export type PacingBoard = (typeof PACING_BOARDS)[number];
 
-/** Row order in the bars view. `plan` is the default: predictable beats dramatic. */
-export const TRACKER_RANKS = ["plan", "offpace"] as const;
-export type TrackerRank = (typeof TRACKER_RANKS)[number];
+/** Row order on the board. `plan` is the default: predictable beats dramatic. */
+export const PACING_RANKS = ["plan", "offpace"] as const;
+export type PacingRank = (typeof PACING_RANKS)[number];
 
 /**
- * How the TABLE view groups the same rows (2026-10): platform → its buckets
- * (the default, today's table), or objective → its platforms — the allocation
- * check's reading, which moved here from Overview. Only the table has a
- * grouping; the bars are always per platform.
+ * How the board's TABLE groups the same rows: platform → its buckets (the
+ * default), or objective → its platforms — the allocation check's reading.
+ * Only the table has a grouping; the bars are always per platform.
  */
-export const TRACKER_GROUPS = ["platform", "objective"] as const;
-export type TrackerGroup = (typeof TRACKER_GROUPS)[number];
+export const PACING_GROUPS = ["platform", "objective"] as const;
+export type PacingGroup = (typeof PACING_GROUPS)[number];
 
-export const trackerFiltersSchema = z.object({
-  platforms: csvOf([...platformEnum]),
-  buckets: csvOf([...BUDGET_OBJECTIVES]),
-  /** "Off-pace only": hide rows and cards whose |deviation| is under the warn
-   *  threshold — including the ones with no verdict at all. */
-  offpace: z
-    .string()
-    .optional()
-    .transform((s) => s === "1"),
-  board: z.enum(TRACKER_BOARDS).catch("bars"),
-  rank: z.enum(TRACKER_RANKS).catch("plan"),
-  group: z.enum(TRACKER_GROUPS).catch("platform"),
-});
-
-export type TrackerFiltersInput = z.infer<typeof trackerFiltersSchema>;
-
-// ── Pacing view state (2026-10) ──────────────────────────────────────────────
-// Pacing's two view controls are REMEMBERED like the Tracker's board/rank/
-// group (FilterShell persistKeys). The names dodge keys other pages own:
-// `split` (not `group` — the Tracker's table grouping — and not `objectives`,
-// Campaigns' filter) and `shape` (not `view`, which is never persisted and is
-// Library's grid/table).
-
-/** How the series and the table blocks are split: not at all, per platform,
- *  or per objective bucket. A platform split LOCKS the metric to Spend —
- *  revenue has no platform attribution anywhere in Budget. */
+/** How the chart series and the period table blocks are split: not at all,
+ *  per platform, or per objective bucket. A platform split LOCKS the metric
+ *  to Spend — revenue has no platform attribution anywhere in Budget. */
 export const PACING_SPLITS = ["none", "platform", "objective"] as const;
 export type PacingSplit = (typeof PACING_SPLITS)[number];
 
@@ -345,5 +325,16 @@ export type PacingShape = (typeof PACING_SHAPES)[number];
 export const pacingViewSchema = z.object({
   split: z.enum(PACING_SPLITS).catch("none"),
   shape: z.enum(PACING_SHAPES).catch("cumulative"),
+  /** The board's tier-2 bucket slice. */
+  buckets: csvOf([...BUDGET_OBJECTIVES]),
+  /** "Off-pace only": hide rows whose |deviation| is under the warn threshold
+   *  — including the ones with no verdict at all. */
+  offpace: z
+    .string()
+    .optional()
+    .transform((s) => s === "1"),
+  board: z.enum(PACING_BOARDS).catch("bars"),
+  rank: z.enum(PACING_RANKS).catch("plan"),
+  group: z.enum(PACING_GROUPS).catch("platform"),
 });
 export type PacingViewInput = z.infer<typeof pacingViewSchema>;

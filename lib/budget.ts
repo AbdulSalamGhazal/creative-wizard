@@ -1690,15 +1690,15 @@ export interface TrackerViewFilters {
  * off-pace, which is also why the summary strip counts it in none of its
  * three.
  */
-export function filterTrackerPlatforms(
-  platforms: readonly TrackerPlatform[],
+export function filterTrackerPlatforms<P extends TrackerPlatform>(
+  platforms: readonly P[],
   f: TrackerViewFilters,
-): TrackerPlatform[] {
+): P[] {
   const wantPlatform = (p: string) =>
     !f.platforms || f.platforms.length === 0 || f.platforms.includes(p);
   const wantBucket = (b: string) =>
     !f.buckets || f.buckets.length === 0 || f.buckets.includes(b);
-  const out: TrackerPlatform[] = [];
+  const out: P[] = [];
   for (const p of platforms) {
     if (!wantPlatform(p.key)) continue;
     const buckets = p.buckets
@@ -1722,10 +1722,10 @@ export function filterTrackerPlatforms(
 }
 
 /** Rows in the bars view: by plan size (the default) or most off-pace first. */
-export function sortTrackerPlatforms(
-  platforms: readonly TrackerPlatform[],
+export function sortTrackerPlatforms<P extends TrackerPlatform>(
+  platforms: readonly P[],
   rank: "plan" | "offpace",
-): TrackerPlatform[] {
+): P[] {
   if (rank === "plan") return [...platforms];
   // Drama on request: biggest |deviation| first, the unjudged last (they are
   // missing information, not a small miss — the house's null rule).
@@ -1809,9 +1809,253 @@ export function groupTrackerByObjective(
  * reported days account for. NULL when nothing is expected yet (no plan, or no
  * coverage), which is the same rule the brand projection follows.
  */
-export function rowProjection(bar: TrackerBar): number | null {
+export function rowProjection(bar: Pick<TrackerBar, "plan" | "actual" | "planToDate">): number | null {
   if (bar.plan <= 0 || bar.planToDate <= 0) return null;
   return round2((bar.actual * bar.plan) / bar.planToDate);
+}
+
+// ── The Pacing board: the Tracker's rows, for a RANGE (2026-10-19) ──────────
+// The Tracker merged into Pacing (user decision). Its board is now range-based
+// and reads the SAME per-day maps the chart and the period table are summed
+// from — one math path. Plan over the whole range, actual and expected through
+// the platform's OWN coverage, the deviation through `pacingDeviation`, the
+// projection while the range still runs, and two readings the Overview's
+// board does not have: a daily sparkline and what each remaining day needs.
+
+/** The per-day maps' TOTAL key. */
+export const TOTAL_SERIES_KEY = "total";
+/** A platform's series key — prefixed so it can never collide with a bucket name. */
+export function platformSeriesKey(platform: string): string {
+  return `p:${platform}`;
+}
+/** A platform × objective slice's series key. */
+export function comboSeriesKey(platform: string, objective: string): string {
+  return `p:${platform}|${objective}`;
+}
+
+export type PerDayMaps = Map<string, Map<string, number>>;
+
+/**
+ * Actual spend per day, keyed by TOTAL, each objective bucket, each platform
+ * and each platform × objective combo — the chart, the period table and the
+ * board all sum from this one map. `inScope` is the platform filter.
+ */
+export function buildSpendPerDay(
+  rows: ReadonlyArray<{ date: string; platform: string; objective: string; spend: number }>,
+  inScope: (platform: string) => boolean,
+): PerDayMaps {
+  const out: PerDayMaps = new Map();
+  const add = (key: string, date: string, value: number) => {
+    let days = out.get(key);
+    if (!days) out.set(key, (days = new Map()));
+    days.set(date, (days.get(date) ?? 0) + value);
+  };
+  for (const r of rows) {
+    if (!inScope(r.platform)) continue;
+    add(TOTAL_SERIES_KEY, r.date, r.spend);
+    add(r.objective, r.date, r.spend);
+    add(platformSeriesKey(r.platform), r.date, r.spend);
+    add(comboSeriesKey(r.platform, r.objective), r.date, r.spend);
+  }
+  return out;
+}
+
+/**
+ * Planned spend per day, stitched across every month the range touches, under
+ * the same keys — each slice through the series' own machinery (a curve month
+ * spreads by its curve, a daily month reads its cells; nothing here expands a
+ * curve). The platform filter scopes the plan too, so the comparison stays
+ * honest.
+ */
+export function buildPlanSpendPerDay(
+  monthSeries: readonly PlanSeries[],
+  platforms: readonly string[],
+  inScope: (platform: string) => boolean,
+): PerDayMaps {
+  const out: PerDayMaps = new Map();
+  const scoped = (objective?: string) => (platform: string, o: string) =>
+    inScope(platform) && (objective === undefined || o === objective);
+  out.set(TOTAL_SERIES_KEY, stitchPlanByDay(monthSeries, (m) => m.spendDays(scoped())));
+  for (const objective of BUDGET_OBJECTIVES) {
+    out.set(objective, stitchPlanByDay(monthSeries, (m) => m.spendDays(scoped(objective))));
+  }
+  for (const platform of platforms) {
+    out.set(
+      platformSeriesKey(platform),
+      stitchPlanByDay(monthSeries, (m) => m.spendDays((pl) => pl === platform)),
+    );
+    for (const objective of BUDGET_OBJECTIVES) {
+      out.set(
+        comboSeriesKey(platform, objective),
+        stitchPlanByDay(monthSeries, (m) => m.spendDays((pl, o) => pl === platform && o === objective)),
+      );
+    }
+  }
+  return out;
+}
+
+/** Where a range stands for one anchor: not started, running, or covered to its end. */
+export type RangeState = "future" | "live" | "final";
+export function rangeState(through: string | null, to: string): RangeState {
+  return through === null ? "future" : through >= to ? "final" : "live";
+}
+
+/** A coverage day clipped to the range — null when it falls before the range. */
+export function clipThrough(coverage: string | null | undefined, from: string, to: string): string | null {
+  if (!coverage || coverage < from) return null;
+  return coverage < to ? coverage : to;
+}
+
+/**
+ * Where this pace lands over the range — actual ÷ (expected ÷ plan) — only
+ * while the range still runs; a covered range is final and a range with
+ * nothing expected yet has nothing to extrapolate from.
+ */
+export function rangeProjection(
+  bar: Pick<TrackerBar, "plan" | "actual" | "planToDate">,
+  through: string | null,
+  to: string,
+): number | null {
+  if (rangeState(through, to) !== "live") return null;
+  return rowProjection(bar);
+}
+
+/** Days of the range strictly after coverage — what is left to spend in. */
+export function daysLeftAfter(through: string | null, from: string, to: string): number {
+  const start = through === null ? from : isoPlusDays(through);
+  return start > to ? 0 : isoDaysBetween(start, to).length;
+}
+
+/**
+ * What each remaining day must spend to land on the row's full plan:
+ * max(0, plan − actual) ÷ the days left after coverage. Null when there is no
+ * plan, nothing left to spend, or no day left to spend it in (the range is
+ * covered to its end).
+ */
+export function neededPerDay(
+  bar: Pick<TrackerBar, "plan" | "actual">,
+  through: string | null,
+  from: string,
+  to: string,
+): number | null {
+  if (bar.plan <= 0) return null;
+  const remaining = Math.max(0, bar.plan - bar.actual);
+  if (remaining <= 0) return null;
+  const days = daysLeftAfter(through, from, to);
+  if (days <= 0) return null;
+  return round2(remaining / days);
+}
+
+/** Per-day plan over the whole range and actual through coverage — a sparkline's two series. */
+export interface DailyPair {
+  plan: number[];
+  actual: number[];
+}
+
+/** One board row — a Tracker bar plus the range readings. */
+export interface RangeBar extends TrackerBar {
+  /** The row's own anchor: its platform's last covered day inside the range (null = none yet). */
+  through: string | null;
+  projection: number | null;
+  neededPerDay: number | null;
+  daily: DailyPair;
+}
+
+export interface RangePlatform extends TrackerPlatform, RangeBar {
+  buckets: RangeBar[];
+}
+
+export interface RangeBoardInput {
+  from: string;
+  to: string;
+  spendPerDay: PerDayMaps;
+  planSpendPerDay: PerDayMaps;
+  /** The platforms in scope with a plan or spend somewhere in the range. */
+  platforms: readonly string[];
+  /** Latest uploaded day per platform (absent = no data). */
+  coverage: PlatformCoverage;
+}
+
+export interface RangeBoard {
+  /** Biggest plan first, unplanned last — the Tracker's order. */
+  platforms: RangePlatform[];
+  days: string[];
+}
+
+/**
+ * The board's rows for a range, from the per-day maps. A platform anchors to
+ * ITS coverage (never the calendar); a bucket with a plan is a bar, one with
+ * spend and no plan is unplanned money (objective drift on a planned platform,
+ * a reserve draw only when the platform overshoots — `reserveUsed`'s rule).
+ * For a single-month range the platform rows equal `buildTrackerRows`' for
+ * that month: same series, same coverage (pinned in lib/budget.test.ts).
+ */
+export function buildRangeBoard(input: RangeBoardInput): RangeBoard {
+  const { from, to, spendPerDay, planSpendPerDay, coverage } = input;
+  const days = isoDaysBetween(from, to);
+  const sum = (map: Map<string, number> | undefined, last: string | null) => {
+    if (!map || last === null) return 0;
+    let total = 0;
+    for (const d of days) {
+      if (d > last) break;
+      total += map.get(d) ?? 0;
+    }
+    return total;
+  };
+  const series = (map: Map<string, number> | undefined, last: string | null) =>
+    last === null ? [] : days.filter((d) => d <= last).map((d) => map?.get(d) ?? 0);
+  const bar = (
+    key: string,
+    label: string,
+    planMap: Map<string, number> | undefined,
+    actualMap: Map<string, number> | undefined,
+    through: string | null,
+  ): RangeBar => {
+    const plan = round2(sum(planMap, to));
+    const actual = round2(sum(actualMap, through));
+    const expected = round2(sum(planMap, through));
+    const base = {
+      key,
+      label,
+      plan,
+      actual,
+      planToDate: expected,
+      delta: round2(actual - expected),
+      deviation: pacingDeviation(actual, expected),
+    };
+    return {
+      ...base,
+      through,
+      projection: rangeProjection(base, through, to),
+      neededPerDay: neededPerDay(base, through, from, to),
+      daily: { plan: series(planMap, to), actual: series(actualMap, through) },
+    };
+  };
+
+  const platforms: RangePlatform[] = input.platforms.map((platform) => {
+    const through = clipThrough(coverage[platform], from, to);
+    const buckets: RangeBar[] = [];
+    const unplannedBuckets: TrackerPlatform["unplannedBuckets"] = [];
+    let unplanned = 0;
+    for (const objective of BUDGET_OBJECTIVES) {
+      const key = comboSeriesKey(platform, objective);
+      const b = bar(key, objective, planSpendPerDay.get(key), spendPerDay.get(key), through);
+      if (b.plan > 0) buckets.push(b);
+      else if (b.actual > 0) {
+        unplanned += b.actual;
+        unplannedBuckets.push({ key, label: objective, actual: b.actual });
+      }
+    }
+    const key = platformSeriesKey(platform);
+    return {
+      ...bar(platform, platform, planSpendPerDay.get(key), spendPerDay.get(key), through),
+      buckets,
+      unplanned: round2(unplanned),
+      unplannedBuckets,
+    };
+  });
+  platforms.sort((a, b) => b.plan - a.plan || b.actual - a.actual);
+  return { platforms, days };
 }
 
 export function buildTrackerRows(

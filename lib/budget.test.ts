@@ -7,6 +7,7 @@ import {
   rowProjection,
   sortTrackerPlatforms,
   trackerCounts,
+  type BudgetObjective,
   type TrackerInput,
   curveFraction,
   curveExpected,
@@ -21,8 +22,19 @@ import {
   monthLabel,
   elapsedDaysInMonth,
   pacingDeviation,
+  buildPlanSpendPerDay,
+  buildRangeBoard,
+  buildSpendPerDay,
+  clipThrough,
+  comboSeriesKey,
+  daysLeftAfter,
   isOffPace,
+  isoDaysBetween,
+  neededPerDay,
   paceReadsOnTrack,
+  platformSeriesKey,
+  rangeProjection,
+  rangeState,
   pacingTone,
   pacingVerdict,
   pctReadsZero,
@@ -2478,5 +2490,137 @@ describe("the view derivations", () => {
     expect(rowProjection(tt)).toBeCloseTo(15000, 6);
     const none = rowProjection({ ...tt, planToDate: 0 });
     expect(none).toBeNull();
+  });
+});
+
+// ── The Pacing board: a range, one math path with the Tracker's rows ────────
+describe("buildRangeBoard", () => {
+  const from = "2026-09-01";
+  const to = "2026-09-30";
+  const through = "2026-09-10";
+  const coverage = { instagram: through, tiktok: through };
+  const input = trackerInput();
+  const monthSeries = [
+    buildPlanSeries({
+      month: TRACKER_MONTH,
+      planMode: "curve",
+      allocations: input.allocations.map((a) => ({
+        platform: a.platform,
+        objective: a.objective as BudgetObjective,
+        plannedSpend: a.plannedSpend,
+      })),
+      plannedRevenueSar: input.plannedRevenueSar,
+      dayWeights: {},
+      planDays: [],
+      targetRoas: null,
+      usdToSarRate: input.usdToSarRate,
+    }),
+  ];
+  // The Tracker fixture's month totals, spread evenly over the ten covered days.
+  const dailyRows = input.actualSpendByCombo.flatMap((c) =>
+    isoDaysBetween(from, through).map((date) => ({
+      date,
+      platform: c.platform,
+      objective: c.objective,
+      spend: c.actualSpend / 10,
+    })),
+  );
+  const every = () => true;
+  const board = () =>
+    buildRangeBoard({
+      from,
+      to,
+      spendPerDay: buildSpendPerDay(dailyRows, every),
+      planSpendPerDay: buildPlanSpendPerDay(monthSeries, ["instagram", "tiktok"], every),
+      platforms: ["instagram", "tiktok"],
+      coverage,
+    });
+
+  it("for a single-month range its platform rows equal buildTrackerRows' — same series, same coverage", () => {
+    const t = buildTrackerRows(input, TRACKER_MONTH, through, coverage);
+    const b = board();
+    expect(b.platforms.map((p) => p.key)).toEqual(t.platforms.map((p) => p.key));
+    for (const row of b.platforms) {
+      const tracker = t.platforms.find((p) => p.key === row.key)!;
+      expect(row.plan).toBeCloseTo(tracker.plan, 2);
+      expect(row.actual).toBeCloseTo(tracker.actual, 2);
+      expect(row.planToDate).toBeCloseTo(tracker.planToDate, 2);
+      expect(row.deviation!).toBeCloseTo(tracker.deviation!, 6);
+      expect(row.projection!).toBeCloseTo(rowProjection(tracker)!, 2);
+      expect(row.buckets.map((x) => x.label)).toEqual(tracker.buckets.map((x) => x.label));
+      row.buckets.forEach((x, i) => {
+        expect(x.plan).toBeCloseTo(tracker.buckets[i]!.plan, 2);
+        expect(x.actual).toBeCloseTo(tracker.buckets[i]!.actual, 2);
+        expect(x.planToDate).toBeCloseTo(tracker.buckets[i]!.planToDate, 2);
+      });
+    }
+  });
+
+  it("needs per day = what is left ÷ the days after coverage; the sparkline stops at coverage", () => {
+    const ig = board().platforms.find((p) => p.key === "instagram")!;
+    const awareness = ig.buckets.find((b) => b.label === "Awareness")!;
+    // 18,000 planned, 4,000 spent through Sep 10 → 14,000 over the 20 days left.
+    expect(awareness.neededPerDay).toBeCloseTo(700, 2);
+    expect(awareness.through).toBe(through);
+    expect(awareness.daily.plan).toHaveLength(30);
+    expect(awareness.daily.actual).toHaveLength(10);
+    expect(awareness.daily.actual.every((v) => Math.abs(v - 400) < 1e-6)).toBe(true);
+    expect(awareness.daily.plan[0]).toBeCloseTo(600, 6);
+  });
+
+  it("the per-day maps carry the platform × objective key the board sums", () => {
+    const spend = buildSpendPerDay(dailyRows, every);
+    expect(spend.get(comboSeriesKey("instagram", "Awareness"))!.get(from)).toBeCloseTo(400, 6);
+    expect(spend.get(platformSeriesKey("instagram"))!.get(from)).toBeCloseTo(1000, 6);
+    expect(spend.get("total")!.get(from)).toBeCloseTo(1200, 6);
+    const plan = buildPlanSpendPerDay(monthSeries, ["instagram"], every);
+    expect(plan.get(comboSeriesKey("instagram", "Retargeting"))!.get(from)).toBeCloseTo(400, 6);
+    // A platform filter scopes the plan's total, never a platform's own slice.
+    const scoped = buildPlanSpendPerDay(monthSeries, ["tiktok"], (p) => p === "tiktok");
+    expect(scoped.get("total")!.get(from)).toBeCloseTo(200, 6);
+  });
+
+  it("range readings: state, clipped coverage, days left, and when needed/day is a dash", () => {
+    expect(rangeState(null, to)).toBe("future");
+    expect(rangeState(through, to)).toBe("live");
+    expect(rangeState(to, to)).toBe("final");
+    expect(clipThrough("2026-08-20", from, to)).toBeNull();
+    expect(clipThrough("2026-10-05", from, to)).toBe(to);
+    expect(clipThrough(through, from, to)).toBe(through);
+    expect(daysLeftAfter(through, from, to)).toBe(20);
+    expect(daysLeftAfter(to, from, to)).toBe(0);
+    expect(daysLeftAfter(null, from, to)).toBe(30);
+    // Covered to the end → nothing to project, nothing to need.
+    expect(rangeProjection({ plan: 100, actual: 50, planToDate: 100 }, to, to)).toBeNull();
+    expect(neededPerDay({ plan: 100, actual: 50 }, to, from, to)).toBeNull();
+    // Already on or past the plan → nothing is left.
+    expect(neededPerDay({ plan: 100, actual: 100 }, through, from, to)).toBeNull();
+    // No plan → no reading.
+    expect(neededPerDay({ plan: 0, actual: 10 }, through, from, to)).toBeNull();
+  });
+
+  it("spend in a bucket with no plan is unplanned money, and a platform with no plan sorts last", () => {
+    const rows = [
+      ...dailyRows,
+      { date: from, platform: "instagram", objective: "Other", spend: 50 },
+      { date: from, platform: "snapchat", objective: "Awareness", spend: 80 },
+    ];
+    const b = buildRangeBoard({
+      from,
+      to,
+      spendPerDay: buildSpendPerDay(rows, every),
+      planSpendPerDay: buildPlanSpendPerDay(monthSeries, ["instagram", "tiktok", "snapchat"], every),
+      platforms: ["instagram", "tiktok", "snapchat"],
+      coverage: { ...coverage, snapchat: from },
+    });
+    expect(b.platforms.map((p) => p.key)).toEqual(["instagram", "tiktok", "snapchat"]);
+    const ig = b.platforms[0]!;
+    expect(ig.unplanned).toBeCloseTo(50, 2);
+    expect(ig.unplannedBuckets.map((u) => u.label)).toEqual(["Other"]);
+    const snap = b.platforms[2]!;
+    expect(snap.plan).toBe(0);
+    expect(snap.actual).toBeCloseTo(80, 2);
+    expect(snap.deviation).toBeNull();
+    expect(snap.neededPerDay).toBeNull();
   });
 });

@@ -663,6 +663,62 @@ export function Verdict({
   );
 }
 
+// ── The reserve row (Overview's pace board and Pacing's board, 2026-10-19) ──
+
+/** "$800 of $2,000 used" — the reserve row's amounts, in the pace rows' grammar. */
+export function ReserveAmounts({
+  used,
+  reserve,
+  fmt,
+  className,
+}: {
+  used: number;
+  reserve: number;
+  fmt: (v: number) => string;
+  className?: string;
+}) {
+  return (
+    <p className={cn("mt-1 text-[11px] text-ink-3", className)}>
+      <span className="num tabular-nums text-ink">{fmt(used)}</span>
+      {reserve > 0 && (
+        <>
+          {" "}
+          of <span className="num tabular-nums text-ink-2">{fmt(reserve)}</span>
+        </>
+      )}{" "}
+      used
+    </p>
+  );
+}
+
+/**
+ * "$1,200 left" while the reserve holds; "−$300" in the behind colour once
+ * spend has gone past it — the sign and the colour say it, the words stay for
+ * the screen reader.
+ */
+export function ReserveVerdict({
+  used,
+  reserve,
+  fmt,
+}: {
+  used: number;
+  reserve: number;
+  fmt: (v: number) => string;
+}) {
+  if (used > reserve) {
+    const over = used - reserve;
+    return (
+      <span
+        className={cn("num tabular-nums text-xs", toneText(BEHIND_STRONG))}
+        title={`past the reserve by ${fmt(over)}`}
+      >
+        <span className="sr-only">past the reserve by </span>&minus;{fmt(over)}
+      </span>
+    );
+  }
+  return <span className="num tabular-nums text-xs text-ink-3">{fmt(reserve - used)} left</span>;
+}
+
 // ── What the comparisons counted through (2026-10) ──────────────────────────
 // The Tracker's header and the Overview's month bar name the SAME anchor in
 // the same words, from the same `buildTrackerRows` output — so the two pages
