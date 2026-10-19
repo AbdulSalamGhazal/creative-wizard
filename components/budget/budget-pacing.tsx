@@ -1363,11 +1363,14 @@ export function BudgetPacing({
               onToggle={toggleSeries}
               onShowAll={() => setHidden(new Set())}
             />
-            <p className="text-[11px] text-ink-3">
-              {activeShape === "deviation"
-                ? "Bars = this period\u2019s actual minus its plan · tinted when the period is off pace by 15% or more · no bar where the period has no plan or no data yet."
-                : "Solid = actual · dashed = the plan, spread by each month\u2019s plan curve."}
-            </p>
+            {/* Show, don't label: the legend and the dash style already say
+                solid vs dashed; only the Deviation shape's tint rule needs words. */}
+            {activeShape === "deviation" && (
+              <p className="text-[11px] text-ink-3">
+                Bars = this period&rsquo;s actual minus its plan · tinted when the period is off
+                pace by 15% or more · no bar where the period has no plan or no data yet.
+              </p>
+            )}
           </div>
         }
       >
