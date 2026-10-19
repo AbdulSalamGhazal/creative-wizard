@@ -37,6 +37,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { CollapsibleSection } from "@/components/ui/collapsible-section";
+import { InfoTip } from "@/components/ui/info-tip";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -988,14 +989,7 @@ export function BudgetPlanEditor({
         <>
           {/* ── 1. Targets ─────────────────────────────────────────────── */}
           <section className="space-y-3 rounded-lg border border-line bg-surface p-4">
-            <div>
-              <h3 className="text-sm font-medium text-ink">Targets</h3>
-              <p className="text-[11px] text-ink-3">
-                The total is what everything below is a share of — the reserve
-                included. The revenue target is read against what is actually
-                allocated.
-              </p>
-            </div>
+            <h3 className="text-sm font-medium text-ink">Targets</h3>
             {/* One baseline grid: every field is a single-line label over an
                 h-9 input with its unit inside the box; the third column is the
                 live read-only figure the two inputs imply. */}
@@ -1034,11 +1028,16 @@ export function BudgetPlanEditor({
                   spend (the reserve is held back, not spent). The h-9 box keeps
                   it on the inputs' baseline. */}
               <div className="min-w-0 space-y-1">
-                <span className="block truncate text-label text-ink-3">Implied ROAS target</span>
+                <span className="flex items-center gap-1.5 text-label text-ink-3">
+                  <span className="truncate">Implied ROAS target</span>
+                  <InfoTip label="How the implied ROAS target is computed">
+                    Revenue target ÷ (allocated spend × rate). The reserve is not expected to be
+                    spent.
+                  </InfoTip>
+                </span>
                 <div
                   className="flex h-9 items-baseline gap-2 rounded-md border border-dashed border-line px-3"
                   aria-live="polite"
-                  title="Revenue target ÷ (allocated spend × rate). The reserve is not expected to be spent."
                 >
                   <span className="num tabular-nums text-sm text-ink">{fmtRoas(impliedRoas)}</span>
                   <span className="num truncate text-[11px] text-ink-3">at {rate.toFixed(2)} SAR/USD</span>
@@ -1070,13 +1069,7 @@ export function BudgetPlanEditor({
           {/* ── 2 + 3. Platform shares → objective shares ──────────────── */}
           <section className="space-y-3 rounded-lg border border-line bg-surface p-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <div>
-                <h3 className="text-sm font-medium text-ink">Split the budget</h3>
-                <p className="text-[11px] text-ink-3">
-                  The reserve and each platform take a share of the total; inside
-                  a platform, each objective takes a share of it.
-                </p>
-              </div>
+              <h3 className="text-sm font-medium text-ink">Split the budget</h3>
               <div className="flex flex-wrap items-center gap-2">
                 <span
                   className={cn("num text-[11px]", totalSharesOk ? "text-ink-3" : "text-warn")}
@@ -1144,10 +1137,13 @@ export function BudgetPlanEditor({
                 In DOM order it precedes the cards, so Enter-advance reaches it
                 right after the targets. */}
             <div className="@container flex flex-wrap items-center justify-between gap-x-3 gap-y-2 rounded-lg border border-dashed border-line-2 bg-surface px-3 py-2.5">
-              <div className="min-w-0">
-                <span className="block text-sm font-medium text-ink">Reserve</span>
-                <span className="block text-[11px] text-ink-3">held back, not paced</span>
-              </div>
+              <span className="inline-flex min-w-0 items-center gap-1.5 text-sm font-medium text-ink">
+                Reserve
+                <InfoTip label="What the reserve is">
+                  Held back from the total and not paced. Spend beyond a platform&rsquo;s plan draws
+                  on it.
+                </InfoTip>
+              </span>
               <div className="@min-[18.75rem]:ml-auto">
                 {shareCell(
                   RESERVE_KEY,
@@ -1343,20 +1339,18 @@ export function BudgetPlanEditor({
                   </span>
                   {data.reserveSpendUsd > 0 && storedTotal > 0 && (
                     <span className="num tabular-nums text-[11px] text-ink-3">
-                      {pct1((pctShare(data.reserveSpendUsd, storedTotal) ?? 0) / 100)} of total
+                      {pct1((pctShare(data.reserveSpendUsd, storedTotal) ?? 0) / 100)}
                     </span>
                   )}
                 </span>
-                <span
-                  className="inline-flex items-center gap-2"
-                  title={
-                    isDaily
-                      ? "Each day's revenue target is that day's spend × this ROAS, through the brand rate."
-                      : "Revenue target ÷ (allocated spend × rate). The reserve is not expected to be spent."
-                  }
-                >
-                  <span className="text-label text-ink-3">
+                <span className="inline-flex items-center gap-2">
+                  <span className="inline-flex items-center gap-1.5 text-label text-ink-3">
                     {isDaily ? "Target ROAS" : "Implied ROAS target"}
+                    <InfoTip label={isDaily ? "How the target ROAS is read" : "How the implied ROAS target is computed"}>
+                      {isDaily
+                        ? "Each day\u2019s revenue target is that day\u2019s spend × this ROAS, through the brand rate."
+                        : "Revenue target ÷ (allocated spend × rate). The reserve is not expected to be spent."}
+                    </InfoTip>
                   </span>
                   <span className="num tabular-nums text-ink">{fmtRoas(storedImpliedRoas)}</span>
                   <span className="num text-[11px] text-ink-3">at {rate.toFixed(2)} SAR/USD</span>
@@ -1389,7 +1383,7 @@ export function BudgetPlanEditor({
                         <span className="num tabular-nums text-sm text-ink">
                           {fmtSpend(p.amount)}
                           <span className="ml-1.5 text-[11px] text-ink-3">
-                            {pct1((pctShare(p.amount, storedTotal) ?? 0) / 100)} of total
+                            {pct1((pctShare(p.amount, storedTotal) ?? 0) / 100)}
                           </span>
                         </span>
                       </div>
@@ -1743,10 +1737,6 @@ function CompositionBar({
     .join(", ")}`;
   return (
     <section className="space-y-2 rounded-lg border border-line bg-surface p-4">
-      <div className="flex items-baseline justify-between gap-3">
-        <h3 className="text-sm font-medium text-ink">How the total splits</h3>
-        <span className="num tabular-nums text-xs text-ink-3">{fmt(total)}</span>
-      </div>
       <div role="img" aria-label={words} title={words} className="flex h-7 w-full gap-0.5">
         {segments.map((s) => {
           const pct = share(s.amount);
@@ -1952,13 +1942,19 @@ function DayCurveEditor({
   return (
     <div className="rounded-lg border border-line bg-surface p-4 space-y-3">
       <div>
-        <h3 className="text-sm font-medium text-ink">Plan curve</h3>
-        <p className="text-[11px] text-ink-3">
-          The plan always totals your budget — weighting a day gives it a bigger
-          slice and shrinks the others.
-          {overrideCount > 0 &&
-            ` ${overrideCount} weighted day${overrideCount === 1 ? "" : "s"}.`}
-        </p>
+        <h3 className="inline-flex items-center gap-1.5 text-sm font-medium text-ink">
+          Plan curve
+          <InfoTip label="How the curve works">
+            The plan always totals your budget — weighting a day gives it a bigger slice and
+            shrinks the others.
+          </InfoTip>
+        </h3>
+        {overrideCount > 0 && (
+          <p className="text-[11px] text-ink-3">
+            <span className="num tabular-nums">{overrideCount}</span> weighted day
+            {overrideCount === 1 ? "" : "s"}
+          </p>
+        )}
       </div>
 
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
