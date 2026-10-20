@@ -1,0 +1,1 @@
+CREATE INDEX "notifications_unread_entity_idx" ON "notifications" USING btree ("recipient_user_id","account_id","entity_type","entity_id") WHERE "notifications"."read_at" is null;

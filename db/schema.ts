@@ -86,6 +86,14 @@ export const users = pgTable("users", {
    */
   includeExcluded: boolean("include_excluded"),
   /**
+   * The person's profile photo — a public Vercel Blob URL of a square WebP
+   * the browser downscaled before upload (`POST /api/uploads/avatar`).
+   * NULL = none: every surface falls back to coloured initials
+   * (`lib/avatar.ts`). Set by the person themself (avatar menu) or by
+   * someone holding `users.manage` (Team page). Migration 0055 (2026-10-20).
+   */
+  avatarUrl: text("avatar_url"),
+  /**
    * Which arriving notifications pop a TOAST while the app is open (migration
    * 0050): `personal` (mentions, replies and events addressed to you — the
    * default), `all`, or `off`. App-side enum, no DB enum — the vocabulary
@@ -1479,8 +1487,13 @@ export const notifications = pgTable(
     unreadIdx: index("notifications_unread_idx")
       .on(t.recipientUserId, t.accountId)
       .where(sql`${t.readAt} is null and ${t.archivedAt} is null`),
-    // Phase-3 reservation: lets an evaluator upsert. Partial, so phase 1's
-    // all-NULL dedupe keys are exempt.
+    // Opening a thread marks ITS comment notifications read (2026-10-20):
+    // one person's UNREAD rows about one anchor. Partial, like the badge's.
+    unreadEntityIdx: index("notifications_unread_entity_idx")
+      .on(t.recipientUserId, t.accountId, t.entityType, t.entityId)
+      .where(sql`${t.readAt} is null`),
+    // "Once, ever" keys (reactions today, phase-3 alerts later). Partial, so
+    // the all-NULL keys of everything else are exempt.
     dedupeUnique: uniqueIndex("notifications_account_dedupe_idx")
       .on(t.accountId, t.dedupeKey)
       .where(sql`${t.dedupeKey} is not null`),
@@ -1576,6 +1589,40 @@ export const comments = pgTable(
       t.createdAt,
     ),
     parentIdx: index("comments_parent_idx").on(t.parentId),
+  }),
+);
+
+/**
+ * WHERE EACH PERSON LEFT EACH THREAD (2026-10-20, migration 0055) — one row
+ * per (user, brand, anchor): when they last had that anchor's thread on
+ * screen. The panel snapshots it to draw the "New" divider above the first
+ * comment by someone else posted since, then advances it — in the same
+ * request that marks that anchor's comment notifications read. DB-backed, so
+ * "new" means the same thing on every device. Self-scoped like notifications:
+ * a person only ever reads and writes their own rows, in the active brand.
+ * The unique index is also the read's index (one lookup per open).
+ */
+export const commentReads = pgTable(
+  "comment_reads",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    accountId: accountId(),
+    /** One of COMMENT_ANCHOR_TYPES — matches `comments.anchor_type`. */
+    anchorType: varchar("anchor_type", { length: 16 }).notNull(),
+    /** Matches `comments.anchor_id` (no FK — four kinds of thing). */
+    anchorId: text("anchor_id").notNull(),
+    lastReadAt: timestamp("last_read_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    userAnchorUnique: uniqueIndex("comment_reads_user_account_anchor_idx").on(
+      t.userId,
+      t.accountId,
+      t.anchorType,
+      t.anchorId,
+    ),
   }),
 );
 
