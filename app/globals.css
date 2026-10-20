@@ -402,7 +402,8 @@ body {
 }
 .comment-body ul {
   margin: 0.2rem 0;
-  padding-left: 1.1rem;
+  /* inline-start: the bullets sit on the RIGHT of an Arabic list. */
+  padding-inline-start: 1.1rem;
   list-style: disc;
 }
 .comment-body li {

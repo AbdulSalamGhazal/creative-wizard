@@ -36,7 +36,7 @@ import {
   createNotifications,
   listNotifications,
   notifyRoutes,
-  recentNotifications,
+  bellNotifications,
   replaceEventRoutes,
   routeRecipients,
   unreadCount,
@@ -45,12 +45,13 @@ import {
   archiveNotification,
   markAllRead,
   markNotificationRead,
+  markNotificationsRead,
   unarchiveNotification,
 } from "@/app/actions/notifications";
 import { updateUserBrands } from "@/app/actions/user";
 import { setToastScope } from "@/app/actions/user-prefs";
 import { getToastScope } from "@/db/queries/user-prefs";
-import { isPersonalNotification } from "@/lib/notifications";
+import { BELL_RECENT_LIMIT, BELL_UNREAD_CAP, isPersonalNotification } from "@/lib/notifications";
 import { GET } from "@/app/api/notifications/route";
 import { resetAndSeed } from "./fixtures";
 
@@ -219,7 +220,7 @@ describe("self-scoping — the security rule of this module", () => {
 
     // Alice is the session user.
     expect(await unreadCount()).toBe(1);
-    expect((await recentNotifications()).map((r) => r.title)).toEqual(["For Alice"]);
+    expect((await bellNotifications()).map((r) => r.title)).toEqual(["For Alice"]);
     const list = await listNotifications({ tab: "all" });
     expect(list.rows.map((r) => r.title)).toEqual(["For Alice"]);
 
@@ -500,5 +501,67 @@ describe("the poll payload carries what the toaster needs", () => {
     const res = await GET();
     const body = (await res.json()) as { items: Array<{ href: string | null }> };
     expect(body.items[0]!.href).toBeNull();
+  });
+});
+
+describe("the bell lists what opening it clears (2026-10-20)", () => {
+  /** n rows for Alice, the i-th one `i` minutes old; `read` decides each. */
+  async function seedMany(n: number, read: (i: number) => boolean) {
+    const now = Date.now();
+    await db.insert(notifications).values(
+      Array.from({ length: n }, (_, i) => ({
+        accountId: ACCOUNT_A,
+        recipientUserId: ALICE,
+        category: "system",
+        type: "upload.committed",
+        title: `n${i}`,
+        createdAt: new Date(now - i * 60_000),
+        readAt: read(i) ? new Date(now) : null,
+      })),
+    );
+  }
+
+  it("lists EVERY unread item — even older than the read ones — then fills with the newest read", async () => {
+    // Newest five are read; the two unread ones are older.
+    await seedMany(7, (i) => i < 5);
+    const feed = await bellNotifications();
+    expect(feed.filter((r) => r.readAt === null).map((r) => r.title)).toEqual(["n5", "n6"]);
+    expect(feed).toHaveLength(7);
+    // Newest first, the unread interleaved by time.
+    expect(feed.map((r) => r.title)).toEqual(["n0", "n1", "n2", "n3", "n4", "n5", "n6"]);
+  });
+
+  it("caps the unread at BELL_UNREAD_CAP and fills nothing then; the count still counts all", async () => {
+    await seedMany(BELL_UNREAD_CAP + 5, () => false);
+    const feed = await bellNotifications();
+    expect(feed).toHaveLength(BELL_UNREAD_CAP);
+    expect(await unreadCount()).toBe(BELL_UNREAD_CAP + 5);
+  });
+
+  it("fills to BELL_RECENT_LIMIT with read rows when little is unread", async () => {
+    await seedMany(BELL_RECENT_LIMIT + 6, (i) => i !== 3);
+    const feed = await bellNotifications();
+    expect(feed).toHaveLength(BELL_RECENT_LIMIT);
+    expect(feed.filter((r) => r.readAt === null).map((r) => r.title)).toEqual(["n3"]);
+  });
+
+  it("markNotificationsRead marks the LISTED ids — yours only, bounded, validated", async () => {
+    const mineA = await seedNotification({ title: "a" });
+    const mineB = await seedNotification({ title: "b" });
+    const bobs = await seedNotification({ recipientUserId: BOB, title: "bob" });
+    const res = await markNotificationsRead({ ids: [mineA, bobs] });
+    expect(res).toMatchObject({ ok: true, affected: 1 });
+    expect(await unreadCount()).toBe(1); // mineB was not listed — it stays unread
+    const [bobRow] = await db.select().from(notifications).where(eq(notifications.id, bobs));
+    expect(bobRow?.readAt).toBeNull();
+    expect(mineB).toBeTruthy();
+
+    expect((await markNotificationsRead({ ids: [] })).ok).toBe(false);
+    expect(
+      (await markNotificationsRead({
+        ids: Array.from({ length: BELL_UNREAD_CAP + 1 }, () => mineB),
+      })).ok,
+    ).toBe(false);
+    expect((await markNotificationsRead({ ids: ["not-a-uuid"] })).ok).toBe(false);
   });
 });

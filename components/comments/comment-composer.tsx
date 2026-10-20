@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { AtSign, Bold, Italic, List, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -22,6 +22,7 @@ import {
   type MentionQuery,
 } from "@/lib/comments";
 import { applyMarkdownTool, type MarkdownTool } from "@/lib/comment-markdown";
+import { UserAvatar } from "@/components/user/user-avatar";
 import { safeAction } from "@/lib/action-failure";
 import { toastActionFailure } from "@/lib/action-toast";
 
@@ -29,6 +30,8 @@ export interface ComposerMember {
   id: string;
   name: string;
   email?: string | null;
+  /** Profile photo for the picker row (2026-10-20); null → initials. */
+  avatarUrl?: string | null;
 }
 
 export interface ComposerResult {
@@ -315,6 +318,9 @@ export function CommentComposer({
               placeholder={placeholder}
               autoFocus={autoFocus}
               rows={rows}
+              // Each message picks its OWN direction: Arabic types right-to-
+              // left, English left-to-right, from the first strong letter.
+              dir="auto"
               className="min-h-16 text-sm"
               aria-label={ariaLabel}
               aria-expanded={pickerOpen}
@@ -440,12 +446,20 @@ export function CommentComposer({
                     }}
                     onMouseEnter={() => setCursor(i)}
                     className={cn(
-                      "flex w-full flex-col px-3 py-1.5 text-left text-xs text-ink-2 hover:text-ink",
+                      "flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-ink-2 hover:text-ink",
                       i === cursor && "bg-surface-2 text-ink",
                     )}
                   >
-                    <span>{m.name}</span>
-                    {m.email && <span className="text-[10px] text-ink-3">{m.email}</span>}
+                    <UserAvatar name={m.name} src={m.avatarUrl} size="xs" />
+                    <span className="flex min-w-0 flex-col">
+                      {/* The name in its own direction; the email is Latin. */}
+                      <span dir="auto" className="truncate">{m.name}</span>
+                      {m.email && (
+                        <span dir="ltr" className="truncate text-[10px] text-ink-3">
+                          {m.email}
+                        </span>
+                      )}
+                    </span>
                   </button>
                 </li>
               ))
@@ -475,7 +489,13 @@ export function CommentComposer({
 
         {mentioned.length > 0 && (
           <span className="min-w-0 truncate text-[11px] text-ink-3">
-            Notifying {mentioned.map((m) => m.name).join(", ")}
+            Notifying{" "}
+            {mentioned.map((m, i) => (
+              <Fragment key={m.id}>
+                {i > 0 && ", "}
+                <bdi>{m.name}</bdi>
+              </Fragment>
+            ))}
           </span>
         )}
 

@@ -15,7 +15,11 @@ import path from "node:path";
 const read = (f: string) => readFileSync(path.join(process.cwd(), f), "utf8");
 
 describe("comment and notification writes never re-render the caller's page", () => {
-  it.each(["app/actions/comments.ts", "app/actions/notifications.ts"])(
+  it.each([
+    "app/actions/comments.ts",
+    "app/actions/comment-reads.ts",
+    "app/actions/notifications.ts",
+  ])(
     "%s calls no revalidatePath / revalidateTag",
     (file) => {
       expect(read(file)).not.toMatch(/\brevalidate(Path|Tag)\s*\(/);

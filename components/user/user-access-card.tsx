@@ -23,6 +23,7 @@ import {
 import { updateUserAccess } from "@/app/actions/user";
 import { useNavTransition } from "@/lib/nav-progress";
 import { AdminSetPasswordButton } from "@/components/user/admin-set-password-button";
+import { UserPhotoControl } from "@/components/user/user-photo-control";
 import {
   UserBrandsSection,
   type BrandOption,
@@ -50,6 +51,8 @@ export interface AccessUser {
   accountIds: string[];
   /** Pre-formatted join date shown in the header (optional). */
   joined?: string;
+  /** Profile photo, or null → initials (2026-10-20). */
+  avatarUrl: string | null;
 }
 
 function setEquals(a: Set<string>, b: readonly string[]): boolean {
@@ -164,6 +167,10 @@ export function UserAccessCard({
   return (
     <div className="rounded-lg border border-line bg-surface">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-4 py-3">
+        <div className="flex min-w-0 items-center gap-3">
+        {/* The photo: set or remove it for anyone here (this page is
+            `users.manage`; the server checks it again). */}
+        <UserPhotoControl userId={user.id} name={user.name} avatarUrl={user.avatarUrl} />
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <span className="truncate text-sm font-medium text-ink">
@@ -184,15 +191,21 @@ export function UserAccessCard({
             )}
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        </div>
+        {/* min-w-0 + a shrinkable select: at 375 px the password button and
+            a fixed 220 px select overran the card by a pixel or so. */}
+        <div className="flex min-w-0 max-w-full items-center gap-2">
           <AdminSetPasswordButton userId={user.id} userEmail={user.email} />
-          <div className="w-[220px] max-w-full">
+          <div className="w-[220px] min-w-0 max-w-full shrink">
             <Select
               value={preset}
               onValueChange={(v) => selectPreset(v as Preset)}
               disabled={isSelf}
             >
-              <SelectTrigger aria-label="Access preset">
+              <SelectTrigger
+                aria-label="Access preset"
+                className="w-full min-w-0 [&>[data-slot=select-value]]:min-w-0 [&>[data-slot=select-value]]:truncate"
+              >
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>

@@ -219,6 +219,18 @@ export function isoDate(value: Date | string | null | undefined): string {
  * Compact relative time ("just now", "3m ago", "2h ago", "5d ago"). Falls
  * back to an ISO date past 30 days so the feed stays readable on older items.
  */
+/**
+ * "Oct 20, 2026, 2:32 PM" — an absolute local date + time for a relative
+ * timestamp's tooltip (the `<time>` element's title). Friendlier than ISO
+ * because it is read on hover, not compared in a column.
+ */
+export function dateTimeLabel(value: Date | string | null | undefined): string {
+  if (!value) return EM_DASH;
+  const d = typeof value === "string" ? new Date(value) : value;
+  if (Number.isNaN(d.getTime())) return EM_DASH;
+  return new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short" }).format(d);
+}
+
 export function relativeTime(value: Date | string | null | undefined): string {
   if (!value) return EM_DASH;
   const d = typeof value === "string" ? new Date(value) : value;

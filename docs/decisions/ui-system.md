@@ -22,6 +22,8 @@
   label escapes it and widens the page at 375px.
 - To reveal an item inside a scroll box, set THAT box's `scrollLeft`/
   `scrollTop` — never `scrollIntoView`, which scrolls the window too.
+- A person's picture is `UserAvatar` (components/user/user-avatar.tsx) —
+  photo, else initials; never a hand-rolled avatar (2026-10-20).
 
 ## History and rationale
 

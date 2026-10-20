@@ -70,11 +70,11 @@ describe("a mention is the WHOLE name — a prefix never stands in for it", () =
 
   it("highlighting agrees: the longest recorded name wins, and spans never nest", () => {
     expect(commentHtml("@Ali Hassan please", ["Ali Hassan", "Ali"])).toBe(
-      '<p><span class="cm-mention">@Ali Hassan</span> please</p>',
+      '<p dir="auto"><bdi class="cm-mention">@Ali Hassan</bdi> please</p>',
     );
     const both = commentHtml("@Ali Hassan and @Ali", ["Ali", "Ali Hassan"]);
     expect(both).toBe(
-      '<p><span class="cm-mention">@Ali Hassan</span> and <span class="cm-mention">@Ali</span></p>',
+      '<p dir="auto"><bdi class="cm-mention">@Ali Hassan</bdi> and <bdi class="cm-mention">@Ali</bdi></p>',
     );
     expect(commentHtml("@Alice", ["Ali"])).not.toContain("cm-mention");
     expect(highlightMentions("@Alice", ["Ali"])).toEqual([{ text: "@Alice", mention: false }]);
@@ -87,12 +87,12 @@ describe("a mention is the WHOLE name — a prefix never stands in for it", () =
   });
 
   it("highlights Arabic and mixed-script mentions", () => {
-    expect(commentHtml("شكرا @سارة.", ["سارة"])).toContain('<span class="cm-mention">@سارة</span>.');
+    expect(commentHtml("شكرا @سارة.", ["سارة"])).toContain('<bdi class="cm-mention">@سارة</bdi>.');
     expect(commentHtml("Thanks @عبد السلام غزال for this", ["عبد السلام غزال"])).toContain(
-      '<span class="cm-mention">@عبد السلام غزال</span>',
+      '<bdi class="cm-mention">@عبد السلام غزال</bdi>',
     );
     expect(commentHtml("شكرا @Abdulsalam Ghazal على المراجعة", ["Abdulsalam Ghazal"])).toContain(
-      '<span class="cm-mention">@Abdulsalam Ghazal</span>',
+      '<bdi class="cm-mention">@Abdulsalam Ghazal</bdi>',
     );
   });
 });

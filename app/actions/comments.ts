@@ -7,6 +7,10 @@ import { can, requireAuth } from "@/lib/auth";
 import { getActiveAccountId } from "@/lib/tenant";
 import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
 import { actionError } from "@/lib/action-error";
+// Names and anchor labels are USER-SUPPLIED text inside English templates:
+// each is wrapped in Unicode isolates so an Arabic name can't flip the line
+// (2026-10-20, lib/bidi.ts).
+import { isolate } from "@/lib/bidi";
 import {
   reactionDedupeKey,
   reactionEmoji,
@@ -166,7 +170,7 @@ export async function createComment(input: unknown): Promise<CommentActionResult
           recipientUserId,
           category: categoryForType(COMMENT_EVENT_TYPES.MENTION),
           type: COMMENT_EVENT_TYPES.MENTION,
-          title: `${user.name} mentioned you on ${anchor.label}`,
+          title: `${isolate(user.name)} mentioned you on ${isolate(anchor.label)}`,
           body: preview,
           href,
           actorUserId: user.id,
@@ -177,7 +181,7 @@ export async function createComment(input: unknown): Promise<CommentActionResult
           recipientUserId,
           category: categoryForType(COMMENT_EVENT_TYPES.REPLY),
           type: COMMENT_EVENT_TYPES.REPLY,
-          title: `${user.name} replied on ${anchor.label}`,
+          title: `${isolate(user.name)} replied on ${isolate(anchor.label)}`,
           body: preview,
           href,
           actorUserId: user.id,
@@ -188,7 +192,7 @@ export async function createComment(input: unknown): Promise<CommentActionResult
           recipientUserId,
           category: categoryForType(COMMENT_EVENT_TYPES.ANCHOR_ACTIVITY),
           type: COMMENT_EVENT_TYPES.ANCHOR_ACTIVITY,
-          title: `${user.name} commented on ${anchor.label} — where you commented`,
+          title: `${isolate(user.name)} commented on ${isolate(anchor.label)} — where you commented`,
           body: preview,
           href,
           actorUserId: user.id,
@@ -273,7 +277,7 @@ export async function updateComment(input: unknown): Promise<CommentActionResult
           recipientUserId,
           category: categoryForType(COMMENT_EVENT_TYPES.MENTION),
           type: COMMENT_EVENT_TYPES.MENTION,
-          title: `${user.name} mentioned you on ${anchor.label}`,
+          title: `${isolate(user.name)} mentioned you on ${isolate(anchor.label)}`,
           body: preview,
           href: `/go/comment/${parsed.data.id}`,
           actorUserId: user.id,
@@ -457,8 +461,8 @@ export async function setReaction(
           recipientUserId: comment.authorUserId,
           category: categoryForType(COMMENT_EVENT_TYPES.REACTION),
           type: COMMENT_EVENT_TYPES.REACTION,
-          title: `${user.name} reacted ${reactionEmoji(kind)} to your comment${
-            anchor ? ` on ${anchor.label}` : ""
+          title: `${isolate(user.name)} reacted ${reactionEmoji(kind)} to your comment${
+            anchor ? ` on ${isolate(anchor.label)}` : ""
           }`,
           body: comment.body.length > 140 ? `${comment.body.slice(0, 139)}\u2026` : comment.body,
           href: `/go/comment/${commentId}`,

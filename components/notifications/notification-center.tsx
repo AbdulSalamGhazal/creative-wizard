@@ -14,7 +14,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SegmentedControl } from "@/components/ui/segmented-control";
-import { int, relativeTime } from "@/lib/format";
+import { dateTimeLabel, int, relativeTime } from "@/lib/format";
 import { useNavTransition } from "@/lib/nav-progress";
 import { cn } from "@/lib/utils";
 import {
@@ -29,8 +29,7 @@ import {
   safeHref,
   type NotificationCategory,
 } from "@/lib/notifications";
-import { categoryIcon } from "@/components/filters/filter-icons";
-import { avatarColor, initialsOf } from "@/lib/avatar";
+import { NotificationAvatar } from "@/components/notifications/notification-avatar";
 import { safeAction } from "@/lib/action-failure";
 import { toastActionFailure } from "@/lib/action-toast";
 import {
@@ -306,7 +305,7 @@ export function NotificationCenter({
                             )}
                             aria-hidden
                           />
-                          <span className="truncate">
+                          <span dir="ltr" className="truncate">
                             {burstLabel(
                               item.rows.length,
                               anchorLabelFromTitle(first.title, first.type),
@@ -438,7 +437,6 @@ function NotificationRow({
   onAct: (fn: () => Promise<{ ok: boolean; error?: string; affected?: number }>) => void;
 }) {
   const category = categoryForType(row.type);
-  const Icon = categoryIcon(category);
   const unreadRow = row.readAt === null;
   const actor = row.actorName;
 
@@ -450,36 +448,34 @@ function NotificationRow({
         unreadRow && "bg-[var(--brand-soft)]/30",
       )}
     >
-      {/* Who it was — initials in their own deterministic colour — with the
-          category glyph tucked against it, so the kind reads at a glance. */}
-      <span className="relative mt-0.5 shrink-0" aria-hidden>
-        <span
-          className="flex h-7 w-7 items-center justify-center rounded-full text-[10px] font-semibold text-[var(--primary-foreground)]"
-          style={{ background: actor ? avatarColor(actor) : "var(--surface-3)" }}
-        >
-          {actor ? initialsOf(actor) : <Icon className="h-3.5 w-3.5 text-ink-2" />}
-        </span>
-        {actor && (
-          <span className="absolute -bottom-0.5 -right-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full border border-line bg-surface">
-            <Icon className="h-2.5 w-2.5 text-ink-3" />
-          </span>
-        )}
+      {/* Who it was — the shared avatar (photo, or initials in their own
+          colour) — with the category glyph tucked against it, so the kind
+          reads at a glance without a label. */}
+      <span className="mt-0.5">
+        <NotificationAvatar
+          actor={actor}
+          avatarUrl={row.actorAvatarUrl}
+          category={category}
+        />
       </span>
 
       <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="rounded-sm border border-line px-1.5 py-0.5 text-[10px] text-ink-3">
-            {CATEGORY_LABEL[category]}
-          </span>
-          <span className="text-[11px] text-ink-3">
-            {actor ?? "System"} · {relativeTime(row.createdAt)}
-          </span>
+        <div className="flex flex-wrap items-center gap-x-1.5 text-[11px] text-ink-3">
+          <span className="sr-only">{CATEGORY_LABEL[category]} · </span>
+          <bdi>{actor ?? "System"}</bdi>
+          <span aria-hidden>·</span>
+          <time dateTime={row.createdAt.toISOString()} title={dateTimeLabel(row.createdAt)}>
+            {relativeTime(row.createdAt)}
+          </time>
         </div>
+        {/* The title is an English template — LTR — with the names inside
+            it isolated by the producer, so an Arabic name can't flip it. */}
         <button
           type="button"
+          dir="ltr"
           onClick={() => onOpen(row)}
           className={cn(
-            "mt-1 block text-left text-sm",
+            "mt-0.5 block text-left text-sm",
             unreadRow ? "font-medium text-ink" : "text-ink-2",
             safeHref(row.href) && "hover:underline",
           )}
@@ -487,7 +483,10 @@ function NotificationRow({
           {row.title}
         </button>
         {row.body && (
-          <p className="mt-0.5 line-clamp-2 text-xs text-ink-3">{row.body}</p>
+          // The comment itself, in its OWN direction.
+          <p dir="auto" className="mt-0.5 line-clamp-2 text-xs text-ink-3">
+            {row.body}
+          </p>
         )}
       </div>
 

@@ -44,7 +44,10 @@ function linkify(escaped: string): string {
     // A trailing sentence mark is punctuation, not part of the address.
     const trimmed = url.replace(/[.,;:!?)\]]+$/, "");
     const tail = url.slice(trimmed.length);
-    return `<a href="${trimmed}" target="_blank" rel="noopener noreferrer nofollow">${trimmed}</a>${tail}`;
+    // `dir="ltr"`: an address reads left-to-right even inside Arabic text,
+    // and a `dir` attribute ISOLATES the run, so its trailing punctuation
+    // can't reorder the sentence around it.
+    return `<a href="${trimmed}" target="_blank" rel="noopener noreferrer nofollow" dir="ltr">${trimmed}</a>${tail}`;
   });
 }
 
@@ -86,7 +89,9 @@ function markMentions(html: string, names: readonly string[]): string {
       let at = 0;
       for (const span of spans) {
         out += part.slice(at, span.start);
-        out += `<span class="cm-mention">${part.slice(span.start, span.end)}</span>`;
+        // <bdi>: the name keeps its OWN direction inside text of the other
+        // one — an Arabic name in English, an English name in Arabic.
+        out += `<bdi class="cm-mention">${part.slice(span.start, span.end)}</bdi>`;
         at = span.end;
       }
       return out + part.slice(at);
@@ -101,8 +106,14 @@ function inline(line: string, names: readonly string[]): string {
 
 /**
  * Render a comment body to SAFE HTML. The output contains only tags this
- * module writes: `<strong>`, `<em>`, `<ul>/<li>`, `<a>` (http(s) only) and the
- * mention `<span>`.
+ * module writes: `<p>`, `<strong>`, `<em>`, `<ul>/<li>`, `<a>` (http(s) only)
+ * and the mention `<bdi>`.
+ *
+ * RTL, PER BLOCK (2026-10-20): every paragraph, list and list item carries
+ * `dir="auto"` — a STATIC attribute this module writes, added to tags built
+ * AFTER the escape (the escape-first order is untouched) — so an Arabic line
+ * reads right-to-left and an English one left-to-right, side by side in one
+ * comment, each deciding from its own first strong character.
  */
 export function commentHtml(body: string, mentionNames: readonly string[] = []): string {
   const lines = escapeHtml(body).split("\n");
@@ -111,7 +122,7 @@ export function commentHtml(body: string, mentionNames: readonly string[] = []):
 
   const flush = () => {
     if (list.length === 0) return;
-    out.push(`<ul>${list.map((li) => `<li>${li}</li>`).join("")}</ul>`);
+    out.push(`<ul dir="auto">${list.map((li) => `<li dir="auto">${li}</li>`).join("")}</ul>`);
     list = [];
   };
 
@@ -126,7 +137,7 @@ export function commentHtml(body: string, mentionNames: readonly string[] = []):
       out.push("<br>");
       continue;
     }
-    out.push(`<p>${inline(line, mentionNames)}</p>`);
+    out.push(`<p dir="auto">${inline(line, mentionNames)}</p>`);
   }
   flush();
   return out.join("");

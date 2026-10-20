@@ -185,8 +185,27 @@ export function categoryForType(type: string): NotificationCategory {
 /** Rows per page on /notifications. Server-paginated — never an unbounded read. */
 export const NOTIFICATIONS_PAGE_SIZE = 50;
 
-/** How many the bell's popover shows. */
+/**
+ * The bell's popover (2026-10-20, "opening it = seen"): it lists EVERY unread
+ * item up to `BELL_UNREAD_CAP` — so what opening it clears is exactly what it
+ * showed — and fills with the newest READ ones up to `BELL_RECENT_LIMIT`.
+ * Unread beyond the cap stays unread, and the footer says "+N more".
+ */
 export const BELL_RECENT_LIMIT = 10;
+export const BELL_UNREAD_CAP = 30;
+
+/**
+ * What opening the bell marks read and how the badge should read meanwhile:
+ * the UNREAD ids it actually lists, and how many unread it does NOT list.
+ * Pure — the popover and its test share it.
+ */
+export function bellSeenPlan(
+  items: ReadonlyArray<{ id: string; read: boolean }>,
+  unreadCount: number,
+): { ids: string[]; beyond: number } {
+  const ids = items.filter((i) => !i.read).map((i) => i.id);
+  return { ids, beyond: Math.max(0, unreadCount - ids.length) };
+}
 
 /** Above this the badge stops counting and says "9+". */
 export const BADGE_CAP = 9;
@@ -399,9 +418,15 @@ export function burstSummary(count: number): string {
   return `${count} new notification${count === 1 ? "" : "s"}`;
 }
 
-/** Per-brand, per-browser pointer: the newest id this browser has toasted. */
-export function toastedStorageKey(accountId: string): string {
-  return `cw-toasted:${accountId}`;
+/**
+ * Per-USER, per-brand, per-browser pointer: the newest id this browser has
+ * toasted for this person (2026-10-20 review). It was per brand only, so two
+ * people sharing a browser inherited each other's pointer and the second got a
+ * "N new notifications" toast on sign-in — breaking "a first load never
+ * toasts".
+ */
+export function toastedStorageKey(userId: string, accountId: string): string {
+  return `cw-toasted:${userId}:${accountId}`;
 }
 
 /**

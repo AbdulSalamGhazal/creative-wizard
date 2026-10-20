@@ -29,6 +29,7 @@ const restricted: SessionUser = {
   role: "editor",
   permissions: null,
   allAccounts: false,
+  avatarUrl: null,
 };
 
 beforeAll(async () => {

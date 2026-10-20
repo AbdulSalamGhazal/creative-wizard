@@ -12,6 +12,7 @@ import {
   PASSWORD_MAX_LENGTH,
 } from "@/lib/auth-password";
 import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
+import { isolate } from "@/lib/bidi";
 import { isPermission } from "@/lib/permissions";
 import { actionError } from "@/lib/action-error";
 import { listAllAccounts } from "@/lib/tenant";
@@ -330,9 +331,11 @@ export async function updateUserBrands(
           recipientUserId: userId,
           category: categoryForType(DIRECT_EVENT_TYPES.BRAND_GRANTED),
           type: DIRECT_EVENT_TYPES.BRAND_GRANTED,
-          title: `You now have access to ${
-            allBrands.find((a) => a.id === accountId)?.name ?? "a new brand"
-          }`,
+          // The brand name is user-supplied: isolated, so an Arabic name
+          // can't flip the English sentence (lib/bidi.ts, 2026-10-20).
+          title: `You now have access to ${isolate(
+            allBrands.find((a) => a.id === accountId)?.name ?? "a new brand",
+          )}`,
           body: "Switch to it with the brand picker in the top bar.",
           href: "/",
           actorUserId: me.id,

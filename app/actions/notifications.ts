@@ -1,12 +1,12 @@
 "use server";
 
-import { and, eq, isNull, isNotNull } from "drizzle-orm";
+import { and, eq, inArray, isNull, isNotNull } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { notifications } from "@/db/schema";
 import { requireAuth } from "@/lib/auth";
 import { getActiveAccountId } from "@/lib/tenant";
 import { actionError } from "@/lib/action-error";
-import { notificationIdSchema } from "@/validators/notifications";
+import { notificationIdSchema, notificationIdsSchema } from "@/validators/notifications";
 
 /**
  * Notification mutations — every one acts on the CALLER'S OWN rows only.
@@ -66,6 +66,36 @@ export async function markNotificationRead(
         and(
           mine(userId, accountId),
           eq(notifications.id, parsed.data.id),
+          isNull(notifications.readAt),
+        ),
+      )
+      .returning({ id: notifications.id });
+    return { ok: true, affected: rows.length };
+  } catch (err) {
+    return { ok: false, error: errMsg(err) };
+  }
+}
+
+/**
+ * "Opening the bell = seen" (user decision, 2026-10-20): mark read exactly the
+ * unread ids the popover LISTED. Bounded (`BELL_UNREAD_CAP`), Zod-validated,
+ * and self-scoped like every statement here — another person's id matches
+ * nothing. Unread items beyond the cap were not shown, so they stay unread.
+ */
+export async function markNotificationsRead(
+  input: unknown,
+): Promise<NotificationActionResult> {
+  try {
+    const parsed = notificationIdsSchema.safeParse(input);
+    if (!parsed.success) return { ok: false, error: "Invalid notifications." };
+    const { userId, accountId } = await scope();
+    const rows = await db
+      .update(notifications)
+      .set({ readAt: new Date() })
+      .where(
+        and(
+          mine(userId, accountId),
+          inArray(notifications.id, parsed.data.ids),
           isNull(notifications.readAt),
         ),
       )

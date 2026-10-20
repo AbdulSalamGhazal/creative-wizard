@@ -190,9 +190,11 @@ describe("the toast scope setting", () => {
     expect(shouldToast(system, "personal")).toBe(false);
   });
 
-  it("keys the toasted pointer per brand", () => {
-    expect(toastedStorageKey("acct-a")).not.toBe(toastedStorageKey("acct-b"));
-    expect(toastedStorageKey("acct-a")).toContain("acct-a");
+  it("keys the toasted pointer per USER and per brand", () => {
+    expect(toastedStorageKey("u1", "acct-a")).not.toBe(toastedStorageKey("u1", "acct-b"));
+    // Two people sharing a browser never share a pointer.
+    expect(toastedStorageKey("u1", "acct-a")).not.toBe(toastedStorageKey("u2", "acct-a"));
+    expect(toastedStorageKey("u1", "acct-a")).toContain("acct-a");
   });
 });
 
@@ -468,5 +470,21 @@ describe("the in-page change signal (2026-10 — instead of revalidatePath)", ()
     );
     expect(() => announceNotificationsChanged("bell")).not.toThrow();
     expect(typeof onNotificationsChanged("bell", () => {})).toBe("function");
+  });
+});
+
+describe("opening the bell = seen (2026-10-20)", () => {
+  it("marks exactly the LISTED unread ids, and counts the unread it didn't list", async () => {
+    const { bellSeenPlan } = await import("@/lib/notifications");
+    const items = [
+      { id: "a", read: false },
+      { id: "b", read: true },
+      { id: "c", read: false },
+    ];
+    expect(bellSeenPlan(items, 2)).toEqual({ ids: ["a", "c"], beyond: 0 });
+    // 35 unread, 30 listed: 5 stay unread — the footer's "+5 more".
+    const many = Array.from({ length: 30 }, (_, i) => ({ id: `u${i}`, read: false }));
+    expect(bellSeenPlan(many, 35).beyond).toBe(5);
+    expect(bellSeenPlan([], 0)).toEqual({ ids: [], beyond: 0 });
   });
 });

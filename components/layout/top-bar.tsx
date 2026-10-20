@@ -10,10 +10,6 @@ import { AccountSwitcher } from "@/components/layout/account-switcher";
 import { MobileNav } from "@/components/layout/mobile-nav";
 import { LogoMark } from "@/components/layout/logo-mark";
 import { BrandWordmark } from "@/components/layout/brand-wordmark";
-// The ONE initials rule (lib/avatar.ts) — this file had its own copy, which
-// rendered "Salam (seed admin)" as "S(" and joined Arabic initials into one
-// glyph (2026-10).
-import { initialsOf } from "@/lib/avatar";
 
 interface Props {
   user: SessionUser;
@@ -72,13 +68,17 @@ export function TopBar({
           <CommentToggle />
           {/* The bell is the ONLY entry to notifications — there is no sidebar
               item for them, on purpose. */}
-          <NotificationBell accountId={activeAccountId} toastScope={toastScope} />
+          <NotificationBell
+            userId={user.id}
+            accountId={activeAccountId}
+            toastScope={toastScope}
+          />
           <UserMenu
             user={{
               name: user.name,
               email: user.email,
               role: user.role,
-              initials: initialsOf(user.name),
+              avatarUrl: user.avatarUrl,
             }}
             toastScope={toastScope}
           />

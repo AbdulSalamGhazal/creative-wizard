@@ -38,6 +38,11 @@ import {
 } from "@/components/comments/comment-thread";
 import { CommentComposer } from "@/components/comments/comment-composer";
 import { createComment } from "@/app/actions/comments";
+import { markThreadRead, type ThreadOpenedResult } from "@/app/actions/comment-reads";
+import { safeAction } from "@/lib/action-failure";
+import { announceNotificationsChanged } from "@/lib/notifications";
+import { InfoTip } from "@/components/ui/info-tip";
+import { AVATAR_CHANGED_EVENT } from "@/lib/avatar-upload";
 import type { CommentRow } from "@/db/queries/comments";
 
 /**
@@ -270,11 +275,13 @@ function useCanDock(): boolean | null {
 export function CommentDock({
   currentUserId,
   currentUserName,
+  currentUserAvatarUrl,
   canModerate,
 }: {
   currentUserId: string | null;
-  /** Your name, for the row a post shows while it is still on its way. */
+  /** Your name and photo, for the row a post shows while it is on its way. */
   currentUserName: string | null;
+  currentUserAvatarUrl: string | null;
   canModerate: boolean;
 }) {
   const { open, setOpen } = usePanel();
@@ -293,6 +300,7 @@ export function CommentDock({
         <CommentPanelBody
           currentUserId={currentUserId}
           currentUserName={currentUserName}
+          currentUserAvatarUrl={currentUserAvatarUrl}
           canModerate={canModerate}
           onClose={() => setOpen(false)}
           inSheet={false}
@@ -311,6 +319,7 @@ export function CommentDock({
         <CommentPanelBody
           currentUserId={currentUserId}
           currentUserName={currentUserName}
+          currentUserAvatarUrl={currentUserAvatarUrl}
           canModerate={canModerate}
           onClose={() => setOpen(false)}
           inSheet
@@ -337,12 +346,14 @@ const hydrate = (rows: WireComment[]): CommentRow[] =>
 function CommentPanelBody({
   currentUserId,
   currentUserName,
+  currentUserAvatarUrl,
   canModerate,
   onClose,
   inSheet,
 }: {
   currentUserId: string | null;
   currentUserName: string | null;
+  currentUserAvatarUrl: string | null;
   canModerate: boolean;
   onClose: () => void;
   /** The Sheet needs Radix's Title/Description for its dialog semantics. */
@@ -366,7 +377,12 @@ function CommentPanelBody({
    * a sent comment vanish (2026-10-20 review).
    */
   const [pending, setPending] = useState<ThreadComment[]>([]);
-  const [replyTo, setReplyTo] = useState<string | null>(null);
+  /** The comment Reply was clicked on (its thread root is where it lands). */
+  const [replyTo, setReplyTo] = useState<{ rootId: string; comment: ThreadComment } | null>(
+    null,
+  );
+  /** Where you last left this thread — the "New" divider's baseline. */
+  const [newSince, setNewSince] = useState<Date | null>(null);
   const anchorKey = anchorKeyOf(anchor);
 
   /** Load the thread. Resolves `true` when the stored thread is on screen. */
@@ -408,8 +424,40 @@ function CommentPanelBody({
     setPending([]);
     setReplyTo(null);
     setHighlightId(null);
+    setNewSince(null);
     void load();
   }, [load, setHighlightId]);
+
+  // Someone's photo changed: the thread was fetched with the old URLs.
+  useEffect(() => {
+    const reload = () => void load();
+    window.addEventListener(AVATAR_CHANGED_EVENT, reload);
+    return () => window.removeEventListener(AVATAR_CHANGED_EVENT, reload);
+  }, [load]);
+
+  // THE THREAD IS ON SCREEN (2026-10-20): one request snapshots where you
+  // left it (the "New" baseline), moves that to now, and marks your comment
+  // notifications on this anchor read — then the bell follows at once
+  // (`NOTIFICATIONS_CHANGED_EVENT`, no second timer). Once per anchor while
+  // the panel shows it; a failure just means no "New" divider this time.
+  useEffect(() => {
+    if (!anchor) return;
+    let live = true;
+    void (async () => {
+      const res = await safeAction(() =>
+        markThreadRead({ anchorType: anchor.type, anchorId: anchor.id }),
+      );
+      if (!live || !res.ok) return;
+      const opened = res as ThreadOpenedResult;
+      setNewSince(opened.previousReadAt ? new Date(opened.previousReadAt) : null);
+      if ((opened.cleared ?? 0) > 0) announceNotificationsChanged("panel");
+    })();
+    return () => {
+      live = false;
+    };
+    // `anchorKey` is the identity; `anchor` is a fresh object every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [anchorKey]);
 
   // A deep link waiting for its thread: highlight it once a loaded thread
   // contains it (then drop the param from the URL), or reload once if the
@@ -438,6 +486,8 @@ function CommentPanelBody({
       : anchor.type === "budget_month"
         ? `Comments on ${monthAnchorLabel(anchor.id)}`
         : "Comments on this page";
+  // A helper that matters, kept out of the body copy ("show, don't label"):
+  // an ⓘ beside the title.
   const description = "Click a comment to put the page back the way its author saw it.";
 
   /**
@@ -457,17 +507,17 @@ function CommentPanelBody({
     <>
       <div className="flex items-start gap-2 border-b border-line px-4 py-3">
         <div className="min-w-0 flex-1">
-          {inSheet ? (
-            <>
+          <div className="flex min-w-0 items-center gap-1.5">
+            {inSheet ? (
               <SheetTitle className="truncate text-sm">{title}</SheetTitle>
-              <SheetDescription className="text-[11px]">{description}</SheetDescription>
-            </>
-          ) : (
-            <>
+            ) : (
               <h2 className="truncate text-sm font-medium text-ink">{title}</h2>
-              <p className="text-[11px] text-ink-3">{description}</p>
-            </>
-          )}
+            )}
+            {anchor && <InfoTip label="How comments work">{description}</InfoTip>}
+          </div>
+          {/* The Sheet is a dialog: Radix wants its description — for screen
+              readers only; sighted readers have the ⓘ. */}
+          {inSheet && <SheetDescription className="sr-only">{description}</SheetDescription>}
         </div>
         <Button
           type="button"
@@ -486,8 +536,7 @@ function CommentPanelBody({
         // quietly rather than vanishing out from under the reader.
         <div className="flex flex-1 items-center justify-center px-6 text-center">
           <p className="text-xs text-ink-3">
-            No comments here — this page isn&rsquo;t something you can comment on.
-            Open another page and its thread appears.
+            Nothing to comment on here. Open another page to see its thread.
           </p>
         </div>
       ) : (
@@ -523,8 +572,11 @@ function CommentPanelBody({
                 canModerate={canModerate}
                 currentQuery={searchParams.toString()}
                 highlightId={highlightId}
+                newSince={newSince}
                 onApplyView={applyView}
-                onReply={(rootId) => setReplyTo(rootId)}
+                onReply={(comment) =>
+                  setReplyTo({ rootId: comment.parentId ?? comment.id, comment })
+                }
                 onChanged={() => void load()}
               />
             )}
@@ -549,22 +601,39 @@ function CommentPanelBody({
 
           <div className="border-t border-line px-3 py-3">
             {replyTo && (
-              <div className="mb-2 flex items-center gap-2 text-[11px] text-ink-3">
-                <span>Replying in this thread</span>
+              // "Replying to «Name»" with a one-line quote of THAT comment —
+              // the quote in its own direction (an Arabic comment reads RTL
+              // inside the English chip), names isolated.
+              <div className="mb-2 flex items-start gap-2 rounded-md border-l-2 border-brand/60 bg-surface-2 py-1 pl-2 pr-1 text-[11px]">
+                <div className="min-w-0 flex-1">
+                  <div className="text-ink-2">
+                    Replying to{" "}
+                    <bdi className="font-medium text-ink">
+                      {replyTo.comment.authorName ?? "Former member"}
+                    </bdi>
+                  </div>
+                  <p dir="auto" className="truncate text-ink-3">
+                    {replyTo.comment.body}
+                  </p>
+                </div>
                 <Button
                   type="button"
                   variant="ghost"
                   size="xs"
                   onClick={() => setReplyTo(null)}
                   aria-label="Cancel reply"
-                  className="h-5 px-1"
+                  className="h-5 w-5 shrink-0 p-0"
                 >
                   <X className="h-3 w-3" />
                 </Button>
               </div>
             )}
             <CommentComposer
-              key={`${anchorKey}:${replyTo ?? "root"}`}
+              // A new key per reply target remounts the composer, and
+              // `autoFocus` then puts the caret in it AT ONCE — clicking Reply
+              // means "I'm about to type" (docked panel and phone Sheet alike).
+              key={`${anchorKey}:${replyTo?.comment.id ?? "root"}`}
+              autoFocus={replyTo !== null}
               placeholder={replyTo ? "Write a reply…" : "Write a comment… (@ to mention)"}
               rows={replyTo ? 2 : 3}
               submitLabel={replyTo ? "Reply" : "Post"}
@@ -580,9 +649,10 @@ function CommentPanelBody({
                   ...list,
                   {
                     id: tempId,
-                    parentId: replyTo,
+                    parentId: replyTo?.rootId ?? null,
                     authorUserId: currentUserId,
                     authorName: currentUserName,
+                    authorAvatarUrl: currentUserAvatarUrl,
                     body,
                     viewQuery: null,
                     editedAt: null,
@@ -597,7 +667,7 @@ function CommentPanelBody({
                   const res = await createComment({
                     anchorType: anchor.type,
                     anchorId: anchor.id,
-                    parentId: replyTo,
+                    parentId: replyTo?.rootId ?? null,
                     body,
                     // Minus `?comment=`: a deep link's navigation is not part
                     // of what the reader was looking at (2026-10).

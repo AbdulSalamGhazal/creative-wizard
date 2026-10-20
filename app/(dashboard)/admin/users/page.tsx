@@ -31,6 +31,7 @@ export default async function TeamAdminPage() {
         role: users.role,
         permissions: users.permissions,
         allAccounts: users.allAccounts,
+        avatarUrl: users.avatarUrl,
         createdAt: users.createdAt,
       })
       .from(users)
@@ -79,6 +80,7 @@ export default async function TeamAdminPage() {
                 permissions: u.permissions,
                 allAccounts: u.allAccounts,
                 accountIds: membershipsByUser.get(u.id) ?? [],
+                avatarUrl: u.avatarUrl,
                 joined: isoDate(u.createdAt),
               } satisfies AccessUser
             }

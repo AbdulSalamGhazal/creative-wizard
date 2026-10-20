@@ -105,6 +105,7 @@ export default async function DashboardLayout({
                 <CommentDock
                   currentUserId={user.id}
                   currentUserName={user.name}
+                  currentUserAvatarUrl={user.avatarUrl}
                   canModerate={
                     user.role === "admin" || can(user, "users.manage")
                   }

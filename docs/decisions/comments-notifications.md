@@ -42,6 +42,10 @@
   transform. A new pattern goes AFTER the escape, never before.
 - A FIRST LOAD never toasts and the bell never shakes on a baseline count;
   `off` silences toasts only — the badge and the tab title still work.
+- **Reactions are a FIXED TWELVE** (user decision, 2026-10-20): 👍 👎 ❤️ 🔥 🎉
+  😂 😮 😢 🙏 👀 ✅ 💯, declared once in `COMMENT_REACTIONS`. The KEY is stored, so
+  keys are schema — the original `up` `heart` `party` `laugh` `wow` never
+  change, every key fits varchar(16), a retired key renders as itself.
 - Reactions are SET, not toggled (2026-10): the client sends the state the
   reader wants (`setReaction({ on })`) — ON is an insert that does nothing on
   the unique-key conflict (a race cannot duplicate), OFF a delete — so a
@@ -75,6 +79,33 @@
   server doesn't know — becomes a toast, never an unhandled rejection or the
   route's error boundary. Deploy skew says the app was updated and offers
   Reload.
+- **ONE avatar.** `UserAvatar` (components/user/user-avatar.tsx): the photo
+  (`users.avatar_url`) when there is one and it loads, otherwise coloured
+  initials (`lib/avatar.ts`, first + last word). Comment rows, the bell,
+  /notifications, the mention picker, the account menu and the Team page all
+  use it — never a second avatar.
+- **Profile photos have ONE writer** (`writeAvatar`): only URLs we stored,
+  the replaced file discarded, every change audited (`user.avatar_update`,
+  `meta.self`). Yours from the account menu (no id travels); anyone's on the
+  Team page behind `users.manage`.
+- **Opening the bell = seen** (user decision, 2026-10-20). It LISTS every
+  unread item up to `BELL_UNREAD_CAP` (newest read ones fill to
+  `BELL_RECENT_LIMIT`), so opening it marks read exactly what it showed —
+  one bounded, self-scoped `markNotificationsRead({ ids })`; those items keep
+  a "new" look for that open; unread beyond the cap stays unread ("+N more").
+  The toast pointer is per USER and brand.
+- **A thread on screen has been read.** When the panel shows an anchor,
+  `markThreadRead` snapshots `comment_reads.last_read_at` (the "New"
+  divider's baseline — a first visit has none), moves it to now, and marks
+  your comment notifications on that anchor read — one request, one
+  transaction, self- and account-scoped; the bell follows through
+  `NOTIFICATIONS_CHANGED_EVENT`. Your own comments are never "new".
+- **Direction is per message, chrome stays LTR.** The composer, every
+  rendered paragraph/list/item, previews and the reply quote are
+  `dir="auto"`; names and @mentions are isolated (`<bdi>`); links are
+  `dir="ltr"`. Notification titles are English templates: producers wrap
+  every user-supplied part in U+2068/U+2069 (`isolate`, lib/bidi.ts — written
+  as escapes, never raw) and titles render LTR; search ignores the isolates.
 - **Inside a producer's transaction, every read goes through the `tx`** —
   never the global `db`, never a helper that defaults to it
   (`resolveAnchorPath(…, tx)`). Production's pool is ONE connection, so a `db`
@@ -475,3 +506,72 @@ as it stood before the restructure.*
   untouched: explicit ids, a non-member refused out loud — "never parsed"
   stays true THERE. `lib/mentions-d1.test.ts`: exact match, shared name,
   prefix collision, case, Arabic, pasted multi-line text, no list.
+
+### Phase 2 — the conversation, photos, the bell (2026-10-20)
+
+User decisions (binding): real profile photos (self from the avatar menu,
+anyone's on the Team page); opening the bell = seen, and a thread on screen
+marks its comment notifications read; a fixed twelve reactions; a "New"
+marker since your last visit; long threads collapse; RTL per message; the
+reply box stays at the bottom but Reply focuses it with a "Replying to «Name»"
+quote.
+
+- **Schema (migrations 0055 + 0056, additive).** `users.avatar_url`
+  (nullable) and `comment_reads` (one row per user × brand × anchor, unique
+  on those four — the read's own index); 0056 adds a PARTIAL index on
+  notifications `(recipient, account, entity_type, entity_id) WHERE read_at IS
+  NULL` for the thread-open update.
+- **Photos.** `POST /api/uploads/avatar` copies the thumbnail route's shape —
+  the browser crops the centre square and downscales to a 256 px WebP (a 470
+  KB PNG left as 2 KB in the walk), the server verifies magic bytes (the
+  sniffer moved to `lib/image-sniff.ts`, shared with thumbnails) — and writes
+  through `writeAvatar`. Self: no `userId`, signed in is enough. Admin: a
+  `userId` needs `users.manage`. AUDITED both ways (judgment call: a photo is
+  identity every colleague sees, like a name; the password precedent audits
+  both the self change and the admin reset). Replacing or removing DISCARDS
+  the old file (a person's removed photo should not linger on a public host).
+  LOCAL dev has no Blob token, so with no token AND `NODE_ENV !==
+  "production"` files go to `public/dev-uploads/avatars/` (gitignored) — the
+  fallback can never run in production. Plain `<img>`, not next/image: every
+  photo is already a tiny square, and the optimizer would add a round trip
+  per size. `AVATAR_CHANGED_EVENT` reloads the open thread after a change.
+- **The row.** Avatar leading (smaller for replies), NAME · `<time>` (title =
+  absolute date; one `useMinuteTick` per surface keeps "3m ago" true) ·
+  edited, body below. Headers are NOT merged for consecutive messages by one
+  author (judgment call: threads are short, and each comment keeps its
+  time). The panel's helper sentence became an ⓘ InfoTip; the empty states
+  are one line ending in what to do ("No comments yet. Start one below.").
+  The "Open this view" chip reads "View" (eye icon, screen-reader text kept).
+- **"New".** `newCommentIds` (pure): others' comments after the snapshot,
+  never yours, never deleted or pending. The divider sits above the first in
+  display order; new rows get a subtle tint; the thread lands at the divider
+  (a third of the way down) when there is one and nothing is highlighted.
+- **Collapse + clamp.** `collapseReplies` (pure): more than two replies →
+  the latest two + "Show N earlier replies", per root for as long as the
+  panel shows the thread; a deep-linked or new reply in the hidden range
+  forces it open. Bodies clamp at ~120 px with a fade and Show more/less —
+  measured, so the toggle only appears when the text overflows — and the
+  highlighted comment is never clamped.
+- **Reply.** The chip says "Replying to «Name»" (name isolated) with a
+  one-line quote of THAT comment in its own direction, ✕ to cancel; the
+  composer remounts per target with `autoFocus`, so the caret is in it at
+  once — docked panel and phone Sheet alike. The post still lands under the
+  thread's root (flat threads).
+- **The bell.** See the invariant. Each item: `NotificationAvatar` (the
+  avatar + `CATEGORY_ICONS` glyph — shared with /notifications, whose own
+  inline avatar was replaced), the title LTR, a 2-line preview `dir="auto"`,
+  a `<time>`, an unread dot. The category CHIP left both surfaces ("show,
+  don't label": the glyph says it; screen-reader text keeps the word). The
+  tab-title prefix now survives a page refresh (a MutationObserver on
+  `<head>` re-applies it — Next rewrites the title on refresh without a
+  route change).
+- **RTL.** `commentHtml` adds `dir="auto"` to `<p>`, `<ul>`, `<li>` and
+  `dir="ltr"` to links — static attributes on tags built after the escape —
+  and marks mentions with `<bdi class="cm-mention">`; the list CSS uses
+  `padding-inline-start`. Producers isolate names and anchor labels (comment
+  events; the brand-grant title). Walked: an Arabic comment, an English one,
+  an Arabic name mentioned in English text, an English name in Arabic text,
+  an Arabic bullet list, a URL inside Arabic text, Arabic actor names in the
+  bell, a toast (DOM-verified) and /notifications.
+- **Review fixes (same day): R1–R4, D1–D4** are recorded above under their
+  own entries; R4 added `.claude/**` to the ESLint ignores.

@@ -4,7 +4,17 @@ import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import { useTheme } from "next-themes";
 import { useRouter } from "next/navigation";
-import { Bell, Camera, KeyRound, LogOut, Palette, Plug } from "lucide-react";
+import {
+  Bell,
+  Camera,
+  ImagePlus,
+  KeyRound,
+  Loader2,
+  LogOut,
+  Palette,
+  Plug,
+  Trash2,
+} from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -29,6 +39,8 @@ import {
   type ToastScope,
 } from "@/lib/notifications";
 import { ChangePasswordDialog } from "@/components/auth/change-password-dialog";
+import { UserAvatar } from "@/components/user/user-avatar";
+import { usePhotoChange } from "@/components/user/user-photo-control";
 import { captureScreenshot } from "@/lib/screenshot";
 
 interface Props {
@@ -36,7 +48,8 @@ interface Props {
     name: string;
     email: string;
     role: "admin" | "editor" | "viewer";
-    initials: string;
+    /** Profile photo, or null → initials (`UserAvatar`). */
+    avatarUrl: string | null;
   };
   /** Which arrivals may toast (migration 0050) — the current value, from the
    *  server; the submenu writes it and refreshes. */
@@ -90,6 +103,8 @@ export function UserMenu({ user, toastScope }: Props) {
   const [mounted, setMounted] = useState(false);
   // Optimistic: the check moves now, the server catches up on refresh.
   const [scope, setScope] = useState<ToastScope>(toastScope);
+  // Your own photo: no id travels (the session user is the subject).
+  const photo = usePhotoChange({ name: user.name });
   useEffect(() => setScope(toastScope), [toastScope]);
 
   const changeScope = (next: string) => {
@@ -128,14 +143,20 @@ export function UserMenu({ user, toastScope }: Props) {
 
   return (
     <>
+      {photo.input}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button
             type="button"
-            className="w-7 h-7 rounded-full bg-surface-2 border border-line flex items-center justify-center text-[11px] font-semibold text-ink hover:bg-surface-3 transition-colors"
+            className="relative rounded-full transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50"
             aria-label="Account menu"
           >
-            {user.initials}
+            <UserAvatar name={user.name} src={user.avatarUrl} size="md" />
+            {photo.busy && (
+              <span className="absolute inset-0 flex items-center justify-center rounded-full bg-background/60">
+                <Loader2 className="h-3.5 w-3.5 animate-spin text-ink" />
+              </span>
+            )}
           </button>
         </DropdownMenuTrigger>
         {/* Excluded from screenshots: the menu is open while the capture runs. */}
@@ -145,14 +166,30 @@ export function UserMenu({ user, toastScope }: Props) {
           data-screenshot-exclude
         >
           <DropdownMenuLabel>
-            <div className="flex flex-col gap-0.5">
-              <span className="text-ink truncate">{user.name}</span>
-              <span className="text-ink-3 text-[11px] font-mono truncate">
-                {user.email}
-              </span>
-              <span className="text-ink-3 text-eyebrow mt-0.5">{user.role}</span>
+            <div className="flex items-center gap-2.5">
+              <UserAvatar name={user.name} src={user.avatarUrl} size="lg" />
+              <div className="flex min-w-0 flex-col gap-0.5">
+                <span className="text-ink truncate">{user.name}</span>
+                <span className="text-ink-3 text-[11px] font-mono truncate">
+                  {user.email}
+                </span>
+                <span className="text-ink-3 text-eyebrow mt-0.5">{user.role}</span>
+              </div>
             </div>
           </DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          {/* Your photo — every avatar of you, everywhere, falls back to your
+              initials without one. */}
+          <DropdownMenuItem onSelect={photo.pick} disabled={photo.busy}>
+            <ImagePlus className="w-3.5 h-3.5" />
+            {user.avatarUrl ? "Change photo" : "Upload photo"}
+          </DropdownMenuItem>
+          {user.avatarUrl && (
+            <DropdownMenuItem onSelect={() => void photo.remove()} disabled={photo.busy}>
+              <Trash2 className="w-3.5 h-3.5" />
+              Remove photo
+            </DropdownMenuItem>
+          )}
           <DropdownMenuSeparator />
           <DropdownMenuItem asChild>
             <Link href="/account/api">

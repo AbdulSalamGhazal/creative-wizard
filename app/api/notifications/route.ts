@@ -1,13 +1,14 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { recentNotifications, unreadCount } from "@/db/queries/notifications";
+import { bellNotifications, unreadCount } from "@/db/queries/notifications";
 import { categoryForType, safeHref } from "@/lib/notifications";
 
 export const dynamic = "force-dynamic";
 
 /**
- * GET /api/notifications — the bell's feed: the unread count and the latest
- * few, for the SESSION user in the ACTIVE brand.
+ * GET /api/notifications — the bell's feed: the unread count, EVERY unread
+ * item up to `BELL_UNREAD_CAP` and the newest read ones to fill (see
+ * `bellNotifications`), for the SESSION user in the ACTIVE brand.
  *
  * Behind `middleware.ts` like every other `/api` route (only `/api/health` and
  * `/api/mcp` are excluded), and `auth()` is re-checked here rather than
@@ -26,7 +27,7 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const [count, recent] = await Promise.all([unreadCount(), recentNotifications()]);
+  const [count, recent] = await Promise.all([unreadCount(), bellNotifications()]);
 
   return NextResponse.json(
     {
@@ -36,8 +37,11 @@ export async function GET() {
         type: n.type,
         category: categoryForType(n.type),
         title: n.title,
+        // The comment it's about, as a 1–2 line preview in the bell (2026-10-20).
+        body: n.body,
         href: safeHref(n.href),
         actor: n.actorName,
+        actorAvatarUrl: n.actorAvatarUrl,
         createdAt: n.createdAt,
         read: n.readAt !== null,
       })),

@@ -10,77 +10,94 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { relativeTime } from "@/lib/format";
+import { dateTimeLabel, relativeTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import {
   BADGE_CAP,
-  CATEGORY_LABEL,
   DEFAULT_TOAST_SCOPE,
   POLL_MS,
   announceNotificationsChanged,
   badgeCount,
+  bellSeenPlan,
   burstSummary,
-  isNotificationCategory,
+  onNotificationsChanged,
   safeHref,
   stripUnreadPrefix,
   titleWithUnread,
-  onNotificationsChanged,
   toastPlan,
   toastedStorageKey,
   type ToastScope,
 } from "@/lib/notifications";
-import { markNotificationRead } from "@/app/actions/notifications";
+import { markNotificationRead, markNotificationsRead } from "@/app/actions/notifications";
 import { safeAction } from "@/lib/action-failure";
 import { toastActionFailure } from "@/lib/action-toast";
+import { useMinuteTick } from "@/lib/use-minute-tick";
+import { NotificationAvatar } from "@/components/notifications/notification-avatar";
 
 interface FeedItem {
   id: string;
   /** The stored event type — `toastPlan` needs it to spot a DIRECT event. */
   type: string;
   category: string;
+  /** An English template; user-supplied names inside are Unicode-ISOLATED. */
   title: string;
+  /** The comment it's about (a preview), when there is one. */
+  body: string | null;
   href: string | null;
   actor: string | null;
+  actorAvatarUrl: string | null;
   createdAt: string;
   read: boolean;
 }
 
 /**
- * The toasted-pointer store: the newest id this BROWSER has already toasted,
- * per brand. Per the house storage discipline every access is guarded — a
- * private window, blocked site data or a thumbnail capture can throw or return
- * nothing, and the bell must work regardless (it just falls back to "first
- * load", which toasts nothing).
+ * The toasted-pointer store: the newest id this BROWSER has already toasted
+ * for this PERSON in this brand (per user since 2026-10-20 — two people
+ * sharing a browser used to inherit each other's pointer). Per the house
+ * storage discipline every access is guarded — a private window, blocked site
+ * data or a thumbnail capture can throw or return nothing, and the bell must
+ * work regardless (it just falls back to "first load", which toasts nothing).
  */
-function readToasted(accountId: string): string | null {
+function readToasted(userId: string, accountId: string): string | null {
   try {
-    return window.localStorage.getItem(toastedStorageKey(accountId));
+    return window.localStorage.getItem(toastedStorageKey(userId, accountId));
   } catch {
     return null;
   }
 }
 
-function writeToasted(accountId: string, id: string): void {
+function writeToasted(userId: string, accountId: string, id: string): void {
   try {
-    window.localStorage.setItem(toastedStorageKey(accountId), id);
+    window.localStorage.setItem(toastedStorageKey(userId, accountId), id);
   } catch {
     /* storage unavailable — the session simply re-toasts nothing */
   }
 }
 
 /**
- * The bell — unread count plus the latest few, for the signed-in user in the
- * active brand.
+ * The bell — unread count plus the feed, for the signed-in user in the active
+ * brand.
+ *
+ * OPENING IT = SEEN (user decision, 2026-10-20). The popover LISTS every
+ * unread item (up to `BELL_UNREAD_CAP`, the newest read ones filling the
+ * rest), so opening it marks read exactly what it showed: the badge drops at
+ * once, ONE bounded action marks the listed ids, and the items that were
+ * unread keep their "new" look for as long as this popover stays open (a
+ * client snapshot) — you still see what was new. Unread beyond the cap stays
+ * unread, and the footer says "+N more".
  *
  * FRESHNESS, deliberately cheap: refetch on every route change, on window
- * focus, and on an interval while the tab is focused. A hidden tab polls
- * nothing. `POLL_MS` is the single knob (see lib/notifications.ts) — the
- * hosting plan decides its value, not this component.
+ * focus, on an interval while the tab is focused, and when another surface
+ * announces a change (`NOTIFICATIONS_CHANGED_EVENT`). A hidden tab polls
+ * nothing. `POLL_MS` is the single polling knob (see lib/notifications.ts).
  */
 export function NotificationBell({
+  userId,
   accountId,
   toastScope = DEFAULT_TOAST_SCOPE,
 }: {
+  /** The signed-in person — the toasted pointer is per user. */
+  userId: string;
   /** The active brand — the toasted pointer is per brand, like the feed. */
   accountId: string;
   /** This user's setting (migration 0050); `off` silences toasts only. */
@@ -92,10 +109,15 @@ export function NotificationBell({
   const [count, setCount] = useState(0);
   const [items, setItems] = useState<FeedItem[]>([]);
   const [loaded, setLoaded] = useState(false);
+  /** Unread ids LISTED when this popover opened — they look new until it closes. */
+  const [seenNow, setSeenNow] = useState<ReadonlySet<string>>(() => new Set());
+  /** Unread the popover did NOT list when it opened (beyond the cap). */
+  const [beyond, setBeyond] = useState(0);
   const [, startTransition] = useTransition();
   /** Set while the bell plays its one-shot shake (unread went UP). */
   const [shake, setShake] = useState(false);
   const prevCount = useRef<number | null>(null);
+  useMinuteTick();
 
   const openHref = useCallback(
     (href: string | null) => {
@@ -116,11 +138,11 @@ export function NotificationBell({
     (fresh: FeedItem[]) => {
       if (fresh.length === 0) return;
       const newest = fresh[0]!; // newest-first, as the feed returns them
-      const last = readToasted(accountId);
+      const last = readToasted(userId, accountId);
       const plan = toastPlan(fresh, last, toastScope);
       // The pointer advances even when nothing toasted (first load, or an
       // arrival the scope filtered out) — those items are not new any more.
-      writeToasted(accountId, newest.id);
+      writeToasted(userId, accountId, newest.id);
 
       if (plan.kind === "summary") {
         toast(burstSummary(plan.count), {
@@ -158,7 +180,7 @@ export function NotificationBell({
     },
     // `load` is defined below and stable; the lint rule can't see the cycle.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [accountId, toastScope, router, openHref],
+    [userId, accountId, toastScope, router, openHref],
   );
 
   const load = useCallback(async () => {
@@ -181,8 +203,8 @@ export function NotificationBell({
     void load();
   }, [load, pathname]);
 
-  // Another surface (the /notifications page) read or cleared something: the
-  // badge follows at once — an event, not a second timer.
+  // Another surface (the panel opening a thread, /notifications) read or
+  // cleared something: the badge follows at once — an event, not a timer.
   useEffect(() => onNotificationsChanged("bell", () => void load()), [load]);
 
   useEffect(() => {
@@ -209,9 +231,18 @@ export function NotificationBell({
    * puts back exactly what it found.
    */
   useEffect(() => {
-    const original = stripUnreadPrefix(document.title);
-    document.title = titleWithUnread(original, count);
+    const apply = () => {
+      const want = titleWithUnread(stripUnreadPrefix(document.title), count);
+      if (document.title !== want) document.title = want;
+    };
+    apply();
+    // Next also rewrites the title on a REFRESH (a photo change, a setting),
+    // which changes neither `count` nor `pathname` — watch the <head> and put
+    // the prefix back. Idempotent, so its own write settles the observer.
+    const observer = new MutationObserver(apply);
+    observer.observe(document.head, { childList: true, subtree: true, characterData: true });
     return () => {
+      observer.disconnect();
       document.title = stripUnreadPrefix(document.title);
     };
   }, [count, pathname]);
@@ -223,37 +254,52 @@ export function NotificationBell({
    * baseline, so arriving at a page with unread items doesn't shake.
    */
   useEffect(() => {
-    // Nothing is known until the first poll lands; the count is 0 before it,
-    // and 0 → 3 is not an arrival.
     if (!loaded) return;
     const prev = prevCount.current;
     prevCount.current = count;
-    // The FIRST loaded count is the baseline, not an increase: opening a page
-    // with unread items must not shake, for the same reason it must not toast.
     if (prev === null || count <= prev) return;
     setShake(true);
     const t = window.setTimeout(() => setShake(false), 700);
     return () => window.clearTimeout(t);
   }, [count, loaded]);
 
+  /** Opening = seen: snapshot, drop the badge, mark the listed ids read. */
+  const onOpenChange = (next: boolean) => {
+    setOpen(next);
+    if (!next) {
+      // The "new" look lasts for ONE open.
+      setSeenNow(new Set());
+      return;
+    }
+    const plan = bellSeenPlan(items, count);
+    setSeenNow(new Set(plan.ids));
+    setBeyond(plan.beyond);
+    if (plan.ids.length === 0) return;
+    setCount(plan.beyond);
+    setItems((list) => list.map((i) => (plan.ids.includes(i.id) ? { ...i, read: true } : i)));
+    startTransition(async () => {
+      const res = await safeAction(() => markNotificationsRead({ ids: plan.ids }));
+      if (!res.ok) toastActionFailure(res, "Couldn't mark those read.");
+      else announceNotificationsChanged("bell");
+      // Either way, the server's count is the truth from here.
+      void load();
+    });
+  };
+
   const openItem = (item: FeedItem) => {
     const href = safeHref(item.href);
     if (!item.read) {
-      // Optimistic: the badge drops now, the server catches up.
+      // Arrived while the popover was open — read it now, then go.
       setCount((c) => Math.max(0, c - 1));
-      setItems((list) =>
-        list.map((i) => (i.id === item.id ? { ...i, read: true } : i)),
-      );
+      setItems((list) => list.map((i) => (i.id === item.id ? { ...i, read: true } : i)));
       startTransition(async () => {
         const res = await safeAction(() => markNotificationRead({ id: item.id }));
-        // A failure is said out loud; the reload below puts the optimistic
-        // badge back to the truth either way.
         if (!res.ok) toastActionFailure(res, "Couldn't mark that read.");
         else announceNotificationsChanged("bell");
         void load();
       });
     }
-    setOpen(false);
+    onOpenChange(false);
     // A notification without a usable link still marks read — it just has
     // nowhere to send you.
     if (href) router.push(href);
@@ -262,7 +308,7 @@ export function NotificationBell({
   const badge = badgeCount(count);
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={onOpenChange}>
       <PopoverTrigger
         aria-label={
           count > 0
@@ -285,11 +331,8 @@ export function NotificationBell({
         align="end"
         className="w-[min(22rem,calc(100vw-1.5rem))] p-0"
       >
-        <div className="flex items-center justify-between border-b border-line px-3 py-2">
+        <div className="border-b border-line px-3 py-2">
           <span className="text-sm font-medium text-ink">Notifications</span>
-          {count > 0 && (
-            <span className="num text-[11px] text-ink-3">{count} unread</span>
-          )}
         </div>
 
         {items.length === 0 ? (
@@ -297,52 +340,80 @@ export function NotificationBell({
             {loaded ? "Nothing yet." : "Loading…"}
           </p>
         ) : (
-          <ul className="max-h-80 divide-y divide-line overflow-y-auto">
-            {items.map((item) => (
-              <li key={item.id}>
-                <button
-                  type="button"
-                  onClick={() => openItem(item)}
-                  className={cn(
-                    "w-full px-3 py-2 text-left transition-colors hover:bg-surface-2",
-                    !item.read && "bg-[var(--brand-soft)]/40",
-                  )}
-                >
-                  <span className="flex items-center gap-1.5">
-                    <span className="rounded-sm border border-line px-1 text-[10px] text-ink-3">
-                      {isNotificationCategory(item.category)
-                        ? CATEGORY_LABEL[item.category]
-                        : item.category}
-                    </span>
-                    <span className="ml-auto text-[10px] text-ink-3">
-                      {relativeTime(item.createdAt)}
-                    </span>
-                  </span>
-                  <span
+          <ul className="max-h-[min(24rem,60vh)] divide-y divide-line overflow-y-auto">
+            {items.map((item) => {
+              const isNew = !item.read || seenNow.has(item.id);
+              return (
+                <li key={item.id}>
+                  <button
+                    type="button"
+                    onClick={() => openItem(item)}
                     className={cn(
-                      "mt-0.5 block text-xs",
-                      item.read ? "text-ink-2" : "font-medium text-ink",
+                      "flex w-full items-start gap-2.5 px-3 py-2.5 text-left transition-colors hover:bg-surface-2",
+                      isNew && "bg-[var(--brand-soft)]/40",
                     )}
                   >
-                    {item.title}
-                  </span>
-                  {item.actor && (
-                    <span className="text-[10px] text-ink-3">{item.actor}</span>
-                  )}
-                </button>
-              </li>
-            ))}
+                    <NotificationAvatar
+                      actor={item.actor}
+                      avatarUrl={item.actorAvatarUrl}
+                      category={item.category}
+                    />
+                    <span className="min-w-0 flex-1">
+                      {/* The title is an English template: LTR, with the
+                          names inside it already isolated by the producer. */}
+                      <span
+                        dir="ltr"
+                        className={cn(
+                          "line-clamp-2 text-xs",
+                          isNew ? "font-medium text-ink" : "text-ink-2",
+                        )}
+                      >
+                        {item.title}
+                      </span>
+                      {item.body && (
+                        // The comment itself — its OWN direction.
+                        <span dir="auto" className="mt-0.5 line-clamp-2 text-[11px] text-ink-3">
+                          {item.body}
+                        </span>
+                      )}
+                      <time
+                        dateTime={item.createdAt}
+                        title={dateTimeLabel(item.createdAt)}
+                        className="mt-0.5 block text-[10px] text-ink-3"
+                      >
+                        {relativeTime(item.createdAt)}
+                      </time>
+                    </span>
+                    {isNew && (
+                      <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-brand">
+                        <span className="sr-only">New</span>
+                      </span>
+                    )}
+                  </button>
+                </li>
+              );
+            })}
           </ul>
         )}
 
-        <div className="border-t border-line px-3 py-2">
+        <div className="flex items-center justify-between border-t border-line px-3 py-2">
           <Link
             href="/notifications"
-            onClick={() => setOpen(false)}
+            onClick={() => onOpenChange(false)}
             className="text-xs text-brand hover:underline"
           >
             View all
           </Link>
+          {beyond > 0 && (
+            <Link
+              href="/notifications?tab=unread"
+              onClick={() => onOpenChange(false)}
+              className="num text-xs text-brand hover:underline"
+              aria-label={`${beyond} more unread`}
+            >
+              +{beyond} more
+            </Link>
+          )}
         </div>
       </PopoverContent>
     </Popover>

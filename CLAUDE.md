@@ -20,7 +20,7 @@ If a rule here conflicts with one of those documents, the documents win — flag
 - Tailwind + shadcn/ui + shadcn charts (Recharts under the hood)
 - papaparse (CSV), Zod (validation)
 - **`@xyflow/react` (React Flow), EXACT-pinned `12.11.6`** — the one dependency added in months, user-approved. Justification: *purpose-built node canvas (pan/zoom/minimap/focus) for the Canvas page; hand-rolling it is weeks of work.* It is imported by ONE module (`components/canvas/canvas-flow.tsx`) and loaded with `next/dynamic` (`ssr: false`), so it ships as a lazy chunk on `/canvas` only — see `docs/decisions/canvas.md`.
-- Vercel hosting. Vercel KV is NOT used (upload-validation sessions live in Postgres). **Vercel Blob IS used** for creative thumbnails: uploaded via `POST /api/uploads/thumbnail` (requires `creative.edit`; client downscales→WebP first), stored public, and the returned URL is saved to `creatives.thumbnail_url`. Requires `BLOB_READ_WRITE_TOKEN` (auto-added when a Blob store is connected to the project); the blob host is allow-listed in `next.config.ts` `images.remotePatterns`.
+- Vercel hosting. Vercel KV is NOT used (upload-validation sessions live in Postgres). **Vercel Blob IS used** for creative thumbnails: uploaded via `POST /api/uploads/thumbnail` (requires `creative.edit`; client downscales→WebP first), stored public, and the returned URL is saved to `creatives.thumbnail_url`. **Profile photos** (2026-10-20) use the same store via `POST /api/uploads/avatar` (yours: signed in; anyone's: `users.manage`) → `users.avatar_url`; with no token in LOCAL dev they fall back to gitignored `public/dev-uploads/avatars/`. Requires `BLOB_READ_WRITE_TOKEN` (auto-added when a Blob store is connected to the project); the blob host is allow-listed in `next.config.ts` `images.remotePatterns`.
 
 Do not introduce a new dependency without a one-line justification in the PR description.
 
@@ -326,6 +326,9 @@ this map is still a rule you broke.
 - `comment-markdown.ts` is the only place user input becomes HTML — escape first, then transform.
 - Archive, never delete.
 - Comment and notification actions never `revalidatePath` — the panel and the bell live on every page.
+- Opening the bell = seen (it lists every unread up to its cap); the panel showing a thread marks that thread's comment notifications read.
+- ONE `UserAvatar` (photo → initials) for every person picture — never fork an avatar.
+- Notification titles isolate user-supplied names (U+2068/U+2069, `lib/bidi.ts`); comment blocks are `dir="auto"`.
 
 → **`docs/decisions/comments-notifications.md`**
 

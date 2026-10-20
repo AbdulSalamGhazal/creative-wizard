@@ -36,6 +36,8 @@ export interface CommentRow {
   authorUserId: string | null;
   /** Null when the author's account is gone — rendered "Former member". */
   authorName: string | null;
+  /** The author's profile photo, or null → initials. */
+  authorAvatarUrl: string | null;
   body: string;
   viewQuery: string | null;
   editedAt: Date | null;
@@ -81,6 +83,7 @@ export async function listComments(
       parentId: comments.parentId,
       authorUserId: comments.authorUserId,
       authorName: users.name,
+      authorAvatarUrl: users.avatarUrl,
       body: comments.body,
       viewQuery: comments.viewQuery,
       editedAt: comments.editedAt,

@@ -38,6 +38,8 @@ export interface SessionUser {
    * See lib/tenant.ts / lib/account-access.ts.
    */
   allAccounts: boolean;
+  /** Profile photo (public URL), or null → coloured initials. Migration 0055. */
+  avatarUrl: string | null;
 }
 
 /**
@@ -56,6 +58,7 @@ export async function loadUserById(
       role: users.role,
       permissions: users.permissions,
       allAccounts: users.allAccounts,
+      avatarUrl: users.avatarUrl,
     })
     .from(users)
     .where(eq(users.id, userId))

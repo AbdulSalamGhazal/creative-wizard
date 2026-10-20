@@ -20,7 +20,14 @@ export async function GET() {
   return NextResponse.json(
     // Email travels so the inline @ picker can match on it too — every name
     // here is a member of the SAME brand, which the Team page already shows.
-    { members: members.map((m) => ({ id: m.id, name: m.name, email: m.email })) },
+    {
+      members: members.map((m) => ({
+        id: m.id,
+        name: m.name,
+        email: m.email,
+        avatarUrl: m.avatarUrl,
+      })),
+    },
     { headers: { "Cache-Control": "no-store" } },
   );
 }

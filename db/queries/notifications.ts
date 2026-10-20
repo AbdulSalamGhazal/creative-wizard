@@ -5,11 +5,15 @@ import { auth } from "@/lib/auth";
 import { getActiveAccountId } from "@/lib/tenant";
 import {
   BELL_RECENT_LIMIT,
+  BELL_UNREAD_CAP,
   NOTIFICATIONS_PAGE_SIZE,
   categoryForType,
   type EventType,
   type NotificationCategory,
 } from "@/lib/notifications";
+
+/** The four Unicode isolate controls (LRI, RLI, FSI, PDI) — see lib/bidi.ts. */
+const BIDI_ISOLATES = "\u2066\u2067\u2068\u2069";
 
 /** `db` or an open transaction — producers always pass their own `tx`. */
 type Exec = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
@@ -46,6 +50,8 @@ export interface NotificationRow {
   body: string | null;
   href: string | null;
   actorName: string | null;
+  /** The actor's profile photo, or null → initials. */
+  actorAvatarUrl: string | null;
   entityType: string | null;
   entityId: string | null;
   readAt: Date | null;
@@ -61,6 +67,7 @@ const ROW = {
   body: notifications.body,
   href: notifications.href,
   actorName: users.name,
+  actorAvatarUrl: users.avatarUrl,
   entityType: notifications.entityType,
   entityId: notifications.entityId,
   readAt: notifications.readAt,
@@ -221,19 +228,34 @@ export async function unreadCount(): Promise<number> {
   return row?.n ?? 0;
 }
 
-/** The bell's popover: the newest few, archived ones excluded. */
-export async function recentNotifications(
-  limit = BELL_RECENT_LIMIT,
-): Promise<NotificationRow[]> {
+/**
+ * The bell's popover (2026-10-20): EVERY unread item up to `BELL_UNREAD_CAP`
+ * (newest first), then the newest READ ones to fill up to
+ * `BELL_RECENT_LIMIT` — so what opening the bell marks read is exactly what it
+ * listed. Archived rows never show. Two bounded queries (the second only when
+ * there is room to fill).
+ */
+export async function bellNotifications(): Promise<NotificationRow[]> {
   const who = await self();
   if (!who) return [];
-  return db
+  const live = and(mine(who.userId, who.accountId), isNull(notifications.archivedAt));
+  const unread = await db
     .select(ROW)
     .from(notifications)
     .leftJoin(users, eq(users.id, notifications.actorUserId))
-    .where(and(mine(who.userId, who.accountId), isNull(notifications.archivedAt)))
+    .where(and(live, isNull(notifications.readAt)))
     .orderBy(desc(notifications.createdAt))
-    .limit(limit);
+    .limit(BELL_UNREAD_CAP);
+  const room = BELL_RECENT_LIMIT - unread.length;
+  if (room <= 0) return unread;
+  const read = await db
+    .select(ROW)
+    .from(notifications)
+    .leftJoin(users, eq(users.id, notifications.actorUserId))
+    .where(and(live, isNotNull(notifications.readAt)))
+    .orderBy(desc(notifications.createdAt))
+    .limit(room);
+  return [...unread, ...read].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 }
 
 export type NotificationTab = "all" | "unread" | "archived";
@@ -274,8 +296,14 @@ export async function listNotifications(opts: {
   const q = opts.q?.trim();
   if (q) {
     const like = `%${q}%`;
+    // Titles carry Unicode ISOLATES around names (lib/bidi.ts, 2026-10-20):
+    // match against the title WITHOUT them, or "Sara mentioned" would never
+    // find "\u2068Sara\u2069 mentioned".
     filters.push(
-      or(ilike(notifications.title, like), ilike(notifications.body, like))!,
+      or(
+        sql`translate(${notifications.title}, ${BIDI_ISOLATES}, '') ILIKE ${like}`,
+        ilike(notifications.body, like),
+      )!,
     );
   }
   const where = and(...filters);
@@ -336,6 +364,7 @@ export interface BrandMember {
   name: string;
   email: string;
   role: string;
+  avatarUrl: string | null;
 }
 
 /**
@@ -351,6 +380,7 @@ export async function brandMembers(): Promise<BrandMember[]> {
       name: users.name,
       email: users.email,
       role: users.role,
+      avatarUrl: users.avatarUrl,
     })
     .from(users)
     .where(

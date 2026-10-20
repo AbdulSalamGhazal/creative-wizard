@@ -246,6 +246,58 @@ export function settleSentPosts<T extends { id: string; pending?: boolean }>(
   return rows.filter((r) => r.pending === true || !storedIds.has(r.id));
 }
 
+// ── Reading a thread: "New", collapsed replies (2026-10-20) ─────────────────
+
+/**
+ * Which comments are NEW to this reader: posted by SOMEONE ELSE after
+ * `since` (where they last left this thread — `comment_reads`). Your own are
+ * never new; a deleted one isn't news; a first visit (`since` null) has
+ * nothing new — there is no baseline to be new against.
+ */
+export function newCommentIds(
+  comments: ReadonlyArray<{
+    id: string;
+    authorUserId: string | null;
+    createdAt: Date;
+    deletedAt: Date | null;
+    pending?: boolean;
+  }>,
+  since: Date | null,
+  currentUserId: string | null,
+): Set<string> {
+  const out = new Set<string>();
+  if (!since) return out;
+  for (const c of comments) {
+    if (c.pending || c.deletedAt !== null) continue;
+    if (c.authorUserId !== null && c.authorUserId === currentUserId) continue;
+    if (c.createdAt.getTime() > since.getTime()) out.add(c.id);
+  }
+  return out;
+}
+
+/** How many of a thread's latest replies stay visible when it collapses. */
+export const REPLIES_VISIBLE = 2;
+
+/**
+ * A long thread COLLAPSES: more than `REPLIES_VISIBLE` replies show the latest
+ * ones and a "Show N earlier replies" control — unless the reader opened it,
+ * or the hidden range holds something they must see (the deep-linked reply,
+ * a "New" one), which forces it open.
+ */
+export function collapseReplies<T extends { id: string }>(
+  replies: readonly T[],
+  opts: { expanded: boolean; mustShow: ReadonlySet<string> },
+): { hidden: number; shown: T[] } {
+  if (opts.expanded || replies.length <= REPLIES_VISIBLE) {
+    return { hidden: 0, shown: [...replies] };
+  }
+  const cut = replies.length - REPLIES_VISIBLE;
+  if (replies.slice(0, cut).some((r) => opts.mustShow.has(r.id))) {
+    return { hidden: 0, shown: [...replies] };
+  }
+  return { hidden: cut, shown: replies.slice(cut) };
+}
+
 /** The anchor a plain page gets: itself, if it is commentable. */
 export function viewAnchorFor(pathname: string): CommentAnchor | null {
   return isCommentableView(pathname) ? { type: "view", id: pathname } : null;

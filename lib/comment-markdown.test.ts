@@ -41,7 +41,7 @@ describe("links are http(s) only — the href can never be a scheme we didn't al
   it("links a bare https URL with a safe rel", () => {
     const html = commentHtml("see https://urjwan.com/x?a=1 please");
     expect(html).toContain(
-      '<a href="https://urjwan.com/x?a=1" target="_blank" rel="noopener noreferrer nofollow">',
+      '<a href="https://urjwan.com/x?a=1" target="_blank" rel="noopener noreferrer nofollow" dir="ltr">',
     );
   });
 
@@ -83,16 +83,16 @@ describe("the three patterns", () => {
 
   it("nests emphasis inside a bullet, and a mention inside emphasis", () => {
     const html = commentHtml("- **ship** it @Sara", ["Sara"]);
-    expect(html).toContain("<ul><li>");
+    expect(html).toContain('<ul dir="auto"><li dir="auto">');
     expect(html).toContain("<strong>ship</strong>");
-    expect(html).toContain('<span class="cm-mention">@Sara</span>');
+    expect(html).toContain('<bdi class="cm-mention">@Sara</bdi>');
   });
 
   it("groups consecutive bullets into ONE list and closes it after", () => {
     const html = commentHtml("- one\n- two\nafter");
-    expect(html).toContain("<ul><li>one</li><li>two</li></ul>");
-    expect(html).toContain("<p>after</p>");
-    expect(html.indexOf("</ul>")).toBeLessThan(html.indexOf("<p>after"));
+    expect(html).toContain('<ul dir="auto"><li dir="auto">one</li><li dir="auto">two</li></ul>');
+    expect(html).toContain('<p dir="auto">after</p>');
+    expect(html.indexOf("</ul>")).toBeLessThan(html.indexOf('<p dir="auto">after'));
   });
 
   it("leaves an unmatched marker as text", () => {
@@ -102,7 +102,7 @@ describe("the three patterns", () => {
 
   it("highlights only the names actually recorded as mentioned", () => {
     const html = commentHtml("@Sara and @Nobody", ["Sara"]);
-    expect(html).toContain('<span class="cm-mention">@Sara</span>');
+    expect(html).toContain('<bdi class="cm-mention">@Sara</bdi>');
     expect(html).toContain("@Nobody");
     expect(html).not.toContain('class="cm-mention">@Nobody');
   });
@@ -138,5 +138,33 @@ describe("the toolbar edits (pure)", () => {
   it("bullets the CURRENT line when nothing is selected", () => {
     const out = applyMarkdownTool("alpha\nbeta", 7, 7, "list");
     expect(out.text).toBe("alpha\n- beta");
+  });
+});
+
+describe("RTL, per block (2026-10-20) — Arabic and English side by side", () => {
+  it("gives every paragraph, list and item its OWN direction", () => {
+    const html = commentHtml("مرحبا بالجميع\nHello all\n- بند أول\n- second item");
+    expect(html).toContain('<p dir="auto">مرحبا بالجميع</p>');
+    expect(html).toContain('<p dir="auto">Hello all</p>');
+    expect(html).toContain('<ul dir="auto"><li dir="auto">بند أول</li><li dir="auto">second item</li></ul>');
+  });
+
+  it("isolates an Arabic name in English text, and an English name in Arabic text", () => {
+    expect(commentHtml("Thanks @سارة الأحمد for this", ["سارة الأحمد"])).toContain(
+      '<p dir="auto">Thanks <bdi class="cm-mention">@سارة الأحمد</bdi> for this</p>',
+    );
+    expect(commentHtml("شكرا @Ali Hassan على المراجعة", ["Ali Hassan"])).toContain(
+      '<bdi class="cm-mention">@Ali Hassan</bdi> على المراجعة',
+    );
+  });
+
+  it("keeps a URL inside Arabic text a left-to-right, isolated link", () => {
+    const html = commentHtml("راجع https://urjwan.com/x?a=1 من فضلك");
+    expect(html).toContain('dir="ltr">https://urjwan.com/x?a=1</a> من فضلك');
+  });
+
+  it("adds the attribute AFTER the escape — user text still can't open a tag", () => {
+    const html = commentHtml('<p dir="rtl" onclick="x">hi</p>');
+    expect(html).toBe('<p dir="auto">&lt;p dir=&quot;rtl&quot; onclick=&quot;x&quot;&gt;hi&lt;/p&gt;</p>');
   });
 });

@@ -47,8 +47,10 @@ import {
   updateComment,
 } from "@/app/actions/comments";
 import { listComments, resolveAnchorPath } from "@/db/queries/comments";
+import { listNotifications } from "@/db/queries/notifications";
 import { buildCommentTarget, reactionDedupeKey, reactionEmoji } from "@/lib/comments";
 import { COMMENT_EVENT_TYPES } from "@/lib/notifications";
+import { isolate, stripIsolates } from "@/lib/bidi";
 import { CREATIVE_1, CAMPAIGN_1, CAMPAIGN_B, resetAndSeed } from "./fixtures";
 
 const setAccount = (id: string) => vi.mocked(getActiveAccountId).mockResolvedValue(id);
@@ -156,7 +158,14 @@ describe("mentions", () => {
     expect(rows).toHaveLength(1);
     expect(rows[0]!.recipientUserId).toBe(BOB);
     expect(rows[0]!.category).toBe("mention");
-    expect(rows[0]!.title).toContain("Alice mentioned you on");
+    expect(stripIsolates(rows[0]!.title)).toContain("Alice mentioned you on");
+    // The user-supplied parts are ISOLATED so an Arabic name or label can't
+    // flip the English template (2026-10-20).
+    expect(rows[0]!.title).toBe(`${isolate("Alice")} mentioned you on ${isolate("A-Creative-1")}`);
+    // …and searching /notifications sees through the isolates.
+    setUser(BOB, "Bob");
+    const found = await listNotifications({ tab: "all", q: "Alice mentioned you on A-Creative" });
+    expect(found.rows).toHaveLength(1);
     expect(rows[0]!.href).toBe(`/go/comment/${res.id}`);
   });
 
@@ -185,7 +194,7 @@ describe("anchor-following — a new top-level comment reaches prior commenters"
     for (const row of rows) {
       expect(row.type).toBe("comment.anchor_activity");
       expect(row.category).toBe("reply"); // conversation, not a system event
-      expect(row.title).toContain("Alice commented on");
+      expect(stripIsolates(row.title)).toContain("Alice commented on");
       expect(row.title).toContain("where you commented");
       expect(row.href).toBe(`/go/comment/${res.id}`);
       // Stamped with the ANCHOR, which is what lets the page group a burst.
@@ -283,7 +292,7 @@ describe("editing can ADD a mention — and notifies it", () => {
     expect(rows).toHaveLength(1);
     expect(rows[0]!.recipientUserId).toBe(BOB);
     expect(rows[0]!.type).toBe("comment.mention");
-    expect(rows[0]!.title).toContain("Alice mentioned you on");
+    expect(stripIsolates(rows[0]!.title)).toContain("Alice mentioned you on");
   });
 
   it("does not re-notify a mention that was already there", async () => {
@@ -750,7 +759,7 @@ describe("reactions", () => {
     expect(note?.recipientUserId).toBe(ALICE);
     expect(note?.actorUserId).toBe(BOB);
     expect(note?.category).toBe("reply");
-    expect(note?.title).toContain("Bob reacted");
+    expect(stripIsolates(note?.title ?? "")).toContain("Bob reacted");
     expect(note?.title).toContain(reactionEmoji("party"));
     // Stamped with the ANCHOR, not the comment — that is what lets the page
     // collapse a burst of reactions into one row.

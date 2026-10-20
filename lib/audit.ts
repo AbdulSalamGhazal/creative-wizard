@@ -58,6 +58,8 @@ export const AUDIT_ACTIONS = {
   USER_PERMISSIONS_UPDATE: "user.permissions_update",
   USER_BRANDS_UPDATE: "user.brands_update",
   USER_PASSWORD_RESET: "user.password_reset",
+  /** A profile photo set or removed — by the person, or by `users.manage`. */
+  USER_AVATAR_UPDATE: "user.avatar_update",
 
   // Personal API access tokens (MCP)
   TOKEN_CREATE: "token.create",
@@ -243,6 +245,7 @@ export const AUDIT_LABELS: Record<AuditAction, string> = {
   "user.permissions_update": "Updated user access",
   "user.brands_update": "Updated brand access",
   "user.password_reset": "Reset user password",
+  "user.avatar_update": "Changed profile photo",
   "token.create": "Created API token",
   "token.revoke": "Revoked API token",
   "oauth.grant": "Connected an app",
@@ -310,6 +313,7 @@ export const AUDIT_CATEGORIES: Record<AuditAction, AuditEntityType> = {
   "user.permissions_update": "user",
   "user.brands_update": "user",
   "user.password_reset": "user",
+  "user.avatar_update": "user",
   "token.create": "user",
   "token.revoke": "user",
   "oauth.grant": "user",
