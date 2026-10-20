@@ -202,6 +202,29 @@ export function isImeKeydown(e: { isComposing: boolean; keyCode: number }): bool
   return e.isComposing || e.keyCode === 229;
 }
 
+/**
+ * The panel's local rows for your own posts (2026-10-20 review). A row is
+ * `pending` while on its way ("Sending…"); once the server has it, it takes
+ * the stored id and stays — as sent — until a SUCCESSFUL load shows the stored
+ * copy. A failed reload must never make a sent comment vanish. Both steps are
+ * pure so the rule is pinned.
+ */
+export function markPostSent<T extends { id: string; pending?: boolean }>(
+  rows: readonly T[],
+  tempId: string,
+  storedId: string,
+): T[] {
+  return rows.map((r) => (r.id === tempId ? { ...r, id: storedId, pending: false } : r));
+}
+
+/** After a successful load: drop the sent rows the stored thread now shows. */
+export function settleSentPosts<T extends { id: string; pending?: boolean }>(
+  rows: readonly T[],
+  storedIds: ReadonlySet<string>,
+): T[] {
+  return rows.filter((r) => r.pending === true || !storedIds.has(r.id));
+}
+
 /** The anchor a plain page gets: itself, if it is commentable. */
 export function viewAnchorFor(pathname: string): CommentAnchor | null {
   return isCommentableView(pathname) ? { type: "view", id: pathname } : null;

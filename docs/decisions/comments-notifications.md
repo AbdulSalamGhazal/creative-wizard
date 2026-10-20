@@ -433,3 +433,11 @@ as it stood before the restructure.*
   the error row is now the list's active option: Enter or Tab in the
   textarea retries, and the button retries on click (so a focused button and
   a pointer both work) while its mousedown still keeps the caret.
+- **R1 (review, 2026-10-20) — a sent post VANISHED when the reload after it
+  failed.** `load().finally(drop)` removed the placeholder whether or not the
+  stored copy made it to screen, and with rows already on screen no Retry
+  showed. Now the row, once the server has it, takes the stored id and drops
+  "Sending…" (`markPostSent`), and leaves only when a SUCCESSFUL load
+  contains that id (`settleSentPosts`) — both pure and tested. A refresh that
+  fails while a thread is on screen shows a quiet "Couldn't load comments ·
+  Retry" line above the composer.

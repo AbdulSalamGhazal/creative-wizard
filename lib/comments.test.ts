@@ -369,3 +369,24 @@ describe("which keydown submits the composer (2026-10)", () => {
     expect(isImeKeydown({ isComposing: false, keyCode: 13 })).toBe(false);
   });
 });
+
+describe("your own post never vanishes on a failed reload (2026-10-20 review)", () => {
+  type Row = { id: string; pending?: boolean; body: string };
+  it("a sent post takes the stored id and stops being pending", async () => {
+    const { markPostSent } = await import("@/lib/comments");
+    const rows: Row[] = [{ id: "tmp-1", pending: true, body: "hi" }];
+    expect(markPostSent(rows, "tmp-1", "c-9")).toEqual([{ id: "c-9", pending: false, body: "hi" }]);
+  });
+
+  it("stays until a load that SHOWS it — and only then goes", async () => {
+    const { settleSentPosts } = await import("@/lib/comments");
+    const local: Row[] = [
+      { id: "c-9", pending: false, body: "sent" },
+      { id: "tmp-2", pending: true, body: "still sending" },
+    ];
+    // A load that predates the post (or a stale cache) doesn't contain it: keep.
+    expect(settleSentPosts(local, new Set(["a", "b"]))).toEqual(local);
+    // The stored copy is on screen: the local one goes; a pending one stays.
+    expect(settleSentPosts(local, new Set(["a", "c-9"]))).toEqual([local[1]]);
+  });
+});

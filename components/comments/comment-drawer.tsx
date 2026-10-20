@@ -24,7 +24,9 @@ import { cn } from "@/lib/utils";
 import {
   COMMENT_PARAM,
   deepLinkStep,
+  markPostSent,
   monthAnchorLabel,
+  settleSentPosts,
   stripCommentParam,
   viewLabel,
   type CommentAnchor,
@@ -357,24 +359,36 @@ function CommentPanelBody({
   const [loadFailed, setLoadFailed] = useState(false);
   /** The deep link this panel already reloaded once for (see `deepLinkStep`). */
   const reloadedFor = useRef<string | null>(null);
-  /** Your posts still on their way — shown at once, replaced by the reload. */
+  /**
+   * Your posts the stored thread doesn't show yet: `pending` while on their
+   * way ("Sending…"), then — once the server has them — plain rows that stay
+   * until a SUCCESSFUL load contains their id. A failed reload must never make
+   * a sent comment vanish (2026-10-20 review).
+   */
   const [pending, setPending] = useState<ThreadComment[]>([]);
   const [replyTo, setReplyTo] = useState<string | null>(null);
   const anchorKey = anchorKeyOf(anchor);
 
-  const load = useCallback(async () => {
-    if (!anchor) return;
+  /** Load the thread. Resolves `true` when the stored thread is on screen. */
+  const load = useCallback(async (): Promise<boolean> => {
+    if (!anchor) return false;
     try {
       const res = await fetch(`/api/comments?${anchorParams(anchor)}`, { cache: "no-store" });
       if (!res.ok) throw new Error(`comments ${res.status}`);
       const data = (await res.json()) as { comments: WireComment[] };
       const hydrated = hydrate(data.comments ?? []);
       setRows(hydrated);
+      // A sent post leaves the local list only now that a stored copy is on
+      // screen — same render, so it never blinks out or doubles up.
+      const stored = new Set(hydrated.map((c) => c.id));
+      setPending((list) => settleSentPosts(list, stored));
       setLoadFailed(false);
       setCount(hydrated.filter((c) => c.deletedAt === null).length);
+      return true;
     } catch {
-      // Keep whatever is on screen; a thread that never loaded says so.
+      // Keep whatever is on screen — sent posts included — and say so.
       setLoadFailed(true);
+      return false;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [anchorKey, setCount]);
@@ -516,6 +530,23 @@ function CommentPanelBody({
             )}
           </div>
 
+          {/* A REFRESH failed while a thread is on screen: what's shown may be
+              stale (a sent post kept, others' new ones missing) — say so,
+              quietly, with the way out. */}
+          {rows !== null && loadFailed && (
+            <div className="flex items-center justify-center gap-1 border-t border-line px-3 py-1.5 text-[11px] text-ink-3">
+              <span>Couldn&rsquo;t load comments</span>
+              <span aria-hidden>·</span>
+              <button
+                type="button"
+                onClick={() => void load()}
+                className="rounded text-brand hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50"
+              >
+                Retry
+              </button>
+            </div>
+          )}
+
           <div className="border-t border-line px-3 py-3">
             {replyTo && (
               <div className="mb-2 flex items-center gap-2 text-[11px] text-ink-3">
@@ -576,10 +607,17 @@ function CommentPanelBody({
                         : stripCommentParam(window.location.search),
                     mentionUserIds,
                   });
-                  // The composer clears as soon as the server has it; the
-                  // placeholder stays until the stored row is on screen.
-                  if (res.ok) void load().finally(drop);
-                  else drop();
+                  // The composer clears as soon as the server has it. The row
+                  // stops saying "Sending…" and takes the stored id; it stays
+                  // until a load actually shows the stored copy — if the
+                  // reload fails, it does NOT vanish.
+                  if (res.ok) {
+                    const storedId = res.id ?? tempId;
+                    setPending((list) => markPostSent(list, tempId, storedId));
+                    void load();
+                  } else {
+                    drop();
+                  }
                   return res;
                 } catch (err) {
                   drop();
