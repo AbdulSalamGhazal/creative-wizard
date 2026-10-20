@@ -441,3 +441,6 @@ as it stood before the restructure.*
   contains that id (`settleSentPosts`) — both pure and tested. A refresh that
   fails while a thread is on screen shows a quiet "Couldn't load comments ·
   Retry" line above the composer.
+- **D3 — initials are FIRST + LAST word, every script (user decision,
+  2026-10-20):** "Mary Jane Watson" → "MW", «عبد السلام غزال» → «ع‌غ» (the
+  ZWNJ stays), one word → one letter. It was the first two words.

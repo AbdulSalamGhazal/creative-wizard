@@ -97,15 +97,19 @@ describe("a mention is the WHOLE name — a prefix never stands in for it", () =
   });
 });
 
-describe("initials", () => {
-  it("are letters — punctuation never stands in for one", () => {
+describe("initials — first + last word, every script (user decision 2026-10-20)", () => {
+  it("are the first and LAST words' letters — punctuation never stands in", () => {
     expect(initialsOf("Abdulsalam Ghazal")).toBe("AG");
-    expect(initialsOf("Salam (seed admin)")).toBe("SS");
+    expect(initialsOf("Mary Jane Watson")).toBe("MW");
+    expect(initialsOf("Salam (seed admin)")).toBe("SA");
+    expect(initialsOf("Cher")).toBe("C");
+    expect(initialsOf("   ")).toBe("?");
+    expect(initialsOf(null)).toBe("?");
   });
 
   it("Arabic initials stay two separate letters — never joined into one glyph", () => {
-    // U+200C ZERO WIDTH NON-JOINER keeps «ع» and «ا» as two letters.
-    expect(initialsOf("عبد السلام غزال")).toBe("ع‌ا");
+    // U+200C ZERO WIDTH NON-JOINER keeps «ع» and «غ» as two letters.
+    expect(initialsOf("عبد السلام غزال")).toBe("ع\u200Cغ");
     expect(initialsOf("سارة")).toBe("س");
     expect(initialsOf("Sara غزال")).toBe("Sغ");
   });
