@@ -343,3 +343,29 @@ describe("what the composer keeps after a submit", () => {
     expect(composerStateAfterSubmit({ ok: false }, typed).mentions).toBe(typed.mentions);
   });
 });
+
+describe("which keydown submits the composer (2026-10)", () => {
+  const key = (over: Partial<{ key: string; shiftKey: boolean; isComposing: boolean; keyCode: number }>) => ({
+    key: "Enter",
+    shiftKey: false,
+    isComposing: false,
+    keyCode: 13,
+    ...over,
+  });
+
+  it("Enter submits; Shift+Enter breaks the line; other keys never", async () => {
+    const { enterSubmits } = await import("@/lib/comments");
+    expect(enterSubmits(key({}))).toBe(true);
+    expect(enterSubmits(key({ shiftKey: true }))).toBe(false);
+    expect(enterSubmits(key({ key: "a", keyCode: 65 }))).toBe(false);
+  });
+
+  it("an IME's Enter confirms its candidate — it never posts", async () => {
+    const { enterSubmits, isImeKeydown } = await import("@/lib/comments");
+    expect(enterSubmits(key({ isComposing: true }))).toBe(false);
+    // Safari reports the composition-ending keydown as keyCode 229.
+    expect(enterSubmits(key({ keyCode: 229 }))).toBe(false);
+    expect(isImeKeydown({ isComposing: true, keyCode: 13 })).toBe(true);
+    expect(isImeKeydown({ isComposing: false, keyCode: 13 })).toBe(false);
+  });
+});

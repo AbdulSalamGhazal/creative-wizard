@@ -332,3 +332,24 @@ as it stood before the restructure.*
   (debounced 300 ms) to bring back other people's reactions and the tooltip
   names. Measured (dev, warm): click→pill ~405 ms → ~50 ms (dev-mode React
   render; the request now runs behind it).
+- **A3 (posting) — a post took ~0.4 s to appear** even after A2 (the
+  thread's own reload is most of it), so a post now shows AT ONCE as a
+  pending row — yours, dimmed, "Sending…", no actions — until the reload
+  brings the stored row that replaces it (`ThreadComment.pending`, the
+  drawer's `pending` list). The composer still clears on success only
+  (`composerStateAfterSubmit`), and a failed or rejected post drops the
+  placeholder and keeps every character. The composer's submit moved OUT of
+  `useTransition`: an update made inside an async transition only commits
+  when the whole call finishes, which held the pending row back for the
+  length of the request. Measured (dev): Enter→row visible ~382 ms → ~25 ms
+  on a short thread (~120 ms on a 45-comment one — dev-mode React rendering
+  the whole thread).
+- **A4 — Enter posted twice.** The textarea's Enter called `submit()` even
+  while a post was in flight (only the Send button was disabled). A ref
+  guard now admits ONE submit at a time — a state flag alone can't stop two
+  Enters landing before React re-renders — and an Enter that belongs to an
+  IME mid-composition (`isComposing`, or Safari's keyCode 229) never submits
+  or picks a mention (`enterSubmits` / `isImeKeydown` in lib/comments.ts,
+  pure and tested). Verified in the browser: three Enters (two in one tick)
+  posted exactly one comment, four times out of four; an IME Enter posted
+  nothing and kept the text.

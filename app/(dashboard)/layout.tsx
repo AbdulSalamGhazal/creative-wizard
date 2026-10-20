@@ -104,6 +104,7 @@ export default async function DashboardLayout({
               <Suspense fallback={null}>
                 <CommentDock
                   currentUserId={user.id}
+                  currentUserName={user.name}
                   canModerate={
                     user.role === "admin" || can(user, "users.manage")
                   }

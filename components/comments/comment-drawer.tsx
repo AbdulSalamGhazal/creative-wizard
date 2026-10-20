@@ -27,7 +27,10 @@ import {
   type CommentAnchor,
 } from "@/lib/comments";
 import { useCommentAnchor } from "@/components/comments/comment-anchor-context";
-import { CommentThread } from "@/components/comments/comment-thread";
+import {
+  CommentThread,
+  type ThreadComment,
+} from "@/components/comments/comment-thread";
 import { CommentComposer } from "@/components/comments/comment-composer";
 import { createComment } from "@/app/actions/comments";
 import type { CommentRow } from "@/db/queries/comments";
@@ -213,9 +216,12 @@ function useCanDock(): boolean | null {
  */
 export function CommentDock({
   currentUserId,
+  currentUserName,
   canModerate,
 }: {
   currentUserId: string | null;
+  /** Your name, for the row a post shows while it is still on its way. */
+  currentUserName: string | null;
   canModerate: boolean;
 }) {
   const { open, setOpen } = usePanel();
@@ -233,6 +239,7 @@ export function CommentDock({
       >
         <CommentPanelBody
           currentUserId={currentUserId}
+          currentUserName={currentUserName}
           canModerate={canModerate}
           onClose={() => setOpen(false)}
           inSheet={false}
@@ -250,6 +257,7 @@ export function CommentDock({
       >
         <CommentPanelBody
           currentUserId={currentUserId}
+          currentUserName={currentUserName}
           canModerate={canModerate}
           onClose={() => setOpen(false)}
           inSheet
@@ -275,11 +283,13 @@ const hydrate = (rows: WireComment[]): CommentRow[] =>
 
 function CommentPanelBody({
   currentUserId,
+  currentUserName,
   canModerate,
   onClose,
   inSheet,
 }: {
   currentUserId: string | null;
+  currentUserName: string | null;
   canModerate: boolean;
   onClose: () => void;
   /** The Sheet needs Radix's Title/Description for its dialog semantics. */
@@ -292,6 +302,8 @@ function CommentPanelBody({
   const [, startNav] = useNavTransition();
   const { highlightId, setHighlightId, setCount } = usePanel();
   const [rows, setRows] = useState<CommentRow[] | null>(null);
+  /** Your posts still on their way — shown at once, replaced by the reload. */
+  const [pending, setPending] = useState<ThreadComment[]>([]);
   const [replyTo, setReplyTo] = useState<string | null>(null);
   const anchorKey = anchorKeyOf(anchor);
 
@@ -305,7 +317,9 @@ function CommentPanelBody({
       setRows(hydrated);
       setCount(hydrated.filter((c) => c.deletedAt === null).length);
     } catch {
-      setRows([]);
+      // Offline: keep what is on screen. Only a thread that never loaded
+      // falls back to empty.
+      setRows((prev) => prev ?? []);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [anchorKey, setCount]);
@@ -317,6 +331,7 @@ function CommentPanelBody({
   // instead of at its newest message.
   useEffect(() => {
     setRows(null);
+    setPending([]);
     setReplyTo(null);
     setHighlightId(null);
     void load();
@@ -390,7 +405,7 @@ function CommentPanelBody({
               <p className="py-8 text-center text-xs text-ink-3">Loading…</p>
             ) : (
               <CommentThread
-                comments={rows}
+                comments={pending.length > 0 ? [...rows, ...pending] : rows}
                 currentUserId={currentUserId}
                 canModerate={canModerate}
                 currentQuery={searchParams.toString()}
@@ -426,19 +441,50 @@ function CommentPanelBody({
               ariaLabel={replyTo ? "Write a reply" : "Write a comment"}
               // The VIEW is captured HERE, at submit time, from the LIVE
               // location — what the reader was looking at when they posted.
-              onSubmit={(body, mentionUserIds) =>
-                createComment({
-                  anchorType: anchor.type,
-                  anchorId: anchor.id,
-                  parentId: replyTo,
-                  body,
-                  viewQuery:
-                    typeof window === "undefined"
-                      ? ""
-                      : window.location.search.replace(/^\?/, ""),
-                  mentionUserIds,
-                })
-              }
+              onSubmit={async (body, mentionUserIds) => {
+                // Shown in the thread AT ONCE, dimmed, until the reload brings
+                // the stored row — a post took ~0.4 s to appear otherwise.
+                const tempId = `pending-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+                const drop = () => setPending((list) => list.filter((c) => c.id !== tempId));
+                setPending((list) => [
+                  ...list,
+                  {
+                    id: tempId,
+                    parentId: replyTo,
+                    authorUserId: currentUserId,
+                    authorName: currentUserName,
+                    body,
+                    viewQuery: null,
+                    editedAt: null,
+                    deletedAt: null,
+                    createdAt: new Date(),
+                    mentions: [],
+                    reactions: [],
+                    pending: true,
+                  },
+                ]);
+                try {
+                  const res = await createComment({
+                    anchorType: anchor.type,
+                    anchorId: anchor.id,
+                    parentId: replyTo,
+                    body,
+                    viewQuery:
+                      typeof window === "undefined"
+                        ? ""
+                        : window.location.search.replace(/^\?/, ""),
+                    mentionUserIds,
+                  });
+                  // The composer clears as soon as the server has it; the
+                  // placeholder stays until the stored row is on screen.
+                  if (res.ok) void load().finally(drop);
+                  else drop();
+                  return res;
+                } catch (err) {
+                  drop();
+                  throw err; // the composer's safeAction turns it into a toast
+                }
+              }}
               onSubmitted={() => {
                 setReplyTo(null);
                 // Your own post is the newest thing in the thread, so land
@@ -446,10 +492,10 @@ function CommentPanelBody({
                 // click-to-apply would otherwise keep the thread scrolled to
                 // somebody else's older comment.
                 setHighlightId(null);
-                // The thread reloads itself — and ONLY the thread. No router
-                // refresh: no server page reads comments, so it was a second
-                // full re-render of the page beside the panel (2026-10).
-                void load();
+                // The thread reloads itself (in onSubmit, above) — and ONLY
+                // the thread. No router refresh: no server page reads
+                // comments, so it was a second full re-render of the page
+                // beside the panel (2026-10).
               }}
             />
           </div>

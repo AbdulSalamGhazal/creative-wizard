@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AtSign, Bold, Italic, List, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -15,7 +15,9 @@ import {
   activeMentions,
   composerStateAfterSubmit,
   detectMentionQuery,
+  enterSubmits,
   insertMentionToken,
+  isImeKeydown,
   matchMembers,
   type MentionQuery,
 } from "@/lib/comments";
@@ -85,7 +87,15 @@ export function CommentComposer({
   onSubmitted?: () => void;
   onCancel?: () => void;
 }) {
-  const [isPending, startTransition] = useTransition();
+  /** A submit is on its way — the button shows it; the ref below guards it. */
+  const [submitting, setSubmitting] = useState(false);
+  /**
+   * ONE submit at a time (2026-10). Enter used to post again while the first
+   * post was still in flight (only the button was disabled), and the state
+   * flag alone can't stop two Enters landing before React re-renders — a ref
+   * flips synchronously.
+   */
+  const inFlight = useRef(false);
   const [body, setBody] = useState(initialValue);
   const [mentions, setMentions] = useState<ComposerMember[]>(initialMentions);
   const [members, setMembers] = useState<ComposerMember[] | null>(null);
@@ -179,12 +189,17 @@ export function CommentComposer({
     });
   };
 
-  const submit = () => {
+  const submit = async () => {
     const text = body.trim();
-    if (!text) return;
-    startTransition(async () => {
-      // Only the mentions whose "@Name" survived editing actually count — on
-      // an edit that is also how a REMOVED mention stops being one.
+    if (!text || inFlight.current) return;
+    inFlight.current = true;
+    setSubmitting(true);
+    try {
+      // NOT inside a transition: the caller may put something on screen the
+      // moment it is asked (the panel's pending row), and an update made
+      // inside an async transition would only commit when the whole call
+      // finishes.
+      //
       // `safeAction`: a call that REJECTS (network blink, a tab from before
       // the last deploy) resolves to a failure like any other — never an
       // unhandled rejection, never the route's error boundary.
@@ -211,7 +226,10 @@ export function CommentComposer({
       setToken(null);
       setDismissedAt(null);
       onSubmitted?.();
-    });
+    } finally {
+      inFlight.current = false;
+      setSubmitting(false);
+    }
   };
 
   const remaining = COMMENT_MAX - body.length;
@@ -245,6 +263,11 @@ export function CommentComposer({
               aria-expanded={pickerOpen}
               aria-autocomplete="list"
               onKeyDown={(e) => {
+                // An IME is mid-composition (Japanese, Chinese, Korean…): its
+                // Enter confirms the candidate — it is not ours to act on.
+                if (isImeKeydown({ isComposing: e.nativeEvent.isComposing, keyCode: e.keyCode })) {
+                  return;
+                }
                 if (pickerOpen) {
                   if (e.key === "ArrowDown") {
                     e.preventDefault();
@@ -281,9 +304,16 @@ export function CommentComposer({
                 }
                 // Enter submits, Shift+Enter breaks the line — the convention
                 // every chat surface uses.
-                if (e.key === "Enter" && !e.shiftKey) {
+                if (
+                  enterSubmits({
+                    key: e.key,
+                    shiftKey: e.shiftKey,
+                    isComposing: e.nativeEvent.isComposing,
+                    keyCode: e.keyCode,
+                  })
+                ) {
                   e.preventDefault();
-                  submit();
+                  void submit();
                 }
                 if (e.key === "Escape" && onCancel) onCancel();
               }}
@@ -376,8 +406,8 @@ export function CommentComposer({
           <Button
             type="button"
             size="xs"
-            onClick={submit}
-            disabled={body.trim() === "" || isPending}
+            onClick={() => void submit()}
+            disabled={body.trim() === "" || submitting}
           >
             <Send className="h-3 w-3" />
             {submitLabel}

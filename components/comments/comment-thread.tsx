@@ -28,6 +28,14 @@ import {
 } from "@/components/comments/comment-reactions";
 import type { CommentRow } from "@/db/queries/comments";
 
+/**
+ * A thread row as the panel holds it: a stored comment, or one of YOURS that
+ * is still on its way (`pending`) — shown at once, dimmed, with no actions,
+ * until the reload brings the stored row that replaces it (2026-10: a post
+ * took ~0.4 s to appear, longer on production data).
+ */
+export type ThreadComment = CommentRow & { pending?: boolean };
+
 /** How long the Undo toast stays — and so how long a delete can be undone. */
 const UNDO_MS = 8_000;
 
@@ -55,7 +63,7 @@ export function CommentThread({
   onReply,
   onChanged,
 }: {
-  comments: CommentRow[];
+  comments: ThreadComment[];
   currentUserId: string | null;
   canModerate: boolean;
   /** The page's current query string, to decide whether a view differs. */
@@ -82,7 +90,7 @@ export function CommentThread({
   }, [comments, highlightId]);
 
   const roots = comments.filter((c) => c.parentId === null);
-  const repliesOf = new Map<string, CommentRow[]>();
+  const repliesOf = new Map<string, ThreadComment[]>();
   for (const c of comments) {
     if (c.parentId === null) continue;
     const list = repliesOf.get(c.parentId) ?? [];
@@ -116,13 +124,14 @@ export function CommentThread({
     });
   };
 
-  const renderOne = (comment: CommentRow, isReply: boolean) => {
+  const renderOne = (comment: ThreadComment, isReply: boolean) => {
+    const pending = comment.pending === true;
     const deleted = comment.deletedAt !== null;
     const mine = currentUserId !== null && comment.authorUserId === currentUserId;
-    const canEdit = !deleted && mine;
-    const canDelete = !deleted && (mine || canModerate);
-    const hasView = !deleted && normalizeQuery(comment.viewQuery) !== "";
-    const differs = !deleted && showViewChip(comment.viewQuery, currentQuery);
+    const canEdit = !pending && !deleted && mine;
+    const canDelete = !pending && !deleted && (mine || canModerate);
+    const hasView = !pending && !deleted && normalizeQuery(comment.viewQuery) !== "";
+    const differs = !pending && !deleted && showViewChip(comment.viewQuery, currentQuery);
     const highlighted = highlightId === comment.id;
     const mentionNames = comment.mentions.map((m) => m.name ?? "");
     const shownReactions = reactions.tallies(comment);
@@ -140,13 +149,17 @@ export function CommentThread({
           isReply && "border-l border-line pl-3",
           hasView && "cursor-pointer hover:bg-surface-2",
           highlighted && "bg-[var(--brand-soft)] ring-1 ring-brand",
+          pending && "opacity-60",
         )}
+        aria-busy={pending || undefined}
       >
         <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
           <span className="text-xs font-medium text-ink">
             {comment.authorName ?? "Former member"}
           </span>
-          <span className="text-[11px] text-ink-3">{relativeTime(comment.createdAt)}</span>
+          <span className="text-[11px] text-ink-3">
+            {pending ? "Sending…" : relativeTime(comment.createdAt)}
+          </span>
           {comment.editedAt && !deleted && (
             <span className="text-[11px] text-ink-3">· edited</span>
           )}
@@ -240,7 +253,7 @@ export function CommentThread({
             reaction pills as the comment's closing line. Reply and
             add-reaction are one row of affordances; a comment with no
             reactions ends after it, with no empty strip. */}
-        {!deleted && editing !== comment.id && (
+        {!pending && !deleted && editing !== comment.id && (
           <>
             <div
               className="mt-1 flex items-center gap-1"

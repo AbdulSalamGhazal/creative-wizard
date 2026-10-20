@@ -180,6 +180,28 @@ export function composerStateAfterSubmit<M>(
   return result.ok ? { body: "", mentions: [] } : current;
 }
 
+/**
+ * Does this keydown SUBMIT the composer? Enter does; Shift+Enter breaks the
+ * line; and an Enter that belongs to an input-method editor mid-composition
+ * (Japanese, Chinese, Korean…) confirms the IME's candidate and is never ours
+ * — `isComposing` is the standard flag, keyCode 229 what Safari reports for
+ * the keydown that ends a composition (2026-10).
+ */
+export function enterSubmits(e: {
+  key: string;
+  shiftKey: boolean;
+  isComposing: boolean;
+  keyCode: number;
+}): boolean {
+  if (e.isComposing || e.keyCode === 229) return false;
+  return e.key === "Enter" && !e.shiftKey;
+}
+
+/** Is a keydown part of an IME composition (so no shortcut may act on it)? */
+export function isImeKeydown(e: { isComposing: boolean; keyCode: number }): boolean {
+  return e.isComposing || e.keyCode === 229;
+}
+
 /** The anchor a plain page gets: itself, if it is commentable. */
 export function viewAnchorFor(pathname: string): CommentAnchor | null {
   return isCommentableView(pathname) ? { type: "view", id: pathname } : null;
