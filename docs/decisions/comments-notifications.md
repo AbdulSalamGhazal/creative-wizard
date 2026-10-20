@@ -428,3 +428,8 @@ as it stood before the restructure.*
   updated — reload." (with Reload), "Can't reach the server.", "Couldn't load
   people" + Retry, "Couldn't load comments" + Retry, "Sending…". The longer
   first drafts explained what the reader could already see.
+- **R2 (review, 2026-10-20) — the mention list's Retry was mouse-only**
+  (`onMouseDown`). Focus lives in the textarea while the picker is open, so
+  the error row is now the list's active option: Enter or Tab in the
+  textarea retries, and the button retries on click (so a focused button and
+  a pointer both work) while its mousedown still keeps the caret.

@@ -139,6 +139,12 @@ export function CommentComposer({
     // `membersAttempt` re-arms the fetch after Retry.
   }, [pickerOpen, members, membersError, membersAttempt]);
 
+  /** Load the member list again after a failure (Retry — mouse OR keyboard). */
+  const retryMembers = () => {
+    setMembersError(false);
+    setMembersAttempt((n) => n + 1);
+  };
+
   /** Re-read the "@query" under the caret after any edit or caret move. */
   const syncToken = (text: string, caret: number) => {
     // A token may run through spaces ("@Ann Lee") for as long as somebody
@@ -296,6 +302,14 @@ export function CommentComposer({
                   return;
                 }
                 if (pickerOpen) {
+                  // The list failed to load: its one option is Retry, and
+                  // Enter or Tab takes it — focus stays in the textarea, so the
+                  // keyboard must be able to reach it from here.
+                  if (membersError && (e.key === "Enter" || e.key === "Tab")) {
+                    e.preventDefault();
+                    retryMembers();
+                    return;
+                  }
                   if (e.key === "ArrowDown") {
                     e.preventDefault();
                     setCursor((c) => Math.min(Math.max(0, matches.length - 1), c + 1));
@@ -362,19 +376,25 @@ export function CommentComposer({
         >
           <ul className="max-h-56 overflow-y-auto py-1" role="listbox" aria-label="Mention someone">
             {membersError ? (
-              <li className="flex items-center justify-between gap-2 px-3 py-2 text-xs text-ink-3">
+              // The ACTIVE option: Enter or Tab in the textarea retries (see
+              // onKeyDown), and the button works for a pointer or when focused.
+              <li
+                role="option"
+                aria-selected
+                className="flex items-center justify-between gap-2 px-3 py-2 text-xs text-ink-3"
+              >
                 <span>Couldn&rsquo;t load people</span>
                 <button
                   type="button"
-                  // mousedown, not click: keep the textarea's focus and caret.
-                  onMouseDown={(e) => {
-                    e.preventDefault();
-                    setMembersError(false);
-                    setMembersAttempt((n) => n + 1);
-                  }}
-                  className="shrink-0 rounded px-1.5 py-0.5 text-brand hover:underline"
+                  // preventDefault on mousedown keeps the textarea's focus and
+                  // caret; the retry itself is onClick, so a keyboard press on
+                  // the focused button works too.
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={retryMembers}
+                  className="shrink-0 rounded px-1.5 py-0.5 text-brand hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50"
                 >
                   Retry
+                  <span className="sr-only"> (Enter)</span>
                 </button>
               </li>
             ) : members === null ? (
