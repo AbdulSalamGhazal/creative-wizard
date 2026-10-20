@@ -86,12 +86,16 @@ export const deleteCommentSchema = z.object({ id: z.string().uuid() });
 export const restoreCommentSchema = z.object({ id: z.string().uuid() });
 
 /**
- * Toggling a reaction. The kind is validated against the VOCABULARY, derived —
- * a hand-made request cannot store a sixth kind nobody can render.
+ * Setting a reaction ON or OFF — the client sends the state it WANTS, not a
+ * toggle (2026-10), so a repeated or replayed call is harmless and a burst of
+ * clicks can only end where the user last left it. The kind is validated
+ * against the VOCABULARY, derived — a hand-made request cannot store a kind
+ * nobody can render.
  */
-export const toggleReactionSchema = z.object({
+export const setReactionSchema = z.object({
   commentId: z.string().uuid(),
   kind: z.enum(COMMENT_REACTION_KEYS as unknown as [string, ...string[]]),
+  on: z.boolean(),
 });
 
 /** Reading a thread: the anchor, same shape rules as posting to it. */

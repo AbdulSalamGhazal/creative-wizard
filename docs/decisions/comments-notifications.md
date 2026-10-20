@@ -32,8 +32,14 @@
   transform. A new pattern goes AFTER the escape, never before.
 - A FIRST LOAD never toasts and the bell never shakes on a baseline count;
   `off` silences toasts only — the badge and the tab title still work.
-- Reactions: toggle = delete-then-insert (a race cannot duplicate); notifying
-  is ADD-ONLY and goes to the author alone; removing one retracts nothing.
+- Reactions are SET, not toggled (2026-10): the client sends the state the
+  reader wants (`setReaction({ on })`) — ON is an insert that does nothing on
+  the unique-key conflict (a race cannot duplicate), OFF a delete — so a
+  repeat or replay is harmless. Notifying is ADD-ONLY (only an ON that
+  actually inserted) and goes to the author alone; removing one retracts
+  nothing. The panel is OPTIMISTIC and serialises writes per (comment, kind)
+  (`ReactionSync`, lib/reaction-sync.ts), so a burst of clicks ends in the
+  state the reader last chose; a failure rolls the pill back with a toast.
 - **Comment and notification actions call NO `revalidatePath`/`revalidateTag`**
   (pinned by `app/actions/comment-latency.test.ts`): a revalidation inside a
   server action re-renders the CALLER's page and ships it in the response,
@@ -308,3 +314,21 @@ as it stood before the restructure.*
   (detected by the error's name or Next's wording, not by Next's `unstable_`
   helper), a connection sentence for a network failure, the generic sentence
   otherwise.
+- **A3 — reactions gave no feedback, and a double click undid itself.**
+  Nothing moved until the server answered (~0.4 s locally), and a second
+  click in that window sent a second TOGGLE. The contract is now SET:
+  `setReaction({ commentId, kind, on })` replaces `toggleReaction` — ON is
+  `insert … on conflict do nothing returning`, so only a row that was really
+  added notifies (a repeated ON, two tabs, or a replay tell the author once),
+  OFF is a delete; the account-scoped comment check, the deleted-comment
+  refusal and the vocabulary check are unchanged. On the client, ONE
+  `useCommentReactions` per thread lays the reader's pending choices over the
+  server's tallies (`applyReactionOverrides`, pure) so the pill, the count and
+  the tint change on the click, and `ReactionSync` keeps at most one request
+  in flight per (comment, kind): a burst of on/off/on/off sends at most two
+  requests and ends where the reader stopped. A failure rolls the pill back
+  to the last state the server confirmed (not to stale tallies) and toasts.
+  The picker closes on the pick. After writes settle the thread reloads once
+  (debounced 300 ms) to bring back other people's reactions and the tooltip
+  names. Measured (dev, warm): click→pill ~405 ms → ~50 ms (dev-mode React
+  render; the request now runs behind it).

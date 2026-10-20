@@ -31,7 +31,7 @@ import {
   createCommentSchema,
   deleteCommentSchema,
   restoreCommentSchema,
-  toggleReactionSchema,
+  setReactionSchema,
   updateCommentSchema,
 } from "@/validators/comments";
 
@@ -372,24 +372,33 @@ export async function deleteComment(input: unknown): Promise<CommentActionResult
 }
 
 /**
- * React to a comment, or take your reaction back — ONE action, because the two
- * are the same click. The unique key `(comment, user, kind)` IS the toggle: the
- * delete either removes the row or matches nothing, and only then do we insert.
+ * Set your reaction of one kind on a comment ON or OFF (2026-10 — it was a
+ * toggle). The client sends the state the user WANTS, so the call is
+ * idempotent: a repeat, a retry or a replay lands in the same place, and a
+ * burst of clicks — which the panel serialises per comment and kind — ends in
+ * the state the user last chose instead of flip-flopping through queued
+ * toggles.
+ *
+ * The unique key `(comment, user, kind)` still carries the race: ON is an
+ * insert that does nothing on conflict (two tabs adding at once store ONE
+ * row), OFF is a delete that matches nothing when there's nothing to remove.
  *
  * No permission beyond brand membership: whoever can read the thread and reply
  * to it can react to it. NOT audited, for the same reason notification reads
  * aren't — this is preference churn, and an audit log full of 👍 helps nobody.
  *
  * NOTIFYING IS ADD-ONLY, and goes to the comment's AUTHOR alone (the user's
- * decision: "like a reply"). Removing a reaction retracts nothing — you cannot
- * un-tell someone — and reacting to your own comment tells nobody.
+ * decision: "like a reply"): only an ON that actually inserted a row tells
+ * anyone — re-sending ON for a reaction already there is not a new event.
+ * Removing a reaction retracts nothing (you cannot un-tell someone), and
+ * reacting to your own comment tells nobody.
  */
-export async function toggleReaction(
+export async function setReaction(
   input: unknown,
 ): Promise<CommentActionResult & { reacted?: boolean }> {
   try {
     const user = await requireAuth();
-    const parsed = toggleReactionSchema.safeParse(input);
+    const parsed = setReactionSchema.safeParse(input);
     if (!parsed.success) return { ok: false, error: "That reaction isn't available." };
     const acct = await getActiveAccountId();
 
@@ -397,35 +406,37 @@ export async function toggleReaction(
     // another brand's comment id is simply "not found".
     const comment = await getComment(parsed.data.commentId, acct);
     if (!comment) return { ok: false, error: "That comment no longer exists." };
-    // A soft-deleted comment takes no new reactions — there is nothing left to
-    // react to, and the UI hides the controls for the same reason.
+    // A soft-deleted comment takes no reaction changes — there is nothing left
+    // to react to, and the UI hides the controls for the same reason.
     if (comment.deletedAt) return { ok: false, error: "That comment was deleted." };
 
-    const { commentId, kind } = parsed.data;
+    const { commentId, kind, on } = parsed.data;
+    const yours = and(
+      eq(commentReactions.commentId, commentId),
+      eq(commentReactions.userId, user.id),
+      eq(commentReactions.kind, kind),
+    );
 
-    const reacted = await db.transaction(async (tx) => {
-      const removed = await tx
-        .delete(commentReactions)
-        .where(
-          and(
-            eq(commentReactions.commentId, commentId),
-            eq(commentReactions.userId, user.id),
-            eq(commentReactions.kind, kind),
-          ),
-        )
+    if (!on) {
+      await db.delete(commentReactions).where(yours);
+      return { ok: true, reacted: false };
+    }
+
+    await db.transaction(async (tx) => {
+      const added = await tx
+        .insert(commentReactions)
+        .values({ commentId, userId: user.id, accountId: acct, kind })
+        .onConflictDoNothing({
+          target: [commentReactions.commentId, commentReactions.userId, commentReactions.kind],
+        })
         .returning({ id: commentReactions.id });
-      if (removed.length > 0) return false;
-
-      await tx.insert(commentReactions).values({
-        commentId,
-        userId: user.id,
-        accountId: acct,
-        kind,
-      });
+      // Already there: the state the user wants is already the state — and
+      // nothing new happened, so nobody hears about it again.
+      if (added.length === 0) return;
 
       // Reacting to your own comment notifies nobody, and an author whose row
       // is gone (deleted user) has nobody to notify either.
-      if (!comment.authorUserId || comment.authorUserId === user.id) return true;
+      if (!comment.authorUserId || comment.authorUserId === user.id) return;
 
       // On `tx`, never `db`: this transaction holds production's ONLY
       // connection (`lib/db.ts` is `max: 1`), so a lookup through the global
@@ -455,10 +466,9 @@ export async function toggleReaction(
           entityId: comment.anchorId,
         },
       ]);
-      return true;
     });
 
-    return { ok: true, reacted };
+    return { ok: true, reacted: true };
   } catch (err) {
     return { ok: false, error: errMsg(err) };
   }

@@ -43,7 +43,7 @@ import {
   createComment,
   deleteComment,
   restoreComment,
-  toggleReaction,
+  setReaction,
   updateComment,
 } from "@/app/actions/comments";
 import { listComments, resolveAnchorPath } from "@/db/queries/comments";
@@ -617,15 +617,15 @@ describe("reactions", () => {
     return thread.find((c) => c.id === commentId)?.reactions ?? [];
   };
 
-  it("toggles: a click adds, the same click again takes it back", async () => {
+  it("sets ON then OFF — the client sends the state it wants, not a toggle", async () => {
     const id = await aComment(ALICE, "Alice");
     setUser(BOB, "Bob");
 
-    const added = await toggleReaction({ commentId: id, kind: "up" });
+    const added = await setReaction({ commentId: id, kind: "up", on: true });
     expect(added).toMatchObject({ ok: true, reacted: true });
     expect(await db.select().from(commentReactions)).toHaveLength(1);
 
-    const removed = await toggleReaction({ commentId: id, kind: "up" });
+    const removed = await setReaction({ commentId: id, kind: "up", on: false });
     expect(removed).toMatchObject({ ok: true, reacted: false });
     expect(await db.select().from(commentReactions)).toHaveLength(0);
 
@@ -637,13 +637,46 @@ describe("reactions", () => {
     expect(notes).toHaveLength(1);
   });
 
+  it("is IDEMPOTENT — a repeated ON stores one row and tells the author once; an OFF with nothing to remove is fine", async () => {
+    const id = await aComment(ALICE, "Alice");
+    setUser(BOB, "Bob");
+    expect(await setReaction({ commentId: id, kind: "up", on: false })).toMatchObject({
+      ok: true,
+      reacted: false,
+    });
+    // Two tabs, or a retry, saying the same thing at once.
+    const [a, b] = await Promise.all([
+      setReaction({ commentId: id, kind: "up", on: true }),
+      setReaction({ commentId: id, kind: "up", on: true }),
+    ]);
+    expect(a.ok && b.ok).toBe(true);
+    await setReaction({ commentId: id, kind: "up", on: true });
+    expect(await db.select().from(commentReactions)).toHaveLength(1);
+    const notes = await db
+      .select()
+      .from(notifications)
+      .where(eq(notifications.type, COMMENT_EVENT_TYPES.REACTION));
+    expect(notes).toHaveLength(1);
+  });
+
+  it("a burst ends in the state of the LAST call, whatever came before", async () => {
+    const id = await aComment(ALICE, "Alice");
+    setUser(BOB, "Bob");
+    for (const on of [true, false, true, true, false]) {
+      await setReaction({ commentId: id, kind: "heart", on });
+    }
+    expect(await db.select().from(commentReactions)).toHaveLength(0);
+    await setReaction({ commentId: id, kind: "heart", on: true });
+    expect(await db.select().from(commentReactions)).toHaveLength(1);
+  });
+
   it("holds one row per (comment, user, kind) — different kinds coexist", async () => {
     const id = await aComment(ALICE, "Alice");
     setUser(BOB, "Bob");
-    await toggleReaction({ commentId: id, kind: "up" });
-    await toggleReaction({ commentId: id, kind: "heart" });
+    await setReaction({ commentId: id, kind: "up", on: true });
+    await setReaction({ commentId: id, kind: "heart", on: true });
     setUser(CAROL, "Carol");
-    await toggleReaction({ commentId: id, kind: "up" });
+    await setReaction({ commentId: id, kind: "up", on: true });
 
     const tallies = await reactionsOn(id);
     const up = tallies.find((t) => t.kind === "up");
@@ -658,7 +691,7 @@ describe("reactions", () => {
   it("refuses a kind that isn't in the vocabulary", async () => {
     const id = await aComment(ALICE, "Alice");
     setUser(BOB, "Bob");
-    const res = await toggleReaction({ commentId: id, kind: "thumbsdown" });
+    const res = await setReaction({ commentId: id, kind: "thumbsdown", on: true });
     expect(res.ok).toBe(false);
     expect(await db.select().from(commentReactions)).toHaveLength(0);
   });
@@ -666,7 +699,7 @@ describe("reactions", () => {
   it("notifies the AUTHOR, stamped with the anchor, with the emoji in the words", async () => {
     const id = await aComment(ALICE, "Alice");
     setUser(BOB, "Bob");
-    await toggleReaction({ commentId: id, kind: "party" });
+    await setReaction({ commentId: id, kind: "party", on: true });
 
     const [note] = await db
       .select()
@@ -699,7 +732,7 @@ describe("reactions", () => {
     });
     expect(posted.ok).toBe(true);
     setUser(BOB, "Bob");
-    const res = await toggleReaction({ commentId: posted.id!, kind: "up" });
+    const res = await setReaction({ commentId: posted.id!, kind: "up", on: true });
     expect(res).toMatchObject({ ok: true, reacted: true });
     const [note] = await db
       .select()
@@ -712,7 +745,7 @@ describe("reactions", () => {
 
   it("tells NOBODY when you react to your own comment", async () => {
     const id = await aComment(ALICE, "Alice");
-    const res = await toggleReaction({ commentId: id, kind: "up" });
+    const res = await setReaction({ commentId: id, kind: "up", on: true });
     expect(res).toMatchObject({ ok: true, reacted: true });
     expect(await db.select().from(commentReactions)).toHaveLength(1);
     const notes = await db
@@ -726,7 +759,7 @@ describe("reactions", () => {
     const id = await aComment(ALICE, "Alice");
     setAccount(ACCOUNT_B);
     setUser(BOB, "Bob");
-    const res = await toggleReaction({ commentId: id, kind: "up" });
+    const res = await setReaction({ commentId: id, kind: "up", on: true });
     expect(res.ok).toBe(false);
     expect(await db.select().from(commentReactions)).toHaveLength(0);
   });
@@ -734,14 +767,14 @@ describe("reactions", () => {
   it("refuses a DELETED comment, and hides the reactions it already had", async () => {
     const id = await aComment(ALICE, "Alice");
     setUser(BOB, "Bob");
-    await toggleReaction({ commentId: id, kind: "up" });
+    await setReaction({ commentId: id, kind: "up", on: true });
     expect(await reactionsOn(id)).toHaveLength(1);
 
     setUser(ALICE, "Alice");
     expect((await deleteComment({ id })).ok).toBe(true);
 
     setUser(BOB, "Bob");
-    const res = await toggleReaction({ commentId: id, kind: "heart" });
+    const res = await setReaction({ commentId: id, kind: "heart", on: true });
     expect(res.ok).toBe(false);
     // The row survives (the delete is soft) but the thread shows none: there
     // is nothing left to react to under "Comment deleted".
@@ -752,7 +785,7 @@ describe("reactions", () => {
   it("goes away with its comment — the FK cascades", async () => {
     const id = await aComment(ALICE, "Alice");
     setUser(BOB, "Bob");
-    await toggleReaction({ commentId: id, kind: "wow" });
+    await setReaction({ commentId: id, kind: "wow", on: true });
     await db.delete(comments).where(eq(comments.id, id));
     expect(await db.select().from(commentReactions)).toHaveLength(0);
   });

@@ -24,6 +24,7 @@ import { CommentComposer } from "@/components/comments/comment-composer";
 import {
   ReactionPicker,
   ReactionPills,
+  useCommentReactions,
 } from "@/components/comments/comment-reactions";
 import type { CommentRow } from "@/db/queries/comments";
 
@@ -68,6 +69,9 @@ export function CommentThread({
   const [editing, setEditing] = useState<string | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const highlightRef = useRef<HTMLDivElement>(null);
+  // ONE reaction state for the whole thread: optimistic, serialised per
+  // comment and kind, and it reloads the thread once its writes have landed.
+  const reactions = useCommentReactions(comments, onChanged);
 
   // Land where the conversation is: on the highlighted comment when one was
   // deep-linked, otherwise at the newest message.
@@ -121,6 +125,7 @@ export function CommentThread({
     const differs = !deleted && showViewChip(comment.viewQuery, currentQuery);
     const highlighted = highlightId === comment.id;
     const mentionNames = comment.mentions.map((m) => m.name ?? "");
+    const shownReactions = reactions.tallies(comment);
 
     return (
       <div
@@ -252,15 +257,13 @@ export function CommentThread({
                 Reply
               </Button>
               <ReactionPicker
-                commentId={comment.id}
-                reactions={comment.reactions}
-                onChanged={onChanged}
+                reactions={shownReactions}
+                onChoose={(kind) => reactions.choose(comment, kind)}
               />
             </div>
             <ReactionPills
-              commentId={comment.id}
-              reactions={comment.reactions}
-              onChanged={onChanged}
+              reactions={shownReactions}
+              onChoose={(kind) => reactions.choose(comment, kind)}
             />
           </>
         )}
