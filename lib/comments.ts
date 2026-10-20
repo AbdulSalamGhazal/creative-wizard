@@ -94,20 +94,31 @@ export interface CommentAnchor {
 }
 
 /**
- * REACTIONS (2026-10) — exactly five, and the SHORT KEY is what is stored.
+ * REACTIONS — a FIXED set of twelve (user decision, 2026-10-20; it was five),
+ * and the SHORT KEY is what is stored.
  *
  * The key is the durable thing: rows in `comment_reactions` carry it, so the
- * five keys are effectively schema and must not be renamed. The emoji is
- * presentation and could change without a migration. Everything — the picker,
- * the pills, the validator, the notification wording — derives from this array;
- * never re-list the kinds at a consumer.
+ * keys are effectively schema — the original five (`up` `heart` `party`
+ * `laugh` `wow`) keep their exact spelling, and every key fits the column's
+ * varchar(16). The emoji is presentation and could change without a
+ * migration. ORDER is the picker's order (two rows of six at 375 px).
+ * Everything — the picker, the pills, the validator, the notification wording
+ * — derives from this array; never re-list the kinds at a consumer. A key
+ * retired from here still renders, as its raw key.
  */
 export const COMMENT_REACTIONS = [
   { key: "up", emoji: "\u{1F44D}", label: "Thumbs up" },
+  { key: "down", emoji: "\u{1F44E}", label: "Thumbs down" },
   { key: "heart", emoji: "\u{2764}\u{FE0F}", label: "Heart" },
+  { key: "fire", emoji: "\u{1F525}", label: "Fire" },
   { key: "party", emoji: "\u{1F389}", label: "Party" },
   { key: "laugh", emoji: "\u{1F602}", label: "Laugh" },
   { key: "wow", emoji: "\u{1F62E}", label: "Wow" },
+  { key: "sad", emoji: "\u{1F622}", label: "Sad" },
+  { key: "pray", emoji: "\u{1F64F}", label: "Thank you" },
+  { key: "eyes", emoji: "\u{1F440}", label: "Looking" },
+  { key: "check", emoji: "\u{2705}", label: "Done" },
+  { key: "hundred", emoji: "\u{1F4AF}", label: "100" },
 ] as const;
 
 export type CommentReaction = (typeof COMMENT_REACTIONS)[number]["key"];

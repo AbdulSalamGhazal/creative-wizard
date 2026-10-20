@@ -119,7 +119,7 @@ export function useCommentReactions(
   return { tallies, choose };
 }
 
-/** The add-reaction button + the vocabulary. Lives in the action row. */
+/** The add-reaction button + the fixed twelve. Lives in the action row. */
 export function ReactionPicker({
   reactions,
   onChoose,
@@ -143,7 +143,10 @@ export function ReactionPicker({
         </button>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-auto p-1">
-        <div className="flex items-center gap-0.5">
+        {/* The fixed twelve as TWO ROWS OF SIX — a single row of twelve
+            would not fit a 375 px phone. Each one names itself (aria-label +
+            title): an emoji is not a label. */}
+        <div role="group" aria-label="Reactions" className="grid grid-cols-6 gap-0.5">
           {COMMENT_REACTIONS.map((r) => (
             <button
               key={r.key}
@@ -155,9 +158,10 @@ export function ReactionPicker({
                 onChoose(r.key);
               }}
               aria-label={r.label}
+              title={r.label}
               aria-pressed={mineKinds.has(r.key)}
               className={cn(
-                "rounded-md px-1.5 py-1 text-base leading-none transition-colors hover:bg-surface-2",
+                "flex h-8 w-8 items-center justify-center rounded-md text-base leading-none transition-colors hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50",
                 mineKinds.has(r.key) && "bg-[var(--brand-soft)]",
               )}
             >

@@ -281,9 +281,17 @@ describe("inline @ — inserting and filtering", () => {
 describe("the reaction vocabulary", () => {
   // The KEYS are stored in `comment_reactions`, so they are effectively schema:
   // renaming one orphans every row that carries it. The emoji is presentation.
-  it("is exactly five kinds, with stable keys", () => {
-    expect(COMMENT_REACTION_KEYS).toEqual(["up", "heart", "party", "laugh", "wow"]);
-    expect(COMMENT_REACTIONS).toHaveLength(5);
+  it("is the user's fixed twelve, in order — and the original five keys never change", () => {
+    expect(COMMENT_REACTIONS.map((r) => r.emoji).join(" ")).toBe(
+      "\u{1F44D} \u{1F44E} \u{2764}\u{FE0F} \u{1F525} \u{1F389} \u{1F602} \u{1F62E} \u{1F622} \u{1F64F} \u{1F440} \u{2705} \u{1F4AF}",
+    );
+    expect(COMMENT_REACTIONS).toHaveLength(12);
+    // Stored keys are schema: the first five keep their exact spelling.
+    for (const key of ["up", "heart", "party", "laugh", "wow"]) {
+      expect(COMMENT_REACTION_KEYS).toContain(key);
+    }
+    // …and every key fits `comment_reactions.kind varchar(16)`.
+    for (const key of COMMENT_REACTION_KEYS) expect(key.length).toBeLessThanOrEqual(16);
   });
 
   it("gives every kind an emoji and a label, and no duplicates", () => {
@@ -291,8 +299,9 @@ describe("the reaction vocabulary", () => {
       expect(r.emoji.length).toBeGreaterThan(0);
       expect(r.label.length).toBeGreaterThan(0);
     }
-    expect(new Set(COMMENT_REACTIONS.map((r) => r.emoji)).size).toBe(5);
-    expect(new Set(COMMENT_REACTION_KEYS).size).toBe(5);
+    expect(new Set(COMMENT_REACTIONS.map((r) => r.emoji)).size).toBe(12);
+    expect(new Set(COMMENT_REACTION_KEYS).size).toBe(12);
+    expect(new Set(COMMENT_REACTIONS.map((r) => r.label)).size).toBe(12);
   });
 
   it("validates a kind against the vocabulary, deriving it", () => {
