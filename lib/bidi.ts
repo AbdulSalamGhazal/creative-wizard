@@ -13,8 +13,8 @@
  * Written as escapes, never raw: invisible characters in source are a trap
  * (CLAUDE.md — the U+0001 dedup key).
  */
-export const FSI = "⁨";
-export const PDI = "⁩";
+export const FSI = "\u2068";
+export const PDI = "\u2069";
 
 /** Isolate one user-supplied part of a template. Empty stays empty. */
 export function isolate(text: string): string {
@@ -23,5 +23,5 @@ export function isolate(text: string): string {
 
 /** Strip the isolates again (comparisons, search, tests). */
 export function stripIsolates(text: string): string {
-  return text.replace(/[⁦-⁩]/g, "");
+  return text.replace(/[\u2066-\u2069]/g, "");
 }

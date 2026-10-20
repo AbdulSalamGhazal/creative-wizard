@@ -29,7 +29,7 @@ export function rowsToCsv<T>(rows: T[], columns: CsvColumn<T>[]): string {
       columns.map((c) => escapeCell(c.value(r, i))).join(","),
     )
     .join("\n");
-  return `﻿${header}\n${body}\n`;
+  return `\uFEFF${header}\n${body}\n`;
 }
 
 /**

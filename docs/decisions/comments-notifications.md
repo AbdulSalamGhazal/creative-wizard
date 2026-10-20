@@ -478,7 +478,7 @@ as it stood before the restructure.*
   fails while a thread is on screen shows a quiet "Couldn't load comments ·
   Retry" line above the composer.
 - **D3 — initials are FIRST + LAST word, every script (user decision,
-  2026-10-20):** "Mary Jane Watson" → "MW", «عبد السلام غزال» → «ع‌غ» (the
+  2026-10-20):** "Mary Jane Watson" → "MW", «عبد السلام غزال» → «ع + ZWNJ + غ» (the
   ZWNJ stays), one word → one letter. It was the first two words.
 - **D2 — re-adding a reaction notified the author again (user decision,
   2026-10-20: once per reactor, comment and emoji, ever).** The walk produced

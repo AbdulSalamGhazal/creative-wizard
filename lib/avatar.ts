@@ -18,7 +18,7 @@ const ARABIC = /\p{Script=Arabic}/u;
  * "Abdulsalam Ghazal" → "AG"; one word → one letter; nothing → "?".
  *
  * FIRST + LAST word, every script (user decision, 2026-10-20): "Mary Jane
- * Watson" → "MW", «عبد السلام غزال» → «ع‌غ». The initial is a word's first
+ * Watson" → "MW", «عبد السلام غزال» → «ع + ZWNJ + غ». The initial is a word's first
  * letter or digit, so punctuation never stands in ("Salam (seed admin)" →
  * "SA"), and two ARABIC initials are kept apart with a ZERO WIDTH NON-JOINER
  * (U+200C) — Arabic letters join, so they would otherwise render as one

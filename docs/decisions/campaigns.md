@@ -39,7 +39,7 @@ as it stood before the restructure.*
   the two stays distinct. That name format is built ONLY through
   `lib/campaign.ts` `buildCampaignName()` (the `PLATFORM_TAG` map; used by the
   CSV pipeline, the create-campaign action, and the seed) — don't open-code it.
-  Because a renamed/​re-tagged campaign is now a single-row update to
+  Because a renamed/re-tagged campaign is now a single-row update to
   `campaigns.name` (every perf row follows via the FK), there's no bulk
   campaign_name rewrite anymore; the one-off `shorten-platform-tags.ts` that did
   the `(Instagram)→(IG)` rewrite was deleted post-normalization. Duplicates are

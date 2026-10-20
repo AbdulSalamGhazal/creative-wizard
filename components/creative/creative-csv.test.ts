@@ -33,7 +33,7 @@ const base: CreativeListRow = {
 };
 
 function parse(csv: string): string[][] {
-  const { data } = Papa.parse<string[]>(csv.replace(/^﻿/, "").trimEnd(), {
+  const { data } = Papa.parse<string[]>(csv.replace(/^\uFEFF/, "").trimEnd(), {
     skipEmptyLines: true,
   });
   return data;

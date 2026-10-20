@@ -25,7 +25,7 @@ const COLS: CsvColumn<Row>[] = [
 
 /** Parse back, stripping the UTF-8 BOM that rowsToCsv prepends for Excel. */
 function parse(csv: string): string[][] {
-  const { data } = Papa.parse<string[]>(csv.replace(/^﻿/, "").trimEnd(), {
+  const { data } = Papa.parse<string[]>(csv.replace(/^\uFEFF/, "").trimEnd(), {
     skipEmptyLines: true,
   });
   return data;
@@ -85,7 +85,7 @@ describe("rowsToCsv — RFC 4180 escaping", () => {
     const csv = rowsToCsv<Row>([], [
       { key: "a", label: "Spend, USD", value: (r) => r.a },
     ]);
-    expect(csv.startsWith("﻿")).toBe(true);
+    expect(csv.startsWith("\uFEFF")).toBe(true);
     expect(csv).toContain('"Spend, USD"');
   });
 });
