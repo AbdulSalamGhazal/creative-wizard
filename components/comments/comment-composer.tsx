@@ -363,7 +363,7 @@ export function CommentComposer({
           <ul className="max-h-56 overflow-y-auto py-1" role="listbox" aria-label="Mention someone">
             {membersError ? (
               <li className="flex items-center justify-between gap-2 px-3 py-2 text-xs text-ink-3">
-                <span>Couldn&rsquo;t load the people you can mention.</span>
+                <span>Couldn&rsquo;t load people</span>
                 <button
                   type="button"
                   // mousedown, not click: keep the textarea's focus and caret.

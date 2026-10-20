@@ -486,7 +486,7 @@ function CommentPanelBody({
           <div data-comment-scroll className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
             {rows === null && loadFailed ? (
               <div className="py-8 text-center text-xs text-ink-3">
-                <p>Couldn&rsquo;t load the comments.</p>
+                <p>Couldn&rsquo;t load comments</p>
                 <Button
                   type="button"
                   variant="ghost"

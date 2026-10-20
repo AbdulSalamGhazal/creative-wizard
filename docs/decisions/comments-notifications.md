@@ -325,9 +325,9 @@ as it stood before the restructure.*
   bell it vanished. Now every call site in the composer, the thread (delete,
   undo), reactions, the bell, /notifications and the toast-scope setting runs
   through `safeAction`, which resolves to a failure result, and
-  `toastActionFailure` says what happened — "Wizard was updated since this
-  tab opened. Reload to keep going." with a Reload button (and a close
-  button: it never times out) for deploy skew
+  `toastActionFailure` says what happened — "Wizard was updated — reload."
+  with a Reload button (and a close button: it never times out) for deploy
+  skew
   (detected by the error's name or Next's wording, not by Next's `unstable_`
   helper), a connection sentence for a network failure, the generic sentence
   otherwise.
@@ -424,3 +424,7 @@ as it stood before the restructure.*
   `normalizeQuery` ignores it (so `showViewChip` never offers a "view" that
   is only a deep link), and `buildCommentTarget` already overrode it — a
   test pins that an old comment which stored one still links to itself.
+- **Failure wording is SHORT (user decision, 2026-10-20):** "Wizard was
+  updated — reload." (with Reload), "Can't reach the server.", "Couldn't load
+  people" + Retry, "Couldn't load comments" + Retry, "Sending…". The longer
+  first drafts explained what the reader could already see.

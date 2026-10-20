@@ -20,11 +20,9 @@ export interface ActionFailure {
   stale?: boolean;
 }
 
-export const STALE_DEPLOYMENT_MESSAGE =
-  "Wizard was updated since this tab opened. Reload to keep going.";
+export const STALE_DEPLOYMENT_MESSAGE = "Wizard was updated — reload.";
 
-export const OFFLINE_MESSAGE =
-  "Couldn't reach the server. Check your connection and try again.";
+export const OFFLINE_MESSAGE = "Can't reach the server.";
 
 /** Mirrors lib/action-error's GENERIC_ACTION_ERROR — one voice for "it broke". */
 export const UNKNOWN_FAILURE_MESSAGE = "Something went wrong — try again.";
