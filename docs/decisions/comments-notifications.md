@@ -41,6 +41,13 @@
   `/notifications` is `force-dynamic` and refreshes itself on
   `NOTIFICATIONS_CHANGED_EVENT`, which the bell announces after a write (and
   the page announces back, so the badge follows without a second timer).
+- **Every client call to a comment, reaction or notification action goes
+  through `safeAction`** (lib/action-failure.ts) and fails through
+  `toastActionFailure` (lib/action-toast.ts): a REJECTED call — a network
+  blink, or a tab from before the last deploy calling an action id the new
+  server doesn't know — becomes a toast, never an unhandled rejection or the
+  route's error boundary. Deploy skew says the app was updated and offers
+  Reload.
 - **Inside a producer's transaction, every read goes through the `tx`** —
   never the global `db`, never a helper that defaults to it
   (`resolveAnchorPath(…, tx)`). Production's pool is ONE connection, so a `db`
@@ -286,3 +293,18 @@ as it stood before the restructure.*
   `onNotificationsChanged` in lib/notifications.ts): the bell announces,
   /notifications refreshes itself only while it is on screen, and the bell
   reloads when the page reads or clears something.
+- **A8 — a thrown action call failed invisibly (or took the page down).**
+  Each action returns `{ ok: false, error }` for what it can catch, but the
+  CALL can reject before the action runs: a network blink, or — several times
+  a day here, because `main` auto-deploys — a stale tab whose action id the
+  new deployment doesn't know (Next throws `UnrecognizedActionError` on the
+  client after a 404 with `x-nextjs-action-not-found`). Inside
+  `startTransition` that rejection reached the route error boundary; in the
+  bell it vanished. Now every call site in the composer, the thread (delete,
+  undo), reactions, the bell, /notifications and the toast-scope setting runs
+  through `safeAction`, which resolves to a failure result, and
+  `toastActionFailure` says what happened — "Wizard was updated since this
+  tab opened. Reload to keep going." with a Reload button for deploy skew
+  (detected by the error's name or Next's wording, not by Next's `unstable_`
+  helper), a connection sentence for a network failure, the generic sentence
+  otherwise.

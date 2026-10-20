@@ -30,6 +30,8 @@ import {
   type ToastScope,
 } from "@/lib/notifications";
 import { markNotificationRead } from "@/app/actions/notifications";
+import { safeAction } from "@/lib/action-failure";
+import { toastActionFailure } from "@/lib/action-toast";
 
 interface FeedItem {
   id: string;
@@ -140,8 +142,11 @@ export function NotificationBell({
                   // The same flow clicking it in the popover runs: mark read,
                   // then go where it points.
                   startTransition(async () => {
-                    await markNotificationRead({ id: full.id });
-                    announceNotificationsChanged("bell");
+                    const res = await safeAction(() =>
+                      markNotificationRead({ id: full.id }),
+                    );
+                    if (!res.ok) toastActionFailure(res, "Couldn't mark that read.");
+                    else announceNotificationsChanged("bell");
                     void load();
                   });
                   openHref(full.href);
@@ -240,8 +245,11 @@ export function NotificationBell({
         list.map((i) => (i.id === item.id ? { ...i, read: true } : i)),
       );
       startTransition(async () => {
-        await markNotificationRead({ id: item.id });
-        announceNotificationsChanged("bell");
+        const res = await safeAction(() => markNotificationRead({ id: item.id }));
+        // A failure is said out loud; the reload below puts the optimistic
+        // badge back to the truth either way.
+        if (!res.ok) toastActionFailure(res, "Couldn't mark that read.");
+        else announceNotificationsChanged("bell");
         void load();
       });
     }

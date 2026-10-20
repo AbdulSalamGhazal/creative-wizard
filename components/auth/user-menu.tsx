@@ -20,6 +20,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { signOut } from "@/app/actions/session";
 import { setToastScope } from "@/app/actions/user-prefs";
+import { safeAction } from "@/lib/action-failure";
+import { toastActionFailure } from "@/lib/action-toast";
 import {
   TOAST_SCOPES,
   TOAST_SCOPE_HINT,
@@ -92,9 +94,16 @@ export function UserMenu({ user, toastScope }: Props) {
 
   const changeScope = (next: string) => {
     const value = next as ToastScope;
+    const previous = scope;
     setScope(value);
     startTransition(async () => {
-      await setToastScope(value);
+      const res = await safeAction(() => setToastScope(value));
+      if (!res.ok) {
+        // Put the check back where the server still has it.
+        setScope(previous);
+        toastActionFailure(res, "Couldn't save that setting.");
+        return;
+      }
       // The layout reads the setting server-side and hands it to the bell —
       // refresh so the bell obeys the new value without a reload.
       router.refresh();

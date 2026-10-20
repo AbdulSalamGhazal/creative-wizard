@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { AtSign, Bold, Italic, List, Send } from "lucide-react";
-import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -21,6 +20,8 @@ import {
   type MentionQuery,
 } from "@/lib/comments";
 import { applyMarkdownTool, type MarkdownTool } from "@/lib/comment-markdown";
+import { safeAction } from "@/lib/action-failure";
+import { toastActionFailure } from "@/lib/action-toast";
 
 export interface ComposerMember {
   id: string;
@@ -184,9 +185,14 @@ export function CommentComposer({
     startTransition(async () => {
       // Only the mentions whose "@Name" survived editing actually count — on
       // an edit that is also how a REMOVED mention stops being one.
-      const res = await onSubmit(
-        text,
-        activeMentions(text, mentions).map((m) => m.id),
+      // `safeAction`: a call that REJECTS (network blink, a tab from before
+      // the last deploy) resolves to a failure like any other — never an
+      // unhandled rejection, never the route's error boundary.
+      const res = await safeAction(() =>
+        onSubmit(
+          text,
+          activeMentions(text, mentions).map((m) => m.id),
+        ),
       );
       // THE COMPOSER CLEANS ITS OWN STATE. The drawer's create composer stays
       // MOUNTED after a post (its `key` only changes when `replyTo` does), so
@@ -199,7 +205,7 @@ export function CommentComposer({
       setBody(next.body);
       setMentions(next.mentions);
       if (!res.ok) {
-        toast.error(res.error ?? "Couldn't save that.");
+        toastActionFailure(res, "Couldn't save that.");
         return;
       }
       setToken(null);

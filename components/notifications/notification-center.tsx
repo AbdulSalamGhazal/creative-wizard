@@ -31,6 +31,8 @@ import {
 } from "@/lib/notifications";
 import { categoryIcon } from "@/components/filters/filter-icons";
 import { avatarColor, initialsOf } from "@/lib/avatar";
+import { safeAction } from "@/lib/action-failure";
+import { toastActionFailure } from "@/lib/action-toast";
 import {
   archiveAllRead,
   archiveNotification,
@@ -118,9 +120,9 @@ export function NotificationCenter({
 
   const act = (fn: () => Promise<{ ok: boolean; error?: string; affected?: number }>, done?: (n: number) => string) =>
     startTransition(async () => {
-      const res = await fn();
+      const res = await safeAction(fn);
       if (!res.ok) {
-        toast.error(res.error ?? "That didn't work.");
+        toastActionFailure(res, "That didn't work.");
         return;
       }
       if (done) toast.success(done(res.affected ?? 0));
@@ -132,7 +134,11 @@ export function NotificationCenter({
     const href = safeHref(row.href);
     if (row.readAt === null) {
       startTransition(async () => {
-        await markNotificationRead({ id: row.id });
+        const res = await safeAction(() => markNotificationRead({ id: row.id }));
+        if (!res.ok) {
+          toastActionFailure(res, "Couldn't mark that read.");
+          return;
+        }
         router.refresh();
         announceNotificationsChanged("center");
       });
@@ -333,7 +339,9 @@ export function NotificationCenter({
                               onClick={() =>
                                 act(async () => {
                                   for (const r of unreadInGroup) {
-                                    await markNotificationRead({ id: r.id });
+                                    const res = await markNotificationRead({ id: r.id });
+                                    // Stop at the first refusal and say so.
+                                    if (!res.ok) return res;
                                   }
                                   return { ok: true };
                                 })

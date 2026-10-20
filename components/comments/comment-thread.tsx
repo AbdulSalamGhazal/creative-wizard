@@ -17,6 +17,8 @@ import {
   showViewChip,
 } from "@/lib/comments";
 import { deleteComment, restoreComment, updateComment } from "@/app/actions/comments";
+import { safeAction } from "@/lib/action-failure";
+import { toastActionFailure } from "@/lib/action-toast";
 import { CommentBody } from "@/components/comments/comment-body";
 import { CommentComposer } from "@/components/comments/comment-composer";
 import {
@@ -85,9 +87,9 @@ export function CommentThread({
   }
 
   const undo = async (id: string) => {
-    const res = await restoreComment({ id });
+    const res = await safeAction(() => restoreComment({ id }));
     if (!res.ok) {
-      toast.error(res.error ?? "Couldn't restore that comment.");
+      toastActionFailure(res, "Couldn't restore that comment.");
       return;
     }
     onChanged();
@@ -95,9 +97,9 @@ export function CommentThread({
 
   const remove = (id: string) => {
     startTransition(async () => {
-      const res = await deleteComment({ id });
+      const res = await safeAction(() => deleteComment({ id }));
       if (!res.ok) {
-        toast.error(res.error ?? "Couldn't delete that comment.");
+        toastActionFailure(res, "Couldn't delete that comment.");
         return;
       }
       onChanged();

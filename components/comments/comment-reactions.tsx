@@ -2,7 +2,6 @@
 
 import { useState, useTransition } from "react";
 import { SmilePlus } from "lucide-react";
-import { toast } from "sonner";
 import {
   Popover,
   PopoverContent,
@@ -16,6 +15,8 @@ import {
   type CommentReactionTally,
 } from "@/lib/comments";
 import { toggleReaction } from "@/app/actions/comments";
+import { safeAction } from "@/lib/action-failure";
+import { toastActionFailure } from "@/lib/action-toast";
 
 /**
  * Reactions on a comment, in TWO pieces because they belong in two places —
@@ -45,9 +46,9 @@ function useToggleReaction(commentId: string, onChanged: () => void) {
   const [isPending, startTransition] = useTransition();
   const toggle = (kind: string, after?: () => void) => {
     startTransition(async () => {
-      const res = await toggleReaction({ commentId, kind });
+      const res = await safeAction(() => toggleReaction({ commentId, kind }));
       if (!res.ok) {
-        toast.error(res.error ?? "Couldn't save that reaction.");
+        toastActionFailure(res, "Couldn't save that reaction.");
         return;
       }
       after?.();
