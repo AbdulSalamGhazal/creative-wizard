@@ -229,6 +229,66 @@ export function resolveCommentAnchor(input: {
 export const COMMENT_PARAM = "comment";
 
 /**
+ * A query string minus `?comment=` — what a comment may STORE as its view
+ * (2026-10). The param is navigation (a deep link's "open the panel on this
+ * one"), not part of what the reader was looking at: captured from
+ * `window.location.search` after a deep link, it made the NEW comment's view
+ * re-highlight the OLD one. Everything else is kept verbatim, in order — the
+ * stored view is what the commenter saw, byte for byte.
+ */
+export function stripCommentParam(query: string | null | undefined): string {
+  if (!query) return "";
+  const q = query.startsWith("?") ? query.slice(1) : query;
+  return q
+    .split("&")
+    .filter((part) => {
+      if (part === "") return false;
+      const raw = part.split("=")[0]!.replace(/\+/g, " ");
+      let key = raw;
+      try {
+        key = decodeURIComponent(raw);
+      } catch {
+        /* a malformed escape: compare the raw key */
+      }
+      return key !== COMMENT_PARAM;
+    })
+    .join("&");
+}
+
+export type DeepLinkStep =
+  | { kind: "wait" }
+  | { kind: "highlight"; id: string }
+  | { kind: "reload" };
+
+/**
+ * What the panel does about a deep-linked comment (`?comment=<id>`), given the
+ * thread it has loaded (2026-10).
+ *
+ * The id used to be written straight into the highlight, and the panel's own
+ * "new conversation" reset then wiped it — when the panel mounted after being
+ * opened, and again when an entity page registered its anchor (null →
+ * creative). You arrived from a notification and landed at the bottom with
+ * nothing highlighted. Now the id WAITS, untouched by those resets, until a
+ * loaded thread contains it; then it becomes the highlight. If the thread on
+ * screen doesn't have it — the comment is newer than the last load (a
+ * notification for the page you're already on) — the panel reloads ONCE.
+ * Comment ids are unique, so it can only ever match its own thread.
+ */
+export function deepLinkStep(input: {
+  deepLinkId: string | null;
+  /** The ids in the loaded thread; null while nothing is loaded. */
+  loadedIds: readonly string[] | null;
+  /** The deep link the panel already reloaded once for. */
+  reloadedFor: string | null;
+}): DeepLinkStep {
+  const { deepLinkId, loadedIds, reloadedFor } = input;
+  if (!deepLinkId || loadedIds === null) return { kind: "wait" };
+  if (loadedIds.includes(deepLinkId)) return { kind: "highlight", id: deepLinkId };
+  if (reloadedFor !== deepLinkId) return { kind: "reload" };
+  return { kind: "wait" };
+}
+
+/**
  * Threads are FLAT — one level of replies. Replying to a reply re-parents to
  * that thread's ROOT, so `parent_id` always points at a top-level comment and
  * no thread can grow a second level to indent, paginate or collapse.
@@ -296,7 +356,9 @@ export function splitCommentRecipients(input: {
 export function normalizeQuery(query: string | null | undefined): string {
   if (!query) return "";
   const params = new URLSearchParams(query.startsWith("?") ? query.slice(1) : query);
-  const entries = [...params.entries()].filter(([, v]) => v !== "");
+  // `?comment=` is navigation, not a view (2026-10): two views that differ
+  // only by it are the same view.
+  const entries = [...params.entries()].filter(([k, v]) => v !== "" && k !== COMMENT_PARAM);
   entries.sort(([a, av], [b, bv]) => (a === b ? av.localeCompare(bv) : a.localeCompare(b)));
   return new URLSearchParams(entries).toString();
 }

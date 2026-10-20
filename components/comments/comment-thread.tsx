@@ -82,11 +82,31 @@ export function CommentThread({
   const reactions = useCommentReactions(comments, onChanged);
 
   // Land where the conversation is: on the highlighted comment when one was
-  // deep-linked, otherwise at the newest message.
+  // deep-linked (or clicked), otherwise at the newest message. Only when
+  // something MOVES the reader — the first load, a NEW comment, a new
+  // highlight — never on a reload that merely refreshed tallies: reacting to
+  // an old comment must not yank the thread to its end (2026-10).
+  const seen = useRef<{ count: number; highlightId: string | null } | null>(null);
   useEffect(() => {
+    const prev = seen.current;
+    seen.current = { count: comments.length, highlightId };
     if (comments.length === 0) return;
+    const grew = prev === null || comments.length > prev.count;
+    const newHighlight = highlightId !== null && highlightId !== prev?.highlightId;
+    if (!grew && !newHighlight) return;
     const target = highlightId ? highlightRef.current : endRef.current;
-    target?.scrollIntoView({ block: highlightId ? "center" : "end" });
+    if (!target) return;
+    // Scroll the PANEL's own box, never the window (ui-system invariant —
+    // `scrollIntoView` moves every scrollable ancestor, the page included).
+    const box = target.closest<HTMLElement>("[data-comment-scroll]");
+    if (!box) return;
+    if (!highlightId) {
+      box.scrollTop = box.scrollHeight;
+      return;
+    }
+    const boxRect = box.getBoundingClientRect();
+    const rect = target.getBoundingClientRect();
+    box.scrollTop += rect.top - boxRect.top - (box.clientHeight - rect.height) / 2;
   }, [comments, highlightId]);
 
   const roots = comments.filter((c) => c.parentId === null);

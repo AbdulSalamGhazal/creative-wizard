@@ -7,6 +7,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -22,7 +23,9 @@ import { useNavTransition } from "@/lib/nav-progress";
 import { cn } from "@/lib/utils";
 import {
   COMMENT_PARAM,
+  deepLinkStep,
   monthAnchorLabel,
+  stripCommentParam,
   viewLabel,
   type CommentAnchor,
 } from "@/lib/comments";
@@ -59,6 +62,14 @@ interface PanelState {
   setOpen: (open: boolean) => void;
   highlightId: string | null;
   setHighlightId: (id: string | null) => void;
+  /**
+   * A comment a notification linked to (`?comment=<id>`) that is not on
+   * screen yet. Kept APART from the highlight so the panel's resets (mount,
+   * anchor registration) can't wipe it; it becomes the highlight once a
+   * loaded thread contains it — `deepLinkStep` (2026-10).
+   */
+  deepLinkId: string | null;
+  setDeepLinkId: (id: string | null) => void;
   /** Live comments on the current anchor — the toggle's badge. */
   count: number;
   setCount: (count: number) => void;
@@ -75,6 +86,7 @@ function usePanel(): PanelState {
 export function CommentPanelProvider({ children }: { children: React.ReactNode }) {
   const [open, setOpenState] = useState(false);
   const [highlightId, setHighlightId] = useState<string | null>(null);
+  const [deepLinkId, setDeepLinkId] = useState<string | null>(null);
   const [count, setCount] = useState(0);
 
   // Open/closed is a per-browser convenience that survives reloads; the server
@@ -97,8 +109,17 @@ export function CommentPanelProvider({ children }: { children: React.ReactNode }
   }, []);
 
   const value = useMemo<PanelState>(
-    () => ({ open, setOpen, highlightId, setHighlightId, count, setCount }),
-    [open, setOpen, highlightId, count],
+    () => ({
+      open,
+      setOpen,
+      highlightId,
+      setHighlightId,
+      deepLinkId,
+      setDeepLinkId,
+      count,
+      setCount,
+    }),
+    [open, setOpen, highlightId, deepLinkId, count],
   );
 
   return (
@@ -116,17 +137,46 @@ export function CommentPanelProvider({ children }: { children: React.ReactNode }
 /**
  * Arriving from a notification: `/go/comment/[id]` lands with ?comment=<id>,
  * so the panel opens on that comment, highlighted, with its view applied.
+ *
+ * It only REGISTERS the deep link. Writing the id straight into the highlight
+ * (as this did until 2026-10) lost it: the panel body's "new conversation"
+ * reset cleared it when the panel mounted after opening, and again when the
+ * entity page registered its anchor (null → creative). The body turns the
+ * deep link into the highlight once its thread is loaded — `deepLinkStep`.
  */
 function DeepLinkOpener() {
   const searchParams = useSearchParams();
-  const { setOpen, setHighlightId } = usePanel();
+  const { setOpen, setDeepLinkId } = usePanel();
   const id = searchParams.get(COMMENT_PARAM);
   useEffect(() => {
     if (!id) return;
     setOpen(true);
-    setHighlightId(id);
-  }, [id, setOpen, setHighlightId]);
+    setDeepLinkId(id);
+  }, [id, setOpen, setDeepLinkId]);
   return null;
+}
+
+/**
+ * Drop `?comment=` from the address bar once the panel has shown it — so a
+ * reload or Back doesn't re-run an old deep link, and the same notification
+ * clicked again re-highlights (the param changes, so the opener fires). The
+ * native History API: Next keeps `useSearchParams` in sync with it, and
+ * nothing is fetched or re-rendered on the server for it. The other params
+ * are kept verbatim.
+ */
+function forgetDeepLinkInUrl(): void {
+  try {
+    const { pathname, search, hash } = window.location;
+    if (!new URLSearchParams(search).has(COMMENT_PARAM)) return;
+    const rest = stripCommentParam(search);
+    window.history.replaceState(
+      window.history.state,
+      "",
+      `${pathname}${rest ? `?${rest}` : ""}${hash}`,
+    );
+  } catch {
+    /* a sandboxed frame without history access — the param just stays */
+  }
 }
 
 const anchorKeyOf = (anchor: CommentAnchor | null) =>
@@ -300,8 +350,12 @@ function CommentPanelBody({
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [, startNav] = useNavTransition();
-  const { highlightId, setHighlightId, setCount } = usePanel();
+  const { highlightId, setHighlightId, deepLinkId, setDeepLinkId, setCount } = usePanel();
   const [rows, setRows] = useState<CommentRow[] | null>(null);
+  /** The thread failed to load — say so and offer Retry, never "Loading…" forever. */
+  const [loadFailed, setLoadFailed] = useState(false);
+  /** The deep link this panel already reloaded once for (see `deepLinkStep`). */
+  const reloadedFor = useRef<string | null>(null);
   /** Your posts still on their way — shown at once, replaced by the reload. */
   const [pending, setPending] = useState<ThreadComment[]>([]);
   const [replyTo, setReplyTo] = useState<string | null>(null);
@@ -311,15 +365,15 @@ function CommentPanelBody({
     if (!anchor) return;
     try {
       const res = await fetch(`/api/comments?${anchorParams(anchor)}`, { cache: "no-store" });
-      if (!res.ok) return;
+      if (!res.ok) throw new Error(`comments ${res.status}`);
       const data = (await res.json()) as { comments: WireComment[] };
       const hydrated = hydrate(data.comments ?? []);
       setRows(hydrated);
+      setLoadFailed(false);
       setCount(hydrated.filter((c) => c.deletedAt === null).length);
     } catch {
-      // Offline: keep what is on screen. Only a thread that never loaded
-      // falls back to empty.
-      setRows((prev) => prev ?? []);
+      // Keep whatever is on screen; a thread that never loaded says so.
+      setLoadFailed(true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [anchorKey, setCount]);
@@ -329,13 +383,38 @@ function CommentPanelBody({
   // exist in this thread, and the thread's scroll effect would then find
   // nothing to scroll to — leaving the new conversation parked at the top
   // instead of at its newest message.
+  //
+  // The DEEP LINK is deliberately not reset here — this runs on mount and
+  // when an entity page registers its anchor, which is exactly when a deep
+  // link is waiting for its thread.
   useEffect(() => {
     setRows(null);
+    setLoadFailed(false);
     setPending([]);
     setReplyTo(null);
     setHighlightId(null);
     void load();
   }, [load, setHighlightId]);
+
+  // A deep link waiting for its thread: highlight it once a loaded thread
+  // contains it (then drop the param from the URL), or reload once if the
+  // thread on screen predates the comment.
+  useEffect(() => {
+    const step = deepLinkStep({
+      deepLinkId,
+      loadedIds: rows ? rows.map((r) => r.id) : null,
+      reloadedFor: reloadedFor.current,
+    });
+    if (step.kind === "highlight") {
+      reloadedFor.current = null;
+      setHighlightId(step.id);
+      setDeepLinkId(null);
+      forgetDeepLinkInUrl();
+    } else if (step.kind === "reload") {
+      reloadedFor.current = deepLinkId;
+      void load();
+    }
+  }, [deepLinkId, rows, load, setHighlightId, setDeepLinkId]);
 
   const title = !anchor
     ? "Comments"
@@ -400,8 +479,27 @@ function CommentPanelBody({
         <>
           {/* Oldest at the top, newest at the bottom; the composer is pinned
               below, where the conversation ends. */}
-          <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
-            {rows === null ? (
+          {/* `data-comment-scroll`: the thread reveals a comment by setting
+              THIS box's scrollTop — never scrollIntoView, which would scroll
+              the page beside the panel too (ui-system invariant). */}
+          <div data-comment-scroll className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
+            {rows === null && loadFailed ? (
+              <div className="py-8 text-center text-xs text-ink-3">
+                <p>Couldn&rsquo;t load the comments.</p>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="xs"
+                  className="mt-1 text-brand"
+                  onClick={() => {
+                    setLoadFailed(false);
+                    void load();
+                  }}
+                >
+                  Retry
+                </Button>
+              </div>
+            ) : rows === null ? (
               <p className="py-8 text-center text-xs text-ink-3">Loading…</p>
             ) : (
               <CommentThread
@@ -469,10 +567,12 @@ function CommentPanelBody({
                     anchorId: anchor.id,
                     parentId: replyTo,
                     body,
+                    // Minus `?comment=`: a deep link's navigation is not part
+                    // of what the reader was looking at (2026-10).
                     viewQuery:
                       typeof window === "undefined"
                         ? ""
-                        : window.location.search.replace(/^\?/, ""),
+                        : stripCommentParam(window.location.search),
                     mentionUserIds,
                   });
                   // The composer clears as soon as the server has it; the
@@ -492,6 +592,7 @@ function CommentPanelBody({
                 // click-to-apply would otherwise keep the thread scrolled to
                 // somebody else's older comment.
                 setHighlightId(null);
+                setDeepLinkId(null);
                 // The thread reloads itself (in onSubmit, above) — and ONLY
                 // the thread. No router refresh: no server page reads
                 // comments, so it was a second full re-render of the page

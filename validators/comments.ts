@@ -5,6 +5,7 @@ import {
   COMMENT_REACTION_KEYS,
   VIEW_QUERY_MAX,
   isCommentableView,
+  stripCommentParam,
 } from "@/lib/comments";
 import { MONTH_KEY } from "@/validators/budget";
 
@@ -23,13 +24,15 @@ export const bodySchema = z
   .max(COMMENT_MAX, `Comments are capped at ${COMMENT_MAX} characters.`);
 
 /**
- * The captured query string — stored verbatim, minus any leading "?". Capped,
- * because it is user-influenced text that ends up in an href.
+ * The captured query string — stored verbatim, minus any leading "?" and minus
+ * `?comment=` (a deep link's navigation, never part of a view — 2026-10; the
+ * panel strips it too, this catches a stale client). Capped, because it is
+ * user-influenced text that ends up in an href.
  */
 export const viewQuerySchema = z
   .string()
   .max(VIEW_QUERY_MAX)
-  .transform((v) => (v.startsWith("?") ? v.slice(1) : v))
+  .transform((v) => stripCommentParam(v))
   .nullable()
   .optional();
 

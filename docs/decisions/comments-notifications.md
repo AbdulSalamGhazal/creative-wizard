@@ -47,6 +47,15 @@
   nothing. The panel is OPTIMISTIC and serialises writes per (comment, kind)
   (`ReactionSync`, lib/reaction-sync.ts), so a burst of clicks ends in the
   state the reader last chose; a failure rolls the pill back with a toast.
+- **A deep link WAITS for its thread.** `?comment=<id>` registers a
+  `deepLinkId` that the panel's resets (mount, anchor registration) never
+  touch; `deepLinkStep` turns it into the highlight once a loaded thread
+  contains it (reloading once if the thread predates the comment), then the
+  param is dropped from the URL (`history.replaceState`, no server render).
+  The highlight still clears on your own post and on a real anchor change.
+- **`?comment=` is never part of a view**: stripped when the view is captured
+  (`stripCommentParam`, client AND `viewQuerySchema`), and ignored by
+  `normalizeQuery`, so the "Open this view" chip never offers a deep link.
 - **Comment and notification actions call NO `revalidatePath`/`revalidateTag`**
   (pinned by `app/actions/comment-latency.test.ts`): a revalidation inside a
   server action re-renders the CALLER's page and ships it in the response,
@@ -384,3 +393,30 @@ as it stood before the restructure.*
   bar's private copy of the rule is gone — it uses `initialsOf`.
   `lib/mentions-a5.test.ts` holds the cases; 9 of them failed on the old
   code, including the Arabic and mixed-script ones.
+- **A6 — a notification link lost its comment.** `DeepLinkOpener` wrote the
+  id into `highlightId`, and `CommentPanelBody`'s "new conversation" effect
+  set it back to null — when the panel mounted after being opened, and again
+  when the entity page's `<CommentAnchor>` registered (anchor null →
+  creative). You arrived from a notification and landed at the bottom with
+  nothing highlighted. The opener now only registers a `deepLinkId` (panel
+  state the resets don't touch); `deepLinkStep` (pure, tested) highlights it
+  once a loaded thread contains it, or reloads ONCE when the thread on
+  screen predates the comment (a notification about the page you're already
+  on). Once shown, `?comment=` is dropped from the URL with the History API
+  (judgment call: a reload or Back no longer replays an old deep link, and
+  clicking the same notification again re-highlights; nothing re-renders on
+  the server). Same pass: the thread scrolled with `scrollIntoView`, which
+  moves every scrollable ancestor — the page beside the panel too — against
+  the ui-system rule; it now sets the panel box's own `scrollTop`, and only
+  when something moved the reader (first load, a new comment, a new
+  highlight), so a reaction's reload no longer yanks the thread to its end.
+  A thread that fails to load says so with Retry instead of "Loading…"
+  forever.
+- **A7 — `?comment=<id>` leaked into new comments' saved view.** The view is
+  captured from `window.location.search`, which still held `comment=` after
+  a deep link, so the NEW comment's view re-highlighted the OLD one.
+  `stripCommentParam` removes it at capture (keeping every other param
+  verbatim), `viewQuerySchema` strips it server-side for stale clients,
+  `normalizeQuery` ignores it (so `showViewChip` never offers a "view" that
+  is only a deep link), and `buildCommentTarget` already overrode it — a
+  test pins that an old comment which stored one still links to itself.
