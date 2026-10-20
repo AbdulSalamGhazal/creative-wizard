@@ -169,11 +169,12 @@ function forgetDeepLinkInUrl(): void {
     const { pathname, search, hash } = window.location;
     if (!new URLSearchParams(search).has(COMMENT_PARAM)) return;
     const rest = stripCommentParam(search);
-    window.history.replaceState(
-      window.history.state,
-      "",
-      `${pathname}${rest ? `?${rest}` : ""}${hash}`,
-    );
+    // `null` state, as Next documents: Next's patched replaceState then
+    // carries its own internal state over AND applies the new URL to the
+    // router, so `useSearchParams` stops seeing the param. (Passing the
+    // current `history.state` marks the call as Next-internal, and the router
+    // would keep the stale URL.)
+    window.history.replaceState(null, "", `${pathname}${rest ? `?${rest}` : ""}${hash}`);
   } catch {
     /* a sandboxed frame without history access — the param just stays */
   }

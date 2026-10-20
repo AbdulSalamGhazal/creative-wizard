@@ -326,7 +326,8 @@ as it stood before the restructure.*
   undo), reactions, the bell, /notifications and the toast-scope setting runs
   through `safeAction`, which resolves to a failure result, and
   `toastActionFailure` says what happened — "Wizard was updated since this
-  tab opened. Reload to keep going." with a Reload button for deploy skew
+  tab opened. Reload to keep going." with a Reload button (and a close
+  button: it never times out) for deploy skew
   (detected by the error's name or Next's wording, not by Next's `unstable_`
   helper), a connection sentence for a network failure, the generic sentence
   otherwise.
@@ -405,7 +406,10 @@ as it stood before the restructure.*
   on). Once shown, `?comment=` is dropped from the URL with the History API
   (judgment call: a reload or Back no longer replays an old deep link, and
   clicking the same notification again re-highlights; nothing re-renders on
-  the server). Same pass: the thread scrolled with `scrollIntoView`, which
+  the server). It passes `null` as the history state, as Next documents:
+  passing the current `history.state` marks the call Next-internal, the
+  router keeps the stale URL, and (seen in the walk) the sidebar's active
+  item went stale with it. Same pass: the thread scrolled with `scrollIntoView`, which
   moves every scrollable ancestor — the page beside the panel too — against
   the ui-system rule; it now sets the panel box's own `scrollTop`, and only
   when something moved the reader (first load, a new comment, a new
