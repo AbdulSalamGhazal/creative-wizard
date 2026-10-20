@@ -40,8 +40,18 @@ type Editing = { mode: "create" } | { mode: "edit"; row: LandingPageRow };
  * Landing pages tab). Add or edit in one dialog; delete only while no record
  * uses the page — once one does, the code is locked too, because the ads on
  * the platforms carry it.
+ *
+ * `canManage` false is the READ-ONLY view uploaders get (E023 sends them
+ * here): the same list, with no add / edit / delete and no lock marks — the
+ * lock is about editing, which they can't do anyway.
  */
-export function LandingPagesTable({ rows }: { rows: LandingPageRow[] }) {
+export function LandingPagesTable({
+  rows,
+  canManage,
+}: {
+  rows: LandingPageRow[];
+  canManage: boolean;
+}) {
   const router = useRouter();
   const [editing, setEditing] = useState<Editing | null>(null);
   const [deleting, setDeleting] = useState<LandingPageRow | null>(null);
@@ -74,18 +84,26 @@ export function LandingPagesTable({ rows }: { rows: LandingPageRow[] }) {
       {rows.length === 0 ? (
         <div className="rounded-lg border border-dashed border-line bg-surface px-6 py-10 text-center">
           <p className="text-sm text-ink">No landing pages yet.</p>
-          <p className="mx-auto mt-1 max-w-md text-xs leading-relaxed text-ink-3">
-            Add one, then end an ad&apos;s name with its code —{" "}
-            <span className="font-mono text-ink-2">Promo_01 @ramadan</span> — and
-            uploads file that ad&apos;s results under it.
-          </p>
-          <div className="mt-4 flex justify-center">{addButton}</div>
+          {canManage ? (
+            <>
+              <p className="mx-auto mt-1 max-w-md text-xs leading-relaxed text-ink-3">
+                Add one, then end an ad&apos;s name with its code —{" "}
+                <span className="font-mono text-ink-2">Promo_01 @ramadan</span> —
+                and uploads file that ad&apos;s results under it.
+              </p>
+              <div className="mt-4 flex justify-center">{addButton}</div>
+            </>
+          ) : (
+            <p className="mx-auto mt-1 max-w-md text-xs leading-relaxed text-ink-3">
+              Ask someone with “Manage landing pages” access to add one.
+            </p>
+          )}
         </div>
       ) : (
         <>
           <div className="flex items-center justify-between gap-3">
             <p className="text-xs text-ink-3 num">{plural(rows.length, "landing page")}</p>
-            {addButton}
+            {canManage && addButton}
           </div>
           {/* `relative` makes this scroll box the containing block for the
               sr-only labels inside the table — without it they are positioned
@@ -99,14 +117,16 @@ export function LandingPagesTable({ rows }: { rows: LandingPageRow[] }) {
                   <th className="font-medium px-3 py-2.5">Link</th>
                   <th className="font-medium px-3 py-2.5 text-right">Creatives</th>
                   <th className="font-medium px-3 py-2.5">Added</th>
-                  <th className="font-medium px-3 py-2.5 text-right">
-                    <span className="sr-only">Actions</span>
-                  </th>
+                  {canManage && (
+                    <th className="font-medium px-3 py-2.5 text-right">
+                      <span className="sr-only">Actions</span>
+                    </th>
+                  )}
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">
                 {rows.map((r) => {
-                  const locked = r.records > 0;
+                  const locked = canManage && r.records > 0;
                   return (
                     <tr key={r.id} className="hover:bg-surface-2/60 transition-colors">
                       <td className="px-3 py-2">
@@ -154,45 +174,47 @@ export function LandingPagesTable({ rows }: { rows: LandingPageRow[] }) {
                       <td className="px-3 py-2 text-ink-3 whitespace-nowrap">
                         {isoDate(r.createdAt)}
                       </td>
-                      <td className="px-3 py-2 text-right whitespace-nowrap">
-                        <span className="inline-flex items-center gap-1">
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="xs"
-                            onClick={() => setEditing({ mode: "edit", row: r })}
-                            className="text-ink-3 hover:text-ink"
-                          >
-                            <Pencil className="w-3 h-3" />
-                            Edit
-                          </Button>
-                          {/* Disabled while in use, and the title says why — the
-                              records point here and the FK has no cascade. */}
-                          <span
-                            title={
-                              locked
-                                ? `Used by ${plural(r.records, "record")}, so it can't be deleted`
-                                : undefined
-                            }
-                          >
+                      {canManage && (
+                        <td className="px-3 py-2 text-right whitespace-nowrap">
+                          <span className="inline-flex items-center gap-1">
                             <Button
                               type="button"
                               variant="ghost"
                               size="xs"
-                              aria-label={
-                                locked
-                                  ? `Can't delete ${r.name}: used by ${plural(r.records, "record")}`
-                                  : `Delete landing page ${r.name}`
-                              }
-                              onClick={() => setDeleting(r)}
-                              disabled={locked || isDeleting}
-                              className="text-ink-3 hover:text-neg"
+                              onClick={() => setEditing({ mode: "edit", row: r })}
+                              className="text-ink-3 hover:text-ink"
                             >
-                              <Trash2 className="w-3 h-3" />
+                              <Pencil className="w-3 h-3" />
+                              Edit
                             </Button>
+                            {/* Disabled while in use, and the title says why — the
+                                records point here and the FK has no cascade. */}
+                            <span
+                              title={
+                                locked
+                                  ? `Used by ${plural(r.records, "record")}, so it can't be deleted`
+                                  : undefined
+                              }
+                            >
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="xs"
+                                aria-label={
+                                  locked
+                                    ? `Can't delete ${r.name}: used by ${plural(r.records, "record")}`
+                                    : `Delete landing page ${r.name}`
+                                }
+                                onClick={() => setDeleting(r)}
+                                disabled={locked || isDeleting}
+                                className="text-ink-3 hover:text-neg"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </Button>
+                            </span>
                           </span>
-                        </span>
-                      </td>
+                        </td>
+                      )}
                     </tr>
                   );
                 })}

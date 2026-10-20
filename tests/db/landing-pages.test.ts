@@ -26,7 +26,7 @@ import {
   deleteLandingPage,
   updateLandingPage,
 } from "@/app/actions/landing-page";
-import { listLandingPagesForAdmin } from "@/db/queries/landing-pages";
+import { listLandingPages } from "@/db/queries/landing-pages";
 import { creativeRecords } from "@/db/queries/creatives";
 import { CAMPAIGN_1, CAMPAIGN_B, CREATIVE_1, CREATIVE_B, resetAndSeed } from "./fixtures";
 
@@ -145,7 +145,7 @@ describe("landing-page actions", () => {
 describe("landing-page reads", () => {
   it("lists the active brand's pages with their usage — never another brand's", async () => {
     await db.insert(performanceRecords).values(record(LP_A));
-    const rows = await listLandingPagesForAdmin();
+    const rows = await listLandingPages();
     expect(rows.map((r) => r.code)).toEqual(["ramadan"]);
     expect(rows[0]).toMatchObject({ creatives: 1, records: 1 });
   });

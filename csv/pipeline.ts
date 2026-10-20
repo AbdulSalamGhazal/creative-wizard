@@ -87,22 +87,30 @@ export interface PipelineInput extends ParseInput {
    *  ` @code` isn't registered is rejected (E023). Omit to skip the check. */
   registeredLandingCodes?: Set<string>;
   /**
-   * The ACTIVE records already stored for a (creative, platform, campaign,
-   * date) — one entry per landing page. Drives Stage 5; omit to skip it.
+   * The ACTIVE records already stored on this platform for the file's
+   * (creative, campaign, date) days — called ONCE per file with every day the
+   * file carries. It may over-return (e.g. one IN-list query per column);
+   * records for days not asked about are ignored. Drives Stage 5; omit to
+   * skip it.
    */
   findExisting?: (
-    creativeName: string,
+    days: ExistingDayQuery[],
     platform: Platform,
-    campaignName: string,
-    date: string,
   ) => Promise<ExistingRecord[]>;
   /** Upsert mode: an exact identity match is about to be UPDATED, so it is not
    *  E051. The landing-page guard (E052) applies either way. */
   allowExisting?: boolean;
 }
 
-/** One stored record for a (creative, platform, campaign, date). */
-export interface ExistingRecord {
+/** One (creative, campaign, date) the file carries — a Stage 5 lookup. */
+export interface ExistingDayQuery {
+  creativeName: string;
+  campaignName: string;
+  date: string;
+}
+
+/** One ACTIVE stored record, at its full identity. */
+export interface ExistingRecord extends ExistingDayQuery {
   /** null = the product's own page. */
   landingCode: string | null;
   batchId: string;
@@ -214,6 +222,14 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
    * editors or diff/read tools) - do not "fix" an apparent missing delimiter.
    */
   const seenKeys = new Map<string, number[]>();
+  /**
+   * The landing codes the FILE carries per (creative, campaign, date) — ""
+   * for the product's own page — recorded for EVERY row whose identity
+   * resolves, including rows that fail another check. Stage 5's rename guard
+   * (E052) reads it: built from accepted rows only, a main-page row failing
+   * e.g. E040 made its valid `@code` sibling look like a rename.
+   */
+  const fileDayCodes = new Map<string, Set<string>>();
 
   /**
    * COUNT fields land in INTEGER columns, and a platform may report them
@@ -261,6 +277,7 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
     const creativeCell = allCells.creative_name ?? "";
     let creativeName = creativeCell;
     let landingCode: string | null = null;
+    let nameParsed = false;
     if (creativeCell === "") {
       errorsForRow.push({
         code: "E021",
@@ -282,6 +299,7 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
       } else {
         creativeName = split.name;
         landingCode = split.code;
+        nameParsed = true;
         if (!input.registeredNames.has(creativeName)) {
           errorsForRow.push({
             code: "E020",
@@ -414,6 +432,18 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
     const videoViews75 = numericCell("video_views_75");
     const videoViews100 = numericCell("video_views_100");
 
+    if (
+      nameParsed &&
+      canonicalDate !== null &&
+      (allCells.campaign_name ?? "") !== "" &&
+      (allCells.adset_name ?? "") !== ""
+    ) {
+      const dayKey = `${creativeName}${buildCampaignName(allCells.campaign_name ?? "", allCells.adset_name ?? "", platform)}${canonicalDate}`;
+      const codes = fileDayCodes.get(dayKey) ?? new Set<string>();
+      codes.add(landingCode ?? "");
+      fileDayCodes.set(dayKey, codes);
+    }
+
     if (errorsForRow.length > 0) {
       collected.push(...errorsForRow);
       continue;
@@ -520,7 +550,8 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
   }
 
   // ---------- Stage 5 — already imported (blocking) ----------
-  // Per (creative, platform, campaign, date), the stored rows' landing pages.
+  // Per (creative, platform, campaign, date), the stored rows' landing pages —
+  // fetched in ONE lookup for the whole file.
   //  - The SAME landing page is a true duplicate → E051 (upsert updates it
   //    instead).
   //  - A DIFFERENT landing page stored for that day, which this file does not
@@ -530,24 +561,32 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
   //    the day is an A/B test, not a rename, and passes.
   if (input.findExisting && accepted.length > 0) {
     const dayKey = (parts: string[]) => parts.slice(0, 3).join("");
-    const codesInFile = new Map<string, Set<string>>();
-    for (const k of seenKeys.keys()) {
+    const wanted = new Map<string, ExistingDayQuery>();
+    for (const [k, rowNums] of seenKeys) {
+      if (rowNums.length > 1) continue; // already reported as E050
       const parts = k.split("");
-      const set = codesInFile.get(dayKey(parts)) ?? new Set<string>();
-      set.add(parts[3]!);
-      codesInFile.set(dayKey(parts), set);
+      wanted.set(dayKey(parts), {
+        creativeName: parts[0]!,
+        campaignName: parts[1]!,
+        date: parts[2]!,
+      });
     }
     const stored = new Map<string, ExistingRecord[]>();
+    if (wanted.size > 0) {
+      for (const r of await input.findExisting([...wanted.values()], platform)) {
+        const dk = dayKey([r.creativeName, r.campaignName, r.date]);
+        if (!wanted.has(dk)) continue; // over-returned by the lookup
+        const list = stored.get(dk) ?? [];
+        list.push(r);
+        stored.set(dk, list);
+      }
+    }
     for (const [k, rowNums] of seenKeys) {
       if (rowNums.length > 1) continue; // already reported as E050
       const parts = k.split("");
       const [name, campaign, day] = [parts[0]!, parts[1]!, parts[2]!];
       const code = parts[3] || null;
-      let existing = stored.get(dayKey(parts));
-      if (!existing) {
-        existing = await input.findExisting(name, platform, campaign, day);
-        stored.set(dayKey(parts), existing);
-      }
+      const existing = stored.get(dayKey(parts)) ?? [];
       const shown = withLandingCode(name, code);
       const same = existing.find((e) => e.landingCode === code);
       if (same) {
@@ -562,13 +601,13 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
         }
         continue;
       }
-      const carried = codesInFile.get(dayKey(parts))!;
+      const carried = fileDayCodes.get(dayKey(parts)) ?? new Set<string>();
       const renamed = existing.find((e) => !carried.has(e.landingCode ?? ""));
       if (renamed) {
         collected.push({
           code: "E052",
           severity: "ERROR",
-          message: `Row(s) ${rowNums.join(", ")}: \`'${shown}'\` / campaign \`'${campaign}'\` on \`${platform}\` for \`${day}\` was already imported under a different landing page (\`'${withLandingCode(name, renamed.landingCode)}'\`, batch ${renamed.batchId}). A live ad's landing page code can't change — rename the ad back on the platform, or roll back that batch.`,
+          message: `Row(s) ${rowNums.join(", ")}: \`'${shown}'\` / campaign \`'${campaign}'\` on \`${platform}\` for \`${day}\` was already imported under a different landing page (\`'${withLandingCode(name, renamed.landingCode)}'\`, batch ${renamed.batchId}). The ad was renamed on the platform after that day was imported — upload only the days after the rename.`,
           rows: rowNums,
           value: shown,
         });

@@ -113,10 +113,10 @@ Rows are keyed by `(creative_name, campaign_name, date, landing_code)` (platform
 
 ### 3.5 Stage 5 — Database duplicates
 
-Each distinct `(creative_name, platform, campaign_name, date)` from the file is looked up once, returning the landing page of every record already stored for it:
+Every distinct `(creative_name, platform, campaign_name, date)` in the file is looked up in **ONE query for the whole file** (IN-lists per column, keyed precisely in the pipeline; upsert mode reuses the same rows for its insert/update partition), returning the landing page of every record already stored for it:
 
 - If a record already exists with the **same landing page** → **E051** (blocking), naming the existing batch so the user can roll it back and re-import. Upsert mode skips this (§8.1).
-- If the day is stored under a **different landing page that the file does not also carry** for that day → **E052** (blocking, in BOTH modes). Platforms export a live ad's *current* name for every past day, so an ad renamed from `X` to `X @lp2` would otherwise re-import its old days as new rows and count them twice. A file that carries both pages for the day is an A/B test, not a rename, and passes.
+- If the day is stored under a **different landing page that the file does not also carry** for that day → **E052** (blocking, in BOTH modes). "Carries" counts every row of the file whose identity resolves — even one failing another check — so a broken main-page row never makes its `@code` sibling look like a rename. Platforms export a live ad's *current* name for every past day, so an ad renamed from `X` to `X @lp2` would otherwise re-import its old days as new rows and count them twice. A file that carries both pages for the day is an A/B test, not a rename, and passes.
 - The database enforces the identity with the unique constraint `perf_identity_uq` on `(creative_id, platform, campaign_id, date, landing_page_id)` **NULLS NOT DISTINCT** (two main-page rows are still a duplicate) — the campaign name and landing code from the file are resolved to their registry rows' ids at commit time.
 
 ---
@@ -164,7 +164,8 @@ or `_` (≤ 64). The rules live in `lib/landing-code.ts`:
   NULL.
 - Creative names may not contain ` @` (create, rename, bulk import), so a
   registered name can always be matched.
-- Codes are registered on the Library's **Landing pages** tab. A code is
+- Codes are registered on the Library's **Landing pages** tab (anyone who can
+  upload sees the list read-only). A code is
   unique per account (a case-only variant is refused too); once a record uses
   it, the code is locked and the page can't be deleted.
 
@@ -244,7 +245,7 @@ Every error carries a stable code, a severity, a template, and an example. Codes
 | E042  | ERROR    | Row {n}: required field `'{field}'` is missing. *(Identity fields only — `date`, `campaign_name`, `adset_name`. A blank numeric cell is `0`, never E042; a missing required column is E010.)* | "Row 88: required field `'campaign_name'` is missing." |
 | E050  | ERROR    | Rows {rows}: duplicate within file — same creative `'{name}'`, campaign `'{campaign}'`, platform `{platform}`, date `{date}`. | — |
 | E051  | ERROR    | Row(s) {rows}: `'{name}'` / campaign `'{campaign}'` on `{platform}` for `{date}` was already imported (batch {id}).         | — |
-| E052  | ERROR    | Row(s) {rows}: `'{name}'` / campaign `'{campaign}'` on `{platform}` for `{date}` was already imported under a different landing page (`'{stored}'`, batch {id}). A live ad's landing page code can't change — rename the ad back on the platform, or roll back that batch. | — |
+| E052  | ERROR    | Row(s) {rows}: `'{name}'` / campaign `'{campaign}'` on `{platform}` for `{date}` was already imported under a different landing page (`'{stored}'`, batch {id}). The ad was renamed on the platform after that day was imported — upload only the days after the rename. | — |
 | E060  | ERROR    | Campaign `'{name}'` already exists on `{platform}` — one campaign belongs to one platform.                | "Campaign `'Summer ➤ Broad'` already exists on tiktok."                                                       |
 | E061  | ERROR    | Row {n}: campaign `'{name}'` is not registered. Register it before importing.                             | —                                                                                                             |
 | W001  | WARNING  | *(reserved — the Windows-1256 fallback was never implemented; see §3.1)*                                  | —                                                                                                             |

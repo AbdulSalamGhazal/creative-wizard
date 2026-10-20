@@ -20,11 +20,11 @@ export interface LandingPageRow {
 
 /**
  * The active brand's landing pages with their usage, for the Library's
- * Landing pages tab. One grouped LEFT JOIN — the count rides
- * `perf_landing_page_idx`; rolled-back batches are already gone from the
- * table, so every row counted is live.
+ * Landing pages tab (managers edit it; uploaders read it). One grouped LEFT
+ * JOIN — the count rides `perf_landing_page_idx`; rolled-back batches are
+ * already gone from the table, so every row counted is live.
  */
-export async function listLandingPagesForAdmin(): Promise<LandingPageRow[]> {
+export async function listLandingPages(): Promise<LandingPageRow[]> {
   const acct = await getActiveAccountId();
   const rows = await db
     .select({

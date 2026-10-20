@@ -20,6 +20,8 @@
 - Empty states are designed, numbers are tabular, dash means NULL.
 - A horizontal scroll box that holds `sr-only` text is `relative`, or the
   label escapes it and widens the page at 375px.
+- To reveal an item inside a scroll box, set THAT box's `scrollLeft`/
+  `scrollTop` — never `scrollIntoView`, which scrolls the window too.
 
 ## History and rationale
 
@@ -264,8 +266,12 @@ as it stood before the restructure.*
   `PageTabs` row wrapped "Landing pages" onto two lines — the row had no
   overflow rule because three tabs had always fitted. Extended, not forked:
   tabs are `whitespace-nowrap shrink-0`, the row scrolls sideways (scrollbar
-  hidden, the cut-off last tab is the cue), and the active tab is scrolled
-  into view on mount/switch. The border moved to an INNER row so each tab's
+  hidden, the cut-off last tab is the cue), and the active tab is kept in
+  view on mount/switch by setting the ROW's `scrollLeft`. (The first version
+  used `scrollIntoView`, which also scrolls the WINDOW — every Back
+  navigation onto a tabbed page yanked the reader up to the tab row. Caught
+  by the independent review, 2026-10-20: never `scrollIntoView` to reveal
+  something inside a scroll box.) The border moved to an INNER row so each tab's
   `-mb-px` underline still lands on the line without giving the scroll box a
   1px vertical overflow. Every page using `PageTabs` gets the same behaviour.
 - Same pass, a trap worth naming: an `sr-only` label (absolutely positioned)

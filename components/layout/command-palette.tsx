@@ -51,12 +51,14 @@ const EXTRA_PAGES: Array<{
   href: string;
   label: string;
   icon: React.ComponentType<{ className?: string }>;
-  /** Shown only if the user holds this permission (nav items self-gate). */
-  perm?: Permission;
+  /** Shown only if the user holds this permission — or, for a list, ANY of
+   *  them (nav items self-gate). */
+  perm?: Permission | readonly Permission[];
 }> = [
   { href: "/library/new", label: "New creative", icon: Plus, perm: "creative.create" },
   { href: "/library?tab=products", label: "Library · Products", icon: Package, perm: "catalog.products" },
-  { href: "/library?tab=landing-pages", label: "Library · Landing pages", icon: Link2, perm: "catalog.landing_pages" },
+  // Uploaders see the list read-only (E023 sends them there).
+  { href: "/library?tab=landing-pages", label: "Library · Landing pages", icon: Link2, perm: ["catalog.landing_pages", "upload.import"] },
   { href: "/library?tab=angles", label: "Library · Angles", icon: Hash, perm: "catalog.angles" },
   { href: "/uploads/new", label: "New ad upload", icon: Upload, perm: "upload.import" },
   { href: "/uploads?tab=mapping", label: "Upload ads · CSV mapping", icon: Settings, perm: "config.mappings" },
@@ -99,7 +101,11 @@ function usePages(granted: string[]) {
       }
     }
     for (const e of EXTRA_PAGES) {
-      if (!e.perm || held.has(e.perm)) out.push({ href: e.href, label: e.label, icon: e.icon });
+      const perms: readonly Permission[] =
+        e.perm === undefined ? [] : typeof e.perm === "string" ? [e.perm] : e.perm;
+      if (perms.length === 0 || perms.some((p) => held.has(p))) {
+        out.push({ href: e.href, label: e.label, icon: e.icon });
+      }
     }
     return out;
   }, [granted]);

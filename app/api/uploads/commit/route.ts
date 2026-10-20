@@ -50,6 +50,9 @@ interface StoredPayload {
 
 const CHUNK_SIZE = 500;
 
+/** A landing page's code changed between validate and this transaction. */
+class LandingPagesChangedError extends Error {}
+
 /**
  * POST /api/uploads/commit
  *
@@ -66,7 +69,8 @@ const CHUNK_SIZE = 500;
  *   400 — bad input
  *   401 — not signed in
  *   410 — token absent or expired
- *   422 — payload references creatives that no longer exist (post-validate edit)
+ *   422 — payload references creatives, campaigns or landing pages that no
+ *         longer exist, or a landing page whose code changed (post-validate edit)
  *   500 — unexpected
  */
 export async function POST(request: NextRequest) {
@@ -288,6 +292,29 @@ export async function POST(request: NextRequest) {
       .returning({ token: uploadValidationSessions.token });
     if (claimed.length === 0) return null;
 
+    // Re-read the landing pages under FOR KEY SHARE before filing rows under
+    // them. A code may change only while unused, and the edit action holds
+    // FOR UPDATE on the row while it checks — which conflicts with this lock,
+    // so the two can't interleave: either the edit lands first and the codes
+    // no longer match (throw → the claim rolls back, 422), or this import
+    // lands first and the edit then sees the records and refuses.
+    if (landingIdByCode.size > 0) {
+      const live = await tx
+        .select({ id: landingPages.id, code: landingPages.code })
+        .from(landingPages)
+        .where(
+          and(
+            eq(landingPages.accountId, acct),
+            inArray(landingPages.id, [...landingIdByCode.values()]),
+          ),
+        )
+        .for("key share");
+      const codeById = new Map(live.map((l) => [l.id, l.code]));
+      for (const [code, id] of landingIdByCode) {
+        if (codeById.get(id) !== code) throw new LandingPagesChangedError();
+      }
+    }
+
     // Only open a batch when there are new rows to insert. A pure-update
     // upsert (every row already exists) creates no batch.
     let batchId: string | null = null;
@@ -424,6 +451,12 @@ export async function POST(request: NextRequest) {
 
   return NextResponse.json(result);
   } catch (err) {
+    if (err instanceof LandingPagesChangedError) {
+      return NextResponse.json(
+        { error: "Some landing pages changed since validation. Validate the file again." },
+        { status: 422 },
+      );
+    }
     console.error("upload commit failed:", err);
     return NextResponse.json(
       { error: "Something went wrong while importing. No data was committed." },

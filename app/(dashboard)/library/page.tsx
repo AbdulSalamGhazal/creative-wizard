@@ -4,7 +4,7 @@ import { listAngles } from "@/db/queries/angles";
 import { ProductsAdmin } from "@/components/product/products-admin";
 import { AnglesTable } from "@/components/angle/angles-table";
 import { LandingPagesTable } from "@/components/landing-page/landing-pages-table";
-import { listLandingPagesForAdmin } from "@/db/queries/landing-pages";
+import { listLandingPages } from "@/db/queries/landing-pages";
 import { PageTabs, type PageTab } from "@/components/layout/page-tabs";
 import type { Permission } from "@/lib/permissions";
 import { listProducts } from "@/db/queries/products";
@@ -41,17 +41,24 @@ export const metadata = { title: "Library" };
  * Landing pages (2026-10) joined them beside Products: the registry behind an
  * ad name's ` @code` suffix (lib/landing-code.ts).
  * Each is gated by the same permission it always was, so the tab is invisible
- * (and its content unreachable) without it. Creatives is always present.
+ * (and its content unreachable) without it. Creatives is always present. A
+ * list of permissions means ANY of them: Landing pages is also shown,
+ * READ-ONLY, to anyone who can upload ads — E023 sends uploaders there, and a
+ * hidden registry was a dead end. Writes stay gated by `catalog.landing_pages`.
  */
 const TABS = [
   { key: "creatives", label: "Creatives", perm: null },
   { key: "products", label: "Products", perm: "catalog.products" },
-  { key: "landing-pages", label: "Landing pages", perm: "catalog.landing_pages" },
+  {
+    key: "landing-pages",
+    label: "Landing pages",
+    perm: ["catalog.landing_pages", "upload.import"],
+  },
   { key: "angles", label: "Angles", perm: "catalog.angles" },
 ] as const satisfies ReadonlyArray<{
   key: string;
   label: string;
-  perm: Permission | null;
+  perm: Permission | readonly Permission[] | null;
 }>;
 type TabKey = (typeof TABS)[number]["key"];
 
@@ -65,7 +72,10 @@ export default async function CreativesPage({
 
   // The Creatives tab links to the BARE route on purpose: `?tab=creatives`
   // would count as a param and suppress the default-view redirect below.
-  const tabs: PageTab[] = TABS.filter((t) => !t.perm || can(user, t.perm)).map(
+  const allowed = (perm: Permission | readonly Permission[] | null) =>
+    perm === null ||
+    (typeof perm === "string" ? can(user, perm) : perm.some((p) => can(user, p)));
+  const tabs: PageTab[] = TABS.filter((t) => allowed(t.perm)).map(
     (t) => ({
       key: t.key,
       label: t.label,
@@ -77,8 +87,9 @@ export default async function CreativesPage({
     ? (requestedTab as TabKey)
     : "creatives";
 
-  // Products / Landing pages / Angles are self-contained admin surfaces — return before the
-  // listing's queries so switching tabs doesn't pay for the creative list.
+  // Products / Landing pages / Angles are self-contained admin surfaces —
+  // return before the listing's queries so switching tabs doesn't pay for the
+  // creative list.
   if (activeTab !== "creatives") {
     return (
       <PageShell>
@@ -86,7 +97,10 @@ export default async function CreativesPage({
         <PageTabs tabs={tabs} active={activeTab} />
         {activeTab === "products" && <ProductsAdmin />}
         {activeTab === "landing-pages" && (
-          <LandingPagesTable rows={await listLandingPagesForAdmin()} />
+          <LandingPagesTable
+            rows={await listLandingPages()}
+            canManage={can(user, "catalog.landing_pages")}
+          />
         )}
         {activeTab === "angles" && <AnglesTable rows={await listAngles()} />}
       </PageShell>

@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { runPipeline, type ExistingRecord } from "@/csv/pipeline";
+import {
+  runPipeline,
+  type ExistingDayQuery,
+  type ExistingRecord,
+} from "@/csv/pipeline";
 
 const REGISTERED = new Set(["URJ_VID_001", "URJ_VID_002", "URJ_IMG_010"]);
 
@@ -49,12 +53,7 @@ const row = (fields: {
 async function run(
   csv: string,
   opts: {
-    findExisting?: (
-      n: string,
-      p: string,
-      campaign: string,
-      d: string,
-    ) => Promise<ExistingRecord[]>;
+    findExisting?: (days: ExistingDayQuery[], p: string) => Promise<ExistingRecord[]>;
     allowExisting?: boolean;
     registeredCampaigns?: Set<string>;
     registeredLandingCodes?: Set<string>;
@@ -244,7 +243,15 @@ describe("CSV pipeline — Stage 4 (intra-file duplicates)", () => {
 describe("CSV pipeline — Stage 5 (database duplicates)", () => {
   it("rejects E051 when the same identity is already stored", async () => {
     const res = await run(`${META_HEADER}\n${row({})}\n`, {
-      findExisting: async () => [{ landingCode: null, batchId: "batch-abc" }],
+      findExisting: async () => [
+        {
+          creativeName: "URJ_VID_001",
+          campaignName: "Spring Launch ➤ Broad (IG)",
+          date: "2026-05-01",
+          landingCode: null,
+          batchId: "batch-abc",
+        },
+      ],
     });
     expect(res.ok).toBe(false);
     if (!res.ok) {
@@ -257,8 +264,8 @@ describe("CSV pipeline — Stage 5 (database duplicates)", () => {
   it("passes the combined campaign name to the existing-batch lookup", async () => {
     let seenCampaign: string | null = null;
     const res = await run(`${META_HEADER}\n${row({ campaign: "Holiday" })}\n`, {
-      findExisting: async (_n, _p, campaign) => {
-        seenCampaign = campaign;
+      findExisting: async (days) => {
+        seenCampaign = days[0]?.campaignName ?? null;
         return [];
       },
     });
@@ -417,6 +424,20 @@ describe("CSV pipeline — fractional counts (W004)", () => {
 
 describe("CSV pipeline — landing-page codes (` @code`)", () => {
   const LANDING = new Set(["lp2", "ramadan-sale"]);
+  /** A stored record on the default row's day (URJ_VID_001 / Spring Launch ➤
+   *  Broad (IG) / 2026-05-01) unless overridden. */
+  const rec = (
+    landingCode: string | null,
+    batchId: string,
+    over: Partial<ExistingRecord> = {},
+  ): ExistingRecord => ({
+    creativeName: "URJ_VID_001",
+    campaignName: "Spring Launch ➤ Broad (IG)",
+    date: "2026-05-01",
+    landingCode,
+    batchId,
+    ...over,
+  });
   const stored =
     (records: ExistingRecord[]) =>
     async (): Promise<ExistingRecord[]> =>
@@ -512,7 +533,7 @@ describe("CSV pipeline — landing-page codes (` @code`)", () => {
       `${META_HEADER}\n${row({})}\n${row({ name: "URJ_VID_001 @lp2" })}\n`,
       {
         registeredLandingCodes: LANDING,
-        findExisting: stored([{ landingCode: "lp2", batchId: "b1" }]),
+        findExisting: stored([rec("lp2", "b1")]),
       },
     );
     expect(res.ok).toBe(false);
@@ -525,7 +546,7 @@ describe("CSV pipeline — landing-page codes (` @code`)", () => {
   it("rejects a renamed ad (the day stored under another page the file lacks) with E052", async () => {
     const res = await run(`${META_HEADER}\n${row({ name: "URJ_VID_001 @lp2" })}\n`, {
       registeredLandingCodes: LANDING,
-      findExisting: stored([{ landingCode: null, batchId: "b1" }]),
+      findExisting: stored([rec(null, "b1")]),
     });
     expect(res.ok).toBe(false);
     if (!res.ok) {
@@ -538,7 +559,7 @@ describe("CSV pipeline — landing-page codes (` @code`)", () => {
   it("guards the rename in the other direction too (code removed)", async () => {
     const res = await run(`${META_HEADER}\n${row({})}\n`, {
       registeredLandingCodes: LANDING,
-      findExisting: stored([{ landingCode: "lp2", batchId: "b1" }]),
+      findExisting: stored([rec("lp2", "b1")]),
     });
     expect(res.ok).toBe(false);
     if (!res.ok) expect(res.errors.map((e) => e.code)).toEqual(["E052"]);
@@ -548,32 +569,67 @@ describe("CSV pipeline — landing-page codes (` @code`)", () => {
     const same = await run(`${META_HEADER}\n${row({ name: "URJ_VID_001 @lp2" })}\n`, {
       registeredLandingCodes: LANDING,
       allowExisting: true,
-      findExisting: stored([{ landingCode: "lp2", batchId: "b1" }]),
+      findExisting: stored([rec("lp2", "b1")]),
     });
     expect(same.ok).toBe(true);
 
     const renamed = await run(`${META_HEADER}\n${row({ name: "URJ_VID_001 @lp2" })}\n`, {
       registeredLandingCodes: LANDING,
       allowExisting: true,
-      findExisting: stored([{ landingCode: null, batchId: "b1" }]),
+      findExisting: stored([rec(null, "b1")]),
     });
     expect(renamed.ok).toBe(false);
     if (!renamed.ok) expect(renamed.errors.map((e) => e.code)).toEqual(["E052"]);
   });
 
-  it("asks the store once per day, whatever the number of landing pages", async () => {
+  it("asks the store ONCE per file, with each day once", async () => {
     let calls = 0;
+    let asked: ExistingDayQuery[] = [];
     const res = await run(
-      `${META_HEADER}\n${row({})}\n${row({ name: "URJ_VID_001 @lp2" })}\n${row({ name: "URJ_VID_001 @ramadan-sale" })}\n`,
+      `${META_HEADER}\n${row({})}\n${row({ name: "URJ_VID_001 @lp2" })}\n${row({ name: "URJ_VID_001 @ramadan-sale" })}\n${row({ name: "URJ_VID_002", date: "2026-05-02" })}\n`,
       {
         registeredLandingCodes: LANDING,
-        findExisting: async () => {
+        findExisting: async (days) => {
           calls++;
+          asked = days;
           return [];
         },
       },
     );
     expect(res.ok).toBe(true);
     expect(calls).toBe(1);
+    expect(asked.map((d) => `${d.creativeName}|${d.date}`).sort()).toEqual([
+      "URJ_VID_001|2026-05-01",
+      "URJ_VID_002|2026-05-02",
+    ]);
+  });
+
+  it("ignores records the lookup over-returns for days the file doesn't carry", async () => {
+    const res = await run(`${META_HEADER}\n${row({})}\n`, {
+      registeredLandingCodes: LANDING,
+      findExisting: stored([rec(null, "b1", { date: "2026-05-09" })]),
+    });
+    expect(res.ok).toBe(true);
+  });
+
+  it("doesn't call a valid `@code` row a rename when its main-page sibling fails another check", async () => {
+    const res = await run(
+      `${META_HEADER}\n${row({ spend: "twelve" })}\n${row({ name: "URJ_VID_001 @lp2" })}\n`,
+      {
+        registeredLandingCodes: LANDING,
+        findExisting: stored([rec(null, "b1")]),
+      },
+    );
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.errors.map((e) => e.code)).toEqual(["E040"]);
+  });
+
+  it("says to upload only the days after the rename (E052)", async () => {
+    const res = await run(`${META_HEADER}\n${row({ name: "URJ_VID_001 @lp2" })}\n`, {
+      registeredLandingCodes: LANDING,
+      findExisting: stored([rec(null, "b1")]),
+    });
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.errors[0]?.message).toContain("upload only the days after the rename");
   });
 });

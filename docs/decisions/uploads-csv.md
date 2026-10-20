@@ -27,7 +27,14 @@
 - **A landing code can't change on a live ad (E052, both modes).** Platforms
   export a live ad's CURRENT name for every past day; a day already stored
   under a different landing page that the file does not also carry is a
-  rename, and importing it would count the day twice.
+  rename, and importing it would count the day twice. "Carries" counts every
+  row whose identity resolves, even one failing another check. The way out
+  the message gives is the one an uploader can take: upload only the days
+  after the rename.
+- **Stage 5 is ONE query per file** (`findExisting(days, platform)`, IN-lists
+  per column, keyed in the pipeline). Upsert reuses those rows for its
+  partition — never a per-day lookup (≈9,000 sequential queries for 300 ads
+  × 30 days).
 - COUNT metrics round to the nearest whole number at NORMALIZATION and say so
   (W004); which fields are counts is declared once in `FIELD_META.kind`.
 - Adding an internal field means all five places; the mapping UI DERIVES from
@@ -136,4 +143,27 @@ as it stood before the restructure.*
   the codes in the file with their row counts (main-page rows aren't listed),
   and the creative's records table offers a `defaultHidden` "Landing page"
   column. No breakdowns or filters by landing page until that feature exists.
+
+### Landing pages — the independent review's fixes (2026-10-20)
+
+- The feature was clarified, built, migrated and shipped from ONE session;
+  the user then had a fresh session review commit c4cb61e read-only. No
+  data, tenancy or permission bug; the fixes it prompted:
+  - **Stage 5 went from one query per (creative, campaign, day) to one per
+    file**, and upsert stopped re-querying the same rows for its partition.
+  - **Spurious E052:** the "file carries this page" set was built from
+    ACCEPTED rows only, so a main-page row failing E040 made its valid
+    `@code` sibling look like a rename. It is now built from every row whose
+    identity resolves.
+  - **E052's way out was unreachable** — "rename the ad back, or roll back
+    that batch" (rollback is 24 h and not in the editor preset). It now says
+    to upload only the days after the rename (user decision).
+  - **E023 sent uploaders to a tab they couldn't see** (`catalog.landing_pages`
+    isn't in the editor preset). The tab is now READ-ONLY for anyone with
+    `upload.import` (user decision); writes stay gated.
+  - **Code-lock race:** the code lock and delete guard checked, then wrote,
+    outside a transaction. Both now run under `SELECT … FOR UPDATE` on the
+    landing page, and the upload commit re-reads its landing pages `FOR KEY
+    SHARE` inside its transaction and refuses (422) if a code changed — the
+    two locks conflict, so they can't interleave.
 

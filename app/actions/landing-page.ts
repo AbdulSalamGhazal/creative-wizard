@@ -14,6 +14,30 @@ import {
   landingPageUpdateSchema,
 } from "@/validators/landing-page";
 
+/** `db` or a transaction — the reads below run inside the row lock. */
+type Executor = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+/**
+ * Lock one of this brand's landing pages FOR UPDATE until the transaction
+ * ends. An upload commit inserting records that point here takes FOR KEY
+ * SHARE on the same row (the FK check, and the commit's own re-check), which
+ * conflicts — so "is it in use?" and the write that depends on the answer
+ * can't be split by a concurrent import.
+ */
+async function lockLandingPage(tx: Executor, acct: string, id: string) {
+  const [row] = await tx
+    .select({
+      name: landingPages.name,
+      code: landingPages.code,
+      url: landingPages.url,
+      description: landingPages.description,
+    })
+    .from(landingPages)
+    .where(and(eq(landingPages.accountId, acct), eq(landingPages.id, id)))
+    .for("update");
+  return row ?? null;
+}
+
 export interface LandingPageMutationResult {
   ok: boolean;
   error?: string;
@@ -40,8 +64,13 @@ function invalid(error: z.ZodError): LandingPageMutationResult {
  * brand's list is small; comparing in JS avoids LIKE's `_` wildcard, which
  * codes may contain.
  */
-async function codeTaken(acct: string, code: string, exceptId?: string) {
-  const rows = await db
+async function codeTaken(
+  ex: Executor,
+  acct: string,
+  code: string,
+  exceptId?: string,
+) {
+  const rows = await ex
     .select({ id: landingPages.id, code: landingPages.code })
     .from(landingPages)
     .where(eq(landingPages.accountId, acct));
@@ -49,8 +78,8 @@ async function codeTaken(acct: string, code: string, exceptId?: string) {
   return rows.find((r) => r.id !== exceptId && r.code.toLowerCase() === wanted) ?? null;
 }
 
-async function recordsUsing(acct: string, id: string): Promise<number> {
-  const [row] = await db
+async function recordsUsing(ex: Executor, acct: string, id: string): Promise<number> {
+  const [row] = await ex
     .select({ n: count() })
     .from(performanceRecords)
     .where(
@@ -80,7 +109,7 @@ export async function createLandingPage(
     const data = parsed.data;
     const acct = await getActiveAccountId();
 
-    const clash = await codeTaken(acct, data.code);
+    const clash = await codeTaken(db, acct, data.code);
     if (clash) {
       return {
         ok: false,
@@ -128,54 +157,55 @@ export async function updateLandingPage(
     const data = parsed.data;
     const acct = await getActiveAccountId();
 
-    const [existing] = await db
-      .select({
-        name: landingPages.name,
-        code: landingPages.code,
-        url: landingPages.url,
-        description: landingPages.description,
-      })
-      .from(landingPages)
-      .where(and(eq(landingPages.accountId, acct), eq(landingPages.id, data.id)))
-      .limit(1);
-    if (!existing) return { ok: false, error: "Landing page not found." };
+    // Check-then-write under the row lock (see lockLandingPage): a refusal
+    // returns from inside the transaction, which simply commits nothing.
+    const outcome = await db.transaction(
+      async (tx): Promise<LandingPageMutationResult | { changed: string[] }> => {
+        const existing = await lockLandingPage(tx, acct, data.id);
+        if (!existing) return { ok: false, error: "Landing page not found." };
 
-    if (data.code !== existing.code) {
-      // The code is what ad names carry on the platforms. Once records use it,
-      // changing it would orphan every live ad's suffix — locked.
-      const used = await recordsUsing(acct, data.id);
-      if (used > 0) {
-        return {
-          ok: false,
-          error: `@${existing.code} is used by ${used} record${used === 1 ? "" : "s"}, so its code can't change.`,
-          fieldErrors: { code: "Locked" },
-        };
-      }
-      const clash = await codeTaken(acct, data.code, data.id);
-      if (clash) {
-        return {
-          ok: false,
-          error: `@${clash.code} is already a landing page.`,
-          fieldErrors: { code: "Already in use" },
-        };
-      }
-    }
+        if (data.code !== existing.code) {
+          // The code is what ad names carry on the platforms. Once records use
+          // it, changing it would orphan every live ad's suffix — locked.
+          const used = await recordsUsing(tx, acct, data.id);
+          if (used > 0) {
+            return {
+              ok: false,
+              error: `@${existing.code} is used by ${used} record${used === 1 ? "" : "s"}, so its code can't change.`,
+              fieldErrors: { code: "Locked" },
+            };
+          }
+          const clash = await codeTaken(tx, acct, data.code, data.id);
+          if (clash) {
+            return {
+              ok: false,
+              error: `@${clash.code} is already a landing page.`,
+              fieldErrors: { code: "Already in use" },
+            };
+          }
+        }
 
-    const changed = (["name", "code", "url", "description"] as const).filter(
-      (k) => (data[k] ?? null) !== (existing[k] ?? null),
+        const changed = (["name", "code", "url", "description"] as const).filter(
+          (k) => (data[k] ?? null) !== (existing[k] ?? null),
+        );
+        if (changed.length === 0) return { changed };
+
+        await tx
+          .update(landingPages)
+          .set({
+            name: data.name,
+            code: data.code,
+            url: data.url,
+            description: data.description,
+            updatedAt: new Date(),
+          })
+          .where(and(eq(landingPages.accountId, acct), eq(landingPages.id, data.id)));
+        return { changed };
+      },
     );
+    if (!("changed" in outcome)) return outcome;
+    const { changed } = outcome;
     if (changed.length === 0) return { ok: true };
-
-    await db
-      .update(landingPages)
-      .set({
-        name: data.name,
-        code: data.code,
-        url: data.url,
-        description: data.description,
-        updatedAt: new Date(),
-      })
-      .where(and(eq(landingPages.accountId, acct), eq(landingPages.id, data.id)));
 
     refresh();
     await logAudit({
@@ -198,24 +228,30 @@ export async function deleteLandingPage(
   try {
     const user = await requirePermission("catalog.landing_pages");
     const acct = await getActiveAccountId();
-    const [existing] = await db
-      .select({ name: landingPages.name, code: landingPages.code })
-      .from(landingPages)
-      .where(and(eq(landingPages.accountId, acct), eq(landingPages.id, id)))
-      .limit(1);
-    if (!existing) return { ok: false, error: "Landing page not found." };
+    // Under the row lock, like update. The FK (no cascade) would refuse a
+    // delete that loses the race anyway; the lock turns that into the
+    // friendly "in use" answer instead of a constraint error.
+    const outcome = await db.transaction(
+      async (tx): Promise<LandingPageMutationResult | { name: string; code: string }> => {
+        const existing = await lockLandingPage(tx, acct, id);
+        if (!existing) return { ok: false, error: "Landing page not found." };
 
-    const used = await recordsUsing(acct, id);
-    if (used > 0) {
-      return {
-        ok: false,
-        error: `@${existing.code} is used by ${used} record${used === 1 ? "" : "s"}, so it can't be deleted.`,
-      };
-    }
+        const used = await recordsUsing(tx, acct, id);
+        if (used > 0) {
+          return {
+            ok: false,
+            error: `@${existing.code} is used by ${used} record${used === 1 ? "" : "s"}, so it can't be deleted.`,
+          };
+        }
 
-    await db
-      .delete(landingPages)
-      .where(and(eq(landingPages.accountId, acct), eq(landingPages.id, id)));
+        await tx
+          .delete(landingPages)
+          .where(and(eq(landingPages.accountId, acct), eq(landingPages.id, id)));
+        return { name: existing.name, code: existing.code };
+      },
+    );
+    if ("ok" in outcome) return outcome;
+    const existing = outcome;
 
     refresh();
     await logAudit({

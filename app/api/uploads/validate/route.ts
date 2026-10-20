@@ -13,7 +13,7 @@ import {
   uploadValidationSessions,
 } from "@/db/schema";
 import { MAX_FILE_BYTES } from "@/csv/parse";
-import { runPipeline, type ParsedRow } from "@/csv/pipeline";
+import { runPipeline, type ExistingRecord, type ParsedRow } from "@/csv/pipeline";
 import { campaignPlatformCollisions } from "@/csv/cross-platform";
 import { resolveAdapter } from "@/db/queries/platforms";
 import { getActiveAccountId } from "@/lib/tenant";
@@ -129,6 +129,10 @@ export async function POST(request: NextRequest) {
 
   const adapter = await resolveAdapter(platform);
 
+  // Filled by the pipeline's single Stage 5 lookup (below); reused by the
+  // upsert partition.
+  let stored: Array<ExistingRecord & { id: number }> = [];
+
   const result = await runPipeline({
     content: buffer,
     byteLength: file.size,
@@ -140,11 +144,19 @@ export async function POST(request: NextRequest) {
     // new-vs-existing below instead. Stage 5 still runs in both modes: the
     // landing-page rename guard (E052) protects upserts too.
     allowExisting: upsert,
-    findExisting: async (name, plat, campaignName, date) => {
-      const rows = await db
+    // ONE query for the whole file: IN-lists per column, keyed precisely by
+    // the pipeline. Kept in `stored` for the upsert partition below, which
+    // needs exactly these rows — so an upsert pays for one lookup, not one
+    // per (creative, campaign, day) plus a second pass.
+    findExisting: async (days, plat) => {
+      stored = await db
         .select({
-          batchId: performanceRecords.uploadBatchId,
+          id: performanceRecords.id,
+          creativeName: creatives.name,
+          campaignName: campaigns.name,
+          date: performanceRecords.date,
           landingCode: landingPages.code,
+          batchId: performanceRecords.uploadBatchId,
         })
         .from(performanceRecords)
         .innerJoin(
@@ -163,14 +175,14 @@ export async function POST(request: NextRequest) {
         .where(
           and(
             eq(performanceRecords.accountId, acct),
-            eq(creatives.name, name),
             eq(performanceRecords.platform, plat),
-            eq(campaigns.name, campaignName),
-            eq(performanceRecords.date, date),
             eq(uploadBatches.status, "active"),
+            inArray(creatives.name, [...new Set(days.map((d) => d.creativeName))]),
+            inArray(campaigns.name, [...new Set(days.map((d) => d.campaignName))]),
+            inArray(performanceRecords.date, [...new Set(days.map((d) => d.date))]),
           ),
         );
-      return rows;
+      return stored;
     },
   });
 
@@ -233,77 +245,24 @@ export async function POST(request: NextRequest) {
   let newRows = result.rows.length;
 
   if (upsert) {
-    const wantedNames = [...new Set(result.rows.map((r) => r.creativeName))];
-    const nameRows = wantedNames.length
-      ? await db
-          .select({ id: creatives.id, name: creatives.name })
-          .from(creatives)
-          .where(
-            and(
-              eq(creatives.accountId, acct),
-              inArray(creatives.name, wantedNames),
-            ),
-          )
-      : [];
-    const idByName = new Map(nameRows.map((c) => [c.name, c.id]));
-    const creativeIds = [...idByName.values()];
-    const campaignNames = [
-      ...new Set(result.rows.map((r) => r.campaignName)),
-    ];
-    const recordDates = [...new Set(result.rows.map((r) => r.date))];
-
-    // Existing active records that could collide. We over-fetch on the IN
-    // sets and key precisely in JS to keep the SQL simple.
-    const existing =
-      creativeIds.length && campaignNames.length && recordDates.length
-        ? await db
-            .select({
-              id: performanceRecords.id,
-              creativeId: performanceRecords.creativeId,
-              campaignName: campaigns.name,
-              date: performanceRecords.date,
-              landingCode: landingPages.code,
-            })
-            .from(performanceRecords)
-            .innerJoin(
-              uploadBatches,
-              eq(uploadBatches.id, performanceRecords.uploadBatchId),
-            )
-            .innerJoin(campaigns, eq(campaigns.id, performanceRecords.campaignId))
-            .leftJoin(
-              landingPages,
-              eq(landingPages.id, performanceRecords.landingPageId),
-            )
-            .where(
-              and(
-                eq(performanceRecords.accountId, acct),
-                eq(performanceRecords.platform, platform),
-                eq(uploadBatches.status, "active"),
-                inArray(performanceRecords.creativeId, creativeIds),
-                inArray(campaigns.name, campaignNames),
-                inArray(performanceRecords.date, recordDates),
-              ),
-            )
-        : [];
-
+    // The rows Stage 5 already fetched (`stored`), keyed at full identity —
+    // creative NAME is unique per account, landing page included ("" = the
+    // product's own page).
     const SEP = "\u0001";
     const idByIdentity = new Map<string, number>();
-    // The full identity, landing page included ("" = the product's page).
-    for (const e of existing) {
+    for (const e of stored) {
       idByIdentity.set(
-        `${e.creativeId}${SEP}${e.campaignName}${SEP}${e.date}${SEP}${e.landingCode ?? ""}`,
+        `${e.creativeName}${SEP}${e.campaignName}${SEP}${e.date}${SEP}${e.landingCode ?? ""}`,
         e.id,
       );
     }
 
-    existingIds = result.rows.map((r) => {
-      const cid = idByName.get(r.creativeName);
-      if (cid === undefined) return null;
-      const hit = idByIdentity.get(
-        `${cid}${SEP}${r.campaignName}${SEP}${r.date}${SEP}${r.landingCode ?? ""}`,
-      );
-      return hit ?? null;
-    });
+    existingIds = result.rows.map(
+      (r) =>
+        idByIdentity.get(
+          `${r.creativeName}${SEP}${r.campaignName}${SEP}${r.date}${SEP}${r.landingCode ?? ""}`,
+        ) ?? null,
+    );
     updatedRows = existingIds.filter((x) => x !== null).length;
     newRows = existingIds.length - updatedRows;
   }

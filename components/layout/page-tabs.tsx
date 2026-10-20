@@ -24,8 +24,10 @@ export interface PageTab {
  *
  * A row wider than its frame (the Library's four tabs at 375px) SCROLLS
  * sideways instead of wrapping a label onto two lines; the active tab is kept
- * in view. The border lives on the inner row, so each tab's `-mb-px`
- * underline still lands ON the line without growing the scroll box.
+ * in view by moving the ROW's `scrollLeft` only — never `scrollIntoView`,
+ * which also scrolls the window and yanked a reader back to the tab row on
+ * every Back navigation. The border lives on the inner row, so each tab's
+ * `-mb-px` underline still lands ON the line without growing the scroll box.
  */
 export function PageTabs({
   tabs,
@@ -36,13 +38,24 @@ export function PageTabs({
 }) {
   const router = useRouter();
   const [, startNav] = useNavTransition();
+  const scrollerRef = useRef<HTMLDivElement>(null);
   const activeRef = useRef<HTMLAnchorElement>(null);
   useEffect(() => {
-    activeRef.current?.scrollIntoView({ block: "nearest", inline: "nearest" });
+    const row = scrollerRef.current;
+    const tab = activeRef.current;
+    if (!row || !tab || row.scrollWidth <= row.clientWidth) return;
+    // offsetLeft is relative to the scroller (it is `relative`).
+    const start = tab.offsetLeft;
+    const end = start + tab.offsetWidth;
+    if (start < row.scrollLeft) row.scrollLeft = start;
+    else if (end > row.scrollLeft + row.clientWidth) row.scrollLeft = end - row.clientWidth;
   }, [active]);
   if (tabs.length < 2) return null;
   return (
-    <div className="overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+    <div
+      ref={scrollerRef}
+      className="relative overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+    >
       <div className="flex w-full min-w-max items-center gap-1 border-b border-line">
         {tabs.map((t) => {
           const isActive = t.key === active;
