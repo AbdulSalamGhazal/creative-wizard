@@ -23,6 +23,13 @@
   mention > reply > anchor.
 - Mentions are stored EXPLICITLY from the picker, never parsed from body text;
   a non-member mention is REFUSED, not dropped.
+- **A mention is the WHOLE name.** `findMentions` (lib/comments.ts) — one
+  left-to-right pass, longest name first, word edges checked in any script —
+  is the ONE matcher for who a submit notifies (`activeMentions`) and what
+  the body highlights (`commentHtml`, text only: never inside a tag or a
+  link). The picker's "@query" runs through spaces while a member still
+  matches it ("@Abdulsalam Ghazal") and closes when none does; a failed
+  member list is an error state with Retry, never "Loading…" forever.
 - Threads are FLAT — the server re-parents a reply-to-a-reply onto the root.
 - Delete is SOFT; `restoreComment` is allowed only for whoever performed the
   delete, checked against the `comment.delete` audit row written in the same
@@ -353,3 +360,27 @@ as it stood before the restructure.*
   pure and tested). Verified in the browser: three Enters (two in one tick)
   posted exactly one comment, four times out of four; an IME Enter posted
   nothing and kept the text.
+- **A5 — mentions failed silently.** (1) `detectMentionQuery` ended the token
+  at the first space, so typing a full name closed the picker halfway; the
+  name went in as plain text and nobody was told. The token now runs through
+  spaces while at least one member still matches (bounded by
+  `MENTION_QUERY_MAX`, never across a line, never "@ "), stays open while the
+  list is still loading (`members === null`, so a pasted "@Ann Lee" works)
+  and closes cleanly when nobody matches; a pick dismisses its own token so
+  the inserted "@Name " doesn't reopen the picker. (2) A non-OK member fetch
+  left "Loading…" forever (and a throw showed "Nobody matches"): now an error
+  line with Retry, and the fetch is no longer cancelled when the picker
+  closes mid-request. (3) `activeMentions` was `body.includes("@" + name)`:
+  with "Ali" and "Ali Hassan" both picked, deleting "@Ali" still notified Ali
+  through "@Ali Hassan", and "@Alice" counted as Ali. `commentHtml` replaced
+  one name at a time, so "@Ali" nested inside an already-wrapped "@Ali
+  Hassan", matched inside "@Alice", and could write a span into a link's
+  href ("…?u=@Ali"). Both now use `findMentions` — one pass, longest first,
+  `[\p{L}\p{M}\p{N}_]` word edges (Arabic included), no "@" after a word
+  character, "/" or "@" — and the renderer only marks text outside tags and
+  links. (4) `initialsOf` took a word's first CHARACTER ("Salam (seed admin)"
+  → "S(") and let two Arabic initials join into one glyph; it now takes the
+  first letter or digit and keeps Arabic initials apart with U+200C. The top
+  bar's private copy of the rule is gone — it uses `initialsOf`.
+  `lib/mentions-a5.test.ts` holds the cases; 9 of them failed on the old
+  code, including the Arabic and mixed-script ones.

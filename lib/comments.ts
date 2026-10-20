@@ -359,18 +359,37 @@ export interface MentionQuery {
  *
  * The "@" must START the text or follow whitespace. That one rule is what keeps
  * mid-word and email-like text ("salam@urjwan.com") from ever popping the
- * picker. The token ends at whitespace: type a space and you've left it (the
- * picker still inserts full names like "Ann Lee" — filtering on "Ann" finds
- * them).
+ * picker.
+ *
+ * A NAME HAS SPACES (2026-10). The token used to end at the first space, so
+ * typing a full name — "@Abdulsalam Ghazal" — closed the picker halfway, the
+ * name went in as plain text, and NOBODY was notified. Now, given the member
+ * list, the token runs on through spaces for as long as at least one member
+ * still matches it, and closes cleanly the moment nobody does ("@Ali hello
+ * there"). A new line always ends it, a space straight after the "@" never
+ * starts one, and `MENTION_QUERY_MAX` bounds it. `members === null` means the
+ * list is still LOADING: the token stays open (the picker says "Loading…") and
+ * the caller re-reads it when the list lands — a pasted "@Ann Lee" must not
+ * close before anyone could know. With no list at all (`undefined`) a space
+ * ends the token, as before. The invariant is untouched: a mention is still
+ * an explicit pick, never parsed from the text.
  */
-export function detectMentionQuery(text: string, caret: number): MentionQuery | null {
+export function detectMentionQuery(
+  text: string,
+  caret: number,
+  members?: ReadonlyArray<{ name: string; email?: string | null }> | null,
+): MentionQuery | null {
   if (caret < 1 || caret > text.length) return null;
   const before = text.slice(0, caret);
   const at = before.lastIndexOf("@");
   if (at === -1) return null;
   if (at > 0 && !/\s/.test(before[at - 1]!)) return null;
   const query = before.slice(at + 1);
-  if (/\s/.test(query) || query.length > MENTION_QUERY_MAX) return null;
+  if (query.length > MENTION_QUERY_MAX || /[\r\n]/.test(query)) return null;
+  if (/\s/.test(query)) {
+    if (/^\s/.test(query) || members === undefined) return null;
+    if (members !== null && matchMembers(members, query).length === 0) return null;
+  }
   return { start: at, query };
 }
 
@@ -400,17 +419,86 @@ export function matchMembers<T extends { name: string; email?: string | null }>(
   );
 }
 
+/** A character that continues a NAME — any script's letters, marks, digits. */
+const NAME_CHAR = /[\p{L}\p{M}\p{N}_]/u;
+
+/** The full character ending just before `index` (a surrogate pair is one). */
+function charBefore(text: string, index: number): string {
+  if (index <= 0) return "";
+  const low = text.charCodeAt(index - 1);
+  if (low >= 0xdc00 && low <= 0xdfff && index >= 2) return text.slice(index - 2, index);
+  return text[index - 1]!;
+}
+
+/** The full character starting at `index`, or "" past the end. */
+function charAt(text: string, index: number): string {
+  const cp = text.codePointAt(index);
+  return cp === undefined ? "" : String.fromCodePoint(cp);
+}
+
+export interface MentionSpan {
+  /** Index of the "@". */
+  start: number;
+  /** Index just past the name. */
+  end: number;
+  name: string;
+}
+
+/**
+ * Every "@Name" in `text` for one of `names` — ONE left-to-right pass, the
+ * LONGEST name winning at each "@", and a mention must be the WHOLE name
+ * (2026-10). Both edges are checked:
+ *
+ *  - after the name, no character that continues a word in any script — so
+ *    "@Alice" is not "@Ali", and "@سارةو" is not "@سارة";
+ *  - before the "@", no word character, "/" or "@" — so an email or a URL
+ *    path ("x.com/@Ali") is never a mention.
+ *
+ * It used to be `body.includes("@" + name)`, so with "Ali" and "Ali Hassan"
+ * both picked, deleting "@Ali" still left Ali "active" inside "@Ali Hassan" —
+ * and notified him. Shared by `activeMentions`, `highlightMentions` and the
+ * renderer's mention marking, so the three can never disagree.
+ */
+export function findMentions(text: string, names: readonly string[]): MentionSpan[] {
+  const targets = [...new Set(names.filter((n) => n.trim() !== ""))].sort(
+    (a, b) => b.length - a.length, // "Ann Lee" before "Ann"
+  );
+  const out: MentionSpan[] = [];
+  if (targets.length === 0) return out;
+  for (let i = 0; i < text.length; i++) {
+    if (text[i] !== "@") continue;
+    const prev = charBefore(text, i);
+    if (prev !== "" && (NAME_CHAR.test(prev) || prev === "/" || prev === "@")) continue;
+    for (const name of targets) {
+      if (!text.startsWith(name, i + 1)) continue;
+      const end = i + 1 + name.length;
+      if (NAME_CHAR.test(charAt(text, end))) continue;
+      out.push({ start: i, end, name });
+      i = end - 1;
+      break;
+    }
+  }
+  return out;
+}
+
 /**
  * The picked mentions that SURVIVED editing. Picking someone and then deleting
- * their "@Name" un-mentions them: only a token still present in the final text
- * is sent. The ids still travel explicitly — this filters the picker's own
- * list, it never discovers a mention from the text.
+ * their "@Name" un-mentions them: only a WHOLE "@Name" still present in the
+ * final text counts (`findMentions` — a longer name never keeps a shorter one
+ * alive). The ids still travel explicitly — this filters the picker's own list,
+ * it never discovers a mention from the text.
  */
 export function activeMentions<T extends { name: string }>(
   body: string,
   picked: readonly T[],
 ): T[] {
-  return picked.filter((m) => body.includes(`@${m.name}`));
+  const present = new Set(
+    findMentions(
+      body,
+      picked.map((m) => m.name),
+    ).map((s) => s.name),
+  );
+  return picked.filter((m) => present.has(m.name));
 }
 
 export interface BodySegment {
@@ -431,31 +519,15 @@ export function highlightMentions(
   body: string,
   names: readonly string[],
 ): BodySegment[] {
-  const targets = [...new Set(names.filter((n) => n.trim() !== ""))].sort(
-    (a, b) => b.length - a.length, // longest first: "Ann Lee" before "Ann"
-  );
-  if (targets.length === 0) return [{ text: body, mention: false }];
-
+  const spans = findMentions(body, names);
+  if (spans.length === 0) return [{ text: body, mention: false }];
   const out: BodySegment[] = [];
-  let i = 0;
-  let plain = "";
-  outer: while (i < body.length) {
-    if (body[i] === "@") {
-      for (const name of targets) {
-        if (body.startsWith(name, i + 1)) {
-          if (plain) {
-            out.push({ text: plain, mention: false });
-            plain = "";
-          }
-          out.push({ text: `@${name}`, mention: true });
-          i += name.length + 1;
-          continue outer;
-        }
-      }
-    }
-    plain += body[i];
-    i++;
+  let at = 0;
+  for (const span of spans) {
+    if (span.start > at) out.push({ text: body.slice(at, span.start), mention: false });
+    out.push({ text: body.slice(span.start, span.end), mention: true });
+    at = span.end;
   }
-  if (plain) out.push({ text: plain, mention: false });
+  if (at < body.length) out.push({ text: body.slice(at), mention: false });
   return out;
 }

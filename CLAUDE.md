@@ -325,6 +325,7 @@ this map is still a rule you broke.
 - Silent by default; the actor never hears about their own event.
 - `comment-markdown.ts` is the only place user input becomes HTML — escape first, then transform.
 - Archive, never delete.
+- Comment and notification actions never `revalidatePath` — the panel and the bell live on every page.
 
 → **`docs/decisions/comments-notifications.md`**
 

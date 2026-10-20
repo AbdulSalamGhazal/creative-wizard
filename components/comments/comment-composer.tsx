@@ -99,6 +99,11 @@ export function CommentComposer({
   const [body, setBody] = useState(initialValue);
   const [mentions, setMentions] = useState<ComposerMember[]>(initialMentions);
   const [members, setMembers] = useState<ComposerMember[] | null>(null);
+  /** The member list failed to load — the picker says so and offers Retry. */
+  const [membersError, setMembersError] = useState(false);
+  /** Bumped by Retry; the fetch below runs once per attempt. */
+  const [membersAttempt, setMembersAttempt] = useState(0);
+  const membersLoading = useRef(false);
   const [token, setToken] = useState<MentionQuery | null>(null);
   /** The "@" position Escape dismissed — stays closed until you leave it. */
   const [dismissedAt, setDismissedAt] = useState<number | null>(null);
@@ -110,32 +115,51 @@ export function CommentComposer({
   const matches = matchMembers(members ?? [], token?.query ?? "");
 
   // The member list is fetched the first time a picker opens — no page pays
-  // for it up front.
+  // for it up front. It FINISHES even if the picker closes meanwhile (typing a
+  // space before it lands closes the token, and a cancelled fetch used to
+  // leave the list unloaded for good), and a failure is an ERROR STATE with a
+  // retry — it used to read "Loading…" forever on a non-OK response.
   useEffect(() => {
-    if (!pickerOpen || members !== null) return;
-    let live = true;
+    if (!pickerOpen || members !== null || membersError || membersLoading.current) return;
+    membersLoading.current = true;
     void (async () => {
       try {
         const res = await fetch("/api/brand-members", { cache: "no-store" });
-        if (!res.ok) return;
-        const data = (await res.json()) as { members: ComposerMember[] };
-        if (live) setMembers(data.members ?? []);
+        if (!res.ok) throw new Error(`brand-members ${res.status}`);
+        const data = (await res.json()) as { members?: ComposerMember[] };
+        // No per-run cancel flag on purpose — see above. Setting state on an
+        // unmounted composer is a no-op in React 18+.
+        setMembers(data.members ?? []);
       } catch {
-        if (live) setMembers([]);
+        setMembersError(true);
+      } finally {
+        membersLoading.current = false;
       }
     })();
-    return () => {
-      live = false;
-    };
-  }, [pickerOpen, members]);
+    // `membersAttempt` re-arms the fetch after Retry.
+  }, [pickerOpen, members, membersError, membersAttempt]);
 
   /** Re-read the "@query" under the caret after any edit or caret move. */
   const syncToken = (text: string, caret: number) => {
-    const next = detectMentionQuery(text, caret);
+    // A token may run through spaces ("@Ann Lee") for as long as somebody
+    // still matches it; while the list is loading (`null`) it stays open, and
+    // the effect below re-reads it when the list lands.
+    const next = detectMentionQuery(text, caret, members);
     setToken(next);
     if (!next) setDismissedAt(null);
     if (next?.query !== token?.query) setCursor(0);
   };
+
+  // The list just arrived: re-read the token under the caret — a name typed
+  // with a space while it loaded can be a mention again now.
+  useEffect(() => {
+    if (members === null) return;
+    const el = textareaRef.current;
+    if (!el || document.activeElement !== el) return;
+    syncToken(el.value, el.selectionStart ?? el.value.length);
+    // Only on arrival — syncToken is re-created every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [members]);
 
   /** Toolbar + shortcut: insert markdown syntax around the selection. */
   const applyTool = (tool: MarkdownTool) => {
@@ -164,6 +188,9 @@ export function CommentComposer({
       list.some((m) => m.id === member.id) ? list : [...list, member],
     );
     setToken(null);
+    // The inserted "@Name " would match its own name again (tokens run
+    // through spaces now): this "@" is done — keep its picker closed.
+    setDismissedAt(token.start);
     setCursor(0);
     // Put the caret after the inserted name once React has written the value.
     requestAnimationFrame(() => {
@@ -334,7 +361,23 @@ export function CommentComposer({
           }}
         >
           <ul className="max-h-56 overflow-y-auto py-1" role="listbox" aria-label="Mention someone">
-            {members === null ? (
+            {membersError ? (
+              <li className="flex items-center justify-between gap-2 px-3 py-2 text-xs text-ink-3">
+                <span>Couldn&rsquo;t load the people you can mention.</span>
+                <button
+                  type="button"
+                  // mousedown, not click: keep the textarea's focus and caret.
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    setMembersError(false);
+                    setMembersAttempt((n) => n + 1);
+                  }}
+                  className="shrink-0 rounded px-1.5 py-0.5 text-brand hover:underline"
+                >
+                  Retry
+                </button>
+              </li>
+            ) : members === null ? (
               <li className="px-3 py-2 text-xs text-ink-3">Loading…</li>
             ) : matches.length === 0 ? (
               <li className="px-3 py-2 text-xs text-ink-3">

@@ -10,11 +10,10 @@ import { AccountSwitcher } from "@/components/layout/account-switcher";
 import { MobileNav } from "@/components/layout/mobile-nav";
 import { LogoMark } from "@/components/layout/logo-mark";
 import { BrandWordmark } from "@/components/layout/brand-wordmark";
-
-function initials(name: string): string {
-  const parts = name.trim().split(/\s+/).slice(0, 2);
-  return parts.map((p) => p[0]?.toUpperCase() ?? "").join("") || "?";
-}
+// The ONE initials rule (lib/avatar.ts) — this file had its own copy, which
+// rendered "Salam (seed admin)" as "S(" and joined Arabic initials into one
+// glyph (2026-10).
+import { initialsOf } from "@/lib/avatar";
 
 interface Props {
   user: SessionUser;
@@ -79,7 +78,7 @@ export function TopBar({
               name: user.name,
               email: user.email,
               role: user.role,
-              initials: initials(user.name),
+              initials: initialsOf(user.name),
             }}
             toastScope={toastScope}
           />

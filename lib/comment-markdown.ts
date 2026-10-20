@@ -17,6 +17,8 @@
  * escaped text.
  */
 
+import { findMentions } from "@/lib/comments";
+
 const ESCAPES: Record<string, string> = {
   "&": "&amp;",
   "<": "&lt;",
@@ -57,17 +59,39 @@ function emphasise(escaped: string): string {
  * Highlight the names actually RECORDED as mentioned — presentation only,
  * exactly like `highlightMentions`: a typed "@someone" that never went through
  * the picker notifies nobody, so it must not look like it did.
+ *
+ * ONE pass through `findMentions` (2026-10), the same matcher the composer
+ * uses to decide who is notified, so the two can never disagree. It used to be
+ * one global replace per name: "@Ali" then matched INSIDE an already-wrapped
+ * "@Ali Hassan" (a nested span), inside "@Alice", and inside a link's href.
+ * Matching runs on TEXT only — never inside a tag we wrote, and never inside
+ * a link — against escaped names, because the line is already escaped.
  */
-function markMentions(escaped: string, names: readonly string[]): string {
-  const targets = [...new Set(names.filter((n) => n.trim() !== ""))]
-    .map((n) => escapeHtml(n))
-    .sort((a, b) => b.length - a.length); // "Ann Lee" before "Ann"
-  let out = escaped;
-  for (const name of targets) {
-    const pattern = new RegExp(`@${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`, "g");
-    out = out.replace(pattern, `<span class="cm-mention">@${name}</span>`);
-  }
-  return out;
+function markMentions(html: string, names: readonly string[]): string {
+  const escapedNames = names.filter((n) => n.trim() !== "").map((n) => escapeHtml(n));
+  if (escapedNames.length === 0) return html;
+  let inLink = false;
+  return html
+    .split(/(<[^>]*>)/)
+    .map((part) => {
+      if (part.startsWith("<")) {
+        if (/^<a[\s>]/.test(part)) inLink = true;
+        else if (part === "</a>") inLink = false;
+        return part;
+      }
+      if (inLink || part === "") return part;
+      const spans = findMentions(part, escapedNames);
+      if (spans.length === 0) return part;
+      let out = "";
+      let at = 0;
+      for (const span of spans) {
+        out += part.slice(at, span.start);
+        out += `<span class="cm-mention">${part.slice(span.start, span.end)}</span>`;
+        at = span.end;
+      }
+      return out + part.slice(at);
+    })
+    .join("");
 }
 
 /** One line's inline transforms, in the order that keeps them composable. */
