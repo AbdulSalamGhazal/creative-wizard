@@ -20,6 +20,9 @@ const eslintConfig = [
       "next-env.d.ts",
       // Scratch analysis scripts — not application code, not shipped.
       "analysis/**",
+      // Nested git worktrees (`.claude/worktrees/<branch>/`) are whole copies
+      // of the repo — the vitest configs ignore them for the same reason.
+      ".claude/**",
     ],
   },
 ];
