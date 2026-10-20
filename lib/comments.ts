@@ -134,6 +134,16 @@ export function reactionLabel(kind: string): string {
   return COMMENT_REACTIONS.find((r) => r.key === kind)?.label ?? kind;
 }
 
+/**
+ * The notification dedupe key for a reaction: the author hears about one
+ * person's one emoji on one comment ONCE, ever — removing and re-adding stays
+ * quiet (user decision, 2026-10-20). Namespaced ("reaction:") because
+ * `notifications.dedupe_key` is shared with phase-3 alerts.
+ */
+export function reactionDedupeKey(commentId: string, actorUserId: string, kind: string): string {
+  return `reaction:${commentId}:${actorUserId}:${kind}`;
+}
+
 /** One kind's tally on one comment — what the thread payload carries. */
 export interface CommentReactionTally {
   kind: string;

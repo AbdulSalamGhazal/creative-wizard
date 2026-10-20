@@ -47,7 +47,7 @@ import {
   updateComment,
 } from "@/app/actions/comments";
 import { listComments, resolveAnchorPath } from "@/db/queries/comments";
-import { buildCommentTarget, reactionEmoji } from "@/lib/comments";
+import { buildCommentTarget, reactionDedupeKey, reactionEmoji } from "@/lib/comments";
 import { COMMENT_EVENT_TYPES } from "@/lib/notifications";
 import { CREATIVE_1, CAMPAIGN_1, CAMPAIGN_B, resetAndSeed } from "./fixtures";
 
@@ -657,6 +657,48 @@ describe("reactions", () => {
       .from(notifications)
       .where(eq(notifications.type, COMMENT_EVENT_TYPES.REACTION));
     expect(notes).toHaveLength(1);
+  });
+
+  it("notifies ONCE per (reactor, comment, emoji), ever — remove and re-add stays quiet; two emoji are two", async () => {
+    const id = await aComment(ALICE, "Alice");
+    setUser(BOB, "Bob");
+    await setReaction({ commentId: id, kind: "up", on: true });
+    await setReaction({ commentId: id, kind: "up", on: false });
+    await setReaction({ commentId: id, kind: "up", on: true });
+    await setReaction({ commentId: id, kind: "up", on: false });
+    await setReaction({ commentId: id, kind: "up", on: true });
+    await setReaction({ commentId: id, kind: "heart", on: true });
+    // A different reactor is a different key.
+    setUser(CAROL, "Carol");
+    await setReaction({ commentId: id, kind: "up", on: true });
+
+    const notes = await db
+      .select()
+      .from(notifications)
+      .where(eq(notifications.type, COMMENT_EVENT_TYPES.REACTION));
+    expect(notes).toHaveLength(3);
+    expect(notes.map((n) => n.dedupeKey).sort()).toEqual(
+      [
+        reactionDedupeKey(id, BOB, "heart"),
+        reactionDedupeKey(id, BOB, "up"),
+        reactionDedupeKey(id, CAROL, "up"),
+      ].sort(),
+    );
+    // The reaction rows still follow every click — only the telling is once.
+    expect(await db.select().from(commentReactions)).toHaveLength(3);
+  });
+
+  it("the dedupe key never swallows ordinary notifications (NULL keys don't collide)", async () => {
+    const id = await aComment(ALICE, "Alice");
+    setUser(BOB, "Bob");
+    expect((await createComment({ ...onCreative, parentId: id, body: "one" })).ok).toBe(true);
+    expect((await createComment({ ...onCreative, parentId: id, body: "two" })).ok).toBe(true);
+    const replies = await db
+      .select()
+      .from(notifications)
+      .where(eq(notifications.type, COMMENT_EVENT_TYPES.REPLY));
+    expect(replies).toHaveLength(2);
+    expect(replies.every((n) => n.dedupeKey === null)).toBe(true);
   });
 
   it("a burst ends in the state of the LAST call, whatever came before", async () => {

@@ -8,6 +8,7 @@ import { getActiveAccountId } from "@/lib/tenant";
 import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
 import { actionError } from "@/lib/action-error";
 import {
+  reactionDedupeKey,
   reactionEmoji,
   rootParentId,
   splitCommentRecipients,
@@ -389,7 +390,9 @@ export async function deleteComment(input: unknown): Promise<CommentActionResult
  *
  * NOTIFYING IS ADD-ONLY, and goes to the comment's AUTHOR alone (the user's
  * decision: "like a reply"): only an ON that actually inserted a row tells
- * anyone — re-sending ON for a reaction already there is not a new event.
+ * anyone — re-sending ON for a reaction already there is not a new event —
+ * and ONCE per (reactor, comment, emoji) ever: a remove-then-re-add is
+ * deduplicated on `notifications.dedupe_key` (user decision, 2026-10-20).
  * Removing a reaction retracts nothing (you cannot un-tell someone), and
  * reacting to your own comment tells nobody.
  */
@@ -464,6 +467,9 @@ export async function setReaction(
           // page can collapse a burst of reactions into one row.
           entityType: comment.anchorType,
           entityId: comment.anchorId,
+          // ONCE per (reactor, comment, emoji), EVER (user decision,
+          // 2026-10-20): removing and re-adding stays quiet.
+          dedupeKey: reactionDedupeKey(commentId, user.id, kind),
         },
       ]);
     });

@@ -43,8 +43,10 @@
   reader wants (`setReaction({ on })`) — ON is an insert that does nothing on
   the unique-key conflict (a race cannot duplicate), OFF a delete — so a
   repeat or replay is harmless. Notifying is ADD-ONLY (only an ON that
-  actually inserted) and goes to the author alone; removing one retracts
-  nothing. The panel is OPTIMISTIC and serialises writes per (comment, kind)
+  actually inserted) and goes to the author alone, ONCE per (reactor,
+  comment, emoji) EVER — `notifications.dedupe_key` =
+  `reaction:<comment>:<actor>:<kind>` (user decision, 2026-10-20), so a
+  remove-then-re-add stays quiet; removing one retracts nothing. The panel is OPTIMISTIC and serialises writes per (comment, kind)
   (`ReactionSync`, lib/reaction-sync.ts), so a burst of clicks ends in the
   state the reader last chose; a failure rolls the pill back with a toast.
 - **A deep link WAITS for its thread.** `?comment=<id>` registers a
@@ -444,3 +446,16 @@ as it stood before the restructure.*
 - **D3 — initials are FIRST + LAST word, every script (user decision,
   2026-10-20):** "Mary Jane Watson" → "MW", «عبد السلام غزال» → «ع‌غ» (the
   ZWNJ stays), one word → one letter. It was the first two words.
+- **D2 — re-adding a reaction notified the author again (user decision,
+  2026-10-20: once per reactor, comment and emoji, ever).** The walk produced
+  four "reacted 👍" rows from one person's on/off clicking. Reaction
+  notifications now carry `dedupe_key = reaction:<comment>:<actor>:<kind>`
+  and `createNotifications` inserts keyed rows with `ON CONFLICT (account_id,
+  dedupe_key) WHERE dedupe_key IS NOT NULL DO NOTHING` — the existing PARTIAL
+  unique index, so unkeyed rows (every other notification) never collide.
+  The key was RESERVED for phase-3 alert upserts; it is shared now, so every
+  producer namespaces its keys. Scope: unique per BRAND, recipient-agnostic —
+  fine here because a reaction key implies its recipient (the comment's
+  author). DB tests: add → remove → add → remove → add plus a second emoji
+  and a second reactor = exactly three notifications; ordinary replies keep
+  NULL keys and both arrive.

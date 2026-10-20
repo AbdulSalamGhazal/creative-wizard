@@ -1457,10 +1457,12 @@ export const notifications = pgTable(
     /** "Clear" — reversible, and the only way a notification leaves the list. */
     archivedAt: timestamp("archived_at", { withTimezone: true }),
     /**
-     * RESERVED for phase 3. A recurring evaluator ("still 40% over budget")
-     * will upsert on this key instead of filing a duplicate every run. Phase 1
-     * writes NULL everywhere, and the unique index below is partial so those
-     * NULLs never collide.
+     * "Once, ever" — unique per BRAND (the partial index below), NULL for
+     * everything that may repeat. First user (2026-10-20): reactions,
+     * `reaction:<comment>:<actor>:<kind>`, so a remove-then-re-add doesn't
+     * notify the author again. Phase 3's recurring evaluator ("still 40% over
+     * budget") will upsert on its own namespaced keys. The index is partial,
+     * so the NULLs never collide.
      */
     dedupeKey: text("dedupe_key"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

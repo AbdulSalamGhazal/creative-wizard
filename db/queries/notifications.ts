@@ -81,6 +81,13 @@ export interface NewNotification {
   actorUserId?: string | null;
   entityType?: string | null;
   entityId?: string | null;
+  /**
+   * "Tell them about this ONCE, ever." A row whose key already exists in the
+   * brand is skipped (the partial unique index on (account_id, dedupe_key)).
+   * Namespace every key by producer — `reaction:<comment>:<actor>:<kind>` is
+   * the first user (2026-10-20); phase-3 alerts will add their own prefix.
+   */
+  dedupeKey?: string | null;
 }
 
 /**
@@ -93,21 +100,34 @@ export async function createNotifications(
   rows: NewNotification[],
 ): Promise<number> {
   if (rows.length === 0) return 0;
-  await tx.insert(notifications).values(
-    rows.map((r) => ({
-      accountId: r.accountId,
-      recipientUserId: r.recipientUserId,
-      category: r.category,
-      type: r.type,
-      title: r.title,
-      body: r.body ?? null,
-      href: r.href ?? null,
-      actorUserId: r.actorUserId ?? null,
-      entityType: r.entityType ?? null,
-      entityId: r.entityId ?? null,
-    })),
-  );
-  return rows.length;
+  const values = rows.map((r) => ({
+    accountId: r.accountId,
+    recipientUserId: r.recipientUserId,
+    category: r.category,
+    type: r.type,
+    title: r.title,
+    body: r.body ?? null,
+    href: r.href ?? null,
+    actorUserId: r.actorUserId ?? null,
+    entityType: r.entityType ?? null,
+    entityId: r.entityId ?? null,
+    dedupeKey: r.dedupeKey ?? null,
+  }));
+  if (!values.some((v) => v.dedupeKey !== null)) {
+    await tx.insert(notifications).values(values);
+    return rows.length;
+  }
+  // A keyed row that already exists is skipped — the index predicate names
+  // the PARTIAL unique index, so unkeyed (NULL) rows never conflict.
+  const written = await tx
+    .insert(notifications)
+    .values(values)
+    .onConflictDoNothing({
+      target: [notifications.accountId, notifications.dedupeKey],
+      where: isNotNull(notifications.dedupeKey),
+    })
+    .returning({ id: notifications.id });
+  return written.length;
 }
 
 export interface NotifyInput {
