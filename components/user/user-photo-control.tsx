@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ImagePlus, Loader2, Trash2 } from "lucide-react";
+import { Camera, ImagePlus, Loader2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import {
   DropdownMenu,
@@ -102,9 +102,19 @@ export function UserPhotoControl({
             type="button"
             disabled={busy}
             aria-label={`${name}'s photo`}
-            className="relative shrink-0 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50"
+            title={avatarUrl ? "Change or remove photo" : "Upload photo"}
+            className="group/photo relative shrink-0 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50"
           >
             <UserAvatar name={name} src={avatarUrl} size={size} />
+            {/* The avatar IS the control: a camera on hover/focus says so. */}
+            {!busy && (
+              <span
+                aria-hidden
+                className="absolute inset-0 flex items-center justify-center rounded-full bg-black/45 opacity-0 transition-opacity group-hover/photo:opacity-100 group-focus-visible/photo:opacity-100 [@media(hover:none)]:opacity-0"
+              >
+                <Camera className="h-3.5 w-3.5 text-white" />
+              </span>
+            )}
             {busy && (
               <span className="absolute inset-0 flex items-center justify-center rounded-full bg-background/60">
                 <Loader2 className="h-3.5 w-3.5 animate-spin text-ink" />
