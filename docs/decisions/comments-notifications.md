@@ -34,6 +34,11 @@
   `off` silences toasts only — the badge and the tab title still work.
 - Reactions: toggle = delete-then-insert (a race cannot duplicate); notifying
   is ADD-ONLY and goes to the author alone; removing one retracts nothing.
+- **Inside a producer's transaction, every read goes through the `tx`** —
+  never the global `db`, never a helper that defaults to it
+  (`resolveAnchorPath(…, tx)`). Production's pool is ONE connection, so a `db`
+  query inside `db.transaction` waits forever; the DB suite runs at
+  `DB_POOL_MAX=1` to catch it.
 
 ## History and rationale
 
@@ -239,3 +244,21 @@ as it stood before the restructure.*
       ride the EXISTING thread payload (one bounded query for the thread, never
       one per comment) with `mine` resolved server-side; a deleted comment
       carries none, and editing never touches reactions.
+
+### Phase 1 bug sweep (2026-10-20)
+
+- **A1 — reactions hung in production.** `toggleReaction` looked up the
+  anchor's label with `resolveAnchorPath`, which queried through the global
+  `db`, INSIDE `db.transaction(...)`. Production's `lib/db.ts` is `max: 1`:
+  the transaction held the only connection and the lookup waited for it
+  forever, so every reaction on a creative or campaign comment hung until the
+  function was killed (view and budget-month anchors resolve without a query,
+  which is why "sometimes they simply don't work"). Dev's pool of 10 and the
+  DB suite never showed it. Fix: `resolveAnchorPath` takes an `exec` and the
+  reaction passes its `tx`. Guard: `lib/db.ts` honours `DB_POOL_MAX`, the DB
+  suite sets it to `1` (production size), and `tests/db/pool.test.ts` pins
+  both the setting and the mechanism; the reaction test timed out at 5 s on
+  the old code and passes on the new. Every DB test file was then run alone at
+  pool 1 — no other deadlock surfaced — and a static sweep of every
+  `db.transaction` callback found no other `db` use or tenant/auth lookup
+  inside one.

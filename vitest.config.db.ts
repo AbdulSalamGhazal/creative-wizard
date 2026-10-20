@@ -16,7 +16,11 @@ export default defineConfig({
     // never collect theirs (see vitest.config.ts).
     exclude: ["node_modules", ".claude/**"],
     globalSetup: ["./tests/db/global-setup.ts"],
-    env: { DATABASE_URL: TEST_DATABASE_URL },
+    // DB_POOL_MAX=1 — the suite runs at PRODUCTION pool size (`lib/db.ts`
+    // is `max: 1` on Vercel). At dev's 10, a query on `db` inside a
+    // `db.transaction` callback quietly borrows a second connection; in prod
+    // it deadlocks. Here it hangs the test, which is the point.
+    env: { DATABASE_URL: TEST_DATABASE_URL, DB_POOL_MAX: "1" },
     fileParallelism: false,
     pool: "forks",
     poolOptions: { forks: { singleFork: true } },

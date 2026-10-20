@@ -685,6 +685,31 @@ describe("reactions", () => {
     expect(note?.accountId).toBe(ACCOUNT_A);
   });
 
+  it("completes on a CAMPAIGN comment at production pool size — the anchor resolves on the tx", async () => {
+    // The 2026-10 production hang: the label lookup ran through the global
+    // `db` inside the reaction's transaction, and with ONE connection
+    // (`DB_POOL_MAX=1` in this suite, `max: 1` on Vercel) it waited forever.
+    // Creative and campaign anchors are the two that query; this one pins
+    // the campaign path (the creative one is the test above).
+    setUser(ALICE, "Alice");
+    const posted = await createComment({
+      anchorType: "campaign",
+      anchorId: CAMPAIGN_1,
+      body: "Pacing looks off here",
+    });
+    expect(posted.ok).toBe(true);
+    setUser(BOB, "Bob");
+    const res = await toggleReaction({ commentId: posted.id!, kind: "up" });
+    expect(res).toMatchObject({ ok: true, reacted: true });
+    const [note] = await db
+      .select()
+      .from(notifications)
+      .where(eq(notifications.type, COMMENT_EVENT_TYPES.REACTION));
+    expect(note?.recipientUserId).toBe(ALICE);
+    expect(note?.entityType).toBe("campaign");
+    expect(note?.title).toMatch(/ on .+$/); // the anchor's label made it in
+  });
+
   it("tells NOBODY when you react to your own comment", async () => {
     const id = await aComment(ALICE, "Alice");
     const res = await toggleReaction({ commentId: id, kind: "up" });

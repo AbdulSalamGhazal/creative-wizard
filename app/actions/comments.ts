@@ -432,10 +432,15 @@ export async function toggleReaction(
       // is gone (deleted user) has nobody to notify either.
       if (!comment.authorUserId || comment.authorUserId === user.id) return true;
 
+      // On `tx`, never `db`: this transaction holds production's ONLY
+      // connection (`lib/db.ts` is `max: 1`), so a lookup through the global
+      // client would wait forever — reactions on creative and campaign
+      // comments hung exactly that way.
       const anchor = await resolveAnchorPath(
         comment.anchorType as CommentAnchorType,
         comment.anchorId,
         acct,
+        tx,
       );
       await createNotifications(tx, [
         {

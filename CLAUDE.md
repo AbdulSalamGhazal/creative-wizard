@@ -174,7 +174,9 @@ Do not introduce a new dependency without a one-line justification in the PR des
   no DB, no docker, always safe in CI. `npm run test:db` is the **real-database**
   suite (`tests/db/**`, config `vitest.config.db.ts`): its globalSetup creates a
   dedicated **`ccms_test`** database on the local docker Postgres and runs the
-  Drizzle migrations, then points `DATABASE_URL` at it. It NEVER touches `ccms`
+  Drizzle migrations, then points `DATABASE_URL` at it — and it runs at
+  PRODUCTION pool size (`DB_POOL_MAX=1`), so a `db`-inside-`tx` deadlock hangs
+  a test instead of shipping. It NEVER touches `ccms`
   (dev) or prod. The default suite excludes `tests/db/**`, so a machine without
   docker still runs green. DB tests `vi.mock("@/lib/tenant")` to drive the active
   account (cookies are unavailable in vitest) and re-seed via
@@ -241,6 +243,21 @@ These are not domain knowledge — they bite any change, so they live here.
   full log. A failed Vercel build silently keeps serving the previous deploy, so
   prod looks "not updated" with no error surfaced.
 
+- **Never query `db` inside a `db.transaction` callback — prod's pool is ONE
+  connection, so it DEADLOCKS.** `lib/db.ts` is `max: 1` on Vercel: the
+  transaction holds the only connection, and a query through the global `db`
+  (or a helper that defaults to it) waits for a connection that never frees —
+  the request hangs until the function is killed. Locally (`max: 10`) it
+  quietly borrows a second connection, so dev never sees it. Pass the `tx` to
+  every helper (query helpers take an `exec`/`tx` parameter for exactly this),
+  or resolve what you need BEFORE the transaction. The DB suite runs at
+  production pool size (`DB_POOL_MAX=1` in `vitest.config.db.ts`, pinned by
+  `tests/db/pool.test.ts`), so such a query hangs its test — but that suite
+  MOCKS `lib/tenant` and `lib/auth`, so `getActiveAccountId()` / `auth()`
+  called inside a transaction would still slip past it: call them first.
+  (2026-10: every reaction on a creative or campaign comment hung in prod
+  this way — `resolveAnchorPath` ran on `db` inside `toggleReaction`'s
+  transaction.)
 - **Prevent enum drift — DERIVE, don't re-list.** A validator/option list that
   mirrors the platform set or CSV field set must derive from the canonical
   source (`platformEnum`, `INTERNAL_FIELDS`) via spread, not hand-copied

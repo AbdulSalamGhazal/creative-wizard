@@ -295,11 +295,17 @@ export async function anchorParticipants(
  * The CURRENT path of what a comment is about — looked up at click time, which
  * is the whole reason the `/go/comment/[id]` resolver exists: creatives and
  * campaigns are addressed by NAME, and a rename would rot a stored link.
+ *
+ * Inside a transaction, PASS THE `tx`. Production's pool is ONE connection
+ * (`lib/db.ts`): a transaction holds it, so a lookup through the global `db`
+ * waits for a connection that never frees — `toggleReaction` hung exactly this
+ * way on every creative and campaign comment (2026-10).
  */
 export async function resolveAnchorPath(
   anchorType: CommentAnchorType,
   anchorId: string,
   accountId: string,
+  exec: Exec = db,
 ): Promise<{ path: string; label: string } | null> {
   if (anchorType === "view") {
     const label = viewLabel(anchorId);
@@ -312,7 +318,7 @@ export async function resolveAnchorPath(
     };
   }
   if (anchorType === "creative") {
-    const [row] = await db
+    const [row] = await exec
       .select({ name: creatives.name })
       .from(creatives)
       .where(and(eq(creatives.id, anchorId), eq(creatives.accountId, accountId)))
@@ -320,7 +326,7 @@ export async function resolveAnchorPath(
     if (!row) return null;
     return { path: `/library/${encodeURIComponent(row.name)}`, label: row.name };
   }
-  const [row] = await db
+  const [row] = await exec
     .select({ name: campaigns.name })
     .from(campaigns)
     .where(and(eq(campaigns.id, anchorId), eq(campaigns.accountId, accountId)))
