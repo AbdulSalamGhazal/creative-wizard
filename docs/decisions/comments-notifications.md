@@ -21,8 +21,11 @@
 - A comment notifies only by MENTION, REPLY or ANCHOR ACTIVITY, and
   `splitCommentRecipients` gives **one row per person per comment** by priority
   mention > reply > anchor.
-- Mentions are stored EXPLICITLY from the picker, never parsed from body text;
-  a non-member mention is REFUSED, not dropped.
+- Mentions reach the SERVER as EXPLICIT ids and are never parsed from the
+  body there; a non-member mention is REFUSED, not dropped. The COMPOSER
+  decides the ids: the picker's picks, plus a whole typed or pasted "@Full
+  Name" that matches EXACTLY ONE brand member (`resolveComposerMentions`,
+  user decision 2026-10-20) — a name two members share is never guessed.
 - **A mention is the WHOLE name.** `findMentions` (lib/comments.ts) — one
   left-to-right pass, longest name first, word edges checked in any script —
   is the ONE matcher for who a submit notifies (`activeMentions`) and what
@@ -459,3 +462,16 @@ as it stood before the restructure.*
   author). DB tests: add → remove → add → remove → add plus a second emoji
   and a second reactor = exactly three notifications; ordinary replies keep
   NULL keys and both arrive.
+- **D1 — a typed full name is recognised (user decision, 2026-10-20).**
+  Typing or pasting "@Ali Hassan" without touching the picker used to leave
+  plain text that notified nobody. The composer now resolves every whole
+  "@Name" (`findMentions` over the picks AND the member list, longest name
+  first) to the PICKED member(s) with that name, else to the ONE member whose
+  name it is exactly, else to nobody (two members sharing a name are left to
+  the picker) — `resolveComposerMentions`, pure. It fetches the member list
+  as soon as the text holds an "@" (not only when the picker opens) and
+  re-checks before submit, so a name pasted before the list ever loaded
+  still counts. "Notifying …" shows the result before sending. The server is
+  untouched: explicit ids, a non-member refused out loud — "never parsed"
+  stays true THERE. `lib/mentions-d1.test.ts`: exact match, shared name,
+  prefix collision, case, Arabic, pasted multi-line text, no list.

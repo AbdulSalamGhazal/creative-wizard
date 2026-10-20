@@ -355,7 +355,7 @@ export interface RecipientSplit {
  */
 export function splitCommentRecipients(input: {
   actorUserId: string;
-  /** Explicitly mentioned in THIS comment (from the picker, never parsed). */
+  /** Mentioned in THIS comment — explicit ids from the composer; the server never parses the body. */
   mentioned: readonly string[];
   /**
    * The thread's participants — root author, every replier, and everyone
@@ -466,8 +466,8 @@ export interface MentionQuery {
  * list is still LOADING: the token stays open (the picker says "Loading…") and
  * the caller re-reads it when the list lands — a pasted "@Ann Lee" must not
  * close before anyone could know. With no list at all (`undefined`) a space
- * ends the token, as before. The invariant is untouched: a mention is still
- * an explicit pick, never parsed from the text.
+ * ends the token, as before. The server still receives explicit ids only;
+ * see `resolveComposerMentions` for what the composer recognises.
  */
 export function detectMentionQuery(
   text: string,
@@ -594,6 +594,47 @@ export function activeMentions<T extends { name: string }>(
     ).map((s) => s.name),
   );
   return picked.filter((m) => present.has(m.name));
+}
+
+/**
+ * WHO A SUBMIT MENTIONS, as the composer sees it (user decision, 2026-10-20).
+ *
+ * Every whole "@Name" in the text (`findMentions`, matched against the picked
+ * names AND the member list together, so the longest name always wins — a
+ * picked "Ali" never rides along inside "@Ali Hassan") resolves to:
+ *  - the member(s) PICKED with that name, if any — an explicit pick wins;
+ *  - otherwise the ONE member whose name it is EXACTLY (case-sensitive, the
+ *    whole name) — a typed or pasted "@Ali Hassan" counts, so "Notifying Ali
+ *    Hassan" shows before sending;
+ *  - otherwise nobody: a name two members share is never guessed — the
+ *    picker is how you choose between them.
+ * In order of appearance, each person once. With no member list (`null`) only
+ * the picks count. The SERVER is unchanged: it receives these explicit ids and
+ * refuses a non-member out loud — nothing is parsed from the body there.
+ */
+export function resolveComposerMentions<T extends { id: string; name: string }>(
+  body: string,
+  picked: readonly T[],
+  members: readonly T[] | null,
+): T[] {
+  const names = [...picked.map((m) => m.name), ...(members ?? []).map((m) => m.name)];
+  const out: T[] = [];
+  const seen = new Set<string>();
+  const add = (m: T) => {
+    if (seen.has(m.id)) return;
+    seen.add(m.id);
+    out.push(m);
+  };
+  for (const span of findMentions(body, names)) {
+    const chosen = picked.filter((m) => m.name === span.name);
+    if (chosen.length > 0) {
+      chosen.forEach(add);
+      continue;
+    }
+    const named = (members ?? []).filter((m) => m.name === span.name);
+    if (named.length === 1) add(named[0]!);
+  }
+  return out;
 }
 
 export interface BodySegment {

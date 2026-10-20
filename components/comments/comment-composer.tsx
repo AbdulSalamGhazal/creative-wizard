@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AtSign, Bold, Italic, List, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -12,13 +12,13 @@ import {
 import { cn } from "@/lib/utils";
 import {
   COMMENT_MAX,
-  activeMentions,
   composerStateAfterSubmit,
   detectMentionQuery,
   enterSubmits,
   insertMentionToken,
   isImeKeydown,
   matchMembers,
+  resolveComposerMentions,
   type MentionQuery,
 } from "@/lib/comments";
 import { applyMarkdownTool, type MarkdownTool } from "@/lib/comment-markdown";
@@ -50,10 +50,13 @@ export interface ComposerResult {
  * Typing "@" (at the start, or after a space) opens the member list right
  * above the composer; typing on filters it by name or email; ↑/↓ move, Enter or
  * Tab inserts "@Name" and registers the mention, Escape closes and leaves the
- * "@" as plain text. Mentions travel as explicit ids — the text is never
- * parsed at submit — and a name deleted from the body before submitting is
- * simply not sent. On an EDIT the caller seeds the mentions already recorded,
- * so the same rules decide what survives.
+ * "@" as plain text. Mentions travel to the server as explicit ids. The
+ * COMPOSER also recognises a typed or pasted "@Full Name" that matches exactly
+ * one member (user decision, 2026-10-20 — `resolveComposerMentions`), so
+ * "Notifying …" shows before sending; a name two members share is left to the
+ * picker. A name deleted from the body before submitting is simply not sent.
+ * On an EDIT the caller seeds the mentions already recorded, so the same rules
+ * decide what survives.
  *
  * MARKDOWN-LITE: the toolbar inserts the syntax (**bold**, *italic*, "- "
  * lists) around the selection; ⌘/Ctrl+B and ⌘/Ctrl+I do the same from the
@@ -103,7 +106,8 @@ export function CommentComposer({
   const [membersError, setMembersError] = useState(false);
   /** Bumped by Retry; the fetch below runs once per attempt. */
   const [membersAttempt, setMembersAttempt] = useState(0);
-  const membersLoading = useRef(false);
+  /** The member fetch in flight, shared by the effect and a submit. */
+  const membersRequest = useRef<Promise<ComposerMember[] | null> | null>(null);
   const [token, setToken] = useState<MentionQuery | null>(null);
   /** The "@" position Escape dismissed — stays closed until you leave it. */
   const [dismissedAt, setDismissedAt] = useState<number | null>(null);
@@ -114,30 +118,50 @@ export function CommentComposer({
   const pickerOpen = token !== null && token.start !== dismissedAt;
   const matches = matchMembers(members ?? [], token?.query ?? "");
 
-  // The member list is fetched the first time a picker opens — no page pays
-  // for it up front. It FINISHES even if the picker closes meanwhile (typing a
-  // space before it lands closes the token, and a cancelled fetch used to
-  // leave the list unloaded for good), and a failure is an ERROR STATE with a
-  // retry — it used to read "Loading…" forever on a non-OK response.
-  useEffect(() => {
-    if (!pickerOpen || members !== null || membersError || membersLoading.current) return;
-    membersLoading.current = true;
-    void (async () => {
+  /**
+   * Fetch the member list (once at a time). It FINISHES even if the picker
+   * closes meanwhile (a cancelled fetch used to leave the list unloaded for
+   * good), and a failure is an ERROR STATE with a retry — it used to read
+   * "Loading…" forever on a non-OK response. Resolves the list, or null.
+   */
+  const fetchMembers = useCallback((): Promise<ComposerMember[] | null> => {
+    if (membersRequest.current) return membersRequest.current;
+    const request = (async () => {
       try {
         const res = await fetch("/api/brand-members", { cache: "no-store" });
         if (!res.ok) throw new Error(`brand-members ${res.status}`);
         const data = (await res.json()) as { members?: ComposerMember[] };
-        // No per-run cancel flag on purpose — see above. Setting state on an
-        // unmounted composer is a no-op in React 18+.
-        setMembers(data.members ?? []);
+        const list = data.members ?? [];
+        // Setting state on an unmounted composer is a no-op in React 18+.
+        setMembers(list);
+        return list;
       } catch {
         setMembersError(true);
+        return null;
       } finally {
-        membersLoading.current = false;
+        membersRequest.current = null;
       }
     })();
+    membersRequest.current = request;
+    return request;
+  }, []);
+
+  // No page pays for the list up front: it is fetched the first time a picker
+  // opens — OR the text holds an "@" at all, because a typed or PASTED
+  // "@Full Name" is recognised against it (user decision, 2026-10-20).
+  useEffect(() => {
+    if (members !== null || membersError) return;
+    if (!pickerOpen && !body.includes("@")) return;
+    void fetchMembers();
     // `membersAttempt` re-arms the fetch after Retry.
-  }, [pickerOpen, members, membersError, membersAttempt]);
+  }, [pickerOpen, body, members, membersError, membersAttempt, fetchMembers]);
+
+  /**
+   * Who this text mentions: the picks, plus a whole "@Full Name" that matches
+   * exactly ONE member (`resolveComposerMentions` — the server still takes
+   * only these explicit ids).
+   */
+  const mentioned = resolveComposerMentions(body, mentions, members);
 
   /** Load the member list again after a failure (Retry — mouse OR keyboard). */
   const retryMembers = () => {
@@ -236,12 +260,12 @@ export function CommentComposer({
       // `safeAction`: a call that REJECTS (network blink, a tab from before
       // the last deploy) resolves to a failure like any other — never an
       // unhandled rejection, never the route's error boundary.
-      const res = await safeAction(() =>
-        onSubmit(
-          text,
-          activeMentions(text, mentions).map((m) => m.id),
-        ),
-      );
+      // RE-CHECK before sending: a name typed or pasted before the member
+      // list ever loaded still counts — wait for the list if the text has an
+      // "@" and it isn't here yet.
+      const list = members ?? (text.includes("@") ? await fetchMembers() : null);
+      const mentionUserIds = resolveComposerMentions(text, mentions, list).map((m) => m.id);
+      const res = await safeAction(() => onSubmit(text, mentionUserIds));
       // THE COMPOSER CLEANS ITS OWN STATE. The drawer's create composer stays
       // MOUNTED after a post (its `key` only changes when `replyTo` does), so
       // without this the sent text sat in the box; reply and edit only looked
@@ -449,9 +473,9 @@ export function CommentComposer({
           </ToolButton>
         </div>
 
-        {activeMentions(body, mentions).length > 0 && (
+        {mentioned.length > 0 && (
           <span className="min-w-0 truncate text-[11px] text-ink-3">
-            Notifying {activeMentions(body, mentions).map((m) => m.name).join(", ")}
+            Notifying {mentioned.map((m) => m.name).join(", ")}
           </span>
         )}
 
