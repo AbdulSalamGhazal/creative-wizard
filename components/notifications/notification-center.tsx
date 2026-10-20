@@ -20,10 +20,12 @@ import { cn } from "@/lib/utils";
 import {
   CATEGORY_LABEL,
   NOTIFICATION_CATEGORIES,
+  announceNotificationsChanged,
   anchorLabelFromTitle,
   burstLabel,
   categoryForType,
   groupNotifications,
+  onNotificationsChanged,
   safeHref,
   type NotificationCategory,
 } from "@/lib/notifications";
@@ -81,6 +83,13 @@ export function NotificationCenter({
   // The URL is the state: a filtered view is shareable, and Back works.
   useEffect(() => setSearch(q), [q]);
 
+  // The bell marked something read while this page is on screen: re-render
+  // the list. (The actions no longer revalidate — see lib/notifications.)
+  useEffect(
+    () => onNotificationsChanged("center", () => router.refresh()),
+    [router],
+  );
+
   const setParams = (next: Record<string, string | null>) => {
     const params = new URLSearchParams();
     if (tab !== "all") params.set("tab", tab);
@@ -116,6 +125,7 @@ export function NotificationCenter({
       }
       if (done) toast.success(done(res.affected ?? 0));
       router.refresh();
+      announceNotificationsChanged("center");
     });
 
   const open = (row: NotificationRow) => {
@@ -124,6 +134,7 @@ export function NotificationCenter({
       startTransition(async () => {
         await markNotificationRead({ id: row.id });
         router.refresh();
+        announceNotificationsChanged("center");
       });
     }
     if (href) router.push(href);

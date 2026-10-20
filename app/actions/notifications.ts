@@ -1,6 +1,5 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { and, eq, isNull, isNotNull } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { notifications } from "@/db/schema";
@@ -30,13 +29,15 @@ function errMsg(err: unknown): string {
   return actionError(err, "notifications");
 }
 
-function revalidateNotifications() {
-  try {
-    revalidatePath("/notifications");
-  } catch (err) {
-    console.warn("revalidatePath after notification change failed:", err);
-  }
-}
+/*
+ * NO `revalidatePath` here (2026-10). The bell calls `markNotificationRead`
+ * from EVERY page, and a revalidation inside a server action re-renders the
+ * page the caller is on and ships it in the response — so each bell click
+ * re-rendered whatever dashboard page was open, for nothing: `/notifications`
+ * is `force-dynamic` (a visit always renders fresh), and when it IS the page
+ * on screen it refreshes itself on `NOTIFICATIONS_CHANGED_EVENT`
+ * (lib/notifications.ts), which the bell dispatches after a write.
+ */
 
 /** The scope every statement below runs under. */
 async function scope() {
@@ -69,7 +70,6 @@ export async function markNotificationRead(
         ),
       )
       .returning({ id: notifications.id });
-    revalidateNotifications();
     return { ok: true, affected: rows.length };
   } catch (err) {
     return { ok: false, error: errMsg(err) };
@@ -90,7 +90,6 @@ export async function markAllRead(): Promise<NotificationActionResult> {
         ),
       )
       .returning({ id: notifications.id });
-    revalidateNotifications();
     return { ok: true, affected: rows.length };
   } catch (err) {
     return { ok: false, error: errMsg(err) };
@@ -117,7 +116,6 @@ export async function archiveNotification(
         ),
       )
       .returning({ id: notifications.id });
-    revalidateNotifications();
     return { ok: true, affected: rows.length };
   } catch (err) {
     return { ok: false, error: errMsg(err) };
@@ -139,7 +137,6 @@ export async function archiveAllRead(): Promise<NotificationActionResult> {
         ),
       )
       .returning({ id: notifications.id });
-    revalidateNotifications();
     return { ok: true, affected: rows.length };
   } catch (err) {
     return { ok: false, error: errMsg(err) };
@@ -165,7 +162,6 @@ export async function unarchiveNotification(
         ),
       )
       .returning({ id: notifications.id });
-    revalidateNotifications();
     return { ok: true, affected: rows.length };
   } catch (err) {
     return { ok: false, error: errMsg(err) };

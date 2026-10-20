@@ -199,6 +199,52 @@ export const BADGE_CAP = 9;
  */
 export const POLL_MS = 30_000;
 
+/**
+ * The ONE in-page signal that the reader's notifications changed (2026-10).
+ *
+ * The actions no longer `revalidatePath`: a revalidation re-renders the page
+ * the caller is on, so every bell click used to re-render whatever dashboard
+ * page was open. Instead, the surface that changed something announces it on
+ * `window` and the others refresh THEMSELVES — the bell reloads its feed (no
+ * second timer: `POLL_MS` stays the one polling knob) and /notifications
+ * re-renders its list, which it can only do while it is the page on screen.
+ * `source` names the announcer, so nobody reacts to its own event.
+ */
+export const NOTIFICATIONS_CHANGED_EVENT = "cw:notifications-changed";
+
+export type NotificationsChangedSource = "bell" | "center" | "panel";
+
+export interface NotificationsChangedDetail {
+  source: NotificationsChangedSource;
+}
+
+export function announceNotificationsChanged(source: NotificationsChangedSource): void {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(
+    new CustomEvent<NotificationsChangedDetail>(NOTIFICATIONS_CHANGED_EVENT, {
+      detail: { source },
+    }),
+  );
+}
+
+/**
+ * Subscribe to `NOTIFICATIONS_CHANGED_EVENT`, ignoring the subscriber's own
+ * announcements. Returns the unsubscribe, for an effect's cleanup.
+ */
+export function onNotificationsChanged(
+  self: NotificationsChangedSource,
+  handler: () => void,
+): () => void {
+  if (typeof window === "undefined") return () => {};
+  const listener = (event: Event) => {
+    const detail = (event as CustomEvent<NotificationsChangedDetail>).detail;
+    if (detail?.source === self) return;
+    handler();
+  };
+  window.addEventListener(NOTIFICATIONS_CHANGED_EVENT, listener);
+  return () => window.removeEventListener(NOTIFICATIONS_CHANGED_EVENT, listener);
+}
+
 /** The badge's text: nothing at zero, the number, or the capped form. */
 export function badgeCount(unread: number): string {
   if (!Number.isFinite(unread) || unread <= 0) return "";

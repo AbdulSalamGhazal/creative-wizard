@@ -17,12 +17,14 @@ import {
   CATEGORY_LABEL,
   DEFAULT_TOAST_SCOPE,
   POLL_MS,
+  announceNotificationsChanged,
   badgeCount,
   burstSummary,
   isNotificationCategory,
   safeHref,
   stripUnreadPrefix,
   titleWithUnread,
+  onNotificationsChanged,
   toastPlan,
   toastedStorageKey,
   type ToastScope,
@@ -139,6 +141,7 @@ export function NotificationBell({
                   // then go where it points.
                   startTransition(async () => {
                     await markNotificationRead({ id: full.id });
+                    announceNotificationsChanged("bell");
                     void load();
                   });
                   openHref(full.href);
@@ -172,6 +175,10 @@ export function NotificationBell({
   useEffect(() => {
     void load();
   }, [load, pathname]);
+
+  // Another surface (the /notifications page) read or cleared something: the
+  // badge follows at once — an event, not a second timer.
+  useEffect(() => onNotificationsChanged("bell", () => void load()), [load]);
 
   useEffect(() => {
     const onFocus = () => {
@@ -234,6 +241,7 @@ export function NotificationBell({
       );
       startTransition(async () => {
         await markNotificationRead({ id: item.id });
+        announceNotificationsChanged("bell");
         void load();
       });
     }

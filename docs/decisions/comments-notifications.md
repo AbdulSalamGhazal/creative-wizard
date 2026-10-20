@@ -34,6 +34,13 @@
   `off` silences toasts only — the badge and the tab title still work.
 - Reactions: toggle = delete-then-insert (a race cannot duplicate); notifying
   is ADD-ONLY and goes to the author alone; removing one retracts nothing.
+- **Comment and notification actions call NO `revalidatePath`/`revalidateTag`**
+  (pinned by `app/actions/comment-latency.test.ts`): a revalidation inside a
+  server action re-renders the CALLER's page and ships it in the response,
+  and these surfaces live on every page. Nothing server-side reads comments;
+  `/notifications` is `force-dynamic` and refreshes itself on
+  `NOTIFICATIONS_CHANGED_EVENT`, which the bell announces after a write (and
+  the page announces back, so the badge follows without a second timer).
 - **Inside a producer's transaction, every read goes through the `tx`** —
   never the global `db`, never a helper that defaults to it
   (`resolveAnchorPath(…, tx)`). Production's pool is ONE connection, so a `db`
@@ -262,3 +269,20 @@ as it stood before the restructure.*
   pool 1 — no other deadlock surfaced — and a static sweep of every
   `db.transaction` callback found no other `db` use or tenant/auth lookup
   inside one.
+- **A2 — every comment action re-rendered the whole page.** `createComment`,
+  `updateComment`, `deleteComment`, `restoreComment` and `toggleReaction` each
+  called `revalidatePath` on /library, /campaigns and /budget; any
+  revalidation inside a server action makes Next re-render the CURRENT route
+  and ship it in the action response, so a 👍 on a creative page waited for
+  that whole page. Measured on `/library/[name]` (dev server, warm, local
+  data): the action's response was ~185 KB of RSC payload and took a median
+  ~172 ms; after removing it, 89 bytes and ~77 ms. A post also ran
+  `router.refresh()` — a SECOND full render (~185 KB, 139–360 ms) — now gone:
+  median Enter→comment-visible went ~436 ms → ~382 ms, the rest being the
+  thread's own `/api/comments` reload (dev's per-request floor is ~245 ms).
+  The bell's `markNotificationRead` did the same with `/notifications`;
+  `revalidateNotifications` is gone too, replaced by
+  `NOTIFICATIONS_CHANGED_EVENT` (`announceNotificationsChanged` /
+  `onNotificationsChanged` in lib/notifications.ts): the bell announces,
+  /notifications refreshes itself only while it is on screen, and the bell
+  reloads when the page reads or clears something.

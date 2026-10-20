@@ -1,6 +1,5 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { and, eq, isNotNull, isNull } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { auditEvents, commentReactions, comments } from "@/db/schema";
@@ -66,16 +65,15 @@ function errMsg(err: unknown): string {
   return actionError(err, "comments");
 }
 
-/** The surfaces a comment can appear on — cheap, and keeps counts honest. */
-function revalidateComments() {
-  try {
-    revalidatePath("/library", "layout");
-    revalidatePath("/campaigns", "layout");
-    revalidatePath("/budget");
-  } catch (err) {
-    console.warn("revalidatePath after comment change failed:", err);
-  }
-}
+/*
+ * NO `revalidatePath` in this module (2026-10). A revalidation inside a server
+ * action makes Next re-render the CURRENT route on the server and ship it in
+ * the action's response — so a 👍 on a creative page waited for that whole
+ * dashboard page's queries (~185 KB of RSC payload locally, far more time on
+ * prod data). No server page reads comments: the panel loads them from
+ * `/api/comments` and `/go/comment` resolves at click time, so a revalidation
+ * bought nothing. The client reloads the thread itself after a write.
+ */
 
 const BODY_SNAPSHOT = 200;
 
@@ -200,7 +198,6 @@ export async function createComment(input: unknown): Promise<CommentActionResult
       return commentId;
     });
 
-    revalidateComments();
     return { ok: true, id };
   } catch (err) {
     return { ok: false, error: errMsg(err) };
@@ -285,7 +282,6 @@ export async function updateComment(input: unknown): Promise<CommentActionResult
       );
     });
 
-    revalidateComments();
     await logAudit({
       action: AUDIT_ACTIONS.COMMENT_UPDATE,
       entityType: "comment",
@@ -369,7 +365,6 @@ export async function deleteComment(input: unknown): Promise<CommentActionResult
     });
     if (!deleted) return { ok: false, error: "That comment no longer exists." };
 
-    revalidateComments();
     return { ok: true };
   } catch (err) {
     return { ok: false, error: errMsg(err) };
@@ -463,7 +458,6 @@ export async function toggleReaction(
       return true;
     });
 
-    revalidateComments();
     return { ok: true, reacted };
   } catch (err) {
     return { ok: false, error: errMsg(err) };
@@ -530,7 +524,6 @@ export async function restoreComment(input: unknown): Promise<CommentActionResul
       return true;
     });
 
-    revalidateComments();
     return restored ? { ok: true } : { ok: true };
   } catch (err) {
     return { ok: false, error: errMsg(err) };

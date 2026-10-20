@@ -433,3 +433,40 @@ describe("anchor-following is a reply, with its own type", () => {
     ).toBe(true);
   });
 });
+
+describe("the in-page change signal (2026-10 — instead of revalidatePath)", () => {
+  it("reaches every OTHER surface, never its own announcer, and unsubscribes", async () => {
+    const { announceNotificationsChanged, onNotificationsChanged } = await import(
+      "@/lib/notifications"
+    );
+    const g = globalThis as unknown as { window?: EventTarget };
+    const had = g.window;
+    g.window = new EventTarget();
+    try {
+      const heard: string[] = [];
+      const offBell = onNotificationsChanged("bell", () => heard.push("bell"));
+      const offCenter = onNotificationsChanged("center", () => heard.push("center"));
+
+      announceNotificationsChanged("bell");
+      expect(heard).toEqual(["center"]); // the bell doesn't hear itself
+
+      announceNotificationsChanged("center");
+      expect(heard).toEqual(["center", "bell"]);
+
+      offBell();
+      offCenter();
+      announceNotificationsChanged("panel");
+      expect(heard).toEqual(["center", "bell"]);
+    } finally {
+      g.window = had;
+    }
+  });
+
+  it("is a no-op on the server", async () => {
+    const { announceNotificationsChanged, onNotificationsChanged } = await import(
+      "@/lib/notifications"
+    );
+    expect(() => announceNotificationsChanged("bell")).not.toThrow();
+    expect(typeof onNotificationsChanged("bell", () => {})).toBe("function");
+  });
+});

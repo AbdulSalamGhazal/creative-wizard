@@ -446,8 +446,10 @@ function CommentPanelBody({
                 // click-to-apply would otherwise keep the thread scrolled to
                 // somebody else's older comment.
                 setHighlightId(null);
+                // The thread reloads itself — and ONLY the thread. No router
+                // refresh: no server page reads comments, so it was a second
+                // full re-render of the page beside the panel (2026-10).
                 void load();
-                router.refresh();
               }}
             />
           </div>
