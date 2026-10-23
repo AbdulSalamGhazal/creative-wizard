@@ -157,7 +157,9 @@ export default async function CampaignDetailPage({
       {registry && <CommentAnchor type="campaign" id={registry.id} />}
       {/* ─────────── Header ─────────── */}
       <section className="space-y-4">
-        <div className="flex items-center justify-between gap-3">
+        {/* Wraps on a phone: Edit · Excluded · Date measured 468px in a
+            375px frame and scrolled the whole page sideways. */}
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <Link
             href="/campaigns"
             className="inline-flex items-center gap-1 text-xs text-ink-3 hover:text-ink transition-colors"
@@ -165,7 +167,7 @@ export default async function CampaignDetailPage({
             <ArrowLeft className="w-3 h-3" />
             All campaigns
           </Link>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center justify-end gap-2">
             {registry && nameParts && (
               <CampaignEditDialog
                 id={registry.id}
