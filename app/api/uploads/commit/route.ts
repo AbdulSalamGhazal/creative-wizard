@@ -4,6 +4,7 @@ import { and, eq, inArray, lt } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { can, requirePermission } from "@/lib/auth";
+import { authFailureStatus } from "@/lib/route-auth";
 import { allowedAccountsForUser } from "@/lib/tenant";
 import {
   campaigns,
@@ -75,7 +76,7 @@ class RecordsChangedError extends Error {}
  * Status codes:
  *   200 — committed
  *   400 — bad input
- *   401 — not signed in
+ *   401 — not signed in · 403 — signed in without `upload.import`
  *   410 — token absent or expired
  *   422 — payload references creatives, campaigns or landing pages that no
  *         longer exist, or a landing page whose code changed (post-validate edit)
@@ -85,8 +86,13 @@ export async function POST(request: NextRequest) {
   let user;
   try {
     user = await requirePermission("upload.import");
-  } catch {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  } catch (err) {
+    // 401 signed out · 403 signed in without the permission (W1-13).
+    const status = authFailureStatus(err);
+    return NextResponse.json(
+      { error: status === 403 ? "Forbidden" : "Unauthorized" },
+      { status },
+    );
   }
 
   let body: unknown;

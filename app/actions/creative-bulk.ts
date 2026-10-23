@@ -88,25 +88,33 @@ function indexFor(header: string[], field: string): number {
   return -1;
 }
 
+/**
+ * A REAL calendar day, by round trip: `new Date("2026-02-31")` doesn't fail —
+ * V8 rolls it over to March 3 — so the old NaN check accepted 31/02, the
+ * preview said valid, and Postgres refused the commit with a generic error
+ * (W1-13). Formatting the parsed date back and insisting on the same string
+ * is the check.
+ */
+function isRealDay(iso: string): boolean {
+  const d = new Date(`${iso}T00:00:00Z`);
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === iso;
+}
+
 /** Permissive launch-date parse → ISO YYYY-MM-DD. DD/MM/YYYY assumed (matches the upload pipeline). */
 function parseLaunch(raw: string): { ok: boolean; value: string | null } {
   const s = raw.trim();
   if (!s) return { ok: true, value: null };
   const iso = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
   if (iso) {
-    const d = new Date(`${s}T00:00:00Z`);
-    return Number.isNaN(d.getTime()) ? { ok: false, value: null } : { ok: true, value: s };
+    return isRealDay(s) ? { ok: true, value: s } : { ok: false, value: null };
   }
   const dmy = /^(\d{1,2})[/.\-](\d{1,2})[/.\-](\d{4})$/.exec(s);
   if (dmy) {
     const dd = Number(dmy[1]);
     const mm = Number(dmy[2]);
     const yy = Number(dmy[3]);
-    if (mm >= 1 && mm <= 12 && dd >= 1 && dd <= 31) {
-      const v = `${yy}-${String(mm).padStart(2, "0")}-${String(dd).padStart(2, "0")}`;
-      const d = new Date(`${v}T00:00:00Z`);
-      if (!Number.isNaN(d.getTime())) return { ok: true, value: v };
-    }
+    const v = `${yy}-${String(mm).padStart(2, "0")}-${String(dd).padStart(2, "0")}`;
+    if (isRealDay(v)) return { ok: true, value: v };
   }
   return { ok: false, value: null };
 }

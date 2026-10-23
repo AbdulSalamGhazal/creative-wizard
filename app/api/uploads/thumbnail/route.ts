@@ -1,5 +1,6 @@
 import { put } from "@vercel/blob";
 import { requirePermission } from "@/lib/auth";
+import { authFailureStatus } from "@/lib/route-auth";
 import { extensionFor, sniffImageType } from "@/lib/image-sniff";
 
 /**
@@ -24,8 +25,8 @@ const ALLOWED = new Set([
 export async function POST(req: Request): Promise<Response> {
   try {
     await requirePermission("creative.edit");
-  } catch {
-    return Response.json({ error: "Not authorized." }, { status: 401 });
+  } catch (err) {
+    return Response.json({ error: "Not authorized." }, { status: authFailureStatus(err) });
   }
 
   if (!process.env.BLOB_READ_WRITE_TOKEN) {

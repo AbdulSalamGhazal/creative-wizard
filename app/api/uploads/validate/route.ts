@@ -3,6 +3,7 @@ import { and, eq, inArray, ne } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { can, requirePermission } from "@/lib/auth";
+import { authFailureStatus } from "@/lib/route-auth";
 import {
   campaigns,
   creatives,
@@ -32,7 +33,7 @@ const platformSchema = z.enum(platformEnum);
  * Status codes:
  *   200 — valid; token returned
  *   400 — bad form input (missing file / missing or invalid platform)
- *   401 — not signed in
+ *   401 — not signed in · 403 — signed in without `upload.import`
  *   413 — file > MAX_FILE_BYTES (4 MB)
  *   422 — validation errors
  *   500 — unexpected
@@ -41,8 +42,13 @@ export async function POST(request: NextRequest) {
   let user;
   try {
     user = await requirePermission("upload.import");
-  } catch {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  } catch (err) {
+    // 401 signed out · 403 signed in without the permission (W1-13).
+    const status = authFailureStatus(err);
+    return NextResponse.json(
+      { error: status === 403 ? "Forbidden" : "Unauthorized" },
+      { status },
+    );
   }
 
   let form: FormData;

@@ -223,7 +223,17 @@ function parseCsvText(text: string): ParseResult {
     }
   }
 
-  return rowsToResult(parsed.data);
+  // Re-read with the delimiter that pass settled on, KEEPING blank lines, so
+  // `rowsToResult` numbers each row by its place in the file before dropping
+  // the blanks (W1-13: numbering after the drop made every row below a blank
+  // line cite the wrong number). The first pass stays the judge of what is
+  // parseable — papaparse's delimiter detection needs blank lines skipped.
+  const numbered = Papa.parse<string[]>(text, {
+    delimiter: parsed.meta.delimiter,
+    skipEmptyLines: false,
+    transform: (v) => (typeof v === "string" ? v : String(v ?? "")),
+  });
+  return rowsToResult(numbered.data);
 }
 
 /**
@@ -256,10 +266,14 @@ export function xlsxFailure(err: unknown): ValidationError {
 function parseXlsx(bytes: Uint8Array): ParseResult {
   let workbook: XLSX.WorkBook;
   try {
-    // `cellDates: true` makes SheetJS hydrate date-typed cells into JS Date
-    // objects internally so we can re-serialize them in our preferred format
-    // below. Without it, Excel's serial-date numbers leak through.
-    workbook = XLSX.read(bytes, { type: "array", cellDates: true });
+    // Dates are read as Excel stores them — a SERIAL number in a date-format
+    // cell — and converted below without any timezone (W1-13). `cellDates:
+    // true` hydrated them into JS Dates at LOCAL midnight, which read back in
+    // UTC one day early in any process east of UTC (a UTC+3 dev machine read
+    // 2026-02-15 as 2026-02-14; Vercel, in UTC, happened to be right).
+    // `cellNF` keeps each cell's number format, which is how a date cell is
+    // told from a plain number.
+    workbook = XLSX.read(bytes, { type: "array", cellDates: false, cellNF: true });
   } catch (err) {
     return { ok: false, error: xlsxFailure(err) };
   }
@@ -278,6 +292,19 @@ function parseXlsx(bytes: Uint8Array): ParseResult {
     };
   }
 
+  // Date-format numeric cells → ISO dates, from the serial's own calendar
+  // parts (`SSF.parse_date_code`) — no Date object, so no timezone.
+  const date1904 = Boolean(workbook.Workbook?.WBProps?.date1904);
+  for (const [addr, cell] of Object.entries(sheet)) {
+    if (addr.startsWith("!")) continue;
+    const c = cell as XLSX.CellObject;
+    if (c.t !== "n" || typeof c.v !== "number" || !c.z || !XLSX.SSF.is_date(c.z)) continue;
+    const parts = XLSX.SSF.parse_date_code(c.v, { date1904 });
+    if (!parts) continue;
+    const iso = `${parts.y}-${String(parts.m).padStart(2, "0")}-${String(parts.d).padStart(2, "0")}`;
+    sheet[addr] = { t: "s", v: iso };
+  }
+
   // 2-D row array with NATIVE values (`raw: true`). We can't use
   // `raw: false` here — SheetJS would prefer each cell's cached display
   // string (`w`), and Excel files authored in a US locale cache
@@ -287,7 +314,8 @@ function parseXlsx(bytes: Uint8Array): ParseResult {
   const aoa: unknown[][] = XLSX.utils.sheet_to_json(sheet, {
     header: 1,
     defval: "",
-    blankrows: false,
+    // Kept for the same reason as the CSV path: numbered first, dropped after.
+    blankrows: true,
     raw: true,
   });
 
@@ -354,7 +382,13 @@ export function numberToPlainString(n: number): string {
 }
 
 function rowsToResult(raw: string[][] | unknown[][]): ParseResult {
-  const all = (raw as string[][]).filter((r) => r && r.some((c) => (c ?? "") !== ""));
+  // Number every row by its position in the FILE (1-based), then drop the
+  // blank ones — whitespace-only cells count as blank, as papaparse's
+  // "greedy" mode treated them.
+  const numbered = (raw as string[][])
+    .map((r, i) => ({ r, n: i + 1 }))
+    .filter(({ r }) => r && r.some((c) => String(c ?? "").trim() !== ""));
+  const all = numbered.map((x) => x.r);
   if (all.length === 0) {
     return {
       ok: false,
@@ -378,7 +412,7 @@ function rowsToResult(raw: string[][] | unknown[][]): ParseResult {
     };
   }
 
-  const rowNumbers = body.map((_, i) => i + 2);
+  const rowNumbers = numbered.slice(1).map((x) => x.n);
 
   return {
     ok: true,

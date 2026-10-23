@@ -8,6 +8,17 @@
 
 ## Invariants
 
+- **A row number is the row's place in the FILE** (W1-13, 2026-10-23):
+  `csv/parse.ts` numbers every line or sheet row first and drops blank ones
+  after, so an error below a blank line cites the right row. XLSX date cells
+  are read as Excel stores them — a serial in a date-format cell — and
+  converted with `SSF.parse_date_code`, never through a JS Date, so the day
+  is the same in any server timezone (a UTC+3 process read them a day
+  early); the 1904 flag is honoured.
+- The upload routes answer **401 signed out, 403 signed in without the
+  permission** (`lib/route-auth.ts`). A rollback CLAIMS its batch inside the
+  transaction (`… WHERE status = 'active' RETURNING`), so two concurrent
+  rollbacks can't both succeed.
 - The pipeline is 5 stages, in order; stages 1–2 fail fast, 3–5 collect; and
   **all-or-nothing** — nothing is written unless the whole file is clean.
 - Matching is **trim-then-exact** (case-sensitive, no NFC); blank/`-`/`N/A`

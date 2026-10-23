@@ -290,18 +290,29 @@ export async function rollbackStoreBatch(
     }
 
     const deleted = await db.transaction(async (tx) => {
+      // CLAIM first, inside the transaction (W1-13): two concurrent rollbacks
+      // both passed the check above; the loser now matches nothing here.
+      const [claimed] = await tx
+        .update(storeUploadBatches)
+        .set({ status: "rolled_back", rolledBackAt: new Date(), rolledBackByUserId: me.id })
+        .where(
+          and(
+            eq(storeUploadBatches.accountId, acct),
+            eq(storeUploadBatches.id, parsed.data),
+            eq(storeUploadBatches.status, "active"),
+          ),
+        )
+        .returning({ id: storeUploadBatches.id });
+      if (!claimed) return null;
       // Deletes only rows this batch INSERTED — updated rows kept their original
       // batch id, so they survive (updates aren't rollback-able, same as ads).
       const rows = await tx
         .delete(storeOrders)
         .where(and(eq(storeOrders.accountId, acct), eq(storeOrders.uploadBatchId, parsed.data)))
         .returning({ id: storeOrders.id });
-      await tx
-        .update(storeUploadBatches)
-        .set({ status: "rolled_back", rolledBackAt: new Date(), rolledBackByUserId: me.id })
-        .where(eq(storeUploadBatches.id, parsed.data));
       return rows.length;
     });
+    if (deleted === null) return { ok: false, error: "Batch already rolled back." };
 
     try {
       revalidatePath("/store/uploads");

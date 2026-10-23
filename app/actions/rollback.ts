@@ -56,6 +56,28 @@ export async function rollbackBatch(batchId: string): Promise<RollbackResult> {
     }
 
     const deleted = await db.transaction(async (tx) => {
+      // CLAIM the batch first — `WHERE status = 'active'`, inside the
+      // transaction. The check above ran outside it, so two concurrent
+      // rollbacks both passed it and both "succeeded", with duplicate
+      // notifications and audit rows (W1-13). The loser of the row lock now
+      // matches nothing and stops here.
+      const [claimed] = await tx
+        .update(uploadBatches)
+        .set({
+          status: "rolled_back",
+          rolledBackAt: new Date(),
+          rolledBackByUserId: user.id,
+        })
+        .where(
+          and(
+            eq(uploadBatches.accountId, acct),
+            eq(uploadBatches.id, batchId),
+            eq(uploadBatches.status, "active"),
+          ),
+        )
+        .returning({ id: uploadBatches.id });
+      if (!claimed) return null;
+
       // Count what was ACTUALLY removed rather than trusting the batch's
       // recorded rowsImported — the two diverge whenever rows were deleted by
       // the cleanup tool or a creative/campaign delete after the import.
@@ -68,15 +90,6 @@ export async function rollbackBatch(batchId: string): Promise<RollbackResult> {
           ),
         )
         .returning({ id: performanceRecords.id });
-
-      await tx
-        .update(uploadBatches)
-        .set({
-          status: "rolled_back",
-          rolledBackAt: new Date(),
-          rolledBackByUserId: user.id,
-        })
-        .where(and(eq(uploadBatches.accountId, acct), eq(uploadBatches.id, batchId)));
 
       // Same transaction as the delete: if the rollback fails, nobody is told
       // it happened.
@@ -91,6 +104,7 @@ export async function rollbackBatch(batchId: string): Promise<RollbackResult> {
       });
       return rows.length;
     });
+    if (deleted === null) return { ok: false, error: "Batch is not active." };
 
     try {
       revalidatePath("/");

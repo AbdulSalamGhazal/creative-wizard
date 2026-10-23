@@ -45,9 +45,37 @@ describe("xlsx → rows (the one conversion layer)", () => {
   });
 
   it("reads the same date from a 1904-system workbook", () => {
-    const res = xlsx(book({ S: [["Day"], [new Date(Date.UTC(2026, 9, 8))]] }, { date1904: true }));
+    // A genuine 1904 workbook stores the 1904 serial (1,462 days smaller).
+    // (This case used to write a 1900 serial into a 1904 book — which Excel
+    // itself displays as 2030-10-09 — and passed only because the old
+    // Date-hydrating read ignored the 1904 flag altogether.)
+    const res = xlsx(
+      book({ S: [["Day"], [{ t: "n", v: 46303 - 1462, z: "yyyy-mm-dd" }]] }, { date1904: true }),
+    );
     expect(res.ok).toBe(true);
     if (res.ok) expect(res.rows[0]?.[0]).toBe("2026-10-08");
+  });
+
+  it("reads a date SERIAL as its calendar day in any timezone (W1-13)", () => {
+    // Excel stores 2026-02-15 as the number 46068 in a date-format cell. The
+    // old read hydrated it into a JS Date at LOCAL midnight and read it back
+    // in UTC — a day early in any process east of UTC.
+    const prevTz = process.env.TZ;
+    process.env.TZ = "Asia/Riyadh";
+    try {
+      const res = xlsx(book({ S: [["Day"], [{ t: "n", v: 46068, z: "yyyy-mm-dd" }]] }));
+      expect(res.ok).toBe(true);
+      if (res.ok) expect(res.rows[0]?.[0]).toBe("2026-02-15");
+    } finally {
+      if (prevTz === undefined) delete process.env.TZ;
+      else process.env.TZ = prevTz;
+    }
+  });
+
+  it("a plain number in a NON-date cell stays a number", () => {
+    const res = xlsx(book({ S: [["Spend"], [{ t: "n", v: 46068, z: "0.00" }]] }));
+    expect(res.ok).toBe(true);
+    if (res.ok) expect(res.rows[0]?.[0]).toBe("46068");
   });
 
   it("takes a formula cell's cached value, not its formula", () => {
