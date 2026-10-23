@@ -82,6 +82,43 @@ describe("parse helpers", () => {
     expect(parseStoreNumber("﷼ 99")).toBe(99);
     expect(parseStoreNumber("-50")).toBe(-50);
     expect(parseStoreNumber("abc")).toBeNull();
+    expect(parseStoreNumber("100 ر.س")).toBe(100);
+    expect(parseStoreNumber("1,234,567.89")).toBe(1234567.89);
+  });
+
+  it("REJECTS what it can't read for certain, instead of guessing (D6)", () => {
+    // Before: (100.00) → +100, −100 → 100, 123٫50 → 12350, 1.234,56 → 1.23456,
+    // 1E3 → 13, 123,50 (a semicolon CSV's decimal comma) → 12350.
+    for (const raw of ["(100.00)", "−100", "123٫50", "1.234,56", "1E3", "123,50", "١٢٣"]) {
+      expect(parseStoreNumber(raw), raw).toBeNull();
+    }
+  });
+});
+
+describe("what store_orders can hold is checked in validation (D8)", () => {
+  const fields = CORE;
+  it("an order ID past 64 characters is S021, not a failed commit", () => {
+    const id = "L".repeat(65);
+    const res = run(`Order ID,Order Date,Total\n${id},2026-01-01,100\n`, fields);
+    expect(res.ok).toBe(false);
+    if (res.ok) return;
+    expect(res.errors).toEqual([
+      expect.objectContaining({ code: "S021", message: "Row 2: Order ID is longer than 64 characters." }),
+    ]);
+  });
+  it("a total that numeric(12,2) can't hold is S041", () => {
+    const res = run(`Order ID,Order Date,Total\nA1,2026-01-01,12345678901\nA2,2026-01-01,9999999999.99\n`, fields);
+    expect(res.ok).toBe(false);
+    if (res.ok) return;
+    expect(res.errors).toEqual([
+      expect.objectContaining({ code: "S041", message: "Row 2: Order total is too large to store." }),
+    ]);
+  });
+  it("an amount the strict parser refuses is the familiar S040", () => {
+    const res = run(`Order ID,Order Date,Total\nA1,2026-01-01,(100.00)\n`, fields);
+    expect(res.ok).toBe(false);
+    if (res.ok) return;
+    expect(res.errors[0]).toMatchObject({ code: "S040" });
   });
 });
 

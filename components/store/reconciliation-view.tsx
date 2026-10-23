@@ -38,7 +38,7 @@ import type {
   ReconByPlatformRow,
   ReconByChannelRow,
 } from "@/db/queries/reconciliation";
-import { CHANNEL_LABEL, channelDeltas, sumChannelDays } from "@/store/channels";
+import { CHANNEL_LABEL, channelDayRows, channelDeltas, sumChannelDays } from "@/store/channels";
 
 /**
  * Two modes, Channels first. There is no "overview" mode: it showed store
@@ -287,28 +287,12 @@ export function ReconciliationView({
 
   // ── Channels rows ──────────────────────────────────────────────────────────
   /** Claimed conversions + the money context per day, from the overview rows
-   *  the page already fetched rather than re-scanning the ads table. */
-  const overviewByDay = useMemo(() => {
-    const m = new Map<string, ReconOverviewRow>();
-    for (const r of overview) m.set(r.day, r);
-    return m;
-  }, [overview]);
-
-  const channelRows = useMemo((): ChannelRow[] => {
-    return byChannel.map((r) => {
-      const o = overviewByDay.get(r.day);
-      return {
-        day: r.day,
-        storeOrders: r.storeOrders,
-        website: r.website,
-        application: r.application,
-        unmapped: r.unmapped,
-        claimed: o?.platformConv ?? 0,
-        revenue: o?.storeRevenue ?? 0,
-        spend: o?.spend ?? 0,
-      };
-    });
-  }, [byChannel, overviewByDay]);
+   *  the page already fetched rather than re-scanning the ads table — and
+   *  every day either side has data on, so the totals match the tiles (D7). */
+  const channelRows = useMemo(
+    (): ChannelRow[] => channelDayRows(byChannel, overview),
+    [byChannel, overview],
+  );
 
   /** Range totals: component sums. Every delta in the footer comes from THESE,
    *  never from averaging the per-day deltas. */

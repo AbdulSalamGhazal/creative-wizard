@@ -14,8 +14,10 @@ export const storeErrorCodes = {
   S010: "FATAL", // required field's accepted header absent from the file
   S011: "FATAL", // duplicate header in the file
   S020: "ERROR", // order_id blank
+  S021: "ERROR", // order_id longer than the column holds (64)
   S030: "ERROR", // order_date invalid / unparseable
   S040: "ERROR", // total_amount not numeric
+  S041: "ERROR", // total_amount too large for numeric(12,2)
   S042: "ERROR", // required custom field missing a value
   S043: "ERROR", // custom field wrong type (number/date)
   S050: "ERROR", // duplicate order_id within the file

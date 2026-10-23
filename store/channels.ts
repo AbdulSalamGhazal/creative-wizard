@@ -69,6 +69,60 @@ export interface ChannelDayRow {
 }
 
 /**
+ * The Channels table's day rows: EVERY day the range has data on either side —
+ * the union of the store's channel days and the ads overview's days. A day
+ * with platform-claimed conversions but no store orders (the store upload
+ * lags, or nobody bought) is a row with a store side of 0, never dropped:
+ * dropping it made the Channels totals disagree with the KPI tiles above them
+ * (claimed 30 vs 40 — D7, 2026-10-23, the user's decision: show ads-only days).
+ */
+export function channelDayRows(
+  byChannel: ReadonlyArray<{
+    day: string;
+    storeOrders: number;
+    website: number;
+    application: number;
+    unmapped: number;
+  }>,
+  overview: ReadonlyArray<{
+    day: string;
+    platformConv: number;
+    storeRevenue: number;
+    spend: number;
+  }>,
+): Array<ChannelDayRow & { day: string }> {
+  const byDay = new Map(overview.map((o) => [o.day, o]));
+  const rows: Array<ChannelDayRow & { day: string }> = byChannel.map((r) => {
+    const o = byDay.get(r.day);
+    return {
+      day: r.day,
+      storeOrders: r.storeOrders,
+      website: r.website,
+      application: r.application,
+      unmapped: r.unmapped,
+      claimed: o?.platformConv ?? 0,
+      revenue: o?.storeRevenue ?? 0,
+      spend: o?.spend ?? 0,
+    };
+  });
+  const seen = new Set(byChannel.map((r) => r.day));
+  for (const o of overview) {
+    if (seen.has(o.day)) continue;
+    rows.push({
+      day: o.day,
+      storeOrders: 0,
+      website: 0,
+      application: 0,
+      unmapped: 0,
+      claimed: o.platformConv,
+      revenue: o.storeRevenue,
+      spend: o.spend,
+    });
+  }
+  return rows.sort((a, b) => (a.day < b.day ? 1 : a.day > b.day ? -1 : 0));
+}
+
+/**
  * Range totals for the Channels table: plain COMPONENT SUMS. The totals row's
  * deltas are then `channelDeltas` OVER THESE SUMS — never an average of the
  * per-day deltas, which is a different number whenever the days differ in size.

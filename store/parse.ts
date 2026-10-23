@@ -81,17 +81,27 @@ export function parseStoreDate(raw: string): string | null {
   return `${y}-${mo}-${d}`;
 }
 
+/** Currency markers a Salla amount may carry — stripped, nothing else is. */
+const CURRENCY_MARKERS = /ر\.س\.?|﷼|SAR|SR|\$/gi;
 /**
- * Parse a money/number cell: strip currency symbols (SAR, ﷼, $, etc.), spaces,
- * and thousands separators, then parse. Returns null when what's left isn't a
- * finite number. A bare "" is treated as absent by the caller, not here.
+ * A plain number after the markers and spaces go: an optional sign, digits
+ * with optional comma-thousands, an optional dot-decimal (`.5` and `100.`
+ * included — the old parser took them, and they are not ambiguous).
+ */
+const PLAIN_NUMBER = /^[-+]?(?:(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d*)?|\.\d+)$/;
+
+/**
+ * Parse a money/number cell: strip currency markers (SAR, ر.س, ﷼, $) and
+ * spaces, then accept ONLY a plain number — `1234.56`, `1,234.56`, `-50`.
+ * Anything else is REJECTED (null → the "is not a number" error), never
+ * guessed (D6, 2026-10-23). This used to strip every non-digit, so `(100.00)`
+ * read as +100, `1.234,56` as 1.23456, `123٫50` as 12350 and `1E3` as 13 —
+ * wrong SAR totals with no error. A bare "" is treated as absent by the
+ * caller, not here.
  */
 export function parseStoreNumber(raw: string): number | null {
-  const cleaned = raw
-    .trim()
-    // Drop anything that isn't a digit, minus, or dot (kills SAR/﷼/$/commas/spaces/Arabic).
-    .replace(/[^0-9.\-]/g, "");
-  if (cleaned === "" || cleaned === "-" || cleaned === ".") return null;
-  const n = Number(cleaned);
+  const cleaned = raw.replace(CURRENCY_MARKERS, "").replace(/[\s\u00A0\u202F]+/g, "");
+  if (!PLAIN_NUMBER.test(cleaned)) return null;
+  const n = Number(cleaned.replace(/,/g, ""));
   return Number.isFinite(n) ? n : null;
 }

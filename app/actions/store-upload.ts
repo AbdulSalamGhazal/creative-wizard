@@ -80,12 +80,23 @@ async function readFile(formData: FormData): Promise<FileInput | null> {
   };
 }
 
-/** Existing order_ids among those present in the file (best-effort light parse). */
+/**
+ * Existing order_ids among those present in the file (best-effort light
+ * parse). The parse gets the file NAME and size like the full pipeline's: a
+ * legacy `.xls` (BIFF, not a zip) is only recognized by its extension, so a
+ * nameless parse took the CSV path, failed, and saw no existing orders — a
+ * strict upload then "validated" and died on the unique index at commit, and
+ * upsert counted every existing order as new (W1-6, audit B-08).
+ */
 async function existingIdsForFile(
-  content: ArrayBuffer,
+  input: FileInput,
   fields: StoreField[],
 ): Promise<Set<string>> {
-  const p = parseStoreFile({ content });
+  const p = parseStoreFile({
+    content: input.content,
+    byteLength: input.byteLength,
+    fileName: input.fileName,
+  });
   if (!p.ok) return new Set();
   const orderIdField = fields.find((f) => f.key === "order_id");
   if (!orderIdField) return new Set();
@@ -119,7 +130,7 @@ async function validate(input: FileInput): Promise<
     }
 > {
   const fields = await listStoreFields();
-  const existing = await existingIdsForFile(input.content, fields);
+  const existing = await existingIdsForFile(input, fields);
   return runStorePipeline({
     content: input.content,
     byteLength: input.byteLength,

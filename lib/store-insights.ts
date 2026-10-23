@@ -105,22 +105,37 @@ export const OTHER_VALUE = "__other__";
 export function foldTopValues(
   rows: readonly BreakdownValue[],
   limit = TOP_VALUE_LIMIT,
+  /**
+   * The RANGE's totals and its honest distinct-value count. The breakdown
+   * query stops at BREAKDOWN_GROUP_CAP groups, so past it the returned rows
+   * no longer sum to the range — Other is then the range total MINUS what is
+   * shown, never just the returned tail (W1-11, audit B-16: 1,200 values read
+   * as 1,000 orders beside a 1,200-order total).
+   */
+  range?: { orders: number; revenue: number; values: number },
 ): FoldedRow[] {
   const byOrders = [...rows].sort(
     (a, b) => b.orders - a.orders || b.revenue - a.revenue,
   );
-  if (byOrders.length <= limit) {
+  const values = Math.max(range?.values ?? 0, byOrders.length);
+  if (values <= limit) {
     return byOrders.map((r) => ({ ...r, foldedCount: 1 }));
   }
   const head = byOrders.slice(0, limit).map((r) => ({ ...r, foldedCount: 1 }));
   const tail = byOrders.slice(limit);
+  const shownOrders = head.reduce((a, r) => a + r.orders, 0);
+  const shownRevenue = head.reduce((a, r) => a + r.revenue, 0);
   return [
     ...head,
     {
       value: OTHER_VALUE,
-      orders: tail.reduce((a, r) => a + r.orders, 0),
-      revenue: tail.reduce((a, r) => a + r.revenue, 0),
-      foldedCount: tail.length,
+      orders: range
+        ? Math.max(0, range.orders - shownOrders)
+        : tail.reduce((a, r) => a + r.orders, 0),
+      revenue: range
+        ? Math.max(0, Math.round((range.revenue - shownRevenue) * 100) / 100)
+        : tail.reduce((a, r) => a + r.revenue, 0),
+      foldedCount: values - head.length,
     },
   ];
 }

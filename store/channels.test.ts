@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   CHANNEL_DESTINATIONS,
   CHANNEL_LABEL,
+  channelDayRows,
   channelDeltas,
   isChannelDestination,
   sumChannelDays,
@@ -12,7 +13,40 @@ import {
   isCoreKey,
   isSystemRequiredKey,
   systemRequiredFieldRows,
+  slugifyKey,
+  uniqueFieldKey,
 } from "@/store/fields";
+
+describe("channelDayRows — every day either side has data on (D7)", () => {
+  it("an ads-only day is a row with a store side of 0, so the totals match the tiles", () => {
+    const rows = channelDayRows(
+      [{ day: "2026-01-01", storeOrders: 10, website: 8, application: 2, unmapped: 0 }],
+      [
+        { day: "2026-01-01", platformConv: 30, storeRevenue: 1000, spend: 50 },
+        { day: "2026-01-02", platformConv: 10, storeRevenue: 0, spend: 20 },
+      ],
+    );
+    expect(rows.map((r) => r.day)).toEqual(["2026-01-02", "2026-01-01"]);
+    expect(rows[0]).toMatchObject({ storeOrders: 0, website: 0, application: 0, claimed: 10 });
+    expect(sumChannelDays(rows).claimed).toBe(40); // was 30 — the ads-only day dropped
+  });
+});
+
+describe("uniqueFieldKey (W1-10)", () => {
+  it("terminates for a 48-character base that already exists", () => {
+    const base = slugifyKey("Customer acquisition first touch campaign name XY");
+    expect(base.length).toBe(48);
+    const key = uniqueFieldKey(base, new Set([base]));
+    expect(key).not.toBe(base);
+    expect(key.length).toBeLessThanOrEqual(48);
+    expect(key.endsWith("_2")).toBe(true);
+    expect(uniqueFieldKey(base, new Set([base, key]))).toMatch(/_3$/);
+  });
+  it("keeps a short base whole", () => {
+    expect(uniqueFieldKey("coupon", new Set(["coupon"]))).toBe("coupon_2");
+    expect(uniqueFieldKey("coupon", new Set())).toBe("coupon");
+  });
+});
 
 describe("channel destinations", () => {
   it("is exactly Website and Application", () => {

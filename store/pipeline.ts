@@ -63,6 +63,15 @@ export type StorePipelineResult =
 
 const norm = (s: string) => s.trim().toLowerCase();
 
+/**
+ * What `store_orders` can hold (db/schema.ts): `order_id varchar(64)` and
+ * `total_amount numeric(12,2)`. Checked HERE, in stage 3, because a value past
+ * either used to validate and then fail the whole commit with "Something went
+ * wrong" (D8, 2026-10-23).
+ */
+export const ORDER_ID_MAX_LENGTH = 64;
+export const TOTAL_AMOUNT_LIMIT = 1e10; // exclusive: 12 digits, 2 after the point
+
 export function runStorePipeline(input: StorePipelineInput): StorePipelineResult {
   const warnings: StoreValidationError[] = [];
 
@@ -162,6 +171,13 @@ export function runStorePipeline(input: StorePipelineInput): StorePipelineResult
     const orderId = cell(row, "order_id");
     if (!orderId) {
       errors.push(err("S020", `Row ${rowNumber}: order_id is blank.`, { row: rowNumber }));
+    } else if (orderId.length > ORDER_ID_MAX_LENGTH) {
+      errors.push(
+        err("S021", `Row ${rowNumber}: Order ID is longer than ${ORDER_ID_MAX_LENGTH} characters.`, {
+          row: rowNumber,
+          value: orderId,
+        }),
+      );
     } else {
       const arr = idToRows.get(orderId);
       if (arr) arr.push(rowNumber);
@@ -184,6 +200,13 @@ export function runStorePipeline(input: StorePipelineInput): StorePipelineResult
     if (amount === null) {
       errors.push(
         err("S040", `Row ${rowNumber}: total_amount \`${rawAmount}\` is not a number.`, {
+          row: rowNumber,
+          value: rawAmount,
+        }),
+      );
+    } else if (Math.abs(Number(amount.toFixed(2))) >= TOTAL_AMOUNT_LIMIT) {
+      errors.push(
+        err("S041", `Row ${rowNumber}: Order total is too large to store.`, {
           row: rowNumber,
           value: rawAmount,
         }),

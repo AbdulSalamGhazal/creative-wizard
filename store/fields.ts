@@ -153,6 +153,25 @@ export function slugifyKey(label: string): string {
   return base || "field";
 }
 
+/** The longest a field key may be (`store_order_fields.key`). */
+export const FIELD_KEY_MAX = 48;
+
+/**
+ * `base`, or `base_2`, `base_3`… — the first not in `taken`, never longer than
+ * FIELD_KEY_MAX. The suffix is carved out of the BASE, never sliced off the
+ * end: slicing `${base}_${n}` to 48 characters dropped the suffix whenever the
+ * base was 47+ long, so the key never changed and `createStoreField` looped
+ * forever, hanging the server instance (W1-10, audit B-13).
+ */
+export function uniqueFieldKey(base: string, taken: ReadonlySet<string>): string {
+  if (!taken.has(base)) return base;
+  for (let n = 2; ; n++) {
+    const suffix = `_${n}`;
+    const key = `${base.slice(0, FIELD_KEY_MAX - suffix.length).replace(/_+$/g, "")}${suffix}`;
+    if (!taken.has(key)) return key;
+  }
+}
+
 /** A field config row as consumed by the pipeline + table (core or custom). */
 export interface StoreField {
   id: string;

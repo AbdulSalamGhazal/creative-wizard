@@ -177,7 +177,15 @@ export function StoreInsightsView({
   // The tail past TOP_VALUE_LIMIT folds into one "Other" row so a long-tail
   // dimension stays readable; the fold keeps the tail's orders and revenue, so
   // the column totals still reconcile with the range.
-  const folded = useMemo(() => foldTopValues(breakdown), [breakdown]);
+  const folded = useMemo(
+    () =>
+      foldTopValues(breakdown, undefined, {
+        orders: totals.orders,
+        revenue: totals.revenue,
+        values: totalValues,
+      }),
+    [breakdown, totals.orders, totals.revenue, totalValues],
+  );
   const rows = useMemo((): AnalyzerRow[] => {
     if (!dimension) return [];
     return folded.map((r) => ({

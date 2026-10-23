@@ -28,6 +28,23 @@
   averaging per-day figures.
 - Insights' two lenses must bucket EXACTLY as Reconciliation does — the two
   pages may never tell different stories about the same day.
+- **An amount is a plain number or an error — never a guess (D6,
+  2026-10-23).** `parseStoreNumber` strips only currency markers (SAR, ر.س,
+  ﷼, $) and spaces, then accepts `1234.56` / `1,234.56` / `-50` and nothing
+  else: `(100)`, `−100`, `1.234,56`, `123٫50`, `1E3` and a decimal comma
+  are S040/S043, not a silently wrong SAR total.
+- **What the table can't hold is a VALIDATION error**: an order ID past 64
+  characters is S021 ("Order ID is longer than 64 characters."), a total
+  `numeric(12,2)` can't store is S041 ("Order total is too large to
+  store.") — user-approved wording (D8). Never let a value validate and then
+  fail the commit.
+- The orders CSV resolves its range exactly as the page (URL → saved range →
+  last 7 days), server-side; a missing bound is never "all time".
+- Reconciliation's Channels rows are EVERY day either side has data on —
+  an ads-only day is a row with a store side of 0 (D7), so the totals equal
+  the KPI tiles.
+- Insights' "Other" is the RANGE total minus the shown values; the group cap
+  never makes the rows stop summing to the total.
 
 ## History and rationale
 
@@ -192,3 +209,27 @@ as it stood before the restructure.*
   Note the drizzle trap: an array inside a raw `sql` template expands to
   `($1,$2)` (a row expression), so the cleared-keys list is bound as ONE
   `text[]` literal.
+
+### Wave 1 store fixes (2026-10-23)
+
+The system audit found five store readings that were quietly wrong. The
+Orders CSV exported every order ever on a paramless visit while the page
+showed "Last 7 days" — the button sent raw URL params and a missing bound
+read as unbounded, the exact trap `orderConds`' own comment warns about
+(B-06). A legacy `.xls` never saw the orders already imported: the light
+parse that collects existing order ids had no file name, so BIFF took the
+CSV path, failed, and returned nothing — strict mode then validated and died
+on the unique index at commit, and upsert classed every existing order as
+new (B-08). `createStoreField` looped forever on a 47+-character label that
+collided, because the suffix was sliced off the end (B-13). Insights stopped
+summing past 1,000 groups (B-16). And amounts like `(100.00)`, `1.234,56` or
+`123٫50` were stored as wrong numbers with no error (B-12).
+
+The user decided three of them: reject an unreadable amount rather than
+interpret it (D6); show ads-only days in Reconciliation's Channels view
+rather than align the tiles (D7, B-15); and the wording of the two new
+S-codes for values `store_orders` can't hold (D8, B-27). Pinned by
+`tests/db/store-uploads.test.ts` through the real actions and by unit tests
+in `store/pipeline.test.ts`, `store/channels.test.ts` and
+`lib/store-insights.test.ts`.
+

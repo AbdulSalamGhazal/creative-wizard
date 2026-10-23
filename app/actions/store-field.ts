@@ -8,7 +8,7 @@ import { requirePermission } from "@/lib/auth";
 import { getActiveAccountId } from "@/lib/tenant";
 import { accounts, storeOrderFields } from "@/db/schema";
 import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
-import { isCoreKey, isSystemRequiredKey, slugifyKey } from "@/store/fields";
+import { isCoreKey, isSystemRequiredKey, slugifyKey, uniqueFieldKey } from "@/store/fields";
 import { actionError } from "@/lib/action-error";
 
 /**
@@ -72,9 +72,7 @@ export async function createStoreField(input: unknown): Promise<FieldMutationRes
           .where(eq(storeOrderFields.accountId, acct))
       ).map((r) => r.key),
     );
-    let key = base;
-    let n = 2;
-    while (existing.has(key)) key = `${base}_${n++}`.slice(0, 48);
+    const key = uniqueFieldKey(base, existing);
 
     const [{ max } = { max: 0 }] = await db
       .select({ max: sql<number>`COALESCE(MAX(${storeOrderFields.sortOrder}), 0)` })

@@ -147,6 +147,17 @@ describe("foldTopValues", () => {
     expect(out.some((r) => r.value === OTHER_VALUE)).toBe(false);
   });
 
+  it("past the query's group cap, Other is the RANGE total minus what is shown (W1-11)", () => {
+    // 1,200 one-order values; the query returned the first 1,000.
+    const returned = Array.from({ length: 1000 }, (_, i) => ({ value: `v${i}`, orders: 1, revenue: 10 }));
+    const out = foldTopValues(returned, TOP_VALUE_LIMIT, { orders: 1200, revenue: 12000, values: 1200 });
+    const other = out.at(-1)!;
+    expect(other.value).toBe(OTHER_VALUE);
+    expect(other.foldedCount).toBe(1200 - TOP_VALUE_LIMIT); // not 960
+    expect(out.reduce((a, r) => a + r.orders, 0)).toBe(1200); // not 1,000
+    expect(out.reduce((a, r) => a + r.revenue, 0)).toBe(12000);
+  });
+
   it("folds the tail into ONE row past the limit", () => {
     const out = foldTopValues(rows(TOP_VALUE_LIMIT + 5));
     expect(out).toHaveLength(TOP_VALUE_LIMIT + 1);
