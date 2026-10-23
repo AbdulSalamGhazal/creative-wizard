@@ -4,7 +4,7 @@ import { useCallback } from "react";
 import { useDropzone, type FileRejection } from "react-dropzone";
 import { FileSpreadsheet, Upload as UploadIcon, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { MAX_FILE_BYTES } from "@/csv/parse";
+import { FILE_TOO_LARGE_MESSAGE, MAX_FILE_BYTES, MAX_FILE_MB } from "@/csv/parse";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -103,12 +103,12 @@ export function Dropzone({ file, onFile, disabled }: Props) {
             ? "Drop the file here"
             : "Drag a CSV or XLSX here, or click to browse"}
         </div>
-        <div className="mt-1 text-xs text-ink-3">CSV or XLSX up to 10 MB</div>
+        <div className="mt-1 text-xs text-ink-3">CSV or XLSX up to {MAX_FILE_MB} MB</div>
       </div>
       {(sizeRejected || typeRejected) && (
         <div className="mt-2 text-xs text-neg">
           {sizeRejected
-            ? "File exceeds the 10 MB limit."
+            ? FILE_TOO_LARGE_MESSAGE
             : "Only .csv, .xls, and .xlsx files are accepted."}
         </div>
       )}

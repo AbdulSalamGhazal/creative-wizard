@@ -56,7 +56,7 @@ Validation runs as a five-stage pipeline. The first two stages are **fail-fast**
 
 ### 3.1 Stage 1 — File integrity
 
-- File size ≤ 10 MB (E001)
+- File size ≤ 4 MB (E001) — one limit on every upload surface, set by what the host accepts (Vercel refuses a request body over 4.5 MB); 10 MB until 2026-10-23, when files over 1 MB were in fact failing (D5)
 - File parses as CSV (E002)
 - File is not empty after stripping headers and blank rows (E003)
 - File encoding must be UTF-8 (E004). *(v1.1 decision: the Windows-1256
@@ -228,7 +228,7 @@ Every error carries a stable code, a severity, a template, and an example. Codes
 
 | Code  | Severity | Template                                                                                                  | Example                                                                                                       |
 | ----- | -------- | --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| E001  | FATAL    | File exceeds the 10 MB upload limit.                                                                      | —                                                                                                             |
+| E001  | FATAL    | File exceeds the 4 MB upload limit.                                                                       | —                                                                                                             |
 | E002  | FATAL    | The file could not be parsed as CSV.                                                                      | —                                                                                                             |
 | E003  | FATAL    | The file contains no data rows.                                                                           | —                                                                                                             |
 | E004  | FATAL    | The file encoding is not supported. Save as UTF-8 and re-upload.                                          | —                                                                                                             |
@@ -325,7 +325,7 @@ Same template as 9.1 — pending sample.
 
 ## 10. Performance Budget
 
-- Files up to 10 MB / ~50,000 rows complete the full pipeline (stages 1–5) in **under 10 seconds**.
+- Files up to 4 MB / ~20,000 rows complete the full pipeline (stages 1–5) in **under 10 seconds**.
 - The error report UI renders even for files with thousands of errors via list virtualization.
 - Database duplicate-checking (stage 5) uses a single indexed query per file, not per row.
 

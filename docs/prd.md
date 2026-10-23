@@ -145,7 +145,7 @@ Daily ingestion of platform reports. Validation is **file-level and all-or-nothi
 Full behavior is defined in `urjwan-ccms-validation-spec.md`. Summary:
 
 1. User selects platform from dropdown.
-2. User uploads CSV file (max 10 MB).
+2. User uploads CSV file (max 4 MB — every upload surface, D5 2026-10-23).
 3. System runs the 5-stage validation pipeline.
 4. If any check fails → reject the file. Display a clean error report identifying every row that failed and the reason. No data is written.
 5. If all checks pass → display a pre-import summary and confirm import.

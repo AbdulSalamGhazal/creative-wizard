@@ -12,7 +12,7 @@ import {
   uploadBatches,
   uploadValidationSessions,
 } from "@/db/schema";
-import { MAX_FILE_BYTES } from "@/csv/parse";
+import { FILE_TOO_LARGE_MESSAGE, MAX_FILE_BYTES } from "@/csv/parse";
 import { runPipeline, type ExistingRecord, type ParsedRow } from "@/csv/pipeline";
 import { campaignPlatformCollisions } from "@/csv/cross-platform";
 import { resolveAdapter } from "@/db/queries/platforms";
@@ -33,7 +33,7 @@ const platformSchema = z.enum(platformEnum);
  *   200 — valid; token returned
  *   400 — bad form input (missing file / missing or invalid platform)
  *   401 — not signed in
- *   413 — file > 10 MB
+ *   413 — file > MAX_FILE_BYTES (4 MB)
  *   422 — validation errors
  *   500 — unexpected
  */
@@ -92,7 +92,7 @@ export async function POST(request: NextRequest) {
   if (file.size > MAX_FILE_BYTES) {
     return NextResponse.json(
       {
-        error: "File exceeds the 10 MB upload limit.",
+        error: FILE_TOO_LARGE_MESSAGE,
         code: "E001",
       },
       { status: 413 },

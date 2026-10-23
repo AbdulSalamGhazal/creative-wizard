@@ -68,7 +68,7 @@ describe("readSheetRows", () => {
     const big = new Uint8Array(MAX_FILE_BYTES + 1);
     const res = await readSheetRows(form(big, "huge.xlsx"));
     expect(res.ok).toBe(false);
-    expect(res.error).toContain("10 MB");
+    expect(res.error).toBe("File exceeds the 4 MB upload limit.");
   });
 
   it("passes the reader's own message through when a file can't be read", async () => {

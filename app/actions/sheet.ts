@@ -1,7 +1,7 @@
 "use server";
 
 import { requireAuth } from "@/lib/auth";
-import { MAX_FILE_BYTES, parseFile } from "@/csv/parse";
+import { FILE_TOO_LARGE_MESSAGE, MAX_FILE_BYTES, parseFile } from "@/csv/parse";
 
 /**
  * Read a spreadsheet into rows of strings — the ONE conversion layer
@@ -34,7 +34,7 @@ export async function readSheetRows(form: unknown): Promise<SheetRowsResult> {
     const file = form.get("file");
     if (!(file instanceof File)) return { ok: false, error: "No file received." };
     if (file.size > MAX_FILE_BYTES) {
-      return { ok: false, error: "File exceeds the 10 MB upload limit." };
+      return { ok: false, error: FILE_TOO_LARGE_MESSAGE };
     }
     const content = await file.arrayBuffer();
     const parsed = parseFile({ content, fileName: file.name, byteLength: content.byteLength });

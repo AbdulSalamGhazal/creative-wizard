@@ -9,7 +9,7 @@
  * downstream knows which it was.
  *
  * Quirks from docs/validation-spec.md §6:
- *  - 10 MB upper bound (Stage 1 / E001).
+ *  - 4 MB upper bound (Stage 1 / E001).
  *  - BOM strip (CSV).
  *  - Auto delimiter detect (CSV: comma vs semicolon).
  *  - UTF-8 decoding (CSV). Non-UTF-8 currently rejected with E004; the
@@ -23,7 +23,17 @@ import Papa from "papaparse";
 import * as XLSX from "xlsx";
 import type { ValidationError } from "@/csv/errors";
 
-export const MAX_FILE_BYTES = 10 * 1024 * 1024; // 10 MB
+/**
+ * The ONE upload size limit, for every surface (D5, 2026-10-23): 4 MB. It is
+ * what actually fits — Vercel refuses a function request body over 4.5 MB, and
+ * the server-action surfaces (store orders, bulk creatives, the Budget sheet)
+ * accept 4.5 MB through `serverActions.bodySizeLimit` (next.config.ts). Every
+ * screen used to promise 10 MB while files over 1 MB failed, some by hanging.
+ */
+export const MAX_FILE_MB = 4;
+export const MAX_FILE_BYTES = MAX_FILE_MB * 1024 * 1024;
+/** E001's sentence — one wording wherever a file is too big. */
+export const FILE_TOO_LARGE_MESSAGE = `File exceeds the ${MAX_FILE_MB} MB upload limit.`;
 
 export interface ParseSuccess {
   ok: true;
@@ -120,7 +130,7 @@ export function parseFile(input: ParseInput): ParseResult {
       error: {
         code: "E001",
         severity: "FATAL",
-        message: "File exceeds the 10 MB upload limit.",
+        message: FILE_TOO_LARGE_MESSAGE,
       },
     };
   }

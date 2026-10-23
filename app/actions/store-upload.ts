@@ -25,7 +25,7 @@ import { int } from "@/lib/format";
  * Store-order upload flow — parallel to the ads pipeline, but a self-contained
  * server-action pair (no session table): the client VALIDATES a file, then, on
  * confirm, re-submits the SAME file to COMMIT (re-parsed + re-validated inside a
- * transaction). Files are ≤10MB. STRICTLY additive to `store_orders`; touches no
+ * transaction). Files are ≤ 4 MB (`MAX_FILE_BYTES`). STRICTLY additive to `store_orders`; touches no
  * ads table. Rollback removes a batch's INSERTED rows only.
  */
 

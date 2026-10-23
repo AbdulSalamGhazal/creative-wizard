@@ -16,6 +16,8 @@ import {
   type StoreUploadReport,
 } from "@/app/actions/store-upload";
 import { useNavTransition } from "@/lib/nav-progress";
+import { safeAction } from "@/lib/action-failure";
+import { toastActionFailure } from "@/lib/action-toast";
 
 type Stage =
   | { s: "idle" }
@@ -58,21 +60,32 @@ export function StoreUploadPanel({
     setStage({ s: "idle" });
   }
 
+  // A call that REJECTS (a network blink, a deploy, a body the server
+  // refused) used to leave the stage at validating/committing for good — and
+  // `busy` disables every control, so only a reload helped (D5). safeAction
+  // turns a rejection into a result; the panel steps back and says why.
   async function onValidate() {
     if (!file) return;
     setStage({ s: "validating" });
-    const report = await validateStoreUpload(formData());
-    if (!report.ok) setStage({ s: "invalid", report });
-    else setStage({ s: "valid", report });
+    const report = await safeAction(() => validateStoreUpload(formData()));
+    if (report.ok) {
+      setStage({ s: "valid", report });
+    } else if ("errors" in report) {
+      setStage({ s: "invalid", report });
+    } else {
+      toastActionFailure(report, "Couldn't check the file.");
+      setStage({ s: "idle" });
+    }
   }
 
   async function onCommit() {
     if (stage.s !== "valid" || !file) return;
-    setStage({ s: "committing", report: stage.report });
-    const res = await commitStoreUpload(formData());
+    const report = stage.report;
+    setStage({ s: "committing", report });
+    const res = await safeAction(() => commitStoreUpload(formData()));
     if (!res.ok) {
-      toast.error(res.error ?? "Commit failed");
-      setStage({ s: "valid", report: stage.report });
+      toastActionFailure(res, "Commit failed");
+      setStage({ s: "valid", report });
       return;
     }
     toast.success(
