@@ -1,5 +1,4 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { and, eq, gt, sql } from "drizzle-orm";
 import { ACCOUNT_A, ACCOUNT_B } from "./config";
 
 vi.mock("@/lib/tenant", async (importOriginal) => {
@@ -14,9 +13,8 @@ vi.mock("@/lib/tenant", async (importOriginal) => {
 });
 
 import { db } from "@/lib/db";
-import { auditEvents, userAccounts, users } from "@/db/schema";
+import { userAccounts, users } from "@/db/schema";
 import { allowedAccountsForUser } from "@/lib/tenant";
-import { AUDIT_ACTIONS } from "@/lib/audit";
 import { resetAndSeed } from "./fixtures";
 
 const RESTRICTED = "aaaaaaaa-0000-0000-0000-0000000000a1";
@@ -57,63 +55,6 @@ describe("upload commit — brand membership re-check", () => {
   });
 });
 
-/**
- * Sign-in throttling counts this email's FAILED sign-in audit rows inside a
- * sliding window — no new table, and the same generic message either way so a
- * throttled attempt is indistinguishable from a wrong password.
- */
-describe("sign-in throttle", () => {
-  const WINDOW_MINUTES = 15;
-  const MAX = 5;
-
-  /** The action's counter, verbatim. */
-  async function recentFailures(email: string) {
-    const since = new Date(Date.now() - WINDOW_MINUTES * 60 * 1000);
-    const [row] = await db
-      .select({ n: sql<number>`count(*)::int` })
-      .from(auditEvents)
-      .where(
-        and(
-          eq(auditEvents.action, AUDIT_ACTIONS.AUTH_SIGNIN_FAILED),
-          eq(auditEvents.entityLabel, email),
-          gt(auditEvents.at, since),
-        ),
-      );
-    return Number(row?.n ?? 0);
-  }
-
-  const logFailure = (email: string, at?: Date) =>
-    db.insert(auditEvents).values({
-      accountId: ACCOUNT_A,
-      action: AUDIT_ACTIONS.AUTH_SIGNIN_FAILED,
-      entityType: "auth",
-      entityLabel: email,
-      ...(at ? { at } : {}),
-    });
-
-  it("five failures throttle the sixth attempt", async () => {
-    const email = "victim@test.local";
-    for (let i = 0; i < MAX - 1; i++) await logFailure(email);
-    expect(await recentFailures(email)).toBe(4);
-    expect((await recentFailures(email)) >= MAX).toBe(false); // 5th still tried
-
-    await logFailure(email);
-    expect(await recentFailures(email)).toBe(5);
-    expect((await recentFailures(email)) >= MAX).toBe(true); // 6th throttled
-  });
-
-  it("other emails are unaffected", async () => {
-    const email = "victim@test.local";
-    for (let i = 0; i < MAX; i++) await logFailure(email);
-    expect((await recentFailures(email)) >= MAX).toBe(true);
-    expect(await recentFailures("bystander@test.local")).toBe(0);
-  });
-
-  it("the window slides — failures older than it stop counting", async () => {
-    const email = "victim@test.local";
-    const old = new Date(Date.now() - (WINDOW_MINUTES + 5) * 60 * 1000);
-    for (let i = 0; i < MAX; i++) await logFailure(email, old);
-    // All outside the window → no throttle, without any explicit reset.
-    expect(await recentFailures(email)).toBe(0);
-  });
-});
+// The sign-in throttle is pinned in tests/db/signin.test.ts, through the real
+// `signIn` action. (A copy of its counter used to live here; it passed while
+// `signIn` had no throttle at all — audit B-02.)

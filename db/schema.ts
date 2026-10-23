@@ -827,6 +827,12 @@ export const auditEvents = pgTable(
     actorIdx: index("audit_actor_idx").on(t.actorUserId),
     entityIdx: index("audit_entity_idx").on(t.entityType, t.entityId),
     actionIdx: index("audit_action_idx").on(t.action),
+    // The sign-in throttle (D2, 2026-10-23) counts one email's FAILED
+    // sign-ins inside a 15-minute window on every sign-in attempt — partial,
+    // so it stays as small as the failures themselves.
+    signinFailedIdx: index("audit_signin_failed_idx")
+      .on(t.entityLabel, t.at)
+      .where(sql`${t.action} = 'auth.signin_failed'`),
   }),
 );
 

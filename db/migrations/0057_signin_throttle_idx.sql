@@ -1,0 +1,1 @@
+CREATE INDEX "audit_signin_failed_idx" ON "audit_events" USING btree ("entity_label","at") WHERE "audit_events"."action" = 'auth.signin_failed';

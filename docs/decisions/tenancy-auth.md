@@ -40,6 +40,12 @@
   pool size 1) and `lib/team-guard.test.ts`.
 - The upload commit uses the account pinned on the validation session at
   validate time, so a mid-flow brand switch cannot cross-write.
+- **An event with no session passes its brand explicitly.** `logAudit`
+  resolves the ACTIVE brand, which throws `NO_BRAND_ACCESS` for a visitor who
+  isn't signed in — and the audit swallows its own errors, so the row simply
+  vanishes. Anonymous auth events (`auth.signin_failed`,
+  `auth.signin_throttled`) are filed under the OLDEST brand
+  (`oldestAccountId()`); the sign-in throttle counts those rows (D2).
 
 ## History and rationale
 
@@ -177,4 +183,23 @@ greyed out on every card.
 The scratch tests that proved the escalations were ported into
 `tests/db/team-guard.test.ts`: 19 of its 33 cases failed before the guard
 (every refusal) and all pass after.
+
+### The sign-in throttle that never existed (D2, 2026-10-23)
+
+Tech-spec had described a sign-in throttle since 2026-09 — five failures per
+email in fifteen minutes, counted from `auth.signin_failed` rows — and a DB
+test "pinned" it. The audit (B-02) found two things wrong at once. `signIn`
+never counted anything: the commit that claimed the throttle only added an
+import, and the test re-implemented the counter against rows it inserted
+itself, so it passed with no feature behind it. And the rows it would have
+counted were never written: `logAudit` looked up the active brand, which
+throws for a visitor with no session, and swallowed the error. The local dev
+database held exactly one `auth.signin_failed` row, from before tenancy.
+
+The user decided anonymous attempts file under the oldest brand. The throttle
+now runs first in `signIn` — before the user lookup and the password check —
+and the test drives the real action with an empty cookie jar and the real
+tenant module, so it fails the way production failed (4 of its 7 cases fail
+on the old action). The lesson generalizes beyond auth: a test that copies the
+code under test proves the copy.
 
