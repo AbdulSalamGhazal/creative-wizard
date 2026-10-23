@@ -27,6 +27,8 @@ import {
   buildSpendPerDay,
   clipThrough,
   comboSeriesKey,
+  coveredThrough,
+  expectedPlanPerDay,
   daysLeftAfter,
   isOffPace,
   isoDaysBetween,
@@ -2534,6 +2536,7 @@ describe("buildRangeBoard", () => {
       planSpendPerDay: buildPlanSpendPerDay(monthSeries, ["instagram", "tiktok"], every),
       platforms: ["instagram", "tiktok"],
       coverage,
+      today: through,
     });
 
   it("for a single-month range its platform rows equal buildTrackerRows' — same series, same coverage", () => {
@@ -2615,6 +2618,7 @@ describe("buildRangeBoard", () => {
       planSpendPerDay: buildPlanSpendPerDay(monthSeries, ["instagram", "tiktok"], every),
       platforms: ["instagram", "tiktok"],
       coverage,
+      today: through,
     });
     const ig = b.platforms.find((p) => p.key === "instagram")!;
     expect(ig.unplannedMonths).toEqual({ months: 1, amount: 3100 });
@@ -2641,6 +2645,7 @@ describe("buildRangeBoard", () => {
       planSpendPerDay: buildPlanSpendPerDay(monthSeries, ["instagram", "tiktok", "snapchat"], every),
       platforms: ["instagram", "tiktok", "snapchat"],
       coverage: { ...coverage, snapchat: from },
+      today: through,
     });
     expect(b.platforms.map((p) => p.key)).toEqual(["instagram", "tiktok", "snapchat"]);
     const ig = b.platforms[0]!;
@@ -2653,3 +2658,84 @@ describe("buildRangeBoard", () => {
     expect(snap.neededPerDay).toBeNull();
   });
 });
+
+describe("coverage as a date — coveredThrough (W1-2/W1-4, 2026-10-23)", () => {
+  const today = "2026-10-23";
+  it("in today's month an anchor counts through its own last day", () => {
+    expect(coveredThrough("2026-10-15", "2026-10-01", "2026-10-31", today)).toBe("2026-10-15");
+  });
+  it("a month before today's is over — covered to its end whatever the upload says (B-14)", () => {
+    expect(coveredThrough("2026-09-10", "2026-09-01", "2026-09-30", today)).toBe("2026-09-30");
+    expect(coveredThrough(null, "2026-09-01", "2026-09-30", today)).toBe("2026-09-30");
+    // A range spanning both: through the end of last month, nothing of this one.
+    expect(coveredThrough("2026-09-10", "2026-09-01", "2026-10-31", today)).toBe("2026-09-30");
+  });
+  it("nothing covered in this month yet → null", () => {
+    expect(coveredThrough(null, "2026-10-01", "2026-10-31", today)).toBeNull();
+    expect(coveredThrough("2026-09-28", "2026-10-01", "2026-10-31", today)).toBeNull();
+  });
+});
+
+describe("expectedPlanPerDay — each platform's plan through its own day", () => {
+  const plan = new Map<string, Map<string, number>>();
+  const put = (key: string, days: string[], v: number) =>
+    plan.set(key, new Map(days.map((d) => [d, v])));
+  const oct = isoDaysBetween("2026-10-01", "2026-10-31");
+  put(platformSeriesKey("instagram"), oct, 100);
+  put(comboSeriesKey("instagram", "Awareness"), oct, 100);
+  put(platformSeriesKey("tiktok"), oct, 100);
+  put(comboSeriesKey("tiktok", "Awareness"), oct, 100);
+  const through = { instagram: "2026-10-22", tiktok: "2026-10-15" } as Record<string, string>;
+  const exp = expectedPlanPerDay(plan, ["instagram", "tiktok"], (p) => through[p] ?? null);
+  const sum = (m: Map<string, number> | undefined) => [...(m ?? new Map()).values()].reduce((a, b) => a + b, 0);
+
+  it("the total is the SUM of the rows' expectations, not the plan through the latest day", () => {
+    expect(sum(exp.get(platformSeriesKey("instagram")))).toBe(2200);
+    expect(sum(exp.get(platformSeriesKey("tiktok")))).toBe(1500);
+    expect(sum(exp.get("total"))).toBe(3700); // not 4,400
+    expect(sum(exp.get("Awareness"))).toBe(3700);
+  });
+  it("a platform with nothing covered expects nothing", () => {
+    const none = expectedPlanPerDay(plan, ["instagram", "tiktok"], (p) => (p === "tiktok" ? null : "2026-10-22"));
+    expect(sum(none.get("total"))).toBe(2200);
+    expect(none.get(platformSeriesKey("tiktok"))).toBeUndefined();
+  });
+});
+
+describe("buildRangeBoard — a PAST month is final (audit B-14)", () => {
+  // Today Oct 23; September is over. TikTok was planned $3,000 and stopped on
+  // Sep 10 at $1,000 — its last upload is Sep 10.
+  const TODAY = "2026-10-23";
+  const allocations = [
+    { platform: "tiktok", objective: "Awareness" as BudgetObjective, plannedSpend: 3000 },
+    { platform: "instagram", objective: "Awareness" as BudgetObjective, plannedSpend: 3000 },
+  ];
+  const series = buildPlanSeries({
+    month: "2026-09", planMode: "curve", allocations, plannedRevenueSar: null,
+    dayWeights: {}, planDays: [], targetRoas: null, usdToSarRate: 3.75,
+  });
+  const rows = [
+    ...isoDaysBetween("2026-09-01", "2026-09-10").map((date) => ({ date, platform: "tiktok", objective: "Awareness", spend: 100 })),
+    ...isoDaysBetween("2026-09-01", "2026-09-30").map((date) => ({ date, platform: "instagram", objective: "Awareness", spend: 100 })),
+  ];
+  const every = () => true;
+  const board = buildRangeBoard({
+    from: "2026-09-01",
+    to: "2026-09-30",
+    spendPerDay: buildSpendPerDay(rows, every),
+    planSpendPerDay: buildPlanSpendPerDay([series], ["tiktok", "instagram"], every),
+    platforms: ["tiktok", "instagram"],
+    coverage: { tiktok: "2026-09-10", instagram: "2026-10-22" },
+    today: TODAY,
+  });
+
+  it("matches the Overview: final, 67% behind — not 'on track' needing $100/day for days gone", () => {
+    const tt = board.platforms.find((p) => p.key === "tiktok")!;
+    expect(tt.through).toBe("2026-09-30");
+    expect(tt.planToDate).toBeCloseTo(3000, 2);
+    expect(tt.deviation!).toBeCloseTo(-2 / 3, 6);
+    expect(tt.projection).toBeNull();
+    expect(tt.neededPerDay).toBeNull();
+  });
+});
+

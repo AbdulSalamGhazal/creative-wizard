@@ -6,7 +6,6 @@ import {
   BUDGET_OBJECTIVES,
   clampRangeMonths,
   isValidIsoDate,
-  latestCoverage,
   monthEndIso,
   monthKey,
   monthStartIso,
@@ -136,8 +135,9 @@ export default async function BudgetPacingPage({
   // Ads and store data are uploaded separately, so each side is gated by its
   // OWN horizon — otherwise a brand with orders but no ad exports (or the
   // reverse) sees an all-dashes page despite having real data. The ads side
-  // is read PER PLATFORM (the board's anchor); the overall "data through" is
-  // just the latest of them — one query, replacing the old `dataHorizon()`.
+  // is read PER PLATFORM and every comparison on the page anchors each
+  // platform to its own day (W1-2); the component derives the in-scope
+  // "data through" from the same read.
   const [series, plans, rate, platformCoverage, storeHorizon, user] = await Promise.all([
     budgetPacingSeries(from, to),
     budgetPlansForMonths(monthsInRange(from, to)),
@@ -146,7 +146,6 @@ export default async function BudgetPacingPage({
     storeDataHorizon(),
     auth(),
   ]);
-  const horizon = latestCoverage(platformCoverage);
   const canManage = user ? can(user, "budget.manage") : false;
 
   return (
@@ -170,7 +169,7 @@ export default async function BudgetPacingPage({
         series={series}
         plans={plans}
         rate={rate}
-        horizon={horizon}
+        today={today}
         storeHorizon={storeHorizon}
       />
     </PageShell>

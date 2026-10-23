@@ -47,10 +47,13 @@ import {
   buildPlanSpendPerDay,
   buildRangeBoard,
   buildSpendPerDay,
+  coveredThrough,
   dayBucketsInRange,
+  expectedPlanPerDay,
   filterTrackerPlatforms,
   isStrongTone,
   isoDaysBetween,
+  latestCoverage,
   monthBucketsInRange,
   pacingDeviation,
   pacingTone,
@@ -325,11 +328,23 @@ interface BucketRow {
   spendCum: Map<string, number>;
   planSpend: Map<string, number>;
   planSpendCum: Map<string, number>;
+  /**
+   * What the plan EXPECTED in / through the bucket: each platform's plan only
+   * through its own covered day (`expectedPlanPerDay`). Every pacing verdict
+   * compares against THIS; the full plan above is a display figure (W1-2).
+   */
+  expected: Map<string, number>;
+  expectedCum: Map<string, number>;
+  /** Series keys with nothing covered in this bucket (a lagging platform). */
+  spendUnknownBy: Set<string>;
   /** Revenue is a single all-platforms series — no attribution here. */
   revenue: number;
   revenueCum: number;
   planRevenue: number;
   planRevenueCum: number;
+  /** The revenue target through the store's covered day, same rule. */
+  expectedRevenue: number;
+  expectedRevenueCum: number;
   /** Per side: nothing known yet / partly known, and how far. */
   spendUnknown: boolean;
   spendPartial: boolean;
@@ -381,7 +396,7 @@ export function BudgetPacing({
   series,
   plans,
   rate,
-  horizon,
+  today,
   storeHorizon,
 }: {
   from: string;
@@ -403,7 +418,11 @@ export function BudgetPacing({
   series: BudgetPacingSeries;
   plans: MonthPlanRow[];
   rate: number;
-  horizon: string | null;
+  /**
+   * Today (business TZ). A month before today's is over, so it reads as
+   * covered to its end (`coveredThrough`) — the Overview's past-month rule.
+   */
+  today: string;
   storeHorizon: string | null;
 }) {
   // The shell's batching writer — the only URL writer on a migrated bar.
@@ -631,6 +650,45 @@ export function BudgetPacing({
     [monthSeries],
   );
 
+  // ── Coverage: each platform through ITS OWN last covered day ──────────────
+  // "Pacing compares against DATA COVERAGE": every verdict on this page —
+  // the range card, the chart, the period table, the board — expects each
+  // platform's plan only through the days that platform has reported, and a
+  // total is the SUM of those expectations. (Before 2026-10-23 the card, the
+  // chart and the table cut at the LATEST platform's day, so one lagging
+  // upload made on-plan spend read behind — audit B-03.)
+  const throughByPlatform = useMemo(
+    () =>
+      new Map<string, string | null>(
+        platformKeys.map((p) => [p, coveredThrough(coverage[p], from, to, today)]),
+      ),
+    [platformKeys, coverage, from, to, today],
+  );
+  /** The spend side's "data through": the latest any in-scope platform covers. */
+  const spendThrough = useMemo(
+    () => latestCoverage(Object.fromEntries(throughByPlatform)),
+    [throughByPlatform],
+  );
+  const revenueThrough = coveredThrough(storeHorizon, from, to, today);
+  /** What the footnote prints: the in-scope platforms' raw last upload. */
+  const horizon = useMemo(
+    () =>
+      latestCoverage(
+        Object.fromEntries(ALL_PLATFORMS.filter(inScope).map((p) => [p, coverage[p]])),
+      ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [coverage, platforms.join(",")],
+  );
+  /** A series' own covered day: a platform's, else the spend side's. */
+  const throughOfKey = (key: string): string | null =>
+    key.startsWith("p:") ? (throughByPlatform.get(key.slice(2)) ?? null) : spendThrough;
+
+  const expectedPerDay = useMemo(
+    () =>
+      expectedPlanPerDay(planSpendPerDay, platformKeys, (p) => throughByPlatform.get(p) ?? null),
+    [planSpendPerDay, platformKeys, throughByPlatform],
+  );
+
   // ── Buckets ────────────────────────────────────────────────────────────────
   const buckets = useMemo(() => {
     if (groupBy === "week") return weekBucketsInRange(from, to);
@@ -644,30 +702,44 @@ export function BudgetPacing({
     let planRevenueRun = 0;
     const planSpendRun = new Map<string, number>();
 
+    const expectedRun = new Map<string, number>();
+    let expectedRevenueRun = 0;
+
     return buckets.map((bucket) => {
       const spend = new Map<string, number>();
       const spendCum = new Map<string, number>();
       const planSpend = new Map<string, number>();
       const planSpendCum = new Map<string, number>();
+      const expected = new Map<string, number>();
+      const expectedCum = new Map<string, number>();
+      const spendUnknownBy = new Set<string>();
 
-      // A bucket is known only as far as its side's horizon reaches.
-      const spendLast = horizon && horizon < bucket.end ? horizon : bucket.end;
-      const spendUnknown = horizon === null || bucket.start > horizon;
-      const spendPartial = !spendUnknown && horizon !== null && horizon < bucket.end;
-      const revenueLast = storeHorizon && storeHorizon < bucket.end ? storeHorizon : bucket.end;
-      const revenueUnknown = storeHorizon === null || bucket.start > storeHorizon;
+      // A bucket is known only as far as its side's covered day reaches —
+      // per series: a platform through ITS day, a total or objective through
+      // the latest in-scope platform's (its lagging members expect nothing
+      // past their own day, via `expectedPerDay`).
+      const spendUnknown = spendThrough === null || bucket.start > spendThrough;
+      const spendLast = spendThrough && spendThrough < bucket.end ? spendThrough : bucket.end;
+      const spendPartial = !spendUnknown && spendThrough !== null && spendThrough < bucket.end;
+      const revenueLast =
+        revenueThrough && revenueThrough < bucket.end ? revenueThrough : bucket.end;
+      const revenueUnknown = revenueThrough === null || bucket.start > revenueThrough;
       const revenuePartial =
-        !revenueUnknown && storeHorizon !== null && storeHorizon < bucket.end;
+        !revenueUnknown && revenueThrough !== null && revenueThrough < bucket.end;
 
       const eachDay = (last: string, fn: (iso: string) => void) => {
         for (const iso of isoDaysBetween(bucket.start, last)) fn(iso);
       };
 
       for (const key of [TOTAL_KEY, ...BUDGET_OBJECTIVES, ...platformKeys.map(platformKey)]) {
+        const keyThrough = throughOfKey(key);
+        const keyUnknown = keyThrough === null || bucket.start > keyThrough;
+        if (keyUnknown) spendUnknownBy.add(key);
         let actual = 0;
-        if (!spendUnknown) {
+        if (!keyUnknown) {
           const days = spendPerDay.get(key);
-          if (days) eachDay(spendLast, (iso) => (actual += days.get(iso) ?? 0));
+          const last = keyThrough < bucket.end ? keyThrough : bucket.end;
+          if (days) eachDay(last, (iso) => (actual += days.get(iso) ?? 0));
         }
         spend.set(key, actual);
         const nextActual = (spendRun.get(key) ?? 0) + actual;
@@ -682,6 +754,15 @@ export function BudgetPacing({
         const nextPlan = (planSpendRun.get(key) ?? 0) + planned;
         planSpendRun.set(key, nextPlan);
         planSpendCum.set(key, nextPlan);
+
+        // …and what it expected of the days actually reported.
+        let exp = 0;
+        const expDays = expectedPerDay.get(key);
+        if (expDays) eachDay(bucket.end, (iso) => (exp += expDays.get(iso) ?? 0));
+        expected.set(key, exp);
+        const nextExp = (expectedRun.get(key) ?? 0) + exp;
+        expectedRun.set(key, nextExp);
+        expectedCum.set(key, nextExp);
       }
 
       let revenue = 0;
@@ -692,6 +773,11 @@ export function BudgetPacing({
       let planRevenue = 0;
       eachDay(bucket.end, (iso) => (planRevenue += planRevenuePerDay.get(iso) ?? 0));
       planRevenueRun += planRevenue;
+      let expectedRevenue = 0;
+      if (!revenueUnknown) {
+        eachDay(revenueLast, (iso) => (expectedRevenue += planRevenuePerDay.get(iso) ?? 0));
+      }
+      expectedRevenueRun += expectedRevenue;
 
       return {
         bucket,
@@ -699,10 +785,15 @@ export function BudgetPacing({
         spendCum,
         planSpend,
         planSpendCum,
+        expected,
+        expectedCum,
+        spendUnknownBy,
         revenue,
         revenueCum: revenueRun,
         planRevenue,
         planRevenueCum: planRevenueRun,
+        expectedRevenue,
+        expectedRevenueCum: expectedRevenueRun,
         spendUnknown,
         spendPartial,
         spendThrough: spendPartial ? spendLast : null,
@@ -710,7 +801,8 @@ export function BudgetPacing({
         revenuePartial,
       };
     });
-  }, [buckets, spendPerDay, planSpendPerDay, revenuePerDay, planRevenuePerDay, horizon, storeHorizon, platformKeys]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [buckets, spendPerDay, planSpendPerDay, expectedPerDay, revenuePerDay, planRevenuePerDay, spendThrough, revenueThrough, throughByPlatform, platformKeys]);
 
   // ── Chart ──────────────────────────────────────────────────────────────────
   const toDisplay = (usdAmount: number) => spendInDisplayCurrency(usdAmount, currency, rate);
@@ -740,27 +832,38 @@ export function BudgetPacing({
           point[TOTAL_KEY] = r.revenueUnknown ? null : cumulative ? r.revenueCum : r.revenue;
           const plan = cumulative ? r.planRevenueCum : r.planRevenue;
           point[`plan_${TOTAL_KEY}`] = plan > 0 ? plan : null;
-          // Deviation: this period's actual − plan. Unknown period → nothing
-          // (not zero); no plan → nothing to deviate from.
+          // Deviation: this period's actual − what the plan expected of its
+          // covered days. Unknown period → nothing (not zero); nothing
+          // expected → nothing to deviate from.
           const dev =
-            r.revenueUnknown || r.planRevenue <= 0 ? null : r.revenue - r.planRevenue;
+            r.revenueUnknown || r.expectedRevenue <= 0 ? null : r.revenue - r.expectedRevenue;
           point[`dev_${TOTAL_KEY}`] = dev;
           point[`tone_${TOTAL_KEY}`] =
-            dev === null ? 0 : strongToneCode(pacingTone(pacingDeviation(r.revenue, r.planRevenue)));
+            dev === null
+              ? 0
+              : strongToneCode(pacingTone(pacingDeviation(r.revenue, r.expectedRevenue)));
           return point;
         }
         for (const def of seriesDefs) {
+          // Each series stops at ITS own covered day — a lagging platform's
+          // line ends where its data does, never dropping to zero.
+          const unknown = r.spendUnknownBy.has(def.key);
           const actual = cumulative ? r.spendCum.get(def.key) : r.spend.get(def.key);
-          point[def.key] = r.spendUnknown ? null : toDisplay(actual ?? 0);
+          point[def.key] = unknown ? null : toDisplay(actual ?? 0);
           const plan = cumulative ? r.planSpendCum.get(def.key) : r.planSpend.get(def.key);
           point[`plan_${def.key}`] = plan && plan > 0 ? toDisplay(plan) : null;
+          // Deviation is against what the plan EXPECTED of the period's
+          // covered days, so a partial last period isn't judged on its whole
+          // plan (audit B-05).
           const periodActual = r.spend.get(def.key) ?? 0;
-          const periodPlan = r.planSpend.get(def.key) ?? 0;
+          const periodExpected = r.expected.get(def.key) ?? 0;
           const dev =
-            r.spendUnknown || periodPlan <= 0 ? null : toDisplay(periodActual - periodPlan);
+            unknown || periodExpected <= 0 ? null : toDisplay(periodActual - periodExpected);
           point[`dev_${def.key}`] = dev;
           point[`tone_${def.key}`] =
-            dev === null ? 0 : strongToneCode(pacingTone(pacingDeviation(periodActual, periodPlan)));
+            dev === null
+              ? 0
+              : strongToneCode(pacingTone(pacingDeviation(periodActual, periodExpected)));
         }
         return point;
       }),
@@ -938,14 +1041,16 @@ export function BudgetPacing({
           key: "revenue_dev",
           label: "Pacing",
           align: "right",
+          // Against the target through the store's covered day — a partial
+          // period is judged on the days it covers (B-05).
           render: (r) =>
-            r.revenueUnknown || r.planRevenueCum <= 0
+            r.revenueUnknown || r.expectedRevenueCum <= 0
               ? dash
-              : devCell(pacingDeviation(r.revenueCum, r.planRevenueCum)),
+              : devCell(pacingDeviation(r.revenueCum, r.expectedRevenueCum)),
           csv: (r) =>
-            r.revenueUnknown || r.planRevenueCum <= 0
+            r.revenueUnknown || r.expectedRevenueCum <= 0
               ? ""
-              : pacingVerdict(pacingDeviation(r.revenueCum, r.planRevenueCum)),
+              : pacingVerdict(pacingDeviation(r.revenueCum, r.expectedRevenueCum)),
         },
       ];
     }
@@ -974,13 +1079,13 @@ export function BudgetPacing({
           label: isSplit ? `${name} actual` : `Spend (${currency})`,
           align: "right",
           render: (r) =>
-            r.spendUnknown ? dash : (
+            r.spendUnknownBy.has(key) ? dash : (
               <span className={cn("num tabular-nums", isTotal && isSplit && "font-medium")}>
                 {fmtSpend(r.spend.get(key) ?? 0)}
               </span>
             ),
           csv: (r) =>
-            r.spendUnknown
+            r.spendUnknownBy.has(key)
               ? ""
               : spendInDisplayCurrency(r.spend.get(key) ?? 0, currency, rate).toFixed(2),
           total: () =>
@@ -1025,17 +1130,20 @@ export function BudgetPacing({
           key: `${key}_dev`,
           label: isSplit ? `${name} pacing` : "Pacing",
           align: "right",
+          // Actual against what the plan EXPECTED of the covered days, never
+          // the bucket's whole plan: a partial last Week/Month, or a platform
+          // whose upload lags, is not "behind" (audit B-03/B-05).
           render: (r) =>
-            r.spendUnknown || !hasSpendPlan
+            r.spendUnknownBy.has(key) || !hasSpendPlan
               ? dash
               : devCell(
-                  pacingDeviation(r.spendCum.get(key) ?? 0, r.planSpendCum.get(key) ?? 0),
+                  pacingDeviation(r.spendCum.get(key) ?? 0, r.expectedCum.get(key) ?? 0),
                 ),
           csv: (r) =>
-            r.spendUnknown || !hasSpendPlan
+            r.spendUnknownBy.has(key) || !hasSpendPlan
               ? ""
               : pacingVerdict(
-                  pacingDeviation(r.spendCum.get(key) ?? 0, r.planSpendCum.get(key) ?? 0),
+                  pacingDeviation(r.spendCum.get(key) ?? 0, r.expectedCum.get(key) ?? 0),
                 ),
         },
       );
@@ -1052,18 +1160,32 @@ export function BudgetPacing({
   });
 
 
+  // ── The board ──────────────────────────────────────────────────────────────
+  // The Tracker's rows for the RANGE, from the same per-day maps as above —
+  // each platform through its own covered day, a past month final.
+  const boardData = useMemo(
+    () =>
+      buildRangeBoard({
+        from,
+        to,
+        spendPerDay,
+        planSpendPerDay,
+        platforms: platformKeys,
+        coverage,
+        today,
+      }),
+    [from, to, spendPerDay, planSpendPerDay, platformKeys, coverage, today],
+  );
+
   // ── The range card ─────────────────────────────────────────────────────────
-  // The Overview's hero card for the RANGE. Its numbers are the table's own
-  // totals — actual at the last known row, plan at the last row — with the
-  // expectation cut at the coverage DAY from the same stitched per-day plan
-  // the rows are summed from (under Day grouping that is the totals row's
-  // plan-to-date exactly; under Week/Month it is the honest number for a
-  // partial last period). Never a second computation over the plan.
+  // The Overview's hero card for the RANGE. Spend is the BOARD's own rows
+  // summed — actual, plan, and an expectation that is the SUM of the rows'
+  // expectations, each platform through its own covered day (the house rule;
+  // until 2026-10-23 the card expected the whole plan through the LATEST
+  // platform's day, so a lagging upload read as "behind" — audit B-03).
+  // Revenue paces against the store's own covered day. Never a second
+  // computation over the plan.
   const rangeCard = useMemo(() => {
-    const clip = (h: string | null): string | null =>
-      h && h >= from ? (h < to ? h : to) : null;
-    const spendThrough = clip(horizon);
-    const revenueThrough = clip(storeHorizon);
     const sumThrough = (map: Map<string, number> | undefined, through: string | null) => {
       if (!map || !through) return 0;
       let total = 0;
@@ -1116,10 +1238,24 @@ export function BudgetPacing({
         (p) => p.month === month && (p.plannedRevenueSar !== null || p.targetRoas !== null),
       );
 
-    const spendPlan = lastRow?.planSpendCum.get(TOTAL_KEY) ?? 0;
-    const spendActual = lastKnownSpend?.spendCum.get(TOTAL_KEY) ?? 0;
-    const spendExpected = sumThrough(planSpendPerDay.get(TOTAL_KEY), spendThrough);
-    const spendState = stateOf(spendThrough);
+    // The board's rows, summed. The range hasn't started while NO platform
+    // has a covered day in it; it is FINAL only once every planned platform
+    // is covered to its end (a past month always is). A planned platform
+    // with no data yet expects nothing — the row has no verdict, and neither
+    // does a total that sums to nothing expected.
+    const boardRows = boardData.platforms;
+    const judged = boardRows.some((p) => p.plan > 0)
+      ? boardRows.filter((p) => p.plan > 0)
+      : boardRows;
+    const spendPlan = round2(boardRows.reduce((a, p) => a + p.plan, 0));
+    const spendActual = round2(boardRows.reduce((a, p) => a + p.actual, 0));
+    const spendExpected = round2(boardRows.reduce((a, p) => a + p.planToDate, 0));
+    const spendState: HeroState =
+      spendThrough === null
+        ? "future"
+        : judged.length > 0 && judged.every((p) => p.through !== null && p.through >= to)
+          ? "final"
+          : "live";
     const spendUnplanned = unplannedIn(spendPerDay.get(TOTAL_KEY), spendThrough, spendPlanned);
     const spend = {
       state: spendState,
@@ -1148,13 +1284,15 @@ export function BudgetPacing({
       unplanned: revenueUnplanned,
     };
 
-    // ROAS needs BOTH sides through the same day: the earlier of the two.
+    // ROAS needs BOTH sides through the same day. Revenue can't be cut per
+    // platform (no attribution), so the day is the EARLIEST of the store's and
+    // every reporting platform's — a lagging platform's unreported days never
+    // enter the spend side as $0.
+    const reported = boardRows.map((p) => p.through).filter((t): t is string => t !== null);
     const roasThrough =
-      spendThrough && revenueThrough
-        ? spendThrough < revenueThrough
-          ? spendThrough
-          : revenueThrough
-        : null;
+      revenueThrough === null || reported.length === 0
+        ? null
+        : [revenueThrough, ...reported].reduce((a, b) => (b < a ? b : a));
     const roasState = stateOf(roasThrough);
     const roasActual = roasOf(
       sumThrough(revenuePerDay, roasThrough),
@@ -1183,22 +1321,8 @@ export function BudgetPacing({
       },
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rows, plans, planSpendPerDay, planRevenuePerDay, spendPerDay, revenuePerDay, horizon, storeHorizon, from, to, rate]);
+  }, [rows, plans, boardData, planSpendPerDay, planRevenuePerDay, spendPerDay, revenuePerDay, spendThrough, revenueThrough, from, to, rate]);
 
-  // ── The board ──────────────────────────────────────────────────────────────
-  // The Tracker's rows for the RANGE, from the same per-day maps as above.
-  const boardData = useMemo(
-    () =>
-      buildRangeBoard({
-        from,
-        to,
-        spendPerDay,
-        planSpendPerDay,
-        platforms: platformKeys,
-        coverage,
-      }),
-    [from, to, spendPerDay, planSpendPerDay, platformKeys, coverage],
-  );
   // The view's own rows: filtered, then ordered. The triage counts ignore the
   // off-pace toggle — otherwise the chip you clicked to get here would read 0.
   const boardRows = useMemo(
@@ -1645,7 +1769,6 @@ export function BudgetPacing({
         rows={boardRows}
         totalRows={boardData.platforms.length}
         counts={boardCounts}
-        coverage={coverage}
         board={view.board}
         rank={view.rank}
         group={view.group}
@@ -1656,6 +1779,7 @@ export function BudgetPacing({
         onBehind={() => writeFlag("offpace", !view.offpace)}
         reserve={boardReserve}
         fmt={fmtWhole}
+        toDisplay={toDisplay}
         currency={currency}
         planMonth={singleMonth}
         canManage={canManage}

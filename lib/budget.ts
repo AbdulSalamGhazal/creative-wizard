@@ -1907,6 +1907,72 @@ export function clipThrough(coverage: string | null | undefined, from: string, t
 }
 
 /**
+ * One anchor's last COVERED day inside the range — `coverageDayInMonth`'s rule
+ * as a date, so a range reads exactly like the Overview reads a month (W1-2,
+ * 2026-10-23):
+ *
+ *  · a month BEFORE today's is over: it counts as covered to its end whatever
+ *    the last upload says, so its numbers are final — never "on track" with
+ *    "needs $100/day" for days that are gone (audit B-14);
+ *  · in today's month an anchor counts through its own last uploaded day, and
+ *    one whose data stops before this month expects nothing here yet;
+ *  · null when nothing in the range is covered.
+ *
+ * `coverage` is a platform's MAX(date) — or the store horizon for revenue.
+ */
+export function coveredThrough(
+  coverage: string | null | undefined,
+  from: string,
+  to: string,
+  todayIso: string,
+): string | null {
+  const lastPastDay = isoPlusDays(monthStartIso(monthKey(todayIso)), -1);
+  const anchor = coverage && coverage > lastPastDay ? coverage : lastPastDay;
+  return clipThrough(anchor, from, to);
+}
+
+/**
+ * The plan EXPECTED so far, under the per-day maps' keys: each platform's plan
+ * kept only through its OWN covered day (`throughOf`), and the total and
+ * every objective re-summed from those platform slices. Summing this map over
+ * any period gives "what the reported days should have spent" — the house
+ * rule that a total is the SUM of its rows' expectations, so one lagging
+ * upload can't make the whole range read behind (audit B-03), and a partial
+ * last week or month is judged on the days it covers, not on its whole plan
+ * (B-05). `platforms` must be every platform in `plan`'s scope.
+ */
+export function expectedPlanPerDay(
+  plan: PerDayMaps,
+  platforms: readonly string[],
+  throughOf: (platform: string) => string | null,
+): PerDayMaps {
+  const out: PerDayMaps = new Map();
+  const add = (key: string, date: string, value: number) => {
+    let days = out.get(key);
+    if (!days) out.set(key, (days = new Map()));
+    days.set(date, (days.get(date) ?? 0) + value);
+  };
+  for (const platform of platforms) {
+    const through = throughOf(platform);
+    if (through === null) continue;
+    for (const [date, v] of plan.get(platformSeriesKey(platform)) ?? []) {
+      if (date > through) continue;
+      add(platformSeriesKey(platform), date, v);
+      add(TOTAL_SERIES_KEY, date, v);
+    }
+    for (const objective of BUDGET_OBJECTIVES) {
+      const key = comboSeriesKey(platform, objective);
+      for (const [date, v] of plan.get(key) ?? []) {
+        if (date > through) continue;
+        add(key, date, v);
+        add(objective, date, v);
+      }
+    }
+  }
+  return out;
+}
+
+/**
  * Where this pace lands over the range — actual ÷ (expected ÷ plan) — only
  * while the range still runs; a covered range is final and a range with
  * nothing expected yet has nothing to extrapolate from.
@@ -1981,6 +2047,8 @@ export interface RangeBoardInput {
   platforms: readonly string[];
   /** Latest uploaded day per platform (absent = no data). */
   coverage: PlatformCoverage;
+  /** Today (business TZ) — a month before today's is over and final (`coveredThrough`). */
+  today: string;
 }
 
 export interface RangeBoard {
@@ -2061,7 +2129,7 @@ export function buildRangeBoard(input: RangeBoardInput): RangeBoard {
   };
 
   const platforms: RangePlatform[] = input.platforms.map((platform) => {
-    const through = clipThrough(coverage[platform], from, to);
+    const through = coveredThrough(coverage[platform], from, to, input.today);
     const buckets: RangeBar[] = [];
     const unplannedBuckets: TrackerPlatform["unplannedBuckets"] = [];
     let unplanned = 0;

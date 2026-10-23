@@ -27,6 +27,17 @@
 - **Pacing compares against DATA COVERAGE, never the calendar**
   (`platformHorizons` → `makeCoverageDay`). A total is the SUM of its rows'
   expectations, not a second calculation over the whole plan.
+  **Every surface, every number** (2026-10-23, W1-2…W1-4): Overview's cards
+  and board, Pacing's range card, chart (incl. Deviation), period table and
+  board, and Audience pressure anchor EACH platform to its OWN day — a range
+  through `coveredThrough` (the month rule as a date: a month before today's
+  is over and final) and `expectedPlanPerDay` (each platform's plan through
+  its own day, totals re-summed from those). A pacing verdict compares
+  actual with THAT; a full period's plan is a display figure only. ROAS cuts
+  both sides at the EARLIEST of the store's and every reporting platform's
+  day — revenue has no platform attribution, so it can't be cut per
+  platform. Never read the latest platform's day as "the" horizon for an
+  expectation; it is only the "data through" a footnote prints.
 - The reserve is part of the total, carved out of it, and sits OUTSIDE the
   curve. Save is blocked below 100% — uncommitted money belongs in the reserve.
 - **Reserve USED = Σ over platforms of max(0, actual − planned)**, where
@@ -286,7 +297,14 @@ as it stood before the restructure.*
       range with no plan shows the number and "no plan for this range"; a
       range that hasn't started shows the plan with a "planned" aside. ROAS
       is the ratio bar (0..max×1.15, tick = on-plan ROAS to date, both sides
-      cut at the EARLIER of the two coverages). (2) **SPLIT BY: none ·
+      cut at the EARLIER of the two coverages).
+      **[Superseded 2026-10-23 — see "Coverage on every surface" below.]**
+      The spend side is now the BOARD's rows summed (each platform through
+      its own day); "cut at the coverage DAY" above meant the LATEST
+      platform's day, which read on-plan spend as behind whenever one upload
+      lagged, and contradicted "a total is the SUM of its rows'
+      expectations". ROAS's "earlier of the two" now includes every
+      reporting platform's day. (2) **SPLIT BY: none ·
       platform · objective** (`?split=`, `PACING_SPLITS`, remembered through
       `persistKeys`) replaces the Totals / By objective toggle. Objective is
       the old breakdown unchanged; **platform** draws one series per platform
@@ -299,7 +317,8 @@ as it stood before the restructure.*
       picker options): revenue has no platform attribution anywhere in
       Budget. (3) **A THIRD CHART SHAPE, DEVIATION** (`?shape=cumulative|
       period|deviation`, `PACING_SHAPES`, remembered): per-period actual −
-      plan as bars around a zero `ReferenceLine`, one bar series per split
+      plan (since 2026-10-23 the plan EXPECTED of the period's covered
+      days) as bars around a zero `ReferenceLine`, one bar series per split
       series, each BAR in its DIRECTION colour (ahead blue / behind amber)
       when ITS period's |deviation| ≥ `PACING_WARN_THRESHOLD` (through
       `pacingTone`) and the series colour otherwise; the tooltip shows actual, plan and the signed difference
@@ -657,3 +676,42 @@ as it stood before the restructure.*
     comes from `budgetPacingSeries` — never add a second spend scan. USD only
     (no currency toggle: pressure is a ratio). See the Learned entry for the
     sparse-snapshot semantics, and tech-spec §5e.
+
+### Coverage on every surface (W1-2…W1-4, 2026-10-23)
+
+The system audit found the "behind every morning" bug back, on the page that
+was supposed to have fixed it. Pacing's range card, chart and period table
+expected the WHOLE plan through the LATEST platform's day — `latestCoverage`
+of the per-platform read — so a platform whose upload lagged a week counted
+its unreported days as $0: Instagram and TikTok, both exactly on plan, read
+"−$700 (−16%)" on the card while both board rows and the Overview read on
+track; with `platforms=tiktok` the card said −32% beside TikTok's own on-track
+row (B-03). The range-card paragraph above ("expectation cut at the coverage
+DAY") had documented the bug as the design, contradicting this file's own
+invariant. Audience pressure had the same root (the global `dataHorizon()`).
+
+Three more readings disagreed with the Overview for the same reason: the
+Overview's ROAS card divided revenue through the store's last day by spend
+through the ads' (a month exactly at 2.0× read 1.36×, −32% — B-04); a partial
+last Week or Month was judged against its whole plan (on-plan October read
+"29% behind" under Month grouping — B-05); and the board treated a finished
+month as live, reading a platform that stopped on Sep 10 as "on track,
+needs $100/day" for days already gone (B-14). The board's Table CSV also
+wrote USD into a file named `…-sar.csv` (B-17).
+
+The fix restores the rule rather than adding one. `coveredThrough` is
+`coverageDayInMonth` as a date; `expectedPlanPerDay` keeps each platform's
+plan only through its own day and re-sums totals and objectives from those
+slices; the range card sums the board's rows; the chart's per-series lines
+stop at each series' own day; the period table's "Pacing" column and the
+Deviation bars compare with the expected map while "Plan-to-date" stays the
+full plan as a figure; ROAS (Pacing's card and the Overview's card and chart
+line) cuts at the earliest of the store's and every reporting platform's
+day; Audience knows a pair's spend through its platform's day. Pinned by
+rendered tests in `components/budget/budget-pacing.test.ts` (each failed on
+the old code) and unit tests in `lib/budget.test.ts`.
+
+Not changed: the period table's and chart's ROAS ROWS (cumulative revenue
+over cumulative spend per bucket) still divide each side through its own
+day on a partially covered last row — flagged, not decided.
+

@@ -2,6 +2,10 @@ import { defineConfig } from "vitest/config";
 import path from "node:path";
 
 export default defineConfig({
+  // The app's tsconfig keeps JSX for Next (`"jsx": "preserve"`); a test that
+  // renders a component to static markup (components/budget/*.test.ts) needs
+  // it compiled.
+  esbuild: { jsx: "automatic" },
   test: {
     environment: "node",
     include: ["**/*.test.ts"],

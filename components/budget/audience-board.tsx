@@ -27,7 +27,7 @@ import { DateRangePicker } from "@/components/filters/date-range-picker";
 import { PlatformDot } from "@/components/ui/platform-dot";
 import { ALL_PLATFORMS, PLATFORM_COLOR, PLATFORM_LABEL } from "@/lib/palette";
 import { int, intCompact, monthDay, usd, usdCompact } from "@/lib/format";
-import { isoDaysBetween } from "@/lib/budget";
+import { isoDaysBetween, latestCoverage, type PlatformCoverage } from "@/lib/budget";
 import { useNavTransition } from "@/lib/nav-progress";
 import { cn } from "@/lib/utils";
 import {
@@ -94,7 +94,7 @@ export function AudienceBoard({
   latest,
   recent,
   spend,
-  horizon,
+  coverage,
   canManage,
 }: {
   from: string;
@@ -105,7 +105,8 @@ export function AudienceBoard({
   latest: AudienceSnapshotRow[];
   recent: AudienceCorrectionRow[];
   spend: BudgetPacingDaySpend[];
-  horizon: string | null;
+  /** Latest uploaded day per platform — each pair's spend is known through ITS platform's. */
+  coverage: PlatformCoverage;
   canManage: boolean;
 }) {
   const router = useRouter();
@@ -135,10 +136,26 @@ export function AudienceBoard({
     setParams({ from: nextFrom, to: nextTo });
   };
 
-  // Nothing is measured in the future, and ad data stops at its own horizon —
-  // so the audience window ends today at the latest, and the SPEND window ends
-  // at the horizon. Days past either are unknown, never zero.
+  // Nothing is measured in the future, and each platform's ad data stops at
+  // ITS OWN last upload (W1-2, 2026-10-23 — it used to be the latest of all
+  // platforms, so a lagging platform's unreported days entered pressure as
+  // $0 of known audience). The audience window ends today at the latest; a
+  // pair's SPEND window ends at its platform's day. Days past either are
+  // unknown, never zero.
   const windowEnd = to < today ? to : today;
+  /** The day before `from`: a platform with no data in range knows no day. */
+  const noneKnown = useMemo(() => {
+    const d = new Date(`${from}T00:00:00Z`);
+    d.setUTCDate(d.getUTCDate() - 1);
+    return d.toISOString().slice(0, 10);
+  }, [from]);
+  const spendEndOf = (platform: string): string => {
+    const c = coverage[platform];
+    if (!c) return noneKnown;
+    return c < windowEnd ? c : windowEnd;
+  };
+  const horizon = latestCoverage(coverage);
+  /** The latest day ANY platform's spend is known — the overlay bar stops here. */
   const spendEnd = horizon && horizon < windowEnd ? horizon : windowEnd;
   const days = useMemo(
     () => (windowEnd < from ? [] : isoDaysBetween(from, windowEnd)),
@@ -168,19 +185,20 @@ export function AudienceBoard({
   const spendByPair = useMemo(() => {
     const out = new Map<string, Map<string, number>>();
     for (const row of spend) {
-      if (!isFunnelStage(row.objective) || row.date > spendEnd) continue;
+      if (!isFunnelStage(row.objective) || row.date > spendEndOf(row.platform)) continue;
       const key = audienceKey(row.platform, row.objective);
       const byDate = out.get(key) ?? new Map<string, number>();
       byDate.set(row.date, (byDate.get(row.date) ?? 0) + row.spend);
       out.set(key, byDate);
     }
     return out;
-  }, [spend, spendEnd]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [spend, coverage, windowEnd, noneKnown]);
 
   /** Pressure over the last `window` days of the view for one pair. */
   const pressureOver = (platform: string, funnelStage: FunnelStage, window?: number) => {
     const key = audienceKey(platform, funnelStage);
-    const all = (seriesByPair.get(key) ?? []).filter((d) => d.date <= spendEnd);
+    const all = (seriesByPair.get(key) ?? []).filter((d) => d.date <= spendEndOf(platform));
     const slice = window ? all.slice(-window) : all;
     const byDate = spendByPair.get(key);
     return pressure(slice.map((d) => ({ size: d.size, spend: byDate?.get(d.date) ?? 0 })));
@@ -193,7 +211,7 @@ export function AudienceBoard({
         const key = audienceKey(platform, funnelStage);
         const pairDays = seriesByPair.get(key) ?? [];
         const byDate = spendByPair.get(key);
-        const spendDays = pairDays.filter((d) => d.date <= spendEnd);
+        const spendDays = pairDays.filter((d) => d.date <= spendEndOf(platform));
         const last = pairDays.at(-1) ?? null;
         out.push({
           platform,
@@ -215,7 +233,8 @@ export function AudienceBoard({
       }
     }
     return out;
-  }, [seriesByPair, spendByPair, audience, spendEnd, today]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [seriesByPair, spendByPair, audience, coverage, windowEnd, noneKnown, today]);
 
   // ── Chart ─────────────────────────────────────────────────────────────────
   const seriesDefs = ALL_PLATFORMS.map((p) => ({

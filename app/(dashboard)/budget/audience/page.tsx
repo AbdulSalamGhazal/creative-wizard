@@ -16,7 +16,7 @@ import {
   latestAudienceSnapshots,
   recentAudienceSnapshots,
 } from "@/db/queries/audience";
-import { dataHorizon } from "@/db/queries/series-bounds";
+import { platformHorizons } from "@/db/queries/series-bounds";
 import { AudienceBoard } from "@/components/budget/audience-board";
 
 export const dynamic = "force-dynamic";
@@ -63,12 +63,14 @@ export default async function BudgetAudiencePage({
   const user = await auth();
   const canManage = user ? can(user, "audience.manage") : false;
 
-  const [audience, latest, recent, spend, horizon] = await Promise.all([
+  // Spend is known per PLATFORM through its own last upload (W1-2): a
+  // lagging platform's unreported days never enter a pressure denominator.
+  const [audience, latest, recent, spend, coverage] = await Promise.all([
     audienceSnapshotSeries(from, to),
     latestAudienceSnapshots(),
     recentAudienceSnapshots(),
     budgetPacingSeries(from, to),
-    dataHorizon(),
+    platformHorizons(),
   ]);
 
   return (
@@ -87,7 +89,7 @@ export default async function BudgetAudiencePage({
         latest={latest}
         recent={recent}
         spend={spend.spend}
-        horizon={horizon}
+        coverage={coverage}
         canManage={canManage}
       />
     </PageShell>

@@ -13,14 +13,13 @@ import { signedPct } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import {
   MUTED_TONE,
-  clipThrough,
   daysLeftAfter,
   groupTrackerByObjective,
   monthLabel,
   neededPerDay,
   pacingTone,
   rangeProjection,
-  type PlatformCoverage,
+  round2,
   type RangeBar,
   type RangePlatform,
   type TrackerBar,
@@ -63,7 +62,6 @@ export function PacingBoard({
   rows,
   totalRows,
   counts,
-  coverage,
   board,
   rank,
   group,
@@ -74,6 +72,7 @@ export function PacingBoard({
   onBehind,
   reserve,
   fmt,
+  toDisplay,
   currency,
   planMonth,
   canManage,
@@ -87,7 +86,6 @@ export function PacingBoard({
   /** How many platforms the range has before the tier-2 filters. */
   totalRows: number;
   counts: TrackerCounts;
-  coverage: PlatformCoverage;
   board: BoardMode;
   rank: PacingRank;
   group: PacingGroup;
@@ -103,6 +101,11 @@ export function PacingBoard({
   reserve: { kind: "month"; used: number; reserve: number } | { kind: "none" };
   /** Whole dollars — a reading, never a fact (the shared `whole` formatter). */
   fmt: (v: number) => string;
+  /**
+   * A USD amount in the DISPLAY currency, as a number — what the table's CSV
+   * writes, so a file named `…-sar.csv` holds SAR (audit B-17).
+   */
+  toDisplay: (usd: number) => number;
   currency: string;
   /** The single month the range sits in, for the empty state's Plan link. */
   planMonth: string | null;
@@ -183,8 +186,8 @@ export function PacingBoard({
             group={group}
             from={from}
             to={to}
-            coverage={coverage}
             fmt={fmt}
+            toDisplay={toDisplay}
             currency={currency}
           />
         </div>
@@ -546,16 +549,14 @@ function rowsByPlatform(platforms: readonly RangePlatform[]): BoardTableRow[] {
  * anchor is the LATEST of its platforms' (the fewest days left — the
  * conservative reading of what it still needs).
  */
-function rowsByObjective(
-  platforms: readonly RangePlatform[],
-  coverage: PlatformCoverage,
-  from: string,
-  to: string,
-): BoardTableRow[] {
+function rowsByObjective(platforms: readonly RangePlatform[]): BoardTableRow[] {
   const out: BoardTableRow[] = [];
+  // Each platform's OWN anchor, as the board computed it — the past-month
+  // rule included (`coveredThrough`), so the table and the bars agree.
+  const throughBy = new Map(platforms.map((p) => [p.key, p.through]));
+  const throughOf = (platform: string) => throughBy.get(platform) ?? null;
   groupTrackerByObjective(platforms).forEach((g, i) => {
     const order = String(i).padStart(2, "0");
-    const throughOf = (platform: string) => clipThrough(coverage[platform], from, to);
     const latest = g.rows.reduce<string | null>((acc, r) => {
       const t = throughOf(r.platform);
       return t !== null && (acc === null || t > acc) ? t : acc;
@@ -606,24 +607,21 @@ function BoardTable({
   group,
   from,
   to,
-  coverage,
   fmt,
+  toDisplay,
   currency,
 }: {
   rows: readonly RangePlatform[];
   group: PacingGroup;
   from: string;
   to: string;
-  coverage: PlatformCoverage;
   fmt: (v: number) => string;
+  toDisplay: (usd: number) => number;
   currency: string;
 }) {
   const rows = useMemo(
-    () =>
-      group === "objective"
-        ? rowsByObjective(platforms, coverage, from, to)
-        : rowsByPlatform(platforms),
-    [platforms, group, coverage, from, to],
+    () => (group === "objective" ? rowsByObjective(platforms) : rowsByPlatform(platforms)),
+    [platforms, group],
   );
 
   const columns: DataColumn<BoardTableRow>[] = useMemo(() => {
@@ -642,6 +640,8 @@ function BoardTable({
       r.unplanned ? null : rangeProjection(r.bar, r.through, to);
     const neededOf = (r: BoardTableRow) =>
       r.unplanned ? null : neededPerDay(r.bar, r.through, from, to);
+    /** A money cell for the CSV: the display currency, to the cent. */
+    const money = (usd: number | null) => (usd === null ? null : round2(toDisplay(usd)));
     return [
       {
         key: "item",
@@ -677,7 +677,7 @@ function BoardTable({
         sortValue: (r) => r.bar.plan,
         // An unplanned combo has no plan at all — a dash, never a fabricated $0.
         render: (r) => (r.unplanned ? <span className="num text-ink-3">—</span> : num(r.bar.plan)),
-        csv: (r) => (r.unplanned ? null : r.bar.plan),
+        csv: (r) => (r.unplanned ? null : money(r.bar.plan)),
         total: () => num(sum((b) => b.plan)),
       },
       {
@@ -686,6 +686,7 @@ function BoardTable({
         align: "right",
         sortable: true,
         sortValue: (r) => r.bar.actual,
+        csv: (r) => money(r.bar.actual),
         render: (r) => num(r.bar.actual),
         total: () => num(sum((b) => b.actual)),
       },
@@ -695,6 +696,7 @@ function BoardTable({
         align: "right",
         sortable: true,
         sortValue: (r) => r.bar.planToDate,
+        csv: (r) => money(r.bar.planToDate),
         render: (r) => num(r.bar.planToDate),
         total: () => num(sum((b) => b.planToDate)),
       },
@@ -704,6 +706,7 @@ function BoardTable({
         align: "right",
         sortable: true,
         sortValue: (r) => r.bar.delta,
+        csv: (r) => money(r.bar.delta),
         render: (r) => (
           // The same sign grammar as the Verdict: a true minus, never a hyphen.
           <span
@@ -742,7 +745,7 @@ function BoardTable({
         align: "right",
         sortable: true,
         sortValue: projectionOf,
-        csv: projectionOf,
+        csv: (r) => money(projectionOf(r)),
         render: (r) => {
           const p = projectionOf(r);
           return <span className="num tabular-nums text-ink-3">{p === null ? "—" : fmt(p)}</span>;
@@ -754,7 +757,7 @@ function BoardTable({
         align: "right",
         sortable: true,
         sortValue: neededOf,
-        csv: neededOf,
+        csv: (r) => money(neededOf(r)),
         render: (r) => {
           const n = neededOf(r);
           return <span className="num tabular-nums text-ink-3">{n === null ? "—" : fmt(n)}</span>;
@@ -762,7 +765,7 @@ function BoardTable({
       },
     ];
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rows, group, currency, from, to]);
+  }, [rows, group, currency, from, to, toDisplay]);
   // The table's own columns control, remembered per user per brand. The key
   // is the Tracker's — stored, so renaming it would orphan every saved choice.
   const columnKeys = columns.filter((c) => !c.pinned).map((c) => c.key);
