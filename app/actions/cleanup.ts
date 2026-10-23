@@ -7,7 +7,8 @@ import {
   previewCleanup,
   type CleanupPreview,
 } from "@/db/queries/cleanup";
-import { cleanupFiltersSchema } from "@/validators/cleanup";
+import { cleanupExpectedSchema, cleanupFiltersSchema } from "@/validators/cleanup";
+import { CLEANUP_SCOPE_CHANGED, CleanupScopeChangedError } from "@/lib/cleanup-guard";
 import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
 import { actionError } from "@/lib/action-error";
 
@@ -49,6 +50,9 @@ export async function previewCleanupAction(
  * This is a sanctioned exit path for performance_records (alongside batch
  * rollback): editor-or-admin, requires at least one filter, and writes an
  * audit entry recording the exact selection and the row count removed.
+ *
+ * The input carries the count the user PREVIEWED (`expectedRows`); the delete
+ * removes exactly that many rows or rolls back (W1-7).
  */
 export async function runCleanup(input: unknown): Promise<CleanupResult> {
   try {
@@ -58,14 +62,28 @@ export async function runCleanup(input: unknown): Promise<CleanupResult> {
       return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid filters" };
     }
     const f = parsed.data;
+    const expected = cleanupExpectedSchema.safeParse(input);
+    if (!expected.success) {
+      return { ok: false, error: expected.error.issues[0]?.message ?? "Preview the impact before deleting." };
+    }
+    const { expectedRows } = expected.data;
 
     // Capture the impact for the audit log before deleting.
     const preview = await previewCleanup(f);
     if (preview.rows === 0) {
       return { ok: false, error: "Nothing matches that selection." };
     }
+    if (preview.rows !== expectedRows) {
+      return { ok: false, error: CLEANUP_SCOPE_CHANGED };
+    }
 
-    const deleted = await deleteRecords(f);
+    let deleted: number;
+    try {
+      deleted = await deleteRecords(f, expectedRows);
+    } catch (err) {
+      if (err instanceof CleanupScopeChangedError) return { ok: false, error: err.message };
+      throw err;
+    }
 
     try {
       revalidatePath("/");

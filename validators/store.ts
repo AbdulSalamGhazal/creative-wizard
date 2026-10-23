@@ -59,6 +59,14 @@ export const storeCleanupFiltersSchema = z
 
 export type StoreCleanupFilters = z.infer<typeof storeCleanupFiltersSchema>;
 
+/** The previewed order count a delete must match (W1-7). */
+export const storeCleanupExpectedSchema = z.object({
+  expectedRows: z
+    .number({ required_error: "Preview the impact before deleting." })
+    .int()
+    .min(1),
+});
+
 /**
  * Assign a raw source value: one of the 4 platforms, "none" ("not an ad
  * platform" → a row with platform NULL), or "unset" (delete the row → unmapped).

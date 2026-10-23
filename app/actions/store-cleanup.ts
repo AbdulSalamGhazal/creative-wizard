@@ -7,7 +7,8 @@ import {
   deleteStoreOrders,
   type StoreCleanupPreview,
 } from "@/db/queries/store";
-import { storeCleanupFiltersSchema } from "@/validators/store";
+import { storeCleanupExpectedSchema, storeCleanupFiltersSchema } from "@/validators/store";
+import { CLEANUP_SCOPE_CHANGED, CleanupScopeChangedError } from "@/lib/cleanup-guard";
 import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
 import { actionError } from "@/lib/action-error";
 
@@ -47,7 +48,10 @@ export async function previewStoreCleanupAction(
   }
 }
 
-/** Permanently delete the store orders matching the selection. */
+/**
+ * Permanently delete the store orders matching the selection — exactly the
+ * count the user previewed (`expectedRows`), or nothing (W1-7).
+ */
 export async function runStoreCleanup(input: unknown): Promise<StoreCleanupResult> {
   try {
     const user = await requirePermission("store.cleanup");
@@ -56,14 +60,28 @@ export async function runStoreCleanup(input: unknown): Promise<StoreCleanupResul
       return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid filters" };
     }
     const f = parsed.data;
+    const expected = storeCleanupExpectedSchema.safeParse(input);
+    if (!expected.success) {
+      return { ok: false, error: expected.error.issues[0]?.message ?? "Preview the impact before deleting." };
+    }
+    const { expectedRows } = expected.data;
 
     // Capture the span/total for the audit BEFORE deleting; bail if nothing matches.
     const preview = await previewStoreCleanup(f);
     if (preview.orders === 0) {
       return { ok: false, error: "No orders match that selection." };
     }
+    if (preview.orders !== expectedRows) {
+      return { ok: false, error: CLEANUP_SCOPE_CHANGED };
+    }
 
-    const deleted = await deleteStoreOrders(f);
+    let deleted: number;
+    try {
+      deleted = await deleteStoreOrders(f, expectedRows);
+    } catch (err) {
+      if (err instanceof CleanupScopeChangedError) return { ok: false, error: err.message };
+      throw err;
+    }
 
     try {
       revalidatePath("/store/uploads");

@@ -7,6 +7,7 @@ import {
   platformEnum,
 } from "@/db/schema";
 import { getActiveAccountId } from "@/lib/tenant";
+import { CleanupScopeChangedError } from "@/lib/cleanup-guard";
 
 type Platform = (typeof platformEnum)[number];
 
@@ -157,12 +158,20 @@ export async function previewCleanup(f: CleanupMatch): Promise<CleanupPreview> {
  * NOTE: this is a sanctioned second exit path for performance_records
  * (admin-only, audited at the action layer) in addition to batch rollback.
  */
-export async function deleteRecords(f: CleanupMatch): Promise<number> {
+export async function deleteRecords(f: CleanupMatch, expectedRows?: number): Promise<number> {
   if (!hasAnyFilter(f)) return 0;
+  // Resolved BEFORE the transaction: the conditions read the campaigns table
+  // and the active brand, and the pool is one connection in production.
   const conds = await buildConditions(f, await getActiveAccountId());
-  const deleted = await db
-    .delete(performanceRecords)
-    .where(and(...conds))
-    .returning({ id: performanceRecords.id });
-  return deleted.length;
+  return db.transaction(async (tx) => {
+    const deleted = await tx
+      .delete(performanceRecords)
+      .where(and(...conds))
+      .returning({ id: performanceRecords.id });
+    // Exactly what was previewed, or nothing (W1-7).
+    if (expectedRows !== undefined && deleted.length !== expectedRows) {
+      throw new CleanupScopeChangedError(deleted.length, expectedRows);
+    }
+    return deleted.length;
+  });
 }

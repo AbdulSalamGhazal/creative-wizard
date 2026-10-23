@@ -45,6 +45,8 @@
   the KPI tiles.
 - Insights' "Other" is the RANGE total minus the shown values; the group cap
   never makes the rows stop summing to the total.
+- The order-cleanup tool deletes EXACTLY the previewed count or nothing —
+  the ads tool's rule (`lib/cleanup-guard.ts`, uploads-csv.md).
 
 ## History and rationale
 

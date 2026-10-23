@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { AlertTriangle, Check, ChevronDown, Trash2 } from "lucide-react";
 import { toast } from "sonner";
@@ -67,8 +67,17 @@ export function CleanupTool({ products, creatives, campaigns }: Props) {
   const [creativeIds, setCreativeIds] = useState<string[]>([]);
   const [campaignNames, setCampaignNames] = useState<string[]>([]);
 
-  const [preview, setPreview] = useState<CleanupPreview | null>(null);
+  /**
+   * The preview AND the exact filters it counted (W1-7). The delete sends
+   * those filters with the count the user was shown — never the live ones,
+   * which may have been edited while the preview was in flight.
+   */
+  const [preview, setPreview] = useState<
+    (CleanupPreview & { filters: typeof filters }) | null
+  >(null);
   const [confirmText, setConfirmText] = useState("");
+  /** Bumped by every filter change: a preview answering an older one is dropped. */
+  const requestId = useRef(0);
 
   const hasFilter =
     platforms.length > 0 ||
@@ -77,8 +86,9 @@ export function CleanupTool({ products, creatives, campaigns }: Props) {
     creativeIds.length > 0 ||
     campaignNames.length > 0;
 
-  // Any filter change invalidates a stale preview.
+  // Any filter change invalidates a stale preview — and one still in flight.
   const resetPreview = () => {
+    requestId.current += 1;
     setPreview(null);
     setConfirmText("");
   };
@@ -101,29 +111,38 @@ export function CleanupTool({ products, creatives, campaigns }: Props) {
   };
 
   const doPreview = () => {
+    const id = (requestId.current += 1);
+    const counted = filters;
     startTransition(async () => {
-      const res = await previewCleanupAction(filters);
+      const res = await previewCleanupAction(counted);
+      if (id !== requestId.current) return; // the filters moved on
       if (!res.ok || !res.preview) {
         toast.error(res.error ?? "Could not preview");
         return;
       }
-      setPreview(res.preview);
+      setPreview({ ...res.preview, filters: counted });
       setConfirmText("");
     });
   };
 
   const doDelete = () => {
+    if (!preview) return;
+    const { filters: counted, rows } = preview;
     startTransition(async () => {
-      const res = await runCleanup(filters);
+      const res = await runCleanup({ ...counted, expectedRows: rows });
       if (!res.ok) {
         toast.error(res.error ?? "Delete failed");
         return;
       }
       toast.success(`Deleted ${plural(res.deleted ?? 0, "record")}`);
-      // Reset the whole form.
+      // Reset the whole form — the range back to the default the picker
+      // shows, never null (null reads as "Last 7 days" on the pill but
+      // "all time" on the server).
+      const range = defaultDateRange();
+      requestId.current += 1;
       setPlatforms([]);
-      setFrom(null);
-      setTo(null);
+      setFrom(range.from);
+      setTo(range.to);
       setProductIds([]);
       setCreativeIds([]);
       setCampaignNames([]);

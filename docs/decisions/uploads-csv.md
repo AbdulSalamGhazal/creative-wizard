@@ -43,6 +43,14 @@
   columns) and its UPDATES are not rollback-able.
 - `performance_records` has exactly four sanctioned exit paths; no other code
   deletes from it.
+- **A cleanup deletes EXACTLY what was previewed, or nothing (W1-7,
+  2026-10-23).** The client sends the filters it PREVIEWED (a response for
+  older filters is dropped) with the count it showed (`expectedRows`,
+  required); the server refuses when its own count differs and deletes
+  inside a transaction that rolls back unless it removed that many rows
+  (`lib/cleanup-guard.ts`). After a delete the range resets to the picker's
+  default, never null ("Last 7 days" on the pill, all time on the server).
+  The store order-cleanup tool follows the same rule.
 
 ## History and rationale
 

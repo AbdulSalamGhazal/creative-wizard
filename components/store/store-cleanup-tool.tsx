@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { AlertTriangle, ChevronDown, Trash2 } from "lucide-react";
 import { toast } from "sonner";
@@ -48,8 +48,16 @@ export function StoreCleanupTool({ batches }: { batches: CleanupBatch[] }) {
   const [batchId, setBatchId] = useState<string | null>(null);
   const [orderIdText, setOrderIdText] = useState("");
 
-  const [preview, setPreview] = useState<StoreCleanupPreview | null>(null);
+  /**
+   * The preview AND the exact filters it counted (W1-7): the delete sends
+   * those with the count shown, never the live ones.
+   */
+  const [preview, setPreview] = useState<
+    (StoreCleanupPreview & { filters: typeof filters }) | null
+  >(null);
   const [confirmText, setConfirmText] = useState("");
+  /** Bumped by every filter change: a preview answering an older one is dropped. */
+  const requestId = useRef(0);
 
   // Split the search box into an exact id or a comma-separated list.
   const orderIds = useMemo(
@@ -64,6 +72,7 @@ export function StoreCleanupTool({ batches }: { batches: CleanupBatch[] }) {
   const hasFilter = (!!from && !!to) || !!batchId || orderIds.length > 0;
 
   const resetPreview = () => {
+    requestId.current += 1;
     setPreview(null);
     setConfirmText("");
   };
@@ -79,27 +88,36 @@ export function StoreCleanupTool({ batches }: { batches: CleanupBatch[] }) {
   );
 
   const doPreview = () => {
+    const id = (requestId.current += 1);
+    const counted = filters;
     startTransition(async () => {
-      const res = await previewStoreCleanupAction(filters);
+      const res = await previewStoreCleanupAction(counted);
+      if (id !== requestId.current) return; // the filters moved on
       if (!res.ok || !res.preview) {
         toast.error(res.error ?? "Could not preview");
         return;
       }
-      setPreview(res.preview);
+      setPreview({ ...res.preview, filters: counted });
       setConfirmText("");
     });
   };
 
   const doDelete = () => {
+    if (!preview) return;
+    const { filters: counted, orders } = preview;
     startTransition(async () => {
-      const res = await runStoreCleanup(filters);
+      const res = await runStoreCleanup({ ...counted, expectedRows: orders });
       if (!res.ok) {
         toast.error(res.error ?? "Delete failed");
         return;
       }
       toast.success(`Deleted ${res.deleted ?? 0} order${res.deleted === 1 ? "" : "s"}`);
-      setFrom(null);
-      setTo(null);
+      // Back to the default range the picker shows — never null, which the
+      // pill reads as "Last 7 days" and the server as "all time".
+      const range = defaultDateRange();
+      requestId.current += 1;
+      setFrom(range.from);
+      setTo(range.to);
       setBatchId(null);
       setOrderIdText("");
       setPreview(null);

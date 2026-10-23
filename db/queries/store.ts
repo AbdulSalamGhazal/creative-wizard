@@ -8,6 +8,7 @@ import {
 } from "@/db/schema";
 import { getActiveAccountId } from "@/lib/tenant";
 import { isCoreKey, isSystemRequiredKey, type StoreField, type StoreFieldType } from "@/store/fields";
+import { CleanupScopeChangedError } from "@/lib/cleanup-guard";
 
 /**
  * Store module queries — account-scoped (tenant §4.1) reads for the Store page
@@ -283,14 +284,23 @@ export async function previewStoreCleanup(
  * guard against deleting everything. A sanctioned exit path for `store_orders`
  * alongside batch rollback (audited at the action layer).
  */
-export async function deleteStoreOrders(f: StoreCleanupMatch): Promise<number> {
+export async function deleteStoreOrders(
+  f: StoreCleanupMatch,
+  expectedRows?: number,
+): Promise<number> {
   if (!hasAnyStoreCleanupFilter(f)) return 0;
   const conds = buildStoreCleanupConds(f, await getActiveAccountId());
-  const deleted = await db
-    .delete(storeOrders)
-    .where(and(...conds))
-    .returning({ id: storeOrders.id });
-  return deleted.length;
+  return db.transaction(async (tx) => {
+    const deleted = await tx
+      .delete(storeOrders)
+      .where(and(...conds))
+      .returning({ id: storeOrders.id });
+    // Exactly what was previewed, or nothing (W1-7).
+    if (expectedRows !== undefined && deleted.length !== expectedRows) {
+      throw new CleanupScopeChangedError(deleted.length, expectedRows);
+    }
+    return deleted.length;
+  });
 }
 
 // ── Upload batches ───────────────────────────────────────────────────────────
