@@ -52,6 +52,14 @@ const CHUNK_SIZE = 500;
 
 /** A landing page's code changed between validate and this transaction. */
 class LandingPagesChangedError extends Error {}
+/**
+ * An upsert's matched records are fixed at VALIDATE time (`existingIds`). If
+ * one is removed before the commit — a rollback, a cleanup — its UPDATE
+ * touches nothing and the row is neither updated nor inserted. Thrown inside
+ * the transaction so the whole commit (and the token claim) rolls back:
+ * all-or-nothing, never a success that silently dropped rows (W1-8).
+ */
+class RecordsChangedError extends Error {}
 
 /**
  * POST /api/uploads/commit
@@ -383,6 +391,8 @@ export async function POST(request: NextRequest) {
           metricUpdates.slice(i, i + CHUNK_SIZE),
         );
       }
+      // Every matched record must still be there to update (W1-8).
+      if (updated !== metricUpdates.length) throw new RecordsChangedError();
 
       // Re-stamp the updated rows against active rules too. A row's identity
       // (creative/platform/campaign/date/landing page) can't change on upsert, so this is a
@@ -455,6 +465,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: "Some landing pages changed since validation. Validate the file again." },
         { status: 422 },
+      );
+    }
+    if (err instanceof RecordsChangedError) {
+      return NextResponse.json(
+        { error: "Some records changed since validation. Validate the file again." },
+        { status: 409 },
       );
     }
     console.error("upload commit failed:", err);

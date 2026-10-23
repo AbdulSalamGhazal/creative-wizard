@@ -41,6 +41,11 @@
   `FIELD_LIST`/`FIELD_META` — never re-list fields in a component.
 - Upsert reuses the import validation (so the file must carry all mapped
   columns) and its UPDATES are not rollback-able.
+- **All-or-nothing holds in upsert too (W1-8, 2026-10-23):** the commit
+  updates EVERY record matched at validate time or rolls back — a matched
+  record removed in between (rollback, cleanup) is a 409 "Some records
+  changed since validation. Validate the file again.", never a 200 that
+  silently dropped the row.
 - `performance_records` has exactly four sanctioned exit paths; no other code
   deletes from it.
 - **A cleanup deletes EXACTLY what was previewed, or nothing (W1-7,
