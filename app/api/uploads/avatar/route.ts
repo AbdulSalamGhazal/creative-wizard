@@ -3,6 +3,8 @@ import { sniffImageType } from "@/lib/image-sniff";
 import { avatarStore, discardAvatar, storeAvatar } from "@/lib/avatar-storage";
 import { writeAvatar } from "@/lib/avatar-write";
 import { avatarUploadTargetSchema } from "@/validators/avatar";
+import { teamGuard } from "@/lib/team-guard";
+import { managerScope, memberAccess } from "@/db/queries/team";
 
 /**
  * Profile-photo upload (2026-10-20) — modelled on the creative-thumbnail
@@ -11,8 +13,10 @@ import { avatarUploadTargetSchema } from "@/validators/avatar";
  *
  *  - no `userId` → YOUR OWN photo. Signed in is enough; the session user is
  *    the subject, so there is no id to forge.
- *  - a `userId` that isn't yours → the Team page's admin path, behind
- *    `users.manage` (the permission that already gates editing people).
+ *  - a `userId` that isn't yours → the Team page's path, behind
+ *    `users.manage` (the permission that already gates editing people) and
+ *    the Team guard (D1: below admin, never an admin's photo) — both checked
+ *    BEFORE a byte is stored.
  *
  * The bytes are verified by content (magic bytes), never by the declared type,
  * because the file is served from a public host. Stores, then writes the URL
@@ -43,8 +47,14 @@ export async function POST(req: Request): Promise<Response> {
     return Response.json({ error: "Invalid person." }, { status: 400 });
   }
   const targetUserId = parsedTarget.data ?? me.id;
-  if (targetUserId !== me.id && !can(me, "users.manage")) {
-    return Response.json({ error: "You can only change your own photo." }, { status: 403 });
+  if (targetUserId !== me.id) {
+    if (!can(me, "users.manage")) {
+      return Response.json({ error: "You can only change your own photo." }, { status: 403 });
+    }
+    // A missing person falls through to `writeAvatar`'s 404, as before.
+    const target = await memberAccess(targetUserId);
+    const refusal = target && teamGuard(await managerScope(me), { kind: "photo", target });
+    if (refusal) return Response.json({ error: refusal }, { status: 403 });
   }
 
   if (avatarStore() === null) {

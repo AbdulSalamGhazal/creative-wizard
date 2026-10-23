@@ -24,6 +24,13 @@ import { updateUserAccess } from "@/app/actions/user";
 import { useNavTransition } from "@/lib/nav-progress";
 import { AdminSetPasswordButton } from "@/components/user/admin-set-password-button";
 import { UserPhotoControl } from "@/components/user/user-photo-control";
+import { UserAvatar } from "@/components/user/user-avatar";
+import {
+  holdsPermission,
+  teamGuard,
+  type ManagerScope,
+  type MemberAccess,
+} from "@/lib/team-guard";
 import {
   UserBrandsSection,
   type BrandOption,
@@ -81,11 +88,14 @@ export function UserAccessCard({
   user,
   isSelf,
   brands,
+  scope,
 }: {
   user: AccessUser;
   isSelf: boolean;
-  /** The full brand list (a users.manage editor may grant any brand). */
+  /** The full brand list, so the card shows the person's real brands. */
   brands: BrandOption[];
+  /** What the signed-in manager may hand out — `teamGuard` decides with it. */
+  scope: ManagerScope;
 }) {
   const initialPreset: Preset =
     user.role === "admin"
@@ -104,6 +114,27 @@ export function UserAccessCard({
   const [isPending, startTransition] = useNavTransition();
 
   const isAdmin = preset === "admin";
+
+  // The saved access every change is judged against — the SAME judgement the
+  // server makes (lib/team-guard.ts), so nothing here offers what it refuses.
+  const saved: MemberAccess = {
+    role: user.role,
+    permissions: user.permissions,
+    allAccounts: user.allAccounts,
+    accountIds: user.accountIds,
+  };
+  // Below admin, an admin's card is read-only.
+  const adminOffLimits = !scope.isAdmin && user.role === "admin";
+  const readOnly = isSelf || adminOffLimits;
+  const canSetPassword = teamGuard(scope, { kind: "password", target: saved }) === null;
+  const canChangePhoto = teamGuard(scope, { kind: "photo", target: saved }) === null;
+  /** A preset is offered when choosing it is allowed — or it is the saved one. */
+  const presetOffered = (p: Preset) =>
+    p === initialPreset ||
+    p === "custom" ||
+    teamGuard(scope, { kind: "access", target: saved, role: p, permissions: null }) === null;
+  /** A permission the manager doesn't hold stays exactly as it is. */
+  const outOfReach = (perm: Permission) => !holdsPermission(scope, perm);
 
   const payload = useMemo(() => {
     if (preset === "admin") return { role: "admin" as const, permissions: null };
@@ -135,7 +166,7 @@ export function UserAccessCard({
   }
 
   function toggle(perm: Permission) {
-    if (isAdmin || isSelf) return;
+    if (isAdmin || readOnly || outOfReach(perm)) return;
     setChecked((prev) => {
       const next = new Set(prev);
       if (next.has(perm)) next.delete(perm);
@@ -168,9 +199,13 @@ export function UserAccessCard({
     <div className="rounded-lg border border-line bg-surface">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-4 py-3">
         <div className="flex min-w-0 items-center gap-3">
-        {/* The photo: set or remove it for anyone here (this page is
-            `users.manage`; the server checks it again). */}
-        <UserPhotoControl userId={user.id} name={user.name} avatarUrl={user.avatarUrl} />
+        {/* The photo: set or remove it for anyone the guard allows (this
+            page is `users.manage`; the server checks both again). */}
+        {canChangePhoto ? (
+          <UserPhotoControl userId={user.id} name={user.name} avatarUrl={user.avatarUrl} />
+        ) : (
+          <UserAvatar name={user.name} src={user.avatarUrl} size="lg" />
+        )}
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <span className="truncate text-sm font-medium text-ink">
@@ -195,12 +230,14 @@ export function UserAccessCard({
         {/* min-w-0 + a shrinkable select: at 375 px the password button and
             a fixed 220 px select overran the card by a pixel or so. */}
         <div className="flex min-w-0 max-w-full items-center gap-2">
-          <AdminSetPasswordButton userId={user.id} userEmail={user.email} />
+          {canSetPassword && (
+            <AdminSetPasswordButton userId={user.id} userEmail={user.email} />
+          )}
           <div className="w-[220px] min-w-0 max-w-full shrink">
             <Select
               value={preset}
               onValueChange={(v) => selectPreset(v as Preset)}
-              disabled={isSelf}
+              disabled={readOnly}
             >
               <SelectTrigger
                 aria-label="Access preset"
@@ -209,11 +246,13 @@ export function UserAccessCard({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {(Object.keys(PRESET_LABEL) as Preset[]).map((p) => (
-                  <SelectItem key={p} value={p}>
-                    {PRESET_LABEL[p]}
-                  </SelectItem>
-                ))}
+                {(Object.keys(PRESET_LABEL) as Preset[])
+                  .filter(presetOffered)
+                  .map((p) => (
+                    <SelectItem key={p} value={p}>
+                      {PRESET_LABEL[p]}
+                    </SelectItem>
+                  ))}
               </SelectContent>
             </Select>
           </div>
@@ -227,7 +266,9 @@ export function UserAccessCard({
             <div className="space-y-1">
               {group.perms.map((perm) => {
                 const on = checked.has(perm.key);
-                const locked = isAdmin || isSelf;
+                // Out of reach = the manager doesn't hold it; it stays as is.
+                const unheld = !isAdmin && !readOnly && outOfReach(perm.key);
+                const locked = isAdmin || readOnly || unheld;
                 return (
                   <button
                     key={perm.key}
@@ -239,11 +280,14 @@ export function UserAccessCard({
                     aria-checked={on}
                     onClick={() => toggle(perm.key)}
                     disabled={locked}
+                    title={unheld ? "You don't have this permission yourself." : undefined}
                     className={cn(
                       "flex w-full items-center gap-2 rounded-md px-2 py-1 text-left text-xs transition-colors",
                       locked
                         ? "cursor-default"
                         : "hover:bg-surface-2",
+                      // Greyed out: shown as it is, not yours to change.
+                      unheld && "opacity-50",
                     )}
                   >
                     <span
@@ -261,6 +305,11 @@ export function UserAccessCard({
                     <span className={cn("text-ink-2", on && "text-ink")}>
                       {perm.label}
                     </span>
+                    {unheld && (
+                      <span className="sr-only">
+                        {" "}(you don&apos;t have this permission yourself)
+                      </span>
+                    )}
                   </button>
                 );
               })}
@@ -274,13 +323,16 @@ export function UserAccessCard({
         isSelf={isSelf}
         isAdmin={user.role === "admin"}
         brands={brands}
+        scope={scope}
         initialAllAccounts={user.allAccounts}
         initialAccountIds={user.accountIds}
       />
 
-      {isSelf ? (
+      {readOnly ? (
         <div className="border-t border-line px-4 py-2 text-xs text-ink-3">
-          You can&apos;t change your own access.
+          {isSelf
+            ? "You can't change your own access."
+            : "Only an admin can change an admin."}
         </div>
       ) : (
         dirty && (

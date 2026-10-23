@@ -16,13 +16,44 @@ import {
 import { cn } from "@/lib/utils";
 import { inviteUser } from "@/app/actions/user";
 import type { BrandOption } from "@/components/user/user-brands-section";
+import { holdsEveryBrand, teamGuard, type ManagerScope } from "@/lib/team-guard";
+import type { RoleTier } from "@/lib/permissions";
 
-export function UserInviteForm({ brands }: { brands: BrandOption[] }) {
+const ROLE_LABEL: Record<RoleTier, string> = {
+  viewer: "Viewer",
+  editor: "Editor",
+  admin: "Admin",
+};
+
+export function UserInviteForm({
+  brands,
+  scope,
+}: {
+  /** The brands this manager may grant (all of them, unless restricted). */
+  brands: BrandOption[];
+  /** What the signed-in manager may hand out — `teamGuard` decides with it. */
+  scope: ManagerScope;
+}) {
+  // Below admin, offer only the starting access the guard would accept: never
+  // Admin, and Editor only for someone who holds the whole preset (D1).
+  const everyBrand = holdsEveryBrand(scope);
+  const roles = (["viewer", "editor", "admin"] as const).filter(
+    (r) =>
+      teamGuard(scope, {
+        kind: "invite",
+        role: r,
+        allAccounts: everyBrand,
+        accountIds: [],
+      }) === null,
+  );
+  const defaultRole: RoleTier = roles.includes("editor") ? "editor" : "viewer";
+
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
-  const [role, setRole] = useState<"admin" | "editor" | "viewer">("editor");
+  const [role, setRole] = useState<RoleTier>(defaultRole);
   const [password, setPassword] = useState("");
-  const [allAccounts, setAllAccounts] = useState(true);
+  // A manager restricted to some brands can't grant "All brands".
+  const [allAccounts, setAllAccounts] = useState(everyBrand);
   const [accountIds, setAccountIds] = useState<Set<string>>(() => new Set());
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -63,9 +94,9 @@ export function UserInviteForm({ brands }: { brands: BrandOption[] }) {
       toast.success(`Invited ${name.trim()}`);
       setName("");
       setEmail("");
-      setRole("editor");
+      setRole(defaultRole);
       setPassword("");
-      setAllAccounts(true);
+      setAllAccounts(everyBrand);
       setAccountIds(new Set());
     });
   };
@@ -101,9 +132,11 @@ export function UserInviteForm({ brands }: { brands: BrandOption[] }) {
           <Select value={role} onValueChange={(v) => setRole(v as typeof role)}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="viewer">Viewer</SelectItem>
-              <SelectItem value="editor">Editor</SelectItem>
-              <SelectItem value="admin">Admin</SelectItem>
+              {roles.map((r) => (
+                <SelectItem key={r} value={r}>
+                  {ROLE_LABEL[r]}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>
@@ -137,26 +170,28 @@ export function UserInviteForm({ brands }: { brands: BrandOption[] }) {
           </p>
         ) : (
           <>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={allAccounts}
-              onClick={() => setAllAccounts((v) => !v)}
-              className="flex items-center gap-2 text-xs text-ink-2 hover:text-ink"
-            >
-              <span
-                className={cn(
-                  "flex h-4 w-4 shrink-0 items-center justify-center rounded border",
-                  allAccounts
-                    ? "border-transparent bg-[var(--brand)] text-[var(--primary-foreground)]"
-                    : "border-line",
-                )}
-                aria-hidden
+            {everyBrand && (
+              <button
+                type="button"
+                role="switch"
+                aria-checked={allAccounts}
+                onClick={() => setAllAccounts((v) => !v)}
+                className="flex items-center gap-2 text-xs text-ink-2 hover:text-ink"
               >
-                {allAccounts && <Check className="h-3 w-3" strokeWidth={3} />}
-              </span>
-              All brands (including brands created later)
-            </button>
+                <span
+                  className={cn(
+                    "flex h-4 w-4 shrink-0 items-center justify-center rounded border",
+                    allAccounts
+                      ? "border-transparent bg-[var(--brand)] text-[var(--primary-foreground)]"
+                      : "border-line",
+                  )}
+                  aria-hidden
+                >
+                  {allAccounts && <Check className="h-3 w-3" strokeWidth={3} />}
+                </span>
+                All brands (including brands created later)
+              </button>
+            )}
             {!allAccounts && (
               <div className="grid gap-1 pt-1 sm:grid-cols-2 lg:grid-cols-3">
                 {brands.map((b) => {
@@ -165,6 +200,8 @@ export function UserInviteForm({ brands }: { brands: BrandOption[] }) {
                     <button
                       key={b.id}
                       type="button"
+                      role="checkbox"
+                      aria-checked={on}
                       onClick={() => toggleBrand(b.id)}
                       className="flex w-full items-center gap-2 rounded-md px-2 py-1 text-left text-xs transition-colors hover:bg-surface-2"
                     >

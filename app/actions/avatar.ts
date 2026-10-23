@@ -4,6 +4,8 @@ import { requireAuth, requirePermission } from "@/lib/auth";
 import { actionError } from "@/lib/action-error";
 import { writeAvatar } from "@/lib/avatar-write";
 import { avatarTargetSchema } from "@/validators/avatar";
+import { teamGuard } from "@/lib/team-guard";
+import { managerScope, memberAccess } from "@/db/queries/team";
 
 /**
  * Remove a profile photo — back to coloured initials (2026-10-20). Setting
@@ -25,12 +27,19 @@ export async function removeMyAvatar(): Promise<AvatarActionResult> {
   }
 }
 
-/** Someone else's — the Team page, behind `users.manage`. */
+/**
+ * Someone else's — the Team page, behind `users.manage` and the Team guard
+ * (D1: below admin, never an admin's photo).
+ */
 export async function removeUserAvatar(input: unknown): Promise<AvatarActionResult> {
   try {
     const me = await requirePermission("users.manage");
     const parsed = avatarTargetSchema.safeParse(input);
     if (!parsed.success) return { ok: false, error: "Invalid person." };
+    const target = await memberAccess(parsed.data.userId);
+    if (!target) return { ok: false, error: "That person no longer exists." };
+    const refusal = teamGuard(await managerScope(me), { kind: "photo", target });
+    if (refusal) return { ok: false, error: refusal };
     return await writeAvatar({
       targetUserId: parsed.data.userId,
       url: null,

@@ -18,6 +18,26 @@
   pre-empts before any tenant query runs.
 - Permissions DERIVE from `PERMISSION_GROUPS`; every mutating action or route
   calls `requirePermission`. **UI gating is UX-only** — the server is the gate.
+- **Below admin, "Manage users & access" works WITHIN the manager's own
+  access (D1, 2026-10-23).** ONE guard — `teamGuard` in `lib/team-guard.ts`
+  — runs on every Team write: invite, access (role + permissions), brands,
+  password reset and the avatar admin path (`removeUserAvatar` and
+  `POST /api/uploads/avatar` with someone else's `userId`). A non-admin
+  holder: never makes an admin and never changes an admin's access, brands,
+  password or photo; switches on OR off only permissions they hold
+  themselves (judged on EFFECTIVE sets, so a preset is judged by what it
+  grants; anything else on the person stays exactly as it was); if
+  restricted to some brands, grants or removes only those brands, never
+  "every brand", and can't narrow an every-brand member; and sets a
+  password only for someone whose whole access (permissions AND brands) is
+  within theirs — a reset is a takeover. Admins pass every check; the
+  self-edit and last-admin rules stay in the actions. Each refusal is a
+  sentence from `TEAM_REFUSAL` / `grantRefusal` / `removeRefusal`. The Team
+  page calls the SAME function to hide or grey out what the manager can't
+  use (`managerScope` / `memberAccess` in `db/queries/team.ts` feed it), so
+  the UI never offers what the server refuses — but the server stays the
+  gate. Pinned by `tests/db/team-guard.test.ts` (every path, real actions,
+  pool size 1) and `lib/team-guard.test.ts`.
 - The upload commit uses the account pinned on the validation session at
   validate time, so a mid-flow brand switch cannot cross-write.
 
@@ -128,3 +148,33 @@ as it stood before the restructure.*
     flow accepts `viewer` too. (`/admin/access` is a redirect stub → `/admin/users`;
     the old per-row `UserRoleSelect` + `updateUserRole` were removed — the card's
     preset selector supersedes them.)
+
+### "Manage users & access" was admin-equivalent (D1, 2026-10-23)
+
+The 2026-10-23 system audit (B-01) found that every Team mutation checked
+only `requirePermission("users.manage")`. A non-admin holder could invite
+`role: "admin"`, promote anyone to admin, reset the admin's password (and
+sign in as them — the audit row was the only trace), and hand out
+permissions and brands they never had: a restricted holder could invite an
+every-brand user. Nothing in the catalog label ("Manage users & access") or
+the docs said the permission equalled admin. The user chose option (a) of
+three — enforce "you can't grant what you don't hold" — over making it
+admin-only or removing it.
+
+The fix is the invariant above: one pure guard, used by the five write paths
+and by the Team page's components, so the two can't disagree. Two choices
+in it went past the letter of the decision and are flagged for the user:
+a holder can't REMOVE a permission or brand they don't hold either (a
+manager works inside their own scope in both directions), and below admin a
+password can be set only for someone whose access is within the
+manager's — not just "never an admin's" — because a reset hands the
+manager that person's access. This supersedes the history above that says
+"a `users.manage` editor may grant any brand": the Team page still LISTS
+every brand (so a card shows the person's real brands), but a restricted
+manager's invite offers only their own, and brands they don't belong to are
+greyed out on every card.
+
+The scratch tests that proved the escalations were ported into
+`tests/db/team-guard.test.ts`: 19 of its 33 cases failed before the guard
+(every refusal) and all pass after.
+

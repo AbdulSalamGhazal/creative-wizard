@@ -16,6 +16,8 @@ import { isolate } from "@/lib/bidi";
 import { isPermission } from "@/lib/permissions";
 import { actionError } from "@/lib/action-error";
 import { listAllAccounts } from "@/lib/tenant";
+import { teamGuard } from "@/lib/team-guard";
+import { managerScope, memberAccess } from "@/db/queries/team";
 import { createNotifications } from "@/db/queries/notifications";
 import { DIRECT_EVENT_TYPES, categoryForType } from "@/lib/notifications";
 
@@ -103,6 +105,15 @@ export async function inviteUser(input: unknown): Promise<UserMutationResult> {
     );
     if ("error" in grant) return { ok: false, error: grant.error };
 
+    // Below admin: no admins, and nothing the inviter doesn't hold (D1).
+    const refusal = teamGuard(await managerScope(me), {
+      kind: "invite",
+      role,
+      allAccounts: grant.allAccounts,
+      accountIds: grant.accountIds,
+    });
+    if (refusal) return { ok: false, error: refusal };
+
     const [existing] = await db
       .select({ id: users.id })
       .from(users)
@@ -167,8 +178,10 @@ export async function inviteUser(input: unknown): Promise<UserMutationResult> {
  * Team page (`/admin/users`). `permissions: null` means "derive from the role
  * preset" (the Admin/Editor/Viewer presets); a non-null array is a Custom grant.
  *
- * Guardrails: you can't edit your OWN access (no self-escalation), and you can't
- * demote the last admin (the team would lock itself out). Every change is
+ * Guardrails: you can't edit your OWN access (no self-escalation), you can't
+ * demote the last admin (the team would lock itself out), and below admin the
+ * Team guard applies (`teamGuard`, D1): no admins made or touched, and only
+ * permissions the manager holds may be switched on or off. Every change is
  * audited with the before/after role + permissions.
  */
 export async function updateUserAccess(
@@ -196,16 +209,16 @@ export async function updateUserAccess(
         ? null
         : parsed.data.permissions.filter(isPermission);
 
-    const [before] = await db
-      .select({
-        email: users.email,
-        role: users.role,
-        permissions: users.permissions,
-      })
-      .from(users)
-      .where(eq(users.id, userId))
-      .limit(1);
+    const before = await memberAccess(userId);
     if (!before) return { ok: false, error: "User not found." };
+
+    const refusal = teamGuard(await managerScope(me), {
+      kind: "access",
+      target: before,
+      role,
+      permissions,
+    });
+    if (refusal) return { ok: false, error: refusal };
 
     // Never let the last admin be demoted.
     if (before.role === "admin" && role !== "admin") {
@@ -254,8 +267,9 @@ export async function updateUserAccess(
  * including brands created later; `false` → only `accountIds` (≥1 required).
  *
  * Guardrails mirror the access card: you can't change your OWN brand access,
- * admins are forced all-brands, and the before/after is audited
- * (`user.brands_update`).
+ * admins are forced all-brands, below admin the Team guard applies
+ * (`teamGuard`, D1: a restricted manager grants or removes only their own
+ * brands), and the before/after is audited (`user.brands_update`).
  */
 export async function updateUserBrands(
   input: unknown,
@@ -274,23 +288,24 @@ export async function updateUserBrands(
       return { ok: false, error: "You can't change your own brand access." };
     }
 
-    const [target] = await db
-      .select({
-        email: users.email,
-        role: users.role,
-        allAccounts: users.allAccounts,
-      })
-      .from(users)
-      .where(eq(users.id, userId))
-      .limit(1);
+    const target = await memberAccess(userId);
     if (!target) return { ok: false, error: "User not found." };
 
     const grant = await resolveGrant(
-      target.role as "admin" | "editor" | "viewer",
+      target.role,
       parsed.data.allAccounts,
       parsed.data.accountIds,
     );
     if ("error" in grant) return { ok: false, error: grant.error };
+
+    // Judged on the NORMALIZED grant — exactly what is about to be written.
+    const refusal = teamGuard(await managerScope(me), {
+      kind: "brands",
+      target,
+      allAccounts: grant.allAccounts,
+      accountIds: grant.accountIds,
+    });
+    if (refusal) return { ok: false, error: refusal };
 
     // Snapshot the current memberships for the audit before/after.
     const beforeIds = (
@@ -374,8 +389,11 @@ export async function updateUserBrands(
 }
 
 /**
- * Admin sets a password for any user — used to reset a forgotten password or
- * to give a passwordless legacy account a credential.
+ * Set a password for a teammate — used to reset a forgotten password or to
+ * give a passwordless legacy account a credential. An admin may set anyone's;
+ * below admin the Team guard applies (`teamGuard`, D1): never an admin's, and
+ * only for someone whose access is within the manager's own — a reset is a
+ * takeover, so it must not hand the manager access they don't have.
  */
 export async function adminSetPassword(input: unknown): Promise<UserMutationResult> {
   try {
@@ -387,12 +405,12 @@ export async function adminSetPassword(input: unknown): Promise<UserMutationResu
         error: parsed.error.issues[0]?.message ?? "Invalid input",
       };
     }
+    const target = await memberAccess(parsed.data.userId);
+    if (!target) return { ok: false, error: "User not found." };
+    const refusal = teamGuard(await managerScope(me), { kind: "password", target });
+    if (refusal) return { ok: false, error: refusal };
+
     const hash = await hashPassword(parsed.data.password);
-    const [target] = await db
-      .select({ email: users.email })
-      .from(users)
-      .where(eq(users.id, parsed.data.userId))
-      .limit(1);
     await db
       .update(users)
       .set({ passwordHash: hash })
@@ -407,7 +425,7 @@ export async function adminSetPassword(input: unknown): Promise<UserMutationResu
       action: AUDIT_ACTIONS.USER_PASSWORD_RESET,
       entityType: "user",
       entityId: parsed.data.userId,
-      entityLabel: target?.email ?? null,
+      entityLabel: target.email,
       actorUserId: me.id,
     });
     return { ok: true };

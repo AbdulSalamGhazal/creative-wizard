@@ -87,7 +87,8 @@
 - **Profile photos have ONE writer** (`writeAvatar`): only URLs we stored,
   the replaced file discarded, every change audited (`user.avatar_update`,
   `meta.self`). Yours from the account menu (no id travels); anyone's on the
-  Team page behind `users.manage`.
+  Team page behind `users.manage` — and, below admin, never an admin's
+  (`teamGuard`, D1; see tenancy-auth.md).
 - **Opening the bell = seen** (user decision, 2026-10-20). It LISTS every
   unread item up to `BELL_UNREAD_CAP` (newest read ones fill to
   `BELL_RECENT_LIMIT`), so opening it marks read exactly what it showed —
