@@ -1973,8 +1973,14 @@ export async function launchFatigue(
     ),
   );
 
+  // MATERIALIZED (W1-12, 2026-10-23): referenced once, the CTE is otherwise
+  // INLINED by Postgres ≥ 12, and every one of the ~37 references to
+  // `eff.eff_launch` below re-runs its correlated MIN(date) subquery per joined
+  // row — 19,847 buffer hits and 25 ms on 547 local rows, roughly quadratic in
+  // a brand's history. Materialized it runs once per creative: 139 buffers,
+  // 0.6 ms, the same rows.
   const rows = (await db.execute(sql`
-    WITH eff AS (
+    WITH eff AS MATERIALIZED (
       SELECT c.id, c.name, c.type, p.name AS product_name,
              (c.launch_date IS NULL) AS derived,
              COALESCE(c.launch_date, (
