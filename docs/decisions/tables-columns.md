@@ -8,6 +8,13 @@
 
 ## Invariants
 
+- **Every CSV export neutralizes formulas in TEXT cells (D4, 2026-10-23).**
+  `lib/csv-export.ts` (`rowsToCsv` / `matrixToCsv`, behind every Download CSV
+  button and the store orders export) prefixes an apostrophe to a text cell
+  starting with = + - @ (or tab / CR), so a spreadsheet shows it as text
+  instead of running it — store exports carry customer-typed text. Numbers,
+  and numbers written as text ("-12.50"), are never touched. Never build a
+  CSV outside those two writers.
 - **Every `DataTable` passes a `columnsKey`** from the `TABLE_KEYS` registry,
   or appears in the coverage test's exemption list with a written reason.
 - **The columns control lives IN the table's header row** (`TableCorner`) and

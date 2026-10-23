@@ -89,3 +89,24 @@ describe("rowsToCsv — RFC 4180 escaping", () => {
     expect(csv).toContain('"Spend, USD"');
   });
 });
+
+describe("rowsToCsv — formulas in text cells are neutralized (D4)", () => {
+  it("a text cell starting with = + - @ gains a leading apostrophe and stays ONE cell", () => {
+    for (const evil of ['=HYPERLINK("http://x","click")', "+1+1", "-2+3", "@SUM(A1)", "\tcmd", "=1,2"]) {
+      const csv = rowsToCsv([{ a: evil, b: "x" }], COLS);
+      expect(parse(csv)[1]).toEqual([`'${evil}`, "x"]);
+    }
+  });
+  it("numbers — and numbers written as text — are never touched", () => {
+    const numCols: CsvColumn<{ n: number; s: string }>[] = [
+      { key: "n", label: "N", value: (r) => r.n },
+      { key: "s", label: "S", value: (r) => r.s },
+    ];
+    const csv = rowsToCsv([{ n: -5, s: "-12.50" }, { n: 3, s: "+4" }], numCols);
+    expect(parse(csv).slice(1)).toEqual([["-5", "-12.50"], ["3", "+4"]]);
+  });
+  it("ordinary text is unchanged", () => {
+    expect(parse(rowsToCsv([{ a: "Salla – order", b: "a=b" }], COLS))[1]).toEqual(["Salla – order", "a=b"]);
+  });
+});
+

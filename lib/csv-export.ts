@@ -13,9 +13,29 @@ export interface CsvColumn<T> {
   value: (row: T, index: number) => string | number | null | undefined;
 }
 
+/** A cell a spreadsheet would evaluate: it starts with = + - @ (or tab / CR). */
+const FORMULA_START = /^[=+\-@\t\r]/;
+/** …unless it is just a number written as text ("-12.50" is a number). */
+const PLAIN_NUMBER = /^[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?$/;
+
+/**
+ * Neutralize spreadsheet formulas in TEXT cells (D4, 2026-10-23): a text cell
+ * starting with = + - @ (or a tab / carriage return) gains a leading
+ * apostrophe, so Excel or Sheets shows it as text instead of evaluating it.
+ * Store order exports carry customer-typed text (names, addresses) and ad
+ * names come from platform exports, so `=HYPERLINK(…)` or `=WEBSERVICE(…)`
+ * planted there would run when the file was opened. Numbers — and numbers
+ * written as text, like "-12.50" — are never touched.
+ */
+export function neutralizeFormula(v: unknown): unknown {
+  if (typeof v !== "string") return v;
+  if (!FORMULA_START.test(v) || PLAIN_NUMBER.test(v)) return v;
+  return `'${v}`;
+}
+
 function escapeCell(v: unknown): string {
   if (v === null || v === undefined) return "";
-  const s = String(v);
+  const s = String(neutralizeFormula(v));
   if (s.includes(",") || s.includes('"') || s.includes("\n") || s.includes("\r")) {
     return `"${s.replace(/"/g, '""')}"`;
   }
