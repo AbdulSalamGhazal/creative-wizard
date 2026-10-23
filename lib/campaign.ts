@@ -70,3 +70,15 @@ export function parseCampaignName(
   const parts = base.split(" ➤ ");
   return { campaign: parts[0] ?? "", adset: parts.slice(1).join(" ➤ ") };
 }
+
+/**
+ * A campaign's platform is LOCKED once it has records (D9, 2026-10-23): each
+ * record carries its own platform, so re-tagging the campaign made the two
+ * disagree and the old name's next upload hit E061. The edit dialog shows the
+ * tip; the action refuses with the sentence.
+ */
+export const CAMPAIGN_PLATFORM_LOCKED =
+  "This campaign already has records, so its platform can't change.";
+export const CAMPAIGN_PLATFORM_LOCKED_TIP =
+  "Locked — this campaign already has records, and they were uploaded for this platform.";
+

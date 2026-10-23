@@ -174,6 +174,7 @@ export default async function CampaignDetailPage({
                 adset={nameParts.adset}
                 platform={registry.platform}
                 objective={registry.objective}
+                hasRecords={campaignFirst !== null}
               />
             )}
             <ExcludedParamToggle on={inc} />

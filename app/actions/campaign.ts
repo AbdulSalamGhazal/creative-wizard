@@ -6,7 +6,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { requirePermission } from "@/lib/auth";
 import { campaigns, performanceRecords } from "@/db/schema";
-import { buildCampaignName } from "@/lib/campaign";
+import { buildCampaignName, CAMPAIGN_PLATFORM_LOCKED } from "@/lib/campaign";
 import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
 import {
   deleteRulesTargeting,
@@ -102,6 +102,10 @@ export async function createCampaign(input: unknown): Promise<CampaignMutationRe
  * the caller's id), and a rename must stay unique per account. Existing
  * performance_records follow automatically — they reference campaign_id, not the
  * name. Returns the new stored name so the caller can follow the URL on rename.
+ *
+ * The PLATFORM is locked once the campaign has records (D9, 2026-10-23): the
+ * records carry their own platform, so re-tagging the campaign made the two
+ * disagree, and the old name's next upload then hit E061.
  */
 export async function updateCampaign(input: unknown): Promise<CampaignMutationResult> {
   try {
@@ -132,6 +136,7 @@ export async function updateCampaign(input: unknown): Promise<CampaignMutationRe
         id: campaigns.id,
         name: campaigns.name,
         objective: campaigns.objective,
+        platform: campaigns.platform,
       })
       .from(campaigns)
       .where(and(eq(campaigns.id, id), eq(campaigns.accountId, acct)))
@@ -139,6 +144,7 @@ export async function updateCampaign(input: unknown): Promise<CampaignMutationRe
     if (!current) {
       return { ok: false, error: "Campaign not found." };
     }
+    const platformChanged = platform !== current.platform;
 
     // On rename, enforce per-account uniqueness against OTHER campaigns.
     if (name !== current.name) {
@@ -168,7 +174,18 @@ export async function updateCampaign(input: unknown): Promise<CampaignMutationRe
     let exclusionsReleased = 0;
     let exclusionsRestamped = 0;
 
-    await db.transaction(async (tx) => {
+    const locked = await db.transaction(async (tx) => {
+      // Checked inside the transaction, against the same snapshot as the write.
+      if (platformChanged) {
+        const [hasRecord] = await tx
+          .select({ id: performanceRecords.id })
+          .from(performanceRecords)
+          .where(
+            and(eq(performanceRecords.accountId, acct), eq(performanceRecords.campaignId, id)),
+          )
+          .limit(1);
+        if (hasRecord) return true;
+      }
       await tx
         .update(campaigns)
         .set({ name, platform, objective })
@@ -178,7 +195,15 @@ export async function updateCampaign(input: unknown): Promise<CampaignMutationRe
         exclusionsReleased = await releaseStaleObjectiveStamps(tx, acct, id, objective);
         exclusionsRestamped = await resweepActiveRules(tx, acct);
       }
+      return false;
     });
+    if (locked) {
+      return {
+        ok: false,
+        error: CAMPAIGN_PLATFORM_LOCKED,
+        fieldErrors: { platform: "Locked" },
+      };
+    }
 
     try {
       revalidatePath("/campaigns");

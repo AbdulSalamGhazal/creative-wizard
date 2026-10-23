@@ -23,7 +23,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { buildCampaignName, CAMPAIGN_OBJECTIVES } from "@/lib/campaign";
+import {
+  buildCampaignName,
+  CAMPAIGN_OBJECTIVES,
+  CAMPAIGN_PLATFORM_LOCKED_TIP,
+} from "@/lib/campaign";
+import { InfoTip } from "@/components/ui/info-tip";
 import { ALL_PLATFORMS, PLATFORM_LABEL } from "@/lib/palette";
 import { updateCampaign } from "@/app/actions/campaign";
 import { useCan } from "@/components/auth/permissions-context";
@@ -41,6 +46,7 @@ export function CampaignEditDialog({
   adset: initAdset,
   platform: initPlatform,
   objective: initObjective,
+  hasRecords,
 }: {
   id: string;
   currentName: string;
@@ -48,6 +54,8 @@ export function CampaignEditDialog({
   adset: string;
   platform: string;
   objective: string;
+  /** Records exist → the platform is locked (D9); the server refuses it too. */
+  hasRecords: boolean;
 }) {
   const router = useRouter();
   const canEdit = useCan("campaign.edit");
@@ -132,8 +140,15 @@ export function CampaignEditDialog({
             />
           </Field>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Field label="Platform">
-              <Select value={platform} onValueChange={setPlatform}>
+            <Field
+              label="Platform"
+              tip={
+                hasRecords ? (
+                  <InfoTip label="Why the platform is locked">{CAMPAIGN_PLATFORM_LOCKED_TIP}</InfoTip>
+                ) : null
+              }
+            >
+              <Select value={platform} onValueChange={setPlatform} disabled={hasRecords}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select a platform…" />
                 </SelectTrigger>
@@ -198,14 +213,20 @@ export function CampaignEditDialog({
 
 function Field({
   label,
+  tip,
   children,
 }: {
   label: string;
+  /** An ⓘ beside the label — the reason a control is locked, say. */
+  tip?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
     <div className="space-y-1.5">
-      <Label>{label}</Label>
+      <div className="flex items-center gap-1.5">
+        <Label>{label}</Label>
+        {tip}
+      </div>
       {children}
     </div>
   );

@@ -18,6 +18,13 @@
   return, and a rename must sweep saved views.
 - Deleting a campaign removes its records in a transaction and KEEPS the
   creatives that ran in it.
+- **A campaign's platform is LOCKED once it has records (D9, 2026-10-23).**
+  Each record carries its own platform; re-tagging the campaign made the two
+  disagree and the old name's next upload hit E061. `updateCampaign` refuses
+  inside its transaction ("This campaign already has records, so its
+  platform can't change."); the edit dialog disables the select with an ⓘ
+  saying why (`CAMPAIGN_PLATFORM_LOCKED` / `_TIP` in `lib/campaign.ts`).
+  Name and objective stay editable.
 
 ## History and rationale
 
