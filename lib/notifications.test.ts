@@ -116,6 +116,11 @@ describe("hrefs are data, not trust", () => {
     expect(safeHref("//example.com/phish")).toBeNull();
     expect(safeHref("javascript:alert(1)")).toBeNull();
   });
+  it("refuses a backslash or a control character after the slash (W1-13)", () => {
+    // `new URL("/\\evil.com", origin)` resolves to https://evil.com/.
+    expect(safeHref("/\\evil.com")).toBeNull();
+    expect(safeHref("/\t/evil.com")).toBeNull();
+  });
 });
 
 describe("tuning knobs are single constants", () => {
@@ -488,3 +493,15 @@ describe("opening the bell = seen (2026-10-20)", () => {
     expect(bellSeenPlan([], 0)).toEqual({ ids: [], beyond: 0 });
   });
 });
+
+describe("day groups and their labels share ONE clock — UTC (W1-13)", () => {
+  it("an item at 01:30 KSA (22:30Z the day before) is under Today when today is the UTC day", () => {
+    const now = new Date("2026-10-22T23:00:00Z"); // 02:00 KSA on Oct 23
+    const groups = groupNotifications(
+      [{ id: "n1", createdAt: "2026-10-22T22:30:00Z", entityType: null, entityId: null }],
+      utcDay(now),
+    );
+    expect(groups[0]?.label).toBe("Today");
+  });
+});
+

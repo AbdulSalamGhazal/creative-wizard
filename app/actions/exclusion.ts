@@ -10,6 +10,7 @@ import { excludeSchema } from "@/validators/exclusion";
 import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
 import { getActiveAccountId } from "@/lib/tenant";
 import { ruleDescriptor } from "@/lib/exclusion-rules";
+import { actionError } from "@/lib/action-error";
 import { ruleExcludingRecord } from "@/db/queries/exclusion-rules";
 
 const idSchema = z.coerce.number().int().positive();
@@ -190,7 +191,11 @@ async function revalidateAffectedPaths(creativeId: string): Promise<string | nul
   }
 }
 
+/**
+ * The house sanitizer (lib/action-error.ts): a permission denial passes
+ * through, everything else is generalized and logged. This used to forward
+ * `err.message` — raw Postgres text — to the user (W1-13).
+ */
 function errMsg(err: unknown): string {
-  if (err instanceof Error) return err.message;
-  return "Unknown error";
+  return actionError(err, "exclusion");
 }

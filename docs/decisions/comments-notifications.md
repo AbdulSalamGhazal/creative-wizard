@@ -8,6 +8,9 @@
 
 ## Invariants
 
+- A notification's href goes through the house `safeInternalPath` (no
+  `/\host`, no control characters); /notifications' day labels use the SAME
+  UTC clock as its grouping (W1-13, 2026-10-23).
 - **Producers write notifications INSIDE the transaction of the thing they
   describe** (`notifyRoutes(tx, …)`), or use an `afterWrite(tx, result)` hook.
 - Every read and write is self-scoped: `recipient_user_id` = the session user

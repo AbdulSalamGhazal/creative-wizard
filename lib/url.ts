@@ -47,6 +47,22 @@ export function withDateRange(
  * turning it protocol-relative). Used on BOTH the server redirect and the
  * client router.replace, so neither side trusts the other.
  */
+/**
+ * Is this a file in OUR public Blob store (`*.public.blob.vercel-storage.com`,
+ * https)? The only URLs a creative thumbnail may carry (W1-13): the upload
+ * route returns exactly these, and the URL is rendered as a link and a CSS
+ * `url()`, so a forged `data:` or `http://` tracking URL has no business
+ * there.
+ */
+export function isBlobStorageUrl(value: string): boolean {
+  try {
+    const u = new URL(value);
+    return u.protocol === "https:" && u.hostname.endsWith(".public.blob.vercel-storage.com");
+  } catch {
+    return false;
+  }
+}
+
 export function safeInternalPath(
   value: string | null | undefined,
   fallback = "/",

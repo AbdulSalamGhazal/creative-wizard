@@ -30,3 +30,20 @@ export function actionError(err: unknown, context: string): string {
   console.error(`[action:${context}]`, err);
   return GENERIC_ACTION_ERROR;
 }
+
+/**
+ * Is this Postgres' unique-violation (SQLSTATE 23505)? Callers that turn a
+ * race on a unique index into their OWN sentence must test the RAW error
+ * with this — never the output of `actionError`, which has already replaced
+ * the driver text with the generic message.
+ */
+export function isUniqueViolation(err: unknown): boolean {
+  if (typeof err !== "object" || err === null) return false;
+  const { code, message, cause } = err as { code?: unknown; message?: unknown; cause?: unknown };
+  if (code === "23505") return true;
+  if (typeof message === "string" && /duplicate key value violates unique constraint/i.test(message)) {
+    return true;
+  }
+  return cause !== undefined && cause !== err && isUniqueViolation(cause);
+}
+

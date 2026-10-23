@@ -24,6 +24,9 @@
   convert). In daily mode allocations are DERIVED sums, never client-supplied.
 - Every write that changes a plan appends a revision snapshot **inside the same
   transaction**; a restore re-validates through `planSchema` first.
+- The revision drawer's "Vs the current plan" compares the MODE, the day
+  cells and the target ROAS too — a daily → curve restore is never
+  "Identical" — and a reserve-only month IS a plan (W1-13, 2026-10-23).
 - A copy from a month with NOTHING to copy never reaches the writer — it
   refuses and leaves the destination untouched (W1-9, 2026-10-23: it used to
   wipe it, with no revision, while reporting "has no plan to copy").

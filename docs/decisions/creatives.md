@@ -8,6 +8,9 @@
 
 ## Invariants
 
+- A thumbnail URL is a file in OUR public Blob store (https,
+  `*.public.blob.vercel-storage.com`) or nothing — `data:`, `http:` and
+  other hosts are refused by the validators (W1-13, 2026-10-23).
 - **Every creative has a required `product_id`.** Never let one be saved
   without it.
 - **A creative name never contains ` @`** (create, rename, bulk import —

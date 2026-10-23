@@ -28,7 +28,13 @@ export interface CurrentPlan {
   plannedRevenueSar: number | null;
   reserveSpendUsd: number;
   dayWeights: Record<number, number>;
+  /** Absent → a curve month with no day cells and no stored ROAS. */
+  mode?: "curve" | "daily";
+  days?: Array<{ day: number; platform: string; objective: string; plannedSpend: number }>;
+  targetRoas?: number | null;
 }
+
+const MODE_LABEL: Record<"curve" | "daily", string> = { curve: "Curve", daily: "Day by day" };
 
 interface AllocDiff {
   key: string;
@@ -83,6 +89,23 @@ export function diffPlans(revision: BudgetPlanSnapshot, current: CurrentPlan) {
   const curCurve = meaningful(current.dayWeights);
   const revWeights = Object.values(revision.dayWeights).filter((w) => w !== 1).length;
   const curWeights = Object.values(current.dayWeights).filter((w) => w !== 1).length;
+
+  // A daily month is planned by its DAY CELLS, and carries its target ROAS:
+  // the same totals spread differently — or a switch between curve and daily —
+  // is a different plan. The diff used to compare only allocations, revenue,
+  // reserve and curve weights, so a daily → curve revision read "Identical"
+  // while restoring it reshaped the month (W1-13).
+  const curMode = current.mode ?? "curve";
+  const cells = (days: ReadonlyArray<{ day: number; platform: string; objective: string; plannedSpend: number }>) =>
+    days
+      .filter((d) => d.plannedSpend !== 0)
+      .map((d) => `${d.day}|${budgetComboKey(d.platform, d.objective)}:${d.plannedSpend}`)
+      .sort()
+      .join(",");
+  const modeChanged = revision.mode !== curMode;
+  const daysChanged = cells(revision.days) !== cells(current.days ?? []);
+  const curRoas = current.targetRoas ?? null;
+  const targetRoasChanged = revision.targetRoas !== curRoas;
   return {
     rows,
     revenueChanged: revision.plannedRevenueSar !== current.plannedRevenueSar,
@@ -90,11 +113,23 @@ export function diffPlans(revision: BudgetPlanSnapshot, current: CurrentPlan) {
     weightsChanged: revCurve !== curCurve,
     revWeights,
     curWeights,
+    modeChanged,
+    revMode: revision.mode,
+    curMode,
+    daysChanged,
+    revDays: revision.days.length,
+    curDays: (current.days ?? []).length,
+    targetRoasChanged,
+    revRoas: revision.targetRoas,
+    curRoas,
     identical:
       rows.length === 0 &&
       revision.plannedRevenueSar === current.plannedRevenueSar &&
       revision.reserveSpendUsd === current.reserveSpendUsd &&
-      revCurve === curCurve,
+      revCurve === curCurve &&
+      !modeChanged &&
+      !daysChanged &&
+      !targetRoasChanged,
   };
 }
 
@@ -343,6 +378,33 @@ export function BudgetPlanRevisions({
                             <span className="num tabular-nums whitespace-nowrap">
                               {usd(current.reserveSpendUsd)} →{" "}
                               {usd(selected.snapshot.reserveSpendUsd)}
+                            </span>
+                          </li>
+                        )}
+                        {diff?.modeChanged && (
+                          <li className="flex items-baseline justify-between gap-2 text-ink-2">
+                            <span>Planned</span>
+                            <span className="whitespace-nowrap">
+                              {MODE_LABEL[diff.curMode]} → {MODE_LABEL[diff.revMode]}
+                            </span>
+                          </li>
+                        )}
+                        {diff?.daysChanged && (
+                          <li className="flex items-baseline justify-between gap-2 text-ink-2">
+                            <span>Day cells</span>
+                            <span className="num tabular-nums whitespace-nowrap">
+                              {diff.curDays === diff.revDays
+                                ? `${int(diff.curDays)} cells, changed`
+                                : `${int(diff.curDays)} → ${int(diff.revDays)} cells`}
+                            </span>
+                          </li>
+                        )}
+                        {diff?.targetRoasChanged && (
+                          <li className="flex items-baseline justify-between gap-2 text-ink-2">
+                            <span>Target ROAS</span>
+                            <span className="num tabular-nums whitespace-nowrap">
+                              {diff.curRoas === null ? "—" : `${diff.curRoas.toFixed(2)}×`} →{" "}
+                              {diff.revRoas === null ? "—" : `${diff.revRoas.toFixed(2)}×`}
                             </span>
                           </li>
                         )}

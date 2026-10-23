@@ -1,8 +1,7 @@
 import { PageShell } from "@/components/layout/page-shell";
-import { todayIso } from "@/lib/date-presets";
 import { PageHeader } from "@/components/layout/page-header";
 import { listNotifications, type NotificationTab } from "@/db/queries/notifications";
-import { isNotificationCategory } from "@/lib/notifications";
+import { isNotificationCategory, utcDay } from "@/lib/notifications";
 import { NotificationCenter } from "@/components/notifications/notification-center";
 
 export const dynamic = "force-dynamic";
@@ -59,9 +58,11 @@ export default async function NotificationsPage({
         page={data.page}
         pageSize={data.pageSize}
         unread={data.unread}
-        // The day headers' clock, resolved on the SERVER in UTC — the house
-        // date discipline, so "Today" means the same thing for everyone.
-        today={todayIso()}
+        // The day headers' clock, resolved on the SERVER in UTC — the same
+        // clock the groups are bucketed by (`utcDay`), so "Today" means the
+        // same thing for everyone. It was the KSA day, so 00:00–03:00 KSA
+        // labelled today's items "Yesterday" (W1-13).
+        today={utcDay(new Date())}
       />
     </PageShell>
   );

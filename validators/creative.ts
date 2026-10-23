@@ -9,6 +9,7 @@ import {
   sortStages,
 } from "@/lib/funnel-stages";
 import { hasLandingMarker } from "@/lib/landing-code";
+import { isBlobStorageUrl } from "@/lib/url";
 
 // Initial sketch; see docs/prd.md §5.1.
 // The creative attribute set is expected to evolve during development.
@@ -84,11 +85,17 @@ export const creativeNameSchema = z
   .max(255)
   .refine((v) => !hasLandingMarker(v), { message: LANDING_MARKER_NAME_ERROR });
 
+/** An uploaded thumbnail — a URL from our Blob store and nothing else. */
+const thumbnailUrlSchema = z
+  .string()
+  .url()
+  .refine(isBlobStorageUrl, { message: "That isn't an uploaded image." });
+
 export const creativeCreateSchema = z.object({
   name: creativeNameSchema,
   productId: z.string().uuid(),
   type: z.enum(creativeTypeEnum),
-  thumbnailUrl: z.string().url().optional(),
+  thumbnailUrl: thumbnailUrlSchema.optional(),
   launchDate: z.string().date().optional(),
   notes: z.string().optional(),
   sourceLink: sourceLinkSchema,
@@ -209,7 +216,7 @@ export const creativePatchSchema = z
     name: creativeNameSchema.optional(),
     productId: z.string().uuid().optional(),
     type: z.enum(creativeTypeEnum).optional(),
-    thumbnailUrl: z.string().url().nullable().optional(),
+    thumbnailUrl: thumbnailUrlSchema.nullable().optional(),
     launchDate: z
       .string()
       .date()

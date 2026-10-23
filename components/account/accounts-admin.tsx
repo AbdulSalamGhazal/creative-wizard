@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Check, Pencil, Plus, X } from "lucide-react";
 import { toast } from "sonner";
@@ -63,18 +63,26 @@ export function AccountsAdmin({
     setEditingId(null);
     setEditValue("");
   };
+  const renaming = useRef(false);
   const saveEdit = (id: string) => {
     const next = editValue.trim();
-    if (!next) return;
+    // An in-flight guard (W1-13): the Enter key bypassed the disabled button,
+    // so a second Enter before the first answer saved twice (a duplicate rename).
+    if (!next || renaming.current) return;
+    renaming.current = true;
     startTransition(async () => {
-      const res = await renameAccount({ id, name: next });
-      if (!res.ok) {
-        toast.error(res.error ?? "Could not rename brand");
-        return;
+      try {
+        const res = await renameAccount({ id, name: next });
+        if (!res.ok) {
+          toast.error(res.error ?? "Could not rename brand");
+          return;
+        }
+        toast.success(`Renamed to “${next}”`);
+        cancelEdit();
+        router.refresh();
+      } finally {
+        renaming.current = false;
       }
-      toast.success(`Renamed to “${next}”`);
-      cancelEdit();
-      router.refresh();
     });
   };
 

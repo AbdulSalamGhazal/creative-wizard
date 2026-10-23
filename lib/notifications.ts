@@ -1,3 +1,4 @@
+import { safeInternalPath } from "@/lib/url";
 /**
  * Notifications — the vocabulary, and the single source every surface derives
  * from (the page's filter chips, the routing config's rows, the producers).
@@ -277,9 +278,10 @@ export function badgeCount(unread: number): string {
  * bell must never become an open redirect.
  */
 export function safeHref(href: string | null | undefined): string | null {
-  if (!href) return null;
-  if (!href.startsWith("/") || href.startsWith("//")) return null;
-  return href;
+  // The house in-app-path check (lib/url.ts) — it also refuses "/\\host",
+  // which a browser resolves to ANOTHER origin, and control characters, which
+  // a browser strips into "//host". This one used to accept both (W1-13).
+  return safeInternalPath(href, "") || null;
 }
 
 // ── Arrival toasts (2026-09) ─────────────────────────────────────────────────

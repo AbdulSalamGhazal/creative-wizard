@@ -24,7 +24,7 @@ import {
   getRule,
   type RuleImpactPreview,
 } from "@/db/queries/exclusion-rules";
-import { actionError } from "@/lib/action-error";
+import { actionError, isUniqueViolation } from "@/lib/action-error";
 
 /**
  * Exclusion-rule mutations. Reuses `record.exclude` (a rule is bulk exclusion),
@@ -154,11 +154,13 @@ export async function createExclusionRule(input: unknown): Promise<RuleMutationR
     });
     return { ok: true, affected };
   } catch (err) {
-    const msg = errMsg(err);
-    if (/duplicate key|unique/i.test(msg)) {
+    // Test the RAW error: `errMsg` generalizes driver text, so matching its
+    // output never found the unique violation and the friendly message was
+    // dead code ("Something went wrong" instead — W1-13).
+    if (isUniqueViolation(err)) {
       return { ok: false, error: "A rule for that target already exists." };
     }
-    return { ok: false, error: msg };
+    return { ok: false, error: errMsg(err) };
   }
 }
 

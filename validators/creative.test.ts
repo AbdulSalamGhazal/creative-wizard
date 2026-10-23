@@ -48,7 +48,7 @@ describe("creativePatchSchema", () => {
     name: "URJ_VID_001",
     productId: "22222222-2222-4222-8222-222222222222",
     type: "video",
-    thumbnailUrl: "https://example.com/t.jpg",
+    thumbnailUrl: "https://abc123.public.blob.vercel-storage.com/thumbnails/t.webp",
     launchDate: "2026-09-01",
     priority: 2,
     stages: ["Retargeting"],
@@ -84,6 +84,12 @@ describe("creativePatchSchema", () => {
   it.each(Object.entries(SAMPLES))("accepts %s alone", (field, value) => {
     const res = creativePatchSchema.safeParse({ id, [field]: value });
     expect(res.success).toBe(true);
+  });
+
+  it("a thumbnail is an uploaded image or nothing — data: and http: are refused (W1-13)", () => {
+    for (const thumbnailUrl of ["data:image/png;base64,AAAA", "http://x.public.blob.vercel-storage.com/t.webp", "https://example.com/t.jpg"]) {
+      expect(creativePatchSchema.safeParse({ id, thumbnailUrl }).success, thumbnailUrl).toBe(false);
+    }
   });
 
   it("accepts an explicit null where a field allows it (it IS an update)", () => {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { useNavTransition } from "@/lib/nav-progress";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
@@ -103,22 +103,31 @@ export function ViewsControl({
     [pathname, router],
   );
 
+  const saving = useRef(false);
   const save = () => {
     const trimmed = name.trim();
-    if (!trimmed) return;
+    // An in-flight guard (W1-13): the Enter key bypassed the disabled button,
+    // so a second Enter before the first answer saved twice ("Saved view" then
+    // "already have a view with that name").
+    if (!trimmed || saving.current) return;
+    saving.current = true;
     startTransition(async () => {
-      const res = await createSummaryView({
-        name: trimmed,
-        query: savableQuery,
-        page,
-      });
-      if (!res.ok) {
-        toast.error(res.error ?? "Could not save view");
-        return;
+      try {
+        const res = await createSummaryView({
+          name: trimmed,
+          query: savableQuery,
+          page,
+        });
+        if (!res.ok) {
+          toast.error(res.error ?? "Could not save view");
+          return;
+        }
+        toast.success(`Saved view “${trimmed}”`);
+        setName("");
+        router.refresh();
+      } finally {
+        saving.current = false;
       }
-      toast.success(`Saved view “${trimmed}”`);
-      setName("");
-      router.refresh();
     });
   };
 

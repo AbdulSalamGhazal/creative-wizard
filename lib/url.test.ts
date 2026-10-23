@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  isBlobStorageUrl,
   safeDecodeURIComponent,
   safeInternalPath,
   withDateRange,
@@ -87,3 +88,17 @@ describe("safeInternalPath", () => {
     expect(safeInternalPath("/foo bar")).toBe("/foo bar");
   });
 });
+
+describe("isBlobStorageUrl — what a thumbnail may point at (W1-13)", () => {
+  it("accepts our public Blob store over https", () => {
+    expect(isBlobStorageUrl("https://abc123.public.blob.vercel-storage.com/thumbs/x.webp")).toBe(true);
+  });
+  it("refuses data:, http: and any other host", () => {
+    expect(isBlobStorageUrl("data:image/png;base64,AAAA")).toBe(false);
+    expect(isBlobStorageUrl("http://abc123.public.blob.vercel-storage.com/x.webp")).toBe(false);
+    expect(isBlobStorageUrl("https://tracker.example.com/pixel.gif")).toBe(false);
+    expect(isBlobStorageUrl("https://public.blob.vercel-storage.com.evil.com/x")).toBe(false);
+    expect(isBlobStorageUrl("not a url")).toBe(false);
+  });
+});
+

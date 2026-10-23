@@ -718,8 +718,13 @@ export function BudgetPlanEditor({
     }
   };
 
+  // A reserve-only month IS planned — the Overview and the delete check both
+  // count it; this used to show it as "No plan" with Delete disabled (W1-13).
   const hasPlan =
-    data.allocations.length > 0 || data.plannedRevenueSar !== null || isDaily;
+    data.allocations.length > 0 ||
+    data.plannedRevenueSar !== null ||
+    data.reserveSpendUsd > 0 ||
+    isDaily;
 
   // ── Day-weight editing ─────────────────────────────────────────────────────
   const activeWeights = editing ? weightsDraft : data.dayWeightOverrides;
@@ -877,6 +882,9 @@ export function BudgetPlanEditor({
             plannedRevenueSar: data.plannedRevenueSar,
             reserveSpendUsd: data.reserveSpendUsd,
             dayWeights: data.dayWeightOverrides,
+            mode: data.planMode,
+            days: data.planDays,
+            targetRoas: data.targetRoas,
           }}
           canManage={canManage}
         />

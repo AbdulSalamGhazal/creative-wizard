@@ -92,3 +92,41 @@ describe("diffPlans", () => {
     expect(diffPlans(snapshot(), current({ reserveSpendUsd: 0 })).identical).toBe(false);
   });
 });
+
+describe("diffPlans — the plan's MODE, day cells and target ROAS count (W1-13)", () => {
+  it("a daily revision vs a curve month with the same totals is NOT identical", () => {
+    const d = diffPlans(
+      snapshot({
+        allocations: [{ platform: "instagram", objective: "Awareness", plannedSpend: 3000 }],
+        mode: "daily",
+        days: [{ day: 1, platform: "instagram", objective: "Awareness", plannedSpend: 3000 }],
+      }),
+      current({ allocations: [{ platform: "instagram", objective: "Awareness", plannedSpend: 3000 }] }),
+    );
+    expect(d.identical).toBe(false);
+    expect(d.modeChanged).toBe(true);
+    expect(d.daysChanged).toBe(true);
+  });
+
+  it("the same totals moved to other days is a change", () => {
+    const cells = (day: number) => [{ day, platform: "instagram", objective: "Awareness", plannedSpend: 1000 }];
+    const d = diffPlans(
+      snapshot({ mode: "daily", days: cells(1) }),
+      current({ mode: "daily", days: cells(15) }),
+    );
+    expect(d.identical).toBe(false);
+    expect(d.daysChanged).toBe(true);
+    expect(d.modeChanged).toBe(false);
+  });
+
+  it("a different target ROAS is a change", () => {
+    const d = diffPlans(snapshot({ mode: "daily", targetRoas: 2 }), current({ mode: "daily", targetRoas: 2.5 }));
+    expect(d.identical).toBe(false);
+    expect(d.targetRoasChanged).toBe(true);
+  });
+
+  it("a curve revision vs the same curve month is still identical", () => {
+    expect(diffPlans(snapshot(), current()).identical).toBe(true);
+  });
+});
+
