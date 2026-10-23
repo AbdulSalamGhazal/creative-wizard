@@ -76,11 +76,13 @@ describe("budget module — raw actuals, plans, scoping", () => {
     expect(feb.allocations).toHaveLength(2);
     expect(feb.plannedRevenueSar).toBeCloseTo(25000, 2);
 
-    // Copying from an EMPTY month wipes the destination (replace semantics).
+    // Copying from an EMPTY month touches NOTHING (W1-9, 2026-10-23). This
+    // used to pin "replace semantics" — a wipe — while the action reported
+    // "has no plan to copy" and wrote no revision to restore from.
     const empty = await copyBudgetMonth(db, ACCOUNT_A, "2025-12", "2026-02");
     expect(empty.allocations).toBe(0);
     expect(empty.hasTarget).toBe(false);
-    expect((await getBudgetMonth("2026-02")).allocations).toHaveLength(0);
+    expect((await getBudgetMonth("2026-02")).allocations).toHaveLength(2);
   });
 
   it("unique (account, month, platform, objective) refuses duplicate combos", async () => {
