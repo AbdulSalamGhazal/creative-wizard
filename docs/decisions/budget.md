@@ -24,6 +24,9 @@
   convert). In daily mode allocations are DERIVED sums, never client-supplied.
 - Every write that changes a plan appends a revision snapshot **inside the same
   transaction**; a restore re-validates through `planSchema` first.
+- A copy from a month with NOTHING to copy never reaches the writer — it
+  refuses and leaves the destination untouched (W1-9, 2026-10-23: it used to
+  wipe it, with no revision, while reporting "has no plan to copy").
 - **Pacing compares against DATA COVERAGE, never the calendar**
   (`platformHorizons` → `makeCoverageDay`). A total is the SUM of its rows'
   expectations, not a second calculation over the whole plan.

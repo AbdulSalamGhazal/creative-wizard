@@ -439,6 +439,26 @@ export async function copyBudgetMonth(
     .from(budgetDayWeights)
     .where(and(eq(budgetDayWeights.accountId, acct), eq(budgetDayWeights.month, from)));
 
+  // NOTHING to copy → touch NOTHING (W1-9, 2026-10-23). This used to call the
+  // writer anyway, so copying from a month with no plan (a stale dialog, a
+  // month someone just deleted) wiped the destination while the action
+  // reported "has no plan to copy" — and wrote no revision to restore from.
+  if (src.length === 0 && srcTarget.length === 0) {
+    return {
+      allocations: 0,
+      hasTarget: false,
+      plan: {
+        allocations: [],
+        plannedRevenueSar: null,
+        reserveSpendUsd: 0,
+        dayWeights: {},
+        mode: "curve",
+        days: [],
+        targetRoas: null,
+      },
+    };
+  }
+
   // A DAILY source copies its days and its mode: the destination becomes a
   // daily month too. Day numbers carry over; days past the destination's
   // length are dropped (like weights), and the allocations are re-derived
