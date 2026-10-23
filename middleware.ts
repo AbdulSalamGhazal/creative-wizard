@@ -54,11 +54,16 @@ export async function middleware(req: NextRequest) {
 
 export const config = {
   // Everything EXCEPT: Next internals/static, the sign-in page (and its server
-  // action POST), the public health check, and root-level static assets
-  // (favicon, app icon, the public/*.svg files). `[^/]*\.svg$` matches only a
-  // ROOT-level .svg filename — a nested path like /admin/export.svg still hits
-  // auth (the old `.*\.svg$` exempted every .svg-suffixed path app-wide).
+  // action POST), the public health check, and ROOT-level static assets — the
+  // tab icon (`app/icon.png`, served at /icon.png), the logo (`public/logo.png`,
+  // which the SIGN-IN page itself shows) and the other `public/` files.
+  // `[^/]*\.svg$` (and .png, .ico) matches only a ROOT-level filename — a nested
+  // path like /admin/export.svg or /dev-uploads/avatars/x.png still hits auth
+  // (the old `.*\.svg$` exempted every .svg-suffixed path app-wide). Pinned by
+  // `middleware.test.ts`, which checks every file in `public/` and `app/icon.*`:
+  // this list once named `icon.svg` long after the icon became a png, so the
+  // sign-in page's own logo redirected a signed-out visitor to /signin.
   matcher: [
-    "/((?!_next/static|_next/image|signin|api/health|api/mcp|api/oauth|\\.well-known|favicon.ico|icon.svg|[^/]*\\.svg$).*)",
+    "/((?!_next/static|_next/image|signin|api/health|api/mcp|api/oauth|\\.well-known|[^/]*\\.svg$|[^/]*\\.png$|[^/]*\\.ico$).*)",
   ],
 };
