@@ -5,6 +5,7 @@ import { count, eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { requirePermission } from "@/lib/auth";
+import { setSessionCookie } from "@/lib/auth-cookie";
 import { accounts, userAccounts, users } from "@/db/schema";
 import {
   hashPassword,
@@ -394,6 +395,10 @@ export async function updateUserBrands(
  * below admin the Team guard applies (`teamGuard`, D1): never an admin's, and
  * only for someone whose access is within the manager's own — a reset is a
  * takeover, so it must not hand the manager access they don't have.
+ *
+ * Ends every session the person has (D3): a reset is how a lost or stolen
+ * session is recovered, so the old cookies must stop working with the old
+ * password. Resetting your OWN password here keeps this device signed in.
  */
 export async function adminSetPassword(input: unknown): Promise<UserMutationResult> {
   try {
@@ -413,8 +418,9 @@ export async function adminSetPassword(input: unknown): Promise<UserMutationResu
     const hash = await hashPassword(parsed.data.password);
     await db
       .update(users)
-      .set({ passwordHash: hash })
+      .set({ passwordHash: hash, sessionsRevokedAt: new Date() })
       .where(eq(users.id, parsed.data.userId));
+    if (parsed.data.userId === me.id) await setSessionCookie(me.id);
 
     try {
       revalidatePath("/admin/users");

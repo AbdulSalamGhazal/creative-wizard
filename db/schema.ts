@@ -103,6 +103,17 @@ export const users = pgTable("users", {
    * setting is about interruption, not about knowing.
    */
   toastScope: varchar("toast_scope", { length: 8 }).notNull().default("personal"),
+  /**
+   * Every session cookie issued BEFORE this instant is signed out (D3,
+   * 2026-10-23). The cookie is stateless (`<userId>.<issuedAtMs>.<hmac>`), so
+   * ending a person's sessions is one stamp here, compared in `auth()` against
+   * the cookie's own issued-at — no cookie-format change, so nobody is forced
+   * to sign in again. Set by sign-out (everywhere), a password change (the
+   * current device is re-issued a cookie) and an admin password reset. NULL =
+   * never revoked. The Edge middleware stays DB-free and lets such a cookie
+   * through; every page, action and route behind it calls `auth()`.
+   */
+  sessionsRevokedAt: timestamp("sessions_revoked_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

@@ -6,7 +6,7 @@ import { createHmac } from "node:crypto";
 // outside a Next request context.
 vi.mock("next/headers", () => ({ cookies: vi.fn() }));
 
-import { verifySessionToken } from "@/lib/auth-cookie";
+import { sessionRevoked, verifySession, verifySessionToken } from "@/lib/auth-cookie";
 
 const SECRET = "test-secret-0123456789abcdef"; // ≥16 chars, matches getSecret()
 
@@ -85,5 +85,23 @@ describe("verifySessionToken", () => {
     expect(verifySessionToken("a.b")).toBeNull();
     expect(verifySessionToken("..")).toBeNull();
     expect(verifySessionToken(`${USER}.notanumber.AAAA`)).toBeNull();
+  });
+});
+
+describe("session revocation (D3)", () => {
+  it("verifySession carries the issued-at the revocation stamp is compared with", () => {
+    const issued = Date.now() - 1000;
+    expect(verifySession(mint(USER, issued))).toEqual({ userId: USER, issuedAt: issued });
+  });
+
+  it("a cookie issued before the stamp is signed out; at or after it is not", () => {
+    const at = new Date("2026-10-23T12:00:00.000Z");
+    expect(sessionRevoked(at.getTime() - 1, at)).toBe(true);
+    expect(sessionRevoked(at.getTime(), at)).toBe(false);
+    expect(sessionRevoked(at.getTime() + 1, at)).toBe(false);
+  });
+
+  it("no stamp means nothing was ever revoked", () => {
+    expect(sessionRevoked(0, null)).toBe(false);
   });
 });

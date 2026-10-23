@@ -40,6 +40,11 @@
   pool size 1) and `lib/team-guard.test.ts`.
 - The upload commit uses the account pinned on the validation session at
   validate time, so a mid-flow brand switch cannot cross-write.
+- **Ending sessions is one stamp, not a cookie change (D3).** A cookie
+  issued before `users.sessions_revoked_at` is signed out by `auth()`.
+  Sign-out ends EVERY session of the person; a password change ends the
+  others and re-issues the current cookie; an admin reset ends all of the
+  target's. Middleware stays DB-free — never move this check there.
 - **An event with no session passes its brand explicitly.** `logAudit`
   resolves the ACTIVE brand, which throws `NO_BRAND_ACCESS` for a visitor who
   isn't signed in — and the audit swallows its own errors, so the row simply
@@ -202,4 +207,20 @@ and the test drives the real action with an empty cookie jar and the real
 tenant module, so it fails the way production failed (4 of its 7 cases fail
 on the old action). The lesson generalizes beyond auth: a test that copies the
 code under test proves the copy.
+
+### Sessions that could not be ended (D3, 2026-10-23)
+
+The session cookie is stateless — `<userId>.<issuedAtMs>.<hmac>` — which
+keeps the Edge middleware DB-free but meant nothing could end a session
+before its 30 days ran out. Signing out deleted only that browser's cookie;
+changing a password, or an admin resetting it (the documented recovery from
+a leaked session), left every existing cookie working (audit B-19). The user
+chose to fix it: one nullable column, `sessions_revoked_at`, compared with
+the cookie's own signed issued-at inside `auth()`. No cookie-format change,
+so nobody was signed out by the deploy. Sign-out now means "sign out
+everywhere" (the decision's wording: sign-out, password change and admin
+reset end the person's other sessions); the password change re-issues the
+current device's cookie so the person who changed it stays in. Pinned
+through the real actions in `tests/db/sessions.test.ts` (4 of its 6 cases
+fail on the old code).
 

@@ -2,7 +2,7 @@ import { cache } from "react";
 import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { users } from "@/db/schema";
-import { readSessionUserId } from "@/lib/auth-cookie";
+import { readSession, sessionRevoked } from "@/lib/auth-cookie";
 import { getTenantContext } from "@/lib/tenant-context";
 import {
   type Permission,
@@ -50,6 +50,13 @@ export interface SessionUser {
 export async function loadUserById(
   userId: string,
 ): Promise<SessionUser | null> {
+  return (await loadUserRow(userId))?.user ?? null;
+}
+
+/** The user plus their session-revocation stamp (kept off `SessionUser`). */
+async function loadUserRow(
+  userId: string,
+): Promise<{ user: SessionUser; sessionsRevokedAt: Date | null } | null> {
   const [row] = await db
     .select({
       id: users.id,
@@ -59,17 +66,32 @@ export async function loadUserById(
       permissions: users.permissions,
       allAccounts: users.allAccounts,
       avatarUrl: users.avatarUrl,
+      sessionsRevokedAt: users.sessionsRevokedAt,
     })
     .from(users)
     .where(eq(users.id, userId))
     .limit(1);
 
   if (!row) return null;
+  const { sessionsRevokedAt, ...rest } = row;
   return {
-    ...row,
-    role: row.role as RoleTier,
-    permissions: row.permissions ?? null,
+    user: {
+      ...rest,
+      role: rest.role as RoleTier,
+      permissions: rest.permissions ?? null,
+    },
+    sessionsRevokedAt,
   };
+}
+
+/**
+ * End every session `userId` has — each cookie issued before `at` is signed
+ * out on its next request (D3). The caller that wants to KEEP the current
+ * device signed in re-issues its cookie afterwards (`setSessionCookie`),
+ * which is signed at or after `at`.
+ */
+export async function endSessions(userId: string, at: Date): Promise<void> {
+  await db.update(users).set({ sessionsRevokedAt: at }).where(eq(users.id, userId));
 }
 
 /**
@@ -83,9 +105,13 @@ export const auth = cache(async (): Promise<SessionUser | null> => {
   const override = getTenantContext();
   if (override) return loadUserById(override.userId);
 
-  const userId = await readSessionUserId();
-  if (!userId) return null;
-  return loadUserById(userId);
+  const session = await readSession();
+  if (!session) return null;
+  const loaded = await loadUserRow(session.userId);
+  if (!loaded) return null;
+  // A cookie issued before the person's sessions were ended is signed out (D3).
+  if (sessionRevoked(session.issuedAt, loaded.sessionsRevokedAt)) return null;
+  return loaded.user;
 });
 
 export async function requireAuth(): Promise<SessionUser> {

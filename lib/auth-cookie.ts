@@ -34,7 +34,28 @@ function sign(userId: string): string {
   return `${payload}.${b64url(sig)}`;
 }
 
+export interface VerifiedSession {
+  userId: string;
+  /** When the cookie was signed (ms) — compared with `users.sessions_revoked_at`. */
+  issuedAt: number;
+}
+
+/** The user id of a valid token, or null. Signature + TTL only. */
 export function verifySessionToken(token: string | undefined): string | null {
+  return verifySession(token)?.userId ?? null;
+}
+
+/**
+ * Was this session ended after it was issued? (D3) A cookie signed BEFORE the
+ * user's `sessions_revoked_at` is signed out; one signed at or after it
+ * (a fresh sign-in, or the cookie a password change re-issues) is not.
+ */
+export function sessionRevoked(issuedAt: number, revokedAt: Date | null): boolean {
+  return revokedAt !== null && issuedAt < revokedAt.getTime();
+}
+
+/** Verify a token and return who it is for and when it was signed, or null. */
+export function verifySession(token: string | undefined): VerifiedSession | null {
   if (!token) return null;
   // token = "<userId>.<issuedAtMs>.<sig>"; userId is a UUID (no dots), so the
   // last dot separates the signature and the one before it separates issuedAt.
@@ -63,7 +84,7 @@ export function verifySessionToken(token: string | undefined): string | null {
   const age = Date.now() - issuedAt;
   if (age > SESSION_TTL_MS) return null; // expired
   if (age < -60_000) return null; // issued in the future — reject (clock skew guard)
-  return userId;
+  return { userId, issuedAt };
 }
 
 export async function setSessionCookie(userId: string): Promise<void> {
@@ -84,8 +105,9 @@ export async function clearSessionCookie(): Promise<void> {
   jar.delete(SESSION_COOKIE);
 }
 
-export async function readSessionUserId(): Promise<string | null> {
+/** The request's session cookie, verified (signature + TTL), or null. */
+export async function readSession(): Promise<VerifiedSession | null> {
   const jar = await cookies();
   const token = jar.get(SESSION_COOKIE)?.value;
-  return verifySessionToken(token);
+  return verifySession(token);
 }

@@ -12,7 +12,7 @@ import {
   PASSWORD_MIN_LENGTH,
   PASSWORD_MAX_LENGTH,
 } from "@/lib/auth-password";
-import { auth, requireAuth } from "@/lib/auth";
+import { auth, endSessions, requireAuth } from "@/lib/auth";
 import { AUDIT_ACTIONS, logAudit, type AuditAction } from "@/lib/audit";
 import { actionError } from "@/lib/action-error";
 import {
@@ -146,10 +146,16 @@ export async function signIn(formData: FormData): Promise<SignInResult> {
   return { ok: true };
 }
 
+/**
+ * Sign out — EVERYWHERE (D3, 2026-10-23): every session this person has, on
+ * every device, ends, not just this browser's cookie. Clearing only the local
+ * cookie left a copied or forgotten one valid for its full 30 days.
+ */
 export async function signOut(): Promise<void> {
   // Capture identity before clearing the cookie so the audit row has an actor.
   const me = await auth();
   if (me) {
+    // Audit FIRST: it resolves the brand through the session being ended.
     await logAudit({
       action: AUDIT_ACTIONS.AUTH_SIGNOUT,
       entityType: "auth",
@@ -157,12 +163,17 @@ export async function signOut(): Promise<void> {
       entityLabel: me.email,
       actorUserId: me.id,
     });
+    await endSessions(me.id, new Date());
   }
   await clearSessionCookie();
   redirect("/signin");
 }
 
-/** Self-service password change for the signed-in user. */
+/**
+ * Self-service password change for the signed-in user. Ends the person's
+ * OTHER sessions (D3): every cookie issued before now is signed out, and this
+ * device is re-issued a fresh one so it stays signed in.
+ */
 export async function changePassword(input: unknown): Promise<ChangePasswordResult> {
   try {
     const me = await requireAuth();
@@ -194,8 +205,10 @@ export async function changePassword(input: unknown): Promise<ChangePasswordResu
     const newHash = await hashPassword(newPassword);
     await db
       .update(users)
-      .set({ passwordHash: newHash })
+      .set({ passwordHash: newHash, sessionsRevokedAt: new Date() })
       .where(eq(users.id, me.id));
+    // Signed at or after the stamp above, so this device stays signed in.
+    await setSessionCookie(me.id);
 
     await logAudit({
       action: AUDIT_ACTIONS.AUTH_PASSWORD_CHANGE,
