@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { actionError, GENERIC_ACTION_ERROR, isUniqueViolation } from "@/lib/action-error";
 
 describe("isUniqueViolation (W1-13)", () => {
@@ -12,6 +12,7 @@ describe("isUniqueViolation (W1-13)", () => {
     expect(isUniqueViolation(null)).toBe(false);
   });
   it("is why callers test the RAW error: actionError has already generalized it", () => {
+    vi.spyOn(console, "error").mockImplementation(() => {}); // actionError logs the raw error
     const raw = new Error('duplicate key value violates unique constraint "x"');
     expect(actionError(raw, "test")).toBe(GENERIC_ACTION_ERROR);
     expect(isUniqueViolation(raw)).toBe(true);
