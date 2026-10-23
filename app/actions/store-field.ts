@@ -9,6 +9,7 @@ import { getActiveAccountId } from "@/lib/tenant";
 import { accounts, storeOrderFields } from "@/db/schema";
 import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
 import { isCoreKey, isSystemRequiredKey, slugifyKey, uniqueFieldKey } from "@/store/fields";
+import { storeAttributeKeysInUse } from "@/db/queries/store";
 import { actionError } from "@/lib/action-error";
 
 /**
@@ -64,14 +65,17 @@ export async function createStoreField(input: unknown): Promise<FieldMutationRes
     if (isCoreKey(base)) {
       return { ok: false, error: "That name collides with a system field. Pick another." };
     }
-    const existing = new Set(
-      (
+    // Taken = the account's field keys AND any key still holding values on
+    // its orders, so a deleted field's values never come back (W1-13).
+    const existing = new Set([
+      ...(
         await db
           .select({ key: storeOrderFields.key })
           .from(storeOrderFields)
           .where(eq(storeOrderFields.accountId, acct))
       ).map((r) => r.key),
-    );
+      ...(await storeAttributeKeysInUse(acct)),
+    ]);
     const key = uniqueFieldKey(base, existing);
 
     const [{ max } = { max: 0 }] = await db

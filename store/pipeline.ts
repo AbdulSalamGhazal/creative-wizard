@@ -87,12 +87,15 @@ export function runStorePipeline(input: StorePipelineInput): StorePipelineResult
   const { header, rows, rowNumbers } = parsed;
 
   // ── Stage 2: header mapping (fail fast) ───────────────────────────────────
-  // Duplicate header in the file → ambiguous mapping.
+  // A duplicate header some field MAPS → ambiguous mapping. A duplicate of a
+  // column no field reads is just ignored, like any unmapped column — it used
+  // to fail the whole file (W1-13).
+  const acceptedHeaders = new Set(input.fields.flatMap((f) => f.headers.map(norm)));
   const seenHeaders = new Set<string>();
   for (const h of header) {
     const k = norm(h);
     if (!k) continue;
-    if (seenHeaders.has(k)) {
+    if (seenHeaders.has(k) && acceptedHeaders.has(k)) {
       return {
         ok: false,
         errors: [err("S011", `Duplicate column header in the file: \`${h}\`.`)],

@@ -57,13 +57,18 @@ export function parseStoreFile(input: ParseInput): StoreParseResult {
 
 /**
  * Parse a Salla order date. Accepts `YYYY-MM-DD` and
- * `YYYY-MM-DD HH:MM:SS` / `YYYY-MM-DDTHH:MM:SS` — Salla exports use Riyadh local
- * time, so we keep the DATE PART verbatim (no timezone shift). Returns the ISO
- * date, or null when it isn't a real calendar date.
+ * `YYYY-MM-DD HH:MM[:SS[.fff]]` / `…THH:MM…` — Salla exports use Riyadh local
+ * time, so we keep the DATE PART verbatim (no timezone shift). A Riyadh offset
+ * (`+03:00`) is accepted, since its date part IS the Riyadh day. Anything else
+ * after the date — junk, or another zone like `Z`, whose date part is a
+ * DIFFERENT day for 21:00–24:00 — is refused (W1-13: the pattern was
+ * unanchored, so `2026-10-01garbage` passed). Returns the ISO date, or null
+ * when it isn't a real calendar date.
  */
 export function parseStoreDate(raw: string): string | null {
   const s = raw.trim();
-  const m = /^(\d{4})-(\d{2})-(\d{2})(?:[ T]\d{2}:\d{2}(?::\d{2})?)?/.exec(s);
+  const m =
+    /^(\d{4})-(\d{2})-(\d{2})(?:[ T]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:\s?\+03:?00)?)?$/.exec(s);
   if (!m) return null;
   const [, y, mo, d] = m;
   const year = Number(y);

@@ -8,6 +8,14 @@
 
 ## Invariants
 
+- S011 (duplicate header) fires only for a header some field MAPS; a
+  duplicate of an unread column is ignored like any unmapped one (W1-13).
+- `parseStoreDate` is anchored: a date, an optional time, an optional
+  Riyadh `+03:00` — nothing else (another zone's date part is a different
+  Riyadh day after 21:00).
+- A new field's key never reuses one still stored in `attributes` — a
+  deleted field's values must not come back under a re-created one
+  (`storeAttributeKeysInUse`).
 - Store uploads are PARALLEL to the ads pipeline — **never touch `csv/`,
   `upload_batches` or `performance_records` for them**; own catalog
   (`store/errors.ts`, S-codes) and EXPLICIT header mapping, no auto-detect.

@@ -76,6 +76,16 @@ describe("parse helpers", () => {
     expect(parseStoreDate("04/08/2026")).toBeNull(); // wrong format
   });
 
+  it("parseStoreDate is ANCHORED — nothing after the date but a time (W1-13)", () => {
+    expect(parseStoreDate("2026-10-01garbage")).toBeNull();
+    expect(parseStoreDate("2026-10-0199")).toBeNull();
+    // Another zone's date part is a different Riyadh day for 21:00–24:00.
+    expect(parseStoreDate("2026-10-01T22:30:00Z")).toBeNull();
+    // Riyadh's own offset, and fractional seconds, are fine.
+    expect(parseStoreDate("2026-10-01T22:30:00+03:00")).toBe("2026-10-01");
+    expect(parseStoreDate("2026-10-01 22:30:00.123")).toBe("2026-10-01");
+  });
+
   it("parseStoreNumber strips currency symbols and commas", () => {
     expect(parseStoreNumber("1,234.50")).toBe(1234.5);
     expect(parseStoreNumber("SAR 1,234.50")).toBe(1234.5);
@@ -307,3 +317,17 @@ describe("system-required fields — the COLUMN is required, the VALUES are not"
     expect(res.errors.map((e) => e.code)).toEqual(["S042"]);
   });
 });
+
+describe("duplicate headers (W1-13)", () => {
+  it("a duplicate of a MAPPED header is still S011", () => {
+    const res = run(["Order ID,Order Date,Total,Total", "A1,2026-01-01,100,100"].join("\n"), CORE);
+    expect(res.ok).toBe(false);
+    if (res.ok) return;
+    expect(res.errors[0]).toMatchObject({ code: "S011" });
+  });
+  it("a duplicate of a column nobody maps is ignored, not fatal", () => {
+    const res = run(["Order ID,Order Date,Total,Notes,Notes", "A1,2026-01-01,100,x,y"].join("\n"), CORE);
+    expect(res.ok).toBe(true);
+  });
+});
+

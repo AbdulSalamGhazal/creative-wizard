@@ -490,3 +490,21 @@ export async function storeBatchRowsUpdatedSince(
     );
   return Number(row?.n ?? 0);
 }
+
+/**
+ * Every attribute key still stored on this account's orders. A field's key
+ * must not reuse one of these: deleting a field leaves its values in
+ * `attributes`, so a re-created field with the same label (and so the same
+ * key) resurrected them under the NEW field's type — a deleted text "Coupon"
+ * holding SUMMER came back under a number field (W1-13, audit B-26). One
+ * scan, run only when a field is created.
+ */
+export async function storeAttributeKeysInUse(accountId: string): Promise<Set<string>> {
+  const rows = (await db.execute(sql`
+    SELECT DISTINCT jsonb_object_keys(${storeOrders.attributes}) AS key
+    FROM ${storeOrders}
+    WHERE ${storeOrders.accountId} = ${accountId}
+  `)) as unknown as Array<{ key: string }>;
+  return new Set(rows.map((r) => r.key));
+}
+
