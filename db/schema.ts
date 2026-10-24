@@ -844,6 +844,12 @@ export const auditEvents = pgTable(
     signinFailedIdx: index("audit_signin_failed_idx")
       .on(t.entityLabel, t.at)
       .where(sql`${t.action} = 'auth.signin_failed'`),
+    // …and since F1 (2026-10-24) it counts them per (email, network address),
+    // the address read from `meta->>'ip'`. The email-only index above still
+    // serves the no-address fallback, which counts across every address.
+    signinFailedIpIdx: index("audit_signin_failed_ip_idx")
+      .on(t.entityLabel, sql`(${t.meta} ->> 'ip')`, t.at)
+      .where(sql`${t.action} = 'auth.signin_failed'`),
   }),
 );
 

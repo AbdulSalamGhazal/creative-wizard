@@ -14,6 +14,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
  */
 const jar = new Map<string, string>();
 vi.mock("next/headers", () => ({
+  headers: async () => new Headers(), // no address: the throttle keys by email
   cookies: async () => ({
     get: (name: string) => (jar.has(name) ? { name, value: jar.get(name)! } : undefined),
     set: (opts: { name: string; value: string }) => void jar.set(opts.name, opts.value),

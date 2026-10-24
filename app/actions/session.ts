@@ -1,5 +1,6 @@
 "use server";
 
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
@@ -15,10 +16,12 @@ import {
 import { auth, endSessions, requireAuth } from "@/lib/auth";
 import { AUDIT_ACTIONS, logAudit, type AuditAction } from "@/lib/audit";
 import { actionError } from "@/lib/action-error";
+import { clientIp } from "@/lib/client-ip";
 import {
   oldestAccountId,
   recentSignInFailures,
   SIGNIN_THROTTLE_MAX_FAILURES,
+  SIGNIN_THROTTLE_WINDOW_MS,
 } from "@/db/queries/auth";
 
 const signInSchema = z.object({
@@ -53,12 +56,16 @@ export interface ChangePasswordResult {
 /**
  * Verify email + password. No password set on the user → instruct to ask admin.
  *
- * THROTTLED (D2, 2026-10-23): after SIGNIN_THROTTLE_MAX_FAILURES failed
- * attempts for an email inside the window, the next attempt is refused before
- * the user is looked up or a password verified — with the same generic
- * message, so it says nothing about whether the email exists — and audited as
- * `auth.signin_throttled`. Throttled attempts don't count as failures, so the
- * wait ends when the window slides past the fifth failure.
+ * THROTTLED (D2, 2026-10-23; per address since F1, 2026-10-24): after
+ * SIGNIN_THROTTLE_MAX_FAILURES failed attempts for an email FROM ONE NETWORK
+ * ADDRESS inside the window, the next attempt from that address is refused
+ * before the user is looked up or a password verified, and audited as
+ * `auth.signin_throttled`. Per (email, address) so a stranger elsewhere
+ * trying your email can't lock you out; with no address the count is per
+ * email across every address (the strictest key). Unknown emails are
+ * throttled exactly the same way, so the refusal says nothing about whether
+ * an account exists. Throttled attempts don't count as failures, so the wait
+ * ends when the window slides past the fifth failure.
  *
  * Every anonymous auth event is filed under the OLDEST brand (D2): there is
  * no session, so the active-brand lookup inside `logAudit` would throw and
@@ -81,10 +88,14 @@ export async function signIn(formData: FormData): Promise<SignInResult> {
   }
   const email = parsed.data.email.trim().toLowerCase();
   const password = parsed.data.password;
+  const ip = clientIp(await headers());
 
   // Generic message on lookup miss + wrong password so we don't leak which
   // emails exist.
   const genericError = "Wrong email or password.";
+  // The user's wording (F1). The minutes derive from the window, so the two
+  // can't drift apart.
+  const throttledError = `Too many attempts — try again in ${SIGNIN_THROTTLE_WINDOW_MS / 60_000} minutes.`;
 
   const accountId = (await oldestAccountId()) ?? undefined;
   const auditAnonymous = (
@@ -98,13 +109,14 @@ export async function signIn(formData: FormData): Promise<SignInResult> {
       entityId,
       entityLabel: email,
       actorUserId: null,
-      meta: { email, ...meta },
+      // `ip` is what the throttle counts by; absent when the host gave none.
+      meta: { email, ...(ip ? { ip } : {}), ...meta },
       accountId,
     });
 
-  if ((await recentSignInFailures(email)) >= SIGNIN_THROTTLE_MAX_FAILURES) {
+  if ((await recentSignInFailures(email, ip)) >= SIGNIN_THROTTLE_MAX_FAILURES) {
     await auditAnonymous(AUDIT_ACTIONS.AUTH_SIGNIN_THROTTLED, null, {});
-    return { ok: false, error: genericError };
+    return { ok: false, error: throttledError };
   }
 
   const [row] = await db

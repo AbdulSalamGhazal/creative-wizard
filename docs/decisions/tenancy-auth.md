@@ -51,6 +51,12 @@
   vanishes. Anonymous auth events (`auth.signin_failed`,
   `auth.signin_throttled`) are filed under the OLDEST brand
   (`oldestAccountId()`); the sign-in throttle counts those rows (D2).
+- **The sign-in throttle keys on (email, network address)** (F1, 2026-10-24):
+  5 failures from one address in 15 minutes and that address waits, with
+  "Too many attempts — try again in 15 minutes." Unknown emails are throttled
+  the same way. The address is `clientIp()` (first `x-forwarded-for` hop,
+  else `x-real-ip`) stored as `meta.ip`; with NO address the count is the
+  email across every address — never relax that fallback into a fresh key.
 
 ## History and rationale
 
@@ -207,6 +213,20 @@ and the test drives the real action with an empty cookie jar and the real
 tenant module, so it fails the way production failed (4 of its 7 cases fail
 on the old action). The lesson generalizes beyond auth: a test that copies the
 code under test proves the copy.
+
+**Per address (F1, 2026-10-24).** Reviewing D2 surfaced the cost of keying
+on the email alone: anyone could lock anyone out for 15 minutes by typing
+their email five times. The user chose to count per (email, network
+address) — the address Vercel reports in `x-forwarded-for` / `x-real-ip`,
+stored on each failure as `meta.ip` and counted through a new partial
+expression index (migration 0059) — and to say so when it happens: a
+throttled attempt reads "Too many attempts — try again in 15 minutes."
+instead of the generic wrong-password sentence. Unknown emails throttle the
+same way, so the sentence reveals nothing. When the host reports no address,
+the count falls back to the email across every address. The trade-off that
+comes with it: five guesses per address per window, so many addresses buy
+many guesses; bcrypt and the generic wrong-password message remain the
+other half of the defence.
 
 ### Sessions that could not be ended (D3, 2026-10-23)
 

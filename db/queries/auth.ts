@@ -30,26 +30,38 @@ export async function oldestAccountId(): Promise<string | null> {
 }
 
 /**
- * How many times `email` (already normalized) failed to sign in inside the
- * window ending `now`. Counted from the audit rows themselves — no new table,
- * and the window slides, so a success needs no reset. Every brand counts: the
- * email is the subject, not the brand. Served by the partial
- * `audit_signin_failed_idx`.
+ * The failed sign-ins the throttle counts (F1, 2026-10-24): one email's
+ * `auth.signin_failed` rows inside the window ending `now` — FROM ONE NETWORK
+ * ADDRESS when `ip` is known, so a stranger elsewhere trying your email can't
+ * lock you out; across every address when it isn't (no address = the
+ * strictest key, never a fresh one). Counted from the audit rows themselves —
+ * no new table, and the window slides, so a success needs no reset. Every
+ * brand counts: the email is the subject, not the brand. Served by the
+ * partial `audit_signin_failed_ip_idx` (email, address, at) and, for the
+ * no-address case, `audit_signin_failed_idx` (email, at). Exported as a
+ * builder so a test can EXPLAIN the exact query.
  */
-export async function recentSignInFailures(
-  email: string,
-  now: Date = new Date(),
-): Promise<number> {
+export function signInFailuresQuery(email: string, ip: string | null, now: Date) {
   const since = new Date(now.getTime() - SIGNIN_THROTTLE_WINDOW_MS);
-  const [row] = await db
+  return db
     .select({ n: sql<number>`count(*)::int` })
     .from(auditEvents)
     .where(
       and(
         eq(auditEvents.action, AUDIT_ACTIONS.AUTH_SIGNIN_FAILED),
         eq(auditEvents.entityLabel, email),
+        ip === null ? undefined : sql`(${auditEvents.meta} ->> 'ip') = ${ip}`,
         gt(auditEvents.at, since),
       ),
     );
+}
+
+/** How many failed sign-ins `signInFailuresQuery` finds (email already normalized). */
+export async function recentSignInFailures(
+  email: string,
+  ip: string | null,
+  now: Date = new Date(),
+): Promise<number> {
+  const [row] = await signInFailuresQuery(email, ip, now);
   return Number(row?.n ?? 0);
 }
