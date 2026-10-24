@@ -1,13 +1,19 @@
+"use client";
+
 import { CreativeCard } from "@/components/creative/creative-card";
 import type { CreativeListRow } from "@/db/queries/creatives";
+import { useLibrarySort } from "@/components/creative/use-library-sort";
 
 export function CreativeGrid({
-  rows,
-  listCtx,
+  rows: serverRows,
+  listCtx: serverListCtx,
 }: {
   rows: CreativeListRow[];
   listCtx?: string;
 }) {
+  // The URL's order, re-applied here so a shallow sort (D12) re-orders the
+  // cards without a server render.
+  const { rows, listCtx } = useLibrarySort(serverRows, serverListCtx);
   if (rows.length === 0) {
     return (
       <div className="rounded-lg border border-dashed border-line bg-surface px-6 py-16 text-center">

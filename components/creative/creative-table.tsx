@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { DataTable, type DataColumn } from "@/components/ui/data-table";
 import { DownloadCsvButton } from "@/components/ui/download-csv-button";
 import { useTableColumns } from "@/components/ui/use-table-columns";
@@ -16,6 +16,8 @@ import { STATUS_LABEL } from "@/lib/creative-status";
 import { rowsToCsv, todayStamp, type CsvColumn } from "@/lib/csv-export";
 import { isoDate, usd } from "@/lib/format";
 import { useNavTransition } from "@/lib/nav-progress";
+import { DEFAULT_CREATIVE_SORT } from "@/lib/creative-sort";
+import { useLibrarySort, writeLibrarySort } from "@/components/creative/use-library-sort";
 
 const TYPE_LABEL: Record<CreativeListRow["type"], string> = {
   video: "Video",
@@ -58,11 +60,12 @@ export const CSV_COLUMNS: CsvColumn<CreativeListRow>[] = [
 ];
 
 // Column key → its asc/desc URL sort values (validated in
-// validators/creative.ts). Sorting stays SERVER-side: the query layer owns the
-// derived-status order, the priority "unrated last" and the stage "earliest
-// stage, unassigned last" rules. DataTable only reflects the URL's state —
-// none of these columns carries a `sortValue`, so it never re-sorts locally.
-const DEFAULT_SORT: CreativeSort = "launched-desc";
+// validators/creative.ts). The ORDER is `sortCreativeRows` (lib/creative-sort)
+// — the server lists with it and this table re-sorts the rows it holds with it
+// on a click (D12, shallow URL). None of these columns carries a `sortValue`,
+// so DataTable itself never re-sorts: one comparator owns the derived-status
+// order, "unrated last" and "earliest stage, unassigned last".
+const DEFAULT_SORT: CreativeSort = DEFAULT_CREATIVE_SORT;
 const SORTS = {
   name: { asc: "name-asc", desc: "name-desc" },
   product: { asc: "product-asc", desc: "product-desc" },
@@ -72,7 +75,9 @@ const SORTS = {
   launchDate: { asc: "launched-asc", desc: "launched-desc" },
   priority: { asc: "priority-asc", desc: "priority-desc" },
   stages: { asc: "stage-asc", desc: "stage-desc" },
-  spend7d: { asc: "spend7-asc", desc: "spend-desc" },
+  // `spend7-desc`, not `spend-desc` (30d): the 7d header used to sort by the
+  // 30-day column on its first click (fixed with D12).
+  spend7d: { asc: "spend7-asc", desc: "spend7-desc" },
   spend30d: { asc: "spend-asc", desc: "spend-desc" },
 } satisfies Record<string, { asc: CreativeSort; desc: CreativeSort }>;
 type SortKey = keyof typeof SORTS;
@@ -93,9 +98,9 @@ const DEFAULT_HIDDEN = [
 ] as const;
 
 export function CreativeTable({
-  rows,
+  rows: serverRows,
   total,
-  listCtx,
+  listCtx: serverListCtx,
 }: {
   rows: CreativeListRow[];
   /** Total matching across the filter (for the "Showing N of M" count). */
@@ -103,10 +108,9 @@ export function CreativeTable({
   listCtx?: string;
 }) {
   const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
   const [, startNav] = useNavTransition();
-  const currentSort = (searchParams.get("sort") as CreativeSort) ?? DEFAULT_SORT;
+  // The URL's order over the rows held here (D12): a sort click is shallow.
+  const { sort: currentSort, rows, listCtx } = useLibrarySort(serverRows, serverListCtx);
 
 
   const detailHref = (r: CreativeListRow) =>
@@ -133,13 +137,7 @@ export function CreativeTable({
     if (!pair) return;
     const next: CreativeSort | null =
       currentSort === pair.desc ? pair.asc : currentSort === pair.asc ? null : pair.desc;
-    const params = new URLSearchParams(searchParams.toString());
-    if (next === null || next === DEFAULT_SORT) params.delete("sort");
-    else params.set("sort", next);
-    const qs = params.toString();
-    startNav(() =>
-      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false }),
-    );
+    writeLibrarySort(next ?? DEFAULT_SORT);
   };
 
   const columns: DataColumn<CreativeListRow>[] = useMemo(

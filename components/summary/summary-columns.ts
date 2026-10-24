@@ -79,3 +79,49 @@ export const ADS_HIDEABLE_KEYS: readonly string[] = [
   ADS_RATE_KEY,
   ADS_TOTAL_KEY,
 ];
+
+/** The four column params' names — the URL shape every saved view carries. */
+export const ADS_COLUMN_PARAMS = ["hideIdentity", "hideMetrics", "hideRate", "hideBlended"] as const;
+
+/**
+ * The column choice a URL STATES, or null when it states none (a bare URL
+ * falls through to the saved view / preference / config — resolved on the
+ * server). The client reads this live (D12): a toggle rewrites the URL
+ * shallowly, with no server render, so the table can't wait for new props.
+ * Parses exactly like `validators/summary.ts` (unknown keys dropped).
+ */
+export function adsColumnsFromParams(params: {
+  get(key: string): string | null;
+  has(key: string): boolean;
+}): AdsHiddenColumns | null {
+  if (!ADS_COLUMN_PARAMS.some((k) => params.has(k))) return null;
+  const csv = (key: string) => (params.get(key) ?? "").split(",").filter(Boolean);
+  const flag = (key: string) => {
+    const v = params.get(key);
+    return v === "1" || v === "true";
+  };
+  return {
+    identity: (Object.keys(IDENTITY_LABELS) as IdentityColumnKey[]).filter((k) =>
+      csv("hideIdentity").includes(k),
+    ),
+    metrics: (Object.keys(METRIC_LABELS) as MetricColumnKey[]).filter((k) =>
+      csv("hideMetrics").includes(k),
+    ),
+    rate: flag("hideRate"),
+    blended: flag("hideBlended"),
+  };
+}
+
+/** Write a column choice into params, in the four-param URL shape. */
+export function writeAdsColumnParams(params: URLSearchParams, parts: AdsHiddenColumns): void {
+  const setCsv = (key: string, values: readonly string[]) => {
+    if (values.length === 0) params.delete(key);
+    else params.set(key, values.join(","));
+  };
+  setCsv("hideIdentity", parts.identity);
+  setCsv("hideMetrics", parts.metrics);
+  if (parts.rate) params.set("hideRate", "1");
+  else params.delete("hideRate");
+  if (parts.blended) params.set("hideBlended", "1");
+  else params.delete("hideBlended");
+}

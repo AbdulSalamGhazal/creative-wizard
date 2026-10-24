@@ -93,7 +93,7 @@ export function rememberIncludeExcluded(on: boolean): void {
  * shows — and only when it shows the RESOLVED preference (no explicit URL
  * value), since an explicit value is the truth whatever the default says.
  */
-function useRefreshWhenBehind(kind: "range" | "excluded", behind: boolean, written: unknown) {
+export function useRefreshWhenBehind(kind: string, behind: boolean, written: unknown) {
   const router = useRouter();
   const pathname = usePathname();
   const query = useSearchParams().toString();

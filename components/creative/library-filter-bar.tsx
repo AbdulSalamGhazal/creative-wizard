@@ -42,6 +42,7 @@ import {
 import { ViewsControl } from "@/components/summary/views-control";
 import type { SummaryViewRow } from "@/db/queries/summary-views";
 import { ExcludedParamToggle } from "@/components/filters/excluded-param-toggle";
+import { writeLibrarySort } from "@/components/creative/use-library-sort";
 
 interface Props {
   /** Effective Excluded-toggle state (URL param → saved pref → hidden). */
@@ -177,11 +178,8 @@ export function LibraryFilterBar({
       else next.set(key, values.join(","));
     });
 
-  const setSort = (s: CreativeSort) =>
-    update((next) => {
-      if (s === "launched-desc") next.delete("sort");
-      else next.set("sort", s);
-    });
+  // Shallow (D12): the list re-orders from the URL, no server render.
+  const setSort = (s: CreativeSort) => writeLibrarySort(s);
   const setView = (v: CreativeView) =>
     update((next) => {
       // Table is the default, so it carries no param; grid is the opt-in.

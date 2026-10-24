@@ -1,9 +1,11 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import { useNavTransition } from "@/lib/nav-progress";
+import { useSearchParams } from "next/navigation";
+import { isPlainClick, shallowHref, shallowParams } from "@/lib/shallow-url";
+import { resolveSummarySort, sortSummaryRows } from "@/lib/summary-sort";
+import { useRefreshWhenBehind } from "@/lib/pref-sync";
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { withDateRange } from "@/lib/url";
@@ -37,8 +39,11 @@ import {
   ADS_TOTAL_KEY,
   IDENTITY_LABELS,
   METRIC_LABELS,
+  adsColumnsFromParams,
   joinAdsHidden,
   splitAdsHidden,
+  writeAdsColumnParams,
+  type AdsHiddenColumns,
 } from "@/components/summary/summary-columns";
 import { rowsToCsv, todayStamp, type CsvColumn } from "@/lib/csv-export";
 import { PriorityStars } from "@/components/creative/priority-stars";
@@ -48,12 +53,6 @@ import type { PlatformStatus } from "@/lib/creative-status";
 interface Props {
   rows: SummaryRow[];
   platforms: string[];
-  /** Current effective sort, post-server-validation. */
-  sort: { key: string; dir: SortDir };
-  /** Path the column headers should link to with updated sort params. */
-  pathname: string;
-  /** Current query string (minus nothing) to preserve when toggling sort. */
-  baseParams: string;
   /** Identity columns to suppress (Creative name is always shown). */
   hiddenIdentity?: Set<IdentityColumnKey>;
   /** The remembered GROUP order (server-resolved); the control reorders it. */
@@ -165,25 +164,72 @@ function pickMetric(block: PlatformMetricBlock, key: string): number | null {
  * a dragged width is a momentary reading aid, and one place for that state
  * beats two.
  * Numeric columns stay content-sized.
+ *
+ * SORT AND COLUMNS ARE SHALLOW (D12, 2026-10). Both are presentation of rows
+ * this table already holds, so a click rewrites the URL with the native
+ * history API (no server render — it used to re-run the page's 15 queries and
+ * ship ~2 KB per creative) and the table re-orders / re-hides from the URL it
+ * reads live. The order is `sortSummaryRows` (lib/summary-sort.ts), the SAME
+ * function the server sorted with, so a fresh load and a click agree. A sort
+ * click is a history entry (Back undoes it); a column toggle replaces.
  */
+// The column choice this tab last wrote — so a copy restored by Back/Forward
+// from before a toggle that ended with NO hide params (nothing hidden) re-reads
+// its server state once instead of showing the old choice.
+let lastWrittenAdsHidden: string | null = null;
+
 export function SummaryTable({
-  rows,
+  rows: serverRows,
   platforms,
-  sort,
-  pathname,
-  baseParams,
-  hiddenIdentity,
-  hiddenMetrics,
+  hiddenIdentity: serverHiddenIdentity,
+  hiddenMetrics: serverHiddenMetrics,
   columnOrder,
   ratingConfig,
-  showRate = true,
-  showBlended,
+  showRate: serverShowRate = true,
+  showBlended: serverShowBlended,
 }: Props) {
+  const searchParams = useSearchParams();
   // Carry the active date range (when explicit in the URL) into each creative
   // link so the detail page opens on the same window instead of its default.
-  const rangeParams = new URLSearchParams(baseParams);
-  const rangeFrom = rangeParams.get("from");
-  const rangeTo = rangeParams.get("to");
+  const rangeFrom = searchParams.get("from");
+  const rangeTo = searchParams.get("to");
+
+  // The sort the URL states (validated exactly as the server does), applied to
+  // the rows held here — the server already sent them in this order on a fresh
+  // load, so the first render re-sorts to the same thing.
+  const sort = resolveSummarySort(searchParams.get("sort"), searchParams.get("dir"), platforms);
+  const rows = useMemo(
+    () => sortSummaryRows(serverRows, sort, ratingConfig),
+    // `sort` is rebuilt every render; its key and direction are its identity.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [serverRows, sort.key, sort.dir, ratingConfig],
+  );
+
+  // COLUMNS: what the URL states → a toggle made here (when it ended with no
+  // params, i.e. nothing hidden) → the server's resolution (saved view →
+  // preference → config). Same precedence as `resolveColumnPrefs`.
+  const [toggled, setToggled] = useState<AdsHiddenColumns | null>(null);
+  const serverColumns: AdsHiddenColumns = {
+    identity: [...(serverHiddenIdentity ?? [])],
+    metrics: [...(serverHiddenMetrics ?? [])],
+    rate: !serverShowRate,
+    blended: serverShowBlended === false,
+  };
+  const urlColumns = adsColumnsFromParams(searchParams);
+  const columnState = urlColumns ?? toggled ?? serverColumns;
+  const hiddenIdentity = new Set(columnState.identity);
+  const hiddenMetrics = new Set(columnState.metrics);
+  const showRate = !columnState.rate;
+  const showBlended = serverShowBlended === undefined && !columnState.blended
+    ? undefined
+    : !columnState.blended;
+  useRefreshWhenBehind(
+    "ads-columns",
+    urlColumns === null &&
+      lastWrittenAdsHidden !== null &&
+      lastWrittenAdsHidden !== joinAdsHidden(serverColumns).join(","),
+    lastWrittenAdsHidden,
+  );
 
   const showTotal =
     showBlended === undefined ? platforms.length >= 2 : showBlended;
@@ -214,9 +260,6 @@ export function SummaryTable({
    * three shapes — and `splitAdsHidden`/`joinAdsHidden` are the only
    * translation, because every saved view is a stored query string.
    */
-  const router = useRouter();
-  const tablePathname = usePathname();
-  const [, startNav] = useNavTransition();
   const groupKeys: string[] = [
     ...(platforms as string[]),
     ...(showTotal ? [ADS_TOTAL_KEY] : []),
@@ -236,23 +279,12 @@ export function SummaryTable({
     onChange: (next) => {
       setPlatformOrder(next.order);
       const parts = splitAdsHidden(next.hidden);
-      const params = new URLSearchParams(baseParams);
-      const setCsv = (key: string, values: string[]) => {
-        if (values.length === 0) params.delete(key);
-        else params.set(key, values.join(","));
-      };
-      setCsv("hideIdentity", parts.identity);
-      setCsv("hideMetrics", parts.metrics);
-      if (parts.rate) params.set("hideRate", "1");
-      else params.delete("hideRate");
-      if (parts.blended) params.set("hideBlended", "1");
-      else params.delete("hideBlended");
-      const query = params.toString();
-      startNav(() =>
-        router.replace(query ? `${tablePathname}?${query}` : tablePathname, {
-          scroll: false,
-        }),
-      );
+      setToggled(parts);
+      lastWrittenAdsHidden = joinAdsHidden(parts).join(",");
+      // Shallow (D12): the URL still states the choice (saved views snapshot
+      // it); the table re-hides from it at once, with no server render. The
+      // hook writes the preference, as before.
+      shallowParams((params) => writeAdsColumnParams(params, parts), "replace");
     },
   });
 
@@ -329,7 +361,7 @@ export function SummaryTable({
     key === "status" || key.endsWith(".status") ? "asc" : "desc";
 
   const sortHref = (key: string): string => {
-    const next = new URLSearchParams(baseParams);
+    const next = new URLSearchParams(searchParams.toString());
     const dflt = firstDir(key);
     if (sort.key === key) {
       // Cycle: <first> → <other> → reset
@@ -345,7 +377,7 @@ export function SummaryTable({
       next.set("dir", dflt);
     }
     const qs = next.toString();
-    return qs ? `${pathname}?${qs}` : pathname;
+    return qs ? `/summary?${qs}` : "/summary";
   };
 
   const SortIcon = ({ active, dir }: { active: boolean; dir: SortDir }) => {
@@ -812,9 +844,8 @@ function IdentityTh({
         pinned && "sticky left-0 z-30 bg-surface",
       )}
     >
-      <Link
+      <SortLink
         href={href}
-        scroll={false}
         className={
           "inline-flex items-center gap-1 max-w-full hover:text-ink transition-colors " +
           (active ? "text-brand" : "")
@@ -822,7 +853,7 @@ function IdentityTh({
       >
         <span className={width ? "truncate" : ""}>{label}</span>
         <SortIcon active={active} dir={dir} />
-      </Link>
+      </SortLink>
       {resizable && (
         <span
           role="separator"
@@ -874,9 +905,8 @@ function RateAndMetricsHead({
               className="font-medium px-2 py-2 text-center border-l border-line"
               title="Status on this platform — N: new · A: active · P: pause · T: terminated"
             >
-              <Link
+              <SortLink
                 href={sortHref(`${scope}.status`)}
-                scroll={false}
                 className={
                   "inline-flex items-center gap-1 hover:text-ink transition-colors " +
                   (sort.key === `${scope}.status` ? "text-brand" : "")
@@ -884,16 +914,15 @@ function RateAndMetricsHead({
               >
                 St.
                 <SortIcon active={sort.key === `${scope}.status`} dir={sort.dir} />
-              </Link>
+              </SortLink>
             </th>
           )}
           <th
             className="font-medium px-3 py-2 whitespace-nowrap text-center"
             title="Derived from ROAS and the spend gate in Configuration → Rate rules."
           >
-            <Link
+            <SortLink
               href={sortHref(`${scope}.rate`)}
-              scroll={false}
               className={
                 "inline-flex items-center gap-1 hover:text-ink transition-colors " +
                 (sort.key === `${scope}.rate` ? "text-brand" : "")
@@ -901,7 +930,7 @@ function RateAndMetricsHead({
             >
               Rate
               <SortIcon active={sort.key === `${scope}.rate`} dir={sort.dir} />
-            </Link>
+            </SortLink>
           </th>
         </>
       )}
@@ -943,9 +972,8 @@ function SortableTh({
         (groupBorder ? "border-l border-line " : "")
       }
     >
-      <Link
+      <SortLink
         href={href}
-        scroll={false}
         className={
           "inline-flex items-center gap-1 hover:text-ink transition-colors " +
           (active ? "text-brand" : "")
@@ -953,7 +981,7 @@ function SortableTh({
       >
         {label}
         <SortIcon active={active} dir={dir} />
-      </Link>
+      </SortLink>
     </th>
   );
 }
@@ -1122,5 +1150,44 @@ function FooterCells({
         );
       })}
     </>
+  );
+}
+
+/**
+ * A sort header's link (D12): a real `href` — a new tab, a copied link and a
+ * fresh load all get the sorted page from the server — but a plain click
+ * re-sorts in place with a SHALLOW push, no server render.
+ */
+function SortLink({
+  href,
+  children,
+  ...rest
+}: React.AnchorHTMLAttributes<HTMLAnchorElement> & { href: string }) {
+  return (
+    <a
+      href={href}
+      {...rest}
+      onClick={(e) => {
+        if (!isPlainClick(e)) return;
+        e.preventDefault();
+        shallowHref(href, "push");
+      }}
+    >
+      {children}
+    </a>
+  );
+}
+
+/**
+ * "Sorted by …" in the page header — read off the live URL, so a shallow sort
+ * click (D12) updates it without a server render.
+ */
+export function SummarySortLabel({ platforms }: { platforms: string[] }) {
+  const searchParams = useSearchParams();
+  const sort = resolveSummarySort(searchParams.get("sort"), searchParams.get("dir"), platforms);
+  return (
+    <div className="text-[11px] text-ink-3 font-mono">
+      Sorted by {sort.key} {sort.dir}
+    </div>
   );
 }

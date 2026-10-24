@@ -315,7 +315,7 @@ Some pages are labelled differently from their route — the URL stayed put so b
 |---|---|---|
 | `/canvas` | Canvas | The campaign↔creative graph (§5h); read-only; React Flow loads here only |
 | `/library` | Library | Renamed from `/creatives`; hosts the **Creatives / Products / Angles** tabs. The table view is on the shared `DataTable` (2026-09): sort reflected from `?sort=` through ONE comparator the server, the client and the detail pager share (`lib/creative-sort.ts`, 2026-10), a Columns menu (per-browser hidden set; notes / source link / thumbnail / created-by / created-at hidden by default), angle + stage cells capped so a row can never grow, and a full-record CSV independent of the visible columns. The status strip sits above the list as a filter facet |
-| `/summary` | Ads | URL unchanged (saved views hang off it); the sidebar SECTION is also "Ads", deliberately |
+| `/summary` | Ads | URL unchanged (saved views hang off it); the sidebar SECTION is also "Ads", deliberately. Sort and column clicks are SHALLOW URL writes re-sorted in the browser with the server's own `sortSummaryRows` (D12, 2026-10) |
 | `/uploads` | Upload ads | Hosts the **History / CSV mapping** tabs |
 | `/store/uploads` | Upload orders | Hosts the **History / Order fields** tabs |
 

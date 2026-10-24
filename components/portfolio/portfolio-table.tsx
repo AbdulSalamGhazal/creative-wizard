@@ -6,6 +6,7 @@ import { DataTable, type DataColumn } from "@/components/ui/data-table";
 import { useTableColumns } from "@/components/ui/use-table-columns";
 import { TABLE_KEYS } from "@/lib/table-columns";
 import { useNavTransition } from "@/lib/nav-progress";
+import { shallowParams } from "@/lib/shallow-url";
 import { withDateRange } from "@/lib/url";
 import { int, isoDate, pct, roas, usd } from "@/lib/format";
 import { PLATFORM_LABEL } from "@/lib/palette";
@@ -36,8 +37,8 @@ const fRatio = (v: number | null) => roas(v);
 
 export function PortfolioTable({
   rows,
-  sort = "spend",
-  dir = "desc",
+  sort: serverSort = "spend",
+  dir: serverDir = "desc",
   hidden = [],
   order = [],
 }: {
@@ -52,6 +53,14 @@ export function PortfolioTable({
   const searchParams = useSearchParams();
   const rangeFrom = searchParams.get("from");
   const rangeTo = searchParams.get("to");
+  // The sort the URL states, read live: a sort click is SHALLOW (D12,
+  // 2026-10) — DataTable re-sorts the rows it holds with the columns'
+  // `sortValue`s, the same comparator the server render used, so the click
+  // needs no server render (it used to re-run the page's queries).
+  const sort = searchParams.get("sort") ?? serverSort;
+  const urlDir = searchParams.get("dir");
+  const dir: "asc" | "desc" =
+    urlDir === "asc" || urlDir === "desc" ? urlDir : searchParams.has("sort") ? "desc" : serverDir;
 
   const [, startNav] = useNavTransition();
   const pushParams = (mut: (p: URLSearchParams) => void) => {
@@ -241,10 +250,11 @@ export function PortfolioTable({
       dir={dir}
       {...cols.tableProps}
       onSort={(key, d) =>
-        pushParams((p) => {
+        // A history entry, as the old navigation was — Back undoes a sort.
+        shallowParams((p) => {
           p.set("sort", key);
           p.set("dir", d);
-        })
+        }, "push")
       }
       onRowClick={(r) =>
         startNav(() => router.push(

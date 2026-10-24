@@ -1,4 +1,4 @@
-import type { CreativeSort } from "@/validators/creative";
+import { creativeSortValues, type CreativeSort } from "@/validators/creative";
 import { STATUS_ORDER, type CreativeStatus } from "@/lib/creative-status";
 import { comparePriority } from "@/lib/priority";
 import { compareStages } from "@/lib/funnel-stages";
@@ -108,6 +108,14 @@ export function creativeComparator(sort: CreativeSort): (a: CreativeSortRow, b: 
     case "created-desc":
       return then((a, b) => time(b.createdAt) - time(a.createdAt));
   }
+}
+
+/** The Library's default order — the one a bare URL (no `?sort=`) shows. */
+export const DEFAULT_CREATIVE_SORT: CreativeSort = "launched-desc";
+
+/** A URL's `?sort=` read the way the server's validator reads it. */
+export function parseCreativeSort(raw: string | null | undefined): CreativeSort {
+  return creativeSortValues.includes(raw as CreativeSort) ? (raw as CreativeSort) : DEFAULT_CREATIVE_SORT;
 }
 
 /** A sorted COPY of `rows` — the server and the client both call this. */

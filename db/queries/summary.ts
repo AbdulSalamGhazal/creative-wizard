@@ -2,7 +2,6 @@ import {
   and,
   asc,
   between,
-  desc,
   eq,
   ilike,
   inArray,
@@ -49,22 +48,17 @@ import {
 } from "@/validators/summary";
 import {
   DEFAULT_RATING_CONFIG,
-  RATING_RANK,
   rateBlock,
   rulesForScope,
   type RatingConfig,
 } from "@/lib/rating";
 import { getActiveAccountId } from "@/lib/tenant";
+import { resolveSummarySort, sortSummaryRows } from "@/lib/summary-sort";
 import { PLATFORMS_WITH_CREATIVES } from "@/lib/palette";
-import { comparePriority, splitPriorityFilter } from "@/lib/priority";
-import {
-  compareStages,
-  sortStages,
-  splitStageFilter,
-} from "@/lib/funnel-stages";
+import { splitPriorityFilter } from "@/lib/priority";
+import { sortStages, splitStageFilter } from "@/lib/funnel-stages";
 import { creativeStatusMap, statusFor } from "@/db/queries/creative-status";
 import {
-  STATUS_ORDER,
   type CreativeStatus as DynamicCreativeStatus,
   type PlatformStatus,
 } from "@/lib/creative-status";
@@ -163,188 +157,9 @@ export interface SummaryResult {
   effectiveSort: { key: string; dir: SortDir };
 }
 
-/** All sort keys that are always valid (identity columns). */
-const IDENTITY_SORT_KEYS = new Set([
-  "name",
-  "product",
-  "type",
-  "status",
-  "priority",
-  "stage",
-  "creator",
-  "launch",
-]);
-
-/** Per-platform metric keys (one suffix per metric). */
-const METRIC_KEYS = [
-  "spend",
-  "impressions",
-  "clicks",
-  "conversions",
-  "ctr",
-  "cpm",
-  "cpc",
-  "cpa",
-  "roas",
-  "hook_rate",
-  "hold_rate",
-  "complete_rate",
-  "landing_page_views",
-  "voc",
-  "cvr",
-] as const;
-type MetricKey = (typeof METRIC_KEYS)[number];
-
-const DEFAULT_SORT = { key: "total.spend", dir: "desc" as SortDir };
-
-/**
- * Resolve a user-supplied sort key against the selected platforms. Unknown
- * or hidden-platform keys collapse to the default ("total.spend" desc).
- */
-function resolveSort(
-  sort: string | undefined,
-  dir: SortDir | undefined,
-  selectedPlatforms: Platform[],
-): { key: string; dir: SortDir } {
-  const direction: SortDir = dir ?? "desc";
-  if (!sort) return DEFAULT_SORT;
-  if (IDENTITY_SORT_KEYS.has(sort)) return { key: sort, dir: direction };
-  // Per-platform / total metric keys: "<platform | total>.<metric>"
-  const [scope, metric] = sort.split(".");
-  if (!scope || !metric) return DEFAULT_SORT;
-  // "rate" and "status" are derived categorical columns sortable per scope
-  // (both handled by a JS re-sort, not SQL).
-  if (
-    metric !== "rate" &&
-    metric !== "status" &&
-    !METRIC_KEYS.includes(metric as MetricKey)
-  ) {
-    return DEFAULT_SORT;
-  }
-  // The blended total has a Rate cell but no per-platform status chip, so
-  // "total.status" isn't a real column — fall back to the default sort.
-  if (metric === "status" && scope === "total") return DEFAULT_SORT;
-  if (scope === "total") return { key: sort, dir: direction };
-  if (selectedPlatforms.includes(scope as Platform)) {
-    return { key: sort, dir: direction };
-  }
-  return DEFAULT_SORT;
-}
-
-/**
- * Produce the SQL expression to order by given a resolved sort key. The
- * caller has already validated the key against the selected platforms.
- *
- * NB: sorting on a derived metric (ctr, cpa, etc.) of an empty platform
- * column returns NULL. The caller wraps the returned metric expression in
- * COALESCE(expr, 0) so NULLs sort at the 0 position (the "null sorts as 0"
- * rule); this function just returns the raw expression.
- */
-function orderBySql(
-  key: string,
-  selectedPlatforms: Platform[],
-  metricsByPlatform: Map<Platform, ReturnType<typeof platformMetrics>>,
-): PgColumn | SQL<unknown> {
-  if (IDENTITY_SORT_KEYS.has(key)) {
-    switch (key) {
-      case "name":
-        return creatives.name;
-      case "product":
-        return products.name;
-      case "type":
-        return creatives.type;
-      case "status":
-        // Dynamic general status can't be a SQL sort (it's derived in JS). Give
-        // SQL a neutral stable base (spend desc); the JS re-sort below applies
-        // the real STATUS_ORDER ordering. Mirrors the rate-sort handling.
-        return sumSpend;
-      case "stage":
-        // Ranked by the EARLIEST stage with unassigned last — the JS re-sort
-        // below owns that; SQL only needs a stable base.
-        return sumSpend;
-      case "priority":
-        // Unrated must sort LAST in BOTH directions, which no single SQL
-        // direction gives — the JS re-sort below does it (same shape as the
-        // rate/status sorts). SQL only needs a stable base here.
-        return sumSpend;
-      case "creator":
-        return users.name;
-      case "launch":
-        // Manual launch date (nullable). Postgres orders NULLs last on asc /
-        // first on desc — creatives with no set date cluster at one end.
-        return creatives.launchDate;
-    }
-  }
-  const [scope, metric] = key.split(".") as [string, MetricKey];
-  if (scope === "total") {
-    switch (metric) {
-      case "spend":
-        return sumSpend;
-      case "impressions":
-        return sumImpressions;
-      case "clicks":
-        return sumClicks;
-      case "conversions":
-        return sumConversions;
-      case "ctr":
-        return ctr;
-      case "cpm":
-        return cpm;
-      case "cpc":
-        return cpc;
-      case "cpa":
-        return cpa;
-      case "roas":
-        return roas;
-      case "hook_rate":
-        return hookRate;
-      case "hold_rate":
-        return holdRate;
-      case "complete_rate":
-        return completeRate;
-      case "landing_page_views":
-        return sumLandingPageViews;
-      case "voc":
-        return voc;
-      case "cvr":
-        return cvr;
-    }
-  }
-  const platformMeta = metricsByPlatform.get(scope as Platform);
-  if (!platformMeta) return sumSpend;
-  switch (metric) {
-    case "spend":
-      return platformMeta.spend;
-    case "impressions":
-      return platformMeta.impressions;
-    case "clicks":
-      return platformMeta.clicks;
-    case "conversions":
-      return platformMeta.conversions;
-    case "ctr":
-      return platformMeta.ctr;
-    case "cpm":
-      return platformMeta.cpm;
-    case "cpc":
-      return platformMeta.cpc;
-    case "cpa":
-      return platformMeta.cpa;
-    case "roas":
-      return platformMeta.roas;
-    case "hook_rate":
-      return platformMeta.hookRate;
-    case "hold_rate":
-      return platformMeta.holdRate;
-    case "complete_rate":
-      return platformMeta.completeRate;
-    case "landing_page_views":
-      return platformMeta.landingPageViews;
-    case "voc":
-      return platformMeta.voc;
-    case "cvr":
-      return platformMeta.cvr;
-  }
-}
+// The sort keys, their validation and the ORDER itself live in
+// lib/summary-sort.ts (D12, 2026-10): the client re-sorts the rows it holds
+// with the same function, so a sort click is not a server render.
 
 const num = (v: unknown): number => (v === null || v === undefined ? 0 : Number(v));
 const numOrNull = (v: unknown): number | null =>
@@ -489,7 +304,7 @@ export async function listCreativeSummary(
       ? filters.platforms.filter((p) => creativePlatforms.has(p)).slice(0, 5)
       : [];
 
-  const resolved = resolveSort(filters.sort, filters.dir, selectedPlatforms);
+  const resolved = resolveSummarySort(filters.sort, filters.dir, selectedPlatforms);
 
   // Pre-build per-platform metric fragments once so the SELECT and the
   // ORDER BY share the same expressions.
@@ -625,37 +440,6 @@ export async function listCreativeSummary(
     select[`${pf}_cvr`] = m.cvr;
   }
 
-  // Rating AND the dynamic general status are derived in JS (not SQL), so
-  // neither a rate sort nor a status sort can be expressed in ORDER BY. Detect
-  // them, give SQL a neutral stable order, and re-sort the materialized rows
-  // below.
-  const isRateSort = resolved.key.endsWith(".rate");
-  const isStatusSort = resolved.key === "status";
-  // Per-platform status sort ("<platform>.status") — derived in JS like rate
-  // and the general status, so SQL only needs a neutral base order.
-  const isPlatformStatusSort = resolved.key.endsWith(".status");
-  // Priority: rated first in the chosen direction, unrated always last.
-  const isPrioritySort = resolved.key === "priority";
-  // Stage: earliest stage in funnel order, unassigned always last.
-  const isStageSort = resolved.key === "stage";
-  const isIdentitySort = IDENTITY_SORT_KEYS.has(resolved.key);
-  const baseOrderExpr =
-    isRateSort ||
-    isStatusSort ||
-    isPlatformStatusSort ||
-    isPrioritySort ||
-    isStageSort
-      ? sumSpend
-      : orderBySql(resolved.key, selectedPlatforms, metricsByPlatform);
-  // Null metrics must sort as 0 globally (a creative with no clicks has cpc =
-  // "—"; it should sort at the 0 position, not jump to the very top/bottom that
-  // Postgres' default NULLS FIRST/LAST would give). Identity (text) columns and
-  // the rate/status-sort base order are left untouched.
-  const orderExpr =
-    isRateSort || isIdentitySort
-      ? baseOrderExpr
-      : sql`coalesce(${baseOrderExpr}, 0)`;
-
   const rawRows = await db
     .select(select)
     .from(creatives)
@@ -674,16 +458,9 @@ export async function listCreativeSummary(
       users.name,
       users.email,
     )
-    .orderBy(
-      // For a rate or status sort, SQL just provides a stable base order
-      // (spend desc); the JS re-sort below applies the real rating/status order.
-      isRateSort || isStatusSort || isPlatformStatusSort || resolved.dir === "desc"
-        ? desc(orderExpr)
-        : asc(orderExpr),
-      // Stable secondary sort so equal-spend rows don't shuffle between
-      // requests.
-      asc(creatives.name),
-    );
+    // No ORDER BY: the order is `sortSummaryRows` below (lib/summary-sort.ts),
+    // the same function the table re-sorts with on a sort click (D12).
+    ;
 
   if (rawRows.length === 0) {
     return { rows: [], platforms: selectedPlatforms, effectiveSort: resolved };
@@ -827,66 +604,8 @@ export async function listCreativeSummary(
     });
   }
 
-  if (isRateSort) {
-    const [scope] = resolved.key.split(".");
-    const factor = resolved.dir === "asc" ? 1 : -1;
-    // Copy before sorting so the SQL-ordered `rows` isn't mutated in place
-    // when no row-dropping filter ran (filteredRows may alias rows).
-    filteredRows = [...filteredRows].sort((a, b) => {
-      const ra = RATING_RANK[rateBlock(blockFor(a, scope!), rulesForScope(config, scope!))];
-      const rb = RATING_RANK[rateBlock(blockFor(b, scope!), rulesForScope(config, scope!))];
-      if (ra !== rb) return (ra - rb) * factor;
-      return a.name.localeCompare(b.name);
-    });
-  }
-
-  // Dynamic general-status sort — same JS re-sort shape as the rate sort, but
-  // ordered by STATUS_ORDER over each row's derived generalStatus (the legacy
-  // SQL column is gone). Copy before sorting so the SQL-ordered rows aren't
-  // mutated in place when filteredRows aliases rows.
-  if (isStatusSort) {
-    const factor = resolved.dir === "asc" ? 1 : -1;
-    filteredRows = [...filteredRows].sort((a, b) => {
-      const sa = STATUS_ORDER[a.generalStatus];
-      const sb = STATUS_ORDER[b.generalStatus];
-      if (sa !== sb) return (sa - sb) * factor;
-      return a.name.localeCompare(b.name);
-    });
-  }
-
-  // Priority sort — rated creatives in the chosen direction, UNRATED ALWAYS
-  // LAST (an absence of judgment, not a low one). Same JS re-sort shape as the
-  // rate/status sorts; the SQL base order was spend desc.
-  if (isPrioritySort) {
-    const dir = resolved.dir === "asc" ? 1 : -1;
-    filteredRows = [...filteredRows].sort((a, b) => {
-      const d = comparePriority(a.priority, b.priority, dir);
-      return d !== 0 ? d : a.name.localeCompare(b.name);
-    });
-  }
-
-  // Stage sort — the SAME `compareStages` the Library uses, so a creative on
-  // {Awareness, Retargeting} ranks as Awareness on both surfaces.
-  if (isStageSort) {
-    const dir = resolved.dir === "asc" ? 1 : -1;
-    filteredRows = [...filteredRows].sort((a, b) => {
-      const d = compareStages(a.stages, b.stages, dir);
-      return d !== 0 ? d : a.name.localeCompare(b.name);
-    });
-  }
-
-  // Per-platform status sort — ranks by that platform's status (STATUS_ORDER),
-  // treating "no presence on the platform" as New to match what the cell shows.
-  if (isPlatformStatusSort) {
-    const [scope] = resolved.key.split(".");
-    const factor = resolved.dir === "asc" ? 1 : -1;
-    filteredRows = [...filteredRows].sort((a, b) => {
-      const sa = STATUS_ORDER[a.perPlatformStatus[scope as Platform] ?? "new"];
-      const sb = STATUS_ORDER[b.perPlatformStatus[scope as Platform] ?? "new"];
-      if (sa !== sb) return (sa - sb) * factor;
-      return a.name.localeCompare(b.name);
-    });
-  }
+  // THE order — one pure function, shared with the client (D12, 2026-10).
+  filteredRows = sortSummaryRows(filteredRows, resolved, config);
 
   return {
     rows: filteredRows,

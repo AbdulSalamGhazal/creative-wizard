@@ -41,6 +41,18 @@
   column carries a `sortValue`.
 - URL-backed tables (Campaigns, Ads) are out of the catalog rule's scope: their
   columns live in saved views' query strings, which `defaultHidden` can't reach.
+- **Presentation-only params are SHALLOW (D12, 2026-10).** A sort (Ads,
+  Library, Campaigns) and the Ads column toggles rewrite the URL with the
+  native history API (`lib/shallow-url.ts`) — no server render — and the
+  table re-arranges the rows it holds, reading the URL live. The ORDER is one
+  pure function per table that the server ALSO sorts with
+  (`sortSummaryRows` lib/summary-sort.ts, `sortCreativeRows`
+  lib/creative-sort.ts; Campaigns' `sortValue`s run in the same DataTable on
+  both sides), so a fresh load and a click can't disagree. A sort click on
+  Ads/Campaigns is a history entry (`push`); the Library's sort and the Ads
+  columns `replace`, as their navigations did. Precedence is unchanged: what
+  the URL states → a toggle made in this tab → the server's resolution
+  (view → preference → config).
 
 ## History and rationale
 
@@ -264,10 +276,12 @@ as it stood before the restructure.*
     502/−176 → 225/+1 · by-angle 351/−25 → 201/+1 · Budget Pacing's week label
     plus its "through …" suffix 298 against a 291px frame.
   - **The LIBRARY table (2026-09) — DataTable, with three things worth keeping.**
-    (1) **Sorting stays SERVER-side.** No column carries a `sortValue`, so
-    DataTable never re-sorts locally: the query layer owns the derived-status
-    order, "unrated last" and "earliest stage, unassigned last", and the table
-    only reflects the URL's `?sort=`. Its header keeps the Library's
+    (1) **ONE comparator owns the order** (since D12, 2026-10: it was
+    server-side SQL plus JS re-sorts). No column carries a `sortValue`, so
+    DataTable never re-sorts on its own; `sortCreativeRows` (lib/creative-sort)
+    owns the derived-status order, "unrated last" and "earliest stage,
+    unassigned last", the server lists with it, and the table and the grid
+    re-apply it to the URL's `?sort=` after a shallow sort click. Its header keeps the Library's
     THREE-state cycle (desc → asc → back to the page default) by interpreting
     `onSort` itself — DataTable proposes a direction, the consumer decides what
     the URL says. (2) **A Columns control** — the table's own corner button since
@@ -296,3 +310,27 @@ as it stood before the restructure.*
     so four platforms fit a 1366px desktop without horizontal scroll. These two
     are the WHOLE list: a grouped header is the only licence to leave DataTable,
     and a flat table that wants one should be re-thought, not hand-rolled.
+
+### Sort and column clicks stopped being server renders (2026-10, D12)
+
+- Every sort click and every Ads column toggle was a navigation: the page's
+  queries re-ran and the whole row set came back — on Ads ~2 KB per creative
+  per click (an estimated 0.3–0.5 MB at production volume) plus 15 queries,
+  for an order of rows the browser already held. Now those writes are
+  shallow (`history.pushState`/`replaceState`, which Next 15 syncs into
+  `useSearchParams`) and the table re-arranges itself. What made it safe is
+  that the order moved into PURE helpers the server uses too:
+  `lib/summary-sort.ts` reproduces the Ads query's `ORDER BY` and its five JS
+  re-sorts rule for rule (a metric's NULL as 0; Creator/Launch NULLs last
+  ascending, first descending; Rate, Status, Priority, Stage comparators;
+  ties by name), `lib/creative-sort.ts` the Library's. Text compares through
+  one explicit collator ("en"), so the server, a browser in another locale
+  and the database's collation no longer each decide. Measured on the local
+  data: 15 Ads sort variants and 5 Library sorts list in the same order as
+  before (the harness's client props, compared old vs new).
+- The Ads table reads its columns from the URL when the URL states them, else
+  from a toggle made in this tab, else the server's resolution; a copy
+  restored by Back/Forward after a toggle that cleared every hide param
+  re-reads itself once (`useRefreshWhenBehind`).
+- Fixed on the way: the Library's 7d-spend header sorted by the 30-day
+  column on its first click (`spend-desc` instead of `spend7-desc`).

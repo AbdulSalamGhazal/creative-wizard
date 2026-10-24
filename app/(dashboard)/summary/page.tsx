@@ -29,7 +29,7 @@ import { LIFETIME_FLOOR, presetLabel, todayIso } from "@/lib/date-presets";
 import { PLATFORMS_WITH_CREATIVES } from "@/lib/palette";
 import { requireAuth } from "@/lib/auth";
 import { SummaryFilterBar } from "@/components/summary/summary-filter-bar";
-import { SummaryTable } from "@/components/summary/summary-table";
+import { SummarySortLabel, SummaryTable } from "@/components/summary/summary-table";
 import { PageShell } from "@/components/layout/page-shell";
 import { PageHeader } from "@/components/layout/page-header";
 
@@ -140,7 +140,7 @@ export default async function SummaryPage({
       : parsed.platforms;
 
   // Filter dropdowns + the query run in parallel.
-  const [{ rows, platforms: selectedPlatforms, effectiveSort }, views] = await Promise.all([
+  const [{ rows, platforms: selectedPlatforms }, views] = await Promise.all([
     listCreativeSummary({
       from: range.from,
       to: range.to,
@@ -163,12 +163,6 @@ export default async function SummaryPage({
     }),
     listSummaryViews(user.id, "summary"),
   ]);
-
-  // Reconstruct the base URLSearchParams for sort-link href computation.
-  const baseParams = new URLSearchParams();
-  for (const [k, v] of Object.entries(params)) {
-    if (typeof v === "string" && v) baseParams.set(k, v);
-  }
 
   const rangeLabel = presetLabel(range.from, range.to);
   const platformsLabel =
@@ -230,18 +224,13 @@ export default async function SummaryPage({
           </>
         }
         rightSlot={
-          <div className="text-[11px] text-ink-3 font-mono">
-            Sorted by {effectiveSort.key} {effectiveSort.dir}
-          </div>
+          <SummarySortLabel platforms={selectedPlatforms} />
         }
       />
 
       <SummaryTable
         rows={rows}
         platforms={selectedPlatforms}
-        sort={effectiveSort}
-        pathname="/summary"
-        baseParams={baseParams.toString()}
         hiddenIdentity={new Set(columns.identity)}
         hiddenMetrics={new Set(columns.metrics)}
         columnOrder={columnState.order}
