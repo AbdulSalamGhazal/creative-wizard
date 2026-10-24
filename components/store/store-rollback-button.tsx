@@ -17,6 +17,7 @@ import { useNavTransition } from "@/lib/nav-progress";
 import { rollbackStoreBatch } from "@/app/actions/store-upload";
 import { safeAction } from "@/lib/action-failure";
 import { toastActionFailure } from "@/lib/action-toast";
+import { plural } from "@/lib/format";
 
 /**
  * Roll back a store upload batch — deletes only the orders it INSERTED (updates
@@ -47,7 +48,10 @@ export function StoreRollbackButton({
         return;
       }
       // The action revalidated: the history arrived re-rendered in its response.
-      toast.success("Batch rolled back");
+      // Same words as the ads rollback's (D30); the count is what was REMOVED.
+      toast.success(
+        `Batch rolled back · ${plural(res.removed ?? rowsInserted, "order")} removed`,
+      );
       setOpen(false);
       setAck(false);
     });

@@ -97,7 +97,7 @@ describe("concurrent rollbacks: exactly one wins", () => {
     if (!c.ok) return;
     const results = await Promise.all([rollbackStoreBatch(c.batchId), rollbackStoreBatch(c.batchId)]);
     expect(results.filter((r) => r.ok)).toHaveLength(1);
-    expect(results.filter((r) => !r.ok)).toEqual([{ ok: false, error: "Batch already rolled back." }]);
+    expect(results.filter((r) => !r.ok)).toEqual([{ ok: false, error: "Batch is not active." }]); // D30: the ads words
   });
 });
 

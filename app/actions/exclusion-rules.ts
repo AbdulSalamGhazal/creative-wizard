@@ -13,6 +13,7 @@ import { notifyRoutes } from "@/db/queries/notifications";
 import { CAMPAIGN_OBJECTIVES } from "@/lib/campaign";
 import {
   ruleDescriptor,
+  ruleTitleDescriptor,
   validateRuleTarget,
   type ExclusionRuleTarget,
 } from "@/lib/exclusion-rules";
@@ -135,7 +136,7 @@ export async function createExclusionRule(input: unknown): Promise<RuleMutationR
       const flipped = await applyRule(tx, { ...target, id: rule!.id }, acct);
       // Same transaction as the rule and its first sweep.
       await notifyRoutes(tx, acct, "exclusion.rule_created", {
-        title: `Exclusion rule added: ${ruleDescriptor(target, resolved.label)}`,
+        title: `Exclusion rule added: ${ruleTitleDescriptor(target, resolved.label)}`,
         body: `${flipped} ${flipped === 1 ? "record" : "records"} excluded from aggregates.`,
         href: "/admin/catalog?tab=exclusions",
         actorUserId: user.id,
@@ -196,7 +197,10 @@ export async function toggleExclusionRule(input: unknown): Promise<RuleMutationR
       // Only DEACTIVATION is an event: switching a rule back on is the
       // ordinary state, switching it off silently changes every aggregate.
       await notifyRoutes(tx, acct, "exclusion.rule_deactivated", {
-        title: `Exclusion rule switched off: ${descriptor}`,
+        title: `Exclusion rule switched off: ${ruleTitleDescriptor(
+          rule,
+          resolved.ok ? resolved.label : null,
+        )}`,
         body: `${released} ${released === 1 ? "record is" : "records are"} back in aggregates.`,
         href: "/admin/catalog?tab=exclusions",
         actorUserId: user.id,

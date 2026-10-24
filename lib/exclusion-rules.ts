@@ -1,3 +1,5 @@
+import { isolate } from "@/lib/bidi";
+
 /**
  * Pure helpers for the exclusion-rules engine ("materialized with provenance"):
  * a rule flips `performance_records.excluded_from_aggregates` on its matching
@@ -54,6 +56,20 @@ export function ruleDescriptor(
   if (t.kind === "campaign_objective") return `objective: ${t.objective}`;
   if (t.kind === "campaign") return `campaign “${targetLabel ?? t.campaignId}”`;
   return `creative “${targetLabel ?? t.creativeId}”`;
+}
+
+/**
+ * The descriptor as a NOTIFICATION TITLE carries it: the campaign or creative
+ * name — user-supplied, often Arabic — wrapped in directional isolates, so it
+ * can't reorder the English title around it in the bell, a toast or
+ * /notifications (W3-5; comments-notifications.md "titles isolate names").
+ * The audit label keeps the plain `ruleDescriptor`.
+ */
+export function ruleTitleDescriptor(
+  t: ExclusionRuleTarget,
+  targetLabel?: string | null,
+): string {
+  return ruleDescriptor(t, targetLabel ? isolate(targetLabel) : targetLabel);
 }
 
 /**

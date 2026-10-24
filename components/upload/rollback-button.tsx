@@ -16,6 +16,7 @@ import {
 import { rollbackBatch } from "@/app/actions/rollback";
 import { safeAction } from "@/lib/action-failure";
 import { toastActionFailure } from "@/lib/action-toast";
+import { plural } from "@/lib/format";
 
 interface Props {
   batchId: string;
@@ -47,7 +48,8 @@ export function RollbackButton({
         return;
       }
       setOpen(false);
-      toast.success(`Batch rolled back · ${rowCount} rows removed`);
+      // Same words as the Store's (D30); the count is what was REMOVED.
+      toast.success(`Batch rolled back · ${plural(res.removed ?? rowCount, "row")} removed`);
     });
   };
 

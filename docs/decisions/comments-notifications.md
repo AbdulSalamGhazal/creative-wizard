@@ -618,3 +618,18 @@ checks became one function, `canModerateComments`, so the menu and the
 server cannot drift apart again. Pinned in `tests/db/comments.test.ts`
 (a `users.manage` editor is refused, the author and an admin are not);
 the case fails on the old rule.
+
+### Wave 3 (2026-10): the Store rollback notifies; exclusion titles isolate
+
+- **D30.** A Store batch rollback sent no notification and worded its toast
+  differently from the ads rollback. `store.upload_rolled_back` joined
+  `EVENT_TYPES` (so the routing config grows its row on its own) and
+  `rollbackStoreBatch` calls `notifyRoutes` inside its transaction, like the
+  ads action: "Store upload rolled back: 2 orders removed". Both rollbacks now
+  return the count they REMOVED, and both toasts read "Batch rolled back ·
+  N rows/orders removed"; their refusals use the same words.
+- **W3-5.** The exclusion-rule producers interpolated the raw campaign or
+  creative name, so an Arabic name could reorder "Exclusion rule added: …" in
+  the bell. `ruleTitleDescriptor` (lib/exclusion-rules) isolates it; the
+  audit label keeps the plain descriptor. Pinned through the real action in
+  `tests/db/wave3.test.ts`.

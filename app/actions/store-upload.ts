@@ -19,7 +19,7 @@ import { type StoreValidationError } from "@/store/errors";
 import type { StoreField } from "@/store/fields";
 import { actionError } from "@/lib/action-error";
 import { notifyRoutes } from "@/db/queries/notifications";
-import { int } from "@/lib/format";
+import { int, plural } from "@/lib/format";
 import { ROLLBACK_WINDOW_HOURS, withinRollbackWindow } from "@/lib/upload-batches";
 
 /**
@@ -263,7 +263,7 @@ export async function commitStoreUpload(
 
 export async function rollbackStoreBatch(
   batchId: unknown,
-): Promise<{ ok: boolean; error?: string }> {
+): Promise<{ ok: boolean; error?: string; removed?: number }> {
   try {
     const me = await requirePermission("upload.rollback");
     const parsed = z.string().uuid().safeParse(batchId);
@@ -280,10 +280,14 @@ export async function rollbackStoreBatch(
       .from(storeUploadBatches)
       .where(and(eq(storeUploadBatches.accountId, acct), eq(storeUploadBatches.id, parsed.data)))
       .limit(1);
+    // The same words as the ads rollback (D30) — they are one action twice.
     if (!batch) return { ok: false, error: "Batch not found." };
-    if (batch.status !== "active") return { ok: false, error: "Batch already rolled back." };
+    if (batch.status !== "active") return { ok: false, error: "Batch is not active." };
     if (!withinRollbackWindow(batch.uploadedAt)) {
-      return { ok: false, error: `Rollback window (${ROLLBACK_WINDOW_HOURS}h) has passed.` };
+      return {
+        ok: false,
+        error: `Rollback window (${ROLLBACK_WINDOW_HOURS} h) has elapsed for this batch.`,
+      };
     }
 
     const deleted = await db.transaction(async (tx) => {
@@ -307,9 +311,18 @@ export async function rollbackStoreBatch(
         .delete(storeOrders)
         .where(and(eq(storeOrders.accountId, acct), eq(storeOrders.uploadBatchId, parsed.data)))
         .returning({ id: storeOrders.id });
+      // Notify like the ads rollback does (D30) — in the same transaction as
+      // the delete, so nobody is told about a rollback that didn't happen.
+      await notifyRoutes(tx, acct, "store.upload_rolled_back", {
+        title: `Store upload rolled back: ${plural(rows.length, "order")} removed`,
+        body: batch.fileName,
+        href: "/store/uploads",
+        actorUserId: me.id,
+        entity: { type: "store", id: parsed.data },
+      });
       return rows.length;
     });
-    if (deleted === null) return { ok: false, error: "Batch already rolled back." };
+    if (deleted === null) return { ok: false, error: "Batch is not active." };
 
     try {
       revalidatePath("/store/uploads");
@@ -325,7 +338,7 @@ export async function rollbackStoreBatch(
       actorUserId: me.id,
       meta: { rowsDeleted: deleted },
     });
-    return { ok: true };
+    return { ok: true, removed: deleted };
   } catch (err) {
     return { ok: false, error: actionError(err, "store_upload") };
   }

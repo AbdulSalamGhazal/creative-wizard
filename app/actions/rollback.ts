@@ -9,13 +9,15 @@ import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
 import { getActiveAccountId } from "@/lib/tenant";
 import { actionError } from "@/lib/action-error";
 import { notifyRoutes } from "@/db/queries/notifications";
-import { int } from "@/lib/format";
+import { plural } from "@/lib/format";
 import { ROLLBACK_WINDOW_HOURS, withinRollbackWindow } from "@/lib/upload-batches";
 
 
 export interface RollbackResult {
   ok: boolean;
   error?: string;
+  /** Records the rollback actually removed. */
+  removed?: number;
 }
 
 /**
@@ -94,9 +96,7 @@ export async function rollbackBatch(batchId: string): Promise<RollbackResult> {
       // Same transaction as the delete: if the rollback fails, nobody is told
       // it happened.
       await notifyRoutes(tx, acct, "upload.rolled_back", {
-        title: `Upload rolled back: ${int(rows.length)} ${
-          rows.length === 1 ? "row" : "rows"
-        } removed`,
+        title: `Upload rolled back: ${plural(rows.length, "row")} removed`,
         body: batch.fileName,
         href: "/uploads",
         actorUserId: user.id,
@@ -127,7 +127,7 @@ export async function rollbackBatch(batchId: string): Promise<RollbackResult> {
       },
     });
 
-    return { ok: true };
+    return { ok: true, removed: deleted };
   } catch (err) {
     return { ok: false, error: actionError(err, "rollback") };
   }

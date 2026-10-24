@@ -76,6 +76,14 @@ export const EVENT_TYPES = [
     description: "A batch was rolled back inside its 24-hour window.",
   },
   {
+    // D30 (2026-10): the Store twin of the ads rollback — it used to roll
+    // back silently while the ads one notified.
+    key: "store.upload_rolled_back",
+    label: "Store upload rolled back",
+    category: "system",
+    description: "An order batch was rolled back inside its 24-hour window.",
+  },
+  {
     key: "budget.plan_saved",
     label: "Budget plan saved",
     category: "system",
