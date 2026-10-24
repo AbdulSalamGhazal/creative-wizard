@@ -25,6 +25,11 @@
   suppressions — `sv` (a saved view owns its state, including what it omits)
   and `fx` (this URL states its filters in full).
 - A CLEARED filter DELETES its row; that is what stops a filter resurrecting.
+- **A comma-list param drops only its bad tokens** — ONE helper, `csvEnum`
+  (`validators/shared.ts`), on every page: `platforms=meta,instagram` reads
+  `["instagram"]` everywhere, and a saved Ads view naming a retired column
+  keeps its other hidden columns (W3-1, pinned by `validators/shared.test.ts`,
+  which also fails if a validator declares its own copy).
 - `useFilterParams` is the only URL writer, and writes made in one tick COMPOSE
   — without that, Clear's one-write-per-filter loses all but the last.
 - A saved view with an empty config applies via `?view=none`, never a bare URL,
@@ -290,3 +295,15 @@ as it stood before the restructure.*
 - Proven in a signed-in dev render: the picked range is the default on the
   next bare visit to another page, after a full reload, and on Back/Forward,
   and the same for the Excluded toggle.
+
+### One comma-list parser (2026-10, W3-1)
+
+- `csvEnum` had been copied into five validators and the copies disagreed:
+  the Library's dropped only an invalid token (its comment recorded why — a
+  legacy `platforms=meta` link must not disable the whole filter), while Ads,
+  Dashboard/Trends/Funnel, Campaigns and Canvas still reset the WHOLE array on
+  one bad token. Because remembered filters are shared by key, one stored
+  value then read differently per page, and a saved Ads view naming a renamed
+  column re-opened every identity column. The Library's behaviour won (it was
+  the decided one); the Store and Budget `csvOf` copies, which already behaved
+  that way, and Compare's platform parser now use the same helper.

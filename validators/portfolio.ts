@@ -2,24 +2,16 @@ import { z } from "zod";
 import { campaignObjectiveEnum, platformEnum } from "@/lib/enums";
 import { CAMPAIGN_STATUSES } from "@/lib/campaign-status";
 import { defaultDateRange } from "@/lib/date-presets";
+import { csvEnum } from "@/validators/shared";
 
 /**
  * URL-state filters for the "All Campaigns" portfolio page.
  *
  * Distinct from the global dashboard filters — this surface is portfolio
  * altitude: date range, platform + objective multi-select, and a campaign-name
- * search. No product/type/angle (those live on the creative surfaces). A bad value
- * drops the filter rather than throwing.
+ * search. No product/type/angle (those live on the creative surfaces). A bad
+ * token is dropped and its valid siblings kept (`csvEnum`), never thrown.
  */
-
-function csvEnum<T extends readonly [string, ...string[]]>(values: T) {
-  return z
-    .string()
-    .optional()
-    .transform((s) => (s ? s.split(",").filter(Boolean) : []))
-    .pipe(z.array(z.enum(values)))
-    .catch([]);
-}
 
 export const portfolioFiltersSchema = z.object({
   // Default to the last 7 days when no range is set (Lifetime is concrete).

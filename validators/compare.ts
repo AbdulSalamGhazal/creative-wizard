@@ -2,6 +2,7 @@ import { z } from "zod";
 import { platformEnum } from "@/lib/enums";
 import type { CompareMetric } from "@/db/queries/performance";
 import { defaultDateRange } from "@/lib/date-presets";
+import { parseCsvEnum } from "@/validators/shared";
 
 type Platform = (typeof platformEnum)[number];
 
@@ -46,8 +47,7 @@ function csvList(s: string | undefined): string[] {
 }
 
 function csvPlatforms(s: string | undefined): Platform[] {
-  const valid = new Set<string>(platformEnum as readonly string[]);
-  return csvList(s).filter((p): p is Platform => valid.has(p));
+  return uniq(parseCsvEnum(s, platformEnum));
 }
 
 /** Side slots. A and B are always shown; C appears via "Add side". */

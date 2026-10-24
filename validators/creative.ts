@@ -10,6 +10,7 @@ import {
 } from "@/lib/funnel-stages";
 import { hasLandingMarker } from "@/lib/landing-code";
 import { isBlobStorageUrl } from "@/lib/url";
+import { csvEnum, csvList } from "@/validators/shared";
 
 // Initial sketch; see docs/prd.md §5.1.
 // The creative attribute set is expected to evolve during development.
@@ -123,28 +124,9 @@ export type CreativeTerminationInput = z.infer<typeof creativeTerminationSchema>
 // picker and date-range primitive exist; PRD §5.1 lists both as required).
 // -----------------------------------------------------------------------------
 
-function csvEnum<T extends readonly [string, ...string[]]>(values: T) {
-  const allowed = new Set<string>(values);
-  // Drop only the INVALID tokens, keeping valid siblings — a single stale value
-  // (e.g. a legacy `platforms=meta` link) must not silently disable the whole
-  // filter. (The old `.pipe(z.array(z.enum)).catch([])` reset the entire array
-  // to [] on any bad token.)
-  return z
-    .string()
-    .optional()
-    .transform((s) =>
-      (s ? s.split(",").filter(Boolean) : []).filter(
-        (v): v is T[number] => allowed.has(v),
-      ),
-    );
-}
-
-function csvString() {
-  return z
-    .string()
-    .optional()
-    .transform((s) => (s ? s.split(",").filter(Boolean) : []));
-}
+// `csvEnum` drops only the INVALID tokens, keeping valid siblings — a single
+// stale value (e.g. a legacy `platforms=meta` link) must not silently disable
+// the whole filter. It is the ONE shared helper (validators/shared.ts).
 
 export const creativeSortValues = [
   "launched-desc",
@@ -179,14 +161,14 @@ export const creativeListFiltersSchema = z.object({
     .string()
     .optional()
     .transform((s) => (s && s.trim() ? s.trim() : undefined)),
-  productIds: csvString(),
+  productIds: csvList(),
   types: csvEnum(creativeTypeEnum),
   // Library status filter uses the NEW dynamic status set
   // (new|active|pause|terminated), NOT the OLD manual `creativeStatusEnum`.
   statuses: csvEnum(CREATIVE_STATUSES),
   // Keep only creatives with performance data on the selected platform(s).
   platforms: csvEnum(platformEnum),
-  angles: csvString(),
+  angles: csvList(),
   // Manual Priority: 3 · 2 · 1 · Unrated (a first-class choice, not an absence).
   priorities: csvEnum(PRIORITY_FILTER_VALUES),
   // Manual Stage, OVERLAP semantics: a creative matches if ANY selected stage

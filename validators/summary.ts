@@ -5,6 +5,7 @@ import { CREATIVE_STATUSES, type CreativeStatus } from "@/lib/creative-status";
 import { PRIORITY_FILTER_VALUES } from "@/lib/priority";
 import { STAGE_FILTER_VALUES } from "@/lib/funnel-stages";
 import { defaultDateRange } from "@/lib/date-presets";
+import { csvEnum, csvList as csv } from "@/validators/shared";
 
 /**
  * URL-state validator for the Summary view.
@@ -19,21 +20,6 @@ import { defaultDateRange } from "@/lib/date-presets";
  * Total; horizontal scroll handles the width.
  */
 
-function csvEnum<T extends readonly [string, ...string[]]>(values: T) {
-  return z
-    .string()
-    .optional()
-    .transform((s) => (s ? s.split(",").filter(Boolean) : []))
-    .pipe(z.array(z.enum(values)))
-    .catch([]);
-}
-
-function csv() {
-  return z
-    .string()
-    .optional()
-    .transform((s) => (s ? s.split(",").filter(Boolean) : []));
-}
 
 // All five platforms may be selected (no cap; there are only 5).
 export const MAX_PLATFORMS = 5;

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { platformEnum } from "@/lib/enums";
+import { csvEnum } from "@/validators/shared";
 import {
   BUDGET_OBJECTIVES,
   PLAN_MODES,
@@ -12,24 +13,6 @@ import {
  * the standing currency decisions). Allocations are keyed by Budget's OWN
  * objective buckets (`BUDGET_OBJECTIVES`), not the campaign vocabulary.
  */
-
-/**
- * A comma-separated URL param narrowed to a known vocabulary: unknown parts are
- * DROPPED silently (a retired value, a hand-edited link, a preference shared
- * from another page), never an error. Mirrors the store validators' helper.
- */
-function csvOf<T extends string>(allowed: readonly T[]) {
-  const set = new Set<string>(allowed);
-  return z
-    .string()
-    .optional()
-    .transform((s) =>
-      (s ?? "")
-        .split(",")
-        .map((v) => v.trim())
-        .filter((v): v is T => set.has(v)),
-    );
-}
 
 /** `YYYY-MM` with a REAL month (01-12) — `2026-13` is not a month. */
 export const MONTH_KEY = /^\d{4}-(0[1-9]|1[0-2])$/;
@@ -326,7 +309,7 @@ export const pacingViewSchema = z.object({
   split: z.enum(PACING_SPLITS).catch("none"),
   shape: z.enum(PACING_SHAPES).catch("cumulative"),
   /** The board's tier-2 bucket slice. */
-  buckets: csvOf([...BUDGET_OBJECTIVES]),
+  buckets: csvEnum([...BUDGET_OBJECTIVES]),
   /** "Off-pace only": hide rows whose |deviation| is under the warn threshold
    *  — including the ones with no verdict at all. */
   offpace: z

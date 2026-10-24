@@ -21,7 +21,7 @@ describe("canvasFiltersSchema", () => {
       stages: "Awareness,unassigned",
     });
     expect(parsed.view).toBe("campaign");
-    expect(parsed.platforms).toEqual([]); // one bad value drops the filter
+    expect(parsed.platforms).toEqual(["google"]); // only the bad token drops (W3-1)
     expect(parsed.stages).toEqual(["Awareness", "unassigned"]);
   });
 

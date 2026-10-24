@@ -1,28 +1,10 @@
 import { z } from "zod";
 import { platformEnum } from "@/lib/enums";
+import { csvEnum } from "@/validators/shared";
 import { CHANNEL_DESTINATIONS, UNMAPPED_CHANNEL } from "@/store/channels";
 import { UNATTRIBUTED } from "@/store/sources";
 
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
-
-/**
- * A comma-separated URL param narrowed to a known vocabulary: unknown parts
- * are DROPPED silently (a retired platform, a hand-edited link, a remembered
- * value from another page), never an error and never a filter nobody asked
- * for. Empty → `[]`, which the queries read as "no filter".
- */
-function csvOf<T extends string>(allowed: readonly T[]) {
-  const set = new Set<string>(allowed);
-  return z
-    .string()
-    .optional()
-    .transform((s) =>
-      (s ?? "")
-        .split(",")
-        .map((v) => v.trim())
-        .filter((v): v is T => set.has(v)),
-    );
-}
 
 /** URL filters for the Store orders table — date range + order-id search ONLY. */
 export const storeOrdersFiltersSchema = z.object({
@@ -105,9 +87,9 @@ export const storeInsightsFiltersSchema = z.object({
     .optional()
     .transform((s) => (s && s.trim() ? s.trim() : undefined)),
   /** Platform buckets: the four platforms, or the Unattributed sentinel. */
-  platforms: csvOf([...platformEnum, UNATTRIBUTED]),
+  platforms: csvEnum([...platformEnum, UNATTRIBUTED]),
   /** Channel buckets: Website / Application, or the Unmapped sentinel. */
-  channels: csvOf([...CHANNEL_DESTINATIONS, UNMAPPED_CHANNEL]),
+  channels: csvEnum([...CHANNEL_DESTINATIONS, UNMAPPED_CHANNEL]),
 });
 
 export type StoreInsightsFilterInput = z.infer<typeof storeInsightsFiltersSchema>;

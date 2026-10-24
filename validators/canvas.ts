@@ -3,22 +3,14 @@ import { platformEnum } from "@/lib/enums";
 import { CREATIVE_STATUSES } from "@/lib/creative-status";
 import { STAGE_FILTER_VALUES } from "@/lib/funnel-stages";
 import { parseCanvasView } from "@/lib/canvas";
+import { csvEnum } from "@/validators/shared";
 
 /**
- * URL-state filters for the Canvas page. A bad value drops the filter rather
- * than throwing. The date range is NOT defaulted here: the page resolves it
+ * URL-state filters for the Canvas page. A bad token is dropped and its valid
+ * siblings kept (`csvEnum`), never thrown. The date range is NOT defaulted here: the page resolves it
  * server-side (`resolvePreferredRange` → saved range → last 30 days) so the
  * picker's label and the query's bounds are one value.
  */
-function csvEnum<T extends readonly [string, ...string[]]>(values: T) {
-  return z
-    .string()
-    .optional()
-    .transform((s) => (s ? s.split(",").filter(Boolean) : []))
-    .pipe(z.array(z.enum(values)))
-    .catch([]);
-}
-
 /**
  * Creative statuses shown when the URL names none: everything but Terminated.
  * A terminated creative is one the team has already ruled on, so by default
