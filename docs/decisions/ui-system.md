@@ -377,3 +377,15 @@ as it stood before the restructure.*
   which the layout props stopped guaranteeing once create/delete no longer
   re-render the layout (W2-1). The pages are usable while it loads; the list
   says "Loading creatives…", or "Couldn't load creatives · Retry".
+
+### A formatter must render the same on the server and in the browser (2026-10, W2-10)
+
+- The Dashboard hydrated with a mismatch in dev: the product donut's centre
+  read "$78" in the browser and "$78.0" from the server, so React discarded
+  the server HTML for the tree. `Intl.NumberFormat` with `style: "currency"`
+  defaults its MINIMUM fraction digits to the currency's (2); with a compact
+  maximum of 1, Node's ICU clamps the minimum to 1 and prints "$78.0" while
+  browsers drop it. `usdCompact` / `sarCompact` now state
+  `minimumFractionDigits: 0`, so both engines agree ("$78", "$1.2K"). Any new
+  formatter that sets a maximum below the currency's default must set the
+  minimum too (`lib/format.test.ts` pins these two).

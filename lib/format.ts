@@ -24,10 +24,15 @@ const usd0Formatter = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 0,
 });
 
+// `minimumFractionDigits: 0` is load-bearing (W2-10, 2026-10): a CURRENCY
+// style defaults its minimum to the currency's 2 digits, and Node's ICU clamps
+// that to the 1-digit maximum ("$78.0") where browsers drop it ("$78") — the
+// Dashboard hydrated with that mismatch. Stated explicitly, both agree.
 const usdCompactFormatter = new Intl.NumberFormat("en-US", {
   style: "currency",
   currency: "USD",
   notation: "compact",
+  minimumFractionDigits: 0,
   maximumFractionDigits: 1,
 });
 
@@ -48,6 +53,7 @@ const sarCompactFormatter = new Intl.NumberFormat("en-US", {
   style: "currency",
   currency: "SAR",
   notation: "compact",
+  minimumFractionDigits: 0, // same server/browser agreement as usdCompact
   maximumFractionDigits: 1,
 });
 

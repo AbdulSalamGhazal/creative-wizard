@@ -92,3 +92,20 @@ describe("plural", () => {
     expect(plural(2, "entry", "entries")).toBe("2 entries");
   });
 });
+
+describe("compact money renders the SAME on the server and in the browser (W2-10)", () => {
+  // Node's ICU formats a compact CURRENCY with the currency's 2-digit minimum
+  // clamped to the 1-digit maximum — "$78.0" — while browsers render "$78".
+  // The Dashboard's product donut hydrated with that mismatch ("$78" vs
+  // "$78.0") and React threw its server HTML away. An explicit minimum of 0
+  // makes both engines agree.
+  it("whole values carry no trailing .0", async () => {
+    const { usdCompact, sarCompact } = await import("@/lib/format");
+    expect(usdCompact(78)).toBe("$78");
+    expect(usdCompact(77.96)).toBe("$78");
+    expect(usdCompact(1000)).toBe("$1K");
+    expect(usdCompact(1234)).toBe("$1.2K");
+    expect(sarCompact(78)).toBe("SAR\u00a078"); // ICU puts a no-break space after the code
+    expect(sarCompact(25_400)).toBe("SAR\u00a025.4K");
+  });
+});
