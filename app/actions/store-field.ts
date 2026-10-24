@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { requirePermission } from "@/lib/auth";
@@ -9,7 +9,7 @@ import { getActiveAccountId } from "@/lib/tenant";
 import { accounts, storeOrderFields } from "@/db/schema";
 import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
 import { isCoreKey, isSystemRequiredKey, slugifyKey, uniqueFieldKey } from "@/store/fields";
-import { storeAttributeKeysInUse } from "@/db/queries/store";
+import { storeFieldCreationContext } from "@/db/queries/store";
 import { actionError } from "@/lib/action-error";
 
 /**
@@ -67,21 +67,8 @@ export async function createStoreField(input: unknown): Promise<FieldMutationRes
     }
     // Taken = the account's field keys AND any key still holding values on
     // its orders, so a deleted field's values never come back (W1-13).
-    const existing = new Set([
-      ...(
-        await db
-          .select({ key: storeOrderFields.key })
-          .from(storeOrderFields)
-          .where(eq(storeOrderFields.accountId, acct))
-      ).map((r) => r.key),
-      ...(await storeAttributeKeysInUse(acct)),
-    ]);
-    const key = uniqueFieldKey(base, existing);
-
-    const [{ max } = { max: 0 }] = await db
-      .select({ max: sql<number>`COALESCE(MAX(${storeOrderFields.sortOrder}), 0)` })
-      .from(storeOrderFields)
-      .where(eq(storeOrderFields.accountId, acct));
+    const { takenKeys, maxSortOrder } = await storeFieldCreationContext(acct);
+    const key = uniqueFieldKey(base, takenKeys);
 
     await db.insert(storeOrderFields).values({
       accountId: acct,
@@ -90,7 +77,7 @@ export async function createStoreField(input: unknown): Promise<FieldMutationRes
       type,
       required,
       headers,
-      sortOrder: (max ?? 0) + 1,
+      sortOrder: maxSortOrder + 1,
     });
 
     revalidatePathsSafe();

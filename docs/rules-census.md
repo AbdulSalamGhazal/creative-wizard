@@ -60,7 +60,7 @@ introducing the violation and watching it fail:
 | kebab-case files, PascalCase components, UPPER_SNAKE constants | prose | convention; a linter rule would be noisy on legitimate exceptions |
 | Data fetching lives in db/queries/*, not inline in pages | **guard added** | NEW `components/data-access.test.ts` — no exceptions |
 | All inputs validated through Zod in validators/ | enforced | `validators/*.test.ts` (5 files) pin the schemas; actions call them |
-| Raw SQL stays in the query layer, lib/metrics.ts + 5 named sites | **guard added** | NEW `db/raw-sql.test.ts` — rule reworded to match reality, then made checkable |
+| Raw SQL stays in the query layer, lib/metrics.ts + 6 named sites | **guard added** | NEW `db/raw-sql.test.ts` — rule reworded to match reality, then made checkable; since W3-9 it also matches the typed `sql<T>` form it used to miss |
 
 ### Database rules
 
@@ -360,7 +360,7 @@ this is where they landed.
 
 1. **The raw-SQL rule was false as written** — it named one file; sixteen
    used a `sql` template. REWORDED to the line worth defending (raw SQL
-   lives in the query layer and `lib/metrics.ts`, plus five named sites
+   lives in the query layer and `lib/metrics.ts`, plus six named sites
    each carrying its reason) and then PROMOTED: `db/raw-sql.test.ts` holds
    it, with a separate assertion that no component or validator may use
    raw SQL at all — the half that cannot be weakened by adding a file to

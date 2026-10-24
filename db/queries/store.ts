@@ -508,3 +508,21 @@ export async function storeAttributeKeysInUse(accountId: string): Promise<Set<st
   return new Set(rows.map((r) => r.key));
 }
 
+/**
+ * What a NEW field's key and position must avoid: every key the account's
+ * fields use, plus `storeAttributeKeysInUse`, and the highest `sort_order`
+ * (0 when there are none) so the field lands last. Read only on create.
+ */
+export async function storeFieldCreationContext(
+  accountId: string,
+): Promise<{ takenKeys: Set<string>; maxSortOrder: number }> {
+  const fields = await db
+    .select({ key: storeOrderFields.key, sortOrder: storeOrderFields.sortOrder })
+    .from(storeOrderFields)
+    .where(eq(storeOrderFields.accountId, accountId));
+  const inUse = await storeAttributeKeysInUse(accountId);
+  return {
+    takenKeys: new Set([...fields.map((r) => r.key), ...inUse]),
+    maxSortOrder: fields.reduce((m, r) => Math.max(m, r.sortOrder), 0),
+  };
+}

@@ -49,8 +49,14 @@ function walk(dir: string, out: string[] = []): string[] {
   return out;
 }
 
-/** A `sql` tagged template — the thing the rule is about. */
-const RAW = /\bsql`/;
+/**
+ * A `sql` tagged template — the thing the rule is about — INCLUDING the typed
+ * form `sql<number>`…``. The old pattern (`/\bsql`/`) missed every typed
+ * template, so `app/actions/store-field.ts` ran an unlisted
+ * `sql<number>`COALESCE(MAX(…))`` outside the layer with this test green
+ * (W3-9). The `<…>` may hold nested generics, never a backtick.
+ */
+export const RAW = /\bsql(?:<[^`;]*?>)?`/;
 
 describe("raw SQL stays in the layer that owns queries", () => {
   const files = ["app", "components", "db", "lib", "csv", "store", "validators"].flatMap((d) =>
@@ -85,5 +91,15 @@ describe("raw SQL stays in the layer that owns queries", () => {
       expect(RAW.test(src), `${f} no longer uses raw SQL — drop its entry`).toBe(true);
       expect(why.length).toBeGreaterThan(30);
     }
+  });
+});
+
+describe("the RAW pattern itself", () => {
+  it("matches the plain and the typed template, not a word that merely starts with sql", () => {
+    expect(RAW.test("sql`select 1`")).toBe(true);
+    expect(RAW.test("sql<number>`COALESCE(MAX(x), 0)`")).toBe(true);
+    expect(RAW.test("sql<Array<{ a: string }>>`x`")).toBe(true);
+    expect(RAW.test("const sqlite = 1; `template`")).toBe(false);
+    expect(RAW.test("import { sql } from 'drizzle-orm'")).toBe(false);
   });
 });
