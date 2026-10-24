@@ -5,6 +5,7 @@ import { useMemo } from "react";
 import { useFilterParams } from "@/components/filters/use-filter-params";
 import { PlatformsPill } from "@/components/filters/platforms-pill";
 import { setPersistedKeys } from "@/lib/filter-prefs";
+import { useRegisterFilterScope } from "@/lib/filter-scope";
 import {
   STRIP_FILTER_KEYS,
   STRIP_TIER2_KEYS,
@@ -177,6 +178,8 @@ export function FilterStrip({
   /** Clear has something to do — a tier-2 filter is on. */
   const filtersActive =
     productIds.length > 0 || types.length > 0 || selectedAngles.length > 0;
+  // An empty state's "Clear filters" calls THIS Clear (D24, lib/filter-scope).
+  useRegisterFilterScope(clearAll, filtersActive);
 
   const activeCount =
     (from || to ? 1 : 0) +

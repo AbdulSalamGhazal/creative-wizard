@@ -14,8 +14,8 @@ describe("upload batch facts (W3-3)", () => {
     expect(withinRollbackWindow("2026-10-24T00:00:00Z", now)).toBe(true);
   });
   it("a status is never shown as its stored identifier", () => {
-    expect(batchStatusLabel("rolled_back")).toBe("Rolled back");
-    expect(batchStatusLabel("active")).toBe("Active");
+    expect(batchStatusLabel("rolled_back")).toBe("rolled back");
+    expect(batchStatusLabel("active")).toBe("active");
     expect(batchStatusLabel("some_future_state")).toBe("some future state");
   });
 });

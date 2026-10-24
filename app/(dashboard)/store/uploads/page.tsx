@@ -17,8 +17,12 @@ import {
   distinctStoreSourceValues,
   distinctStoreChannelValues,
 } from "@/db/queries/reconciliation";
-import { RecentStoreBatches } from "@/components/store/recent-store-batches";
-import { withinRollbackWindow } from "@/lib/upload-batches";
+import { ROLLBACK_WINDOW_HOURS, withinRollbackWindow } from "@/lib/upload-batches";
+import { BatchHistoryTable } from "@/components/upload/batch-history-table";
+import { StoreRollbackButton } from "@/components/store/store-rollback-button";
+import { EmptyState } from "@/components/ui/empty-state";
+import { TABLE_KEYS } from "@/lib/table-columns";
+import { plural } from "@/lib/format";
 import { UPLOAD_ORDERS_TABS, passes } from "@/lib/page-gates";
 import { StoreCleanupTool } from "@/components/store/store-cleanup-tool";
 
@@ -71,7 +75,10 @@ export default async function StoreUploadsPage({
     );
   }
 
-  const batches = await listStoreBatches(50);
+  // One past the page's 50, so the count can say "latest" when it's capped.
+  const fetched = await listStoreBatches(51);
+  const capped = fetched.length > 50;
+  const batches = fetched.slice(0, 50);
   // How many of each rollback-eligible batch's inserted orders a LATER upsert
   // has revised — surfaced in the rollback confirm.
   const acct = await getActiveAccountId();
@@ -96,7 +103,8 @@ export default async function StoreUploadsPage({
       <PageHeader
         eyebrow="Store"
         title="Upload orders"
-        subtitle={`${batches.length} ${batches.length === 1 ? "batch" : "batches"}.`}
+        // A count is a fact, not helper text — "latest" when capped (C-21).
+        subtitle={capped ? `Latest ${batches.length} batches.` : `${plural(batches.length, "batch", "batches")}.`}
         rightSlot={
           canUpload ? (
             <Button asChild>
@@ -111,43 +119,50 @@ export default async function StoreUploadsPage({
 
       <PageTabs tabs={tabs} active={activeTab} />
 
-      {batches.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-line bg-surface px-6 py-16 text-center">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full border border-line bg-surface-2">
-            <FileUp className="h-5 w-5 text-ink-2" />
-          </div>
-          <p className="mt-4 text-sm text-ink-2">No uploads yet.</p>
-          <p className="mt-1 text-xs text-ink-3">
-            Upload a Salla order export to get started.
-          </p>
-          {canUpload && (
-            <div className="mt-4">
-              <Button asChild>
-                <Link href="/store/uploads/new">Upload your first export</Link>
-              </Button>
-            </div>
-          )}
-        </div>
-      ) : (
-        <RecentStoreBatches
-          batches={batches.map((b) => ({
-            id: b.id,
-            fileName: b.fileName,
-            uploadedByName: b.uploadedByName,
-            uploadedAt: b.uploadedAt.toISOString(),
-            rowsInserted: b.rowsInserted,
-            rowsUpdated: b.rowsUpdated,
-            upsert: b.upsert,
-            status: b.status,
-            updatedSince: updatedSince.get(b.id) ?? 0,
-          }))}
-          canRollback={canRollback}
-        />
-      )}
+      <BatchHistoryTable
+        tableKey={TABLE_KEYS.UPLOAD_HISTORY_STORE}
+        showPlatform={false}
+        rows={batches.map((b) => ({
+          id: b.id,
+          uploadedAt: b.uploadedAt.toISOString(),
+          fileName: b.fileName,
+          uploadedBy: b.uploadedByName,
+          rows: b.rowsInserted,
+          updated: b.rowsUpdated,
+          status: b.status,
+          rollback:
+            canRollback &&
+            b.status === "active" &&
+            b.rowsInserted > 0 &&
+            withinRollbackWindow(b.uploadedAt) ? (
+              <StoreRollbackButton
+                batchId={b.id}
+                fileName={b.fileName}
+                rowsInserted={b.rowsInserted}
+                updatedSince={updatedSince.get(b.id) ?? 0}
+              />
+            ) : null,
+        }))}
+        empty={
+          <EmptyState
+            size="lg"
+            icon={<FileUp className="h-5 w-5" />}
+            title="No uploads yet."
+            hint="Upload a Salla order export to get started."
+            action={
+              canUpload ? (
+                <Button asChild>
+                  <Link href="/store/uploads/new">Upload your first export</Link>
+                </Button>
+              ) : undefined
+            }
+          />
+        }
+      />
 
       {(canRollback || canCleanup) && batches.length > 0 && (
         <p className="text-[11px] text-ink-3">
-          Roll back a batch within 24 h of upload. Beyond that window, use the
+          Roll back a batch within {ROLLBACK_WINDOW_HOURS} h of upload. Beyond that window, use the
           cleanup tool below to remove orders by date, batch, or ID.
         </p>
       )}

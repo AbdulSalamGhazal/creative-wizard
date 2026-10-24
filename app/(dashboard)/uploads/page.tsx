@@ -1,8 +1,7 @@
 import Link from "next/link";
 import { Plus, Upload as UploadIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { isoDate, int } from "@/lib/format";
-import { PLATFORM_LABEL } from "@/lib/palette";
+import { plural } from "@/lib/format";
 import { auth, can } from "@/lib/auth";
 import { getActiveAccountId } from "@/lib/tenant";
 import { RollbackButton } from "@/components/upload/rollback-button";
@@ -11,7 +10,10 @@ import { listAccountCampaigns } from "@/db/queries/cleanup";
 import { listCreativeOptions } from "@/db/queries/creatives";
 import { listAllProductOptions } from "@/db/queries/products";
 import { listUploadBatches } from "@/db/queries/uploads";
-import { withinRollbackWindow } from "@/lib/upload-batches";
+import { ROLLBACK_WINDOW_HOURS, withinRollbackWindow } from "@/lib/upload-batches";
+import { BatchHistoryTable } from "@/components/upload/batch-history-table";
+import { EmptyState } from "@/components/ui/empty-state";
+import { TABLE_KEYS } from "@/lib/table-columns";
 import { UPLOAD_ADS_TABS, passes } from "@/lib/page-gates";
 import { batchRowsUpdatedSince } from "@/db/queries/performance";
 import { PageShell } from "@/components/layout/page-shell";
@@ -71,7 +73,7 @@ export default async function UploadsPage({
   }
 
   const acct = await getActiveAccountId();
-  const { rows } = await listUploadBatches(50);
+  const { rows, capped } = await listUploadBatches(50);
 
   // How many of each rollback-eligible batch's rows a LATER upload has revised.
   // Only batches still inside the window can be rolled back, so only those are
@@ -106,7 +108,9 @@ export default async function UploadsPage({
       <PageHeader
         eyebrow="Ads"
         title="Upload ads"
-        subtitle={`${rows.length} ${rows.length === 1 ? "batch" : "batches"}.`}
+        // A count is a fact, not helper text — and it says "latest" when the
+        // list is capped, rather than passing the cap off as the total (C-21).
+        subtitle={capped ? `Latest ${rows.length} batches.` : `${plural(rows.length, "batch", "batches")}.`}
         rightSlot={
           canImport ? (
             <Button asChild>
@@ -121,78 +125,47 @@ export default async function UploadsPage({
 
       <PageTabs tabs={tabs} active={activeTab} />
 
-      {rows.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-line bg-surface px-6 py-16 text-center">
-          <div className="mx-auto w-12 h-12 rounded-full bg-surface-2 border border-line flex items-center justify-center">
-            <UploadIcon className="w-5 h-5 text-ink-2" />
-          </div>
-          <p className="mt-4 text-ink-2 text-sm">No uploads yet.</p>
-          <p className="mt-1 text-ink-3 text-xs">
-            Start with an Instagram or Facebook export, or any of the four supported platforms.
-          </p>
-          <div className="mt-4">
-            <Button asChild>
-              <Link href="/uploads/new">Run your first upload</Link>
-            </Button>
-          </div>
-        </div>
-      ) : (
-        <div className="max-h-[70vh] overflow-auto rounded-lg border border-line bg-surface">
-          <table className="w-full text-sm num">
-            <thead>
-              <tr className="text-left text-label text-ink-3 border-b border-line [&>th]:sticky [&>th]:top-0 [&>th]:z-10 [&>th]:bg-surface">
-                <th className="font-medium px-3 py-2.5">Uploaded</th>
-                <th className="font-medium px-3 py-2.5">Platform</th>
-                <th className="font-medium px-3 py-2.5">File</th>
-                <th className="font-medium px-3 py-2.5">By</th>
-                <th className="font-medium px-3 py-2.5 text-right">Rows</th>
-                <th className="font-medium px-3 py-2.5">Status</th>
-                <th className="font-medium px-3 py-2.5 text-right"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-line">
-              {rows.map((r) => {
-                const inWindow = withinRollbackWindow(r.uploadedAt);
-                const rollable = canRollback && r.status === "active" && inWindow;
-                return (
-                  <tr key={r.id} className="hover:bg-surface-2/60 transition-colors">
-                    <td className="px-3 py-2.5 text-ink-2">{isoDate(r.uploadedAt)}</td>
-                    <td className="px-3 py-2.5 text-ink-2">{PLATFORM_LABEL[r.platform as keyof typeof PLATFORM_LABEL] ?? r.platform}</td>
-                    <td className="px-3 py-2.5 font-mono text-ink text-xs">{r.fileName}</td>
-                    <td className="px-3 py-2.5 text-ink-2">{r.uploaderName}</td>
-                    <td className="px-3 py-2.5 text-right text-ink">{int(r.rowsImported)}</td>
-                    <td className="px-3 py-2.5">
-                      {r.status === "active" ? (
-                        <span className="inline-flex items-center h-5 px-1.5 rounded text-[10px] border border-pos/40 text-pos bg-pos/10">
-                          active
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center h-5 px-1.5 rounded text-[10px] border border-line-2 text-ink-3 bg-surface-2">
-                          {r.status}
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-3 py-2.5 text-right">
-                      {rollable && (
-                        <RollbackButton
-                          batchId={r.id}
-                          fileName={r.fileName}
-                          rowCount={r.rowsImported}
-                          updatedSince={updatedSinceByBatch.get(r.id) ?? 0}
-                        />
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
+      <BatchHistoryTable
+        tableKey={TABLE_KEYS.UPLOAD_HISTORY_ADS}
+        showPlatform
+        rows={rows.map((r) => ({
+          id: r.id,
+          uploadedAt: r.uploadedAt.toISOString(),
+          platform: r.platform,
+          fileName: r.fileName,
+          uploadedBy: r.uploaderName,
+          rows: r.rowsImported,
+          status: r.status,
+          rollback:
+            canRollback && r.status === "active" && withinRollbackWindow(r.uploadedAt) ? (
+              <RollbackButton
+                batchId={r.id}
+                fileName={r.fileName}
+                rowCount={r.rowsImported}
+                updatedSince={updatedSinceByBatch.get(r.id) ?? 0}
+              />
+            ) : null,
+        }))}
+        empty={
+          <EmptyState
+            size="lg"
+            icon={<UploadIcon className="h-5 w-5" />}
+            title="No uploads yet."
+            hint="Start with an Instagram or Facebook export, or any of the four supported platforms."
+            action={
+              canImport ? (
+                <Button asChild>
+                  <Link href="/uploads/new">Run your first upload</Link>
+                </Button>
+              ) : undefined
+            }
+          />
+        }
+      />
 
       {(canRollback || canCleanup) && (
         <p className="text-[11px] text-ink-3">
-          Roll back any batch within 24 h of upload. Beyond that window, use the
+          Roll back any batch within {ROLLBACK_WINDOW_HOURS} h of upload. Beyond that window, use the
           cleanup tool below or contact an operator.
         </p>
       )}

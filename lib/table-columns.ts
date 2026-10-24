@@ -69,6 +69,16 @@ export const TABLE_KEYS = {
   TOP_CREATIVES: "top-creatives",
   /** Creative detail → its raw performance records. */
   CREATIVE_RECORDS: "creative-records-detail",
+
+  // ── D22 (2026-10): the last four hand-built analytics/history tables ───
+  /** Trends → Types, the platform → type breakdown. */
+  TRENDS_TYPES: "trends-types",
+  /** Funnel → the platform comparison (platforms expand into campaigns). */
+  FUNNEL_PLATFORMS: "funnel-platforms",
+  /** Upload ads → the batch history. */
+  UPLOAD_HISTORY_ADS: "upload-history-ads",
+  /** Upload orders → the batch history. */
+  UPLOAD_HISTORY_STORE: "upload-history-store",
 } as const;
 
 export type TableKey = (typeof TABLE_KEYS)[keyof typeof TABLE_KEYS];

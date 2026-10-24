@@ -16,6 +16,7 @@ import { TypeRollupTable } from "@/components/trends/type-rollup-table";
 import { dashboardFiltersSchema } from "@/validators/filters";
 import { TYPE_COLOR, TYPE_LABEL, TYPE_ORDER, PLATFORMS_WITH_CREATIVES } from "@/lib/palette";
 import { pct, roas, usd } from "@/lib/format";
+import { EmptyState } from "@/components/ui/empty-state";
 import { pickFirst } from "@/lib/url";
 
 export const dynamic = "force-dynamic";
@@ -156,7 +157,10 @@ export default async function TrendsByTypePage({
         <h2 className="text-label text-ink-3">
           Breakdown · platform → type
         </h2>
-        <TypeRollupTable rows={byTypePlatform} byPlatform />
+        <TypeRollupTable
+          rows={byTypePlatform}
+          empty={<EmptyState title="No performance in this window." kind="filtered" />}
+        />
       </div>
     </PageShell>
   );

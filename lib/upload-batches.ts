@@ -20,9 +20,8 @@ export function withinRollbackWindow(
   return now - at <= ROLLBACK_WINDOW_MS;
 }
 
-/** A batch status in the product's words — never the stored identifier. */
+/** A batch status in the product's words — never the stored identifier
+ *  (the ads history printed `rolled_back`; the Store history's wording won). */
 export function batchStatusLabel(status: string): string {
-  if (status === "active") return "Active";
-  if (status === "rolled_back") return "Rolled back";
   return status.replace(/_/g, " ");
 }

@@ -253,11 +253,9 @@ as it stood before the restructure.*
     var with light-theme overrides verified on Midnight/Frost/Contrast; any new
     page ships its own tailored `loading.tsx` and works at 375px. If a primitive
     doesn't fit, EXTEND it — don't fork it.
-  - **DEFERRED (its own session):** migrate `campaign-funnel-table.tsx` (330 loc,
-    own sort + drag-resize) onto `DataTable`. This is a large rewrite of a live
-    table and warrants a dedicated, carefully-verified change rather than being
-    bundled into the consistency sweep. (`launch-fatigue.tsx` was the other one
-    and LANDED 2026-10 — see the phase-3 entry.)
+  - **DEFERRED, then DONE:** `campaign-funnel-table.tsx` (330 loc, own sort +
+    drag-resize) moved onto `DataTable` in 2026-10, like `launch-fatigue.tsx`
+    — see tables-columns.md, phase 3.
 
 
 ### The IA pass — names, routes, settings

@@ -312,7 +312,7 @@ introducing the violation and watching it fail:
 | Reset deletes the row; an awaited write before navigation | enforced | `tests/db/table-prefs.test.ts`, `lib/table-prefs.test.ts` |
 | A table offers what its query carries, defaultHidden | enforced | `table-columns-coverage.test.ts` catalog block |
 | A pinned column must fit the frame | prose | a rendered width; measured in the rig, not assertable headlessly |
-| A grouped header is the only licence to leave DataTable | enforced | `table-columns-coverage.test.ts` exemptions |
+| A flat data table is a DataTable (grouped headers, admin lists and editors are the named exceptions) | enforced | `table-columns-coverage.test.ts` — since D22 it also fails on a hand-rolled `<table>` outside `HAND_ROLLED_OK` |
 | The wrapper may own the sort (composite / nulls / CSV order) | enforced | `launch-fatigue.test.ts`, `campaign-funnel-table.test.ts`, `creative-records-table.test.ts` |
 | URL-backed tables are out of the catalog rule's scope | enforced | `portfolio-columns.test.ts` |
 

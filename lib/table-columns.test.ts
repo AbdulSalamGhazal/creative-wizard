@@ -287,6 +287,11 @@ describe("the registry", () => {
         "trends-angles",
         "trends-launches",
         "trends-video",
+        // D22 (2026-10): the last four hand-built tables.
+        "trends-types",
+        "funnel-platforms",
+        "upload-history-ads",
+        "upload-history-store",
       ].sort(),
     );
   });

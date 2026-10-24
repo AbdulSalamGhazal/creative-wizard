@@ -51,6 +51,46 @@ function tableFiles(): string[] {
     .map((f) => path.relative(REPO, f));
 }
 
+/**
+ * HAND-ROLLED `<table>`s (W3-9 / D22, 2026-10). The guard above only saw
+ * files containing `<DataTable`, so four analytics/history tables built by
+ * hand (Trends → Types, the Funnel platform comparison, both upload
+ * histories) passed it while the docs said "no table is hand-rolled". Those
+ * four moved to DataTable; the rest are named here with their reason —
+ * admin lists and editors, decided in D22 — and a new one fails the build.
+ */
+const HAND_ROLLED_OK: Record<string, string> = {
+  "components/ui/data-table.tsx": "the primitive itself",
+  "components/summary/summary-table.tsx": "a grouped-header twin (per-platform column groups)",
+  "components/store/reconciliation-view.tsx": "a grouped-header twin (Store · Claim · Δ · Δ% per platform)",
+  "components/account/accounts-admin.tsx": "an admin list with inline edit rows, not a data table (D22)",
+  "components/angle/angles-table.tsx": "an admin list with inline rename/delete rows (D22)",
+  "components/landing-page/landing-pages-table.tsx": "an admin list with inline edit rows (D22)",
+  "components/platform/mappings-admin.tsx": "an admin editor of header mappings (D22)",
+  "components/product/products-admin.tsx": "an admin list with archive/restore rows (D22)",
+  "components/budget/audience-board.tsx": "the stage × platform pressure MATRIX — cells, not rows of records",
+  "components/budget/audience-record-dialog.tsx": "an input grid inside a dialog (an editor)",
+  "components/budget/budget-plan-revisions.tsx": "a revision snapshot's read-only allocation list in a drawer",
+  "components/budget/budget-plan-upload.tsx": "the parsed sheet's preview before it is saved",
+  "components/creative/bulk-creative-import.tsx": "the validated import preview before commit",
+};
+
+describe("no flat data table is hand-rolled", () => {
+  it("every <table> is DataTable's own, or named here with its reason", () => {
+    const rogue = [...walk(path.join(REPO, "components")), ...walk(path.join(REPO, "app"))]
+      .map((f) => path.relative(REPO, f))
+      .filter((f) => /<table[\s>]/.test(readFileSync(path.join(REPO, f), "utf8")))
+      .filter((f) => !(f in HAND_ROLLED_OK));
+    expect(rogue, "use DataTable (with a columnsKey), or name the exception").toEqual([]);
+  });
+  it("every named exception still hand-rolls a table", () => {
+    for (const [file, why] of Object.entries(HAND_ROLLED_OK)) {
+      expect(/<table[\s>]/.test(readFileSync(path.join(REPO, file), "utf8")), file).toBe(true);
+      expect(why.length).toBeGreaterThan(12);
+    }
+  });
+});
+
 describe("every table has the columns control", () => {
   it("…or is on the exemption list, with a reason", () => {
     const missing: string[] = [];
@@ -143,6 +183,16 @@ describe("the catalog offers the data the page already has", () => {
       "clicks",
       "landingPageViews",
     ],
+    // Trends → Types: the clicks behind CTR/CPC (D22).
+    "components/trends/type-rollup-table.tsx": ["clicks"],
+    // Funnel → platforms: the counts behind each rate (D22).
+    "components/funnel/platform-funnel-comparison.tsx": [
+      "impressions",
+      "clicks",
+      "landingPageViews",
+      "addToCart",
+      "addPayment",
+    ],
     // Trends → Video: the raw plays a retention rate is a fraction of.
     "components/trends/video-diagnostics-table.tsx": [
       "v2s",
@@ -173,6 +223,8 @@ describe("the catalog offers the data the page already has", () => {
       "components/trends/video-diagnostics-table.tsx",
       "components/trends/launch-fatigue.tsx",
       "components/budget/audience-board.tsx",
+      "components/trends/type-rollup-table.tsx",
+      "components/funnel/platform-funnel-comparison.tsx",
     ]) {
       const src = readFileSync(path.join(REPO, file), "utf8");
       expect(src, file).toContain("defaultHidden");

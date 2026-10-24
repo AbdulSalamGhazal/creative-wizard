@@ -14,6 +14,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { cn } from "@/lib/utils";
 import { setPersistedKeys } from "@/lib/filter-prefs";
 import { anyFilterIcon, filterIcon } from "@/components/filters/filter-icons";
+import { useRegisterFilterScope } from "@/lib/filter-scope";
 import {
   activeFilterCount,
   clearFilters,
@@ -91,6 +92,8 @@ export function FilterShell({
   const count = activeFilterCount(filters);
   const chips = filterChips(filters);
   const clear = () => clearFilters(filters);
+  // An empty state's "Clear filters" calls THIS Clear (D24, lib/filter-scope).
+  useRegisterFilterScope(clear, count > 0);
 
   // Which of THIS page's params are remembered: every standard def (a custom
   // def, or one a page opts out of, is excluded) plus `platforms` — the tier-1

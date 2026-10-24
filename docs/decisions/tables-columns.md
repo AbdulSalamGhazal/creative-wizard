@@ -34,8 +34,11 @@
 - **A PINNED COLUMN MUST FIT THE FRAME.** A sticky cell wider than the visible
   scroll frame stops pinning; free-text pinned cells carry a phone-only cap
   plus `truncate`, and a closed vocabulary needs neither.
-- A GROUPED header is the only licence to leave `DataTable`, and the two twins
-  (Ads summary, Reconciliation's Platforms) are the whole list.
+- A flat DATA table is a `DataTable`. The only licences to leave it are a
+  GROUPED header (the two twins: Ads summary, Reconciliation's Platforms), an
+  admin list with inline edit rows, and an editor or a pre-save preview —
+  each named with its reason in `table-columns-coverage.test.ts`
+  (`HAND_ROLLED_OK`), which fails on any other `<table>` (D22, 2026-10).
 - The consumer may keep the sort when the comparator is composite, when nulls
   must not sink, or when a CSV must export in the on-screen order — then no
   column carries a `sortValue`.
@@ -258,6 +261,9 @@ as it stood before the restructure.*
     nobody can find. Catalog: the exclusion's own provenance
     (`excludedReason`, `excludedAt`) is offered now — the row always carried
     it, and it lived only in a tooltip.
+    *(Superseded in part: "no table is hand-rolled" was not true — four
+    analytics/history tables were, and the guard only read files that already
+    used DataTable. See "The last four hand-built tables" below.)*
   - **A PINNED COLUMN MUST FIT THE FRAME (2026-10).** A sticky cell wider than
     the visible scroll frame STOPS PINNING: past that width its left edge
     scrolls away and cannot be recovered, so on a phone the identity column —
@@ -334,3 +340,30 @@ as it stood before the restructure.*
   re-reads itself once (`useRefreshWhenBehind`).
 - Fixed on the way: the Library's 7d-spend header sorted by the 30-day
   column on its first click (`spend-desc` instead of `spend7-desc`).
+
+### The last four hand-built tables (2026-10, D22)
+
+- The coverage guard read only files containing `<DataTable`, so four flat
+  tables built by hand passed it while this file said none existed:
+  **Trends → Types** (`type-rollup-table.tsx`, key `trends-types`), the
+  **Funnel platform comparison** (`platform-funnel-comparison.tsx`,
+  `funnel-platforms`) and **both upload histories** (one shared
+  `components/upload/batch-history-table.tsx`, keys `upload-history-ads` /
+  `upload-history-store`). All four now have the columns control, sort and a
+  pinned identity. Decisions that ride along:
+  - **Types** — the platform group headers folded into the pinned cell
+    ("Instagram · Video"); the table opens in the canonical order (platform,
+    then type) and any metric re-sorts it. Clicks is offered `defaultHidden`.
+  - **Funnel platforms** — a platform still expands its campaigns in place, so
+    the WRAPPER owns the sort (no `sortValue`): platforms sort, and each
+    expanded platform's campaigns follow it, sorted the same way. The counts
+    behind the rates (impressions, clicks, LP views, ATC, AP) are offered
+    `defaultHidden`.
+  - **Upload histories** — one component for the twins (they disagreed: the
+    ads one printed the stored `rolled_back`); the file name is pinned, the
+    rollback column is `lockedVisible` (the only way to undo a batch), and the
+    Store keeps its "N new · M upd" rows.
+- The guard now also fails on a hand-rolled `<table>` outside DataTable and a
+  named list (`HAND_ROLLED_OK`): the grouped twins, five admin lists and five
+  editors/previews — decided in D22 (move the analytics/history tables,
+  exempt the admin lists and editors).
