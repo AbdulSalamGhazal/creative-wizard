@@ -24,7 +24,33 @@ import {
 import { navSections } from "@/components/layout/nav-items";
 import { useNavTransition } from "@/lib/nav-progress";
 import type { Permission } from "@/lib/permissions";
+import {
+  CONFIGURATION_TABS,
+  LIBRARY_TABS,
+  UPLOAD_ADS_TABS,
+  UPLOAD_ORDERS_TABS,
+  type Gate,
+  type GatedTab,
+} from "@/lib/page-gates";
 import type { CreativeOption } from "@/db/queries/creatives";
+
+/** Palette entries for a page's GATED tabs (an open tab is the page itself,
+ *  which the nav already lists); only tabs given an icon are offered. */
+function tabEntries(
+  base: string,
+  pageLabel: string,
+  tabs: readonly GatedTab[],
+  icons: Record<string, React.ComponentType<{ className?: string }>>,
+) {
+  return tabs
+    .filter((t): t is GatedTab & { perm: NonNullable<Gate> } => t.perm !== null && t.key in icons)
+    .map((t) => ({
+      href: `${base}?tab=${t.key}`,
+      label: `${pageLabel} · ${t.label}`,
+      icon: icons[t.key]!,
+      perm: t.perm,
+    }));
+}
 
 /**
  * Extra destinations the palette offers that the SIDEBAR doesn't: the "new"
@@ -42,15 +68,15 @@ const EXTRA_PAGES: Array<{
   perm?: Permission | readonly Permission[];
 }> = [
   { href: "/library/new", label: "New creative", icon: Plus, perm: "creative.create" },
-  { href: "/library?tab=products", label: "Library · Products", icon: Package, perm: "catalog.products" },
-  // Uploaders see the list read-only (E023 sends them there).
-  { href: "/library?tab=landing-pages", label: "Library · Landing pages", icon: Link2, perm: ["catalog.landing_pages", "upload.import"] },
-  { href: "/library?tab=angles", label: "Library · Angles", icon: Hash, perm: "catalog.angles" },
+  // The in-page tabs read their gates from lib/page-gates — the same table
+  // the page filters its tab row with (D18), so a tab and its palette entry
+  // can't disagree. (Uploaders see Landing pages read-only; E023 sends them.)
+  ...tabEntries("/library", "Library", LIBRARY_TABS, { products: Package, "landing-pages": Link2, angles: Hash }),
   { href: "/uploads/new", label: "New ad upload", icon: Upload, perm: "upload.import" },
-  { href: "/uploads?tab=mapping", label: "Upload ads · CSV mapping", icon: Settings, perm: "config.mappings" },
+  ...tabEntries("/uploads", "Upload ads", UPLOAD_ADS_TABS, { mapping: Settings }),
   { href: "/store/uploads/new", label: "New order upload", icon: Upload, perm: "store.upload" },
-  { href: "/store/uploads?tab=fields", label: "Upload orders · Order fields", icon: Settings, perm: "config.store" },
-  { href: "/admin/catalog?tab=rating", label: "Configuration · Rate rules", icon: Star, perm: "config.rating" },
+  ...tabEntries("/store/uploads", "Upload orders", UPLOAD_ORDERS_TABS, { fields: Settings }),
+  ...tabEntries("/admin/catalog", "Configuration", CONFIGURATION_TABS, { rating: Star }),
 ];
 
 /**

@@ -1,4 +1,5 @@
 import { requirePermission } from "@/lib/auth";
+import { TEAM_GATE } from "@/lib/page-gates";
 import { listAllAccounts } from "@/lib/tenant";
 import { listTeamWithMemberships, managerScope } from "@/db/queries/team";
 import { holdsBrand } from "@/lib/team-guard";
@@ -22,7 +23,7 @@ export const metadata = { title: "Team" };
  * same guard the actions enforce decides what each card hides or locks.
  */
 export default async function TeamAdminPage() {
-  const me = await requirePermission("users.manage");
+  const me = await requirePermission(TEAM_GATE);
 
   const [team, brands, scope] = await Promise.all([
     listTeamWithMemberships(),

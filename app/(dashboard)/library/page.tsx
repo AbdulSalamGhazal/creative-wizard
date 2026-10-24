@@ -6,7 +6,7 @@ import { AnglesTable } from "@/components/angle/angles-table";
 import { LandingPagesTable } from "@/components/landing-page/landing-pages-table";
 import { listLandingPages } from "@/db/queries/landing-pages";
 import { PageTabs, type PageTab } from "@/components/layout/page-tabs";
-import type { Permission } from "@/lib/permissions";
+import { LIBRARY_TABS, passes } from "@/lib/page-gates";
 import { listProducts } from "@/db/queries/products";
 import {
   getDefaultSummaryView,
@@ -42,20 +42,7 @@ export const metadata = { title: "Library" };
  * READ-ONLY, to anyone who can upload ads — E023 sends uploaders there, and a
  * hidden registry was a dead end. Writes stay gated by `catalog.landing_pages`.
  */
-const TABS = [
-  { key: "creatives", label: "Creatives", perm: null },
-  { key: "products", label: "Products", perm: "catalog.products" },
-  {
-    key: "landing-pages",
-    label: "Landing pages",
-    perm: ["catalog.landing_pages", "upload.import"],
-  },
-  { key: "angles", label: "Angles", perm: "catalog.angles" },
-] as const satisfies ReadonlyArray<{
-  key: string;
-  label: string;
-  perm: Permission | readonly Permission[] | null;
-}>;
+const TABS = LIBRARY_TABS; // lib/page-gates — the palette reads the same gates
 type TabKey = (typeof TABS)[number]["key"];
 
 export default async function CreativesPage({
@@ -68,10 +55,7 @@ export default async function CreativesPage({
 
   // The Creatives tab links to the BARE route on purpose: `?tab=creatives`
   // would count as a param and suppress the default-view redirect below.
-  const allowed = (perm: Permission | readonly Permission[] | null) =>
-    perm === null ||
-    (typeof perm === "string" ? can(user, perm) : perm.some((p) => can(user, p)));
-  const tabs: PageTab[] = TABS.filter((t) => allowed(t.perm)).map(
+  const tabs: PageTab[] = TABS.filter((t) => passes(t.perm, (p) => can(user, p))).map(
     (t) => ({
       key: t.key,
       label: t.label,

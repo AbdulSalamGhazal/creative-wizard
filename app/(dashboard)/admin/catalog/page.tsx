@@ -1,7 +1,7 @@
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { auth, can } from "@/lib/auth";
-import type { Permission } from "@/lib/permissions";
+import { CONFIGURATION_TABS, passes } from "@/lib/page-gates";
+import { PageTabs } from "@/components/layout/page-tabs";
 import { getRatingConfig } from "@/db/queries/rating";
 import { getActiveAccountId, listAccounts } from "@/lib/tenant";
 import { RatingRulesAdmin } from "@/components/rating/rating-rules-admin";
@@ -18,18 +18,7 @@ import { listCreativeOptions } from "@/db/queries/creatives";
 
 export const dynamic = "force-dynamic";
 
-const TABS = [
-  { key: "rating", label: "Rate rules", perm: "config.rating" },
-  { key: "status", label: "Status", perm: "config.brands" },
-  { key: "brands", label: "Brands", perm: "config.brands" },
-  { key: "exclusions", label: "Exclusions", perm: "record.exclude" },
-  { key: "notifications", label: "Notifications", perm: "notify.manage" },
-] as const satisfies ReadonlyArray<{
-  key: string;
-  label: string;
-  perm: Permission;
-}>;
-type TabKey = (typeof TABS)[number]["key"];
+type TabKey = (typeof CONFIGURATION_TABS)[number]["key"];
 
 interface Props {
   searchParams: Promise<{ tab?: string }>;
@@ -39,8 +28,10 @@ export const metadata = { title: "Configuration" };
 
 /**
  * Configuration admin — the settings with no more natural home: Rate rules,
- * Status, Brands and Exclusions, switched via the `?tab=` query param so each
- * section stays server-rendered.
+ * Status, Brands, Exclusions and Notifications, switched via the `?tab=` query
+ * param so each section stays server-rendered. The tabs and their gates are
+ * `CONFIGURATION_TABS` (lib/page-gates), which the sidebar derives from too
+ * (D18): it shows Configuration exactly to whoever can open one of them.
  *
  * The 2026-09 IA pass moved the rest out to the surfaces they describe:
  * Products/Angles → the Library, CSV mapping (with Platforms merged in) → the
@@ -59,7 +50,9 @@ const MOVED_TABS: Record<string, string> = {
 export default async function CatalogAdminPage({ searchParams }: Props) {
   const user = await auth();
   // Only the tabs this user is allowed to configure.
-  const tabs = TABS.filter((t) => user && can(user, t.perm));
+  const tabs = CONFIGURATION_TABS.filter(
+    (t) => user && passes(t.perm, (p) => can(user, p)),
+  );
   if (tabs.length === 0) notFound();
 
   const { tab } = await searchParams;
@@ -75,27 +68,15 @@ export default async function CatalogAdminPage({ searchParams }: Props) {
     <PageShell width="admin">
       <PageHeader eyebrow="Admin" title="Configuration" />
 
-      {/* Tab nav */}
-      <div className="flex items-center gap-1 border-b border-line">
-        {tabs.map((t) => {
-          const isActive = t.key === active;
-          return (
-            <Link
-              key={t.key}
-              href={`/admin/catalog?tab=${t.key}`}
-              scroll={false}
-              className={
-                "relative px-3 py-2 text-sm transition-colors -mb-px border-b-2 " +
-                (isActive
-                  ? "border-brand text-ink"
-                  : "border-transparent text-ink-2 hover:text-ink")
-              }
-            >
-              {t.label}
-            </Link>
-          );
-        })}
-      </div>
+      {/* The shared tab row (W3-2): progress bar, nowrap, scrolls at 375px. */}
+      <PageTabs
+        tabs={tabs.map((t) => ({
+          key: t.key,
+          label: t.label,
+          href: `/admin/catalog?tab=${t.key}`,
+        }))}
+        active={active}
+      />
 
       {active === "rating" && <RatingRulesAdmin config={await getRatingConfig()} />}
       {active === "status" && (

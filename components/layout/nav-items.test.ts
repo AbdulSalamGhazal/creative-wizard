@@ -19,11 +19,13 @@ describe("visibleNavItems", () => {
     expect(seen).not.toContain("Audit log");
   });
 
-  it("the editor preset unlocks Upload ads but no admin items", () => {
+  it("the editor preset unlocks Upload ads and Configuration (Exclusions), not Team or Audit", () => {
     const seen = labels(EDITOR_PRESET);
     expect(seen).toContain("Upload ads"); // has upload.import
+    // D18: editors hold record.exclude, so Configuration → Exclusions is
+    // theirs — the page "Excluded by rule" sends them to.
+    expect(seen).toContain("Configuration");
     expect(seen).not.toContain("Team"); // users.manage not in preset
-    expect(seen).not.toContain("Configuration");
     expect(seen).not.toContain("Audit log");
   });
 

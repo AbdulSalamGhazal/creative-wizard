@@ -20,6 +20,12 @@
   which rewrites the URL with the history API, renders nothing on the server
   and lands instantly, so there is nothing for a progress bar to report.
 - Nav is ONE source (`nav-items.ts`) for both the desktop and mobile navs.
+- **A gated nav item's permissions are DERIVED from its page's gates**
+  (`NAV_ROUTE_GATES` in `lib/page-gates.ts`, where every gated page's tabs and
+  actions are declared once and the pages filter with them) — never
+  hand-listed. A page shows in the sidebar to anyone who can open or act on
+  one of its gated parts, and to nobody it would 404 (D18, 2026-10; pinned by
+  `components/layout/nav-gates.test.ts`).
 - Empty states are designed, numbers are tabular, dash means NULL.
 - A horizontal scroll box that holds `sr-only` text is `relative`, or the
   label escapes it and widens the page at 375px.
@@ -279,8 +285,9 @@ as it stood before the restructure.*
   MERGED in as the mapping surface's readiness header), `/store/uploads` =
   *History | Order fields* (fields + the Reconciliation source mapping).
   Configuration (`/admin/catalog`) keeps exactly **Rate rules | Status | Brands
-  | Exclusions**. Permissions are UNCHANGED — the same key gates each tab
-  (`catalog.products`, `catalog.angles`, `config.mappings`, `config.store`).
+  | Exclusions | Notifications** (Notifications joined 2026-10; the row is
+  `PageTabs` since W3-2). Permissions are UNCHANGED — the same key gates each
+  tab (`catalog.products`, `catalog.angles`, `config.mappings`, `config.store`).
   Every retired `?tab=` value redirects to its new home (including `tab=tags`,
   for bookmarks predating the tag→angle rename), and `/admin/products` /
   `/admin/platforms` re-point. Two things deliberately did NOT follow the
@@ -403,3 +410,20 @@ as it stood before the restructure.*
   `minimumFractionDigits: 0`, so both engines agree ("$78", "$1.2K"). Any new
   formatter that sets a maximum below the currency's default must set the
   minimum too (`lib/format.test.ts` pins these two).
+
+### The sidebar reads the page gates (2026-10, D18 + W3-2)
+
+- The nav's permission lists were hand-copied and had drifted from the pages.
+  Every editor holds `record.exclude`, yet Configuration was not in their
+  sidebar — while the refusal "Excluded by rule «…» — deactivate the rule in
+  Configuration → Exclusions" sent them there. A user holding only
+  `catalog.products`, `catalog.angles` or `config.mappings` saw
+  "Configuration" and landed on its 404: those tabs had moved to the Library
+  and Upload ads in the 2026-09 IA pass. `notify.manage`, `config.mappings`,
+  `config.store` and `store.cleanup` holders could not find their pages at
+  all. The fix moved every gated page's tab and action table into
+  `lib/page-gates.ts`; the pages, the ⌘K palette and the sidebar all read it.
+  Upload ads / Upload orders count only their GATED parts — their read-only
+  history alone does not put them in a viewer's sidebar (unchanged).
+- Same pass: Configuration's hand-made tab row became `PageTabs` (progress
+  bar, nowrap, scrolls at 375px; it had five tabs where the docs said four).

@@ -19,6 +19,7 @@ import {
 } from "@/db/queries/reconciliation";
 import { RecentStoreBatches } from "@/components/store/recent-store-batches";
 import { withinRollbackWindow } from "@/lib/upload-batches";
+import { UPLOAD_ORDERS_TABS, passes } from "@/lib/page-gates";
 import { StoreCleanupTool } from "@/components/store/store-cleanup-tool";
 
 export const dynamic = "force-dynamic";
@@ -28,11 +29,13 @@ export const metadata = { title: "Upload orders" };
 /**
  * Order uploads — the store upload HISTORY (batches: file, when, by, counts,
  * upsert, rollback while eligible). Mirrors the ads /uploads page. The upload
- * flow itself lives on /store/uploads/new. Gated by `store.upload` /
- * `upload.rollback` (the nav item is too).
+ * flow itself lives on /store/uploads/new. The history is readable by every
+ * member; the tab and actions are gated by `UPLOAD_ORDERS_TABS` /
+ * `UPLOAD_ORDERS_ACTIONS` (lib/page-gates), which the nav item derives from.
  */
-const TAB_HISTORY = "history";
-const TAB_FIELDS = "fields";
+const [TAB_HISTORY_DEF, TAB_FIELDS_DEF] = UPLOAD_ORDERS_TABS;
+const TAB_HISTORY = TAB_HISTORY_DEF.key;
+const TAB_FIELDS = TAB_FIELDS_DEF.key;
 
 export default async function StoreUploadsPage({
   searchParams,
@@ -43,12 +46,12 @@ export default async function StoreUploadsPage({
   const canUpload = user ? can(user, "store.upload") : false;
   const canRollback = user ? can(user, "upload.rollback") : false;
   const canCleanup = user ? can(user, "store.cleanup") : false;
-  const canFields = user ? can(user, "config.store") : false;
+  const canFields = user ? passes(TAB_FIELDS_DEF.perm, (p) => can(user, p)) : false;
 
   const tabs: PageTab[] = [
-    { key: TAB_HISTORY, label: "History", href: "/store/uploads" },
+    { key: TAB_HISTORY, label: TAB_HISTORY_DEF.label, href: "/store/uploads" },
     ...(canFields
-      ? [{ key: TAB_FIELDS, label: "Order fields", href: `/store/uploads?tab=${TAB_FIELDS}` }]
+      ? [{ key: TAB_FIELDS, label: TAB_FIELDS_DEF.label, href: `/store/uploads?tab=${TAB_FIELDS}` }]
       : []),
   ];
   const { tab } = await searchParams;

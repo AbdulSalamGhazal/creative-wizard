@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { int } from "@/lib/format";
 import { requirePermission } from "@/lib/auth";
+import { AUDIT_GATE } from "@/lib/page-gates";
 import { listAuditEvents, auditCategoryCounts } from "@/db/queries/audit";
 import type { AuditEntityType } from "@/lib/audit";
 import { AuditFeed } from "@/components/audit/audit-feed";
@@ -52,7 +53,7 @@ interface Props {
 export const metadata = { title: "Audit log" };
 
 export default async function AuditPage({ searchParams }: Props) {
-  await requirePermission("audit.view");
+  await requirePermission(AUDIT_GATE);
   const { category } = await searchParams;
 
   const selected = CATEGORY_OPTIONS.find((c) => c.value === category)?.value ?? "all";

@@ -12,6 +12,7 @@ import { listCreativeOptions } from "@/db/queries/creatives";
 import { listAllProductOptions } from "@/db/queries/products";
 import { listUploadBatches } from "@/db/queries/uploads";
 import { withinRollbackWindow } from "@/lib/upload-batches";
+import { UPLOAD_ADS_TABS, passes } from "@/lib/page-gates";
 import { batchRowsUpdatedSince } from "@/db/queries/performance";
 import { PageShell } from "@/components/layout/page-shell";
 import { PageHeader } from "@/components/layout/page-header";
@@ -29,8 +30,9 @@ export const metadata = { title: "Upload ads" };
  * configuration, so it belongs with the uploads it governs. `config.mappings`
  * gates the tab exactly as it gated the old Configuration tab.
  */
-const TAB_HISTORY = "history";
-const TAB_MAPPING = "mapping";
+const [TAB_HISTORY_DEF, TAB_MAPPING_DEF] = UPLOAD_ADS_TABS; // lib/page-gates
+const TAB_HISTORY = TAB_HISTORY_DEF.key;
+const TAB_MAPPING = TAB_MAPPING_DEF.key;
 
 export default async function UploadsPage({
   searchParams,
@@ -41,12 +43,14 @@ export default async function UploadsPage({
   const canImport = currentUser ? can(currentUser, "upload.import") : false;
   const canRollback = currentUser ? can(currentUser, "upload.rollback") : false;
   const canCleanup = currentUser ? can(currentUser, "upload.cleanup") : false;
-  const canMap = currentUser ? can(currentUser, "config.mappings") : false;
+  const canMap = currentUser
+    ? passes(TAB_MAPPING_DEF.perm, (p) => can(currentUser, p))
+    : false;
 
   const tabs: PageTab[] = [
-    { key: TAB_HISTORY, label: "History", href: "/uploads" },
+    { key: TAB_HISTORY, label: TAB_HISTORY_DEF.label, href: "/uploads" },
     ...(canMap
-      ? [{ key: TAB_MAPPING, label: "CSV mapping", href: `/uploads?tab=${TAB_MAPPING}` }]
+      ? [{ key: TAB_MAPPING, label: TAB_MAPPING_DEF.label, href: `/uploads?tab=${TAB_MAPPING}` }]
       : []),
   ];
   const { tab } = await searchParams;

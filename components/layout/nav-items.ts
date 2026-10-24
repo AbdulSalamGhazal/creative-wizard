@@ -21,6 +21,7 @@ import {
   Workflow,
 } from "lucide-react";
 import type { Permission } from "@/lib/permissions";
+import { NAV_ROUTE_GATES } from "@/lib/page-gates";
 
 /**
  * Single source of truth for the app's navigation. Consumed by both the desktop
@@ -61,7 +62,9 @@ export interface NavItem {
   /**
    * Permissions that unlock this item — shown when the user holds AT LEAST ONE.
    * Omit for items every signed-in user may see (the read-only dashboards).
-   * Admins hold every permission, so they always see gated items.
+   * Admins hold every permission, so they always see gated items. NEVER a
+   * hand-written list: a gated item reads its route's `NAV_ROUTE_GATES`
+   * entry, derived from the page's own tab and action gates (D18).
    */
   perms?: Permission[];
 }
@@ -98,7 +101,7 @@ export const NAV_ITEMS: NavItem[] = [
     label: "Upload ads",
     icon: Upload,
     group: "ads",
-    perms: ["upload.import", "upload.cleanup", "upload.rollback"],
+    perms: [...NAV_ROUTE_GATES["/uploads"]],
   },
 
   // ── Budget ───────────────────────────────────────────────────────────────
@@ -123,7 +126,7 @@ export const NAV_ITEMS: NavItem[] = [
     label: "Upload orders",
     icon: FileUp,
     group: "store",
-    perms: ["store.upload", "upload.rollback"],
+    perms: [...NAV_ROUTE_GATES["/store/uploads"]],
   },
   {
     // The orders table — open to any brand member, like the ads data pages.
@@ -156,27 +159,23 @@ export const NAV_ITEMS: NavItem[] = [
     label: "Configuration",
     icon: SlidersHorizontal,
     group: "admin",
-    perms: [
-      "catalog.products",
-      "catalog.angles",
-      "config.rating",
-      "config.mappings",
-      "config.brands",
-    ],
+    // Anyone who can open at least one of its tabs (D18) — editors see it for
+    // Exclusions; a Library-tab permission alone no longer leads to a 404.
+    perms: [...NAV_ROUTE_GATES["/admin/catalog"]],
   },
   {
     href: "/admin/users",
     label: "Team",
     icon: Users,
     group: "admin",
-    perms: ["users.manage"],
+    perms: [...NAV_ROUTE_GATES["/admin/users"]],
   },
   {
     href: "/admin/audit",
     label: "Audit log",
     icon: ScrollText,
     group: "admin",
-    perms: ["audit.view"],
+    perms: [...NAV_ROUTE_GATES["/admin/audit"]],
   },
 ];
 
