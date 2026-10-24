@@ -29,6 +29,12 @@
 - Deleting a creative removes its `performance_records` first, in a
   transaction, because that FK has no cascade.
 - The concept is an **angle**, never a "tag" — at every layer.
+- **The Library has ONE order: `sortCreativeRows` (lib/creative-sort.ts).**
+  `listCreatives`, the detail page's prev/next pager and the client's sort
+  click all call it, so they can't disagree; text compares through one
+  explicit collator (`compareText`, "en"), never the runtime locale or the
+  database collation. The pager reads `listCreativeSequence` (same WHERE as the
+  listing, only the columns the sort needs) — never the full listing.
 
 ## History and rationale
 
@@ -181,3 +187,27 @@ as it stood before the restructure.*
   account-scoped-cascade invariant carries over verbatim: `creative_angles` has
   no `account_id`, so angle rename/delete cascades MUST be bounded by a
   `creatives WHERE account_id` subquery.
+
+### The pager stopped loading the Library (2026-10, W2-4)
+
+- The detail page rebuilt its prev/next sequence with `listCreatives` — the
+  Library's heaviest query (two spend-window CTEs over `performance_records`,
+  every BRAND's angles, notes, creators) — on every view and every step, to
+  read the names. `listCreativeSequence` reads the same creatives through the
+  same WHERE (`creativeListConditions`, shared) and only the columns the sort
+  needs: the spend windows only for a spend sort, the angles only for an
+  angle sort, the status from the request's cached inputs. The order is the
+  shared pure comparator, which the listing now uses too — its SQL `ORDER BY`
+  and the three JS re-sorts are gone. Pinned by
+  `tests/db/creative-sequence.test.ts` (every sort value and every carried
+  filter: pager == listing) and `lib/creative-sort.test.ts` (each rule).
+- In the same pass: the link from the Library carries priority, stage and
+  Excluded, but the pager dropped them, so a filtered Library walked a
+  different sequence — it now honours all of them; the creative's angles ride
+  in `getCreativeByName`'s query; the termination set, the data horizon and
+  the first day derive from reads the page already makes; `angle_agg` is
+  scoped to the brand. Measured: `/library/[name]` 26 → 22 queries, client
+  props byte-identical on the local data.
+- One semantic note: a creative with no spend in a window used to sort after
+  one with a stored $0 (SQL `NULLS LAST` on a NULL that displays as $0). Both
+  show $0, so the comparator treats them as equal and orders them by name.

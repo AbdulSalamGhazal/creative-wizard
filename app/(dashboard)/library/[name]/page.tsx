@@ -13,13 +13,13 @@ import {
   creativeRecords,
   getCreativeByName,
   listAllAngles,
-  listCreatives,
+  listCreativeSequence,
 } from "@/db/queries/creatives";
 import { listProducts } from "@/db/queries/products";
 import {
-  creativeFirstDay,
   creativePlatformFirstDays,
-  dataHorizon,
+  earliestOf,
+  latestOf,
   platformHorizons,
   resolveEntityBounds,
   resolvePlatformBounds,
@@ -59,6 +59,8 @@ const FILTER_KEYS = [
   "productIds",
   "types",
   "statuses",
+  "priorities",
+  "stages",
   "platforms",
   "angles",
   "sort",
@@ -126,19 +128,27 @@ export default async function CreativeDetailPage({
     productIds: pickFirst(sp.productIds),
     types: pickFirst(sp.types),
     statuses: pickFirst(sp.statuses),
+    priorities: pickFirst(sp.priorities),
+    stages: pickFirst(sp.stages),
     platforms: pickFirst(sp.platforms),
     angles: pickFirst(sp.angles),
     sort: pickFirst(sp.sort),
     view: pickFirst(sp.view),
   });
+  // Every filter the Library carries into the link — priority, stage and the
+  // Excluded state (which moves the 7d/30d spend a spend sort reads) included,
+  // or the pager would walk a different sequence than the one on screen.
   const navFilters = {
     q: navParsed.q,
     productIds: navParsed.productIds.length > 0 ? navParsed.productIds : undefined,
     types: navParsed.types.length > 0 ? navParsed.types : undefined,
     statuses: navParsed.statuses.length > 0 ? navParsed.statuses : undefined,
+    priorities: navParsed.priorities.length > 0 ? navParsed.priorities : undefined,
+    stages: navParsed.stages.length > 0 ? navParsed.stages : undefined,
     platforms: navParsed.platforms.length > 0 ? navParsed.platforms : undefined,
     angles: navParsed.angles.length > 0 ? navParsed.angles : undefined,
     sort: navParsed.sort,
+    includeExcluded: pickFirst(sp.includeExcluded) === "1",
   };
 
   const creative = await getCreativeByName(decoded);
@@ -151,17 +161,19 @@ export default async function CreativeDetailPage({
 
   // Dynamic status (general + per-platform) + the manual termination set, both
   // account-scoped. The header renders the general badge, the per-platform
-  // rows, and the Terminate / Reactivate levers from these.
-  const [sMap, terminated, pHorizons, pFirstDays, horizon, creativeFirst] =
-    await Promise.all([
-      creativeStatusMap([creative.id]),
-      terminatedPlatformsFor(creative.id),
-      platformHorizons(),
-      creativePlatformFirstDays(creative.id),
-      dataHorizon(),
-      creativeFirstDay(creative.id),
-    ]);
+  // rows, and the Terminate / Reactivate levers from these. The termination
+  // set comes from the status inputs' own cached overrides read, and the
+  // data horizon / first day from the per-platform reads (W2-4, 2026-10):
+  // three queries fewer, same values.
+  const [sMap, terminated, pHorizons, pFirstDays] = await Promise.all([
+    creativeStatusMap([creative.id]),
+    terminatedPlatformsFor(creative.id),
+    platformHorizons(),
+    creativePlatformFirstDays(creative.id),
+  ]);
   const status = statusFor(sMap, creative.id);
+  const horizon = latestOf(pHorizons);
+  const creativeFirst = earliestOf(pFirstDays);
 
   // Edge-fill bounds. Per-platform lines trail to each platform's own horizon
   // (a paused channel shows its pause); the grouped total trails to the account
@@ -189,7 +201,7 @@ export default async function CreativeDetailPage({
     deletionSummary,
     allAngles,
     products,
-    navList,
+    seqNames,
   ] = await Promise.all([
     kpisWithDelta({
       creativeIds: [creative.id],
@@ -212,14 +224,13 @@ export default async function CreativeDetailPage({
     creativeDeletionSummary(creative.id),
     listAllAngles(),
     listProducts(),
-    // Reuse listCreatives so the pager order is byte-for-byte the Library's.
-    // (Returns names + a little extra; fine at this scale — revisit with a
-    // name-only query if the catalog grows into the thousands.)
-    listCreatives(navFilters),
+    // The Library's ordered names for this filter set — same WHERE and the
+    // same comparator as the listing, without its spend windows and columns
+    // (W2-4: this used to be the whole `listCreatives`).
+    listCreativeSequence(navFilters),
   ]);
 
   // ── Prev / next pager over the rebuilt sequence ──
-  const seqNames = navList.rows.map((r) => r.name);
   const idx = seqNames.indexOf(decoded);
   const total = seqNames.length;
   const position = idx >= 0 ? idx + 1 : null;

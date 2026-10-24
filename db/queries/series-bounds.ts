@@ -109,23 +109,6 @@ export async function creativePlatformFirstDays(
   return out;
 }
 
-/** First-ever record date across ALL of one creative's records (any platform). */
-export async function creativeFirstDay(
-  creativeId: string,
-): Promise<string | null> {
-  const acct = await getActiveAccountId();
-  const [row] = await db
-    .select({ min: sql<string | null>`MIN(${performanceRecords.date})` })
-    .from(performanceRecords)
-    .where(
-      and(
-        eq(performanceRecords.accountId, acct),
-        eq(performanceRecords.creativeId, creativeId),
-      ),
-    );
-  return row?.min ?? null;
-}
-
 /**
  * The earliest / latest ISO date in a per-platform map, or null when empty.
  * The brand-wide data horizon IS the latest platform horizon, and a filter

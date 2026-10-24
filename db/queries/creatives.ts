@@ -27,19 +27,15 @@ import {
 import type { CreativeSort } from "@/validators/creative";
 import { getActiveAccountId } from "@/lib/tenant";
 import { creativeStatusMap, statusFor } from "@/db/queries/creative-status";
+import { sortCreativeRows } from "@/lib/creative-sort";
 import {
-  STATUS_ORDER,
   statusBreakdownOf,
+  type CreativeStatusResult,
   type CreativeStatus,
   type CreativeStatusBreakdown,
 } from "@/lib/creative-status";
 import { splitPriorityFilter } from "@/lib/priority";
-import { compareStages, sortStages, splitStageFilter } from "@/lib/funnel-stages";
-
-/** Both stage sorts re-order in JS — one predicate, used in three places. */
-function isStageSort(sort: CreativeSort): boolean {
-  return sort === "stage-asc" || sort === "stage-desc";
-}
+import { sortStages, splitStageFilter } from "@/lib/funnel-stages";
 
 type CreativeType = (typeof creativeTypeEnum)[number];
 type Platform = (typeof platformEnum)[number];
@@ -100,65 +96,11 @@ export interface CreativeListResult {
 
 
 /**
- * Library list with all filter support. Uses two CTEs (spend_30d, angle_agg) so
- * the 30-day spend and angle list join per-creative without fan-out. The
- * `total_matching` column comes from a window count so the caller can render
- * "Showing N of M" without a second query.
- *
- * Search (q) is ILIKE across name, notes, and joined angles. For the seeded
- * dataset (< 10 rows) this is fine; revisit pg_trgm + GIN once N > 10k or
- * p95 > 100 ms.
+ * The WHERE of the Library listing — shared by `listCreatives` and the detail
+ * page's pager (`listCreativeSequence`), so the two always match the SAME
+ * creatives. Status is not here: it's derived, and filtered in JS after.
  */
-export async function listCreatives(
-  filters: CreativeListFilters,
-): Promise<CreativeListResult> {
-  // Recent-spend windows. Built via the query builder (not a raw subquery) so
-  // the platform predicate binds safely through `inArray`. They respect the
-  // platform filter so the 7d/30d columns reflect what's actually filtered
-  // (without it they summed every platform). The interval is inlined from a
-  // trusted integer; account isolation comes from the creative_id join to the
-  // account-scoped `creatives`.
-  const spendWindowCte = (alias: string, days: number, acct: string) => {
-    const conds: SQL[] = [
-      // Account is already enforced by the creative_id join to the
-      // account-scoped `creatives`; stating it HERE too lets the CTE use the
-      // (account_id, …) index instead of scanning every brand's rows first.
-      eq(performanceRecords.accountId, acct),
-      sql`${performanceRecords.date} >= CURRENT_DATE - ${sql.raw(`INTERVAL '${days} days'`)}`,
-    ];
-    if (!filters.includeExcluded) {
-      conds.push(eq(performanceRecords.excludedFromAggregates, false));
-    }
-    if (filters.platforms && filters.platforms.length > 0) {
-      conds.push(inArray(performanceRecords.platform, filters.platforms));
-    }
-    return db.$with(alias).as(
-      db
-        .select({
-          creativeId: sql<string>`${performanceRecords.creativeId}`.as("creative_id"),
-          spend: sql<string>`SUM(${performanceRecords.spend})`.as("spend"),
-        })
-        .from(performanceRecords)
-        .where(and(...conds))
-        .groupBy(performanceRecords.creativeId),
-    );
-  };
-  const acct = await getActiveAccountId();
-  const spend30d = spendWindowCte("spend_30d", 30, acct);
-  const spend7d = spendWindowCte("spend_7d", 7, acct);
-
-  const angleAgg = db.$with("angle_agg").as(
-    db
-      .select({
-        creativeId: creativeAngles.creativeId,
-        angles: sql<string[]>`array_agg(${creativeAngles.angle} ORDER BY ${creativeAngles.angle})`.as(
-          "angles",
-        ),
-      })
-      .from(creativeAngles)
-      .groupBy(creativeAngles.creativeId),
-  );
-
+function creativeListConditions(filters: CreativeListFilters, acct: string): SQL[] {
   const conditions: SQL[] = [eq(creatives.accountId, acct)];
 
   if (filters.q) {
@@ -213,11 +155,113 @@ export async function listCreatives(
   // only scopes the status (and the 7d/30d spend columns) to the selected
   // platform(s): every creative still shows, and its status becomes the roll-up
   // over just those platforms — New where it never ran on any of them. See
-  // effectiveStatus below.
+  // `effectiveStatusOf` below.
+  return conditions;
+}
 
-  // Build dynamic ORDER BY from the enum. Tuple of SQL fragments is safe
-  // because we never interpolate user input here.
-  const orderBy = orderByForSort(filters.sort);
+/**
+ * Recent-spend window CTE. Built via the query builder (not a raw subquery) so
+ * the platform predicate binds safely through `inArray`. It respects the
+ * platform filter so the 7d/30d columns reflect what's actually filtered
+ * (without it they summed every platform). The interval is inlined from a
+ * trusted integer.
+ */
+function spendWindowCte(filters: CreativeListFilters, alias: string, days: number, acct: string) {
+  const conds: SQL[] = [
+    // Account is already enforced by the creative_id join to the
+    // account-scoped `creatives`; stating it HERE too lets the CTE use the
+    // (account_id, …) index instead of scanning every brand's rows first.
+    eq(performanceRecords.accountId, acct),
+    sql`${performanceRecords.date} >= CURRENT_DATE - ${sql.raw(`INTERVAL '${days} days'`)}`,
+  ];
+  if (!filters.includeExcluded) {
+    conds.push(eq(performanceRecords.excludedFromAggregates, false));
+  }
+  if (filters.platforms && filters.platforms.length > 0) {
+    conds.push(inArray(performanceRecords.platform, filters.platforms));
+  }
+  return db.$with(alias).as(
+    db
+      .select({
+        creativeId: sql<string>`${performanceRecords.creativeId}`.as("creative_id"),
+        spend: sql<string>`SUM(${performanceRecords.spend})`.as("spend"),
+      })
+      .from(performanceRecords)
+      .where(and(...conds))
+      .groupBy(performanceRecords.creativeId),
+  );
+}
+
+/**
+ * The shown status, scoped to the SELECTED platforms — for one or several,
+ * roll up over just those platforms with the same precedence as the general
+ * roll-up (active ▸ pause ▸ new ▸ terminated; a platform the creative never
+ * ran on counts as New). No platform selected → the general (all-platform)
+ * roll-up. Badge, status filter, and status sort all read this.
+ */
+function effectiveStatusOf(
+  statusMap: Map<string, CreativeStatusResult>,
+  scopePlatforms: readonly Platform[],
+): (id: string) => CreativeStatus {
+  return (id) => {
+    const s = statusFor(statusMap, id);
+    if (scopePlatforms.length === 0) return s.general;
+    let anyActive = false;
+    let anyPause = false;
+    let anyNew = false;
+    for (const p of scopePlatforms) {
+      const ps = s.perPlatform[p];
+      if (ps === "active") anyActive = true;
+      else if (ps === "pause") anyPause = true;
+      else if (ps !== "terminated") anyNew = true; // undefined = never ran there
+    }
+    if (anyActive) return "active";
+    if (anyPause) return "pause";
+    if (anyNew) return "new";
+    return "terminated";
+  };
+}
+
+/** Does this sort read the 7d / 30d spend windows? */
+const isSpendSort = (sort: CreativeSort) => sort.startsWith("spend");
+
+/**
+ * Library list with all filter support. Uses two CTEs (spend windows) and an
+ * account-scoped angle CTE so the spend and angle list join per-creative
+ * without fan-out.
+ *
+ * ORDER is the shared pure comparator (`sortCreativeRows`, lib/creative-sort),
+ * not SQL — the client re-sorts the rows it holds with the SAME function when
+ * a sort is clicked (D12), and the detail page's pager uses it too (W2-4).
+ *
+ * Search (q) is ILIKE across name, notes, and joined angles. For the seeded
+ * dataset (< 10 rows) this is fine; revisit pg_trgm + GIN once N > 10k or
+ * p95 > 100 ms.
+ */
+export async function listCreatives(
+  filters: CreativeListFilters,
+): Promise<CreativeListResult> {
+  const acct = await getActiveAccountId();
+  const spend30d = spendWindowCte(filters, "spend_30d", 30, acct);
+  const spend7d = spendWindowCte(filters, "spend_7d", 7, acct);
+
+  // Scoped to the brand (W2-4): it used to aggregate EVERY brand's angles and
+  // throw the other brands' away at the join.
+  const angleAgg = db.$with("angle_agg").as(
+    db
+      .select({
+        creativeId: creativeAngles.creativeId,
+        angles: sql<string[]>`array_agg(${creativeAngles.angle} ORDER BY ${creativeAngles.angle})`.as(
+          "angles",
+        ),
+      })
+      .from(creativeAngles)
+      .innerJoin(creatives, eq(creatives.id, creativeAngles.creativeId))
+      .where(eq(creatives.accountId, acct))
+      .groupBy(creativeAngles.creativeId),
+  );
+
+  const conditions = creativeListConditions(filters, acct);
 
   // Qualify CTE columns explicitly — both spend CTEs expose `creative_id` and
   // `spend`, so unqualified refs are ambiguous once both are joined.
@@ -225,7 +269,10 @@ export async function listCreatives(
   const spend7Alias = sql<string | null>`spend_7d.spend`.as("spend_7d");
   const anglesAlias = sql<string[] | null>`${angleAgg.angles}`.as("angle_list");
 
-  const baseQuery = db
+  // Every matching creative (the page wraps the grid / table in an internal
+  // vertical scroll, like Summary): no SQL LIMIT, because the order is
+  // decided in JS below and the status filter runs in JS too.
+  const rows = await db
     .with(spend30d, spend7d, angleAgg)
     .select({
       id: creatives.id,
@@ -246,7 +293,6 @@ export async function listCreatives(
       sourceLink: creatives.sourceLink,
       createdAt: creatives.createdAt,
       createdByName: users.name,
-      totalMatching: sql<string>`COUNT(*) OVER ()`,
     })
     .from(creatives)
     .innerJoin(products, eq(products.id, creatives.productId))
@@ -256,54 +302,13 @@ export async function listCreatives(
     .leftJoin(spend30d, sql`spend_30d.creative_id = ${creatives.id}`)
     .leftJoin(spend7d, sql`spend_7d.creative_id = ${creatives.id}`)
     .leftJoin(angleAgg, eq(angleAgg.creativeId, creatives.id))
-    .where(conditions.length > 0 ? and(...conditions) : undefined)
-    .orderBy(...orderBy);
-
-  // The Library board shows EVERY matching creative (the page wraps the grid /
-  // table in an internal vertical scroll, like Summary). Previously this capped
-  // at 50, which silently hid creatives — with all-NULL launch dates the cap
-  // sliced by name and dropped whole types (image/slides) past row 50. Callers
-  // that want a smaller page can still pass an explicit `limit`.
-  // Skip the SQL LIMIT when a status filter is active: the derived-status filter
-  // runs in JS AFTER the query, so a DB-side limit would slice BEFORE filtering
-  // and both the rows and the "N of M" count would miss status-matching
-  // creatives past the cap. With a status filter we fetch all and limit in JS.
-  // A stage sort re-orders in JS (below), so a DB-side limit would slice the
-  // WRONG rows — same reason the status filter skips it.
-  const jsReorders = isStageSort(filters.sort);
-  const rows = await (filters.limit && !filters.statuses?.length && !jsReorders
-    ? baseQuery.limit(filters.limit)
-    : baseQuery);
+    .where(and(...conditions));
 
   // Attach the dynamic, derived status to every row (account-scoped, batched).
   // No id list: the map is derived from the request's shared status inputs,
   // and every read below is a keyed lookup — passing hundreds of ids only
   // added an `IN (…)` list (and, before the shared inputs, a whole extra scan).
-  const statusMap = await creativeStatusMap();
-
-  // The shown status is scoped to the SELECTED platforms — for one or several,
-  // roll up over just those platforms with the same precedence as the general
-  // roll-up (active ▸ pause ▸ new ▸ terminated; a platform the creative never
-  // ran on counts as New). No platform selected → the general (all-platform)
-  // roll-up. Badge, status filter, and status sort all read this.
-  const scopePlatforms = filters.platforms ?? [];
-  const effectiveStatus = (id: string): CreativeStatus => {
-    const s = statusFor(statusMap, id);
-    if (scopePlatforms.length === 0) return s.general;
-    let anyActive = false;
-    let anyPause = false;
-    let anyNew = false;
-    for (const p of scopePlatforms) {
-      const ps = s.perPlatform[p];
-      if (ps === "active") anyActive = true;
-      else if (ps === "pause") anyPause = true;
-      else if (ps !== "terminated") anyNew = true; // undefined = never ran there
-    }
-    if (anyActive) return "active";
-    if (anyPause) return "pause";
-    if (anyNew) return "new";
-    return "terminated";
-  };
+  const effectiveStatus = effectiveStatusOf(await creativeStatusMap(), filters.platforms ?? []);
 
   let mapped: CreativeListRow[] = rows.map((r) => ({
     id: r.id,
@@ -336,110 +341,106 @@ export async function listCreatives(
   // isn't a DB column, so it can't be a SQL WHERE. It matches the EFFECTIVE
   // (platform-scoped when one platform is selected) status. The Library shows
   // all matching rows (no real pagination), so JS filtering is exact.
-  const statusFiltered = Boolean(filters.statuses?.length);
   if (filters.statuses?.length) {
     const allowed = new Set(filters.statuses);
     mapped = mapped.filter((row) => allowed.has(row.status));
   }
 
-  // Status sort must run in JS too (the legacy SQL column is dead). For a
-  // status sort, the SQL ordered by name as a stable base; re-order by the
-  // derived status rank here.
-  if (filters.sort === "status-asc" || filters.sort === "status-desc") {
-    const dir = filters.sort === "status-asc" ? 1 : -1;
-    mapped.sort((a, b) => {
-      const d = (STATUS_ORDER[a.status] - STATUS_ORDER[b.status]) * dir;
-      return d !== 0 ? d : a.name.localeCompare(b.name);
-    });
-  }
-
-  // Stage sort runs in JS too: "earliest stage in funnel order, unassigned
-  // last in BOTH directions" is not something one SQL direction expresses, and
-  // `compareStages` is the shared rule (Summary uses the same one).
-  if (isStageSort(filters.sort)) {
-    const dir = filters.sort === "stage-asc" ? 1 : -1;
-    mapped.sort((a, b) => {
-      const d = compareStages(a.stages, b.stages, dir);
-      return d !== 0 ? d : a.name.localeCompare(b.name);
-    });
-  }
-
-  const totalMatching = statusFiltered
-    ? mapped.length
-    : rows[0]
-      ? Number(rows[0].totalMatching)
-      : 0;
-
-  // With a status filter the SQL LIMIT was skipped, so apply the caller's limit
-  // to the RETURNED rows here — totalMatching above already reflects the full
-  // filtered count.
-  const finalRows =
-    filters.limit && (statusFiltered || isStageSort(filters.sort))
-      ? mapped.slice(0, filters.limit)
-      : mapped;
-
+  mapped = sortCreativeRows(mapped, filters.sort);
+  const totalMatching = mapped.length;
+  const finalRows = filters.limit ? mapped.slice(0, filters.limit) : mapped;
   return { rows: finalRows, totalMatching, breakdown };
 }
 
-function orderByForSort(sort: CreativeSort): SQL[] {
-  switch (sort) {
-    case "launched-desc":
-      return [sql`${creatives.launchDate} DESC NULLS LAST`, asc(creatives.name)];
-    case "launched-asc":
-      return [sql`${creatives.launchDate} ASC NULLS LAST`, asc(creatives.name)];
-    case "name-asc":
-      return [asc(creatives.name)];
-    case "name-desc":
-      return [desc(creatives.name)];
-    case "product-asc":
-      return [asc(products.name), asc(creatives.name)];
-    case "product-desc":
-      return [desc(products.name), asc(creatives.name)];
-    case "type-asc":
-      return [asc(creatives.type), asc(creatives.name)];
-    case "type-desc":
-      return [desc(creatives.type), asc(creatives.name)];
-    // Dynamic status isn't a DB column — order by name here as a stable base;
-    // listCreatives re-sorts by the derived status rank in JS.
-    case "status-asc":
-    case "status-desc":
-    // Stage ranks by the EARLIEST stage with unassigned last, which needs the
-    // funnel order — re-sorted in JS rather than re-listing the stage names in
-    // SQL. Same stable base.
-    case "stage-asc":
-    case "stage-desc":
-      return [asc(creatives.name)];
-    case "angle-asc":
-      // First angle alphabetically (MIN over the creative's angles); creatives
-      // with no angles sort last.
-      return [
-        sql`(SELECT MIN(${creativeAngles.angle}) FROM ${creativeAngles}
-             WHERE ${creativeAngles.creativeId} = ${creatives.id}) ASC NULLS LAST`,
-        asc(creatives.name),
-      ];
-    case "angle-desc":
-      return [
-        sql`(SELECT MIN(${creativeAngles.angle}) FROM ${creativeAngles}
-             WHERE ${creativeAngles.creativeId} = ${creatives.id}) DESC NULLS LAST`,
-        asc(creatives.name),
-      ];
-    // Unrated sorts LAST in BOTH directions — it's an absence of judgment,
-    // not a low one (Postgres would put NULLs first on DESC by default).
-    case "priority-desc":
-      return [sql`${creatives.priority} DESC NULLS LAST`, asc(creatives.name)];
-    case "priority-asc":
-      return [sql`${creatives.priority} ASC NULLS LAST`, asc(creatives.name)];
-    case "spend7-desc":
-      return [sql`spend_7d DESC NULLS LAST`, asc(creatives.name)];
-    case "spend7-asc":
-      return [sql`spend_7d ASC NULLS LAST`, asc(creatives.name)];
-    case "spend-desc":
-      return [sql`spend_30d DESC NULLS LAST`, asc(creatives.name)];
-    case "spend-asc":
-      return [sql`spend_30d ASC NULLS LAST`, asc(creatives.name)];
-    case "created-desc":
-      return [desc(creatives.createdAt)];
+/**
+ * The Library's ordered NAMES for a filter set — what the detail page's
+ * prev/next pager walks (W2-4, 2026-10). It used to call `listCreatives`, the
+ * Library's heaviest query (two spend-window CTEs over performance_records,
+ * every brand's angles, notes, creators) on every detail view and every
+ * prev/next step, to read one column. This reads only what the filters and
+ * the sort need: the spend windows only for a spend sort, the angle list only
+ * for an angle sort, and the status from the request's cached inputs. Same
+ * WHERE (`creativeListConditions`), same comparator (`sortCreativeRows`), so
+ * the sequence is the Library's exactly.
+ */
+export async function listCreativeSequence(filters: CreativeListFilters): Promise<string[]> {
+  const acct = await getActiveAccountId();
+  const conditions = creativeListConditions(filters, acct);
+  const wantsSpend = isSpendSort(filters.sort);
+  const wantsAngles = filters.sort === "angle-asc" || filters.sort === "angle-desc";
+
+  const columns = {
+    id: creatives.id,
+    name: creatives.name,
+    productName: products.name,
+    type: creatives.type,
+    launchDate: creatives.launchDate,
+    priority: creatives.priority,
+    stages: creatives.stages,
+    createdAt: creatives.createdAt,
+    angles: wantsAngles
+      ? sql<string[]>`ARRAY(SELECT ${creativeAngles.angle} FROM ${creativeAngles} WHERE ${creativeAngles.creativeId} = ${creatives.id})`
+      : sql<string[]>`'{}'::text[]`,
+  };
+
+  let rows: Array<{
+    id: string;
+    name: string;
+    productName: string;
+    type: string;
+    launchDate: string | null;
+    priority: number | null;
+    stages: string[] | null;
+    createdAt: Date;
+    angles: string[];
+    spend7d?: string | null;
+    spend30d?: string | null;
+  }>;
+  if (wantsSpend) {
+    const spend30d = spendWindowCte(filters, "spend_30d", 30, acct);
+    const spend7d = spendWindowCte(filters, "spend_7d", 7, acct);
+    rows = await db
+      .with(spend30d, spend7d)
+      .select({
+        ...columns,
+        spend7d: sql<string | null>`spend_7d.spend`.as("spend_7d"),
+        spend30d: sql<string | null>`spend_30d.spend`.as("spend_30d"),
+      })
+      .from(creatives)
+      .innerJoin(products, eq(products.id, creatives.productId))
+      .leftJoin(spend30d, sql`spend_30d.creative_id = ${creatives.id}`)
+      .leftJoin(spend7d, sql`spend_7d.creative_id = ${creatives.id}`)
+      .where(and(...conditions));
+  } else {
+    rows = await db
+      .select(columns)
+      .from(creatives)
+      .innerJoin(products, eq(products.id, creatives.productId))
+      .where(and(...conditions));
   }
+
+  const needsStatus = Boolean(filters.statuses?.length) || filters.sort.startsWith("status");
+  const effectiveStatus = needsStatus
+    ? effectiveStatusOf(await creativeStatusMap(), filters.platforms ?? [])
+    : () => "new" as CreativeStatus;
+  let seq = rows.map((r) => ({
+    name: r.name,
+    productName: r.productName,
+    type: r.type,
+    status: effectiveStatus(r.id),
+    launchDate: r.launchDate,
+    angles: r.angles ?? [],
+    spend7d: r.spend7d == null ? 0 : Number(r.spend7d),
+    spend30d: r.spend30d == null ? 0 : Number(r.spend30d),
+    priority: r.priority,
+    stages: r.stages ?? [],
+    createdAt: r.createdAt,
+  }));
+  if (filters.statuses?.length) {
+    const allowed = new Set(filters.statuses);
+    seq = seq.filter((row) => allowed.has(row.status));
+  }
+  return sortCreativeRows(seq, filters.sort).map((r) => r.name);
 }
 
 // (Library header stats now come from creativeStatusBreakdown() in
@@ -498,6 +499,9 @@ export const getCreativeByName = cache(async (
       sourceLink: creatives.sourceLink,
       createdAt: creatives.createdAt,
       updatedAt: creatives.updatedAt,
+      // The angles ride along in the same round trip (W2-4, 2026-10 — they
+      // were a second query on every detail view).
+      angles: sql<string[]>`ARRAY(SELECT ${creativeAngles.angle} FROM ${creativeAngles} WHERE ${creativeAngles.creativeId} = ${creatives.id} ORDER BY ${creativeAngles.angle})`,
     })
     .from(creatives)
     .innerJoin(products, eq(products.id, creatives.productId))
@@ -506,19 +510,13 @@ export const getCreativeByName = cache(async (
 
   if (!row) return null;
 
-  const angleRows = await db
-    .select({ angle: creativeAngles.angle })
-    .from(creativeAngles)
-    .where(eq(creativeAngles.creativeId, row.id))
-    .orderBy(asc(creativeAngles.angle));
-
   return {
     ...row,
     type: row.type as CreativeType,
     // Stored unordered; presented in funnel order so the editor's chips and
     // every table cell agree.
     stages: sortStages(row.stages ?? []),
-    angles: angleRows.map((t) => t.angle),
+    angles: row.angles ?? [],
   };
 });
 

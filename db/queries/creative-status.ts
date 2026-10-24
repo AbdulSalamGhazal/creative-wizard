@@ -271,21 +271,17 @@ export function statusFor(
   return map.get(creativeId) ?? NEW_STATUS;
 }
 
-/** Just the per-platform termination set for one creative (for the detail UI). */
+/**
+ * Just the per-platform termination set for one creative (for the detail UI)
+ * — from the request's ONE cached overrides read, which the creative's status
+ * map reads anyway (W2-4, 2026-10: it was its own query on every detail view).
+ */
 export async function terminatedPlatformsFor(
   creativeId: string,
 ): Promise<Platform[]> {
-  const acct = await getActiveAccountId();
-  const rows = await db
-    .select({ platform: creativePlatformOverrides.platform })
-    .from(creativePlatformOverrides)
-    .where(
-      and(
-        eq(creativePlatformOverrides.accountId, acct),
-        eq(creativePlatformOverrides.creativeId, creativeId),
-      ),
-    );
-  return rows.map((r) => r.platform as Platform);
+  return (await brandOverrides())
+    .filter((o) => o.creativeId === creativeId)
+    .map((o) => o.platform as Platform);
 }
 
 export interface StatusTransition {
