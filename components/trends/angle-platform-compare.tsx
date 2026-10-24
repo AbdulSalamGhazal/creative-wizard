@@ -8,6 +8,7 @@ import { ALL_PLATFORMS, PLATFORM_COLOR, PLATFORM_LABEL } from "@/lib/palette";
 import { PlatformDot } from "@/components/ui/platform-dot";
 import type { AnglePlatformRow } from "@/db/queries/trends";
 import { METRIC_LABEL } from "@/lib/metric-labels";
+import { EmptyState } from "@/components/ui/empty-state";
 
 type MetricKey =
   | "spend" | "conversions" | "revenue" | "roas"
@@ -185,9 +186,12 @@ function MetricRow({
       </div>
 
       {columns.length === 0 ? (
-        <div className="h-20 flex items-center justify-center text-ink-3 text-sm border border-dashed border-line rounded-lg">
-          No per-platform angle data in this window.
-        </div>
+        <EmptyState
+          className="min-h-20 flex flex-col items-center justify-center py-0 py-4"
+          title="No per-platform angle data in this window."
+          kind="filtered"
+          buttons={false}
+        />
       ) : (
         <div className={cn("grid grid-cols-1 sm:grid-cols-2 gap-3", lgCols)}>
           {columns.map((col) => (

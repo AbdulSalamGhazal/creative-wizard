@@ -52,6 +52,7 @@ import type {
   ExclusionRuleRow,
   RuleImpactPreview,
 } from "@/db/queries/exclusion-rules";
+import { EmptyState } from "@/components/ui/empty-state";
 
 const KIND_LABEL: Record<ExclusionRuleKind, string> = {
   campaign_objective: "Campaign objective",
@@ -262,17 +263,11 @@ export function ExclusionRulesAdmin({
 
       {/* Rules list */}
       {rules.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-line bg-surface px-6 py-12 text-center">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full border border-line bg-surface-2">
-            <ShieldOff className="h-5 w-5 text-ink-2" />
-          </div>
-          <p className="mt-4 text-sm text-ink-2">No exclusion rules yet.</p>
-          <p className="mx-auto mt-1 max-w-sm text-xs text-ink-3">
-            A rule keeps everything matching a campaign objective, a campaign,
-            or a creative out of every aggregate — including future uploads —
-            until you deactivate it.
-          </p>
-        </div>
+        <EmptyState
+          icon={<ShieldOff className="h-5 w-5" />}
+          title="No exclusion rules yet."
+          hint="A rule keeps everything matching a campaign objective, a campaign, or a creative out of every aggregate — including future uploads — until you deactivate it."
+        />
       ) : (
         <div className="divide-y divide-line rounded-lg border border-line bg-surface">
           {rules.map((r) => (

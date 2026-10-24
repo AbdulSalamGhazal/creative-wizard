@@ -26,6 +26,7 @@ import { fillDailyGaps, fillGroupSeries } from "@/lib/time-series";
 import { useChartFit, ChartFitToggle } from "@/components/charts/chart-fit";
 import type { DailyMetricRow } from "@/db/queries/performance";
 import { ChartTooltip } from "@/components/charts/chart-tooltip";
+import { EmptyState } from "@/components/ui/empty-state";
 
 interface Props {
   rows: DailyMetricRow[];
@@ -248,14 +249,10 @@ export function CreativePerfLineChart({
           />
 
           {data.length === 0 ? (
-            <div
-              className={
-                (inFull ? "flex-1 min-h-0" : "h-72") +
-                " flex items-center justify-center text-ink-3 text-sm border border-dashed border-line rounded-md"
-              }
-            >
-              No performance records for this creative.
-            </div>
+            <EmptyState
+              className={(inFull ? "flex-1 min-h-0" : "h-72") + " flex flex-col items-center justify-center py-0"}
+              title="No performance records for this creative."
+            />
           ) : (
             <div className={(inFull ? "flex-1 min-h-0" : "h-72") + " relative"}>
               <ChartFitToggle fit={fit} />

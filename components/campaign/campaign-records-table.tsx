@@ -13,6 +13,7 @@ import { PLATFORM_LABEL } from "@/lib/palette";
 import { PlatformDot } from "@/components/ui/platform-dot";
 import { cn } from "@/lib/utils";
 import type { CampaignDayRow, CampaignRecordRow } from "@/db/queries/campaign";
+import { EmptyState } from "@/components/ui/empty-state";
 
 /** Every uploaded metric column. `money` → currency, else integer count. */
 const METRIC_COLS: Array<{ key: MetricKey; label: string; money?: boolean }> = [
@@ -257,9 +258,7 @@ export function CampaignRecordsTable({
 
   if (records.length === 0) {
     return (
-      <div className="rounded-lg border border-dashed border-line bg-surface px-6 py-10 text-center text-ink-3 text-sm">
-        No records in this window.
-      </div>
+      <EmptyState title="No records in this window." kind="range" />
     );
   }
 

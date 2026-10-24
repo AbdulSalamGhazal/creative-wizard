@@ -18,6 +18,7 @@ import type { VideoDiagnosticRow } from "@/db/queries/trends";
 import { ChartTooltip } from "@/components/charts/chart-tooltip";
 import { MetricPicker } from "@/components/charts/metric-picker";
 import { useNavTransition } from "@/lib/nav-progress";
+import { EmptyState } from "@/components/ui/empty-state";
 
 type Axis = "hookRate" | "holdRate" | "completeRate" | "ctr" | "cvr" | "roas" | "cpa";
 
@@ -80,9 +81,12 @@ export function VideoScatter({ rows }: { rows: VideoDiagnosticRow[] }) {
       </div>
 
       {data.length === 0 ? (
-        <div className="h-72 flex items-center justify-center text-ink-3 text-sm border border-dashed border-line rounded-lg">
-          No videos with both metrics in this window.
-        </div>
+        <EmptyState
+          className="h-72 flex flex-col items-center justify-center py-0"
+          title="No videos with both metrics in this window."
+          kind="filtered"
+          buttons={false}
+        />
       ) : (
         <div className="h-72">
           <ResponsiveContainer width="100%" height="100%">

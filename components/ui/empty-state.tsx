@@ -18,7 +18,9 @@ import { cn } from "@/lib/utils";
  *  · `range`    — a view with a range but no filter bar.
  *  · `filters`  — a listing with filters but no range (the Library).
  * A first-use state ("No uploads yet.") passes its own `hint` and `action`.
- * Each button renders only when it would change something.
+ * Each button renders only when it would change something. A chart sitting
+ * beside an empty table passes `buttons={false}`: the hint stays, the buttons
+ * live once, on the table's empty state — not three times down one page.
  */
 export const EMPTY_HINTS = {
   filtered: "Try a wider date range or clear filters.",
@@ -36,6 +38,7 @@ export function EmptyState({
   action,
   icon,
   size = "md",
+  buttons = true,
   className,
 }: {
   /** What is missing, in one line. */
@@ -48,6 +51,9 @@ export function EmptyState({
   action?: ReactNode;
   icon?: ReactNode;
   size?: keyof typeof PAD;
+  /** Render the kind's buttons (default). Off for a secondary surface. */
+  buttons?: boolean;
+  /** Extra classes — a chart frame passes its height + centring. */
   className?: string;
 }) {
   const shownHint = kind ? EMPTY_HINTS[kind] : hint;
@@ -65,11 +71,13 @@ export function EmptyState({
         </div>
       )}
       <p className="text-sm text-ink-2">{title}</p>
-      {shownHint && <p className="mx-auto mt-1 max-w-md text-xs text-ink-3">{shownHint}</p>}
-      {(kind || action) && (
+      {shownHint && (
+        <div className="mx-auto mt-1 max-w-md text-xs leading-relaxed text-ink-3">{shownHint}</div>
+      )}
+      {((kind && buttons) || action) && (
         <div className="mt-4 flex flex-wrap items-center justify-center gap-2 empty:hidden">
-          {(kind === "filtered" || kind === "range") && <WidenRangeAction />}
-          {(kind === "filtered" || kind === "filters") && <ClearFiltersAction />}
+          {buttons && (kind === "filtered" || kind === "range") && <WidenRangeAction />}
+          {buttons && (kind === "filtered" || kind === "filters") && <ClearFiltersAction />}
           {action}
         </div>
       )}

@@ -31,7 +31,7 @@
   that don't fit). A cell may not grow its row: cap, truncate with a `title`,
   and prove the cap bites at 375px.
 - **No dead ends.** Every empty state says what to do next and offers the
-  action that does it. Every error says what happened and what the user can do
+  action that does it — through the one `EmptyState` (ui-system.md, D24). Every error says what happened and what the user can do
   about it, in their words — "Excluded by rule «Spend below $1»" rather than a
   refusal with no exit. A disabled control explains itself.
 - **Discoverability: a feature nobody can find does not exist.** Say where the

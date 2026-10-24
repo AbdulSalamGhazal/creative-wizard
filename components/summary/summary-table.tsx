@@ -49,6 +49,7 @@ import { rowsToCsv, todayStamp, type CsvColumn } from "@/lib/csv-export";
 import { PriorityStars } from "@/components/creative/priority-stars";
 import { StageChips } from "@/components/creative/stage-chips";
 import type { PlatformStatus } from "@/lib/creative-status";
+import { EmptyState } from "@/components/ui/empty-state";
 
 interface Props {
   rows: SummaryRow[];
@@ -392,12 +393,7 @@ export function SummaryTable({
 
   if (rows.length === 0) {
     return (
-      <div className="rounded-lg border border-dashed border-line bg-surface px-6 py-16 text-center">
-        <p className="text-ink-2 text-sm">No creatives match these filters.</p>
-        <p className="text-ink-3 text-xs mt-1">
-          Try widening the date range or removing filters.
-        </p>
-      </div>
+      <EmptyState size="lg" title="No creatives match these filters." kind="filtered" />
     );
   }
 

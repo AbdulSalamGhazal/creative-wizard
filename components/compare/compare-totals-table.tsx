@@ -8,6 +8,7 @@ import { COMPARE_COLORS } from "@/components/charts/compare-chart";
 import { int, pct, roas, usd } from "@/lib/format";
 import type { Kpis } from "@/db/queries/performance";
 import { METRIC_LABEL } from "@/lib/metric-labels";
+import { EmptyState } from "@/components/ui/empty-state";
 
 type MetricKey = Exclude<keyof Kpis, "funnelCpm" | "funnelCtr">;
 
@@ -140,9 +141,7 @@ export function CompareTotalsTable({ sides }: { sides: CompareSideTotals[] }) {
       {...cols.tableProps}
       minWidthClass="min-w-max"
       empty={
-        <div className="rounded-lg border border-dashed border-line bg-surface px-6 py-8 text-center text-sm text-ink-2">
-          Pick a side to compare.
-        </div>
+        <EmptyState size="sm" title="Pick a side to compare." />
       }
     />
   );

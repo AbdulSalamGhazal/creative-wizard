@@ -39,6 +39,7 @@ import type {
   ReconByChannelRow,
 } from "@/db/queries/reconciliation";
 import { CHANNEL_LABEL, channelDayRows, channelDeltas, sumChannelDays } from "@/store/channels";
+import { EmptyState } from "@/components/ui/empty-state";
 
 /**
  * Two modes, Channels first. There is no "overview" mode: it showed store
@@ -647,12 +648,12 @@ export function ReconciliationView({
           showTotals={channelRows.length > 0}
           evenColumns
           minWidthClass="min-w-[880px]"
-          empty={<EmptyState />}
+          empty={<NoDataInRange />}
         />
       ) : !sourceConfigured ? (
         <NotConfigured canConfig={canConfig} />
       ) : byPlatform.length === 0 ? (
-        <EmptyState />
+        <NoDataInRange />
       ) : (
         <ByPlatformTable
           rows={byPlatform}
@@ -713,34 +714,27 @@ function PctCell({ pct, className }: { pct: number | null; className?: string })
   );
 }
 
-function EmptyState() {
-  return (
-    <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed border-line bg-surface py-14 text-center">
-      <p className="text-sm text-ink-2">No data in this range</p>
-      <p className="text-xs text-ink-3">
-        Pick a range where you have store orders or ads data.
-      </p>
-    </div>
-  );
+function NoDataInRange() {
+  return <EmptyState size="lg" title="No data in this range." kind="range" />;
 }
 
 function NotConfigured({ canConfig }: { canConfig: boolean }) {
   return (
-    <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed border-line bg-surface py-14 text-center">
-      <p className="text-sm text-ink-2">Source field not configured</p>
-      <p className="max-w-sm text-xs text-ink-3">
-        By-platform reconciliation needs to know which order field holds the
-        traffic source, and how its values map to ad platforms.
-      </p>
-      {canConfig && (
-        <Link
-          href="/store/uploads?tab=fields"
-          className="mt-1 text-xs text-ink-2 underline hover:text-ink"
-        >
-          Configure in Upload orders → Order fields
-        </Link>
-      )}
-    </div>
+    <EmptyState
+      size="lg"
+      title="Source field not configured"
+      hint="By-platform reconciliation needs to know which order field holds the traffic source, and how its values map to ad platforms."
+      action={
+        canConfig ? (
+          <Link
+            href="/store/uploads?tab=fields"
+            className="text-xs text-ink-2 underline hover:text-ink"
+          >
+            Configure in Upload orders → Order fields
+          </Link>
+        ) : undefined
+      }
+    />
   );
 }
 

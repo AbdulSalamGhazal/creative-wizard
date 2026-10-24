@@ -3,6 +3,7 @@
 import { CreativeCard } from "@/components/creative/creative-card";
 import type { CreativeListRow } from "@/db/queries/creatives";
 import { useLibrarySort } from "@/components/creative/use-library-sort";
+import { EmptyState } from "@/components/ui/empty-state";
 
 export function CreativeGrid({
   rows: serverRows,
@@ -16,12 +17,8 @@ export function CreativeGrid({
   const { rows, listCtx } = useLibrarySort(serverRows, serverListCtx);
   if (rows.length === 0) {
     return (
-      <div className="rounded-lg border border-dashed border-line bg-surface px-6 py-16 text-center">
-        <p className="text-ink-2 text-sm">No creatives match these filters.</p>
-        <p className="text-ink-3 text-xs mt-1">
-          Clear filters or add a new creative to the library.
-        </p>
-      </div>
+      // The table view's twin, word for word (C-20: they disagreed).
+      <EmptyState size="lg" title="No creatives match these filters." kind="filters" />
     );
   }
   return (

@@ -29,7 +29,16 @@
   hand-listed. A page shows in the sidebar to anyone who can open or act on
   one of its gated parts, and to nobody it would 404 (D18, 2026-10; pinned by
   `components/layout/nav-gates.test.ts`).
-- Empty states are designed, numbers are tabular, dash means NULL.
+- Empty states are designed, numbers are tabular, dash means NULL. **An empty
+  state is `EmptyState`** (components/ui/empty-state.tsx, D24) — never a
+  hand-rolled dashed box — with ONE hint per kind and the button that does
+  it: `filtered` "Try a wider date range or clear filters." (Show lifetime ·
+  Clear filters), `range` "Try a wider date range.", `filters` "Try clearing
+  filters."; a first-use state passes its own hint and action. "Clear
+  filters" is the page bar's own Clear, registered through
+  `lib/filter-scope.ts`; each button renders only when it would change
+  something, and a chart beside an empty table shows the hint without them
+  (`buttons={false}`). Pinned by `components/ui/empty-state.test.ts`.
 - A horizontal scroll box that holds `sr-only` text is `relative`, or the
   label escapes it and widens the page at 375px.
 - To reveal an item inside a scroll box, set THAT box's `scrollLeft`/

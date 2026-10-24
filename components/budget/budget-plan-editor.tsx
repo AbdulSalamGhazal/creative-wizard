@@ -101,6 +101,7 @@ import {
 } from "@/components/budget/budget-shared";
 import { BudgetPlanRevisions } from "@/components/budget/budget-plan-revisions";
 import { BudgetPlanUpload, downloadPlanSheet } from "@/components/budget/budget-plan-upload";
+import { EmptyState } from "@/components/ui/empty-state";
 
 const WEIGHT_STEP = 0.5;
 const NOTE_MAX = 200;
@@ -1445,17 +1446,19 @@ export function BudgetPlanEditor({
               )}
             </>
           ) : (
-            <div className="rounded-lg border border-dashed border-line bg-surface px-6 py-10 text-center">
-              <p className="text-sm text-ink-2">No plan for this month yet.</p>
-              {canManage ? (
-                <>
-                  <p className="mt-1 text-xs text-ink-3">
-                    {seedMonth
-                      ? `${monthLabel(seedMonth)} has one — reuse it, plan from scratch, or upload a sheet.`
-                      : "Plan it in the editor, or upload a day-by-day sheet."}
-                  </p>
-                  {/* The toolbar's hierarchy: one primary, the rest quieter. */}
-                  <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
+            <EmptyState
+              title="No plan for this month yet."
+              hint={
+                canManage
+                  ? seedMonth
+                    ? `${monthLabel(seedMonth)} has one — reuse it, plan from scratch, or upload a sheet.`
+                    : "Plan it in the editor, or upload a day-by-day sheet."
+                  : "Ask someone with budget access to add a plan."
+              }
+              action={
+                canManage ? (
+                  // The toolbar's hierarchy: one primary, the rest quieter.
+                  <>
                     <Button type="button" size="sm" onClick={startEditing} disabled={isPending}>
                       <Pencil className="h-3.5 w-3.5" />
                       Edit plan
@@ -1476,14 +1479,10 @@ export function BudgetPlanEditor({
                       <Upload className="h-3.5 w-3.5" />
                       Upload
                     </Button>
-                  </div>
-                </>
-              ) : (
-                <p className="mt-1 text-xs text-ink-3">
-                  Ask someone with budget access to add a plan.
-                </p>
-              )}
-            </div>
+                  </>
+                ) : undefined
+              }
+            />
           )}
         </>
       )}

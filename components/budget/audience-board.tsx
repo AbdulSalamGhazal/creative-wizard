@@ -55,6 +55,7 @@ import type {
   AudienceSnapshotRow,
 } from "@/db/queries/audience";
 import type { BudgetPacingDaySpend } from "@/db/queries/budget";
+import { EmptyState } from "@/components/ui/empty-state";
 
 /** How many trailing days the glance matrix's pressure reads. */
 const GLANCE_WINDOW = 7;
@@ -444,26 +445,31 @@ export function AudienceBoard({
       />
 
       {!hasAnySnapshot ? (
-        <div className="rounded-lg border border-dashed border-line bg-surface px-6 py-10 text-center">
-          <h3 className="text-sm font-medium text-ink">No audience sizes yet</h3>
-          <p className="mx-auto mt-1 max-w-prose text-xs text-ink-3">
-            Record how many people each funnel audience holds — Awareness,
-            Activation and Retargeting, per platform — whenever you measure it,
-            daily or weekly. Each number carries forward with its age until the
-            next measurement, so you can see spend per 1,000 people without
-            pretending you measured a day you didn&rsquo;t.
-          </p>
-          {canManage ? (
-            <Button type="button" size="sm" className="mt-4" onClick={() => setRecordOpen(true)}>
-              <Plus className="h-3.5 w-3.5" />
-              Record sizes
-            </Button>
-          ) : (
-            <p className="mt-4 text-[11px] text-ink-3">
-              Recording sizes needs the audience permission.
-            </p>
-          )}
-        </div>
+        <EmptyState
+          title="No audience sizes yet"
+          hint={
+            <>
+              Record how many people each funnel audience holds — Awareness,
+              Activation and Retargeting, per platform — whenever you measure it,
+              daily or weekly. Each number carries forward with its age until the
+              next measurement, so you can see spend per 1,000 people without
+              pretending you measured a day you didn&rsquo;t.
+              {!canManage && (
+                <span className="mt-3 block text-[11px]">
+                  Recording sizes needs the audience permission.
+                </span>
+              )}
+            </>
+          }
+          action={
+            canManage ? (
+              <Button type="button" size="sm" onClick={() => setRecordOpen(true)}>
+                <Plus className="h-3.5 w-3.5" />
+                Record sizes
+              </Button>
+            ) : undefined
+          }
+        />
       ) : (
         <>
           {/* Glance matrix */}

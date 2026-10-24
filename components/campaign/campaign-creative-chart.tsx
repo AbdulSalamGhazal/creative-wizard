@@ -20,6 +20,7 @@ import { smoothColumns } from "@/lib/chart-smooth";
 import { fillDailyGaps, fillGroupSeries } from "@/lib/time-series";
 import type { CampaignCreativeDailyPoint } from "@/db/queries/campaign";
 import { ChartTooltip } from "@/components/charts/chart-tooltip";
+import { EmptyState } from "@/components/ui/empty-state";
 
 type MetricKey =
   | "spend"
@@ -308,9 +309,11 @@ export function CampaignCreativeChart({
   );
 
   const empty = (
-    <div className="h-full flex items-center justify-center text-ink-3 text-sm border border-dashed border-line rounded-md">
-      No data in this window.
-    </div>
+    <EmptyState
+      className="flex h-full flex-col items-center justify-center"
+      title="No data in this window."
+      kind="range"
+    />
   );
 
   return (

@@ -12,6 +12,7 @@ import { METRIC_LABEL } from "@/lib/metric-labels";
 import { computeDelta, type Delta } from "@/lib/period";
 import { cn } from "@/lib/utils";
 import type { AngleMetrics, AngleRollupRow } from "@/db/queries/trends";
+import { EmptyState } from "@/components/ui/empty-state";
 
 type Num = number | null;
 const DASH = "—";
@@ -223,11 +224,7 @@ export function AngleRollupTable({ rows }: { rows: AngleRollupRow[] }) {
         }}
         csvFileName="by-angle"
         minWidthClass="min-w-[760px]"
-        empty={
-          <div className="rounded-lg border border-dashed border-line bg-surface px-6 py-12 text-center">
-            <p className="text-ink-2 text-sm">No creatives carry an angle in this window.</p>
-          </div>
-        }
+        empty={<EmptyState title="No creatives carry an angle in this window." kind="filtered" />}
       />
     </div>
   );

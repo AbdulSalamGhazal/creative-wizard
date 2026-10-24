@@ -19,6 +19,7 @@ import { createAngle, deleteAngle, renameAngle } from "@/app/actions/angle";
 import { safeAction } from "@/lib/action-failure";
 import { toastActionFailure } from "@/lib/action-toast";
 import type { AngleRow } from "@/db/queries/angles";
+import { EmptyState } from "@/components/ui/empty-state";
 
 /**
  * Angle vocabulary admin. Add an angle, rename it inline (cascades to every
@@ -117,10 +118,10 @@ export function AnglesTable({ rows }: { rows: AngleRow[] }) {
       </div>
 
       {rows.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-line bg-surface px-6 py-10 text-center text-ink-3 text-sm">
-          No angles yet. Add one above, or angles get created when you assign
-          one to a creative.
-        </div>
+        <EmptyState
+          title="No angles yet."
+          hint="Add one above, or angles get created when you assign one to a creative."
+        />
       ) : (
         <div className="overflow-x-auto rounded-lg border border-line bg-surface">
           <table className="w-full text-sm num">

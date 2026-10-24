@@ -17,6 +17,7 @@ import { StageChips } from "@/components/creative/stage-chips";
 import { isoDate } from "@/lib/format";
 import { STATUS_ORDER } from "@/lib/creative-status";
 import { isCreativeStage, stageRank } from "@/lib/funnel-stages";
+import { EmptyState } from "@/components/ui/empty-state";
 
 /**
  * Per-creative summary for one campaign — the chart's series, tabulated. Each
@@ -221,9 +222,7 @@ export function CampaignCreativesTable({
 
   if (creatives.length === 0) {
     return (
-      <div className="rounded-lg border border-dashed border-line bg-surface px-6 py-8 text-center text-ink-3 text-sm">
-        No creatives ran in this window.
-      </div>
+      <EmptyState size="sm" title="No creatives ran in this window." kind="range" />
     );
   }
 

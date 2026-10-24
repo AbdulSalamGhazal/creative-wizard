@@ -18,6 +18,7 @@ import { isoDate, usd } from "@/lib/format";
 import { useNavTransition } from "@/lib/nav-progress";
 import { DEFAULT_CREATIVE_SORT } from "@/lib/creative-sort";
 import { useLibrarySort, writeLibrarySort } from "@/components/creative/use-library-sort";
+import { EmptyState } from "@/components/ui/empty-state";
 
 const TYPE_LABEL: Record<CreativeListRow["type"], string> = {
   video: "Video",
@@ -312,11 +313,7 @@ export function CreativeTable({
         onSort={onSort}
         onRowClick={(r) => startNav(() => router.push(detailHref(r)))}
         minWidthClass="min-w-[900px]"
-        empty={
-          <div className="rounded-lg border border-dashed border-line bg-surface px-6 py-16 text-center">
-            <p className="text-sm text-ink-2">No creatives match these filters.</p>
-          </div>
-        }
+        empty={<EmptyState size="lg" title="No creatives match these filters." kind="filters" />}
       />
     </div>
   );

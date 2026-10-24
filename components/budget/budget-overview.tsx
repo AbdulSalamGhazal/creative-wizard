@@ -78,6 +78,7 @@ import {
   useBudgetCurrency,
   type HeroState,
 } from "@/components/budget/budget-shared";
+import { EmptyState } from "@/components/ui/empty-state";
 
 /**
  * Budget → Overview (rebuilt 2026-10): the month at a glance, in four pieces —
@@ -1111,57 +1112,63 @@ function EmptyMonth({
 }) {
   const planHref = `/budget/plan?month=${month}`;
   return (
-    <div className="rounded-lg border border-dashed border-line bg-surface px-6 py-10 text-center">
-      <p className="text-sm text-ink-2">No plan for this month yet.</p>
-      {/* Every brand's first month has uploads and no plan: the money is
-          real, so it is named — only the pacing is missing. */}
-      {(spent > 0 || revenue > 0) && (
-        <p className="mt-1 text-xs text-ink-3">
-          {spent > 0 && (
-            <>
-              <span className="num tabular-nums text-ink-2">{fmt(spent)}</span> spent
-            </>
-          )}
-          {spent > 0 && revenue > 0 && " and "}
-          {revenue > 0 && (
-            <>
-              <span className="num tabular-nums text-ink-2">{sar(revenue)}</span> in revenue
-            </>
-          )}
-          {" so far — nothing to pace it against yet."}
-        </p>
-      )}
-      {canManage ? (
-        seedMonth ? (
-          <>
-            <p className="mt-1 text-xs text-ink-3">
-              {monthLabel(seedMonth)} has one — carry it over, or plan this month from scratch.
+    <EmptyState
+      title="No plan for this month yet."
+      hint={
+        <>
+          {/* Every brand's first month has uploads and no plan: the money is
+              real, so it is named — only the pacing is missing. */}
+          {(spent > 0 || revenue > 0) && (
+            <p>
+              {spent > 0 && (
+                <>
+                  <span className="num tabular-nums text-ink-2">{fmt(spent)}</span> spent
+                </>
+              )}
+              {spent > 0 && revenue > 0 && " and "}
+              {revenue > 0 && (
+                <>
+                  <span className="num tabular-nums text-ink-2">{sar(revenue)}</span> in revenue
+                </>
+              )}
+              {" so far — nothing to pace it against yet."}
             </p>
-            <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
-              <Button asChild size="sm">
-                <Link href={planHref} onClick={go(planHref)}>
-                  Plan {monthLabel(month)}
-                </Link>
-              </Button>
-              <Button asChild variant="outline" size="sm">
-                <Link href={`/budget?month=${seedMonth}`} onClick={go(`/budget?month=${seedMonth}`)}>
-                  See {monthLabel(seedMonth)}
-                </Link>
-              </Button>
-            </div>
+          )}
+          {canManage ? (
+            seedMonth ? (
+              <p className="mt-1">
+                {monthLabel(seedMonth)} has one — carry it over, or plan this month from scratch.
+              </p>
+            ) : (
+              <p className="mt-1">
+                Head to the{" "}
+                <Link href={planHref} onClick={go(planHref)} className="underline hover:text-ink">
+                  Plan page
+                </Link>{" "}
+                to add allocations.
+              </p>
+            )
+          ) : (
+            <p className="mt-1">Ask someone with budget access to add a plan.</p>
+          )}
+        </>
+      }
+      action={
+        canManage && seedMonth ? (
+          <>
+            <Button asChild size="sm">
+              <Link href={planHref} onClick={go(planHref)}>
+                Plan {monthLabel(month)}
+              </Link>
+            </Button>
+            <Button asChild variant="outline" size="sm">
+              <Link href={`/budget?month=${seedMonth}`} onClick={go(`/budget?month=${seedMonth}`)}>
+                See {monthLabel(seedMonth)}
+              </Link>
+            </Button>
           </>
-        ) : (
-          <p className="mt-1 text-xs text-ink-3">
-            Head to the{" "}
-            <Link href={planHref} onClick={go(planHref)} className="underline hover:text-ink">
-              Plan page
-            </Link>{" "}
-            to add allocations.
-          </p>
-        )
-      ) : (
-        <p className="mt-1 text-xs text-ink-3">Ask someone with budget access to add a plan.</p>
-      )}
-    </div>
+        ) : undefined
+      }
+    />
   );
 }

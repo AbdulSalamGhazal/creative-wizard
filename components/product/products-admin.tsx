@@ -6,6 +6,7 @@ import {
   type ProductAdminRow,
 } from "@/db/queries/products";
 import { isoDate } from "@/lib/format";
+import { EmptyState } from "@/components/ui/empty-state";
 
 /**
  * Products management section — the body of the former /admin/products page,
@@ -53,9 +54,7 @@ function ProductTable({
     return (
       <div>
         <h3 className="text-sm font-medium text-ink mb-2">{title}</h3>
-        <div className="rounded-lg border border-dashed border-line bg-surface px-6 py-8 text-center text-ink-3 text-xs">
-          No products in this group.
-        </div>
+        <EmptyState size="sm" title="No products in this group." />
       </div>
     );
   }

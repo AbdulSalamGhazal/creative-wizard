@@ -21,6 +21,7 @@ import {
   type CanvasViewMode,
 } from "@/lib/canvas";
 import type { CanvasFocusRequest } from "@/components/canvas/canvas-flow";
+import { EmptyState } from "@/components/ui/empty-state";
 
 /**
  * React Flow loads HERE, lazily, and nowhere else — `ssr: false` because the
@@ -122,15 +123,11 @@ export function CanvasView({
 
   if (empty) {
     return (
-      <div className="rounded-lg border border-dashed border-line bg-surface px-6 py-16 text-center">
-        <p className="text-sm text-ink-2">Nothing spent in {rangeLabel} under these filters.</p>
-        <p className="mx-auto mt-1 max-w-md text-xs text-ink-3">
-          The canvas draws a line wherever a creative spent inside a campaign —
-          campaigns on the left, creatives on the right — so you can see what
-          is shared, what is stale and what is idle. Widen the date range or
-          loosen the filters to bring connections in.
-        </p>
-      </div>
+      <EmptyState
+        size="lg"
+        title={`Nothing spent in ${rangeLabel} under these filters.`}
+        kind="filtered"
+      />
     );
   }
 

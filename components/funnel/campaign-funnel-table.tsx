@@ -11,6 +11,7 @@ import { funnelTotals } from "@/lib/funnel-totals";
 import { PLATFORM_LABEL } from "@/lib/palette";
 import { PlatformDot } from "@/components/ui/platform-dot";
 import type { CampaignFunnelRow } from "@/db/queries/funnel";
+import { EmptyState } from "@/components/ui/empty-state";
 
 export type SortKey =
   | "campaign"
@@ -250,11 +251,7 @@ export function CampaignFunnelTable({ rows }: { rows: CampaignFunnelRow[] }) {
       {...cols.tableProps}
       showTotals
       minWidthClass="min-w-max"
-      empty={
-        <div className="rounded-lg border border-dashed border-line bg-surface px-6 py-12 text-center">
-          <p className="text-ink-2 text-sm">No campaign activity in this window.</p>
-        </div>
-      }
+      empty={<EmptyState title="No campaign activity in this window." kind="filtered" />}
     />
   );
 }

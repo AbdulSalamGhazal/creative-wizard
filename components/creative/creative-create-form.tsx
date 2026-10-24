@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
@@ -23,6 +24,8 @@ import { ThumbnailUpload } from "@/components/creative/thumbnail-upload";
 import { StagePicker } from "@/components/creative/stage-picker";
 import { TYPE_OPTIONS } from "@/lib/palette";
 import { useNavTransition } from "@/lib/nav-progress";
+import { EmptyState } from "@/components/ui/empty-state";
+import { useCan } from "@/components/auth/permissions-context";
 
 interface Props {
   products: Array<{ id: string; name: string }>;
@@ -48,6 +51,7 @@ export function CreativeCreateForm({ products, allAngles }: Props) {
   const [isPending, startTransition] = useTransition();
   // Navigations show the progress bar (W3-6).
   const [, startNav] = useNavTransition();
+  const canAddProducts = useCan("catalog.products");
 
   const submit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -95,12 +99,18 @@ export function CreativeCreateForm({ products, allAngles }: Props) {
 
   if (products.length === 0) {
     return (
-      <div className="rounded-lg border border-dashed border-line bg-surface px-6 py-10 text-center">
-        <p className="text-ink-2 text-sm">
-          No products yet. Add a product first so the new creative can be
-          attributed.
-        </p>
-      </div>
+      // No dead end (D24): the empty state links to where products are added.
+      <EmptyState
+        title="No products yet."
+        hint="Add a product first so the new creative can be attributed."
+        action={
+          canAddProducts ? (
+            <Button asChild size="sm">
+              <Link href="/library?tab=products">Add a product</Link>
+            </Button>
+          ) : undefined
+        }
+      />
     );
   }
 

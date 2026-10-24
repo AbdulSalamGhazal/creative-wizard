@@ -44,6 +44,7 @@ import type {
   NotificationRow,
   NotificationTab,
 } from "@/db/queries/notifications";
+import { EmptyState } from "@/components/ui/empty-state";
 
 /**
  * The /notifications surface: tabs, category chips, search, the paginated
@@ -264,10 +265,7 @@ export function NotificationCenter({
       {/* List — day groups, each a chronological run of rows and collapsed
           bursts. The grouping is pure (`groupNotifications`); this renders it. */}
       {rows.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-line bg-surface px-6 py-10 text-center">
-          <h3 className="text-sm font-medium text-ink">{emptyCopy.title}</h3>
-          <p className="mx-auto mt-1 max-w-prose text-xs text-ink-3">{emptyCopy.body}</p>
-        </div>
+        <EmptyState title={emptyCopy.title} hint={emptyCopy.body} />
       ) : (
         <div className="space-y-4">
           {days.map((day) => (

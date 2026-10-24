@@ -28,6 +28,7 @@ import {
 import { safeAction } from "@/lib/action-failure";
 import { toastActionFailure } from "@/lib/action-toast";
 import type { LandingPageRow } from "@/db/queries/landing-pages";
+import { EmptyState } from "@/components/ui/empty-state";
 
 const plural = (n: number, word: string) => `${int(n)} ${word}${n === 1 ? "" : "s"}`;
 
@@ -82,23 +83,21 @@ export function LandingPagesTable({
   return (
     <div className="space-y-4">
       {rows.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-line bg-surface px-6 py-10 text-center">
-          <p className="text-sm text-ink">No landing pages yet.</p>
-          {canManage ? (
-            <>
-              <p className="mx-auto mt-1 max-w-md text-xs leading-relaxed text-ink-3">
+        <EmptyState
+          title="No landing pages yet."
+          hint={
+            canManage ? (
+              <>
                 Add one, then end an ad&apos;s name with its code —{" "}
                 <span className="font-mono text-ink-2">Promo_01 @ramadan</span> —
                 and uploads file that ad&apos;s results under it.
-              </p>
-              <div className="mt-4 flex justify-center">{addButton}</div>
-            </>
-          ) : (
-            <p className="mx-auto mt-1 max-w-md text-xs leading-relaxed text-ink-3">
-              Ask someone with “Manage landing pages” access to add one.
-            </p>
-          )}
-        </div>
+              </>
+            ) : (
+              "Ask someone with “Manage landing pages” access to add one."
+            )
+          }
+          action={canManage ? addButton : undefined}
+        />
       ) : (
         <>
           <div className="flex items-center justify-between gap-3">

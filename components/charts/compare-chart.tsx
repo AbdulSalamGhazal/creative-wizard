@@ -27,6 +27,7 @@ import { COMPARE_METRIC_LABEL } from "@/validators/compare";
 // distort the alignment rather than fix it.
 import type { CompareMetric, CompareSeriesPoint } from "@/db/queries/performance";
 import { ChartTooltip } from "@/components/charts/chart-tooltip";
+import { EmptyState } from "@/components/ui/empty-state";
 
 interface SideOption {
   id: string;
@@ -201,14 +202,11 @@ export function CompareChart({
           />
 
           {data.length === 0 ? (
-            <div
-              className={
-                (inFull ? "flex-1 min-h-0" : "h-72") +
-                " flex items-center justify-center text-ink-3 text-sm border border-dashed border-line rounded-md"
-              }
-            >
-              No data for this selection in the chosen window.
-            </div>
+            <EmptyState
+              className={(inFull ? "flex-1 min-h-0" : "h-72") + " flex flex-col items-center justify-center py-0"}
+              title="No data for this selection in the chosen window."
+              kind="range"
+            />
           ) : (
             <div className={(inFull ? "flex-1 min-h-0" : "h-72") + " relative"}>
               <ChartFitToggle fit={fit} />

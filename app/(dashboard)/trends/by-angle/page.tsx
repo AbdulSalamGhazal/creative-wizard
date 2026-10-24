@@ -13,7 +13,7 @@ import { listAllAngles } from "@/db/queries/creatives";
 import { FilterStrip } from "@/components/filters/filter-strip";
 import { AngleRollupTable } from "@/components/trends/angle-rollup-table";
 import { AngleScatter } from "@/components/trends/angle-scatter";
-import { AngleLeaderboard } from "@/components/trends/angle-leaderboard";
+import { AngleLeaderboard } from "@/components/charts/angle-leaderboard";
 import { AnglePlatformCompare } from "@/components/trends/angle-platform-compare";
 import { dashboardFiltersSchema } from "@/validators/filters";
 import { periodCaption } from "@/lib/period";
@@ -110,7 +110,7 @@ export default async function TrendsByAnglePage({
       {/* Graphs: efficiency scatter + ranked leaderboard */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <AngleScatter rows={rows} />
-        <AngleLeaderboard rows={rows} />
+        <AngleLeaderboard rows={rows} limit={10} picker linked />
       </div>
 
       {/* Platform comparison — top angles per channel for a chosen metric */}

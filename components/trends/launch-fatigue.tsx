@@ -24,6 +24,7 @@ import {
   type FatigueWindowKey,
   type FatigueWindowMetrics,
 } from "@/lib/launch-fatigue";
+import { EmptyState } from "@/components/ui/empty-state";
 
 export interface LaunchFatigueViewRow {
   creativeId: string;
@@ -92,7 +93,10 @@ function totalSpend(a: FatigueAssessment): number {
   return a.w1.spend + a.w2.spend + a.w3.spend;
 }
 
-function StatusBadge({
+/** A launch's fatigue TREND (Fatigued / Improving / Holding / New / Low) — not
+ *  a creative's Status (New / Active / Pause / Terminated), so not that name
+ *  either (D28). */
+function TrendBadge({
   tier,
   daysSinceLaunch,
 }: {
@@ -454,13 +458,17 @@ export function LaunchFatigueTable({ rows }: { rows: LaunchFatigueViewRow[] }) {
         csv: (r) => r.name,
       },
       {
+        // The KEY stays "status": it is stored in remembered column prefs
+        // (trends-launches), and renaming it would orphan them. The LABEL is
+        // "Trend" (D28) — "Status" is the creative's New/Active/Pause/
+        // Terminated, a different thing on the next page over.
         key: "status",
-        label: "Status",
+        label: "Trend",
         align: "left",
         sortable: true,
         defaultSortDir: firstDir("status"),
         render: (r) => (
-          <StatusBadge tier={r.assessment.tier} daysSinceLaunch={r.daysSinceLaunch} />
+          <TrendBadge tier={r.assessment.tier} daysSinceLaunch={r.daysSinceLaunch} />
         ),
         csv: (r) => r.assessment.tier,
       },
@@ -563,12 +571,7 @@ export function LaunchFatigueTable({ rows }: { rows: LaunchFatigueViewRow[] }) {
         }
         minWidthClass="min-w-max"
         empty={
-          <div className="rounded-lg border border-dashed border-line bg-surface px-6 py-16 text-center">
-            <p className="text-sm text-ink-2">No launched creatives match these filters.</p>
-            <p className="mt-1 text-xs text-ink-3">
-              Widen the launch-date range or clear filters.
-            </p>
-          </div>
+          <EmptyState size="lg" title="No launched creatives match these filters." kind="filtered" />
         }
       />
 

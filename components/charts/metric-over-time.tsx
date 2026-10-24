@@ -19,6 +19,7 @@ import { int, intCompact, monthDay, roas, usd, usdCompact } from "@/lib/format";
 import { useChartFit, ChartFitToggle } from "@/components/charts/chart-fit";
 import type { MetricOverTimeRow } from "@/db/queries/performance";
 import { ChartTooltip } from "@/components/charts/chart-tooltip";
+import { EmptyState } from "@/components/ui/empty-state";
 
 export interface OverTimeKey {
   key: string;
@@ -277,14 +278,12 @@ export function MetricOverTimeChart({
           />
 
           {display.length === 0 ? (
-            <div
-              className={
-                (inFull ? "flex-1 min-h-0" : "h-64") +
-                " flex items-center justify-center text-ink-3 text-sm border border-dashed border-line rounded-md"
-              }
-            >
-              No data in the selected window.
-            </div>
+            <EmptyState
+              className={(inFull ? "flex-1 min-h-0" : "h-64") + " flex flex-col items-center justify-center py-0"}
+              title="No data in the selected window."
+              kind="filtered"
+              buttons={false}
+            />
           ) : (
             <div className={(inFull ? "flex-1 min-h-0" : "h-64") + " relative"}>
               <ChartFitToggle fit={fit} />

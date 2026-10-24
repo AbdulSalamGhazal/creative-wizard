@@ -18,6 +18,7 @@ import {
   CAMPAIGN_COLUMN_KEYS,
 } from "@/components/portfolio/portfolio-columns";
 import type { PortfolioCampaignRow } from "@/db/queries/portfolio";
+import { EmptyState } from "@/components/ui/empty-state";
 
 /**
  * The column META lives in a NON-client module (`portfolio-columns.ts`) because
@@ -268,9 +269,7 @@ export function PortfolioTable({
       csvFileName="campaigns"
       minWidthClass="min-w-[1440px]"
       empty={
-        <div className="h-32 flex items-center justify-center text-ink-3 text-sm border border-dashed border-line rounded-lg">
-          No campaigns match these filters.
-        </div>
+        <EmptyState title="No campaigns match these filters." kind="filtered" />
       }
     />
   );

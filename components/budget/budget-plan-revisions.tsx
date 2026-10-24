@@ -23,6 +23,7 @@ import { toastActionFailure } from "@/lib/action-toast";
 import type { PlanRevisionSummary } from "@/db/queries/budget";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { BudgetPlanSnapshot } from "@/validators/budget";
+import { EmptyState } from "@/components/ui/empty-state";
 
 /** The current plan, in the same shape as a snapshot, for diffing. */
 export interface CurrentPlan {
@@ -227,13 +228,10 @@ export function BudgetPlanRevisions({
 
         <div className="space-y-4 px-4 pb-6">
           {revisions.length === 0 ? (
-            <div className="rounded-lg border border-dashed border-line px-4 py-10 text-center">
-              <p className="text-sm text-ink-2">No revisions yet.</p>
-              <p className="mt-1 text-xs text-ink-3">
-                Every save, copy, and restore records a snapshot of the plan, so
-                you can compare and roll back later.
-              </p>
-            </div>
+            <EmptyState
+              title="No revisions yet."
+              hint="Every save, copy, and restore records a snapshot of the plan, so you can compare and roll back later."
+            />
           ) : (
             <ul className="space-y-1.5">
               {revisions.map((r) => {

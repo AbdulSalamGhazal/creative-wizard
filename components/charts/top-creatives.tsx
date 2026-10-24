@@ -11,6 +11,7 @@ import { METRIC_LABEL } from "@/lib/metric-labels";
 import { TYPE_LABEL } from "@/lib/palette";
 import { cn } from "@/lib/utils";
 import type { LeaderboardRow } from "@/db/queries/performance";
+import { EmptyState } from "@/components/ui/empty-state";
 
 type Num = number | null;
 const fPct = (v: Num) => (v === null ? "—" : pct(v));
@@ -220,9 +221,11 @@ export function TopCreativesTable({
         {...cols.tableProps}
         minWidthClass="min-w-max"
         empty={
-          <div className="flex h-48 items-center justify-center rounded-md border border-dashed border-line text-sm text-ink-3">
-            No creatives with ≥ $300 spend in this window.
-          </div>
+          <EmptyState
+            className="h-48 flex flex-col items-center justify-center py-0"
+            title="No creatives with ≥ $300 spend in this window."
+            kind="filtered"
+          />
         }
       />
     </div>

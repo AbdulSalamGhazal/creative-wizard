@@ -12,6 +12,7 @@ import {
 import { spearman } from "@/lib/correlation";
 import type { CreativeMetricRow } from "@/db/queries/performance";
 import { METRIC_LABEL } from "@/lib/metric-labels";
+import { EmptyState } from "@/components/ui/empty-state";
 
 type MetricKey =
   | "spend"
@@ -118,9 +119,12 @@ export function CorrelationMatrix({ rows }: { rows: CreativeMetricRow[] }) {
       </CardHeader>
       <CardContent className="flex-1 flex flex-col justify-center">
         {usable.length < MIN_PAIRS ? (
-          <div className="h-40 flex items-center justify-center text-ink-3 text-sm border border-dashed border-line rounded-md text-center px-4">
-            Not enough creatives with delivery in this window to correlate.
-          </div>
+          <EmptyState
+            className="h-40 flex flex-col items-center justify-center py-0"
+            title="Not enough creatives with delivery in this window to correlate."
+            kind="filtered"
+            buttons={false}
+          />
         ) : (
           <div className="space-y-3">
             <div className="overflow-x-auto">

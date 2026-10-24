@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 import type { CreativeRecordRow } from "@/db/queries/creatives";
 import { rowsToCsv, todayStamp, type CsvColumn } from "@/lib/csv-export";
 import { METRIC_LABEL } from "@/lib/metric-labels";
+import { EmptyState } from "@/components/ui/empty-state";
 
 // CSV export is always the full record (every uploaded field), independent of
 // which columns the table is currently showing — the Library's rule.
@@ -318,9 +319,7 @@ export function CreativeRecordsTable({ rows, title = "All records" }: Props) {
 
       {open &&
         (rows.length === 0 ? (
-          <div className="rounded-lg border border-dashed border-line bg-surface px-6 py-10 text-center text-sm text-ink-3">
-            No performance records yet for this creative.
-          </div>
+          <EmptyState title="No performance records yet for this creative." />
         ) : (
           <>
             <div className="flex justify-end">

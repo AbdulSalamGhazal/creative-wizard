@@ -12,6 +12,7 @@ import { METRIC_LABEL } from "@/lib/metric-labels";
 import { StatusBadge } from "@/components/creative/status-badge";
 import { STATUS_ORDER } from "@/lib/creative-status";
 import type { VideoDiagnosticRow } from "@/db/queries/trends";
+import { EmptyState } from "@/components/ui/empty-state";
 
 const DASH = "—";
 type Num = number | null;
@@ -172,11 +173,7 @@ export function VideoDiagnosticsTable({
           setDir(d);
         }}
         minWidthClass="min-w-[760px]"
-        empty={
-          <div className="rounded-lg border border-dashed border-line bg-surface px-6 py-12 text-center">
-            <p className="text-ink-2 text-sm">No video creatives in this window.</p>
-          </div>
-        }
+        empty={<EmptyState title="No video creatives in this window." kind="filtered" />}
       />
     </div>
   );

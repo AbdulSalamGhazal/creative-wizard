@@ -18,6 +18,7 @@ import { smoothColumns } from "@/lib/chart-smooth";
 import { FUNNEL_METRIC_COLOR } from "@/lib/palette";
 import type { FunnelDailyPoint } from "@/db/queries/funnel";
 import { ChartTooltip } from "@/components/charts/chart-tooltip";
+import { EmptyState } from "@/components/ui/empty-state";
 
 type MetricKey = "ctr" | "voc" | "atcRate" | "apRate" | "purchaseRate" | "cvr";
 
@@ -184,9 +185,12 @@ export function FunnelTrendChart({
   );
 
   const emptyState = (
-    <div className="h-full flex items-center justify-center text-ink-3 text-sm border border-dashed border-line rounded-md">
-      No data in this window.
-    </div>
+    <EmptyState
+      className="h-full flex flex-col items-center justify-center py-0"
+      title="No data in this window."
+      kind="filtered"
+      buttons={false}
+    />
   );
 
   return (

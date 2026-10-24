@@ -14,6 +14,7 @@ import { int, pct, roas, usd } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { CampaignMixRow, PlatformMixRow } from "@/db/queries/performance";
 import { funnelTotals, type FunnelTotalsResult } from "@/lib/funnel-totals";
+import { EmptyState } from "@/components/ui/empty-state";
 
 type Mode = "campaign" | "platform";
 
@@ -294,9 +295,7 @@ export function CreativeCampaignsTable({ campaigns, platforms }: Props) {
   });
 
   const empty = (
-    <div className="h-32 flex items-center justify-center text-ink-3 text-sm border border-dashed border-line rounded-lg">
-      No campaign activity for this creative.
-    </div>
+    <EmptyState title="No campaign activity for this creative." kind="range" />
   );
 
   if (platforms.length === 0) return empty;

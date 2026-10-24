@@ -16,6 +16,7 @@ import {
   type ChangeMetricKey,
   type ChangeTier,
 } from "@/lib/change-radar";
+import { EmptyState } from "@/components/ui/empty-state";
 
 export interface ChangeRadarRow {
   key: string;
@@ -110,14 +111,11 @@ function fmtChange(change: number): string {
 export function ChangeRadar({ rows }: { rows: ChangeRadarRow[] }) {
   if (rows.length === 0) {
     return (
-      <div className="rounded-lg border border-dashed border-line bg-surface px-6 py-16 text-center">
-        <p className="text-ink-2 text-sm">
-          No data in this window or the one before it.
-        </p>
-        <p className="text-ink-3 text-xs mt-1">
-          Try widening the date range or removing filters.
-        </p>
-      </div>
+      <EmptyState
+        size="lg"
+        title="No data in this window or the one before it."
+        kind="filtered"
+      />
     );
   }
 

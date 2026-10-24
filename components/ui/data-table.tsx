@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { DownloadCsvButton } from "@/components/ui/download-csv-button";
 import { TableColumnsControl, TableCorner } from "@/components/ui/table-columns-control";
 import { rowsToCsv, type CsvColumn } from "@/lib/csv-export";
+import { EmptyState } from "@/components/ui/empty-state";
 
 /**
  * The canonical data table. One sort/resize/reorder/visibility behaviour for
@@ -280,9 +281,7 @@ export function DataTable<T>({
             it hangs from the top-right of the empty state's own box. */}
         {columnsControl && <TableCorner>{columnsControl}</TableCorner>}
         {empty ?? (
-          <div className="h-32 flex items-center justify-center text-ink-3 text-sm border border-dashed border-line rounded-lg">
-            No rows.
-          </div>
+          <EmptyState title="No rows." />
         )}
       </div>
     );

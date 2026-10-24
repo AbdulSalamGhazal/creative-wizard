@@ -18,6 +18,7 @@ import { MetricPicker } from "@/components/charts/metric-picker";
 import type { AngleRollupRow } from "@/db/queries/trends";
 import { ChartTooltip } from "@/components/charts/chart-tooltip";
 import { useNavTransition } from "@/lib/nav-progress";
+import { EmptyState } from "@/components/ui/empty-state";
 
 type YMetric = "cpa" | "roas" | "cvr";
 const Y: Record<YMetric, { label: string; fmt: (v: number | null) => string; tick: (v: number) => string }> = {
@@ -74,9 +75,12 @@ export function AngleScatter({ rows }: { rows: AngleRollupRow[] }) {
       </div>
 
       {data.length === 0 ? (
-        <div className="h-72 flex items-center justify-center text-ink-3 text-sm border border-dashed border-line rounded-lg">
-          No angles to plot in this window.
-        </div>
+        <EmptyState
+          className="h-72 flex flex-col items-center justify-center py-0"
+          title="No angles to plot in this window."
+          kind="filtered"
+          buttons={false}
+        />
       ) : (
         <div className="h-72">
           <ResponsiveContainer width="100%" height="100%">

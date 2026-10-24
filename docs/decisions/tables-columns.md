@@ -203,7 +203,9 @@ as it stood before the restructure.*
     phase-2 tables that shipped a collapsed tail.
   - **PHASE 3 (2026-10) — the hand-rolled tables, one change each. DONE:
     Trends → Launches** (`launch-fatigue.tsx`, key `trends-launches`). **The
-    WRAPPER still owns the sort**: `compareRows` is a ROW comparator — Status is
+    WRAPPER still owns the sort**: `compareRows` is a ROW comparator — Status
+    (labelled **Trend** since D28, 2026-10: it is the fatigue tier, not the
+    creative's Status; the column KEY stays `status` for stored prefs) is
     a composite (tier → biggest drop → newest launch) that no scalar `sortValue`
     can express — so no column carries one, `DataTable` never re-sorts locally,
     and a window with NO ROAS still sorts as 0 rather than last (pinned in

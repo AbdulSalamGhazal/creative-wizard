@@ -15,6 +15,7 @@ import { int, intCompact, pct, roas, usd, usdCompact } from "@/lib/format";
 import { MetricPicker } from "@/components/charts/metric-picker";
 import type { TypeRollupRow } from "@/db/queries/trends";
 import { ChartTooltip } from "@/components/charts/chart-tooltip";
+import { EmptyState } from "@/components/ui/empty-state";
 
 type Metric = "spend" | "impressions" | "roas" | "ctr" | "cvr" | "cpc" | "cpa";
 type CreativeType = TypeRollupRow["type"];
@@ -64,9 +65,12 @@ export function TypePlatformChart({ rows }: { rows: TypeRollupRow[] }) {
 
   if (data.length === 0) {
     return (
-      <div className="h-72 flex items-center justify-center text-ink-3 text-sm border border-dashed border-line rounded-lg">
-        No performance in this window.
-      </div>
+      <EmptyState
+        className="h-72 flex flex-col items-center justify-center py-0"
+        title="No performance in this window."
+        kind="filtered"
+        buttons={false}
+      />
     );
   }
 

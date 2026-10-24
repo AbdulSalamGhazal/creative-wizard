@@ -6,6 +6,7 @@ import { productColor } from "@/lib/palette";
 import { usd, usdCompact, pct1 } from "@/lib/format";
 import { ChartTooltip } from "@/components/charts/chart-tooltip";
 import type { ProductMixRow } from "@/db/queries/performance";
+import { EmptyState } from "@/components/ui/empty-state";
 
 interface Props {
   rows: ProductMixRow[];
@@ -27,9 +28,12 @@ export function ProductMixDonut({ rows }: Props) {
 
   if (data.length === 0) {
     return (
-      <div className="h-full min-h-[200px] flex items-center justify-center text-ink-3 text-sm border border-dashed border-line rounded-md">
-        No spend in the selected window.
-      </div>
+      <EmptyState
+        className="h-full min-h-[200px] flex flex-col items-center justify-center py-0"
+        title="No spend in the selected window."
+        kind="filtered"
+        buttons={false}
+      />
     );
   }
 
