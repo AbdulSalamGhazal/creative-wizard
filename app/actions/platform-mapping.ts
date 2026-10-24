@@ -79,7 +79,7 @@ export async function addHeaderMapping(input: unknown): Promise<MutationResult> 
       .returning({ id: platformFieldMappings.id });
 
     try {
-      revalidatePath("/admin/platforms");
+      revalidatePath("/uploads"); // CSV mapping lives on /uploads?tab=mapping
     } catch (err) {
       console.warn("revalidatePath failed:", err);
     }

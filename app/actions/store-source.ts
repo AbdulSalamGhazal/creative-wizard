@@ -28,7 +28,7 @@ export interface SourceConfigResult {
 
 function revalidateSafe() {
   try {
-    revalidatePath("/admin/catalog");
+    revalidatePath("/store/uploads"); // the source mapping lives on Upload orders → Order fields
     revalidatePath("/store/reconciliation");
   } catch (err) {
     console.warn("revalidatePath after source-mapping change failed:", err);

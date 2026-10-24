@@ -36,6 +36,7 @@ import { prevPeriod } from "@/lib/period";
 import { getActiveAccountId } from "@/lib/tenant";
 import { creativeStatusMap, statusFor } from "@/db/queries/creative-status";
 import type { CreativeStatus } from "@/lib/creative-status";
+import { numOrNull } from "@/db/queries/values";
 
 type Platform = (typeof platformEnum)[number];
 
@@ -52,8 +53,6 @@ const CREATIVE_SCOPE: SQL[] = [
 ];
 
 const num = (v: unknown): number => (v === null || v === undefined ? 0 : Number(v));
-const numOrNull = (v: unknown): number | null =>
-  v === null || v === undefined ? null : Number(v);
 
 export interface TrendsFilters {
   from?: string;

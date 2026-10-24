@@ -38,10 +38,17 @@ import {
   getBudgetMonth,
   listPlanRevisionSummaries,
   listPlanRevisions,
-  planSeriesForMonth,
   plannedMonths,
 } from "@/db/queries/budget";
+import { buildPlanSeries, planSeriesSourceOf } from "@/lib/budget";
 import { resetAndSeed } from "./fixtures";
+
+/** A month's plan series the way every page builds it: from the
+ *  `getBudgetMonth()` payload through `planSeriesSourceOf` (W3-7 removed the
+ *  test-only `planSeriesForMonth` wrapper from the query layer). */
+async function planSeriesForMonth(month: string) {
+  return buildPlanSeries(planSeriesSourceOf(await getBudgetMonth(month), month));
+}
 
 const MONTH = "2026-01";
 const setAccount = (id: string) => vi.mocked(getActiveAccountId).mockResolvedValue(id);

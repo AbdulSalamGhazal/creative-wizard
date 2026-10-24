@@ -32,15 +32,11 @@ import { SummaryFilterBar } from "@/components/summary/summary-filter-bar";
 import { SummarySortLabel, SummaryTable } from "@/components/summary/summary-table";
 import { PageShell } from "@/components/layout/page-shell";
 import { PageHeader } from "@/components/layout/page-header";
+import { pickFirst } from "@/lib/url";
 
 export const dynamic = "force-dynamic";
 
 type SearchParams = Record<string, string | string[] | undefined>;
-
-function pickFirst(value: string | string[] | undefined): string | undefined {
-  if (Array.isArray(value)) return value[0];
-  return value;
-}
 
 export const metadata = { title: "Ads" };
 

@@ -44,4 +44,3 @@ export const updateAudienceSchema = z.object({
 
 export const deleteAudienceSchema = z.object({ id: z.string().uuid() });
 
-export type RecordAudienceInput = z.infer<typeof recordAudienceSchema>;

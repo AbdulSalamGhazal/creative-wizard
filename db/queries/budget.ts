@@ -20,20 +20,17 @@ import {
 import {
   allocationsFromDays,
   budgetComboKey,
-  buildPlanSeries,
   daysInMonth,
   isoPlusDays,
   mapWeightsToMonth,
   monthStartIso,
   nextMonthKey,
-  planSeriesSourceOf,
   revenueFromRoas,
   toBudgetObjective,
   validateWeight,
   type BudgetObjective,
   type PlanDayCell,
   type PlanMode,
-  type PlanSeries,
 } from "@/lib/budget";
 
 /**
@@ -246,38 +243,6 @@ function dailyRevenueTarget(
   if (roas === null || roas <= 0) return null;
   const spend = days.reduce((s, d) => s + d.plannedSpend, 0);
   return spend > 0 ? revenueFromRoas(roas, spend, rate) : null;
-}
-
-/**
- * THE plan series for a month — per-day planned spend by combo and per-day
- * planned revenue, whichever mode the month is in (`buildPlanSeries`). The
- * server-side entry point; client components build the same series from the
- * `getBudgetMonth()` payload they already hold (`planSeriesSourceOf`), so
- * there is one implementation of plan-to-date and no second fetch.
- */
-export async function planSeriesForMonth(month: string): Promise<PlanSeries> {
-  const data = await getBudgetMonth(month);
-  return buildPlanSeries(planSeriesSourceOf(data, month));
-}
-
-/**
- * The month's RAW spend total straight off performance_records (no joins, no
- * exclusion filter) — the invariant the spend table must reconcile to exactly.
- */
-export async function rawMonthSpendTotal(month: string): Promise<number> {
-  const acct = await getActiveAccountId();
-  const { start, end } = monthBounds(month);
-  const [row] = await db
-    .select({ total: sql<string>`COALESCE(SUM(${performanceRecords.spend}), 0)` })
-    .from(performanceRecords)
-    .where(
-      and(
-        eq(performanceRecords.accountId, acct),
-        gte(performanceRecords.date, start),
-        lt(performanceRecords.date, end),
-      ),
-    );
-  return Number(row?.total ?? 0);
 }
 
 export interface BudgetPlanInput {

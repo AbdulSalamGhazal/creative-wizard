@@ -21,14 +21,11 @@ import {
   sideIsEmpty,
   type CompareSide,
 } from "@/validators/compare";
+import { pickFirst } from "@/lib/url";
 
 export const dynamic = "force-dynamic";
 
 type SearchParams = Record<string, string | string[] | undefined>;
-function pickFirst(v: string | string[] | undefined): string | undefined {
-  return Array.isArray(v) ? v[0] : v;
-}
-
 /** Map a Compare side's selections onto the shared KpiFilters shape. */
 function sideFilter(
   side: CompareSide,

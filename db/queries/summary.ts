@@ -62,6 +62,7 @@ import {
   type CreativeStatus as DynamicCreativeStatus,
   type PlatformStatus,
 } from "@/lib/creative-status";
+import { numOrNull } from "@/db/queries/values";
 
 type Platform = (typeof platformEnum)[number];
 type CreativeType = (typeof creativeTypeEnum)[number];
@@ -162,8 +163,6 @@ export interface SummaryResult {
 // with the same function, so a sort click is not a server render.
 
 const num = (v: unknown): number => (v === null || v === undefined ? 0 : Number(v));
-const numOrNull = (v: unknown): number | null =>
-  v === null || v === undefined ? null : Number(v);
 
 /**
  * Read a metric off a metric block in the SAME units the user sees and

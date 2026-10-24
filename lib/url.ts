@@ -76,3 +76,29 @@ export function safeInternalPath(
   if (/[\x00-\x1f]/.test(value)) return fallback;
   return value;
 }
+
+/**
+ * A search param as ONE value: the first of a repeated `?k=a&k=b`, else the
+ * value itself (W3-7: twelve pages each defined this).
+ */
+export function pickFirst(value: string | string[] | undefined): string | undefined {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+/**
+ * A URL slug from a display name: lower-case, accents folded, every run of
+ * other characters one hyphen, trimmed and capped; `fallback` when nothing
+ * is left (an all-Arabic name). ONE rule for brands and products (W3-7 —
+ * the two copies disagreed on accents and length).
+ */
+export function slugify(name: string, fallback: string, max = 100): string {
+  const slug = name
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, max)
+    .replace(/-+$/g, "");
+  return slug || fallback;
+}

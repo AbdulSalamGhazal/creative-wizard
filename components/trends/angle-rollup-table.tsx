@@ -15,7 +15,6 @@ import type { AngleMetrics, AngleRollupRow } from "@/db/queries/trends";
 
 type Num = number | null;
 const DASH = "—";
-const fUsd = (v: Num) => (v === null ? DASH : usd(v));
 const fPct = (v: Num) => (v === null ? DASH : pct(v));
 const fRatio = (v: Num) => roas(v);
 const fInt = (v: Num) => (v === null ? DASH : int(v));
@@ -33,22 +32,22 @@ interface Col {
 // Every numeric column (Angle is the row label, shown separately).
 const COLS: Col[] = [
   { key: "creatives", label: "Creatives", fmt: fInt },
-  { key: "spend", label: "Spend", fmt: fUsd },
+  { key: "spend", label: "Spend", fmt: usd },
   { key: "impressions", label: METRIC_LABEL.impressions, fmt: fInt },
   { key: "clicks", label: "Clicks", fmt: fInt },
   { key: "conversions", label: METRIC_LABEL.conversions, fmt: fInt },
-  { key: "revenue", label: METRIC_LABEL.revenue, fmt: fUsd },
+  { key: "revenue", label: METRIC_LABEL.revenue, fmt: usd },
   { key: "ctr", label: "CTR", fmt: fPct },
   { key: "cvr", label: "CvR", fmt: fPct },
-  { key: "cpa", label: "CPA", fmt: fUsd, lower: true },
-  { key: "cpm", label: "CPM", fmt: fUsd, lower: true },
-  { key: "cpc", label: "CPC", fmt: fUsd, lower: true },
+  { key: "cpa", label: "CPA", fmt: usd, lower: true },
+  { key: "cpm", label: "CPM", fmt: usd, lower: true },
+  { key: "cpc", label: "CPC", fmt: usd, lower: true },
   { key: "roas", label: "ROAS", fmt: fRatio },
   { key: "voc", label: "VOC", fmt: fPct },
   { key: "hookRate", label: "Hook", fmt: fPct },
   { key: "holdRate", label: "Hold", fmt: fPct },
   { key: "completeRate", label: "Complete", fmt: fPct },
-  { key: "aov", label: "AOV", fmt: fUsd },
+  { key: "aov", label: "AOV", fmt: usd },
 ];
 
 const DEFAULT_VISIBLE = new Set<Key>([

@@ -106,8 +106,6 @@ export const resetTableColumnsSchema = z.object({
     .refine(isTableKey, { message: "Unknown table." }),
 });
 
-export type TableColumnsInput = z.infer<typeof tableColumnsSchema>;
-
 /**
  * When preferences must NOT be resolved: the URL already states its filters in
  * full, or a saved view owns them. Checked centrally (see `resolveFilterPrefs`)

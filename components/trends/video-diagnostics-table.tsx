@@ -15,7 +15,6 @@ import type { VideoDiagnosticRow } from "@/db/queries/trends";
 
 const DASH = "—";
 type Num = number | null;
-const fUsd = (v: Num) => (v === null ? DASH : usd(v));
 const fPct = (v: Num) => (v === null ? DASH : pct(v));
 const fRatio = (v: Num) => roas(v);
 const fInt = (v: Num) => (v === null ? DASH : int(v));
@@ -34,7 +33,7 @@ interface Col {
 const COLS: Col[] = [
   { key: "productName", label: "Product", kind: "text" },
   { key: "status", label: "Status", kind: "status" },
-  { key: "spend", label: "Spend", kind: "num", fmt: fUsd },
+  { key: "spend", label: "Spend", kind: "num", fmt: usd },
   { key: "impressions", label: METRIC_LABEL.impressions, kind: "num", fmt: fInt },
   { key: "hookRate", label: "Hook", kind: "num", fmt: fPct, median: "hook" },
   { key: "ret25", label: "25%", kind: "num", fmt: fPct },
@@ -43,10 +42,10 @@ const COLS: Col[] = [
   { key: "completeRate", label: "Complete", kind: "num", fmt: fPct, median: "complete" },
   { key: "ctr", label: "CTR", kind: "num", fmt: fPct },
   { key: "cvr", label: "CvR", kind: "num", fmt: fPct },
-  { key: "cpa", label: "CPA", kind: "num", fmt: fUsd },
+  { key: "cpa", label: "CPA", kind: "num", fmt: usd },
   { key: "roas", label: "ROAS", kind: "num", fmt: fRatio },
-  { key: "costPerHook", label: "Cost/hook", kind: "num", fmt: fUsd },
-  { key: "costPerCompletion", label: "Cost/compl.", kind: "num", fmt: fUsd },
+  { key: "costPerHook", label: "Cost/hook", kind: "num", fmt: usd },
+  { key: "costPerCompletion", label: "Cost/compl.", kind: "num", fmt: usd },
   // ── Offered, hidden by default (2026-10): the RAW COUNTS behind the rates.
   // The query has always returned them, and a retention curve is unreadable
   // without its denominator — "Hold 48%" of 300 plays is not the same finding
@@ -58,7 +57,7 @@ const COLS: Col[] = [
   { key: "v100", label: "Plays 100%", kind: "num", fmt: fInt },
   { key: "clicks", label: "Clicks", kind: "num", fmt: fInt },
   { key: "conversions", label: METRIC_LABEL.conversions, kind: "num", fmt: fInt },
-  { key: "revenue", label: METRIC_LABEL.revenue, kind: "num", fmt: fUsd },
+  { key: "revenue", label: METRIC_LABEL.revenue, kind: "num", fmt: usd },
 ];
 
 const DEFAULT_VISIBLE = new Set<Key>([

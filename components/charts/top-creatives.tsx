@@ -13,7 +13,6 @@ import { cn } from "@/lib/utils";
 import type { LeaderboardRow } from "@/db/queries/performance";
 
 type Num = number | null;
-const fUsd = (v: Num) => (v === null ? "—" : usd(v));
 const fPct = (v: Num) => (v === null ? "—" : pct(v));
 const fRatio = (v: Num) => roas(v);
 
@@ -56,16 +55,16 @@ const COLS: Col[] = [
   { key: "type", label: "Type", align: "left", on: false, render: (r) => <span className="text-ink-2">{TYPE_LABEL[r.type]}</span>, csv: (r) => TYPE_LABEL[r.type] },
   { key: "status", label: "Status", align: "left", on: true, render: (r) => <StatusBadge status={r.status} />, csv: (r) => r.status },
   { key: "spend", label: "Spend", align: "right", on: true, render: (r) => <span className="text-ink">{usd(r.spend)}</span>, csv: (r) => r.spend },
-  { key: "cpm", label: "CPM", align: "right", on: true, render: (r) => <span className="text-ink-2">{fUsd(r.cpm)}</span>, csv: (r) => r.cpm },
+  { key: "cpm", label: "CPM", align: "right", on: true, render: (r) => <span className="text-ink-2">{usd(r.cpm)}</span>, csv: (r) => r.cpm },
   { key: "impressions", label: METRIC_LABEL.impressions, align: "right", on: false, render: (r) => <span className="text-ink-2">{int(r.impressions)}</span>, csv: (r) => r.impressions },
   { key: "clicks", label: "Clicks", align: "right", on: false, render: (r) => <span className="text-ink-2">{int(r.clicks)}</span>, csv: (r) => r.clicks },
   { key: "ctr", label: "CTR", align: "right", on: true, render: (r) => <span className="text-ink-2">{fPct(r.ctr)}</span>, csv: (r) => r.ctr },
   { key: "voc", label: "VOC", align: "right", on: true, render: (r) => <span className="text-ink-2">{fPct(r.voc)}</span>, csv: (r) => r.voc },
   { key: "conversions", label: METRIC_LABEL.conversions, align: "right", on: false, render: (r) => <span className="text-ink-2">{int(r.conversions)}</span>, csv: (r) => r.conversions },
   { key: "cvr", label: "CvR", align: "right", on: true, render: (r) => <span className="text-ink-2">{fPct(r.cvr)}</span>, csv: (r) => r.cvr },
-  { key: "cpa", label: "CPA", align: "right", on: true, render: (r) => <span className="text-ink-2">{fUsd(r.cpa)}</span>, csv: (r) => r.cpa },
+  { key: "cpa", label: "CPA", align: "right", on: true, render: (r) => <span className="text-ink-2">{usd(r.cpa)}</span>, csv: (r) => r.cpa },
   { key: "roas", label: "ROAS", align: "right", on: true, render: (r) => <span className="text-ink">{fRatio(r.roas)}</span>, csv: (r) => r.roas },
-  { key: "revenue", label: METRIC_LABEL.revenue, align: "right", on: false, render: (r) => <span className="text-ink-2">{fUsd(r.conversionValue)}</span>, csv: (r) => r.conversionValue },
+  { key: "revenue", label: METRIC_LABEL.revenue, align: "right", on: false, render: (r) => <span className="text-ink-2">{usd(r.conversionValue)}</span>, csv: (r) => r.conversionValue },
   { key: "trend", label: "Trend", align: "left", on: true, render: (r) => <Sparkline values={r.sparkline} color="var(--brand-2)" responsive height={24} />, csv: () => null },
 ];
 

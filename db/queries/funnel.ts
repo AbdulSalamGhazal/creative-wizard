@@ -30,6 +30,7 @@ import { PLATFORMS_WITH_CREATIVES } from "@/lib/palette";
 import { getActiveAccountId } from "@/lib/tenant";
 import { fillDailyGaps } from "@/lib/time-series";
 import { dataHorizon, resolveEntityBounds } from "@/db/queries/series-bounds";
+import { numOrNull } from "@/db/queries/values";
 
 /**
  * The "Funnel" lens: campaign-level funnel metrics — CPM, CTR, VOC, CvR — and
@@ -51,8 +52,6 @@ export interface FunnelFilters {
 }
 
 const num = (v: unknown): number => (v === null || v === undefined ? 0 : Number(v));
-const numOrNull = (v: unknown): number | null =>
-  v === null || v === undefined ? null : Number(v);
 
 /**
  * GOOGLE IS EXCLUDED FROM EVERY FUNNEL QUERY (phase 2, a user decision).

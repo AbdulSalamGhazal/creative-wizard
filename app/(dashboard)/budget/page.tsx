@@ -6,12 +6,11 @@ import {
   REVENUE_COVERAGE_KEY,
   latestCoverage,
   monthEndIso,
-  monthKey,
   monthStartIso,
 } from "@/lib/budget";
 // Month 01-12 only — `2026-13` must fall back to the current month, not
 // produce a nonsense one. One regex, in the validators.
-import { MONTH_KEY } from "@/validators/budget";
+import { resolveBudgetMonth } from "@/validators/budget";
 import { budgetPacingSeries, getBudgetMonth, plannedMonths } from "@/db/queries/budget";
 import { platformHorizons, storeDataHorizon } from "@/db/queries/series-bounds";
 import { BudgetOverview } from "@/components/budget/budget-overview";
@@ -36,7 +35,7 @@ export default async function BudgetOverviewPage({
 }) {
   const sp = await searchParams;
   const today = todayIso();
-  const month = sp.month && MONTH_KEY.test(sp.month) ? sp.month : monthKey(today);
+  const month = resolveBudgetMonth(sp.month, today);
 
   const user = await auth();
   const canManage = user ? can(user, "budget.manage") : false;

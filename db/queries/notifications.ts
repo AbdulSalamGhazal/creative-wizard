@@ -196,19 +196,6 @@ export async function notifyRoutes(
   );
 }
 
-/**
- * A DIRECT notification: one known recipient, no routing to consult (see
- * `DIRECT_EVENT_TYPES`). Still inside the caller's transaction.
- */
-export async function notifyUser(
-  tx: Exec,
-  row: NewNotification,
-): Promise<number> {
-  // Nobody needs to be told about something they did to themselves.
-  if (row.recipientUserId === row.actorUserId) return 0;
-  return createNotifications(tx, [row]);
-}
-
 // ── Reader side (always self-scoped) ────────────────────────────────────────
 
 /** Unread, unarchived, for this user in this brand — served by the partial index. */

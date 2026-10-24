@@ -1,4 +1,5 @@
-import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
+import { timingSafeEqualHex } from "@/lib/crypto";
 import { and, desc, eq, isNull } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { apiTokens } from "@/db/schema";
@@ -22,17 +23,8 @@ export function hashToken(raw: string): string {
   return createHash("sha256").update(raw, "utf8").digest("hex");
 }
 
-/**
- * Constant-time equality of two hex strings. Different lengths → false without
- * leaking via early return. Used on the stored-vs-computed hash as defense in
- * depth on top of the indexed hash lookup.
- */
-export function timingSafeEqualHex(a: string, b: string): boolean {
-  const ab = Buffer.from(a, "hex");
-  const bb = Buffer.from(b, "hex");
-  if (ab.length === 0 || ab.length !== bb.length) return false;
-  return timingSafeEqual(ab, bb);
-}
+/** Constant-time hex compare — lib/crypto, re-exported for this module's callers. */
+export { timingSafeEqualHex };
 
 /** A freshly minted secret + the display prefix derived from it. */
 export interface MintedToken {

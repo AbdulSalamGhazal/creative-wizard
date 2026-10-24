@@ -11,4 +11,3 @@ export const createSummaryViewSchema = z.object({
   page: z.string().max(32).default("summary"),
 });
 
-export type CreateSummaryViewInput = z.infer<typeof createSummaryViewSchema>;

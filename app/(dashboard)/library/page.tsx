@@ -22,15 +22,11 @@ import { CreativeTable } from "@/components/creative/creative-table";
 import { CreativeStatusSummary } from "@/components/creative/creative-status-summary";
 import { resolveFilterPrefs, resolveIncludeExcluded } from "@/db/queries/user-prefs";
 import { VIEW_MARKER_PARAM } from "@/validators/user-prefs";
+import { pickFirst } from "@/lib/url";
 
 export const dynamic = "force-dynamic";
 
 type SearchParams = Record<string, string | string[] | undefined>;
-
-function pickFirst(value: string | string[] | undefined): string | undefined {
-  if (Array.isArray(value)) return value[0];
-  return value;
-}
 
 export const metadata = { title: "Library" };
 

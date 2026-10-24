@@ -123,4 +123,3 @@ export const listCommentsSchema = z
     }
   });
 
-export type CreateCommentInput = z.infer<typeof createCommentSchema>;

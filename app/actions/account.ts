@@ -16,6 +16,7 @@ import {
   setStatusWindowSchema,
 } from "@/validators/account";
 import { actionError } from "@/lib/action-error";
+import { slugify } from "@/lib/url";
 
 const COOKIE_MAX_AGE = 365 * 24 * 60 * 60; // 1 year
 
@@ -25,15 +26,7 @@ export interface ActionResult {
   id?: string;
 }
 
-function slugify(name: string): string {
-  const base = name
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 100);
-  return base || "brand";
-}
+const brandSlug = (name: string): string => slugify(name, "brand", 100);
 
 /**
  * Set the active brand for this user (writes the `ccms_account` cookie). Any
@@ -82,7 +75,7 @@ export async function createAccount(input: unknown): Promise<ActionResult> {
     const existing = new Set(
       (await db.select({ slug: accounts.slug }).from(accounts)).map((r) => r.slug),
     );
-    const base = slugify(parsed.data.name);
+    const base = brandSlug(parsed.data.name);
     let slug = base;
     let n = 2;
     while (existing.has(slug)) slug = `${base}-${n++}`;

@@ -28,8 +28,6 @@ export const cleanupFiltersSchema = z
     { message: "Select at least one filter before previewing or deleting." },
   );
 
-export type CleanupFilters = z.infer<typeof cleanupFiltersSchema>;
-
 /**
  * What a DELETE carries beside its filters: the row count the user was shown
  * in the preview. The server deletes exactly that many or nothing (W1-7).

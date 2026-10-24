@@ -35,13 +35,12 @@ import {
 import { getActiveAccountId } from "@/lib/tenant";
 import { campaignStatusFor, campaignStatusMap } from "@/db/queries/campaign-status";
 import type { CampaignStatus } from "@/lib/campaign-status";
+import { numOrNull } from "@/db/queries/values";
 
 type Platform = (typeof platformEnum)[number];
 type CampaignObjective = (typeof campaignObjectiveEnum)[number];
 
 const num = (v: unknown): number => (v === null || v === undefined ? 0 : Number(v));
-const numOrNull = (v: unknown): number | null =>
-  v === null || v === undefined ? null : Number(v);
 
 export interface PortfolioFilters {
   /** Required — the page defaults to the last 30 days when no range is set. */

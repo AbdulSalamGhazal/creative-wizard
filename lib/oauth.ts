@@ -1,4 +1,5 @@
-import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
+import { timingSafeEqualHex } from "@/lib/crypto";
 import { and, desc, eq, gt, isNull, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { oauthClients, oauthCodes, oauthTokens } from "@/db/schema";
@@ -50,7 +51,6 @@ export const REFRESH_TTL_MS = 90 * 24 * 60 * 60 * 1000; // 90 days
 export const MCP_RESOURCE_PATH = "/api/mcp/mcp";
 /** RFC 9728 — where a 401 points the client to start discovery. */
 export const PROTECTED_RESOURCE_PATH = "/.well-known/oauth-protected-resource";
-export const AUTHORIZATION_SERVER_PATH = "/.well-known/oauth-authorization-server";
 
 export const AUTHORIZE_PATH = "/api/oauth/authorize";
 export const TOKEN_PATH = "/api/oauth/token";
@@ -68,13 +68,6 @@ export function hashSecret(raw: string): string {
   return createHash("sha256").update(raw, "utf8").digest("hex");
 }
 
-/** Constant-time hex compare, used as defense in depth on top of the lookup. */
-export function timingSafeEqualHex(a: string, b: string): boolean {
-  const ab = Buffer.from(a, "hex");
-  const bb = Buffer.from(b, "hex");
-  if (ab.length === 0 || ab.length !== bb.length) return false;
-  return timingSafeEqual(ab, bb);
-}
 
 /** 32 random bytes as base64url — the body of every secret this module mints. */
 function randomSecret(prefix = ""): string {

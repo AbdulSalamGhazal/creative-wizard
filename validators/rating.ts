@@ -30,14 +30,10 @@ export const ratingRulesSchema = z
   .object(ratingFields)
   .refine((v) => v.goodRoas > v.decentRoas, GOOD_ABOVE_DECENT);
 
-export type RatingRulesInput = z.infer<typeof ratingRulesSchema>;
-
 /** Validates a per-platform override (same fields + the target platform). */
 export const platformRatingRulesSchema = z
   .object({ platform: z.enum(platformEnum), ...ratingFields })
   .refine((v) => v.goodRoas > v.decentRoas, GOOD_ABOVE_DECENT);
-
-export type PlatformRatingRulesInput = z.infer<typeof platformRatingRulesSchema>;
 
 /** Validates a request to clear a platform override (revert to default). */
 export const clearPlatformRatingSchema = z.object({

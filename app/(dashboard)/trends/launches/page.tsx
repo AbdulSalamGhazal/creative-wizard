@@ -19,14 +19,11 @@ import {
 import { dashboardFiltersSchema } from "@/validators/filters";
 import { LIFETIME_FLOOR, presetLabel, todayIso } from "@/lib/date-presets";
 import { resolveIncludeExcluded } from "@/db/queries/user-prefs";
+import { pickFirst } from "@/lib/url";
 
 export const dynamic = "force-dynamic";
 
 type SearchParams = Record<string, string | string[] | undefined>;
-function pickFirst(v: string | string[] | undefined): string | undefined {
-  return Array.isArray(v) ? v[0] : v;
-}
-
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
 
 export const metadata = { title: "Trends · Launches" };

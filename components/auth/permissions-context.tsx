@@ -31,7 +31,3 @@ export function useCan(perm: Permission): boolean {
   return useContext(PermissionsContext).has(perm);
 }
 
-/** The full effective permission set (for gating on several perms at once). */
-export function usePermissions(): ReadonlySet<string> {
-  return useContext(PermissionsContext);
-}

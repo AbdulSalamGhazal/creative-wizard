@@ -11,6 +11,16 @@ import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
 import { getActiveAccountId } from "@/lib/tenant";
 import { actionError } from "@/lib/action-error";
 
+/**
+ * The route a saved view's internal `page` key lives on. The Library's views
+ * keep the key "creatives" (renaming it would orphan every saved Library view,
+ * ui-system.md), but the Library is `/library` — `/creatives` is a redirect
+ * stub, so revalidating it refreshed nothing (W3-7).
+ */
+function viewPagePath(page: string): string {
+  return page === "creatives" ? "/library" : `/${page}`;
+}
+
 export interface ViewMutationResult {
   ok: boolean;
   error?: string;
@@ -19,8 +29,9 @@ export interface ViewMutationResult {
 
 /**
  * Save the current page configuration as a named view. Any signed-in user
- * can save; the view is team-visible. Name is unique per (owner, page) —
- * a collision returns a clean message instead of a DB error.
+ * can save; the view is PRIVATE to its owner (every read and write is scoped
+ * to the owner — `listSummaryViews(user.id, …)`). Name is unique per (owner,
+ * page) — a collision returns a clean message instead of a DB error.
  */
 export async function createSummaryView(
   input: unknown,
@@ -46,7 +57,7 @@ export async function createSummaryView(
       try {
         // Views live on /summary, /campaigns and /creatives — revalidate the
         // page this view belongs to, not always /summary.
-        revalidatePath(`/${page}`);
+        revalidatePath(viewPagePath(page));
       } catch (err) {
         console.warn("revalidatePath after view create failed:", err);
       }
@@ -102,7 +113,7 @@ export async function deleteSummaryView(
       .where(and(eq(summaryViews.accountId, acct), eq(summaryViews.id, id)));
 
     try {
-      revalidatePath(`/${view.page}`);
+      revalidatePath(viewPagePath(view.page));
     } catch (err) {
       console.warn("revalidatePath after view delete failed:", err);
     }
@@ -169,7 +180,7 @@ export async function setDefaultView(id: string): Promise<ViewMutationResult> {
     });
 
     try {
-      revalidatePath(`/${view.page}`);
+      revalidatePath(viewPagePath(view.page));
     } catch (err) {
       console.warn("revalidatePath after set-default failed:", err);
     }

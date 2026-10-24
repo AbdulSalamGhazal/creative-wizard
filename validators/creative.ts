@@ -32,8 +32,6 @@ export const sourceLinkSchema = z.preprocess(
     .optional(),
 );
 
-export type SourceLinkInput = z.infer<typeof sourceLinkSchema>;
-
 /**
  * Manual PRIORITY — the team's own judgment of a creative's importance,
  * independent of performance. Integer 1..3 (3 = highest), shown as a 1..3 icon
@@ -43,8 +41,6 @@ export type SourceLinkInput = z.infer<typeof sourceLinkSchema>;
  * "Rate"): Rate = computed performance, Priority = the team's manual judgment.
  */
 export const prioritySchema = z.number().int().min(1).max(3).nullable();
-
-export type PriorityInput = z.infer<typeof prioritySchema>;
 
 /**
  * Manual STAGE(S) — where the team declares this creative sits in the funnel.
@@ -69,8 +65,6 @@ export const stagesSchema = z
     message: `"${NA_STAGE}" can't be combined with a funnel stage.`,
   })
   .transform((v) => sortStages(v));
-
-export type StagesInput = z.infer<typeof stagesSchema>;
 
 /** Shown wherever a creative name is refused for carrying the marker. */
 export const LANDING_MARKER_NAME_ERROR =
@@ -104,8 +98,6 @@ export const creativeCreateSchema = z.object({
   stages: stagesSchema.default([]),
 });
 
-export type CreativeCreateInput = z.infer<typeof creativeCreateSchema>;
-
 /**
  * Manual per-platform termination lever. A creative is "Terminated" on a
  * platform when a `creative_platform_overrides` row exists for it; this schema
@@ -116,8 +108,6 @@ export const creativeTerminationSchema = z.object({
   platform: z.enum(platformEnum),
   terminated: z.boolean(),
 });
-
-export type CreativeTerminationInput = z.infer<typeof creativeTerminationSchema>;
 
 // -----------------------------------------------------------------------------
 // Library URL filters (creator + launchFrom/launchTo deferred until a user
@@ -178,8 +168,6 @@ export const creativeListFiltersSchema = z.object({
   // Table is the default view; "grid" is the opt-in (carried as ?view=grid).
   view: z.enum(creativeViewValues).catch("table"),
 });
-
-export type CreativeListFilterInput = z.infer<typeof creativeListFiltersSchema>;
 
 /**
  * The creative detail page's inline-edit patch (`patchCreative` in

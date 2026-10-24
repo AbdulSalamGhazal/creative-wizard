@@ -12,16 +12,13 @@ import { VideoRetention } from "@/components/trends/video-retention";
 import { VideoScatter } from "@/components/trends/video-scatter";
 import { dashboardFiltersSchema } from "@/validators/filters";
 import { pct } from "@/lib/format";
+import { pickFirst } from "@/lib/url";
 
 export const dynamic = "force-dynamic";
 
 const TRAILING_DAYS_DEFAULT = 30;
 
 type SearchParams = Record<string, string | string[] | undefined>;
-function pickFirst(v: string | string[] | undefined): string | undefined {
-  return Array.isArray(v) ? v[0] : v;
-}
-
 export const metadata = { title: "Trends · Video" };
 
 export default async function TrendsVideoPage({

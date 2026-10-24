@@ -161,8 +161,6 @@ export const compareFiltersSchema = z
     return { sides, metrics: v.metrics, from: v.from, to: v.to };
   });
 
-export type CompareFilters = z.infer<typeof compareFiltersSchema>;
-
 /** True when a side has no selection at any level (i.e. "all data"). */
 export function sideIsEmpty(s: Pick<CompareSide, "platforms" | "campaigns" | "creatives">): boolean {
   return (

@@ -14,7 +14,6 @@ export const createCampaignSchema = z.object({
   // The DB column still defaults to "Sales" for the historical backfill.
   objective: z.enum(campaignObjectiveEnum),
 });
-export type CreateCampaignInput = z.infer<typeof createCampaignSchema>;
 
 /**
  * Edit an existing campaign. Same fields as create (the stored name is rebuilt
@@ -25,7 +24,6 @@ export type CreateCampaignInput = z.infer<typeof createCampaignSchema>;
 export const updateCampaignSchema = createCampaignSchema.extend({
   id: z.string().uuid(),
 });
-export type UpdateCampaignInput = z.infer<typeof updateCampaignSchema>;
 
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
 

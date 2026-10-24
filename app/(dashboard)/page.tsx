@@ -16,15 +16,11 @@ import {
 import { FilterStrip } from "@/components/filters/filter-strip";
 import { dashboardFiltersSchema } from "@/validators/filters";
 import { PLATFORM_LABEL } from "@/lib/palette";
+import { pickFirst } from "@/lib/url";
 
 const TRAILING_DAYS_DEFAULT = 30;
 
 type SearchParams = Record<string, string | string[] | undefined>;
-
-function pickFirst(value: string | string[] | undefined): string | undefined {
-  if (Array.isArray(value)) return value[0];
-  return value;
-}
 
 export const metadata = { title: "Dashboard" };
 

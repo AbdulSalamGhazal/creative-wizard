@@ -32,7 +32,6 @@ export {
 } from "@/components/portfolio/portfolio-columns";
 
 const DASH = "—";
-const fUsd = (v: number | null) => (v === null ? DASH : usd(v));
 const fRatio = (v: number | null) => roas(v);
 
 export function PortfolioTable({
@@ -156,15 +155,15 @@ export function PortfolioTable({
         case "revenue":
           return usd(r.revenue);
         case "cpa":
-          return fUsd(r.cpa);
+          return usd(r.cpa);
         case "roas":
           return fRatio(r.roas);
         case "aov":
-          return fUsd(r.aov);
+          return usd(r.aov);
         case "ctr":
           return r.ctr === null ? DASH : pct(r.ctr);
         case "cpm":
-          return fUsd(r.cpm);
+          return usd(r.cpm);
         case "cvr":
           return r.cvr === null ? DASH : pct(r.cvr);
         case "lastDate":
@@ -190,15 +189,15 @@ export function PortfolioTable({
         case "revenue":
           return usd(totals.revenue);
         case "cpa":
-          return fUsd(totals.cpa);
+          return usd(totals.cpa);
         case "roas":
           return fRatio(totals.roas);
         case "aov":
-          return fUsd(totals.aov);
+          return usd(totals.aov);
         case "ctr":
           return totals.ctr === null ? DASH : pct(totals.ctr);
         case "cpm":
-          return fUsd(totals.cpm);
+          return usd(totals.cpm);
         case "cvr":
           return totals.cvr === null ? DASH : pct(totals.cvr);
         default:

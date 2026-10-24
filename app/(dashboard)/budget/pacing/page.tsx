@@ -4,8 +4,6 @@ import { PageHeader } from "@/components/layout/page-header";
 import { todayIso } from "@/lib/date-presets";
 import {
   BUDGET_OBJECTIVES,
-  clampRangeMonths,
-  isValidIsoDate,
   monthEndIso,
   monthKey,
   monthStartIso,
@@ -14,7 +12,7 @@ import {
 } from "@/lib/budget";
 import { ALL_PLATFORMS } from "@/lib/palette";
 import {
-  MONTH_KEY,
+  resolveBudgetRange,
   PACING_BOARDS,
   PACING_GROUPS,
   PACING_RANKS,
@@ -68,22 +66,13 @@ export default async function BudgetPacingPage({
   const today = todayIso();
 
   const legacyHistory = sp.granularity === "monthly" && !sp.from && !sp.to;
-  let from: string;
-  let to: string;
-  if (isValidIsoDate(sp.from) && isValidIsoDate(sp.to) && sp.from <= sp.to) {
-    // A hand-edited or stale URL degrades to the default range rather than
-    // reaching the database as a bad date literal.
-    ({ from, to } = clampRangeMonths(sp.from, sp.to));
-  } else if (legacyHistory) {
+  let { from, to } = resolveBudgetRange(sp, today);
+  if (legacyHistory) {
     // The old History page: twelve months back through the end of this one.
     let month = monthKey(today);
     for (let i = 0; i < 11; i++) month = prevMonthKey(month);
     from = monthStartIso(month);
     to = monthEndIso(monthKey(today));
-  } else {
-    const month = sp.month && MONTH_KEY.test(sp.month) ? sp.month : monthKey(today);
-    from = monthStartIso(month);
-    to = monthEndIso(month);
   }
 
   const groupBy: GroupBy = (GROUP_BYS as string[]).includes(sp.groupBy ?? "")

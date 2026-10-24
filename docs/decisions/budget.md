@@ -458,9 +458,10 @@ as it stood before the restructure.*
       `buildPlanSeries` (pure, lib/budget.ts) → per-day planned spend for any
       combo slice, per-day planned revenue, the month's pacing shape
       (`fraction`), plan-to-date and the projection;
-      `planSeriesForMonth(month)` is the server entry, and client components
-      build the same series from the `getBudgetMonth()` payload
-      (`planSeriesSourceOf`). **EVERY consumer of plan-to-date reads through
+      every consumer — server page or client component — builds it from the
+      `getBudgetMonth()` payload it already holds (`planSeriesSourceOf`), so
+      there is no second fetch (the test-only `planSeriesForMonth` wrapper was
+      removed in W3-7; the DB tests compose the same two calls). **EVERY consumer of plan-to-date reads through
       it** — Tracker (`buildTrackerRows`), Pacing (`stitchPlanByDay` now
       stitches SERIES, so a range spanning a curve month and a daily month is
       honest), Overview's verdicts/projections/"planned today", the allocation

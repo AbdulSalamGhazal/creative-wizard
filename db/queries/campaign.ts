@@ -47,13 +47,12 @@ import {
 import { computeDelta, prevPeriod, type Delta } from "@/lib/period";
 import { fillDailyGaps } from "@/lib/time-series";
 import { getActiveAccountId } from "@/lib/tenant";
+import { numOrNull } from "@/db/queries/values";
 
 type Platform = (typeof platformEnum)[number];
 type CreativeType = (typeof creativeTypeEnum)[number];
 
 const num = (v: unknown): number => (v === null || v === undefined ? 0 : Number(v));
-const numOrNull = (v: unknown): number | null =>
-  v === null || v === undefined ? null : Number(v);
 
 export interface Range {
   from?: string;

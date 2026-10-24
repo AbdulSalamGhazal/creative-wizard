@@ -109,15 +109,6 @@ export const RATING_WINDOW_LABEL: Record<RatingWindow, string> = {
   none: "None",
 };
 
-/** Days to extend the rating sample before the range start. `null` = no lower
- *  bound (lifetime); `0` = exactly the selected range. */
-export const RATING_WINDOW_LOOKBACK: Record<RatingWindow, number | null> = {
-  "7d": 7,
-  "30d": 30,
-  life: null,
-  none: 0,
-};
-
 /** Display label + Tailwind classes per rating. SOLID-filled (vs the outlined
  *  status chips) so Rate is instantly distinguishable: green = Good ▸ amber =
  *  Decent ▸ red = Bad ▸ gray = N/A, white label on the fill. */

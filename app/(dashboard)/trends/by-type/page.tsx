@@ -12,16 +12,13 @@ import { TypeRollupTable } from "@/components/trends/type-rollup-table";
 import { dashboardFiltersSchema } from "@/validators/filters";
 import { TYPE_COLOR, TYPE_LABEL, TYPE_ORDER } from "@/lib/palette";
 import { pct, roas, usd } from "@/lib/format";
+import { pickFirst } from "@/lib/url";
 
 export const dynamic = "force-dynamic";
 
 const TRAILING_DAYS_DEFAULT = 30;
 
 type SearchParams = Record<string, string | string[] | undefined>;
-function pickFirst(v: string | string[] | undefined): string | undefined {
-  return Array.isArray(v) ? v[0] : v;
-}
-
 export const metadata = { title: "Trends · Types" };
 
 export default async function TrendsByTypePage({

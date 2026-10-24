@@ -2,10 +2,9 @@ import { auth, can } from "@/lib/auth";
 import { PageShell } from "@/components/layout/page-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { todayIso } from "@/lib/date-presets";
-import { monthKey } from "@/lib/budget";
 // Month 01-12 only — `2026-13` must fall back to the current month, not
 // produce a nonsense one. One regex, in the validators.
-import { MONTH_KEY } from "@/validators/budget";
+import { resolveBudgetMonth } from "@/validators/budget";
 import {
   dailyPlannedMonths,
   getBudgetMonth,
@@ -33,7 +32,7 @@ export default async function BudgetPlanPage({
 }) {
   const sp = await searchParams;
   const today = todayIso();
-  const month = sp.month && MONTH_KEY.test(sp.month) ? sp.month : monthKey(today);
+  const month = resolveBudgetMonth(sp.month, today);
 
   const user = await auth();
   const canManage = user ? can(user, "budget.manage") : false;

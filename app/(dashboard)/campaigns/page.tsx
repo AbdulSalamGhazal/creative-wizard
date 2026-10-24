@@ -7,7 +7,7 @@ import {
 } from "@/db/queries/portfolio";
 import { portfolioFiltersSchema } from "@/validators/portfolio";
 import {
-  getPreferredRange,
+  resolvePreferredRange,
   resolveFilterPrefs,
   resolveIncludeExcluded,
   resolveTablePrefs,
@@ -36,14 +36,12 @@ import { CAMPAIGN_TABLE_COLUMNS } from "@/components/portfolio/portfolio-columns
 import { PageShell } from "@/components/layout/page-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { FilterBarSkeleton } from "@/components/layout/page-skeletons";
+import { pickFirst } from "@/lib/url";
+import { defaultDateRange } from "@/lib/date-presets";
 
 export const dynamic = "force-dynamic";
 
 type SearchParams = Record<string, string | string[] | undefined>;
-function pickFirst(v: string | string[] | undefined): string | undefined {
-  return Array.isArray(v) ? v[0] : v;
-}
-
 export const metadata = { title: "Campaigns" };
 
 /**
@@ -117,13 +115,9 @@ export default async function CampaignsPage({
     pickFirst(params.includeExcluded),
   );
 
-  // Explicit URL range wins; otherwise the saved default; otherwise last-7.
-  const range =
-    rawFrom && rawTo
-      ? { from: parsed.from, to: parsed.to }
-      : ((await getPreferredRange()) ?? { from: parsed.from, to: parsed.to });
-  const from = range.from;
-  const to = range.to;
+  // Explicit URL range wins; otherwise the saved default; otherwise last-7 —
+  // the house resolver every range page uses (W3-7).
+  const { from, to } = await resolvePreferredRange(rawFrom, rawTo, defaultDateRange());
 
   const filters: PortfolioFilters = {
     from,

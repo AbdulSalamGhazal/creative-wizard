@@ -4,7 +4,12 @@ import { csvEnum } from "@/validators/shared";
 import {
   BUDGET_OBJECTIVES,
   PLAN_MODES,
+  clampRangeMonths,
+  isValidIsoDate,
   mergeAllocationsToBuckets,
+  monthEndIso,
+  monthKey,
+  monthStartIso,
   type PlanMode,
 } from "@/lib/budget";
 
@@ -16,6 +21,32 @@ import {
 
 /** `YYYY-MM` with a REAL month (01-12) — `2026-13` is not a month. */
 export const MONTH_KEY = /^\d{4}-(0[1-9]|1[0-2])$/;
+
+/**
+ * The month a Budget page shows: the URL's `?month=` when it names a real
+ * month, else the month `today` falls in. ONE resolver for Overview, Plan,
+ * Pacing and Audience (W3-7: each page hand-validated it).
+ */
+export function resolveBudgetMonth(raw: string | undefined, today: string): string {
+  return raw && MONTH_KEY.test(raw) ? raw : monthKey(today);
+}
+
+/**
+ * A range-based Budget page's window (Pacing, Audience): an explicit valid
+ * `from ≤ to` (clamped to `MAX_RANGE_MONTHS`), else the resolved month. A
+ * hand-edited or stale URL degrades to the month rather than reaching the
+ * database as a bad date literal.
+ */
+export function resolveBudgetRange(
+  sp: { from?: string; to?: string; month?: string },
+  today: string,
+): { from: string; to: string; explicit: boolean } {
+  if (isValidIsoDate(sp.from) && isValidIsoDate(sp.to) && sp.from <= sp.to) {
+    return { ...clampRangeMonths(sp.from, sp.to), explicit: true };
+  }
+  const month = resolveBudgetMonth(sp.month, today);
+  return { from: monthStartIso(month), to: monthEndIso(month), explicit: false };
+}
 
 /**
  * Day-weight bounds — these MIRROR the Plan editor's clamp (0.5 step, 0.5..10)

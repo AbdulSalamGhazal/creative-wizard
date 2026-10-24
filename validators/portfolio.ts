@@ -51,4 +51,3 @@ export const portfolioFiltersSchema = z.object({
     .catch([]),
 });
 
-export type PortfolioFiltersInput = z.infer<typeof portfolioFiltersSchema>;

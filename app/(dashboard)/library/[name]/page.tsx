@@ -27,7 +27,7 @@ import { CommentAnchor } from "@/components/comments/comment-anchor-context";
 import { PageShell } from "@/components/layout/page-shell";
 import { defaultDateRange, presetLabel } from "@/lib/date-presets";
 import { resolvePreferredRange, resolveIncludeExcluded } from "@/db/queries/user-prefs";
-import { safeDecodeURIComponent } from "@/lib/url";
+import { safeDecodeURIComponent, pickFirst } from "@/lib/url";
 import { ExcludedParamToggle } from "@/components/filters/excluded-param-toggle";
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -49,10 +49,6 @@ const FILTER_KEYS = [
 ] as const;
 
 type SearchParams = Record<string, string | string[] | undefined>;
-
-function pickFirst(v: string | string[] | undefined): string | undefined {
-  return Array.isArray(v) ? v[0] : v;
-}
 
 function buildQuery(sp: SearchParams, keys: readonly string[]): string {
   const qs = new URLSearchParams();

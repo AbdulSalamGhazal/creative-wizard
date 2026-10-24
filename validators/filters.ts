@@ -40,8 +40,6 @@ export const dashboardFiltersSchema = z.object({
     .transform((s) => s === "1" || s === "true"),
 });
 
-export type DashboardFilters = z.infer<typeof dashboardFiltersSchema>;
-
 /** Breakdown dimension for Trends → Over time. Unknown values → campaign. */
 export const changeDimSchema = z
   .enum(["platform", "campaign", "creative"])

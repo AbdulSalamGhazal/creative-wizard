@@ -13,16 +13,13 @@ import { AngleLeaderboard } from "@/components/trends/angle-leaderboard";
 import { AnglePlatformCompare } from "@/components/trends/angle-platform-compare";
 import { dashboardFiltersSchema } from "@/validators/filters";
 import { periodCaption } from "@/lib/period";
+import { pickFirst } from "@/lib/url";
 
 export const dynamic = "force-dynamic";
 
 const TRAILING_DAYS_DEFAULT = 30;
 
 type SearchParams = Record<string, string | string[] | undefined>;
-function pickFirst(v: string | string[] | undefined): string | undefined {
-  return Array.isArray(v) ? v[0] : v;
-}
-
 export const metadata = { title: "Trends · Angles" };
 
 export default async function TrendsByAnglePage({

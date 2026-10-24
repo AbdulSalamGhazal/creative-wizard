@@ -23,6 +23,7 @@ import { changeDimSchema, dashboardFiltersSchema } from "@/validators/filters";
 import { PLATFORM_LABEL } from "@/lib/palette";
 import { cn } from "@/lib/utils";
 import { usd, roas } from "@/lib/format";
+import { pickFirst } from "@/lib/url";
 
 export const dynamic = "force-dynamic";
 
@@ -35,11 +36,6 @@ const DIMS: Array<{ value: ChangeDim; label: string }> = [
 ];
 
 type SearchParams = Record<string, string | string[] | undefined>;
-
-function pickFirst(value: string | string[] | undefined): string | undefined {
-  if (Array.isArray(value)) return value[0];
-  return value;
-}
 
 function entityHref(dim: ChangeDim, key: string, label: string): string {
   switch (dim) {

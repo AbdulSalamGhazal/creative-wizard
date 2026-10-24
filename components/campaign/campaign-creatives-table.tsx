@@ -44,7 +44,6 @@ function earliestStageRank(stages: readonly string[]): number | null {
   const ranks = stages.filter(isCreativeStage).map(stageRank);
   return ranks.length === 0 ? null : Math.min(...ranks);
 }
-const fUsd = (v: number | null) => (v === null ? DASH : usd(v));
 const fRatio = (v: number | null) => roas(v);
 const fPct = (v: number | null) => (v === null ? DASH : pct(v));
 
@@ -136,7 +135,7 @@ export function CampaignCreativesTable({
     { key: "conversionValue", label: METRIC_LABEL.revenue, align: "right", sortable: true, render: (r) => usd(r.conversionValue) },
     { key: "ctr", label: "CTR", align: "right", sortable: true, render: (r) => fPct(r.ctr) },
     { key: "cvr", label: "CvR", align: "right", sortable: true, render: (r) => fPct(r.cvr) },
-    { key: "cpa", label: "CPA", align: "right", sortable: true, render: (r) => fUsd(r.cpa) },
+    { key: "cpa", label: "CPA", align: "right", sortable: true, render: (r) => usd(r.cpa) },
     { key: "roas", label: "ROAS", align: "right", sortable: true, render: (r) => fRatio(r.roas) },
     {
       key: "lastDate",

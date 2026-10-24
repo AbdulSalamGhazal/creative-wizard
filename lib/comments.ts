@@ -26,10 +26,6 @@ export const COMMENT_ANCHOR_TYPES = [
 
 export type CommentAnchorType = (typeof COMMENT_ANCHOR_TYPES)[number];
 
-export function isCommentAnchorType(value: string): value is CommentAnchorType {
-  return (COMMENT_ANCHOR_TYPES as readonly string[]).includes(value);
-}
-
 /**
  * Pages that accept a "view" comment, DERIVED from the nav (house rule: derive,
  * don't re-list). Every page the sidebar offers — the admin section included —
@@ -150,10 +146,6 @@ export function isCommentReaction(value: string): value is CommentReaction {
  */
 export function reactionEmoji(kind: string): string {
   return COMMENT_REACTIONS.find((r) => r.key === kind)?.emoji ?? kind;
-}
-
-export function reactionLabel(kind: string): string {
-  return COMMENT_REACTIONS.find((r) => r.key === kind)?.label ?? kind;
 }
 
 /**

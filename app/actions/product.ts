@@ -9,6 +9,7 @@ import { products } from "@/db/schema";
 import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
 import { getActiveAccountId } from "@/lib/tenant";
 import { actionError } from "@/lib/action-error";
+import { slugify } from "@/lib/url";
 
 export interface ProductMutationResult {
   ok: boolean;
@@ -18,15 +19,7 @@ export interface ProductMutationResult {
 
 const nameSchema = z.string().min(1).max(255);
 
-function slugify(name: string): string {
-  return name
-    .toLowerCase()
-    .normalize("NFKD")
-    .replace(/[̀-ͯ]/g, "")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 255) || "product";
-}
+const productSlug = (name: string): string => slugify(name, "product", 255);
 
 export async function createProduct(input: unknown): Promise<ProductMutationResult> {
   try {
@@ -44,7 +37,7 @@ export async function createProduct(input: unknown): Promise<ProductMutationResu
       };
     }
     const name = parsed.data.trim();
-    let slug = slugify(name);
+    let slug = productSlug(name);
     const acct = await getActiveAccountId();
 
     // Ensure slug uniqueness within this account (append -2, -3 …).
@@ -87,7 +80,6 @@ export async function createProduct(input: unknown): Promise<ProductMutationResu
       .returning({ id: products.id });
 
     try {
-      revalidatePath("/admin/products");
       revalidatePath("/library");
     } catch (err) {
       console.warn("revalidatePath after product create failed:", err);
@@ -126,7 +118,6 @@ export async function archiveProduct(productId: string): Promise<ProductMutation
       .where(and(eq(products.accountId, acct), eq(products.id, productId)));
 
     try {
-      revalidatePath("/admin/products");
       revalidatePath("/library");
     } catch (err) {
       console.warn("revalidatePath after archive failed:", err);
@@ -158,7 +149,6 @@ export async function restoreProduct(productId: string): Promise<ProductMutation
       .set({ status: "active", updatedAt: new Date() })
       .where(and(eq(products.accountId, acct), eq(products.id, productId)));
     try {
-      revalidatePath("/admin/products");
       revalidatePath("/library");
     } catch (err) {
       console.warn("revalidatePath after restore failed:", err);

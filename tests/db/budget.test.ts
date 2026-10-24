@@ -11,10 +11,11 @@ vi.mock("@/lib/tenant", () => ({
 
 import { getActiveAccountId } from "@/lib/tenant";
 import { db } from "@/lib/db";
-import { users } from "@/db/schema";
+import { performanceRecords, users } from "@/db/schema";
+import { and, eq, gte, lt, sql } from "drizzle-orm";
+import { monthStartIso, nextMonthKey } from "@/lib/budget";
 import {
   getBudgetMonth,
-  rawMonthSpendTotal,
   replaceBudgetMonth,
   copyBudgetMonth,
   budgetPacingSeries,
@@ -22,6 +23,27 @@ import {
 } from "@/db/queries/budget";
 import { writeStoreBatch } from "@/db/queries/store";
 import { resetAndSeed } from "./fixtures";
+
+/**
+ * The test ORACLE: the month's RAW spend straight off performance_records (no
+ * joins, no exclusion filter) — what the spend table must reconcile to
+ * exactly. Lives here, not in the query layer: nothing in the app reads it
+ * (W3-7 moved it out of db/queries/budget.ts as test-only).
+ */
+async function rawMonthSpendTotal(month: string): Promise<number> {
+  const acct = await getActiveAccountId();
+  const [row] = await db
+    .select({ total: sql<string>`COALESCE(SUM(${performanceRecords.spend}), 0)` })
+    .from(performanceRecords)
+    .where(
+      and(
+        eq(performanceRecords.accountId, acct),
+        gte(performanceRecords.date, monthStartIso(month)),
+        lt(performanceRecords.date, monthStartIso(nextMonthKey(month))),
+      ),
+    );
+  return Number(row?.total ?? 0);
+}
 
 const UPLOADER = "dddddddd-0000-0000-0000-0000000000f1";
 const MONTH = "2026-01"; // the fixtures' perf month (incl. one EXCLUDED row)

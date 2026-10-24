@@ -90,17 +90,6 @@ export interface ReconByPlatformRow {
 
 // ── Config: source field + value mappings ────────────────────────────────────
 
-/** The account's configured source field key (`store_order_fields.key`), or null. */
-export async function getStoreSourceFieldKey(): Promise<string | null> {
-  const acct = await getActiveAccountId();
-  const [row] = await db
-    .select({ key: sql<string | null>`store_source_field_key` })
-    .from(sql`accounts`)
-    .where(sql`id = ${acct}`)
-    .limit(1);
-  return row?.key ?? null;
-}
-
 /** Every source-value → platform mapping for the active account. */
 export async function listStoreSourceMappings(): Promise<
   Array<{ id: string; rawValue: string; platform: ReconPlatform | null }>

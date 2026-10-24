@@ -20,7 +20,6 @@ import { SORT_DIRS, csvEnum, csvList as csv } from "@/validators/shared";
  * Total; horizontal scroll handles the width.
  */
 
-
 // All five platforms may be selected (no cap; there are only 5).
 export const MAX_PLATFORMS = 5;
 
@@ -349,8 +348,6 @@ export const summaryFiltersSchema = z.object({
     .optional()
     .transform((s) => parseStatusFilter(s)),
 });
-
-export type SummaryFilters = z.infer<typeof summaryFiltersSchema>;
 
 /**
  * One metric rule in words — "ROAS ≥ 2", "Instagram CPA ≤ $20". Shared by the

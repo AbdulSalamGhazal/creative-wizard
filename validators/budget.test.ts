@@ -119,3 +119,30 @@ describe("plan modes — the source pins the mode", () => {
     expect(snap.targetRoas).toBeNull();
   });
 });
+
+describe("Budget month and range resolution (W3-7: one resolver)", () => {
+  it("a real ?month= wins, else the month today falls in", async () => {
+    const { resolveBudgetMonth } = await import("@/validators/budget");
+    expect(resolveBudgetMonth("2026-09", "2026-10-24")).toBe("2026-09");
+    expect(resolveBudgetMonth("2026-13", "2026-10-24")).toBe("2026-10");
+    expect(resolveBudgetMonth(undefined, "2026-10-24")).toBe("2026-10");
+  });
+  it("an explicit valid range wins (clamped); else the month's bounds", async () => {
+    const { resolveBudgetRange } = await import("@/validators/budget");
+    expect(resolveBudgetRange({ from: "2026-09-03", to: "2026-09-20" }, "2026-10-24")).toEqual({
+      from: "2026-09-03",
+      to: "2026-09-20",
+      explicit: true,
+    });
+    expect(resolveBudgetRange({ from: "2026-09-30", to: "2026-09-01" }, "2026-10-24")).toEqual({
+      from: "2026-10-01",
+      to: "2026-10-31",
+      explicit: false,
+    });
+    expect(resolveBudgetRange({ month: "2026-02" }, "2026-10-24")).toEqual({
+      from: "2026-02-01",
+      to: "2026-02-28",
+      explicit: false,
+    });
+  });
+});

@@ -20,16 +20,13 @@ import { PlatformFunnelComparison } from "@/components/funnel/platform-funnel-co
 import { CampaignFunnelTable } from "@/components/funnel/campaign-funnel-table";
 import { dashboardFiltersSchema } from "@/validators/filters";
 import { prevPeriod } from "@/lib/period";
+import { pickFirst } from "@/lib/url";
 
 export const dynamic = "force-dynamic";
 
 const TRAILING_DAYS_DEFAULT = 30;
 
 type SearchParams = Record<string, string | string[] | undefined>;
-function pickFirst(v: string | string[] | undefined): string | undefined {
-  return Array.isArray(v) ? v[0] : v;
-}
-
 export const metadata = { title: "Funnel" };
 
 export default async function FunnelPage({

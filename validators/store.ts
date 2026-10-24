@@ -20,8 +20,6 @@ export const storeOrdersFiltersSchema = z.object({
   dir: z.enum(SORT_DIRS).catch("desc"),
 });
 
-export type StoreOrdersFilterInput = z.infer<typeof storeOrdersFiltersSchema>;
-
 /**
  * Filters for the order-cleanup tool (mirror of the ads `cleanupFiltersSchema`).
  * All present filters combine with AND; at least one must be set — the tool
@@ -40,8 +38,6 @@ export const storeCleanupFiltersSchema = z
     { message: "Select at least one filter before previewing or deleting." },
   );
 
-export type StoreCleanupFilters = z.infer<typeof storeCleanupFiltersSchema>;
-
 /** The previewed order count a delete must match (W1-7). */
 export const storeCleanupExpectedSchema = z.object({
   expectedRows: z
@@ -59,8 +55,6 @@ export const storeSourceMappingSchema = z.object({
   assignment: z.enum([...platformEnum, "none", "unset"]),
 });
 
-export type StoreSourceMappingInput = z.infer<typeof storeSourceMappingSchema>;
-
 /**
  * Assign a raw CHANNEL value: 'website', 'application', or "unset" (delete the
  * row → the value returns to the Unmapped bucket). Derived from
@@ -70,8 +64,6 @@ export const storeChannelMappingSchema = z.object({
   rawValue: z.string().trim().min(1).max(128),
   assignment: z.enum([...CHANNEL_DESTINATIONS, "unset"]),
 });
-
-export type StoreChannelMappingInput = z.infer<typeof storeChannelMappingSchema>;
 
 /**
  * URL filters for Store Insights — the date range, the two mapped-bucket
@@ -92,8 +84,6 @@ export const storeInsightsFiltersSchema = z.object({
   /** Channel buckets: Website / Application, or the Unmapped sentinel. */
   channels: csvEnum([...CHANNEL_DESTINATIONS, UNMAPPED_CHANNEL]),
 });
-
-export type StoreInsightsFilterInput = z.infer<typeof storeInsightsFiltersSchema>;
 
 /** URL filters for the Reconciliation page — date range only. */
 export const reconciliationFiltersSchema = z.object({

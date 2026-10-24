@@ -39,4 +39,3 @@ export const landingPageUpdateSchema = landingPageInputSchema.extend({
   id: z.string().uuid(),
 });
 
-export type LandingPageInput = z.infer<typeof landingPageInputSchema>;
