@@ -19,6 +19,7 @@ import { createCampaign } from "@/app/actions/campaign";
 import { safeAction } from "@/lib/action-failure";
 import { actionSettled } from "@/lib/router-queue";
 import { toastActionFailure } from "@/lib/action-toast";
+import { useNavTransition } from "@/lib/nav-progress";
 
 /**
  * Register a campaign. Mirrors how an upload builds the stored name — the buyer
@@ -34,6 +35,8 @@ export function CampaignCreateForm() {
   const [platform, setPlatform] = useState("");
   const [objective, setObjective] = useState("");
   const [pending, start] = useTransition();
+  // Navigations show the progress bar (W3-6).
+  const [, startNav] = useNavTransition();
   const [error, setError] = useState<string | null>(null);
 
   const preview = buildCampaignName(campaign, adset, platform);
@@ -50,7 +53,7 @@ export function CampaignCreateForm() {
         // ONE render: the action doesn't revalidate; this navigation renders
         // the list fresh (W2-1) — once the router is done with the action.
         await actionSettled();
-        router.push("/campaigns");
+        startNav(() => router.push("/campaigns"));
       } else {
         toastActionFailure(res, "Could not register the campaign.", { inline: setError });
       }
@@ -127,7 +130,7 @@ export function CampaignCreateForm() {
         <Button
           type="button"
           variant="ghost"
-          onClick={() => router.push("/campaigns")}
+          onClick={() => startNav(() => router.push("/campaigns"))}
           disabled={pending}
         >
           Cancel

@@ -14,6 +14,7 @@ import {
 import { safeAction } from "@/lib/action-failure";
 import { actionSettled } from "@/lib/router-queue";
 import { toastActionFailure } from "@/lib/action-toast";
+import { useNavTransition } from "@/lib/nav-progress";
 
 interface Props {
   /** Existing product names — shown as a hint and used in the CSV template. */
@@ -25,6 +26,8 @@ export function BulkCreativeImport({ products }: Props) {
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<BulkPreview | null>(null);
   const [isPending, startTransition] = useTransition();
+  // Navigations show the progress bar (W3-6).
+  const [, startNav] = useNavTransition();
 
   const onFile = (f: File | null) => {
     setFile(f);
@@ -65,7 +68,7 @@ export function BulkCreativeImport({ products }: Props) {
       // ONE render: the action doesn't revalidate; the navigation renders the
       // Library fresh (W2-1) — once the router is done with the action.
       await actionSettled();
-      router.push("/library");
+      startNav(() => router.push("/library"));
     });
   };
 

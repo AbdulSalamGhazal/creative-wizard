@@ -17,6 +17,7 @@ import { int, pct, roas, usd, usdCompact } from "@/lib/format";
 import { MetricPicker } from "@/components/charts/metric-picker";
 import type { AngleRollupRow } from "@/db/queries/trends";
 import { ChartTooltip } from "@/components/charts/chart-tooltip";
+import { useNavTransition } from "@/lib/nav-progress";
 
 type YMetric = "cpa" | "roas" | "cvr";
 const Y: Record<YMetric, { label: string; fmt: (v: number | null) => string; tick: (v: number) => string }> = {
@@ -33,6 +34,9 @@ const Y: Record<YMetric, { label: string; fmt: (v: number | null) => string; tic
  */
 export function AngleScatter({ rows }: { rows: AngleRollupRow[] }) {
   const router = useRouter();
+  // A point opens the Library/creative — through the nav transition so the
+  // progress bar shows (W3-6).
+  const [, startNav] = useNavTransition();
   const [metric, setMetric] = useState<YMetric>("roas");
   const y = Y[metric];
 
@@ -129,7 +133,8 @@ export function AngleScatter({ rows }: { rows: AngleRollupRow[] }) {
                 fillOpacity={0.65}
                 className="cursor-pointer"
                 onClick={(d: { angle?: string }) => {
-                  if (d?.angle) router.push(`/library?angles=${encodeURIComponent(d.angle)}`);
+                  if (d?.angle)
+                    startNav(() => router.push(`/library?angles=${encodeURIComponent(d.angle!)}`));
                 }}
               />
             </ScatterChart>

@@ -35,6 +35,7 @@ import { safeAction } from "@/lib/action-failure";
 import { actionSettled } from "@/lib/router-queue";
 import { toastActionFailure } from "@/lib/action-toast";
 import { useCan } from "@/components/auth/permissions-context";
+import { useNavTransition } from "@/lib/nav-progress";
 
 /**
  * Edit a campaign's name (rebuilt from Campaign + Ad Set + Platform), platform
@@ -68,6 +69,8 @@ export function CampaignEditDialog({
   const [platform, setPlatform] = useState(initPlatform);
   const [objective, setObjective] = useState(initObjective);
   const [pending, start] = useTransition();
+  // Navigations show the progress bar (W3-6).
+  const [, startNav] = useNavTransition();
   const [error, setError] = useState<string | null>(null);
 
   const preview = buildCampaignName(campaign, adset, platform);
@@ -103,7 +106,8 @@ export function CampaignEditDialog({
         // revalidation then); otherwise the action's re-render already arrived.
         if (res.name && res.name !== currentName) {
           await actionSettled();
-          router.push(`/campaigns/${encodeURIComponent(res.name)}`);
+          const href = `/campaigns/${encodeURIComponent(res.name)}`;
+          startNav(() => router.push(href));
         }
       } else {
         toastActionFailure(res, "Could not update the campaign.", { inline: setError });

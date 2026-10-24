@@ -95,14 +95,18 @@ export function ViewsControl({
         // so it's harmless when no default exists, and routing through it
         // unconditionally removes the dependency on a possibly-stale `hasDefault`
         // (a flakiness source right after toggling a default).
-        router.push(`${pathname}?view=none&${VIEW_MARKER_PARAM}=${viewId}`, { scroll: false });
+        startTransition(() =>
+          router.push(`${pathname}?view=none&${VIEW_MARKER_PARAM}=${viewId}`, { scroll: false }),
+        );
         return;
       }
       // The marker rides along so the server skips remembered filters: an
       // applied view owns the whole filter state, including what it leaves out.
-      router.push(`${pathname}?${clean}&${VIEW_MARKER_PARAM}=${viewId}`, { scroll: false });
+      startTransition(() =>
+        router.push(`${pathname}?${clean}&${VIEW_MARKER_PARAM}=${viewId}`, { scroll: false }),
+      );
     },
-    [pathname, router],
+    [pathname, router, startTransition],
   );
 
   const saving = useRef(false);
@@ -312,7 +316,7 @@ export function ViewsControl({
                 // Always route through ?view=none: a bare /summary would
                 // redirect back to a default if one exists, and the param is
                 // harmless (stripped by cleanQuery/sameQuery) when none does.
-                router.push(`${pathname}?view=none`, { scroll: false });
+                startTransition(() => router.push(`${pathname}?view=none`, { scroll: false }));
               }}
               className="inline-flex items-center gap-1 text-[11px] text-ink-3 hover:text-ink transition-colors px-1"
             >

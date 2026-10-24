@@ -24,6 +24,7 @@ import { int } from "@/lib/format";
 import { PLATFORM_LABEL } from "@/lib/palette";
 import { useCan } from "@/components/auth/permissions-context";
 import type { CampaignDeletionSummary } from "@/db/queries/campaign";
+import { useNavTransition } from "@/lib/nav-progress";
 
 /**
  * Confirm-and-delete a whole campaign. Mirrors DeleteCreativeDialog, with one
@@ -45,6 +46,8 @@ export function DeleteCampaignDialog({
   const [open, setOpen] = useState(false);
   const [acknowledged, setAcknowledged] = useState(false);
   const [isPending, startTransition] = useTransition();
+  // Navigations show the progress bar (W3-6).
+  const [, startNav] = useNavTransition();
 
   const hasRecords = summary.records > 0;
 
@@ -67,7 +70,7 @@ export function DeleteCampaignDialog({
       // no longer exists); the navigation renders the list fresh (W2-1) —
       // once the router is done with the action.
       await actionSettled();
-      router.push("/campaigns");
+      startNav(() => router.push("/campaigns"));
     });
   };
 

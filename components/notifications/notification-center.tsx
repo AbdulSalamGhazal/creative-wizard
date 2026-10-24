@@ -137,7 +137,7 @@ export function NotificationCenter({
 
   const open = (row: NotificationRow) => {
     const href = safeHref(row.href);
-    if (href) router.push(href);
+    if (href) startNav(() => router.push(href));
     if (row.readAt === null) {
       // Read it BEHIND the navigation: an action still pending when the
       // navigation starts costs the destination a second render

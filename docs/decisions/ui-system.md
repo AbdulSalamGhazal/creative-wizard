@@ -19,6 +19,9 @@
   presentation param (a sort, an Ads column toggle; D12, tables-columns.md),
   which rewrites the URL with the history API, renders nothing on the server
   and lands instantly, so there is nothing for a progress bar to report.
+  Pinned by `components/nav-transition.test.ts` (W3-6): a bare
+  `router.push`/`replace` fails the suite — the scatter points, the bell, the
+  Compare metric blocks and the after-save navigations all bypassed it.
 - Nav is ONE source (`nav-items.ts`) for both the desktop and mobile navs.
 - **A gated nav item's permissions are DERIVED from its page's gates**
   (`NAV_ROUTE_GATES` in `lib/page-gates.ts`, where every gated page's tabs and

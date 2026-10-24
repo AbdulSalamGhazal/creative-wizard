@@ -60,6 +60,7 @@ import type {
   Platform,
   PlatformStatus,
 } from "@/lib/creative-status";
+import { useNavTransition } from "@/lib/nav-progress";
 
 type Type = CreativeDetail["type"];
 
@@ -112,6 +113,8 @@ export function CreativeDetailHeader({
   const router = useRouter();
   const canEdit = useCan("creative.edit");
   const [isPending, startTransition] = useTransition();
+  // Navigations show the progress bar (W3-6).
+  const [, startNav] = useNavTransition();
   const [dateOpen, setDateOpen] = useState(false);
 
   // Read-only viewers see the same layout with every control disabled and no
@@ -199,7 +202,7 @@ export function CreativeDetailHeader({
         // The detail URL is keyed on the name — follow the rename, once the
         // router is done with the action (lib/router-queue.ts).
         await actionSettled();
-        router.replace(`/library/${encodeURIComponent(newName)}`);
+        startNav(() => router.replace(`/library/${encodeURIComponent(newName)}`));
       } else {
         setSaved({
           name: nameTrimmed,

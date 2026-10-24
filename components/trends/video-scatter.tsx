@@ -17,6 +17,7 @@ import { pct, roas, usd, usdCompact } from "@/lib/format";
 import type { VideoDiagnosticRow } from "@/db/queries/trends";
 import { ChartTooltip } from "@/components/charts/chart-tooltip";
 import { MetricPicker } from "@/components/charts/metric-picker";
+import { useNavTransition } from "@/lib/nav-progress";
 
 type Axis = "hookRate" | "holdRate" | "completeRate" | "ctr" | "cvr" | "roas" | "cpa";
 
@@ -39,6 +40,9 @@ const AXES = Object.keys(M) as Axis[];
  */
 export function VideoScatter({ rows }: { rows: VideoDiagnosticRow[] }) {
   const router = useRouter();
+  // A point opens the Library/creative — through the nav transition so the
+  // progress bar shows (W3-6).
+  const [, startNav] = useNavTransition();
   const searchParams = useSearchParams();
   const [xKey, setXKey] = useState<Axis>("hookRate");
   const [yKey, setYKey] = useState<Axis>("completeRate");
@@ -109,14 +113,14 @@ export function VideoScatter({ rows }: { rows: VideoDiagnosticRow[] }) {
                 fillOpacity={0.6}
                 className="cursor-pointer"
                 onClick={(d: { name?: string }) => {
-                  if (d?.name)
-                    router.push(
-                      withDateRange(
-                        `/library/${encodeURIComponent(d.name)}`,
-                        searchParams.get("from"),
-                        searchParams.get("to"),
-                      ),
+                  if (d?.name) {
+                    const href = withDateRange(
+                      `/library/${encodeURIComponent(d.name)}`,
+                      searchParams.get("from"),
+                      searchParams.get("to"),
                     );
+                    startNav(() => router.push(href));
+                  }
                 }}
               />
             </ScatterChart>

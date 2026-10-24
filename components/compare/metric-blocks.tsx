@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useTransition } from "react";
+import { useCallback } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Check, ChevronDown, Plus, X } from "lucide-react";
 import {
@@ -15,12 +15,15 @@ import {
   COMPARE_METRIC_LABEL,
   MAX_COMPARE_BLOCKS,
 } from "@/validators/compare";
+import { useNavTransition } from "@/lib/nav-progress";
 
 function useMetricsUrl() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const [, startTransition] = useTransition();
+  // useNavTransition, not React's: the bar shows while Compare re-queries
+  // (W3-6 — its sibling Compare control already did).
+  const [, startTransition] = useNavTransition();
 
   return useCallback(
     (nextMetrics: CompareMetric[]) => {
@@ -38,7 +41,7 @@ function useMetricsUrl() {
         router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false }),
       );
     },
-    [pathname, router, searchParams],
+    [pathname, router, searchParams, startTransition],
   );
 }
 

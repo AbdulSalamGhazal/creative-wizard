@@ -22,6 +22,7 @@ import { AngleInput } from "@/components/creative/angle-input";
 import { ThumbnailUpload } from "@/components/creative/thumbnail-upload";
 import { StagePicker } from "@/components/creative/stage-picker";
 import { TYPE_OPTIONS } from "@/lib/palette";
+import { useNavTransition } from "@/lib/nav-progress";
 
 interface Props {
   products: Array<{ id: string; name: string }>;
@@ -45,6 +46,8 @@ export function CreativeCreateForm({ products, allAngles }: Props) {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  // Navigations show the progress bar (W3-6).
+  const [, startNav] = useNavTransition();
 
   const submit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -85,7 +88,8 @@ export function CreativeCreateForm({ products, allAngles }: Props) {
       // new creative's page fresh (W2-1) — once the router is done with the
       // action (lib/router-queue.ts).
       await actionSettled();
-      router.push(`/library/${encodeURIComponent(res.name!)}`);
+      const href = `/library/${encodeURIComponent(res.name!)}`;
+      startNav(() => router.push(href));
     });
   };
 

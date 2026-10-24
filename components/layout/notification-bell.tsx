@@ -32,6 +32,7 @@ import {
 } from "@/lib/notifications";
 import { markNotificationRead, markNotificationsRead } from "@/app/actions/notifications";
 import { safeAction } from "@/lib/action-failure";
+import { useNavTransition } from "@/lib/nav-progress";
 import { afterNavigation } from "@/lib/router-queue";
 import { toastActionFailure } from "@/lib/action-toast";
 import { useMinuteTick } from "@/lib/use-minute-tick";
@@ -124,6 +125,9 @@ export function NotificationBell({
   /** Unread the popover did NOT list when it opened (beyond the cap). */
   const [beyond, setBeyond] = useState(0);
   const [, startTransition] = useTransition();
+  // Every navigation the bell starts goes through the nav transition, so the
+  // progress bar shows (W3-6) — opening a notification is a page load.
+  const [, startNav] = useNavTransition();
   /** Set while the bell plays its one-shot shake (unread went UP). */
   const [shake, setShake] = useState(false);
   const prevCount = useRef<number | null>(null);
@@ -132,9 +136,9 @@ export function NotificationBell({
   const openHref = useCallback(
     (href: string | null) => {
       const safe = safeHref(href);
-      if (safe) router.push(safe);
+      if (safe) startNav(() => router.push(safe));
     },
-    [router],
+    [router, startNav],
   );
 
   /**
@@ -157,7 +161,7 @@ export function NotificationBell({
       if (plan.kind === "summary") {
         toast(burstSummary(plan.count), {
           description: "Open notifications to read them.",
-          action: { label: "View", onClick: () => router.push("/notifications") },
+          action: { label: "View", onClick: () => openHref("/notifications") },
         });
         return;
       }
@@ -171,17 +175,21 @@ export function NotificationBell({
             ? {
                 label: "Open",
                 onClick: () => {
-                  // The same flow clicking it in the popover runs: mark read,
-                  // then go where it points.
-                  startTransition(async () => {
-                    const res = await safeAction(() =>
-                      markNotificationRead({ id: full.id }),
-                    );
-                    if (!res.ok) toastActionFailure(res, "Couldn't mark that read.");
-                    else announceNotificationsChanged("bell");
-                    void load();
-                  });
+                  // The same flow clicking it in the popover runs: go where
+                  // it points, then mark it read BEHIND the navigation — an
+                  // action still pending when a navigation starts costs the
+                  // destination a second render (lib/router-queue.ts).
                   openHref(full.href);
+                  afterNavigation(() =>
+                    startTransition(async () => {
+                      const res = await safeAction(() =>
+                        markNotificationRead({ id: full.id }),
+                      );
+                      if (!res.ok) toastActionFailure(res, "Couldn't mark that read.");
+                      else announceNotificationsChanged("bell");
+                      void load();
+                    }),
+                  );
                 },
               }
             : undefined,
@@ -339,7 +347,7 @@ export function NotificationBell({
     onOpenChange(false);
     // A notification without a usable link still marks read — it just has
     // nowhere to send you.
-    if (href) router.push(href);
+    if (href) startNav(() => router.push(href));
     if (!item.read) {
       // Arrived while the popover was open — read it, BEHIND the navigation:
       // an action still pending when the navigation starts costs the
