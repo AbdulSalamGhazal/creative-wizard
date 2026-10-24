@@ -299,6 +299,15 @@ These are not domain knowledge — they bite any change, so they live here.
 - **The direct (non-pooler) Neon URL is derived, not stored.** `.env.production.local`
   holds only the pooled `DATABASE_URL`; for `drizzle-kit migrate` derive the
   direct URL by replacing `-pooler.` with `.` in the host.
+- **`next build` / `next start` in the repo load `.env.production.local` — the
+  LIVE database.** Next reads `.env.production.local` for any production-mode
+  command run in this folder, so `npm start` here serves a local app against
+  production data, writes included. (The build itself makes no DB connection —
+  proven by building with an unreachable `DATABASE_URL` — but don't rely on
+  it: override `DATABASE_URL` on the command line, which beats the file.)
+  **Never `next start` in the repo.** A production-like local run happens in a
+  separate worktree holding only `.env.local`. The launch config's old
+  "ccms-prod" entry did exactly this and was removed (2026-10-24).
 
 
 ## Domain map
