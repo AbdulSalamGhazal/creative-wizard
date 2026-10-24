@@ -608,7 +608,10 @@ as it stood before the restructure.*
     platform rows sorted most-off-pace first (`sortTrackerPlatforms(...,
     "offpace")`), each with its bucket rows, a platform row opening the
     Tracker filtered to it, and the Reserve as the last row (used of reserve,
-    "past the reserve" when over). **ROAS has equal billing** because the user
+    "past the reserve" when over). **[Superseded by the 2026-10-19 style
+    pass: the board is ordered by plan (`sortTrackerPlatforms(…, "plan")`)
+    and a platform row opens Pacing for the month, filtered to it — the
+    Tracker merged into Pacing that day.]** **ROAS has equal billing** because the user
     may miss the whole spend or the whole revenue but must follow the ROAS
     target: target = revenue target ÷ (planned spend × rate) on a curve month,
     the stored target on a daily one (`roasFigures`); its bar is a 0..max×1.15

@@ -59,7 +59,7 @@ introducing the violation and watching it fail:
 | Server Components by default; 'use client' only when needed | prose | a judgment per file |
 | kebab-case files, PascalCase components, UPPER_SNAKE constants | prose | convention; a linter rule would be noisy on legitimate exceptions |
 | Data fetching lives in db/queries/*, not inline in pages | **guard added** | NEW `components/data-access.test.ts` — no exceptions; it walks `app/**` pages and layouts too since W3-8 (it covered only `components/` while four pages queried inline) |
-| All inputs validated through Zod in validators/ | enforced | `validators/*.test.ts` (5 files) pin the schemas; actions call them |
+| All inputs validated through Zod in validators/ | **partly** | inputs ARE Zod-validated (`validators/*.test.ts` pin the shared schemas), but 12 non-test files in `app/` and `lib/` still declare schemas inline (actions, OAuth routes, MCP tool inputs) — CLAUDE.md says `validators/`, tech-spec §2 allows co-located; a doc conflict flagged to the user (audit C-16), not resolved here. Vocabularies inside them now DERIVE (`lib/enums.test.ts`) |
 | Raw SQL stays in the query layer, lib/metrics.ts + 6 named sites | **guard added** | NEW `db/raw-sql.test.ts` — rule reworded to match reality, then made checkable; since W3-9 it also matches the typed `sql<T>` form it used to miss |
 
 ### Database rules

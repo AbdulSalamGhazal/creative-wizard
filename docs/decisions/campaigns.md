@@ -53,7 +53,10 @@ as it stood before the restructure.*
   keyed on `(creative, platform, campaign_id, date)` and rejected via E050
   (intra-file) / E051 (already-imported, joins `campaigns`) plus the
   `perf_creative_platform_campaign_id_date_idx` unique index. The same creative
-  across *different* campaigns on the same day is allowed.
+  across *different* campaigns on the same day is allowed. **[Superseded —
+  the backstop is now `perf_identity_uq` on `(creative_id, platform,
+  campaign_id, date, landing_page_id)` NULLS NOT DISTINCT, migration 0054;
+  see `docs/decisions/uploads-csv.md`.]**
 
 ### Campaign objectives merged
 

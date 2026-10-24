@@ -12,7 +12,7 @@ v1.3 (2026-10) adds **landing-page codes**: an ad name may end in ` @code`
 naming a registered landing page (§4.2, E022 / E023), the landing page joins
 the record identity (§3.4 / §3.5), and a code that changed on a live ad is
 refused (E052).
-Per-platform header mappings are DB-driven (`/admin/catalog?tab=mappings`), so
+Per-platform header mappings are DB-driven (`/uploads?tab=mapping`, the Upload ads page's CSV mapping tab), so
 §9's static tables are historical.
 
 ---

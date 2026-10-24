@@ -140,7 +140,7 @@ as it stood before the restructure.*
 - **Authorization is GRANULAR per-user permissions (2026-07) — DERIVE from the
   catalog, never re-list.** The old two-tier `requireEditor`/`requireAdmin` model
   is GONE. `lib/permissions.ts` is the single source of truth: `PERMISSION_GROUPS`
-  (an `as const` catalog of 6 groups / 24 keys) → the `Permission` union +
+  (an `as const` catalog of 6 groups / 24 keys — 25 since `catalog.landing_pages`, 2026-10) → the `Permission` union +
   `ALL_PERMISSIONS` are derived from it, so any new capability is added in ONE
   place and every surface (checks, the Team UI, nav) follows.
   - **Storage:** `users.role` (`admin` | `editor` | `viewer`, a tier) +

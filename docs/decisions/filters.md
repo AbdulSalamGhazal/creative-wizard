@@ -173,8 +173,10 @@ as it stood before the restructure.*
       in `validators/summary.test.ts` that the Ads bar declares exactly its
       eight panel filters).
     - **The Excluded toggle is a DATA-SCOPE switch, not a filter** — it lives in
-      the `toolbar` slot with the table controls (Columns, CSV, Sort, the
-      grid/table toggle), stays visible house-wide, and Clear never touches it.
+      the `toolbar` slot with the table controls (CSV, Sort, the grid/table
+      toggle — Columns moved into the table's own header corner in 2026-10,
+      `docs/decisions/tables-columns.md`), stays visible house-wide, and Clear
+      never touches it.
     - **ZERO-DEF PAGES** (Store orders · Reconciliation · Audience; Pacing was one until
       the Tracker's `buckets` / `offpace` moved onto it, 2026-10-19): a page with
       no tier-2 filters renders the SAME bar with no Filters button and no
@@ -199,7 +201,7 @@ as it stood before the restructure.*
       it is deliberately tier 1); tier 2 = status · product · type · angles ·
       priority · stage · rate · the metric-rule builder (a `custom` def that
       keeps its own component and contributes one chip per rule); toolbar =
-      Columns · Excluded. **URL params are UNCHANGED** — every saved view keeps
+      Excluded (Columns lives in the table's header corner since 2026-10). **URL params are UNCHANGED** — every saved view keeps
       parsing, pinned by `validators/summary.test.ts`.
     - **Per-page tiers (phase 2).** Library: tier 1 Views · search · platforms,
       6 defs (product · type · status · angles · priority · stage), toolbar
@@ -207,7 +209,7 @@ as it stood before the restructure.*
       is untouched: it is a summary of the listing that writes the same
       `statuses` param, so its chips simply light the shell's chip too.
       Campaigns: tier 1 Views · search · date · platforms, 2 defs (objective ·
-      status), toolbar Columns · Excluded. Canvas: tier 1 date · platforms,
+      status), toolbar Excluded. Canvas: tier 1 date · platforms,
       3 defs (status · product · stage), toolbar Excluded — the canvas
       toolbar (node search, view switcher) is NOT the filter bar and is
       untouched. Store orders / Reconciliation: zero defs (Pacing has two

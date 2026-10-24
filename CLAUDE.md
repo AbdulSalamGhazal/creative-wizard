@@ -425,7 +425,7 @@ this map is still a rule you broke.
 
 ### Store module
 
-- Store uploads never touch `csv/`, `upload_batches` or `performance_records`.
+- Store uploads never touch the ads pipeline in `csv/` (they share only `csv/parse.ts`), `upload_batches` or `performance_records`.
 - Currency is SAR, module-local — never convert to USD here.
 - Upsert PATCHES `attributes`; an absent column leaves the stored value alone.
 - Reconciliation is counts only — no revenue comparison, ever.
