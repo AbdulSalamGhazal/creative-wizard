@@ -46,6 +46,7 @@ import {
   setCreativeTermination,
 } from "@/app/actions/creative";
 import { safeAction } from "@/lib/action-failure";
+import { actionSettled } from "@/lib/router-queue";
 import { toastActionFailure } from "@/lib/action-toast";
 import { useCan } from "@/components/auth/permissions-context";
 import { creativeTypeEnum } from "@/lib/enums";
@@ -195,7 +196,9 @@ export function CreativeDetailHeader({
       // skips its revalidation, which would re-render the old, now-404
       // address); otherwise the action's re-render arrived in its response.
       if (newName !== saved.name) {
-        // The detail URL is keyed on the name — follow the rename.
+        // The detail URL is keyed on the name — follow the rename, once the
+        // router is done with the action (lib/router-queue.ts).
+        await actionSettled();
         router.replace(`/library/${encodeURIComponent(newName)}`);
       } else {
         setSaved({

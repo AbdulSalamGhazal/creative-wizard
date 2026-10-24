@@ -32,6 +32,7 @@ import {
 } from "@/lib/notifications";
 import { markNotificationRead, markNotificationsRead } from "@/app/actions/notifications";
 import { safeAction } from "@/lib/action-failure";
+import { afterNavigation } from "@/lib/router-queue";
 import { toastActionFailure } from "@/lib/action-toast";
 import { useMinuteTick } from "@/lib/use-minute-tick";
 import { useCommentAnchor } from "@/components/comments/comment-anchor-context";
@@ -335,21 +336,25 @@ export function NotificationBell({
 
   const openItem = (item: FeedItem) => {
     const href = safeHref(item.href);
-    if (!item.read) {
-      // Arrived while the popover was open — read it now, then go.
-      setCount((c) => Math.max(0, c - 1));
-      setItems((list) => list.map((i) => (i.id === item.id ? { ...i, read: true } : i)));
-      startTransition(async () => {
-        const res = await safeAction(() => markNotificationRead({ id: item.id }));
-        if (!res.ok) toastActionFailure(res, "Couldn't mark that read.");
-        else announceNotificationsChanged("bell");
-        void load();
-      });
-    }
     onOpenChange(false);
     // A notification without a usable link still marks read — it just has
     // nowhere to send you.
     if (href) router.push(href);
+    if (!item.read) {
+      // Arrived while the popover was open — read it, BEHIND the navigation:
+      // an action still pending when the navigation starts costs the
+      // destination a second render (lib/router-queue.ts).
+      setCount((c) => Math.max(0, c - 1));
+      setItems((list) => list.map((i) => (i.id === item.id ? { ...i, read: true } : i)));
+      afterNavigation(() =>
+        startTransition(async () => {
+          const res = await safeAction(() => markNotificationRead({ id: item.id }));
+          if (!res.ok) toastActionFailure(res, "Couldn't mark that read.");
+          else announceNotificationsChanged("bell");
+          void load();
+        }),
+      );
+    }
   };
 
   const badge = badgeCount(count);

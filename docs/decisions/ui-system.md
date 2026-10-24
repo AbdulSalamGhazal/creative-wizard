@@ -32,11 +32,16 @@
   delete, rename) uses an action that does NOT revalidate, and the navigation
   is the render. A preference write (range, Excluded, toast scope, filters,
   columns) revalidates nothing. Pinned by `app/actions/action-calls.test.ts`.
-- **A write must not be pending when its own navigation starts.** Next 15
+- **An action and a navigation never overlap in the router's queue.** Next 15
   discards a pending action's state and schedules a full `router.refresh()`
-  when a navigation starts behind it (`needsRefresh`). A fire-and-forget
-  write paired with a URL change is sent AFTER the URL write
-  (`lib/pref-sync.ts` defers it a task; `lib/filter-prefs.ts` debounces).
+  when a navigation starts behind it (`needsRefresh`) — the destination
+  renders twice. `lib/router-queue.ts` holds both cures: a caller that
+  navigates after an action does so after `await actionSettled()` (the
+  action's promise resolves a few microtasks BEFORE the router clears it); a
+  fire-and-forget write paired with a navigation goes out behind it with
+  `afterNavigation` (the date picker, the Excluded toggle, opening a
+  notification; `lib/filter-prefs.ts` debounces). Pinned by
+  `app/actions/action-calls.test.ts`.
 - **Every client call to a server action goes through `safeAction`**
   (lib/action-failure.ts) and fails through `toastActionFailure`
   (lib/action-toast.ts) — a row toasts, a form shows it inline (`inline`), and
@@ -327,7 +332,13 @@ as it stood before the restructure.*
   "discard the action, refresh afterwards" (`needsRefresh` in
   app-router-instance.js). The write now goes out a task later, behind the
   navigation, and the pick is one render (server log: one GET, one
-  render-less POST).
+  render-less POST). The same trap, the other way round, surfaced on the
+  production-build walk: create, rename and delete each fetched the
+  destination TWICE (a 13 KB navigation, then a 24 KB whole-tree refresh) —
+  `router.push` on the line after `await` still lands while the router holds
+  the action. Those callers (and sign-in, the campaign forms, the bulk import,
+  the store commit) now `await actionSettled()` first; the bell and the
+  notification centre navigate first and mark read behind it.
 - **The crash.** 51 client callers awaited an action directly. A rejected
   call — a network blink, or (the common case, since `main` deploys several
   times a day) a tab from before the last deploy calling an action id the new

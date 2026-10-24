@@ -17,6 +17,7 @@ import { buildCampaignName, CAMPAIGN_OBJECTIVES } from "@/lib/campaign";
 import { ALL_PLATFORMS, PLATFORM_LABEL } from "@/lib/palette";
 import { createCampaign } from "@/app/actions/campaign";
 import { safeAction } from "@/lib/action-failure";
+import { actionSettled } from "@/lib/router-queue";
 import { toastActionFailure } from "@/lib/action-toast";
 
 /**
@@ -47,7 +48,8 @@ export function CampaignCreateForm() {
       if (res.ok) {
         toast.success(`Campaign registered: ${res.name}`);
         // ONE render: the action doesn't revalidate; this navigation renders
-        // the list fresh (W2-1).
+        // the list fresh (W2-1) — once the router is done with the action.
+        await actionSettled();
         router.push("/campaigns");
       } else {
         toastActionFailure(res, "Could not register the campaign.", { inline: setError });

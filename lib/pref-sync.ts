@@ -6,6 +6,7 @@ import { setIncludeExcludedPref, setPreferredRange } from "@/app/actions/user-pr
 import { safeAction } from "@/lib/action-failure";
 import { isCallFailure, toastActionFailure } from "@/lib/action-toast";
 import { decodePreferredRange, todayIso, type DateRangeValue } from "@/lib/date-presets";
+import { afterNavigation } from "@/lib/router-queue";
 
 /**
  * The two `users`-row preferences a pick writes THROUGH (W2-1, 2026-10): the
@@ -29,17 +30,11 @@ let writtenRange: string | null = null;
 let writtenExcluded: boolean | null = null;
 const refreshed = new Set<string>();
 
-/**
- * Send the write AFTER the control's URL write, never before it. Next 15 runs
- * router work through one queue: a navigation that starts while a server
- * action is still pending DISCARDS the action's state and schedules a full
- * `router.refresh()` once it lands (`needsRefresh`, app-router-instance.js)
- * — measured: one pick cost the navigation plus that refresh. Both controls
- * call this first and navigate on the same tick, so deferring to the next
- * task puts the action BEHIND the navigation in the queue, and the pick is
- * one render.
- */
-const afterNavigation = (send: () => void) => setTimeout(send, 0);
+// The write goes AFTER the control's URL write, never before it
+// (`afterNavigation`, lib/router-queue.ts): an action still pending when the
+// navigation starts costs a second full render once it lands — measured, one
+// pick cost the navigation plus that refresh. Both controls call these and
+// navigate on the same tick, so the action queues behind the navigation.
 
 /** Pure: does a bare page showing `shown` predate the range this tab wrote? */
 export function rangeIsBehind(

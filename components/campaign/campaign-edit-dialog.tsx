@@ -32,6 +32,7 @@ import { InfoTip } from "@/components/ui/info-tip";
 import { ALL_PLATFORMS, PLATFORM_LABEL } from "@/lib/palette";
 import { updateCampaign } from "@/app/actions/campaign";
 import { safeAction } from "@/lib/action-failure";
+import { actionSettled } from "@/lib/router-queue";
 import { toastActionFailure } from "@/lib/action-toast";
 import { useCan } from "@/components/auth/permissions-context";
 
@@ -101,6 +102,7 @@ export function CampaignEditDialog({
         // ONE render (W2-1): a rename follows the new URL (the action skips its
         // revalidation then); otherwise the action's re-render already arrived.
         if (res.name && res.name !== currentName) {
+          await actionSettled();
           router.push(`/campaigns/${encodeURIComponent(res.name)}`);
         }
       } else {

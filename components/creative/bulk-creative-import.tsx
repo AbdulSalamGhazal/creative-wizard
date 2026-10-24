@@ -12,6 +12,7 @@ import {
   type BulkPreview,
 } from "@/app/actions/creative-bulk";
 import { safeAction } from "@/lib/action-failure";
+import { actionSettled } from "@/lib/router-queue";
 import { toastActionFailure } from "@/lib/action-toast";
 
 interface Props {
@@ -62,7 +63,8 @@ export function BulkCreativeImport({ products }: Props) {
       }
       toast.success(`Created ${res.created ?? 0} creatives`);
       // ONE render: the action doesn't revalidate; the navigation renders the
-      // Library fresh (W2-1).
+      // Library fresh (W2-1) — once the router is done with the action.
+      await actionSettled();
       router.push("/library");
     });
   };

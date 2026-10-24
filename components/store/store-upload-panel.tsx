@@ -17,6 +17,7 @@ import {
 } from "@/app/actions/store-upload";
 import { useNavTransition } from "@/lib/nav-progress";
 import { safeAction } from "@/lib/action-failure";
+import { actionSettled } from "@/lib/router-queue";
 import { toastActionFailure } from "@/lib/action-toast";
 
 type Stage =
@@ -95,6 +96,7 @@ export function StoreUploadPanel({
     // ONE render (W2-1): the commit doesn't revalidate, so the navigation —
     // or, for a panel that stays put, the refresh — is the only render.
     if (redirectOnCommit) {
+      await actionSettled();
       startNav(() => router.push(redirectOnCommit));
       return;
     }

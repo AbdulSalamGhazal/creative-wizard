@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { signIn } from "@/app/actions/session";
 import { safeAction } from "@/lib/action-failure";
+import { actionSettled } from "@/lib/router-queue";
 import { toastActionFailure } from "@/lib/action-toast";
 import { safeInternalPath } from "@/lib/url";
 
@@ -34,7 +35,9 @@ export function SignInForm({ nextPath }: { nextPath: string }) {
       // Re-constrain even though the page already sanitized it — the client
       // must not trust a prop that ultimately came from the URL. ONE render:
       // the session cookie the action set already emptied the router cache,
-      // so this navigation renders the target fresh (no refresh after it).
+      // so this navigation renders the target fresh (no refresh after it) —
+      // once the router is done with the action (lib/router-queue.ts).
+      await actionSettled();
       router.replace(safeInternalPath(nextPath));
     });
   };

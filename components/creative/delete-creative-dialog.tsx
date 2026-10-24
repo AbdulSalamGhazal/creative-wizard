@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/dialog";
 import { deleteCreative } from "@/app/actions/creative";
 import { safeAction } from "@/lib/action-failure";
+import { actionSettled } from "@/lib/router-queue";
 import { toastActionFailure } from "@/lib/action-toast";
 import { int } from "@/lib/format";
 import { PLATFORM_LABEL } from "@/lib/palette";
@@ -57,7 +58,9 @@ export function DeleteCreativeDialog({
       );
       setOpen(false);
       // ONE render: the action doesn't revalidate (the page it would re-render
-      // no longer exists); the navigation renders the Library fresh (W2-1).
+      // no longer exists); the navigation renders the Library fresh (W2-1) —
+      // once the router is done with the action.
+      await actionSettled();
       router.push("/library");
     });
   };

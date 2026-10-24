@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/select";
 import { createCreative } from "@/app/actions/creative";
 import { safeAction } from "@/lib/action-failure";
+import { actionSettled } from "@/lib/router-queue";
 import { toastActionFailure } from "@/lib/action-toast";
 import { AngleInput } from "@/components/creative/angle-input";
 import { ThumbnailUpload } from "@/components/creative/thumbnail-upload";
@@ -84,7 +85,9 @@ export function CreativeCreateForm({ products, allAngles }: Props) {
       }
       toast.success(`Created ${res.name}`);
       // ONE render: the action doesn't revalidate; this navigation renders the
-      // new creative's page fresh (W2-1).
+      // new creative's page fresh (W2-1) — once the router is done with the
+      // action (lib/router-queue.ts).
+      await actionSettled();
       router.push(`/library/${encodeURIComponent(res.name!)}`);
     });
   };

@@ -328,3 +328,96 @@ describe("preference writes are write-through, like the remembered filters", () 
     );
   });
 });
+
+describe("a navigation never overtakes an action (lib/router-queue.ts)", () => {
+  // Next runs navigations and server actions through ONE queue; a navigation
+  // that arrives while an action is still in it makes the router fetch the
+  // destination a SECOND time once it lands (`needsRefresh`). Measured on a
+  // production build: create, rename and delete each rendered twice.
+
+  /** [open, close] of every `{ … }` in code-only text. */
+  function blocks(code: string): Array<[number, number]> {
+    const out: Array<[number, number]> = [];
+    const stack: number[] = [];
+    for (let k = 0; k < code.length; k++) {
+      if (code[k] === "{") stack.push(k);
+      else if (code[k] === "}" && stack.length > 0) out.push([stack.pop()!, k]);
+    }
+    return out;
+  }
+
+  /** Start of the innermost FUNCTION body around `at` (an arrow's or a function's). */
+  function functionBodyStart(code: string, spans: Array<[number, number]>, at: number): number | null {
+    const around = spans.filter(([a, b]) => a < at && at < b).sort((x, y) => y[0] - x[0]);
+    for (const [a] of around) {
+      const before = code.slice(Math.max(0, a - 400), a).trimEnd();
+      if (before.endsWith("=>") || /\bfunction\b[^{;]*\)\s*(:[^{;]*)?$/.test(before)) return a;
+    }
+    return null;
+  }
+
+  /** Every router.push/replace that follows an awaited action in its own function. */
+  function navigationsAfterActions(code: string) {
+    const spans = blocks(code);
+    const found: Array<{ at: number; settled: boolean }> = [];
+    for (const m of code.matchAll(/\brouter\.(push|replace)\s*\(/g)) {
+      const at = m.index!;
+      const body = functionBodyStart(code, spans, at);
+      if (body === null) continue;
+      const head = code.slice(body, at);
+      const lastAction = Math.max(
+        ...[...head.matchAll(/\bawait\s+safeAction\s*\(/g)].map((x) => x.index!),
+        -1,
+      );
+      if (lastAction === -1) continue;
+      found.push({ at, settled: /\bawait\s+actionSettled\s*\(\s*\)/.test(head.slice(lastAction)) });
+    }
+    return found;
+  }
+
+  it("the scan finds the navigations it is guarding", () => {
+    const sample = codeOnly(`
+      const a = () => { start(async () => { const r = await safeAction(() => x()); router.push("/a"); }); };
+      const b = () => { start(async () => { const r = await safeAction(() => x()); await actionSettled(); router.push("/b"); }); };
+      const c = () => { router.push("/c"); };
+    `);
+    expect(navigationsAfterActions(sample).map((n) => n.settled)).toEqual([false, true]);
+
+    const guarded = clientFiles.filter((f) => navigationsAfterActions(codeOnly(read(f))).length > 0);
+    expect(guarded).toEqual(
+      expect.arrayContaining([
+        "components/creative/creative-create-form.tsx",
+        "components/creative/creative-detail-header.tsx",
+        "components/creative/delete-creative-dialog.tsx",
+        "components/campaign/delete-campaign-dialog.tsx",
+      ]),
+    );
+  });
+
+  it("a navigation after an awaited action waits for actionSettled()", () => {
+    const offenders: string[] = [];
+    for (const file of clientFiles) {
+      const src = read(file);
+      for (const nav of navigationsAfterActions(codeOnly(src))) {
+        if (!nav.settled) offenders.push(`${file}:${lineOf(src, nav.at)}`);
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
+
+  it.each([
+    ["components/layout/notification-bell.tsx", "openItem"],
+    ["components/notifications/notification-center.tsx", "open"],
+  ])("%s %s navigates first and marks read behind it", (file, fn) => {
+    const code = codeOnly(read(file));
+    const start = code.indexOf(`const ${fn} = (`);
+    expect(start).toBeGreaterThan(-1);
+    const body = code.slice(start, code.indexOf("\n  };", start));
+    const push = body.search(/\brouter\.push\s*\(/);
+    const deferred = body.search(/\bafterNavigation\s*\(/);
+    expect(push).toBeGreaterThan(-1);
+    expect(deferred).toBeGreaterThan(push);
+    // Every mark-read call sits inside the deferred send.
+    expect(body.slice(0, deferred)).not.toMatch(/\bsafeAction\s*\(/);
+  });
+});

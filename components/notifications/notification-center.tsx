@@ -31,6 +31,7 @@ import {
 } from "@/lib/notifications";
 import { NotificationAvatar } from "@/components/notifications/notification-avatar";
 import { safeAction } from "@/lib/action-failure";
+import { afterNavigation } from "@/lib/router-queue";
 import { toastActionFailure } from "@/lib/action-toast";
 import {
   archiveAllRead,
@@ -136,18 +137,23 @@ export function NotificationCenter({
 
   const open = (row: NotificationRow) => {
     const href = safeHref(row.href);
-    if (row.readAt === null) {
-      startTransition(async () => {
-        const res = await safeAction(() => markNotificationRead({ id: row.id }));
-        if (!res.ok) {
-          toastActionFailure(res, "Couldn't mark that read.");
-          return;
-        }
-        router.refresh();
-        announceNotificationsChanged("center");
-      });
-    }
     if (href) router.push(href);
+    if (row.readAt === null) {
+      // Read it BEHIND the navigation: an action still pending when the
+      // navigation starts costs the destination a second render
+      // (lib/router-queue.ts). Leaving, there's no list to refresh.
+      afterNavigation(() =>
+        startTransition(async () => {
+          const res = await safeAction(() => markNotificationRead({ id: row.id }));
+          if (!res.ok) {
+            toastActionFailure(res, "Couldn't mark that read.");
+            return;
+          }
+          if (!href) router.refresh();
+          announceNotificationsChanged("center");
+        }),
+      );
+    }
   };
 
   /** Day groups, with consecutive same-anchor runs collapsed. Pure helper. */
