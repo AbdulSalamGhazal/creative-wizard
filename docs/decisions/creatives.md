@@ -68,7 +68,9 @@ as it stood before the restructure.*
   real default state — never a numeric 0, never auto-set). Field/validator/label
   are all `priority` (`prioritySchema` in `validators/creative.ts`); it's edited
   inline on the detail header (3 lucide `Star` icons, warn-amber fill) via the
-  normal draft/Save flow. Migration 0028 (additive, no index).
+  normal draft/Save flow. Migration 0028 (additive, no index — superseded:
+  since it is sorted and filtered, migration 0061 indexes `(account_id,
+  priority)`, W3-8).
   **SUPERSEDED 2026-09 — Priority is now VISIBLE, SORTABLE and FILTERABLE.** The
   old "detail page only, no list/summary/CSV/filter" scope was reversed by the
   user. It now appears on **Library** (a column of filled stars, sortable, a

@@ -374,8 +374,9 @@ export const creatives = pgTable(
      * performance. 1..3 (3 = highest), shown as a 1..3 icon control on the
      * detail page. NULL = unrated (the default; never a numeric 0, never
      * auto-set). Distinct from the computed performance "Rate" concept
-     * (rating_rules / lib/rating.ts) — never conflate the two. Detail-page only
-     * for now (not filtered/sorted → no index).
+     * (rating_rules / lib/rating.ts) — never conflate the two. Filtered and
+     * sorted on the Library and Ads since 2026-09, so indexed with the
+     * account (`creatives_account_priority_idx`, W3-8).
      */
     priority: smallint("priority"),
     /**
@@ -415,8 +416,13 @@ export const creatives = pgTable(
   },
   (t) => ({
     productIdx: index("creatives_product_idx").on(t.productId),
-    statusIdx: index("creatives_status_idx").on(t.status),
+    // `creatives_status_idx` was DROPPED (W3-8, migration 0061): `status` is
+    // a dead column (creative-status.md) — nothing filters or sorts on it.
     typeIdx: index("creatives_type_idx").on(t.type),
+    // The Library/Ads priority filter + sort, and the Launches date filter
+    // (CLAUDE.md: every filtered/sorted column is indexed; W3-8).
+    accountPriorityIdx: index("creatives_account_priority_idx").on(t.accountId, t.priority),
+    accountLaunchIdx: index("creatives_account_launch_date_idx").on(t.accountId, t.launchDate),
     accountNameIdx: uniqueIndex("creatives_account_name_idx").on(t.accountId, t.name),
     // Filtered by OVERLAP (`&&`), which a b-tree can't serve.
     stagesIdx: index("creatives_stages_idx").using("gin", t.stages),
@@ -451,6 +457,11 @@ export const campaigns = pgTable(
     accountPlatformIdx: index("campaigns_account_platform_idx").on(
       t.accountId,
       t.platform,
+    ),
+    // The Campaigns objective filter and the objective exclusion rules (W3-8).
+    accountObjectiveIdx: index("campaigns_account_objective_idx").on(
+      t.accountId,
+      t.objective,
     ),
   }),
 );

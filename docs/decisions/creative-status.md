@@ -9,7 +9,8 @@
 ## Invariants
 
 - **Status is DYNAMIC (spend-derived), never a stored field.**
-  `creatives.status` is a dead column; don't reintroduce reads.
+  `creatives.status` is a dead column; don't reintroduce reads (its index,
+  `creatives_status_idx`, was dropped in migration 0061).
 - Per-platform status anchors to **each platform's OWN latest spend day**,
   never a global "today". General status is a roll-up.
 - Campaign status is the same rule, 2-state, with NO override and NO schema.
