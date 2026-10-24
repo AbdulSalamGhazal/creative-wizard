@@ -12,12 +12,14 @@ import { Skeleton } from "@/components/ui/skeleton";
 export function MetricCardSkeleton({ bars = 3 }: { bars?: number }) {
   return (
     <div className="min-w-0 rounded-xl border border-line bg-surface p-4 flex flex-col gap-3.5">
+      {/* Heights measured against the real tile (176px with three bars at
+          1280px): the label row is 17px, the display-size value 41px. */}
       <div>
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex h-[17px] items-center justify-between gap-2">
           <Skeleton className="h-3.5 w-20" />
           <Skeleton className="h-4 w-12 rounded-full" />
         </div>
-        <Skeleton className="mt-2 h-7 w-24" />
+        <Skeleton className="mt-2 h-[41px] w-24" />
       </div>
       <ul className="space-y-1.5">
         {Array.from({ length: bars }).map((_, i) => (
@@ -63,29 +65,34 @@ function CardSkeleton({ body, title = "w-32" }: { body: string; title?: string }
 /**
  * The overview, section by section: the over-time chart, the three mixes,
  * movers + funnel rates, the status flow, rating mix + correlation, and the
- * top-creatives table — each at the height it renders at.
+ * top-creatives table — each at the height it renders at. Body heights were
+ * measured against the real sections at 1280px (368 · 296 · 425 · 557 · 576 ·
+ * 370px) and at 375px, where the cards stack (470 · 288/273/296 · 221/425 ·
+ * 665 · 273/417 · 379px); the real ones vary a little with the data, the
+ * skeleton doesn't. The tiles above are exact, which is what keeps the page
+ * from jumping when the overview lands below them.
  */
 export function OverviewSectionSkeleton() {
   return (
     <section className="space-y-4" aria-hidden>
-      <CardSkeleton body="h-[19rem]" title="w-44" />
+      <CardSkeleton body="h-[404px] lg:h-[302px]" title="w-44" />
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <CardSkeleton body="h-56" title="w-24" />
-        <CardSkeleton body="h-56" title="w-24" />
-        <CardSkeleton body="h-56" title="w-28" />
+        <CardSkeleton body="h-[222px] lg:h-[230px]" title="w-24" />
+        <CardSkeleton body="h-[207px] lg:h-[230px]" title="w-24" />
+        <CardSkeleton body="h-[230px]" title="w-28" />
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <CardSkeleton body="h-64" title="w-28" />
-        <CardSkeleton body="h-64" title="w-28" />
+        <CardSkeleton body="h-[155px] lg:h-[359px]" title="w-28" />
+        <CardSkeleton body="h-[359px]" title="w-28" />
       </div>
-      <CardSkeleton body="h-48" title="w-24" />
+      <CardSkeleton body="h-[599px] lg:h-[491px]" title="w-24" />
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <CardSkeleton body="h-64" title="w-24" />
-        <CardSkeleton body="h-64" title="w-36" />
+        <CardSkeleton body="h-[207px] lg:h-[510px]" title="w-24" />
+        <CardSkeleton body="h-[351px] lg:h-[510px]" title="w-36" />
       </div>
       <div className="rounded-lg border border-line bg-surface p-4 space-y-3">
         <Skeleton className="h-4 w-40" />
-        {Array.from({ length: 6 }).map((_, i) => (
+        {Array.from({ length: 8 }).map((_, i) => (
           <Skeleton key={i} className="h-7 w-full" />
         ))}
       </div>

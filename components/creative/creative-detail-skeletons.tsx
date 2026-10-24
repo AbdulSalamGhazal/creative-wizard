@@ -12,7 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 /** The pager row. The Back link is real — it works while the sequence loads. */
 export function PagerSkeleton({ backHref }: { backHref?: string }) {
   return (
-    <div className="flex items-center justify-between gap-3">
+    <div className="flex h-[34px] items-center justify-between gap-3">
       {backHref ? (
         <Link
           href={backHref}
@@ -24,7 +24,7 @@ export function PagerSkeleton({ backHref }: { backHref?: string }) {
       ) : (
         <Skeleton className="h-4 w-28" />
       )}
-      <Skeleton className="h-8 w-[8.5rem] rounded-md" />
+      <Skeleton className="h-[34px] w-[8.5rem] rounded-md" />
     </div>
   );
 }
@@ -34,17 +34,21 @@ function TileSkeleton() {
   return (
     <div className="min-w-0 rounded-xl border border-line bg-surface p-4 flex flex-col gap-3.5">
       <div>
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex h-[17px] items-center justify-between gap-2">
           <Skeleton className="h-3.5 w-20" />
           <Skeleton className="h-4 w-12 rounded-full" />
         </div>
-        <Skeleton className="mt-2 h-7 w-24" />
+        <Skeleton className="mt-2 h-[41px] w-24" />
       </div>
     </div>
   );
 }
 
-/** Inside the Analytics card: five tiles, the over-time chart, the campaigns table. */
+/**
+ * Inside the Analytics card: five tiles, the over-time chart, the campaigns
+ * table. Heights measured against the real sections (tiles 100px; chart 364px
+ * at 1280px, 496px at 375px; campaigns 228 / 213px).
+ */
 export function AnalyticsBodySkeleton() {
   return (
     <>
@@ -55,11 +59,11 @@ export function AnalyticsBodySkeleton() {
       </div>
       <div className="rounded-lg border border-line bg-surface p-4 space-y-3">
         <Skeleton className="h-4 w-44" />
-        <Skeleton className="h-64 w-full" />
+        <Skeleton className="h-[434px] lg:h-[302px] w-full" />
       </div>
       <div>
         <Skeleton className="h-4 w-24 mb-3" />
-        <div className="rounded-lg border border-line bg-surface overflow-hidden">
+        <div className="h-[185px] lg:h-[200px] rounded-lg border border-line bg-surface overflow-hidden">
           <div className="h-9 border-b border-line bg-surface-2/40" />
           {Array.from({ length: 3 }).map((_, i) => (
             <div key={i} className="px-3 py-2.5 border-b border-line last:border-b-0">
@@ -86,7 +90,7 @@ export function RecordsActivitySkeleton() {
           <Skeleton className="h-3 w-40" />
         </div>
         <div className="space-y-1">
-          {Array.from({ length: 3 }).map((_, i) => (
+          {Array.from({ length: 2 }).map((_, i) => (
             <Skeleton key={i} className="h-9 w-full" />
           ))}
         </div>
