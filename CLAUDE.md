@@ -413,6 +413,7 @@ this map is still a rule you broke.
 - Every tenant read injects `account_id`; every write stamps it.
 - Membership says WHERE, permissions say WHAT; the server is the gate.
 - Re-validate a caller-supplied FK against the active account before writing.
+- Below admin, `users.manage` works within the manager's own access — one guard, `teamGuard`.
 
 → **`docs/decisions/tenancy-auth.md`**
 
