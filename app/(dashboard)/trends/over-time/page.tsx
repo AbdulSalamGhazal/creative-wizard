@@ -177,7 +177,10 @@ export default async function TrendsOverTimePage({
         title="Changes"
         info="Ranked worst-first vs the prior window of equal length. Tiny spenders never trigger warnings."
         rightSlot={
-          <Badge variant="outline" className="text-ink-3">
+          <Badge
+            variant="outline"
+            className="h-auto max-w-full whitespace-normal rounded-md text-left text-ink-3"
+          >
             {from} → {to} · vs {breakdown.prevRange.from} →{" "}
             {breakdown.prevRange.to}
           </Badge>

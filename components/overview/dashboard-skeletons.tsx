@@ -11,11 +11,13 @@ import { Skeleton } from "@/components/ui/skeleton";
 /** One KPI tile: label row, headline, and the per-platform breakdown bars. */
 export function MetricCardSkeleton({ bars = 3 }: { bars?: number }) {
   return (
-    <div className="min-w-0 rounded-xl border border-line bg-surface p-4 flex flex-col gap-3.5">
+    <div className="@container min-w-0 rounded-xl border border-line bg-surface p-4 flex flex-col gap-3.5">
       {/* Heights measured against the real tile (176px with three bars at
-          1280px): the label row is 17px, the display-size value 41px. */}
+          1280px): the label row is 17px, the display-size value 41px. A
+          narrow (phone) tile stacks the chip under the label, as the real
+          one does (W3). */}
       <div>
-        <div className="flex h-[17px] items-center justify-between gap-2">
+        <div className="flex h-[17px] items-center justify-between gap-2 @max-[12rem]:h-auto @max-[12rem]:flex-col @max-[12rem]:items-start @max-[12rem]:gap-1">
           <Skeleton className="h-3.5 w-20" />
           <Skeleton className="h-4 w-12 rounded-full" />
         </div>

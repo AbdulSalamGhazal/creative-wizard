@@ -53,6 +53,17 @@
   (`buttons={false}`). Pinned by `components/ui/empty-state.test.ts`.
 - A horizontal scroll box that holds `sr-only` text is `relative`, or the
   label escapes it and widens the page at 375px.
+- **Nothing in normal flow may be wider than a 375px frame (W3, 2026-10).**
+  A `Badge` carrying a SENTENCE (the Dashboard's summary chip, a Trends
+  range) wraps — `h-auto max-w-full whitespace-normal` — because the
+  primitive is `whitespace-nowrap shrink-0` for one-word chips; a KPI tile's
+  header (label + delta + "New") stacks inside a narrow tile through its
+  `@container` (`@max-[12rem]:flex-col`), skeleton too; a responsive
+  `Sparkline`'s "no data" dash is `width: 100%`, not its logical width; the
+  date popover is one month below `sm` (`collisionPadding`, viewport-capped
+  width). On a phone one overflow widens the layout viewport, so
+  `position: fixed` surfaces (the filter sheet) grow with it and look broken
+  themselves — measure `scrollWidth` before blaming the fixed element.
 - To reveal an item inside a scroll box, set THAT box's `scrollLeft`/
   `scrollTop` — never `scrollIntoView`, which scrolls the window too.
 - A person's picture is `UserAvatar` (components/user/user-avatar.tsx) —

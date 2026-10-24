@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useSyncExternalStore } from "react";
 import type { DateRange } from "react-day-picker";
 import { CalendarDays, Check, ChevronDown } from "lucide-react";
 import {
@@ -33,6 +33,14 @@ import { rememberRange, useRangeCatchUp } from "@/lib/pref-sync";
  * go through lib/date-presets so the picked day never shifts across the UTC
  * boundary.
  */
+const WIDE_QUERY = "(min-width: 640px)";
+function subscribeWide(cb: () => void): () => void {
+  const mq = window.matchMedia(WIDE_QUERY);
+  mq.addEventListener("change", cb);
+  return () => mq.removeEventListener("change", cb);
+}
+const readWide = (): boolean => window.matchMedia(WIDE_QUERY).matches;
+
 export function DateRangePicker({
   from,
   to,
@@ -63,6 +71,8 @@ export function DateRangePicker({
   hidePresets?: readonly string[];
 }) {
   const [open, setOpen] = useState(false);
+  // Two months side by side from `sm` up; one on a phone (W3, 375px).
+  const wide = useSyncExternalStore(subscribeWide, readWide, () => true);
 
   // Persist the pick as the user's default — WRITE-THROUGH (W2-1, 2026-10):
   // the parent's URL write is the one render; the saved default is for the
@@ -151,14 +161,21 @@ export function DateRangePicker({
           <ChevronDown className="w-3 h-3 text-ink-3 shrink-0" />
         </button>
       </PopoverTrigger>
-      <PopoverContent align="start" className="p-0 w-auto">
-        <div className="flex">
+      {/* On a phone the presets + two months were ~434px in a 375px frame and
+          Saturday was cut off (W3): below `sm` the presets stack over ONE
+          month, and the popover never outgrows the viewport. */}
+      <PopoverContent
+        align="start"
+        collisionPadding={8}
+        className="p-0 w-auto max-w-[calc(100vw-1rem)]"
+      >
+        <div className="flex flex-col sm:flex-row">
           {/* Quick ranges */}
-          <div className="w-40 p-1 border-r border-line shrink-0">
+          <div className="w-full sm:w-40 p-1 border-b sm:border-b-0 sm:border-r border-line shrink-0">
             <div className="px-2 py-1.5 text-label text-ink-3">
               Quick ranges
             </div>
-            <div className="space-y-0.5">
+            <div className="grid grid-cols-2 gap-0.5 sm:block sm:space-y-0.5">
               {DATE_PRESETS.filter((p) => !hidePresets?.includes(p.key)).map((p) => (
                 <button
                   key={p.key}
@@ -188,7 +205,7 @@ export function DateRangePicker({
           <div className="p-3">
             <Calendar
               mode="range"
-              numberOfMonths={2}
+              numberOfMonths={wide ? 2 : 1}
               defaultMonth={pending?.from ?? initial?.from ?? new Date()}
               selected={pending}
               onSelect={onCalendarSelect}

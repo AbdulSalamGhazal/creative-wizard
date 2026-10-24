@@ -81,8 +81,11 @@ export default async function DashboardPage({
   const singlePlatform = parsed.platforms.length === 1 ? parsed.platforms[0] : null;
   const dimension = singlePlatform ? "campaign" : "platform";
 
+  // The platforms' NAMES, never the stored keys ("instagram") — copy rule.
   const platformsBadge =
-    parsed.platforms.length > 0 ? parsed.platforms.join(", ") : "all platforms";
+    parsed.platforms.length > 0
+      ? parsed.platforms.map((p) => PLATFORM_LABEL[p]).join(", ")
+      : "all platforms";
 
   // ONE KPI fetch for the tiles AND the funnel card (W2-3) — started here,
   // awaited by both sections.
@@ -104,7 +107,11 @@ export default async function DashboardPage({
       <PageHeader
         title="Dashboard"
         rightSlot={
-          <Badge variant="outline" className="text-ink-3">
+          // Wraps on a phone: on one line it ran ~11px past a 375px frame.
+          <Badge
+            variant="outline"
+            className="h-auto max-w-full whitespace-normal rounded-md text-left text-ink-3"
+          >
             {from} → {to} · {platformsBadge} ·{" "}
             {includeExcluded ? "excluded shown" : "excluded hidden"}
           </Badge>

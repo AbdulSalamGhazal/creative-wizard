@@ -78,7 +78,12 @@ export function MetricCard({
     <div className="@container min-w-0 rounded-xl border border-line bg-surface p-4 flex flex-col gap-3.5">
       {/* Headline */}
       <div>
-        <div className="flex items-center justify-between gap-2">
+        {/* In a phone's two-column grid the header is ~124px, and
+            "CONVERSIONS" (~119px) beside any delta chip ran the chip out of
+            the tile and the page sideways (W3, 375px). A narrow tile stacks
+            the chip under the label — EVERY narrow tile, so the values in a
+            row stay level; a wider one keeps them side by side. */}
+        <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 @max-[12rem]:flex-col @max-[12rem]:items-start">
           <div className="flex items-center gap-1.5 text-label text-ink-3">
             <Icon className="h-3.5 w-3.5" />
             <span>{label}</span>
