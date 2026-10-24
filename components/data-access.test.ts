@@ -32,7 +32,30 @@ function walk(dir: string, out: string[] = []): string[] {
 }
 
 /** A real import of the client or the query builder — not a mention. */
-const DB_IMPORT = /^import .*from "(@\/lib\/db|drizzle-orm)"/m;
+const DB_IMPORT = /^import [^;]*?from "(@\/lib\/db|drizzle-orm)"/m;
+
+describe("pages and layouts do not reach past the query layer", () => {
+  // W3-8 (2026-10): the guard walked components/ only, while the rule names
+  // PAGES — and four of them (the dashboard layout's ⌘K list, Upload ads'
+  // batches and cleanup pickers, Configuration's rule pickers, the Team
+  // page's members) queried inline, the same creative-options read written
+  // three times with three column names.
+  const routeFiles = walk(path.join(ROOT, "app")).filter((f) =>
+    /(^|\/)(page|layout|template|loading|not-found|default)\.tsx$/.test(f),
+  );
+
+  it("no page or layout imports the db client or drizzle — no exceptions", () => {
+    const rogue = routeFiles.filter((f) =>
+      DB_IMPORT.test(readFileSync(path.join(ROOT, f), "utf8")),
+    );
+    expect(rogue, "move the read into db/queries/* and call it from the page").toEqual([]);
+  });
+
+  it("the walk really covers the routes", () => {
+    expect(routeFiles).toContain("app/(dashboard)/layout.tsx");
+    expect(routeFiles).toContain("app/(dashboard)/uploads/page.tsx");
+  });
+});
 
 describe("components do not reach past the query layer", () => {
   const files = walk(path.join(ROOT, "components"));

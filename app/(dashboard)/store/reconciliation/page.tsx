@@ -1,7 +1,7 @@
 import { auth, can } from "@/lib/auth";
 import { PageShell } from "@/components/layout/page-shell";
 import { PageHeader } from "@/components/layout/page-header";
-import { platformEnum } from "@/db/schema";
+import { platformEnum } from "@/lib/enums";
 import { reconciliationFiltersSchema } from "@/validators/store";
 import {
   reconciliationOverview,

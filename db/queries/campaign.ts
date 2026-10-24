@@ -147,6 +147,17 @@ export interface CampaignRegistry {
   objective: string;
 }
 
+/** Every registered campaign of the active brand as a picker option, by name
+ *  (the exclusion rules' campaign picker; W3-8 moved it out of the page). */
+export async function listCampaignOptions(): Promise<Array<{ id: string; name: string }>> {
+  const acct = await getActiveAccountId();
+  return db
+    .select({ id: campaigns.id, name: campaigns.name })
+    .from(campaigns)
+    .where(eq(campaigns.accountId, acct))
+    .orderBy(asc(campaigns.name));
+}
+
 /**
  * The registry row (id + platform + objective) behind a stored campaign name,
  * account-scoped. Powers the edit dialog (campaignMeta exposes the name +

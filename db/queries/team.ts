@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { userAccounts, users } from "@/db/schema";
 import type { SessionUser } from "@/lib/auth";
@@ -59,3 +59,38 @@ export async function memberAccess(
     accountIds: row.allAccounts ? [] : await membershipIds(userId),
   };
 }
+
+/**
+ * Every user, by name, with their brand memberships (the Team page; W3-8
+ * moved it out of the page). Two reads, grouped in JS.
+ */
+export async function listTeamWithMemberships() {
+  const [team, memberships] = await Promise.all([
+    db
+      .select({
+        id: users.id,
+        email: users.email,
+        name: users.name,
+        role: users.role,
+        permissions: users.permissions,
+        allAccounts: users.allAccounts,
+        avatarUrl: users.avatarUrl,
+        createdAt: users.createdAt,
+      })
+      .from(users)
+      .orderBy(asc(users.name)),
+    db
+      .select({ userId: userAccounts.userId, accountId: userAccounts.accountId })
+      .from(userAccounts),
+  ]);
+  const byUser = new Map<string, string[]>();
+  for (const m of memberships) {
+    const arr = byUser.get(m.userId);
+    if (arr) arr.push(m.accountId);
+    else byUser.set(m.userId, [m.accountId]);
+  }
+  return team.map((u) => ({ ...u, accountIds: byUser.get(u.id) ?? [] }));
+}
+
+/** One member of the Team page, with every brand they belong to. */
+export type TeamMemberRow = Awaited<ReturnType<typeof listTeamWithMemberships>>[number];

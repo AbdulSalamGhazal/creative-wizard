@@ -488,20 +488,24 @@ export interface CreativeOption {
 }
 
 /**
- * The ⌘K palette's creative list for the active brand (D13, 2026-10): fetched
- * by `GET /api/palette` when the palette is first opened (or the browser goes
- * idle), instead of riding along in the dashboard layout's every render. Capped
- * at 500 names — more than the team's catalog — so the payload stays bounded.
+ * Every creative of the active brand as a picker option (id, name, product),
+ * by name — the ONE creative-options read (W3-8: the ⌘K list, the cleanup
+ * tool's and the exclusion rules' pickers each used to write it inline).
+ * The ⌘K palette fetches it through `GET /api/palette` when first opened (D13)
+ * and passes `limit` (500, more than the team's catalog) so its payload stays
+ * bounded; a picker that must offer every creative passes none.
  */
-export async function listCreativeOptions(): Promise<CreativeOption[]> {
+export async function listCreativeOptions(
+  opts: { limit?: number } = {},
+): Promise<CreativeOption[]> {
   const acct = await getActiveAccountId();
-  return db
+  const q = db
     .select({ id: creatives.id, name: creatives.name, productName: products.name })
     .from(creatives)
     .innerJoin(products, eq(products.id, creatives.productId))
     .where(eq(creatives.accountId, acct))
-    .orderBy(asc(creatives.name))
-    .limit(500);
+    .orderBy(asc(creatives.name));
+  return opts.limit === undefined ? q : q.limit(opts.limit);
 }
 
 export const getCreativeByName = cache(async (

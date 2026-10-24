@@ -1,9 +1,6 @@
 import Link from "next/link";
 import { Plus, Upload as UploadIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { asc, desc, eq } from "drizzle-orm";
-import { db } from "@/lib/db";
-import { creatives, products, uploadBatches, users } from "@/db/schema";
 import { isoDate, int } from "@/lib/format";
 import { PLATFORM_LABEL } from "@/lib/palette";
 import { auth, can } from "@/lib/auth";
@@ -11,6 +8,9 @@ import { getActiveAccountId } from "@/lib/tenant";
 import { RollbackButton } from "@/components/upload/rollback-button";
 import { CleanupTool } from "@/components/cleanup/cleanup-tool";
 import { listAccountCampaigns } from "@/db/queries/cleanup";
+import { listCreativeOptions } from "@/db/queries/creatives";
+import { listAllProductOptions } from "@/db/queries/products";
+import { listUploadBatches } from "@/db/queries/uploads";
 import { batchRowsUpdatedSince } from "@/db/queries/performance";
 import { PageShell } from "@/components/layout/page-shell";
 import { PageHeader } from "@/components/layout/page-header";
@@ -68,21 +68,7 @@ export default async function UploadsPage({
   }
 
   const acct = await getActiveAccountId();
-  const rows = await db
-    .select({
-      id: uploadBatches.id,
-      platform: uploadBatches.platform,
-      fileName: uploadBatches.fileName,
-      uploadedAt: uploadBatches.uploadedAt,
-      rowsImported: uploadBatches.rowsImported,
-      status: uploadBatches.status,
-      uploaderName: users.name,
-    })
-    .from(uploadBatches)
-    .innerJoin(users, eq(users.id, uploadBatches.uploadedByUserId))
-    .where(eq(uploadBatches.accountId, acct))
-    .orderBy(desc(uploadBatches.uploadedAt))
-    .limit(50);
+  const { rows } = await listUploadBatches(50);
 
   // How many of each rollback-eligible batch's rows a LATER upload has revised.
   // Only batches still inside the window can be rolled back, so only those are
@@ -107,21 +93,8 @@ export default async function UploadsPage({
   // Filter options for the cleanup tool (fetched for editors + admins).
   const [cleanupProducts, cleanupCreatives, cleanupCampaigns] = canCleanup
     ? await Promise.all([
-        db
-          .select({ id: products.id, name: products.name })
-          .from(products)
-          .where(eq(products.accountId, acct))
-          .orderBy(asc(products.name)),
-        db
-          .select({
-            id: creatives.id,
-            name: creatives.name,
-            productName: products.name,
-          })
-          .from(creatives)
-          .innerJoin(products, eq(products.id, creatives.productId))
-          .where(eq(creatives.accountId, acct))
-          .orderBy(asc(creatives.name)),
+        listAllProductOptions(),
+        listCreativeOptions(),
         listAccountCampaigns(),
       ])
     : [[], [], []];

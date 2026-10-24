@@ -13,9 +13,8 @@ import { ExclusionRulesAdmin } from "@/components/exclusions/exclusion-rules-adm
 import { NotificationRoutesAdmin } from "@/components/notifications/notification-routes-admin";
 import { brandMembers, routeRecipients } from "@/db/queries/notifications";
 import { listExclusionRules } from "@/db/queries/exclusion-rules";
-import { asc, eq } from "drizzle-orm";
-import { db } from "@/lib/db";
-import { campaigns, creatives, products } from "@/db/schema";
+import { listCampaignOptions } from "@/db/queries/campaign";
+import { listCreativeOptions } from "@/db/queries/creatives";
 
 export const dynamic = "force-dynamic";
 
@@ -119,26 +118,16 @@ export default async function CatalogAdminPage({ searchParams }: Props) {
  * with live counts plus the campaign/creative pickers for the add-rule flow.
  */
 async function ExclusionsTab() {
-  const acct = await getActiveAccountId();
   const [rules, ruleCampaigns, ruleCreatives] = await Promise.all([
     listExclusionRules(),
-    db
-      .select({ id: campaigns.id, name: campaigns.name })
-      .from(campaigns)
-      .where(eq(campaigns.accountId, acct))
-      .orderBy(asc(campaigns.name)),
-    db
-      .select({ id: creatives.id, name: creatives.name, hint: products.name })
-      .from(creatives)
-      .innerJoin(products, eq(products.id, creatives.productId))
-      .where(eq(creatives.accountId, acct))
-      .orderBy(asc(creatives.name)),
+    listCampaignOptions(),
+    listCreativeOptions(),
   ]);
   return (
     <ExclusionRulesAdmin
       rules={rules}
       campaigns={ruleCampaigns}
-      creatives={ruleCreatives}
+      creatives={ruleCreatives.map((c) => ({ id: c.id, name: c.name, hint: c.productName }))}
     />
   );
 }

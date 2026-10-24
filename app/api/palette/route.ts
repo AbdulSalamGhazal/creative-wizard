@@ -18,6 +18,6 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   const user = await auth();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const creatives = await listCreativeOptions();
+  const creatives = await listCreativeOptions({ limit: 500 });
   return NextResponse.json({ creatives }, { headers: { "Cache-Control": "no-store" } });
 }

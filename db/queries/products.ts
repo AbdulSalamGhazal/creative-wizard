@@ -16,6 +16,22 @@ export async function listProducts(): Promise<
 }
 
 /**
+ * EVERY product of the active brand, archived ones included — for a picker
+ * that filters existing records (the cleanup tool), where an archived
+ * product's records are still there to find.
+ */
+export async function listAllProductOptions(): Promise<
+  Array<{ id: string; name: string }>
+> {
+  const acct = await getActiveAccountId();
+  return db
+    .select({ id: products.id, name: products.name })
+    .from(products)
+    .where(eq(products.accountId, acct))
+    .orderBy(asc(products.name));
+}
+
+/**
  * Creative count per product for the Catalog admin table. Lives in the query
  * layer (not app/actions) on purpose: it used to be an export of a
  * `"use server"` module, which made it a publicly invokable endpoint with no

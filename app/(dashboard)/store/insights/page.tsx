@@ -9,7 +9,7 @@ import { storeInsightsFiltersSchema } from "@/validators/store";
 import { resolveFilterPrefs, resolvePreferredRange } from "@/db/queries/user-prefs";
 import { defaultDateRange } from "@/lib/date-presets";
 import { insightDimensions, resolveDimension } from "@/lib/store-insights";
-import { platformEnum } from "@/db/schema";
+import { platformEnum } from "@/lib/enums";
 import { CHANNEL_DESTINATIONS, UNMAPPED_CHANNEL } from "@/store/channels";
 import { UNATTRIBUTED } from "@/store/sources";
 import { StoreInsightsView } from "@/components/store/store-insights-view";
