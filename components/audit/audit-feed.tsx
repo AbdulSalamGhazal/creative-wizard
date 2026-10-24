@@ -24,6 +24,8 @@ import {
   type AuditEntityType,
 } from "@/lib/audit";
 import type { AuditFeedRow } from "@/db/queries/audit";
+import { UserAvatar } from "@/components/user/user-avatar";
+import { EmptyState } from "@/components/ui/empty-state";
 import { relativeTime, roas, usd0 } from "@/lib/format";
 import { PLATFORM_LABEL } from "@/lib/palette";
 
@@ -70,6 +72,8 @@ interface Props {
   rows: AuditFeedRow[];
   /** When true (per-creative tab), suppress the actor's email/role chip. */
   compact?: boolean;
+  /** A category filter is on — the empty state then offers to clear it. */
+  filtered?: boolean;
 }
 
 function entityHref(row: AuditFeedRow): string | null {
@@ -345,17 +349,13 @@ function metaSummary(row: AuditFeedRow): string | null {
   }
 }
 
-function initials(name: string | null | undefined, email: string | null | undefined): string {
-  const src = (name?.trim() || email?.trim() || "?").split(/[\s@]+/).slice(0, 2);
-  return src.map((p) => p[0]?.toUpperCase() ?? "").join("") || "?";
-}
-
-export function AuditFeed({ rows, compact = false }: Props) {
+export function AuditFeed({ rows, compact = false, filtered = false }: Props) {
   if (rows.length === 0) {
-    return (
-      <div className="rounded-lg border border-dashed border-line bg-surface px-6 py-12 text-center">
-        <p className="text-ink-2 text-sm">No activity yet.</p>
-      </div>
+    // Filtered to one category: say so, and offer the bar's own Clear (D24).
+    return filtered ? (
+      <EmptyState title="No activity in this category." kind="filters" />
+    ) : (
+      <EmptyState title="No activity yet." />
     );
   }
 
@@ -368,12 +368,13 @@ export function AuditFeed({ rows, compact = false }: Props) {
 
         const actorBlock = compact ? null : row.actor ? (
           <div className="flex items-center gap-2 shrink-0">
-            <div
-              className="w-6 h-6 rounded-full bg-surface-2 border border-line text-[10px] flex items-center justify-center text-ink-2"
-              aria-hidden
-            >
-              {initials(row.actor.name, row.actor.email)}
-            </div>
+            {/* THE avatar (W3-4): photo, else the house initials + colour —
+                the log had its own two-letter circle with no photo. */}
+            <UserAvatar
+              name={row.actor.name || row.actor.email}
+              src={row.actor.avatarUrl}
+              size="sm"
+            />
             <div className="leading-tight">
               <div className="text-xs text-ink">{row.actor.name || row.actor.email}</div>
               <div className="text-[10px] text-ink-3 font-mono">{row.actor.email}</div>

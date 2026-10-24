@@ -1,6 +1,7 @@
 import {
   Activity,
   AtSign,
+  Boxes,
   Bell,
   Clock,
   Flag,
@@ -43,6 +44,8 @@ export const FILTER_KEY_ICONS: Readonly<Record<string, LucideIcon>> = {
   objectives: Target,
   rate: Gauge,
   channels: Globe,
+  // The Audit log's one filter: what kind of thing an event touched.
+  category: Boxes,
 };
 
 /** A def's icon: its own if it declared one, else the one its KEY implies. */

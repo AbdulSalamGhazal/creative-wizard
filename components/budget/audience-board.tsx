@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { usePathname, useRouter } from "next/navigation";
 import { History, Plus } from "lucide-react";
 import {
   Bar,
@@ -24,11 +23,12 @@ import { DataTable, type DataColumn } from "@/components/ui/data-table";
 import { useTableColumns } from "@/components/ui/use-table-columns";
 import { TABLE_KEYS } from "@/lib/table-columns";
 import { DateRangePicker } from "@/components/filters/date-range-picker";
+import { FilterShell } from "@/components/filters/filter-shell";
+import { useFilterParams } from "@/components/filters/use-filter-params";
 import { PlatformDot } from "@/components/ui/platform-dot";
 import { ALL_PLATFORMS, PLATFORM_COLOR, PLATFORM_LABEL } from "@/lib/palette";
 import { int, intCompact, monthDay, usd, usdCompact } from "@/lib/format";
 import { isoDaysBetween, latestCoverage, type PlatformCoverage } from "@/lib/budget";
-import { useNavTransition } from "@/lib/nav-progress";
 import { cn } from "@/lib/utils";
 import {
   FUNNEL_STAGES,
@@ -109,9 +109,8 @@ export function AudienceBoard({
   coverage: PlatformCoverage;
   canManage: boolean;
 }) {
-  const router = useRouter();
-  const pathname = usePathname();
-  const [, startNav] = useNavTransition();
+  // The house URL writer (D27): composes writes, drives the progress bar.
+  const { update } = useFilterParams();
   const [recordOpen, setRecordOpen] = useState(false);
   const [correctionsOpen, setCorrectionsOpen] = useState(false);
   const [overlay, setOverlay] = useState(false);
@@ -120,17 +119,17 @@ export function AudienceBoard({
   const stage: FunnelStage =
     stageParam && isFunnelStage(stageParam) ? stageParam : FUNNEL_STAGES[0];
 
-  const setParams = (next: Record<string, string | null>) => {
-    const params = new URLSearchParams();
-    params.set("from", from);
-    params.set("to", to);
-    params.set("stage", stage);
-    for (const [key, value] of Object.entries(next)) {
-      if (value === null || value === "") params.delete(key);
-      else params.set(key, value);
-    }
-    startNav(() => router.replace(`${pathname}?${params.toString()}`, { scroll: false }));
-  };
+  const setParams = (next: Record<string, string | null>) =>
+    update((params) => {
+      for (const key of [...params.keys()]) params.delete(key);
+      params.set("from", from);
+      params.set("to", to);
+      params.set("stage", stage);
+      for (const [key, value] of Object.entries(next)) {
+        if (value === null || value === "") params.delete(key);
+        else params.set(key, value);
+      }
+    });
   const setRange = (nextFrom: string | null, nextTo: string | null) => {
     if (!nextFrom || !nextTo) return; // an unbounded range has nothing to compare
     setParams({ from: nextFrom, to: nextTo });
@@ -410,27 +409,39 @@ export function AudienceBoard({
 
   return (
     <div className="space-y-4">
-      {/* Controls */}
-      <div className="sticky top-14 z-10 flex flex-wrap items-center gap-2 rounded-lg border border-line bg-surface px-3 py-2">
-        <DateRangePicker from={from} to={to} onChange={setRange} hidePresets={["lifetime"]} />
-        <div className="ml-auto flex flex-wrap items-center gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => setCorrectionsOpen(true)}
-          >
-            <History className="h-3.5 w-3.5" />
-            Recent
-          </Button>
-          {canManage && (
-            <Button type="button" size="sm" onClick={() => setRecordOpen(true)}>
-              <Plus className="h-3.5 w-3.5" />
-              Record sizes
+      {/* The house bar (D27): a zero-def FilterShell — the date range is its
+          tier 1, the two actions sit in its toolbar. (Pacing's twin.) */}
+      <FilterShell
+        filters={[]}
+        tier1={({ fullWidth }) => (
+          <DateRangePicker
+            from={from}
+            to={to}
+            onChange={setRange}
+            hidePresets={["lifetime"]}
+            fullWidth={fullWidth}
+          />
+        )}
+        toolbar={() => (
+          <>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setCorrectionsOpen(true)}
+            >
+              <History className="h-3.5 w-3.5" />
+              Recent
             </Button>
-          )}
-        </div>
-      </div>
+            {canManage && (
+              <Button type="button" size="sm" onClick={() => setRecordOpen(true)}>
+                <Plus className="h-3.5 w-3.5" />
+                Record sizes
+              </Button>
+            )}
+          </>
+        )}
+      />
 
       {!hasAnySnapshot ? (
         <div className="rounded-lg border border-dashed border-line bg-surface px-6 py-10 text-center">

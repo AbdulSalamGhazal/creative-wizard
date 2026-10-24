@@ -26,7 +26,7 @@ export interface AuditFeedRow {
   entityId: string | null;
   entityLabel: string | null;
   meta: Record<string, unknown> | null;
-  actor: { id: string; name: string; email: string } | null;
+  actor: { id: string; name: string; email: string; avatarUrl: string | null } | null;
 }
 
 export async function listAuditEvents(
@@ -61,6 +61,7 @@ export async function listAuditEvents(
       actorId: users.id,
       actorName: users.name,
       actorEmail: users.email,
+      actorAvatarUrl: users.avatarUrl,
     })
     .from(auditEvents)
     .leftJoin(users, eq(users.id, auditEvents.actorUserId))
@@ -77,7 +78,12 @@ export async function listAuditEvents(
     entityLabel: r.entityLabel,
     meta: (r.meta as Record<string, unknown> | null) ?? null,
     actor: r.actorId
-      ? { id: r.actorId, name: r.actorName ?? "", email: r.actorEmail ?? "" }
+      ? {
+          id: r.actorId,
+          name: r.actorName ?? "",
+          email: r.actorEmail ?? "",
+          avatarUrl: r.actorAvatarUrl ?? null,
+        }
       : null,
   }));
 }

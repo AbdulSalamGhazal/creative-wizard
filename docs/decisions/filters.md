@@ -118,7 +118,10 @@ as it stood before the restructure.*
     table — bar, panel, mobile sheet and chips — so no two pages can drift
     again. **NEVER hand-roll a filter bar.** Every filter-bearing page is on it
     (phase 2, 2026-09): **Ads · Library · Campaigns · Canvas · Store orders ·
-    Reconciliation · Budget Pacing**. (`FilterStrip` — the shared
+    Store Insights · Reconciliation · Budget Pacing** — joined in 2026-10 (D27)
+    by **Budget Audience** (zero defs: the range in tier 1, Recent / Record
+    sizes in the toolbar) and the **Audit log** (one `single` def keyed
+    `category`, its options carrying their event counts, not remembered). (`FilterStrip` — the shared
     Dashboard/Trends strip — is a different thing: one bar shared BY many
     pages, not a page's own.)
     - **THREE TIERS.** (1) The page's 2–4 always-visible controls, passed as a
@@ -172,7 +175,7 @@ as it stood before the restructure.*
     - **The Excluded toggle is a DATA-SCOPE switch, not a filter** — it lives in
       the `toolbar` slot with the table controls (Columns, CSV, Sort, the
       grid/table toggle), stays visible house-wide, and Clear never touches it.
-    - **ZERO-DEF PAGES** (Store orders · Reconciliation; Pacing was one until
+    - **ZERO-DEF PAGES** (Store orders · Reconciliation · Audience; Pacing was one until
       the Tracker's `buckets` / `offpace` moved onto it, 2026-10-19): a page with
       no tier-2 filters renders the SAME bar with no Filters button and no
       chips row — consistency without a dead control. With nothing to collapse,
@@ -348,3 +351,13 @@ as it stood before the restructure.*
   icon — on Ads, Campaigns, Pacing and the strip; `MonitorSmartphone` on
   Library and Canvas), two empty labels and two menu behaviours became one
   component.
+
+### The last two hand-built bars (2026-10, D27)
+
+- Budget Audience had a card-styled sticky bar with its own URL writer, and
+  the Audit log a row of plain `<Link>` chips (no progress bar, a second way
+  to filter a page). Both are on `FilterShell` and write through
+  `useFilterParams`. Audience keeps its per-platform coverage horizon (W1-2).
+  The Audit log's `?category=` param is unchanged, so every link into it still
+  works; its empty state says "No activity in this category." and offers the
+  bar's own Clear.

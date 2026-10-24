@@ -1,10 +1,10 @@
-import Link from "next/link";
 import { int } from "@/lib/format";
 import { requirePermission } from "@/lib/auth";
 import { AUDIT_GATE } from "@/lib/page-gates";
 import { listAuditEvents, auditCategoryCounts } from "@/db/queries/audit";
 import type { AuditEntityType } from "@/lib/audit";
 import { AuditFeed } from "@/components/audit/audit-feed";
+import { AuditFilterBar } from "@/components/audit/audit-filter-bar";
 import { PageShell } from "@/components/layout/page-shell";
 import { PageHeader } from "@/components/layout/page-header";
 
@@ -35,7 +35,7 @@ const CATEGORY_LABELS: Record<AuditEntityType, string> = {
   mapping: "CSV mapping",
   auth: "Auth",
   view: "Views",
-  rating: "Rating rules",
+  rating: "Rate rules",
   account: "Brands",
 };
 
@@ -80,32 +80,16 @@ export default async function AuditPage({ searchParams }: Props) {
         }
       />
 
-      <div className="flex items-center gap-1.5 flex-wrap">
-        {CATEGORY_OPTIONS.map((opt) => {
-          const active = selected === opt.value;
-          const count =
-            opt.value === "all" ? total : (countByCat.get(opt.value) ?? 0);
-          const href =
-            opt.value === "all" ? "/admin/audit" : `/admin/audit?category=${opt.value}`;
-          return (
-            <Link
-              key={opt.value}
-              href={href}
-              className={
-                "inline-flex items-center gap-2 h-8 px-3 rounded-md border text-xs transition-colors " +
-                (active
-                  ? "border-brand/50 text-ink bg-[var(--brand-soft)]"
-                  : "border-line bg-surface text-ink-2 hover:bg-surface-2 hover:text-ink")
-              }
-            >
-              {opt.label}
-              <span className="text-[10px] tabular-nums text-ink-3">{count}</span>
-            </Link>
-          );
-        })}
-      </div>
+      <AuditFilterBar
+        category={selected === "all" ? null : selected}
+        options={CATEGORY_OPTIONS.filter((o) => o.value !== "all").map((o) => ({
+          value: o.value,
+          label: o.label,
+          hint: int(countByCat.get(o.value) ?? 0),
+        }))}
+      />
 
-      <AuditFeed rows={rows} />
+      <AuditFeed rows={rows} filtered={selected !== "all"} />
 
       {rows.length === 200 && (
         <p className="text-ink-3 text-xs text-center">
