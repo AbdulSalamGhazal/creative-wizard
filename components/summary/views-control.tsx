@@ -62,6 +62,9 @@ function cleanQuery(s: string): string {
  * string, so whatever filters/columns/sort exist now or later are captured
  * automatically.
  */
+/** How long a deleted view can be brought back — the comment delete's window. */
+const VIEW_UNDO_MS = 8_000;
+
 export function ViewsControl({
   views,
   currentUserId,
@@ -140,14 +143,42 @@ export function ViewsControl({
     });
   };
 
-  const remove = (id: string, viewName: string) => {
+  /**
+   * A view is RECOVERABLE — it is a name and a query string, and this control
+   * holds both — so deleting one is an Undo toast, not a confirm (D23,
+   * ux-standards "Economy"). Undo re-creates it from the client's copy (a new
+   * id; the same name, query and page) and restores it as the default if it
+   * was one. No schema change: nothing soft-deletes.
+   */
+  const remove = (view: SummaryViewRow) => {
     startTransition(async () => {
-      const res = await safeAction(() => deleteSummaryView(id));
+      const res = await safeAction(() => deleteSummaryView(view.id));
       if (!res.ok) {
-        toastActionFailure(res, "Could not delete view");
+        toastActionFailure(res, "Couldn't delete view");
         return;
       }
-      toast.success(`Deleted “${viewName}”`);
+      toast.success(`Deleted “${view.name}”`, {
+        duration: VIEW_UNDO_MS,
+        action: { label: "Undo", onClick: () => restore(view) },
+      });
+    });
+  };
+
+  const restore = (view: SummaryViewRow) => {
+    startTransition(async () => {
+      const res = await safeAction(() =>
+        createSummaryView({ name: view.name, query: view.query, page }),
+      );
+      if (!res.ok) {
+        toastActionFailure(res, "Couldn't restore view");
+        return;
+      }
+      if (view.isDefault && res.id) {
+        const id = res.id;
+        const def = await safeAction(() => setDefaultView(id));
+        if (!def.ok) toastActionFailure(def, "Restored, but couldn't make it the default");
+      }
+      toast.success(`Restored “${view.name}”`);
     });
   };
 
@@ -264,7 +295,7 @@ export function ViewsControl({
                   {canDelete && (
                     <button
                       type="button"
-                      onClick={() => remove(v.id, v.name)}
+                      onClick={() => remove(v)}
                       disabled={isPending}
                       className="shrink-0 text-ink-3 hover:text-neg transition-colors opacity-0 group-hover:opacity-100"
                       aria-label={`Delete ${v.name}`}

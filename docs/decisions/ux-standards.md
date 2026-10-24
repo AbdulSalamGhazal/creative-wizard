@@ -46,10 +46,15 @@
   untranslated identifiers, no "Error: undefined". Numbers carry their unit and
   a dash means NULL — never a fabricated zero.
 - **Economy: the frequent path is the shortest one, and friction scales with
-  irreversibility.** A recoverable delete gets an UNDO toast, not a confirm; an
-  unrecoverable one gets preview → acknowledge → type-to-confirm. Don't make
-  somebody confirm something they can take back, and don't let them lose
-  something they can't.
+  irreversibility.** A recoverable delete gets an UNDO toast, not a confirm
+  (comments; saved views since D23); an unrecoverable one gets preview →
+  acknowledge → type-to-confirm (the cleanup tools type DELETE; deleting a
+  creative or a campaign types its NAME — one `TypeToConfirm` field). Don't
+  make somebody confirm something they can take back, and don't let them lose
+  something they can't. The one named exception is the Budget **Plan**
+  delete: recoverable from Revisions, it still opens the house destructive
+  dialog — which says so ("Recoverable — the previous plan stays in
+  Revisions") — and never asks to type (budget.md, DELETE PLAN).
 - **The phone is a first-class render, not a shrunk desktop.** Every surface
   works at 375px: no page-level horizontal scroll, touch targets reachable,
   toolbars that wrap rather than overflow, and sticky/pinned elements that

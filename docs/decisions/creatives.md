@@ -163,7 +163,10 @@ as it stood before the restructure.*
   creative (angles cascade). The confirm dialog
   (`components/creative/delete-creative-dialog.tsx`) shows the exact record
   count + per-platform breakdown + date range from `creativeDeletionSummary`,
-  and an acknowledgement checkbox gates the destructive button. The audit row
+  and an acknowledgement checkbox gates the destructive button — plus, since
+  D23 (2026-10), typing the creative's name (`TypeToConfirm`): every record
+  goes, so it takes the cleanup tools' full preview → acknowledge →
+  type-to-confirm (the campaign delete does the same). The audit row
   (`creative.delete`) survives because it stores a label, not an FK.
 
 ### tag → angle at all layers

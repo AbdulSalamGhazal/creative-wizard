@@ -23,6 +23,7 @@ import { toastActionFailure } from "@/lib/action-toast";
 import { int } from "@/lib/format";
 import { PLATFORM_LABEL } from "@/lib/palette";
 import { useCan } from "@/components/auth/permissions-context";
+import { TypeToConfirm, confirmMatches } from "@/components/ui/type-to-confirm";
 import type { CampaignDeletionSummary } from "@/db/queries/campaign";
 import { useNavTransition } from "@/lib/nav-progress";
 
@@ -45,6 +46,9 @@ export function DeleteCampaignDialog({
   const canDelete = useCan("campaign.delete");
   const [open, setOpen] = useState(false);
   const [acknowledged, setAcknowledged] = useState(false);
+  // The last step of an unrecoverable delete: type the name (D23).
+  const [typed, setTyped] = useState("");
+  const confirmed = acknowledged && confirmMatches(typed, campaignName);
   const [isPending, startTransition] = useTransition();
   // Navigations show the progress bar (W3-6).
   const [, startNav] = useNavTransition();
@@ -82,7 +86,10 @@ export function DeleteCampaignDialog({
       onOpenChange={(next) => {
         if (isPending) return; // don't allow closing mid-delete
         setOpen(next);
-        if (!next) setAcknowledged(false);
+        if (!next) {
+          setAcknowledged(false);
+          setTyped("");
+        }
       }}
     >
       <DialogTrigger asChild>
@@ -191,6 +198,14 @@ export function DeleteCampaignDialog({
                 : "."}
             </span>
           </label>
+
+          <TypeToConfirm
+            phrase={campaignName}
+            value={typed}
+            onChange={setTyped}
+            disabled={isPending}
+            inputClassName="mt-1 h-8 w-full"
+          />
         </div>
 
         <DialogFooter>
@@ -202,7 +217,7 @@ export function DeleteCampaignDialog({
           <Button
             variant="destructive"
             onClick={onConfirm}
-            disabled={!acknowledged || isPending}
+            disabled={!confirmed || isPending}
           >
             {isPending ? (
               <>

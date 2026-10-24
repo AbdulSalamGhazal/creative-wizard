@@ -24,6 +24,7 @@ import type { StoreCleanupPreview } from "@/db/queries/store";
 import { sar, int, isoDate, plural } from "@/lib/format";
 import { defaultDateRange } from "@/lib/date-presets";
 import { pillClass } from "@/components/filters/filter-pill";
+import { TypeToConfirm, confirmMatches } from "@/components/ui/type-to-confirm";
 
 export interface CleanupBatch {
   id: string;
@@ -132,7 +133,7 @@ export function StoreCleanupTool({ batches }: { batches: CleanupBatch[] }) {
       ? "Any"
       : (batches.find((b) => b.id === batchId)?.fileName ?? "1 selected");
 
-  const confirmed = confirmText.trim().toUpperCase() === "DELETE";
+  const confirmed = confirmMatches(confirmText, "DELETE", true);
 
   return (
     <div className="rounded-lg border border-neg/30 bg-neg/[0.03] p-4 space-y-4">
@@ -253,18 +254,12 @@ export function StoreCleanupTool({ batches }: { batches: CleanupBatch[] }) {
               </div>
 
               <div className="flex flex-wrap items-end gap-2 pt-1 border-t border-line">
-                <div className="flex-1 min-w-[200px]">
-                  <label className="text-[11px] text-ink-3">
-                    Type <span className="font-mono text-neg">DELETE</span> to
-                    confirm
-                  </label>
-                  <Input
-                    value={confirmText}
-                    onChange={(e) => setConfirmText(e.target.value)}
-                    placeholder="DELETE"
-                    className="h-8 mt-1 max-w-[220px]"
-                  />
-                </div>
+                <TypeToConfirm
+                  className="flex-1 min-w-[200px]"
+                  phrase="DELETE"
+                  value={confirmText}
+                  onChange={setConfirmText}
+                />
                 <Button
                   type="button"
                   variant="destructive"

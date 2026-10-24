@@ -24,7 +24,6 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
-import { Input } from "@/components/ui/input";
 import { DateRangePicker } from "@/components/filters/date-range-picker";
 import { previewCleanupAction, runCleanup } from "@/app/actions/cleanup";
 import { safeAction } from "@/lib/action-failure";
@@ -35,6 +34,7 @@ import { defaultDateRange } from "@/lib/date-presets";
 import { cn } from "@/lib/utils";
 import { pillClass } from "@/components/filters/filter-pill";
 import { ALL_PLATFORMS, PLATFORM_LABEL } from "@/lib/palette";
+import { TypeToConfirm, confirmMatches } from "@/components/ui/type-to-confirm";
 
 type Platform = (typeof ALL_PLATFORMS)[number];
 
@@ -169,7 +169,7 @@ export function CleanupTool({ products, creatives, campaigns }: Props) {
         ? campaignNames[0]
         : `${campaignNames.length} selected`;
 
-  const confirmed = confirmText.trim().toUpperCase() === "DELETE";
+  const confirmed = confirmMatches(confirmText, "DELETE", true);
 
   return (
     <div className="rounded-lg border border-neg/30 bg-neg/[0.03] p-4 space-y-4">
@@ -388,18 +388,12 @@ export function CleanupTool({ products, creatives, campaigns }: Props) {
               </div>
 
               <div className="flex flex-wrap items-end gap-2 pt-1 border-t border-line">
-                <div className="flex-1 min-w-[200px]">
-                  <label className="text-[11px] text-ink-3">
-                    Type <span className="font-mono text-neg">DELETE</span> to
-                    confirm
-                  </label>
-                  <Input
-                    value={confirmText}
-                    onChange={(e) => setConfirmText(e.target.value)}
-                    placeholder="DELETE"
-                    className="h-8 mt-1 max-w-[220px]"
-                  />
-                </div>
+                <TypeToConfirm
+                  className="flex-1 min-w-[200px]"
+                  phrase="DELETE"
+                  value={confirmText}
+                  onChange={setConfirmText}
+                />
                 <Button
                   type="button"
                   variant="destructive"

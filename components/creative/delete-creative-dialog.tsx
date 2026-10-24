@@ -23,6 +23,7 @@ import { toastActionFailure } from "@/lib/action-toast";
 import { int } from "@/lib/format";
 import { PLATFORM_LABEL } from "@/lib/palette";
 import { useCan } from "@/components/auth/permissions-context";
+import { TypeToConfirm, confirmMatches } from "@/components/ui/type-to-confirm";
 import type { CreativeDeletionSummary } from "@/db/queries/creatives";
 import { useNavTransition } from "@/lib/nav-progress";
 
@@ -39,6 +40,9 @@ export function DeleteCreativeDialog({
   const canDelete = useCan("creative.delete");
   const [open, setOpen] = useState(false);
   const [acknowledged, setAcknowledged] = useState(false);
+  // The last step of an unrecoverable delete: type the name (D23).
+  const [typed, setTyped] = useState("");
+  const confirmed = acknowledged && confirmMatches(typed, creativeName);
   const [isPending, startTransition] = useTransition();
   // Navigations show the progress bar (W3-6).
   const [, startNav] = useNavTransition();
@@ -76,7 +80,10 @@ export function DeleteCreativeDialog({
       onOpenChange={(next) => {
         if (isPending) return; // don't allow closing mid-delete
         setOpen(next);
-        if (!next) setAcknowledged(false);
+        if (!next) {
+          setAcknowledged(false);
+          setTyped("");
+        }
       }}
     >
       <DialogTrigger asChild>
@@ -187,6 +194,14 @@ export function DeleteCreativeDialog({
                 : "."}
             </span>
           </label>
+
+          <TypeToConfirm
+            phrase={creativeName}
+            value={typed}
+            onChange={setTyped}
+            disabled={isPending}
+            inputClassName="mt-1 h-8 w-full"
+          />
         </div>
 
         <DialogFooter>
@@ -198,7 +213,7 @@ export function DeleteCreativeDialog({
           <Button
             variant="destructive"
             onClick={onConfirm}
-            disabled={!acknowledged || isPending}
+            disabled={!confirmed || isPending}
           >
             {isPending ? (
               <>
