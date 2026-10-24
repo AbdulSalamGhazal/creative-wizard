@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { platformEnum } from "@/db/schema";
+import { platformEnum } from "@/lib/enums";
 import { CHANNEL_DESTINATIONS, UNMAPPED_CHANNEL } from "@/store/channels";
 import { UNATTRIBUTED } from "@/store/sources";
 

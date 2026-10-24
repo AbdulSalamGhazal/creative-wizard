@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { campaignObjectiveEnum, platformEnum } from "@/db/schema";
+import { campaignObjectiveEnum, platformEnum } from "@/lib/enums";
 
 /**
  * New-campaign form. The buyer enters the Campaign + Ad Set + Platform; the

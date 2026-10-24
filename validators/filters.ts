@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { platformEnum, creativeTypeEnum } from "@/db/schema";
+import { platformEnum, creativeTypeEnum } from "@/lib/enums";
 import { defaultDateRange } from "@/lib/date-presets";
 
 // Global dashboard filters encoded in URL searchParams.

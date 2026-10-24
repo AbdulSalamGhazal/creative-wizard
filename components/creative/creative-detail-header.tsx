@@ -48,7 +48,7 @@ import {
 import { safeAction } from "@/lib/action-failure";
 import { toastActionFailure } from "@/lib/action-toast";
 import { useCan } from "@/components/auth/permissions-context";
-import { creativeTypeEnum } from "@/db/schema";
+import { creativeTypeEnum } from "@/lib/enums";
 import { ALL_PLATFORMS, PLATFORM_COLOR, PLATFORM_LABEL } from "@/lib/palette";
 import { isoDate } from "@/lib/format";
 import { cn } from "@/lib/utils";

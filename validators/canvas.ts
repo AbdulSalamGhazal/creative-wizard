@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { platformEnum } from "@/db/schema";
+import { platformEnum } from "@/lib/enums";
 import { CREATIVE_STATUSES } from "@/lib/creative-status";
 import { STAGE_FILTER_VALUES } from "@/lib/funnel-stages";
 import { parseCanvasView } from "@/lib/canvas";

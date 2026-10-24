@@ -19,21 +19,20 @@ import {
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
-import { CAMPAIGN_OBJECTIVES } from "@/lib/campaign";
 import { BUDGET_OBJECTIVES, PLAN_MODES } from "@/lib/budget";
 import { FUNNEL_STAGES } from "@/lib/audience";
-import { ALL_PLATFORMS } from "@/lib/palette";
+import { campaignObjectiveEnum, creativeTypeEnum, platformEnum } from "@/lib/enums";
+
+// The platform, creative-type and objective vocabularies live in lib/enums
+// (client-safe — W2-6), derived from lib/palette and lib/campaign, and are
+// re-exported here so the DB and the UI share one list each. Client code
+// imports them from lib/enums: importing ANYTHING from this module ships the
+// whole schema to the browser.
+export { campaignObjectiveEnum, creativeTypeEnum, platformEnum };
 
 export const roleEnum = ["admin", "editor", "viewer"] as const;
-// Derived from lib/palette's canonical list (DERIVE, don't re-list — same
-// pattern as campaignObjectiveEnum below).
-export const platformEnum = ALL_PLATFORMS;
-export const creativeTypeEnum = ["video", "slides", "image"] as const;
 export const creativeStatusEnum = ["draft", "active", "paused", "archived"] as const;
 export const productStatusEnum = ["active", "archived"] as const;
-// Single source of truth lives in lib/campaign (client-safe) so the create-form
-// dropdown and this DB enum can never drift.
-export const campaignObjectiveEnum = CAMPAIGN_OBJECTIVES;
 
 /**
  * The fixed UUID of the original brand ("Urjwan"). It's the DEFAULT for every

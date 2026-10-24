@@ -38,7 +38,7 @@ import {
 import { int, intCompact, pct1, sar, sarCompact } from "@/lib/format";
 import { downloadCsv, matrixToCsv, todayStamp } from "@/lib/csv-export";
 import { PLATFORM_LABEL, seriesColor } from "@/lib/palette";
-import { platformEnum } from "@/db/schema";
+import { platformEnum } from "@/lib/enums";
 import { CHANNEL_DESTINATIONS, CHANNEL_LABEL, UNMAPPED_CHANNEL } from "@/store/channels";
 import { UNATTRIBUTED } from "@/store/sources";
 import {

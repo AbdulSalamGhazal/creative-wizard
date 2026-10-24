@@ -4,7 +4,7 @@ import { useCallback } from "react";
 import { useDropzone, type FileRejection } from "react-dropzone";
 import { FileSpreadsheet, Upload as UploadIcon, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { FILE_TOO_LARGE_MESSAGE, MAX_FILE_BYTES, MAX_FILE_MB } from "@/csv/parse";
+import { FILE_TOO_LARGE_MESSAGE, MAX_FILE_BYTES, MAX_FILE_MB } from "@/csv/limits";
 import { cn } from "@/lib/utils";
 
 interface Props {

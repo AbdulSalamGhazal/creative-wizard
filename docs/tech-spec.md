@@ -38,6 +38,7 @@ A **multi-tenant creative-performance analytics tool** for paid social. It manag
 - **Single sources of truth in `lib/`** — never open-code these elsewhere:
   - `lib/metrics.ts` — every derived-metric SQL fragment (see §7)
   - `lib/palette.ts` — platform/series/product/type/funnel-metric colors (CSS-var backed, theme-aware) + platform labels/lists
+  - `lib/enums.ts` — `platformEnum` / `creativeTypeEnum` / `campaignObjectiveEnum`, client-safe; `db/schema.ts` re-exports them. Client-reachable code never imports `@/db/schema` (it would ship the whole schema; `app/client-bundle.test.ts`)
   - `lib/format.ts` — usd/int/pct/`roas()`/compact/`monthDay`/isoDate (en-US pinned)
   - `lib/metric-labels.ts` — column-header vocabulary (one spelling of "Impr."/"Conv.")
   - `lib/permissions.ts` — the permission catalog (see §5)

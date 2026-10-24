@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { platformEnum, creativeTypeEnum } from "@/db/schema";
+import { platformEnum, creativeTypeEnum } from "@/lib/enums";
 import { RATING_VALUES, type Rating } from "@/lib/rating";
 import { CREATIVE_STATUSES, type CreativeStatus } from "@/lib/creative-status";
 import { PRIORITY_FILTER_VALUES } from "@/lib/priority";

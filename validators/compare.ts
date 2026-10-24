@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { platformEnum } from "@/db/schema";
+import { platformEnum } from "@/lib/enums";
 import type { CompareMetric } from "@/db/queries/performance";
 import { defaultDateRange } from "@/lib/date-presets";
 

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { platformEnum } from "@/db/schema";
+import { platformEnum } from "@/lib/enums";
 
 /**
  * Filters for the admin record-cleanup tool. All present filters combine

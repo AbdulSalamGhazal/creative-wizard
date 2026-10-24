@@ -1,4 +1,4 @@
-import { platformEnum } from "@/db/schema";
+import { platformEnum } from "@/lib/enums";
 
 export type Platform = (typeof platformEnum)[number];
 

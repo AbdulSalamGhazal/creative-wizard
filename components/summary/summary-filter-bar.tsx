@@ -43,7 +43,7 @@ import {
   PRIORITY_FILTER_VALUES,
   type PriorityFilterValue,
 } from "@/lib/priority";
-import { creativeTypeEnum } from "@/db/schema";
+import { creativeTypeEnum } from "@/lib/enums";
 import { MetricFilterControl } from "@/components/summary/metric-filter";
 import { ViewsControl } from "@/components/summary/views-control";
 import type { SummaryViewRow } from "@/db/queries/summary-views";

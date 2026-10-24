@@ -27,8 +27,9 @@
 - **CSV or XLSX through ONE conversion layer** — nothing downstream may branch
   on the format. SheetJS is the reader; never add a second one.
 - **ONE upload limit: 4 MB, on every surface (D5, 2026-10-23)** —
-  `MAX_FILE_BYTES` / `FILE_TOO_LARGE_MESSAGE` in `csv/parse.ts`, shown up
-  front by the shared Dropzone. It is what the host accepts: Vercel refuses a
+  `MAX_FILE_BYTES` / `FILE_TOO_LARGE_MESSAGE` in `csv/limits.ts` (dependency-
+  free, re-exported by `csv/parse.ts`; the browser reads it without pulling
+  SheetJS into three pages — W2-6), shown up front by the shared Dropzone. It is what the host accepts: Vercel refuses a
   function body over 4.5 MB, and the server-action surfaces get 4.5 MB
   through `serverActions.bodySizeLimit` (Next's default is 1 MB — files over
   it failed while every screen promised 10 MB, and the Store panel hung).

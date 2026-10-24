@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { platformEnum } from "@/db/schema";
+import { platformEnum } from "@/lib/enums";
 
 /** The three threshold fields, shared by the default + per-platform schemas. */
 const ratingFields = {

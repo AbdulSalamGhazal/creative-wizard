@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { campaignObjectiveEnum, platformEnum } from "@/db/schema";
+import { campaignObjectiveEnum, platformEnum } from "@/lib/enums";
 import { CAMPAIGN_STATUSES } from "@/lib/campaign-status";
 import { defaultDateRange } from "@/lib/date-presets";
 

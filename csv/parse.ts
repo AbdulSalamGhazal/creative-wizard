@@ -23,17 +23,11 @@ import Papa from "papaparse";
 import * as XLSX from "xlsx";
 import type { ValidationError } from "@/csv/errors";
 
-/**
- * The ONE upload size limit, for every surface (D5, 2026-10-23): 4 MB. It is
- * what actually fits — Vercel refuses a function request body over 4.5 MB, and
- * the server-action surfaces (store orders, bulk creatives, the Budget sheet)
- * accept 4.5 MB through `serverActions.bodySizeLimit` (next.config.ts). Every
- * screen used to promise 10 MB while files over 1 MB failed, some by hanging.
- */
-export const MAX_FILE_MB = 4;
-export const MAX_FILE_BYTES = MAX_FILE_MB * 1024 * 1024;
-/** E001's sentence — one wording wherever a file is too big. */
-export const FILE_TOO_LARGE_MESSAGE = `File exceeds the ${MAX_FILE_MB} MB upload limit.`;
+import { FILE_TOO_LARGE_MESSAGE, MAX_FILE_BYTES, MAX_FILE_MB } from "@/csv/limits";
+
+// The size limit lives in csv/limits (dependency-free, so the browser can read
+// it without this module's readers — W2-6); re-exported for server callers.
+export { FILE_TOO_LARGE_MESSAGE, MAX_FILE_BYTES, MAX_FILE_MB };
 
 export interface ParseSuccess {
   ok: true;
