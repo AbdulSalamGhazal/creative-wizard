@@ -1,4 +1,5 @@
 import { platformEnum } from "@/lib/enums";
+import { shiftIso } from "@/lib/date-presets";
 
 export type Platform = (typeof platformEnum)[number];
 
@@ -89,11 +90,10 @@ export function hoursToWindowDays(hours: number): number {
   return Math.max(1, Math.ceil((hours || 24) / 24));
 }
 
-/** Subtract whole days from an ISO YYYY-MM-DD date (UTC). */
+/** Subtract whole days from an ISO YYYY-MM-DD date (`shiftIso`, the one
+ *  day-arithmetic helper). */
 export function isoMinusDays(iso: string, days: number): string {
-  const d = new Date(`${iso}T00:00:00Z`);
-  d.setUTCDate(d.getUTCDate() - days);
-  return d.toISOString().slice(0, 10);
+  return shiftIso(iso, -days);
 }
 
 export interface CreativeStatusInput {

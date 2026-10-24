@@ -18,6 +18,7 @@ import {
   distinctStoreChannelValues,
 } from "@/db/queries/reconciliation";
 import { RecentStoreBatches } from "@/components/store/recent-store-batches";
+import { withinRollbackWindow } from "@/lib/upload-batches";
 import { StoreCleanupTool } from "@/components/store/store-cleanup-tool";
 
 export const dynamic = "force-dynamic";
@@ -71,7 +72,6 @@ export default async function StoreUploadsPage({
   // How many of each rollback-eligible batch's inserted orders a LATER upsert
   // has revised — surfaced in the rollback confirm.
   const acct = await getActiveAccountId();
-  const ROLLBACK_WINDOW_MS = 24 * 60 * 60 * 1000;
   const updatedSince = new Map<string, number>(
     await Promise.all(
       batches
@@ -79,7 +79,7 @@ export default async function StoreUploadsPage({
           (b) =>
             canRollback &&
             b.status === "active" &&
-            Date.now() - b.uploadedAt.getTime() < ROLLBACK_WINDOW_MS,
+            withinRollbackWindow(b.uploadedAt),
         )
         .map(
           async (b) =>

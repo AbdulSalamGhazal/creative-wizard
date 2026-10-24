@@ -3,6 +3,7 @@ import {
   decodePreferredRange,
   encodePreferredRange,
   LIFETIME_FLOOR,
+  shiftIso,
 } from "@/lib/date-presets";
 
 // Fixed "today" so preset math is deterministic. "Last N days" end YESTERDAY.
@@ -51,5 +52,23 @@ describe("decodePreferredRange", () => {
   it("round-trips encode → decode", () => {
     const enc = encodePreferredRange(null, "2026-01-01", "2026-02-15");
     expect(decodePreferredRange(enc, TODAY)).toEqual({ from: "2026-01-01", to: "2026-02-15" });
+  });
+});
+
+describe("shiftIso — the one day-arithmetic helper (C-25)", () => {
+  it("adds and subtracts calendar days across month and year ends", () => {
+    expect(shiftIso("2026-03-01", -1)).toBe("2026-02-28");
+    expect(shiftIso("2028-03-01", -1)).toBe("2028-02-29");
+    expect(shiftIso("2026-12-31", 1)).toBe("2027-01-01");
+    expect(shiftIso("2026-10-24", 0)).toBe("2026-10-24");
+  });
+  it("is the same function everywhere the app shifts a day", async () => {
+    const { isoMinusDays } = await import("@/lib/creative-status");
+    const { isoPlusDays } = await import("@/lib/budget");
+    expect(isoMinusDays("2026-01-01", 1)).toBe(shiftIso("2026-01-01", -1));
+    expect(isoPlusDays("2026-01-31")).toBe(shiftIso("2026-01-31", 1));
+  });
+  it("an unparseable input shifts from today rather than throwing", () => {
+    expect(shiftIso("nope", 0)).toMatch(/^\d{4}-\d{2}-\d{2}$/);
   });
 });

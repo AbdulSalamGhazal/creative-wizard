@@ -20,6 +20,7 @@ import type { StoreField } from "@/store/fields";
 import { actionError } from "@/lib/action-error";
 import { notifyRoutes } from "@/db/queries/notifications";
 import { int } from "@/lib/format";
+import { ROLLBACK_WINDOW_HOURS, withinRollbackWindow } from "@/lib/upload-batches";
 
 /**
  * Store-order upload flow — parallel to the ads pipeline, but a self-contained
@@ -29,7 +30,6 @@ import { int } from "@/lib/format";
  * ads table. Rollback removes a batch's INSERTED rows only.
  */
 
-const ROLLBACK_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 export type StoreUploadReport =
   | {
@@ -282,8 +282,8 @@ export async function rollbackStoreBatch(
       .limit(1);
     if (!batch) return { ok: false, error: "Batch not found." };
     if (batch.status !== "active") return { ok: false, error: "Batch already rolled back." };
-    if (Date.now() - batch.uploadedAt.getTime() > ROLLBACK_WINDOW_MS) {
-      return { ok: false, error: "Rollback window (24h) has passed." };
+    if (!withinRollbackWindow(batch.uploadedAt)) {
+      return { ok: false, error: `Rollback window (${ROLLBACK_WINDOW_HOURS}h) has passed.` };
     }
 
     const deleted = await db.transaction(async (tx) => {

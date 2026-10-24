@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/select";
 import { spearman } from "@/lib/correlation";
 import type { CreativeMetricRow } from "@/db/queries/performance";
+import { METRIC_LABEL } from "@/lib/metric-labels";
 
 type MetricKey =
   | "spend"
@@ -25,15 +26,15 @@ type MetricKey =
 
 /** Everything that can be swapped into the matrix. */
 const CATALOG: Array<{ key: MetricKey; label: string }> = [
-  { key: "spend", label: "Spend" },
-  { key: "cpm", label: "CPM" },
-  { key: "ctr", label: "CTR" },
-  { key: "hookRate", label: "Hook" },
-  { key: "holdRate", label: "Hold" },
-  { key: "voc", label: "VOC" },
-  { key: "cvr", label: "CvR" },
-  { key: "cpa", label: "CPA" },
-  { key: "roas", label: "ROAS" },
+  { key: "spend", label: METRIC_LABEL.spend },
+  { key: "cpm", label: METRIC_LABEL.cpm },
+  { key: "ctr", label: METRIC_LABEL.ctr },
+  { key: "hookRate", label: METRIC_LABEL.hookRate },
+  { key: "holdRate", label: METRIC_LABEL.holdRate },
+  { key: "voc", label: METRIC_LABEL.voc },
+  { key: "cvr", label: METRIC_LABEL.cvr },
+  { key: "cpa", label: METRIC_LABEL.cpa },
+  { key: "roas", label: METRIC_LABEL.roas },
 ];
 const LABEL = Object.fromEntries(CATALOG.map((m) => [m.key, m.label])) as Record<
   MetricKey,

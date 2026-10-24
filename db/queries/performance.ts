@@ -1442,18 +1442,6 @@ export async function compareTotals(
   }));
 }
 
-/** Returns inclusive ISO date strings for a trailing window. */
-export function defaultDateRange(days: number): { from: string; to: string } {
-  const to = new Date();
-  to.setUTCHours(0, 0, 0, 0);
-  const from = new Date(to);
-  from.setUTCDate(from.getUTCDate() - (days - 1));
-  return {
-    from: from.toISOString().slice(0, 10),
-    to: to.toISOString().slice(0, 10),
-  };
-}
-
 // =====================================================================
 // Period-over-period (Trends / Over time)
 // =====================================================================

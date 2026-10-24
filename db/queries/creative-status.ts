@@ -10,6 +10,7 @@ import {
   platformEnum,
 } from "@/db/schema";
 import { getActiveAccountId, getActiveStatusWindowHours } from "@/lib/tenant";
+import { shiftIso } from "@/lib/date-presets";
 import {
   deriveCreativeStatus,
   hoursToWindowDays,
@@ -367,11 +368,7 @@ export interface StatusFlowScope {
   data: CreativeStatusTransitions;
 }
 
-function isoMinusDays(iso: string, days: number): string {
-  const d = new Date(`${iso}T00:00:00Z`);
-  d.setUTCDate(d.getUTCDate() - days);
-  return d.toISOString().slice(0, 10);
-}
+const isoMinusDays = (iso: string, days: number): string => shiftIso(iso, -days);
 
 const zeroCounts = (): Record<CreativeStatus, number> => ({
   new: 0,

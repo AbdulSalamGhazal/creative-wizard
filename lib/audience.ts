@@ -1,4 +1,5 @@
 import { isoDaysBetween, round2 } from "@/lib/budget";
+import { monthDay } from "@/lib/format";
 
 /**
  * Funnel-audience tracking — the pure layer.
@@ -69,11 +70,7 @@ export function isStale(ageDays: number | null): boolean {
 /** "as of Sep 9 · 3d ago" — the caption every displayed size carries. */
 export function asOfLabel(asOf: string | null, ageDays: number | null): string {
   if (asOf === null) return "never measured";
-  const label = new Date(`${asOf}T00:00:00Z`).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    timeZone: "UTC",
-  });
+  const label = monthDay(asOf);
   if (ageDays === null) return `as of ${label}`;
   if (ageDays === 0) return `as of ${label} · today`;
   return `as of ${label} · ${ageDays}d ago`;

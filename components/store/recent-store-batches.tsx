@@ -1,7 +1,7 @@
 import { int, isoDate } from "@/lib/format";
 import { StoreRollbackButton } from "@/components/store/store-rollback-button";
+import { withinRollbackWindow } from "@/lib/upload-batches";
 
-const ROLLBACK_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 export interface StoreBatchDisplay {
   id: string;
@@ -47,7 +47,7 @@ export function RecentStoreBatches({
                 canRollback &&
                 b.status === "active" &&
                 b.rowsInserted > 0 &&
-                Date.now() - Date.parse(b.uploadedAt) < ROLLBACK_WINDOW_MS;
+                withinRollbackWindow(b.uploadedAt);
               return (
                 <tr
                   key={b.id}

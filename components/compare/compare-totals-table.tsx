@@ -7,6 +7,7 @@ import { TABLE_KEYS } from "@/lib/table-columns";
 import { COMPARE_COLORS } from "@/components/charts/compare-chart";
 import { int, pct, roas, usd } from "@/lib/format";
 import type { Kpis } from "@/db/queries/performance";
+import { METRIC_LABEL } from "@/lib/metric-labels";
 
 type MetricKey = Exclude<keyof Kpis, "funnelCpm" | "funnelCtr">;
 
@@ -26,21 +27,21 @@ type ColumnDef = {
  * different CPM. See `Kpis` for the rule.
  */
 const COLUMNS: ColumnDef[] = [
-  { key: "spend", label: "Spend", fmt: (v) => usd(v), strong: true },
-  { key: "impressions", label: "Impressions", fmt: (v) => int(v) },
-  { key: "clicks", label: "Clicks", fmt: (v) => int(v) },
-  { key: "conversions", label: "Conversions", fmt: (v) => int(v) },
-  { key: "conversionValue", label: "Conv. value", fmt: (v) => usd(v) },
-  { key: "landingPageViews", label: "LP views", fmt: (v) => int(v) },
-  { key: "ctr", label: "CTR", fmt: (v) => pct(v) },
-  { key: "voc", label: "VOC", fmt: (v) => pct(v) },
-  { key: "cvr", label: "CvR", fmt: (v) => pct(v) },
-  { key: "cpm", label: "CPM", fmt: (v) => usd(v) },
-  { key: "cpc", label: "CPC", fmt: (v) => usd(v) },
-  { key: "cpa", label: "CPA", fmt: (v) => usd(v) },
-  { key: "roas", label: "ROAS", fmt: (v) => roas(v), strong: true },
-  { key: "hookRate", label: "Hook rate", fmt: (v) => pct(v) },
-  { key: "holdRate", label: "Hold rate", fmt: (v) => pct(v) },
+  { key: "spend", label: METRIC_LABEL.spend, fmt: (v) => usd(v), strong: true },
+  { key: "impressions", label: METRIC_LABEL.impressions, fmt: (v) => int(v) },
+  { key: "clicks", label: METRIC_LABEL.clicks, fmt: (v) => int(v) },
+  { key: "conversions", label: METRIC_LABEL.conversions, fmt: (v) => int(v) },
+  { key: "conversionValue", label: METRIC_LABEL.revenue, fmt: (v) => usd(v) },
+  { key: "landingPageViews", label: METRIC_LABEL.landingPageViews, fmt: (v) => int(v) },
+  { key: "ctr", label: METRIC_LABEL.ctr, fmt: (v) => pct(v) },
+  { key: "voc", label: METRIC_LABEL.voc, fmt: (v) => pct(v) },
+  { key: "cvr", label: METRIC_LABEL.cvr, fmt: (v) => pct(v) },
+  { key: "cpm", label: METRIC_LABEL.cpm, fmt: (v) => usd(v) },
+  { key: "cpc", label: METRIC_LABEL.cpc, fmt: (v) => usd(v) },
+  { key: "cpa", label: METRIC_LABEL.cpa, fmt: (v) => usd(v) },
+  { key: "roas", label: METRIC_LABEL.roas, fmt: (v) => roas(v), strong: true },
+  { key: "hookRate", label: METRIC_LABEL.hookRate, fmt: (v) => pct(v) },
+  { key: "holdRate", label: METRIC_LABEL.holdRate, fmt: (v) => pct(v) },
 ];
 
 /** The metrics a first visit shows; the rest are one click away. */

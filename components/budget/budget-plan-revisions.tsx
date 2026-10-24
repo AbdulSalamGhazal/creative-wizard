@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/sheet";
 import { PlatformDot } from "@/components/ui/platform-dot";
 import { PLATFORM_LABEL } from "@/lib/palette";
-import { int, plural, sar, usd } from "@/lib/format";
+import { dateTimeLabel, int, plural, roas, sar, usd } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { budgetComboKey, monthLabel } from "@/lib/budget";
 import { loadPlanRevision, restorePlanRevision } from "@/app/actions/budget";
@@ -135,12 +135,8 @@ export function diffPlans(revision: BudgetPlanSnapshot, current: CurrentPlan) {
   };
 }
 
-function when(iso: string): string {
-  return new Date(iso).toLocaleString("en-US", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  });
-}
+/** "Oct 20, 2026, 2:32 PM" — lib/format's absolute date + time. */
+const when = (iso: string): string => dateTimeLabel(iso);
 
 /**
  * The Plan tab's revision drawer. Every plan write since the feature shipped
@@ -384,7 +380,7 @@ export function BudgetPlanRevisions({
                     {selected.mode === "daily"
                       ? `planned day by day (${plural(selected.dayCells, "day cell")}${
                           snapshot.targetRoas !== null
-                            ? `, ROAS ${snapshot.targetRoas.toFixed(2)}`
+                            ? `, ROAS ${roas(snapshot.targetRoas)}`
                             : ""
                         }) — restoring brings the days back`
                       : plural(selected.weightOverrides, "weighted day")}
@@ -463,8 +459,8 @@ export function BudgetPlanRevisions({
                           <li className="flex items-baseline justify-between gap-2 text-ink-2">
                             <span>Target ROAS</span>
                             <span className="num tabular-nums whitespace-nowrap">
-                              {diff.curRoas === null ? "—" : `${diff.curRoas.toFixed(2)}×`} →{" "}
-                              {diff.revRoas === null ? "—" : `${diff.revRoas.toFixed(2)}×`}
+                              {roas(diff.curRoas)} →{" "}
+                              {roas(diff.revRoas)}
                             </span>
                           </li>
                         )}

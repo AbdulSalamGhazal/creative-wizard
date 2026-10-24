@@ -11,13 +11,12 @@ import { listAccountCampaigns } from "@/db/queries/cleanup";
 import { listCreativeOptions } from "@/db/queries/creatives";
 import { listAllProductOptions } from "@/db/queries/products";
 import { listUploadBatches } from "@/db/queries/uploads";
+import { withinRollbackWindow } from "@/lib/upload-batches";
 import { batchRowsUpdatedSince } from "@/db/queries/performance";
 import { PageShell } from "@/components/layout/page-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { PageTabs, type PageTab } from "@/components/layout/page-tabs";
 import { MappingsAdmin } from "@/components/platform/mappings-admin";
-
-const ROLLBACK_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 // Always fetch fresh — this page reflects newly-committed batches.
 export const dynamic = "force-dynamic";
@@ -73,7 +72,6 @@ export default async function UploadsPage({
   // How many of each rollback-eligible batch's rows a LATER upload has revised.
   // Only batches still inside the window can be rolled back, so only those are
   // worth the count.
-  const rollbackWindowMs = ROLLBACK_WINDOW_MS;
   const updatedSinceByBatch = new Map<string, number>(
     await Promise.all(
       rows
@@ -81,7 +79,7 @@ export default async function UploadsPage({
           (r) =>
             canRollback &&
             r.status === "active" &&
-            Date.now() - r.uploadedAt.getTime() < rollbackWindowMs,
+            withinRollbackWindow(r.uploadedAt),
         )
         .map(
           async (r) =>
@@ -150,8 +148,7 @@ export default async function UploadsPage({
             </thead>
             <tbody className="divide-y divide-line">
               {rows.map((r) => {
-                const inWindow =
-                  Date.now() - r.uploadedAt.getTime() < ROLLBACK_WINDOW_MS;
+                const inWindow = withinRollbackWindow(r.uploadedAt);
                 const rollable = canRollback && r.status === "active" && inWindow;
                 return (
                   <tr key={r.id} className="hover:bg-surface-2/60 transition-colors">

@@ -24,7 +24,7 @@ import {
   type AuditEntityType,
 } from "@/lib/audit";
 import type { AuditFeedRow } from "@/db/queries/audit";
-import { relativeTime } from "@/lib/format";
+import { relativeTime, roas, usd0 } from "@/lib/format";
 import { PLATFORM_LABEL } from "@/lib/palette";
 
 const platformLabel = (p: string): string =>
@@ -292,7 +292,7 @@ function metaSummary(row: AuditFeedRow): string | null {
         | null
         | undefined;
       if (!before) return "thresholds set";
-      return `was Good ≥ ${before.goodRoas}×, Decent ≥ ${before.decentRoas}×, min $${before.minSpend}`;
+      return `was Good ≥ ${roas(before.goodRoas)}, Decent ≥ ${roas(before.decentRoas)}, min ${usd0(before.minSpend)}`;
     }
     case "user.role_change": {
       const from = m.from as string | null | undefined;

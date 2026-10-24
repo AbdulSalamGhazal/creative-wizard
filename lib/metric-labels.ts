@@ -21,4 +21,6 @@ export const METRIC_LABEL = {
   voc: "VOC",
   cvr: "CvR",
   roas: "ROAS",
+  hookRate: "Hook",
+  holdRate: "Hold",
 } as const;

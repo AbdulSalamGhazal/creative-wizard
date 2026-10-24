@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { int, pct, intCompact } from "@/lib/format";
+import { int, pct, pct1, intCompact } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { FUNNEL_METRIC_COLOR } from "@/lib/palette";
 import type { FunnelTotals } from "@/db/queries/funnel";
@@ -168,7 +168,7 @@ function CountDelta({ cur, cmp }: { cur: number; cmp: number }) {
   return (
     <span className={cn("text-[10px] num tabular-nums", up ? "text-pos" : "text-neg")}>
       {up ? "+" : ""}
-      {(d * 100).toFixed(0)}%
+      {pct1(d, 0)}
     </span>
   );
 }
@@ -180,7 +180,7 @@ function RateDelta({ cur, cmp }: { cur: number | null; cmp: number | null }) {
   return (
     <span className={cn("ml-1 text-[10px]", up ? "text-pos" : "text-neg")}>
       {up ? "▲" : "▼"}
-      {Math.abs(d * 100).toFixed(0)}%
+      {pct1(Math.abs(d), 0)}
     </span>
   );
 }

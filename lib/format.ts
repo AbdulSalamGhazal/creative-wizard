@@ -80,11 +80,6 @@ const upTo2Formatter = new Intl.NumberFormat("en-US", {
 });
 
 /**
- * A plain number with up to 2 decimals — grouped, trailing zeros dropped.
- * For values whose precision the app doesn't control (Store's custom numeric
- * fields), where `int()` would silently round 12.5 to 13.
- */
-/**
  * A percentage to `dp` decimals — `12.3%`. Unsigned; use {@link signedPct} when
  * the direction of the change is the point.
  */
@@ -124,6 +119,11 @@ export function plural(
   return `${int(count)} ${count === 1 ? singular : pluralForm}`;
 }
 
+/**
+ * A plain number with up to 2 decimals — grouped, trailing zeros dropped.
+ * For values whose precision the app doesn't control (Store's custom numeric
+ * fields), where `int()` would silently round 12.5 to 13.
+ */
 export function num(value: number | null | undefined): string {
   if (value === null || value === undefined || Number.isNaN(value)) return EM_DASH;
   return upTo2Formatter.format(value);

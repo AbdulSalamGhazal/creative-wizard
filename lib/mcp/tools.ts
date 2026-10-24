@@ -3,6 +3,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { platformEnum, creativeTypeEnum } from "@/db/schema";
 import { CREATIVE_STAGE_OPTIONS, NA_STAGE } from "@/lib/funnel-stages";
 import { CREATIVE_STATUSES } from "@/lib/creative-status";
+import { defaultDateRange, shiftIso, todayIso } from "@/lib/date-presets";
 import { allowedAccountsForUser } from "@/lib/tenant";
 import {
   kpis,
@@ -625,7 +626,7 @@ export function registerMcpTools(server: McpServer): void {
         const input = await campaignDiagnosisInput(brand, args.campaign, {
           windowDays: args.window_days,
           includeExcluded: args.include_excluded,
-          todayIso: isoToday(),
+          todayIso: todayIso(),
         });
         if (!input) {
           throw new McpToolError(
@@ -643,18 +644,15 @@ export function registerMcpTools(server: McpServer): void {
   );
 }
 
-/** Campaign/portfolio tools require a bounded range; default to last 30 days. */
+/**
+ * Campaign/portfolio tools require a bounded range; the default is the app's
+ * own "Last 30 days" (`defaultDateRange(30)`: the 30 days ending YESTERDAY in
+ * KSA), so the model is handed a window the app actually shows (C-25). One
+ * bound given: the other makes the same 30-day window around it.
+ */
 function defaultRange(from?: string, to?: string): { from: string; to: string } {
   if (from && to) return { from, to };
-  const end = to ?? isoToday();
-  const start = from ?? isoDaysBefore(end, 30);
-  return { from: start, to: end };
-}
-function isoToday(): string {
-  return new Date().toISOString().slice(0, 10);
-}
-function isoDaysBefore(iso: string, days: number): string {
-  const d = new Date(`${iso}T00:00:00Z`);
-  d.setUTCDate(d.getUTCDate() - days);
-  return d.toISOString().slice(0, 10);
+  if (!from && !to) return defaultDateRange(30);
+  if (to) return { from: shiftIso(to, -29), to };
+  return { from: from!, to: shiftIso(from!, 29) };
 }

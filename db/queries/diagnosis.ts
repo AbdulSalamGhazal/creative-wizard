@@ -2,6 +2,7 @@ import { and, between, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { performanceRecords } from "@/db/schema";
 import { getActiveAccountId } from "@/lib/tenant";
+import { shiftIso } from "@/lib/date-presets";
 import { sumSpend, sumConversionValue } from "@/lib/metrics";
 import {
   campaignAnalytics,
@@ -50,13 +51,6 @@ import type { Account } from "@/lib/tenant";
  * READ-ONLY, like everything the MCP server can reach. Nothing here writes.
  */
 
-const ISO_DAY_MS = 86_400_000;
-
-function shiftIso(iso: string, days: number): string {
-  return new Date(new Date(`${iso}T00:00:00Z`).getTime() + days * ISO_DAY_MS)
-    .toISOString()
-    .slice(0, 10);
-}
 
 /**
  * Per-creative totals ELSEWHERE in the window: the same creatives, every

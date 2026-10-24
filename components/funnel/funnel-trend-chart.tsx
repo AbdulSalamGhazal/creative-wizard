@@ -10,7 +10,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { pct, monthDay } from "@/lib/format";
+import { pct, pct1, monthDay } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { SeriesLegend } from "@/components/charts/series-legend";
 import { ChartHeader, ChartShell, ExpandButton, SmoothToggle } from "@/components/charts/chart-shell";
@@ -145,7 +145,7 @@ export function FunnelTrendChart({
           domain={fixedAxis ? [0, 1] : ["auto", "auto"]}
           ticks={fixedAxis ? FIXED_TICKS : undefined}
           allowDataOverflow={fixedAxis}
-          tickFormatter={(v: number) => `${(v * 100).toFixed(0)}%`}
+          tickFormatter={(v: number) => pct1(v, 0)}
           tick={{ fill: "var(--ink-3)", fontSize: 11 }}
           stroke="var(--line-2)"
           width={44}

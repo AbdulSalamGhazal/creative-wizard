@@ -14,6 +14,7 @@ import { int, isoDate, usd } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { CreativeRecordRow } from "@/db/queries/creatives";
 import { rowsToCsv, todayStamp, type CsvColumn } from "@/lib/csv-export";
+import { METRIC_LABEL } from "@/lib/metric-labels";
 
 // CSV export is always the full record (every uploaded field), independent of
 // which columns the table is currently showing — the Library's rule.
@@ -56,14 +57,14 @@ const METRICS: Array<{
   money?: boolean;
   pick: (r: CreativeRecordRow) => number | null;
 }> = [
-  { key: "spend", label: "Spend", on: true, money: true, pick: (r) => r.spend },
-  { key: "impressions", label: "Impr.", on: true, pick: (r) => r.impressions },
-  { key: "clicks", label: "Clicks", on: true, pick: (r) => r.clicks },
-  { key: "conversions", label: "Conv.", on: true, pick: (r) => r.conversions },
-  { key: "conversionValue", label: "Conv. value", on: false, money: true, pick: (r) => r.conversionValue },
-  { key: "landingPageViews", label: "LP views", on: false, pick: (r) => r.landingPageViews },
-  { key: "addToCart", label: "Add to cart", on: false, pick: (r) => r.addToCart },
-  { key: "addPayment", label: "Add payment", on: false, pick: (r) => r.addPayment },
+  { key: "spend", label: METRIC_LABEL.spend, on: true, money: true, pick: (r) => r.spend },
+  { key: "impressions", label: METRIC_LABEL.impressions, on: true, pick: (r) => r.impressions },
+  { key: "clicks", label: METRIC_LABEL.clicks, on: true, pick: (r) => r.clicks },
+  { key: "conversions", label: METRIC_LABEL.conversions, on: true, pick: (r) => r.conversions },
+  { key: "conversionValue", label: METRIC_LABEL.revenue, on: false, money: true, pick: (r) => r.conversionValue },
+  { key: "landingPageViews", label: METRIC_LABEL.landingPageViews, on: false, pick: (r) => r.landingPageViews },
+  { key: "addToCart", label: METRIC_LABEL.addToCart, on: false, pick: (r) => r.addToCart },
+  { key: "addPayment", label: METRIC_LABEL.addPayment, on: false, pick: (r) => r.addPayment },
   { key: "videoViews2s", label: "Video 2s", on: false, pick: (r) => r.videoViews2s },
   { key: "videoViews25", label: "Video 25%", on: false, pick: (r) => r.videoViews25 },
   { key: "videoViews50", label: "Video 50%", on: false, pick: (r) => r.videoViews50 },

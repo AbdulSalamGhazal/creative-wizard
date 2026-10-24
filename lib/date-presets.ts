@@ -46,10 +46,19 @@ export function todayIso(): string {
   }).format(new Date());
 }
 
-function shiftIso(iso: string, days: number): string {
-  const d = isoToLocalDate(iso) ?? new Date();
-  d.setDate(d.getDate() + days);
-  return localDateToIso(d);
+/**
+ * Shift an ISO calendar date by whole days — THE day-arithmetic helper (C-25 /
+ * W3-7, 2026-10: six copies — `isoMinusDays`, `isoPlusDays`, `isoDaysBefore`,
+ * two private `shiftIso`s — now delegate here). Pure calendar arithmetic on a
+ * UTC midnight, so it gives the same answer on the server (UTC), in a KSA
+ * browser and anywhere else. An unparseable input shifts from today.
+ */
+export function shiftIso(iso: string, days: number): string {
+  const base = /^\d{4}-\d{2}-\d{2}$/.test(iso) ? iso : todayIso();
+  const d = new Date(`${base}T00:00:00Z`);
+  if (Number.isNaN(d.getTime())) return shiftIso(todayIso(), days);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
 }
 
 function startOfMonth(iso: string): string {

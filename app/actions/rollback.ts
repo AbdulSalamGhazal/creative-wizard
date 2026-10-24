@@ -10,8 +10,8 @@ import { getActiveAccountId } from "@/lib/tenant";
 import { actionError } from "@/lib/action-error";
 import { notifyRoutes } from "@/db/queries/notifications";
 import { int } from "@/lib/format";
+import { ROLLBACK_WINDOW_HOURS, withinRollbackWindow } from "@/lib/upload-batches";
 
-const ROLLBACK_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 export interface RollbackResult {
   ok: boolean;
@@ -48,10 +48,10 @@ export async function rollbackBatch(batchId: string): Promise<RollbackResult> {
     if (batch.status !== "active") {
       return { ok: false, error: "Batch is not active." };
     }
-    if (Date.now() - batch.uploadedAt.getTime() > ROLLBACK_WINDOW_MS) {
+    if (!withinRollbackWindow(batch.uploadedAt)) {
       return {
         ok: false,
-        error: "Rollback window (24 h) has elapsed for this batch.",
+        error: `Rollback window (${ROLLBACK_WINDOW_HOURS} h) has elapsed for this batch.`,
       };
     }
 

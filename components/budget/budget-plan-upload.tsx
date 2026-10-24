@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import { PlatformDot } from "@/components/ui/platform-dot";
 import { ALL_PLATFORMS } from "@/lib/palette";
-import { int, sar, usd } from "@/lib/format";
+import { int, roas, sar, usd } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { downloadCsv } from "@/lib/csv-export";
 import {
@@ -487,7 +487,7 @@ export function BudgetPlanUpload({
                       <dd className="num tabular-nums text-ink-2">
                         {targetRevenue === null ? "—" : sar(targetRevenue)}{" "}
                         <span className="text-ink-3">
-                          · ROAS {targetRoas === null ? "—" : targetRoas.toFixed(2)}
+                          · ROAS {roas(targetRoas)}
                         </span>
                       </dd>
                     </div>

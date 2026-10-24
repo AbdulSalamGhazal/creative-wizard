@@ -1,4 +1,5 @@
 import { safeInternalPath } from "@/lib/url";
+import { longDate } from "@/lib/format";
 /**
  * Notifications — the vocabulary, and the single source every surface derives
  * from (the page's filter chips, the routing config's rows, the producers).
@@ -498,7 +499,7 @@ export function utcDay(date: Date | string): string {
 }
 
 /**
- * "Today" · "Yesterday" · "3 Oct 2026". Relative to `todayIso` so the caller
+ * "Today" · "Yesterday" · "Oct 3, 2026". Relative to `todayIso` so the caller
  * owns the clock (and a test can fix it).
  */
 export function dayGroupLabel(day: string, todayIso: string): string {
@@ -506,13 +507,7 @@ export function dayGroupLabel(day: string, todayIso: string): string {
   const yesterday = new Date(`${todayIso}T00:00:00Z`);
   yesterday.setUTCDate(yesterday.getUTCDate() - 1);
   if (day === yesterday.toISOString().slice(0, 10)) return "Yesterday";
-  // en-US, the app's pinned locale (same as `monthLabel`) — one date dialect.
-  return new Date(`${day}T00:00:00Z`).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    timeZone: "UTC",
-  });
+  return longDate(day); // "Oct 3, 2026" — lib/format's one date dialect
 }
 
 /**

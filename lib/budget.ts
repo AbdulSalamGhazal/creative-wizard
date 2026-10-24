@@ -7,7 +7,8 @@
  *   — warn-tinted, never green/red good/bad. Same philosophy as Reconciliation.
  */
 
-import { signedPct } from "@/lib/format";
+import { monthDay, signedPct } from "@/lib/format";
+import { shiftIso } from "@/lib/date-presets";
 import { ALL_PLATFORMS } from "@/lib/palette";
 
 /** "2026-09" → "2026-09-01"; passes through a full ISO date's month. */
@@ -538,9 +539,8 @@ function shortMonth(iso: string): string {
   });
 }
 
-function dayLabel(iso: string): string {
-  return `${shortMonth(iso)} ${Number(iso.slice(8, 10))}`;
-}
+/** "Sep 5" — lib/format's `monthDay`, the one short-date dialect. */
+const dayLabel = (iso: string): string => monthDay(iso);
 
 /** One bucket per day of the range. */
 export function dayBucketsInRange(from: string, to: string): RangeBucket[] {
@@ -1063,11 +1063,9 @@ export function budgetComboKey(platform: string, objective: string): string {
   return `${platform}|${objective}`;
 }
 
-/** UTC-safe next-day. The module works in ISO dates; this is the only adder. */
+/** UTC-safe next-day — `shiftIso` (lib/date-presets), the one day adder. */
 export function isoPlusDays(iso: string, days = 1): string {
-  const d = new Date(`${iso}T00:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + days);
-  return d.toISOString().slice(0, 10);
+  return shiftIso(iso, days);
 }
 
 /** Every ISO date from `from` to `to`, inclusive. Empty when `to` precedes it. */

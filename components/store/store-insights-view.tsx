@@ -35,7 +35,7 @@ import {
   weekBucketsInRange,
   type RangeBucket,
 } from "@/lib/budget";
-import { int, intCompact, pct1, sar, sarCompact } from "@/lib/format";
+import { int, intCompact, num, pct1, sar, sarCompact } from "@/lib/format";
 import { downloadCsv, matrixToCsv, todayStamp } from "@/lib/csv-export";
 import { PLATFORM_LABEL, seriesColor } from "@/lib/palette";
 import { platformEnum } from "@/lib/enums";
@@ -436,7 +436,7 @@ export function StoreInsightsView({
         />
         <MetricCard
           label="Orders / day"
-          value={empty || rangeDays === 0 ? "—" : (totals.orders / rangeDays).toFixed(1)}
+          value={empty || rangeDays === 0 ? "—" : num(Math.round((totals.orders / rangeDays) * 10) / 10)}
           icon={TrendingUp}
           hideBreakdown
           empty={empty}

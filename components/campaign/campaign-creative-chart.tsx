@@ -10,7 +10,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { intCompact, pct, roas, usd, usdCompact, monthDay } from "@/lib/format";
+import { intCompact, pct, pct1, roas, usd, usdCompact, monthDay } from "@/lib/format";
 import { seriesColor } from "@/lib/palette";
 import { MetricPicker } from "@/components/charts/metric-picker";
 import { SeriesLegend } from "@/components/charts/series-legend";
@@ -63,7 +63,7 @@ const ADDITIVE_METRICS = new Set<MetricKey>([
 const axisFmt = (kind: Kind) => (v: number) => {
   if (kind === "usd") return usdCompact(v);
   if (kind === "int") return intCompact(v);
-  if (kind === "pct") return `${(v * 100).toFixed(0)}%`;
+  if (kind === "pct") return pct1(v, 0);
   return roas(v);
 };
 const cellFmt = (kind: Kind, v: number | null) => {

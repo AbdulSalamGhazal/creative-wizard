@@ -7,6 +7,7 @@ import { int, pct, roas, usd } from "@/lib/format";
 import { ALL_PLATFORMS, PLATFORM_COLOR, PLATFORM_LABEL } from "@/lib/palette";
 import { PlatformDot } from "@/components/ui/platform-dot";
 import type { AnglePlatformRow } from "@/db/queries/trends";
+import { METRIC_LABEL } from "@/lib/metric-labels";
 
 type MetricKey =
   | "spend" | "conversions" | "revenue" | "roas"
@@ -20,15 +21,15 @@ interface MetricDef {
 }
 
 const METRICS: MetricDef[] = [
-  { key: "spend", label: "Spend", fmt: usd },
-  { key: "conversions", label: "Conversions", fmt: int },
-  { key: "revenue", label: "Revenue", fmt: usd },
-  { key: "roas", label: "ROAS", fmt: (v) => roas(v) },
-  { key: "cpa", label: "CPA", fmt: usd, lower: true },
-  { key: "cpm", label: "CPM", fmt: usd, lower: true },
-  { key: "ctr", label: "CTR", fmt: (v) => pct(v) },
-  { key: "cvr", label: "CvR", fmt: (v) => pct(v) },
-  { key: "hookRate", label: "Hook", fmt: (v) => pct(v) },
+  { key: "spend", label: METRIC_LABEL.spend, fmt: usd },
+  { key: "conversions", label: METRIC_LABEL.conversions, fmt: int },
+  { key: "revenue", label: METRIC_LABEL.revenue, fmt: usd },
+  { key: "roas", label: METRIC_LABEL.roas, fmt: (v) => roas(v) },
+  { key: "cpa", label: METRIC_LABEL.cpa, fmt: usd, lower: true },
+  { key: "cpm", label: METRIC_LABEL.cpm, fmt: usd, lower: true },
+  { key: "ctr", label: METRIC_LABEL.ctr, fmt: (v) => pct(v) },
+  { key: "cvr", label: METRIC_LABEL.cvr, fmt: (v) => pct(v) },
+  { key: "hookRate", label: METRIC_LABEL.hookRate, fmt: (v) => pct(v) },
 ];
 
 const TOP_N = 5;

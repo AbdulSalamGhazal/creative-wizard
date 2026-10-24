@@ -28,6 +28,12 @@
   delete either as redundant.
 - The bundle must not lie by omission: NULLs preserved, a no-data day carries
   `records: 0`, caps are reported when they bite.
+- **The tools keep the app's clock** (C-25, 2026-10): "today" is `todayIso()`
+  (KSA, lib/date-presets) and a range tool's default window is
+  `defaultDateRange(30)` — the 30 days ending yesterday that the app's "Last 30
+  days" shows. MCP had its own UTC "today" and a 31-day window ending today, so
+  between 00:00 and 03:00 KSA the model was handed a day the app hadn't
+  reached, and never the app's default window.
 
 ## History and rationale
 
