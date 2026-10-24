@@ -442,7 +442,8 @@ this map is still a rule you broke.
 
 - Use the shared primitives; extend, never fork.
 - Every route: `PageShell`, a tailored `loading.tsx`, a `metadata.title`, 375px.
-- Any route/search-param change goes through `useNavTransition`.
+- Any route/search-param change goes through `useNavTransition` — a shallow
+  presentation param (sort, column toggle) is history-API only, no render.
 - One render per action; every action call through `safeAction`.
 
 → **`docs/decisions/ui-system.md`**

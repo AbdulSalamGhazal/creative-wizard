@@ -15,7 +15,10 @@
   `loading.tsx`, sets a `metadata.title`, and works at 375px.
 - **Use the shared primitives; if one doesn't fit, EXTEND it — don't fork it.**
 - Any component that drives a route or search-param change uses
-  `useNavTransition`, or the progress bar never shows.
+  `useNavTransition`, or the progress bar never shows — except a SHALLOW
+  presentation param (a sort, an Ads column toggle; D12, tables-columns.md),
+  which rewrites the URL with the history API, renders nothing on the server
+  and lands instantly, so there is nothing for a progress bar to report.
 - Nav is ONE source (`nav-items.ts`) for both the desktop and mobile navs.
 - Empty states are designed, numbers are tabular, dash means NULL.
 - A horizontal scroll box that holds `sr-only` text is `relative`, or the
