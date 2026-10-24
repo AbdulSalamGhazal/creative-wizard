@@ -89,6 +89,17 @@
   Reload. (Since W2-2, 2026-10, this is the HOUSE rule for every action call —
   ui-system.md — and the comment panel's own thunks are wrapped lexically,
   like everyone else's.)
+- **ONE background call per navigation** (W2-7, 2026-10): the bell's
+  navigation load asks `/api/notifications?anchorType=&anchorId=` for the
+  page's comment count too, and hands it to the toggle's badge — the chrome
+  used to fire two requests beside every page render. Polls, focus reloads
+  and change events fetch the feed alone. `POLL_MS` is still the one polling
+  knob, at 30 s (D17).
+- **The panel's code loads lazily** (W2-8, 2026-10): `comment-panel.tsx` is
+  the eager half (state, toggle, the dock's frame); `comment-drawer.tsx` (the
+  thread, composer, reactions, mention picker) arrives through `next/dynamic`,
+  preloaded when the browser is idle or the pointer/focus reaches the toggle,
+  so a first open stays instant without it being in every page's download.
 - **The toast setting reaches the bell without a render** (W2-1, 2026-10):
   `setToastScope` revalidates nothing; the account menu announces the new
   value on `TOAST_SCOPE_CHANGED_EVENT` (lib/notifications.ts) and the bell

@@ -11,7 +11,7 @@ import { CommentAnchorProvider } from "@/components/comments/comment-anchor-cont
 import {
   CommentDock,
   CommentPanelProvider,
-} from "@/components/comments/comment-drawer";
+} from "@/components/comments/comment-panel";
 import { NoBrandAccess } from "@/components/layout/no-brand-access";
 import { getToastScope, resolveTablePrefs } from "@/db/queries/user-prefs";
 import { TABLE_KEY_LIST } from "@/lib/table-columns";

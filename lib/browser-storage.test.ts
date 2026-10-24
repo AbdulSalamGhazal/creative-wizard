@@ -30,7 +30,7 @@ const ALLOWED: Record<string, string> = {
   "app/layout.tsx":
     "the pre-paint theme script: it reads the stored theme before React runs and drops the dead `cw-font` key — it CANNOT come from the server without a flash of the wrong palette",
   "components/layout/sidebar.tsx": "whether the sidebar is collapsed — a per-screen preference",
-  "components/comments/comment-drawer.tsx": "whether the comment panel is open — per-screen",
+  "components/comments/comment-panel.tsx": "whether the comment panel is open — per-screen",
   "components/canvas/canvas-flow.tsx": "whether the canvas legend is expanded — per-screen",
   "components/budget/budget-shared.tsx":
     "the USD/SAR display toggle, which is explicitly display-only (ROAS always computes through the brand rate)",

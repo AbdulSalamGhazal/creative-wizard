@@ -5,7 +5,7 @@ import type { ToastScope } from "@/lib/notifications";
 import { UserMenu } from "@/components/auth/user-menu";
 import { CommandPalette } from "@/components/layout/command-palette";
 import { NotificationBell } from "@/components/layout/notification-bell";
-import { CommentToggle } from "@/components/comments/comment-drawer";
+import { CommentToggle } from "@/components/comments/comment-panel";
 import { AccountSwitcher } from "@/components/layout/account-switcher";
 import { MobileNav } from "@/components/layout/mobile-nav";
 import { LogoMark } from "@/components/layout/logo-mark";

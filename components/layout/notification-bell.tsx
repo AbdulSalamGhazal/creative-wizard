@@ -33,6 +33,8 @@ import { markNotificationRead, markNotificationsRead } from "@/app/actions/notif
 import { safeAction } from "@/lib/action-failure";
 import { toastActionFailure } from "@/lib/action-toast";
 import { useMinuteTick } from "@/lib/use-minute-tick";
+import { useCommentAnchor } from "@/components/comments/comment-anchor-context";
+import { anchorKeyOf, usePanel } from "@/components/comments/comment-panel";
 import { NotificationAvatar } from "@/components/notifications/notification-avatar";
 
 interface FeedItem {
@@ -189,25 +191,62 @@ export function NotificationBell({
     [userId, accountId, toastScope, router, openHref],
   );
 
-  const load = useCallback(async () => {
-    try {
-      const res = await fetch("/api/notifications", { cache: "no-store" });
-      if (!res.ok) return; // a 401 mid-session: the next navigation redirects
-      const data = (await res.json()) as { count: number; items: FeedItem[] };
-      const next = data.items ?? [];
-      setCount(data.count ?? 0);
-      setItems(next);
-      setLoaded(true);
-      announce(next);
-    } catch {
-      /* offline or navigating away — the next tick tries again */
-    }
-  }, [announce]);
+  // THE CHROME'S ONE BACKGROUND CALL (W2-7, 2026-10). A navigation used to
+  // fire two requests beside the page render — this feed, and the comment
+  // toggle's own count — each re-resolving the session and the brand. The
+  // navigation load now asks for the page's comment count in the same request;
+  // the polls and focus reloads don't (the count is per page, not per tick).
+  const anchor = useCommentAnchor();
+  const anchorKey = anchorKeyOf(anchor);
+  const { setCount: setCommentCount } = usePanel();
+  // An answer about a page the reader has already left must not set the badge.
+  const currentAnchorKey = useRef(anchorKey);
+  currentAnchorKey.current = anchorKey;
+
+  const load = useCallback(
+    async (withAnchor?: { type: string; id: string; key: string }) => {
+      try {
+        const qs = withAnchor
+          ? `?${new URLSearchParams({ anchorType: withAnchor.type, anchorId: withAnchor.id })}`
+          : "";
+        const res = await fetch(`/api/notifications${qs}`, { cache: "no-store" });
+        if (!res.ok) return; // a 401 mid-session: the next navigation redirects
+        const data = (await res.json()) as {
+          count: number;
+          items: FeedItem[];
+          commentCount?: number;
+        };
+        const next = data.items ?? [];
+        setCount(data.count ?? 0);
+        setItems(next);
+        setLoaded(true);
+        announce(next);
+        if (
+          withAnchor &&
+          withAnchor.key === currentAnchorKey.current &&
+          typeof data.commentCount === "number"
+        ) {
+          setCommentCount(data.commentCount);
+        }
+      } catch {
+        /* offline or navigating away — the next tick tries again */
+      }
+    },
+    [announce, setCommentCount],
+  );
 
   // Route changes are the cheapest signal that something may have happened.
+  // Settled for a moment first: an entity page registers its anchor in an
+  // effect AFTER the path changes, and one request should carry the final one.
   useEffect(() => {
-    void load();
-  }, [load, pathname]);
+    if (!anchor) setCommentCount(0);
+    const t = window.setTimeout(() => {
+      void load(anchor ? { type: anchor.type, id: anchor.id, key: anchorKey! } : undefined);
+    }, 120);
+    return () => window.clearTimeout(t);
+    // `anchorKey` is the anchor's identity; `anchor` is a fresh object.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [load, pathname, anchorKey]);
 
   // Another surface (the panel opening a thread, /notifications) read or
   // cleared something: the badge follows at once — an event, not a timer.

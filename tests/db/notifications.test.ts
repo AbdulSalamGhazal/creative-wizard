@@ -46,7 +46,7 @@ vi.mock("@/lib/auth", () => ({
 import { auth, requireAuth } from "@/lib/auth";
 import { getActiveAccountId } from "@/lib/tenant";
 import { db } from "@/lib/db";
-import { notificationRoutes, notifications, users } from "@/db/schema";
+import { comments, notificationRoutes, notifications, users } from "@/db/schema";
 import {
   brandMembers,
   createNotifications,
@@ -517,6 +517,41 @@ describe("the poll payload carries what the toaster needs", () => {
     const res = await GET();
     const body = (await res.json()) as { items: Array<{ href: string | null }> };
     expect(body.items[0]!.href).toBeNull();
+  });
+});
+
+describe("one background call per navigation: the feed carries the page's comment count (W2-7)", () => {
+  const req = async (qs: string) => {
+    const { NextRequest } = await import("next/server");
+    return GET(new NextRequest(`http://localhost/api/notifications${qs}`));
+  };
+
+  it("an anchor adds commentCount — live comments on THAT anchor, in THIS brand", async () => {
+    const view = "/summary";
+    await db.insert(comments).values([
+      { accountId: ACCOUNT_A, anchorType: "view", anchorId: view, authorUserId: BOB, body: "one" },
+      { accountId: ACCOUNT_A, anchorType: "view", anchorId: view, authorUserId: BOB, body: "two" },
+      { accountId: ACCOUNT_A, anchorType: "view", anchorId: view, authorUserId: BOB, body: "gone", deletedAt: new Date() },
+      { accountId: ACCOUNT_B, anchorType: "view", anchorId: view, authorUserId: BOB, body: "other brand" },
+    ]);
+    const body = (await (await req(`?anchorType=view&anchorId=${encodeURIComponent(view)}`)).json()) as {
+      count: number;
+      commentCount?: number;
+      items: unknown[];
+    };
+    expect(body.commentCount).toBe(2);
+    expect(Array.isArray(body.items)).toBe(true);
+  });
+
+  it("no anchor (the poll) or an invalid one: the feed alone, no count", async () => {
+    const poll = (await (await req("")).json()) as Record<string, unknown>;
+    expect("commentCount" in poll).toBe(false);
+    const bad = (await (await req("?anchorType=view&anchorId=%2Fnot-a-page")).json()) as Record<
+      string,
+      unknown
+    >;
+    expect("commentCount" in bad).toBe(false);
+    expect(typeof bad.count).toBe("number");
   });
 });
 

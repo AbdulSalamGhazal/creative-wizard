@@ -29,8 +29,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Invalid anchor" }, { status: 400 });
   }
 
-  // The drawer's badge asks for the count alone: one bounded COUNT per page
-  // view, for the whole app, instead of a thread nobody opened.
+  // The count alone. Since W2-7 (2026-10) the badge's count rides on the
+  // bell's per-navigation `/api/notifications?anchorType=&anchorId=` call; this
+  // branch stays for tabs opened before that deploy, which still ask here.
   if (searchParams.get("count") === "1") {
     const count = await commentCount(
       parsed.data.anchorType as CommentAnchorType,
