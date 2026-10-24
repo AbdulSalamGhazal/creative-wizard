@@ -42,9 +42,12 @@
   validate time, so a mid-flow brand switch cannot cross-write.
 - **Ending sessions is one stamp, not a cookie change (D3).** A cookie
   issued before `users.sessions_revoked_at` is signed out by `auth()`.
-  Sign-out ends EVERY session of the person; a password change ends the
-  others and re-issues the current cookie; an admin reset ends all of the
-  target's. Middleware stays DB-free — never move this check there.
+  "Sign out" ends THIS device only and stamps nothing; "Sign out
+  everywhere" ends EVERY session of the person (F2, user decision — two
+  menu items, audited `auth.signout` / `auth.signout_everywhere`); a
+  password change ends the others and re-issues the current cookie; an
+  admin reset ends all of the target's. Middleware stays DB-free — never
+  move this check there.
 - **An event with no session passes its brand explicitly.** `logAudit`
   resolves the ACTIVE brand, which throws `NO_BRAND_ACCESS` for a visitor who
   isn't signed in — and the audit swallows its own errors, so the row simply
@@ -243,4 +246,14 @@ reset end the person's other sessions); the password change re-issues the
 current device's cookie so the person who changed it stays in. Pinned
 through the real actions in `tests/db/sessions.test.ts` (4 of its 6 cases
 fail on the old code).
+
+**Two sign-outs (F2, 2026-10-24).** Making the one "Sign out" end every
+session changed what a familiar button does without changing its label —
+signing out of a shared laptop also signed you out of your phone. The user
+chose two items: "Sign out" is this device again (it clears the cookie and
+stamps nothing), and a new "Sign out everywhere" in the avatar menu is the
+D3 behaviour. The password change and the admin reset are unchanged. Each
+sign-out audits under its own action, and the two-device test in
+`tests/db/sessions.test.ts` pins both (3 of its 7 cases fail on the D3
+code).
 

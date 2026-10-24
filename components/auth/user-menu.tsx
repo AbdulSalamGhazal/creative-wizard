@@ -11,6 +11,7 @@ import {
   KeyRound,
   Loader2,
   LogOut,
+  MonitorSmartphone,
   Palette,
   Plug,
   Trash2,
@@ -28,7 +29,7 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { signOut } from "@/app/actions/session";
+import { signOut, signOutEverywhere } from "@/app/actions/session";
 import { setToastScope } from "@/app/actions/user-prefs";
 import { safeAction } from "@/lib/action-failure";
 import { toastActionFailure } from "@/lib/action-toast";
@@ -99,6 +100,9 @@ export function UserMenu({ user, toastScope }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [changeOpen, setChangeOpen] = useState(false);
+  // Which sign-out was chosen — both items wait while either runs.
+  const [leaving, setLeaving] = useState<"device" | "everywhere" | null>(null);
+  const signingOut = isPending && leaving !== null;
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
   // Optimistic: the check moves now, the server catches up on refresh.
@@ -135,9 +139,12 @@ export function UserMenu({ user, toastScope }: Props) {
     ? ([...DARK_THEMES, ...LIGHT_THEMES].find((t) => t.value === theme)?.label ?? "")
     : "";
 
-  const handleSignOut = () => {
+  // "Sign out" ends THIS device; "Sign out everywhere" ends every session
+  // the person has (F2, user decision 2026-10-24).
+  const handleSignOut = (scope: "device" | "everywhere") => {
+    setLeaving(scope);
     startTransition(async () => {
-      await signOut();
+      await (scope === "device" ? signOut() : signOutEverywhere());
     });
   };
 
@@ -290,9 +297,21 @@ export function UserMenu({ user, toastScope }: Props) {
           </DropdownMenuSub>
 
           <DropdownMenuSeparator />
-          <DropdownMenuItem onSelect={handleSignOut} disabled={isPending}>
+          <DropdownMenuItem
+            onSelect={() => handleSignOut("device")}
+            disabled={signingOut}
+          >
             <LogOut className="w-3.5 h-3.5" />
-            {isPending ? "Signing out…" : "Sign out"}
+            {signingOut && leaving === "device" ? "Signing out…" : "Sign out"}
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onSelect={() => handleSignOut("everywhere")}
+            disabled={signingOut}
+          >
+            <MonitorSmartphone className="w-3.5 h-3.5" />
+            {signingOut && leaving === "everywhere"
+              ? "Signing out everywhere…"
+              : "Sign out everywhere"}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>

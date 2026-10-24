@@ -84,6 +84,8 @@ export const AUDIT_ACTIONS = {
   AUTH_SIGNIN_FAILED: "auth.signin_failed",
   AUTH_SIGNIN_THROTTLED: "auth.signin_throttled",
   AUTH_SIGNOUT: "auth.signout",
+  /** Every session of the person ended at once (F2) — distinct from one device. */
+  AUTH_SIGNOUT_EVERYWHERE: "auth.signout_everywhere",
   AUTH_PASSWORD_CHANGE: "auth.password_change",
 
   // Saved views
@@ -261,6 +263,7 @@ export const AUDIT_LABELS: Record<AuditAction, string> = {
   "auth.signin_failed": "Failed sign-in",
   "auth.signin_throttled": "Sign-in throttled",
   "auth.signout": "Signed out",
+  "auth.signout_everywhere": "Signed out everywhere",
   "auth.password_change": "Changed password",
   "view.create": "Saved a view",
   "view.delete": "Deleted a view",
@@ -329,6 +332,7 @@ export const AUDIT_CATEGORIES: Record<AuditAction, AuditEntityType> = {
   "auth.signin_failed": "auth",
   "auth.signin_throttled": "auth",
   "auth.signout": "auth",
+  "auth.signout_everywhere": "auth",
   "auth.password_change": "auth",
   "view.create": "view",
   "view.delete": "view",

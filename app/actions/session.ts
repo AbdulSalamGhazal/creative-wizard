@@ -159,17 +159,37 @@ export async function signIn(formData: FormData): Promise<SignInResult> {
 }
 
 /**
- * Sign out — EVERYWHERE (D3, 2026-10-23): every session this person has, on
- * every device, ends, not just this browser's cookie. Clearing only the local
- * cookie left a copied or forgotten one valid for its full 30 days.
+ * Sign out — THIS DEVICE (F2, 2026-10-24, user decision): clears this
+ * browser's cookie and nothing else; the person's other sessions keep
+ * working. Ending them all is `signOutEverywhere`, a separate menu item.
  */
 export async function signOut(): Promise<void> {
   // Capture identity before clearing the cookie so the audit row has an actor.
   const me = await auth();
   if (me) {
-    // Audit FIRST: it resolves the brand through the session being ended.
     await logAudit({
       action: AUDIT_ACTIONS.AUTH_SIGNOUT,
+      entityType: "auth",
+      entityId: me.id,
+      entityLabel: me.email,
+      actorUserId: me.id,
+    });
+  }
+  await clearSessionCookie();
+  redirect("/signin");
+}
+
+/**
+ * Sign out EVERYWHERE (D3, 2026-10-23; its own menu item since F2): every
+ * session this person has, on every device, ends — the stamp in
+ * `endSessions` signs out every cookie issued before now, this one included.
+ */
+export async function signOutEverywhere(): Promise<void> {
+  const me = await auth();
+  if (me) {
+    // Audit FIRST: it resolves the brand through the session being ended.
+    await logAudit({
+      action: AUDIT_ACTIONS.AUTH_SIGNOUT_EVERYWHERE,
       entityType: "auth",
       entityId: me.id,
       entityLabel: me.email,

@@ -6,7 +6,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
  * only deleted THIS browser's cookie, and a password change or an admin reset
  * left every other cookie valid for its full 30 days. Now each of the three
  * stamps `users.sessions_revoked_at`, and `auth()` signs out any cookie issued
- * before it.
+ * before it. Since F2 (2026-10-24, user decision) plain "Sign out" ends only
+ * THIS device; "Sign out everywhere" is the stamp.
  *
  * Driven through the REAL actions and the REAL `auth()`; only the cookie jar
  * is faked. "Two devices" = two cookies for the same person, swapped into the
@@ -24,13 +25,18 @@ vi.mock("next/headers", () => ({
 
 process.env.AUTH_SECRET ||= "db-test-secret-at-least-16-chars";
 
-import { eq } from "drizzle-orm";
+import { and, eq, like } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { users } from "@/db/schema";
+import { auditEvents, users } from "@/db/schema";
 import { hashPassword } from "@/lib/auth-password";
 import { auth } from "@/lib/auth";
 import { SESSION_COOKIE } from "@/lib/auth-cookie";
-import { changePassword, signIn, signOut } from "@/app/actions/session";
+import {
+  changePassword,
+  signIn,
+  signOut,
+  signOutEverywhere,
+} from "@/app/actions/session";
 import { adminSetPassword } from "@/app/actions/user";
 import { resetAndSeed, USER as ADMIN } from "./fixtures";
 
@@ -55,6 +61,16 @@ async function deviceCookie(email: string, password: string): Promise<string> {
   return jar.get(SESSION_COOKIE)!;
 }
 
+/** The sign-out audit actions recorded for this person, oldest first. */
+async function audited(userId: string): Promise<string[]> {
+  const rows = await db
+    .select({ action: auditEvents.action })
+    .from(auditEvents)
+    .where(and(eq(auditEvents.actorUserId, userId), like(auditEvents.action, "auth.signout%")))
+    .orderBy(auditEvents.id);
+  return rows.map((r) => r.action);
+}
+
 /** Who `auth()` says is signed in when this cookie is sent. */
 async function whoIs(cookie: string | undefined) {
   jar.clear();
@@ -75,8 +91,28 @@ beforeEach(async () => {
     .where(eq(users.id, ADMIN));
 });
 
-describe("sign-out ends every session", () => {
-  it("signing out on one device signs the other out too", async () => {
+describe("Sign out ends THIS device only (F2)", () => {
+  it("the other device stays signed in, and nothing is stamped", async () => {
+    const laptop = await deviceCookie(EMAIL, PW);
+    const phone = await deviceCookie(EMAIL, PW);
+
+    jar.clear();
+    jar.set(SESSION_COOKIE, phone);
+    await expect(signOut()).rejects.toThrow(); // redirect("/signin") throws by design
+    expect(jar.has(SESSION_COOKIE)).toBe(false); // this device's cookie is gone
+
+    expect(await whoIs(laptop)).toBe(MEMBER);
+    const [row] = await db
+      .select({ at: users.sessionsRevokedAt })
+      .from(users)
+      .where(eq(users.id, MEMBER));
+    expect(row!.at).toBeNull();
+    expect(await audited(MEMBER)).toEqual(["auth.signout"]);
+  });
+});
+
+describe("Sign out everywhere ends every session (D3 → F2)", () => {
+  it("signing out everywhere on one device signs the other out too", async () => {
     const laptop = await deviceCookie(EMAIL, PW);
     const phone = await deviceCookie(EMAIL, PW);
     expect(await whoIs(laptop)).toBe(MEMBER);
@@ -84,17 +120,18 @@ describe("sign-out ends every session", () => {
 
     jar.clear();
     jar.set(SESSION_COOKIE, phone);
-    await expect(signOut()).rejects.toThrow(); // redirect("/signin") throws by design
+    await expect(signOutEverywhere()).rejects.toThrow();
     expect(jar.has(SESSION_COOKIE)).toBe(false);
 
     expect(await whoIs(laptop)).toBeNull();
     expect(await whoIs(phone)).toBeNull();
+    expect(await audited(MEMBER)).toEqual(["auth.signout_everywhere"]);
   });
 
   it("signing in again afterwards works", async () => {
     const before = await deviceCookie(EMAIL, PW);
     jar.set(SESSION_COOKIE, before);
-    await expect(signOut()).rejects.toThrow();
+    await expect(signOutEverywhere()).rejects.toThrow();
     const after = await deviceCookie(EMAIL, PW);
     expect(await whoIs(after)).toBe(MEMBER);
   });

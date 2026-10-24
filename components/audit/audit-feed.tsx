@@ -125,6 +125,7 @@ function ActionIcon({ action }: { action: AuditAction }) {
     "auth.signin": LogIn,
     "auth.signin_failed": ShieldAlert,
     "auth.signout": LogOut,
+    "auth.signout_everywhere": LogOut,
     "auth.password_change": ShieldAlert,
     "account.create": Building2,
     "account.rename": Building2,
