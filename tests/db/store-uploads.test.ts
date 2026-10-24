@@ -21,6 +21,22 @@ vi.mock("@/lib/auth", async (importOriginal) => {
     auth: vi.fn(async () => actor),
     requireAuth: vi.fn(async () => actor),
     requirePermission: vi.fn(async () => actor),
+    // The session user's prefs ride on the row `auth()` reads (W2-5); with
+    // `auth` mocked, read the actor's row for real.
+    sessionPrefs: vi.fn(async () => {
+      const { db } = await import("@/lib/db");
+      const { users } = await import("@/db/schema");
+      const { eq } = await import("drizzle-orm");
+      const [row] = await db
+        .select({
+          preferredDateRange: users.preferredDateRange,
+          includeExcluded: users.includeExcluded,
+          toastScope: users.toastScope,
+        })
+        .from(users)
+        .where(eq(users.id, actor.id));
+      return row ?? null;
+    }),
   };
 });
 vi.mock("@/lib/tenant", () => ({

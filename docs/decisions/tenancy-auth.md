@@ -9,6 +9,13 @@
 ## Invariants
 
 - Every tenant read injects `account_id`; every write stamps it.
+- **The signed-in person's `users` row is read ONCE per request** (W2-5,
+  2026-10): `auth()` selects the identity AND the raw preferences
+  (`preferred_date_range`, `include_excluded`, `toast_scope`) in one query;
+  `sessionPrefs()` hands them to the getters in `db/queries/user-prefs.ts`,
+  which decode them and never read the row again. The prefs stay OFF
+  `SessionUser`, which client components receive. A test that mocks `auth`
+  must mock `sessionPrefs` too (tests/db/session-row.test.ts pins the wiring).
 - **Membership says WHERE, permissions say WHAT.** Admins bypass both.
 - **A FK target must be re-validated against the active account before a
   write** — the FK only enforces global existence.

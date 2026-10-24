@@ -1,8 +1,8 @@
 import { cache } from "react";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { userFilterPrefs, userTablePrefs, users } from "@/db/schema";
-import { auth } from "@/lib/auth";
+import { userFilterPrefs, userTablePrefs } from "@/db/schema";
+import { auth, sessionPrefs } from "@/lib/auth";
 import { getActiveAccountId } from "@/lib/tenant";
 import {
   isPersistableFilterKey,
@@ -32,14 +32,9 @@ import {
  */
 export const getPreferredRange = cache(
   async (): Promise<DateRangeValue | null> => {
-    const user = await auth();
-    if (!user) return null;
-    const [row] = await db
-      .select({ pref: users.preferredDateRange })
-      .from(users)
-      .where(eq(users.id, user.id))
-      .limit(1);
-    return decodePreferredRange(row?.pref, todayIso());
+    // From the row `auth()` already read — no query of its own (W2-5).
+    const prefs = await sessionPrefs();
+    return decodePreferredRange(prefs?.preferredDateRange, todayIso());
   },
 );
 
@@ -74,14 +69,9 @@ export async function resolvePreferredRange(
  * outlived the vocabulary falls back to the default rather than throwing.
  */
 export const getToastScope = cache(async (): Promise<ToastScope> => {
-  const user = await auth();
-  if (!user) return DEFAULT_TOAST_SCOPE;
-  const [row] = await db
-    .select({ scope: users.toastScope })
-    .from(users)
-    .where(eq(users.id, user.id))
-    .limit(1);
-  return toToastScope(row?.scope);
+  const prefs = await sessionPrefs();
+  if (!prefs) return DEFAULT_TOAST_SCOPE;
+  return toToastScope(prefs.toastScope);
 });
 
 /**
@@ -89,14 +79,7 @@ export const getToastScope = cache(async (): Promise<ToastScope> => {
  * never chose. `cache()`-deduped per request.
  */
 const getIncludeExcludedPref = cache(async (): Promise<boolean | null> => {
-  const user = await auth();
-  if (!user) return null;
-  const [row] = await db
-    .select({ pref: users.includeExcluded })
-    .from(users)
-    .where(eq(users.id, user.id))
-    .limit(1);
-  return row?.pref ?? null;
+  return (await sessionPrefs())?.includeExcluded ?? null;
 });
 
 /**

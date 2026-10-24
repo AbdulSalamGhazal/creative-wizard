@@ -53,10 +53,23 @@ export async function loadUserById(
   return (await loadUserRow(userId))?.user ?? null;
 }
 
-/** The user plus their session-revocation stamp (kept off `SessionUser`). */
+/**
+ * The signed-in person's own preferences, raw, as stored on their `users` row
+ * (W2-5, 2026-10). Read in the SAME query as the identity — they used to be
+ * three more `select … from users where id = $1` per request, one per getter
+ * (db/queries/user-prefs.ts decodes them). Kept off `SessionUser`, which is
+ * handed to client components.
+ */
+export interface SessionPrefs {
+  preferredDateRange: string | null;
+  includeExcluded: boolean | null;
+  toastScope: string | null;
+}
+
+/** The user plus their session-revocation stamp and prefs (kept off `SessionUser`). */
 async function loadUserRow(
   userId: string,
-): Promise<{ user: SessionUser; sessionsRevokedAt: Date | null } | null> {
+): Promise<{ user: SessionUser; sessionsRevokedAt: Date | null; prefs: SessionPrefs } | null> {
   const [row] = await db
     .select({
       id: users.id,
@@ -67,13 +80,16 @@ async function loadUserRow(
       allAccounts: users.allAccounts,
       avatarUrl: users.avatarUrl,
       sessionsRevokedAt: users.sessionsRevokedAt,
+      preferredDateRange: users.preferredDateRange,
+      includeExcluded: users.includeExcluded,
+      toastScope: users.toastScope,
     })
     .from(users)
     .where(eq(users.id, userId))
     .limit(1);
 
   if (!row) return null;
-  const { sessionsRevokedAt, ...rest } = row;
+  const { sessionsRevokedAt, preferredDateRange, includeExcluded, toastScope, ...rest } = row;
   return {
     user: {
       ...rest,
@@ -81,6 +97,7 @@ async function loadUserRow(
       permissions: rest.permissions ?? null,
     },
     sessionsRevokedAt,
+    prefs: { preferredDateRange, includeExcluded, toastScope },
   };
 }
 
@@ -101,17 +118,31 @@ export async function endSessions(userId: string, at: Date): Promise<void> {
  * MCP note: consults the tenant-context override first (a bearer-authed MCP
  * request has no cookie), so the token's user is the identity for that request.
  */
-export const auth = cache(async (): Promise<SessionUser | null> => {
-  const override = getTenantContext();
-  if (override) return loadUserById(override.userId);
+const sessionRow = cache(
+  async (): Promise<{ user: SessionUser; prefs: SessionPrefs } | null> => {
+    const override = getTenantContext();
+    if (override) return loadUserRow(override.userId);
 
-  const session = await readSession();
-  if (!session) return null;
-  const loaded = await loadUserRow(session.userId);
-  if (!loaded) return null;
-  // A cookie issued before the person's sessions were ended is signed out (D3).
-  if (sessionRevoked(session.issuedAt, loaded.sessionsRevokedAt)) return null;
-  return loaded.user;
+    const session = await readSession();
+    if (!session) return null;
+    const loaded = await loadUserRow(session.userId);
+    if (!loaded) return null;
+    // A cookie issued before the person's sessions were ended is signed out (D3).
+    if (sessionRevoked(session.issuedAt, loaded.sessionsRevokedAt)) return null;
+    return loaded;
+  },
+);
+
+export const auth = cache(async (): Promise<SessionUser | null> => {
+  return (await sessionRow())?.user ?? null;
+});
+
+/**
+ * The signed-in person's raw preferences — from the row `auth()` already read,
+ * so asking costs no query (W2-5). Null when signed out.
+ */
+export const sessionPrefs = cache(async (): Promise<SessionPrefs | null> => {
+  return (await sessionRow())?.prefs ?? null;
 });
 
 export async function requireAuth(): Promise<SessionUser> {
