@@ -40,6 +40,11 @@
 - Delete is SOFT; `restoreComment` is allowed only for whoever performed the
   delete, checked against the `comment.delete` audit row written in the same
   transaction — keep that row in-transaction or undo silently breaks.
+- **Only ADMINS delete someone else's comment** (F3, user decision
+  2026-10-24); authors always delete their own. `users.manage` does NOT
+  grant it. `canModerateComments` (lib/comments.ts) is the one rule: it gates
+  `deleteComment` and is the panel's `canModerate`, so the "…" menu never
+  offers a delete the server refuses.
 - **`lib/comment-markdown.ts` is the only place user input becomes HTML, and
   its ORDER is the security model**: escape the whole body first, then
   transform. A new pattern goes AFTER the escape, never before.
@@ -579,3 +584,16 @@ quote.
   bell, a toast (DOM-verified) and /notifications.
 - **Review fixes (same day): R1–R4, D1–D4** are recorded above under their
   own entries; R4 added `.claude/**` to the ESLint ignores.
+
+### Comment moderation is an admin power (F3, 2026-10-24)
+
+`deleteComment` and the dashboard layout's `canModerate` both let anyone
+holding `users.manage` delete other people's comments — a team manager
+could remove what a colleague said. The system audit's D1 review raised it
+as a decision, and the user decided: only admins delete someone else's
+comment. Authors still delete their own,
+and undo stays with whoever performed the delete. The two hand-copied
+checks became one function, `canModerateComments`, so the menu and the
+server cannot drift apart again. Pinned in `tests/db/comments.test.ts`
+(a `users.manage` editor is refused, the author and an admin are not);
+the case fails on the old rule.

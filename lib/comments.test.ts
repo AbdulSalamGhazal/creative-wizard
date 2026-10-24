@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  canModerateComments,
   COMMENTABLE_VIEWS,
   COMMENT_PARAM,
   COMMENT_REACTIONS,
@@ -397,5 +398,13 @@ describe("your own post never vanishes on a failed reload (2026-10-20 review)", 
     expect(settleSentPosts(local, new Set(["a", "b"]))).toEqual(local);
     // The stored copy is on screen: the local one goes; a pending one stays.
     expect(settleSentPosts(local, new Set(["a", "c-9"]))).toEqual([local[1]]);
+  });
+});
+
+describe("who may delete someone else's comment (F3)", () => {
+  it("admins only — an editor or viewer, whatever they may grant, may not", () => {
+    expect(canModerateComments({ role: "admin" })).toBe(true);
+    expect(canModerateComments({ role: "editor" })).toBe(false);
+    expect(canModerateComments({ role: "viewer" })).toBe(false);
   });
 });

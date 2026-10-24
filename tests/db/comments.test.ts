@@ -457,6 +457,29 @@ describe("edit and delete", () => {
     const thread = await listComments("creative", CREATIVE_1);
     expect(thread).toHaveLength(2); // the reply is still there under it
   });
+
+  it("only ADMINS delete someone else's comment — users.manage no longer does (F3)", async () => {
+    const root = await createComment({ ...onCreative, body: "Alice's take" });
+
+    // Bob manages the team but is not an admin.
+    setUser(BOB, "Bob");
+    vi.mocked(can).mockImplementation((_user, permission) => permission === "users.manage");
+    const manager = await deleteComment({ id: root.id });
+    expect(manager).toEqual({ ok: false, error: "You can only delete your own comments." });
+    const [still] = await db.select().from(comments).where(eq(comments.id, root.id!));
+    expect(still?.deletedAt).toBeNull();
+
+    // The author still deletes her own…
+    setUser(ALICE, "Alice");
+    expect((await deleteComment({ id: root.id })).ok).toBe(true);
+
+    // …and an admin still deletes anyone's.
+    setUser(BOB, "Bob");
+    const bobs = await createComment({ ...onCreative, body: "Bob's take" });
+    setUser(ADMIN, "Harness", "admin");
+    vi.mocked(can).mockReturnValue(false);
+    expect((await deleteComment({ id: bobs.id })).ok).toBe(true);
+  });
 });
 
 describe("undo a delete", () => {

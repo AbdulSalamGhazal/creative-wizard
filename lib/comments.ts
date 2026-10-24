@@ -63,6 +63,17 @@ export const COMMENTABLE_VIEWS: ReadonlyArray<{ path: string; label: string }> =
     return out;
   })();
 
+/**
+ * Who may delete SOMEONE ELSE'S comment: admins only (F3, user decision
+ * 2026-10-24). Authors always delete their own; `users.manage` no longer
+ * grants this.
+ * The ONE rule — `deleteComment` enforces it and the layout hands it to the
+ * panel as `canModerate`, so the menu never offers a delete the server refuses.
+ */
+export function canModerateComments(user: { role: string }): boolean {
+  return user.role === "admin";
+}
+
 export function isCommentableView(path: string): boolean {
   return COMMENTABLE_VIEWS.some((v) => v.path === path);
 }

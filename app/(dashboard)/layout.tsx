@@ -4,7 +4,8 @@ import { asc } from "drizzle-orm";
 import { Sidebar } from "@/components/layout/sidebar";
 import { TopBar } from "@/components/layout/top-bar";
 import { NavProgressBar } from "@/components/layout/nav-progress-bar";
-import { auth, can, grantedPermissions } from "@/lib/auth";
+import { auth, grantedPermissions } from "@/lib/auth";
+import { canModerateComments } from "@/lib/comments";
 import { PermissionsProvider } from "@/components/auth/permissions-context";
 import { CommentAnchorProvider } from "@/components/comments/comment-anchor-context";
 import {
@@ -106,9 +107,7 @@ export default async function DashboardLayout({
                   currentUserId={user.id}
                   currentUserName={user.name}
                   currentUserAvatarUrl={user.avatarUrl}
-                  canModerate={
-                    user.role === "admin" || can(user, "users.manage")
-                  }
+                  canModerate={canModerateComments(user)}
                 />
               </Suspense>
             </div>

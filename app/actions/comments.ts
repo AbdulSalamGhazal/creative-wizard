@@ -3,7 +3,7 @@
 import { and, eq, isNotNull, isNull } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { auditEvents, commentReactions, comments } from "@/db/schema";
-import { can, requireAuth } from "@/lib/auth";
+import { requireAuth } from "@/lib/auth";
 import { getActiveAccountId } from "@/lib/tenant";
 import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
 import { actionError } from "@/lib/action-error";
@@ -12,6 +12,7 @@ import { actionError } from "@/lib/action-error";
 // (2026-10-20, lib/bidi.ts).
 import { isolate } from "@/lib/bidi";
 import {
+  canModerateComments,
   reactionDedupeKey,
   reactionEmoji,
   rootParentId,
@@ -330,8 +331,8 @@ export async function deleteComment(input: unknown): Promise<CommentActionResult
       return { ok: false, error: "That comment no longer exists." };
     }
     const isAuthor = existing.authorUserId === user.id;
-    const isAdmin = can(user, "users.manage") || user.role === "admin";
-    if (!isAuthor && !isAdmin) {
+    // Someone else's comment: admins only (F3) — not `users.manage`.
+    if (!isAuthor && !canModerateComments(user)) {
       return { ok: false, error: "You can only delete your own comments." };
     }
 
