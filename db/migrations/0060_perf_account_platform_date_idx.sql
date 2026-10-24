@@ -1,0 +1,1 @@
+CREATE INDEX "perf_account_platform_date_idx" ON "performance_records" USING btree ("account_id","platform","date");

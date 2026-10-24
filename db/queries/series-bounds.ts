@@ -55,16 +55,18 @@ export const storeDataHorizon = cache(async (): Promise<string | null> => {
 export const platformHorizons = cache(
   async (): Promise<Partial<Record<Platform, string>>> => {
     const acct = await getActiveAccountId();
-    const rows = await db
-      .select({
-        platform: performanceRecords.platform,
-        max: sql<string>`MAX(${performanceRecords.date})`,
-      })
-      .from(performanceRecords)
-      .where(eq(performanceRecords.accountId, acct))
-      .groupBy(performanceRecords.platform);
+    // ONE index probe per platform (W2-9, 2026-10) — `perf_account_platform_
+    // date_idx` answers each MAX from its last entry. The GROUP BY it replaces
+    // read every row of the brand (a seq scan at 54k synthetic rows: ~20 ms
+    // → ~0.1 ms).
+    const rows = await db.execute<{ platform: string; max: string | null }>(sql`
+      SELECT p.platform,
+             (SELECT MAX(${performanceRecords.date}) FROM ${performanceRecords}
+               WHERE ${performanceRecords.accountId} = ${acct}
+                 AND ${performanceRecords.platform} = p.platform)::text AS max
+        FROM unnest(${sql.param([...platformEnum])}::varchar[]) AS p(platform)`);
     const out: Partial<Record<Platform, string>> = {};
-    for (const r of rows) out[r.platform as Platform] = r.max;
+    for (const r of rows) if (r.max) out[r.platform as Platform] = r.max;
     return out;
   },
 );

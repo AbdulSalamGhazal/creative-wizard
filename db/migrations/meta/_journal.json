@@ -421,6 +421,13 @@
       "when": 1792832434423,
       "tag": "0059_signin_throttle_ip_idx",
       "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1792841110186,
+      "tag": "0060_perf_account_platform_date_idx",
+      "breakpoints": true
     }
   ]
 }

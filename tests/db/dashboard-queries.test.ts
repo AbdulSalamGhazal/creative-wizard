@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
+import type { KpiFilters } from "@/db/queries/performance";
 import { ACCOUNT_A, ACCOUNT_B } from "./config";
 
 vi.mock("@/lib/tenant", () => ({
@@ -12,7 +13,8 @@ vi.mock("@/lib/tenant", () => ({
 
 import { getActiveAccountId } from "@/lib/tenant";
 import { db } from "@/lib/db";
-import { creativePlatformOverrides } from "@/db/schema";
+import { creativePlatformOverrides, creatives, performanceRecords } from "@/db/schema";
+import { and, sql } from "drizzle-orm";
 import {
   creativeDimensionWindows,
   dashboardKpis,
@@ -120,6 +122,39 @@ describe("the over-time bounds come from the per-platform reads", () => {
   it("an empty map has no bound", () => {
     expect(earliestOf({})).toBeNull();
     expect(latestOf({})).toBeNull();
+  });
+});
+
+describe("per-platform first/last days: one index probe per platform, same answers (W2-9)", () => {
+  /** The GROUP BY the probes replaced, as the reference. */
+  async function groupByReference(f: KpiFilters, agg: "MIN" | "MAX") {
+    const conds = [eq(performanceRecords.accountId, (await getActiveAccountId()) as string)];
+    if (!f.includeExcluded && agg === "MIN") conds.push(eq(performanceRecords.excludedFromAggregates, false));
+    if (f.platforms?.length) conds.push(sql`${performanceRecords.platform} IN ${f.platforms}`);
+    if (f.types?.length) conds.push(sql`${creatives.type} IN ${f.types}`);
+    const rows = await db
+      .select({ platform: performanceRecords.platform, d: sql<string>`${sql.raw(agg)}(${performanceRecords.date})::text` })
+      .from(performanceRecords)
+      .innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId))
+      .where(and(...conds))
+      .groupBy(performanceRecords.platform);
+    return Object.fromEntries(rows.map((r) => [r.platform, r.d]));
+  }
+
+  it.each<[string, KpiFilters]>([
+    ["no filters", {}],
+    ["excluded shown", { includeExcluded: true }],
+    ["one platform", { platforms: ["facebook"] }],
+    ["a creative type (joins creatives)", { types: ["image"], includeExcluded: true }],
+  ])("filteredPlatformFirstDays — %s", async (_label, f) => {
+    expect(await filteredPlatformFirstDays(f)).toEqual(await groupByReference(f, "MIN"));
+  });
+
+  it("platformHorizons matches the GROUP BY, per brand (excluded rows count)", async () => {
+    expect(await platformHorizons()).toEqual(await groupByReference({ includeExcluded: true }, "MAX"));
+    expect(await platformHorizons()).toEqual({ instagram: "2026-01-03", facebook: "2026-01-01" });
+    setAccount(ACCOUNT_B);
+    expect(await platformHorizons()).toEqual({ instagram: "2026-01-01" });
   });
 });
 

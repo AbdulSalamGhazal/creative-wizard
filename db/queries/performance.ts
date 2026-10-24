@@ -269,21 +269,25 @@ export async function filteredPlatformFirstDays(
     from: undefined,
     to: undefined,
   });
-  let q = db
-    .select({
-      platform: performanceRecords.platform,
-      min: sql<string>`MIN(${performanceRecords.date})`,
-    })
+  // One MIN per platform, each an index probe on `perf_account_platform_
+  // date_idx` (W2-9, 2026-10) instead of a GROUP BY over every matching row of
+  // the brand. Same conditions, so the same answer; a platform the filter
+  // excludes simply finds nothing.
+  let first = db
+    .select({ min: sql<string | null>`MIN(${performanceRecords.date})` })
     .from(performanceRecords)
     .$dynamic();
   if (needsCreativeJoin) {
-    q = q.innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId));
+    first = first.innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId));
   }
-  const rows = await q
-    .where(and(...conditions))
-    .groupBy(performanceRecords.platform);
+  const perPlatform = first.where(
+    and(...conditions, sql`${performanceRecords.platform} = p.platform`),
+  );
+  const rows = await db.execute<{ platform: string; min: string | null }>(sql`
+    SELECT p.platform, (${perPlatform})::text AS min
+      FROM unnest(${sql.param([...platformEnum])}::varchar[]) AS p(platform)`);
   const out: Partial<Record<Platform, string>> = {};
-  for (const r of rows) out[r.platform as Platform] = r.min;
+  for (const r of rows) if (r.min) out[r.platform as Platform] = r.min;
   return out;
 }
 

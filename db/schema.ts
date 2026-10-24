@@ -949,6 +949,16 @@ export const performanceRecords = pgTable(
       t.date,
     ),
     platformDateIdx: index("perf_platform_date_idx").on(t.platform, t.date),
+    // The per-platform freshness reads (W2-9, 2026-10): `platformHorizons()`
+    // and the first-day reads ask MAX/MIN(date) PER PLATFORM for one brand,
+    // with no `spend > 0` predicate, so the partial indexes below can't serve
+    // them and a GROUP BY scanned every row of the brand. One index probe per
+    // platform instead (the queries iterate the platform list).
+    accountPlatformDateIdx: index("perf_account_platform_date_idx").on(
+      t.accountId,
+      t.platform,
+      t.date,
+    ),
     batchIdx: index("perf_upload_batch_idx").on(t.uploadBatchId),
     excludedRuleIdx: index("perf_excluded_rule_idx").on(t.excludedRuleId),
     // PARTIAL indexes matching the shape nearly every read has: account-scoped,
