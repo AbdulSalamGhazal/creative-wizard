@@ -7,7 +7,7 @@ import {
   MonitorSmartphone,
   Table as TableIcon,
 } from "lucide-react";
-import { ALL_PLATFORMS, PLATFORM_LABEL } from "@/lib/palette";
+import { ALL_PLATFORMS, PLATFORM_LABEL, TYPE_OPTIONS } from "@/lib/palette";
 import { useEffect, useRef, useState } from "react";
 import {
   DropdownMenu,
@@ -60,11 +60,7 @@ interface Props {
   resolvedFilters?: Record<string, string | undefined>;
 }
 
-const TYPES = [
-  { value: "video", label: "Video" },
-  { value: "image", label: "Image" },
-  { value: "slides", label: "Slides" },
-] as const;
+const TYPES = TYPE_OPTIONS;
 
 // Dynamic creative status (new|active|pause|terminated), labelled via the
 // shared STATUS_LABEL map.

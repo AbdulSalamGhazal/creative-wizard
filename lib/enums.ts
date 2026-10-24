@@ -17,8 +17,26 @@ import { CAMPAIGN_OBJECTIVES } from "@/lib/campaign";
 /** Platforms — `ALL_PLATFORMS` (lib/palette) is the root. */
 export const platformEnum = ALL_PLATFORMS;
 
-/** Creative types. */
+/** Creative types. Display order and labels: `TYPE_ORDER` / `TYPE_LABEL`
+ *  (lib/palette), keyed by `CreativeType` so a new type fails to compile there. */
 export const creativeTypeEnum = ["video", "slides", "image"] as const;
+export type CreativeType = (typeof creativeTypeEnum)[number];
+
+/** The coarse role tier on `users.role` (granular permissions sit on top). */
+export const roleEnum = ["admin", "editor", "viewer"] as const;
+export type RoleTier = (typeof roleEnum)[number];
+
+/** What an exclusion rule targets. */
+export const exclusionRuleKindEnum = [
+  "campaign_objective",
+  "campaign",
+  "creative",
+] as const;
+export type ExclusionRuleKind = (typeof exclusionRuleKindEnum)[number];
+
+/** A Store order field's value type. */
+export const storeFieldTypeEnum = ["text", "number", "date"] as const;
+export type StoreFieldType = (typeof storeFieldTypeEnum)[number];
 
 /** Campaign objectives — `CAMPAIGN_OBJECTIVES` (lib/campaign) is the root. */
 export const campaignObjectiveEnum = CAMPAIGN_OBJECTIVES;

@@ -7,6 +7,7 @@ import { db } from "@/lib/db";
 import { requirePermission } from "@/lib/auth";
 import { getActiveAccountId } from "@/lib/tenant";
 import { accounts, storeOrderFields } from "@/db/schema";
+import { storeFieldTypeEnum } from "@/lib/enums";
 import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
 import { isCoreKey, isSystemRequiredKey, slugifyKey, uniqueFieldKey } from "@/store/fields";
 import { storeFieldCreationContext } from "@/db/queries/store";
@@ -29,7 +30,7 @@ const headersSchema = z.array(z.string().trim().min(1).max(255)).max(20);
 
 const createSchema = z.object({
   label: z.string().trim().min(1, "Label is required.").max(64),
-  type: z.enum(["text", "number", "date"]),
+  type: z.enum(storeFieldTypeEnum),
   required: z.boolean().default(false),
   headers: headersSchema.default([]),
 });

@@ -1,3 +1,7 @@
+// Type-only: lib/enums imports ALL_PLATFORMS from here, so a value import
+// would be a cycle; a type import is erased.
+import type { CreativeType } from "@/lib/enums";
+
 /**
  * Platform colors, as references to the CSS vars in app/globals.css so they
  * follow the active theme. Recharts and inline `style` both resolve `var(…)`
@@ -184,14 +188,20 @@ export const FUNNEL_METRIC_COLOR: Record<FunnelMetric, string> = {
   cvr: "var(--series-5)", // violet
 };
 
-/** Fixed colors + labels for the three creative types. */
-export const TYPE_COLOR: Record<"video" | "image" | "slides", string> = {
+/** Fixed colors + labels for the creative types — keyed by `CreativeType`
+ *  (lib/enums), so a new type fails to compile here until it has both. */
+export const TYPE_COLOR: Record<CreativeType, string> = {
   video: "var(--type-video)", // sky
   image: "var(--type-image)", // amber
   slides: "var(--type-slides)", // violet
 };
-export const TYPE_LABEL: Record<"video" | "image" | "slides", string> = {
+export const TYPE_LABEL: Record<CreativeType, string> = {
   video: "Video",
   image: "Image",
   slides: "Slides",
 };
+/** The display order of the types (Video · Image · Slides) — TYPE_LABEL's
+ *  key order, so the order is listed ONCE and is complete by construction. */
+export const TYPE_ORDER = Object.keys(TYPE_LABEL) as CreativeType[];
+/** `{ value, label }` options for a type picker or filter, in display order. */
+export const TYPE_OPTIONS = TYPE_ORDER.map((value) => ({ value, label: TYPE_LABEL[value] }));

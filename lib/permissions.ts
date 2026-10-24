@@ -1,3 +1,5 @@
+import type { RoleTier } from "@/lib/enums";
+
 /**
  * The permission catalog — the SINGLE SOURCE OF TRUTH for every grantable
  * capability in the app. Every UI (the Access page checkbox grids, nav gating,
@@ -101,8 +103,8 @@ export function isPermission(value: string): value is Permission {
   return ALL_PERMISSIONS_SET.has(value);
 }
 
-/** The coarse role tier stored on `users.role`. */
-export type RoleTier = "admin" | "editor" | "viewer";
+/** The coarse role tier stored on `users.role` — derived from `roleEnum`. */
+export type { RoleTier };
 
 /**
  * The `editor` preset mirrors today's `requireEditor` capabilities EXACTLY, so

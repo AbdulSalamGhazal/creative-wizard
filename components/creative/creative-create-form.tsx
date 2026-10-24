@@ -21,17 +21,14 @@ import { toastActionFailure } from "@/lib/action-toast";
 import { AngleInput } from "@/components/creative/angle-input";
 import { ThumbnailUpload } from "@/components/creative/thumbnail-upload";
 import { StagePicker } from "@/components/creative/stage-picker";
+import { TYPE_OPTIONS } from "@/lib/palette";
 
 interface Props {
   products: Array<{ id: string; name: string }>;
   allAngles: string[];
 }
 
-const TYPES = [
-  { value: "video", label: "Video" },
-  { value: "image", label: "Image" },
-  { value: "slides", label: "Slides" },
-] as const;
+const TYPES = TYPE_OPTIONS;
 
 export function CreativeCreateForm({ products, allAngles }: Props) {
   const router = useRouter();

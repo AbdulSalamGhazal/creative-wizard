@@ -2,7 +2,7 @@ import { z } from "zod";
 import { campaignObjectiveEnum, platformEnum } from "@/lib/enums";
 import { CAMPAIGN_STATUSES } from "@/lib/campaign-status";
 import { defaultDateRange } from "@/lib/date-presets";
-import { csvEnum } from "@/validators/shared";
+import { SORT_DIRS, csvEnum } from "@/validators/shared";
 
 /**
  * URL-state filters for the "All Campaigns" portfolio page.
@@ -38,7 +38,7 @@ export const portfolioFiltersSchema = z.object({
   // Rich-table state (the campaigns table reads these from the URL so saved
   // views capture sort + hidden columns). Unknown values fall back in the table.
   sort: z.string().max(24).optional().catch(undefined),
-  dir: z.enum(["asc", "desc"]).optional().catch(undefined),
+  dir: z.enum(SORT_DIRS).optional().catch(undefined),
   hide: z
     .string()
     .optional()

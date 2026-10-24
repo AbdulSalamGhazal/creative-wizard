@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { platformEnum, creativeTypeEnum } from "@/db/schema";
 import { CREATIVE_STAGE_OPTIONS, NA_STAGE } from "@/lib/funnel-stages";
+import { CREATIVE_STATUSES } from "@/lib/creative-status";
 import { allowedAccountsForUser } from "@/lib/tenant";
 import {
   kpis,
@@ -223,7 +224,7 @@ export function registerMcpTools(server: McpServer): void {
       inputSchema: {
         brand: brandField,
         status: z
-          .array(z.enum(["new", "active", "pause", "terminated"]))
+          .array(z.enum(CREATIVE_STATUSES))
           .optional()
           .describe("Restrict to these derived statuses."),
         types: typesField,

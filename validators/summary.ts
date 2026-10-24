@@ -5,7 +5,7 @@ import { CREATIVE_STATUSES, type CreativeStatus } from "@/lib/creative-status";
 import { PRIORITY_FILTER_VALUES } from "@/lib/priority";
 import { STAGE_FILTER_VALUES } from "@/lib/funnel-stages";
 import { defaultDateRange } from "@/lib/date-presets";
-import { csvEnum, csvList as csv } from "@/validators/shared";
+import { SORT_DIRS, csvEnum, csvList as csv } from "@/validators/shared";
 
 /**
  * URL-state validator for the Summary view.
@@ -266,7 +266,7 @@ export function serializeStatusFilter(c: StatusFilterCondition): string {
 /** Identity columns + per-platform metric keys. Validated against the
  *  selected platforms in the page; an invalid combination falls back to
  *  the default sort. */
-export const SORT_DIRS = ["asc", "desc"] as const;
+export { SORT_DIRS };
 export type SortDir = (typeof SORT_DIRS)[number];
 
 /** Free-form sort key. Validated against allowed shapes in the page; we

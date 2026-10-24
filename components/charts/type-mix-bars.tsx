@@ -1,9 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { TYPE_COLOR, TYPE_LABEL } from "@/lib/palette";
+import { TYPE_COLOR, TYPE_LABEL, TYPE_ORDER } from "@/lib/palette";
 import type { TypeDimensionSpendRow } from "@/db/queries/performance";
 
-type CreativeType = "video" | "image" | "slides";
-const TYPE_ORDER: CreativeType[] = ["video", "image", "slides"];
 
 interface SeriesItem {
   key: string;

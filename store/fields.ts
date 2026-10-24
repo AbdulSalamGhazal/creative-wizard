@@ -12,7 +12,8 @@
  * auto-detected. Money is SAR throughout; never converted to USD here.
  */
 
-export type StoreFieldType = "text" | "number" | "date";
+import type { StoreFieldType } from "@/lib/enums";
+export type { StoreFieldType };
 
 /** The three locked core keys. Their config rows exist per account. */
 export const CORE_KEYS = ["order_id", "order_date", "total_amount"] as const;

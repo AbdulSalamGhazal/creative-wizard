@@ -359,7 +359,7 @@ export function BudgetPlanRevisions({
                         <tr key={budgetComboKey(a.platform, a.objective)}>
                           <td className="py-1">
                             <span className="inline-flex items-center gap-1.5">
-                              <PlatformDot platform={a.platform as never} size="sm" />
+                              <PlatformDot platform={a.platform} size="sm" />
                               <span className="text-ink-2">
                                 {PLATFORM_LABEL[a.platform as keyof typeof PLATFORM_LABEL] ??
                                   a.platform}
@@ -402,7 +402,7 @@ export function BudgetPlanRevisions({
                         {diff?.rows.map((d) => (
                           <li key={d.key} className="flex items-baseline justify-between gap-2">
                             <span className="inline-flex items-center gap-1.5 text-ink-2">
-                              <PlatformDot platform={d.platform as never} size="sm" />
+                              <PlatformDot platform={d.platform} size="sm" />
                               {d.objective}
                               <span className="rounded bg-surface-2 px-1 text-eyebrow text-ink-3">
                                 {d.kind === "added"

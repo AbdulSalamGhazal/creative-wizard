@@ -21,11 +21,14 @@ import type { BrandOption } from "@/components/user/user-brands-section";
 import { holdsEveryBrand, teamGuard, type ManagerScope } from "@/lib/team-guard";
 import type { RoleTier } from "@/lib/permissions";
 
+/** Labels, in the picker's order (least access first). Keyed by `RoleTier`,
+ *  so a new role fails to compile here — the order is listed once. */
 const ROLE_LABEL: Record<RoleTier, string> = {
   viewer: "Viewer",
   editor: "Editor",
   admin: "Admin",
 };
+const ROLE_ORDER = Object.keys(ROLE_LABEL) as RoleTier[];
 
 export function UserInviteForm({
   brands,
@@ -39,7 +42,7 @@ export function UserInviteForm({
   // Below admin, offer only the starting access the guard would accept: never
   // Admin, and Editor only for someone who holds the whole preset (D1).
   const everyBrand = holdsEveryBrand(scope);
-  const roles = (["viewer", "editor", "admin"] as const).filter(
+  const roles = ROLE_ORDER.filter(
     (r) =>
       teamGuard(scope, {
         kind: "invite",

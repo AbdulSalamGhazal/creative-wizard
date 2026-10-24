@@ -6,12 +6,12 @@ import {
   PLATFORM_LABEL,
   TYPE_COLOR,
   TYPE_LABEL,
+  TYPE_ORDER,
 } from "@/lib/palette";
 import { PlatformDot } from "@/components/ui/platform-dot";
 import type { TypeRollupRow } from "@/db/queries/trends";
 
 type Platform = (typeof ALL_PLATFORMS)[number];
-const TYPE_ORDER: Array<TypeRollupRow["type"]> = ["video", "image", "slides"];
 
 /** Numeric cells shared by both layouts. */
 function MetricCells({ r }: { r: TypeRollupRow }) {

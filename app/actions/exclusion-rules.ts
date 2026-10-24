@@ -5,6 +5,7 @@ import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { campaigns, creatives, exclusionRules } from "@/db/schema";
+import { exclusionRuleKindEnum } from "@/lib/enums";
 import { requirePermission } from "@/lib/auth";
 import { getActiveAccountId } from "@/lib/tenant";
 import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
@@ -34,7 +35,7 @@ import { actionError, isUniqueViolation } from "@/lib/action-error";
 
 const targetSchema = z
   .object({
-    kind: z.enum(["campaign_objective", "campaign", "creative"]),
+    kind: z.enum(exclusionRuleKindEnum),
     objective: z.enum(CAMPAIGN_OBJECTIVES).nullish(),
     campaignId: z.string().uuid().nullish(),
     creativeId: z.string().uuid().nullish(),

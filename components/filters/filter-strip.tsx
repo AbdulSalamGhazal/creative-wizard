@@ -21,6 +21,7 @@ import {
   ALL_PLATFORMS,
   PLATFORMS_WITH_CREATIVES,
   PLATFORM_LABEL,
+  TYPE_OPTIONS,
 } from "@/lib/palette";
 import { rememberIncludeExcluded } from "@/lib/pref-sync";
 
@@ -30,11 +31,7 @@ const opts = (set: readonly (typeof ALL_PLATFORMS)[number][]) =>
 const PLATFORMS = opts(ALL_PLATFORMS);
 const CREATIVE_PLATFORMS = opts(PLATFORMS_WITH_CREATIVES);
 
-const TYPES = [
-  { value: "video", label: "Video" },
-  { value: "image", label: "Image" },
-  { value: "slides", label: "Slides" },
-] as const;
+const TYPES = TYPE_OPTIONS;
 
 interface FilterStripProps {
   /** Product options for the Products filter. Empty → dropdown shows a hint. */

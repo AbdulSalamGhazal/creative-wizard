@@ -286,6 +286,9 @@ These are not domain knowledge — they bite any change, so they live here.
   `lib/enums`, never `@/db/schema`, in anything a client can reach**: the
   schema can't be tree-shaken, so one enum shipped all 42 tables and their
   names to the browser (W2-6; `app/client-bundle.test.ts` fails the build).
+  The roles, exclusion-rule kinds and store field types live there too, and
+  `lib/enums.test.ts` fails on a hand-listed copy of any stored vocabulary
+  (W3-8: six copies of the creative types, among others, had crept back).
 - **csv/pipeline.ts dedup key uses an INVISIBLE U+0001 (SOH) separator.** It does
   NOT render in the Read tool, grep output, or most diffs, so the key-build and
   `k.split(...)` lines LOOK like they have no delimiter — they DO. A review pass

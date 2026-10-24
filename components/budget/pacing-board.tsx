@@ -198,7 +198,7 @@ export function PacingBoard({
               <div className={grid}>
                 <div className="flex items-center justify-between gap-2">
                   <span className="inline-flex min-w-0 items-center gap-2 text-sm font-medium text-ink-2">
-                    <PlatformDot platform={p.key as never} size="sm" />
+                    <PlatformDot platform={p.key} size="sm" />
                     <span className="truncate">{platformLabel(p.key)}</span>
                   </span>
                   <span className="sm:hidden" title={unplannedWords(p, fmt)}>
@@ -655,13 +655,13 @@ function BoardTable({
         render: (r) =>
           r.kind === "subtotal" ? (
             <span className="inline-flex items-center gap-2 font-medium">
-              {r.platform !== null && <PlatformDot platform={r.platform as never} size="sm" />}
+              {r.platform !== null && <PlatformDot platform={r.platform} size="sm" />}
               {r.label}
               {r.unplanned && unplannedBadge}
             </span>
           ) : group === "objective" ? (
             <span className="inline-flex items-center gap-2 pl-6 text-ink-2">
-              <PlatformDot platform={r.platform as never} size="sm" />
+              {r.platform !== null && <PlatformDot platform={r.platform} size="sm" />}
               {r.label}
               {r.unplanned && unplannedBadge}
             </span>

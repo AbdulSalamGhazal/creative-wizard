@@ -10,7 +10,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { ALL_PLATFORMS, PLATFORM_LABEL, TYPE_COLOR, TYPE_LABEL } from "@/lib/palette";
+import { ALL_PLATFORMS, PLATFORM_LABEL, TYPE_COLOR, TYPE_LABEL, TYPE_ORDER } from "@/lib/palette";
 import { int, intCompact, pct, roas, usd, usdCompact } from "@/lib/format";
 import { MetricPicker } from "@/components/charts/metric-picker";
 import type { TypeRollupRow } from "@/db/queries/trends";
@@ -18,7 +18,7 @@ import { ChartTooltip } from "@/components/charts/chart-tooltip";
 
 type Metric = "spend" | "impressions" | "roas" | "ctr" | "cvr" | "cpc" | "cpa";
 type CreativeType = TypeRollupRow["type"];
-const TYPES: CreativeType[] = ["video", "image", "slides"];
+const TYPES: CreativeType[] = TYPE_ORDER;
 
 
 const METRICS: Record<

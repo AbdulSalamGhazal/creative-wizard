@@ -942,7 +942,7 @@ function PaceBoard({
                 <div className={grid}>
                   <div className="flex items-center justify-between gap-2">
                     <span className="inline-flex min-w-0 items-center gap-2 text-sm font-medium text-ink-2">
-                      <PlatformDot platform={p.key as never} size="sm" />
+                      <PlatformDot platform={p.key} size="sm" />
                       <span className="truncate">{platformLabel(p.key)}</span>
                       <ArrowRight className="h-3 w-3 shrink-0 text-ink-3 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100" />
                     </span>

@@ -3,20 +3,19 @@ import { PageShell } from "@/components/layout/page-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { defaultDateRange } from "@/lib/date-presets";
 import { resolvePreferredRange, resolveIncludeExcluded } from "@/db/queries/user-prefs";
-import { typeRollup, type TypeRollupRow } from "@/db/queries/trends";
+import { typeRollup } from "@/db/queries/trends";
 import { listProducts } from "@/db/queries/products";
 import { listAllAngles } from "@/db/queries/creatives";
 import { FilterStrip } from "@/components/filters/filter-strip";
 import { TypePlatformChart } from "@/components/trends/type-platform-chart";
 import { TypeRollupTable } from "@/components/trends/type-rollup-table";
 import { dashboardFiltersSchema } from "@/validators/filters";
-import { TYPE_COLOR, TYPE_LABEL } from "@/lib/palette";
+import { TYPE_COLOR, TYPE_LABEL, TYPE_ORDER } from "@/lib/palette";
 import { pct, roas, usd } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
 const TRAILING_DAYS_DEFAULT = 30;
-const TYPE_ORDER: Array<TypeRollupRow["type"]> = ["video", "image", "slides"];
 
 type SearchParams = Record<string, string | string[] | undefined>;
 function pickFirst(v: string | string[] | undefined): string | undefined {

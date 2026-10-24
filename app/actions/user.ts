@@ -7,6 +7,7 @@ import { db } from "@/lib/db";
 import { requirePermission } from "@/lib/auth";
 import { setSessionCookie } from "@/lib/auth-cookie";
 import { accounts, userAccounts, users } from "@/db/schema";
+import { roleEnum } from "@/lib/enums";
 import {
   hashPassword,
   PASSWORD_MIN_LENGTH,
@@ -35,7 +36,7 @@ const passwordSchema = z
 const inviteSchema = z.object({
   email: z.string().email().max(255),
   name: z.string().min(1).max(255),
-  role: z.enum(["admin", "editor", "viewer"]).default("editor"),
+  role: z.enum(roleEnum).default("editor"),
   password: passwordSchema,
   // Brand membership. `allAccounts` true (default) → every brand incl. future
   // ones; false → only the listed brands (≥1 required, validated below).
@@ -76,7 +77,7 @@ const setPasswordSchema = z.object({
 
 const accessSchema = z.object({
   userId: z.string().uuid(),
-  role: z.enum(["admin", "editor", "viewer"]),
+  role: z.enum(roleEnum),
   // null → derive permissions from the role preset; an array → an explicit
   // ("custom") grant. Stale/unknown keys are filtered out before saving.
   permissions: z.array(z.string()).nullable(),

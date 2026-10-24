@@ -21,16 +21,30 @@ import {
 import { sql } from "drizzle-orm";
 import { BUDGET_OBJECTIVES, PLAN_MODES } from "@/lib/budget";
 import { FUNNEL_STAGES } from "@/lib/audience";
-import { campaignObjectiveEnum, creativeTypeEnum, platformEnum } from "@/lib/enums";
+import {
+  campaignObjectiveEnum,
+  creativeTypeEnum,
+  exclusionRuleKindEnum,
+  platformEnum,
+  roleEnum,
+  storeFieldTypeEnum,
+} from "@/lib/enums";
 
 // The platform, creative-type and objective vocabularies live in lib/enums
 // (client-safe — W2-6), derived from lib/palette and lib/campaign, and are
 // re-exported here so the DB and the UI share one list each. Client code
 // imports them from lib/enums: importing ANYTHING from this module ships the
 // whole schema to the browser.
-export { campaignObjectiveEnum, creativeTypeEnum, platformEnum };
+export {
+  campaignObjectiveEnum,
+  creativeTypeEnum,
+  exclusionRuleKindEnum,
+  platformEnum,
+  roleEnum,
+  storeFieldTypeEnum,
+};
+export type { ExclusionRuleKind } from "@/lib/enums";
 
-export const roleEnum = ["admin", "editor", "viewer"] as const;
 export const creativeStatusEnum = ["draft", "active", "paused", "archived"] as const;
 export const productStatusEnum = ["active", "archived"] as const;
 
@@ -977,13 +991,6 @@ export const performanceRecords = pgTable(
   }),
 );
 
-export const exclusionRuleKindEnum = [
-  "campaign_objective",
-  "campaign",
-  "creative",
-] as const;
-export type ExclusionRuleKind = (typeof exclusionRuleKindEnum)[number];
-
 /**
  * Rule-based exclusions (2026-09) — account-global config rows that flip
  * `performance_records.excluded_from_aggregates` for everything matching the
@@ -1276,8 +1283,6 @@ export const audienceSnapshots = pgTable(
 // pipeline above, which it must NOT touch). Grain = one row per order.
 // Currency is SAR throughout; never converted to USD in this module.
 // =====================================================================
-
-export const storeFieldTypeEnum = ["text", "number", "date"] as const;
 
 /**
  * Config for store-order fields — the THREE core fields (seeded per account,

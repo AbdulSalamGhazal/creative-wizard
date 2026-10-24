@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { platformEnum } from "@/lib/enums";
-import { csvEnum } from "@/validators/shared";
+import { SORT_DIRS, csvEnum } from "@/validators/shared";
+import { CORE_KEYS } from "@/store/fields";
 import { CHANNEL_DESTINATIONS, UNMAPPED_CHANNEL } from "@/store/channels";
 import { UNATTRIBUTED } from "@/store/sources";
 
@@ -15,8 +16,8 @@ export const storeOrdersFiltersSchema = z.object({
     .optional()
     .transform((s) => (s && s.trim() ? s.trim() : undefined)),
   page: z.coerce.number().int().min(1).catch(1),
-  sort: z.enum(["order_id", "order_date", "total_amount"]).catch("order_date"),
-  dir: z.enum(["asc", "desc"]).catch("desc"),
+  sort: z.enum(CORE_KEYS).catch("order_date"),
+  dir: z.enum(SORT_DIRS).catch("desc"),
 });
 
 export type StoreOrdersFilterInput = z.infer<typeof storeOrdersFiltersSchema>;
