@@ -17,6 +17,8 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { deleteCampaign } from "@/app/actions/campaign";
+import { safeAction } from "@/lib/action-failure";
+import { toastActionFailure } from "@/lib/action-toast";
 import { int } from "@/lib/format";
 import { PLATFORM_LABEL } from "@/lib/palette";
 import { useCan } from "@/components/auth/permissions-context";
@@ -47,9 +49,9 @@ export function DeleteCampaignDialog({
 
   const onConfirm = () => {
     startTransition(async () => {
-      const res = await deleteCampaign(campaignId);
+      const res = await safeAction(() => deleteCampaign(campaignId));
       if (!res.ok) {
-        toast.error(res.error ?? "Couldn't delete the campaign");
+        toastActionFailure(res, "Couldn't delete the campaign");
         return;
       }
       toast.success(
@@ -60,8 +62,9 @@ export function DeleteCampaignDialog({
           : `Deleted “${campaignName}”`,
       );
       setOpen(false);
+      // ONE render: the action doesn't revalidate (the page it would re-render
+      // no longer exists); the navigation renders the list fresh (W2-1).
       router.push("/campaigns");
-      router.refresh();
     });
   };
 

@@ -350,7 +350,7 @@ export function CommentThread({
                   ariaLabel="Edit comment"
                   placeholder="Edit your comment…"
                   onSubmit={(body, mentionUserIds) =>
-                    updateComment({ id: comment.id, body, mentionUserIds })
+                    safeAction(() => updateComment({ id: comment.id, body, mentionUserIds }))
                   }
                   onSubmitted={() => {
                     setEditing(null);

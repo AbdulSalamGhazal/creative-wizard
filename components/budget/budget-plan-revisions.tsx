@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import { History, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -19,6 +18,8 @@ import { int, plural, sar, usd } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { budgetComboKey, monthLabel } from "@/lib/budget";
 import { restorePlanRevision } from "@/app/actions/budget";
+import { safeAction } from "@/lib/action-failure";
+import { toastActionFailure } from "@/lib/action-toast";
 import type { PlanRevisionRow } from "@/db/queries/budget";
 import type { BudgetPlanSnapshot } from "@/validators/budget";
 
@@ -157,7 +158,6 @@ export function BudgetPlanRevisions({
   current: CurrentPlan;
   canManage: boolean;
 }) {
-  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [isPending, setIsPending] = useState(false);
@@ -172,15 +172,15 @@ export function BudgetPlanRevisions({
     if (!selected) return;
     setIsPending(true);
     try {
-      const res = await restorePlanRevision({ revisionId: selected.id });
+      const res = await safeAction(() => restorePlanRevision({ revisionId: selected.id }));
       if (!res.ok) {
-        toast.error(res.error ?? "Could not restore that revision");
+        toastActionFailure(res, "Could not restore that revision");
         return;
       }
+      // The action revalidated: the restored plan arrived in its response.
       toast.success(`Restored the plan saved ${when(selected.createdAt)}`);
       setOpen(false);
       setSelectedId(null);
-      router.refresh();
     } finally {
       setIsPending(false);
     }

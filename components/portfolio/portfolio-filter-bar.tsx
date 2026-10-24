@@ -22,7 +22,7 @@ import type { SummaryViewRow } from "@/db/queries/summary-views";
 import { ALL_PLATFORMS, PLATFORM_LABEL } from "@/lib/palette";
 import { CAMPAIGN_OBJECTIVES } from "@/lib/campaign";
 import { CAMPAIGN_STATUSES, CAMPAIGN_STATUS_LABEL } from "@/lib/campaign-status";
-import { setIncludeExcludedPref } from "@/app/actions/user-prefs";
+import { rememberIncludeExcluded } from "@/lib/pref-sync";
 
 /** Derived from the canonical list — never re-list the platforms. */
 const PLATFORMS = ALL_PLATFORMS.map((value) => ({
@@ -132,7 +132,7 @@ export function PortfolioFilterBar({
 
   const toggleExcluded = () => {
     const nextOn = !includeExcluded;
-    void setIncludeExcludedPref(nextOn); // remember as this user's default
+    rememberIncludeExcluded(nextOn); // remember as this user's default
     update((next) => {
       next.set("includeExcluded", nextOn ? "1" : "0");
     });

@@ -3,7 +3,6 @@
 import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import { useTheme } from "next-themes";
-import { useRouter } from "next/navigation";
 import {
   Bell,
   Camera,
@@ -34,6 +33,7 @@ import { setToastScope } from "@/app/actions/user-prefs";
 import { safeAction } from "@/lib/action-failure";
 import { toastActionFailure } from "@/lib/action-toast";
 import {
+  announceToastScope,
   TOAST_SCOPES,
   TOAST_SCOPE_HINT,
   TOAST_SCOPE_LABEL,
@@ -97,7 +97,6 @@ function Swatches({ colors }: { colors: readonly string[] }) {
  * only when asked for.
  */
 export function UserMenu({ user, toastScope }: Props) {
-  const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [changeOpen, setChangeOpen] = useState(false);
   // Which sign-out was chosen — both items wait while either runs.
@@ -123,9 +122,8 @@ export function UserMenu({ user, toastScope }: Props) {
         toastActionFailure(res, "Couldn't save that setting.");
         return;
       }
-      // The layout reads the setting server-side and hands it to the bell —
-      // refresh so the bell obeys the new value without a reload.
-      router.refresh();
+      // The bell obeys the new value at once — no layout re-render (W2-1).
+      announceToastScope(value);
     });
   };
 
@@ -141,10 +139,20 @@ export function UserMenu({ user, toastScope }: Props) {
 
   // "Sign out" ends THIS device; "Sign out everywhere" ends every session
   // the person has (F2, user decision 2026-10-24).
+  // Both redirect to /signin; `safeAction` lets that redirect through and
+  // turns a failed CALL (no network, a stale tab) into a toast — it used to
+  // show nothing at all, with both items left waiting (W2-2).
   const handleSignOut = (scope: "device" | "everywhere") => {
     setLeaving(scope);
     startTransition(async () => {
-      await (scope === "device" ? signOut() : signOutEverywhere());
+      const res = await safeAction(async () => {
+        await (scope === "device" ? signOut() : signOutEverywhere());
+        return { ok: true as const };
+      });
+      if (!res.ok) {
+        setLeaving(null);
+        toastActionFailure(res, "Couldn't sign out.");
+      }
     });
   };
 

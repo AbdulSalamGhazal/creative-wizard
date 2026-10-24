@@ -13,6 +13,8 @@ import { sar, isoDate, int, num } from "@/lib/format";
 import { downloadCsv, todayStamp } from "@/lib/csv-export";
 import { useNavTransition } from "@/lib/nav-progress";
 import { exportStoreOrders } from "@/app/actions/store-export";
+import { safeAction } from "@/lib/action-failure";
+import { toastActionFailure } from "@/lib/action-toast";
 import type { StoreOrderRow } from "@/db/queries/store";
 import type { StoreField } from "@/store/fields";
 
@@ -296,15 +298,17 @@ function ExportButton({ searchParams }: { searchParams: URLSearchParams }) {
   async function run() {
     setPending(true);
     try {
-      const res = await exportStoreOrders({
-        from: searchParams.get("from") ?? undefined,
-        to: searchParams.get("to") ?? undefined,
-        q: searchParams.get("q") ?? undefined,
-        sort: searchParams.get("sort") ?? undefined,
-        dir: searchParams.get("dir") ?? undefined,
-      });
-      if (!res.ok || !res.csv) {
-        toast.error(res.error ?? "Export failed");
+      const res = await safeAction(() =>
+        exportStoreOrders({
+          from: searchParams.get("from") ?? undefined,
+          to: searchParams.get("to") ?? undefined,
+          q: searchParams.get("q") ?? undefined,
+          sort: searchParams.get("sort") ?? undefined,
+          dir: searchParams.get("dir") ?? undefined,
+        }),
+      );
+      if (!res.ok || !("csv" in res) || !res.csv) {
+        toastActionFailure(res, "Export failed");
         return;
       }
       downloadCsv(`store-orders-${todayStamp()}.csv`, res.csv);

@@ -5,7 +5,9 @@ import {
   DropdownMenu,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useSearchParams } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { useExcludedCatchUp } from "@/lib/pref-sync";
 
 /**
  * Shared filter-bar controls so every bar reads the same. The canonical pill
@@ -109,6 +111,9 @@ export function ExcludedToggle({
   onToggle: () => void;
   fullWidth?: boolean;
 }) {
+  // Without an explicit `includeExcluded` the page shows the SAVED choice; a
+  // copy restored by Back/Forward from before this tab toggled is re-read once.
+  useExcludedCatchUp(on, useSearchParams().has("includeExcluded"));
   return (
     <button
       type="button"

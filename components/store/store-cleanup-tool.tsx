@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useRef, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { AlertTriangle, ChevronDown, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -19,6 +18,8 @@ import {
   previewStoreCleanupAction,
   runStoreCleanup,
 } from "@/app/actions/store-cleanup";
+import { safeAction } from "@/lib/action-failure";
+import { toastActionFailure } from "@/lib/action-toast";
 import type { StoreCleanupPreview } from "@/db/queries/store";
 import { sar, int, isoDate, plural } from "@/lib/format";
 import { defaultDateRange } from "@/lib/date-presets";
@@ -38,7 +39,6 @@ export interface CleanupBatch {
  * exit path for `store_orders` (alongside batch rollback).
  */
 export function StoreCleanupTool({ batches }: { batches: CleanupBatch[] }) {
-  const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
   // Seed the scope to the last 7 days (matches the ads tool). Still
@@ -91,10 +91,10 @@ export function StoreCleanupTool({ batches }: { batches: CleanupBatch[] }) {
     const id = (requestId.current += 1);
     const counted = filters;
     startTransition(async () => {
-      const res = await previewStoreCleanupAction(counted);
+      const res = await safeAction(() => previewStoreCleanupAction(counted));
       if (id !== requestId.current) return; // the filters moved on
-      if (!res.ok || !res.preview) {
-        toast.error(res.error ?? "Could not preview");
+      if (!res.ok || !("preview" in res) || !res.preview) {
+        toastActionFailure(res, "Could not preview");
         return;
       }
       setPreview({ ...res.preview, filters: counted });
@@ -106,9 +106,9 @@ export function StoreCleanupTool({ batches }: { batches: CleanupBatch[] }) {
     if (!preview) return;
     const { filters: counted, orders } = preview;
     startTransition(async () => {
-      const res = await runStoreCleanup({ ...counted, expectedRows: orders });
+      const res = await safeAction(() => runStoreCleanup({ ...counted, expectedRows: orders }));
       if (!res.ok) {
-        toast.error(res.error ?? "Delete failed");
+        toastActionFailure(res, "Delete failed");
         return;
       }
       toast.success(`Deleted ${res.deleted ?? 0} order${res.deleted === 1 ? "" : "s"}`);
@@ -122,7 +122,8 @@ export function StoreCleanupTool({ batches }: { batches: CleanupBatch[] }) {
       setOrderIdText("");
       setPreview(null);
       setConfirmText("");
-      router.refresh();
+      // runStoreCleanup revalidated: this page arrived re-rendered in its
+      // response (W2-1).
     });
   };
 

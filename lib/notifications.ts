@@ -265,6 +265,31 @@ export function onNotificationsChanged(
   return () => window.removeEventListener(NOTIFICATIONS_CHANGED_EVENT, listener);
 }
 
+/**
+ * The account menu changed which arrivals may toast (W2-1, 2026-10). The
+ * setting used to reach the bell by re-rendering the whole layout (a
+ * `revalidatePath` plus a `router.refresh()` — two full renders per click);
+ * now the menu announces the new value and the bell obeys it at once. The
+ * next full render reads the same value from the `users` row.
+ */
+export const TOAST_SCOPE_CHANGED_EVENT = "cw:toast-scope-changed";
+
+export function announceToastScope(scope: ToastScope): void {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new CustomEvent<ToastScope>(TOAST_SCOPE_CHANGED_EVENT, { detail: scope }));
+}
+
+/** Subscribe to `TOAST_SCOPE_CHANGED_EVENT`; returns the unsubscribe. */
+export function onToastScopeChanged(handler: (scope: ToastScope) => void): () => void {
+  if (typeof window === "undefined") return () => {};
+  const listener = (event: Event) => {
+    const scope = (event as CustomEvent<unknown>).detail;
+    if (isToastScope(scope)) handler(scope);
+  };
+  window.addEventListener(TOAST_SCOPE_CHANGED_EVENT, listener);
+  return () => window.removeEventListener(TOAST_SCOPE_CHANGED_EVENT, listener);
+}
+
 /** The badge's text: nothing at zero, the number, or the capped form. */
 export function badgeCount(unread: number): string {
   if (!Number.isFinite(unread) || unread <= 0) return "";

@@ -1,7 +1,6 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { Check, Pencil, Plus, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -11,6 +10,8 @@ import {
   renameAccount,
   setActiveAccount,
 } from "@/app/actions/account";
+import { safeAction } from "@/lib/action-failure";
+import { toastActionFailure } from "@/lib/action-toast";
 
 interface AccountRow {
   id: string;
@@ -33,7 +34,6 @@ export function AccountsAdmin({
   accounts: AccountRow[];
   activeId: string;
 }) {
-  const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
   const [newName, setNewName] = useState("");
@@ -44,14 +44,14 @@ export function AccountsAdmin({
     const name = newName.trim();
     if (!name) return;
     startTransition(async () => {
-      const res = await createAccount({ name });
+      const res = await safeAction(() => createAccount({ name }));
       if (!res.ok) {
-        toast.error(res.error ?? "Could not create brand");
+        toastActionFailure(res, "Could not create brand");
         return;
       }
+      // createAccount revalidated: this page arrived re-rendered in the response.
       toast.success(`Created “${name}”`);
       setNewName("");
-      router.refresh();
     });
   };
 
@@ -72,14 +72,13 @@ export function AccountsAdmin({
     renaming.current = true;
     startTransition(async () => {
       try {
-        const res = await renameAccount({ id, name: next });
+        const res = await safeAction(() => renameAccount({ id, name: next }));
         if (!res.ok) {
-          toast.error(res.error ?? "Could not rename brand");
+          toastActionFailure(res, "Could not rename brand");
           return;
         }
         toast.success(`Renamed to “${next}”`);
         cancelEdit();
-        router.refresh();
       } finally {
         renaming.current = false;
       }
@@ -88,13 +87,12 @@ export function AccountsAdmin({
 
   const switchTo = (row: AccountRow) => {
     startTransition(async () => {
-      const res = await setActiveAccount({ accountId: row.id });
+      const res = await safeAction(() => setActiveAccount({ accountId: row.id }));
       if (!res.ok) {
-        toast.error(res.error ?? "Could not switch brand");
+        toastActionFailure(res, "Could not switch brand");
         return;
       }
       toast.success(`Switched to ${row.name}`);
-      router.refresh();
     });
   };
 

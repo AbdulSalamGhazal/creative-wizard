@@ -5,6 +5,8 @@ import { Check, ExternalLink, Link2, Loader2, Pencil, X } from "lucide-react";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { updateCreativeSourceLink } from "@/app/actions/creative";
+import { safeAction } from "@/lib/action-failure";
+import { toastActionFailure } from "@/lib/action-toast";
 import { useCan } from "@/components/auth/permissions-context";
 
 /**
@@ -29,9 +31,9 @@ export function SourceLinkControl({
 
   const save = () => {
     startTransition(async () => {
-      const res = await updateCreativeSourceLink(creativeId, value);
+      const res = await safeAction(() => updateCreativeSourceLink(creativeId, value));
       if (!res.ok) {
-        toast.error(res.error ?? "Link not saved");
+        toastActionFailure(res, "Link not saved");
         return;
       }
       const cleaned = value.trim();

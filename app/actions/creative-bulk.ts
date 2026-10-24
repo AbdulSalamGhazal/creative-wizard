@@ -1,6 +1,5 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { asc, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { requirePermission } from "@/lib/auth";
@@ -399,11 +398,9 @@ export async function commitBulkCreatives(
       }
     });
 
-    try {
-      revalidatePath("/library");
-    } catch (err) {
-      console.warn("revalidatePath after bulk create failed:", err);
-    }
+    // NO revalidatePath (W2-1): the caller navigates to /library, and that
+    // navigation is the one render. A revalidation here would re-render the
+    // page being left (/library/bulk) and ship it in this response, for nothing.
 
     await logAudit({
       action: AUDIT_ACTIONS.CREATIVE_BULK_CREATE,

@@ -6,6 +6,8 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { createProduct } from "@/app/actions/product";
+import { safeAction } from "@/lib/action-failure";
+import { toastActionFailure } from "@/lib/action-toast";
 
 export function ProductCreateForm() {
   const [name, setName] = useState("");
@@ -16,9 +18,12 @@ export function ProductCreateForm() {
     e.preventDefault();
     setError(null);
     startTransition(async () => {
-      const res = await createProduct({ name: name.trim() });
+      const res = await safeAction(() => createProduct({ name: name.trim() }));
       if (!res.ok) {
-        setError(res.fieldErrors?.name ?? res.error ?? "Could not add product");
+        const nameError = "fieldErrors" in res ? res.fieldErrors?.name : undefined;
+        toastActionFailure(nameError ? { ...res, error: nameError } : res, "Could not add product", {
+          inline: setError,
+        });
         return;
       }
       toast.success(`Added “${name.trim()}”`);

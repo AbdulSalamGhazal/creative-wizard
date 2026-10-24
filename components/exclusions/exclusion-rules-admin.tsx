@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { Check, ChevronDown, Plus, ShieldOff, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -47,6 +46,8 @@ import {
   toggleExclusionRule,
   deleteExclusionRule,
 } from "@/app/actions/exclusion-rules";
+import { safeAction } from "@/lib/action-failure";
+import { toastActionFailure } from "@/lib/action-toast";
 import type {
   ExclusionRuleRow,
   RuleImpactPreview,
@@ -83,7 +84,6 @@ export function ExclusionRulesAdmin({
   campaigns: PickerOption[];
   creatives: PickerOption[];
 }) {
-  const router = useRouter();
   const [isPending, startTransition] = useNavTransition();
 
   // ── Add-rule form state ────────────────────────────────────────────────────
@@ -121,9 +121,9 @@ export function ExclusionRulesAdmin({
 
   const previewCreate = () => {
     startTransition(async () => {
-      const res = await previewExclusionRule(target);
-      if (!res.ok || !res.preview) {
-        toast.error(res.error ?? "Could not preview");
+      const res = await safeAction(() => previewExclusionRule(target));
+      if (!res.ok || !("preview" in res) || !res.preview) {
+        toastActionFailure(res, "Could not preview");
         return;
       }
       openDialog({ mode: "create", preview: res.preview });
@@ -137,10 +137,10 @@ export function ExclusionRulesAdmin({
     startTransition(async () => {
       const res =
         mode === "activate"
-          ? await previewExclusionRule(rule)
-          : await previewExclusionRuleRemoval(rule.id);
-      if (!res.ok || !res.preview) {
-        toast.error(res.error ?? "Could not preview");
+          ? await safeAction(() => previewExclusionRule(rule))
+          : await safeAction(() => previewExclusionRuleRemoval(rule.id));
+      if (!res.ok || !("preview" in res) || !res.preview) {
+        toastActionFailure(res, "Could not preview");
         return;
       }
       openDialog({ mode, rule, preview: res.preview });
@@ -150,19 +150,21 @@ export function ExclusionRulesAdmin({
   const confirm = () => {
     if (!pending) return;
     startTransition(async () => {
-      let res: { ok: boolean; error?: string; affected?: number };
+      let res: { ok: boolean; error?: string; affected?: number; stale?: boolean };
       if (pending.mode === "create") {
-        res = await createExclusionRule({ target, note: note.trim() || undefined });
+        res = await safeAction(() =>
+          createExclusionRule({ target, note: note.trim() || undefined }),
+        );
       } else if (pending.mode === "delete") {
-        res = await deleteExclusionRule(pending.rule.id);
+        const ruleId = pending.rule.id;
+        res = await safeAction(() => deleteExclusionRule(ruleId));
       } else {
-        res = await toggleExclusionRule({
-          id: pending.rule.id,
-          active: pending.mode === "activate",
-        });
+        const toggle = { id: pending.rule.id, active: pending.mode === "activate" };
+        res = await safeAction(() => toggleExclusionRule(toggle));
       }
       if (!res.ok) {
-        toast.error(res.error ?? "Something went wrong");
+        // The dialog stays open with its acknowledgement and note.
+        toastActionFailure(res, "Something went wrong");
         return;
       }
       const n = res.affected ?? 0;
@@ -173,7 +175,8 @@ export function ExclusionRulesAdmin({
       );
       if (pending.mode === "create") resetForm();
       setPending(null);
-      router.refresh();
+      // The action revalidated: the rules and their counts arrived in its
+      // response (W2-1).
     });
   };
 

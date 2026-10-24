@@ -24,6 +24,27 @@
   `scrollTop` — never `scrollIntoView`, which scrolls the window too.
 - A person's picture is `UserAvatar` (components/user/user-avatar.tsx) —
   photo, else initials; never a hand-rolled avatar (2026-10-20).
+- **ONE render per action (W2-1, 2026-10).** A server action that calls
+  `revalidatePath`/`revalidateTag` (or writes a cookie) re-renders the
+  CALLER's page and ships the tree in its response — any path, Next 15 does
+  not match it. So: a caller that STAYS keeps the action's revalidation and
+  never `router.refresh()`es after it; a caller that NAVIGATES away (create,
+  delete, rename) uses an action that does NOT revalidate, and the navigation
+  is the render. A preference write (range, Excluded, toast scope, filters,
+  columns) revalidates nothing. Pinned by `app/actions/action-calls.test.ts`.
+- **A write must not be pending when its own navigation starts.** Next 15
+  discards a pending action's state and schedules a full `router.refresh()`
+  when a navigation starts behind it (`needsRefresh`). A fire-and-forget
+  write paired with a URL change is sent AFTER the URL write
+  (`lib/pref-sync.ts` defers it a task; `lib/filter-prefs.ts` debounces).
+- **Every client call to a server action goes through `safeAction`**
+  (lib/action-failure.ts) and fails through `toastActionFailure`
+  (lib/action-toast.ts) — a row toasts, a form shows it inline (`inline`), and
+  a tab from before the last deploy always gets the persistent Reload toast.
+  An editor, composer or dialog keeps the person's input on failure.
+  `safeAction` lets a `redirect()`/`notFound()` through (sign-out). Pinned
+  lexically by `app/actions/action-calls.test.ts`: every reference to an
+  imported action in a client file sits inside `safeAction(…)`.
 
 ## History and rationale
 
@@ -282,3 +303,39 @@ as it stood before the restructure.*
   375px page to 817px. A scroll wrapper that holds `sr-only` text gets
   `relative`.
 
+
+### One render per action, and no action call can crash a page (2026-10, W2-1 + W2-2)
+
+- **The double render.** Every edit used to render the page twice: the
+  action's `revalidatePath` already re-rendered the caller's page into its
+  response (Next 15 sets `pathWasRevalidated` for ANY path — it does not check
+  that the path matches the page), and 54 callers then `router.refresh()`ed,
+  fetching the same tree again. Create, delete and rename did it three times —
+  a rename re-rendered the OLD address, which by then 404'd. Measured with the
+  audit harness: a field edit on creative detail ≈ 63 queries (~29 waste), a
+  brand switch 43 + 43, a date pick on the Dashboard ~128 instead of 40. The
+  comments domain had already fixed its own half (comments-notifications.md,
+  `comment-latency.test.ts`); this generalised it. The fix is the invariant
+  above: stay → keep the revalidation, drop the refresh; navigate → the action
+  doesn't revalidate (`createCreative`, `deleteCreative`,
+  `commitBulkCreatives`, `createCampaign`, `deleteCampaign`,
+  `commitStoreUpload`), and `patchCreative` / `updateCampaign` revalidate only
+  when the name did NOT change.
+- **The queue trap.** The date picker, once its refresh was gone, still cost
+  two renders: it sent the preference write BEFORE its URL write, and Next 15
+  treats a navigation that starts while a server action is pending as
+  "discard the action, refresh afterwards" (`needsRefresh` in
+  app-router-instance.js). The write now goes out a task later, behind the
+  navigation, and the pick is one render (server log: one GET, one
+  render-less POST).
+- **The crash.** 51 client callers awaited an action directly. A rejected
+  call — a network blink, or (the common case, since `main` deploys several
+  times a day) a tab from before the last deploy calling an action id the new
+  server no longer knows — landed on the route's error boundary, and on
+  creative detail took the header's multi-field draft and up to 5,000
+  characters of notes with it; the top-bar callers hit `global-error`. Every
+  caller now goes through `safeAction`; forms keep their input and show the
+  failure inline via `toastActionFailure(…, { inline })`, rows toast, and a
+  stale tab always gets the persistent "Wizard was updated — reload." toast.
+  The guard reads every call lexically, so a new caller that awaits an action
+  bare fails the suite.

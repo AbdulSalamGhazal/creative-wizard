@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useRef, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { AlertTriangle, Check, ChevronDown, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -28,6 +27,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { DateRangePicker } from "@/components/filters/date-range-picker";
 import { previewCleanupAction, runCleanup } from "@/app/actions/cleanup";
+import { safeAction } from "@/lib/action-failure";
+import { toastActionFailure } from "@/lib/action-toast";
 import type { CleanupPreview } from "@/db/queries/cleanup";
 import { usd, int, plural } from "@/lib/format";
 import { defaultDateRange } from "@/lib/date-presets";
@@ -55,7 +56,6 @@ interface Props {
  * sanctioned, audit-logged exit path for performance_records.
  */
 export function CleanupTool({ products, creatives, campaigns }: Props) {
-  const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
   const [platforms, setPlatforms] = useState<Platform[]>([]);
@@ -114,10 +114,10 @@ export function CleanupTool({ products, creatives, campaigns }: Props) {
     const id = (requestId.current += 1);
     const counted = filters;
     startTransition(async () => {
-      const res = await previewCleanupAction(counted);
+      const res = await safeAction(() => previewCleanupAction(counted));
       if (id !== requestId.current) return; // the filters moved on
-      if (!res.ok || !res.preview) {
-        toast.error(res.error ?? "Could not preview");
+      if (!res.ok || !("preview" in res) || !res.preview) {
+        toastActionFailure(res, "Could not preview");
         return;
       }
       setPreview({ ...res.preview, filters: counted });
@@ -129,9 +129,9 @@ export function CleanupTool({ products, creatives, campaigns }: Props) {
     if (!preview) return;
     const { filters: counted, rows } = preview;
     startTransition(async () => {
-      const res = await runCleanup({ ...counted, expectedRows: rows });
+      const res = await safeAction(() => runCleanup({ ...counted, expectedRows: rows }));
       if (!res.ok) {
-        toast.error(res.error ?? "Delete failed");
+        toastActionFailure(res, "Delete failed");
         return;
       }
       toast.success(`Deleted ${plural(res.deleted ?? 0, "record")}`);
@@ -148,7 +148,7 @@ export function CleanupTool({ products, creatives, campaigns }: Props) {
       setCampaignNames([]);
       setPreview(null);
       setConfirmText("");
-      router.refresh();
+      // runCleanup revalidated: this page arrived re-rendered in its response.
     });
   };
 

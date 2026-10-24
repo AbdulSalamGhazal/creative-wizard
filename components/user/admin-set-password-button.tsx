@@ -15,6 +15,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { adminSetPassword } from "@/app/actions/user";
+import { safeAction } from "@/lib/action-failure";
+import { toastActionFailure } from "@/lib/action-toast";
 
 interface Props {
   userId: string;
@@ -33,10 +35,10 @@ export function AdminSetPasswordButton({ userId, userEmail }: Props) {
     setError(null);
     setDone(false);
     startTransition(async () => {
-      const res = await adminSetPassword({ userId, password });
+      const res = await safeAction(() => adminSetPassword({ userId, password }));
       if (!res.ok) {
         setError(res.error ?? "Failed");
-        toast.error(res.error ?? "Could not set password");
+        toastActionFailure(res, "Could not set password");
         return;
       }
       setDone(true);

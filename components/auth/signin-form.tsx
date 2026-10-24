@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { signIn } from "@/app/actions/session";
+import { safeAction } from "@/lib/action-failure";
+import { toastActionFailure } from "@/lib/action-toast";
 import { safeInternalPath } from "@/lib/url";
 
 export function SignInForm({ nextPath }: { nextPath: string }) {
@@ -24,15 +26,16 @@ export function SignInForm({ nextPath }: { nextPath: string }) {
     form.set("email", email.trim());
     form.set("password", password);
     startTransition(async () => {
-      const res = await signIn(form);
+      const res = await safeAction(() => signIn(form));
       if (!res.ok) {
-        setError(res.error ?? "Sign-in failed.");
+        toastActionFailure(res, "Sign-in failed.", { inline: setError });
         return;
       }
       // Re-constrain even though the page already sanitized it — the client
-      // must not trust a prop that ultimately came from the URL.
+      // must not trust a prop that ultimately came from the URL. ONE render:
+      // the session cookie the action set already emptied the router cache,
+      // so this navigation renders the target fresh (no refresh after it).
       router.replace(safeInternalPath(nextPath));
-      router.refresh();
     });
   };
 

@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { Lock, Plus, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -29,6 +28,8 @@ import {
   updateStoreField,
   deleteStoreField,
 } from "@/app/actions/store-field";
+import { safeAction } from "@/lib/action-failure";
+import { toastActionFailure } from "@/lib/action-toast";
 import type { StoreField, StoreFieldType } from "@/store/fields";
 
 /**
@@ -132,7 +133,6 @@ function FieldRow({ field }: { field: StoreField }) {
   // Locked tiers: no delete, no Required toggle. The server enforces both
   // (app/actions/store-field.ts) — this is the UI telling the same truth.
   const locked = field.core || field.systemRequired;
-  const router = useRouter();
   const [isPending, startTransition] = useNavTransition();
   const [label, setLabel] = useState(field.label);
   const [required, setRequired] = useState(field.required);
@@ -146,31 +146,32 @@ function FieldRow({ field }: { field: StoreField }) {
 
   function save() {
     startTransition(async () => {
-      const res = await updateStoreField({
-        id: field.id,
-        label: label.trim(),
-        required,
-        headers,
-      });
+      const res = await safeAction(() =>
+        updateStoreField({
+          id: field.id,
+          label: label.trim(),
+          required,
+          headers,
+        }),
+      );
       if (!res.ok) {
-        toast.error(res.error ?? "Couldn't save");
+        toastActionFailure(res, "Couldn't save");
         return;
       }
+      // The action revalidated: the saved field arrived in its response.
       toast.success("Saved");
-      router.refresh();
     });
   }
 
   function remove() {
     startTransition(async () => {
-      const res = await deleteStoreField(field.id);
+      const res = await safeAction(() => deleteStoreField(field.id));
       if (!res.ok) {
-        toast.error(res.error ?? "Couldn't delete");
+        toastActionFailure(res, "Couldn't delete");
         return;
       }
       toast.success(`Deleted "${field.label}"`);
       setConfirmDelete(false);
-      router.refresh();
     });
   }
 
@@ -298,7 +299,6 @@ function Toggle({
 }
 
 function NewFieldForm() {
-  const router = useRouter();
   const [isPending, startTransition] = useNavTransition();
   const [label, setLabel] = useState("");
   const [type, setType] = useState<StoreFieldType>("text");
@@ -308,9 +308,12 @@ function NewFieldForm() {
   function submit(e: React.FormEvent) {
     e.preventDefault();
     startTransition(async () => {
-      const res = await createStoreField({ label: label.trim(), type, required, headers });
+      const res = await safeAction(() =>
+        createStoreField({ label: label.trim(), type, required, headers }),
+      );
       if (!res.ok) {
-        toast.error(res.error ?? "Couldn't create field");
+        // The form keeps the typed label, type and headers.
+        toastActionFailure(res, "Couldn't create field");
         return;
       }
       toast.success(`Added "${label.trim()}"`);
@@ -318,7 +321,6 @@ function NewFieldForm() {
       setType("text");
       setRequired(false);
       setHeaders([]);
-      router.refresh();
     });
   }
 

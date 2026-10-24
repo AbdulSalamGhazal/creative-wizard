@@ -15,6 +15,8 @@ import {
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { excludeRecord, includeRecord } from "@/app/actions/exclusion";
+import { safeAction } from "@/lib/action-failure";
+import { toastActionFailure } from "@/lib/action-toast";
 import { useCan } from "@/components/auth/permissions-context";
 import { cn } from "@/lib/utils";
 
@@ -52,10 +54,11 @@ export function ExcludeRowAction({ recordId, excluded, excludedSource, context }
     }
     setError(null);
     startTransition(async () => {
-      const res = await excludeRecord(recordId, trimmed);
+      const res = await safeAction(() => excludeRecord(recordId, trimmed));
       if (!res.ok) {
+        // The dialog stays open with the typed reason.
         setError(res.error ?? "Something went wrong.");
-        toast.error(res.error ?? "Could not exclude record");
+        toastActionFailure(res, "Could not exclude record");
         return;
       }
       setOpen(false);
@@ -66,9 +69,9 @@ export function ExcludeRowAction({ recordId, excluded, excludedSource, context }
 
   const submitInclude = () => {
     startTransition(async () => {
-      const res = await includeRecord(recordId);
+      const res = await safeAction(() => includeRecord(recordId));
       if (!res.ok) {
-        toast.error(res.error ?? "Could not re-include record");
+        toastActionFailure(res, "Could not re-include record");
         return;
       }
       toast.success("Record back in totals");

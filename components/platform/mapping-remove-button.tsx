@@ -5,6 +5,8 @@ import { X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { removeHeaderMapping } from "@/app/actions/platform-mapping";
+import { safeAction } from "@/lib/action-failure";
+import { toastActionFailure } from "@/lib/action-toast";
 
 export function MappingRemoveButton({ id }: { id: string }) {
   const [isPending, startTransition] = useTransition();
@@ -16,9 +18,9 @@ export function MappingRemoveButton({ id }: { id: string }) {
       disabled={isPending}
       onClick={() =>
         startTransition(async () => {
-          const res = await removeHeaderMapping(id);
+          const res = await safeAction(() => removeHeaderMapping(id));
           if (!res.ok) {
-            toast.error(res.error ?? "Could not remove");
+            toastActionFailure(res, "Could not remove");
           } else {
             toast.success("Mapping removed");
           }

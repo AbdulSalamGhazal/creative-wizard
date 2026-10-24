@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,6 +27,8 @@ import {
 } from "@/lib/audience";
 import { useFieldFlow } from "@/components/budget/budget-shared";
 import { recordAudienceSnapshots } from "@/app/actions/audience";
+import { safeAction } from "@/lib/action-failure";
+import { toastActionFailure } from "@/lib/action-toast";
 import type { AudienceSnapshotRow } from "@/db/queries/audience";
 
 const digits = (raw: string) => raw.replace(/[^0-9]/g, "");
@@ -53,7 +54,6 @@ export function AudienceRecordDialog({
   latest: AudienceSnapshotRow[];
   today: string;
 }) {
-  const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [date, setDate] = useState(today);
   const [sizes, setSizes] = useState<Record<string, string>>({});
@@ -76,9 +76,10 @@ export function AudienceRecordDialog({
       return { platform, stage, size: Number(value) };
     });
     startTransition(async () => {
-      const res = await recordAudienceSnapshots({ date, entries });
+      const res = await safeAction(() => recordAudienceSnapshots({ date, entries }));
       if (!res.ok) {
-        toast.error(res.error ?? "Couldn't record those sizes.");
+        // The dialog stays open with every typed size.
+        toastActionFailure(res, "Couldn't record those sizes.");
         return;
       }
       toast.success(
@@ -86,7 +87,6 @@ export function AudienceRecordDialog({
       );
       onOpenChange(false);
       reset();
-      router.refresh();
     });
   };
 

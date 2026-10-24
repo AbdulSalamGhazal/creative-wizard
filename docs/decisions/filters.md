@@ -29,6 +29,18 @@
   — without that, Clear's one-write-per-filter loses all but the last.
 - A saved view with an empty config applies via `?view=none`, never a bare URL,
   or the default-view redirect bounces it back.
+- **The date range and the Excluded toggle are WRITE-THROUGH** (W2-1,
+  2026-10), like the remembered filters: the control's URL write is the one
+  render, `setPreferredRange` / `setIncludeExcludedPref` revalidate nothing, and
+  the picker never refreshes. The write is sent a task AFTER the URL write
+  (`lib/pref-sync.ts`), never before it, or Next refreshes the page again.
+- **A bare page restored by Back/Forward catches up ONCE.** The router cache
+  restores a page as it was rendered; if this tab saved a newer range or
+  Excluded choice since, the control showing the resolved default sees the
+  difference on MOUNT and `router.refresh()`es — once per (URL, value)
+  (`useRangeCatchUp`, `useExcludedCatchUp`). Never on a re-render: right after
+  a pick the control re-renders with the old props while its navigation is
+  pending.
 
 ## History and rationale
 
@@ -246,3 +258,35 @@ as it stood before the restructure.*
       pinned by `components/filters/migrated-bars.test.ts`, which also checks
       each bar's declared def keys against its params and every page's
       round-trip.
+
+### The saved range sticks without three renders (2026-10, W2-1)
+
+- **What the refresh was for.** The range was first remembered in a cookie
+  (705ec53), which "didn't stick" — a client-side write plus Next's page
+  cache; it was reverted (94d9cc1) and rebuilt on the `users` row (3210c24)
+  with the brand-switcher pattern: await the action (which revalidated the
+  whole layout), then `router.refresh()`. That made it stick, at a price: the
+  URL navigation, the action's re-render and the refresh — three full renders
+  per pick (~128 queries on the Dashboard instead of 40). The Excluded toggle
+  paid two.
+- **Why most of it was unnecessary.** Every dashboard page is dynamic and
+  `staleTimes.dynamic` is 0 (no `experimental.staleTimes` in next.config), so
+  the NEXT bare visit to any page renders fresh and reads the saved range from
+  the row; the page the person is on already carries the range in its URL.
+- **The one case the refresh really covered** is Back/Forward. A popstate
+  restore never refetches: it re-renders the page from the client router
+  cache, as it was — and the old refresh/revalidation had emptied that cache.
+  Measured on the dev server after the change: /summary visited before a pick
+  came back reading "Last 14 days" for one frame after the person picked
+  "Last 5 days" elsewhere. `lib/pref-sync.ts` keeps what this tab wrote and,
+  on mount, a control showing the resolved default re-reads the page once if
+  it is behind; the sample then reads "Last 14 days" → "Last 5 days". The
+  same holds for the Excluded toggle ("Excluded hidden" → "shown").
+- **The second trap** was Next's action queue: the picker sent its write
+  BEFORE its URL write, and a navigation that starts while an action is
+  pending makes Next discard the action and refresh afterwards. The write now
+  goes out a task later; the server log shows one GET and one render-less POST
+  per pick. (The remembered filters' 400 ms debounce already avoided this.)
+- Proven in a signed-in dev render: the picked range is the default on the
+  next bare visit to another page, after a full reload, and on Back/Forward,
+  and the same for the Excluded toggle.

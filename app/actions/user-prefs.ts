@@ -1,7 +1,6 @@
 "use server";
 
 import { eq } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { users } from "@/db/schema";
 import { requireAuth } from "@/lib/auth";
@@ -21,23 +20,32 @@ import { isToastScope } from "@/lib/notifications";
 
 /**
  * Persist the user's chosen date range as their default. `value` is a preset
- * key (kept rolling) or `custom:FROM..TO`. Mirrors the brand-switcher pattern:
- * write + `revalidatePath` so the new default is reflected on the next render.
- * The client `await`s this then calls `router.refresh()` — that's the piece the
- * earlier cookie attempt was missing. Best-effort: never throws to the caller.
+ * key (kept rolling) or `custom:FROM..TO`. Best-effort: never throws.
+ *
+ * WRITE-THROUGH, like the remembered filters (W2-1, 2026-10): NO
+ * `revalidatePath`. It used to revalidate the whole layout, and the picker
+ * then `router.refresh()`ed — so one pick rendered the page THREE times (the
+ * URL navigation, this action's re-render, the refresh: ~128 queries on the
+ * Dashboard instead of 40). The URL the person is on already carries the
+ * picked range; the preference only matters for the NEXT bare visit, which
+ * renders fresh (every page is dynamic, `staleTimes.dynamic` is 0). A page
+ * restored from the router cache by Back/Forward is re-read once by
+ * `useRangeCatchUp` (lib/pref-sync.ts) when this tab wrote a newer value
+ * since — the case the old refresh covered by emptying that cache.
  */
-export async function setPreferredRange(value: string): Promise<void> {
+export async function setPreferredRange(value: string): Promise<{ ok: boolean }> {
   try {
     const user = await requireAuth();
     // Only store something we can decode back (guards against junk values).
-    if (decodePreferredRange(value, todayIso()) === null) return;
+    if (decodePreferredRange(value, todayIso()) === null) return { ok: false };
     await db
       .update(users)
       .set({ preferredDateRange: value })
       .where(eq(users.id, user.id));
-    revalidatePath("/", "layout");
+    return { ok: true };
   } catch {
     // Remembering the range is best-effort; a failure must not break the pick.
+    return { ok: false };
   }
 }
 
@@ -45,21 +53,18 @@ export async function setPreferredRange(value: string): Promise<void> {
  * Persist which arriving notifications may toast (migration 0050). SELF-ONLY —
  * `requireAuth()` is the subject, there is no id in the input — validated
  * against the vocabulary, and NOT audited: a preference change is churn, not
- * history (the same reasoning as notification reads). `revalidatePath` so the
- * layout re-renders with the new value, like the other two prefs here.
+ * history (the same reasoning as notification reads).
+ *
+ * NO `revalidatePath` (W2-1): re-rendering the whole layout (and the page in
+ * it) just to hand the bell one word was a full render per click. The account
+ * menu announces the new value on `TOAST_SCOPE_CHANGED_EVENT` and the bell
+ * obeys it at once; the next full render reads it from the row.
  */
 export async function setToastScope(value: unknown): Promise<{ ok: boolean }> {
   try {
     if (!isToastScope(value)) return { ok: false };
     const user = await requireAuth();
     await db.update(users).set({ toastScope: value }).where(eq(users.id, user.id));
-    // The write is the point; refreshing the layout is a convenience, and
-    // outside a request scope (a test, a background call) it throws.
-    try {
-      revalidatePath("/", "layout");
-    } catch (err) {
-      console.warn("revalidatePath after toast-scope change failed:", err);
-    }
     return { ok: true };
   } catch {
     return { ok: false };
@@ -68,21 +73,23 @@ export async function setToastScope(value: unknown): Promise<{ ok: boolean }> {
 
 /**
  * Persist the user's Excluded-toggle choice as their default (mirrors
- * `setPreferredRange`). Applied on any page whose URL has no explicit
+ * `setPreferredRange`, write-through and NO `revalidatePath` — the toggle's own
+ * URL write is the one render). Applied on any page whose URL has no explicit
  * `includeExcluded` param; an explicit param always wins. Best-effort.
  */
-export async function setIncludeExcludedPref(on: boolean): Promise<void> {
+export async function setIncludeExcludedPref(on: boolean): Promise<{ ok: boolean }> {
   try {
     // Server actions receive untrusted input — only store a real boolean.
-    if (typeof on !== "boolean") return;
+    if (typeof on !== "boolean") return { ok: false };
     const user = await requireAuth();
     await db
       .update(users)
       .set({ includeExcluded: on })
       .where(eq(users.id, user.id));
-    revalidatePath("/", "layout");
+    return { ok: true };
   } catch {
     // Remembering the toggle is best-effort; a failure must not break it.
+    return { ok: false };
   }
 }
 

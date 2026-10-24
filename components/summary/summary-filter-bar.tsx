@@ -47,7 +47,7 @@ import { creativeTypeEnum } from "@/db/schema";
 import { MetricFilterControl } from "@/components/summary/metric-filter";
 import { ViewsControl } from "@/components/summary/views-control";
 import type { SummaryViewRow } from "@/db/queries/summary-views";
-import { setIncludeExcludedPref } from "@/app/actions/user-prefs";
+import { rememberIncludeExcluded } from "@/lib/pref-sync";
 
 interface Props {
   products: Array<{ id: string; name: string }>;
@@ -262,7 +262,7 @@ export function SummaryFilterBar({
 
   const toggleExcluded = () => {
     const nextOn = !includeExcluded;
-    void setIncludeExcludedPref(nextOn); // remember as this user's default
+    rememberIncludeExcluded(nextOn); // remember as this user's default
     update((next) => {
       next.set("includeExcluded", nextOn ? "1" : "0");
     });

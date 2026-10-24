@@ -1,11 +1,12 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { setStatusWindow } from "@/app/actions/account";
+import { safeAction } from "@/lib/action-failure";
+import { toastActionFailure } from "@/lib/action-toast";
 import { cn } from "@/lib/utils";
 
 interface BrandWindow {
@@ -31,7 +32,6 @@ const PRESETS = [
  * Configured per brand — different brands can have different thresholds.
  */
 export function StatusConfigAdmin({ brands }: { brands: BrandWindow[] }) {
-  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [customValues, setCustomValues] = useState<Record<string, string>>({});
 
@@ -41,13 +41,13 @@ export function StatusConfigAdmin({ brands }: { brands: BrandWindow[] }) {
       return;
     }
     startTransition(async () => {
-      const res = await setStatusWindow({ id, hours });
+      const res = await safeAction(() => setStatusWindow({ id, hours }));
       if (!res.ok) {
-        toast.error(res.error ?? "Could not update");
+        toastActionFailure(res, "Could not update");
         return;
       }
+      // The action revalidated: this page arrived re-rendered in its response.
       toast.success("Active window updated");
-      router.refresh();
     });
   };
 

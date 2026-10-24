@@ -664,19 +664,21 @@ function CommentPanelBody({
                   },
                 ]);
                 try {
-                  const res = await createComment({
-                    anchorType: anchor.type,
-                    anchorId: anchor.id,
-                    parentId: replyTo?.rootId ?? null,
-                    body,
-                    // Minus `?comment=`: a deep link's navigation is not part
-                    // of what the reader was looking at (2026-10).
-                    viewQuery:
-                      typeof window === "undefined"
-                        ? ""
-                        : stripCommentParam(window.location.search),
-                    mentionUserIds,
-                  });
+                  const res = await safeAction(() =>
+                    createComment({
+                      anchorType: anchor.type,
+                      anchorId: anchor.id,
+                      parentId: replyTo?.rootId ?? null,
+                      body,
+                      // Minus `?comment=`: a deep link's navigation is not part
+                      // of what the reader was looking at (2026-10).
+                      viewQuery:
+                        typeof window === "undefined"
+                          ? ""
+                          : stripCommentParam(window.location.search),
+                      mentionUserIds,
+                    }),
+                  );
                   // The composer clears as soon as the server has it. The row
                   // stops saying "Sending…" and takes the stored id; it stays
                   // until a load actually shows the stored copy — if the
@@ -691,7 +693,7 @@ function CommentPanelBody({
                   return res;
                 } catch (err) {
                   drop();
-                  throw err; // the composer's safeAction turns it into a toast
+                  throw err; // only a navigation signal gets here
                 }
               }}
               onSubmitted={() => {

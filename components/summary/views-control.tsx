@@ -16,6 +16,8 @@ import {
   deleteSummaryView,
   setDefaultView,
 } from "@/app/actions/summary-view";
+import { safeAction } from "@/lib/action-failure";
+import { toastActionFailure } from "@/lib/action-toast";
 import type { SummaryViewRow } from "@/db/queries/summary-views";
 import { FILTERS_EXPLICIT_PARAM, VIEW_MARKER_PARAM } from "@/validators/user-prefs";
 
@@ -113,18 +115,21 @@ export function ViewsControl({
     saving.current = true;
     startTransition(async () => {
       try {
-        const res = await createSummaryView({
-          name: trimmed,
-          query: savableQuery,
-          page,
-        });
+        const res = await safeAction(() =>
+          createSummaryView({
+            name: trimmed,
+            query: savableQuery,
+            page,
+          }),
+        );
         if (!res.ok) {
-          toast.error(res.error ?? "Could not save view");
+          // The typed name stays in the box.
+          toastActionFailure(res, "Could not save view");
           return;
         }
+        // The action revalidated: the list arrived with the new view in it.
         toast.success(`Saved view “${trimmed}”`);
         setName("");
-        router.refresh();
       } finally {
         saving.current = false;
       }
@@ -133,21 +138,20 @@ export function ViewsControl({
 
   const remove = (id: string, viewName: string) => {
     startTransition(async () => {
-      const res = await deleteSummaryView(id);
+      const res = await safeAction(() => deleteSummaryView(id));
       if (!res.ok) {
-        toast.error(res.error ?? "Could not delete view");
+        toastActionFailure(res, "Could not delete view");
         return;
       }
       toast.success(`Deleted “${viewName}”`);
-      router.refresh();
     });
   };
 
   const toggleDefault = (id: string, viewName: string, currentlyDefault: boolean) => {
     startTransition(async () => {
-      const res = await setDefaultView(id);
+      const res = await safeAction(() => setDefaultView(id));
       if (!res.ok) {
-        toast.error(res.error ?? "Could not change default");
+        toastActionFailure(res, "Could not change default");
         return;
       }
       toast.success(
@@ -155,7 +159,6 @@ export function ViewsControl({
           ? `“${viewName}” is no longer the default`
           : `“${viewName}” is now the default view`,
       );
-      router.refresh();
     });
   };
 

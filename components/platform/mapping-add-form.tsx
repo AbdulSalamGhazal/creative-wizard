@@ -13,6 +13,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { addHeaderMapping } from "@/app/actions/platform-mapping";
+import { safeAction } from "@/lib/action-failure";
+import { toastActionFailure } from "@/lib/action-toast";
 import {
   FIELD_LIST,
   isFieldUnavailableOn,
@@ -38,14 +40,16 @@ export function MappingAddForm({
     const trimmed = headerName.trim();
     if (!trimmed) return;
     startTransition(async () => {
-      const res = await addHeaderMapping({
-        platform,
-        internalField: field,
-        headerName: trimmed,
-      });
+      const res = await safeAction(() =>
+        addHeaderMapping({
+          platform,
+          internalField: field,
+          headerName: trimmed,
+        }),
+      );
       if (!res.ok) {
         setError(res.error ?? "Failed");
-        toast.error(res.error ?? "Could not add mapping");
+        toastActionFailure(res, "Could not add mapping");
         return;
       }
       toast.success(`Added “${trimmed}”`);

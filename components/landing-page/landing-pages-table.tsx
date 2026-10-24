@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { ExternalLink, Lock, Pencil, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -26,6 +25,8 @@ import {
   deleteLandingPage,
   updateLandingPage,
 } from "@/app/actions/landing-page";
+import { safeAction } from "@/lib/action-failure";
+import { toastActionFailure } from "@/lib/action-toast";
 import type { LandingPageRow } from "@/db/queries/landing-pages";
 
 const plural = (n: number, word: string) => `${int(n)} ${word}${n === 1 ? "" : "s"}`;
@@ -52,7 +53,6 @@ export function LandingPagesTable({
   rows: LandingPageRow[];
   canManage: boolean;
 }) {
-  const router = useRouter();
   const [editing, setEditing] = useState<Editing | null>(null);
   const [deleting, setDeleting] = useState<LandingPageRow | null>(null);
   const [isDeleting, startDelete] = useTransition();
@@ -61,14 +61,14 @@ export function LandingPagesTable({
     const row = deleting;
     if (!row) return;
     startDelete(async () => {
-      const res = await deleteLandingPage(row.id);
+      const res = await safeAction(() => deleteLandingPage(row.id));
       if (!res.ok) {
-        toast.error(res.error ?? "Could not delete the landing page.");
+        toastActionFailure(res, "Could not delete the landing page.");
         return;
       }
+      // The action revalidated: the list arrived re-rendered in its response.
       toast.success(`Deleted “${row.name}”`);
       setDeleting(null);
-      router.refresh();
     });
   };
 
@@ -277,7 +277,6 @@ function LandingPageDialog({
   editing: Editing;
   onClose: () => void;
 }) {
-  const router = useRouter();
   const initial = editing.mode === "edit" ? editing.row : null;
   const locked = (initial?.records ?? 0) > 0;
   const [name, setName] = useState(initial?.name ?? "");
@@ -304,17 +303,18 @@ function LandingPageDialog({
     setFieldErrors({});
     start(async () => {
       const values = { name, code, url, description };
-      const res = initial
-        ? await updateLandingPage({ id: initial.id, ...values })
-        : await createLandingPage(values);
+      const id = initial?.id;
+      const res = id
+        ? await safeAction(() => updateLandingPage({ id, ...values }))
+        : await safeAction(() => createLandingPage(values));
       if (!res.ok) {
-        setError(res.error ?? "Could not save the landing page.");
-        setFieldErrors(res.fieldErrors ?? {});
+        // The dialog stays open with every typed field.
+        toastActionFailure(res, "Could not save the landing page.", { inline: setError });
+        setFieldErrors(("fieldErrors" in res && res.fieldErrors) || {});
         return;
       }
       toast.success(initial ? "Landing page updated" : `Added @${typedCode}`);
       onClose();
-      router.refresh();
     });
   };
 

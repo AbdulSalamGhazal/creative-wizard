@@ -13,7 +13,7 @@ import { ExcludedToggle, FilterPill } from "@/components/filters/filter-pill";
 import { FilterShell } from "@/components/filters/filter-shell";
 import { useFilterParams } from "@/components/filters/use-filter-params";
 import type { FilterDef } from "@/components/filters/filter-model";
-import { setIncludeExcludedPref } from "@/app/actions/user-prefs";
+import { rememberIncludeExcluded } from "@/lib/pref-sync";
 import { ALL_PLATFORMS, PLATFORM_LABEL } from "@/lib/palette";
 import { CREATIVE_STATUSES, STATUS_DOT, STATUS_LABEL } from "@/lib/creative-status";
 import { STAGE_FILTER_VALUES, stageFilterLabel } from "@/lib/funnel-stages";
@@ -81,7 +81,7 @@ export function CanvasFilterBar({
 
   const toggleExcluded = () => {
     const nextOn = !includeExcluded;
-    void setIncludeExcludedPref(nextOn);
+    rememberIncludeExcluded(nextOn);
     update((next) => next.set("includeExcluded", nextOn ? "1" : "0"));
   };
 

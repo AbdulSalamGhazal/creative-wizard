@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { Loader2, Undo2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -16,6 +15,8 @@ import {
 } from "@/components/ui/dialog";
 import { useNavTransition } from "@/lib/nav-progress";
 import { rollbackStoreBatch } from "@/app/actions/store-upload";
+import { safeAction } from "@/lib/action-failure";
+import { toastActionFailure } from "@/lib/action-toast";
 
 /**
  * Roll back a store upload batch — deletes only the orders it INSERTED (updates
@@ -34,22 +35,21 @@ export function StoreRollbackButton({
   /** Inserted orders a LATER upsert has revised since (0 = none). */
   updatedSince?: number;
 }) {
-  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [ack, setAck] = useState(false);
   const [isPending, startTransition] = useNavTransition();
 
   function doRollback() {
     startTransition(async () => {
-      const res = await rollbackStoreBatch(batchId);
+      const res = await safeAction(() => rollbackStoreBatch(batchId));
       if (!res.ok) {
-        toast.error(res.error ?? "Rollback failed");
+        toastActionFailure(res, "Rollback failed");
         return;
       }
+      // The action revalidated: the history arrived re-rendered in its response.
       toast.success("Batch rolled back");
       setOpen(false);
       setAck(false);
-      router.refresh();
     });
   }
 

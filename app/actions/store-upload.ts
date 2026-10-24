@@ -233,12 +233,9 @@ export async function commitStoreUpload(
         }).then(() => undefined),
     });
 
-    try {
-      revalidatePath("/store/uploads");
-      revalidatePath("/store/orders");
-    } catch (e) {
-      console.warn("revalidatePath after store commit failed:", e);
-    }
+    // NO revalidatePath (W2-1): the upload panel navigates to /store/uploads
+    // after a commit, and that navigation is the one render (a panel that
+    // stays put refreshes itself instead).
     await logAudit({
       action: AUDIT_ACTIONS.STORE_UPLOAD_COMMIT,
       entityType: "store",

@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { Check, ChevronsUpDown, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -13,6 +12,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { setActiveAccount } from "@/app/actions/account";
+import { safeAction } from "@/lib/action-failure";
+import { toastActionFailure } from "@/lib/action-toast";
 
 interface Account {
   id: string;
@@ -27,12 +28,12 @@ interface Props {
 /**
  * Brand (account) switcher in the top bar, right of the "WIZARD"
  * title. Selecting a brand writes the `ccms_account` cookie via
- * `setActiveAccount`, then refreshes so every server component re-reads under
- * the new account. A view preference, not a security boundary — any signed-in
- * user may switch to any brand.
+ * `setActiveAccount`, whose `revalidatePath("/", "layout")` re-renders the
+ * whole page under the new brand IN the action's response — ONE render (P-15,
+ * 2026-10: a `router.refresh()` here used to fetch the same tree a second
+ * time). Membership is checked server-side; only allowed brands are listed.
  */
 export function AccountSwitcher({ accounts, activeId }: Props) {
-  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [open, setOpen] = useState(false);
 
@@ -42,13 +43,12 @@ export function AccountSwitcher({ accounts, activeId }: Props) {
   function switchTo(id: string) {
     if (id === activeId) return;
     startTransition(async () => {
-      const res = await setActiveAccount({ accountId: id });
+      const res = await safeAction(() => setActiveAccount({ accountId: id }));
       if (!res.ok) {
-        toast.error(res.error ?? "Could not switch brand");
+        toastActionFailure(res, "Could not switch brand");
         return;
       }
       const name = accounts.find((a) => a.id === id)?.name ?? "brand";
-      router.refresh();
       toast.success(`Switched to ${name}`);
     });
   }

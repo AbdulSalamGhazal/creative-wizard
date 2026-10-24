@@ -16,6 +16,8 @@ import {
 import { buildCampaignName, CAMPAIGN_OBJECTIVES } from "@/lib/campaign";
 import { ALL_PLATFORMS, PLATFORM_LABEL } from "@/lib/palette";
 import { createCampaign } from "@/app/actions/campaign";
+import { safeAction } from "@/lib/action-failure";
+import { toastActionFailure } from "@/lib/action-toast";
 
 /**
  * Register a campaign. Mirrors how an upload builds the stored name — the buyer
@@ -41,13 +43,14 @@ export function CampaignCreateForm() {
     if (!ready) return;
     setError(null);
     start(async () => {
-      const res = await createCampaign({ campaign, adset, platform, objective });
+      const res = await safeAction(() => createCampaign({ campaign, adset, platform, objective }));
       if (res.ok) {
         toast.success(`Campaign registered: ${res.name}`);
+        // ONE render: the action doesn't revalidate; this navigation renders
+        // the list fresh (W2-1).
         router.push("/campaigns");
-        router.refresh();
       } else {
-        setError(res.error ?? "Could not register the campaign.");
+        toastActionFailure(res, "Could not register the campaign.", { inline: setError });
       }
     });
   };

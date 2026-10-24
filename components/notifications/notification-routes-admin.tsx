@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { Check } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -16,6 +15,8 @@ import {
 import { cn } from "@/lib/utils";
 import { CATEGORY_LABEL, EVENT_TYPES, type EventType } from "@/lib/notifications";
 import { saveNotificationRoutes } from "@/app/actions/notification-routes";
+import { safeAction } from "@/lib/action-failure";
+import { toastActionFailure } from "@/lib/action-toast";
 import type { BrandMember } from "@/db/queries/notifications";
 
 /**
@@ -34,7 +35,6 @@ export function NotificationRoutesAdmin({
   /** eventType → user ids, as stored. */
   recipients: Record<string, string[]>;
 }) {
-  const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [draft, setDraft] = useState<Record<string, string[]>>(() =>
     Object.fromEntries(EVENT_TYPES.map((e) => [e.key, recipients[e.key] ?? []])),
@@ -60,13 +60,15 @@ export function NotificationRoutesAdmin({
 
   const save = (key: EventType) =>
     startTransition(async () => {
-      const res = await saveNotificationRoutes({ eventType: key, userIds: draft[key] ?? [] });
+      const res = await safeAction(() =>
+        saveNotificationRoutes({ eventType: key, userIds: draft[key] ?? [] }),
+      );
       if (!res.ok) {
-        toast.error(res.error ?? "Couldn't save that routing.");
+        toastActionFailure(res, "Couldn't save that routing.");
         return;
       }
+      // The action revalidated: the saved routing arrived in its response.
       toast.success("Routing saved.");
-      router.refresh();
     });
 
   const nameOf = (id: string) => members.find((m) => m.id === id)?.name ?? "Unknown";

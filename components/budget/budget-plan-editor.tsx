@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 import {
   ArrowRightLeft,
   CalendarDays,
@@ -86,6 +85,8 @@ import {
   copyBudgetFromMonth,
   setUsdToSarRate,
 } from "@/app/actions/budget";
+import { safeAction } from "@/lib/action-failure";
+import { toastActionFailure } from "@/lib/action-toast";
 import type { BudgetMonthData, PlanRevisionRow } from "@/db/queries/budget";
 import {
   BudgetMonthBar,
@@ -193,7 +194,6 @@ export function BudgetPlanEditor({
   revisions: PlanRevisionRow[];
   canManage: boolean;
 }) {
-  const router = useRouter();
   const [isPending, setIsPending] = useState(false);
 
   const [currency, pickCurrency] = useBudgetCurrency();
@@ -591,7 +591,7 @@ export function BudgetPlanEditor({
         });
       }
       const rev = draft.revenue.trim();
-      const res = await saveBudgetMonth({
+      const res = await safeAction(() => saveBudgetMonth({
         month,
         allocations,
         plannedRevenueSar: rev === "" ? null : Number(rev),
@@ -600,14 +600,16 @@ export function BudgetPlanEditor({
           .filter(([, w]) => w !== 1)
           .map(([d, w]) => ({ day: Number(d), weight: w })),
         note: note.trim() === "" ? undefined : note.trim(),
-      });
+      }));
       if (!res.ok) {
-        toast.error(res.error ?? "Could not save the plan");
+        // Still editing: every typed cell and the note survive a failure.
+        toastActionFailure(res, "Could not save the plan");
         return;
       }
+      // ONE render: saveBudgetMonth revalidated, so the saved plan arrived
+      // re-rendered in the action's response (no refresh after it, W2-1).
       toast.success("Plan saved");
       stopEditing();
-      router.refresh();
     } finally {
       setIsPending(false);
     }
@@ -619,18 +621,19 @@ export function BudgetPlanEditor({
   const doConvert = async () => {
     setIsPending(true);
     try {
-      const res = await convertPlanToCurve({
-        month,
-        note: convertNote.trim() === "" ? undefined : convertNote.trim(),
-      });
+      const res = await safeAction(() =>
+        convertPlanToCurve({
+          month,
+          note: convertNote.trim() === "" ? undefined : convertNote.trim(),
+        }),
+      );
       if (!res.ok) {
-        toast.error(res.error ?? "Could not switch the plan");
+        toastActionFailure(res, "Could not switch the plan");
         return;
       }
       toast.success(`${monthLabel(month)} is planned in the editor again`);
       setConvertOpen(false);
       setConvertNote("");
-      router.refresh();
     } finally {
       setIsPending(false);
     }
@@ -649,24 +652,25 @@ export function BudgetPlanEditor({
   const doDelete = async () => {
     setIsPending(true);
     try {
-      const res = await saveBudgetMonth({
-        month,
-        mode: "curve",
-        source: "delete",
-        allocations: [],
-        plannedRevenueSar: null,
-        reserveSpendUsd: 0,
-        dayWeights: [],
-        note: deleteNote.trim() === "" ? undefined : deleteNote.trim(),
-      });
+      const res = await safeAction(() =>
+        saveBudgetMonth({
+          month,
+          mode: "curve",
+          source: "delete",
+          allocations: [],
+          plannedRevenueSar: null,
+          reserveSpendUsd: 0,
+          dayWeights: [],
+          note: deleteNote.trim() === "" ? undefined : deleteNote.trim(),
+        }),
+      );
       if (!res.ok) {
-        toast.error(res.error ?? "Could not delete the plan");
+        toastActionFailure(res, "Could not delete the plan");
         return;
       }
       toast.success(`${monthLabel(month)}'s plan deleted — it's in Revisions if you need it back`);
       setDeleteOpen(false);
       setDeleteNote("");
-      router.refresh();
     } finally {
       setIsPending(false);
     }
@@ -680,9 +684,9 @@ export function BudgetPlanEditor({
     if (!copyFrom) return;
     setIsPending(true);
     try {
-      const res = await copyBudgetFromMonth({ month, from: copyFrom });
+      const res = await safeAction(() => copyBudgetFromMonth({ month, from: copyFrom }));
       if (!res.ok) {
-        toast.error(res.error ?? "Could not copy");
+        toastActionFailure(res, "Could not copy");
         return;
       }
       toast.success(
@@ -690,7 +694,6 @@ export function BudgetPlanEditor({
       );
       setCopyOpen(false);
       stopEditing();
-      router.refresh();
     } finally {
       setIsPending(false);
     }
@@ -705,14 +708,13 @@ export function BudgetPlanEditor({
     }
     setIsPending(true);
     try {
-      const res = await setUsdToSarRate(value);
+      const res = await safeAction(() => setUsdToSarRate(value));
       if (!res.ok) {
-        toast.error(res.error ?? "Could not save the rate");
+        toastActionFailure(res, "Could not save the rate");
         return;
       }
       toast.success(`Rate set to ${value.toFixed(4)}`);
       setRateDraft(null);
-      router.refresh();
     } finally {
       setIsPending(false);
     }

@@ -45,6 +45,8 @@ import {
   patchCreative,
   setCreativeTermination,
 } from "@/app/actions/creative";
+import { safeAction } from "@/lib/action-failure";
+import { toastActionFailure } from "@/lib/action-toast";
 import { useCan } from "@/components/auth/permissions-context";
 import { creativeTypeEnum } from "@/db/schema";
 import { ALL_PLATFORMS, PLATFORM_COLOR, PLATFORM_LABEL } from "@/lib/palette";
@@ -179,17 +181,22 @@ export function CreativeDetailHeader({
     if (!sameSet(angles, saved.angles)) patch.angles = angles;
 
     startTransition(async () => {
-      const res = await patchCreative(patch);
+      const res = await safeAction(() => patchCreative(patch));
       if (!res.ok) {
-        toast.error(res.fieldErrors?.name ?? res.error ?? "Couldn't save changes");
+        // The drafts stay: a failed save (a network blink, a tab from before
+        // the last deploy) keeps every edited field on screen (W2-2).
+        const nameError = "fieldErrors" in res ? res.fieldErrors?.name : undefined;
+        toastActionFailure(nameError ? { ...res, error: nameError } : res, "Couldn't save changes");
         return;
       }
       const newName = res.name ?? nameTrimmed;
       toast.success("Changes saved");
+      // ONE render per save (W2-1). A rename follows the new URL (the action
+      // skips its revalidation, which would re-render the old, now-404
+      // address); otherwise the action's re-render arrived in its response.
       if (newName !== saved.name) {
         // The detail URL is keyed on the name — follow the rename.
         router.replace(`/library/${encodeURIComponent(newName)}`);
-        router.refresh();
       } else {
         setSaved({
           name: nameTrimmed,
@@ -201,7 +208,6 @@ export function CreativeDetailHeader({
           stages,
           angles,
         });
-        router.refresh();
       }
     });
   };
@@ -586,7 +592,6 @@ function TerminationDialog({
   open: boolean;
   onOpenChange: (v: boolean) => void;
 }) {
-  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const original = useMemo(() => new Set(terminated), [terminated]);
   const [picked, setPicked] = useState<Set<Platform>>(() => new Set(terminated));
@@ -616,19 +621,21 @@ function TerminationDialog({
     }
     startTransition(async () => {
       for (const p of changes) {
-        const res = await setCreativeTermination({
-          creativeId,
-          platform: p,
-          terminated: picked.has(p),
-        });
+        const res = await safeAction(() =>
+          setCreativeTermination({
+            creativeId,
+            platform: p,
+            terminated: picked.has(p),
+          }),
+        );
         if (!res.ok) {
-          toast.error(res.error ?? `Couldn't update ${PLATFORM_LABEL[p]}`);
+          toastActionFailure(res, `Couldn't update ${PLATFORM_LABEL[p]}`);
           return;
         }
       }
+      // Each call revalidated, so the page arrived re-rendered with the last.
       toast.success("Termination updated");
       onOpenChange(false);
-      router.refresh();
     });
   };
 

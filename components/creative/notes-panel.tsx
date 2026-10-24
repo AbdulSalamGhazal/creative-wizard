@@ -6,6 +6,8 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { updateCreativeNotes } from "@/app/actions/creative";
+import { safeAction } from "@/lib/action-failure";
+import { toastActionFailure } from "@/lib/action-toast";
 import { useCan } from "@/components/auth/permissions-context";
 
 const MAX = 5000;
@@ -27,10 +29,11 @@ export function NotesPanel({
   const save = () => {
     setError(null);
     startTransition(async () => {
-      const res = await updateCreativeNotes(creativeId, value);
+      const res = await safeAction(() => updateCreativeNotes(creativeId, value));
       if (!res.ok) {
+        // Still editing: the typed notes stay in the box (W2-2).
         setError(res.error ?? "Failed");
-        toast.error(res.error ?? "Notes not saved");
+        toastActionFailure(res, "Notes not saved");
         return;
       }
       setSaved(value);

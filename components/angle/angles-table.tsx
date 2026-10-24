@@ -1,7 +1,6 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { Check, Pencil, Plus, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -17,6 +16,8 @@ import {
 } from "@/components/ui/dialog";
 import { isoDate } from "@/lib/format";
 import { createAngle, deleteAngle, renameAngle } from "@/app/actions/angle";
+import { safeAction } from "@/lib/action-failure";
+import { toastActionFailure } from "@/lib/action-toast";
 import type { AngleRow } from "@/db/queries/angles";
 
 /**
@@ -24,7 +25,6 @@ import type { AngleRow } from "@/db/queries/angles";
  * creative carrying it), or delete it (removes the assignment everywhere).
  */
 export function AnglesTable({ rows }: { rows: AngleRow[] }) {
-  const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
   const [newName, setNewName] = useState("");
@@ -36,14 +36,14 @@ export function AnglesTable({ rows }: { rows: AngleRow[] }) {
     const name = newName.trim();
     if (!name) return;
     startTransition(async () => {
-      const res = await createAngle({ name });
+      const res = await safeAction(() => createAngle({ name }));
       if (!res.ok) {
-        toast.error(res.error ?? "Could not add angle");
+        toastActionFailure(res, "Could not add angle");
         return;
       }
+      // The action revalidated: the list arrived re-rendered in its response.
       toast.success(`Added “${name}”`);
       setNewName("");
-      router.refresh();
     });
   };
 
@@ -64,14 +64,13 @@ export function AnglesTable({ rows }: { rows: AngleRow[] }) {
     renaming.current = true;
     startTransition(async () => {
       try {
-        const res = await renameAngle(id, next);
+        const res = await safeAction(() => renameAngle(id, next));
         if (!res.ok) {
-          toast.error(res.error ?? "Could not rename angle");
+          toastActionFailure(res, "Could not rename angle");
           return;
         }
         toast.success(`Renamed to “${next}”`);
         cancelEdit();
-        router.refresh();
       } finally {
         renaming.current = false;
       }
@@ -82,14 +81,13 @@ export function AnglesTable({ rows }: { rows: AngleRow[] }) {
     const row = deleting;
     if (!row) return;
     startTransition(async () => {
-      const res = await deleteAngle(row.id);
+      const res = await safeAction(() => deleteAngle(row.id));
       if (!res.ok) {
-        toast.error(res.error ?? "Could not delete angle");
+        toastActionFailure(res, "Could not delete angle");
         return;
       }
       toast.success(`Deleted “${row.name}”`);
       setDeleting(null);
-      router.refresh();
     });
   };
 

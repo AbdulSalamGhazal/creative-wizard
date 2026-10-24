@@ -1,7 +1,5 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { toast } from "sonner";
 import {
   Select,
   SelectContent,
@@ -15,6 +13,8 @@ import { int } from "@/lib/format";
 import { useNavTransition } from "@/lib/nav-progress";
 import { setStoreSourceMapping } from "@/app/actions/store-source";
 import { setStoreChannelMapping } from "@/app/actions/store-channel";
+import { safeAction } from "@/lib/action-failure";
+import { toastActionFailure } from "@/lib/action-toast";
 import {
   CHANNEL_DESTINATIONS,
   CHANNEL_LABEL,
@@ -53,7 +53,6 @@ export function StoreSourceMappingAdmin({
   channelMappings: Array<{ rawValue: string; destination: ChannelDestination }>;
   channelValues: Array<{ value: string; count: number }>;
 }) {
-  const router = useRouter();
   const [isPending, startTransition] = useNavTransition();
 
   const byValue = new Map(mappings.map((m) => [m.rawValue, m.platform] as const));
@@ -75,23 +74,20 @@ export function StoreSourceMappingAdmin({
 
   function assignChannel(rawValue: string, assignment: ChannelAssignment) {
     startTransition(async () => {
-      const res = await setStoreChannelMapping({ rawValue, assignment });
+      const res = await safeAction(() => setStoreChannelMapping({ rawValue, assignment }));
       if (!res.ok) {
-        toast.error(res.error ?? "Couldn't save the mapping");
-        return;
+        toastActionFailure(res, "Couldn't save the mapping");
       }
-      router.refresh();
+      // On success the action's re-render arrived in its response (W2-1).
     });
   }
 
   function assign(rawValue: string, assignment: Assignment) {
     startTransition(async () => {
-      const res = await setStoreSourceMapping({ rawValue, assignment });
+      const res = await safeAction(() => setStoreSourceMapping({ rawValue, assignment }));
       if (!res.ok) {
-        toast.error(res.error ?? "Couldn't save the mapping");
-        return;
+        toastActionFailure(res, "Couldn't save the mapping");
       }
-      router.refresh();
     });
   }
 

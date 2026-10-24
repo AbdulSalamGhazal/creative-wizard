@@ -1,7 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useMemo, useState } from "react";
 import type { DateRange } from "react-day-picker";
 import { CalendarDays, Check, ChevronDown } from "lucide-react";
 import {
@@ -22,7 +21,7 @@ import {
   todayIso,
   type DateRangeValue,
 } from "@/lib/date-presets";
-import { setPreferredRange } from "@/app/actions/user-prefs";
+import { rememberRange, useRangeCatchUp } from "@/lib/pref-sync";
 
 /**
  * Reusable date-range control: the full preset list on the left, a live
@@ -64,19 +63,18 @@ export function DateRangePicker({
   hidePresets?: readonly string[];
 }) {
   const [open, setOpen] = useState(false);
-  const router = useRouter();
-  const [, startTransition] = useTransition();
 
-  // Persist the pick as the user's default — the proven brand-switcher pattern:
-  // await the server action (writes DB + revalidatePath), then router.refresh()
-  // so every page re-reads it on the next navigation.
+  // Persist the pick as the user's default — WRITE-THROUGH (W2-1, 2026-10):
+  // the parent's URL write is the one render; the saved default is for the
+  // next bare visit, which renders fresh. (This used to await the action, which
+  // revalidated, and then `router.refresh()` — three renders per pick.)
   const persist = (value: string | null) => {
     if (!remember || !value) return;
-    startTransition(async () => {
-      await setPreferredRange(value);
-      router.refresh();
-    });
+    rememberRange(value);
   };
+  // A bare URL shows the saved default. If Back/Forward restored this page
+  // from the router cache after this tab picked a newer one, re-read it once.
+  useRangeCatchUp(remember && !from && !to ? fallback : undefined);
 
   // The effective range: the explicit one, else the passed-in fallback (the
   // saved default), else last 7 days. Drives the label, highlighted preset,

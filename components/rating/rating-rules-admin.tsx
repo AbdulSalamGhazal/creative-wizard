@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,6 +10,8 @@ import {
   updatePlatformRatingRules,
   updateRatingRules,
 } from "@/app/actions/rating";
+import { safeAction } from "@/lib/action-failure";
+import { toastActionFailure } from "@/lib/action-toast";
 import { RATING_META, type RatingConfig, type RatingRules } from "@/lib/rating";
 import { ALL_PLATFORMS, PLATFORM_LABEL } from "@/lib/palette";
 import { PlatformDot } from "@/components/ui/platform-dot";
@@ -117,7 +118,6 @@ function ThresholdInputs({
 }
 
 function DefaultEditor({ rules }: { rules: RatingRules }) {
-  const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [minSpend, setMinSpend] = useState(String(rules.minSpend));
   const [goodRoas, setGoodRoas] = useState(String(rules.goodRoas));
@@ -136,10 +136,12 @@ function DefaultEditor({ rules }: { rules: RatingRules }) {
   const save = () => {
     if (error) return toast.error(error);
     startTransition(async () => {
-      const res = await updateRatingRules({ minSpend: nums.ms, goodRoas: nums.g, decentRoas: nums.d });
-      if (!res.ok) { toast.error(res.error ?? "Could not save"); return; }
+      const res = await safeAction(() =>
+        updateRatingRules({ minSpend: nums.ms, goodRoas: nums.g, decentRoas: nums.d }),
+      );
+      if (!res.ok) { toastActionFailure(res, "Could not save"); return; }
+      // The action revalidated: the saved rules arrived in its response.
       toast.success("Default rating rules saved");
-      router.refresh();
     });
   };
 
@@ -190,7 +192,6 @@ function PlatformOverrideEditor({
   override: RatingRules | null;
   def: RatingRules;
 }) {
-  const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [custom, setCustom] = useState(override !== null);
   const seed = override ?? def;
@@ -204,10 +205,11 @@ function PlatformOverrideEditor({
   const save = () => {
     if (error) return toast.error(error);
     startTransition(async () => {
-      const res = await updatePlatformRatingRules({ platform, minSpend: nums.ms, goodRoas: nums.g, decentRoas: nums.d });
-      if (!res.ok) { toast.error(res.error ?? "Could not save"); return; }
+      const res = await safeAction(() =>
+        updatePlatformRatingRules({ platform, minSpend: nums.ms, goodRoas: nums.g, decentRoas: nums.d }),
+      );
+      if (!res.ok) { toastActionFailure(res, "Could not save"); return; }
       toast.success(`${PLATFORM_LABEL[platform]} override saved`);
-      router.refresh();
     });
   };
 
@@ -216,10 +218,9 @@ function PlatformOverrideEditor({
       // Turning off — if it was persisted, clear it; otherwise just hide.
       if (override) {
         startTransition(async () => {
-          const res = await clearPlatformRatingRules({ platform });
-          if (!res.ok) { toast.error(res.error ?? "Could not reset"); return; }
+          const res = await safeAction(() => clearPlatformRatingRules({ platform }));
+          if (!res.ok) { toastActionFailure(res, "Could not reset"); return; }
           toast.success(`${PLATFORM_LABEL[platform]} reverted to default`);
-          router.refresh();
         });
       } else {
         setCustom(false);

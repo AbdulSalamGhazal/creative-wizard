@@ -17,6 +17,8 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { deleteCreative } from "@/app/actions/creative";
+import { safeAction } from "@/lib/action-failure";
+import { toastActionFailure } from "@/lib/action-toast";
 import { int } from "@/lib/format";
 import { PLATFORM_LABEL } from "@/lib/palette";
 import { useCan } from "@/components/auth/permissions-context";
@@ -41,9 +43,9 @@ export function DeleteCreativeDialog({
 
   const onConfirm = () => {
     startTransition(async () => {
-      const res = await deleteCreative(creativeId);
+      const res = await safeAction(() => deleteCreative(creativeId));
       if (!res.ok) {
-        toast.error(res.error ?? "Couldn't delete the creative");
+        toastActionFailure(res, "Couldn't delete the creative");
         return;
       }
       toast.success(
@@ -54,8 +56,9 @@ export function DeleteCreativeDialog({
           : `Deleted “${creativeName}”`,
       );
       setOpen(false);
+      // ONE render: the action doesn't revalidate (the page it would re-render
+      // no longer exists); the navigation renders the Library fresh (W2-1).
       router.push("/library");
-      router.refresh();
     });
   };
 

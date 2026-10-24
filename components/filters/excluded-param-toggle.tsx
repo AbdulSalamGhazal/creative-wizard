@@ -3,14 +3,14 @@
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ExcludedToggle } from "@/components/filters/filter-pill";
 import { useNavTransition } from "@/lib/nav-progress";
-import { setIncludeExcludedPref } from "@/app/actions/user-prefs";
+import { rememberIncludeExcluded } from "@/lib/pref-sync";
 
 /**
  * Standalone Excluded toggle for pages without a big filter bar (detail pages,
  * Compare, Reconciliation, Library). `on` is the EFFECTIVE state the server
  * resolved (URL param → saved preference → hidden). Toggling writes an explicit
  * `includeExcluded=1|0` URL param (so the URL always wins from here on) AND
- * persists the choice as the user's default via `setIncludeExcludedPref` —
+ * persists the choice as the user's default via `rememberIncludeExcluded` —
  * the same dual-write the filter bars do.
  */
 export function ExcludedParamToggle({
@@ -27,7 +27,7 @@ export function ExcludedParamToggle({
 
   const toggle = () => {
     const next = !on;
-    void setIncludeExcludedPref(next); // best-effort persistence
+    rememberIncludeExcluded(next); // best-effort persistence
     const params = new URLSearchParams(searchParams.toString());
     params.set("includeExcluded", next ? "1" : "0");
     params.delete("page");

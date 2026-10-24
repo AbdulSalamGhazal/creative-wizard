@@ -22,7 +22,7 @@ import {
   PLATFORMS_WITH_CREATIVES,
   PLATFORM_LABEL,
 } from "@/lib/palette";
-import { setIncludeExcludedPref } from "@/app/actions/user-prefs";
+import { rememberIncludeExcluded } from "@/lib/pref-sync";
 
 // Derived from the canonical platform lists (lib/palette) — no hand-copied set.
 const opts = (set: readonly (typeof ALL_PLATFORMS)[number][]) =>
@@ -163,7 +163,7 @@ export function FilterStrip({
 
   const toggleExcluded = () => {
     const nextOn = !includeExcluded;
-    void setIncludeExcludedPref(nextOn); // remember as this user's default
+    rememberIncludeExcluded(nextOn); // remember as this user's default
     update((next) => {
       next.set("includeExcluded", nextOn ? "1" : "0");
     });

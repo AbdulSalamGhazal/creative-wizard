@@ -11,6 +11,8 @@ import {
   commitBulkCreatives,
   type BulkPreview,
 } from "@/app/actions/creative-bulk";
+import { safeAction } from "@/lib/action-failure";
+import { toastActionFailure } from "@/lib/action-toast";
 
 interface Props {
   /** Existing product names — shown as a hint and used in the CSV template. */
@@ -33,7 +35,12 @@ export function BulkCreativeImport({ products }: Props) {
     const fd = new FormData();
     fd.append("file", file);
     startTransition(async () => {
-      const res = await previewBulkCreatives(fd);
+      const res = await safeAction(() => previewBulkCreatives(fd));
+      if (!("rows" in res)) {
+        // The call itself failed: keep the file picked, say why.
+        toastActionFailure(res, "Could not read the file");
+        return;
+      }
       setPreview(res);
       if (!res.ok) toast.error(res.error ?? "Could not read the file");
     });
@@ -44,17 +51,19 @@ export function BulkCreativeImport({ products }: Props) {
     const fd = new FormData();
     fd.append("file", file);
     startTransition(async () => {
-      const res = await commitBulkCreatives(fd);
+      const res = await safeAction(() => commitBulkCreatives(fd));
       if (!res.ok) {
-        toast.error(res.error ?? "Bulk create failed");
+        toastActionFailure(res, "Bulk create failed");
+        if ("stale" in res && res.stale) return;
         // A race may have invalidated a name — re-validate to show fresh errors.
-        const fresh = await previewBulkCreatives(fd);
-        setPreview(fresh);
+        const fresh = await safeAction(() => previewBulkCreatives(fd));
+        if ("rows" in fresh) setPreview(fresh);
         return;
       }
       toast.success(`Created ${res.created ?? 0} creatives`);
+      // ONE render: the action doesn't revalidate; the navigation renders the
+      // Library fresh (W2-1).
       router.push("/library");
-      router.refresh();
     });
   };
 

@@ -75,11 +75,9 @@ export async function createCampaign(input: unknown): Promise<CampaignMutationRe
       .values({ accountId: acct, name, platform, objective, createdByUserId: user.id })
       .returning({ id: campaigns.id });
 
-    try {
-      revalidatePath("/campaigns");
-    } catch (err) {
-      console.warn("revalidatePath after campaign create failed:", err);
-    }
+    // NO revalidatePath (W2-1): the caller navigates to /campaigns, and that
+    // navigation is the one render. A revalidation here would re-render the
+    // page being left (/campaigns/new) and ship it in this response, for nothing.
     if (inserted) {
       await logAudit({
         action: AUDIT_ACTIONS.CAMPAIGN_CREATE,
@@ -205,14 +203,16 @@ export async function updateCampaign(input: unknown): Promise<CampaignMutationRe
       };
     }
 
-    try {
-      revalidatePath("/campaigns");
-      revalidatePath(`/campaigns/${encodeURIComponent(name)}`);
-      if (name !== current.name) {
-        revalidatePath(`/campaigns/${encodeURIComponent(current.name)}`);
+    // ONE render (W2-1), as patchCreative: unrenamed, this revalidation is
+    // the staying caller's re-render; renamed, the caller follows the new URL
+    // and a revalidation would re-render the old one, which now 404s.
+    const renamed = name !== current.name;
+    if (!renamed) {
+      try {
+        revalidatePath(`/campaigns/${encodeURIComponent(name)}`);
+      } catch (err) {
+        console.warn("revalidatePath after campaign update failed:", err);
       }
-    } catch (err) {
-      console.warn("revalidatePath after campaign update failed:", err);
     }
 
     await logAudit({
@@ -285,12 +285,9 @@ export async function deleteCampaign(
       return n;
     });
 
-    try {
-      revalidatePath("/campaigns");
-      revalidatePath(`/campaigns/${encodeURIComponent(target.name)}`);
-    } catch (err) {
-      console.warn("revalidatePath after campaign delete failed:", err);
-    }
+    // NO revalidatePath (W2-1): the caller navigates to /campaigns, and that
+    // navigation is the one render. A revalidation here would re-render the
+    // page being left — here, a campaign that no longer exists and ship it in this response, for nothing.
 
     await logAudit({
       action: AUDIT_ACTIONS.CAMPAIGN_DELETE,

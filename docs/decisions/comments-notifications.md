@@ -86,7 +86,13 @@
   blink, or a tab from before the last deploy calling an action id the new
   server doesn't know — becomes a toast, never an unhandled rejection or the
   route's error boundary. Deploy skew says the app was updated and offers
-  Reload.
+  Reload. (Since W2-2, 2026-10, this is the HOUSE rule for every action call —
+  ui-system.md — and the comment panel's own thunks are wrapped lexically,
+  like everyone else's.)
+- **The toast setting reaches the bell without a render** (W2-1, 2026-10):
+  `setToastScope` revalidates nothing; the account menu announces the new
+  value on `TOAST_SCOPE_CHANGED_EVENT` (lib/notifications.ts) and the bell
+  obeys it at once. The next full render reads it from the row.
 - **ONE avatar.** `UserAvatar` (components/user/user-avatar.tsx): the photo
   (`users.avatar_url`) when there is one and it loads, otherwise coloured
   initials (`lib/avatar.ts`, first + last word). Comment rows, the bell,

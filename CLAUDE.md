@@ -71,6 +71,15 @@ Do not introduce a new dependency without a one-line justification in the PR des
 - The dashboard must feel polished. Every page has tailored skeletons. Empty states are designed-out, not blank.
 - Use shadcn primitives. Don't reinvent components that exist.
 - Every new route sets a `metadata.title` (matching its sidebar/h1 label); detail routes use `generateMetadata` over a `cache()`-deduped query so the tab title and the page share one fetch. The root layout's `%s · Wizard` template adds the suffix — don't repeat it, and never add a `metadata.icons` key (the tab icon is the `app/icon.png` file convention).
+- **ONE render per action (2026-10).** An action that revalidates already
+  re-renders the caller's page in its response: a caller that stays never
+  `router.refresh()`es after it; a caller that navigates away (create, delete,
+  rename) calls an action that doesn't revalidate. Never send a write that is
+  still pending when its own navigation starts (Next then refreshes again).
+- **Every client call to a server action goes through `safeAction` +
+  `toastActionFailure`** — a row toasts, a form shows it inline, a stale tab
+  gets Reload, and an editor keeps its input. Both rules are pinned by
+  `app/actions/action-calls.test.ts`. → `docs/decisions/ui-system.md`
 - Tabular figures (`font-variant-numeric: tabular-nums`) on every number in tables.
 - USD formatting: `Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' })`.
 - Dates: ISO format in tables, friendlier formats in chart tooltips and headers.
@@ -363,6 +372,7 @@ this map is still a rule you broke.
 - Ranges and filters resolve SERVER-side; pass RAW params, hand resolved values back to the bar.
 - Clear clears tier-2 filters and nothing else.
 - A view switch and the Excluded toggle are not filters.
+- Range and Excluded are write-through; a Back/Forward-restored page catches up once.
 
 → **`docs/decisions/filters.md`**
 
@@ -422,6 +432,7 @@ this map is still a rule you broke.
 - Use the shared primitives; extend, never fork.
 - Every route: `PageShell`, a tailored `loading.tsx`, a `metadata.title`, 375px.
 - Any route/search-param change goes through `useNavTransition`.
+- One render per action; every action call through `safeAction`.
 
 → **`docs/decisions/ui-system.md`**
 

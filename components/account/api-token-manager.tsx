@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { Check, Copy, KeyRound, Plus, Trash2, TriangleAlert } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -20,6 +19,8 @@ import {
   createApiTokenAction,
   revokeApiTokenAction,
 } from "@/app/actions/api-token";
+import { safeAction } from "@/lib/action-failure";
+import { toastActionFailure } from "@/lib/action-toast";
 
 export interface TokenRow {
   id: string;
@@ -106,7 +107,6 @@ function CreateTokenDialog({
   open: boolean;
   onOpenChange: (v: boolean) => void;
 }) {
-  const router = useRouter();
   const [name, setName] = useState("");
   const [secret, setSecret] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -124,11 +124,12 @@ function CreateTokenDialog({
     e.preventDefault();
     setError(null);
     startTransition(async () => {
-      const res = await createApiTokenAction({ name: name.trim() });
-      if (!res.ok || !res.token) {
-        setError(res.error ?? "Couldn't create token");
+      const res = await safeAction(() => createApiTokenAction({ name: name.trim() }));
+      if (!res.ok || !("token" in res) || !res.token) {
+        toastActionFailure(res, "Couldn't create token", { inline: setError });
         return;
       }
+      // The revalidation shipped the list WITH the new token in this response.
       setSecret(res.token);
     });
   }
@@ -149,7 +150,6 @@ function CreateTokenDialog({
     onOpenChange(false);
     // Defer reset so the dialog's close animation doesn't flash the form.
     setTimeout(reset, 200);
-    if (secret) router.refresh();
   }
 
   return (
@@ -253,20 +253,18 @@ function RevokeTokenDialog({
   token: TokenRow | null;
   onOpenChange: (v: boolean) => void;
 }) {
-  const router = useRouter();
   const [isPending, startTransition] = useNavTransition();
 
   function revoke() {
     if (!token) return;
     startTransition(async () => {
-      const res = await revokeApiTokenAction({ tokenId: token.id });
+      const res = await safeAction(() => revokeApiTokenAction({ tokenId: token.id }));
       if (!res.ok) {
-        toast.error(res.error ?? "Couldn't revoke token");
+        toastActionFailure(res, "Couldn't revoke token");
         return;
       }
       toast.success(`Revoked ${token.name}`);
       onOpenChange(false);
-      router.refresh();
     });
   }
 

@@ -4,6 +4,8 @@ import { useState } from "react";
 import { ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { decideOauthConsent } from "@/app/actions/oauth";
+import { safeAction } from "@/lib/action-failure";
+import { toastActionFailure } from "@/lib/action-toast";
 
 /**
  * Allow / Deny. Deliberately plain: it names the app, the account it would act
@@ -45,9 +47,12 @@ export function ConsentForm({
   async function decide(decision: "allow" | "deny") {
     setBusy(decision);
     setError(null);
-    const res = await decideOauthConsent({ query, decision });
-    if (!res.ok || !res.redirectTo) {
-      setError(res.error ?? "Something went wrong. Start the connection again.");
+    const res = await safeAction(() => decideOauthConsent({ query, decision }));
+    if (!res.ok || !("redirectTo" in res) || !res.redirectTo) {
+      // A failed call used to leave both buttons spinning for good (B-18).
+      toastActionFailure(res, "Something went wrong. Start the connection again.", {
+        inline: setError,
+      });
       setBusy(null);
       return;
     }

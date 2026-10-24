@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { Plug, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -15,6 +14,8 @@ import {
 } from "@/components/ui/dialog";
 import { useNavTransition } from "@/lib/nav-progress";
 import { revokeOauthGrantAction } from "@/app/actions/oauth";
+import { safeAction } from "@/lib/action-failure";
+import { toastActionFailure } from "@/lib/action-toast";
 
 export interface GrantRow {
   familyId: string;
@@ -95,20 +96,18 @@ function RevokeGrantDialog({
   grant: GrantRow | null;
   onOpenChange: (open: boolean) => void;
 }) {
-  const router = useRouter();
   const [isPending, startTransition] = useNavTransition();
 
   function confirm() {
     if (!grant) return;
     startTransition(async () => {
-      const res = await revokeOauthGrantAction({ familyId: grant.familyId });
+      const res = await safeAction(() => revokeOauthGrantAction({ familyId: grant.familyId }));
       if (!res.ok) {
-        toast.error(res.error ?? "Couldn't revoke that connection");
+        toastActionFailure(res, "Couldn't revoke that connection");
         return;
       }
       toast.success(`${grant.clientName} disconnected`);
       onOpenChange(false);
-      router.refresh();
     });
   }
 

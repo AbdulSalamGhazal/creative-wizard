@@ -14,6 +14,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { changePassword } from "@/app/actions/session";
+import { safeAction } from "@/lib/action-failure";
+import { toastActionFailure } from "@/lib/action-toast";
 
 interface Props {
   open: boolean;
@@ -41,14 +43,16 @@ export function ChangePasswordDialog({ open, onOpenChange }: Props) {
     setError(null);
     setSuccess(false);
     startTransition(async () => {
-      const res = await changePassword({
-        currentPassword,
-        newPassword,
-        confirmPassword,
-      });
+      const res = await safeAction(() =>
+        changePassword({
+          currentPassword,
+          newPassword,
+          confirmPassword,
+        }),
+      );
       if (!res.ok) {
         setError(res.error ?? "Failed");
-        toast.error(res.error ?? "Password not changed");
+        toastActionFailure(res, "Password not changed");
         return;
       }
       setSuccess(true);

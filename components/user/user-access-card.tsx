@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import { Check } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -21,6 +20,8 @@ import {
   type Permission,
 } from "@/lib/permissions";
 import { updateUserAccess } from "@/app/actions/user";
+import { safeAction } from "@/lib/action-failure";
+import { toastActionFailure } from "@/lib/action-toast";
 import { useNavTransition } from "@/lib/nav-progress";
 import { AdminSetPasswordButton } from "@/components/user/admin-set-password-button";
 import { UserPhotoControl } from "@/components/user/user-photo-control";
@@ -108,7 +109,6 @@ export function UserAccessCard({
   // A custom grant keeps the user's non-admin tier; a demoted admin becomes editor.
   const customTier = user.role === "admin" ? "editor" : user.role;
 
-  const router = useRouter();
   const [preset, setPreset] = useState<Preset>(initialPreset);
   const [checked, setChecked] = useState<Set<string>>(initialChecked);
   const [isPending, startTransition] = useNavTransition();
@@ -183,15 +183,16 @@ export function UserAccessCard({
 
   function save() {
     startTransition(async () => {
-      const res = await updateUserAccess({ userId: user.id, ...payload });
+      const res = await safeAction(() => updateUserAccess({ userId: user.id, ...payload }));
       if (!res.ok) {
-        toast.error(res.error ?? "Couldn't save access");
+        // The unsaved changes stay, so a retry is one click.
+        toastActionFailure(res, "Couldn't save access");
         return;
       }
+      // The action revalidated, so the `user` prop (and thus the dirty
+      // baseline) arrives with the saved state in its response — the
+      // unsaved-changes bar collapses without a second render (W2-1).
       toast.success(`Updated ${user.name}'s access`);
-      // Re-fetch so the `user` prop (and thus the dirty baseline) reflects the
-      // saved state — the unsaved-changes bar collapses.
-      router.refresh();
     });
   }
 

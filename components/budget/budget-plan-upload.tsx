@@ -1,7 +1,6 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 import { CalendarDays, Download } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -44,6 +43,8 @@ import {
 import { TARGET_ROAS_MAX } from "@/validators/budget";
 import { saveBudgetMonth } from "@/app/actions/budget";
 import { readSheetRows } from "@/app/actions/sheet";
+import { safeAction } from "@/lib/action-failure";
+import { toastActionFailure } from "@/lib/action-toast";
 import type { BudgetMonthData } from "@/db/queries/budget";
 import { PlanDayBars, UnitInput } from "@/components/budget/budget-shared";
 
@@ -103,7 +104,6 @@ export function BudgetPlanUpload({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
-  const router = useRouter();
   const [isPending, setIsPending] = useState(false);
   const [staged, setStaged] = useState<Staged | null>(null);
   const [issues, setIssues] = useState<PlanCsvIssue[]>([]);
@@ -152,9 +152,12 @@ export function BudgetPlanUpload({
     if (/\.(xlsx|xlsm|xls)$/i.test(file.name)) {
       const form = new FormData();
       form.set("file", file);
-      const res = await readSheetRows(form);
-      if (!res.ok || !res.rows) {
-        setIssues([{ cell: "File", message: res.error ?? "That file could not be read." }]);
+      const res = await safeAction(() => readSheetRows(form));
+      if (!res.ok || !("rows" in res) || !res.rows) {
+        const message = res.error ?? "That file could not be read.";
+        setIssues([{ cell: "File", message }]);
+        // A stale tab also gets the Reload toast — the file itself was fine.
+        if ("stale" in res && res.stale) toastActionFailure(res, message);
         return;
       }
       stageRows(file.name, res.rows, res.notices ?? []);
@@ -215,7 +218,7 @@ export function BudgetPlanUpload({
     if (!staged || blocked) return;
     setIsPending(true);
     try {
-      const res = await saveBudgetMonth({
+      const res = await safeAction(() => saveBudgetMonth({
         month,
         mode: "daily",
         source: "upload",
@@ -227,14 +230,15 @@ export function BudgetPlanUpload({
         targetRoas,
         dayWeights: [],
         note: note.trim() === "" ? undefined : note.trim(),
-      });
+      }));
       if (!res.ok) {
-        toast.error(res.error ?? "Could not apply the uploaded plan");
+        // The dialog stays open with the staged file and the typed note.
+        toastActionFailure(res, "Could not apply the uploaded plan");
         return;
       }
+      // The action revalidated: the new plan arrived in its response.
       toast.success(`${monthLabel(month)} is now planned day by day, from ${staged.fileName}`);
       setOpen(false);
-      router.refresh();
     } finally {
       setIsPending(false);
     }

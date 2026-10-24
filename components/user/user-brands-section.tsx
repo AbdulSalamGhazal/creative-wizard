@@ -1,12 +1,13 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import { Check } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { updateUserBrands } from "@/app/actions/user";
+import { safeAction } from "@/lib/action-failure";
+import { toastActionFailure } from "@/lib/action-toast";
 import { useNavTransition } from "@/lib/nav-progress";
 import { holdsBrand, holdsEveryBrand, type ManagerScope } from "@/lib/team-guard";
 
@@ -46,7 +47,6 @@ export function UserBrandsSection({
   initialAllAccounts: boolean;
   initialAccountIds: string[];
 }) {
-  const router = useRouter();
   const [allAccounts, setAllAccounts] = useState(initialAllAccounts);
   const [checked, setChecked] = useState<Set<string>>(
     () => new Set(initialAccountIds),
@@ -89,17 +89,19 @@ export function UserBrandsSection({
   function save() {
     if (noneChosen) return;
     startTransition(async () => {
-      const res = await updateUserBrands({
-        userId,
-        allAccounts,
-        accountIds: allAccounts ? [] : [...checked],
-      });
+      const res = await safeAction(() =>
+        updateUserBrands({
+          userId,
+          allAccounts,
+          accountIds: allAccounts ? [] : [...checked],
+        }),
+      );
       if (!res.ok) {
-        toast.error(res.error ?? "Couldn't save brand access");
+        toastActionFailure(res, "Couldn't save brand access");
         return;
       }
+      // The action revalidated: the saved brands arrived in its response.
       toast.success("Updated brand access");
-      router.refresh();
     });
   }
 

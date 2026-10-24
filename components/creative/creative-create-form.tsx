@@ -15,6 +15,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { createCreative } from "@/app/actions/creative";
+import { safeAction } from "@/lib/action-failure";
+import { toastActionFailure } from "@/lib/action-toast";
 import { AngleInput } from "@/components/creative/angle-input";
 import { ThumbnailUpload } from "@/components/creative/thumbnail-upload";
 import { StagePicker } from "@/components/creative/stage-picker";
@@ -61,25 +63,29 @@ export function CreativeCreateForm({ products, allAngles }: Props) {
       .filter(Boolean);
 
     startTransition(async () => {
-      const res = await createCreative({
-        name: name.trim(),
-        productId,
-        type,
-        launchDate: launchDate || undefined,
-        notes: notes.trim() || undefined,
-        thumbnailUrl: thumbnailUrl || undefined,
-        sourceLink: sourceLink.trim() || undefined,
-        angles,
-        stages,
-      });
+      const res = await safeAction(() =>
+        createCreative({
+          name: name.trim(),
+          productId,
+          type,
+          launchDate: launchDate || undefined,
+          notes: notes.trim() || undefined,
+          thumbnailUrl: thumbnailUrl || undefined,
+          sourceLink: sourceLink.trim() || undefined,
+          angles,
+          stages,
+        }),
+      );
       if (!res.ok) {
-        setError(res.error ?? "Failed to create");
-        setFieldErrors(res.fieldErrors ?? {});
+        // Every field keeps what was typed (and the uploaded thumbnail).
+        toastActionFailure(res, "Failed to create", { inline: setError });
+        setFieldErrors(("fieldErrors" in res && res.fieldErrors) || {});
         return;
       }
       toast.success(`Created ${res.name}`);
+      // ONE render: the action doesn't revalidate; this navigation renders the
+      // new creative's page fresh (W2-1).
       router.push(`/library/${encodeURIComponent(res.name!)}`);
-      router.refresh();
     });
   };
 

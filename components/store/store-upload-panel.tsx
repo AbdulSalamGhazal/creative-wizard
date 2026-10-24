@@ -92,9 +92,10 @@ export function StoreUploadPanel({
       `Imported ${res.rowsInserted} new order${res.rowsInserted === 1 ? "" : "s"}` +
         (res.rowsUpdated > 0 ? ` · updated ${res.rowsUpdated}` : ""),
     );
+    // ONE render (W2-1): the commit doesn't revalidate, so the navigation —
+    // or, for a panel that stays put, the refresh — is the only render.
     if (redirectOnCommit) {
       startNav(() => router.push(redirectOnCommit));
-      router.refresh();
       return;
     }
     setStage({ s: "committed", inserted: res.rowsInserted, updated: res.rowsUpdated });

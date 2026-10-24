@@ -15,6 +15,8 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { inviteUser } from "@/app/actions/user";
+import { safeAction } from "@/lib/action-failure";
+import { toastActionFailure } from "@/lib/action-toast";
 import type { BrandOption } from "@/components/user/user-brands-section";
 import { holdsEveryBrand, teamGuard, type ManagerScope } from "@/lib/team-guard";
 import type { RoleTier } from "@/lib/permissions";
@@ -79,16 +81,19 @@ export function UserInviteForm({
       return;
     }
     startTransition(async () => {
-      const res = await inviteUser({
-        name: name.trim(),
-        email: email.trim(),
-        role,
-        password,
-        allAccounts: brandsLocked ? true : allAccounts,
-        accountIds: brandsLocked || allAccounts ? [] : [...accountIds],
-      });
+      const res = await safeAction(() =>
+        inviteUser({
+          name: name.trim(),
+          email: email.trim(),
+          role,
+          password,
+          allAccounts: brandsLocked ? true : allAccounts,
+          accountIds: brandsLocked || allAccounts ? [] : [...accountIds],
+        }),
+      );
       if (!res.ok) {
-        setError(res.error ?? "Invite failed");
+        // Every field keeps what was typed.
+        toastActionFailure(res, "Invite failed", { inline: setError });
         return;
       }
       toast.success(`Invited ${name.trim()}`);

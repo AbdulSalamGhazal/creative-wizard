@@ -14,6 +14,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { rollbackBatch } from "@/app/actions/rollback";
+import { safeAction } from "@/lib/action-failure";
+import { toastActionFailure } from "@/lib/action-toast";
 
 interface Props {
   batchId: string;
@@ -38,10 +40,10 @@ export function RollbackButton({
     if (!acknowledged) return;
     setError(null);
     startTransition(async () => {
-      const res = await rollbackBatch(batchId);
+      const res = await safeAction(() => rollbackBatch(batchId));
       if (!res.ok) {
         setError(res.error ?? "Rollback failed.");
-        toast.error(res.error ?? "Rollback failed");
+        toastActionFailure(res, "Rollback failed");
         return;
       }
       setOpen(false);

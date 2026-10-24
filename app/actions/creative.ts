@@ -118,11 +118,9 @@ export async function createCreative(
       return row;
     });
 
-    try {
-      revalidatePath("/library");
-    } catch (err) {
-      console.warn("revalidatePath after create failed:", err);
-    }
+    // NO revalidatePath (W2-1): the caller navigates to the new creative's page, and that
+    // navigation is the one render. A revalidation here would re-render the
+    // page being left (/library/new) and ship it in this response, for nothing.
 
     await logAudit({
       action: AUDIT_ACTIONS.CREATIVE_CREATE,
@@ -425,14 +423,18 @@ export async function patchCreative(
     });
 
     const newName = data.name ?? oldRow.name;
-    try {
-      revalidatePath("/library");
-      revalidatePath(`/library/${encodeURIComponent(oldRow.name)}`);
-      if (newName !== oldRow.name) {
-        revalidatePath(`/library/${encodeURIComponent(newName)}`);
+    // ONE render (W2-1). Unrenamed, the caller stays on the page and this
+    // revalidation IS its re-render (it ships in the response — the caller
+    // doesn't refresh). Renamed, the caller follows the new URL and that
+    // navigation is the render: revalidating would re-render the OLD URL,
+    // which now 404s.
+    const renamed = newName !== oldRow.name;
+    if (!renamed) {
+      try {
+        revalidatePath(`/library/${encodeURIComponent(oldRow.name)}`);
+      } catch (err) {
+        console.warn("revalidatePath after patch failed:", err);
       }
-    } catch (err) {
-      console.warn("revalidatePath after patch failed:", err);
     }
 
     const changes: Record<string, { from: unknown; to: unknown }> = {};
@@ -526,12 +528,9 @@ export async function deleteCreative(
       return n;
     });
 
-    try {
-      revalidatePath("/library");
-      revalidatePath(`/library/${encodeURIComponent(target.name)}`);
-    } catch (err) {
-      console.warn("revalidatePath after delete failed:", err);
-    }
+    // NO revalidatePath (W2-1): the caller navigates to /library, and that
+    // navigation is the one render. A revalidation here would re-render the
+    // page being left — here, a creative that no longer exists and ship it in this response, for nothing.
 
     await logAudit({
       action: AUDIT_ACTIONS.CREATIVE_DELETE,

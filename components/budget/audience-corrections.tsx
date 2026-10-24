@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { Check, Pencil, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
@@ -20,6 +19,8 @@ import {
   deleteAudienceSnapshot,
   updateAudienceSnapshot,
 } from "@/app/actions/audience";
+import { safeAction } from "@/lib/action-failure";
+import { toastActionFailure } from "@/lib/action-toast";
 import type { AudienceCorrectionRow } from "@/db/queries/audience";
 
 const digits = (raw: string) => raw.replace(/[^0-9]/g, "");
@@ -42,7 +43,6 @@ export function AudienceCorrections({
   rows: AudienceCorrectionRow[];
   canManage: boolean;
 }) {
-  const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
@@ -54,26 +54,27 @@ export function AudienceCorrections({
 
   const save = (id: string) => {
     startTransition(async () => {
-      const res = await updateAudienceSnapshot({ id, size: Number(draft || "0") });
+      const res = await safeAction(() =>
+        updateAudienceSnapshot({ id, size: Number(draft || "0") }),
+      );
       if (!res.ok) {
-        toast.error(res.error ?? "Couldn't save that correction.");
+        toastActionFailure(res, "Couldn't save that correction.");
         return;
       }
+      // The action revalidated: the page arrived re-rendered in its response.
       toast.success("Corrected.");
       setEditingId(null);
-      router.refresh();
     });
   };
 
   const remove = (row: AudienceCorrectionRow) => {
     startTransition(async () => {
-      const res = await deleteAudienceSnapshot({ id: row.id });
+      const res = await safeAction(() => deleteAudienceSnapshot({ id: row.id }));
       if (!res.ok) {
-        toast.error(res.error ?? "Couldn't delete that measurement.");
+        toastActionFailure(res, "Couldn't delete that measurement.");
         return;
       }
       toast.success(`Deleted the ${row.date} measurement.`);
-      router.refresh();
     });
   };
 

@@ -117,9 +117,14 @@ export function NotificationCenter({
 
   const submitSearch = (value: string) => setParams({ q: value.trim(), page: null });
 
-  const act = (fn: () => Promise<{ ok: boolean; error?: string; affected?: number }>, done?: (n: number) => string) =>
+  /** `fn` is already `safeAction`-wrapped at the call site (the guard in
+   *  app/actions/action-calls.test.ts reads every call lexically). */
+  const act = (
+    fn: () => Promise<{ ok: boolean; error?: string; affected?: number; stale?: boolean }>,
+    done?: (n: number) => string,
+  ) =>
     startTransition(async () => {
-      const res = await safeAction(fn);
+      const res = await fn();
       if (!res.ok) {
         toastActionFailure(res, "That didn't work.");
         return;
@@ -182,7 +187,7 @@ export function NotificationCenter({
             size="sm"
             disabled={unread === 0 || isPending}
             onClick={() =>
-              act(markAllRead, (n) => `Marked ${int(n)} as read.`)
+              act(() => safeAction(() => markAllRead()), (n) => `Marked ${int(n)} as read.`)
             }
           >
             <Check className="h-3.5 w-3.5" />
@@ -194,7 +199,7 @@ export function NotificationCenter({
             size="sm"
             disabled={isPending}
             onClick={() =>
-              act(archiveAllRead, (n) =>
+              act(() => safeAction(() => archiveAllRead()), (n) =>
                 n === 0 ? "Nothing read to clear." : `Cleared ${int(n)}.`,
               )
             }
@@ -338,7 +343,9 @@ export function NotificationCenter({
                               onClick={() =>
                                 act(async () => {
                                   for (const r of unreadInGroup) {
-                                    const res = await markNotificationRead({ id: r.id });
+                                    const res = await safeAction(() =>
+                                      markNotificationRead({ id: r.id }),
+                                    );
                                     // Stop at the first refusal and say so.
                                     if (!res.ok) return res;
                                   }
@@ -434,7 +441,9 @@ function NotificationRow({
   nested?: boolean;
   isPending: boolean;
   onOpen: (row: NotificationRow) => void;
-  onAct: (fn: () => Promise<{ ok: boolean; error?: string; affected?: number }>) => void;
+  onAct: (
+    fn: () => Promise<{ ok: boolean; error?: string; affected?: number; stale?: boolean }>,
+  ) => void;
 }) {
   const category = categoryForType(row.type);
   const unreadRow = row.readAt === null;
@@ -506,7 +515,7 @@ function NotificationRow({
                 size="xs"
                 disabled={isPending}
                 aria-label="Mark as read"
-                onClick={() => onAct(() => markNotificationRead({ id: row.id }))}
+                onClick={() => onAct(() => safeAction(() => markNotificationRead({ id: row.id })))}
               >
                 <Check className="h-3.5 w-3.5" />
                 Read
@@ -518,7 +527,7 @@ function NotificationRow({
               size="xs"
               disabled={isPending}
               aria-label="Clear notification"
-              onClick={() => onAct(() => archiveNotification({ id: row.id }))}
+              onClick={() => onAct(() => safeAction(() => archiveNotification({ id: row.id })))}
             >
               <Archive className="h-3.5 w-3.5" />
               Clear
@@ -530,7 +539,7 @@ function NotificationRow({
             variant="ghost"
             size="xs"
             disabled={isPending}
-            onClick={() => onAct(() => unarchiveNotification({ id: row.id }))}
+            onClick={() => onAct(() => safeAction(() => unarchiveNotification({ id: row.id })))}
           >
             <ArchiveRestore className="h-3.5 w-3.5" />
             Restore

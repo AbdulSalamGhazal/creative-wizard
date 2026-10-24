@@ -21,6 +21,7 @@ import {
   bellSeenPlan,
   burstSummary,
   onNotificationsChanged,
+  onToastScopeChanged,
   safeHref,
   stripUnreadPrefix,
   titleWithUnread,
@@ -94,7 +95,7 @@ function writeToasted(userId: string, accountId: string, id: string): void {
 export function NotificationBell({
   userId,
   accountId,
-  toastScope = DEFAULT_TOAST_SCOPE,
+  toastScope: savedScope = DEFAULT_TOAST_SCOPE,
 }: {
   /** The signed-in person — the toasted pointer is per user. */
   userId: string;
@@ -105,6 +106,11 @@ export function NotificationBell({
 }) {
   const router = useRouter();
   const pathname = usePathname();
+  // The saved setting, then whatever the account menu announces (W2-1): the
+  // menu no longer re-renders the layout to hand this one word down.
+  const [toastScope, setToastScope] = useState<ToastScope>(savedScope);
+  useEffect(() => setToastScope(savedScope), [savedScope]);
+  useEffect(() => onToastScopeChanged(setToastScope), []);
   const [open, setOpen] = useState(false);
   const [count, setCount] = useState(0);
   const [items, setItems] = useState<FeedItem[]>([]);
