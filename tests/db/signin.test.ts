@@ -218,12 +218,34 @@ describe("the throttle counts per network address (F1)", () => {
   });
 
   it("the per-address count can use its index (bounded on every attempt)", async () => {
+    // DETERMINISTIC (W3, 2026-10): this used to EXPLAIN with every index in
+    // place, and the planner's choice between the two partial sign-in indexes
+    // (and the plain `at` / `action` ones) followed whatever statistics the
+    // earlier tests had left — so it flaked. The question is "can the
+    // per-address index serve this query on its own?", so the plan is taken
+    // with the competing indexes DROPPED inside a transaction that is rolled
+    // back: nothing outlives the test, and the answer no longer depends on
+    // the planner's tie-break.
     const query = signInFailuresQuery(EMAIL, STRANGER, new Date()).toSQL();
-    const plan = await db.transaction(async (tx) => {
-      await tx.execute(sql`SET LOCAL enable_seqscan = off`);
-      return tx.execute(sql.raw(`EXPLAIN (FORMAT JSON) ${inline(query)}`));
-    });
+    let plan: unknown = null;
+    await db
+      .transaction(async (tx) => {
+        await tx.execute(sql`SET LOCAL enable_seqscan = off`);
+        await tx.execute(sql`DROP INDEX audit_signin_failed_idx`);
+        await tx.execute(sql`DROP INDEX audit_at_idx`);
+        await tx.execute(sql`DROP INDEX audit_action_idx`);
+        plan = await tx.execute(sql.raw(`EXPLAIN (FORMAT JSON) ${inline(query)}`));
+        tx.rollback();
+      })
+      .catch((err: unknown) => {
+        if (!(err instanceof Error) || !/rollback/i.test(err.message)) throw err;
+      });
     expect(JSON.stringify(plan)).toContain("audit_signin_failed_ip_idx");
+    // …and the rollback really restored the indexes the app relies on.
+    const idx = await db.execute(
+      sql`SELECT indexname FROM pg_indexes WHERE tablename = 'audit_events' AND indexname IN ('audit_signin_failed_idx', 'audit_at_idx', 'audit_action_idx')`,
+    );
+    expect((idx as unknown as unknown[]).length).toBe(3);
   });
 });
 

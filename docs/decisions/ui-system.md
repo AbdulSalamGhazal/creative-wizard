@@ -393,7 +393,9 @@ as it stood before the restructure.*
   trigger and the shortcut. Each shell PRELOADS its module when the browser
   is idle (`requestIdleCallback`, a timeout on Safari) and the moment intent
   shows — pointer or focus on the toggle/trigger, ⌘/Ctrl going down — so a
-  first open is as instant as before. The panel's loading frame has the
+  first open is as instant as before. ⌘K skips its idle preload on a touch
+  phone (`(max-width: 767px) and (pointer: coarse)`): there is no trigger
+  below `md` and no ⌘ key, so the palette can't open there (W3, 2026-10). The panel's loading frame has the
   body's shape and a working X; ⌘K draws nothing until ready.
 
 ### Two pages stream their sections (2026-10, D11)

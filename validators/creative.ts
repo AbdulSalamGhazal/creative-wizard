@@ -101,12 +101,19 @@ export const creativeCreateSchema = z.object({
 /**
  * Manual per-platform termination lever. A creative is "Terminated" on a
  * platform when a `creative_platform_overrides` row exists for it; this schema
- * backs the detail header's Terminate / Reactivate buttons.
+ * backs the detail header's Terminate dialog. ONE call carries every platform
+ * the dialog changed (2026-10): it used to be one call — and so one page
+ * render — per platform toggled.
  */
 export const creativeTerminationSchema = z.object({
   creativeId: z.string().uuid(),
-  platform: z.enum(platformEnum),
-  terminated: z.boolean(),
+  changes: z
+    .array(z.object({ platform: z.enum(platformEnum), terminated: z.boolean() }))
+    .min(1)
+    .max(platformEnum.length)
+    .refine((cs) => new Set(cs.map((c) => c.platform)).size === cs.length, {
+      message: "Each platform once.",
+    }),
 });
 
 // -----------------------------------------------------------------------------

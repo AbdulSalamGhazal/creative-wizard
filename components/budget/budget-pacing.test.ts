@@ -82,6 +82,8 @@ const onPlan = (platform: string, through: string) =>
 const noRevenue = isoDaysBetween("2026-10-01", "2026-10-31").map((date) => ({ date, revenueSar: 0, orders: 0 }));
 
 function pacing(props: {
+  from?: string;
+  to?: string;
   coverage: Record<string, string>;
   series: BudgetPacingSeries;
   plans: MonthPlanRow[];
@@ -91,8 +93,8 @@ function pacing(props: {
 }) {
   return renderToStaticMarkup(
     createElement(BudgetPacing, {
-      from: "2026-10-01",
-      to: "2026-10-31",
+      from: props.from ?? "2026-10-01",
+      to: props.to ?? "2026-10-31",
       groupBy: props.groupBy ?? "day",
       platforms: props.platforms ?? [],
       split: "none",
@@ -302,5 +304,31 @@ describe("Audience — a pair's spend is known through ITS platform's day (W1-2)
     // Before: 15 days of spend over 22 days of audience → $0.68.
     expect(row("TikTok")).toContain(",1500.00,1.00,");
     expect(row("Instagram")).toContain(",2200.00,1.00,");
+  });
+});
+
+describe("Pacing — a past month's aria anchor names the REAL last day of data (W3)", () => {
+  it("September is final (anchored to the 30th), but its data stops on the 25th — and says so", () => {
+    const sept = isoDaysBetween("2026-09-01", "2026-09-25").map((date) => ({
+      date,
+      platform: "instagram",
+      objective: "Awareness" as const,
+      spend: 100,
+    }));
+    const html = pacing({
+      from: "2026-09-01",
+      to: "2026-09-30",
+      coverage: { instagram: "2026-09-25" },
+      series: { spend: sept, days: noRevenue },
+      plans: [plan(["instagram"], { month: "2026-09" })],
+      storeHorizon: "2026-09-25",
+    });
+    const labels = [...ariaOf(html, "Spend"), ...ariaOf(html, "Instagram")];
+    expect(labels.length).toBeGreaterThan(0);
+    for (const label of labels) {
+      // Before: "… by 2026-09-30 (the last day of data)" — the 30th had no data.
+      expect(label).toContain("by 2026-09-30 (data through 2026-09-25)");
+      expect(label).not.toContain("(the last day of data)");
+    }
   });
 });

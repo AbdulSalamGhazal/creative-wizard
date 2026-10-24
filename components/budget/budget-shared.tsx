@@ -892,7 +892,16 @@ export function HeroVerdict({
   );
 }
 
-/** "by 2026-09-05 (the last day of data)" — the bar's aria anchor, in the Tracker's words. */
-export function anchorWords(through: string | null): string {
-  return through ? `by ${through} (the last day of data)` : "— no data yet";
+/**
+ * "by 2026-09-05 (the last day of data)" — the bar's aria anchor, in the
+ * Tracker's words. In a month that is OVER, `through` is the month's end (the
+ * month is final) while the data may stop days earlier; then the words name
+ * the real day — "by 2026-09-30 (data through 2026-09-25)" — instead of
+ * calling the month's end "the last day of data" (W3, 2026-10).
+ */
+export function anchorWords(through: string | null, lastData?: string | null): string {
+  if (!through) return "— no data yet";
+  return lastData && lastData < through
+    ? `by ${through} (data through ${lastData})`
+    : `by ${through} (the last day of data)`;
 }

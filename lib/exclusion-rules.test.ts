@@ -76,11 +76,14 @@ describe("resolveIncludeExcludedValue — URL > saved pref > hidden", () => {
 describe("notification titles isolate the rule's target name (W3-5)", () => {
   it("wraps a campaign or creative name in FSI…PDI; the audit descriptor stays plain", async () => {
     const { ruleTitleDescriptor, ruleDescriptor } = await import("@/lib/exclusion-rules");
-    const t = { kind: "campaign" as const, campaignId: "c1" };
+    const t = { kind: "campaign" as const, objective: null, campaignId: "c1", creativeId: null };
     expect(ruleTitleDescriptor(t, "حملة الصيف")).toBe("campaign “⁨حملة الصيف⁩”");
     expect(ruleDescriptor(t, "حملة الصيف")).toBe("campaign “حملة الصيف”");
     expect(
-      ruleTitleDescriptor({ kind: "campaign_objective", objective: "Sales" }, null),
+      ruleTitleDescriptor(
+        { kind: "campaign_objective", objective: "Sales", campaignId: null, creativeId: null },
+        null,
+      ),
     ).toBe("objective: Sales");
   });
 });

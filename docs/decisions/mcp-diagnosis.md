@@ -28,6 +28,11 @@
   delete either as redundant.
 - The bundle must not lie by omission: NULLs preserved, a no-data day carries
   `records: 0`, caps are reported when they bite.
+- **An unexpected tool failure says so generically** (2026-10): a thrown
+  `McpToolError` is written for the model and reaches it; anything else (a
+  Postgres error, a bug) goes to the server log and the model hears
+  `MCP_UNEXPECTED_ERROR` — raw driver text named tables and constraints.
+  Pinned by `lib/mcp/runtime.test.ts`.
 - **The tools keep the app's clock** (C-25, 2026-10): "today" is `todayIso()`
   (KSA, lib/date-presets) and a range tool's default window is
   `defaultDateRange(30)` — the 30 days ending yesterday that the app's "Last 30

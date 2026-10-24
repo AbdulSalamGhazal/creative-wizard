@@ -248,7 +248,7 @@ export async function setCreativeTermination(
         error: parsed.error.issues[0]?.message ?? "Invalid input",
       };
     }
-    const { creativeId, platform, terminated } = parsed.data;
+    const { creativeId, changes } = parsed.data;
     const acct = await getActiveAccountId();
 
     // The creative must belong to the active brand (the override FK only
@@ -260,27 +260,28 @@ export async function setCreativeTermination(
       .limit(1);
     if (!target) return { ok: false, error: "Creative not found." };
 
-    if (terminated) {
-      await db
-        .insert(creativePlatformOverrides)
-        .values({
-          accountId: acct,
-          creativeId,
-          platform,
-          terminatedByUserId: user.id,
-        })
-        .onConflictDoNothing();
-    } else {
-      await db
-        .delete(creativePlatformOverrides)
-        .where(
-          and(
-            eq(creativePlatformOverrides.accountId, acct),
-            eq(creativePlatformOverrides.creativeId, creativeId),
-            eq(creativePlatformOverrides.platform, platform),
-          ),
-        );
-    }
+    // Every platform the dialog changed, in ONE transaction — all or nothing —
+    // and so ONE revalidation and one page render per user action (W2-1 rule).
+    await db.transaction(async (tx) => {
+      for (const { platform, terminated } of changes) {
+        if (terminated) {
+          await tx
+            .insert(creativePlatformOverrides)
+            .values({ accountId: acct, creativeId, platform, terminatedByUserId: user.id })
+            .onConflictDoNothing();
+        } else {
+          await tx
+            .delete(creativePlatformOverrides)
+            .where(
+              and(
+                eq(creativePlatformOverrides.accountId, acct),
+                eq(creativePlatformOverrides.creativeId, creativeId),
+                eq(creativePlatformOverrides.platform, platform),
+              ),
+            );
+        }
+      }
+    });
 
     try {
       revalidatePath("/library");
@@ -289,14 +290,17 @@ export async function setCreativeTermination(
       console.warn("revalidatePath after termination change failed:", err);
     }
 
-    await logAudit({
-      action: AUDIT_ACTIONS.CREATIVE_UPDATE,
-      entityType: "creative",
-      entityId: target.id,
-      entityLabel: target.name,
-      actorUserId: user.id,
-      meta: { termination: { platform, terminated } },
-    });
+    // One audit row per platform, as before — the feed reads them one by one.
+    for (const termination of changes) {
+      await logAudit({
+        action: AUDIT_ACTIONS.CREATIVE_UPDATE,
+        entityType: "creative",
+        entityId: target.id,
+        entityLabel: target.name,
+        actorUserId: user.id,
+        meta: { termination },
+      });
+    }
 
     return { ok: true };
   } catch (err) {

@@ -53,7 +53,9 @@ as it stood before the restructure.*
   else `new`. The window is per-brand `accounts.status_window_hours` (default 24;
   daily-grain data rounds up to whole days, so 24h = the latest day only),
   editable in the Brands admin via `setStatusWindow`. Terminate/reactivate =
-  `setCreativeTermination` (per creative×platform). Render with
+  `setCreativeTermination` (per creative×platform; since 2026-10 ONE call
+  carries every platform the dialog changed — one transaction, one render,
+  one audit row per platform). Render with
   `<StatusBadge>`. The aggregate KPI views (Overview/Trends/Funnel/Compare)
   dropped their status filter (can't be a SQL WHERE); Library + Summary keep it
   (Summary's is platform-scoped). Summary's status column SORT is a JS re-sort

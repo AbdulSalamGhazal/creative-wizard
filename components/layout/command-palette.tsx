@@ -65,6 +65,9 @@ interface Props {
  * preloaded when the browser goes idle, when the pointer or focus reaches the
  * trigger, and the moment ⌘/Ctrl goes down — so the first open stays instant.
  */
+/** A touch screen narrower than `md` — the trigger is `hidden md:flex`. */
+const NO_TRIGGER_TOUCH = "(max-width: 767px) and (pointer: coarse)";
+
 export function CommandPalette({ accountId, granted, showTrigger = true }: Props) {
   const [open, setOpen] = useState(false);
   // Mounted on first open and kept: the Radix dialog's useId-based ids would
@@ -120,7 +123,10 @@ export function CommandPalette({ accountId, granted, showTrigger = true }: Props
   }, [preload]);
 
   // IDLE PRELOAD (Safari has no requestIdleCallback — a timeout stands in).
+  // Not on a touch phone: below `md` there is no trigger and no ⌘ key, so the
+  // palette can't be opened there and the preload is ~2 requests for nothing.
   useEffect(() => {
+    if (window.matchMedia?.(NO_TRIGGER_TOUCH).matches) return;
     const w = window as Window & {
       requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;
       cancelIdleCallback?: (id: number) => void;

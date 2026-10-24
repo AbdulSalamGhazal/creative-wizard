@@ -2739,3 +2739,46 @@ describe("buildRangeBoard — a PAST month is final (audit B-14)", () => {
   });
 });
 
+
+describe("ROAS cuts both sides at the same day (W3, 2026-10)", () => {
+  it("roasThroughOf: the earliest of the store's and every reporting platform's day", async () => {
+    const { roasThroughOf } = await import("@/lib/budget");
+    expect(roasThroughOf("2026-10-15", ["2026-10-22", "2026-10-20"])).toBe("2026-10-15");
+    expect(roasThroughOf("2026-10-22", ["2026-10-18", null])).toBe("2026-10-18");
+    expect(roasThroughOf(null, ["2026-10-22"])).toBeNull();
+    expect(roasThroughOf("2026-10-22", [null])).toBeNull();
+  });
+
+  it("a partly covered period: revenue AND spend stop at the store's day — the ROAS is the plan's", async () => {
+    const { roasPeriodSides, isoDaysBetween } = await import("@/lib/budget");
+    // On plan: $100 spend and 750 SAR revenue every day (2.00× at 3.75).
+    const days = isoDaysBetween("2026-10-12", "2026-10-18");
+    const spend = new Map(days.map((d) => [d, 100]));
+    const planSpend = new Map(days.map((d) => [d, 100]));
+    const planRevenue = new Map(days.map((d) => [d, 750]));
+    // The store reported through the 15th; ads through the 22nd.
+    const revenue = new Map(days.filter((d) => d <= "2026-10-15").map((d) => [d, 750]));
+    const sides = roasPeriodSides({ start: "2026-10-12", end: "2026-10-18" }, "2026-10-15", {
+      revenue,
+      spend,
+      planRevenue,
+      planSpend,
+    });
+    expect(sides).toEqual({ unknown: false, revenue: 3000, spend: 400, planRevenue: 3000, planSpend: 400 });
+    // The old cut divided 3,000 SAR by 7 days of spend ($700) — 1.14× for an
+    // exactly-on-plan week; through the same day it is the plan's 2.00×.
+    expect(sides.revenue / (sides.spend * 3.75)).toBeCloseTo(2, 9);
+  });
+
+  it("a period nothing has reached is unknown, its plan whole", async () => {
+    const { roasPeriodSides, isoDaysBetween } = await import("@/lib/budget");
+    const days = isoDaysBetween("2026-10-19", "2026-10-25");
+    const sides = roasPeriodSides({ start: "2026-10-19", end: "2026-10-25" }, "2026-10-15", {
+      revenue: new Map(),
+      spend: new Map(),
+      planRevenue: new Map(days.map((d) => [d, 750])),
+      planSpend: new Map(days.map((d) => [d, 100])),
+    });
+    expect(sides).toEqual({ unknown: true, revenue: 0, spend: 0, planRevenue: 5250, planSpend: 700 });
+  });
+});

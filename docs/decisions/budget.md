@@ -48,7 +48,12 @@
   actual with THAT; a full period's plan is a display figure only. ROAS cuts
   both sides at the EARLIEST of the store's and every reporting platform's
   day — revenue has no platform attribution, so it can't be cut per
-  platform. Never read the latest platform's day as "the" horizon for an
+  platform. ONE rule (`roasThroughOf`) for Pacing's card, chart AND period
+  table (`roasPeriodSides`, W3 2026-10: a partly covered last period used to
+  divide revenue through the store's day by spend through the ads' day).
+  The aria anchor names the REAL last data day (`lastDataIn`): a month that
+  is over is anchored to its end, but its words say "data through <day>",
+  never "the last day of data" for a day nothing was uploaded. Never read the latest platform's day as "the" horizon for an
   expectation; it is only the "data through" a footnote prints.
 - The reserve is part of the total, carved out of it, and sits OUTSIDE the
   curve. Save is blocked below 100% — uncommitted money belongs in the reserve.

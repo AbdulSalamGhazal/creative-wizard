@@ -47,7 +47,10 @@ import { EVENT_TYPE_KEYS } from "@/lib/notifications";
 import { rollbackBatch } from "@/app/actions/rollback";
 import { commitStoreUpload, rollbackStoreBatch } from "@/app/actions/store-upload";
 import { createExclusionRule } from "@/app/actions/exclusion-rules";
-import { CAMPAIGN_1, resetAndSeed } from "./fixtures";
+import { setCreativeTermination } from "@/app/actions/creative";
+import { revalidatePath } from "next/cache";
+import { auditEvents, creativePlatformOverrides } from "@/db/schema";
+import { CAMPAIGN_1, CREATIVE_1, resetAndSeed } from "./fixtures";
 
 const BATCH_A = "55555555-5555-5555-5555-555555555001";
 
@@ -107,5 +110,39 @@ describe("an exclusion rule's notification isolates the target's name (W3-5)", (
     expect(res.ok).toBe(true);
     const [n] = await titlesFor("exclusion.rule_created");
     expect(n!.title).toBe("Exclusion rule added: campaign “⁨حملة الصيف ➤ واسع (IG)⁩”");
+  });
+});
+
+describe("terminating on several platforms is ONE action, ONE render", () => {
+  it("one call writes every platform, revalidates once, audits each", async () => {
+    vi.mocked(revalidatePath).mockClear();
+    const res = await setCreativeTermination({
+      creativeId: CREATIVE_1,
+      changes: [
+        { platform: "instagram", terminated: true },
+        { platform: "facebook", terminated: true },
+      ],
+    });
+    expect(res).toEqual({ ok: true });
+    const rows = await db
+      .select({ p: creativePlatformOverrides.platform })
+      .from(creativePlatformOverrides)
+      .where(eq(creativePlatformOverrides.creativeId, CREATIVE_1));
+    expect(rows.map((r) => r.p).sort()).toEqual(["facebook", "instagram"]);
+    // /library + the creative's page — once for the whole dialog, not per platform.
+    expect(vi.mocked(revalidatePath)).toHaveBeenCalledTimes(2);
+    const audits = await db.select().from(auditEvents).where(eq(auditEvents.entityId, CREATIVE_1));
+    expect(audits).toHaveLength(2);
+  });
+
+  it("refuses a platform listed twice", async () => {
+    const res = await setCreativeTermination({
+      creativeId: CREATIVE_1,
+      changes: [
+        { platform: "instagram", terminated: true },
+        { platform: "instagram", terminated: false },
+      ],
+    });
+    expect(res.ok).toBe(false);
   });
 });

@@ -1930,6 +1930,76 @@ export function coveredThrough(
 }
 
 /**
+ * The last day an anchor's data really covers inside the range: `through`
+ * (`coveredThrough`), or the raw upload day when that is earlier — a month
+ * before today's counts as covered to its end (it is final) while its last
+ * upload may stop days short. For the aria anchor's words, never for math.
+ */
+export function lastDataIn(
+  coverage: string | null | undefined,
+  through: string | null,
+): string | null {
+  if (through === null) return null;
+  return coverage && coverage < through ? coverage : through;
+}
+
+/**
+ * The day a ROAS is taken through: BOTH sides — revenue and spend — must stop
+ * on the same day, and revenue can't be cut per platform (no attribution), so
+ * it is the EARLIEST of the store's covered day and every reporting
+ * platform's. Null when either side has nothing yet. ONE rule for the Pacing
+ * card, chart and period table (W3, 2026-10) and the Overview card (B-04).
+ */
+export function roasThroughOf(
+  revenueThrough: string | null,
+  platformThroughs: ReadonlyArray<string | null>,
+): string | null {
+  const reported = platformThroughs.filter((t): t is string => t !== null);
+  if (revenueThrough === null || reported.length === 0) return null;
+  return [revenueThrough, ...reported].reduce((a, b) => (b < a ? b : a));
+}
+
+/**
+ * One period's ROAS sides, cut at `roasThrough`: actual revenue and spend
+ * through the same day, and the plan through it too. A period nothing has
+ * reached yet is `unknown` and its plan runs the whole period (so the plan
+ * line continues into the future). Before 2026-10 the period table and chart
+ * divided revenue through the store's day by spend through the ads' day.
+ */
+export function roasPeriodSides(
+  bucket: { start: string; end: string },
+  roasThrough: string | null,
+  days: {
+    revenue: ReadonlyMap<string, number>;
+    spend: ReadonlyMap<string, number> | undefined;
+    planRevenue: ReadonlyMap<string, number>;
+    planSpend: ReadonlyMap<string, number> | undefined;
+  },
+): {
+  unknown: boolean;
+  revenue: number;
+  spend: number;
+  planRevenue: number;
+  planSpend: number;
+} {
+  const unknown = roasThrough === null || bucket.start > roasThrough;
+  const last = !unknown && roasThrough < bucket.end ? roasThrough : bucket.end;
+  let revenue = 0;
+  let spend = 0;
+  let planRevenue = 0;
+  let planSpend = 0;
+  for (const iso of isoDaysBetween(bucket.start, last)) {
+    if (!unknown) {
+      revenue += days.revenue.get(iso) ?? 0;
+      spend += days.spend?.get(iso) ?? 0;
+    }
+    planRevenue += days.planRevenue.get(iso) ?? 0;
+    planSpend += days.planSpend?.get(iso) ?? 0;
+  }
+  return { unknown, revenue, spend, planRevenue, planSpend };
+}
+
+/**
  * The plan EXPECTED so far, under the per-day maps' keys: each platform's plan
  * kept only through its OWN covered day (`throughOf`), and the total and
  * every objective re-summed from those platform slices. Summing this map over
@@ -2020,6 +2090,13 @@ export interface DailyPair {
 export interface RangeBar extends TrackerBar {
   /** The row's own anchor: its platform's last covered day inside the range (null = none yet). */
   through: string | null;
+  /**
+   * The last day its data REALLY covers inside the range — `through` itself,
+   * except in a month that is over, where `through` is the month's end (the
+   * month is final) while the last upload may be earlier. The aria anchor
+   * names this day, never claims the month's end as "the last day of data".
+   */
+  lastData: string | null;
   projection: number | null;
   neededPerDay: number | null;
   daily: DailyPair;
@@ -2083,6 +2160,7 @@ export function buildRangeBoard(input: RangeBoardInput): RangeBoard {
     planMap: Map<string, number> | undefined,
     actualMap: Map<string, number> | undefined,
     through: string | null,
+    lastData: string | null,
   ): RangeBar => {
     const plan = round2(sum(planMap, to));
     const actual = round2(sum(actualMap, through));
@@ -2119,6 +2197,7 @@ export function buildRangeBoard(input: RangeBoardInput): RangeBoard {
     return {
       ...base,
       through,
+      lastData,
       projection: judged ? rangeProjection(base, through, to) : null,
       neededPerDay: judged ? neededPerDay(base, through, from, to) : null,
       daily: { plan: series(planMap, to), actual: series(actualMap, through) },
@@ -2128,12 +2207,13 @@ export function buildRangeBoard(input: RangeBoardInput): RangeBoard {
 
   const platforms: RangePlatform[] = input.platforms.map((platform) => {
     const through = coveredThrough(coverage[platform], from, to, input.today);
+    const lastData = lastDataIn(coverage[platform], through);
     const buckets: RangeBar[] = [];
     const unplannedBuckets: TrackerPlatform["unplannedBuckets"] = [];
     let unplanned = 0;
     for (const objective of BUDGET_OBJECTIVES) {
       const key = comboSeriesKey(platform, objective);
-      const b = bar(key, objective, planSpendPerDay.get(key), spendPerDay.get(key), through);
+      const b = bar(key, objective, planSpendPerDay.get(key), spendPerDay.get(key), through, lastData);
       if (b.plan > 0) buckets.push(b);
       else if (b.actual > 0) {
         unplanned += b.actual;
@@ -2142,7 +2222,7 @@ export function buildRangeBoard(input: RangeBoardInput): RangeBoard {
     }
     const key = platformSeriesKey(platform);
     return {
-      ...bar(platform, platform, planSpendPerDay.get(key), spendPerDay.get(key), through),
+      ...bar(platform, platform, planSpendPerDay.get(key), spendPerDay.get(key), through, lastData),
       buckets,
       unplanned: round2(unplanned),
       unplannedBuckets,

@@ -626,20 +626,18 @@ function TerminationDialog({
       return;
     }
     startTransition(async () => {
-      for (const p of changes) {
-        const res = await safeAction(() =>
-          setCreativeTermination({
-            creativeId,
-            platform: p,
-            terminated: picked.has(p),
-          }),
-        );
-        if (!res.ok) {
-          toastActionFailure(res, `Couldn't update ${PLATFORM_LABEL[p]}`);
-          return;
-        }
+      // ONE call for every platform changed — one render per action.
+      const res = await safeAction(() =>
+        setCreativeTermination({
+          creativeId,
+          changes: changes.map((p) => ({ platform: p, terminated: picked.has(p) })),
+        }),
+      );
+      if (!res.ok) {
+        toastActionFailure(res, "Couldn't update termination");
+        return;
       }
-      // Each call revalidated, so the page arrived re-rendered with the last.
+      // The call revalidated: the page arrived re-rendered in its response.
       toast.success("Termination updated");
       onOpenChange(false);
     });

@@ -148,6 +148,10 @@ export function excludedEcho(includeExcluded: boolean | undefined): ExcludedEcho
   return includeExcluded ? "included" : "hidden";
 }
 
+/** What the model hears when a tool fails for a reason that isn't its own. */
+export const MCP_UNEXPECTED_ERROR =
+  "Something went wrong on the server while running this tool. Try again; if it keeps failing, the request itself may be fine and the server needs a look.";
+
 /** An error tool result (isError) — the LLM sees the message and can adjust. */
 export function fail(message: string): ToolResult {
   return { content: [{ type: "text", text: `Error: ${message}` }], isError: true };
@@ -168,7 +172,10 @@ export async function withBrand(
     return await runWithTenant(account.id, user.id, () => fn(account));
   } catch (err) {
     if (err instanceof McpToolError) return fail(err.message);
+    // Anything else — a Postgres error, a bug — goes to the SERVER LOG, never
+    // to the model: raw driver text names tables, columns and constraints,
+    // and it is not something the model can act on (2026-10, bugs.md).
     console.error("[mcp] tool error:", err);
-    return fail(err instanceof Error ? err.message : "Unexpected error");
+    return fail(MCP_UNEXPECTED_ERROR);
   }
 }

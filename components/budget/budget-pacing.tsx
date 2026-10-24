@@ -53,6 +53,9 @@ import {
   pacingVerdict,
   platformSeriesKey,
   reserveUsed,
+  lastDataIn,
+  roasPeriodSides,
+  roasThroughOf,
   roasThroughRate,
   round2,
   sortTrackerPlatforms,
@@ -105,6 +108,8 @@ interface RangeSide {
   state: HeroState;
   /** The last covered day inside the range (null = none yet). */
   through: string | null;
+  /** The day the data REALLY reaches (≤ `through`; earlier in a month that is over). */
+  lastData: string | null;
   bar: TrackerBar;
   projected: number | null;
   /**
@@ -123,6 +128,7 @@ interface RangeCardData {
   roas: {
     state: HeroState;
     through: string | null;
+    lastData: string | null;
     actual: number | null;
     /** The on-plan ROAS to date (over the whole range before it starts). */
     target: number | null;
@@ -213,7 +219,7 @@ function RangeCard({
             name="ROAS"
             scale={scale}
             projection={r.state === "live" ? r.projected : null}
-            anchor={anchorWords(r.through)}
+            anchor={anchorWords(r.through, r.lastData)}
           />
         </div>
         <HeroVerdict
@@ -266,7 +272,7 @@ function RangeCard({
           fmt={fmt}
           name={label}
           projection={side.state === "live" ? side.projected : null}
-          anchor={anchorWords(side.through)}
+          anchor={anchorWords(side.through, side.lastData)}
         />
       </div>
       {side.unplanned.months > 0 ? (
@@ -338,6 +344,22 @@ interface BucketRow {
   /** The revenue target through the store's covered day, same rule. */
   expectedRevenue: number;
   expectedRevenueCum: number;
+  /**
+   * ROAS's own sums: BOTH sides through the same day — the earliest of the
+   * store's and every reporting platform's (`roasThrough`, the range card's
+   * rule). A partly covered last period used to divide revenue through the
+   * store's day by spend through the ads' day. The plan side is cut at the
+   * same day, except in a period nothing has reached yet (the whole period).
+   */
+  roasUnknown: boolean;
+  roasRevenue: number;
+  roasRevenueCum: number;
+  roasSpend: number;
+  roasSpendCum: number;
+  roasPlanRevenue: number;
+  roasPlanRevenueCum: number;
+  roasPlanSpend: number;
+  roasPlanSpendCum: number;
   /** Per side: nothing known yet / partly known, and how far. */
   spendUnknown: boolean;
   spendPartial: boolean;
@@ -663,6 +685,18 @@ export function BudgetPacing({
     [throughByPlatform],
   );
   const revenueThrough = coveredThrough(storeHorizon, from, to, today);
+  /**
+   * ROAS needs BOTH sides through the same day. Revenue can't be cut per
+   * platform (no attribution), so the day is the EARLIEST of the store's and
+   * every reporting in-scope platform's — a lagging platform's unreported days
+   * never enter the spend side as $0. ONE value for the card, the chart and
+   * the period table (W3, 2026-10: the table and chart cut each side at its
+   * own day).
+   */
+  const roasThrough = useMemo(
+    () => roasThroughOf(revenueThrough, platformKeys.map((p) => throughByPlatform.get(p) ?? null)),
+    [platformKeys, throughByPlatform, revenueThrough],
+  );
   /** What the footnote prints: the in-scope platforms' raw last upload. */
   const horizon = useMemo(
     () =>
@@ -697,6 +731,10 @@ export function BudgetPacing({
 
     const expectedRun = new Map<string, number>();
     let expectedRevenueRun = 0;
+    let roasRevenueRun = 0;
+    let roasSpendRun = 0;
+    let roasPlanRevenueRun = 0;
+    let roasPlanSpendRun = 0;
 
     return buckets.map((bucket) => {
       const spend = new Map<string, number>();
@@ -772,7 +810,34 @@ export function BudgetPacing({
       }
       expectedRevenueRun += expectedRevenue;
 
+      // ROAS: both sides through `roasThrough` (see BucketRow).
+      const {
+        unknown: roasUnknown,
+        revenue: roasRevenue,
+        spend: roasSpend,
+        planRevenue: roasPlanRevenue,
+        planSpend: roasPlanSpend,
+      } = roasPeriodSides(bucket, roasThrough, {
+        revenue: revenuePerDay,
+        spend: spendPerDay.get(TOTAL_KEY),
+        planRevenue: planRevenuePerDay,
+        planSpend: planSpendPerDay.get(TOTAL_KEY),
+      });
+      roasRevenueRun += roasRevenue;
+      roasSpendRun += roasSpend;
+      roasPlanRevenueRun += roasPlanRevenue;
+      roasPlanSpendRun += roasPlanSpend;
+
       return {
+        roasUnknown,
+        roasRevenue,
+        roasRevenueCum: roasRevenueRun,
+        roasSpend,
+        roasSpendCum: roasSpendRun,
+        roasPlanRevenue,
+        roasPlanRevenueCum: roasPlanRevenueRun,
+        roasPlanSpend,
+        roasPlanSpendCum: roasPlanSpendRun,
         bucket,
         spend,
         spendCum,
@@ -795,7 +860,7 @@ export function BudgetPacing({
       };
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [buckets, spendPerDay, planSpendPerDay, expectedPerDay, revenuePerDay, planRevenuePerDay, spendThrough, revenueThrough, throughByPlatform, platformKeys]);
+  }, [buckets, spendPerDay, planSpendPerDay, expectedPerDay, revenuePerDay, planRevenuePerDay, spendThrough, revenueThrough, roasThrough, throughByPlatform, platformKeys]);
 
   // ── Chart ──────────────────────────────────────────────────────────────────
   const toDisplay = (usdAmount: number) => spendInDisplayCurrency(usdAmount, currency, rate);
@@ -810,14 +875,12 @@ export function BudgetPacing({
         const point: Record<string, string | number | null> = { label: r.bucket.label };
         const cumulative = activeShape === "cumulative";
         if (activeMetric === "roas") {
-          const actualRevenue = cumulative ? r.revenueCum : r.revenue;
-          const actualSpend =
-            cumulative ? (r.spendCum.get(TOTAL_KEY) ?? 0) : (r.spend.get(TOTAL_KEY) ?? 0);
-          const planRevenue = cumulative ? r.planRevenueCum : r.planRevenue;
-          const planSpend =
-            cumulative ? (r.planSpendCum.get(TOTAL_KEY) ?? 0) : (r.planSpend.get(TOTAL_KEY) ?? 0);
-          point[TOTAL_KEY] =
-            r.spendUnknown || r.revenueUnknown ? null : roasOf(actualRevenue, actualSpend);
+          // Both sides through the same day (`roasThrough`), like the card.
+          const actualRevenue = cumulative ? r.roasRevenueCum : r.roasRevenue;
+          const actualSpend = cumulative ? r.roasSpendCum : r.roasSpend;
+          const planRevenue = cumulative ? r.roasPlanRevenueCum : r.roasPlanRevenue;
+          const planSpend = cumulative ? r.roasPlanSpendCum : r.roasPlanSpend;
+          point[TOTAL_KEY] = r.roasUnknown ? null : roasOf(actualRevenue, actualSpend);
           point[`plan_${TOTAL_KEY}`] = roasOf(planRevenue, planSpend);
           return point;
         }
@@ -912,12 +975,10 @@ export function BudgetPacing({
 
   const columns: DataColumn<BucketRow>[] = useMemo(() => {
     if (activeMetric === "roas") {
+      // Both sides through the same day (`roasThrough`), like the card.
       const actualRoas = (r: BucketRow) =>
-        r.spendUnknown || r.revenueUnknown
-          ? null
-          : roasOf(r.revenueCum, r.spendCum.get(TOTAL_KEY) ?? 0);
-      const planRoas = (r: BucketRow) =>
-        roasOf(r.planRevenueCum, r.planSpendCum.get(TOTAL_KEY) ?? 0);
+        r.roasUnknown ? null : roasOf(r.roasRevenueCum, r.roasSpendCum);
+      const planRoas = (r: BucketRow) => roasOf(r.roasPlanRevenueCum, r.roasPlanSpendCum);
       return [
         periodCol,
         {
@@ -930,7 +991,8 @@ export function BudgetPacing({
           },
           csv: (r) => actualRoas(r)?.toFixed(2) ?? "",
           total: () => {
-            const v = lastKnownSpend ? actualRoas(lastKnownSpend) : null;
+            const lastKnownRoas = rows.filter((r) => !r.roasUnknown).at(-1);
+            const v = lastKnownRoas ? actualRoas(lastKnownRoas) : null;
             return v === null ? dash : (
               <span className="num tabular-nums font-semibold">{fmtRoas(v)}</span>
             );
@@ -1253,6 +1315,7 @@ export function BudgetPacing({
     const spend = {
       state: spendState,
       through: spendThrough,
+      lastData: lastDataIn(horizon, spendThrough),
       bar: bar("spend", "Spend", spendPlan, spendActual, spendExpected),
       projected:
         spendUnplanned.months > 0
@@ -1269,6 +1332,7 @@ export function BudgetPacing({
     const revenue = {
       state: revenueState,
       through: revenueThrough,
+      lastData: lastDataIn(storeHorizon, revenueThrough),
       bar: bar("revenue", "Revenue", revenuePlan, revenueActual, revenueExpected),
       projected:
         revenueUnplanned.months > 0
@@ -1281,11 +1345,7 @@ export function BudgetPacing({
     // platform (no attribution), so the day is the EARLIEST of the store's and
     // every reporting platform's — a lagging platform's unreported days never
     // enter the spend side as $0.
-    const reported = boardRows.map((p) => p.through).filter((t): t is string => t !== null);
-    const roasThrough =
-      revenueThrough === null || reported.length === 0
-        ? null
-        : [revenueThrough, ...reported].reduce((a, b) => (b < a ? b : a));
+    // `roasThrough` — the one cut the chart and the table use too.
     const roasState = stateOf(roasThrough);
     const roasActual = roasOf(
       sumThrough(revenuePerDay, roasThrough),
@@ -1308,13 +1368,17 @@ export function BudgetPacing({
       roas: {
         state: roasState,
         through: roasThrough,
+        lastData: lastDataIn(
+          roasThroughOf(storeHorizon, platformKeys.map((p) => coverage[p] ?? null)),
+          roasThrough,
+        ),
         actual: roasActual,
         target: roasTarget ?? roasRangeTarget,
         projected: roasProjected,
       },
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rows, plans, boardData, planSpendPerDay, planRevenuePerDay, spendPerDay, revenuePerDay, spendThrough, revenueThrough, from, to, rate]);
+  }, [rows, plans, boardData, planSpendPerDay, planRevenuePerDay, spendPerDay, revenuePerDay, spendThrough, revenueThrough, roasThrough, horizon, storeHorizon, platformKeys, coverage, from, to, rate]);
 
   // The view's own rows: filtered, then ordered. The triage counts ignore the
   // off-pace toggle — otherwise the chip you clicked to get here would read 0.

@@ -212,7 +212,7 @@ export function PacingBoard({
                         bar={p}
                         fmt={fmt}
                         name={platformLabel(p.key)}
-                        anchor={anchorWords(p.through)}
+                        anchor={anchorWords(p.through, p.lastData)}
                         projection={p.projection}
                       />
                       <Amounts bar={p} fmt={fmt} className="sm:hidden" />
@@ -258,7 +258,7 @@ export function PacingBoard({
                           fmt={fmt}
                           name={b.label}
                           small
-                          anchor={anchorWords(b.through)}
+                          anchor={anchorWords(b.through, b.lastData)}
                           projection={b.projection}
                         />
                         <Amounts bar={b} fmt={fmt} className="sm:hidden" />
