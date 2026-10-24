@@ -20,6 +20,7 @@ import {
   badgeCount,
   bellSeenPlan,
   burstSummary,
+  navigationLoadDelay,
   onNotificationsChanged,
   onToastScopeChanged,
   safeHref,
@@ -236,13 +237,14 @@ export function NotificationBell({
   );
 
   // Route changes are the cheapest signal that something may have happened.
-  // Settled for a moment first: an entity page registers its anchor in an
-  // effect AFTER the path changes, and one request should carry the final one.
+  // Settled first: an entity page registers its anchor only when its content
+  // commits, AFTER the path changes, and one request should carry the final
+  // one — so a load with no anchor yet waits longer (`navigationLoadDelay`).
   useEffect(() => {
     if (!anchor) setCommentCount(0);
     const t = window.setTimeout(() => {
       void load(anchor ? { type: anchor.type, id: anchor.id, key: anchorKey! } : undefined);
-    }, 120);
+    }, navigationLoadDelay(Boolean(anchor)));
     return () => window.clearTimeout(t);
     // `anchorKey` is the anchor's identity; `anchor` is a fresh object.
     // eslint-disable-next-line react-hooks/exhaustive-deps

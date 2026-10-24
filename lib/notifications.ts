@@ -220,6 +220,21 @@ export const BADGE_CAP = 9;
 export const POLL_MS = 30_000;
 
 /**
+ * How long the bell waits after a route change before its navigation load
+ * (W2-7, 2026-10). That load also carries the page's comment count, but an
+ * entity page registers its comment anchor only once its content COMMITS —
+ * and React reveals streamed content up to ~300 ms after the route's loading
+ * state shows. A load that fired at 120 ms with no anchor yet was a second
+ * request on every creative/campaign visit (measured on a production build:
+ * plain feed at +93 ms, anchored at +424 ms). So a load still waiting for an
+ * anchor waits long enough for one to arrive, and a load that has its anchor
+ * goes almost at once.
+ */
+export function navigationLoadDelay(hasAnchor: boolean): number {
+  return hasAnchor ? 120 : 450;
+}
+
+/**
  * The ONE in-page signal that the reader's notifications changed (2026-10).
  *
  * The actions no longer `revalidatePath`: a revalidation re-renders the page

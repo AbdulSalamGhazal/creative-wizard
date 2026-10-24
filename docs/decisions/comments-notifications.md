@@ -94,7 +94,11 @@
   page's comment count too, and hands it to the toggle's badge — the chrome
   used to fire two requests beside every page render. Polls, focus reloads
   and change events fetch the feed alone. `POLL_MS` is still the one polling
-  knob, at 30 s (D17).
+  knob, at 30 s (D17). The navigation load waits `navigationLoadDelay`: 450 ms
+  while the page has no anchor yet (an entity page registers it only when its
+  content commits, up to ~300 ms after the loading state), 120 ms once it has
+  one — 120 ms for both still sent two requests per creative visit on a
+  production build.
 - **The panel's code loads lazily** (W2-8, 2026-10): `comment-panel.tsx` is
   the eager half (state, toggle, the dock's frame); `comment-drawer.tsx` (the
   thread, composer, reactions, mention picker) arrives through `next/dynamic`,

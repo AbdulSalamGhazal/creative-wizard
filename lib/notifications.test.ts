@@ -10,6 +10,7 @@ import {
   NOTIFICATIONS_PAGE_SIZE,
   NOTIFICATION_CATEGORIES,
   POLL_MS,
+  navigationLoadDelay,
   badgeCount,
   categoryForType,
   eventMeta,
@@ -127,6 +128,14 @@ describe("tuning knobs are single constants", () => {
   it("keeps the poll interval and page size in one place", () => {
     expect(POLL_MS).toBeGreaterThanOrEqual(5_000);
     expect(NOTIFICATIONS_PAGE_SIZE).toBe(50);
+  });
+
+  it("waits past React's ~300 ms reveal for an anchor, and not for one it has (W2-7)", () => {
+    // An entity page's anchor registers when its content commits; a load that
+    // goes before that is a SECOND request once the anchor arrives.
+    expect(navigationLoadDelay(false)).toBeGreaterThan(300);
+    expect(navigationLoadDelay(false)).toBeLessThan(1_000);
+    expect(navigationLoadDelay(true)).toBeLessThanOrEqual(150);
   });
 });
 
