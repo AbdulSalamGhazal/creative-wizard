@@ -339,3 +339,16 @@ as it stood before the restructure.*
   stale tab always gets the persistent "Wizard was updated — reload." toast.
   The guard reads every call lexically, so a new caller that awaits an action
   bare fails the suite.
+
+### Chrome that only draws when opened loads when it's needed (2026-10, W2-8)
+
+- The comment panel body (~2,300 lines: thread, composer, reactions, mention
+  picker, markdown) and the ⌘K dialog (cmdk + both lists) were in every
+  route's first download, though neither draws anything until opened. Both
+  are now `next/dynamic` modules behind small eager shells
+  (`comment-panel.tsx`, `command-palette.tsx`) that keep the toggle, the
+  trigger and the shortcut. Each shell PRELOADS its module when the browser
+  is idle (`requestIdleCallback`, a timeout on Safari) and the moment intent
+  shows — pointer or focus on the toggle/trigger, ⌘/Ctrl going down — so a
+  first open is as instant as before. The panel's loading frame has the
+  body's shape and a working X; ⌘K draws nothing until ready.
