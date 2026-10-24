@@ -4,6 +4,7 @@ import {
   STALE_DEPLOYMENT_MESSAGE,
   UNKNOWN_FAILURE_MESSAGE,
   describeActionFailure,
+  isNavigationSignal,
   isStaleDeploymentError,
   safeAction,
 } from "@/lib/action-failure";
@@ -71,5 +72,25 @@ describe("a server action call that REJECTED", () => {
     } finally {
       warn.mockRestore();
     }
+  });
+});
+
+describe("a redirect or notFound from an action is a navigation, not a failure", () => {
+  it("rethrows Next's navigation signals so the redirect still happens", async () => {
+    const redirect = Object.assign(new Error("NEXT_REDIRECT"), {
+      digest: "NEXT_REDIRECT;replace;/signin;307;",
+    });
+    const notFound = Object.assign(new Error("NEXT_HTTP_ERROR_FALLBACK;404"), {
+      digest: "NEXT_HTTP_ERROR_FALLBACK;404",
+    });
+    expect(isNavigationSignal(redirect)).toBe(true);
+    expect(isNavigationSignal(notFound)).toBe(true);
+    expect(isNavigationSignal(new Error("boom"))).toBe(false);
+    expect(isNavigationSignal({ digest: 42 })).toBe(false);
+    await expect(
+      safeAction(async () => {
+        throw redirect;
+      }),
+    ).rejects.toBe(redirect);
   });
 });

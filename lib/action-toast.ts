@@ -13,9 +13,20 @@ import { toast } from "sonner";
 export function toastActionFailure(
   result: { ok?: boolean; error?: string; stale?: boolean },
   fallback: string,
+  options: {
+    /**
+     * A FORM shows its failure inline, where the person is looking (the
+     * ux-standards rule: a toast for a row, a banner for a form). The message
+     * goes there instead of a toast — except that a stale tab ALSO gets the
+     * Reload toast, because nothing on the form can fix it.
+     */
+    inline?: (message: string) => void;
+  } = {},
 ): void {
+  const message = result.error ?? fallback;
   if (result.stale) {
-    toast.error(result.error ?? fallback, {
+    options.inline?.(message);
+    toast.error(message, {
       id: "stale-deployment",
       duration: Infinity,
       // Persistent, so it must be dismissable without reloading.
@@ -24,5 +35,18 @@ export function toastActionFailure(
     });
     return;
   }
-  toast.error(result.error ?? fallback);
+  if (options.inline) {
+    options.inline(message);
+    return;
+  }
+  toast.error(message);
+}
+
+/**
+ * Did the CALL fail (network, stale deploy — `safeAction`'s `ActionFailure`),
+ * as opposed to the action answering `{ ok: false }`? A best-effort preference
+ * write stays quiet about its own refusal, but a broken tab must still say so.
+ */
+export function isCallFailure(result: { ok: boolean; error?: unknown }): boolean {
+  return !result.ok && typeof result.error === "string";
 }

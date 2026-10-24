@@ -10,7 +10,8 @@
  * rejection inside `startTransition` lands on the route's error boundary: the
  * reader loses the page over a 👍. `safeAction` makes that impossible: the
  * call resolves to a failure result like any other, and the caller toasts it
- * with `toastActionFailure` (lib/action-toast.ts).
+ * with `toastActionFailure` (lib/action-toast.ts) — or, on a form, shows it
+ * inline through the same function's `inline` option.
  */
 
 export interface ActionFailure {
@@ -74,8 +75,33 @@ export function describeActionFailure(err: unknown): ActionFailure {
 }
 
 /**
+ * Is this one of Next's NAVIGATION signals rather than a failure? An action
+ * that calls `redirect()` (sign-out) or `notFound()` makes its client promise
+ * reject with a digest-tagged error that Next's own boundary turns into the
+ * navigation. Swallowing it would leave the person on the page with nothing
+ * happening, so `safeAction` lets it through. Matched by the digest prefix
+ * (stable across Next 13–15) rather than by importing Next's internals here.
+ */
+export function isNavigationSignal(err: unknown): boolean {
+  if (typeof err !== "object" || err === null) return false;
+  const digest = (err as { digest?: unknown }).digest;
+  return (
+    typeof digest === "string" &&
+    (digest.startsWith("NEXT_REDIRECT") ||
+      digest.startsWith("NEXT_HTTP_ERROR_FALLBACK") ||
+      digest === "NEXT_NOT_FOUND")
+  );
+}
+
+/**
  * Run a server action call that must never reject. Resolves to the action's own
- * result, or to an `ActionFailure` describing why the call itself failed.
+ * result, or to an `ActionFailure` describing why the call itself failed. A
+ * redirect / notFound is NOT a failure: it is rethrown so the navigation
+ * happens (`isNavigationSignal`).
+ *
+ * EVERY client call to a server action goes through here (2026-10, W2-2;
+ * pinned by `app/actions/action-calls.test.ts`), so a network blink or a tab
+ * left open across a deploy is a toast with Reload, never the error boundary.
  */
 export async function safeAction<T extends { ok: boolean }>(
   call: () => Promise<T>,
@@ -83,6 +109,7 @@ export async function safeAction<T extends { ok: boolean }>(
   try {
     return await call();
   } catch (err) {
+    if (isNavigationSignal(err)) throw err;
     // Visible in the browser console for whoever is debugging; the user gets
     // a sentence instead of a crash.
     console.warn("Server action call failed:", err);
