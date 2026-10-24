@@ -15,7 +15,10 @@
 - Campaign status is the same rule, 2-state, with NO override and NO schema.
 - **Status maps derive from the request's cached `brandStatusInputs()` — never
   add another status scan**, and don't narrow a shared scan with a big `IN`.
-  The `asOf` point-in-time variant is the one sanctioned exception.
+  The `asOf` point-in-time variant is the one sanctioned exception — for its
+  ACTIVITY and FRESHNESS scans only: terminations come from the one cached
+  `brandOverrides()` read (with each row's `terminated_at::date`), filtered
+  by day in JS (W2-3, 2026-10; the Dashboard read the table three times).
 - Terminated is manual, sticky, and per creative×platform.
 - The Library's status STRIP is a FACET of the listing: counted after every
   other filter and BEFORE the status filter, so selecting one chip can never
@@ -121,3 +124,17 @@ as it stood before the restructure.*
   `lib/db.ts` is `max: 1`, so `Promise.all` is serial: fewer queries is the only
   lever, not more concurrency. `tests/db/status-cache.test.ts` pins this by
   counting round-trips.
+
+### The Dashboard's status flow reads the overrides once (2026-10, W2-3)
+
+- `statusFlowBreakdown` reconstructs two past days (`asOf` = the day before the
+  range and its last day) and each reconstruction read
+  `creative_platform_overrides` with `terminated_at::date <= asOf` — on top of
+  the unbounded read inside `brandStatusInputs()`. The table is tiny and the
+  date test is a pure comparison, so `brandOverrides()` (React `cache()`)
+  selects every termination once with its day computed BY THE DATABASE
+  (`terminated_at::date::text`, the same cast the old WHERE used, so the
+  boundary can't move with a time zone) and both paths filter it. The
+  activity and freshness scans of the reconstruction stay date-bounded — they
+  are the reconstruction. Pinned by `tests/db/dashboard-queries.test.ts` (a
+  termination counts from its own day, not the day before).

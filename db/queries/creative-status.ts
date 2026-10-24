@@ -50,6 +50,27 @@ export interface BrandStatusInputs {
 }
 
 /**
+ * Every manual termination of the brand, with the DAY it took effect (the
+ * database's own `terminated_at::date`, so the as-of comparison below can't
+ * drift from the SQL it replaced). A tiny table read ONCE per request (W2-3,
+ * 2026-10): the cached inputs use it as they are, and the `asOf` reconstruction
+ * filters it by day in JS — the Dashboard read it three times before.
+ */
+export const brandOverrides = cache(
+  async (): Promise<Array<{ creativeId: string; platform: string; terminatedOn: string }>> => {
+    const acct = await getActiveAccountId();
+    return db
+      .select({
+        creativeId: creativePlatformOverrides.creativeId,
+        platform: creativePlatformOverrides.platform,
+        terminatedOn: sql<string>`(${creativePlatformOverrides.terminatedAt})::date::text`,
+      })
+      .from(creativePlatformOverrides)
+      .where(eq(creativePlatformOverrides.accountId, acct));
+  },
+);
+
+/**
  * Each platform's latest SPEND day for the brand. Split out and cached on its
  * own because BOTH creative and campaign status anchor to it — the two activity
  * scans group differently (by creative vs by campaign) and can't be merged, but
@@ -109,13 +130,10 @@ export const brandStatusInputs = cache(async (): Promise<BrandStatusInputs> => {
 
   const latestDayByPlatform = await platformSpendFreshness();
 
-  const overrides = await db
-    .select({
-      creativeId: creativePlatformOverrides.creativeId,
-      platform: creativePlatformOverrides.platform,
-    })
-    .from(creativePlatformOverrides)
-    .where(eq(creativePlatformOverrides.accountId, acct));
+  const overrides = (await brandOverrides()).map(({ creativeId, platform }) => ({
+    creativeId,
+    platform,
+  }));
 
   return {
     windowDays: hoursToWindowDays(windowHours),
@@ -232,21 +250,13 @@ async function creativeStatusMapAsOf(
     )
     .groupBy(performanceRecords.platform);
 
-  const overrides = await db
-    .select({
-      creativeId: creativePlatformOverrides.creativeId,
-      platform: creativePlatformOverrides.platform,
-    })
-    .from(creativePlatformOverrides)
-    .where(
-      and(
-        eq(creativePlatformOverrides.accountId, acct),
-        sql`${creativePlatformOverrides.terminatedAt}::date <= ${asOf}`,
-        ...(restrict
-          ? [inArray(creativePlatformOverrides.creativeId, creativeIds!)]
-          : []),
-      ),
-    );
+  // Terminations in force on `asOf` — the cached brand read, filtered by day
+  // here instead of a date-bounded query per call (the activity and freshness
+  // scans above stay date-bounded: they ARE the reconstruction).
+  const keep = restrict ? new Set(creativeIds) : null;
+  const overrides = (await brandOverrides()).filter(
+    (o) => o.terminatedOn <= asOf && (!keep || keep.has(o.creativeId)),
+  );
 
   const latestDayByPlatform: Partial<Record<Platform, string>> = {};
   for (const f of freshness) latestDayByPlatform[f.platform as Platform] = f.lastDate;

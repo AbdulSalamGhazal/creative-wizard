@@ -1,7 +1,7 @@
 import { Badge } from "@/components/ui/badge";
 import { PageShell } from "@/components/layout/page-shell";
 import { PageHeader } from "@/components/layout/page-header";
-import { type KpiFilters } from "@/db/queries/performance";
+import { dashboardKpis, type KpiFilters } from "@/db/queries/performance";
 import { defaultDateRange } from "@/lib/date-presets";
 import { resolvePreferredRange, resolveIncludeExcluded } from "@/db/queries/user-prefs";
 import { listProducts } from "@/db/queries/products";
@@ -73,6 +73,10 @@ export default async function DashboardPage({
 
   const [products, angles] = await Promise.all([listProducts(), listAllAngles()]);
 
+  // ONE KPI fetch for the tiles AND the funnel card (W2-3) — started here,
+  // awaited by both sections.
+  const kpis = dashboardKpis(filters);
+
   return (
     <PageShell
       filterStrip={
@@ -95,7 +99,7 @@ export default async function DashboardPage({
         }
       />
 
-      <DashboardMetrics filters={filters} dimension={dimension} />
+      <DashboardMetrics filters={filters} dimension={dimension} kpis={kpis} />
 
       <OverviewSection
         filters={filters}
@@ -103,6 +107,7 @@ export default async function DashboardPage({
         dimensionLabel={singlePlatform ? PLATFORM_LABEL[singlePlatform] : undefined}
         rangeFrom={pickFirst(params.from)}
         rangeTo={pickFirst(params.to)}
+        kpis={kpis}
       />
     </PageShell>
   );

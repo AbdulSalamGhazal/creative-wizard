@@ -1,10 +1,10 @@
 import { Banknote, DollarSign, Receipt, Target, TrendingUp } from "lucide-react";
 import {
-  kpis,
-  kpisWithDelta,
   metricBreakdown,
   type BreakdownDimension,
   type KpiFilters,
+  type Kpis,
+  type KpisWithDelta,
   type MetricBreakdownRow,
 } from "@/db/queries/performance";
 import { MetricCard, type BreakdownBar } from "@/components/overview/metric-card";
@@ -30,18 +30,17 @@ type Pick = (r: MetricBreakdownRow) => number | null;
 export async function DashboardMetrics({
   filters,
   dimension,
+  kpis: kpisPromise,
 }: {
   filters: KpiFilters;
   dimension: BreakdownDimension;
+  /** The page's ONE KPI fetch (`dashboardKpis`), shared with the funnel card. */
+  kpis: Promise<{ k: Kpis; kd: KpisWithDelta | null }>;
 }) {
-  const hasRange = Boolean(filters.from && filters.to);
-  const [kd, full] = await Promise.all([
-    hasRange
-      ? kpisWithDelta(filters as KpiFilters & { from: string; to: string })
-      : Promise.resolve(null),
+  const [{ k, kd }, full] = await Promise.all([
+    kpisPromise,
     metricBreakdown(filters, dimension),
   ]);
-  const k = kd?.current ?? (await kpis(filters));
   const d = kd?.delta;
   const revenueDelta = kd
     ? computeDelta(kd.current.conversionValue, kd.previous.conversionValue)

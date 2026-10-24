@@ -1,13 +1,10 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
-  creativeDimensionPoints,
+  creativeDimensionWindows,
   creativeLeaderboard,
   creativeMetricRows,
   dailyFunnelRates,
-  filteredFirstDay,
   filteredPlatformFirstDays,
-  kpis,
-  kpisWithDelta,
   metricOverTime,
   productMix,
   angleMix,
@@ -16,10 +13,12 @@ import {
   type BreakdownDimension,
   type CreativeDimensionPoint,
   type KpiFilters,
+  type Kpis,
   type KpisWithDelta,
 } from "@/db/queries/performance";
 import {
-  dataHorizon,
+  earliestOf,
+  latestOf,
   platformHorizons,
   resolveEntityBounds,
   resolvePlatformBounds,
@@ -68,14 +67,12 @@ interface Props {
    *  links so the detail page opens on the same window. */
   rangeFrom?: string;
   rangeTo?: string;
+  /** The page's ONE KPI fetch (`dashboardKpis`), shared with the tiles. */
+  kpis: Promise<{ k: Kpis; kd: KpisWithDelta | null }>;
 }
 
-/** Subtract whole days from an ISO YYYY-MM-DD date (UTC). */
-function isoMinusDays(iso: string, days: number): string {
-  const d = new Date(`${iso}T00:00:00Z`);
-  d.setUTCDate(d.getUTCDate() - days);
-  return d.toISOString().slice(0, 10);
-}
+/** The rating lookbacks the in-card picker offers (7d · 30d · lifetime). */
+const RATING_LOOKBACKS = [7, 30, null] as const;
 
 /**
  * The lower Dashboard block: a metric-over-time line chart (metric picker in
@@ -89,47 +86,31 @@ export async function OverviewSection({
   dimensionLabel,
   rangeFrom,
   rangeTo,
+  kpis: kpisPromise,
 }: Props) {
   const hasRange = Boolean(filters.from && filters.to);
 
-  // Rating lookback: judge each creative over a wider window than the displayed
-  // range so a tight range doesn't read all-N/A. We compute ALL windows up
-  // front so the in-card switch is instant (no navigation / page reload). A
-  // window widens the range START only; `null` lookback = lifetime (no lower
-  // bound), and the `none` window reuses the selected-range blocks themselves.
-  const windowFilters = (lookbackDays: number | null): KpiFilters => ({
-    ...filters,
-    from:
-      lookbackDays === null
-        ? undefined
-        : filters.from
-          ? isoMinusDays(filters.from, lookbackDays)
-          : undefined,
-  });
-
-  // Edge-fill bounds for the over-time chart. The ungrouped PLATFORM lines each
-  // trail to their own platform horizon (campaign lines keep interior-only fill
-  // — a pinned breakout, not an entity total). Only these must resolve BEFORE
-  // metricOverTime, because they're its input; the grouped-total bounds only
-  // feed props, so they ride along in the main batch below (no extra hop).
-  let platformEdges:
-    | {
-        fillFrom: Partial<Record<string, string>>;
-        fillTo: Partial<Record<string, string>>;
-      }
-    | undefined;
-  if (dimension === "platform") {
-    const [pHorizons, pFirst] = await Promise.all([
-      platformHorizons(),
-      filteredPlatformFirstDays(filters),
-    ]);
-    platformEdges = resolvePlatformBounds({
-      from: filters.from,
-      to: filters.to,
-      firstDays: pFirst,
-      horizons: pHorizons,
-    });
-  }
+  // Edge-fill bounds for the over-time chart, from TWO per-platform reads that
+  // also give the grouped-total bounds (W2-3, 2026-10): the data horizon is the
+  // latest platform horizon, and the filter set's first day the earliest
+  // platform first day — same records, same conditions — so `dataHorizon()`
+  // and `filteredFirstDay()` no longer run as queries of their own. The
+  // ungrouped PLATFORM lines each trail to their own platform horizon
+  // (campaign lines keep interior-only fill — a pinned breakout, not an entity
+  // total). These resolve BEFORE metricOverTime, because they're its input.
+  const [pHorizons, pFirst] = await Promise.all([
+    platformHorizons(),
+    filteredPlatformFirstDays(filters),
+  ]);
+  const platformEdges =
+    dimension === "platform"
+      ? resolvePlatformBounds({
+          from: filters.from,
+          to: filters.to,
+          firstDays: pFirst,
+          horizons: pHorizons,
+        })
+      : undefined;
 
   const [
     otRows,
@@ -139,16 +120,11 @@ export async function OverviewSection({
     angleMixRows,
     moverRows,
     statusScopes,
-    kd,
+    { k, kd },
     ratingConfig,
-    ratingDimRows,
+    ratingBlocks,
     dailyRates,
     metricRows,
-    rows7d,
-    rows30d,
-    rowsLife,
-    horizon,
-    groupFirst,
   ] = await Promise.all([
     metricOverTime(filters, dimension, platformEdges),
     creativeLeaderboard(filters),
@@ -173,29 +149,30 @@ export async function OverviewSection({
             : undefined,
         )
       : Promise.resolve([] as StatusFlowScope[]),
-    hasRange
-      ? kpisWithDelta(filters as KpiFilters & { from: string; to: string })
-      : Promise.resolve(null as KpisWithDelta | null),
+    kpisPromise,
     getRatingConfig(),
-    creativeDimensionPoints(filters, dimension),
+    // Rating lookback: judge each creative over a wider window than the
+    // displayed range so a tight range doesn't read all-N/A. ALL windows come
+    // up front so the in-card switch is instant — in ONE FILTER scan
+    // (selected range + 7d + 30d + lifetime). A window widens the range START
+    // only; lifetime has no bound; `none` reuses the selected-range blocks.
+    creativeDimensionWindows(filters, dimension, RATING_LOOKBACKS),
     dailyFunnelRates(filters),
     creativeMetricRows(filters),
-    creativeDimensionPoints(windowFilters(7), dimension),
-    creativeDimensionPoints(windowFilters(30), dimension),
-    creativeDimensionPoints(windowFilters(null), dimension),
-    dataHorizon(),
-    filteredFirstDay(filters),
   ]);
+  const ratingDimRows = ratingBlocks.selected;
+  const rows7d = ratingBlocks.windows.get(7) ?? [];
+  const rows30d = ratingBlocks.windows.get(30) ?? [];
+  const rowsLife = ratingBlocks.windows.get(null) ?? [];
 
   // Grouped-total edge bounds: trail to the account data horizon, lead from the
   // filter set's first-ever day (both clamped to the window).
   const otGroupBounds = resolveEntityBounds({
     from: filters.from,
     to: filters.to,
-    firstEver: groupFirst,
-    horizon,
+    firstEver: earliestOf(pFirst),
+    horizon: latestOf(pHorizons),
   });
-  const k = kd?.current ?? (await kpis(filters));
 
   // Order the over-time lines by total spend; cap campaign lines so the chart
   // stays legible. Platform lines are always all present platforms.

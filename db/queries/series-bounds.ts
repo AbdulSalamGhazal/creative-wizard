@@ -126,6 +126,24 @@ export async function creativeFirstDay(
   return row?.min ?? null;
 }
 
+/**
+ * The earliest / latest ISO date in a per-platform map, or null when empty.
+ * The brand-wide data horizon IS the latest platform horizon, and a filter
+ * set's first day the earliest of its per-platform first days — so a page that
+ * already holds the per-platform map derives the single value instead of
+ * querying it again (W2-3, 2026-10).
+ */
+export function earliestOf(byPlatform: Partial<Record<string, string>>): string | null {
+  let out: string | null = null;
+  for (const v of Object.values(byPlatform)) if (v && (out === null || v < out)) out = v;
+  return out;
+}
+export function latestOf(byPlatform: Partial<Record<string, string>>): string | null {
+  let out: string | null = null;
+  for (const v of Object.values(byPlatform)) if (v && (out === null || v > out)) out = v;
+  return out;
+}
+
 /** ISO min/max helpers — YYYY-MM-DD sorts lexicographically. Null = "unbounded". */
 function isoMin(a: string | null, b: string | null): string | null {
   if (a === null) return b;

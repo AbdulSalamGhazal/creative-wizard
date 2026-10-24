@@ -257,30 +257,6 @@ async function buildBaseConditions(filters: KpiFilters): Promise<{
 }
 
 /**
- * First-ever record date for a filter set, UNBOUNDED by the window (the same
- * conditions minus the date range) — the leading-edge anchor for the dashboard
- * over-time group line. Null when the filter set has never had a record.
- */
-export async function filteredFirstDay(
-  filters: KpiFilters,
-): Promise<string | null> {
-  const { conditions, needsCreativeJoin } = await buildBaseConditions({
-    ...filters,
-    from: undefined,
-    to: undefined,
-  });
-  let q = db
-    .select({ min: sql<string | null>`MIN(${performanceRecords.date})` })
-    .from(performanceRecords)
-    .$dynamic();
-  if (needsCreativeJoin) {
-    q = q.innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId));
-  }
-  const [row] = await q.where(and(...conditions));
-  return row?.min ?? null;
-}
-
-/**
  * First-ever record date PER PLATFORM for a filter set, unbounded by the window
  * — the per-platform leading anchor for the dashboard's ungrouped platform
  * lines. A platform absent from the map has no data in the filter set.
@@ -943,31 +919,67 @@ export interface CreativeDimensionPoint {
   roas: number | null;
 }
 
+/** One rating lookback: `null` = lifetime (no lower bound — and no upper). */
+export type DimensionWindow = number | null;
+
 /**
- * Spend + ROAS per (creative, dimension) block — one row per creative on each
- * platform (or campaign when pinned). Used by the rating-mix composition: each
- * block is rated individually, then spend is summed by (dimension, rating).
+ * `creativeDimensionPoints` for the selected range AND every rating lookback
+ * window, in ONE scan (W2-3, 2026-10 — the Dashboard ran it four times).
+ *
+ * Each window is a FILTER over the same grouped rows, built with
+ * `scopedMetrics` from lib/metrics.ts, so every number is still a component
+ * sum (`SUM(conversion_value) FILTER … / NULLIF(SUM(spend) FILTER …, 0)`) —
+ * exactly what the four separate queries computed. The windows reproduce
+ * `buildBaseConditions` precisely: a window with a lower bound is
+ * `date BETWEEN from − n AND to`; the lifetime window (`null`) has NO date
+ * bound at all, as `{ ...filters, from: undefined }` had before.
  */
-export async function creativeDimensionPoints(
+export async function creativeDimensionWindows(
   filters: KpiFilters,
   dimension: "platform" | "campaign",
-): Promise<CreativeDimensionPoint[]> {
-  const { conditions, needsCreativeJoin, needsAngleJoin } =
-    await buildBaseConditions(filters);
+  lookbacks: readonly DimensionWindow[],
+): Promise<{
+  selected: CreativeDimensionPoint[];
+  windows: Map<DimensionWindow, CreativeDimensionPoint[]>;
+}> {
+  const { conditions, needsCreativeJoin, needsAngleJoin } = await buildBaseConditions({
+    ...filters,
+    from: undefined,
+    to: undefined,
+  });
+  const bounded = Boolean(filters.from && filters.to);
+  const minusDays = (iso: string, days: number) => {
+    const d = new Date(`${iso}T00:00:00Z`);
+    d.setUTCDate(d.getUTCDate() - days);
+    return d.toISOString().slice(0, 10);
+  };
+  /** The block for one window — null bounds = every row (no FILTER). */
+  const block = (from: string | null) => {
+    if (!bounded || from === null) return { spend: sumSpend, roas };
+    const m = scopedMetrics(between(performanceRecords.date, from, filters.to!));
+    return { spend: m.spend, roas: m.roas };
+  };
+  const specs: Array<{ id: string; w: DimensionWindow | "selected"; sql: ReturnType<typeof block> }> = [
+    { id: "s", w: "selected", sql: block(filters.from ?? null) },
+    ...lookbacks.map((w, i) => ({
+      id: `w${i}`,
+      w,
+      sql: block(w === null || !filters.from ? null : minusDays(filters.from, w)),
+    })),
+  ];
 
   const dimCol: AnyPgColumn =
     dimension === "platform" ? performanceRecords.platform : campaigns.name;
+  const columns: Record<string, SQL | AnyPgColumn> = {
+    creativeId: performanceRecords.creativeId,
+    key: dimCol,
+  };
+  for (const s of specs) {
+    columns[`${s.id}_spend`] = s.sql.spend;
+    columns[`${s.id}_roas`] = s.sql.roas;
+  }
 
-  let q = db
-    .select({
-      creativeId: performanceRecords.creativeId,
-      key: dimCol,
-      spend: sumSpend,
-      roas,
-    })
-    .from(performanceRecords)
-    .$dynamic();
-
+  let q = db.select(columns).from(performanceRecords).$dynamic();
   if (needsCreativeJoin || needsAngleJoin) {
     q = q.innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId));
   }
@@ -980,19 +992,23 @@ export async function creativeDimensionPoints(
       eq(creativeAngles.creativeId, performanceRecords.creativeId),
     );
   }
-
-  const rows = await q
+  const rows = (await q
     .where(and(...conditions))
-    .groupBy(performanceRecords.creativeId, dimCol);
+    .groupBy(performanceRecords.creativeId, dimCol)) as Array<Record<string, unknown>>;
 
-  return rows
-    .map((r) => ({
-      creativeId: String(r.creativeId),
-      key: String(r.key),
-      spend: Number(r.spend ?? 0),
-      roas: num(r.roas),
-    }))
-    .filter((r) => r.spend > 0);
+  const pointsFor = (id: string): CreativeDimensionPoint[] =>
+    rows
+      .map((r) => ({
+        creativeId: String(r.creativeId),
+        key: String(r.key),
+        spend: Number(r[`${id}_spend`] ?? 0),
+        roas: num(r[`${id}_roas`]),
+      }))
+      .filter((r) => r.spend > 0);
+
+  const windows = new Map<DimensionWindow, CreativeDimensionPoint[]>();
+  for (const s of specs) if (s.w !== "selected") windows.set(s.w, pointsFor(s.id));
+  return { selected: pointsFor("s"), windows };
 }
 
 export type BreakdownDimension = "platform" | "campaign";
@@ -1470,6 +1486,22 @@ export interface KpisWithDelta {
  * Requires `filters.from` and `filters.to` to be set (Trends views always
  * compare bounded windows; an all-time delta is meaningless).
  */
+/**
+ * The Dashboard's headline numbers, fetched ONCE per render and shared by the
+ * tiles and the funnel card (W2-3, 2026-10 — both sections used to run the KPI
+ * pair themselves). A bounded range gets the delta pair; an unbounded one the
+ * plain totals.
+ */
+export async function dashboardKpis(
+  filters: KpiFilters,
+): Promise<{ k: Kpis; kd: KpisWithDelta | null }> {
+  if (filters.from && filters.to) {
+    const kd = await kpisWithDelta(filters as KpiFilters & { from: string; to: string });
+    return { k: kd.current, kd };
+  }
+  return { k: await kpis(filters), kd: null };
+}
+
 export async function kpisWithDelta(
   filters: KpiFilters & { from: string; to: string },
 ): Promise<KpisWithDelta> {
