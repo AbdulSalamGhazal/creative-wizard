@@ -2,7 +2,11 @@ import { Badge } from "@/components/ui/badge";
 import { PageShell } from "@/components/layout/page-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { defaultDateRange } from "@/lib/date-presets";
-import { resolvePreferredRange, resolveIncludeExcluded } from "@/db/queries/user-prefs";
+import {
+  resolveIncludeExcluded,
+  resolvePreferredRange,
+  resolveStripFilters,
+} from "@/db/queries/user-prefs";
 import { typeRollup } from "@/db/queries/trends";
 import { listProducts } from "@/db/queries/products";
 import { listAllAngles } from "@/db/queries/creatives";
@@ -10,7 +14,7 @@ import { FilterStrip } from "@/components/filters/filter-strip";
 import { TypePlatformChart } from "@/components/trends/type-platform-chart";
 import { TypeRollupTable } from "@/components/trends/type-rollup-table";
 import { dashboardFiltersSchema } from "@/validators/filters";
-import { TYPE_COLOR, TYPE_LABEL, TYPE_ORDER } from "@/lib/palette";
+import { TYPE_COLOR, TYPE_LABEL, TYPE_ORDER, PLATFORMS_WITH_CREATIVES } from "@/lib/palette";
 import { pct, roas, usd } from "@/lib/format";
 import { pickFirst } from "@/lib/url";
 
@@ -27,11 +31,20 @@ export default async function TrendsByTypePage({
   searchParams: Promise<SearchParams>;
 }) {
   const params = await searchParams;
+  const [products, angles] = await Promise.all([listProducts(), listAllAngles()]);
+  // Remembered filters (D20): only the ones this page's queries apply.
+  const applies = ["platforms", "productIds"] as const;
+  const resolved = await resolveStripFilters(params, {
+    keys: applies,
+    platforms: PLATFORMS_WITH_CREATIVES,
+    productIds: products.map((p) => p.id),
+    angles,
+  });
   const parsed = dashboardFiltersSchema.parse({
     from: pickFirst(params.from),
     to: pickFirst(params.to),
-    productIds: pickFirst(params.productIds),
-    platforms: pickFirst(params.platforms),
+    productIds: resolved.productIds,
+    platforms: resolved.platforms,
     includeExcluded: pickFirst(params.includeExcluded),
   });
 
@@ -55,11 +68,9 @@ export default async function TrendsByTypePage({
     includeExcluded,
   };
 
-  const [byType, byTypePlatform, products, angles] = await Promise.all([
+  const [byType, byTypePlatform] = await Promise.all([
     typeRollup(filters, { byPlatform: false }),
     typeRollup(filters, { byPlatform: true }),
-    listProducts(),
-    listAllAngles(),
   ]);
 
   const totalSpend = byType.reduce((s, r) => s + r.spend, 0);
@@ -73,6 +84,8 @@ export default async function TrendsByTypePage({
           angles={angles}
           defaultFrom={from}
           defaultTo={to}
+          applies={applies}
+          resolvedFilters={resolved}
           platformScope="creative"
         />
       }

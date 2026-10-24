@@ -16,10 +16,11 @@ import {
   type FatigueTier,
   type FatigueWindowSums,
 } from "@/lib/launch-fatigue";
-import { dashboardFiltersSchema } from "@/validators/filters";
+import { dashboardFiltersSchema, STRIP_FILTER_KEYS } from "@/validators/filters";
 import { LIFETIME_FLOOR, presetLabel, todayIso } from "@/lib/date-presets";
-import { resolveIncludeExcluded } from "@/db/queries/user-prefs";
+import { resolveIncludeExcluded, resolveStripFilters } from "@/db/queries/user-prefs";
 import { pickFirst } from "@/lib/url";
+import { PLATFORMS_WITH_CREATIVES } from "@/lib/palette";
 
 export const dynamic = "force-dynamic";
 
@@ -34,13 +35,22 @@ export default async function TrendsLaunchesPage({
   searchParams: Promise<SearchParams>;
 }) {
   const params = await searchParams;
+  const [products, angles] = await Promise.all([listProducts(), listAllAngles()]);
+  // Remembered filters (D20): only the ones this page's queries apply.
+  const applies = STRIP_FILTER_KEYS;
+  const resolved = await resolveStripFilters(params, {
+    keys: applies,
+    platforms: PLATFORMS_WITH_CREATIVES,
+    productIds: products.map((p) => p.id),
+    angles,
+  });
   const parsed = dashboardFiltersSchema.parse({
     from: pickFirst(params.from),
     to: pickFirst(params.to),
-    productIds: pickFirst(params.productIds),
-    platforms: pickFirst(params.platforms),
-    types: pickFirst(params.types),
-    angles: pickFirst(params.angles),
+    productIds: resolved.productIds,
+    platforms: resolved.platforms,
+    types: resolved.types,
+    angles: resolved.angles,
     includeExcluded: pickFirst(params.includeExcluded),
   });
 
@@ -67,11 +77,7 @@ export default async function TrendsLaunchesPage({
     includeExcluded,
   };
 
-  const [raw, products, angles] = await Promise.all([
-    launchFatigue(filters),
-    listProducts(),
-    listAllAngles(),
-  ]);
+  const raw = await launchFatigue(filters);
 
   const rows: LaunchFatigueViewRow[] = raw
     .map((r) => ({
@@ -146,6 +152,8 @@ export default async function TrendsLaunchesPage({
           defaultTo={todayIso()}
           rememberDate={false}
           platformScope="creative"
+          applies={applies}
+          resolvedFilters={resolved}
         />
       }
     >

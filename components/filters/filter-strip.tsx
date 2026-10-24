@@ -1,9 +1,15 @@
 "use client";
 
-import { Layers, Package, Shapes, Tag } from "lucide-react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useMemo } from "react";
-import { useNavTransition } from "@/lib/nav-progress";
+import { Package, Shapes, Tag } from "lucide-react";
+import { useMemo } from "react";
+import { useFilterParams } from "@/components/filters/use-filter-params";
+import { PlatformsPill } from "@/components/filters/platforms-pill";
+import { setPersistedKeys } from "@/lib/filter-prefs";
+import {
+  STRIP_FILTER_KEYS,
+  STRIP_TIER2_KEYS,
+  type StripFilterKey,
+} from "@/validators/filters";
 import {
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
@@ -17,19 +23,8 @@ import {
   FilterPill,
 } from "@/components/filters/filter-pill";
 import { FilterSheet } from "@/components/filters/filter-sheet";
-import {
-  ALL_PLATFORMS,
-  PLATFORMS_WITH_CREATIVES,
-  PLATFORM_LABEL,
-  TYPE_OPTIONS,
-} from "@/lib/palette";
+import { ALL_PLATFORMS, PLATFORMS_WITH_CREATIVES, TYPE_OPTIONS } from "@/lib/palette";
 import { rememberIncludeExcluded } from "@/lib/pref-sync";
-
-// Derived from the canonical platform lists (lib/palette) — no hand-copied set.
-const opts = (set: readonly (typeof ALL_PLATFORMS)[number][]) =>
-  set.map((value) => ({ value, label: PLATFORM_LABEL[value] }));
-const PLATFORMS = opts(ALL_PLATFORMS);
-const CREATIVE_PLATFORMS = opts(PLATFORMS_WITH_CREATIVES);
 
 const TYPES = TYPE_OPTIONS;
 
@@ -55,6 +50,18 @@ interface FilterStripProps {
   rememberDate?: boolean;
   /** The user's saved Excluded-toggle default (URL param overrides it). */
   includeExcludedDefault?: boolean;
+  /**
+   * The filters THIS page's queries apply (D20). Only these are remembered
+   * and resolved; default: all four (minus Type when `hideType`).
+   */
+  applies?: readonly StripFilterKey[];
+  /**
+   * Remembered filters as the server resolved them for this render
+   * (`resolveStripFilters`: URL → saved preference → nothing). The strip reads
+   * its params through them, so a remembered filter shows on a bare URL and
+   * removing it deletes the preference.
+   */
+  resolvedFilters?: Record<string, string | undefined>;
 }
 
 function csv(v: string | null): string[] {
@@ -70,15 +77,19 @@ export function FilterStrip({
   defaultFrom,
   defaultTo,
   rememberDate = true,
+  applies,
+  resolvedFilters,
 }: FilterStripProps = {}) {
-  const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
-  const [, startTransition] = useNavTransition();
+  // The house URL writer (D20): writes compose within a tick, the progress bar
+  // shows, and every change to a remembered key is written through — the
+  // same mechanism every FilterShell page uses, sharing keys with them.
+  const { searchParams, update, get } = useFilterParams(resolvedFilters);
+  const remembered = applies ?? STRIP_FILTER_KEYS.filter((k) => !(hideType && k === "types"));
+  setPersistedKeys(remembered);
 
   const from = searchParams.get("from");
   const to = searchParams.get("to");
-  const platformsParam = searchParams.get("platforms");
+  const platformsParam = get("platforms");
   // Effective Excluded state: explicit URL param wins, else the saved
   // per-user preference the server resolved into `includeExcludedDefault`.
   const rawIncludeExcluded = searchParams.get("includeExcluded");
@@ -86,28 +97,13 @@ export function FilterStrip({
     rawIncludeExcluded !== null
       ? rawIncludeExcluded === "1"
       : (includeExcludedDefault ?? false);
-  const productIds = csv(searchParams.get("productIds"));
-  const types = csv(searchParams.get("types"));
-  const selectedAngles = csv(searchParams.get("angles"));
+  const productIds = csv(get("productIds"));
+  const types = csv(get("types"));
+  const selectedAngles = csv(get("angles"));
 
   const selectedPlatforms = useMemo(
     () => (platformsParam ? platformsParam.split(",").filter(Boolean) : []),
     [platformsParam],
-  );
-
-  const update = useCallback(
-    (mutate: (next: URLSearchParams) => void) => {
-      const next = new URLSearchParams(searchParams.toString());
-      mutate(next);
-      // Drop empty keys for a clean URL.
-      for (const [key, value] of [...next.entries()]) {
-        if (!value) next.delete(key);
-      }
-      const qs = next.toString();
-      const href = qs ? `${pathname}?${qs}` : pathname;
-      startTransition(() => router.replace(href, { scroll: false }));
-    },
-    [pathname, router, searchParams],
   );
 
   const applyRange = (nextFrom: string | null, nextTo: string | null) => {
@@ -166,38 +162,21 @@ export function FilterStrip({
     });
   };
 
+  // CLEAR CLEARS TIER-2 FILTERS AND NOTHING ELSE (D19, the house rule): the
+  // date range, the Excluded toggle and the tier-1 Platforms stay put.
   const clearAll = () => {
     update((next) => {
-      next.delete("from");
-      next.delete("to");
-      next.delete("platforms");
-      next.delete("includeExcluded");
-      next.delete("productIds");
-      next.delete("types");
-      next.delete("angles");
+      for (const key of STRIP_TIER2_KEYS) next.delete(key);
     });
   };
 
   // The offered set: narrowed on creative-granularity pages (and /funnel).
   const platformOptions =
-    platformScope === "creative" ? CREATIVE_PLATFORMS : PLATFORMS;
+    platformScope === "creative" ? PLATFORMS_WITH_CREATIVES : ALL_PLATFORMS;
 
-  const platformLabel =
-    selectedPlatforms.length === 0
-      ? "All"
-      : selectedPlatforms.length === 1
-        ? (platformOptions.find((p) => p.value === selectedPlatforms[0])?.label ?? "")
-        : `${selectedPlatforms.length} selected`;
-
-  const filtersActive = !!(
-    from ||
-    to ||
-    platformsParam ||
-    includeExcluded ||
-    productIds.length > 0 ||
-    types.length > 0 ||
-    selectedAngles.length > 0
-  );
+  /** Clear has something to do — a tier-2 filter is on. */
+  const filtersActive =
+    productIds.length > 0 || types.length > 0 || selectedAngles.length > 0;
 
   const activeCount =
     (from || to ? 1 : 0) +
@@ -225,30 +204,12 @@ export function FilterStrip({
         }
       />
 
-      <FilterPill
-        icon={Layers}
-        label="Platforms"
-        value={platformLabel}
-        active={selectedPlatforms.length > 0}
+      <PlatformsPill
+        options={platformOptions}
+        selected={selectedPlatforms}
+        onToggle={togglePlatform}
         fullWidth={fullWidth}
-      >
-        {() => (
-          <DropdownMenuContent align="start" className="w-48">
-            <DropdownMenuLabel>Platforms</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            {platformOptions.map((p) => (
-              <DropdownMenuCheckboxItem
-                key={p.value}
-                checked={selectedPlatforms.includes(p.value)}
-                onCheckedChange={() => togglePlatform(p.value)}
-                onSelect={(e) => e.preventDefault()}
-              >
-                {p.label}
-              </DropdownMenuCheckboxItem>
-            ))}
-          </DropdownMenuContent>
-        )}
-      </FilterPill>
+      />
 
       <FilterPill
         icon={Package}
@@ -348,7 +309,7 @@ export function FilterStrip({
 
       {/* Mobile / tablet: collapse into a single Filters Sheet */}
       <div className="flex lg:hidden items-center gap-2 px-6 h-12">
-        <FilterSheet activeCount={activeCount} onClear={clearAll}>
+        <FilterSheet activeCount={activeCount} onClear={clearAll} clearable={filtersActive}>
           {dimensionControls(true)}
           <ExcludedToggle on={includeExcluded} onToggle={toggleExcluded} fullWidth />
         </FilterSheet>

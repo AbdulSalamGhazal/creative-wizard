@@ -4,7 +4,11 @@ import { PageShell } from "@/components/layout/page-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { dashboardKpis, type KpiFilters } from "@/db/queries/performance";
 import { defaultDateRange } from "@/lib/date-presets";
-import { resolvePreferredRange, resolveIncludeExcluded } from "@/db/queries/user-prefs";
+import {
+  resolveIncludeExcluded,
+  resolvePreferredRange,
+  resolveStripFilters,
+} from "@/db/queries/user-prefs";
 import { listProducts } from "@/db/queries/products";
 import { listAllAngles } from "@/db/queries/creatives";
 import { DashboardMetrics } from "@/components/overview/dashboard-metrics";
@@ -14,8 +18,8 @@ import {
   OverviewSectionSkeleton,
 } from "@/components/overview/dashboard-skeletons";
 import { FilterStrip } from "@/components/filters/filter-strip";
-import { dashboardFiltersSchema } from "@/validators/filters";
-import { PLATFORM_LABEL } from "@/lib/palette";
+import { STRIP_FILTER_KEYS, dashboardFiltersSchema } from "@/validators/filters";
+import { ALL_PLATFORMS, PLATFORM_LABEL } from "@/lib/palette";
 import { pickFirst } from "@/lib/url";
 
 const TRAILING_DAYS_DEFAULT = 30;
@@ -30,13 +34,21 @@ export default async function DashboardPage({
   searchParams: Promise<SearchParams>;
 }) {
   const params = await searchParams;
+  const [products, angles] = await Promise.all([listProducts(), listAllAngles()]);
+  // Remembered filters (D20): URL → saved preference → nothing, per key.
+  const resolved = await resolveStripFilters(params, {
+    keys: STRIP_FILTER_KEYS,
+    platforms: ALL_PLATFORMS,
+    productIds: products.map((p) => p.id),
+    angles,
+  });
   const parsed = dashboardFiltersSchema.parse({
     from: pickFirst(params.from),
     to: pickFirst(params.to),
-    productIds: pickFirst(params.productIds),
-    platforms: pickFirst(params.platforms),
-    types: pickFirst(params.types),
-    angles: pickFirst(params.angles),
+    productIds: resolved.productIds,
+    platforms: resolved.platforms,
+    types: resolved.types,
+    angles: resolved.angles,
     includeExcluded: pickFirst(params.includeExcluded),
   });
 
@@ -72,8 +84,6 @@ export default async function DashboardPage({
   const platformsBadge =
     parsed.platforms.length > 0 ? parsed.platforms.join(", ") : "all platforms";
 
-  const [products, angles] = await Promise.all([listProducts(), listAllAngles()]);
-
   // ONE KPI fetch for the tiles AND the funnel card (W2-3) — started here,
   // awaited by both sections.
   const kpis = dashboardKpis(filters);
@@ -87,6 +97,7 @@ export default async function DashboardPage({
           angles={angles}
           defaultFrom={from}
           defaultTo={to}
+          resolvedFilters={resolved}
         />
       }
     >

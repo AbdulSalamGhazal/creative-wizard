@@ -9,7 +9,11 @@ import {
   type KpiFilters,
 } from "@/db/queries/performance";
 import { defaultDateRange } from "@/lib/date-presets";
-import { resolvePreferredRange, resolveIncludeExcluded } from "@/db/queries/user-prefs";
+import {
+  resolveIncludeExcluded,
+  resolvePreferredRange,
+  resolveStripFilters,
+} from "@/db/queries/user-prefs";
 import { listProducts } from "@/db/queries/products";
 import { listAllAngles } from "@/db/queries/creatives";
 import { FilterStrip } from "@/components/filters/filter-strip";
@@ -19,8 +23,8 @@ import {
   type ChangeRadarRow,
 } from "@/components/trends/change-radar";
 import { assessChange, CHANGE_TIER_ORDER } from "@/lib/change-radar";
-import { changeDimSchema, dashboardFiltersSchema } from "@/validators/filters";
-import { PLATFORM_LABEL } from "@/lib/palette";
+import { changeDimSchema, dashboardFiltersSchema, STRIP_FILTER_KEYS } from "@/validators/filters";
+import { PLATFORM_LABEL, ALL_PLATFORMS } from "@/lib/palette";
 import { cn } from "@/lib/utils";
 import { usd, roas } from "@/lib/format";
 import { pickFirst } from "@/lib/url";
@@ -56,13 +60,22 @@ export default async function TrendsOverTimePage({
   searchParams: Promise<SearchParams>;
 }) {
   const params = await searchParams;
+  const [products, angles] = await Promise.all([listProducts(), listAllAngles()]);
+  // Remembered filters (D20): only the ones this page's queries apply.
+  const applies = STRIP_FILTER_KEYS;
+  const resolved = await resolveStripFilters(params, {
+    keys: applies,
+    platforms: ALL_PLATFORMS,
+    productIds: products.map((p) => p.id),
+    angles,
+  });
   const parsed = dashboardFiltersSchema.parse({
     from: pickFirst(params.from),
     to: pickFirst(params.to),
-    productIds: pickFirst(params.productIds),
-    platforms: pickFirst(params.platforms),
-    types: pickFirst(params.types),
-    angles: pickFirst(params.angles),
+    productIds: resolved.productIds,
+    platforms: resolved.platforms,
+    types: resolved.types,
+    angles: resolved.angles,
     includeExcluded: pickFirst(params.includeExcluded),
   });
 
@@ -90,11 +103,9 @@ export default async function TrendsOverTimePage({
     includeExcluded,
   };
 
-  const [k, breakdown, products, angles] = await Promise.all([
+  const [k, breakdown] = await Promise.all([
     kpisWithDelta(filters),
     changeBreakdown(filters, dim),
-    listProducts(),
-    listAllAngles(),
   ]);
 
   // Assess + sort: loudest problems first, then by spend weight within a tier.
@@ -156,6 +167,8 @@ export default async function TrendsOverTimePage({
           angles={angles}
           defaultFrom={from}
           defaultTo={to}
+          applies={applies}
+          resolvedFilters={resolved}
         />
       }
     >

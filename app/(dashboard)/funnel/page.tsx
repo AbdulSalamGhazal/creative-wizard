@@ -2,7 +2,11 @@ import { Badge } from "@/components/ui/badge";
 import { PageShell } from "@/components/layout/page-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { defaultDateRange } from "@/lib/date-presets";
-import { resolvePreferredRange, resolveIncludeExcluded } from "@/db/queries/user-prefs";
+import {
+  resolveIncludeExcluded,
+  resolvePreferredRange,
+  resolveStripFilters,
+} from "@/db/queries/user-prefs";
 import {
   campaignFunnel,
   funnelDaily,
@@ -21,6 +25,7 @@ import { CampaignFunnelTable } from "@/components/funnel/campaign-funnel-table";
 import { dashboardFiltersSchema } from "@/validators/filters";
 import { prevPeriod } from "@/lib/period";
 import { pickFirst } from "@/lib/url";
+import { PLATFORMS_WITH_CREATIVES } from "@/lib/palette";
 
 export const dynamic = "force-dynamic";
 
@@ -35,11 +40,20 @@ export default async function FunnelPage({
   searchParams: Promise<SearchParams>;
 }) {
   const params = await searchParams;
+  const [products, angles] = await Promise.all([listProducts(), listAllAngles()]);
+  // Remembered filters (D20): only the ones this page's queries apply.
+  const applies = ["platforms", "productIds"] as const;
+  const resolved = await resolveStripFilters(params, {
+    keys: applies,
+    platforms: PLATFORMS_WITH_CREATIVES,
+    productIds: products.map((p) => p.id),
+    angles,
+  });
   const parsed = dashboardFiltersSchema.parse({
     from: pickFirst(params.from),
     to: pickFirst(params.to),
-    productIds: pickFirst(params.productIds),
-    platforms: pickFirst(params.platforms),
+    productIds: resolved.productIds,
+    platforms: resolved.platforms,
     includeExcluded: pickFirst(params.includeExcluded),
   });
 
@@ -71,8 +85,6 @@ export default async function FunnelPage({
     dailyPrev,
     byPlatform,
     byPlatformCampaign,
-    products,
-    angles,
   ] = await Promise.all([
     funnelOverview(filters),
     campaignFunnel(filters),
@@ -80,8 +92,6 @@ export default async function FunnelPage({
     funnelDaily({ ...filters, from: prev.from, to: prev.to }),
     platformFunnel(filters),
     platformCampaignFunnel(filters),
-    listProducts(),
-    listAllAngles(),
   ]);
 
   return (
@@ -93,6 +103,8 @@ export default async function FunnelPage({
           angles={angles}
           defaultFrom={from}
           defaultTo={to}
+          applies={applies}
+          resolvedFilters={resolved}
           platformScope="creative"
         />
       }

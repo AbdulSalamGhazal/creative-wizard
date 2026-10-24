@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Layers } from "lucide-react";
 import {
   Bar,
   CartesianGrid,
@@ -24,13 +23,7 @@ import { CollapsibleSection } from "@/components/ui/collapsible-section";
 import { DataTable, type DataColumn } from "@/components/ui/data-table";
 import { useTableColumns } from "@/components/ui/use-table-columns";
 import { TABLE_KEYS } from "@/lib/table-columns";
-import {
-  DropdownMenuCheckboxItem,
-  DropdownMenuContent,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-} from "@/components/ui/dropdown-menu";
-import { FilterPill } from "@/components/filters/filter-pill";
+import { PlatformsPill } from "@/components/filters/platforms-pill";
 import { FilterShell } from "@/components/filters/filter-shell";
 import type { FilterDef } from "@/components/filters/filter-model";
 import { useFilterParams } from "@/components/filters/use-filter-params";
@@ -1362,13 +1355,6 @@ export function BudgetPacing({
   const allPlatformsOnly =
     "All-platforms only — revenue isn't attributed to platforms";
 
-  const platformFilterLabel =
-    platforms.length === 0
-      ? "All"
-      : platforms.length === 1
-        ? platformLabel(platforms[0]!)
-        : `${platforms.length} selected`;
-
   return (
     <div className="space-y-4">
       {/* Controls — deliberately wrapping: on a phone they stack into rows
@@ -1395,30 +1381,12 @@ export function BudgetPacing({
               fullWidth={fullWidth}
             />
 
-            <FilterPill
-              icon={Layers}
-              label="Platforms"
-              value={platformFilterLabel}
-              active={platformFiltered}
+            <PlatformsPill
+              options={ALL_PLATFORMS}
+              selected={platforms}
+              onToggle={togglePlatform}
               fullWidth={fullWidth}
-            >
-              {() => (
-                <DropdownMenuContent align="start" className="w-48">
-                  <DropdownMenuLabel>Platforms</DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  {ALL_PLATFORMS.map((p) => (
-                    <DropdownMenuCheckboxItem
-                      key={p}
-                      checked={platforms.includes(p)}
-                      onCheckedChange={() => togglePlatform(p)}
-                      onSelect={(e) => e.preventDefault()}
-                    >
-                      {PLATFORM_LABEL[p]}
-                    </DropdownMenuCheckboxItem>
-                  ))}
-                </DropdownMenuContent>
-              )}
-            </FilterPill>
+            />
 
             <SegmentedControl<GroupBy>
               ariaLabel="Group by"

@@ -1,23 +1,13 @@
 "use client";
 
-import { Layers } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useFilterParams } from "@/components/filters/use-filter-params";
-import {
-  DropdownMenuCheckboxItem,
-  DropdownMenuContent,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-} from "@/components/ui/dropdown-menu";
+import { DropdownMenuCheckboxItem } from "@/components/ui/dropdown-menu";
+import { PlatformsPill } from "@/components/filters/platforms-pill";
 import { DateRangePicker } from "@/components/filters/date-range-picker";
-import {
-  ExcludedToggle,
-  FilterPill,
-  FilterSearch,
-} from "@/components/filters/filter-pill";
+import { ExcludedToggle, FilterSearch } from "@/components/filters/filter-pill";
 import { FilterShell } from "@/components/filters/filter-shell";
 import type { FilterDef } from "@/components/filters/filter-model";
-import { cn } from "@/lib/utils";
 import {
   MAX_PLATFORMS,
   metricConditionLabel,
@@ -36,14 +26,14 @@ import {
   STATUS_LABEL,
   type CreativeStatus,
 } from "@/lib/creative-status";
-import { PLATFORMS_WITH_CREATIVES, PLATFORM_LABEL } from "@/lib/palette";
+import { PLATFORMS_WITH_CREATIVES, PLATFORM_LABEL, TYPE_OPTIONS } from "@/lib/palette";
+import { cn } from "@/lib/utils";
 import { STAGE_FILTER_VALUES, stageFilterLabel } from "@/lib/funnel-stages";
 import {
   PRIORITY_FILTER_LABEL,
   PRIORITY_FILTER_VALUES,
   type PriorityFilterValue,
 } from "@/lib/priority";
-import { creativeTypeEnum } from "@/lib/enums";
 import { MetricFilterControl } from "@/components/summary/metric-filter";
 import { ViewsControl } from "@/components/summary/views-control";
 import type { SummaryViewRow } from "@/db/queries/summary-views";
@@ -71,26 +61,11 @@ interface Props {
   resolvedFilters?: Record<string, string | undefined>;
 }
 
-// Derived from the canonical enums so the option lists can never drift from the
-// live platform/type set (a new platform added to the schema shows up here for
-// free). Labels come from the shared PLATFORM_LABEL map / a local type map.
-const TYPE_LABEL: Record<(typeof creativeTypeEnum)[number], string> = {
-  video: "Video",
-  image: "Image",
-  slides: "Slides",
-};
-// Ads is a per-CREATIVE table: only platforms that HAVE creatives can be a
-// column group here (google has no creative concept — lib/palette).
-const PLATFORMS = PLATFORMS_WITH_CREATIVES.map((value) => ({
-  value,
-  label: PLATFORM_LABEL[value] ?? value,
-}));
-const TYPES = creativeTypeEnum.map((value) => ({
-  value,
-  label: TYPE_LABEL[value] ?? value,
-}));
-
-const ALL_PLATFORM_VALUES = PLATFORMS.map((p) => p.value);
+// Derived from the canonical lists so the options can never drift from the
+// live platform/type set. Ads is a per-CREATIVE table: only platforms that
+// HAVE creatives can be a column group here (google has no creative concept).
+const TYPES = TYPE_OPTIONS;
+const ALL_PLATFORM_VALUES: readonly string[] = PLATFORMS_WITH_CREATIVES;
 // Sentinel meaning "the user deliberately deselected every platform" — distinct
 // from an absent param (which defaults to all). Parses to [] server-side.
 const PLATFORMS_NONE = "none";
@@ -450,56 +425,25 @@ export function SummaryFilterBar({
           {/* Platforms is tier 1 on Ads: it chooses the table's COLUMN GROUPS,
               not just which rows survive — so it stays visible, and Clear
               (tier-2 only) leaves it alone. */}
-          <FilterPill
+          {/* The shared pill (D21). Here an empty selection means NO column
+              groups (`platforms=none`), so it reads "None", not "All". */}
+          <PlatformsPill
+            options={PLATFORMS_WITH_CREATIVES}
+            selected={platforms}
+            onToggle={togglePlatform}
+            emptyMeans="none"
+            max={MAX_PLATFORMS}
             fullWidth={fullWidth}
-            icon={Layers}
-            label="Platforms"
-            value={
-              platforms.length === 0
-                ? "None"
-                : platforms.length >= ALL_PLATFORM_VALUES.length
-                  ? "All"
-                  : platforms.length === 1
-                    ? (PLATFORMS.find((p) => p.value === platforms[0])?.label ?? "1")
-                    : `${platforms.length} selected`
+            footer={
+              <DropdownMenuCheckboxItem
+                checked={!blendedHidden}
+                onCheckedChange={toggleBlended}
+                onSelect={(e) => e.preventDefault()}
+              >
+                Blended total (weighted)
+              </DropdownMenuCheckboxItem>
             }
-            active={platforms.length < ALL_PLATFORM_VALUES.length}
-          >
-            {() => (
-              <DropdownMenuContent align="start" className="w-56">
-                <DropdownMenuLabel>Platforms · show any</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                {PLATFORMS.map((p) => {
-                  const checked = platforms.includes(p.value);
-                  const disabled = !checked && platforms.length >= MAX_PLATFORMS;
-                  return (
-                    <DropdownMenuCheckboxItem
-                      key={p.value}
-                      checked={checked}
-                      disabled={disabled}
-                      onCheckedChange={() => togglePlatform(p.value)}
-                      onSelect={(e) => e.preventDefault()}
-                    >
-                      <span className={cn(disabled && "text-ink-3")}>{p.label}</span>
-                    </DropdownMenuCheckboxItem>
-                  );
-                })}
-                <DropdownMenuSeparator />
-                <DropdownMenuCheckboxItem
-                  checked={!blendedHidden}
-                  onCheckedChange={toggleBlended}
-                  onSelect={(e) => e.preventDefault()}
-                >
-                  Blended total (weighted)
-                </DropdownMenuCheckboxItem>
-                {platforms.length >= MAX_PLATFORMS && (
-                  <div className="px-2 py-1.5 text-[10px] text-ink-3">
-                    Deselect a platform to add another.
-                  </div>
-                )}
-              </DropdownMenuContent>
-            )}
-          </FilterPill>
+          />
         </>
       )}
       toolbar={({ fullWidth }) => (

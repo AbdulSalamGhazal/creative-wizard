@@ -15,6 +15,7 @@ import {
   type TableKey,
 } from "@/lib/table-columns";
 import { resolveIncludeExcludedValue } from "@/lib/exclusion-rules";
+import type { StripFilterKey } from "@/validators/filters";
 import {
   DEFAULT_TOAST_SCOPE,
   toToastScope,
@@ -173,6 +174,41 @@ export async function resolveFilterPrefs(
     out[spec.key] = kept.length > 0 ? kept.join(",") : undefined;
   }
   return out;
+}
+
+/**
+ * The FilterStrip pages' remembered filters (D20, 2026-10): Dashboard,
+ * Funnel and Trends resolve the strip's keys exactly like a shell page —
+ * URL → this user's saved value for this brand → nothing — so a platform
+ * picked on Ads is the Dashboard's too. Only the keys the page's queries
+ * APPLY are resolved (a remembered Type must not show as an active chip on a
+ * page that ignores it); each carries an allow list so a deleted product, a
+ * retired angle or a platform the page doesn't offer is dropped, never run.
+ * Hand the result to the page's validator AND to `FilterStrip`.
+ */
+export async function resolveStripFilters(
+  params: Record<string, string | string[] | undefined>,
+  opts: {
+    keys: readonly StripFilterKey[];
+    platforms: readonly string[];
+    productIds: readonly string[];
+    angles: readonly string[];
+  },
+): Promise<Record<string, string | undefined>> {
+  const allow: Record<StripFilterKey, readonly string[] | undefined> = {
+    platforms: opts.platforms,
+    productIds: opts.productIds,
+    types: undefined, // the validator drops an unknown type itself
+    angles: opts.angles,
+  };
+  const raw = (key: string) => {
+    const v = params[key];
+    return Array.isArray(v) ? v[0] : v;
+  };
+  return resolveFilterPrefs(
+    opts.keys.map((key) => ({ key, allow: allow[key] })),
+    raw,
+  );
 }
 
 /**

@@ -4,22 +4,21 @@ import {
   Check,
   ChevronDown,
   LayoutGrid,
-  MonitorSmartphone,
   Table as TableIcon,
 } from "lucide-react";
-import { ALL_PLATFORMS, PLATFORM_LABEL, TYPE_OPTIONS } from "@/lib/palette";
+import { ALL_PLATFORMS, TYPE_OPTIONS } from "@/lib/palette";
 import { useEffect, useRef, useState } from "react";
 import {
   DropdownMenu,
-  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { FilterPill, FilterSearch } from "@/components/filters/filter-pill";
+import { FilterSearch } from "@/components/filters/filter-pill";
 import { FilterShell } from "@/components/filters/filter-shell";
+import { PlatformsPill } from "@/components/filters/platforms-pill";
 import { useFilterParams } from "@/components/filters/use-filter-params";
 import type { FilterDef } from "@/components/filters/filter-model";
 import { cn } from "@/lib/utils";
@@ -67,11 +66,6 @@ const TYPES = TYPE_OPTIONS;
 const STATUSES = CREATIVE_STATUSES.map((value) => ({
   value,
   label: STATUS_LABEL[value],
-}));
-
-const PLATFORMS = ALL_PLATFORMS.map((p) => ({
-  value: p,
-  label: PLATFORM_LABEL[p],
 }));
 
 const SORT_LABEL: Record<CreativeSort, string> = {
@@ -318,42 +312,17 @@ export function LibraryFilterBar({
               onChange={setQInput}
               placeholder="Search name, angle, notes…"
           />
-          <FilterPill
-            icon={MonitorSmartphone}
-            label="Platforms"
-            value={
-              platforms.length === 0
-                ? "All"
-                : platforms.length === 1
-                  ? (PLATFORMS.find((p) => p.value === platforms[0])?.label ?? "1")
-                  : `${platforms.length} selected`
+          <PlatformsPill
+            options={ALL_PLATFORMS}
+            selected={platforms}
+            onToggle={(p) =>
+              writeMulti(
+                "platforms",
+                platforms.includes(p) ? platforms.filter((v) => v !== p) : [...platforms, p],
+              )
             }
-            active={platforms.length > 0}
             fullWidth={fullWidth}
-          >
-            {() => (
-              <DropdownMenuContent align="start" className="w-48">
-                <DropdownMenuLabel>Platforms</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                {PLATFORMS.map((p) => (
-                  <DropdownMenuCheckboxItem
-                    key={p.value}
-                    checked={platforms.includes(p.value)}
-                    onCheckedChange={() =>
-                      writeMulti(
-                        "platforms",
-                        platforms.includes(p.value)
-                          ? platforms.filter((v) => v !== p.value)
-                          : [...platforms, p.value],
-                      )
-                    }
-                  >
-                    {p.label}
-                  </DropdownMenuCheckboxItem>
-                ))}
-              </DropdownMenuContent>
-            )}
-          </FilterPill>
+          />
         </>
       )}
       toolbar={({ fullWidth }) => (

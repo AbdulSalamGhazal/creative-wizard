@@ -22,6 +22,7 @@ import { cn } from "@/lib/utils";
 export function FilterSheet({
   activeCount,
   onClear,
+  clearable,
   children,
   title = "Filters",
 }: {
@@ -29,6 +30,10 @@ export function FilterSheet({
   activeCount: number;
   /** Clear-all handler; the in-Sheet Clear button also closes the Sheet. */
   onClear?: () => void;
+  /** Whether Clear has anything to clear (default: anything is active). The
+   *  badge counts every set control in the sheet; Clear touches only the
+   *  tier-2 filters (D19), so it shows only when one of those is on. */
+  clearable?: boolean;
   /** The bar's controls, rendered stacked and full-width inside the Sheet. */
   children: React.ReactNode;
   title?: string;
@@ -63,7 +68,7 @@ export function FilterSheet({
         <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-2">
           {children}
         </div>
-        {onClear && activeCount > 0 && (
+        {onClear && (clearable ?? activeCount > 0) && (
           <div className="border-t border-line p-4">
             <ClearButton
               fullWidth

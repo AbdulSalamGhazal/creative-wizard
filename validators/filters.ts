@@ -6,6 +6,17 @@ import { csvEnum } from "@/validators/shared";
 // Global dashboard filters encoded in URL searchParams.
 // See docs/prd.md §5.4 and docs/tech-spec.md §8.1.
 
+/**
+ * The filters the shared FilterStrip (Dashboard · Funnel · Trends) carries —
+ * platforms is its tier-1 control, the other three its tier-2 filters, the
+ * only ones its Clear touches (D19). Each page declares which of them its
+ * queries APPLY; only those are remembered and resolved (D20).
+ */
+export const STRIP_FILTER_KEYS = ["platforms", "productIds", "types", "angles"] as const;
+export type StripFilterKey = (typeof STRIP_FILTER_KEYS)[number];
+/** The strip's tier-2 filters — what Clear clears. */
+export const STRIP_TIER2_KEYS = ["productIds", "types", "angles"] as const satisfies readonly StripFilterKey[];
+
 export const dashboardFiltersSchema = z.object({
   // Default to the last 7 days when no range is in the URL. Lifetime arrives
   // as a concrete floor→today range, so it isn't overridden.

@@ -9,12 +9,29 @@
 ## Invariants
 
 - **Never hand-roll a filter bar.** Every filter-bearing page is on
-  `FilterShell`; `FilterStrip` (the shared Dashboard/Trends strip) is a
-  different thing.
+  `FilterShell`; `FilterStrip` (the shared Dashboard/Funnel/Trends strip) is a
+  different thing — but it obeys the same Clear and remembered-filter rules
+  (D19/D20, below).
 - **Adding a filter to a page is adding ONE `FilterDef` — zero shell edits.**
   The shell derives the panel row, the chip, the badge and the presentation.
 - **Clear clears tier-2 filters and nothing else** — never sort, columns, the
-  saved view, the date range or any tier-1 control.
+  saved view, the date range or any tier-1 control. FilterStrip included
+  (D19, 2026-10): its Clear clears products, types and angles
+  (`STRIP_TIER2_KEYS`) and leaves the date, the Excluded toggle and the
+  tier-1 Platforms alone.
+- **ONE Platforms pill** (`components/filters/platforms-pill.tsx`, D21): the
+  filter map's icon (Share2), the menu stays open while you pick, and an
+  empty selection reads "All". The one exception is Ads, where platforms
+  choose the table's column GROUPS: deselecting them all honestly reads
+  "None" (`emptyMeans="none"`). `platforms-pill.test.ts` fails on a
+  hand-rolled Platforms pill anywhere.
+- **Remembered filters reach the FilterStrip pages** (D20): Dashboard,
+  Funnel and Trends resolve the strip's keys server-side
+  (`resolveStripFilters`) and the strip writes through `useFilterParams`, so
+  a platform picked on Ads is the Dashboard's too. A page declares which of
+  the four keys its queries APPLY (`applies`); only those are resolved and
+  remembered, so a remembered Type never shows as active on a page that
+  ignores it.
 - A VIEW SWITCH is not a filter, and the Excluded toggle is a data-scope
   switch, not a filter. Neither is ever a `FilterDef`.
 - **Every range and every main filter resolves SERVER-side**
@@ -218,7 +235,9 @@ as it stood before the restructure.*
       twice.
       - **Who participates:** the tier-1 `platforms` control on every shell page
         + every STANDARD tier-2 def (status per its own vocabulary, product,
-        type, angles, priority, stage, objective, rate). **Excluded:** custom
+        type, angles, priority, stage, objective, rate) — and, since D20
+        (2026-10), the FilterStrip pages' platforms / products / types /
+        angles, for the keys each page applies. **Excluded:** custom
         defs (`FilterDef.persist` defaults `true` for standard, `false` for
         custom — the metric-rule builder is not remembered), and, centrally,
         `NEVER_PERSIST_FILTER_KEYS` (search, sort, columns, views, group-by,
@@ -307,3 +326,25 @@ as it stood before the restructure.*
   column re-opened every identity column. The Library's behaviour won (it was
   the decided one); the Store and Budget `csvOf` copies, which already behaved
   that way, and Compare's platform parser now use the same helper.
+
+### The FilterStrip joins the house rules (2026-10, D19–D21)
+
+- **Clear (D19).** The strip's Clear also reset the date range, the Excluded
+  toggle and the platforms — on eight pages the same word did more than on
+  the eight shell pages, and changed the data scope the user had not asked
+  to change. It now clears its three tier-2 filters only; on a phone the
+  sheet's badge still counts every control set inside it, and its Clear
+  shows only while a tier-2 filter is on.
+- **Remembered filters (D20).** The two sentences of this file disagreed
+  ("wherever the SAME key exists" vs "on every SHELL page") and the code
+  followed the narrower one: pick Instagram on Ads and the Library
+  remembered it, the Dashboard did not. The strip now writes through
+  `useFilterParams` and its pages resolve server-side like shell pages.
+  Funnel, Trends → Angles, Types and Video apply only platforms and
+  products, so only those are resolved there — the Type and Angles pills
+  they show do not filter those pages (a pre-existing dead control, raised
+  for a decision in the W3 report rather than removed).
+- **One Platforms pill (D21).** Six copies, three icons (`Layers` — Stage's
+  icon — on Ads, Campaigns, Pacing and the strip; `MonitorSmartphone` on
+  Library and Canvas), two empty labels and two menu behaviours became one
+  component.

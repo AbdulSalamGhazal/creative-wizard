@@ -1,34 +1,18 @@
 "use client";
 
-import { Layers } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import {
-  DropdownMenuCheckboxItem,
-  DropdownMenuContent,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-} from "@/components/ui/dropdown-menu";
 import { DateRangePicker } from "@/components/filters/date-range-picker";
-import {
-  ExcludedToggle,
-  FilterPill,
-  FilterSearch,
-} from "@/components/filters/filter-pill";
+import { ExcludedToggle, FilterSearch } from "@/components/filters/filter-pill";
 import { FilterShell } from "@/components/filters/filter-shell";
+import { PlatformsPill } from "@/components/filters/platforms-pill";
 import { useFilterParams } from "@/components/filters/use-filter-params";
 import type { FilterDef } from "@/components/filters/filter-model";
 import { ViewsControl } from "@/components/summary/views-control";
 import type { SummaryViewRow } from "@/db/queries/summary-views";
-import { ALL_PLATFORMS, PLATFORM_LABEL } from "@/lib/palette";
+import { ALL_PLATFORMS } from "@/lib/palette";
 import { CAMPAIGN_OBJECTIVES } from "@/lib/campaign";
 import { CAMPAIGN_STATUSES, CAMPAIGN_STATUS_LABEL } from "@/lib/campaign-status";
 import { rememberIncludeExcluded } from "@/lib/pref-sync";
-
-/** Derived from the canonical list — never re-list the platforms. */
-const PLATFORMS = ALL_PLATFORMS.map((value) => ({
-  value,
-  label: PLATFORM_LABEL[value],
-}));
 
 function csv(v: string | null): string[] {
   return v ? v.split(",").filter(Boolean) : [];
@@ -189,43 +173,17 @@ export function PortfolioFilterBar({
               defaultFrom && defaultTo ? { from: defaultFrom, to: defaultTo } : undefined
             }
           />
-          <FilterPill
-            icon={Layers}
-            label="Platforms"
-            value={
-              platforms.length === 0
-                ? "All"
-                : platforms.length === 1
-                  ? (PLATFORMS.find((p) => p.value === platforms[0])?.label ?? "1")
-                  : `${platforms.length} selected`
+          <PlatformsPill
+            options={ALL_PLATFORMS}
+            selected={platforms}
+            onToggle={(p) =>
+              writeMulti(
+                "platforms",
+                platforms.includes(p) ? platforms.filter((v) => v !== p) : [...platforms, p],
+              )
             }
-            active={platforms.length > 0}
             fullWidth={fullWidth}
-          >
-            {() => (
-              <DropdownMenuContent align="start" className="w-48">
-                <DropdownMenuLabel>Platforms</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                {PLATFORMS.map((p) => (
-                  <DropdownMenuCheckboxItem
-                    key={p.value}
-                    checked={platforms.includes(p.value)}
-                    onCheckedChange={() =>
-                      writeMulti(
-                        "platforms",
-                        platforms.includes(p.value)
-                          ? platforms.filter((v) => v !== p.value)
-                          : [...platforms, p.value],
-                      )
-                    }
-                    onSelect={(e) => e.preventDefault()}
-                  >
-                    {p.label}
-                  </DropdownMenuCheckboxItem>
-                ))}
-              </DropdownMenuContent>
-            )}
-          </FilterPill>
+          />
         </>
       )}
       toolbar={({ fullWidth }) => (

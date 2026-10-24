@@ -2,7 +2,11 @@ import { Badge } from "@/components/ui/badge";
 import { PageShell } from "@/components/layout/page-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { defaultDateRange } from "@/lib/date-presets";
-import { resolvePreferredRange, resolveIncludeExcluded } from "@/db/queries/user-prefs";
+import {
+  resolveIncludeExcluded,
+  resolvePreferredRange,
+  resolveStripFilters,
+} from "@/db/queries/user-prefs";
 import { videoDiagnostics } from "@/db/queries/trends";
 import { listProducts } from "@/db/queries/products";
 import { listAllAngles } from "@/db/queries/creatives";
@@ -13,6 +17,7 @@ import { VideoScatter } from "@/components/trends/video-scatter";
 import { dashboardFiltersSchema } from "@/validators/filters";
 import { pct } from "@/lib/format";
 import { pickFirst } from "@/lib/url";
+import { PLATFORMS_WITH_CREATIVES } from "@/lib/palette";
 
 export const dynamic = "force-dynamic";
 
@@ -27,11 +32,20 @@ export default async function TrendsVideoPage({
   searchParams: Promise<SearchParams>;
 }) {
   const params = await searchParams;
+  const [products, angles] = await Promise.all([listProducts(), listAllAngles()]);
+  // Remembered filters (D20): only the ones this page's queries apply.
+  const applies = ["platforms", "productIds"] as const;
+  const resolved = await resolveStripFilters(params, {
+    keys: applies,
+    platforms: PLATFORMS_WITH_CREATIVES,
+    productIds: products.map((p) => p.id),
+    angles,
+  });
   const parsed = dashboardFiltersSchema.parse({
     from: pickFirst(params.from),
     to: pickFirst(params.to),
-    productIds: pickFirst(params.productIds),
-    platforms: pickFirst(params.platforms),
+    productIds: resolved.productIds,
+    platforms: resolved.platforms,
     includeExcluded: pickFirst(params.includeExcluded),
   });
 
@@ -48,21 +62,14 @@ export default async function TrendsVideoPage({
   const from = range.from;
   const to = range.to;
 
-  const [
-    { rows, aggregate, videoCount, medianHookRate, medianHoldRate, medianCompleteRate },
-    products,
-    angles,
-  ] = await Promise.all([
-    videoDiagnostics({
+  const { rows, aggregate, videoCount, medianHookRate, medianHoldRate, medianCompleteRate } =
+    await videoDiagnostics({
       from,
       to,
       platforms: parsed.platforms.length > 0 ? parsed.platforms : undefined,
       productIds: parsed.productIds.length > 0 ? parsed.productIds : undefined,
       includeExcluded,
-    }),
-    listProducts(),
-    listAllAngles(),
-  ]);
+    });
 
   return (
     <PageShell
@@ -75,6 +82,8 @@ export default async function TrendsVideoPage({
           defaultFrom={from}
           defaultTo={to}
           platformScope="creative"
+          applies={applies}
+          resolvedFilters={resolved}
         />
       }
     >

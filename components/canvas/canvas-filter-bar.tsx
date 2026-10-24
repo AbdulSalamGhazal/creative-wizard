@@ -1,20 +1,14 @@
 "use client";
 
 import { useMemo } from "react";
-import { MonitorSmartphone } from "lucide-react";
-import {
-  DropdownMenuCheckboxItem,
-  DropdownMenuContent,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-} from "@/components/ui/dropdown-menu";
 import { DateRangePicker } from "@/components/filters/date-range-picker";
-import { ExcludedToggle, FilterPill } from "@/components/filters/filter-pill";
+import { ExcludedToggle } from "@/components/filters/filter-pill";
 import { FilterShell } from "@/components/filters/filter-shell";
+import { PlatformsPill } from "@/components/filters/platforms-pill";
 import { useFilterParams } from "@/components/filters/use-filter-params";
 import type { FilterDef } from "@/components/filters/filter-model";
 import { rememberIncludeExcluded } from "@/lib/pref-sync";
-import { ALL_PLATFORMS, PLATFORM_LABEL } from "@/lib/palette";
+import { ALL_PLATFORMS } from "@/lib/palette";
 import { CREATIVE_STATUSES, STATUS_DOT, STATUS_LABEL } from "@/lib/creative-status";
 import { STAGE_FILTER_VALUES, stageFilterLabel } from "@/lib/funnel-stages";
 import type { DateRangeValue } from "@/lib/date-presets";
@@ -24,11 +18,7 @@ function csv(v: string | null): string[] {
 }
 
 // Google is ordinary data here — the canvas is about who spent WHERE, which it
-// reports like everyone else — so this is the full platform list.
-const PLATFORMS = ALL_PLATFORMS.map((value) => ({
-  value,
-  label: PLATFORM_LABEL[value],
-}));
+// reports like everyone else — so the pill offers the full platform list.
 
 /**
  * The Canvas filter bar — on `FilterShell` (phase 2): tier 1 is the date and
@@ -148,43 +138,17 @@ export function CanvasFilterBar({
             fullWidth={fullWidth}
             fallback={resolvedRange}
           />
-          <FilterPill
-            icon={MonitorSmartphone}
-            label="Platforms"
-            value={
-              platforms.length === 0
-                ? "All"
-                : platforms.length === 1
-                  ? (PLATFORMS.find((p) => p.value === platforms[0])?.label ?? "1")
-                  : `${platforms.length} selected`
+          <PlatformsPill
+            options={ALL_PLATFORMS}
+            selected={platforms}
+            onToggle={(p) =>
+              writeMulti(
+                "platforms",
+                platforms.includes(p) ? platforms.filter((v) => v !== p) : [...platforms, p],
+              )
             }
-            active={platforms.length > 0}
             fullWidth={fullWidth}
-          >
-            {() => (
-              <DropdownMenuContent align="start" className="w-48">
-                <DropdownMenuLabel>Platforms</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                {PLATFORMS.map((p) => (
-                  <DropdownMenuCheckboxItem
-                    key={p.value}
-                    checked={platforms.includes(p.value)}
-                    onCheckedChange={() =>
-                      writeMulti(
-                        "platforms",
-                        platforms.includes(p.value)
-                          ? platforms.filter((v) => v !== p.value)
-                          : [...platforms, p.value],
-                      )
-                    }
-                    onSelect={(e) => e.preventDefault()}
-                  >
-                    {p.label}
-                  </DropdownMenuCheckboxItem>
-                ))}
-              </DropdownMenuContent>
-            )}
-          </FilterPill>
+          />
         </>
       )}
       toolbar={({ fullWidth }) => (
