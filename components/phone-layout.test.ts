@@ -28,3 +28,18 @@ describe("phone layout (375px)", () => {
     expect(src).toContain("max-w-[calc(100vw-1rem)]");
   });
 });
+
+describe("crowded rows (W3 walk)", () => {
+  it("the strip's desktop row wraps, and its trailing pills never break a label", () => {
+    expect(read("components/filters/filter-strip.tsx")).toContain(
+      "hidden lg:flex flex-wrap items-center gap-2 px-6 py-2 min-h-12",
+    );
+    const pill = read("components/filters/filter-pill.tsx");
+    expect(pill.match(/shrink-0 whitespace-nowrap/g)?.length).toBe(2); // Clear + Excluded
+  });
+
+  it("the audit chip stays on one line; the upload file name caps at 16rem", () => {
+    expect(read("components/audit/audit-feed.tsx")).toMatch(/inline-flex shrink-0[^"`]*whitespace-nowrap/);
+    expect(read("components/upload/batch-history-table.tsx")).toContain("sm:max-w-[16rem]");
+  });
+});

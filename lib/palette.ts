@@ -32,6 +32,19 @@ export const ALL_PLATFORMS = [
   "google",
 ] as const;
 
+/**
+ * Does a platform selection mean "every platform"? Empty (the default) or
+ * every one of `options` ticked — the Platforms pill reads "All" for both
+ * (D21), so a surface that locks something behind a platform FILTER must not
+ * treat the full list as one.
+ */
+export function coversAllPlatforms(
+  selected: readonly string[],
+  options: readonly string[] = ALL_PLATFORMS,
+): boolean {
+  return selected.length === 0 || options.every((p) => selected.includes(p));
+}
+
 export type PlatformKey = (typeof ALL_PLATFORMS)[number];
 
 /**

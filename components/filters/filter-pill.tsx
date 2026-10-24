@@ -91,7 +91,9 @@ export function ClearButton({
       className={cn(
         pillBase,
         pillIdle,
-        "text-ink-3",
+        // A label never wraps inside a 32px pill — the ROW wraps instead
+        // (W3: "Excluded / hidden" broke onto two lines at 1280px).
+        "shrink-0 whitespace-nowrap text-ink-3",
         fullWidth && "w-full justify-center",
       )}
     >
@@ -125,6 +127,7 @@ export function ExcludedToggle({
       }
       className={cn(
         pillBase,
+        "shrink-0 whitespace-nowrap",
         on
           ? "border-warn/40 text-warn bg-warn/10"
           : "border-line text-ink-3 hover:text-ink hover:bg-surface-2",

@@ -28,7 +28,14 @@ import { FilterShell } from "@/components/filters/filter-shell";
 import type { FilterDef } from "@/components/filters/filter-model";
 import { useFilterParams } from "@/components/filters/use-filter-params";
 import { DateRangePicker } from "@/components/filters/date-range-picker";
-import { ALL_PLATFORMS, PACING_COLOR, PLATFORM_COLOR, PLATFORM_LABEL, seriesColor } from "@/lib/palette";
+import {
+  ALL_PLATFORMS,
+  PACING_COLOR,
+  PLATFORM_COLOR,
+  PLATFORM_LABEL,
+  coversAllPlatforms,
+  seriesColor,
+} from "@/lib/palette";
 import { monthDay, roas as fmtRoas, sar, sarCompact, signedPct, usdCompact } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import {
@@ -501,7 +508,9 @@ export function BudgetPacing({
     const next = platforms.includes(platform)
       ? platforms.filter((p) => p !== platform)
       : [...platforms, platform];
-    setParams({ platforms: next.join(",") });
+    // Ticking the last one back is "all" — written as no param, like the
+    // default, so the URL and the remembered value say what the pill says.
+    setParams({ platforms: coversAllPlatforms(next) ? "" : next.join(",") });
   };
   // The board's writers: a remembered control (its default deletes the
   // preference), a multi filter, a flag — through the shell's one writer.
@@ -554,7 +563,9 @@ export function BudgetPacing({
   // store revenue has no attribution, so revenue and ROAS drop back to Spend
   // rather than silently mixing a filtered numerator with an unfiltered
   // denominator.
-  const platformFiltered = platforms.length > 0;
+  // Every platform ticked is NO filter: the Platforms pill reads "All" then
+  // (D21), so locking revenue behind "All-platforms only" contradicted it.
+  const platformFiltered = !coversAllPlatforms(platforms);
   const spendOnly = platformFiltered || split === "platform";
   const metricLocked = spendOnly && metric !== "spend";
   const activeMetric: Metric = metricLocked ? "spend" : metric;

@@ -13,7 +13,10 @@
   dashboards; never "fix" this.
 - Revenue is store FACTS, as a monthly total only. **Revenue has no platform
   attribution anywhere in Budget** — a platform filter locks the metric to
-  Spend and the UI says why.
+  Spend and the UI says why. Every platform ticked is NO filter
+  (`coversAllPlatforms`, W3 2026-10): the shared pill reads "All" then, so
+  Pacing used to lock Revenue/ROAS behind "All-platforms only" while saying
+  All; ticking the last one back now writes no param at all.
 - The USD↔SAR toggle is display-only, but **ROAS is always computed through
   `accounts.usd_to_sar_rate`** (default 3.77).
 - **Every plan-to-date number goes through `buildPlanSeries`.** Never expand a

@@ -24,7 +24,14 @@
   empty selection reads "All". The one exception is Ads, where platforms
   choose the table's column GROUPS: deselecting them all honestly reads
   "None" (`emptyMeans="none"`). `platforms-pill.test.ts` fails on a
-  hand-rolled Platforms pill anywhere.
+  hand-rolled Platforms pill anywhere. A surface that gates something on a
+  platform FILTER asks `coversAllPlatforms` (lib/palette) — every option
+  ticked is "All", not a filter.
+- **A crowded strip WRAPS its row** (W3): beside the sidebar at 1280px the
+  seven strip controls overflow by ~50px; the desktop row is `flex-wrap`, so
+  Excluded + Clear drop to a second line, right-aligned, instead of a label
+  breaking inside its 32px pill or Clear scrolling out of sight (the Excluded
+  toggle and Clear are `whitespace-nowrap shrink-0` everywhere).
 - **Remembered filters reach the FilterStrip pages** (D20): Dashboard,
   Funnel and Trends resolve the strip's keys server-side
   (`resolveStripFilters`) and the strip writes through `useFilterParams`, so

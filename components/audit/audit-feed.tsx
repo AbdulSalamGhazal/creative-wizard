@@ -402,7 +402,9 @@ export function AuditFeed({ rows, compact = false, filtered = false }: Props) {
             <div className="flex-1 min-w-0">
               <div className="flex items-center flex-wrap gap-2">
                 <span
-                  className={`inline-flex items-center gap-1 h-5 px-1.5 rounded text-[10px] border ${categoryColor(category)}`}
+                  // One line, always: in a phone's narrow column the chip
+                  // shrank and broke "Deleted a / view" out of its border (W3).
+                  className={`inline-flex shrink-0 items-center gap-1 h-5 px-1.5 rounded text-[10px] border whitespace-nowrap ${categoryColor(category)}`}
                 >
                   <ActionIcon action={row.action} />
                   {auditLabel(row.action)}

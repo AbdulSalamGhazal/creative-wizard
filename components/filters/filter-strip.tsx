@@ -302,7 +302,11 @@ export function FilterStrip({
   return (
     <div className="sticky top-14 z-10 border-b border-line bg-background/95 backdrop-blur">
       {/* Desktop / wide: one inline row */}
-      <div className="hidden lg:flex items-center gap-2 px-6 h-12 overflow-x-auto">
+      {/* Wraps, like FilterShell's tier 1: a crowded row (seven controls in
+          ~1040px beside the sidebar) moves Excluded + Clear to a second
+          line instead of squeezing a label onto two lines or scrolling
+          Clear out of sight (W3). */}
+      <div className="hidden lg:flex flex-wrap items-center gap-2 px-6 py-2 min-h-12">
         {dimensionControls(false)}
         <div className="ml-auto flex items-center gap-2">
           <ExcludedToggle on={includeExcluded} onToggle={toggleExcluded} />

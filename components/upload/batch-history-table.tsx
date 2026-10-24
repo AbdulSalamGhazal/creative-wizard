@@ -71,7 +71,9 @@ export function BatchHistoryTable({
         csv: (r) => r.fileName,
         render: (r) => (
           <span
-            className="block max-w-[10rem] truncate font-mono text-xs text-ink sm:max-w-[22rem]"
+            // 16rem, not 22rem: one long file name pushed the ads history
+            // (it has a Platform column) 25px past its frame at 1280px (W3).
+            className="block max-w-[10rem] truncate font-mono text-xs text-ink sm:max-w-[16rem]"
             title={r.fileName}
           >
             {r.fileName}

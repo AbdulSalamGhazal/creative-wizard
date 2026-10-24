@@ -40,6 +40,7 @@ import { BudgetPacing, type GroupBy } from "@/components/budget/budget-pacing";
 import { BudgetOverview } from "@/components/budget/budget-overview";
 import { PacingBoard } from "@/components/budget/pacing-board";
 import { formatSpend } from "@/components/budget/budget-shared";
+import { ALL_PLATFORMS } from "@/lib/palette";
 import {
   buildPlanSeries,
   buildPlanSpendPerDay,
@@ -330,5 +331,21 @@ describe("Pacing — a past month's aria anchor names the REAL last day of data 
       expect(label).toContain("by 2026-09-30 (data through 2026-09-25)");
       expect(label).not.toContain("(the last day of data)");
     }
+  });
+});
+
+describe("Pacing — every platform ticked is no filter (W3, D21 seam)", () => {
+  // The shared Platforms pill reads "All" when every platform is ticked; the
+  // page used to lock Revenue/ROAS behind "All-platforms only" anyway.
+  const LOCK = "All-platforms only";
+  const props = { coverage: LAGGING, series: laggingSeries, plans: [plan(["instagram", "tiktok"])] };
+
+  it("the full list leaves Revenue and ROAS open, like no selection", () => {
+    expect(pacing({ ...props, platforms: [...ALL_PLATFORMS] })).not.toContain(LOCK);
+    expect(pacing({ ...props, platforms: [] })).not.toContain(LOCK);
+  });
+
+  it("a real subset still locks them, and says why", () => {
+    expect(pacing({ ...props, platforms: ["instagram", "tiktok"] })).toContain(LOCK);
   });
 });

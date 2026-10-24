@@ -44,3 +44,13 @@ describe("platform list — single source of truth", () => {
     );
   });
 });
+
+describe("coversAllPlatforms — what the Platforms pill calls \"All\"", () => {
+  it("empty and every platform both mean all; a subset does not", async () => {
+    const { coversAllPlatforms } = await import("@/lib/palette");
+    expect(coversAllPlatforms([])).toBe(true);
+    expect(coversAllPlatforms([...ALL_PLATFORMS].reverse())).toBe(true);
+    expect(coversAllPlatforms(["instagram", "tiktok"])).toBe(false);
+    expect(coversAllPlatforms(["instagram"], ["instagram"])).toBe(true);
+  });
+});
