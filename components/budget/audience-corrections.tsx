@@ -58,11 +58,11 @@ export function AudienceCorrections({
         updateAudienceSnapshot({ id, size: Number(draft || "0") }),
       );
       if (!res.ok) {
-        toastActionFailure(res, "Couldn't save that correction.");
+        toastActionFailure(res, "Couldn't save that correction");
         return;
       }
       // The action revalidated: the page arrived re-rendered in its response.
-      toast.success("Corrected.");
+      toast.success("Corrected");
       setEditingId(null);
     });
   };
@@ -71,10 +71,10 @@ export function AudienceCorrections({
     startTransition(async () => {
       const res = await safeAction(() => deleteAudienceSnapshot({ id: row.id }));
       if (!res.ok) {
-        toastActionFailure(res, "Couldn't delete that measurement.");
+        toastActionFailure(res, "Couldn't delete that measurement");
         return;
       }
-      toast.success(`Deleted the ${row.date} measurement.`);
+      toast.success(`Deleted the ${row.date} measurement`);
     });
   };
 

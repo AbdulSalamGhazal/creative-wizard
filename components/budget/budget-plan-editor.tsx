@@ -604,7 +604,7 @@ export function BudgetPlanEditor({
       }));
       if (!res.ok) {
         // Still editing: every typed cell and the note survive a failure.
-        toastActionFailure(res, "Could not save the plan");
+        toastActionFailure(res, "Couldn't save the plan");
         return;
       }
       // ONE render: saveBudgetMonth revalidated, so the saved plan arrived
@@ -629,7 +629,7 @@ export function BudgetPlanEditor({
         }),
       );
       if (!res.ok) {
-        toastActionFailure(res, "Could not switch the plan");
+        toastActionFailure(res, "Couldn't switch the plan");
         return;
       }
       toast.success(`${monthLabel(month)} is planned in the editor again`);
@@ -666,7 +666,7 @@ export function BudgetPlanEditor({
         }),
       );
       if (!res.ok) {
-        toastActionFailure(res, "Could not delete the plan");
+        toastActionFailure(res, "Couldn't delete the plan");
         return;
       }
       toast.success(`${monthLabel(month)}'s plan deleted — it's in Revisions if you need it back`);
@@ -687,7 +687,7 @@ export function BudgetPlanEditor({
     try {
       const res = await safeAction(() => copyBudgetFromMonth({ month, from: copyFrom }));
       if (!res.ok) {
-        toastActionFailure(res, "Could not copy");
+        toastActionFailure(res, "Couldn't copy");
         return;
       }
       toast.success(
@@ -711,7 +711,7 @@ export function BudgetPlanEditor({
     try {
       const res = await safeAction(() => setUsdToSarRate(value));
       if (!res.ok) {
-        toastActionFailure(res, "Could not save the rate");
+        toastActionFailure(res, "Couldn't save the rate");
         return;
       }
       toast.success(`Rate set to ${value.toFixed(4)}`);

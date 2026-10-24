@@ -363,7 +363,7 @@ export async function commitBulkCreatives(
     const user = await requirePermission("creative.create");
     const { preview, normalized } = await build(formData);
 
-    if (!preview.ok) return { ok: false, error: preview.error ?? "Could not parse the file." };
+    if (!preview.ok) return { ok: false, error: preview.error ?? "Couldn't parse the file." };
     if (!preview.allValid) {
       return { ok: false, error: `${preview.errorCount} row(s) are invalid — fix them and retry.` };
     }

@@ -88,14 +88,9 @@ export default async function TrendsVideoPage({
       }
     >
       <PageHeader
-        backLink={{ href: "/trends", label: "Trends" }}
-        title="Video diagnostics"
-        subtitle={
-          <>
-            Retention funnel: 2s → 25 → 50 → 75 → 100%. Video creatives only;
-            rates below the portfolio median are flagged amber.
-          </>
-        }
+        eyebrow="Trends"
+        title="Video"
+        info="Video creatives only; rates below the portfolio median are flagged amber."
         rightSlot={
           <Badge variant="outline" className="text-ink-3">
             {from} → {to}

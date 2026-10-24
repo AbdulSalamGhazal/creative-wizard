@@ -186,7 +186,7 @@ export function CommentThread({
   const undo = async (id: string) => {
     const res = await safeAction(() => restoreComment({ id }));
     if (!res.ok) {
-      toastActionFailure(res, "Couldn't restore that comment.");
+      toastActionFailure(res, "Couldn't restore that comment");
       return;
     }
     onChanged();
@@ -196,7 +196,7 @@ export function CommentThread({
     startTransition(async () => {
       const res = await safeAction(() => deleteComment({ id }));
       if (!res.ok) {
-        toastActionFailure(res, "Couldn't delete that comment.");
+        toastActionFailure(res, "Couldn't delete that comment");
         return;
       }
       onChanged();

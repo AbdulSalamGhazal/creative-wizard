@@ -74,7 +74,7 @@ export function StoreUploadPanel({
     } else if ("errors" in report) {
       setStage({ s: "invalid", report });
     } else {
-      toastActionFailure(report, "Couldn't check the file.");
+      toastActionFailure(report, "Couldn't check the file");
       setStage({ s: "idle" });
     }
   }

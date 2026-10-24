@@ -47,7 +47,7 @@ export default async function NotificationsPage({
     <PageShell width="admin">
       <PageHeader
         title="Notifications"
-        subtitle="What happened in this brand while you were elsewhere. Clearing archives — nothing here is ever deleted."
+        info="Clearing archives — nothing here is ever deleted."
       />
       <NotificationCenter
         tab={tab}

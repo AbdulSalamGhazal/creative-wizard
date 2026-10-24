@@ -38,7 +38,7 @@ export function ProductRowActions({
         variant="ghost"
         size="xs"
         onClick={() =>
-          run(() => safeAction(() => restoreProduct(productId)), "Product restored", "Could not restore")
+          run(() => safeAction(() => restoreProduct(productId)), "Product restored", "Couldn't restore")
         }
         disabled={isPending}
         className="text-ink-3 hover:text-ink"
@@ -54,7 +54,7 @@ export function ProductRowActions({
       variant="ghost"
       size="xs"
       onClick={() =>
-        run(() => safeAction(() => archiveProduct(productId)), "Product archived", "Could not archive")
+        run(() => safeAction(() => archiveProduct(productId)), "Product archived", "Couldn't archive")
       }
       disabled={isPending}
       className="text-ink-3 hover:text-warn"

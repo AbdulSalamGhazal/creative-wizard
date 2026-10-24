@@ -43,7 +43,7 @@ export async function updateRatingRules(
     if (!parsed.success) {
       return {
         ok: false,
-        error: parsed.error.issues[0]?.message ?? "Invalid rating rules",
+        error: parsed.error.issues[0]?.message ?? "Invalid rate rules",
       };
     }
     const { minSpend, goodRoas, decentRoas } = parsed.data;
@@ -111,7 +111,7 @@ export async function updatePlatformRatingRules(
     if (!parsed.success) {
       return {
         ok: false,
-        error: parsed.error.issues[0]?.message ?? "Invalid rating rules",
+        error: parsed.error.issues[0]?.message ?? "Invalid rate rules",
       };
     }
     const { platform, minSpend, goodRoas, decentRoas } = parsed.data;
@@ -184,7 +184,7 @@ export async function clearPlatformRatingRules(
       action: AUDIT_ACTIONS.RATING_UPDATE,
       entityType: "rating",
       entityId: null,
-      entityLabel: `${platform}: reverted to default rating rules`,
+      entityLabel: `${platform}: reverted to default rate rules`,
       actorUserId: user.id,
       meta: { platform, cleared: true },
     });

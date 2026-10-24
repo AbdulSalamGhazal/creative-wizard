@@ -67,7 +67,6 @@ export default async function StoreUploadsPage({
         <PageHeader
           eyebrow="Store"
           title="Order fields"
-          subtitle="The fields an order export can carry, and which raw source values map to which ad platform for Reconciliation."
         />
         <PageTabs tabs={tabs} active={activeTab} />
         <OrderFieldsTab />

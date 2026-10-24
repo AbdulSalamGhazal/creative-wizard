@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import Link from "next/link";
-import { ArrowLeft, Target } from "lucide-react";
+import { Target } from "lucide-react";
 import { auth, can } from "@/lib/auth";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -37,6 +36,7 @@ import { parseCampaignDetailParams } from "@/validators/campaign";
 import { PLATFORM_LABEL } from "@/lib/palette";
 import { safeDecodeURIComponent } from "@/lib/url";
 import { PageShell } from "@/components/layout/page-shell";
+import { PageHeader } from "@/components/layout/page-header";
 import { CommentAnchor } from "@/components/comments/comment-anchor-context";
 import { isoDate, int } from "@/lib/format";
 import { defaultDateRange, presetLabel } from "@/lib/date-presets";
@@ -155,19 +155,14 @@ export default async function CampaignDetailPage({
       {/* The drawer anchors to the campaign itself (registry row), so a
           rename never moves its thread. */}
       {registry && <CommentAnchor type="campaign" id={registry.id} />}
-      {/* ─────────── Header ─────────── */}
-      <section className="space-y-4">
-        {/* Wraps on a phone: Edit · Excluded · Date measured 468px in a
-            375px frame and scrolled the whole page sideways. */}
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <Link
-            href="/campaigns"
-            className="inline-flex items-center gap-1 text-xs text-ink-3 hover:text-ink transition-colors"
-          >
-            <ArrowLeft className="w-3 h-3" />
-            All campaigns
-          </Link>
-          <div className="flex flex-wrap items-center justify-end gap-2">
+      {/* ─────────── Header — the shared PageHeader (D26): one back link,
+          one title size; the controls wrap under it on a phone. ─────────── */}
+      <PageHeader
+        backLink={{ href: "/campaigns", label: "Back to Campaigns" }}
+        eyebrow={meta.productNames.join(" · ") || "Campaign"}
+        title={meta.campaign}
+        rightSlot={
+          <div className="flex flex-wrap items-center gap-2">
             {registry && nameParts && (
               <CampaignEditDialog
                 id={registry.id}
@@ -187,45 +182,37 @@ export default async function CampaignDetailPage({
               defaultTo={eff.to}
             />
           </div>
-        </div>
-
-        <div className="space-y-2 min-w-0">
-          <div className="text-eyebrow text-ink-3">
-            {meta.productNames.join(" · ") || "Campaign"}
-          </div>
-          <h1 className="font-display text-3xl md:text-4xl tracking-tight break-words">
-            {meta.campaign}
-          </h1>
-          <div className="flex items-center gap-2 flex-wrap text-xs">
-            <Badge variant="outline" className="border-brand/40 text-ink">
-              <Target className="w-3 h-3 mr-1" />
-              {meta.objective}
+        }
+      >
+        <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+          <Badge variant="outline" className="border-brand/40 text-ink">
+            <Target className="w-3 h-3 mr-1" />
+            {meta.objective}
+          </Badge>
+          {campaignStatus && (
+            <Badge variant="outline" className="text-ink-2">
+              <CampaignStatusBadge status={campaignStatus} />
             </Badge>
-            {campaignStatus && (
-              <Badge variant="outline" className="text-ink-2">
-                <CampaignStatusBadge status={campaignStatus} />
-              </Badge>
-            )}
-            {meta.platforms.map((p) => (
-              <Badge key={p} variant="outline" className="text-ink-2">
-                <PlatformDot platform={p} size="sm" className="mr-1.5" />
-                {PLATFORM_LABEL[p]}
-              </Badge>
-            ))}
-            <Badge variant="outline" className="text-ink-3">
-              {meta.creativeCount} creative{meta.creativeCount === 1 ? "" : "s"}
+          )}
+          {meta.platforms.map((p) => (
+            <Badge key={p} variant="outline" className="text-ink-2">
+              <PlatformDot platform={p} size="sm" className="mr-1.5" />
+              {PLATFORM_LABEL[p]}
             </Badge>
-            {meta.firstDate && meta.lastDate && (
-              <Badge variant="outline" className="text-ink-3 num">
-                Active {isoDate(meta.firstDate)} → {isoDate(meta.lastDate)}
-              </Badge>
-            )}
+          ))}
+          <Badge variant="outline" className="text-ink-3">
+            {meta.creativeCount} creative{meta.creativeCount === 1 ? "" : "s"}
+          </Badge>
+          {meta.firstDate && meta.lastDate && (
             <Badge variant="outline" className="text-ink-3 num">
-              {rangeLabel}
+              Active {isoDate(meta.firstDate)} → {isoDate(meta.lastDate)}
             </Badge>
-          </div>
+          )}
+          <Badge variant="outline" className="text-ink-3 num">
+            {rangeLabel}
+          </Badge>
         </div>
-      </section>
+      </PageHeader>
 
       {/* 1 ─── Headline KPIs, broken down by creative ─── */}
       <CampaignCreativeKpis analytics={analytics} creatives={creativeRows} />

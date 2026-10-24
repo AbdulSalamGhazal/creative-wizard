@@ -21,7 +21,7 @@ export function ProductCreateForm() {
       const res = await safeAction(() => createProduct({ name: name.trim() }));
       if (!res.ok) {
         const nameError = "fieldErrors" in res ? res.fieldErrors?.name : undefined;
-        toastActionFailure(nameError ? { ...res, error: nameError } : res, "Could not add product", {
+        toastActionFailure(nameError ? { ...res, error: nameError } : res, "Couldn't add product", {
           inline: setError,
         });
         return;

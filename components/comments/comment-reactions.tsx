@@ -76,7 +76,7 @@ export function useCommentReactions(
       new ReactionSync({
         send: (commentId, kind, on) => safeAction(() => setReaction({ commentId, kind, on })),
         onChange: () => setVersion((v) => v + 1),
-        onError: (result) => toastActionFailure(result, "Couldn't save that reaction."),
+        onError: (result) => toastActionFailure(result, "Couldn't save that reaction"),
         onSettled: () => {
           if (timer.current !== null) window.clearTimeout(timer.current);
           timer.current = window.setTimeout(() => {

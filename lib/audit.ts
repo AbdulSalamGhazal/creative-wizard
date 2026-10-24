@@ -265,7 +265,7 @@ export const AUDIT_LABELS: Record<AuditAction, string> = {
   "angle.create": "Created angle",
   "angle.rename": "Renamed angle",
   "angle.delete": "Deleted angle",
-  "rating.update": "Updated rating rules",
+  "rating.update": "Updated rate rules",
   "budget.update": "Updated budget plan",
   "audience.record": "Recorded audience sizes",
   "audience.update": "Corrected an audience size",

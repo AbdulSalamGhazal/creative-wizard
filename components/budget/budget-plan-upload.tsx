@@ -233,7 +233,7 @@ export function BudgetPlanUpload({
       }));
       if (!res.ok) {
         // The dialog stays open with the staged file and the typed note.
-        toastActionFailure(res, "Could not apply the uploaded plan");
+        toastActionFailure(res, "Couldn't apply the uploaded plan");
         return;
       }
       // The action revalidated: the new plan arrived in its response.

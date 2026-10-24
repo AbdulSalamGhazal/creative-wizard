@@ -48,8 +48,8 @@ export function MappingAddForm({
         }),
       );
       if (!res.ok) {
-        setError(res.error ?? "Failed");
-        toastActionFailure(res, "Could not add mapping");
+        setError(res.error ?? "Couldn't add mapping");
+        toastActionFailure(res, "Couldn't add mapping");
         return;
       }
       toast.success(`Added “${trimmed}”`);

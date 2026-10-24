@@ -95,7 +95,7 @@ export function StoreCleanupTool({ batches }: { batches: CleanupBatch[] }) {
       const res = await safeAction(() => previewStoreCleanupAction(counted));
       if (id !== requestId.current) return; // the filters moved on
       if (!res.ok || !("preview" in res) || !res.preview) {
-        toastActionFailure(res, "Could not preview");
+        toastActionFailure(res, "Couldn't preview");
         return;
       }
       setPreview({ ...res.preview, filters: counted });
@@ -109,10 +109,10 @@ export function StoreCleanupTool({ batches }: { batches: CleanupBatch[] }) {
     startTransition(async () => {
       const res = await safeAction(() => runStoreCleanup({ ...counted, expectedRows: orders }));
       if (!res.ok) {
-        toastActionFailure(res, "Delete failed");
+        toastActionFailure(res, "Couldn't delete those orders");
         return;
       }
-      toast.success(`Deleted ${res.deleted ?? 0} order${res.deleted === 1 ? "" : "s"}`);
+      toast.success(`Deleted ${plural(res.deleted ?? 0, "order")}`);
       // Back to the default range the picker shows — never null, which the
       // pill reads as "Last 7 days" and the server as "all time".
       const range = defaultDateRange();

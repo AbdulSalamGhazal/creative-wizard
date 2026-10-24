@@ -158,9 +158,9 @@ export default async function TrendsLaunchesPage({
       }
     >
       <PageHeader
-        backLink={{ href: "/trends", label: "Trends" }}
+        eyebrow="Trends"
         title="Launches"
-        subtitle={
+        info={
           <>
             ROAS across three windows from each creative&rsquo;s launch: days
             1&ndash;7, 8&ndash;30, 31&ndash;90. Fatigued = ROAS fell ≥30% by the

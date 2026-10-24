@@ -10,7 +10,7 @@ export default function TrendsVideoLoading() {
   return (
     <div className="space-y-6">
       <FilterStripSkeleton />
-      <HeaderSkeleton back subtitle right />
+      <HeaderSkeleton eyebrow right />
       {/* Median-stats strip */}
       <Skeleton className="h-6 w-96 max-w-full" />
       {/* Retention curve + diagnostic scatter */}

@@ -45,7 +45,7 @@ export function AccountSwitcher({ accounts, activeId }: Props) {
     startTransition(async () => {
       const res = await safeAction(() => setActiveAccount({ accountId: id }));
       if (!res.ok) {
-        toastActionFailure(res, "Could not switch brand");
+        toastActionFailure(res, "Couldn't switch brand");
         return;
       }
       const name = accounts.find((a) => a.id === id)?.name ?? "brand";

@@ -92,9 +92,9 @@ export default async function TrendsByAnglePage({
       }
     >
       <PageHeader
-        backLink={{ href: "/trends", label: "Trends" }}
+        eyebrow="Trends"
         title="Angles"
-        subtitle={
+        info={
           <>
             A creative counts toward every angle it carries. Spend Δ is{" "}
             {periodCaption(from, to)}.

@@ -83,11 +83,11 @@ export function CreativeCreateForm({ products, allAngles }: Props) {
       );
       if (!res.ok) {
         // Every field keeps what was typed (and the uploaded thumbnail).
-        toastActionFailure(res, "Failed to create", { inline: setError });
+        toastActionFailure(res, "Couldn't create the creative", { inline: setError });
         setFieldErrors(("fieldErrors" in res && res.fieldErrors) || {});
         return;
       }
-      toast.success(`Created ${res.name}`);
+      toast.success(`Created “${res.name}”`);
       // ONE render: the action doesn't revalidate; this navigation renders the
       // new creative's page fresh (W2-1) — once the router is done with the
       // action (lib/router-queue.ts).

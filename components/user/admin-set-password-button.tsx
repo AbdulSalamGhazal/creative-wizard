@@ -37,8 +37,8 @@ export function AdminSetPasswordButton({ userId, userEmail }: Props) {
     startTransition(async () => {
       const res = await safeAction(() => adminSetPassword({ userId, password }));
       if (!res.ok) {
-        setError(res.error ?? "Failed");
-        toastActionFailure(res, "Could not set password");
+        setError(res.error ?? "Couldn't set password");
+        toastActionFailure(res, "Couldn't set password");
         return;
       }
       setDone(true);

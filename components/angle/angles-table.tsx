@@ -39,7 +39,7 @@ export function AnglesTable({ rows }: { rows: AngleRow[] }) {
     startTransition(async () => {
       const res = await safeAction(() => createAngle({ name }));
       if (!res.ok) {
-        toastActionFailure(res, "Could not add angle");
+        toastActionFailure(res, "Couldn't add angle");
         return;
       }
       // The action revalidated: the list arrived re-rendered in its response.
@@ -67,7 +67,7 @@ export function AnglesTable({ rows }: { rows: AngleRow[] }) {
       try {
         const res = await safeAction(() => renameAngle(id, next));
         if (!res.ok) {
-          toastActionFailure(res, "Could not rename angle");
+          toastActionFailure(res, "Couldn't rename angle");
           return;
         }
         toast.success(`Renamed to “${next}”`);
@@ -84,7 +84,7 @@ export function AnglesTable({ rows }: { rows: AngleRow[] }) {
     startTransition(async () => {
       const res = await safeAction(() => deleteAngle(row.id));
       if (!res.ok) {
-        toastActionFailure(res, "Could not delete angle");
+        toastActionFailure(res, "Couldn't delete angle");
         return;
       }
       toast.success(`Deleted “${row.name}”`);

@@ -49,13 +49,13 @@ export function CampaignCreateForm() {
     start(async () => {
       const res = await safeAction(() => createCampaign({ campaign, adset, platform, objective }));
       if (res.ok) {
-        toast.success(`Campaign registered: ${res.name}`);
+        toast.success(`Created “${res.name}”`);
         // ONE render: the action doesn't revalidate; this navigation renders
         // the list fresh (W2-1) — once the router is done with the action.
         await actionSettled();
         startNav(() => router.push("/campaigns"));
       } else {
-        toastActionFailure(res, "Could not register the campaign.", { inline: setError });
+        toastActionFailure(res, "Couldn't register the campaign", { inline: setError });
       }
     });
   };

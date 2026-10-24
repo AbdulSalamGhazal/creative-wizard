@@ -131,7 +131,7 @@ export function ViewsControl({
         );
         if (!res.ok) {
           // The typed name stays in the box.
-          toastActionFailure(res, "Could not save view");
+          toastActionFailure(res, "Couldn't save view");
           return;
         }
         // The action revalidated: the list arrived with the new view in it.
@@ -186,7 +186,7 @@ export function ViewsControl({
     startTransition(async () => {
       const res = await safeAction(() => setDefaultView(id));
       if (!res.ok) {
-        toastActionFailure(res, "Could not change default");
+        toastActionFailure(res, "Couldn't change default");
         return;
       }
       toast.success(

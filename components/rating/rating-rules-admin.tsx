@@ -139,9 +139,9 @@ function DefaultEditor({ rules }: { rules: RatingRules }) {
       const res = await safeAction(() =>
         updateRatingRules({ minSpend: nums.ms, goodRoas: nums.g, decentRoas: nums.d }),
       );
-      if (!res.ok) { toastActionFailure(res, "Could not save"); return; }
+      if (!res.ok) { toastActionFailure(res, "Couldn't save"); return; }
       // The action revalidated: the saved rules arrived in its response.
-      toast.success("Default rating rules saved");
+      toast.success("Default rate rules saved");
     });
   };
 
@@ -208,7 +208,7 @@ function PlatformOverrideEditor({
       const res = await safeAction(() =>
         updatePlatformRatingRules({ platform, minSpend: nums.ms, goodRoas: nums.g, decentRoas: nums.d }),
       );
-      if (!res.ok) { toastActionFailure(res, "Could not save"); return; }
+      if (!res.ok) { toastActionFailure(res, "Couldn't save"); return; }
       toast.success(`${PLATFORM_LABEL[platform]} override saved`);
     });
   };
@@ -219,7 +219,7 @@ function PlatformOverrideEditor({
       if (override) {
         startTransition(async () => {
           const res = await safeAction(() => clearPlatformRatingRules({ platform }));
-          if (!res.ok) { toastActionFailure(res, "Could not reset"); return; }
+          if (!res.ok) { toastActionFailure(res, "Couldn't reset"); return; }
           toast.success(`${PLATFORM_LABEL[platform]} reverted to default`);
         });
       } else {

@@ -91,7 +91,7 @@ export default async function StoreInsightsPage({
       <PageHeader
         eyebrow="Store"
         title="Insights"
-        subtitle="What the orders themselves say — volume, revenue and average order value over the range, and the breakdown behind them. Store facts only, in SAR: no ad spend, no claimed conversions."
+        info="Store facts only, in SAR: no ad spend, no claimed conversions."
       />
       <StoreInsightsView
         from={f.from ?? null}

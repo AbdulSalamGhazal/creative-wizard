@@ -185,7 +185,7 @@ export function NotificationBell({
                       const res = await safeAction(() =>
                         markNotificationRead({ id: full.id }),
                       );
-                      if (!res.ok) toastActionFailure(res, "Couldn't mark that read.");
+                      if (!res.ok) toastActionFailure(res, "Couldn't mark that read");
                       else announceNotificationsChanged("bell");
                       void load();
                     }),
@@ -335,7 +335,7 @@ export function NotificationBell({
     setItems((list) => list.map((i) => (plan.ids.includes(i.id) ? { ...i, read: true } : i)));
     startTransition(async () => {
       const res = await safeAction(() => markNotificationsRead({ ids: plan.ids }));
-      if (!res.ok) toastActionFailure(res, "Couldn't mark those read.");
+      if (!res.ok) toastActionFailure(res, "Couldn't mark those read");
       else announceNotificationsChanged("bell");
       // Either way, the server's count is the truth from here.
       void load();
@@ -357,7 +357,7 @@ export function NotificationBell({
       afterNavigation(() =>
         startTransition(async () => {
           const res = await safeAction(() => markNotificationRead({ id: item.id }));
-          if (!res.ok) toastActionFailure(res, "Couldn't mark that read.");
+          if (!res.ok) toastActionFailure(res, "Couldn't mark that read");
           else announceNotificationsChanged("bell");
           void load();
         }),

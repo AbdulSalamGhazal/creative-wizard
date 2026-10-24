@@ -8,7 +8,7 @@ import {
 export default function Loading() {
   return (
     <div className="space-y-6">
-      <HeaderSkeleton eyebrow subtitle />
+      <HeaderSkeleton eyebrow />
       <FilterBarSkeleton />
       {/* The page leads with four KPI tiles (orders · conv. · Δ · match rate);
           without them the table jumped down on load. */}

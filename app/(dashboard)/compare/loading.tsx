@@ -4,7 +4,7 @@ import { HeaderSkeleton, ChartCardSkeleton } from "@/components/layout/page-skel
 export default function CompareLoading() {
   return (
     <div className="space-y-6">
-      <HeaderSkeleton subtitle />
+      <HeaderSkeleton />
       {/* Side / metric controls */}
       <Skeleton className="h-16 w-full rounded-lg" />
       {/* One chart card per compared metric */}

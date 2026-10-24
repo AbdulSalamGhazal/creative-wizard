@@ -92,7 +92,7 @@ export default async function TrendsByTypePage({
       }
     >
       <PageHeader
-        backLink={{ href: "/trends", label: "Trends" }}
+        eyebrow="Trends"
         title="Types"
         rightSlot={
           <Badge variant="outline" className="text-ink-3">

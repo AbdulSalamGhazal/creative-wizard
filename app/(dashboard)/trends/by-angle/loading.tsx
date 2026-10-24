@@ -9,7 +9,7 @@ export default function TrendsByAngleLoading() {
   return (
     <div className="space-y-6">
       <FilterStripSkeleton />
-      <HeaderSkeleton back subtitle right />
+      <HeaderSkeleton eyebrow right />
       {/* Efficiency scatter + ranked leaderboard */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <ChartCardSkeleton height="h-64" />

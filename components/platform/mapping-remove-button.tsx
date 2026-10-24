@@ -20,7 +20,7 @@ export function MappingRemoveButton({ id }: { id: string }) {
         startTransition(async () => {
           const res = await safeAction(() => removeHeaderMapping(id));
           if (!res.ok) {
-            toastActionFailure(res, "Could not remove");
+            toastActionFailure(res, "Couldn't remove");
           } else {
             toast.success("Mapping removed");
           }

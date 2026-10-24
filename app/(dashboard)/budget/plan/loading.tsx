@@ -7,7 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 export default function Loading() {
   return (
     <div className="space-y-6">
-      <HeaderSkeleton eyebrow subtitle />
+      <HeaderSkeleton eyebrow />
       <div className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <Skeleton className="h-8 w-56 rounded-md" />

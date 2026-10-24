@@ -195,7 +195,7 @@ export function BudgetPlanRevisions({
     try {
       const res = await safeAction(() => restorePlanRevision({ revisionId: selected.id }));
       if (!res.ok) {
-        toastActionFailure(res, "Could not restore that revision");
+        toastActionFailure(res, "Couldn't restore that revision");
         return;
       }
       // The action revalidated: the restored plan arrived in its response.

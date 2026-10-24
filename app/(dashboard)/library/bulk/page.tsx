@@ -17,9 +17,9 @@ export default async function BulkCreativesPage() {
   return (
     <PageShell width="import">
       <PageHeader
-        backLink={{ href: "/library", label: "Back to library" }}
+        backLink={{ href: "/library", label: "Back to Library" }}
         title="Bulk add creatives"
-        subtitle="Rows are validated against your catalog — nothing is created unless every row is clean."
+        info="Rows are validated against your catalog — nothing is created unless every row is clean."
       />
 
       <BulkCreativeImport products={products.map((p) => p.name)} />

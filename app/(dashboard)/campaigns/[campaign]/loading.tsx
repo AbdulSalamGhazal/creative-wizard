@@ -1,19 +1,14 @@
 import { Skeleton } from "@/components/ui/skeleton";
-import { KpiRowSkeleton, TableSkeleton } from "@/components/layout/page-skeletons";
+import { HeaderSkeleton, KpiRowSkeleton, TableSkeleton } from "@/components/layout/page-skeletons";
 
 export default function CampaignDetailLoading() {
   return (
     <div className="space-y-6">
-      {/* Header: back-link + title + actions */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between gap-3">
-          <Skeleton className="h-4 w-28" />
-          <Skeleton className="h-8 w-40 rounded-md" />
-        </div>
-        <div className="space-y-2">
-          <Skeleton className="h-9 w-2/3" />
-          <Skeleton className="h-3 w-48" />
-        </div>
+      {/* Header: the shared PageHeader's shape — back link, eyebrow, title,
+          the badge row, and the controls on the right (D26). */}
+      <div className="space-y-2">
+        <HeaderSkeleton back right />
+        <Skeleton className="h-5 w-72 max-w-full" />
       </div>
 
       {/* 4 KPI tiles */}

@@ -12,9 +12,9 @@ export default async function NewUploadPage() {
   return (
     <PageShell width="import">
       <PageHeader
-        backLink={{ href: "/uploads", label: "Back to upload history" }}
+        backLink={{ href: "/uploads", label: "Back to Upload ads" }}
         title="New upload"
-        subtitle="Every file is validated first — nothing is imported unless all rows check out."
+        info="Every file is validated first — nothing is imported unless all rows check out."
       />
 
       <UploadForm />

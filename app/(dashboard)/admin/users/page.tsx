@@ -3,7 +3,6 @@ import { TEAM_GATE } from "@/lib/page-gates";
 import { listAllAccounts } from "@/lib/tenant";
 import { listTeamWithMemberships, managerScope } from "@/db/queries/team";
 import { holdsBrand } from "@/lib/team-guard";
-import { InfoTip } from "@/components/ui/info-tip";
 import { UserInviteForm } from "@/components/user/user-invite-form";
 import { UserAccessCard, type AccessUser } from "@/components/user/user-access-card";
 import { isoDate } from "@/lib/format";
@@ -42,19 +41,20 @@ export default async function TeamAdminPage() {
       <PageHeader
         eyebrow="Admin"
         title="Team"
-        subtitle={
-          <>
-            {`${team.length} member${team.length === 1 ? "" : "s"}. Invite teammates and set exactly what each can do — admins always have full access.`}
-            {!scope.isAdmin && (
-              <InfoTip label="What you can change" className="ml-1 align-[-2px]">
-                You can change only the permissions and brands you have
-                yourself — the others are greyed out — and set a password only
-                for someone whose access is within yours. Only an admin can
-                change an admin.
-              </InfoTip>
-            )}
-          </>
+        subtitle={`${team.length} member${team.length === 1 ? "" : "s"}`}
+        info={
+          scope.isAdmin ? (
+            "Admins always have full access."
+          ) : (
+            <>
+              Admins always have full access. You can change only the
+              permissions and brands you have yourself — the others are greyed
+              out — and set a password only for someone whose access is within
+              yours. Only an admin can change an admin.
+            </>
+          )
         }
+        infoLabel={scope.isAdmin ? "About access" : "What you can change"}
       />
 
       <div className="rounded-lg border border-line bg-surface p-4">

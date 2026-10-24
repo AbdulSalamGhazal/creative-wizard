@@ -86,7 +86,6 @@ export default async function CanvasPage({
     <PageShell>
       <PageHeader
         title="Canvas"
-        subtitle="Which creatives run in which campaigns — a line wherever one spent inside the other in this range. Click to focus, double-click to open."
       />
       <CanvasFilterBar
         resolvedFilters={pref}

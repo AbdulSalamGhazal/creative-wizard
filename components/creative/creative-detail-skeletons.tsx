@@ -19,7 +19,7 @@ export function PagerSkeleton({ backHref }: { backHref?: string }) {
           className="inline-flex items-center gap-1 text-xs text-ink-3 hover:text-ink transition-colors"
         >
           <ArrowLeft className="w-3 h-3" />
-          Back to library
+          Back to Library
         </Link>
       ) : (
         <Skeleton className="h-4 w-28" />

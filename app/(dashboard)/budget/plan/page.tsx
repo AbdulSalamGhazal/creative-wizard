@@ -55,7 +55,6 @@ export default async function BudgetPlanPage({
       <PageHeader
         eyebrow="Budget"
         title="Plan"
-        subtitle="Set the month's spend allocations, revenue target, reserve, and plan curve."
       />
       {/* Keyed by month: switching months must NEVER carry a draft across and
           save September's plan into October. The month bar is also locked

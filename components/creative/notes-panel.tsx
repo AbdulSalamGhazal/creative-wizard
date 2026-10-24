@@ -32,7 +32,7 @@ export function NotesPanel({
       const res = await safeAction(() => updateCreativeNotes(creativeId, value));
       if (!res.ok) {
         // Still editing: the typed notes stay in the box (W2-2).
-        setError(res.error ?? "Failed");
+        setError(res.error ?? "Couldn't save notes");
         toastActionFailure(res, "Notes not saved");
         return;
       }

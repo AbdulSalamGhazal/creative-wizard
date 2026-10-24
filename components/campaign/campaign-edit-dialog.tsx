@@ -110,7 +110,7 @@ export function CampaignEditDialog({
           startNav(() => router.push(href));
         }
       } else {
-        toastActionFailure(res, "Could not update the campaign.", { inline: setError });
+        toastActionFailure(res, "Couldn't update the campaign", { inline: setError });
       }
     });
   };

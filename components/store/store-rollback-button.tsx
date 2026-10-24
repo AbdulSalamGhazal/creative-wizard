@@ -43,7 +43,7 @@ export function StoreRollbackButton({
     startTransition(async () => {
       const res = await safeAction(() => rollbackStoreBatch(batchId));
       if (!res.ok) {
-        toastActionFailure(res, "Rollback failed");
+        toastActionFailure(res, "Couldn't roll back the batch");
         return;
       }
       // The action revalidated: the history arrived re-rendered in its response.

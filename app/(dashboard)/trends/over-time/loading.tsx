@@ -9,7 +9,7 @@ export default function TrendsChangesLoading() {
   return (
     <div className="space-y-6">
       <FilterStripSkeleton />
-      <HeaderSkeleton back subtitle right />
+      <HeaderSkeleton eyebrow right />
       {/* Account-overall context strip */}
       <Skeleton className="h-12 w-full rounded-lg" />
       {/* Breakdown selector */}

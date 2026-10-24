@@ -16,9 +16,8 @@ export default async function NewCreativePage() {
   return (
     <PageShell width="form">
       <PageHeader
-        backLink={{ href: "/library", label: "Back to library" }}
+        backLink={{ href: "/library", label: "Back to Library" }}
         title="New creative"
-        subtitle="Names are case- and whitespace-sensitive — match your ad platform exactly so performance rows import cleanly."
       />
 
       <CreativeCreateForm products={products} allAngles={allAngles} />

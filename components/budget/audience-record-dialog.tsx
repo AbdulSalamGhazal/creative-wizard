@@ -79,7 +79,7 @@ export function AudienceRecordDialog({
       const res = await safeAction(() => recordAudienceSnapshots({ date, entries }));
       if (!res.ok) {
         // The dialog stays open with every typed size.
-        toastActionFailure(res, "Couldn't record those sizes.");
+        toastActionFailure(res, "Couldn't record those sizes");
         return;
       }
       toast.success(

@@ -117,7 +117,7 @@ export function CleanupTool({ products, creatives, campaigns }: Props) {
       const res = await safeAction(() => previewCleanupAction(counted));
       if (id !== requestId.current) return; // the filters moved on
       if (!res.ok || !("preview" in res) || !res.preview) {
-        toastActionFailure(res, "Could not preview");
+        toastActionFailure(res, "Couldn't preview");
         return;
       }
       setPreview({ ...res.preview, filters: counted });
@@ -131,7 +131,7 @@ export function CleanupTool({ products, creatives, campaigns }: Props) {
     startTransition(async () => {
       const res = await safeAction(() => runCleanup({ ...counted, expectedRows: rows }));
       if (!res.ok) {
-        toastActionFailure(res, "Delete failed");
+        toastActionFailure(res, "Couldn't delete those records");
         return;
       }
       toast.success(`Deleted ${plural(res.deleted ?? 0, "record")}`);

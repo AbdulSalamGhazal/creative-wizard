@@ -51,7 +51,7 @@ export async function createProduct(input: unknown): Promise<ProductMutationResu
       if (!existing) break;
       slug = `${baseSlug}-${i}`;
       if (i > 50) {
-        return { ok: false, error: "Could not derive a unique slug." };
+        return { ok: false, error: "Couldn't derive a unique slug." };
       }
     }
 

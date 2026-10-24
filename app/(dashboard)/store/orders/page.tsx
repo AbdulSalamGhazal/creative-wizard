@@ -62,7 +62,7 @@ export default async function StoreOrdersPage({
       <PageHeader
         eyebrow="Store"
         title="Orders"
-        subtitle="Every Salla order, filterable by date and order ID. Amounts are in SAR."
+        info="Amounts are in SAR."
       />
 
       <div className="space-y-2">

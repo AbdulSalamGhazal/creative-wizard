@@ -170,7 +170,7 @@ function FieldRow({ field }: { field: StoreField }) {
         toastActionFailure(res, "Couldn't delete");
         return;
       }
-      toast.success(`Deleted "${field.label}"`);
+      toast.success(`Deleted “${field.label}”`);
       setConfirmDelete(false);
     });
   }
@@ -304,19 +304,22 @@ function NewFieldForm() {
   const [type, setType] = useState<StoreFieldType>("text");
   const [required, setRequired] = useState(false);
   const [headers, setHeaders] = useState<string[]>([]);
+  const [error, setError] = useState<string | null>(null);
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
+    setError(null);
     startTransition(async () => {
       const res = await safeAction(() =>
         createStoreField({ label: label.trim(), type, required, headers }),
       );
       if (!res.ok) {
-        // The form keeps the typed label, type and headers.
-        toastActionFailure(res, "Couldn't create field");
+        // The form keeps the typed label, type and headers, and says why
+        // inline — where the person is looking (ui-system).
+        toastActionFailure(res, "Couldn't create field", { inline: setError });
         return;
       }
-      toast.success(`Added "${label.trim()}"`);
+      toast.success(`Added “${label.trim()}”`);
       setLabel("");
       setType("text");
       setRequired(false);
@@ -364,6 +367,7 @@ function NewFieldForm() {
         <Plus className="h-3.5 w-3.5" />
         Add field
       </Button>
+      {error && <div className="rounded-md border border-neg/30 bg-neg/5 px-3 py-2 text-xs text-ink">{error}</div>}
     </form>
   );
 }

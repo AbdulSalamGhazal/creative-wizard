@@ -59,7 +59,7 @@ export const PERMISSION_GROUPS = [
       { key: "catalog.products", label: "Manage products" },
       { key: "catalog.landing_pages", label: "Manage landing pages" },
       { key: "catalog.angles", label: "Manage angles" },
-      { key: "config.rating", label: "Edit rating rules" },
+      { key: "config.rating", label: "Edit rate rules" },
       { key: "config.mappings", label: "Edit CSV mappings" },
       { key: "config.brands", label: "Manage brands & status window" },
       // Gates the routing config ONLY — reading your own notifications needs

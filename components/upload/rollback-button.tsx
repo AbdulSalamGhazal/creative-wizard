@@ -42,8 +42,8 @@ export function RollbackButton({
     startTransition(async () => {
       const res = await safeAction(() => rollbackBatch(batchId));
       if (!res.ok) {
-        setError(res.error ?? "Rollback failed.");
-        toastActionFailure(res, "Rollback failed");
+        setError(res.error ?? "Couldn't roll back the batch");
+        toastActionFailure(res, "Couldn't roll back the batch");
         return;
       }
       setOpen(false);

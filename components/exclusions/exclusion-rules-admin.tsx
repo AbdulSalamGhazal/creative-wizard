@@ -124,7 +124,7 @@ export function ExclusionRulesAdmin({
     startTransition(async () => {
       const res = await safeAction(() => previewExclusionRule(target));
       if (!res.ok || !("preview" in res) || !res.preview) {
-        toastActionFailure(res, "Could not preview");
+        toastActionFailure(res, "Couldn't preview");
         return;
       }
       openDialog({ mode: "create", preview: res.preview });
@@ -141,7 +141,7 @@ export function ExclusionRulesAdmin({
           ? await safeAction(() => previewExclusionRule(rule))
           : await safeAction(() => previewExclusionRuleRemoval(rule.id));
       if (!res.ok || !("preview" in res) || !res.preview) {
-        toastActionFailure(res, "Could not preview");
+        toastActionFailure(res, "Couldn't preview");
         return;
       }
       openDialog({ mode, rule, preview: res.preview });

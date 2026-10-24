@@ -64,7 +64,7 @@ export default async function UploadsPage({
         <PageHeader
           eyebrow="Ads"
           title="CSV mapping"
-          subtitle="Which column headers each platform's export uses for every internal field. Matching is case-insensitive and whitespace-trimmed."
+          info="Header matching is case-insensitive and whitespace-trimmed."
         />
         <PageTabs tabs={tabs} active={activeTab} />
         <MappingsAdmin />

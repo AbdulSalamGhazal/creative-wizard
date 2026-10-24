@@ -142,7 +142,7 @@ export default async function BudgetPacingPage({
       <PageHeader
         eyebrow="Budget"
         title="Pacing"
-        subtitle="Actual against the plan curve over any range — the range card, the chart, and the pace board: every platform's bar with its daily sparkline and what each remaining day needs. Spend is raw, unfiltered totals."
+        info="Spend is raw, unfiltered totals."
       />
       <BudgetPacing
         from={from}

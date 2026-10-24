@@ -72,7 +72,9 @@
   conveys it in under a second, the text is noise. It came from the Budget
   style pass — the Overview said "▼ behind" beside a minus sign in an amber
   verdict, and the Plan page explained each section in a sentence the eye
-  had to read past to reach the numbers.
+  had to read past to reach the numbers. Applied app-wide in 2026-10 (D25):
+  every multi-sentence page subtitle went — kept, as `PageHeader`'s ⓘ, only
+  where it stated a standing rule.
 - **Walk the journey before you report it.** The composed-surface rig proves a
   unit; the WALK proves the path between units. Both are required, and the
   walk is where seam bugs live.

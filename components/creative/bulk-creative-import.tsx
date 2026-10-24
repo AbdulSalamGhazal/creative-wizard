@@ -42,11 +42,11 @@ export function BulkCreativeImport({ products }: Props) {
       const res = await safeAction(() => previewBulkCreatives(fd));
       if (!("rows" in res)) {
         // The call itself failed: keep the file picked, say why.
-        toastActionFailure(res, "Could not read the file");
+        toastActionFailure(res, "Couldn't read the file");
         return;
       }
       setPreview(res);
-      if (!res.ok) toast.error(res.error ?? "Could not read the file");
+      if (!res.ok) toast.error(res.error ?? "Couldn't read the file");
     });
   };
 

@@ -173,14 +173,9 @@ export default async function TrendsOverTimePage({
       }
     >
       <PageHeader
-        backLink={{ href: "/trends", label: "Trends" }}
+        eyebrow="Trends"
         title="Changes"
-        subtitle={
-          <>
-            Ranked worst-first vs the prior window of equal length. Tiny
-            spenders never trigger warnings.
-          </>
-        }
+        info="Ranked worst-first vs the prior window of equal length. Tiny spenders never trigger warnings."
         rightSlot={
           <Badge variant="outline" className="text-ink-3">
             {from} → {to} · vs {breakdown.prevRange.from} →{" "}

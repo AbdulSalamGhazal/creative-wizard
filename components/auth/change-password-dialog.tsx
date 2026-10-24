@@ -51,8 +51,9 @@ export function ChangePasswordDialog({ open, onOpenChange }: Props) {
         }),
       );
       if (!res.ok) {
-        setError(res.error ?? "Failed");
-        toastActionFailure(res, "Password not changed");
+        // A form shows its failure INLINE (ui-system): once, in the banner —
+        // it used to show a red line AND a toast for the same failure.
+        toastActionFailure(res, "Couldn't change the password", { inline: setError });
         return;
       }
       setSuccess(true);
@@ -115,7 +116,7 @@ export function ChangePasswordDialog({ open, onOpenChange }: Props) {
               required
             />
           </div>
-          {error && <p className="text-[11px] text-neg">{error}</p>}
+          {error && <div className="rounded-md border border-neg/30 bg-neg/5 px-3 py-2 text-xs text-ink">{error}</div>}
           {success && (
             <p className="text-[11px] text-pos">
               Password updated. Use the new password next time you sign in.

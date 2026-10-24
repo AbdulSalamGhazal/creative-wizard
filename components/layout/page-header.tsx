@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import type { ReactNode } from "react";
+import { InfoTip } from "@/components/ui/info-tip";
 
 interface PageHeaderProps {
   /** Small uppercase kicker above the title (e.g. "Admin"). */
@@ -8,8 +9,20 @@ interface PageHeaderProps {
   /** Back link rendered above the title. One canonical size everywhere. */
   backLink?: { href: string; label: string };
   title: string;
-  /** One-line description under the title. */
+  /**
+   * ONE short line under the title — a count, a range: a FACT. Never helper
+   * prose (D25, "Show, don't label"): a page's purpose is its title, and a
+   * note that states a standing rule goes in `info`.
+   */
   subtitle?: ReactNode;
+  /**
+   * A standing rule of this page ("Actuals are raw totals", "Counts only — no
+   * revenue comparison"), as an ⓘ beside the title — keyboard-reachable,
+   * read on demand, never body copy the eye must read past (D25).
+   */
+  info?: ReactNode;
+  /** What a screen reader hears on the ⓘ (default "About this page"). */
+  infoLabel?: string;
   /** Rich block rendered in the title column, below the subtitle (e.g. a
    *  status summary). For prose use `subtitle`; use this for elements. */
   children?: ReactNode;
@@ -28,12 +41,14 @@ export function PageHeader({
   backLink,
   title,
   subtitle,
+  info,
+  infoLabel = "About this page",
   children,
   rightSlot,
 }: PageHeaderProps) {
   return (
     <div className="flex items-end justify-between flex-wrap gap-3">
-      <div>
+      <div className="min-w-0">
         {backLink && (
           <Link
             href={backLink.href}
@@ -48,7 +63,16 @@ export function PageHeader({
             {eyebrow}
           </div>
         )}
-        <h1 className="font-display text-4xl tracking-tight">{title}</h1>
+        {info ? (
+          <div className="flex items-center gap-2">
+            <h1 className="font-display text-4xl tracking-tight break-words">{title}</h1>
+            <InfoTip label={infoLabel} className="mt-1">
+              {info}
+            </InfoTip>
+          </div>
+        ) : (
+          <h1 className="font-display text-4xl tracking-tight break-words">{title}</h1>
+        )}
         {subtitle && (
           <p className="text-ink-2 text-sm mt-1 max-w-2xl">{subtitle}</p>
         )}

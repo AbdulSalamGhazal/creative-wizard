@@ -37,16 +37,19 @@ export function AccountsAdmin({
   const [isPending, startTransition] = useTransition();
 
   const [newName, setNewName] = useState("");
+  const [addError, setAddError] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
 
   const add = () => {
     const name = newName.trim();
     if (!name) return;
+    setAddError(null);
     startTransition(async () => {
       const res = await safeAction(() => createAccount({ name }));
       if (!res.ok) {
-        toastActionFailure(res, "Could not create brand");
+        // A form's failure shows inline, where the person is looking.
+        toastActionFailure(res, "Couldn't create brand", { inline: setAddError });
         return;
       }
       // createAccount revalidated: this page arrived re-rendered in the response.
@@ -74,7 +77,7 @@ export function AccountsAdmin({
       try {
         const res = await safeAction(() => renameAccount({ id, name: next }));
         if (!res.ok) {
-          toastActionFailure(res, "Could not rename brand");
+          toastActionFailure(res, "Couldn't rename brand");
           return;
         }
         toast.success(`Renamed to “${next}”`);
@@ -89,7 +92,7 @@ export function AccountsAdmin({
     startTransition(async () => {
       const res = await safeAction(() => setActiveAccount({ accountId: row.id }));
       if (!res.ok) {
-        toastActionFailure(res, "Could not switch brand");
+        toastActionFailure(res, "Couldn't switch brand");
         return;
       }
       toast.success(`Switched to ${row.name}`);
@@ -119,6 +122,7 @@ export function AccountsAdmin({
             Create brand
           </Button>
         </form>
+        {addError && <div className="mt-2 rounded-md border border-neg/30 bg-neg/5 px-3 py-2 text-xs text-ink">{addError}</div>}
         <p className="text-ink-3 text-xs mt-2">
           A new brand starts empty — its own creatives, products, angles,
           performance data, CSV mappings, and rate config, fully isolated.

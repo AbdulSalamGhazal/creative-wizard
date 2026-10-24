@@ -9,7 +9,7 @@ import {
 export default function StoreInsightsLoading() {
   return (
     <div className="space-y-6">
-      <HeaderSkeleton eyebrow subtitle />
+      <HeaderSkeleton eyebrow />
       <FilterBarSkeleton />
       {/* The page's own shape: four KPI tiles, the trend, then the analyzer —
           so nothing jumps when the two scans land. */}

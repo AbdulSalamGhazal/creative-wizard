@@ -51,7 +51,7 @@ export function usePhotoChange({ userId, name }: { userId?: string; name: string
     );
     setBusy(false);
     if (!res.ok) {
-      toastActionFailure(res, "Couldn't remove the photo.");
+      toastActionFailure(res, "Couldn't remove the photo");
       return;
     }
     toast.success("Photo removed");

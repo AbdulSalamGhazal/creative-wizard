@@ -57,7 +57,7 @@ export default async function BudgetAudiencePage({
       <PageHeader
         eyebrow="Budget"
         title="Audience"
-        subtitle="How big each funnel audience is, measured by hand, against what it costs to reach. Sizes carry forward from the last measurement — with its age shown — and spend is raw, unfiltered."
+        info="Sizes carry forward from the last measurement — with its age shown — and spend is raw, unfiltered."
       />
       <AudienceBoard
         from={from}

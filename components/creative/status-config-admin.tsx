@@ -43,7 +43,7 @@ export function StatusConfigAdmin({ brands }: { brands: BrandWindow[] }) {
     startTransition(async () => {
       const res = await safeAction(() => setStatusWindow({ id, hours }));
       if (!res.ok) {
-        toastActionFailure(res, "Could not update");
+        toastActionFailure(res, "Couldn't update");
         return;
       }
       // The action revalidated: this page arrived re-rendered in its response.

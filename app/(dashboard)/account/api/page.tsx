@@ -29,7 +29,7 @@ export default async function ApiAccessPage() {
       <PageHeader
         eyebrow="Account"
         title="API access"
-        subtitle="Connect your own LLM (Claude, ChatGPT, …) to Wizard's read-only analytics over MCP. The simplest way is to add the MCP URL in Claude and sign in when the window opens — no key to paste. A personal access token is still there for clients that can't sign in. Either way the connection acts as you: it can only see the brands and data you can."
+        info="The connection acts as you: it can only see the brands and data you can."
       />
 
       <OauthGrants

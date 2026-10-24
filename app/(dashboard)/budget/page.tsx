@@ -69,7 +69,7 @@ export default async function BudgetOverviewPage({
       <PageHeader
         eyebrow="Budget"
         title="Overview"
-        subtitle="The month at a glance — spend, revenue and ROAS against the plan, paced by the plan curve set on the Plan page, with a month-end projection. Actuals are raw totals (exclusions don't apply here)."
+        info="Actuals are raw totals (exclusions don't apply here)."
       />
       <BudgetOverview
         month={month}

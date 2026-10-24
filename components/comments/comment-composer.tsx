@@ -280,7 +280,7 @@ export function CommentComposer({
       setBody(next.body);
       setMentions(next.mentions);
       if (!res.ok) {
-        toastActionFailure(res, "Couldn't save that.");
+        toastActionFailure(res, "Couldn't save that");
         return;
       }
       setToken(null);

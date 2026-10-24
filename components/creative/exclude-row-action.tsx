@@ -58,7 +58,7 @@ export function ExcludeRowAction({ recordId, excluded, excludedSource, context }
       if (!res.ok) {
         // The dialog stays open with the typed reason.
         setError(res.error ?? "Something went wrong.");
-        toastActionFailure(res, "Could not exclude record");
+        toastActionFailure(res, "Couldn't exclude record");
         return;
       }
       setOpen(false);
@@ -71,7 +71,7 @@ export function ExcludeRowAction({ recordId, excluded, excludedSource, context }
     startTransition(async () => {
       const res = await safeAction(() => includeRecord(recordId));
       if (!res.ok) {
-        toastActionFailure(res, "Could not re-include record");
+        toastActionFailure(res, "Couldn't re-include record");
         return;
       }
       toast.success("Record back in totals");

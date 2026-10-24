@@ -132,7 +132,7 @@ export default async function ComparePage({
     <PageShell>
       <PageHeader
         title="Compare"
-        subtitle={
+        info={
           <>
             Blended figures are true weighted averages. When windows differ,
             charts align by day (D1 = each side&rsquo;s first day with data).

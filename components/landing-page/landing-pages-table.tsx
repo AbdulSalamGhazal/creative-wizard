@@ -64,7 +64,7 @@ export function LandingPagesTable({
     startDelete(async () => {
       const res = await safeAction(() => deleteLandingPage(row.id));
       if (!res.ok) {
-        toastActionFailure(res, "Could not delete the landing page.");
+        toastActionFailure(res, "Couldn't delete the landing page");
         return;
       }
       // The action revalidated: the list arrived re-rendered in its response.
@@ -308,7 +308,7 @@ function LandingPageDialog({
         : await safeAction(() => createLandingPage(values));
       if (!res.ok) {
         // The dialog stays open with every typed field.
-        toastActionFailure(res, "Could not save the landing page.", { inline: setError });
+        toastActionFailure(res, "Couldn't save the landing page", { inline: setError });
         setFieldErrors(("fieldErrors" in res && res.fieldErrors) || {});
         return;
       }

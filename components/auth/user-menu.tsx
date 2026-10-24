@@ -119,7 +119,7 @@ export function UserMenu({ user, toastScope }: Props) {
       if (!res.ok) {
         // Put the check back where the server still has it.
         setScope(previous);
-        toastActionFailure(res, "Couldn't save that setting.");
+        toastActionFailure(res, "Couldn't save that setting");
         return;
       }
       // The bell obeys the new value at once — no layout re-render (W2-1).
@@ -151,7 +151,7 @@ export function UserMenu({ user, toastScope }: Props) {
       });
       if (!res.ok) {
         setLeaving(null);
-        toastActionFailure(res, "Couldn't sign out.");
+        toastActionFailure(res, "Couldn't sign out");
       }
     });
   };

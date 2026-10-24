@@ -147,7 +147,7 @@ export function NotificationCenter({
         startTransition(async () => {
           const res = await safeAction(() => markNotificationRead({ id: row.id }));
           if (!res.ok) {
-            toastActionFailure(res, "Couldn't mark that read.");
+            toastActionFailure(res, "Couldn't mark that read");
             return;
           }
           if (!href) router.refresh();

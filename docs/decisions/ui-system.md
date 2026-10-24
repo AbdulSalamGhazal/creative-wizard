@@ -13,6 +13,18 @@
 - ONE UI font; there is no font switcher.
 - Every route renders `PageShell` + `PageHeader`, ships a tailored
   `loading.tsx`, sets a `metadata.title`, and works at 375px.
+- **A page subtitle is ONE fact — a count, a range — never helper prose**
+  (D25). A page's purpose is its title; a note that states a STANDING RULE
+  ("Actuals are raw totals", "Counts only — no revenue comparison") is
+  `PageHeader`'s `info` — an ⓘ beside the title. **A back link reads "Back to
+  «Page»"** with the page's own label ("Back to Library", "Back to Upload
+  ads"); the Trends pages have none (the hub they pointed at is a redirect)
+  and carry the "Trends" eyebrow instead (D26). Campaign detail is on
+  `PageHeader` too — no page hand-rolls its header.
+- **Copy voice (C-26/D29):** a failure reads "Couldn't …" with no full stop;
+  a success toast names the thing in curly quotes with no full stop
+  (`Created “Hook 01”`); a form's failure shows once, in the inline banner,
+  never also as a toast; the house noun is **Rate** ("Rate rules").
 - **Use the shared primitives; if one doesn't fit, EXTEND it — don't fork it.**
 - Any component that drives a route or search-param change uses
   `useNavTransition`, or the progress bar never shows — except a SHALLOW

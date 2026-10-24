@@ -64,11 +64,11 @@ export function NotificationRoutesAdmin({
         saveNotificationRoutes({ eventType: key, userIds: draft[key] ?? [] }),
       );
       if (!res.ok) {
-        toastActionFailure(res, "Couldn't save that routing.");
+        toastActionFailure(res, "Couldn't save that routing");
         return;
       }
       // The action revalidated: the saved routing arrived in its response.
-      toast.success("Routing saved.");
+      toast.success("Routing saved");
     });
 
   const nameOf = (id: string) => members.find((m) => m.id === id)?.name ?? "Unknown";
