@@ -1,14 +1,16 @@
 import { Skeleton } from "@/components/ui/skeleton";
-import { KpiRowSkeleton } from "@/components/layout/page-skeletons";
+import {
+  AnalyticsBodySkeleton,
+  PagerSkeleton,
+  RecordsActivitySkeleton,
+} from "@/components/creative/creative-detail-skeletons";
 
+/** First paint for creative detail — the same section skeletons the page
+ *  streams into (D11), plus the header's, which renders first. */
 export default function CreativeDetailLoading() {
   return (
     <div className="space-y-6">
-      {/* Pager */}
-      <div className="flex items-center justify-between">
-        <Skeleton className="h-4 w-28" />
-        <Skeleton className="h-8 w-24 rounded-md" />
-      </div>
+      <PagerSkeleton />
 
       {/* Information: thumbnail + editable header */}
       <div className="grid grid-cols-1 md:grid-cols-[260px_1fr] gap-6">
@@ -24,12 +26,16 @@ export default function CreativeDetailLoading() {
         </div>
       </div>
 
-      {/* Analytics: 5 KPI tiles + charts */}
-      <div className="rounded-xl border border-line bg-surface/40 p-4 md:p-6 space-y-6">
-        <KpiRowSkeleton count={5} />
-        <Skeleton className="h-72 w-full rounded-lg" />
-        <Skeleton className="h-40 w-full rounded-lg" />
+      {/* Analytics card: the title row, then the streamed body's skeleton */}
+      <div className="rounded-xl border border-line bg-surface/40 p-4 md:p-6 space-y-8">
+        <div className="flex items-end justify-between gap-3 border-b border-line pb-4">
+          <Skeleton className="h-6 w-28" />
+          <Skeleton className="h-8 w-48 rounded-md" />
+        </div>
+        <AnalyticsBodySkeleton />
       </div>
+
+      <RecordsActivitySkeleton />
     </div>
   );
 }

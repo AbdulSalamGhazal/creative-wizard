@@ -1,50 +1,30 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import { auth, can } from "@/lib/auth";
-import { DollarSign, Target, Banknote, Receipt, TrendingUp } from "lucide-react";
-import {
-  campaignMix,
-  creativeDailyMetrics,
-  kpisWithDelta,
-  platformMix,
-} from "@/db/queries/performance";
-import {
-  creativeDeletionSummary,
-  creativeRecords,
-  getCreativeByName,
-  listAllAngles,
-  listCreativeSequence,
-} from "@/db/queries/creatives";
+import { getCreativeByName, listAllAngles } from "@/db/queries/creatives";
 import { listProducts } from "@/db/queries/products";
-import {
-  creativePlatformFirstDays,
-  earliestOf,
-  latestOf,
-  platformHorizons,
-  resolveEntityBounds,
-  resolvePlatformBounds,
-} from "@/db/queries/series-bounds";
 import {
   creativeStatusMap,
   statusFor,
   terminatedPlatformsFor,
 } from "@/db/queries/creative-status";
-import { listAuditEvents } from "@/db/queries/audit";
 import { creativeListFiltersSchema } from "@/validators/creative";
 import { CreativeDetailHeader } from "@/components/creative/creative-detail-header";
-import { CreativeDetailNav } from "@/components/creative/creative-detail-nav";
-import { DeleteCreativeDialog } from "@/components/creative/delete-creative-dialog";
-import { CreativePerfLineChart } from "@/components/charts/creative-perf-line";
-import { CreativeCampaignsTable } from "@/components/creative/creative-campaigns-table";
-import { CreativeRecordsTable } from "@/components/creative/creative-records-table";
+import {
+  CreativeAnalyticsBody,
+  CreativePager,
+  CreativeRecordsActivity,
+} from "@/components/creative/creative-detail-sections";
+import {
+  AnalyticsBodySkeleton,
+  PagerSkeleton,
+  RecordsActivitySkeleton,
+} from "@/components/creative/creative-detail-skeletons";
 import { AnalyticsDateFilter } from "@/components/creative/analytics-date-filter";
 import { NotesPanel } from "@/components/creative/notes-panel";
-import { AuditFeed } from "@/components/audit/audit-feed";
 import { CommentAnchor } from "@/components/comments/comment-anchor-context";
-import { MetricCard } from "@/components/overview/metric-card";
 import { PageShell } from "@/components/layout/page-shell";
-import { int, roas, usd, usd0 } from "@/lib/format";
-import { computeDelta } from "@/lib/period";
 import { defaultDateRange, presetLabel } from "@/lib/date-presets";
 import { resolvePreferredRange, resolveIncludeExcluded } from "@/db/queries/user-prefs";
 import { safeDecodeURIComponent } from "@/lib/url";
@@ -159,114 +139,36 @@ export default async function CreativeDetailPage({
   const user = await auth();
   const canDelete = user ? can(user, "creative.delete") : false;
 
-  // Dynamic status (general + per-platform) + the manual termination set, both
-  // account-scoped. The header renders the general badge, the per-platform
-  // rows, and the Terminate / Reactivate levers from these. The termination
-  // set comes from the status inputs' own cached overrides read, and the
-  // data horizon / first day from the per-platform reads (W2-4, 2026-10):
-  // three queries fewer, same values.
-  const [sMap, terminated, pHorizons, pFirstDays] = await Promise.all([
+  // What the editable header needs — and ONLY that, so it renders first (D11).
+  // Dynamic status (general + per-platform) + the manual termination set,
+  // both account-scoped; the header renders the general badge, the
+  // per-platform rows and the Terminate / Reactivate levers from these.
+  const [sMap, terminated, allAngles, products] = await Promise.all([
     creativeStatusMap([creative.id]),
     terminatedPlatformsFor(creative.id),
-    platformHorizons(),
-    creativePlatformFirstDays(creative.id),
-  ]);
-  const status = statusFor(sMap, creative.id);
-  const horizon = latestOf(pHorizons);
-  const creativeFirst = earliestOf(pFirstDays);
-
-  // Edge-fill bounds. Per-platform lines trail to each platform's own horizon
-  // (a paused channel shows its pause); the grouped total trails to the account
-  // data horizon and leads from the creative's first-ever day.
-  const platformEdges = resolvePlatformBounds({
-    from: range.from,
-    to: range.to,
-    firstDays: pFirstDays,
-    horizons: pHorizons,
-  });
-  const groupBounds = resolveEntityBounds({
-    from: range.from,
-    to: range.to,
-    firstEver: creativeFirst,
-    horizon,
-  });
-
-  const [
-    kd,
-    byPlatform,
-    byCampaign,
-    dailyRows,
-    records,
-    activity,
-    deletionSummary,
-    allAngles,
-    products,
-    seqNames,
-  ] = await Promise.all([
-    kpisWithDelta({
-      creativeIds: [creative.id],
-      from: range.from,
-      to: range.to,
-      includeExcluded: inc,
-    }),
-    platformMix({ creativeIds: [creative.id], ...range, includeExcluded: inc }),
-    campaignMix({ creativeIds: [creative.id], ...range, includeExcluded: inc }),
-    creativeDailyMetrics(
-      { creativeIds: [creative.id], ...range, includeExcluded: inc },
-      platformEdges,
-    ),
-    creativeRecords(creative.id, range),
-    listAuditEvents({
-      entityType: "creative",
-      entityId: creative.id,
-      limit: 25,
-    }),
-    creativeDeletionSummary(creative.id),
     listAllAngles(),
     listProducts(),
-    // The Library's ordered names for this filter set — same WHERE and the
-    // same comparator as the listing, without its spend windows and columns
-    // (W2-4: this used to be the whole `listCreatives`).
-    listCreativeSequence(navFilters),
   ]);
-
-  // ── Prev / next pager over the rebuilt sequence ──
-  const idx = seqNames.indexOf(decoded);
-  const total = seqNames.length;
-  const position = idx >= 0 ? idx + 1 : null;
-  const prevName = idx > 0 ? seqNames[idx - 1] ?? null : null;
-  const nextName =
-    idx >= 0 && idx < seqNames.length - 1 ? seqNames[idx + 1] ?? null : null;
+  const status = statusFor(sMap, creative.id);
 
   const filterCtx = buildQuery(sp, FILTER_KEYS);
   const navQuery = buildQuery(sp, [...FILTER_KEYS, "from", "to"]);
   const backHref = filterCtx ? `/library?${filterCtx}` : "/library";
-  const detailHref = (nm: string) =>
-    `/library/${encodeURIComponent(nm)}${navQuery ? `?${navQuery}` : ""}`;
-
-  // Headline metrics — the same five as the Dashboard (with period-over-period
-  // deltas), but total-only (no per-platform breakdown). Revenue's delta isn't
-  // in the delta bundle, so derive it like the Dashboard does.
-  const k = kd.current;
-  const d = kd.delta;
-  const revenueDelta = computeDelta(
-    kd.current.conversionValue,
-    kd.previous.conversionValue,
-  );
 
   return (
     <PageShell>
       {/* The comment drawer follows this creative, not the page it sits on. */}
       <CommentAnchor type="creative" id={creative.id} />
 
-      {/* ─────────── Pager ─────────── */}
-      <CreativeDetailNav
-        position={position}
-        total={total}
-        prevHref={prevName ? detailHref(prevName) : null}
-        nextHref={nextName ? detailHref(nextName) : null}
-        backHref={backHref}
-      />
+      {/* ─────────── Pager (streamed) ─────────── */}
+      <Suspense fallback={<PagerSkeleton backHref={backHref} />}>
+        <CreativePager
+          name={decoded}
+          filters={navFilters}
+          navQuery={navQuery}
+          backHref={backHref}
+        />
+      </Suspense>
 
       {/* ─────────── Information ─────────── */}
       <section className="space-y-6">
@@ -280,7 +182,7 @@ export default async function CreativeDetailPage({
         <NotesPanel creativeId={creative.id} initialNotes={creative.notes} />
       </section>
 
-      {/* ─────────── Analytics ─────────── */}
+      {/* ─────────── Analytics (body streamed) ─────────── */}
       <section className="space-y-8 rounded-xl border border-line bg-surface/40 p-4 md:p-6">
         <div className="flex items-end justify-between gap-3 flex-wrap border-b border-line pb-4">
           <div>
@@ -300,72 +202,21 @@ export default async function CreativeDetailPage({
           </div>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-          <MetricCard label="Spend" value={usd0(k.spend)} icon={DollarSign} delta={d.spend} hideBreakdown />
-          <MetricCard label="Conversions" value={int(k.conversions)} icon={Target} delta={d.conversions} hideBreakdown />
-          <MetricCard label="Revenue" value={usd0(k.conversionValue)} icon={Banknote} delta={revenueDelta} hideBreakdown />
-          <MetricCard label="CPA" value={usd(k.cpa)} icon={Receipt} delta={d.cpa} deltaInverted hideBreakdown />
-          <MetricCard
-            label="ROAS"
-            value={roas(k.roas)}
-            icon={TrendingUp}
-            delta={d.roas}
-            hideBreakdown
-          />
-        </div>
-
-        <CreativePerfLineChart
-          title="Performance over time"
-          rows={dailyRows}
-          fillFrom={groupBounds.fillFrom}
-          fillTo={groupBounds.fillTo}
-        />
-
-        <div>
-          <h3 className="text-sm font-medium text-ink mb-3">Campaigns</h3>
-          <CreativeCampaignsTable campaigns={byCampaign} platforms={byPlatform} />
-        </div>
+        <Suspense fallback={<AnalyticsBodySkeleton />}>
+          <CreativeAnalyticsBody creativeId={creative.id} range={range} includeExcluded={inc} />
+        </Suspense>
       </section>
 
-      {/* ─────────── Records (own block, collapsed by default) ─────────── */}
-      <CreativeRecordsTable
-        rows={records}
-        title={from && to ? "Records in range" : "All records"}
-      />
-
-      {/* ─────────── Activity log ─────────── */}
-      <div>
-        <div className="flex items-baseline justify-between mb-3">
-          <h2 className="text-sm font-medium text-ink">Activity</h2>
-          <span className="text-[11px] text-ink-3">
-            {activity.length === 0
-              ? "No activity recorded yet."
-              : `Last ${activity.length} event${activity.length === 1 ? "" : "s"} for this creative.`}
-          </span>
-        </div>
-        <AuditFeed rows={activity} />
-      </div>
-
-      {/* ─────────── Danger zone (delete permission only) ─────────── */}
-      {canDelete && (
-        <div className="rounded-xl border border-neg/30 bg-neg/5 p-4 md:p-5">
-          <div className="flex items-center justify-between gap-4 flex-wrap">
-            <div>
-              <h2 className="text-sm font-medium text-ink">Delete this creative</h2>
-              <p className="text-xs text-ink-3 mt-0.5 max-w-xl">
-                Permanently removes the creative, its angles, and all{" "}
-                {int(deletionSummary.records)} of its performance
-                records. This can&apos;t be undone and affects no other creative.
-              </p>
-            </div>
-            <DeleteCreativeDialog
-              creativeId={creative.id}
-              creativeName={creative.name}
-              summary={deletionSummary}
-            />
-          </div>
-        </div>
-      )}
+      {/* ─────────── Records · Activity · Danger zone (streamed) ─────────── */}
+      <Suspense fallback={<RecordsActivitySkeleton />}>
+        <CreativeRecordsActivity
+          creativeId={creative.id}
+          creativeName={creative.name}
+          range={range}
+          recordsTitle={from && to ? "Records in range" : "All records"}
+          canDelete={canDelete}
+        />
+      </Suspense>
     </PageShell>
   );
 }

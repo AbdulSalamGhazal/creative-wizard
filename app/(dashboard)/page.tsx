@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { Badge } from "@/components/ui/badge";
 import { PageShell } from "@/components/layout/page-shell";
 import { PageHeader } from "@/components/layout/page-header";
@@ -8,6 +9,10 @@ import { listProducts } from "@/db/queries/products";
 import { listAllAngles } from "@/db/queries/creatives";
 import { DashboardMetrics } from "@/components/overview/dashboard-metrics";
 import { OverviewSection } from "@/components/overview/overview-section";
+import {
+  DashboardMetricsSkeleton,
+  OverviewSectionSkeleton,
+} from "@/components/overview/dashboard-skeletons";
 import { FilterStrip } from "@/components/filters/filter-strip";
 import { dashboardFiltersSchema } from "@/validators/filters";
 import { PLATFORM_LABEL } from "@/lib/palette";
@@ -99,16 +104,24 @@ export default async function DashboardPage({
         }
       />
 
-      <DashboardMetrics filters={filters} dimension={dimension} kpis={kpis} />
+      {/* STREAMED (D11, 2026-10): the tiles need ~7 of the page's queries and
+          render as soon as those are in; the overview (the rest) follows. Each
+          holds its place with a skeleton of its own shape. The KPI pair was
+          started above, so it is first in the connection's queue. */}
+      <Suspense fallback={<DashboardMetricsSkeleton />}>
+        <DashboardMetrics filters={filters} dimension={dimension} kpis={kpis} />
+      </Suspense>
 
-      <OverviewSection
-        filters={filters}
-        dimension={dimension}
-        dimensionLabel={singlePlatform ? PLATFORM_LABEL[singlePlatform] : undefined}
-        rangeFrom={pickFirst(params.from)}
-        rangeTo={pickFirst(params.to)}
-        kpis={kpis}
-      />
+      <Suspense fallback={<OverviewSectionSkeleton />}>
+        <OverviewSection
+          filters={filters}
+          dimension={dimension}
+          dimensionLabel={singlePlatform ? PLATFORM_LABEL[singlePlatform] : undefined}
+          rangeFrom={pickFirst(params.from)}
+          rangeTo={pickFirst(params.to)}
+          kpis={kpis}
+        />
+      </Suspense>
     </PageShell>
   );
 }

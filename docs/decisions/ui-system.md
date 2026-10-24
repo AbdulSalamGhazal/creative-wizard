@@ -352,3 +352,19 @@ as it stood before the restructure.*
   shows — pointer or focus on the toggle/trigger, ⌘/Ctrl going down — so a
   first open is as instant as before. The panel's loading frame has the
   body's shape and a working X; ⌘K draws nothing until ready.
+
+### Two pages stream their sections (2026-10, D11)
+
+- The Dashboard and creative detail showed one route skeleton until EVERY
+  query was done — with one DB connection, the KPI tiles waited on the 25-odd
+  chart and table queries below them. Each now renders its top in place and
+  streams the rest through inner `<Suspense>` boundaries: the Dashboard's
+  tiles (the KPI pair is started first, so it leads the connection's queue)
+  then the overview; creative detail's editable header, then the pager, the
+  analytics body and the records/activity. Each boundary's fallback is a
+  skeleton of THAT section's shape and height (`dashboard-skeletons.tsx`,
+  `creative-detail-skeletons.tsx`), and the routes' `loading.tsx` compose the
+  same pieces, so the first paint hands over to streaming without a jump.
+  The pager's skeleton keeps a working Back link. Total server time is
+  unchanged; time to first content is what moved. Other pages keep their
+  single route skeleton — streaming was decided for these two (D11).
