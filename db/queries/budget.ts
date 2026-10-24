@@ -856,6 +856,29 @@ export async function listPlanRevisions(
   });
 }
 
+/**
+ * A revision as the Plan page's drawer LISTS it (D14, 2026-10): the summary
+ * numbers and whether it can be shown or restored — WITHOUT the snapshot. The
+ * page used to ship every revision's full snapshot (up to 50; a daily-mode one
+ * is ~31 days × platforms × objectives) to view one at a time; the drawer now
+ * loads the picked one (`loadPlanRevision`).
+ */
+export type PlanRevisionSummary = Omit<PlanRevisionRow, "snapshot"> & {
+  /** The stored snapshot still parses — it can be shown and restored. */
+  readable: boolean;
+};
+
+/** `listPlanRevisions` without the snapshots, for the client. */
+export async function listPlanRevisionSummaries(
+  month: string,
+  limit = 50,
+): Promise<PlanRevisionSummary[]> {
+  return (await listPlanRevisions(month, limit)).map(({ snapshot, ...rest }) => ({
+    ...rest,
+    readable: snapshot !== null,
+  }));
+}
+
 export interface PlanRevisionDetail {
   id: string;
   /** YYYY-MM — the month the revision belongs to, NOT the caller's guess. */

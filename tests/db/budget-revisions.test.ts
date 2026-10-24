@@ -16,6 +16,7 @@ vi.mock("@/lib/tenant", () => ({
 // everything below it (validation, the transaction, the writes) runs for real.
 vi.mock("@/lib/auth", () => ({
   requirePermission: vi.fn(async () => ({ id: USER, role: "admin" })),
+  requireAuth: vi.fn(async () => ({ id: USER, role: "admin" })),
   auth: vi.fn(async () => ({ id: USER, role: "admin" })),
   can: vi.fn(() => true),
 }));
@@ -27,6 +28,7 @@ import { replaceBudgetMonth } from "@/db/queries/budget";
 import {
   convertPlanToCurve,
   copyBudgetFromMonth,
+  loadPlanRevision,
   restorePlanRevision,
   saveBudgetMonth,
 } from "@/app/actions/budget";
@@ -34,6 +36,7 @@ import {
   budgetPlansForMonths,
   dailyPlannedMonths,
   getBudgetMonth,
+  listPlanRevisionSummaries,
   listPlanRevisions,
   planSeriesForMonth,
   plannedMonths,
@@ -120,6 +123,30 @@ describe("plan revisions — written on every write", () => {
     await saveBudgetMonth(PLAN_A);
     setAccount(ACCOUNT_B);
     expect(await listPlanRevisions(MONTH)).toHaveLength(0);
+  });
+});
+
+describe("plan revisions — the drawer lists summaries and loads one when picked (D14)", () => {
+  it("the page's list carries no snapshot; the picked one loads, equal to the stored snapshot", async () => {
+    await saveBudgetMonth({ ...PLAN_A, note: "first" });
+    const summaries = await listPlanRevisionSummaries(MONTH);
+    expect(summaries.length).toBeGreaterThan(0);
+    expect("snapshot" in summaries[0]!).toBe(false);
+    expect(summaries[0]!.readable).toBe(true);
+    expect(summaries[0]!.plannedTotal).toBe(1500);
+
+    const [full] = await listPlanRevisions(MONTH, 1);
+    const res = await loadPlanRevision({ revisionId: summaries[0]!.id });
+    expect(res).toEqual({ ok: true, snapshot: full!.snapshot });
+  });
+
+  it("is account-scoped and validates its input — nothing written", async () => {
+    await saveBudgetMonth({ ...PLAN_A });
+    const [s] = await listPlanRevisionSummaries(MONTH);
+    setAccount(ACCOUNT_B);
+    expect((await loadPlanRevision({ revisionId: s!.id })).ok).toBe(false);
+    setAccount(ACCOUNT_A);
+    expect(await loadPlanRevision({ revisionId: "nope" })).toEqual({ ok: false, error: "Invalid revision." });
   });
 });
 

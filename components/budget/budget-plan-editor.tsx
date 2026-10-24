@@ -87,7 +87,7 @@ import {
 } from "@/app/actions/budget";
 import { safeAction } from "@/lib/action-failure";
 import { toastActionFailure } from "@/lib/action-toast";
-import type { BudgetMonthData, PlanRevisionRow } from "@/db/queries/budget";
+import type { BudgetMonthData, PlanRevisionSummary } from "@/db/queries/budget";
 import {
   BudgetMonthBar,
   CurrencyToggle,
@@ -191,7 +191,7 @@ export function BudgetPlanEditor({
    * server side.
    */
   seedMonth: string | null;
-  revisions: PlanRevisionRow[];
+  revisions: PlanRevisionSummary[];
   canManage: boolean;
 }) {
   const [isPending, setIsPending] = useState(false);

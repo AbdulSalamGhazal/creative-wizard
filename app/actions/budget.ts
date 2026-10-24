@@ -5,7 +5,7 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { accounts } from "@/db/schema";
-import { requirePermission } from "@/lib/auth";
+import { requireAuth, requirePermission } from "@/lib/auth";
 import { getActiveAccountId } from "@/lib/tenant";
 import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
 import {
@@ -416,6 +416,27 @@ export async function copyBudgetFromMonth(input: unknown): Promise<BudgetActionR
  * objective, say) fails loudly here rather than being half-applied. The restore
  * is itself a plan write, so it records a new revision of its own.
  */
+/**
+ * ONE revision's snapshot, for the Plan drawer to show when it is picked (D14,
+ * 2026-10) — READ-ONLY: no revalidation, no audit, nothing written. Reading
+ * the history needs no permission (every signed-in member may view a plan),
+ * and the read is account-scoped: another brand's id is simply not found.
+ */
+export async function loadPlanRevision(
+  input: unknown,
+): Promise<{ ok: true; snapshot: BudgetPlanSnapshot } | { ok: false; error: string }> {
+  try {
+    await requireAuth();
+    const parsed = restoreRevisionSchema.safeParse(input);
+    if (!parsed.success) return { ok: false, error: "Invalid revision." };
+    const revision = await getPlanRevision(parsed.data.revisionId);
+    if (!revision) return { ok: false, error: "That revision no longer exists, or can't be read." };
+    return { ok: true, snapshot: revision.snapshot };
+  } catch (err) {
+    return { ok: false, error: actionError(err, "budget") };
+  }
+}
+
 export async function restorePlanRevision(input: unknown): Promise<BudgetActionResult> {
   try {
     const user = await requirePermission("budget.manage");

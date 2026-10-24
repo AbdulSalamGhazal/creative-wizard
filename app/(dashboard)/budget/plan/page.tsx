@@ -9,7 +9,7 @@ import { MONTH_KEY } from "@/validators/budget";
 import {
   dailyPlannedMonths,
   getBudgetMonth,
-  listPlanRevisions,
+  listPlanRevisionSummaries,
   plannedMonths,
 } from "@/db/queries/budget";
 import { BudgetPlanEditor } from "@/components/budget/budget-plan-editor";
@@ -40,7 +40,9 @@ export default async function BudgetPlanPage({
   const [data, months, revisions, dailyMonths] = await Promise.all([
     getBudgetMonth(month),
     plannedMonths(),
-    listPlanRevisions(month),
+    // Summaries only — the drawer loads a revision's snapshot when it's
+    // picked (D14), instead of the page shipping all of them.
+    listPlanRevisionSummaries(month),
     dailyPlannedMonths(),
   ]);
 

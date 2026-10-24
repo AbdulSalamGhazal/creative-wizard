@@ -24,6 +24,12 @@
   convert). In daily mode allocations are DERIVED sums, never client-supplied.
 - Every write that changes a plan appends a revision snapshot **inside the same
   transaction**; a restore re-validates through `planSchema` first.
+- **The Plan page lists revision SUMMARIES; the drawer loads a snapshot when
+  it's picked** (D14, 2026-10): `listPlanRevisionSummaries` for the page,
+  `loadPlanRevision` (read-only, account-scoped, no permission beyond being
+  signed in) for the picked one, kept for the visit, with a same-shape
+  skeleton while it loads and "Couldn't load this revision · Retry" if it
+  fails. The page used to ship all 50 snapshots to view one.
 - The revision drawer's "Vs the current plan" compares the MODE, the day
   cells and the target ROAS too — a daily → curve restore is never
   "Identical" — and a reserve-only month IS a plan (W1-13, 2026-10-23).

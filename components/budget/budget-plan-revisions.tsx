@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { History, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -17,10 +17,11 @@ import { PLATFORM_LABEL } from "@/lib/palette";
 import { int, plural, sar, usd } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { budgetComboKey, monthLabel } from "@/lib/budget";
-import { restorePlanRevision } from "@/app/actions/budget";
+import { loadPlanRevision, restorePlanRevision } from "@/app/actions/budget";
 import { safeAction } from "@/lib/action-failure";
 import { toastActionFailure } from "@/lib/action-toast";
-import type { PlanRevisionRow } from "@/db/queries/budget";
+import type { PlanRevisionSummary } from "@/db/queries/budget";
+import { Skeleton } from "@/components/ui/skeleton";
 import type { BudgetPlanSnapshot } from "@/validators/budget";
 
 /** The current plan, in the same shape as a snapshot, for diffing. */
@@ -154,19 +155,42 @@ export function BudgetPlanRevisions({
   canManage,
 }: {
   month: string;
-  revisions: PlanRevisionRow[];
+  revisions: PlanRevisionSummary[];
   current: CurrentPlan;
   canManage: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [isPending, setIsPending] = useState(false);
+  // SNAPSHOTS LOAD WHEN PICKED (D14, 2026-10): the page lists summaries only;
+  // the picked revision's snapshot is fetched once and kept for this visit.
+  const [snapshots, setSnapshots] = useState<Record<string, BudgetPlanSnapshot>>({});
+  const [loadFailedId, setLoadFailedId] = useState<string | null>(null);
 
   const selected = revisions.find((r) => r.id === selectedId) ?? null;
+  const snapshot = selectedId ? (snapshots[selectedId] ?? null) : null;
   const diff = useMemo(
-    () => (selected?.snapshot ? diffPlans(selected.snapshot, current) : null),
-    [selected, current],
+    () => (snapshot ? diffPlans(snapshot, current) : null),
+    [snapshot, current],
   );
+
+  const loadSnapshot = useCallback(async (id: string) => {
+    setLoadFailedId(null);
+    const res = await safeAction(() => loadPlanRevision({ revisionId: id }));
+    if (!res.ok || !("snapshot" in res)) {
+      setLoadFailedId(id);
+      // A stale tab is told to reload; anything else is said inline below.
+      if ("stale" in res && res.stale) toastActionFailure(res, "Couldn't load that revision");
+      return;
+    }
+    setSnapshots((m) => ({ ...m, [id]: res.snapshot }));
+  }, []);
+
+  const pick = (r: PlanRevisionSummary) => {
+    const next = r.id === selectedId ? null : r.id;
+    setSelectedId(next);
+    if (next && r.readable && !snapshots[next]) void loadSnapshot(next);
+  };
 
   const restore = async () => {
     if (!selected) return;
@@ -222,7 +246,7 @@ export function BudgetPlanRevisions({
                   <li key={r.id}>
                     <button
                       type="button"
-                      onClick={() => setSelectedId(active ? null : r.id)}
+                      onClick={() => pick(r)}
                       aria-expanded={active}
                       className={cn(
                         "w-full rounded-lg border px-3 py-2 text-left transition-colors",
@@ -264,7 +288,7 @@ export function BudgetPlanRevisions({
                 <h3 className="text-sm font-medium text-ink">
                   Saved {when(selected.createdAt)}
                 </h3>
-                {canManage && selected.snapshot && (
+                {canManage && selected.readable && (
                   <Button type="button" size="xs" onClick={restore} disabled={isPending}>
                     <RotateCcw className="h-3 w-3" />
                     Restore this plan
@@ -272,11 +296,47 @@ export function BudgetPlanRevisions({
                 )}
               </div>
 
-              {!selected.snapshot ? (
+              {!selected.readable ? (
                 <p className="text-xs text-warn">
                   This revision was stored in a format the app no longer recognises,
                   so it can&rsquo;t be shown or restored.
                 </p>
+              ) : !snapshot ? (
+                loadFailedId === selected.id ? (
+                  <p className="text-xs text-ink-3">
+                    Couldn&rsquo;t load this revision{" "}
+                    <span aria-hidden>·</span>{" "}
+                    <button
+                      type="button"
+                      onClick={() => void loadSnapshot(selected.id)}
+                      className="rounded text-brand hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50"
+                    >
+                      Retry
+                    </button>
+                  </p>
+                ) : (
+                  // The snapshot's shape while it loads: the allocation table's
+                  // header and rows, the summary line, the diff block.
+                  <div className="space-y-2" aria-busy="true" aria-label="Loading this revision">
+                    <div className="flex justify-between">
+                      <Skeleton className="h-3 w-32" />
+                      <Skeleton className="h-3 w-20" />
+                    </div>
+                    {Array.from({ length: Math.max(1, Math.min(selected.allocationCount, 6)) }).map(
+                      (_, i) => (
+                        <div key={i} className="flex justify-between">
+                          <Skeleton className="h-4 w-40" />
+                          <Skeleton className="h-4 w-16" />
+                        </div>
+                      ),
+                    )}
+                    <Skeleton className="h-3 w-3/4" />
+                    <div className="border-t border-line pt-2 space-y-1.5">
+                      <Skeleton className="h-3 w-28" />
+                      <Skeleton className="h-3 w-full" />
+                    </div>
+                  </div>
+                )
               ) : (
                 <>
                   {/* The snapshot, read-only */}
@@ -288,14 +348,14 @@ export function BudgetPlanRevisions({
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-line">
-                      {selected.snapshot.allocations.length === 0 && (
+                      {snapshot.allocations.length === 0 && (
                         <tr>
                           <td colSpan={2} className="py-2 text-ink-3">
                             No allocations in this revision.
                           </td>
                         </tr>
                       )}
-                      {selected.snapshot.allocations.map((a) => (
+                      {snapshot.allocations.map((a) => (
                         <tr key={budgetComboKey(a.platform, a.objective)}>
                           <td className="py-1">
                             <span className="inline-flex items-center gap-1.5">
@@ -317,14 +377,14 @@ export function BudgetPlanRevisions({
                   </table>
                   <p className="text-[11px] text-ink-3">
                     Revenue target{" "}
-                    {selected.snapshot.plannedRevenueSar !== null
-                      ? sar(selected.snapshot.plannedRevenueSar)
+                    {snapshot.plannedRevenueSar !== null
+                      ? sar(snapshot.plannedRevenueSar)
                       : "—"}{" "}
-                    · reserve {usd(selected.snapshot.reserveSpendUsd)} ·{" "}
+                    · reserve {usd(snapshot.reserveSpendUsd)} ·{" "}
                     {selected.mode === "daily"
                       ? `planned day by day (${plural(selected.dayCells, "day cell")}${
-                          selected.snapshot.targetRoas !== null
-                            ? `, ROAS ${selected.snapshot.targetRoas.toFixed(2)}`
+                          snapshot.targetRoas !== null
+                            ? `, ROAS ${snapshot.targetRoas.toFixed(2)}`
                             : ""
                         }) — restoring brings the days back`
                       : plural(selected.weightOverrides, "weighted day")}
@@ -366,8 +426,8 @@ export function BudgetPlanRevisions({
                                 ? sar(current.plannedRevenueSar)
                                 : "—"}{" "}
                               →{" "}
-                              {selected.snapshot.plannedRevenueSar !== null
-                                ? sar(selected.snapshot.plannedRevenueSar)
+                              {snapshot.plannedRevenueSar !== null
+                                ? sar(snapshot.plannedRevenueSar)
                                 : "—"}
                             </span>
                           </li>
@@ -377,7 +437,7 @@ export function BudgetPlanRevisions({
                             <span>Reserve</span>
                             <span className="num tabular-nums whitespace-nowrap">
                               {usd(current.reserveSpendUsd)} →{" "}
-                              {usd(selected.snapshot.reserveSpendUsd)}
+                              {usd(snapshot.reserveSpendUsd)}
                             </span>
                           </li>
                         )}
