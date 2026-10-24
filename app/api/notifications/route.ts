@@ -31,15 +31,15 @@ export const dynamic = "force-dynamic";
  * comments' own schema and the count is account-scoped in the query layer; an
  * invalid anchor just leaves the count out — the feed still answers.
  */
-export async function GET(request?: NextRequest) {
+export async function GET(request: NextRequest) {
   const user = await auth();
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const params = request ? new URL(request.url).searchParams : null;
+  const params = new URL(request.url).searchParams;
   const anchor =
-    params && params.has("anchorType")
+    params.has("anchorType")
       ? listCommentsSchema.safeParse({
           anchorType: params.get("anchorType") ?? "",
           anchorId: params.get("anchorId") ?? "",

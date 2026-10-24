@@ -487,7 +487,7 @@ describe("the poll payload carries what the toaster needs", () => {
       href: "/go/comment/abc",
     });
 
-    const res = await GET();
+    const res = await GET(new (await import("next/server")).NextRequest("http://localhost/api/notifications"));
     const body = (await res.json()) as {
       count: number;
       items: Array<Record<string, unknown>>;
@@ -514,7 +514,7 @@ describe("the poll payload carries what the toaster needs", () => {
       href: "https://evil.example.com/steal",
     });
 
-    const res = await GET();
+    const res = await GET(new (await import("next/server")).NextRequest("http://localhost/api/notifications"));
     const body = (await res.json()) as { items: Array<{ href: string | null }> };
     expect(body.items[0]!.href).toBeNull();
   });
