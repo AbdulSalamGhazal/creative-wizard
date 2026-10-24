@@ -22,7 +22,7 @@ introducing the violation and watching it fail:
 
 | guard | holds |
 |---|---|
-| `app/routes.test.ts` | every route ships `loading.tsx` + sets metadata (redirect stubs detected by shape) |
+| `app/routes.test.ts` | every route ships `loading.tsx` + sets metadata (a redirect stub = redirects and renders no JSX; since W3-9 a form route that redirects only without the permission is a route) |
 | `db/exclusion-writers.test.ts` | `excluded_from_aggregates` has exactly two writers |
 | `lib/browser-storage.test.ts` | per-browser storage stays a short, argued allowlist |
 | `components/data-access.test.ts` | components don't reach past the query layer |

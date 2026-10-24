@@ -118,3 +118,43 @@ export function TableSkeleton({
     </div>
   );
 }
+
+/**
+ * A form placeholder — N label + input pairs (the house `Field` shape) and the
+ * submit row; `card` wraps it in the bordered surface a carded form uses.
+ */
+export function FormSkeleton({
+  fields = 4,
+  card = false,
+}: {
+  fields?: number;
+  card?: boolean;
+}) {
+  return (
+    <div
+      className={
+        card
+          ? "rounded-lg border border-line bg-surface p-5 space-y-4"
+          : "space-y-5"
+      }
+    >
+      {Array.from({ length: fields }).map((_, i) => (
+        <div key={i} className="space-y-1.5">
+          <Skeleton className="h-3 w-24" />
+          <Skeleton className="h-9 w-full rounded-md" />
+        </div>
+      ))}
+      <Skeleton className="h-9 w-32 rounded-md" />
+    </div>
+  );
+}
+
+/** An upload surface placeholder — the dropzone, then the option row under it. */
+export function DropzoneSkeleton({ options = false }: { options?: boolean }) {
+  return (
+    <div className="space-y-4">
+      <Skeleton className="h-48 w-full rounded-lg" />
+      {options && <Skeleton className="h-10 w-full rounded-md" />}
+    </div>
+  );
+}
