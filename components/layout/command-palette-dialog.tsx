@@ -24,12 +24,7 @@ import {
 import { navSections } from "@/components/layout/nav-items";
 import { useNavTransition } from "@/lib/nav-progress";
 import type { Permission } from "@/lib/permissions";
-
-export interface CreativeOption {
-  id: string;
-  name: string;
-  productName: string;
-}
+import type { CreativeOption } from "@/db/queries/creatives";
 
 /**
  * Extra destinations the palette offers that the SIDEBAR doesn't: the "new"
@@ -112,11 +107,17 @@ export function CommandPaletteDialog({
   open,
   onOpenChange,
   creatives,
+  creativesFailed,
+  onRetryCreatives,
   granted,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  creatives: CreativeOption[];
+  /** This brand's creatives, or null while the first load is on its way (D13). */
+  creatives: CreativeOption[] | null;
+  /** The first load failed and there is nothing cached to show. */
+  creativesFailed: boolean;
+  onRetryCreatives: () => void;
   /** The viewer's permission keys — the page list is filtered by them. */
   granted: string[];
 }) {
@@ -147,7 +148,29 @@ export function CommandPaletteDialog({
             );
           })}
         </CommandGroup>
-        {creatives.length > 0 && (
+        {/* The creative list arrives on first open (D13): the pages are
+            usable at once, and the list says where it is — the comment
+            panel's wording for the same two states. */}
+        {creatives === null && (
+          <div className="px-3 py-2 text-xs text-ink-3" aria-live="polite">
+            {creativesFailed ? (
+              <>
+                Couldn&rsquo;t load creatives{" "}
+                <span aria-hidden>·</span>{" "}
+                <button
+                  type="button"
+                  onClick={onRetryCreatives}
+                  className="rounded text-brand hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50"
+                >
+                  Retry
+                </button>
+              </>
+            ) : (
+              "Loading creatives…"
+            )}
+          </div>
+        )}
+        {creatives !== null && creatives.length > 0 && (
           <>
             <CommandSeparator />
             <CommandGroup heading="Creatives">

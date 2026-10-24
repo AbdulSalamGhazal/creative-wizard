@@ -480,6 +480,30 @@ export interface CreativeDetail {
  * the name for the tab title) share ONE fetch per request instead of querying
  * twice. Mirrors the dedupe pattern in lib/tenant.ts / lib/auth.ts.
  */
+/** One ⌘K row: a creative to jump to, labelled with its product. */
+export interface CreativeOption {
+  id: string;
+  name: string;
+  productName: string;
+}
+
+/**
+ * The ⌘K palette's creative list for the active brand (D13, 2026-10): fetched
+ * by `GET /api/palette` when the palette is first opened (or the browser goes
+ * idle), instead of riding along in the dashboard layout's every render. Capped
+ * at 500 names — more than the team's catalog — so the payload stays bounded.
+ */
+export async function listCreativeOptions(): Promise<CreativeOption[]> {
+  const acct = await getActiveAccountId();
+  return db
+    .select({ id: creatives.id, name: creatives.name, productName: products.name })
+    .from(creatives)
+    .innerJoin(products, eq(products.id, creatives.productId))
+    .where(eq(creatives.accountId, acct))
+    .orderBy(asc(creatives.name))
+    .limit(500);
+}
+
 export const getCreativeByName = cache(async (
   name: string,
 ): Promise<CreativeDetail | null> => {

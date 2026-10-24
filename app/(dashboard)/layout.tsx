@@ -1,6 +1,5 @@
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
-import { asc } from "drizzle-orm";
 import { Sidebar } from "@/components/layout/sidebar";
 import { TopBar } from "@/components/layout/top-bar";
 import { NavProgressBar } from "@/components/layout/nav-progress-bar";
@@ -16,9 +15,6 @@ import { NoBrandAccess } from "@/components/layout/no-brand-access";
 import { getToastScope, resolveTablePrefs } from "@/db/queries/user-prefs";
 import { TABLE_KEY_LIST } from "@/lib/table-columns";
 import { TablePrefsProvider } from "@/components/ui/table-prefs-context";
-import { db } from "@/lib/db";
-import { creatives, products } from "@/db/schema";
-import { eq } from "drizzle-orm";
 import { getActiveAccountId, listAccounts } from "@/lib/tenant";
 
 export default async function DashboardLayout({
@@ -40,21 +36,10 @@ export default async function DashboardLayout({
     return <NoBrandAccess name={user.name} />;
   }
 
-  // One small query feeds the ⌘K palette; capped at 500 names which is
-  // more than enough for the team's catalog (and keeps the client bundle
-  // shape predictable).
+  // The ⌘K creative list is NOT read here any more (D13, 2026-10): the
+  // palette fetches it from /api/palette when first opened (or on idle), so
+  // it stops riding along with every full render of every page.
   const acct = await getActiveAccountId();
-  const creativeOptions = await db
-    .select({
-      id: creatives.id,
-      name: creatives.name,
-      productName: products.name,
-    })
-    .from(creatives)
-    .innerJoin(products, eq(products.id, creatives.productId))
-    .where(eq(creatives.accountId, acct))
-    .orderBy(asc(creatives.name))
-    .limit(500);
 
   // Which arrivals may toast for this user (migration 0050). Read once here
   // and handed down: the bell obeys it, the account menu shows it.
@@ -76,7 +61,6 @@ export default async function DashboardLayout({
             <NavProgressBar />
             <TopBar
               user={user}
-              creatives={creativeOptions}
               accounts={accounts.map((a) => ({ id: a.id, name: a.name }))}
               activeAccountId={acct}
               granted={granted}

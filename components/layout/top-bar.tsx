@@ -13,7 +13,6 @@ import { BrandWordmark } from "@/components/layout/brand-wordmark";
 
 interface Props {
   user: SessionUser;
-  creatives: Array<{ id: string; name: string; productName: string }>;
   accounts: Array<{ id: string; name: string }>;
   activeAccountId: string;
   /** The user's effective permission keys — drives which nav items appear. */
@@ -25,7 +24,6 @@ interface Props {
 
 export function TopBar({
   user,
-  creatives,
   accounts,
   activeAccountId,
   granted,
@@ -62,7 +60,7 @@ export function TopBar({
             theme controls moved INTO the account menu, which is what makes
             this row fit a phone. */}
         <div className="flex shrink-0 items-center gap-2 sm:gap-3">
-          <CommandPalette creatives={creatives} granted={granted} />
+          <CommandPalette accountId={activeAccountId} granted={granted} />
           {/* Toggles the docked comment panel, which lives in the layout
               beside the page and follows it from page to page. */}
           <CommentToggle />

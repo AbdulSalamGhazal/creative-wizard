@@ -368,3 +368,12 @@ as it stood before the restructure.*
   The pager's skeleton keeps a working Back link. Total server time is
   unchanged; time to first content is what moved. Other pages keep their
   single route skeleton — streaming was decided for these two (D11).
+- **The ⌘K creative list loads with the palette, not with the page (D13).**
+  It was a query in the dashboard layout, shipped with every full render (up
+  to 500 rows, ~85 B each) for a list most visits never open. `GET
+  /api/palette` (`listCreativeOptions`) now serves it: fetched on idle or on
+  intent with the dialog's code, kept per brand for the tab, and refreshed in
+  the background on every open — so a creative made a minute ago is listed,
+  which the layout props stopped guaranteeing once create/delete no longer
+  re-render the layout (W2-1). The pages are usable while it loads; the list
+  says "Loading creatives…", or "Couldn't load creatives · Retry".
