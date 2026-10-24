@@ -109,7 +109,7 @@ describe("an exclusion rule's notification isolates the target's name (W3-5)", (
     const res = await createExclusionRule({ target: { kind: "campaign", campaignId: CAMPAIGN_1 } });
     expect(res.ok).toBe(true);
     const [n] = await titlesFor("exclusion.rule_created");
-    expect(n!.title).toBe("Exclusion rule added: campaign “⁨حملة الصيف ➤ واسع (IG)⁩”");
+    expect(n!.title).toBe("Exclusion rule added: campaign “\u2068حملة الصيف ➤ واسع (IG)\u2069”");
   });
 });
 
