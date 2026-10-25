@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { int, num, pct, pct1, roas, sar, signedPct, usd, plural } from "@/lib/format";
+import { int, num, pct, pct1, roas, sar, signedInt, signedPct, usd, plural } from "@/lib/format";
 
 /**
  * The dash is load-bearing: `—` means "no value", and a real `0` must never
@@ -107,5 +107,18 @@ describe("compact money renders the SAME on the server and in the browser (W2-10
     expect(usdCompact(1234)).toBe("$1.2K");
     expect(sarCompact(78)).toBe("SAR\u00a078"); // ICU puts a no-break space after the code
     expect(sarCompact(25_400)).toBe("SAR\u00a025.4K");
+  });
+});
+
+describe("signedInt — count deltas with the same minus as signedPct", () => {
+  it("signs non-zero values and leaves zero bare", () => {
+    expect(signedInt(20)).toBe("+20");
+    expect(signedInt(-1844)).toBe("−1,844");
+    expect(signedInt(0)).toBe("0");
+    expect(signedInt(0.4)).toBe("0");
+  });
+  it("renders null as a dash", () => {
+    expect(signedInt(null)).toBe("—");
+    expect(signedInt(Number.NaN)).toBe("—");
   });
 });

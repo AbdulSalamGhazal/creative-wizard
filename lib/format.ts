@@ -107,6 +107,17 @@ export function signedPct(value: number | null | undefined, dp = 1): string {
 }
 
 /**
+ * A SIGNED whole number — `+20` / `−8` / `0` — for count deltas, with the same
+ * U+2212 minus as {@link signedPct}. Zero carries no sign.
+ */
+export function signedInt(value: number | null | undefined): string {
+  if (value === null || value === undefined || Number.isNaN(value)) return EM_DASH;
+  const rounded = Math.round(value);
+  if (rounded === 0) return intFormatter.format(0);
+  return rounded > 0 ? `+${intFormatter.format(rounded)}` : `−${intFormatter.format(-rounded)}`;
+}
+
+/**
  * `12 records` / `1 record`. Several confirm dialogs hard-coded the plural and
  * read "1 orders" / "1 rows" / "1 records" on the (very common) single-row case.
  * Pass `pluralForm` for irregulars.

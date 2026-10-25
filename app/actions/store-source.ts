@@ -30,6 +30,7 @@ function revalidateSafe() {
   try {
     revalidatePath("/store/uploads"); // the source mapping lives on Upload orders → Order fields
     revalidatePath("/store/reconciliation");
+    revalidatePath("/store/utms"); // maps unmapped values inline (its hygiene section)
   } catch (err) {
     console.warn("revalidatePath after source-mapping change failed:", err);
   }

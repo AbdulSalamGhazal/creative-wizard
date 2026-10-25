@@ -433,6 +433,9 @@ this map is still a rule you broke.
 - Currency is SAR, module-local — never convert to USD here.
 - Upsert PATCHES `attributes`; an absent column leaves the stored value alone.
 - Reconciliation is counts only — no revenue comparison, ever.
+- UTMs buckets exactly as Reconciliation; its three unknowns (no source ·
+  unmapped · other) sum to Unattributed; platform accuracy is counts only,
+  derived through `lib/reconciliation.ts`.
 
 → **`docs/decisions/store.md`**
 

@@ -56,6 +56,41 @@
   never makes the rows stop summing to the total.
 - The order-cleanup tool deletes EXACTLY the previewed count or nothing —
   the ads tool's rule (`lib/cleanup-guard.ts`, uploads-csv.md).
+- **UTMs (`/store/utms`, 2026-10-25) buckets EXACTLY as Reconciliation does**
+  — the same LEFT JOIN on the unique `(account_id, raw_value)` source
+  mapping, the same platform expression. Its only refinement is that
+  Reconciliation's Unattributed is split THREE ways by cause: `NO_SOURCE`
+  (no `utm_source` at all) · `UNMAPPED_SOURCE` (a value nobody mapped) ·
+  `OTHER_SOURCE` (mapped to "not an ad platform"). Their sum equals
+  Unattributed per day, and the platform buckets are identical — pinned in
+  `tests/db/store-utms.test.ts` against `reconciliationByPlatform`. The
+  three store pages never tell different stories about the same day.
+- **Platform accuracy is COUNTS ONLY and derives through
+  `lib/reconciliation.ts`** (`accuracyRows` → `reconDelta` / `reconDeltaPct`
+  / `reconMatchRate`): Δ = claimed − UTM orders (the inflation framing),
+  Δ% over the UTM side (NULL at 0), ratio = claimed ÷ UTM orders. No
+  revenue is compared (SAR vs USD, no exchange rate) and no cost per order
+  is shown — both were offered and declined by the user (2026-10-25). The
+  UTM side is ALL orders whose source maps to the platform, regardless of
+  channel (user decision; a website-only column was offered and declined).
+- **No period comparison on UTMs either.** The only trend is the
+  `halfSplitTrend` of the selected range — its two halves compared PER DAY
+  — never an earlier window.
+- **Attribution config stays ONE mechanism.** Several raw values → one
+  platform is what `store_source_mappings` already does; the UTMs page adds
+  no second one. Its hygiene list assigns a value through the SAME
+  `SourceAssignmentSelect` the Order fields tab uses (extracted, not
+  forked), and `setStoreSourceMapping` revalidates `/store/utms` too.
+- **FOUR scans per render on UTMs**, all range-bounded and account-scoped:
+  per day × bucket · per source value (capped at `BREAKDOWN_GROUP_CAP`) ·
+  per day × the top `TOP_SOURCE_SERIES` (40) values (+ the blank bucket) ·
+  claimed per day × platform. Never per value; the per-day series payload
+  is bounded by N × days, not by the long tail.
+- **`?compare=` is a SHALLOW presentation param** (D12): the series are
+  already on the page, so adding a source re-renders from client rows and
+  never costs a server render; absent = the top 3 by orders, an explicit
+  empty value = none. Each key is URI-encoded so a value with a comma
+  survives; unknown keys are dropped, the list is capped at `COMPARE_MAX`.
 
 ## History and rationale
 
@@ -244,3 +279,44 @@ S-codes for values `store_orders` can't hold (D8, B-27). Pinned by
 in `store/pipeline.test.ts`, `store/channels.test.ts` and
 `lib/store-insights.test.ts`.
 
+
+### Store → UTMs (2026-10-25)
+
+The user asked for a UTMs page in the Store section: "explore the utms,
+visualise, analyse, compare", plus a section comparing the orders each
+platform claims (through the Ads uploads) with what the UTMs show, "to
+compare the accuracy of each platform" — arranged for the business, with no
+irrelevant charts. Eight questions settled the shape before anything was
+built. The Salla export carries **`utm_source` only** (no medium, campaign,
+content or term), so a drill-down explorer was impossible and became
+**Compare sources** (pick up to six, overlaid over time, one table). The
+source values are "in general one value per platform, but some cases where
+different values point to one platform — the system should offer a
+configuration mechanism": it already does (`store_source_mappings`, many
+values → one platform), so the page surfaces the unmapped values in range
+and lets `config.store` holders assign them inline through the Order fields
+tab's own select, extracted into `SourceAssignmentSelect` rather than
+forked. The accuracy section is **counts only** (cost per order and a
+ratio-over-time line were offered and declined), its UTM side is **all**
+UTM-attributed orders (a website-only column was declined), and it is
+visualised as **paired range bars per platform plus one small panel per
+platform over time**. The sections the user chose: Coverage KPIs ·
+Sources over time · Compare · Hygiene, with Platform accuracy.
+
+Design decisions made inside those answers: the stacked trend stacks by
+attribution BUCKET (platform colours, then Other / Unmapped / No UTM) rather
+than by raw value, because the raw values are one-per-platform in practice
+and the table beneath carries them; the Unattributed bucket is split three
+ways because its three causes have three different fixes; the Compare
+selection defaults to the top three sources so the section is useful on
+first load; and the page sits between Insights and Reconciliation in the
+sidebar — store facts, then the UTM reading, then the per-day tables.
+
+Standing rules that bind it: no revenue comparison, no period comparison
+(the half-vs-half trend measures only the selected range), explicit mapping
+only, every total a component sum. The dev seed gained a Store section
+(mappings + ~90 days of UTM-tagged orders, two values deliberately left
+unmapped) and had four stale `ON CONFLICT` targets repaired on the way —
+products, creatives, angles and platform field mappings had gained
+`account_id` in their unique indexes, and the perf identity its
+`landing_page_id`, after the seed was last run.

@@ -18,6 +18,7 @@ import {
   Users,
   UsersRound,
   ScrollText,
+  Tags,
   Workflow,
 } from "lucide-react";
 import type { Permission } from "@/lib/permissions";
@@ -142,6 +143,15 @@ export const NAV_ITEMS: NavItem[] = [
     href: "/store/insights",
     label: "Insights",
     icon: ChartPie,
+    group: "store",
+  },
+  {
+    // Where orders come from by UTM source, and how each platform's claimed
+    // conversions compare with the orders its UTMs show. Sits after Insights
+    // (store facts) and before Reconciliation (the per-day tables).
+    href: "/store/utms",
+    label: "UTMs",
+    icon: Tags,
     group: "store",
   },
   {

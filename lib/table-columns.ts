@@ -49,6 +49,12 @@ export const TABLE_KEYS = {
   RECON_CHANNELS: "recon-channels",
   /** Store → Reconciliation, Platforms view (its own column universe). */
   RECON_PLATFORMS: "recon-platforms",
+  /** Store → UTMs, the Sources table. */
+  STORE_UTM_SOURCES: "store-utm-sources",
+  /** Store → UTMs, the Compare sources table. */
+  STORE_UTM_COMPARE: "store-utm-compare",
+  /** Store → UTMs, the Platform accuracy table. */
+  STORE_UTM_ACCURACY: "store-utm-accuracy",
   /** Budget → Pacing, the per-bucket table. */
   BUDGET_PACING: "budget-pacing",
   /** Budget → Pacing, the BOARD's table view. The key is the Tracker's (the

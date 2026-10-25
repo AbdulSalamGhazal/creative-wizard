@@ -22,9 +22,13 @@ import {
   campaigns,
   uploadBatches,
   performanceRecords,
+  storeOrders,
+  storeSourceMappings,
+  storeChannelMappings,
   DEFAULT_ACCOUNT_ID,
   type platformEnum,
 } from "@/db/schema";
+import { writeStoreBatch, type StoreWriteRow } from "@/db/queries/store";
 import { hashPassword } from "@/lib/auth-password";
 import { ADAPTERS } from "@/csv/platforms";
 import type { InternalField } from "@/csv/platforms/types";
@@ -81,7 +85,7 @@ async function main() {
     await db
       .insert(products)
       .values({ ...p, createdByUserId: adminId })
-      .onConflictDoNothing({ target: products.slug });
+      .onConflictDoNothing({ target: [products.accountId, products.slug] });
   }
   const productList = await db
     .select({ id: products.id, slug: products.slug })
@@ -143,7 +147,7 @@ async function main() {
       // Re-runs refresh the launch date (the column was added after the
       // initial seed) without disturbing other fields.
       .onConflictDoUpdate({
-        target: creatives.name,
+        target: [creatives.accountId, creatives.name],
         set: { launchDate: c.launchDate },
       });
   }
@@ -177,6 +181,7 @@ async function main() {
           })
           .onConflictDoNothing({
             target: [
+              platformFieldMappings.accountId,
               platformFieldMappings.platform,
               platformFieldMappings.internalField,
               platformFieldMappings.headerName,
@@ -217,7 +222,7 @@ async function main() {
     await db
       .insert(angles)
       .values({ name, createdByUserId: adminId })
-      .onConflictDoNothing({ target: angles.name });
+      .onConflictDoNothing({ target: [angles.accountId, angles.name] });
   }
   console.log("  angle vocabulary:", distinctAngles.length);
 
@@ -338,12 +343,15 @@ async function main() {
     const result = await db
       .insert(performanceRecords)
       .values(chunk)
+      // The identity is the FULL `perf_identity_uq` (…, landing_page_id, NULLS
+      // NOT DISTINCT) — a shorter target matches no constraint (42P10).
       .onConflictDoNothing({
         target: [
           performanceRecords.creativeId,
           performanceRecords.platform,
           performanceRecords.campaignId,
           performanceRecords.date,
+          performanceRecords.landingPageId,
         ],
       })
       .returning({ id: performanceRecords.id });
@@ -374,7 +382,122 @@ async function main() {
     .onConflictDoNothing({ target: ratingRules.accountId });
   console.log("  rating rules: default-account row ensured");
 
+  await seedStore(adminId);
+
   console.log("Done.");
+}
+
+/**
+ * Store module demo data: the two explicit mappings and ~90 days of
+ * UTM-tagged orders ending today, so /store/utms, /store/insights and
+ * /store/reconciliation all have something to show against the synthetic ads
+ * rows above. Several raw values map to ONE platform on purpose (`instagram`
+ * + `ig`), two values are left UNMAPPED on purpose (`Instagram`, `fb_ads` —
+ * the hygiene section demos them), and a share of orders carries no UTM.
+ * Idempotent: mappings upsert-nothing, and the order batch is skipped once
+ * its `SEED-` ids exist.
+ */
+async function seedStore(adminId: string) {
+  const sourceMappings: Array<{ rawValue: string; platform: Platform | null }> = [
+    { rawValue: "instagram", platform: "instagram" },
+    { rawValue: "ig", platform: "instagram" },
+    { rawValue: "facebook", platform: "facebook" },
+    { rawValue: "snapchat", platform: "snapchat" },
+    { rawValue: "tiktok", platform: "tiktok" },
+    { rawValue: "google", platform: "google" },
+    { rawValue: "whatsapp", platform: null },
+    { rawValue: "direct", platform: null },
+    { rawValue: "email", platform: null },
+  ];
+  for (const m of sourceMappings) {
+    await db
+      .insert(storeSourceMappings)
+      .values({ accountId: DEFAULT_ACCOUNT_ID, ...m })
+      .onConflictDoNothing();
+  }
+  for (const c of [
+    { rawValue: "web", destination: "website" },
+    { rawValue: "app", destination: "application" },
+  ]) {
+    await db
+      .insert(storeChannelMappings)
+      .values({ accountId: DEFAULT_ACCOUNT_ID, ...c })
+      .onConflictDoNothing();
+  }
+  console.log("  store mappings: ensured");
+
+  const [existing] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(storeOrders)
+    .where(
+      sql`${storeOrders.accountId} = ${DEFAULT_ACCOUNT_ID} AND ${storeOrders.orderId} LIKE 'SEED-%'`,
+    );
+  if (Number(existing?.n ?? 0) > 0) {
+    console.log("  store orders: seed batch already present");
+    return;
+  }
+
+  // Source mix, in percent. Blank = no UTM at all.
+  const mix: Array<[string, number]> = [
+    ["instagram", 30],
+    ["facebook", 18],
+    ["snapchat", 12],
+    ["tiktok", 8],
+    ["google", 5],
+    ["ig", 4],
+    ["Instagram", 2],
+    ["fb_ads", 1],
+    ["whatsapp", 5],
+    ["direct", 6],
+    ["email", 2],
+    ["", 7],
+  ];
+  const mixTotal = mix.reduce((a, [, w]) => a + w, 0);
+  let rng = 7;
+  const rand = () => {
+    rng = (rng * 1103515245 + 12345) & 0x7fffffff;
+    return rng / 0x7fffffff;
+  };
+  const pickSource = () => {
+    let r = rand() * mixTotal;
+    for (const [value, w] of mix) {
+      if (r < w) return value;
+      r -= w;
+    }
+    return "";
+  };
+
+  const today = new Date();
+  today.setUTCHours(0, 0, 0, 0);
+  const rows: StoreWriteRow[] = [];
+  let n = 0;
+  for (let d = 89; d >= 0; d--) {
+    const date = new Date(today);
+    date.setUTCDate(date.getUTCDate() - d);
+    const orderDate = date.toISOString().slice(0, 10);
+    const perDay = 6 + Math.floor(rand() * 9);
+    for (let i = 0; i < perDay; i++) {
+      n += 1;
+      rows.push({
+        orderId: `SEED-${String(n).padStart(5, "0")}`,
+        orderDate,
+        totalAmount: (80 + rand() * 520).toFixed(2),
+        attributes: {
+          utm_source: pickSource(),
+          channel: rand() < 0.72 ? "web" : "app",
+        },
+      });
+    }
+  }
+  await writeStoreBatch({
+    accountId: DEFAULT_ACCOUNT_ID,
+    fileName: "seed_store_orders.csv",
+    uploadedByUserId: adminId,
+    upsert: false,
+    inserts: rows,
+    updates: [],
+  });
+  console.log(`  store orders: ${rows.length} inserted`);
 }
 
 main()

@@ -7,11 +7,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { PlatformDot } from "@/components/ui/platform-dot";
-import { ALL_PLATFORMS, PLATFORM_LABEL } from "@/lib/palette";
+import {
+  SourceAssignmentSelect,
+  sourceAssignmentOf,
+  type SourceAssignment,
+} from "@/components/store/source-assignment-select";
 import { int } from "@/lib/format";
 import { useNavTransition } from "@/lib/nav-progress";
-import { setStoreSourceMapping } from "@/app/actions/store-source";
 import { setStoreChannelMapping } from "@/app/actions/store-channel";
 import { safeAction } from "@/lib/action-failure";
 import { toastActionFailure } from "@/lib/action-toast";
@@ -21,7 +23,6 @@ import {
   type ChannelDestination,
 } from "@/store/channels";
 
-type Assignment = (typeof ALL_PLATFORMS)[number] | "none" | "unset";
 type ChannelAssignment = ChannelDestination | "unset";
 
 interface Mapping {
@@ -65,11 +66,8 @@ export function StoreSourceMappingAdmin({
     (v) => channelAssignmentOf(v.value) === "unset",
   ).length;
 
-  const assignmentOf = (value: string): Assignment => {
-    if (!byValue.has(value)) return "unset";
-    const p = byValue.get(value);
-    return (p ?? "none") as Assignment;
-  };
+  const assignmentOf = (value: string): SourceAssignment =>
+    sourceAssignmentOf(byValue.has(value), byValue.get(value));
   const unmappedCount = values.filter((v) => assignmentOf(v.value) === "unset").length;
 
   function assignChannel(rawValue: string, assignment: ChannelAssignment) {
@@ -79,15 +77,6 @@ export function StoreSourceMappingAdmin({
         toastActionFailure(res, "Couldn't save the mapping");
       }
       // On success the action's re-render arrived in its response (W2-1).
-    });
-  }
-
-  function assign(rawValue: string, assignment: Assignment) {
-    startTransition(async () => {
-      const res = await safeAction(() => setStoreSourceMapping({ rawValue, assignment }));
-      if (!res.ok) {
-        toastActionFailure(res, "Couldn't save the mapping");
-      }
     });
   }
 
@@ -154,27 +143,7 @@ export function StoreSourceMappingAdmin({
                           aria-label="Unmapped"
                         />
                       )}
-                      <Select
-                        value={current}
-                        onValueChange={(a) => assign(v.value, a as Assignment)}
-                        disabled={isPending}
-                      >
-                        <SelectTrigger className="h-8 w-48 shrink-0">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {ALL_PLATFORMS.map((p) => (
-                            <SelectItem key={p} value={p}>
-                              <span className="flex items-center gap-2">
-                                <PlatformDot platform={p} size="sm" />
-                                {PLATFORM_LABEL[p]}
-                              </span>
-                            </SelectItem>
-                          ))}
-                          <SelectItem value="none">Not an ad platform</SelectItem>
-                          <SelectItem value="unset">Unmapped</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      <SourceAssignmentSelect rawValue={v.value} current={current} />
                     </div>
                   );
                 })}

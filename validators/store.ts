@@ -90,3 +90,13 @@ export const reconciliationFiltersSchema = z.object({
   from: z.string().regex(ISO).optional(),
   to: z.string().regex(ISO).optional(),
 });
+
+/**
+ * URL filters for the UTMs page — date range only. `?compare=` is a SHALLOW
+ * presentation param the client reads itself (which sources are overlaid),
+ * so the server never parses it.
+ */
+export const storeUtmsFiltersSchema = z.object({
+  from: z.string().regex(ISO).optional(),
+  to: z.string().regex(ISO).optional(),
+});
