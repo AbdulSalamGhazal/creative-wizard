@@ -445,6 +445,7 @@ this map is still a rule you broke.
 - A table offers every field its query already carries, `defaultHidden` — never a new scan.
 - A `defaultHidden` column's absence means HIDDEN; its opt-in is stored as `!key`.
 - A pinned column must fit the frame (phone cap + `truncate`).
+- A table's frame is `isolate` — its sticky z-indexes never reach the page's bars.
 - Precedence: URL → applied saved view → preference → config.
 
 → **`docs/decisions/tables-columns.md`**

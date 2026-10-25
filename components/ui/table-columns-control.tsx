@@ -270,6 +270,12 @@ export function TableColumnsControl({
  *
  * The backdrop is not decoration: at a scroll position where a column label
  * sits under the button, the two would otherwise read as one smudge.
+ *
+ * Its z-40 only outranks the table's own sticky header and pinned column
+ * because the `relative` wrapper is ALSO `isolate` (its own stacking context).
+ * Without that, z-40 is a page-level z-index and the corner — like the pinned
+ * cells and the header — paints over the sticky filter bar (and the top bar)
+ * as the page scrolls the table under them.
  */
 export function TableCorner({ children }: { children: React.ReactNode }) {
   return (

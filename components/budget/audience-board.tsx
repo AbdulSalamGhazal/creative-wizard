@@ -484,7 +484,7 @@ export function AudienceBoard({
             </div>
             {/* The matrix shape is the mental model, so on a phone it scrolls
                 sideways with the stage column pinned rather than reflowing. */}
-            <div className="-mx-1 overflow-x-auto px-1">
+            <div className="isolate -mx-1 overflow-x-auto px-1">
               <table className="w-full min-w-[40rem] border-separate border-spacing-0">
                 <thead>
                   <tr>

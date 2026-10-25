@@ -31,6 +31,14 @@
   `defaultHidden`.** The admission price is an existing SELECT (or a PK join
   off a column already read) — never a new scan or a per-row query. A field
   that costs more is excluded WITH its reason written down.
+- **A TABLE'S FRAME IS ITS OWN STACKING CONTEXT (`isolate`, 2026-10-25).**
+  The `relative` wrapper around the scroll frame (and `TableCorner`) carries
+  `isolate`, so the pinned cells (z-10), the sticky header/footer (z-20/30)
+  and the corner (z-40) order the table against ITSELF and never against the
+  page — the whole frame stays under the sticky filter bar (`top-14 z-10`)
+  and the top bar. Any hand-rolled `<table>` with a sticky cell does the same;
+  `table-columns-coverage.test.ts` fails one that doesn't. Never "fix" an
+  overlap by raising the bar's z-index: the corner's z-40 would still win.
 - **A PINNED COLUMN MUST FIT THE FRAME.** A sticky cell wider than the visible
   scroll frame stops pinning; free-text pinned cells carry a phone-only cap
   plus `truncate`, and a closed vocabulary needs neither.
@@ -369,3 +377,20 @@ as it stood before the restructure.*
   named list (`HAND_ROLLED_OK`): the grouped twins, five admin lists and five
   editors/previews — decided in D22 (move the analytics/history tables,
   exempt the admin lists and editors).
+
+### The table frame stopped painting over the filter bar (2026-10-25)
+
+The UTMs walk (`/store/utms`, Sources table, 1366px and 375px) showed the
+pinned identity cells sliding OVER the sticky `FilterShell` bar as the page
+scrolled and hiding its Date picker. The defect was the primitive's, not the
+page's: the scroll frame was not a stacking context, so every z-index inside
+it competed at page level — the pinned body cells (z-10) tied the bar and won
+on DOM order, and the sticky header (z-20/30) and the columns corner (z-40)
+outranked it outright (on `/store/orders` at 375×560 it was the header row
+that covered the bar). Pages whose table never reaches the bar (the frame is
+capped at `max-h-[70vh]`) hid it, which is why it surfaced on a long page.
+Fix: `isolate` on DataTable's frame wrapper (and its empty-state wrapper),
+the two grouped twins, and Budget Audience's matrix and its dialog grid — one
+word each, with a guard test. Raising the bar instead was rejected: the
+corner's z-40 would still beat it, and the top bar (z-20) would then need
+raising too.

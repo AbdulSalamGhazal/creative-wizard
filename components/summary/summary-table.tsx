@@ -501,7 +501,7 @@ export function SummaryTable({
           filename={`summary-${todayStamp()}.csv`}
         />
       </div>
-      <div className="relative">
+      <div className="relative isolate">
       <div className="max-h-[70vh] overflow-auto rounded-lg border border-line bg-surface">
       <table className="text-xs num min-w-max">
         {/* Two-row header: top row = group banners; bottom = column labels.

@@ -91,6 +91,35 @@ describe("no flat data table is hand-rolled", () => {
   });
 });
 
+describe("a table's sticky cells stay under the page's sticky bars", () => {
+  it("every <table> with sticky cells sits in an `isolate` frame", () => {
+    // 2026-10-25: on /store/utms the pinned identity cells (z-10), the sticky
+    // header (z-20/30) and the columns corner (z-40) painted OVER the sticky
+    // filter bar (top-14 z-10) and hid its Date picker. The scroll frame was
+    // not a stacking context, so those z-indexes competed with the bar at page
+    // level. `isolate` on the frame confines them to ordering the table
+    // against itself — one word, and a new hand-rolled table must carry it too.
+    const offenders = [...walk(path.join(REPO, "components")), ...walk(path.join(REPO, "app"))]
+      .map((f) => path.relative(REPO, f))
+      .filter((f) => {
+        const src = readFileSync(path.join(REPO, f), "utf8");
+        return /<table[\s>]/.test(src) && /\bsticky\b/.test(src) && !/\bisolate\b/.test(src);
+      });
+    expect(offenders, "wrap the table's frame in an `isolate` element").toEqual([]);
+  });
+
+  it("every TableCorner hangs from an isolated wrapper", () => {
+    // The corner's z-40 is the loudest z-index in the app below a dialog; it
+    // must never reach the page's stacking context.
+    for (const file of ["components/ui/data-table.tsx", ...GROUPED_TWINS]) {
+      const src = readFileSync(path.join(REPO, file), "utf8");
+      const corners = src.match(/<TableCorner>/g)?.length ?? 0;
+      const frames = src.match(/className="relative isolate/g)?.length ?? 0;
+      expect(frames, file).toBeGreaterThanOrEqual(corners);
+    }
+  });
+});
+
 describe("every table has the columns control", () => {
   it("…or is on the exemption list, with a reason", () => {
     const missing: string[] = [];

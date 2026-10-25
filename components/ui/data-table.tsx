@@ -276,7 +276,7 @@ export function DataTable<T>({
     // The control still renders with no rows: somebody who filtered a column
     // out of sight must be able to bring it back without first finding data.
     return (
-      <div className="relative space-y-2">
+      <div className="relative isolate space-y-2">
         {/* No header to float over — the control still has to be reachable, so
             it hangs from the top-right of the empty state's own box. */}
         {columnsControl && <TableCorner>{columnsControl}</TableCorner>}
@@ -300,8 +300,12 @@ export function DataTable<T>({
       )}
       {/* The corner control floats in the table's own header row — see
           `TableCorner`. The wrapper is what it is positioned against, so it
-          holds the right edge while the table scrolls sideways under it. */}
-      <div className="relative">
+          holds the right edge while the table scrolls sideways under it.
+          `isolate` makes the frame its own stacking context: the z-indexes
+          inside it (pinned cells, sticky header/footer, the corner's z-40)
+          only order the table against ITSELF, and the frame as a whole stays
+          under the page's sticky filter bar when the page scrolls it there. */}
+      <div className="relative isolate">
       <div className="rounded-lg border border-line bg-surface overflow-auto max-h-[70vh]">
       <table className={cn(minWidthClass, "w-full text-xs num", evenColumns && "table-fixed")}>
         <thead className="sticky top-0 z-20 bg-surface">

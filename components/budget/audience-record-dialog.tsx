@@ -123,7 +123,7 @@ export function AudienceRecordDialog({
           {/* Stage rows × platform columns. On a phone the grid scrolls
               sideways rather than reflowing — the matrix shape IS the mental
               model, and a stacked version loses it. */}
-          <div className="-mx-1 overflow-x-auto px-1">
+          <div className="isolate -mx-1 overflow-x-auto px-1">
             <table className="w-full min-w-[34rem] border-separate border-spacing-0">
               <thead>
                 <tr>

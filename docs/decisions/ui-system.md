@@ -251,7 +251,9 @@ as it stood before the restructure.*
   - **`middleware.ts`** is the real auth boundary (Edge Web-Crypto HMAC verify of
     the `ccms_session` cookie); the dashboard layout check is now belt-and-braces.
   - **`MetricCard` has an `empty` prop** that suppresses the delta chip (no more
-    red "Gone" on an empty range). All sticky filter bars sit at `top-14 z-10`.
+    red "Gone" on an empty range). All sticky filter bars sit at `top-14 z-10`; a
+    table's frame is `isolate` so nothing inside it outranks them (see
+    tables-columns.md).
   - **Page shell = `PageShell` + `PageHeader`** (`components/layout/`). Every
     route renders `<PageShell>` (space-y-6 + a width lane: `full`/`admin`=4xl/
     `form`=2xl/`import`=3xl + an optional full-bleed `filterStrip` slot that owns

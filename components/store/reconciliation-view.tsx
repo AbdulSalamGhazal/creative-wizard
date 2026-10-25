@@ -809,7 +809,7 @@ function ByPlatformTable({
 
   return (
     <div className="space-y-2">
-    <div className="relative">
+    <div className="relative isolate">
     <div className="overflow-x-auto rounded-lg border border-line bg-surface">
       <table className="w-full min-w-[720px] border-collapse text-xs num">
         <thead className="sticky top-0 z-20 bg-surface">
