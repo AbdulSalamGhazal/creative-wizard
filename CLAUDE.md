@@ -14,13 +14,17 @@ If a rule here conflicts with one of those documents, the documents win — flag
 
 ## Stack (do not change without discussion)
 
-- Next.js (App Router) + TypeScript strict. **Production builds with webpack
-  (`npm run build` = `next build`); `npm run dev` keeps Turbopack** (D10,
-  user-approved 2026-10): Turbopack's production build shipped recharts as six
-  different ~100 KB gz files (one per route group) and SheetJS + the Drizzle
-  schema to the client; webpack ships recharts ONCE, cached across every chart
-  page (measured: every dashboard page once 1,621 → 793 KB gz). Don't switch
-  the build back without re-measuring.
+- Next.js (App Router) + TypeScript strict. **Webpack everywhere: production
+  builds with it (`npm run build` = `next build`) and so does local dev
+  (`npm run dev` = `next dev`)** (D10, user-approved 2026-10): Turbopack's
+  production build shipped recharts as six different ~100 KB gz files (one per
+  route group) and SheetJS + the Drizzle schema to the client; webpack ships
+  recharts ONCE, cached across every chart page (measured: every dashboard page
+  once 1,621 → 793 KB gz). Dev followed on 2026-10-25 (user-approved):
+  Turbopack's dev font loader can't parse Google Fonts' new multi-parameter
+  font URLs ("next/font/google queries have exactly one entry"), so every page
+  logged errors and fell back to system fonts. Don't switch either back to
+  Turbopack without re-measuring and re-checking the fonts.
 - Drizzle ORM + Postgres (Neon)
 - Auth: custom HMAC-signed cookie sessions (`lib/auth-cookie.ts`) + bcrypt passwords (`lib/auth-password.ts`). Users created via `/admin/users`; first admin via `db/create-admin.ts`. NOT Auth.js/Google — those were never wired up. **Authorization is GRANULAR per-user permissions** (`lib/permissions.ts` catalog is the single source of truth) — see `docs/decisions/tenancy-auth.md`. Admins bypass every check; below admin, each capability is individually grantable and managed on the unified **Team** page (`/admin/users`).
 - Tailwind + shadcn/ui + shadcn charts (Recharts under the hood)

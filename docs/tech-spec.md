@@ -20,7 +20,7 @@ A **multi-tenant creative-performance analytics tool** for paid social. It manag
 | Layer | Choice |
 |---|---|
 | Framework | Next.js (App Router) + TypeScript `strict` (+ `noUncheckedIndexedAccess`, `noImplicitOverride`) |
-| Build | **webpack** for production (`npm run build` = `next build`), Turbopack for dev (`next dev --turbopack`) — D10, 2026-10: Turbopack's production chunking shipped recharts once per route group (6 × ~100 KB gz); webpack shares one copy |
+| Build | **webpack** for production (`npm run build` = `next build`) and for dev (`npm run dev` = `next dev`) — D10, 2026-10: Turbopack's production chunking shipped recharts once per route group (6 × ~100 KB gz); webpack shares one copy. Dev moved too on 2026-10-25: Turbopack's dev font loader fails on Google Fonts' multi-parameter font URLs |
 | Database | Postgres (Neon, eu-central-1) via **Drizzle ORM**; local dev = Docker Postgres 16 (`docker-compose.yml`) |
 | Auth | **Custom** HMAC-signed cookie sessions (`lib/auth-cookie.ts`) + bcryptjs passwords (`lib/auth-password.ts`), enforced by `middleware.ts` (Edge, Web Crypto) |
 | UI | Tailwind v4 (CSS-config, no tailwind.config file) + shadcn/ui + Recharts (shadcn charts), lucide icons, sonner toasts, next-themes |
