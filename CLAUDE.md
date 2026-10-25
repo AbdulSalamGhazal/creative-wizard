@@ -120,7 +120,9 @@ Do not introduce a new dependency without a one-line justification in the PR des
 
 ## Workflow
 
-- Make small, reviewable changes. One feature per PR or session.
+- Make small, reviewable changes. One feature per session, landed as one
+  coherent commit series on `main` the house way (Deployment section) — this
+  project does not use pull requests.
 - Add a test alongside any non-trivial logic, especially in `csv/` and `db/queries/`.
 - **TWO CLASSES OF AMBIGUITY, and only one of them is yours to settle.**
   A brief cannot specify everything, so ambiguity is expected; what must not
@@ -232,6 +234,24 @@ Do not introduce a new dependency without a one-line justification in the PR des
 This app is deployed and in production use. Treat `main` as shippable.
 
 - **Host:** Vercel, GitHub-integrated. Remote `origin` = `git@github.com:AbdulSalamGhazal/creative-wizard.git`. **Pushing to `main` auto-deploys** (`next build`); a failed build keeps the previous version serving (zero downtime).
+- **HOW A CHANGE LANDS — there are NO pull requests here (2026-10-25).** This
+  project has never used GitHub PRs: `gh` is not installed, nothing is signed
+  in to GitHub, and no commit on `main` came through one. Never ask the user
+  for `gh`, a token or a GitHub login. The house way, every time:
+  1. in the main checkout, `git status` clean, then fast-forward the work in
+     (`git merge --ff-only <branch>`; a worktree session's branch, or commit
+     directly on `main` when working there);
+  2. `DATABASE_URL='postgres://ccms:x@127.0.0.1:1/unreachable' npx next build`
+     — check the EXIT CODE and grep the full log for `failed to compile|Error:`
+     (the override keeps `.env.production.local`'s live URL out of the build);
+     `npx vitest run` and `npm run test:db` green;
+  3. **the push deploys production, so get the user's explicit go-ahead**;
+  4. `git push origin main`;
+  5. confirm with `GET https://creative.urjwan.com/api/health` until `commit`
+     equals the pushed short sha.
+  "One feature per PR or session" in Workflow means one feature per COMMIT
+  SERIES, reviewed in the session — not a GitHub PR. A brief handed to another
+  session must say "lands on main the house way", never "open a PR".
 - **URL:** https://creative.urjwan.com (custom domain, Let's Encrypt TLS, auto-renew). The `*.vercel.app` URL also resolves but Google Safe Browsing false-flags the shared domain — always use the custom domain.
 - **Health check:** `GET /api/health` (public, no auth) → `200 {status:"ok", commit:"<short sha>"}` when the DB is reachable (`commit` is the git sha Vercel built from — the one-curl answer to "is the latest deploy live?"; null locally), `503 {status:"degraded"}` when not. Point an uptime monitor at it. The DB client (`lib/db.ts`) has `connect_timeout: 10` so an unreachable DB fails fast and surfaces the `(dashboard)/error.tsx` boundary (calmer "temporarily unavailable" copy for connection errors) instead of hanging; route errors `console.error` → visible in Vercel logs.
 - **Database:** Neon Postgres (eu-central-1). Two connection strings:
