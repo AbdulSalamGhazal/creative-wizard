@@ -172,10 +172,25 @@ as it stood before the restructure.*
   because only drizzle's `unique()` builder can say NULLS NOT DISTINCT
   (Postgres 15+). Once a record uses a landing page its code is locked and it
   can't be deleted (`app/actions/landing-page.ts`).
-- **Visibility, deliberately minimal for now:** the upload summary card lists
-  the codes in the file with their row counts (main-page rows aren't listed),
-  and the creative's records table offers a `defaultHidden` "Landing page"
-  column. No breakdowns or filters by landing page until that feature exists.
+- **Visibility:** the upload summary card lists the codes in the file with
+  their row counts (main-page rows aren't listed), and the creative's records
+  table offers a `defaultHidden` "Landing page" column. **Trends → LPs
+  (`/trends/landing-pages`, 2026-10-25)** is the breakdown: one row per
+  landing page over the resolved range, with the NULL bucket as its own row
+  named **"Product page"** (the user's wording — an ad with no ` @code` goes
+  to the product's own page; `PRODUCT_PAGE_LABEL` in `lib/landing-code.ts` is
+  the one spelling). Decided with the user before building: the eight metrics
+  visible (spend · impressions · clicks · CTR · conversions · CPA · revenue ·
+  ROAS, the rest of the query's fields `defaultHidden`); TWO row modes, by
+  page and by page × platform (a client view switch, both rollups sent with
+  the page); google EXCLUDED like the other Trends children
+  (`PLATFORMS_WITH_CREATIVES`); the range is URL → the user's saved range →
+  the last 30 days; the table first, the chart (spend or conversions per
+  day, one line per page) under it; platform AND product filters through the
+  standard `FilterStrip`. Queries in `db/queries/landing-page-performance.ts`
+  (every ratio a `lib/metrics` fragment; `tests/db/landing-page-performance
+  .test.ts` pins the per-page sums, the NULL bucket, Excluded, the google
+  drop and brand scoping). Still no landing-page FILTER anywhere.
 
 ### Landing pages — the independent review's fixes (2026-10-20)
 

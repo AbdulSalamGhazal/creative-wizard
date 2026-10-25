@@ -85,6 +85,10 @@ export const TABLE_KEYS = {
   UPLOAD_HISTORY_ADS: "upload-history-ads",
   /** Upload orders → the batch history. */
   UPLOAD_HISTORY_STORE: "upload-history-store",
+
+  // ── 2026-10-25 ─────────────────────────────────────────────────────────
+  /** Trends → LPs, the per-landing-page table (both row modes share it). */
+  TRENDS_LANDING_PAGES: "trends-landing-pages",
 } as const;
 
 export type TableKey = (typeof TABLE_KEYS)[keyof typeof TABLE_KEYS];

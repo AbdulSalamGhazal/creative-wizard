@@ -351,6 +351,20 @@ as it stood before the restructure.*
 - Fixed on the way: the Library's 7d-spend header sorted by the 30-day
   column on its first click (`spend-desc` instead of `spend7-desc`).
 
+### Trends → LPs (2026-10-25)
+
+- `landing-pages-table.tsx`, key `trends-landing-pages`, shared by BOTH row
+  modes (by page, by page × platform): the same columns, so one remembered
+  choice serves both. Pinned identity = the page name with its muted `@code`
+  (the product page in the quieter ink), the platform folded in front in the
+  split mode like Types. The name is free text up to 255 characters, so the
+  pinned cell is capped at EVERY width (11rem phone / 20rem desktop) and
+  truncated with the full label as `title`. Opens on Spend desc; the totals
+  row re-blends each ratio from the component sums (Creatives stays a dash
+  there — a creative can run to several pages). The catalog: Link (the
+  registered URL), Creatives, CPC, CPM, LP views and CvR are offered
+  `defaultHidden`.
+
 ### The last four hand-built tables (2026-10, D22)
 
 - The coverage guard read only files containing `<DataTable`, so four flat

@@ -87,7 +87,9 @@ as it stood before the restructure.*
     `ALL_PLATFORMS` minus google). The surfaces that compare platforms on
     metrics google doesn't report scope their platform set to it: **Ads**
     (`/summary` — no Google column group), **Compare**, **Trends by-angle /
-    by-type / Video / Launches**. This is a PLATFORM rule, not a creative one:
+    by-type / Video / Launches / LPs** (LPs by a user decision, 2026-10-25 —
+    its metrics are all google-reported, but it compares platforms like its
+    siblings). This is a PLATFORM rule, not a creative one:
     a creative whose only spend is google's still appears on those surfaces,
     as an all-dash row, exactly like a creative that never ran there.
     **Brand/campaign granularity keeps google:** Dashboard, Trends over-time,

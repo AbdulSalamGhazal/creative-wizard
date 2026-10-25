@@ -214,6 +214,16 @@ describe("the catalog offers the data the page already has", () => {
     ],
     // Trends → Types: the clicks behind CTR/CPC (D22).
     "components/trends/type-rollup-table.tsx": ["clicks"],
+    // Trends → LPs: the registered link, the creative count and the ratios
+    // the user did not ask to see (2026-10-25).
+    "components/trends/landing-pages-table.tsx": [
+      "url",
+      "creatives",
+      "cpc",
+      "cpm",
+      "landingPageViews",
+      "cvr",
+    ],
     // Funnel → platforms: the counts behind each rate (D22).
     "components/funnel/platform-funnel-comparison.tsx": [
       "impressions",
@@ -254,6 +264,7 @@ describe("the catalog offers the data the page already has", () => {
       "components/budget/audience-board.tsx",
       "components/trends/type-rollup-table.tsx",
       "components/funnel/platform-funnel-comparison.tsx",
+      "components/trends/landing-pages-table.tsx",
     ]) {
       const src = readFileSync(path.join(REPO, file), "utf8");
       expect(src, file).toContain("defaultHidden");

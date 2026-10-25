@@ -288,6 +288,7 @@ describe("the registry", () => {
         "store-utm-sources",
         "top-creatives",
         "trends-angles",
+        "trends-landing-pages",
         "trends-launches",
         "trends-video",
         // D22 (2026-10): the last four hand-built tables.

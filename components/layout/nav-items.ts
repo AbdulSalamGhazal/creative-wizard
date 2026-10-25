@@ -76,6 +76,8 @@ export const TRENDS_CHILDREN: NavChild[] = [
   { href: "/trends/by-type", label: "Types" },
   { href: "/trends/launches", label: "Launches" },
   { href: "/trends/video", label: "Video" },
+  // Performance by the landing page an ad sent traffic to (its ` @code`).
+  { href: "/trends/landing-pages", label: "LPs" },
 ];
 
 export const NAV_ITEMS: NavItem[] = [

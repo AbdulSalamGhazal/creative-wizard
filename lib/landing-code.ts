@@ -53,6 +53,18 @@ export function withLandingCode(name: string, code: string | null): string {
 }
 
 /** A creative name the upload could never match, because it would be split. */
+/**
+ * How the NULL landing page reads in the UI: an ad with no ` @code` sends
+ * its traffic to the product's own page (user wording, 2026-10-25). One
+ * spelling, shared by the Trends → LPs table, its chart and its export.
+ */
+export const PRODUCT_PAGE_LABEL = "Product page";
+
+/** A landing page's display name — the registered name, or the product page. */
+export function landingPageLabel(name: string | null): string {
+  return name ?? PRODUCT_PAGE_LABEL;
+}
+
 export function hasLandingMarker(name: string): boolean {
   return name.includes(LANDING_CODE_MARKER);
 }

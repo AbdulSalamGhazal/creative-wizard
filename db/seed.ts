@@ -20,6 +20,7 @@ import {
   ratingRules,
   platformFieldMappings,
   campaigns,
+  landingPages,
   uploadBatches,
   performanceRecords,
   storeOrders,
@@ -226,6 +227,34 @@ async function main() {
   }
   console.log("  angle vocabulary:", distinctAngles.length);
 
+  // ---------- Landing pages ----------
+  // Two registered pages so Trends → LPs has real rows beside the product
+  // page. A share of two creatives' daily traffic is written under them below
+  // (the equivalent of ads named `URJ_VID_002 @ramadan`), unique on
+  // (account, code) so re-runs are no-ops.
+  const landingPageRows = [
+    { name: "Ramadan offer", code: "ramadan", url: "https://urjwan.com/ramadan" },
+    { name: "Bundle page", code: "bundle", url: "https://urjwan.com/bundle" },
+  ];
+  for (const lp of landingPageRows) {
+    await db
+      .insert(landingPages)
+      .values({ ...lp, createdByUserId: adminId })
+      .onConflictDoNothing({ target: [landingPages.accountId, landingPages.code] });
+  }
+  const landingPageList = await db
+    .select({ id: landingPages.id, code: landingPages.code })
+    .from(landingPages);
+  const landingPageIdByCode = new Map(landingPageList.map((l) => [l.code, l.id]));
+  console.log("  landing pages:", landingPageList.length);
+  /** Which creatives split traffic to a landing page: the page, the share of
+   *  the day's numbers that goes there, how many recent days, and how much
+   *  better (or worse) the page converts than the product page. */
+  const LANDING_SPLIT: Record<string, { code: string; share: number; days: number; cvrBoost: number }> = {
+    URJ_VID_002: { code: "ramadan", share: 0.4, days: 25, cvrBoost: 1.6 },
+    URJ_IMG_010: { code: "bundle", share: 0.3, days: 45, cvrBoost: 0.7 },
+  };
+
   // ---------- Upload batch + performance records ----------
   // One synthetic batch covering both platforms over the last 30 days.
   const [batch] = await db
@@ -330,6 +359,35 @@ async function main() {
           rawPayload: { source: "seed", note: "synthetic" },
           uploadBatchId: batchId,
         });
+
+        // A second row for the same day under a landing page — the record
+        // identity includes landing_page_id, so both rows coexist.
+        const split = LANDING_SPLIT[c.name];
+        const landingPageId = split ? landingPageIdByCode.get(split.code) : undefined;
+        if (split && landingPageId && d < split.days) {
+          const k = split.share;
+          const lpConversions = Math.floor(conversions * k * split.cvrBoost);
+          rows.push({
+            creativeId: c.id,
+            platform,
+            campaignId,
+            date: dateStr,
+            landingPageId,
+            spend: (spend * k).toFixed(2),
+            impressions: Math.floor(impressions * k),
+            clicks: Math.max(1, Math.floor(clicks * k)),
+            conversions: lpConversions,
+            conversionValue: (lpConversions * (15 + rand() * 60)).toFixed(2),
+            landingPageViews: Math.floor(lpv * k),
+            videoViews2s: Math.floor(vv2s * k),
+            videoViews25: Math.floor(vv25 * k),
+            videoViews50: Math.floor(vv50 * k),
+            videoViews75: Math.floor(vv75 * k),
+            videoViews100: Math.floor(vv100 * k),
+            rawPayload: { source: "seed", note: "synthetic", landingPage: split.code },
+            uploadBatchId: batchId,
+          });
+        }
       }
     }
   }

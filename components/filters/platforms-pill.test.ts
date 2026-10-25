@@ -75,6 +75,7 @@ describe("FilterStrip's Clear clears tier-2 only (D19)", () => {
       "app/(dashboard)/trends/by-type/page.tsx",
       "app/(dashboard)/trends/launches/page.tsx",
       "app/(dashboard)/trends/video/page.tsx",
+      "app/(dashboard)/trends/landing-pages/page.tsx",
     ]) {
       const src = readFileSync(path.join(ROOT, page), "utf8");
       expect(src, page).toContain("resolveStripFilters(");
