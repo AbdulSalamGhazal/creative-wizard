@@ -185,8 +185,11 @@ as it stood before the restructure.*
   page and by page × platform (a client view switch, both rollups sent with
   the page); google EXCLUDED like the other Trends children
   (`PLATFORMS_WITH_CREATIVES`); the range is URL → the user's saved range →
-  the last 30 days; the table first, the chart (spend or conversions per
-  day, one line per page) under it; platform AND product filters through the
+  the last 30 days; the table first, the chart under it — one line per page,
+  per day: Spend, Conversions, ROAS, CTR, CvR, CPA, CPC (the ratios added at
+  the user's ask after the first render; the daily query carries the
+  component sums and the chart derives each DAY's ratio from that day's sums,
+  a gap where the denominator is 0, never a zero); platform AND product filters through the
   standard `FilterStrip`. Queries in `db/queries/landing-page-performance.ts`
   (every ratio a `lib/metrics` fragment; `tests/db/landing-page-performance
   .test.ts` pins the per-page sums, the NULL bucket, Excluded, the google

@@ -179,6 +179,20 @@ describe("landingPageDaily — per-day spend and conversions per landing page", 
     expect(pick("2026-01-01", LP_A)!.spend).toBeCloseTo(50, 4);
     expect(pick("2026-01-02", LP_A)!.spend).toBeCloseTo(30, 4);
     expect(pick("2026-01-02", LP_A)!.conversions).toBe(3);
+    // The component sums the chart derives its ratios from — a day's ROAS is
+    // that day's value / spend (400 / 50 = 8 for the page on 01-01).
+    expect(pick("2026-01-01", LP_A)).toMatchObject({
+      impressions: 500,
+      clicks: 25,
+      conversionValue: 400,
+      landingPageViews: 100,
+    });
+    expect(pick("2026-01-01", null)).toMatchObject({
+      impressions: 3000,
+      clicks: 200,
+      conversionValue: 1500,
+      landingPageViews: 600,
+    });
     // The excluded 01-03 row is hidden; nothing from google or account B.
     expect(pick("2026-01-03", null)).toBeUndefined();
     expect(rows.reduce((s, r) => s + r.spend, 0)).toBeCloseTo(480, 4);

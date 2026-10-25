@@ -17,7 +17,7 @@ import { SeriesLegend } from "@/components/charts/series-legend";
 import { ChartFitToggle, useChartFit } from "@/components/charts/chart-fit";
 import { EmptyState } from "@/components/ui/empty-state";
 import { dayBucketsInRange } from "@/lib/budget";
-import { int, intCompact, monthDay, usd, usdCompact } from "@/lib/format";
+import { int, intCompact, monthDay, pct, roas, usd, usdCompact } from "@/lib/format";
 import { landingPageLabel } from "@/lib/landing-code";
 import { seriesColor } from "@/lib/palette";
 import type {
@@ -25,13 +25,34 @@ import type {
   LandingPageRollupRow,
 } from "@/db/queries/landing-page-performance";
 
-type Metric = "spend" | "conversions";
+type Metric = "spend" | "conversions" | "roas" | "ctr" | "cvr" | "cpa" | "cpc";
 
-const METRICS: Record<Metric, { label: string; cell: (v: number | null) => string; axis: (v: number) => string }> = {
-  spend: { label: "Spend", cell: usd, axis: usdCompact },
-  conversions: { label: "Conversions", cell: int, axis: intCompact },
+interface MetricDef {
+  label: string;
+  cell: (v: number | null) => string;
+  axis: (v: number) => string;
+  /**
+   * A day's value from that day's component sums. Additive metrics are the
+   * sum itself (an absent day is 0); a ratio is numerator / denominator —
+   * the same weighted rule as the table — and NULL when the denominator is
+   * 0, which the line draws as a gap, never a zero.
+   */
+  value: (d: LandingPageDailyRow) => number | null;
+  additive: boolean;
+}
+
+const ratio = (n: number, d: number): number | null => (d > 0 ? n / d : null);
+
+const METRICS: Record<Metric, MetricDef> = {
+  spend: { label: "Spend", cell: usd, axis: usdCompact, additive: true, value: (d) => d.spend },
+  conversions: { label: "Conversions", cell: int, axis: intCompact, additive: true, value: (d) => d.conversions },
+  roas: { label: "ROAS", cell: roas, axis: roas, additive: false, value: (d) => ratio(d.conversionValue, d.spend) },
+  ctr: { label: "CTR", cell: pct, axis: pct, additive: false, value: (d) => ratio(d.clicks, d.impressions) },
+  cvr: { label: "CvR", cell: pct, axis: pct, additive: false, value: (d) => ratio(d.conversions, d.landingPageViews) },
+  cpa: { label: "CPA", cell: usd, axis: usdCompact, additive: false, value: (d) => ratio(d.spend, d.conversions) },
+  cpc: { label: "CPC", cell: usd, axis: usdCompact, additive: false, value: (d) => ratio(d.spend, d.clicks) },
 };
-const METRIC_ORDER: Metric[] = ["spend", "conversions"];
+const METRIC_ORDER: Metric[] = ["spend", "conversions", "roas", "ctr", "cvr", "cpa", "cpc"];
 
 /** A series: one landing page (the product page included). */
 interface Series {
@@ -45,16 +66,18 @@ interface Series {
 
 interface PivotRow {
   date: string;
-  [id: string]: number | string;
+  [id: string]: number | string | null;
 }
 
 const seriesKey = (landingPageId: string | null) => landingPageId ?? "product";
 
 /**
- * Spend (or conversions) per day, one line per landing page over the resolved
- * range. Every day in the range is a point: a day a page had no record is a
- * zero, because an absent day of an additive metric IS zero. The product
- * page draws in the neutral ink so the registered pages carry the colour.
+ * One metric per day, one line per landing page over the resolved range.
+ * Every day in the range is a point: for Spend and Conversions a day a page
+ * had no record is a zero, because an absent day of an additive metric IS
+ * zero; for a ratio (ROAS, CTR, CvR, CPA, CPC) such a day is a gap, and so is
+ * a day whose denominator is 0. The product page draws in the neutral ink so
+ * the registered pages carry the colour.
  */
 export function LandingPagesChart({
   daily,
@@ -90,30 +113,36 @@ export function LandingPagesChart({
   );
   const drawn = useMemo(() => series.filter((s) => shown.has(s.key)), [series, shown]);
 
+  const m = METRICS[metric];
+
   const data = useMemo<PivotRow[]>(() => {
     if (daily.length === 0 || series.length === 0) return [];
     const byDate = new Map<string, PivotRow>();
     for (const b of dayBucketsInRange(from, to)) {
       const row: PivotRow = { date: b.key };
-      for (const s of series) row[s.id] = 0;
+      for (const s of series) row[s.id] = m.additive ? 0 : null;
       byDate.set(b.key, row);
     }
+    // The query groups by (day, page), so each cell is set once.
     for (const d of daily) {
       const row = byDate.get(d.date);
       const id = idByKey.get(seriesKey(d.landingPageId));
       if (!row || !id) continue;
-      row[id] = (row[id] as number) + d[metric];
+      row[id] = m.value(d);
     }
     return [...byDate.values()];
-  }, [daily, series, idByKey, from, to, metric]);
+  }, [daily, series, idByKey, from, to, m]);
 
   const yValues = useMemo(() => {
     const out: number[] = [];
-    for (const row of data) for (const s of drawn) out.push(row[s.id] as number);
+    for (const row of data)
+      for (const s of drawn) {
+        const v = row[s.id];
+        if (typeof v === "number") out.push(v);
+      }
     return out;
   }, [data, drawn]);
   const fit = useChartFit(yValues);
-  const m = METRICS[metric];
 
   return (
     <ChartShell
@@ -187,6 +216,7 @@ export function LandingPagesChart({
                       strokeWidth={1.8}
                       dot={false}
                       activeDot={{ r: 4 }}
+                      connectNulls={false}
                       isAnimationActive={false}
                     />
                   ))}
@@ -202,7 +232,7 @@ export function LandingPagesChart({
 
 interface TipEntry {
   dataKey: string;
-  value: number;
+  value: number | null;
   payload: PivotRow;
 }
 
@@ -219,10 +249,11 @@ function PagesTooltip({
 }) {
   if (!active || !payload || payload.length === 0) return null;
   const date = payload[0]?.payload.date ?? "";
-  // Biggest first, so the eye lands on the page that mattered that day.
+  // Biggest first, so the eye lands on the page that mattered that day; a
+  // page with nothing that day (a ratio's gap) reads as a dash, last.
   const entries = series
-    .map((s) => ({ s, value: payload.find((p) => p.dataKey === s.id)?.value ?? 0 }))
-    .sort((a, b) => b.value - a.value);
+    .map((s) => ({ s, value: payload.find((p) => p.dataKey === s.id)?.value ?? null }))
+    .sort((a, b) => (b.value ?? -Infinity) - (a.value ?? -Infinity));
   return (
     <ChartTooltip>
       <div className="mb-1.5 font-medium text-ink">{monthDay(date)}</div>

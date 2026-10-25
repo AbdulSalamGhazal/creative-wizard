@@ -77,12 +77,22 @@ export interface LandingPageRollupRow {
   cvr: number | null;
 }
 
+/**
+ * One day of one landing page: the COMPONENT SUMS only. The chart derives
+ * each day's ratio (ROAS, CTR, CvR, CPA, CPC) from these — a day's ratio from
+ * that day's sums, never an average of anything — so the query stays a plain
+ * grouped scan whichever metric is picked.
+ */
 export interface LandingPageDailyRow {
   /** `YYYY-MM-DD`. */
   date: string;
   landingPageId: string | null;
   spend: number;
+  impressions: number;
+  clicks: number;
   conversions: number;
+  conversionValue: number;
+  landingPageViews: number;
 }
 
 /** The WHERE every query here shares: tenant, platform scope, range, Excluded, filters. */
@@ -188,10 +198,10 @@ export async function landingPageRollup(
 }
 
 /**
- * Per-day spend and conversions per landing page (NULL bucket included), for
- * the over-time chart. Days a page had no record are simply absent — the
- * chart fills them as zero inside the range, since an absent day of an
- * additive metric IS zero.
+ * Per-day component sums per landing page (NULL bucket included), for the
+ * over-time chart. Days a page had no record are simply absent — the chart
+ * fills them as zero inside the range for an additive metric (an absent day
+ * IS zero) and as a gap for a ratio (nothing to divide).
  */
 export async function landingPageDaily(
   f: LandingPageFilters,
@@ -202,7 +212,11 @@ export async function landingPageDaily(
       date: performanceRecords.date,
       landingPageId: performanceRecords.landingPageId,
       spend: sumSpend,
+      impressions: sumImpressions,
+      clicks: sumClicks,
       conversions: sumConversions,
+      conversionValue: sumConversionValue,
+      landingPageViews: sumLandingPageViews,
     })
     .from(performanceRecords)
     .innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId))
@@ -213,6 +227,10 @@ export async function landingPageDaily(
     date: String(r.date),
     landingPageId: r.landingPageId ?? null,
     spend: num(r.spend),
+    impressions: num(r.impressions),
+    clicks: num(r.clicks),
     conversions: num(r.conversions),
+    conversionValue: num(r.conversionValue),
+    landingPageViews: num(r.landingPageViews),
   }));
 }
