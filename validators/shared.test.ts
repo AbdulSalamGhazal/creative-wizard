@@ -8,6 +8,7 @@ import { portfolioFiltersSchema } from "@/validators/portfolio";
 import { canvasFiltersSchema } from "@/validators/canvas";
 import { creativeListFiltersSchema } from "@/validators/creative";
 import { storeInsightsFiltersSchema } from "@/validators/store";
+import { activityParamsSchema } from "@/validators/activity";
 
 /**
  * W3-1: ONE comma-list helper, and it drops only the bad token. Five copies
@@ -74,6 +75,11 @@ describe("every filter schema drops only the bad token", () => {
     expect(
       storeInsightsFiltersSchema.parse({ platforms: stale }).platforms,
     ).toEqual(["instagram"]);
+  });
+  it("Activity", () => {
+    expect(activityParamsSchema.parse({ types: "creative,bogus" }).types).toEqual([
+      "creative",
+    ]);
   });
 });
 

@@ -7,6 +7,7 @@ import {
   COMMENT_REACTION_KEYS,
   MENTION_QUERY_MAX,
   activeMentions,
+  anchorPathFor,
   buildCommentTarget,
   composerStateAfterSubmit,
   detectMentionQuery,
@@ -145,6 +146,7 @@ describe("the view paths derive from the nav", () => {
     // A flow step, and the notifications feed itself.
     expect(isCommentableView("/uploads/new")).toBe(false);
     expect(isCommentableView("/notifications")).toBe(false);
+    expect(isCommentableView("/activity")).toBe(false);
     expect(isCommentableView("/../etc/passwd")).toBe(false);
     expect(viewLabel("/nope")).toBeNull();
   });
@@ -184,7 +186,26 @@ describe("which anchor the drawer points at", () => {
     // No anchor → the drawer's icon is hidden rather than shown broken.
     expect(resolveCommentAnchor({ pathname: "/uploads/new" })).toBeNull();
     expect(resolveCommentAnchor({ pathname: "/notifications" })).toBeNull();
+    expect(resolveCommentAnchor({ pathname: "/activity" })).toBeNull();
     expect(viewAnchorFor("/library/Ad-One")).toBeNull();
+  });
+});
+
+describe("anchorPathFor — the one place an anchor becomes a path", () => {
+  it("names address creatives and campaigns; a month and a page are their own path", () => {
+    expect(anchorPathFor("creative", "id", "Hero v2 / UGC")).toBe("/library/Hero%20v2%20%2F%20UGC");
+    expect(anchorPathFor("campaign", "id", "Camp One ➤ Broad (IG)")).toBe(
+      `/campaigns/${encodeURIComponent("Camp One ➤ Broad (IG)")}`,
+    );
+    expect(anchorPathFor("budget_month", "2026-10", null)).toBe("/budget?month=2026-10");
+    expect(anchorPathFor("view", "/summary", null)).toBe("/summary");
+  });
+
+  it("is null when the thing is gone, or the page is no longer one the nav offers", () => {
+    expect(anchorPathFor("creative", "id", null)).toBeNull();
+    expect(anchorPathFor("campaign", "id", null)).toBeNull();
+    expect(anchorPathFor("view", "/no-such-page", null)).toBeNull();
+    expect(anchorPathFor("view", "/activity", null)).toBeNull();
   });
 });
 

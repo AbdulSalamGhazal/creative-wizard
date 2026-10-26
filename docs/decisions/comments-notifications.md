@@ -76,10 +76,40 @@
 - **Comment and notification actions call NO `revalidatePath`/`revalidateTag`**
   (pinned by `app/actions/comment-latency.test.ts`): a revalidation inside a
   server action re-renders the CALLER's page and ships it in the response,
-  and these surfaces live on every page. Nothing server-side reads comments;
-  `/notifications` is `force-dynamic` and refreshes itself on
-  `NOTIFICATIONS_CHANGED_EVENT`, which the bell announces after a write (and
-  the page announces back, so the badge follows without a second timer).
+  and these surfaces live on every page. `/activity` and nothing else reads
+  comments server-side, and it is `force-dynamic` — every visit renders
+  fresh, so the actions still revalidate nothing; `/notifications` is
+  `force-dynamic` too and refreshes itself on `NOTIFICATIONS_CHANGED_EVENT`,
+  which the bell announces after a write (and the page announces back, so the
+  badge follows without a second timer).
+- **THE ACTIVITY FEED (`/activity`, 2026-10) is the BRAND's comments, newest
+  first — not yours.** The bell and `/notifications` carry only what was
+  addressed to you (the actor is excluded from their own event), so your own
+  comments and the team's unaddressed ones were visible nowhere; the feed is
+  where they are. `listActivity` (db/queries/activity.ts) is brand-scoped
+  like every comment read, with ONE subtraction: a `view` comment on a page
+  whose PAGE refuses the viewer is left out — `refusedRoutes`
+  (lib/page-gates.ts: the three pages that `notFound()` / `requirePermission`,
+  Configuration · Team · Audit), never `NAV_ROUTE_GATES`, which answers the
+  SIDEBAR's question and would hide the upload pages every member can open.
+  Deleted comments never appear (the thread is the only surface that keeps a
+  deleted row's place); a comment whose thing is gone — a hard-deleted
+  creative or campaign, a page the nav retired — stays listed under "Deleted
+  creative" / "Deleted campaign" / "Retired page" and is INERT. Everyone |
+  Mine is `?who=me`, the type chips `?types=`, the search `?q=`: the URL is
+  the state (`activityHref`, lib/activity.ts), a change resets the page, and
+  only what differs from the default is written. A row opens the comment
+  WHERE IT WAS WRITTEN through `/go/comment/[id]`; a run's header links to
+  the thing through `anchorPathFor` (lib/comments.ts), the ONE path builder
+  the resolver uses too. Day groups come from `groupNotifications` — the one
+  grouping engine, UTC like /notifications — rendered as a header per
+  consecutive same-anchor run with every comment beneath (user decision). No
+  sidebar entry (the bell's footer and the panel's anchor-less state are the
+  ways in; `/activity` sits in `NOT_COMMENTABLE` beside `/notifications`),
+  no live refresh (nothing signals another member's comment reliably), one
+  bounded mentions lookup so a body highlights as it does in its thread, and
+  two PARTIAL indexes on live rows only (`comments_account_created_idx`,
+  `comments_account_author_created_idx`, migration 0063).
 - **Every client call to a comment, reaction or notification action goes
   through `safeAction`** (lib/action-failure.ts) and fails through
   `toastActionFailure` (lib/action-toast.ts): a REJECTED call — a network
@@ -633,3 +663,41 @@ the case fails on the old rule.
   the bell. `ruleTitleDescriptor` (lib/exclusion-rules) isolates it; the
   audit label keeps the plain descriptor. Pinned through the real action in
   `tests/db/wave3.test.ts`.
+
+### 2026-10-26: the Activity feed — the brand's comments, in one place
+
+- The user noticed that the notification system had no place to see the
+  activity overall, and in particular their own latest comments. True by
+  construction: the bell and `/notifications` list what was addressed to
+  you (the actor is always excluded from their own event), the panel shows
+  one anchor's thread, the audit log records edits and deletes but not
+  creation, and `listComments` only ever took an anchor. "Where did I
+  comment last week?" and "what has the team been saying?" had no answer.
+- **Four user decisions (2026-10-26):** the feed opens on **Everyone**
+  (`?who=me` is Mine); it is reachable from the **bell footer** and from the
+  **comment panel's anchor-less state** ("See all activity"), with **no
+  sidebar entry**; comments on pages the viewer cannot open are **hidden**;
+  and consecutive comments on the same thing share **one header** naming it,
+  replies indented beneath.
+- **The gate was nearly the wrong table.** The first design hid comments
+  whose path is in `NAV_ROUTE_GATES` — but that is the SIDEBAR's gate ("show
+  the route to anyone who can open or ACT ON part of it"), and the upload
+  pages render their history for every member while only their gated parts
+  put them in a sidebar. A viewer would have lost every comment on `/uploads`
+  and `/store/uploads` — pages they can open. The pages that actually refuse
+  are three (`notFound()` in Configuration, `requirePermission` on Team and
+  Audit), so `PAGE_REFUSAL_GATES` + `refusedRoutes` say exactly that, derived
+  from the same constants. The query takes `can()` rather than
+  `grantedPermissions()` because the DB suite's `vi.mock("@/lib/auth")`
+  provides the former — a factory mock replaces the whole module.
+- Dropped from the design on the way: the "View" chip (`showViewChip`
+  compares against the READER's current query, which on /activity is the
+  feed's own; `/go/comment/[id]` already lands on the captured view), and a
+  whole-row `<button>` (a comment body carries `<a>` links — interactive
+  content inside a button is invalid, and a link click would also navigate
+  the row), replaced by the thread's own `<div onClick>` with the author's
+  name as the keyboard control.
+- Pre-existing, noted, not changed: `/notifications?missing=1` is read by
+  nothing (the feed never sends anyone there — orphaned rows are inert); a
+  comment older than the panel's newest-100-threads window may not
+  highlight after its deep link (`deepLinkStep` reloads once).

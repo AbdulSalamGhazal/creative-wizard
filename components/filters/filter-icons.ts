@@ -8,6 +8,7 @@ import {
   Gauge,
   Globe,
   Layers,
+  LayoutDashboard,
   Package,
   Reply,
   Share2,
@@ -17,7 +18,10 @@ import {
   TriangleAlert,
   type LucideIcon,
 } from "lucide-react";
+import type { ComponentType } from "react";
 import type { FilterDef } from "@/components/filters/filter-model";
+import { NAV_ITEMS } from "@/components/layout/nav-items";
+import type { CommentAnchorType } from "@/lib/comments";
 
 /**
  * The filter dialog's leading icons, keyed by the URL PARAM — one map, so the
@@ -77,4 +81,32 @@ export const CATEGORY_ICONS: Readonly<Record<string, LucideIcon>> = {
 /** A category's glyph, or the system bell for a category nobody mapped. */
 export function categoryIcon(category: string): LucideIcon {
   return CATEGORY_ICONS[category] ?? Bell;
+}
+
+type NavIcon = ComponentType<{ className?: string }>;
+
+/** The glyph the sidebar gives a route (its own, or a child's parent), or the dashboard's. */
+function navIcon(path: string): NavIcon {
+  const item = NAV_ITEMS.find(
+    (i) => i.href === path || i.children?.some((c) => c.href === path),
+  );
+  return item?.icon ?? LayoutDashboard;
+}
+
+/**
+ * COMMENT ANCHOR glyphs (2026-10, the Activity feed): what a creative, a
+ * campaign, a budget month or a page looks like when a comment names it —
+ * the NAV's own icons, derived, so a thing wears one glyph everywhere. A
+ * `view` takes its own page's glyph (`anchorIcon`); a path the nav no longer
+ * offers falls back to the dashboard's.
+ */
+export const ANCHOR_ICONS: Readonly<Record<CommentAnchorType, NavIcon>> = {
+  creative: navIcon("/library"),
+  campaign: navIcon("/campaigns"),
+  budget_month: navIcon("/budget"),
+  view: LayoutDashboard,
+};
+
+export function anchorIcon(type: CommentAnchorType, anchorId: string): NavIcon {
+  return type === "view" ? navIcon(anchorId) : ANCHOR_ICONS[type];
 }

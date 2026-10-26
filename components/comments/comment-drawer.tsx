@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { X } from "lucide-react";
@@ -270,10 +271,16 @@ export function CommentPanelBody({
       {!anchor ? (
         // The panel persists across pages — on one with no thread it says so
         // quietly rather than vanishing out from under the reader.
-        <div className="flex flex-1 items-center justify-center px-6 text-center">
+        <div className="flex flex-1 flex-col items-center justify-center gap-1.5 px-6 text-center">
           <p className="text-xs text-ink-3">
             Nothing to comment on here. Open another page to see its thread.
           </p>
+          {/* The brand's feed is the other way to find a conversation
+              (2026-10); the panel closes — its job here is done, and a row
+              there reopens it on the comment it leads to. */}
+          <Link href="/activity" onClick={onClose} className="text-xs text-brand hover:underline">
+            See all activity
+          </Link>
         </div>
       ) : (
         <>

@@ -1637,6 +1637,16 @@ export const comments = pgTable(
       t.createdAt,
     ),
     parentIdx: index("comments_parent_idx").on(t.parentId),
+    // The Activity feed (2026-10): the brand's comments newest-first, LIVE
+    // rows only — partial, like the badge's, because the feed never shows a
+    // deleted comment (the thread, which must, keeps `anchorIdx`).
+    accountCreatedIdx: index("comments_account_created_idx")
+      .on(t.accountId, t.createdAt.desc())
+      .where(sql`${t.deletedAt} is null`),
+    // "Mine" — and the first index on author_user_id at all.
+    accountAuthorCreatedIdx: index("comments_account_author_created_idx")
+      .on(t.accountId, t.authorUserId, t.createdAt.desc())
+      .where(sql`${t.deletedAt} is null`),
   }),
 );
 

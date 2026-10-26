@@ -1,0 +1,2 @@
+CREATE INDEX "comments_account_created_idx" ON "comments" USING btree ("account_id","created_at" DESC NULLS LAST) WHERE "comments"."deleted_at" is null;--> statement-breakpoint
+CREATE INDEX "comments_account_author_created_idx" ON "comments" USING btree ("account_id","author_user_id","created_at" DESC NULLS LAST) WHERE "comments"."deleted_at" is null;

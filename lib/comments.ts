@@ -39,6 +39,8 @@ export type CommentAnchorType = (typeof COMMENT_ANCHOR_TYPES)[number];
 const NOT_COMMENTABLE = new Set<string>([
   // Its own feed — commenting on the list of comments-about-things is a loop.
   "/notifications",
+  // The brand's comment feed, for the same reason (2026-10).
+  "/activity",
 ]);
 
 export const COMMENTABLE_VIEWS: ReadonlyArray<{ path: string; label: string }> =
@@ -76,6 +78,27 @@ export function isCommentableView(path: string): boolean {
 
 export function viewLabel(path: string): string | null {
   return COMMENTABLE_VIEWS.find((v) => v.path === path)?.label ?? null;
+}
+
+/**
+ * Where an anchor LIVES — the ONE place the four anchor kinds become a path
+ * (2026-10), shared by the deep-link resolver (`resolveAnchorPath`) and the
+ * Activity feed so the two can never send a reader to different places.
+ * Creatives and campaigns are addressed by NAME, which the callers look up
+ * first (a stored link would rot on a rename); null when the thing is gone,
+ * or when a `view` path is no longer one the nav offers.
+ */
+export function anchorPathFor(
+  type: CommentAnchorType,
+  id: string,
+  name: string | null,
+): string | null {
+  if (type === "view") return isCommentableView(id) ? id : null;
+  if (type === "budget_month") return `/budget?month=${id}`;
+  if (name === null) return null;
+  return type === "creative"
+    ? `/library/${encodeURIComponent(name)}`
+    : `/campaigns/${encodeURIComponent(name)}`;
 }
 
 /** "September 2026" — a budget-month anchor's human label. */

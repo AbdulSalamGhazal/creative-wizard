@@ -457,13 +457,26 @@ export function NotificationBell({
         )}
 
         <div className="flex items-center justify-between border-t border-line px-3 py-2">
-          <Link
-            href="/notifications"
-            onClick={() => onOpenChange(false)}
-            className="text-xs text-brand hover:underline"
-          >
-            View all
-          </Link>
+          <span className="flex items-center gap-1.5 text-xs">
+            <Link
+              href="/notifications"
+              onClick={() => onOpenChange(false)}
+              className="text-brand hover:underline"
+            >
+              View all
+            </Link>
+            <span aria-hidden className="text-ink-3">
+              ·
+            </span>
+            {/* The brand's comment feed (2026-10) — the bell is its way in. */}
+            <Link
+              href="/activity"
+              onClick={() => onOpenChange(false)}
+              className="text-brand hover:underline"
+            >
+              Activity
+            </Link>
+          </span>
           {beyond > 0 && (
             <Link
               href="/notifications?tab=unread"

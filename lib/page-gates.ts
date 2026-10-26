@@ -108,3 +108,26 @@ export const NAV_ROUTE_GATES = {
   "/admin/users": [TEAM_GATE],
   "/admin/audit": [AUDIT_GATE],
 } as const satisfies Record<string, readonly Permission[]>;
+
+/**
+ * Routes whose PAGE refuses without the gate — `notFound()` or
+ * `requirePermission` at the top (2026-10). NOT the same question as
+ * `NAV_ROUTE_GATES`, which decides what the SIDEBAR offers: the upload pages
+ * render their history for every member and only their gated parts put them
+ * in a sidebar, so they are absent here. These are the only paths a
+ * brand-wide surface such as /activity must hide — a comment on one of them
+ * would lead a viewer to a page that refuses them.
+ */
+export const PAGE_REFUSAL_GATES = {
+  // ANY tab opens Configuration; with none it is a 404.
+  "/admin/catalog": CONFIGURATION_TABS.map((t) => t.perm),
+  "/admin/users": [TEAM_GATE],
+  "/admin/audit": [AUDIT_GATE],
+} as const satisfies Record<string, readonly Gate[]>;
+
+/** The routes in `PAGE_REFUSAL_GATES` that refuse a holder of `has`. */
+export function refusedRoutes(has: (perm: Permission) => boolean): string[] {
+  return Object.entries(PAGE_REFUSAL_GATES)
+    .filter(([, gates]) => !gates.some((g) => passes(g, has)))
+    .map(([path]) => path);
+}

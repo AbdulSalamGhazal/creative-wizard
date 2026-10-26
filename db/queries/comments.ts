@@ -13,6 +13,7 @@ import { getActiveAccountId } from "@/lib/tenant";
 import {
   COMMENT_THREAD_LIMIT,
   REACTION_TOOLTIP_NAMES,
+  anchorPathFor,
   monthAnchorLabel,
   viewLabel,
   type CommentAnchorType,
@@ -310,15 +311,16 @@ export async function resolveAnchorPath(
   accountId: string,
   exec: Exec = db,
 ): Promise<{ path: string; label: string } | null> {
+  // The path itself comes from `anchorPathFor` — the one builder the Activity
+  // feed uses too, so a deep link and a feed header can never disagree.
   if (anchorType === "view") {
     const label = viewLabel(anchorId);
-    return label ? { path: anchorId, label } : null;
+    const path = anchorPathFor("view", anchorId, null);
+    return label && path ? { path, label } : null;
   }
   if (anchorType === "budget_month") {
-    return {
-      path: `/budget?month=${anchorId}`,
-      label: monthAnchorLabel(anchorId),
-    };
+    const path = anchorPathFor("budget_month", anchorId, null);
+    return path ? { path, label: monthAnchorLabel(anchorId) } : null;
   }
   if (anchorType === "creative") {
     const [row] = await exec
@@ -326,16 +328,16 @@ export async function resolveAnchorPath(
       .from(creatives)
       .where(and(eq(creatives.id, anchorId), eq(creatives.accountId, accountId)))
       .limit(1);
-    if (!row) return null;
-    return { path: `/library/${encodeURIComponent(row.name)}`, label: row.name };
+    const path = row ? anchorPathFor("creative", anchorId, row.name) : null;
+    return row && path ? { path, label: row.name } : null;
   }
   const [row] = await exec
     .select({ name: campaigns.name })
     .from(campaigns)
     .where(and(eq(campaigns.id, anchorId), eq(campaigns.accountId, accountId)))
     .limit(1);
-  if (!row) return null;
-  return { path: `/campaigns/${encodeURIComponent(row.name)}`, label: row.name };
+  const path = row ? anchorPathFor("campaign", anchorId, row.name) : null;
+  return row && path ? { path, label: row.name } : null;
 }
 
 /** Does this anchor exist IN THIS BRAND? The FK the column can't have. */

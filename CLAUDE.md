@@ -389,6 +389,7 @@ this map is still a rule you broke.
 - Opening the bell = seen (it lists every unread up to its cap); the panel showing a thread marks that thread's comment notifications read.
 - ONE `UserAvatar` (photo → initials) for every person picture — never fork an avatar.
 - Notification titles isolate user-supplied names (U+2068/U+2069, `lib/bidi.ts`); comment blocks are `dir="auto"`.
+- `/activity` is the BRAND's comment feed (bell footer + the panel's anchor-less state; no sidebar entry): it hides comments on pages that REFUSE the viewer (`refusedRoutes`, three pages), never on `NAV_ROUTE_GATES`, the sidebar's question.
 
 → **`docs/decisions/comments-notifications.md`**
 
