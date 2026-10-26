@@ -13,7 +13,10 @@ import { cn } from "@/lib/utils";
  * Multi-select angle dropdown: pick from the existing angle library (checkbox
  * list) and/or type a brand-new angle and press Enter / "Add". Selected angles
  * render as removable chips beneath the trigger. Presentational — the parent
- * owns persistence via `onChange`.
+ * owns persistence via `onChange`, so "Add" edits the parent's DRAFT and
+ * nothing is stored until the parent saves; the copy says so (2026-10-26: it
+ * used to say "press Add to create it", and a new brand's team read that as
+ * done, left the page, and typed the same angle on every creative).
  */
 export function AngleMultiSelect({
   value,
@@ -110,7 +113,7 @@ export function AngleMultiSelect({
             {options.length === 0 ? (
               <div className="px-2 py-3 text-center text-[11px] text-ink-3">
                 {draft.trim()
-                  ? "No matches — press Add to create it."
+                  ? "No matches — Add puts it on this creative; Save changes keeps it."
                   : "No angles yet. Type one above."}
               </div>
             ) : (

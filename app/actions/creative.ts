@@ -21,6 +21,7 @@ import {
 import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
 import { deleteRulesTargeting } from "@/db/queries/exclusion-rules";
 import { getActiveAccountId } from "@/lib/tenant";
+import { addToVocabulary } from "@/db/queries/angles";
 import { actionError } from "@/lib/action-error";
 
 export interface CreativeMutationResult {
@@ -109,18 +110,36 @@ export async function createCreative(
         .returning({ id: creatives.id, name: creatives.name });
       if (!row) throw new Error("Insert failed.");
 
+      let vocabularyAdded: string[] = [];
       if (data.angles.length > 0) {
         await tx
           .insert(creativeAngles)
           .values(data.angles.map((angle) => ({ creativeId: row.id, angle })))
           .onConflictDoNothing();
+        // Every assignment is a vocabulary entry (Angles tab, rename/delete
+        // cascades) — written in the same transaction, one writer.
+        vocabularyAdded = await addToVocabulary(tx, {
+          accountId: acct,
+          names: data.angles,
+          createdByUserId: user.id,
+        });
       }
-      return row;
+      return { ...row, vocabularyAdded };
     });
 
-    // NO revalidatePath (W2-1): the caller navigates to the new creative's page, and that
-    // navigation is the one render. A revalidation here would re-render the
-    // page being left (/library/new) and ship it in this response, for nothing.
+    // The caller navigates to the new creative's page, so by W2-1 this action
+    // would not revalidate — but the page being left stays in history, and
+    // Back returns to it from the router cache, which only a revalidation
+    // purges. Without this, Back brought the form back with the suggestion
+    // list from BEFORE the create (an angle typed here was missing on the
+    // next creative — Mesbah, 2026-10-26) and the Library grid without the
+    // new creative. The cost is one extra render of this small form page in
+    // the action's response; the documented exception (ui-system.md).
+    try {
+      revalidatePath("/library/new");
+    } catch (err) {
+      console.warn("revalidatePath after create failed:", err);
+    }
 
     await logAudit({
       action: AUDIT_ACTIONS.CREATIVE_CREATE,
@@ -132,6 +151,9 @@ export async function createCreative(
         productId: data.productId,
         type: data.type,
         angles: data.angles,
+        ...(inserted.vocabularyAdded.length > 0
+          ? { vocabularyAdded: inserted.vocabularyAdded }
+          : {}),
       },
     });
 
@@ -408,13 +430,14 @@ export async function patchCreative(
     if (data.stages !== undefined) set.stages = data.stages;
     const hasScalarChange = Object.keys(set).length > 1; // more than updatedAt
 
-    await db.transaction(async (tx) => {
+    const vocabularyAdded = await db.transaction(async (tx) => {
       if (hasScalarChange) {
         await tx
           .update(creatives)
           .set(set)
           .where(and(eq(creatives.accountId, acct), eq(creatives.id, data.id)));
       }
+      let added: string[] = [];
       if (data.angles !== undefined) {
         await tx.delete(creativeAngles).where(eq(creativeAngles.creativeId, data.id));
         if (data.angles.length > 0) {
@@ -422,8 +445,16 @@ export async function patchCreative(
             .insert(creativeAngles)
             .values(data.angles.map((angle) => ({ creativeId: data.id, angle })))
             .onConflictDoNothing();
+          // Every assignment is a vocabulary entry — same transaction, one
+          // writer (db/queries/angles.ts).
+          added = await addToVocabulary(tx, {
+            accountId: acct,
+            names: data.angles,
+            createdByUserId: user.id,
+          });
         }
       }
+      return added;
     });
 
     const newName = data.name ?? oldRow.name;
@@ -473,6 +504,7 @@ export async function patchCreative(
       meta: {
         changes,
         ...(data.angles !== undefined ? { anglesCount: data.angles.length } : {}),
+        ...(vocabularyAdded.length > 0 ? { vocabularyAdded } : {}),
         inline: true,
       },
     });

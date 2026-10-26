@@ -275,7 +275,6 @@ describe("a caller that navigates away gets ONE render — the navigation", () =
   // page, delete → the list), so a revalidation would render a page the
   // person is leaving — for a delete, a page that no longer exists.
   it.each([
-    ["creative", "createCreative"],
     ["creative", "deleteCreative"],
     ["creative-bulk", "commitBulkCreatives"],
     ["campaign", "createCampaign"],
@@ -283,6 +282,22 @@ describe("a caller that navigates away gets ONE render — the navigation", () =
     ["store-upload", "commitStoreUpload"],
   ])("%s.%s does not revalidate", (module, name) => {
     expect(rerenders(module, name)).toBe(false);
+  });
+
+  // THE EXCEPTION (2026-10-26): the page being left must be fresh on Back.
+  // Back/Forward serve the Router Cache regardless of staleness, and only a
+  // revalidation purges it — so after a create, Back returned /library/new
+  // with the angle suggestions from BEFORE the create (and the Library grid
+  // without the new creative). createCreative revalidates that form: one extra
+  // render of a small page in its response, taken on purpose (ui-system.md).
+  it("creative.createCreative revalidates /library/new — Back returns to the form", () => {
+    expect(rerenders("creative", "createCreative")).toBe(true);
+    // The raw source here, not codeOnly(): the path is a string literal.
+    const src = read("app/actions/creative.ts");
+    const start = src.indexOf("export async function createCreative(");
+    const next = src.indexOf("\nexport ", start + 10);
+    const body = src.slice(start, next === -1 ? undefined : next);
+    expect(body).toMatch(/revalidatePath\(\s*"\/library\/new"\s*\)/);
   });
 
   // A rename follows the new URL; a revalidation would re-render the OLD one,

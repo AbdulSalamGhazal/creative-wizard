@@ -39,6 +39,7 @@ import {
 } from "@/components/ui/dialog";
 import { ThumbnailUpload } from "@/components/creative/thumbnail-upload";
 import { AngleMultiSelect } from "@/components/creative/angle-multi-select";
+import { UnsavedChangesGuard } from "@/components/ui/unsaved-changes-guard";
 import { StatusBadge } from "@/components/creative/status-badge";
 import { SourceLinkControl } from "@/components/creative/source-link-control";
 import {
@@ -220,6 +221,13 @@ export function CreativeDetailHeader({
 
   return (
     <div className="space-y-4">
+      {/* Leaving with an unsaved draft asks first (the house guard). */}
+      <UnsavedChangesGuard
+        dirty={canEdit && dirty}
+        onDiscard={discard}
+        description="Your edits to this creative have not been saved."
+      />
+
       {/* Save bar — hidden for read-only viewers */}
       {canEdit && (
         <div className="flex items-center justify-end gap-2">

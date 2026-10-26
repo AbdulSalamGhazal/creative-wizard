@@ -29,6 +29,21 @@
 - Deleting a creative removes its `performance_records` first, in a
   transaction, because that FK has no cascade.
 - The concept is an **angle**, never a "tag" — at every layer.
+- **Every assignment is a vocabulary row.** Any path that writes
+  `creative_angles` (create, patch, bulk import) writes the `angles` row in the
+  SAME transaction through ONE helper, `addToVocabulary`
+  (db/queries/angles.ts); migration 0062 backfilled the assignments that
+  predate it. So the Library's Angles tab lists every angle in use, and a
+  rename or delete there reaches every creative. Un-assigning keeps the word:
+  the vocabulary is curated on that tab, never derived. Pinned by
+  `tests/db/angle-vocabulary.test.ts`.
+- **"Add" in the detail dropdown edits the DRAFT.** Nothing is stored until
+  "Save changes"; the dropdown's copy says so, and leaving with an unsaved
+  draft asks first (`UnsavedChangesGuard`, ui-system.md).
+- **`createCreative` revalidates `/library/new`** although its caller
+  navigates away — the documented exception to one-render-per-action
+  (ui-system.md): Back returns to the form from the router cache, which only a
+  revalidation purges.
 - **The Library has ONE order: `sortCreativeRows` (lib/creative-sort.ts).**
   `listCreatives`, the detail page's prev/next pager and the client's sort
   click all call it, so they can't disagree; text compares through one
@@ -216,3 +231,35 @@ as it stood before the restructure.*
 - One semantic note: a creative with no spend in a window used to sort after
   one with a stored $0 (SQL `NULLS LAST` on a NULL that displays as $0). Both
   show $0, so the comparator treats them as equal and orders them by name.
+
+### Angles typed on a creative never reached the vocabulary (2026-10-26)
+
+- **The report.** The Mesbah team: "we are unable to add angles — when
+  creating one, it doesn't appear in the others; we create the same one over
+  and over." Reviewed as the second brand's bug; it was three things, none of
+  them brand-specific in code, all of them things only a NEW brand does.
+- **What was true.** Assigning an angle wrote `creative_angles` only. The
+  vocabulary (`angles`) grew through the Angles tab alone — and the dev seed,
+  which backfilled Urjwan's from its assignments, so Urjwan's tab looked
+  complete and nobody noticed. The tab's empty state had promised "angles get
+  created when you assign one to a creative" since the rename (2026-09-06),
+  and no code path had ever done it. In a fresh brand every typed angle was
+  invisible there. The dropdowns were fine (`listAllAngles` unions both
+  sources) — the tab said angles were not being created.
+- **The reproduced symptom.** Create a creative on `/library/new` with a new
+  angle, land on its page, press Back: the form came back from the Router
+  Cache with NO refetch (network log), so its suggestion chips still lacked
+  the angle just typed — on every creative, which is exactly how a brand gets
+  onboarded. `createCreative` deliberately did not revalidate (W2-1); nothing
+  else purges the router cache, and Back reads it regardless of staleness. The
+  detail page was never affected: `patchCreative` revalidates, and Back after
+  a save refetched.
+- **The third.** The dropdown said "press Add to create it"; Add only edits
+  the draft, Save changes sits at the top of the header (off-screen on a
+  phone when the Angles control is in view), and leaving discarded the draft
+  silently — no guard anywhere in the app.
+- **The fix.** One writer (`addToVocabulary`) in every assignment's
+  transaction + migration 0062; `createCreative` revalidates `/library/new`
+  (one extra small render, the exception recorded in ui-system.md); the
+  dropdown's copy names both steps; the house `UnsavedChangesGuard` on the
+  detail header. Walked signed-in on a second brand before and after.

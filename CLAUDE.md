@@ -85,10 +85,13 @@ Do not introduce a new dependency without a one-line justification in the PR des
 - **ONE render per action (2026-10).** An action that revalidates already
   re-renders the caller's page in its response: a caller that stays never
   `router.refresh()`es after it; a caller that navigates away (create, delete,
-  rename) calls an action that doesn't revalidate. An action and a navigation
-  never overlap in the router's queue (Next then renders the destination
-  twice): navigate after `await actionSettled()`, fire a write behind a
-  navigation with `afterNavigation` (`lib/router-queue.ts`).
+  rename) calls an action that doesn't revalidate — EXCEPT when the page being
+  left must be fresh on Back (Back serves the router cache, which only a
+  revalidation purges; `createCreative` → `/library/new`, 2026-10-26). An
+  action and a navigation never overlap in the router's queue (Next then
+  renders the destination twice): navigate after `await actionSettled()`,
+  fire a write behind a navigation with `afterNavigation`
+  (`lib/router-queue.ts`).
 - **Every client call to a server action goes through `safeAction` +
   `toastActionFailure`** — a row toasts, a form shows it inline, a stale tab
   gets Reload, and an editor keeps its input. Both rules are pinned by
@@ -404,6 +407,8 @@ this map is still a rule you broke.
 - Priority = manual judgment, Rate = computed performance — never conflate.
 - Stage has three states and is never auto-derived; never widen `FUNNEL_STAGES`.
 - The concept is an angle, never a tag.
+- Every assignment is a vocabulary row — one writer, `addToVocabulary`, in the
+  same transaction.
 
 → **`docs/decisions/creatives.md`**
 

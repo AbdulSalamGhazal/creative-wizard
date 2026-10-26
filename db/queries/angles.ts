@@ -3,6 +3,8 @@ import { db } from "@/lib/db";
 import { creatives, creativeAngles, angles } from "@/db/schema";
 import { getActiveAccountId } from "@/lib/tenant";
 
+type Exec = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
+
 export interface AngleRow {
   id: string;
   name: string;
@@ -63,4 +65,34 @@ export async function getAngle(id: string) {
     .where(and(eq(angles.accountId, acct), eq(angles.id, id)))
     .limit(1);
   return row ?? null;
+}
+
+/**
+ * Make sure every name in `names` is a row of this account's angle vocabulary.
+ * The ONE writer that turns an assignment into a vocabulary entry: every path
+ * that writes `creative_angles` (create, patch, bulk import) calls it in the
+ * SAME transaction, so the Angles tab lists every angle in use and a rename or
+ * delete there reaches every creative. Returns the names that were actually
+ * NEW (an `on conflict do nothing` returns only the rows it inserted), for the
+ * caller's audit meta. Takes the transaction — prod's pool is one connection
+ * (CLAUDE.md), so a helper defaulting to `db` inside a transaction deadlocks.
+ */
+export async function addToVocabulary(
+  exec: Exec,
+  input: { accountId: string; names: readonly string[]; createdByUserId: string | null },
+): Promise<string[]> {
+  const names = Array.from(new Set(input.names.map((n) => n.trim()).filter(Boolean)));
+  if (names.length === 0) return [];
+  const inserted = await exec
+    .insert(angles)
+    .values(
+      names.map((name) => ({
+        accountId: input.accountId,
+        name,
+        createdByUserId: input.createdByUserId,
+      })),
+    )
+    .onConflictDoNothing({ target: [angles.accountId, angles.name] })
+    .returning({ name: angles.name });
+  return inserted.map((r) => r.name);
 }

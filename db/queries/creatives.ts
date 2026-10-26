@@ -727,8 +727,10 @@ export async function creativeRecords(
 /**
  * Angle list for filter dropdowns + creative-form suggestions. Union of the
  * managed vocabulary (`angles`) and any angles currently in use on creatives —
- * so a freshly-added vocabulary angle is selectable immediately, and any
- * legacy ad-hoc assignment still appears until it's curated.
+ * so a freshly-added vocabulary angle is selectable immediately. Since
+ * 2026-10-26 every assignment also writes its vocabulary row (migration 0062
+ * backfilled the older ones), so the two sides agree; the union stays as the
+ * belt to that brace.
  */
 export async function listAllAngles(): Promise<string[]> {
   const acct = await getActiveAccountId();

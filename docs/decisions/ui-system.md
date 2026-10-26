@@ -76,6 +76,23 @@
   delete, rename) uses an action that does NOT revalidate, and the navigation
   is the render. A preference write (range, Excluded, toast scope, filters,
   columns) revalidates nothing. Pinned by `app/actions/action-calls.test.ts`.
+  **The one exception (2026-10-26): the page being left must be fresh on
+  Back.** Back/Forward serve the Router Cache regardless of staleness, and
+  only a revalidation purges it — so `createCreative` revalidates
+  `/library/new` although its caller navigates away (Back returned the form
+  with the suggestion list from BEFORE the create, and the Library grid
+  without the new creative). The price is one extra render of that small page
+  in the action's response; take it only where Back has new expectations.
+- **An editor with an explicit Save mounts `UnsavedChangesGuard`**
+  (components/ui/unsaved-changes-guard.tsx) and never a hand-rolled
+  `beforeunload`. While dirty, an in-app link opens the house dialog ("Keep
+  editing" / "Discard and leave" — discard resets the draft, then the guard
+  pushes the destination); a reload or tab close gets the browser prompt.
+  Which clicks count is the pure `lib/unsaved-guard.ts` (new-tab clicks,
+  downloads, hash jumps and cross-origin links pass). The browser's Back
+  button and programmatic navigations (⌘K, the brand switcher) are NOT
+  intercepted — App Router gives no hook to cancel them, and fighting
+  `popstate` breaks the router.
 - **An action and a navigation never overlap in the router's queue.** Next 15
   discards a pending action's state and schedules a full `router.refresh()`
   when a navigation starts behind it (`needsRefresh`) — the destination
@@ -464,3 +481,25 @@ as it stood before the restructure.*
   history alone does not put them in a viewer's sidebar (unchanged).
 - Same pass: Configuration's hand-made tab row became `PageTabs` (progress
   bar, nowrap, scrolls at 375px; it had five tabs where the docs said four).
+
+### Back is a render too: the New creative form, and the unsaved-draft guard (2026-10-26)
+
+- W2-1 made `createCreative` revalidate nothing, because its caller navigates
+  to the new creative's page and that navigation is the one render. True for
+  the forward path; Back then returned `/library/new` from the Router Cache
+  with no refetch at all — the form's angle suggestions were the ones from
+  before the create, and a second Back showed the Library grid without the
+  creative just made. A new brand's team, creating creatives one after the
+  other, typed the same angle every time (creatives.md, the Mesbah report).
+  Any revalidation in a server action purges the client's Router Cache, so
+  the action now revalidates `/library/new`: one extra render of the small
+  form page in its response, and Back is fresh. The invariant above carries
+  the exception and its test: take it only where Back has new expectations.
+- The same report surfaced that the creative header's draft could be lost
+  silently: the dropdown said "press Add to create it", Save changes was at
+  the top (off-screen on a phone), and nothing guarded a navigation. App
+  Router has no route-change event, so the house guard intercepts anchor
+  clicks in the capture phase on `document` (before React's root listener, so
+  the `Link` never fires), opens the house `Dialog`, and pushes the
+  destination itself on discard; `beforeunload` covers a real leave. It is a
+  component, not a hook, so the dialog comes with it and no editor forks one.

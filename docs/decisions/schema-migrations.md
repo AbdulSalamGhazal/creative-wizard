@@ -15,6 +15,11 @@
 - Adding a `NOT NULL` column to a populated table needs a default or a
   backfill.
 - A hand-written migration (a RENAME, a data fold) must never be regenerated.
+- A DATA-ONLY migration (0062, the angle-vocabulary backfill) still gets a
+  journal entry and a snapshot: copy the previous snapshot with a fresh `id`
+  and `prevId` = the previous `id`, so `drizzle-kit generate` keeps its chain.
+  Like every migration it does not run on deploy — run it by hand against the
+  direct URL (CLAUDE.md, Deployment).
 
 ## History and rationale
 

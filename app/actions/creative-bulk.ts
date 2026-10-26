@@ -12,6 +12,7 @@ import {
 import { parseFile } from "@/csv/parse";
 import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
 import { getActiveAccountId } from "@/lib/tenant";
+import { addToVocabulary } from "@/db/queries/angles";
 import { actionError } from "@/lib/action-error";
 import {
   CREATIVE_STAGE_OPTIONS,
@@ -396,6 +397,13 @@ export async function commitBulkCreatives(
             .onConflictDoNothing();
         }
       }
+      // Every assignment is a vocabulary entry — once for the whole file, in
+      // the same transaction (db/queries/angles.ts).
+      await addToVocabulary(tx, {
+        accountId: acct,
+        names: normalized.flatMap((r) => r.angles),
+        createdByUserId: user.id,
+      });
     });
 
     // NO revalidatePath (W2-1): the caller navigates to /library, and that
