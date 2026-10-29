@@ -194,6 +194,29 @@ as it stood before the restructure.*
   (every ratio a `lib/metrics` fragment; `tests/db/landing-page-performance
   .test.ts` pins the per-page sums, the NULL bucket, Excluded, the google
   drop and brand scoping). Still no landing-page FILTER anywhere.
+- **Every landing page sells ONE product (2026-10-29, user: "a big bug" —
+  the first LPs page summed every product's no-code ads into one Product
+  page row, which compared nothing with anything).** `landing_pages
+  .product_id` (migration 0064), required by the registry on every save
+  (the dialog's Product picker; the action re-validates the id against the
+  brand) and locked with the code once records use the page. Decided with
+  the user, each with the recommendation taken: (1) an upload whose creative
+  belongs to another product than its `@code`'s page is REFUSED — **E024**,
+  checked in Stage 3 beside E023 from two maps the validate route passes
+  (`creativeProducts`, `landingPageProducts`), skipped for a page with no
+  product yet; (2) pages registered before the rule are BACKFILLED
+  (migration 0065, data-only: the product their records point to when that
+  is one product), the rest stay NULL and read "Needs a product" in the
+  registry (the next edit must pick one — a page with none may be given one
+  even while in use) and group under "No product" on LPs; (3) Trends → LPs
+  GROUPS by product — one `DataTable` row per product, open by default on
+  its own page (first, the baseline) and its landing pages, the wrapper
+  owning the sort like the Funnel platform table; a landing-page record
+  counts under its PAGE's product, a no-code record under its creative's;
+  the chart's lines are "Product · Page", coloured per product with the own
+  page dashed; (4) a product with NO registered landing page is left off
+  the page entirely — nothing to compare — and the Products filter is the
+  product a row counts under, so a filtered group arrives whole.
 
 ### Landing pages — the independent review's fixes (2026-10-20)
 

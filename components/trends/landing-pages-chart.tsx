@@ -18,7 +18,7 @@ import { ChartFitToggle, useChartFit } from "@/components/charts/chart-fit";
 import { EmptyState } from "@/components/ui/empty-state";
 import { dayBucketsInRange } from "@/lib/budget";
 import { int, intCompact, monthDay, pct, roas, usd, usdCompact } from "@/lib/format";
-import { landingPageLabel } from "@/lib/landing-code";
+import { NO_PRODUCT_LABEL, landingPageLabel } from "@/lib/landing-code";
 import { seriesColor } from "@/lib/palette";
 import type {
   LandingPageDailyRow,
@@ -54,7 +54,7 @@ const METRICS: Record<Metric, MetricDef> = {
 };
 const METRIC_ORDER: Metric[] = ["spend", "conversions", "roas", "ctr", "cvr", "cpa", "cpc"];
 
-/** A series: one landing page (the product page included). */
+/** A series: one (product, page) — the product's own page included. */
 interface Series {
   /** The pivot property AND the <Line dataKey> — never the page's name, which
    *  Recharts would read as a lodash path (a "." in it plots nothing). */
@@ -62,6 +62,8 @@ interface Series {
   key: string;
   label: string;
   color: string;
+  /** The product's own page draws dashed: the baseline its pages are read against. */
+  baseline: boolean;
 }
 
 interface PivotRow {
@@ -69,15 +71,16 @@ interface PivotRow {
   [id: string]: number | string | null;
 }
 
-const seriesKey = (landingPageId: string | null) => landingPageId ?? "product";
+const seriesKey = (productId: string | null, landingPageId: string | null) =>
+  `${productId ?? "none"}|${landingPageId ?? "product"}`;
 
 /**
- * One metric per day, one line per landing page over the resolved range.
- * Every day in the range is a point: for Spend and Conversions a day a page
- * had no record is a zero, because an absent day of an additive metric IS
- * zero; for a ratio (ROAS, CTR, CvR, CPA, CPC) such a day is a gap, and so is
- * a day whose denominator is 0. The product page draws in the neutral ink so
- * the registered pages carry the colour.
+ * One metric per day, one line per (product, page) over the resolved range,
+ * named "Product · Page" like the table; a product's own page is its dashed
+ * baseline. Every day in the range is a point: for Spend and Conversions a
+ * day a page had no record is a zero, because an absent day of an additive
+ * metric IS zero; for a ratio (ROAS, CTR, CvR, CPA, CPC) such a day is a gap,
+ * and so is a day whose denominator is 0.
  */
 export function LandingPagesChart({
   daily,
@@ -95,14 +98,22 @@ export function LandingPagesChart({
   const [hidden, setHidden] = useState<Set<string>>(() => new Set());
 
   const series = useMemo<Series[]>(() => {
-    let rank = 0;
+    // Colour follows the PRODUCT, so a product's own page and its landing
+    // pages read as one family: the baseline dashed, each page solid.
+    const colorByProduct = new Map<string, string>();
     return pages.map((p, i) => {
-      const key = seriesKey(p.landingPageId);
+      const pk = p.productId ?? "none";
+      let color = colorByProduct.get(pk);
+      if (!color) {
+        color = seriesColor(colorByProduct.size);
+        colorByProduct.set(pk, color);
+      }
       return {
         id: `s${i}`,
-        key,
-        label: landingPageLabel(p.name),
-        color: p.landingPageId === null ? "var(--ink-2)" : seriesColor(rank++),
+        key: seriesKey(p.productId, p.landingPageId),
+        label: `${p.productName ?? NO_PRODUCT_LABEL} · ${landingPageLabel(p.name)}`,
+        color,
+        baseline: p.landingPageId === null,
       };
     });
   }, [pages]);
@@ -112,7 +123,6 @@ export function LandingPagesChart({
     [series, hidden],
   );
   const drawn = useMemo(() => series.filter((s) => shown.has(s.key)), [series, shown]);
-
   const m = METRICS[metric];
 
   const data = useMemo<PivotRow[]>(() => {
@@ -123,10 +133,10 @@ export function LandingPagesChart({
       for (const s of series) row[s.id] = m.additive ? 0 : null;
       byDate.set(b.key, row);
     }
-    // The query groups by (day, page), so each cell is set once.
+    // The query groups by (day, product, page), so each cell is set once.
     for (const d of daily) {
       const row = byDate.get(d.date);
-      const id = idByKey.get(seriesKey(d.landingPageId));
+      const id = idByKey.get(seriesKey(d.productId, d.landingPageId));
       if (!row || !id) continue;
       row[id] = m.value(d);
     }
@@ -214,6 +224,7 @@ export function LandingPagesChart({
                       dataKey={s.id}
                       stroke={s.color}
                       strokeWidth={1.8}
+                      strokeDasharray={s.baseline ? "5 4" : undefined}
                       dot={false}
                       activeDot={{ r: 4 }}
                       connectNulls={false}
@@ -260,8 +271,11 @@ function PagesTooltip({
       <div className="space-y-1">
         {entries.map(({ s, value }) => (
           <div key={s.id} className="flex items-center justify-between gap-4">
-            <span className="inline-flex max-w-[12rem] items-center gap-1.5 text-ink-2">
-              <span className="h-2 w-2 shrink-0 rounded-sm" style={{ background: s.color }} />
+            <span className="inline-flex max-w-[14rem] items-center gap-1.5 text-ink-2">
+              <span
+                className="h-2 w-2 shrink-0 rounded-sm"
+                style={{ background: s.color, opacity: s.baseline ? 0.55 : 1 }}
+              />
               <span className="truncate">{s.label}</span>
             </span>
             <span className="tabular-nums text-ink">{fmt(value)}</span>

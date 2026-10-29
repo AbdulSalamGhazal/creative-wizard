@@ -355,15 +355,20 @@ as it stood before the restructure.*
 
 - `landing-pages-table.tsx`, key `trends-landing-pages`, shared by BOTH row
   modes (by page, by page × platform): the same columns, so one remembered
-  choice serves both. Pinned identity = the page name with its muted `@code`
-  (the product page in the quieter ink), the platform folded in front in the
-  split mode like Types. The name is free text up to 255 characters, so the
-  pinned cell is capped at EVERY width (11rem phone / 20rem desktop) and
-  truncated with the full label as `title`. Opens on Spend desc; the totals
-  row re-blends each ratio from the component sums (Creatives stays a dash
-  there — a creative can run to several pages). The catalog: Link (the
-  registered URL), Creatives, CPC, CPM, LP views and CvR are offered
-  `defaultHidden`.
+  choice serves both. **Grouped by product (2026-10-29):** one row per
+  product with a chevron (OPEN by default — the comparison is the point, so
+  the state is the products a person closed), its own page first under it
+  (the baseline, whatever the sort) and then its landing pages; the WRAPPER
+  owns the sort like the Funnel platform table, so a product's pages stay
+  under it. The product row and the totals row re-blend each ratio from the
+  component sums (Creatives stays a dash there — a creative can run to
+  several pages). Pinned identity = the product name with its page count,
+  or (indented) the page name with its muted `@code` (the own page in the
+  quieter ink), the platform folded in front in the split mode like Types.
+  Names are free text up to 255 characters, so the pinned cell is capped at
+  EVERY width (11rem phone / 20rem desktop) and truncated with the full
+  label as `title`. Opens on Spend desc. The catalog: Link (the registered
+  URL), Creatives, CPC, CPM, LP views and CvR are offered `defaultHidden`.
 
 ### The last four hand-built tables (2026-10, D22)
 

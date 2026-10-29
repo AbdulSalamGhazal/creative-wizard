@@ -87,6 +87,14 @@ export interface PipelineInput extends ParseInput {
    *  ` @code` isn't registered is rejected (E023). Omit to skip the check. */
   registeredLandingCodes?: Set<string>;
   /**
+   * Each registered creative's product id, and each landing page's (null for
+   * a page that still has no product). When BOTH are provided, a row whose
+   * ` @code` names a page of a different product than its creative is
+   * rejected (E024). Omit either to skip the check.
+   */
+  creativeProducts?: Map<string, string>;
+  landingPageProducts?: Map<string, string | null>;
+  /**
    * The ACTIVE records already stored on this platform for the file's
    * (creative, campaign, date) days — called ONCE per file with every day the
    * file carries. It may over-return (e.g. one IN-list query per column);
@@ -322,6 +330,31 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
             field: "creative_name",
             value: landingCode,
           });
+        } else if (
+          landingCode !== null &&
+          input.creativeProducts &&
+          input.landingPageProducts
+        ) {
+          // E024 — the page sells one product; the creative must be that
+          // product's. Only when both sides are known: an unregistered
+          // creative is already E020, a page with no product yet is skipped.
+          const creativeProduct = input.creativeProducts.get(creativeName);
+          const pageProduct = input.landingPageProducts.get(landingCode);
+          if (
+            creativeProduct !== undefined &&
+            pageProduct !== undefined &&
+            pageProduct !== null &&
+            creativeProduct !== pageProduct
+          ) {
+            errorsForRow.push({
+              code: "E024",
+              severity: "ERROR",
+              message: `Row ${rowNumber}: landing page \`'@${landingCode}'\` belongs to a different product than creative \`'${creativeName}'\`. Use one of that product's landing pages, or fix the ad name.`,
+              row: rowNumber,
+              field: "creative_name",
+              value: landingCode,
+            });
+          }
         }
       }
     }

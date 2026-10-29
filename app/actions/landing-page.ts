@@ -5,7 +5,7 @@ import { and, count, eq } from "drizzle-orm";
 import type { z } from "zod";
 import { db } from "@/lib/db";
 import { requirePermission } from "@/lib/auth";
-import { landingPages, performanceRecords } from "@/db/schema";
+import { landingPages, performanceRecords, products } from "@/db/schema";
 import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
 import { getActiveAccountId } from "@/lib/tenant";
 import { actionError } from "@/lib/action-error";
@@ -31,12 +31,32 @@ async function lockLandingPage(tx: Executor, acct: string, id: string) {
       code: landingPages.code,
       url: landingPages.url,
       description: landingPages.description,
+      productId: landingPages.productId,
     })
     .from(landingPages)
     .where(and(eq(landingPages.accountId, acct), eq(landingPages.id, id)))
     .for("update");
   return row ?? null;
 }
+
+/**
+ * The product a page is being given must be one of the active brand's — a
+ * caller-supplied FK is re-validated before every write (tenancy rule).
+ * Returns the product's name for the audit row, or null when it isn't ours.
+ */
+async function ownProduct(ex: Executor, acct: string, productId: string) {
+  const [row] = await ex
+    .select({ name: products.name })
+    .from(products)
+    .where(and(eq(products.accountId, acct), eq(products.id, productId)));
+  return row?.name ?? null;
+}
+
+const NOT_OUR_PRODUCT: LandingPageMutationResult = {
+  ok: false,
+  error: "Pick one of this brand's products.",
+  fieldErrors: { productId: "Not found" },
+};
 
 export interface LandingPageMutationResult {
   ok: boolean;
@@ -117,6 +137,8 @@ export async function createLandingPage(
         fieldErrors: { code: "Already in use" },
       };
     }
+    const productName = await ownProduct(db, acct, data.productId);
+    if (productName === null) return NOT_OUR_PRODUCT;
 
     const [inserted] = await db
       .insert(landingPages)
@@ -126,6 +148,7 @@ export async function createLandingPage(
         code: data.code,
         url: data.url,
         description: data.description,
+        productId: data.productId,
         createdByUserId: user.id,
       })
       .returning({ id: landingPages.id });
@@ -138,7 +161,7 @@ export async function createLandingPage(
         entityId: inserted.id,
         entityLabel: data.name,
         actorUserId: user.id,
-        meta: { code: data.code },
+        meta: { code: data.code, product: productName },
       });
     }
     return { ok: true };
@@ -185,7 +208,26 @@ export async function updateLandingPage(
           }
         }
 
-        const changed = (["name", "code", "url", "description"] as const).filter(
+        if (data.productId !== existing.productId) {
+          // A page that has records under one product can't move to another:
+          // those rows were accepted because the creative matched (E024), and
+          // moving the page would put them in the wrong product's comparison.
+          // A page that still has NO product may be given one — that is the
+          // post-backfill "Needs a product" path.
+          if (existing.productId !== null) {
+            const used = await recordsUsing(tx, acct, data.id);
+            if (used > 0) {
+              return {
+                ok: false,
+                error: `@${existing.code} is used by ${used} record${used === 1 ? "" : "s"}, so its product can't change.`,
+                fieldErrors: { productId: "Locked" },
+              };
+            }
+          }
+          if ((await ownProduct(tx, acct, data.productId)) === null) return NOT_OUR_PRODUCT;
+        }
+
+        const changed = (["name", "code", "url", "description", "productId"] as const).filter(
           (k) => (data[k] ?? null) !== (existing[k] ?? null),
         );
         if (changed.length === 0) return { changed };
@@ -197,6 +239,7 @@ export async function updateLandingPage(
             code: data.code,
             url: data.url,
             description: data.description,
+            productId: data.productId,
             updatedAt: new Date(),
           })
           .where(and(eq(landingPages.accountId, acct), eq(landingPages.id, data.id)));

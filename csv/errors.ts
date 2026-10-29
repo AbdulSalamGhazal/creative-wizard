@@ -20,6 +20,13 @@ export const errorCodes = {
   // a landing page must exist before an upload may reference it.
   E022: "ERROR",
   E023: "ERROR",
+  // E024: the ` @code` names a landing page registered under a DIFFERENT
+  // product than the creative's. A page sells one product; sending another
+  // product's ad there is a naming mistake, and importing it would put the
+  // row in the wrong product's comparison on Trends → LPs (user decision,
+  // 2026-10-29). A page that still has no product (pre-backfill) is not
+  // checked — there is nothing to compare against.
+  E024: "ERROR",
   E030: "ERROR",
   E031: "ERROR",
   E040: "ERROR",

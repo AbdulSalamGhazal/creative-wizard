@@ -79,6 +79,8 @@ export default async function CreativesPage({
         {activeTab === "landing-pages" && (
           <LandingPagesTable
             rows={await listLandingPages()}
+            // Every page sells one product: the dialog's picker.
+            products={await listProducts()}
             canManage={can(user, "catalog.landing_pages")}
           />
         )}

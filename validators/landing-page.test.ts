@@ -1,9 +1,26 @@
 import { describe, expect, it } from "vitest";
 import { landingPageInputSchema } from "@/validators/landing-page";
 
-const valid = { name: " Ramadan offer ", code: "ramadan", url: "https://urjwan.com/ramadan" };
+const PRODUCT = "22222222-2222-2222-2222-2222222222a1";
+const valid = {
+  productId: PRODUCT,
+  name: " Ramadan offer ",
+  code: "ramadan",
+  url: "https://urjwan.com/ramadan",
+};
 
 describe("landingPageInputSchema", () => {
+  it("requires a product (every page sells one, 2026-10-29)", () => {
+    const { productId: _omit, ...without } = valid;
+    void _omit;
+    expect(landingPageInputSchema.safeParse(without).success).toBe(false);
+    expect(landingPageInputSchema.safeParse({ ...valid, productId: "" }).success).toBe(false);
+    expect(landingPageInputSchema.safeParse({ ...valid, productId: "not-a-uuid" }).success).toBe(false);
+    const ok = landingPageInputSchema.safeParse(valid);
+    expect(ok.success).toBe(true);
+    if (ok.success) expect(ok.data.productId).toBe(PRODUCT);
+  });
+
   it("trims, and stores a blank description as null", () => {
     const res = landingPageInputSchema.safeParse({ ...valid, description: "   " });
     expect(res.success).toBe(true);

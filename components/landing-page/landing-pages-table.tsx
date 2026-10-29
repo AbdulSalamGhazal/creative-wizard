@@ -7,6 +7,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { InfoTip } from "@/components/ui/info-tip";
 import {
   Dialog,
@@ -36,12 +43,15 @@ const plural = (n: number, word: string) => `${int(n)} ${word}${n === 1 ? "" : "
 const shortUrl = (url: string) => url.replace(/^https?:\/\//i, "").replace(/\/$/, "");
 
 type Editing = { mode: "create" } | { mode: "edit"; row: LandingPageRow };
+type ProductOption = { id: string; name: string };
 
 /**
  * The landing-page registry behind an ad name's ` @code` suffix (the Library's
  * Landing pages tab). Add or edit in one dialog; delete only while no record
  * uses the page — once one does, the code is locked too, because the ads on
- * the platforms carry it.
+ * the platforms carry it. Every page sells ONE product (2026-10-29): the
+ * dialog requires one, uploads refuse another product's ad (E024), and a page
+ * from before that rule shows "Needs a product" until someone picks one.
  *
  * `canManage` false is the READ-ONLY view uploaders get (E023 sends them
  * here): the same list, with no add / edit / delete and no lock marks — the
@@ -49,9 +59,12 @@ type Editing = { mode: "create" } | { mode: "edit"; row: LandingPageRow };
  */
 export function LandingPagesTable({
   rows,
+  products,
   canManage,
 }: {
   rows: LandingPageRow[];
+  /** The brand's active products — the dialog's Product picker. */
+  products: ProductOption[];
   canManage: boolean;
 }) {
   const [editing, setEditing] = useState<Editing | null>(null);
@@ -112,6 +125,7 @@ export function LandingPagesTable({
               <thead>
                 <tr className="text-left text-label text-ink-3 border-b border-line">
                   <th className="font-medium px-3 py-2.5">Landing page</th>
+                  <th className="font-medium px-3 py-2.5">Product</th>
                   <th className="font-medium px-3 py-2.5">Code</th>
                   <th className="font-medium px-3 py-2.5">Link</th>
                   <th className="font-medium px-3 py-2.5 text-right">Creatives</th>
@@ -142,6 +156,26 @@ export function LandingPagesTable({
                           >
                             {r.description}
                           </div>
+                        )}
+                      </td>
+                      <td className="px-3 py-2">
+                        {r.productName ? (
+                          <span
+                            className="block max-w-[9rem] truncate text-ink-2 sm:max-w-[14rem]"
+                            title={r.productName}
+                          >
+                            {r.productName}
+                          </span>
+                        ) : (
+                          // A page from before products joined the registry
+                          // that the backfill couldn't settle — the next edit
+                          // must pick one.
+                          <span
+                            className="whitespace-nowrap text-xs text-behind"
+                            title="Registered before pages had a product and its records point to more than one, or none. Edit it and pick the product it sells."
+                          >
+                            Needs a product
+                          </span>
                         )}
                       </td>
                       <td className="px-3 py-2 whitespace-nowrap">
@@ -227,6 +261,7 @@ export function LandingPagesTable({
         <LandingPageDialog
           key={editing.mode === "edit" ? editing.row.id : "create"}
           editing={editing}
+          products={products}
           onClose={() => setEditing(null)}
         />
       )}
@@ -271,13 +306,20 @@ export function LandingPagesTable({
 /** Add or edit one landing page. A failed save keeps every typed value. */
 function LandingPageDialog({
   editing,
+  products,
   onClose,
 }: {
   editing: Editing;
+  products: ProductOption[];
   onClose: () => void;
 }) {
   const initial = editing.mode === "edit" ? editing.row : null;
   const locked = (initial?.records ?? 0) > 0;
+  // The product locks with the code once records use the page — unless the
+  // page has none yet (the post-backfill "Needs a product" path), when the
+  // whole point of the edit is to give it one.
+  const productLocked = locked && initial?.productId !== null;
+  const [productId, setProductId] = useState(initial?.productId ?? "");
   const [name, setName] = useState(initial?.name ?? "");
   const [code, setCode] = useState(initial?.code ?? "");
   const [url, setUrl] = useState(initial?.url ?? "");
@@ -287,9 +329,10 @@ function LandingPageDialog({
   const [pending, start] = useTransition();
 
   const typedCode = code.trim().replace(/^@/, "");
-  const ready = Boolean(name.trim() && typedCode && url.trim());
+  const ready = Boolean(productId && name.trim() && typedCode && url.trim());
   const dirty =
     !initial ||
+    productId !== (initial.productId ?? "") ||
     name !== initial.name ||
     code !== initial.code ||
     url !== initial.url ||
@@ -301,7 +344,7 @@ function LandingPageDialog({
     setError(null);
     setFieldErrors({});
     start(async () => {
-      const values = { name, code, url, description };
+      const values = { productId, name, code, url, description };
       const id = initial?.id;
       const res = id
         ? await safeAction(() => updateLandingPage({ id, ...values }))
@@ -335,6 +378,39 @@ function LandingPageDialog({
         </DialogHeader>
 
         <form onSubmit={submit} className="space-y-4">
+          <Field
+            label="Product"
+            htmlFor="lp-product"
+            tip={
+              productLocked
+                ? `Used by ${plural(initial?.records ?? 0, "record")}, so the product is locked — those records were accepted as this product's.`
+                : "Uploads refuse an ad whose creative belongs to another product, so this page compares with its own product's page on Trends → LPs."
+            }
+          >
+            <Select
+              value={productId}
+              onValueChange={setProductId}
+              disabled={productLocked || products.length === 0}
+            >
+              <SelectTrigger
+                id="lp-product"
+                aria-invalid={Boolean(fieldErrors.productId)}
+                className="w-full"
+              >
+                <SelectValue
+                  placeholder={products.length === 0 ? "No active products" : "Pick a product"}
+                />
+              </SelectTrigger>
+              <SelectContent>
+                {products.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+
           <Field label="Name" htmlFor="lp-name">
             <Input
               id="lp-name"
@@ -343,7 +419,7 @@ function LandingPageDialog({
               placeholder="e.g. Ramadan offer"
               maxLength={255}
               aria-invalid={Boolean(fieldErrors.name)}
-              autoFocus
+              autoFocus={Boolean(productId)}
             />
           </Field>
 

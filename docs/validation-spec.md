@@ -99,6 +99,9 @@ For each row, the following are checked **independently** (one row can produce m
   in the library (E020)
 - The ` @code` names a **registered landing page** for this account (E023) —
   like campaigns, a landing page must exist before an upload references it
+- That landing page sells the **creative's product** (E024) — every page is
+  registered under one product (2026-10-29); a page that still has none
+  (registered earlier, not settled by the backfill) is not checked
 - Campaign (+ ad set) resolves to a **registered campaign** for this account
   (E061) — like creatives, a campaign must be created in the system before an
   upload can reference it, otherwise a rename at the source would silently
@@ -160,6 +163,11 @@ or `_` (≤ 64). The rules live in `lib/landing-code.ts`:
 - Anything after the marker that is not one valid code is **E022**: `X @`,
   `X @ lp2`, `X @a @b`, and `X  @lp2` (two spaces). `X@lp2` has no marker and
   is read as a plain name (so E020 if unregistered — no "did you mean").
+- A registered page belongs to ONE product. The creative before the marker
+  must be that product's, or the row is **E024** — sending another product's
+  ad to the page is a naming mistake, and importing it would file the row in
+  the wrong product's comparison on Trends → LPs. A page with no product yet
+  (pre-2026-10-29, unsettled by the backfill) skips the check.
 - No marker = the product's own page; the record stores `landing_page_id`
   NULL.
 - Creative names may not contain ` @` (create, rename, bulk import), so a
@@ -238,6 +246,7 @@ Every error carries a stable code, a severity, a template, and an example. Codes
 | E021  | ERROR    | Row {n}: creative name is empty.                                                                          | —                                                                                                             |
 | E022  | ERROR    | Row {n}: `'{cell}'` has a malformed landing page code. Use `Name @code` — one space, then @ and letters, digits, - or _. | "Row 12: `'Promo_01 @ lp2'` has a malformed landing page code. …" |
 | E023  | ERROR    | Row {n}: landing page `'@{code}'` is not registered. Add it in Library → Landing pages first.              | "Row 12: landing page `'@lp2'` is not registered. Add it in Library → Landing pages first." |
+| E024  | ERROR    | Row {n}: landing page `'@{code}'` belongs to a different product than creative `'{name}'`. Use one of that product's landing pages, or fix the ad name. | "Row 12: landing page `'@lp2'` belongs to a different product than creative `'URJ_VID_002'`. …" |
 | E030  | ERROR    | Row {n}: invalid date `'{value}'`.                                                                        | "Row 12: invalid date `'31/13/2026'`."                                                                        |
 | E031  | ERROR    | Row {n}: date `'{value}'` is in the future.                                                               | "Row 12: date `'2027-01-01'` is in the future."                                                               |
 | E040  | ERROR    | Row {n}: `'{field}'` is not a valid number (`'{value}'`).                                                 | "Row 88: `'Spend'` is not a valid number (`'twelve'`)."                                                       |

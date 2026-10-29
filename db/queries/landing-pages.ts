@@ -1,6 +1,6 @@
 import { and, asc, count, countDistinct, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { landingPages, performanceRecords } from "@/db/schema";
+import { landingPages, performanceRecords, products } from "@/db/schema";
 import { getActiveAccountId } from "@/lib/tenant";
 
 export interface LandingPageRow {
@@ -10,6 +10,10 @@ export interface LandingPageRow {
   code: string;
   description: string | null;
   url: string;
+  /** The product the page sells — null only for a pre-2026-10-29 page the
+   *  backfill could not settle ("Needs a product" in the registry). */
+  productId: string | null;
+  productName: string | null;
   createdAt: Date;
   /** Distinct creatives with at least one record sent to this page. */
   creatives: number;
@@ -33,11 +37,14 @@ export async function listLandingPages(): Promise<LandingPageRow[]> {
       code: landingPages.code,
       description: landingPages.description,
       url: landingPages.url,
+      productId: landingPages.productId,
+      productName: products.name,
       createdAt: landingPages.createdAt,
       creatives: countDistinct(performanceRecords.creativeId),
       records: count(performanceRecords.id),
     })
     .from(landingPages)
+    .leftJoin(products, eq(products.id, landingPages.productId))
     .leftJoin(
       performanceRecords,
       and(
@@ -46,8 +53,8 @@ export async function listLandingPages(): Promise<LandingPageRow[]> {
       ),
     )
     .where(eq(landingPages.accountId, acct))
-    .groupBy(landingPages.id)
-    .orderBy(asc(landingPages.name), asc(landingPages.code));
+    .groupBy(landingPages.id, products.name)
+    .orderBy(asc(products.name), asc(landingPages.name), asc(landingPages.code));
   return rows.map((r) => ({
     ...r,
     creatives: Number(r.creatives),

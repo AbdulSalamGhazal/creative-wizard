@@ -112,10 +112,12 @@ export async function POST(request: NextRequest) {
   // Snapshot of registered creative names (strict byte-equal matching),
   // scoped to the active brand so names only match within this account.
   const allNames = await db
-    .select({ name: creatives.name })
+    .select({ name: creatives.name, productId: creatives.productId })
     .from(creatives)
     .where(eq(creatives.accountId, acct));
   const registeredNames = new Set(allNames.map((r) => r.name));
+  // …and each creative's product, for the landing-page product check (E024).
+  const creativeProducts = new Map(allNames.map((r) => [r.name, r.productId]));
 
   // Registered campaigns (the built campaign_name), scoped to the active brand.
   // A row whose campaign isn't registered is rejected (E061) — see the pipeline.
@@ -128,10 +130,13 @@ export async function POST(request: NextRequest) {
   // Registered landing-page codes (no `@`), scoped to the active brand. A
   // row's ` @code` must be one of them (E023) — see lib/landing-code.ts.
   const allLandingPages = await db
-    .select({ code: landingPages.code })
+    .select({ code: landingPages.code, productId: landingPages.productId })
     .from(landingPages)
     .where(eq(landingPages.accountId, acct));
   const registeredLandingCodes = new Set(allLandingPages.map((r) => r.code));
+  // A page's product (null while a pre-backfill page has none): a creative of
+  // another product may not be sent to it (E024).
+  const landingPageProducts = new Map(allLandingPages.map((r) => [r.code, r.productId]));
 
   const adapter = await resolveAdapter(platform);
 
@@ -146,6 +151,8 @@ export async function POST(request: NextRequest) {
     registeredNames,
     registeredCampaigns,
     registeredLandingCodes,
+    creativeProducts,
+    landingPageProducts,
     // In upsert mode we DON'T reject existing rows (no E051) — we partition
     // new-vs-existing below instead. Stage 5 still runs in both modes: the
     // landing-page rename guard (E052) protects upserts too.

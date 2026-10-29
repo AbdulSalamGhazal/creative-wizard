@@ -57,6 +57,8 @@ async function run(
     allowExisting?: boolean;
     registeredCampaigns?: Set<string>;
     registeredLandingCodes?: Set<string>;
+    creativeProducts?: Map<string, string>;
+    landingPageProducts?: Map<string, string | null>;
   } = {},
 ) {
   return runPipeline({
@@ -65,6 +67,8 @@ async function run(
     registeredNames: REGISTERED,
     registeredCampaigns: opts.registeredCampaigns,
     registeredLandingCodes: opts.registeredLandingCodes,
+    creativeProducts: opts.creativeProducts,
+    landingPageProducts: opts.landingPageProducts,
     findExisting: opts.findExisting,
     allowExisting: opts.allowExisting,
   });
@@ -486,6 +490,50 @@ describe("CSV pipeline — landing-page codes (` @code`)", () => {
     });
     expect(res.ok).toBe(false);
     if (!res.ok) expect(res.errors.map((e) => e.code)).toEqual(["E020"]);
+  });
+
+  it("rejects a page of another product than the creative's with E024 — and only when both are known", async () => {
+    const P1 = "11111111-1111-1111-1111-111111111111";
+    const P2 = "22222222-2222-2222-2222-222222222222";
+    const creativeProducts = new Map([
+      ["URJ_VID_001", P1],
+      ["URJ_VID_002", P2],
+    ]);
+    const landingPageProducts = new Map<string, string | null>([
+      ["lp2", P1],
+      ["ramadan-sale", null], // registered before pages sold a product
+    ]);
+    // Same product: fine. Different product: E024. No product on the page: skipped.
+    const ok = await run(
+      `${META_HEADER}\n${row({ name: "URJ_VID_001 @lp2" })}\n${row({ name: "URJ_VID_002 @ramadan-sale" })}\n`,
+      { registeredLandingCodes: LANDING, creativeProducts, landingPageProducts },
+    );
+    expect(ok.ok).toBe(true);
+
+    const bad = await run(`${META_HEADER}\n${row({ name: "URJ_VID_002 @lp2" })}\n`, {
+      registeredLandingCodes: LANDING,
+      creativeProducts,
+      landingPageProducts,
+    });
+    expect(bad.ok).toBe(false);
+    if (!bad.ok) {
+      expect(bad.errors.map((e) => e.code)).toEqual(["E024"]);
+      expect(bad.errors[0]?.message).toContain("different product");
+    }
+
+    // Without the product maps the check doesn't run (older callers, tests).
+    const legacy = await run(`${META_HEADER}\n${row({ name: "URJ_VID_002 @lp2" })}\n`, {
+      registeredLandingCodes: LANDING,
+    });
+    expect(legacy.ok).toBe(true);
+    // An unregistered code is E023, never E024 on top.
+    const unregistered = await run(`${META_HEADER}\n${row({ name: "URJ_VID_002 @nope" })}\n`, {
+      registeredLandingCodes: LANDING,
+      creativeProducts,
+      landingPageProducts,
+    });
+    expect(unregistered.ok).toBe(false);
+    if (!unregistered.ok) expect(unregistered.errors.map((e) => e.code)).toEqual(["E023"]);
   });
 
   it("rejects an unregistered code with E023, matching it case-sensitively", async () => {

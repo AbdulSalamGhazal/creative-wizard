@@ -7,6 +7,9 @@ import { isValidLandingCode, LANDING_CODE_MAX } from "@/lib/landing-code";
  * leading `@` is forgiven. Description is optional — blank stores NULL.
  */
 export const landingPageInputSchema = z.object({
+  /** The product the page sells — required on every save (2026-10-29); the
+   *  action re-checks it belongs to the active brand. */
+  productId: z.string().uuid("Pick a product."),
   name: z.string().trim().min(1, "Name is required.").max(255),
   code: z
     .string()

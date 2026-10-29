@@ -484,6 +484,16 @@ export const landingPages = pgTable(
     code: varchar("code", { length: 64 }).notNull(),
     description: varchar("description", { length: 200 }),
     url: text("url").notNull(),
+    /**
+     * The product this page sells (2026-10-29). REQUIRED by the registry on
+     * every create and edit; NULLABLE in the column only for pages that
+     * predate it and that the backfill (migration 0065) could not settle —
+     * the registry marks those "Needs a product" until someone picks one.
+     * Uploads refuse an ad whose creative's product differs (E024), so the
+     * product page and its landing pages compare like with like on Trends →
+     * LPs.
+     */
+    productId: uuid("product_id").references(() => products.id),
     createdByUserId: uuid("created_by_user_id")
       .notNull()
       .references(() => users.id),
@@ -492,6 +502,7 @@ export const landingPages = pgTable(
   },
   (t) => ({
     accountCodeIdx: uniqueIndex("landing_pages_account_code_idx").on(t.accountId, t.code),
+    productIdx: index("landing_pages_product_idx").on(t.productId),
   }),
 );
 

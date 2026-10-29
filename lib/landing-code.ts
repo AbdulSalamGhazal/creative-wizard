@@ -65,6 +65,13 @@ export function landingPageLabel(name: string | null): string {
   return name ?? PRODUCT_PAGE_LABEL;
 }
 
+/**
+ * How a landing page with no product reads on Trends → LPs: registered before
+ * every page sold one product (2026-10-29) and not settled by the backfill —
+ * the registry says "Needs a product" on the same row.
+ */
+export const NO_PRODUCT_LABEL = "No product";
+
 export function hasLandingMarker(name: string): boolean {
   return name.includes(LANDING_CODE_MARKER);
 }

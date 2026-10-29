@@ -103,7 +103,7 @@ export default async function TrendsLandingPagesPage({
       <PageHeader
         eyebrow="Trends"
         title="LPs"
-        info={`An ad whose name ends in @code sends its traffic to that registered landing page. Every other ad goes to the product's own page — the ${PRODUCT_PAGE_LABEL} row. Google is not included.`}
+        info={`Each product's own page (${PRODUCT_PAGE_LABEL}: its ads with no @code) beside the landing pages registered under it. A product with no landing page isn't listed. A page registered before pages had a product shows under "No product" until it gets one. Google is not included.`}
         rightSlot={
           <Badge variant="outline" className="text-ink-3">
             {range.from} → {range.to}

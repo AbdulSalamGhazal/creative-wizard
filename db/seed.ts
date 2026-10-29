@@ -232,15 +232,23 @@ async function main() {
   // page. A share of two creatives' daily traffic is written under them below
   // (the equivalent of ads named `URJ_VID_002 @ramadan`), unique on
   // (account, code) so re-runs are no-ops.
+  // Each page sells one product — the product of the creative split to it
+  // below, as the upload rule (E024) would demand.
   const landingPageRows = [
-    { name: "Ramadan offer", code: "ramadan", url: "https://urjwan.com/ramadan" },
-    { name: "Bundle page", code: "bundle", url: "https://urjwan.com/bundle" },
+    { name: "Ramadan offer", code: "ramadan", url: "https://urjwan.com/ramadan", productSlug: "argan-oil" },
+    { name: "Bundle page", code: "bundle", url: "https://urjwan.com/bundle", productSlug: "rose-toner" },
   ];
-  for (const lp of landingPageRows) {
+  for (const { productSlug, ...lp } of landingPageRows) {
+    const productId = productBySlug.get(productSlug)!;
     await db
       .insert(landingPages)
-      .values({ ...lp, createdByUserId: adminId })
-      .onConflictDoNothing({ target: [landingPages.accountId, landingPages.code] });
+      .values({ ...lp, productId, createdByUserId: adminId })
+      // A page seeded before products joined the registry picks its product up
+      // on the next run; everything else about it is left alone.
+      .onConflictDoUpdate({
+        target: [landingPages.accountId, landingPages.code],
+        set: { productId: sql`COALESCE(${landingPages.productId}, ${productId})` },
+      });
   }
   const landingPageList = await db
     .select({ id: landingPages.id, code: landingPages.code })
