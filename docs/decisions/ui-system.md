@@ -19,10 +19,14 @@
   ring colour covers every control that draws none of its own; a primitive
   that draws a `ring` sets `outline-none`. Never `focus:outline-none` without
   a replacement, and a text field's focus border is `focus:border-brand`,
-  never `line-2` (invisible against `line`).
+  never `line-2` (invisible against `line`). A control inside a sideways
+  scroll box (the `PageTabs` row) insets its ring (`-outline-offset-2`), or
+  the box clips it to two stray bars.
 - Text on a series/avatar fill follows the fill's lightness: the series vars
   are 400-level (light) on the dark themes and 600-level on Frost/Paper, so
-  `UserAvatar` initials are `text-white dark:text-background`.
+  `UserAvatar` initials are `text-white dark:text-background` — and so are
+  Spend by rating's in-segment percentages on the pos/warn/neg fills, the
+  rule RATING_META's badges already followed.
 - ONE UI font; there is no font switcher.
 - Every route renders `PageShell` + `PageHeader`, ships a tailored
   `loading.tsx`, sets a `metadata.title`, and works at 375px.
