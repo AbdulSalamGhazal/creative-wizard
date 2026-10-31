@@ -148,7 +148,10 @@
   (`users.avatar_url`) when there is one and it loads, otherwise coloured
   initials (`lib/avatar.ts`, first + last word). Comment rows, the bell,
   /notifications, the mention picker, the account menu and the Team page all
-  use it — never a second avatar.
+  use it — never a second avatar. A failed photo is remembered BY src
+  (`showsPhoto`), never reset by an effect, and the mounted <img> is asked
+  whether it already failed (`photoBroken`) — an error before hydration never
+  reaches onError (2026-11-01: a 404 photo showed a broken image).
 - **Profile photos have ONE writer** (`writeAvatar`): only URLs we stored,
   the replaced file discarded, every change audited (`user.avatar_update`,
   `meta.self`). Yours from the account menu (no id travels); anyone's on the

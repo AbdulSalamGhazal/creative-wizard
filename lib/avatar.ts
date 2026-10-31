@@ -44,3 +44,23 @@ function hash(name: string): number {
 export function avatarColor(name: string | null | undefined): string {
   return seriesColor(hash((name ?? "").trim().toLowerCase()));
 }
+
+/**
+ * Does the avatar show the PHOTO? Only while this `src` hasn't failed: the
+ * failure is remembered BY src, so a new photo gets a fresh chance with no
+ * effect to reset it. (The old reset effect also ran on mount and undid an
+ * error that had already fired — the broken image stayed, 2026-11-01.)
+ */
+export function showsPhoto(src: string | null | undefined, failedSrc: string | null): boolean {
+  return Boolean(src) && src !== failedSrc;
+}
+
+/**
+ * Has this <img> already FAILED? An error that fires before hydration never
+ * reaches React's onError, so the mounted element is asked directly: a
+ * finished load with no pixels is broken; a lazy image not yet requested is
+ * not complete, and is left to its onError.
+ */
+export function photoBroken(img: { complete: boolean; naturalWidth: number }): boolean {
+  return img.complete && img.naturalWidth === 0;
+}

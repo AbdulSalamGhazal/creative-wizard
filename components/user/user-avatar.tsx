@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { avatarColor, initialsOf } from "@/lib/avatar";
+import { useCallback, useState } from "react";
+import { avatarColor, initialsOf, photoBroken, showsPhoto } from "@/lib/avatar";
 import { cn } from "@/lib/utils";
 
 /**
@@ -47,10 +47,19 @@ export function UserAvatar({
   size?: AvatarSize;
   className?: string;
 }) {
-  const [failed, setFailed] = useState(false);
-  // A new photo gets a fresh chance to load.
-  useEffect(() => setFailed(false), [src]);
-  const showPhoto = Boolean(src) && !failed;
+  // The failure is remembered BY src, so a new photo gets a fresh chance with
+  // no effect to reset it — the old mount-time reset undid an error that had
+  // already fired and left the broken image up (2026-11-01).
+  const [failedSrc, setFailedSrc] = useState<string | null>(null);
+  const showPhoto = showsPhoto(src, failedSrc);
+  // An error that fires before hydration never reaches onError: ask the
+  // mounted element whether it already failed.
+  const checkLoaded = useCallback(
+    (img: HTMLImageElement | null) => {
+      if (img && src && photoBroken(img)) setFailedSrc(src);
+    },
+    [src],
+  );
 
   return (
     <span
@@ -75,7 +84,8 @@ export function UserAvatar({
           loading="lazy"
           decoding="async"
           draggable={false}
-          onError={() => setFailed(true)}
+          ref={checkLoaded}
+          onError={() => setFailedSrc(src ?? null)}
           className="h-full w-full object-cover"
         />
       ) : (
