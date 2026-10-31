@@ -143,7 +143,7 @@ export function StoreUploadPanel({
       {file && canUpsert && (
         <button
           type="button"
-          role="switch"
+          role="checkbox"
           aria-checked={upsert}
           disabled={busy}
           onClick={() => {

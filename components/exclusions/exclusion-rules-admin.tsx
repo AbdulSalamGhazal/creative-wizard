@@ -193,7 +193,7 @@ export function ExclusionRulesAdmin({
         </p>
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-[180px_1fr]">
           <div className="space-y-1.5">
-            <Label>Rule type</Label>
+            <Label htmlFor="exclusion-rule-kind">Rule type</Label>
             <Select
               value={kind}
               onValueChange={(v) => {
@@ -201,7 +201,7 @@ export function ExclusionRulesAdmin({
                 resetForm();
               }}
             >
-              <SelectTrigger>
+              <SelectTrigger id="exclusion-rule-kind">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -213,8 +213,10 @@ export function ExclusionRulesAdmin({
               </SelectContent>
             </Select>
           </div>
-          <div className="space-y-1.5">
-            <Label>Target</Label>
+          {/* The target control changes with the rule type (a select or a
+              search picker) — the label names whichever as a group. */}
+          <div className="space-y-1.5" role="group" aria-labelledby="exclusion-rule-target">
+            <Label id="exclusion-rule-target">Target</Label>
             {kind === "campaign_objective" ? (
               <Select value={objective} onValueChange={setObjective}>
                 <SelectTrigger>

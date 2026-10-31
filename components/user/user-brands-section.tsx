@@ -112,7 +112,7 @@ export function UserBrandsSection({
         {!locked && everyBrand && (
           <button
             type="button"
-            role="switch"
+            role="checkbox"
             aria-checked={allAccounts}
             onClick={() => setAllAccounts((v) => !v)}
             className="flex items-center gap-2 text-xs text-ink-2 hover:text-ink"
@@ -153,6 +153,8 @@ export function UserBrandsSection({
                 type="button"
                 role="checkbox"
                 aria-checked={on}
+                // Named explicitly — the brand name sits in its own span.
+                aria-label={unheld ? `${b.name} (you don't belong to this brand)` : b.name}
                 onClick={() => toggle(b.id)}
                 disabled={rowLocked}
                 title={unheld ? "You don't belong to this brand." : undefined}

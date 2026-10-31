@@ -270,6 +270,12 @@ export function UserAccessCard({
                 // Out of reach = the manager doesn't hold it; it stays as is.
                 const unheld = !isAdmin && !readOnly && outOfReach(perm.key);
                 const locked = isAdmin || readOnly || unheld;
+                // Named EXPLICITLY by its visible label (+ the out-of-reach
+                // note): left to name-from-content, the label in its own span
+                // read as an unnamed checkbox in the accessibility tree.
+                const name = unheld
+                  ? `${perm.label} (you don't have this permission yourself)`
+                  : perm.label;
                 return (
                   <button
                     key={perm.key}
@@ -279,6 +285,7 @@ export function UserAccessCard({
                     // a screen reader just hears "button".
                     role="checkbox"
                     aria-checked={on}
+                    aria-label={name}
                     onClick={() => toggle(perm.key)}
                     disabled={locked}
                     title={unheld ? "You don't have this permission yourself." : undefined}

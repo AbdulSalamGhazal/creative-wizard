@@ -136,9 +136,9 @@ export function UserInviteForm({
       </div>
       <div className="grid grid-cols-1 md:grid-cols-[160px_1fr_auto] gap-2 items-end">
         <div className="space-y-1.5">
-          <Label>Starting access</Label>
+          <Label htmlFor="invite-access">Starting access</Label>
           <Select value={role} onValueChange={(v) => setRole(v as typeof role)}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectTrigger id="invite-access"><SelectValue /></SelectTrigger>
             <SelectContent>
               {roles.map((r) => (
                 <SelectItem key={r} value={r}>
@@ -170,8 +170,9 @@ export function UserInviteForm({
           {isPending ? "Inviting…" : "Invite"}
         </Button>
       </div>
-      <div className="space-y-1.5">
-        <Label>Brands</Label>
+      {/* The brand toggles are several buttons — the label names them as a group. */}
+      <div className="space-y-1.5" role="group" aria-labelledby="invite-brands">
+        <Label id="invite-brands">Brands</Label>
         {brandsLocked ? (
           <p className="text-[11px] text-ink-3">
             Admins can always see every brand.
@@ -181,7 +182,7 @@ export function UserInviteForm({
             {everyBrand && (
               <button
                 type="button"
-                role="switch"
+                role="checkbox"
                 aria-checked={allAccounts}
                 onClick={() => setAllAccounts((v) => !v)}
                 className="flex items-center gap-2 text-xs text-ink-2 hover:text-ink"
@@ -210,6 +211,8 @@ export function UserInviteForm({
                       type="button"
                       role="checkbox"
                       aria-checked={on}
+                      // Named explicitly — the brand name sits in its own span.
+                      aria-label={b.name}
                       onClick={() => toggleBrand(b.id)}
                       className="flex w-full items-center gap-2 rounded-md px-2 py-1 text-left text-xs transition-colors hover:bg-surface-2"
                     >

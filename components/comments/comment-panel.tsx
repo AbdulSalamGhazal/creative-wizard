@@ -12,7 +12,7 @@ import {
 import dynamic from "next/dynamic";
 import { useSearchParams } from "next/navigation";
 import { MessageSquare, X } from "lucide-react";
-import { Sheet, SheetContent } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { COMMENT_PARAM, type CommentAnchor } from "@/lib/comments";
@@ -224,12 +224,20 @@ function useCanDock(): boolean | null {
  * and the composer's footprint — so nothing jumps when the body replaces it.
  * Its X already works.
  */
+/** Whether the panel renders inside the phone Sheet (a dialog) — see below. */
+const InSheetContext = createContext(false);
+
 function PanelBodyLoading() {
   const { setOpen } = usePanel();
+  // In the phone Sheet the panel is a DIALOG, and it mounts before the body
+  // (which carries the real SheetTitle) has loaded — an unnamed dialog. The
+  // placeholder names it with the panel's own anchor-less title until then.
+  const inSheet = useContext(InSheetContext);
   return (
     <>
       <div className="flex items-start gap-2 border-b border-line px-4 py-3">
         <div className="min-w-0 flex-1">
+          {inSheet && <SheetTitle className="sr-only">Comments</SheetTitle>}
           <div className="h-5 w-40 max-w-full animate-pulse rounded bg-surface-2" />
         </div>
         <Button
@@ -311,14 +319,16 @@ export function CommentDock({
         showCloseButton={false}
         className="flex w-full flex-col gap-0 p-0 sm:max-w-md"
       >
-        <CommentPanelBody
-          currentUserId={currentUserId}
-          currentUserName={currentUserName}
-          currentUserAvatarUrl={currentUserAvatarUrl}
-          canModerate={canModerate}
-          onClose={() => setOpen(false)}
-          inSheet
-        />
+        <InSheetContext.Provider value>
+          <CommentPanelBody
+            currentUserId={currentUserId}
+            currentUserName={currentUserName}
+            currentUserAvatarUrl={currentUserAvatarUrl}
+            canModerate={canModerate}
+            onClose={() => setOpen(false)}
+            inSheet
+          />
+        </InSheetContext.Provider>
       </SheetContent>
     </Sheet>
   );

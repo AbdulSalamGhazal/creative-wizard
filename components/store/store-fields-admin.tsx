@@ -281,7 +281,7 @@ function Toggle({
   return (
     <button
       type="button"
-      role="switch"
+      role="checkbox"
       aria-checked={on}
       onClick={onToggle}
       disabled={disabled}
@@ -343,9 +343,9 @@ function NewFieldForm() {
           />
         </div>
         <div className="space-y-1.5">
-          <Label>Type</Label>
+          <Label htmlFor="new-field-type">Type</Label>
           <Select value={type} onValueChange={(v) => setType(v as StoreFieldType)}>
-            <SelectTrigger>
+            <SelectTrigger id="new-field-type">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -356,8 +356,8 @@ function NewFieldForm() {
           </Select>
         </div>
       </div>
-      <div className="space-y-1.5">
-        <Label>Accepted file headers</Label>
+      <div className="space-y-1.5" role="group" aria-labelledby="new-field-headers">
+        <Label id="new-field-headers">Accepted file headers</Label>
         <HeadersEditor headers={headers} onChange={setHeaders} />
       </div>
       <div className="flex flex-wrap items-center gap-4 text-xs text-ink-2">
