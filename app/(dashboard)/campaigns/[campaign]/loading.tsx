@@ -7,7 +7,7 @@ export default function CampaignDetailLoading() {
       {/* Header: the shared PageHeader's shape — back link, eyebrow, title,
           the badge row, and the controls on the right (D26). */}
       <div className="space-y-2">
-        <HeaderSkeleton back right />
+        <HeaderSkeleton back eyebrow right />
         <Skeleton className="h-5 w-72 max-w-full" />
       </div>
 

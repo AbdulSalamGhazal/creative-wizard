@@ -53,7 +53,16 @@ export function HeaderSkeleton({
   return (
     <div className="flex items-end justify-between flex-wrap gap-3">
       <div>
-        {(eyebrow || back) && <Skeleton className="h-3 w-20 mb-2" />}
+        {/* One bar per line the header draws (a back link AND an eyebrow is
+            two lines — campaign detail, New store upload), each as tall as
+            the real line: the back link's line box is 21px (measured, real
+            fonts). One 20px bar for both let the title jump 9–28px. */}
+        {back && (
+          <div className="mb-2 flex h-[21px] items-center">
+            <Skeleton className="h-3 w-24" />
+          </div>
+        )}
+        {eyebrow && <Skeleton className="h-3 w-20 mb-2" />}
         <Skeleton className="h-10 w-64" />
         {subtitle && <Skeleton className="h-3 w-72 mt-2" />}
       </div>
