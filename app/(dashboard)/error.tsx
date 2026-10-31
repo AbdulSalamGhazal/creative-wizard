@@ -1,12 +1,20 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useTransition } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 /**
  * Dashboard route error boundary. Catches unexpected render/data errors in any
  * dashboard page and shows a recoverable fallback instead of a raw stack.
+ *
+ * "Try again" REFETCHES before it re-renders. Every page here is a server
+ * component, so the error arrived inside the RSC payload — `reset()` alone
+ * re-renders that same cached payload and lands straight back on this screen
+ * (the database blip below is exactly the case it can't recover). Refresh in
+ * the same transition as the reset, so the retry renders fresh server data.
  */
 export default function DashboardError({
   error,
@@ -15,6 +23,14 @@ export default function DashboardError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  const router = useRouter();
+  const [retrying, startRetry] = useTransition();
+  const retry = () =>
+    startRetry(() => {
+      router.refresh();
+      reset();
+    });
+
   useEffect(() => {
     // Surfaces in the browser console and (for server-thrown errors) in Vercel's
     // function logs — production failures are visible without a third-party tool.
@@ -45,7 +61,10 @@ export default function DashboardError({
           <p className="text-[11px] text-ink-3 font-mono mt-2">ref: {error.digest}</p>
         )}
         <div className="mt-6 flex items-center justify-center gap-2">
-          <Button onClick={reset}>Try again</Button>
+          <Button onClick={retry} disabled={retrying}>
+            {retrying && <Loader2 className="w-4 h-4 animate-spin" />}
+            Try again
+          </Button>
           <Button variant="ghost" asChild>
             <Link href="/">Go to Dashboard</Link>
           </Button>
