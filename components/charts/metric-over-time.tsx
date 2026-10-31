@@ -18,7 +18,7 @@ import { fillDailyGaps, fillGroupSeries } from "@/lib/time-series";
 import { int, intCompact, monthDay, roas, usd, usdCompact } from "@/lib/format";
 import { useChartFit, ChartFitToggle } from "@/components/charts/chart-fit";
 import type { MetricOverTimeRow } from "@/db/queries/performance";
-import { ChartTooltip } from "@/components/charts/chart-tooltip";
+import { CHART_CURSOR, ChartTooltip } from "@/components/charts/chart-tooltip";
 import { EmptyState } from "@/components/ui/empty-state";
 
 export interface OverTimeKey {
@@ -306,6 +306,7 @@ export function MetricOverTimeChart({
                     allowDataOverflow={fit.clip}
                   />
                   <Tooltip
+                    cursor={CHART_CURSOR}
                     content={
                       <CustomTooltip
                         fmt={def.fmt}

@@ -33,7 +33,7 @@ export default function DashboardError({
         <div className="text-label text-ink-3">
           {looksLikeDb ? "Temporarily unavailable" : "Error"}
         </div>
-        <h1 className="font-display text-3xl tracking-tight mt-1">
+        <h1 className="font-display text-4xl tracking-tight mt-1">
           {looksLikeDb ? "We couldn’t reach the data" : "Something went wrong"}
         </h1>
         <p className="text-ink-2 text-sm mt-2">

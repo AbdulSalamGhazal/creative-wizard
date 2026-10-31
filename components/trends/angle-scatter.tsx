@@ -16,7 +16,7 @@ import {
 import { int, pct, roas, usd, usdCompact } from "@/lib/format";
 import { MetricPicker } from "@/components/charts/metric-picker";
 import type { AngleRollupRow } from "@/db/queries/trends";
-import { ChartTooltip } from "@/components/charts/chart-tooltip";
+import { CHART_CURSOR, ChartTooltip } from "@/components/charts/chart-tooltip";
 import { useNavTransition } from "@/lib/nav-progress";
 import { EmptyState } from "@/components/ui/empty-state";
 
@@ -113,7 +113,7 @@ export function AngleScatter({ rows }: { rows: AngleRollupRow[] }) {
                 />
               )}
               <Tooltip
-                cursor={{ strokeDasharray: "3 3", stroke: "var(--line-2)" }}
+                cursor={CHART_CURSOR}
                 content={({ active, payload }) => {
                   if (!active || !payload || payload.length === 0) return null;
                   const p = payload[0]?.payload as {

@@ -14,7 +14,7 @@ import {
 import type { TooltipProps } from "recharts";
 import { Plus, X } from "lucide-react";
 import { ChartHeader, ChartShell, ExpandButton } from "@/components/charts/chart-shell";
-import { ChartTooltip } from "@/components/charts/chart-tooltip";
+import { CHART_CURSOR, ChartTooltip } from "@/components/charts/chart-tooltip";
 import { MetricPicker } from "@/components/charts/metric-picker";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { Button } from "@/components/ui/button";
@@ -422,6 +422,7 @@ export function UtmCompareSection({
                       allowDecimals={false}
                     />
                     <Tooltip
+                      cursor={CHART_CURSOR}
                       content={(p: TooltipProps<number, string>) => {
                         if (!p.active || !p.payload?.length) return null;
                         const point = p.payload[0]!.payload as (typeof points)[number];

@@ -294,7 +294,11 @@ as it stood before the restructure.*
     `components/layout/page-skeletons.tsx` (FilterStrip/FilterBar/Header/KpiRow/
     ChartCard/Table skeletons) — mirror the real page's shape, not a generic box.
   - **`ChartTooltip`** (`components/charts/chart-tooltip.tsx`) is the one Recharts
-    tooltip surface (frosted popover); pass `className` for a width cap.
+    tooltip surface (frosted popover); pass `className` for a width cap. Its
+    sibling **`CHART_CURSOR`** is the one hover cursor for line, composed and
+    scatter charts (`cursor={CHART_CURSOR}`: a dashed `--ink-3` rule — Recharts'
+    default is a fixed `#ccc`, glaring on Midnight and faint on Frost); bar
+    charts keep the `{ fill: "var(--surface-2)" }` band (2026-10-31).
   - **shadcn `Card` is retheme'd** to `bg-surface`/`border-line`/`rounded-lg` +
     the p-4 (16px) padding system — DON'T re-add `className="bg-surface
     border-line"`. It and the hand-rolled `rounded-lg p-4` panels are now one

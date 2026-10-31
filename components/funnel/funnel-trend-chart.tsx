@@ -17,7 +17,7 @@ import { ChartHeader, ChartShell, ExpandButton, SmoothToggle } from "@/component
 import { smoothColumns } from "@/lib/chart-smooth";
 import { FUNNEL_METRIC_COLOR } from "@/lib/palette";
 import type { FunnelDailyPoint } from "@/db/queries/funnel";
-import { ChartTooltip } from "@/components/charts/chart-tooltip";
+import { CHART_CURSOR, ChartTooltip } from "@/components/charts/chart-tooltip";
 import { EmptyState } from "@/components/ui/empty-state";
 
 type MetricKey = "ctr" | "voc" | "atcRate" | "apRate" | "purchaseRate" | "cvr";
@@ -151,7 +151,7 @@ export function FunnelTrendChart({
           stroke="var(--line-2)"
           width={44}
         />
-        <Tooltip content={<FunnelTip visible={visible} compare={compare} />} />
+        <Tooltip cursor={CHART_CURSOR} content={<FunnelTip visible={visible} compare={compare} />} />
         {visible.map((m) => (
           <Line
             key={m.key}

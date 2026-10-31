@@ -15,7 +15,7 @@ import {
 } from "recharts";
 import type { TooltipProps } from "recharts";
 import { ChartHeader, ChartShell, ExpandButton } from "@/components/charts/chart-shell";
-import { ChartTooltip } from "@/components/charts/chart-tooltip";
+import { CHART_CURSOR, ChartTooltip } from "@/components/charts/chart-tooltip";
 import { MetricPicker } from "@/components/charts/metric-picker";
 import { SeriesLegend } from "@/components/charts/series-legend";
 import { SegmentedControl } from "@/components/ui/segmented-control";
@@ -1614,6 +1614,7 @@ export function BudgetPacing({
                     width={56}
                   />
                   <Tooltip
+                    cursor={CHART_CURSOR}
                     content={(p: TooltipProps<number, string>) => {
                       if (!p.active || !p.payload?.length) return null;
                       if (activeShape === "deviation") {

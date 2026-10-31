@@ -14,7 +14,7 @@ import {
 import type { TooltipProps } from "recharts";
 import { Coins, Download, Receipt, ShoppingBag, TrendingUp } from "lucide-react";
 import { ChartHeader, ChartShell, ExpandButton } from "@/components/charts/chart-shell";
-import { ChartTooltip } from "@/components/charts/chart-tooltip";
+import { CHART_CURSOR, ChartTooltip } from "@/components/charts/chart-tooltip";
 import { SeriesLegend } from "@/components/charts/series-legend";
 import { MetricPicker } from "@/components/charts/metric-picker";
 import { SegmentedControl } from "@/components/ui/segmented-control";
@@ -534,6 +534,7 @@ export function StoreInsightsView({
                       width={64}
                     />
                     <Tooltip
+                      cursor={CHART_CURSOR}
                       content={(p: TooltipProps<number, string>) => {
                         if (!p.active || !p.payload?.length) return null;
                         return (

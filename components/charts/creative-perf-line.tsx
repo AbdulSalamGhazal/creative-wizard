@@ -25,7 +25,7 @@ import { smoothColumns } from "@/lib/chart-smooth";
 import { fillDailyGaps, fillGroupSeries } from "@/lib/time-series";
 import { useChartFit, ChartFitToggle } from "@/components/charts/chart-fit";
 import type { DailyMetricRow } from "@/db/queries/performance";
-import { ChartTooltip } from "@/components/charts/chart-tooltip";
+import { CHART_CURSOR, ChartTooltip } from "@/components/charts/chart-tooltip";
 import { EmptyState } from "@/components/ui/empty-state";
 
 interface Props {
@@ -275,6 +275,7 @@ export function CreativePerfLineChart({
                     allowDataOverflow={fit.clip}
                   />
                   <Tooltip
+                    cursor={CHART_CURSOR}
                     content={
                       <LineTooltip
                         fmt={metric.fmt}

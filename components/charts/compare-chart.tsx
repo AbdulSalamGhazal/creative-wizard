@@ -26,7 +26,7 @@ import { COMPARE_METRIC_LABEL } from "@/validators/compare";
 // side's first data day (deliberate design), so calendar gap-filling would
 // distort the alignment rather than fix it.
 import type { CompareMetric, CompareSeriesPoint } from "@/db/queries/performance";
-import { ChartTooltip } from "@/components/charts/chart-tooltip";
+import { CHART_CURSOR, ChartTooltip } from "@/components/charts/chart-tooltip";
 import { EmptyState } from "@/components/ui/empty-state";
 
 interface SideOption {
@@ -249,6 +249,7 @@ export function CompareChart({
                     allowDataOverflow={fit.clip}
                   />
                   <Tooltip
+                    cursor={CHART_CURSOR}
                     content={({ active, payload, label }) => {
                       if (
                         !active ||

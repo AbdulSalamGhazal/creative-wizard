@@ -19,7 +19,7 @@ import type { TooltipProps } from "recharts";
 import { Button } from "@/components/ui/button";
 import { PlatformDot } from "@/components/ui/platform-dot";
 import { ChartHeader, ChartShell, ExpandButton } from "@/components/charts/chart-shell";
-import { ChartTooltip } from "@/components/charts/chart-tooltip";
+import { CHART_CURSOR, ChartTooltip } from "@/components/charts/chart-tooltip";
 import { MetricPicker } from "@/components/charts/metric-picker";
 import { SeriesLegend } from "@/components/charts/series-legend";
 import { ALL_PLATFORMS } from "@/lib/palette";
@@ -792,6 +792,7 @@ function MonthChart({
                   width={56}
                 />
                 <Tooltip
+                  cursor={CHART_CURSOR}
                   content={(p: TooltipProps<number, string>) => {
                     if (!p.active || !p.payload?.length) return null;
                     const rows = p.payload.filter(

@@ -19,7 +19,7 @@ import { useChartFit, ChartFitToggle } from "@/components/charts/chart-fit";
 import { smoothColumns } from "@/lib/chart-smooth";
 import { fillDailyGaps, fillGroupSeries } from "@/lib/time-series";
 import type { CampaignCreativeDailyPoint } from "@/db/queries/campaign";
-import { ChartTooltip } from "@/components/charts/chart-tooltip";
+import { CHART_CURSOR, ChartTooltip } from "@/components/charts/chart-tooltip";
 import { EmptyState } from "@/components/ui/empty-state";
 
 type MetricKey =
@@ -289,7 +289,7 @@ export function CampaignCreativeChart({
           domain={fit.clip ? [0, fit.cap] : undefined}
           allowDataOverflow={fit.clip}
         />
-        <Tooltip content={<ChartTip visible={lineSpecs} kind={meta.kind} metricLabel={meta.label} />} />
+        <Tooltip cursor={CHART_CURSOR} content={<ChartTip visible={lineSpecs} kind={meta.kind} metricLabel={meta.label} />} />
         {lineSpecs.map((c) => (
           <Line
             key={c.creativeId}

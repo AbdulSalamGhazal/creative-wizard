@@ -15,7 +15,7 @@ import {
 } from "recharts";
 import { pct, roas, usd, usdCompact } from "@/lib/format";
 import type { VideoDiagnosticRow } from "@/db/queries/trends";
-import { ChartTooltip } from "@/components/charts/chart-tooltip";
+import { CHART_CURSOR, ChartTooltip } from "@/components/charts/chart-tooltip";
 import { MetricPicker } from "@/components/charts/metric-picker";
 import { useNavTransition } from "@/lib/nav-progress";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -96,7 +96,7 @@ export function VideoScatter({ rows }: { rows: VideoDiagnosticRow[] }) {
               <YAxis type="number" dataKey="y" name={y.label} tickFormatter={y.tick} tick={{ fill: "var(--ink-3)", fontSize: 11 }} stroke="var(--line-2)" width={52} />
               <ZAxis type="number" dataKey="z" range={[40, 460]} />
               <Tooltip
-                cursor={{ strokeDasharray: "3 3", stroke: "var(--line-2)" }}
+                cursor={CHART_CURSOR}
                 content={({ active, payload }) => {
                   if (!active || !payload || payload.length === 0) return null;
                   const p = payload[0]?.payload as { name: string; spend: number; xv: number; yv: number };
