@@ -8,6 +8,10 @@
 
 ## Invariants
 
+- **A timestamp's date is its BUSINESS day (2026-11-01).** `isoDate`
+  (lib/format) shows a timestamp's day in `BUSINESS_TZ` (KSA) — the UTC day
+  put a batch uploaded at 00:47 KSA under the previous date — and returns a
+  `YYYY-MM-DD` calendar date untouched, so a stored day never shifts.
 - Four themes on ONE axis (Midnight · Contrast · Frost · Paper); every data
   colour is a CSS var with a light-theme override.
 - **Every theme declares its `color-scheme`** (`dark` in `:root`, so Midnight

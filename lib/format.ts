@@ -1,3 +1,5 @@
+import { BUSINESS_TZ } from "@/lib/date-presets";
+
 const usdFormatter = new Intl.NumberFormat("en-US", {
   style: "currency",
   currency: "USD",
@@ -225,11 +227,28 @@ export function longDate(iso: string | null | undefined): string {
   return longDateFormatter.format(new Date(`${iso.slice(0, 10)}T00:00:00Z`));
 }
 
+/** A `YYYY-MM-DD` calendar date — already a day, never re-read through a clock. */
+const CALENDAR_DATE = /^\d{4}-\d{2}-\d{2}$/;
+/** The business timezone's day (KSA, no DST). */
+const businessDayFormatter = new Intl.DateTimeFormat("en-CA", {
+  timeZone: BUSINESS_TZ,
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
+/**
+ * `YYYY-MM-DD` for a table cell. A TIMESTAMP shows its business day (KSA):
+ * the UTC day put a batch uploaded at 00:47 KSA under the previous date
+ * (2026-11-01). A calendar-date string is returned untouched — it is already
+ * a day, and must never shift.
+ */
 export function isoDate(value: Date | string | null | undefined): string {
   if (!value) return EM_DASH;
+  if (typeof value === "string" && CALENDAR_DATE.test(value)) return value;
   const d = typeof value === "string" ? new Date(value) : value;
   if (Number.isNaN(d.getTime())) return EM_DASH;
-  return d.toISOString().slice(0, 10);
+  return businessDayFormatter.format(d);
 }
 
 /**

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { int, num, pct, pct1, roas, sar, signedInt, signedPct, usd, plural } from "@/lib/format";
+import { int, isoDate, num, pct, pct1, roas, sar, signedInt, signedPct, usd, plural } from "@/lib/format";
 
 /**
  * The dash is load-bearing: `—` means "no value", and a real `0` must never
@@ -120,5 +120,26 @@ describe("signedInt — count deltas with the same minus as signedPct", () => {
   it("renders null as a dash", () => {
     expect(signedInt(null)).toBe("—");
     expect(signedInt(Number.NaN)).toBe("—");
+  });
+});
+
+describe("isoDate — a timestamp shows its BUSINESS day (KSA), a calendar date never shifts", () => {
+  // A batch uploaded at 00:47 KSA on Nov 1 is 21:47Z on Oct 31: the UTC day
+  // put it under the previous date in Upload ads / Upload orders history.
+  it("a timestamp reads as the KSA day", () => {
+    expect(isoDate(new Date("2026-10-31T21:47:00Z"))).toBe("2026-11-01");
+    expect(isoDate("2026-10-31T21:47:00.000Z")).toBe("2026-11-01");
+    expect(isoDate(new Date("2026-10-31T20:59:59Z"))).toBe("2026-10-31");
+  });
+
+  it("a calendar date is already a day — returned untouched", () => {
+    expect(isoDate("2026-10-31")).toBe("2026-10-31");
+    expect(isoDate("2026-01-01")).toBe("2026-01-01");
+    expect(isoDate("2028-02-29")).toBe("2028-02-29");
+  });
+
+  it("nothing, or nonsense, is a dash", () => {
+    expect(isoDate(null)).toBe("—");
+    expect(isoDate("not a date")).toBe("—");
   });
 });
