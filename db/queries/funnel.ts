@@ -120,27 +120,27 @@ export interface FunnelOverview {
   };
 }
 
-async function totals(f: FunnelFilters, acct: string): Promise<FunnelTotals> {
-  const [r] = await db
-    .select({
-      spend: sumSpend,
-      impressions: sumImpressions,
-      clicks: sumClicks,
-      landingPageViews: sumLandingPageViews,
-      addToCart: sumAddToCart,
-      addPayment: sumAddPayment,
-      conversions: sumConversions,
-      cpm,
-      ctr,
-      voc,
-      atcRate,
-      apRate,
-      purchaseRate,
-      cvr,
-    })
-    .from(performanceRecords)
-    .innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId))
-    .where(whereFor(f, acct));
+/** The funnel totals' columns — one block, shared by both windows. */
+const totalsColumns = () => ({
+  spend: sumSpend,
+  impressions: sumImpressions,
+  clicks: sumClicks,
+  landingPageViews: sumLandingPageViews,
+  addToCart: sumAddToCart,
+  addPayment: sumAddPayment,
+  conversions: sumConversions,
+  cpm,
+  ctr,
+  voc,
+  atcRate,
+  apRate,
+  purchaseRate,
+  cvr,
+});
+
+type TotalsRow = { [K in keyof ReturnType<typeof totalsColumns>]: unknown };
+
+function toTotals(r: Partial<TotalsRow> | undefined): FunnelTotals {
   return {
     spend: num(r?.spend),
     impressions: num(r?.impressions),
@@ -159,13 +159,39 @@ async function totals(f: FunnelFilters, acct: string): Promise<FunnelTotals> {
   };
 }
 
+/**
+ * The window's totals AND the prior equal-length window's, in ONE scan
+ * (2026-11): `prevPeriod` windows are adjacent, so one WHERE spans both and a
+ * GROUP BY on the window label splits them — each group runs exactly the
+ * `lib/metrics` fragments a query per window ran. A window with no rows has
+ * no group, which reads as the same zeros/nulls an empty aggregate gave.
+ */
+async function totalsWithPrevious(
+  f: FunnelFilters,
+  prev: { from: string; to: string },
+  acct: string,
+): Promise<[FunnelTotals, FunnelTotals]> {
+  const rows = await db
+    .select({
+      win: sql<string>`CASE WHEN ${performanceRecords.date} >= ${f.from} THEN 'cur' ELSE 'prev' END`.as(
+        "funnel_window",
+      ),
+      ...totalsColumns(),
+    })
+    .from(performanceRecords)
+    .innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId))
+    .where(whereFor({ ...f, from: prev.from, to: f.to }, acct))
+    .groupBy(sql`funnel_window`);
+  return [
+    toTotals(rows.find((r) => r.win === "cur")),
+    toTotals(rows.find((r) => r.win === "prev")),
+  ];
+}
+
 export async function funnelOverview(f: FunnelFilters): Promise<FunnelOverview> {
   const acct = await getActiveAccountId();
   const prev = prevPeriod(f.from, f.to);
-  const [current, prior] = await Promise.all([
-    totals(f, acct),
-    totals({ ...f, from: prev.from, to: prev.to }, acct),
-  ]);
+  const [current, prior] = await totalsWithPrevious(f, prev, acct);
   return {
     current,
     previous: prior,
@@ -535,6 +561,31 @@ export async function funnelDaily(
   opts?: { fillEdges?: boolean },
 ): Promise<FunnelDailyPoint[]> {
   const acct = await getActiveAccountId();
+  return fillFunnelDaily(await funnelDailyRows(f, acct), f, acct, opts);
+}
+
+/**
+ * The live window's daily series (edge-filled) AND the prior equal-length
+ * window's (interior gaps only — the faded overlay), from ONE scan (2026-11):
+ * the windows are adjacent, rows are per DAY, and a day belongs to exactly one
+ * window — so one GROUP BY date over both, split by date, is the two queries'
+ * rows exactly.
+ */
+export async function funnelDailyWithPrevious(f: FunnelFilters): Promise<{
+  current: FunnelDailyPoint[];
+  previous: FunnelDailyPoint[];
+}> {
+  const acct = await getActiveAccountId();
+  const prev = prevPeriod(f.from, f.to);
+  const rows = await funnelDailyRows({ ...f, from: prev.from }, acct);
+  const [current, previous] = await Promise.all([
+    fillFunnelDaily(rows.filter((r) => r.date >= f.from), f, acct, { fillEdges: true }),
+    fillFunnelDaily(rows.filter((r) => r.date <= prev.to), { ...f, ...prev }, acct),
+  ]);
+  return { current, previous };
+}
+
+async function funnelDailyRows(f: FunnelFilters, acct: string): Promise<FunnelDailyPoint[]> {
   const rows = await db
     .select({
       date: performanceRecords.date,
@@ -551,7 +602,7 @@ export async function funnelDaily(
     .where(whereFor(f, acct))
     .groupBy(performanceRecords.date)
     .orderBy(asc(performanceRecords.date));
-  const points: FunnelDailyPoint[] = rows.map((r) => ({
+  return rows.map((r) => ({
     date: r.date,
     cpm: numOrNull(r.cpm),
     ctr: numOrNull(r.ctr),
@@ -561,7 +612,14 @@ export async function funnelDaily(
     purchaseRate: numOrNull(r.purchaseRate),
     cvr: numOrNull(r.cvr),
   }));
+}
 
+async function fillFunnelDaily(
+  points: FunnelDailyPoint[],
+  f: FunnelFilters,
+  acct: string,
+  opts?: { fillEdges?: boolean },
+): Promise<FunnelDailyPoint[]> {
   // Every funnel metric is a RATE → filled days are null so the trend line
   // BREAKS across a pause (a real 0% would be a different lie). Interior gaps
   // always; leading/trailing edge zeros only when the caller opts in (the live

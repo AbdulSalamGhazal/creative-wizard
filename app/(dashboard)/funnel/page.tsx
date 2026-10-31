@@ -9,7 +9,7 @@ import {
 } from "@/db/queries/user-prefs";
 import {
   campaignFunnel,
-  funnelDaily,
+  funnelDailyWithPrevious,
   funnelOverview,
   platformFunnel,
   platformCampaignFunnel,
@@ -23,7 +23,6 @@ import { FunnelTrendChart } from "@/components/funnel/funnel-trend-chart";
 import { PlatformFunnelComparison } from "@/components/funnel/platform-funnel-comparison";
 import { CampaignFunnelTable } from "@/components/funnel/campaign-funnel-table";
 import { dashboardFiltersSchema } from "@/validators/filters";
-import { prevPeriod } from "@/lib/period";
 import { pickFirst } from "@/lib/url";
 import { PLATFORMS_WITH_CREATIVES } from "@/lib/palette";
 
@@ -77,19 +76,18 @@ export default async function FunnelPage({
     includeExcluded,
   };
 
-  const prev = prevPeriod(from, to);
+  // The live window's daily series and the prior window's overlay come from
+  // ONE scan (`funnelDailyWithPrevious`), as do the overview's two totals.
   const [
     overview,
     campaigns,
-    daily,
-    dailyPrev,
+    { current: daily, previous: dailyPrev },
     byPlatform,
     byPlatformCampaign,
   ] = await Promise.all([
     funnelOverview(filters),
     campaignFunnel(filters),
-    funnelDaily(filters, { fillEdges: true }),
-    funnelDaily({ ...filters, from: prev.from, to: prev.to }),
+    funnelDailyWithPrevious(filters),
     platformFunnel(filters),
     platformCampaignFunnel(filters),
   ]);
