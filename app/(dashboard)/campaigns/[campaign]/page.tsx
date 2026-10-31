@@ -13,11 +13,7 @@ import {
   campaignRecordsByDay,
   campaignRegistry,
 } from "@/db/queries/campaign";
-import {
-  campaignFirstDay,
-  dataHorizon,
-  resolveEntityBounds,
-} from "@/db/queries/series-bounds";
+import { dataHorizon, resolveEntityBounds } from "@/db/queries/series-bounds";
 import { AnalyticsDateFilter } from "@/components/creative/analytics-date-filter";
 import { CampaignCreativeKpis } from "@/components/campaign/campaign-creative-kpis";
 import { CampaignCreativeChart } from "@/components/campaign/campaign-creative-chart";
@@ -120,7 +116,6 @@ export default async function CampaignDetailPage({
     records,
     byDay,
     horizon,
-    campaignFirst,
     tablePrefs,
   ] = await Promise.all([
     campaignAnalytics(decoded, range, inc),
@@ -129,11 +124,15 @@ export default async function CampaignDetailPage({
     campaignRecords(decoded, range, inc),
     campaignRecordsByDay(decoded, range, inc),
     dataHorizon(),
-    registry ? campaignFirstDay(registry.id) : Promise.resolve(null),
     // Remembered columns for the records table — ONE read, cache()-deduped,
     // resolved here so the table renders the user's choice on first paint.
     resolveTablePrefs([TABLE_KEYS.CAMPAIGN_RECORDS]),
   ]);
+
+  // The campaign's first-ever day is `meta.firstDate`: the same rows (the
+  // name is unique per brand, and every record joins a creative and product),
+  // so it needs no query of its own.
+  const campaignFirst = meta.firstDate;
 
   // Edge-fill bounds for the campaign's GROUP line: trailing zeros to the data
   // horizon (a paused campaign shows the pause), leading zeros from the window

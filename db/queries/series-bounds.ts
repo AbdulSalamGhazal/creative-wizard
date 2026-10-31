@@ -71,23 +71,6 @@ export const platformHorizons = cache(
   },
 );
 
-/** First-ever record date for one campaign (unbounded by any window), or null. */
-export async function campaignFirstDay(
-  campaignId: string,
-): Promise<string | null> {
-  const acct = await getActiveAccountId();
-  const [row] = await db
-    .select({ min: sql<string | null>`MIN(${performanceRecords.date})` })
-    .from(performanceRecords)
-    .where(
-      and(
-        eq(performanceRecords.accountId, acct),
-        eq(performanceRecords.campaignId, campaignId),
-      ),
-    );
-  return row?.min ?? null;
-}
-
 /** First-ever record date PER PLATFORM for one creative (unbounded), account-scoped. */
 export async function creativePlatformFirstDays(
   creativeId: string,
