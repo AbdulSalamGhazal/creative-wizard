@@ -281,6 +281,12 @@ as it stood before the restructure.*
     canonical platform swatch — every hand-rolled dot span (charts, admin +
     detail tables, funnel, upload picker) is now on it; the only remaining
     `PLATFORM_COLOR` inline styles are the two per-platform progress BARS.
+    **`StatusDot`** (`components/ui/status-dot.tsx`) is the one entity-status
+    look — 6px dot in the status colour + the label in `ink-2`: a creative's
+    `StatusBadge` and a campaign's `CampaignStatusBadge` both render it, so the
+    same concept never wears two looks (2026-11-01; the campaign badge had an
+    8px dot and an ink/ink-3 label). Dense tables that need a letter use
+    `StatusSquare`.
     **Nav is one source:** `components/layout/nav-items.ts`
     (`NAV_ITEMS`/`isActive`/`navSections`) drives BOTH the desktop `Sidebar` and
     the mobile `MobileNav` (hamburger + Sheet, `lg:hidden`, in the TopBar). Items
@@ -327,6 +333,7 @@ as it stood before the restructure.*
     so Enter submits; never put `disabled` on an `asChild` `<Link>`.
   - **New surfaces MUST use the shared primitives** — PageHeader/PageShell,
     Panel/Card, DataTable, MetricPicker, SeriesLegend, ChartTooltip, PlatformDot,
+    StatusDot,
     DeltaBadge, DownloadCsvButton, `lib/format` (incl. `roas()`/`monthDay`),
     `lib/palette` (incl. `FUNNEL_METRIC_COLOR`), `lib/metric-labels`
     (`METRIC_LABEL`) — never a hand-rolled local variant. Any new color is a CSS
