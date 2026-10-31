@@ -24,7 +24,8 @@
   the box clips it to two stray bars.
 - Text on a series/avatar fill follows the fill's lightness: the series vars
   are 400-level (light) on the dark themes and 600-level on Frost/Paper, so
-  `UserAvatar` initials are `text-white dark:text-background` — and so are
+  `UserAvatar` initials are `text-white dark:text-background` (a former
+  member's "?" sits on `surface-3`, so it takes `text-ink-2`) — and so are
   Spend by rating's in-segment percentages on the pos/warn/neg fills, the
   rule RATING_META's badges already followed.
 - ONE UI font; there is no font switcher.
