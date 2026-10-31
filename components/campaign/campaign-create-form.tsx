@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useId, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -30,6 +30,8 @@ import { useNavTransition } from "@/lib/nav-progress";
  */
 export function CampaignCreateForm() {
   const router = useRouter();
+  // Ties each label to its control (see Field).
+  const fid = useId();
   const [campaign, setCampaign] = useState("");
   const [adset, setAdset] = useState("");
   const [platform, setPlatform] = useState("");
@@ -65,25 +67,27 @@ export function CampaignCreateForm() {
       onSubmit={submit}
       className="rounded-lg border border-line bg-surface p-5 space-y-4"
     >
-      <Field label="Campaign name">
+      <Field label="Campaign name" htmlFor={`${fid}-campaign`}>
         <Input
+          id={`${fid}-campaign`}
           value={campaign}
           onChange={(e) => setCampaign(e.target.value)}
           placeholder="e.g. Always-On"
           autoFocus
         />
       </Field>
-      <Field label="Ad Set name">
+      <Field label="Ad Set name" htmlFor={`${fid}-adset`}>
         <Input
+          id={`${fid}-adset`}
           value={adset}
           onChange={(e) => setAdset(e.target.value)}
           placeholder="e.g. Broad"
         />
       </Field>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <Field label="Platform">
+        <Field label="Platform" htmlFor={`${fid}-platform`}>
           <Select value={platform} onValueChange={setPlatform}>
-            <SelectTrigger>
+            <SelectTrigger id={`${fid}-platform`}>
               <SelectValue placeholder="Select a platform…" />
             </SelectTrigger>
             <SelectContent>
@@ -95,9 +99,9 @@ export function CampaignCreateForm() {
             </SelectContent>
           </Select>
         </Field>
-        <Field label="Objective">
+        <Field label="Objective" htmlFor={`${fid}-objective`}>
           <Select value={objective} onValueChange={setObjective}>
-            <SelectTrigger>
+            <SelectTrigger id={`${fid}-objective`}>
               <SelectValue placeholder="Select an objective…" />
             </SelectTrigger>
             <SelectContent>
@@ -145,14 +149,17 @@ export function CampaignCreateForm() {
 
 function Field({
   label,
+  htmlFor,
   children,
 }: {
   label: string;
+  /** The control's id, so the label names it and a tap on it focuses it. */
+  htmlFor: string;
   children: React.ReactNode;
 }) {
   return (
     <div className="space-y-1.5">
-      <Label>{label}</Label>
+      <Label htmlFor={htmlFor}>{label}</Label>
       {children}
     </div>
   );

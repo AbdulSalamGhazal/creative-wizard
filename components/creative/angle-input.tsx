@@ -5,6 +5,8 @@ import { Plus } from "lucide-react";
 import { Input } from "@/components/ui/input";
 
 interface Props {
+  /** The text input's id — for the field label that names it. */
+  id?: string;
   /** Current angle input string (comma-separated). */
   value: string;
   onChange: (next: string) => void;
@@ -28,6 +30,7 @@ function parseAngles(s: string): string[] {
  * shown disabled so the user knows what's in vs. out.
  */
 export function AngleInput({
+  id,
   value,
   onChange,
   allAngles,
@@ -46,6 +49,7 @@ export function AngleInput({
   return (
     <div className="space-y-2">
       <Input
+        id={id}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}

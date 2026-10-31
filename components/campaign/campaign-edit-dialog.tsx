@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useId, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Pencil } from "lucide-react";
@@ -64,6 +64,8 @@ export function CampaignEditDialog({
   const router = useRouter();
   const canEdit = useCan("campaign.edit");
   const [open, setOpen] = useState(false);
+  // Ties each label to its control (see Field).
+  const fid = useId();
   const [campaign, setCampaign] = useState(initCampaign);
   const [adset, setAdset] = useState(initAdset);
   const [platform, setPlatform] = useState(initPlatform);
@@ -135,16 +137,18 @@ export function CampaignEditDialog({
         </DialogHeader>
 
         <form onSubmit={submit} className="space-y-4">
-          <Field label="Campaign name">
+          <Field label="Campaign name" htmlFor={`${fid}-campaign`}>
             <Input
+              id={`${fid}-campaign`}
               value={campaign}
               onChange={(e) => setCampaign(e.target.value)}
               placeholder="e.g. Always-On"
               autoFocus
             />
           </Field>
-          <Field label="Ad Set name">
+          <Field label="Ad Set name" htmlFor={`${fid}-adset`}>
             <Input
+              id={`${fid}-adset`}
               value={adset}
               onChange={(e) => setAdset(e.target.value)}
               placeholder="e.g. Broad"
@@ -153,6 +157,7 @@ export function CampaignEditDialog({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Field
               label="Platform"
+              htmlFor={`${fid}-platform`}
               tip={
                 hasRecords ? (
                   <InfoTip label="Why the platform is locked">{CAMPAIGN_PLATFORM_LOCKED_TIP}</InfoTip>
@@ -160,7 +165,7 @@ export function CampaignEditDialog({
               }
             >
               <Select value={platform} onValueChange={setPlatform} disabled={hasRecords}>
-                <SelectTrigger>
+                <SelectTrigger id={`${fid}-platform`}>
                   <SelectValue placeholder="Select a platform…" />
                 </SelectTrigger>
                 <SelectContent>
@@ -172,9 +177,9 @@ export function CampaignEditDialog({
                 </SelectContent>
               </Select>
             </Field>
-            <Field label="Objective">
+            <Field label="Objective" htmlFor={`${fid}-objective`}>
               <Select value={objective} onValueChange={setObjective}>
-                <SelectTrigger>
+                <SelectTrigger id={`${fid}-objective`}>
                   <SelectValue placeholder="Select an objective…" />
                 </SelectTrigger>
                 <SelectContent>
@@ -224,10 +229,13 @@ export function CampaignEditDialog({
 
 function Field({
   label,
+  htmlFor,
   tip,
   children,
 }: {
   label: string;
+  /** The control's id, so the label names it and a tap on it focuses it. */
+  htmlFor: string;
   /** An ⓘ beside the label — the reason a control is locked, say. */
   tip?: React.ReactNode;
   children: React.ReactNode;
@@ -235,7 +243,7 @@ function Field({
   return (
     <div className="space-y-1.5">
       <div className="flex items-center gap-1.5">
-        <Label>{label}</Label>
+        <Label htmlFor={htmlFor}>{label}</Label>
         {tip}
       </div>
       {children}

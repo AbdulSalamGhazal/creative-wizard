@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useId, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,6 +36,9 @@ const TYPES = TYPE_OPTIONS;
 
 export function CreativeCreateForm({ products, allAngles }: Props) {
   const router = useRouter();
+  // Ties each Field's label to its control (a tap on the label focuses it,
+  // and a screen reader names the control by it).
+  const fid = useId();
   const [name, setName] = useState("");
   // No defaults — force a deliberate pick so a left-on-default value can't slip through.
   const [productId, setProductId] = useState<string>("");
@@ -118,10 +121,12 @@ export function CreativeCreateForm({ products, allAngles }: Props) {
     <form onSubmit={submit} className="space-y-5">
       <Field
         label="Name"
+        htmlFor={`${fid}-name`}
         hint="Case- and whitespace-sensitive — must match your CSV rows exactly."
         error={fieldErrors.name}
       >
         <Input
+          id={`${fid}-name`}
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="URJ_VID_042"
@@ -131,9 +136,9 @@ export function CreativeCreateForm({ products, allAngles }: Props) {
       </Field>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Field label="Product" error={fieldErrors.productId}>
+        <Field label="Product" htmlFor={`${fid}-product`} error={fieldErrors.productId}>
           <Select value={productId} onValueChange={setProductId}>
-            <SelectTrigger><SelectValue placeholder="Select a product…" /></SelectTrigger>
+            <SelectTrigger id={`${fid}-product`}><SelectValue placeholder="Select a product…" /></SelectTrigger>
             <SelectContent>
               {products.map((p) => (
                 <SelectItem key={p.id} value={p.id}>
@@ -143,9 +148,9 @@ export function CreativeCreateForm({ products, allAngles }: Props) {
             </SelectContent>
           </Select>
         </Field>
-        <Field label="Type" error={fieldErrors.type}>
+        <Field label="Type" htmlFor={`${fid}-type`} error={fieldErrors.type}>
           <Select value={type} onValueChange={(v) => setType(v as typeof type)}>
-            <SelectTrigger><SelectValue placeholder="Select a type…" /></SelectTrigger>
+            <SelectTrigger id={`${fid}-type`}><SelectValue placeholder="Select a type…" /></SelectTrigger>
             <SelectContent>
               {TYPES.map((t) => (
                 <SelectItem key={t.value} value={t.value}>
@@ -157,8 +162,14 @@ export function CreativeCreateForm({ products, allAngles }: Props) {
         </Field>
       </div>
 
-      <Field label="Launch date" hint="Optional." error={fieldErrors.launchDate}>
+      <Field
+        label="Launch date"
+        htmlFor={`${fid}-launch`}
+        hint="Optional."
+        error={fieldErrors.launchDate}
+      >
         <Input
+          id={`${fid}-launch`}
           type="date"
           value={launchDate}
           onChange={(e) => setLaunchDate(e.target.value)}
@@ -189,10 +200,12 @@ export function CreativeCreateForm({ products, allAngles }: Props) {
 
       <Field
         label="Angles"
+        htmlFor={`${fid}-angles`}
         hint="Comma-separated."
         error={fieldErrors.angles}
       >
         <AngleInput
+          id={`${fid}-angles`}
           value={anglesInput}
           onChange={setAnglesInput}
           allAngles={allAngles}
@@ -201,10 +214,12 @@ export function CreativeCreateForm({ products, allAngles }: Props) {
 
       <Field
         label="Source link"
+        htmlFor={`${fid}-source`}
         hint="Optional."
         error={fieldErrors.sourceLink}
       >
         <Input
+          id={`${fid}-source`}
           type="url"
           inputMode="url"
           value={sourceLink}
@@ -214,8 +229,9 @@ export function CreativeCreateForm({ products, allAngles }: Props) {
         />
       </Field>
 
-      <Field label="Notes" hint="Optional." error={fieldErrors.notes}>
+      <Field label="Notes" htmlFor={`${fid}-notes`} hint="Optional." error={fieldErrors.notes}>
         <Textarea
+          id={`${fid}-notes`}
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
           placeholder="Hooks, variations, briefs, links — anything the team should remember."
@@ -251,18 +267,28 @@ export function CreativeCreateForm({ products, allAngles }: Props) {
 
 function Field({
   label,
+  htmlFor,
   hint,
   error,
   children,
 }: {
   label: string;
+  /** The control's id. Without one (a picker of several buttons) the label
+   *  names the field as a group instead. */
+  htmlFor?: string;
   hint?: string;
   error?: string;
   children: React.ReactNode;
 }) {
+  const labelId = useId();
   return (
-    <div className="space-y-1.5">
-      <Label>{label}</Label>
+    <div
+      className="space-y-1.5"
+      {...(htmlFor ? {} : { role: "group", "aria-labelledby": labelId })}
+    >
+      <Label id={labelId} htmlFor={htmlFor}>
+        {label}
+      </Label>
       {children}
       {(hint || error) && (
         <p className={error ? "text-[11px] text-neg" : "text-[11px] text-ink-3"}>

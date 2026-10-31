@@ -84,8 +84,11 @@ export function Dropzone({ file, onFile, disabled }: Props) {
 
   return (
     <div>
+      {/* A focusable tab stop is a BUTTON to a screen reader (react-dropzone
+          defaults the root to role="presentation", which names nothing);
+          its name is the instruction text inside it. */}
       <div
-        {...getRootProps()}
+        {...getRootProps({ role: "button" })}
         className={cn(
           "rounded-lg border-2 border-dashed transition-colors text-center px-6 py-12 cursor-pointer",
           isDragActive
@@ -106,7 +109,7 @@ export function Dropzone({ file, onFile, disabled }: Props) {
         <div className="mt-1 text-xs text-ink-3">CSV or XLSX up to {MAX_FILE_MB} MB</div>
       </div>
       {(sizeRejected || typeRejected) && (
-        <div className="mt-2 text-xs text-neg">
+        <div role="alert" className="mt-2 text-xs text-neg">
           {sizeRejected
             ? FILE_TOO_LARGE_MESSAGE
             : "Only .csv, .xls, and .xlsx files are accepted."}
