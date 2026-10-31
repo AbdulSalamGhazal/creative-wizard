@@ -15,6 +15,7 @@ import { safeAction } from "@/lib/action-failure";
 import { actionSettled } from "@/lib/router-queue";
 import { toastActionFailure } from "@/lib/action-toast";
 import { useNavTransition } from "@/lib/nav-progress";
+import { plural } from "@/lib/format";
 
 interface Props {
   /** Existing product names — shown as a hint and used in the CSV template. */
@@ -66,7 +67,7 @@ export function BulkCreativeImport({ products }: Props) {
         if ("rows" in fresh) setPreview(fresh);
         return;
       }
-      toast.success(`Created ${res.created ?? 0} creatives`);
+      toast.success(`Created ${plural(res.created ?? 0, "creative")}`);
       // ONE render: the action doesn't revalidate; the navigation renders the
       // Library fresh (W2-1) — once the router is done with the action.
       await actionSettled();
@@ -195,7 +196,7 @@ export function BulkCreativeImport({ products }: Props) {
 
           {preview.allValid ? (
             <Button type="button" onClick={create} disabled={isPending}>
-              {isPending ? "Creating…" : `Create ${preview.validCount} creatives`}
+              {isPending ? "Creating…" : `Create ${plural(preview.validCount, "creative")}`}
             </Button>
           ) : (
             <p className="text-xs text-neg">

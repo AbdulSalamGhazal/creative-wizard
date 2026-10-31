@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Dropzone } from "@/components/upload/dropzone";
 import { useCan } from "@/components/auth/permissions-context";
-import { int } from "@/lib/format";
+import { int, plural } from "@/lib/format";
 import { StoreErrorReport } from "@/components/store/store-error-report";
 import {
   validateStoreUpload,
@@ -186,7 +186,7 @@ export function StoreUploadPanel({
               </span>
             )}
             <span className="text-ink-3">
-              · {int(stage.report.summary.total)} rows valid
+              · {plural(stage.report.summary.total, "row")} valid
             </span>
           </div>
           {/* Upsert PATCHES attributes: a field with no column in this file
