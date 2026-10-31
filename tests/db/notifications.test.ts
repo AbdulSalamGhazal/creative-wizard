@@ -640,7 +640,7 @@ describe("a member removed from a brand stops hearing about it (2026-11-01)", ()
   });
 
   it("so does every other producer — the filter sits in createNotifications", async () => {
-    const base = { category: "comment" as const, type: "comment.reply", title: "Reply" };
+    const base = { category: "reply" as const, type: "comment.reply", title: "Reply" };
     const written = await createNotifications(db, [
       { ...base, accountId: ACCOUNT_A, recipientUserId: BOB },
       { ...base, accountId: ACCOUNT_A, recipientUserId: ALICE },
