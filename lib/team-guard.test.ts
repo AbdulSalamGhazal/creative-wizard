@@ -115,6 +115,29 @@ describe("teamGuard — brands: a restricted manager stays inside their own", ()
   });
 });
 
+describe("teamGuard — access: across brands (agent-06, 2026-10-31)", () => {
+  // What the guard does TODAY, pinned: `case "access"` judges permissions
+  // only, so a manager restricted to A may switch on a permission they hold
+  // for someone who works only in B.
+  it("a restricted manager may change a B-only member's permissions (current behaviour)", () => {
+    const bOnly = member({ allAccounts: false, accountIds: [B] });
+    expect(teamGuard(RLEAD, { kind: "access", target: bOnly, role: "viewer", permissions: ["creative.edit"] })).toBeNull();
+  });
+  // DECISION NEEDED (reported by agent-06): the guard's own contract is "a
+  // holder manages people only WITHIN their own access", and `password`
+  // already refuses a target outside the manager's brands (withinScope), but
+  // `access` never looks at brands. If the user rules that a restricted
+  // manager may only change the access of someone who shares a brand with
+  // them, un-skip this and delete the case above.
+  it.skip("a restricted manager can't change the access of someone outside their brands", () => {
+    const bOnly = member({ allAccounts: false, accountIds: [B] });
+    expect(teamGuard(RLEAD, { kind: "access", target: bOnly, role: "viewer", permissions: ["creative.edit"] })).not.toBeNull();
+    // Sharing a brand keeps it allowed.
+    const ab = member({ allAccounts: false, accountIds: [A, B] });
+    expect(teamGuard(RLEAD, { kind: "access", target: ab, role: "viewer", permissions: ["creative.edit"] })).toBeNull();
+  });
+});
+
 describe("teamGuard — password: only for someone within the manager's access", () => {
   it("within → allowed", () => {
     expect(teamGuard(LEAD, { kind: "password", target: member({ permissions: ["creative.edit"] }) })).toBeNull();
