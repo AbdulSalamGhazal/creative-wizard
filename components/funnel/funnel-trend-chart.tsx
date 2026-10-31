@@ -187,7 +187,7 @@ export function FunnelTrendChart({
   const emptyState = (
     <EmptyState
       className="h-full flex flex-col items-center justify-center py-0"
-      title="No data in this window."
+      title="No data in this range."
       kind="filtered"
       buttons={false}
     />

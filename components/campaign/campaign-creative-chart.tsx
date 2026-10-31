@@ -311,7 +311,7 @@ export function CampaignCreativeChart({
   const empty = (
     <EmptyState
       className="flex h-full flex-col items-center justify-center"
-      title="No data in this window."
+      title="No data in this range."
       kind="range"
     />
   );

@@ -280,7 +280,7 @@ export function MetricOverTimeChart({
           {display.length === 0 ? (
             <EmptyState
               className={(inFull ? "flex-1 min-h-0" : "h-64") + " flex flex-col items-center justify-center py-0"}
-              title="No data in the selected window."
+              title="No data in this range."
               kind="filtered"
               buttons={false}
             />

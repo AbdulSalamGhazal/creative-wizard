@@ -204,7 +204,7 @@ export function CompareChart({
           {data.length === 0 ? (
             <EmptyState
               className={(inFull ? "flex-1 min-h-0" : "h-72") + " flex flex-col items-center justify-center py-0"}
-              title="No data for this selection in the chosen window."
+              title="No data in this range."
               kind="range"
             />
           ) : (

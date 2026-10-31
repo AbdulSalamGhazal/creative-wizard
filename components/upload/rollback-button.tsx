@@ -17,6 +17,7 @@ import { rollbackBatch } from "@/app/actions/rollback";
 import { safeAction } from "@/lib/action-failure";
 import { toastActionFailure } from "@/lib/action-toast";
 import { plural } from "@/lib/format";
+import { batchStatusLabel } from "@/lib/upload-batches";
 
 interface Props {
   batchId: string;
@@ -74,16 +75,16 @@ export function RollbackButton({
         title="Roll back this batch"
       >
         <RotateCcw className="w-3 h-3" />
-        Rollback
+        Roll back
       </Button>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Roll back this upload?</DialogTitle>
           <DialogDescription>
-            This deletes all {rowCount} performance records imported from{" "}
+            This deletes the {plural(rowCount, "performance record")} imported from{" "}
             <code className="font-mono text-ink-2">{fileName}</code>. Blended
             metrics across the dashboard will update immediately. The batch
-            row stays for audit; its status flips to <em>rolled_back</em>.
+            row stays for audit; its status flips to <em>{batchStatusLabel("rolled_back")}</em>.
           </DialogDescription>
         </DialogHeader>
         {error && (

@@ -10,6 +10,8 @@ import { ErrorReport } from "@/components/upload/error-report";
 import { SummaryCard } from "@/components/upload/summary-card";
 import { PlatformPicker, PLATFORMS } from "@/components/upload/platform-picker";
 import { PLATFORM_LABEL } from "@/lib/palette";
+import { plural } from "@/lib/format";
+import { ROLLBACK_WINDOW_HOURS } from "@/lib/upload-batches";
 import { useCan } from "@/components/auth/permissions-context";
 import type { ValidationError } from "@/csv/errors";
 
@@ -206,7 +208,7 @@ export function UploadForm() {
             </>
           ) : (
             <>
-              {stage.rowsImported} performance records imported for{" "}
+              {plural(stage.rowsImported, "performance record")} imported for{" "}
               <span className="text-ink">{PLATFORM_LABEL[stage.platform]}</span>.
             </>
           )}
@@ -214,7 +216,7 @@ export function UploadForm() {
         <p className="mt-1 text-ink-3 text-[11px]">
           {stage.upsert && stage.rowsUpdated > 0
             ? "Updated rows were overwritten in place — only the newly-inserted rows can be rolled back."
-            : "An admin can undo this from Upload history within 24 hours."}
+            : `It can be rolled back from Upload history within ${ROLLBACK_WINDOW_HOURS} hours.`}
         </p>
         <div className="mt-6 flex items-center justify-center gap-2">
           <Button asChild>

@@ -44,7 +44,7 @@ export function MetricCard({
   bars = [],
   delta,
   deltaInverted = false,
-  emptyText = "No data in range.",
+  emptyText = "No data in this range.",
   footer,
   hideBreakdown = false,
   empty = false,
