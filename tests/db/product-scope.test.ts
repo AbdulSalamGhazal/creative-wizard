@@ -72,13 +72,10 @@ describe("archive / restore stay inside the active brand", () => {
     expect(await statusOf(PRODUCT_A)).toBe("active");
   });
 
-  // BUG (agent-06, 2026-10-31; app/actions/product.ts restoreProduct): with no
-  // product of that id in the active brand, restoreProduct still answers
-  // { ok: true } and writes a `product.restore` audit row with a null label —
-  // the audit feed of brand A then claims a restore that never happened.
-  // archiveProduct beside it answers "Product not found." and audits nothing.
-  // Un-skip once restoreProduct returns not-found like archiveProduct.
-  it.skip("restoring an id the brand doesn't have says so, and audits nothing", async () => {
+  // Was a bug until 1552427: restoreProduct answered { ok: true } and wrote a
+  // `product.restore` audit row with a null label for an id the brand doesn't
+  // have, so brand A's audit feed claimed a restore that never happened.
+  it("restoring an id the brand doesn't have says so, and audits nothing", async () => {
     await db.update(products).set({ status: "archived" }).where(eq(products.id, PRODUCT_B));
     expect(await restoreProduct(PRODUCT_B)).toEqual({ ok: false, error: "Product not found." });
     expect(await db.select().from(auditEvents).where(eq(auditEvents.action, "product.restore"))).toEqual([]);
