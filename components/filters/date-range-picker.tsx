@@ -112,7 +112,7 @@ export function DateRangePicker({
   // last-7-days guess, which may not be what the server ran.
   useRegisterResolvedView(
     "range",
-    pageRange && ((from && to) || fallback) ? { from: eff.from, to: eff.to } : undefined,
+    pageRange && (explicit || fallback) ? { from: eff.from, to: eff.to } : undefined,
   );
   const initial: DateRange | undefined = useMemo(
     () => ({ from: isoToLocalDate(eff.from), to: isoToLocalDate(eff.to) }),
