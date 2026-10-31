@@ -13,6 +13,11 @@
   UTC clock as its grouping (W1-13, 2026-10-23).
 - **Producers write notifications INSIDE the transaction of the thing they
   describe** (`notifyRoutes(tx, …)`), or use an `afterWrite(tx, result)` hook.
+- **Only a CURRENT member of a brand is notified about it (2026-11-01).**
+  Routes and thread participation outlive membership, so `createNotifications`
+  — the one insert every producer funnels through — drops a recipient who is
+  neither all-brands nor in `user_accounts` for the row's brand, read on the
+  caller's `tx` (a grant earlier in the same transaction counts).
 - Every read and write is self-scoped: `recipient_user_id` = the session user
   AND `account_id` = the active brand. An id alone never identifies a row.
 - **Silent by default** — no routes for an event notifies nobody, and the actor

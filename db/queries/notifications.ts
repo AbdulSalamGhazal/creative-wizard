@@ -98,14 +98,46 @@ export interface NewNotification {
 }
 
 /**
- * Insert notifications. ONE statement whatever the recipient count — producers
+ * The rows whose recipient is CURRENTLY a member of the row's brand — an
+ * all-brands user, or one with a `user_accounts` row for it. Routes and
+ * thread participation outlive membership (a removed member keeps both), so
+ * this is checked at WRITE time, on the caller's transaction: it sees a
+ * membership granted earlier in that same transaction (2026-11-01).
+ */
+async function toCurrentMembers(tx: Exec, rows: NewNotification[]): Promise<NewNotification[]> {
+  const userIds = [...new Set(rows.map((r) => r.recipientUserId))];
+  const accountIds = [...new Set(rows.map((r) => r.accountId))];
+  const members = await tx
+    .select({ userId: users.id, allAccounts: users.allAccounts, accountId: userAccounts.accountId })
+    .from(users)
+    .leftJoin(
+      userAccounts,
+      and(eq(userAccounts.userId, users.id), inArray(userAccounts.accountId, accountIds)),
+    )
+    .where(inArray(users.id, userIds));
+  const everywhere = new Set(members.filter((m) => m.allAccounts).map((m) => m.userId));
+  const of = new Set(
+    members.filter((m) => m.accountId !== null).map((m) => `${m.userId}\u0001${m.accountId}`),
+  );
+  return rows.filter(
+    (r) => everywhere.has(r.recipientUserId) || of.has(`${r.recipientUserId}\u0001${r.accountId}`),
+  );
+}
+
+/**
+ * Insert notifications. ONE insert whatever the recipient count — producers
  * run inside the transaction of the thing they describe, and `lib/db.ts` holds
- * a single connection, so a round-trip per recipient would serialize.
+ * a single connection, so a round-trip per recipient would serialize. A
+ * recipient who is no longer a member of the row's brand is dropped first
+ * (one membership read): every producer — routes, thread participants,
+ * mentions, reactions — funnels through here.
  */
 export async function createNotifications(
   tx: Exec,
-  rows: NewNotification[],
+  input: NewNotification[],
 ): Promise<number> {
+  if (input.length === 0) return 0;
+  const rows = await toCurrentMembers(tx, input);
   if (rows.length === 0) return 0;
   const values = rows.map((r) => ({
     accountId: r.accountId,

@@ -46,7 +46,7 @@ vi.mock("@/lib/auth", () => ({
 import { auth, requireAuth } from "@/lib/auth";
 import { getActiveAccountId } from "@/lib/tenant";
 import { db } from "@/lib/db";
-import { comments, notificationRoutes, notifications, users } from "@/db/schema";
+import { comments, notificationRoutes, notifications, userAccounts, users } from "@/db/schema";
 import {
   brandMembers,
   createNotifications,
@@ -614,5 +614,45 @@ describe("the bell lists what opening it clears (2026-10-20)", () => {
       })).ok,
     ).toBe(false);
     expect((await markNotificationsRead({ ids: ["not-a-uuid"] })).ok).toBe(false);
+  });
+});
+
+describe("a member removed from a brand stops hearing about it (2026-11-01)", () => {
+  // Bob is restricted to brand B. He was routed for A's uploads and had
+  // commented in A's threads while he belonged there; nothing pruned either,
+  // so A's events kept landing in his bell for a brand he can't open.
+  beforeEach(async () => {
+    await db.update(users).set({ allAccounts: false }).where(eq(users.id, BOB));
+    await db.insert(userAccounts).values({ userId: BOB, accountId: ACCOUNT_B });
+    await db.insert(notificationRoutes).values([
+      { accountId: ACCOUNT_A, eventType: "upload.committed", userId: BOB },
+      { accountId: ACCOUNT_A, eventType: "upload.committed", userId: ALICE },
+    ]);
+  });
+
+  const bobsRows = () =>
+    db.select().from(notifications).where(eq(notifications.recipientUserId, BOB));
+
+  it("a routed event skips a recipient who is no longer a member", async () => {
+    const written = await notifyRoutes(db, ACCOUNT_A, "upload.committed", { title: "Ads upload" });
+    expect(written).toBe(1); // Alice only
+    expect(await bobsRows()).toHaveLength(0);
+  });
+
+  it("so does every other producer — the filter sits in createNotifications", async () => {
+    const base = { category: "comment" as const, type: "comment.reply", title: "Reply" };
+    const written = await createNotifications(db, [
+      { ...base, accountId: ACCOUNT_A, recipientUserId: BOB },
+      { ...base, accountId: ACCOUNT_A, recipientUserId: ALICE },
+      // His own brand still reaches him.
+      { ...base, accountId: ACCOUNT_B, recipientUserId: BOB },
+    ]);
+    expect(written).toBe(2);
+    expect((await bobsRows()).map((r) => r.accountId)).toEqual([ACCOUNT_B]);
+  });
+
+  it("an all-brands member is a member everywhere", async () => {
+    await db.update(users).set({ allAccounts: true }).where(eq(users.id, BOB));
+    expect(await notifyRoutes(db, ACCOUNT_A, "upload.committed", { title: "Ads upload" })).toBe(2);
   });
 });
