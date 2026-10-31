@@ -150,11 +150,14 @@ export function BudgetPlanRevisions({
   revisions,
   current,
   canManage,
+  brand,
 }: {
   month: string;
   revisions: PlanRevisionSummary[];
   current: CurrentPlan;
   canManage: boolean;
+  /** The brand the page rendered under — a restore is pinned to it. */
+  brand: string;
 }) {
   const [open, setOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -193,7 +196,7 @@ export function BudgetPlanRevisions({
     if (!selected) return;
     setIsPending(true);
     try {
-      const res = await safeAction(() => restorePlanRevision({ revisionId: selected.id }));
+      const res = await safeAction(() => restorePlanRevision({ revisionId: selected.id, brand }));
       if (!res.ok) {
         toastActionFailure(res, "Couldn't restore that revision");
         return;

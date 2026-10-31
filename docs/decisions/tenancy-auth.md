@@ -75,11 +75,15 @@
   `next` with `safeInternalPath`.
 - **A preview-then-commit write is pinned to the PREVIEW's brand (2026-11-01).**
   The ads commit pins it in its validation session; the Store upload, the bulk
-  creative import and the Budget plan save resolve the cookie at commit, so
-  their preview (or the page render) hands the client its brand and the
-  commit refuses a moved one through `brandChanged` (lib/action-failure.ts —
-  the stale-tab failure, so the toast offers Reload). Without it, preview in
-  brand A + a switch in another tab + Confirm wrote into brand B.
+  creative import and EVERY Budget plan-page writer (save · delete · upload,
+  convert to the editor, copy from a month, restore a revision, the USD→SAR
+  rate) resolve the cookie at commit, so their preview (or the page render)
+  hands the client its brand and the write refuses a moved one through
+  `brandChanged` (lib/action-failure.ts — the stale-tab failure, so the toast
+  offers Reload), checked BEFORE any brand-scoped read. Without it, preview in
+  brand A + a switch in another tab + Confirm wrote into brand B. The pin is
+  optional server-side (a tab from before it behaves as before; the rate
+  still takes a bare number).
 - **The last admin is counted and demoted in ONE transaction (2026-10-31).**
   `updateUserAccess` holds the admin rows `FOR UPDATE` while it counts them,
   so two admins demoting each other at once can't both see two admins and

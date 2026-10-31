@@ -178,6 +178,8 @@ export const savePlanSchema = planSchema.and(
 export const convertPlanSchema = z.object({
   month: z.string().regex(MONTH_KEY),
   note: planNoteSchema,
+  /** The brand the page rendered under; the write refuses a moved one. */
+  brand: z.string().optional(),
 });
 
 /** Copy a plan from ANY month that has one (not just the previous month). */
@@ -185,12 +187,25 @@ export const copyPlanSchema = z
   .object({
     month: z.string().regex(MONTH_KEY),
     from: z.string().regex(MONTH_KEY),
+    brand: z.string().optional(),
   })
   .refine((v) => v.from !== v.month, {
     message: "Pick a different month to copy from.",
   });
 
-export const restoreRevisionSchema = z.object({ revisionId: z.string().uuid() });
+export const restoreRevisionSchema = z.object({
+  revisionId: z.string().uuid(),
+  brand: z.string().optional(),
+});
+
+/**
+ * The USD→SAR rate: `{ rate, brand }` from the plan page (pinned to the brand
+ * it rendered under), or a bare number from a tab that predates the pin.
+ */
+export const rateInputSchema = z.union([
+  z.number(),
+  z.object({ rate: z.number(), brand: z.string().optional() }),
+]);
 
 /**
  * The stored shape of a plan revision's `snapshot` jsonb. Deliberately

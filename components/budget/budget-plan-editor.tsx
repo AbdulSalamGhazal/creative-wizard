@@ -629,6 +629,7 @@ export function BudgetPlanEditor({
       const res = await safeAction(() =>
         convertPlanToCurve({
           month,
+          brand,
           note: convertNote.trim() === "" ? undefined : convertNote.trim(),
         }),
       );
@@ -690,7 +691,7 @@ export function BudgetPlanEditor({
     if (!copyFrom) return;
     setIsPending(true);
     try {
-      const res = await safeAction(() => copyBudgetFromMonth({ month, from: copyFrom }));
+      const res = await safeAction(() => copyBudgetFromMonth({ month, from: copyFrom, brand }));
       if (!res.ok) {
         toastActionFailure(res, "Couldn't copy");
         return;
@@ -714,7 +715,7 @@ export function BudgetPlanEditor({
     }
     setIsPending(true);
     try {
-      const res = await safeAction(() => setUsdToSarRate(value));
+      const res = await safeAction(() => setUsdToSarRate({ rate: value, brand }));
       if (!res.ok) {
         toastActionFailure(res, "Couldn't save the rate");
         return;
@@ -880,6 +881,7 @@ export function BudgetPlanEditor({
 
         <BudgetPlanRevisions
           month={month}
+          brand={brand}
           revisions={revisions}
           current={{
             allocations: data.allocations.map((a) => ({

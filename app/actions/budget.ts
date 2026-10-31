@@ -2,7 +2,6 @@
 
 import { revalidatePath } from "next/cache";
 import { eq } from "drizzle-orm";
-import { z } from "zod";
 import { db } from "@/lib/db";
 import { accounts } from "@/db/schema";
 import { requireAuth, requirePermission } from "@/lib/auth";
@@ -25,6 +24,7 @@ import {
   planSchema,
   restoreRevisionSchema,
   savePlanSchema,
+  rateInputSchema,
   snapshotToPlanInput,
 } from "@/validators/budget";
 import {
@@ -287,12 +287,16 @@ export async function convertPlanToCurve(input: unknown): Promise<BudgetActionRe
     const parsed = convertPlanSchema.safeParse(input);
     if (!parsed.success) return { ok: false, error: "Invalid month." };
     const { month, note } = parsed.data;
+    // Pinned to the brand the page rendered under — checked before the
+    // month is read, which would read the OTHER brand's (2026-11-01).
+    const acct = await getActiveAccountId();
+    const moved = brandChanged(parsed.data.brand, acct);
+    if (moved) return moved;
 
     const current = await getBudgetMonth(month);
     if (current.planMode !== "daily") {
       return { ok: false, error: `${monthLabel(month)} is already planned in the editor.` };
     }
-    const acct = await getActiveAccountId();
     const plan: BudgetPlanInput = {
       allocations: current.allocations.map((a) => ({
         platform: a.platform,
@@ -364,6 +368,9 @@ export async function copyBudgetFromMonth(input: unknown): Promise<BudgetActionR
     }
     const { month, from } = parsed.data;
     const acct = await getActiveAccountId();
+    // Pinned to the brand the page rendered under (2026-11-01).
+    const moved = brandChanged(parsed.data.brand, acct);
+    if (moved) return moved;
 
     const copied = await db.transaction(async (tx) => {
       const result = await copyBudgetMonth(tx, acct, from, month);
@@ -449,6 +456,10 @@ export async function restorePlanRevision(input: unknown): Promise<BudgetActionR
     const user = await requirePermission("budget.manage");
     const parsed = restoreRevisionSchema.safeParse(input);
     if (!parsed.success) return { ok: false, error: "Invalid revision." };
+    // Pinned to the brand the page rendered under — before the revision is
+    // looked up in the cookie's brand (2026-11-01).
+    const moved = brandChanged(parsed.data.brand, await getActiveAccountId());
+    if (moved) return moved;
 
     // Account-scoped read: a revision id from another brand is simply not found.
     const revision = await getPlanRevision(parsed.data.revisionId);
@@ -540,14 +551,26 @@ export async function restorePlanRevision(input: unknown): Promise<BudgetActionR
 export async function setUsdToSarRate(input: unknown): Promise<BudgetActionResult> {
   try {
     const user = await requirePermission("budget.manage");
-    const parsed = z.number().safeParse(input);
-    if (!parsed.success || !validateRate(parsed.data)) {
+    const parsed = rateInputSchema.safeParse(input);
+    const rate = !parsed.success
+      ? null
+      : typeof parsed.data === "number"
+        ? parsed.data
+        : parsed.data.rate;
+    if (rate === null || !validateRate(rate)) {
       return { ok: false, error: "Rate must be greater than 0 and at most 100." };
     }
     const acct = await getActiveAccountId();
+    // Pinned to the brand the page rendered under (2026-11-01); a bare number
+    // (a tab from before the pin) carries none.
+    const moved = brandChanged(
+      parsed.success && typeof parsed.data !== "number" ? parsed.data.brand : undefined,
+      acct,
+    );
+    if (moved) return moved;
     await db
       .update(accounts)
-      .set({ usdToSarRate: parsed.data.toFixed(4) })
+      .set({ usdToSarRate: rate.toFixed(4) })
       .where(eq(accounts.id, acct));
 
     revalidateBudget();
@@ -555,9 +578,9 @@ export async function setUsdToSarRate(input: unknown): Promise<BudgetActionResul
       action: AUDIT_ACTIONS.BUDGET_UPDATE,
       entityType: "budget",
       entityId: null,
-      entityLabel: `USD→SAR rate ${parsed.data.toFixed(4)}`,
+      entityLabel: `USD→SAR rate ${rate.toFixed(4)}`,
       actorUserId: user.id,
-      meta: { op: "rate", rate: parsed.data },
+      meta: { op: "rate", rate },
     });
     return { ok: true };
   } catch (err) {
