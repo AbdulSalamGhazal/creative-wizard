@@ -6,6 +6,12 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev"],
       "port": 3000
-    }
+    },
+    { "name": "agent-01-dev", "runtimeExecutable": "npm", "runtimeArgs": ["run", "dev", "--", "-p", "3001"], "port": 3001 },
+    { "name": "agent-02-dev", "runtimeExecutable": "npm", "runtimeArgs": ["run", "dev", "--", "-p", "3002"], "port": 3002 },
+    { "name": "agent-03-dev", "runtimeExecutable": "npm", "runtimeArgs": ["run", "dev", "--", "-p", "3003"], "port": 3003 },
+    { "name": "agent-04-dev", "runtimeExecutable": "npm", "runtimeArgs": ["run", "dev", "--", "-p", "3004"], "port": 3004 },
+    { "name": "agent-05-dev", "runtimeExecutable": "npm", "runtimeArgs": ["run", "dev", "--", "-p", "3005"], "port": 3005 },
+    { "name": "agent-06-dev", "runtimeExecutable": "npm", "runtimeArgs": ["run", "dev", "--", "-p", "3006"], "port": 3006 }
   ]
 }

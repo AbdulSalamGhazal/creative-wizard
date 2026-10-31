@@ -201,7 +201,9 @@ Do not introduce a new dependency without a one-line justification in the PR des
   no DB, no docker, always safe in CI. `npm run test:db` is the **real-database**
   suite (`tests/db/**`, config `vitest.config.db.ts`): its globalSetup creates a
   dedicated **`ccms_test`** database on the local docker Postgres and runs the
-  Drizzle migrations, then points `DATABASE_URL` at it — and it runs at
+  Drizzle migrations, then points `DATABASE_URL` at it (parallel sessions set
+  `CCMS_TEST_DB=ccms_test_<id>` so they never re-seed each other's copy;
+  anything outside `ccms_test*` is refused) — and it runs at
   PRODUCTION pool size (`DB_POOL_MAX=1`), so a `db`-inside-`tx` deadlock hangs
   a test instead of shipping. It NEVER touches `ccms`
   (dev) or prod. The default suite excludes `tests/db/**`, so a machine without
