@@ -17,7 +17,9 @@ export interface ProductMutationResult {
   fieldErrors?: Record<string, string>;
 }
 
-const nameSchema = z.string().min(1).max(255);
+// Trimmed BEFORE the length check — trimming after let "   " pass min(1) and
+// insert a product with an empty name (2026-10-31).
+const nameSchema = z.string().trim().min(1).max(255);
 
 const productSlug = (name: string): string => slugify(name, "product", 255);
 
@@ -36,7 +38,7 @@ export async function createProduct(input: unknown): Promise<ProductMutationResu
         fieldErrors: { name: parsed.error.issues[0]?.message ?? "Invalid" },
       };
     }
-    const name = parsed.data.trim();
+    const name = parsed.data;
     let slug = productSlug(name);
     const acct = await getActiveAccountId();
 
@@ -144,6 +146,7 @@ export async function restoreProduct(productId: string): Promise<ProductMutation
       .from(products)
       .where(and(eq(products.accountId, acct), eq(products.id, productId)))
       .limit(1);
+    if (!existing) return { ok: false, error: "Product not found." };
     await db
       .update(products)
       .set({ status: "active", updatedAt: new Date() })

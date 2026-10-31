@@ -67,6 +67,10 @@
   the same way. The address is `clientIp()` (first `x-forwarded-for` hop,
   else `x-real-ip`) stored as `meta.ip`; with NO address the count is the
   email across every address — never relax that fallback into a fresh key.
+- **The last admin is counted and demoted in ONE transaction (2026-10-31).**
+  `updateUserAccess` holds the admin rows `FOR UPDATE` while it counts them,
+  so two admins demoting each other at once can't both see two admins and
+  leave none (pinned in `tests/db/bug-sweep.test.ts`).
 
 ## History and rationale
 

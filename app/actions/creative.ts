@@ -169,6 +169,7 @@ export async function updateCreativeNotes(
 ): Promise<{ ok: boolean; error?: string }> {
   try {
     const user = await requirePermission("creative.edit");
+    if (typeof notes !== "string") return { ok: false, error: "Invalid notes." };
     if (notes.length > 5000) {
       return { ok: false, error: "Notes too long (5000 char max)." };
     }
@@ -178,21 +179,22 @@ export async function updateCreativeNotes(
       .set({ notes: notes || null, updatedAt: new Date() })
       .where(and(eq(creatives.accountId, acct), eq(creatives.id, creativeId)))
       .returning({ id: creatives.id, name: creatives.name });
+    // Nothing matched — the creative was deleted, or the tab is on another
+    // brand. "Saved" here was a lie the next reload exposed (2026-10-31).
+    if (!updated) return { ok: false, error: "Creative not found." };
     try {
       revalidatePath("/library");
     } catch (err) {
       console.warn("revalidatePath after notes update failed:", err);
     }
-    if (updated) {
-      await logAudit({
-        action: AUDIT_ACTIONS.CREATIVE_NOTES_UPDATE,
-        entityType: "creative",
-        entityId: updated.id,
-        entityLabel: updated.name,
-        actorUserId: user.id,
-        meta: { length: notes.length },
-      });
-    }
+    await logAudit({
+      action: AUDIT_ACTIONS.CREATIVE_NOTES_UPDATE,
+      entityType: "creative",
+      entityId: updated.id,
+      entityLabel: updated.name,
+      actorUserId: user.id,
+      meta: { length: notes.length },
+    });
     return { ok: true };
   } catch (err) {
     return { ok: false, error: actionError(err, "creative") };

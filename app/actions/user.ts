@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { count, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { requirePermission } from "@/lib/auth";
@@ -222,21 +222,24 @@ export async function updateUserAccess(
     });
     if (refusal) return { ok: false, error: refusal };
 
-    // Never let the last admin be demoted.
-    if (before.role === "admin" && role !== "admin") {
-      const [row] = await db
-        .select({ n: count() })
-        .from(users)
-        .where(eq(users.role, "admin"));
-      if ((row?.n ?? 0) <= 1) {
-        return { ok: false, error: "Can't remove the last admin." };
+    // Never let the last admin be demoted. The count and the write share one
+    // transaction holding the admin rows FOR UPDATE: two admins demoting each
+    // other at once used to both count 2 and both succeed — zero admins, and
+    // only `db/create-admin.ts` against prod gets the team back (2026-10-31).
+    // The loser re-reads after the winner commits and sees one admin left.
+    const lastAdmin = await db.transaction(async (tx) => {
+      if (before.role === "admin" && role !== "admin") {
+        const admins = await tx
+          .select({ id: users.id })
+          .from(users)
+          .where(eq(users.role, "admin"))
+          .for("update");
+        if (admins.length <= 1) return true;
       }
-    }
-
-    await db
-      .update(users)
-      .set({ role, permissions })
-      .where(eq(users.id, userId));
+      await tx.update(users).set({ role, permissions }).where(eq(users.id, userId));
+      return false;
+    });
+    if (lastAdmin) return { ok: false, error: "Can't remove the last admin." };
 
     try {
       revalidatePath("/admin/users");
