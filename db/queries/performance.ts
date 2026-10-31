@@ -1733,20 +1733,36 @@ export async function compareDimensions(): Promise<CompareDimensionRow[]> {
   }));
 }
 
+export interface CompareSidePoint {
+  date: string;
+  value: number | null;
+}
+
 /**
- * One daily series for a Compare side, aggregated across the side's filter
- * (platforms / campaigns / creatives). `value` is the chosen metric per day,
- * weighted via component sums.
+ * Every chosen metric's daily series for ONE Compare side, aggregated across
+ * the side's filter (platforms / campaigns / creatives). Each `value` is that
+ * metric per day, weighted via component sums.
+ *
+ * ONE scan per side, not one per side × metric: every metric is a column of
+ * the same `GROUP BY date`, so the WHERE, the groups and each metric's
+ * expression are exactly what a single-metric query would run (a page of
+ * 3 sides × 6 blocks went from 18 series queries to 3).
  * EXEMPT from fillDailyGaps: the compare chart aligns sides by day-INDEX since
  * each side's first data day (deliberate design), not by calendar.
  */
 export async function compareSideSeries(
-  filters: KpiFilters & { metric: CompareMetric },
-): Promise<Array<{ date: string; value: number | null }>> {
+  filters: KpiFilters & { metrics: readonly CompareMetric[] },
+): Promise<Map<CompareMetric, CompareSidePoint[]>> {
+  const out = new Map<CompareMetric, CompareSidePoint[]>();
+  if (filters.metrics.length === 0) return out;
   const { conditions, needsCreativeJoin } = await buildBaseConditions(filters);
-  const metricSql = metricForCompare(filters.metric);
+  // Positional aliases (m0, m1, …) — a metric key is not a safe column name.
+  const metricCols: Record<string, SQL<number>> = {};
+  filters.metrics.forEach((m, i) => {
+    metricCols[`m${i}`] = metricForCompare(m);
+  });
   let q = db
-    .select({ date: performanceRecords.date, value: metricSql })
+    .select({ date: performanceRecords.date, ...metricCols })
     .from(performanceRecords)
     .$dynamic();
   if (needsCreativeJoin) {
@@ -1756,10 +1772,16 @@ export async function compareSideSeries(
     .where(and(...conditions))
     .groupBy(performanceRecords.date)
     .orderBy(performanceRecords.date);
-  return rows.map((r) => ({
-    date: r.date,
-    value: r.value === null || r.value === undefined ? null : Number(r.value),
-  }));
+  filters.metrics.forEach((m, i) => {
+    out.set(
+      m,
+      rows.map((r) => {
+        const v = (r as Record<string, unknown>)[`m${i}`];
+        return { date: r.date, value: v === null || v === undefined ? null : Number(v) };
+      }),
+    );
+  });
+  return out;
 }
 
 // =====================================================================

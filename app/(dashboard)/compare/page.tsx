@@ -99,21 +99,20 @@ export default async function ComparePage({
 
   const totals = await Promise.all(sideFilters.map((f) => kpis(f)));
 
-  // Per metric block: one daily series per side, tagged with the side id so
-  // the chart draws one line each ("A" / "B" / "C").
-  const seriesByMetric = await Promise.all(
-    parsed.metrics.map(async (m: CompareMetric) => {
-      const perSide = await Promise.all(
-        sideFilters.map((f) => compareSideSeries({ ...f, metric: m })),
-      );
-      return perSide.flatMap((pts, i) =>
-        pts.map((p) => ({
-          creativeId: parsed.sides[i]!.key.toUpperCase(),
-          date: p.date,
-          value: p.value,
-        })),
-      );
-    }),
+  // ONE daily scan per side carries every metric block's column; each block
+  // then gets one series per side, tagged with the side id so the chart draws
+  // one line each ("A" / "B" / "C").
+  const seriesBySide = await Promise.all(
+    sideFilters.map((f) => compareSideSeries({ ...f, metrics: parsed.metrics })),
+  );
+  const seriesByMetric = parsed.metrics.map((m: CompareMetric) =>
+    seriesBySide.flatMap((bySide, i) =>
+      (bySide.get(m) ?? []).map((p) => ({
+        creativeId: parsed.sides[i]!.key.toUpperCase(),
+        date: p.date,
+        value: p.value,
+      })),
+    ),
   );
 
   const chartSides = parsed.sides.map((s) => ({
