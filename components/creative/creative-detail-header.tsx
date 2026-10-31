@@ -220,7 +220,7 @@ export function CreativeDetailHeader({
   };
 
   return (
-    <div className="space-y-4">
+    <div className="@container space-y-4">
       {/* Leaving with an unsaved draft asks first (the house guard). */}
       <UnsavedChangesGuard
         dirty={canEdit && dirty}
@@ -261,7 +261,11 @@ export function CreativeDetailHeader({
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-[260px_1fr] gap-6">
+      {/* Two columns by the HEADER's width, not the viewport's: with the
+          comment panel docked at 1024px the page is ~400px, and the 260px
+          thumbnail column left the meta column ~120px ("Ros", a clipped
+          name, a blank type). 45rem is where `md` split it with no panel. */}
+      <div className="grid grid-cols-1 @[45rem]:grid-cols-[260px_1fr] gap-6">
         {/* Thumbnail */}
         <div className="space-y-1.5">
           <ThumbnailUpload
