@@ -225,9 +225,12 @@ export async function registerClient(
   };
 }
 
+/** A uuid's real shape — `[0-9a-f-]{36}` also passed 36 dashes, a Postgres 22P02. */
+const UUID_SHAPE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 /** One client by id, or null. A malformed id is "not found", never a throw. */
 export async function findClient(clientId: string): Promise<OauthClientRow | null> {
-  if (!/^[0-9a-f-]{36}$/i.test(clientId)) return null;
+  if (!UUID_SHAPE.test(clientId)) return null;
   const [row] = await db
     .select({
       id: oauthClients.id,

@@ -8,6 +8,7 @@ import {
   REFRESH_TOKEN_PREFIX,
   createAuthorizationCode,
   exchangeAuthorizationCode,
+  findClient,
   hashSecret,
   listOauthGrants,
   refreshTokenGrant,
@@ -89,6 +90,11 @@ describe("the happy path", () => {
     const actor = await verifyAccessToken(`Bearer ${res.accessToken}`);
     expect(actor?.user.id).toBe(USER_A);
     expect(actor?.familyId).toBe(res.familyId);
+  });
+
+  it("a malformed client_id is 'not found' — 36 dashes used to reach Postgres as a 500", async () => {
+    await expect(findClient("-".repeat(36))).resolves.toBeNull();
+    await expect(findClient("g".repeat(8) + "-0000-0000-0000-000000000000")).resolves.toBeNull();
   });
 
   it("a client_secret_post client must present its secret", async () => {

@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull, ne, or } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { requirePermission } from "@/lib/auth";
@@ -64,6 +64,10 @@ export async function excludeRecord(
         and(
           eq(performanceRecords.accountId, acct),
           eq(performanceRecords.id, id),
+          // The check above ran outside this statement: a rule stamping the
+          // row in between must keep it — a manual write would flip it to
+          // 'manual' and detach it from its rule (2026-10-31).
+          eq(performanceRecords.excludedFromAggregates, false),
         ),
       )
       .returning({
@@ -73,7 +77,7 @@ export async function excludeRecord(
       });
 
     if (!updated) {
-      return { ok: false, error: "Record not found" };
+      return { ok: false, error: "Already excluded." };
     }
 
     const creativeName = await revalidateAffectedPaths(updated.creativeId);
@@ -136,6 +140,11 @@ export async function includeRecord(recordId: number): Promise<ActionResult> {
         and(
           eq(performanceRecords.accountId, acct),
           eq(performanceRecords.id, id),
+          // Never a rule's row, even one a rule stamped after the check above.
+          or(
+            isNull(performanceRecords.excludedSource),
+            ne(performanceRecords.excludedSource, "rule"),
+          ),
         ),
       )
       .returning({
