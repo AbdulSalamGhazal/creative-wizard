@@ -187,7 +187,9 @@ export default async function CreativeDetailPage({
               {rangeLabel} · across platforms
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          {/* Wraps: at 375px the toggle + date (322px) ran 29px past the
+              card's inner edge. */}
+          <div className="flex flex-wrap items-center gap-2">
             <ExcludedParamToggle on={inc} />
             <AnalyticsDateFilter
               from={from ?? null}
