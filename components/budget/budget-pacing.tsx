@@ -36,7 +36,7 @@ import {
   coversAllPlatforms,
   seriesColor,
 } from "@/lib/palette";
-import { monthDay, roas as fmtRoas, sar, sarCompact, signedPct, usdCompact } from "@/lib/format";
+import { fxRate, monthDay, roas as fmtRoas, sar, sarCompact, signedPct, usdCompact } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import {
   BUDGET_OBJECTIVES,
@@ -181,7 +181,7 @@ function RangeCard({
 }) {
   if (metric === "roas") {
     const r = card.roas;
-    const rateNote = `at ${rate.toFixed(2)} SAR/USD`;
+    const rateNote = `at ${fxRate(rate)} SAR/USD`;
     if (r.target === null) {
       return (
         <Hero

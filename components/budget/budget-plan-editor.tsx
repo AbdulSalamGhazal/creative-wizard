@@ -46,7 +46,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { PlatformDot } from "@/components/ui/platform-dot";
 import { ALL_PLATFORMS, PLATFORM_COLOR, PLATFORM_LABEL, seriesColor } from "@/lib/palette";
-import { pct1, plural, roas as fmtRoas, sar, usd } from "@/lib/format";
+import { fxRate, pct1, plural, roas as fmtRoas, sar, usd } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import {
   BUDGET_OBJECTIVES,
@@ -719,7 +719,7 @@ export function BudgetPlanEditor({
         toastActionFailure(res, "Couldn't save the rate");
         return;
       }
-      toast.success(`Rate set to ${value.toFixed(4)}`);
+      toast.success(`Rate set to ${fxRate(value)}`);
       setRateDraft(null);
     } finally {
       setIsPending(false);
@@ -846,7 +846,7 @@ export function BudgetPlanEditor({
           1 USD ={" "}
           {rateDraft === null ? (
             <>
-              {rate.toFixed(2)} SAR
+              {fxRate(rate)} SAR
               {canManage && (
                 <button
                   type="button"
@@ -1056,7 +1056,7 @@ export function BudgetPlanEditor({
                   aria-live="polite"
                 >
                   <span className="num tabular-nums text-sm text-ink">{fmtRoas(impliedRoas)}</span>
-                  <span className="num truncate text-[11px] text-ink-3">at {rate.toFixed(2)} SAR/USD</span>
+                  <span className="num truncate text-[11px] text-ink-3">at {fxRate(rate)} SAR/USD</span>
                 </div>
               </div>
             </div>
@@ -1369,7 +1369,7 @@ export function BudgetPlanEditor({
                     </InfoTip>
                   </span>
                   <span className="num tabular-nums text-ink">{fmtRoas(storedImpliedRoas)}</span>
-                  <span className="num text-[11px] text-ink-3">at {rate.toFixed(2)} SAR/USD</span>
+                  <span className="num text-[11px] text-ink-3">at {fxRate(rate)} SAR/USD</span>
                 </span>
               </div>
 

@@ -24,6 +24,7 @@ import { MetricPicker } from "@/components/charts/metric-picker";
 import { SeriesLegend } from "@/components/charts/series-legend";
 import { ALL_PLATFORMS } from "@/lib/palette";
 import {
+  fxRate,
   int,
   monthDay,
   roas as fmtRoas,
@@ -479,7 +480,7 @@ function RoasCard({
       <Hero label="ROAS" value="—" context="Set a USD→SAR rate to compute ROAS" />
     );
   }
-  const rateNote = `at ${rate.toFixed(2)} SAR/USD`;
+  const rateNote = `at ${fxRate(rate)} SAR/USD`;
   if (figures.target === null) {
     return (
       <Hero

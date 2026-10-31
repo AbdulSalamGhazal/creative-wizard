@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import { PlatformDot } from "@/components/ui/platform-dot";
 import { ALL_PLATFORMS } from "@/lib/palette";
-import { int, roas, sar, usd } from "@/lib/format";
+import { fxRate, int, roas, sar, usd } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { downloadCsv } from "@/lib/csv-export";
 import {
@@ -355,7 +355,7 @@ export function BudgetPlanUpload({
                   </div>
                   <span className="block text-[11px] text-ink-3">
                     Either one fills the other, through the sheet&rsquo;s {usd(spend)} and the
-                    rate {rate.toFixed(2)}. The ROAS is what&rsquo;s kept: each day&rsquo;s revenue
+                    rate {fxRate(rate)}. The ROAS is what&rsquo;s kept: each day&rsquo;s revenue
                     target is that day&rsquo;s spend × ROAS.
                   </span>
                   {revenueUnlinkable && (

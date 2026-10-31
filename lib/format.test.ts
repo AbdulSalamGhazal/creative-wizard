@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { int, isoDate, num, pct, pct1, roas, sar, signedInt, signedPct, usd, plural } from "@/lib/format";
+import { fxRate, int, isoDate, num, pct, pct1, roas, sar, signedInt, signedPct, usd, plural } from "@/lib/format";
 
 /**
  * The dash is load-bearing: `—` means "no value", and a real `0` must never
@@ -141,5 +141,19 @@ describe("isoDate — a timestamp shows its BUSINESS day (KSA), a calendar date 
   it("nothing, or nonsense, is a dash", () => {
     expect(isoDate(null)).toBe("—");
     expect(isoDate("not a date")).toBe("—");
+  });
+});
+
+describe("fxRate — the USD→SAR rate at its stored 4dp, never fewer than 2", () => {
+  it("keeps every stored digit and pads the peg to 2", () => {
+    expect(fxRate(3.7725)).toBe("3.7725");
+    expect(fxRate(3.77)).toBe("3.77");
+    expect(fxRate(3.75)).toBe("3.75");
+    expect(fxRate(3.7)).toBe("3.70");
+    expect(fxRate(100)).toBe("100.00");
+  });
+  it("null and NaN are a dash, never a fabricated zero", () => {
+    expect(fxRate(null)).toBe("—");
+    expect(fxRate(Number.NaN)).toBe("—");
   });
 });

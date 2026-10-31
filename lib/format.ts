@@ -70,6 +70,13 @@ const monthDayFormatter = new Intl.DateTimeFormat("en-US", {
   timeZone: "UTC",
 });
 
+// The USD→SAR rate is stored at 4 dp (`numeric(8,4)`): show every stored
+// digit, never fewer than 2 ("3.77", "3.7725"), no grouping.
+const fxRateFormatter = new Intl.NumberFormat("en-US", {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 4,
+  useGrouping: false,
+});
 const EM_DASH = "—";
 
 export function usd(value: number | null | undefined): string {
@@ -183,6 +190,17 @@ export function sar(value: number | null | undefined): string {
 export function sar0(value: number | null | undefined): string {
   if (value === null || value === undefined || Number.isNaN(value)) return EM_DASH;
   return sar0Formatter.format(value);
+}
+
+/**
+ * The Budget USD→SAR rate at its stored precision — "3.77", "3.7725" — so a
+ * rate set to 3.7725 never reads back as 3.77. Every surface that prints the
+ * rate (the plan editor and its toast, the ROAS notes on Pacing and the
+ * Overview, the plan-sheet upload) goes through this one formatter.
+ */
+export function fxRate(value: number | null | undefined): string {
+  if (value === null || value === undefined || Number.isNaN(value)) return EM_DASH;
+  return fxRateFormatter.format(value);
 }
 
 /** Compact SAR for tight spaces (e.g. "SAR 1.2M"). */
