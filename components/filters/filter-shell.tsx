@@ -434,7 +434,7 @@ function FilterDetail({ def, onBack }: { def: FilterDef; onBack: () => void }) {
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder={`Search ${def.label.toLowerCase()}…`}
                 aria-label={`Search ${def.label}`}
-                className="h-8 w-full rounded-md border border-line bg-surface pl-7 pr-3 text-xs text-ink outline-none placeholder:text-ink-3 focus:border-line-2"
+                className="h-8 w-full rounded-md border border-line bg-surface pl-7 pr-3 text-xs text-ink outline-none placeholder:text-ink-3 focus:border-brand"
               />
             </div>
           )}

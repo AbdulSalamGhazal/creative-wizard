@@ -203,7 +203,7 @@ export function MetricFilterControl({ platforms }: Props) {
           <select
             value={draftScope}
             onChange={(e) => setDraftScope(e.target.value as MetricFilterScope)}
-            className="h-8 w-full rounded-md border border-line bg-surface px-2 text-xs text-ink outline-none focus:border-line-2"
+            className="h-8 w-full rounded-md border border-line bg-surface px-2 text-xs text-ink outline-none focus:border-brand"
           >
             {scopeOptions.map((s) => (
               <option key={s} value={s}>
@@ -215,7 +215,7 @@ export function MetricFilterControl({ platforms }: Props) {
             <select
               value={draftMetric}
               onChange={(e) => setDraftMetric(e.target.value as MetricColumnKey)}
-              className="h-8 min-w-0 flex-1 rounded-md border border-line bg-surface px-2 text-xs text-ink outline-none focus:border-line-2"
+              className="h-8 min-w-0 flex-1 rounded-md border border-line bg-surface px-2 text-xs text-ink outline-none focus:border-brand"
             >
               {METRIC_COLUMN_KEYS.map((k) => (
                 <option key={k} value={k}>
@@ -226,7 +226,7 @@ export function MetricFilterControl({ platforms }: Props) {
             <select
               value={draftOp}
               onChange={(e) => setDraftOp(e.target.value as MetricFilterOp)}
-              className="h-8 w-[112px] rounded-md border border-line bg-surface px-2 text-xs text-ink outline-none focus:border-line-2"
+              className="h-8 w-[112px] rounded-md border border-line bg-surface px-2 text-xs text-ink outline-none focus:border-brand"
             >
               {METRIC_FILTER_OPS.map((op) => (
                 <option key={op} value={op}>
@@ -256,7 +256,7 @@ export function MetricFilterControl({ platforms }: Props) {
                 }}
                 placeholder="value"
                 className={cn(
-                  "h-8 w-full rounded-md border border-line bg-surface text-xs text-ink outline-none focus:border-line-2",
+                  "h-8 w-full rounded-md border border-line bg-surface text-xs text-ink outline-none focus:border-brand",
                   unitPrefix(draftUnit) ? "pl-6" : "pl-2.5",
                   unitSuffix(draftUnit) ? "pr-7" : "pr-2.5",
                 )}

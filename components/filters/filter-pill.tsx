@@ -162,7 +162,7 @@ export function FilterSearch({
         placeholder={placeholder}
         className={cn(
           "h-8 pl-8 pr-3 rounded-md border border-line bg-surface text-xs text-ink",
-          "placeholder:text-ink-3 outline-none focus:border-line-2",
+          "placeholder:text-ink-3 outline-none focus:border-brand",
           fullWidth ? "w-full" : "w-64",
         )}
       />

@@ -6,8 +6,8 @@ import type { CreativeType } from "@/lib/enums";
  * Platform colors, as references to the CSS vars in app/globals.css so they
  * follow the active theme. Recharts and inline `style` both resolve `var(…)`
  * at paint time (SVG fill/stroke and DOM background alike), so a single source
- * drives every swatch. The three light themes override `--tiktok` / `--snapchat`
- * (the two hues that fail on white) — see the light-theme block in globals.css.
+ * drives every swatch. The two light themes override `--tiktok` / `--snapchat` /
+ * `--google` (the hues that fail on white) — see the light-theme block in globals.css.
  *
  * Meta was split into Instagram + Facebook — they are now two distinct
  * platforms everywhere in the system. Google was re-added in 2026-09 (see the

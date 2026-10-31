@@ -61,7 +61,7 @@
   /* ---------------------------------------------------------------
    * Data-viz palette — chart series, product/type slices, and the
    * two low-contrast platform hues. Dark values here (400-level,
-   * legible on the dark surfaces); the three LIGHT themes override
+   * legible on the dark surfaces); the two LIGHT themes override
    * every one of these with a ~600-level equivalent further down so
    * lines and swatches stay readable on white. Consumers read these
    * via lib/palette.ts (which now returns `var(--…)`), so a single
@@ -131,6 +131,11 @@
   --input: var(--line);
   --ring: var(--brand);
   --radius: 0.625rem;
+
+  /* Native chrome (scrollbars, date/number pickers, <select> menus, autofill)
+     follows the theme. Without it every dark theme drew LIGHT scrollbars and
+     a near-black calendar glyph on a dark field. Frost/Paper reset it below. */
+  color-scheme: dark;
 }
 
 /*
@@ -221,6 +226,7 @@
  * ------------------------------------------------------------- */
 .frost,
 .paper {
+  color-scheme: light;
   /* These platform hues fail on white (tiktok ~1.45:1, snapchat ~1.39:1,
      google red ~3.4:1); IG magenta / FB blue stay as-is. */
   --tiktok: #52525b;
@@ -330,6 +336,20 @@ body {
 
 .num {
   font-variant-numeric: tabular-nums;
+}
+
+/* Keyboard focus — ONE ring for every control that doesn't draw its own.
+   The shadcn primitives swap the outline for a `ring` (and set
+   `outline-none`), so this only reaches the bare <button>/<a> chips — the
+   segmented controls, metric picker, legend chips, page tabs — which
+   otherwise fell back to the browser's default ring, whose colour differs
+   per browser and fights the theme. In `base`, so any `outline-*` utility
+   still wins. */
+@layer base {
+  :focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--ring) 60%, transparent);
+    outline-offset: 2px;
+  }
 }
 
 /* Micro-label typography tokens — the two canonical uppercase kickers that

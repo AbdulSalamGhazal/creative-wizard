@@ -10,6 +10,19 @@
 
 - Four themes on ONE axis (Midnight · Contrast · Frost · Paper); every data
   colour is a CSS var with a light-theme override.
+- **Every theme declares its `color-scheme`** (`dark` in `:root`, so Midnight
+  and Contrast; `light` in the `.frost, .paper` block) so native chrome —
+  scrollbars, date/number pickers, `<select>` menus — follows the theme
+  (2026-10-31; before it, every dark theme drew light scrollbars and a
+  near-black calendar glyph on a dark field).
+- **ONE keyboard focus ring.** A base-layer `:focus-visible` outline in the
+  ring colour covers every control that draws none of its own; a primitive
+  that draws a `ring` sets `outline-none`. Never `focus:outline-none` without
+  a replacement, and a text field's focus border is `focus:border-brand`,
+  never `line-2` (invisible against `line`).
+- Text on a series/avatar fill follows the fill's lightness: the series vars
+  are 400-level (light) on the dark themes and 600-level on Frost/Paper, so
+  `UserAvatar` initials are `text-white dark:text-background`.
 - ONE UI font; there is no font switcher.
 - Every route renders `PageShell` + `PageHeader`, ships a tailored
   `loading.tsx`, sets a `metadata.title`, and works at 375px.

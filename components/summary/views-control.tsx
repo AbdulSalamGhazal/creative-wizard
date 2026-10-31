@@ -327,7 +327,7 @@ export function ViewsControl({
               }}
               placeholder="View name…"
               maxLength={120}
-              className="h-8 flex-1 min-w-0 rounded-md border border-line bg-surface px-2.5 text-xs text-ink placeholder:text-ink-3 outline-none focus:border-line-2"
+              className="h-8 flex-1 min-w-0 rounded-md border border-line bg-surface px-2.5 text-xs text-ink placeholder:text-ink-3 outline-none focus:border-brand"
             />
             <button
               type="button"

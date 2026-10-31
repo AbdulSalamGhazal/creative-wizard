@@ -144,7 +144,7 @@ export function AnglePlatformCompare({ rows }: { rows: AnglePlatformRow[] }) {
                 aria-pressed={on}
                 onClick={() => toggle(m.key)}
                 className={cn(
-                  "h-7 rounded-md border px-2.5 text-xs transition-colors focus:outline-none",
+                  "h-7 rounded-md border px-2.5 text-xs transition-colors",
                   on
                     ? "border-brand/50 bg-brand/10 text-ink"
                     : "border-line bg-surface text-ink-3 hover:text-ink hover:border-brand/30",
