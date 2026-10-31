@@ -43,6 +43,9 @@ export function Dropzone({ file, onFile, disabled }: Props) {
       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [
         ".xlsx",
       ],
+      // Every upload surface takes .xlsm (CLAUDE.md; csv/parse.ts reads it) —
+      // the dropzone refused it before the parser ever saw it.
+      "application/vnd.ms-excel.sheet.macroEnabled.12": [".xlsm"],
     },
       disabled,
     });
@@ -112,7 +115,7 @@ export function Dropzone({ file, onFile, disabled }: Props) {
         <div role="alert" className="mt-2 text-xs text-neg">
           {sizeRejected
             ? FILE_TOO_LARGE_MESSAGE
-            : "Only .csv, .xls, and .xlsx files are accepted."}
+            : "Only .csv, .xlsx, .xlsm and .xls files are accepted."}
         </div>
       )}
     </div>

@@ -1,10 +1,11 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { CalendarDays, Download } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Dropzone } from "@/components/upload/dropzone";
 import {
   Dialog,
   DialogContent,
@@ -119,7 +120,9 @@ export function BudgetPlanUpload({
       : { source: "revenue", raw: data.plannedRevenueSar === null ? "" : String(data.plannedRevenueSar) },
   );
   const [note, setNote] = useState(DEFAULT_NOTE);
-  const fileRef = useRef<HTMLInputElement>(null);
+  // The picked file — the shared Dropzone shows it (with Remove) and a pick
+  // or a Remove re-stages from scratch.
+  const [file, setFile] = useState<File | null>(null);
   const setOpen = onOpenChange;
 
   const rate = data.usdToSarRate;
@@ -143,10 +146,12 @@ export function BudgetPlanUpload({
     });
   };
 
-  const onFile = async (file: File | undefined) => {
-    if (!file) return;
+  const onFile = async (picked: File | null) => {
+    setFile(picked);
     setStaged(null);
     setIssues([]);
+    if (!picked) return;
+    const file = picked;
 
     // A WORKBOOK goes to the server, where the app's one conversion layer
     // reads it (dates as ISO, formulas as their values, blanks as ""). Doing
@@ -288,16 +293,15 @@ export function BudgetPlanUpload({
             </div>
 
             {/* ── 2. The file ──────────────────────────────────────────── */}
-            <label className="block space-y-1">
-              <span className="text-label text-ink-3">Plan file (.csv or .xlsx)</span>
-              <Input
-                ref={fileRef}
-                type="file"
-                accept=".csv,.xlsx,.xlsm,.xls,text/csv"
-                onChange={(e) => void onFile(e.target.files?.[0])}
-                className="h-9 cursor-pointer file:mr-3 file:cursor-pointer file:rounded file:border-0 file:bg-surface-2 file:px-2 file:py-1 file:text-xs file:text-ink-2"
-              />
-            </label>
+            {/* The shared Dropzone, like the other three upload surfaces: the
+                same types and 4 MB cap. What happens to the file is unchanged
+                — a CSV is parsed here, a workbook goes to readSheetRows. */}
+            <div className="space-y-1" role="group" aria-labelledby="plan-file-label">
+              <span id="plan-file-label" className="text-label text-ink-3">
+                Plan file (.csv or .xlsx)
+              </span>
+              <Dropzone file={file} onFile={(f) => void onFile(f)} disabled={isPending} />
+            </div>
 
             {issues.length > 0 && (
               <div className="space-y-1 rounded-lg border border-neg/40 bg-neg/5 p-3">
