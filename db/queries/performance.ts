@@ -106,12 +106,6 @@ export interface Kpis {
   funnelCtr: number | null;
 }
 
-export interface SpendByDatePlatform {
-  date: string; // YYYY-MM-DD
-  platform: Platform;
-  spend: number;
-}
-
 export interface PlatformMixRow {
   platform: Platform;
   spend: number;
@@ -138,13 +132,6 @@ export interface PlatformMixRow {
 export interface ProductMixRow {
   productId: string;
   productName: string;
-  spend: number;
-  impressions: number;
-  conversions: number | null;
-}
-
-export interface TypeMixRow {
-  type: CreativeType;
   spend: number;
   impressions: number;
   conversions: number | null;
@@ -779,14 +766,6 @@ export async function campaignMix(
     cpa: num(r.cpa),
     roas: num(r.roas),
   }));
-}
-
-export interface CreativePoint {
-  creativeId: string;
-  name: string;
-  spend: number;
-  roas: number | null;
-  conversions: number | null;
 }
 
 export interface DailyRatesRow {
