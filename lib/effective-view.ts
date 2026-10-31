@@ -1,4 +1,5 @@
 import { FILTERS_EXPLICIT_PARAM, VIEW_MARKER_PARAM } from "@/validators/user-prefs";
+import { explicitRange } from "@/lib/date-presets";
 
 /**
  * A page's EFFECTIVE view as a query string — what the user actually sees, not
@@ -17,7 +18,8 @@ import { FILTERS_EXPLICIT_PARAM, VIEW_MARKER_PARAM } from "@/validators/user-pre
  *    preferences are not overlaid. Skipped when the URL already has `fx`
  *    (it IS the full statement) or `sv` (a saved view owns its filter state,
  *    including what it leaves out — it keeps its `sv` instead);
- *  · the range as ABSOLUTE dates, when the URL doesn't state both ends;
+ *  · the range as ABSOLUTE dates, when the URL doesn't state a range the
+ *    server takes (`explicitRange`: both ends, real dates, in order);
  *  · the Excluded state, when the URL doesn't state it.
  *
  * Pure and free of UI: the comment panel uses it today, and a "Copy link" could
@@ -51,10 +53,13 @@ export function effectiveView(search: string, resolved: ResolvedView): string {
     }
     add(FILTERS_EXPLICIT_PARAM, "1");
   }
-  // The URL's own params stay verbatim unless a half range has to go.
+  // The URL's own params stay verbatim unless a range the server refused has
+  // to go.
   let rewritten = false;
-  if (resolved.range && !(url.has("from") && url.has("to"))) {
-    // A half range is no range (resolvePreferredRange ignores it): state both.
+  if (resolved.range && !explicitRange(url.get("from"), url.get("to"))) {
+    // A half range, an unreal date (`2026-02-30`) or ends out of order is no
+    // range — the server renders the fallback instead (`explicitRange`, the
+    // rule the date pill shares). State the range the page rendered.
     if (url.has("from") || url.has("to")) {
       url.delete("from");
       url.delete("to");

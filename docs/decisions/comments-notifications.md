@@ -22,7 +22,9 @@
   `lib/filter-scope.ts`; the panel stores `effectiveView(...)`
   (lib/effective-view.ts, pure): the URL verbatim, plus the resolved filters
   and `fx=1` (never on an `sv` saved view, which keeps its `sv`), the range as
-  ABSOLUTE dates, and `includeExcluded`. The "Open this view" chip compares
+  ABSOLUTE dates, and `includeExcluded`. A URL range the server refuses (a
+  half range, `2026-02-30`, ends out of order — `explicitRange`) is replaced by
+  the range the page rendered, never stored verbatim. The "Open this view" chip compares
   effective to effective. A tool's own picker (the cleanup tools, Compare's
   per-side windows) passes `pageRange={false}`.
 - **Only a CURRENT member of a brand is notified about it (2026-11-01).**

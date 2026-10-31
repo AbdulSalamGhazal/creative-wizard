@@ -57,15 +57,13 @@ describe("effectiveView — the view as the user SEES it", () => {
     }
   });
 
-  // BUG (agent-06, Wave C walk, 2026-11-01 — the seam of d153b2b + b18b5a4):
-  // a FULL range the server refuses (`explicitRange`: an impossible date,
-  // garbage, or from > to) is kept verbatim, because only a HALF range is
-  // treated as no range. Walked: /summary?from=2026-02-30&to=2026-03-05 renders
-  // the author's "Last 14 days" (Oct 18–31), the comment stores
-  // `from=2026-02-30&to=2026-03-05&…&fx=1`, and a reader opening it gets
-  // "Lifetime" — not what the author saw (invariant (a)). Un-skip when a
-  // refused range is replaced by the rendered one, like a half range.
-  it.skip("a URL range the server refused is no range — the rendered one is stated, once", () => {
+  // Found by agent-06's Wave C walk (2026-11-01, the seam of d153b2b +
+  // b18b5a4): a FULL range the server refuses (`explicitRange`: an impossible
+  // date, garbage, or from > to) used to be kept verbatim — only a HALF range
+  // counted as no range. /summary?from=2026-02-30&to=2026-03-05 renders the
+  // author's "Last 14 days" (Oct 18–31), but the comment stored the refused
+  // dates and a reader opening it got "Lifetime" (invariant (a)).
+  it("a URL range the server refused is no range — the rendered one is stated, once", () => {
     for (const refused of ["from=2026-02-30&to=2026-03-05", "from=abc&to=2026-03-05", "from=2026-03-05&to=2026-03-01"]) {
       const v = effectiveView(refused, { range: { from: "2026-10-18", to: "2026-10-31" } });
       expect(new URLSearchParams(v).getAll("from")).toEqual(["2026-10-18"]);
