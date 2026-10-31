@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { verifySessionTokenEdge } from "@/lib/session-edge";
+import { REQUEST_PATH_HEADER, signinHref } from "@/lib/signin-redirect";
 
 /**
  * Auth boundary for every route except sign-in, the public health check, and
@@ -38,18 +39,20 @@ export async function middleware(req: NextRequest) {
   const token = req.cookies.get(SESSION_COOKIE)?.value;
   // Fail closed: no/short secret means nothing can be verified → everyone
   // is redirected to /signin (where sign-in itself will surface the misconfig).
+  const { pathname, search } = req.nextUrl;
   if (secret && secret.length >= 16 && (await verifySessionTokenEdge(token, secret))) {
-    return NextResponse.next();
+    // Hand the page the path it serves, so a layout that still refuses this
+    // session (a removed user, ended sessions) can send the person back here
+    // after sign-in. Set, never appended: a client's own value is replaced.
+    const headers = new Headers(req.headers);
+    headers.set(REQUEST_PATH_HEADER, pathname + search);
+    return NextResponse.next({ request: { headers } });
   }
 
-  const { pathname, search } = req.nextUrl;
   if (pathname.startsWith("/api/")) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  const signin = new URL("/signin", req.url);
-  const next = pathname + search;
-  if (next && next !== "/") signin.searchParams.set("next", next);
-  return NextResponse.redirect(signin);
+  return NextResponse.redirect(new URL(signinHref(pathname + search), req.url));
 }
 
 export const config = {

@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { Sidebar } from "@/components/layout/sidebar";
 import { TopBar } from "@/components/layout/top-bar";
@@ -16,6 +17,7 @@ import { getToastScope, resolveTablePrefs } from "@/db/queries/user-prefs";
 import { TABLE_KEY_LIST } from "@/lib/table-columns";
 import { TablePrefsProvider } from "@/components/ui/table-prefs-context";
 import { getActiveAccountId, listAccounts } from "@/lib/tenant";
+import { REQUEST_PATH_HEADER, signinHref } from "@/lib/signin-redirect";
 
 export default async function DashboardLayout({
   children,
@@ -24,7 +26,9 @@ export default async function DashboardLayout({
 }) {
   const user = await auth();
   if (!user) {
-    redirect("/signin");
+    // The middleware verified the cookie but its user is gone or its sessions
+    // were ended: back through sign-in to THIS page, as the middleware does.
+    redirect(signinHref((await headers()).get(REQUEST_PATH_HEADER)));
   }
   const granted = grantedPermissions(user);
 

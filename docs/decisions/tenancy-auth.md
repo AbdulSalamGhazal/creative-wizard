@@ -67,6 +67,12 @@
   the same way. The address is `clientIp()` (first `x-forwarded-for` hop,
   else `x-real-ip`) stored as `meta.ip`; with NO address the count is the
   email across every address — never relax that fallback into a fresh key.
+- **Both sign-in redirects keep the way back (2026-11-01).** The middleware
+  stamps the served path on the forwarded request (`x-ccms-path`, always
+  overwritten) and the dashboard layout — which refuses a verified cookie
+  whose user is gone or whose sessions ended — redirects through the same
+  `signinHref` (lib/signin-redirect.ts). The sign-in page still constrains
+  `next` with `safeInternalPath`.
 - **A preview-then-commit write is pinned to the PREVIEW's brand (2026-11-01).**
   The ads commit pins it in its validation session; the Store upload, the bulk
   creative import and the Budget plan save resolve the cookie at commit, so
