@@ -8,6 +8,7 @@ import {
 import { useSearchParams } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useExcludedCatchUp } from "@/lib/pref-sync";
+import { useRegisterResolvedView } from "@/lib/filter-scope";
 
 /**
  * Shared filter-bar controls so every bar reads the same. The canonical pill
@@ -116,6 +117,8 @@ export function ExcludedToggle({
   // Without an explicit `includeExcluded` the page shows the SAVED choice; a
   // copy restored by Back/Forward from before this tab toggled is re-read once.
   useExcludedCatchUp(on, useSearchParams().has("includeExcluded"));
+  // Part of the view a comment captures (lib/effective-view).
+  useRegisterResolvedView("includeExcluded", on);
   return (
     <button
       type="button"

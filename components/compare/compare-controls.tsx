@@ -214,6 +214,7 @@ function SideCard({
         </span>
         <div className="flex-1 min-w-0 flex items-center gap-1.5 flex-wrap">
           <DateRangePicker
+            pageRange={false}
             from={side.from}
             to={side.to}
             onChange={(f, t) => setSideRange(prefix, f, t)}

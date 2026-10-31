@@ -13,6 +13,18 @@
   UTC clock as its grouping (W1-13, 2026-10-23).
 - **Producers write notifications INSIDE the transaction of the thing they
   describe** (`notifyRoutes(tx, …)`), or use an `afterWrite(tx, result)` hook.
+- **A comment stores the EFFECTIVE view, not the bare URL (2026-11-01).**
+  Range, remembered filters and Excluded resolve server-side, so on a
+  remembered-filter page the address bar can be empty and invariant (a) — "a
+  deep link reproduces what they were looking at" — failed: the reader saw
+  THEIR preferences. The three shared controls that receive resolved values
+  (`useFilterParams`, `DateRangePicker`, `ExcludedToggle`) register them in
+  `lib/filter-scope.ts`; the panel stores `effectiveView(...)`
+  (lib/effective-view.ts, pure): the URL verbatim, plus the resolved filters
+  and `fx=1` (never on an `sv` saved view, which keeps its `sv`), the range as
+  ABSOLUTE dates, and `includeExcluded`. The "Open this view" chip compares
+  effective to effective. A tool's own picker (the cleanup tools, Compare's
+  per-side windows) passes `pageRange={false}`.
 - **Only a CURRENT member of a brand is notified about it (2026-11-01).**
   Routes and thread participation outlive membership, so `createNotifications`
   — the one insert every producer funnels through — drops a recipient who is

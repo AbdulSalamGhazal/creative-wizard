@@ -31,6 +31,8 @@ import { announceNotificationsChanged } from "@/lib/notifications";
 import { InfoTip } from "@/components/ui/info-tip";
 import { AVATAR_CHANGED_EVENT } from "@/lib/avatar-upload";
 import type { CommentRow } from "@/db/queries/comments";
+import { effectiveView } from "@/lib/effective-view";
+import { currentResolvedView, useResolvedView } from "@/lib/filter-scope";
 
 /**
  * The comment panel's BODY — the thread, the composer and everything they
@@ -100,6 +102,9 @@ export function CommentPanelBody({
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  // What the page resolved (range, filters, Excluded) — the reader's view is
+  // compared EFFECTIVE-to-effective with a comment's (lib/effective-view).
+  const resolvedView = useResolvedView();
   const [, startNav] = useNavTransition();
   const { highlightId, setHighlightId, deepLinkId, setDeepLinkId, setCount } = usePanel();
   const [rows, setRows] = useState<CommentRow[] | null>(null);
@@ -313,7 +318,7 @@ export function CommentPanelBody({
                 comments={pending.length > 0 ? [...rows, ...pending] : rows}
                 currentUserId={currentUserId}
                 canModerate={canModerate}
-                currentQuery={searchParams.toString()}
+                currentQuery={effectiveView(searchParams.toString(), resolvedView)}
                 highlightId={highlightId}
                 newSince={newSince}
                 onApplyView={applyView}
@@ -414,11 +419,16 @@ export function CommentPanelBody({
                       parentId: replyTo?.rootId ?? null,
                       body,
                       // Minus `?comment=`: a deep link's navigation is not part
-                      // of what the reader was looking at (2026-10).
+                      // of what the reader was looking at (2026-10). And the
+                      // EFFECTIVE view, not the bare URL: range, remembered
+                      // filters and Excluded resolve server-side (2026-11-01).
                       viewQuery:
                         typeof window === "undefined"
                           ? ""
-                          : stripCommentParam(window.location.search),
+                          : effectiveView(
+                              stripCommentParam(window.location.search),
+                              currentResolvedView(),
+                            ),
                       mentionUserIds,
                     }),
                   );

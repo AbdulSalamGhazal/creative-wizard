@@ -153,6 +153,7 @@ export function StoreCleanupTool({ batches }: { batches: CleanupBatch[] }) {
       <div className="flex flex-wrap items-center gap-2">
         {/* Order-date range */}
         <DateRangePicker
+          pageRange={false}
           from={from}
           to={to}
           onChange={(f, t) => {

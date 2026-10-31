@@ -216,6 +216,7 @@ export function CleanupTool({ products, creatives, campaigns }: Props) {
 
         {/* Date range */}
         <DateRangePicker
+          pageRange={false}
           from={from}
           to={to}
           onChange={(f, t) => {

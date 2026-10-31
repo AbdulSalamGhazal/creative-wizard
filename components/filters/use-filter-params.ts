@@ -5,6 +5,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useNavTransition } from "@/lib/nav-progress";
 import { queueFilterPrefs } from "@/lib/filter-prefs";
 import { FILTERS_EXPLICIT_PARAM, type FilterPrefEntry } from "@/validators/user-prefs";
+import { useRegisterResolvedView } from "@/lib/filter-scope";
 
 /**
  * The URL-param writer every FilterShell page uses. Same behaviour the filter
@@ -97,6 +98,8 @@ export function useFilterParams(resolved?: Record<string, string | undefined>) {
   const pending = useRef<string | null>(null);
   /** A stable dep for the resolved record (a fresh object every render). */
   const resolvedKey = resolved ? JSON.stringify(resolved) : "";
+  // The comment panel stores the view as the user SEES it (lib/effective-view).
+  useRegisterResolvedView("filters", resolved);
 
   useEffect(() => {
     // The write landed (or something else navigated) — start fresh.

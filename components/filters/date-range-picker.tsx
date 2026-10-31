@@ -22,6 +22,7 @@ import {
   type DateRangeValue,
 } from "@/lib/date-presets";
 import { rememberRange, useRangeCatchUp } from "@/lib/pref-sync";
+import { useRegisterResolvedView } from "@/lib/filter-scope";
 
 /**
  * Reusable date-range control: the full preset list on the left, a live
@@ -49,6 +50,7 @@ export function DateRangePicker({
   fallback,
   fullWidth = false,
   hidePresets,
+  pageRange = true,
 }: {
   from: string | null;
   to: string | null;
@@ -69,6 +71,12 @@ export function DateRangePicker({
    * silently does nothing is worse than not offering it.
    */
   hidePresets?: readonly string[];
+  /**
+   * This picker holds the PAGE's range (default) — registered as part of the
+   * view a comment captures. False for a tool's own range (the cleanup tools,
+   * Compare's per-side windows), which is not what the page shows.
+   */
+  pageRange?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   // Two months side by side from `sm` up; one on a phone (W3, 375px).
@@ -92,6 +100,12 @@ export function DateRangePicker({
   const eff = useMemo(
     () => (from && to ? { from, to } : (fallback ?? resolveDefaultRange(null, null))),
     [from, to, fallback],
+  );
+  // Registered only when the page TOLD us its range — never the client-side
+  // last-7-days guess, which may not be what the server ran.
+  useRegisterResolvedView(
+    "range",
+    pageRange && ((from && to) || fallback) ? { from: eff.from, to: eff.to } : undefined,
   );
   const initial: DateRange | undefined = useMemo(
     () => ({ from: isoToLocalDate(eff.from), to: isoToLocalDate(eff.to) }),
