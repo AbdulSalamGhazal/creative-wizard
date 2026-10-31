@@ -84,9 +84,9 @@ export function MetricCard({
             the chip under the label — EVERY narrow tile, so the values in a
             row stay level; a wider one keeps them side by side. */}
         <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 @max-[12rem]:flex-col @max-[12rem]:items-start">
-          <div className="flex items-center gap-1.5 text-label text-ink-3">
-            <Icon className="h-3.5 w-3.5" />
-            <span>{label}</span>
+          <div className="flex min-w-0 max-w-full items-center gap-1.5 text-label text-ink-3">
+            <Icon className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate" title={label}>{label}</span>
           </div>
           {delta && !empty ? (
             <DeltaBadge delta={delta} inverted={deltaInverted} />
