@@ -9,9 +9,9 @@ import { StatusBadge } from "@/components/creative/status-badge";
 import { int, pct, roas, usd } from "@/lib/format";
 import { METRIC_LABEL } from "@/lib/metric-labels";
 import { TYPE_LABEL } from "@/lib/palette";
-import { cn } from "@/lib/utils";
 import type { LeaderboardRow } from "@/db/queries/performance";
 import { EmptyState } from "@/components/ui/empty-state";
+import { SegmentedControl } from "@/components/ui/segmented-control";
 
 type Num = number | null;
 const fPct = (v: Num) => (v === null ? "—" : pct(v));
@@ -195,23 +195,14 @@ export function TopCreativesTable({
           <h3 className="text-sm font-semibold leading-none text-ink">Top creatives</h3>
           <span className="text-[11px] text-ink-3">spend ≥ $300</span>
         </div>
-        <div className="inline-flex items-center rounded-md border border-line bg-surface-2 p-0.5 text-xs">
-          {RANK_OPTIONS.map((o) => (
-            <button
-              key={o.key}
-              type="button"
-              onClick={() => setRankBy(o.key)}
-              className={cn(
-                "rounded px-2.5 py-1 transition-colors",
-                rankBy === o.key
-                  ? "bg-surface text-ink shadow-sm"
-                  : "text-ink-3 hover:text-ink",
-              )}
-            >
-              {o.label}
-            </button>
-          ))}
-        </div>
+        {/* The shared segmented control: it wraps (six metrics ran 6px out
+            of a phone's card) and tells a screen reader which one ranks. */}
+        <SegmentedControl
+          ariaLabel="Rank by"
+          options={RANK_OPTIONS.map((o) => ({ value: o.key, label: o.label }))}
+          value={rankBy}
+          onChange={setRankBy}
+        />
       </div>
 
       <DataTable

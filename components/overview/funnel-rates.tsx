@@ -97,7 +97,11 @@ export function FunnelRates({
               key={r.key}
               className="@container min-w-0 rounded-xl bg-surface-2/60 px-4 py-4 flex flex-col gap-3"
             >
-              <div className="flex items-center justify-between gap-2">
+              {/* A narrow tile stacks the delta under the label, as the KPI
+                  tiles do (metric-card): side by side, "+3.0%" already ran
+                  into a phone tile's padding and a three-digit change left
+                  the tile. */}
+              <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 @max-[12rem]:flex-col @max-[12rem]:items-start">
                 <span className="inline-flex items-center gap-1.5 text-xs font-semibold tracking-wide text-ink-2">
                   <span
                     className="h-2.5 w-2.5 rounded-full"
