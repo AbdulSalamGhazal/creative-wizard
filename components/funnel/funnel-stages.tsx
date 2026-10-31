@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { int, pct, pct1, intCompact } from "@/lib/format";
+import { int, pct, pct1, signedPct, intCompact } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { FUNNEL_METRIC_COLOR } from "@/lib/palette";
 import type { FunnelTotals } from "@/db/queries/funnel";
@@ -167,8 +167,7 @@ function CountDelta({ cur, cmp }: { cur: number; cmp: number }) {
   const up = d >= 0;
   return (
     <span className={cn("text-[10px] num tabular-nums", up ? "text-pos" : "text-neg")}>
-      {up ? "+" : ""}
-      {pct1(d, 0)}
+      {signedPct(d, 0)}
     </span>
   );
 }
