@@ -6,10 +6,16 @@ import { useEffect } from "react";
  * Last-resort boundary for errors thrown in the root layout itself. It
  * replaces the entire document, so it can't rely on the app's CSS/theme —
  * styles are inlined and kept dark to match the default.
+ *
+ * It is also where a failure in the DASHBOARD layout lands (no boundary sits
+ * above that layout but this one) — and that layout reads the database on
+ * every page, so a connection blip shows THIS screen. "Try again" therefore
+ * RELOADS: `reset()` re-renders the same failed payload and never recovers
+ * (seen 2026-10-31 on a local CONNECT_TIMEOUT: the database was back, the
+ * button stayed dead), and the document this replaced has nothing to keep.
  */
 export default function GlobalError({
   error,
-  reset,
 }: {
   error: Error & { digest?: string };
   reset: () => void;
@@ -38,7 +44,7 @@ export default function GlobalError({
             The app hit an unexpected error. Please try again.
           </p>
           <button
-            onClick={reset}
+            onClick={() => window.location.reload()}
             style={{
               marginTop: 20,
               padding: "8px 16px",
