@@ -79,7 +79,8 @@ class RecordsChangedError extends Error {}
  *   401 — not signed in · 403 — signed in without `upload.import`
  *   410 — token absent or expired
  *   422 — payload references creatives, campaigns or landing pages that no
- *         longer exist, or a landing page whose code changed (post-validate edit)
+ *         longer exist, or a landing page whose code or product changed
+ *         (post-validate edit)
  *   500 — unexpected
  */
 export async function POST(request: NextRequest) {
@@ -174,11 +175,17 @@ export async function POST(request: NextRequest) {
   // validate and commit. Names that vanished → 422 with a clear pointer.
   const names = [...new Set(payload.rows.map((r) => r.creativeName))];
   const found = await db
-    .select({ id: creatives.id, name: creatives.name, type: creatives.type })
+    .select({
+      id: creatives.id,
+      name: creatives.name,
+      type: creatives.type,
+      productId: creatives.productId,
+    })
     .from(creatives)
     .where(and(eq(creatives.accountId, acct), inArray(creatives.name, names)));
   const idByName = new Map(found.map((c) => [c.name, c.id]));
   const typeByName = new Map(found.map((c) => [c.name, c.type]));
+  const productByName = new Map(found.map((c) => [c.name, c.productId]));
   const missing = names.filter((n) => !idByName.has(n));
   if (missing.length > 0) {
     return NextResponse.json(
@@ -312,9 +319,16 @@ export async function POST(request: NextRequest) {
     // so the two can't interleave: either the edit lands first and the codes
     // no longer match (throw → the claim rolls back, 422), or this import
     // lands first and the edit then sees the records and refuses.
+    // The same lock covers a page's PRODUCT, which may change only while the
+    // page is unused: every row's creative must still sell its page's product
+    // (E024, checked at validate time against what the page said THEN).
     if (landingIdByCode.size > 0) {
       const live = await tx
-        .select({ id: landingPages.id, code: landingPages.code })
+        .select({
+          id: landingPages.id,
+          code: landingPages.code,
+          productId: landingPages.productId,
+        })
         .from(landingPages)
         .where(
           and(
@@ -326,6 +340,14 @@ export async function POST(request: NextRequest) {
       const codeById = new Map(live.map((l) => [l.id, l.code]));
       for (const [code, id] of landingIdByCode) {
         if (codeById.get(id) !== code) throw new LandingPagesChangedError();
+      }
+      const pageProductByCode = new Map(live.map((l) => [l.code, l.productId]));
+      for (const r of payload.rows) {
+        if (r.landingCode == null) continue;
+        const pageProduct = pageProductByCode.get(r.landingCode) ?? null;
+        if (pageProduct !== null && pageProduct !== productByName.get(r.creativeName)) {
+          throw new LandingPagesChangedError();
+        }
       }
     }
 

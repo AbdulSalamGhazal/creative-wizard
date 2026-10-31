@@ -37,9 +37,9 @@ vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 import { and, eq, sql } from "drizzle-orm";
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
-import { performanceRecords, uploadValidationSessions } from "@/db/schema";
+import { landingPages, performanceRecords, products, uploadValidationSessions } from "@/db/schema";
 import { POST as commitRoute } from "@/app/api/uploads/commit/route";
-import { CAMPAIGN_1, CREATIVE_1, resetAndSeed } from "./fixtures";
+import { CAMPAIGN_1, CREATIVE_1, PRODUCT_A, USER, resetAndSeed } from "./fixtures";
 
 /** A 1-row upsert session whose row matched record `recordId` at validate time. */
 async function upsertSession(recordId: number, spend: number) {
@@ -108,5 +108,57 @@ describe("upsert commit", () => {
       sql`select count(*)::int as n from performance_records where creative_id = ${CREATIVE_1} and date = '2026-01-01' and platform = 'instagram'`,
     )) as unknown as [{ n: number }];
     expect(n).toBe(0);
+  });
+});
+
+describe("plain commit — a landing page's product is re-checked under the lock (E024)", () => {
+  const LP = "66666666-6666-6666-6666-666666666601";
+  const PRODUCT_A2 = "22222222-2222-2222-2222-2222222222a2";
+
+  /** A 1-row import of A-Creative-1 (Product A) sent to `@lp2`, validated while lp2 sold Product A. */
+  async function landingSession() {
+    const row = {
+      rowNumber: 2, creativeName: "A-Creative-1", landingCode: "lp2", campaignName: "Camp One ➤ Broad (IG)",
+      date: "2026-02-01", spend: 10, impressions: 10, clicks: 1, conversions: 0, conversionValue: 0,
+      landingPageViews: 0, addToCart: 0, addPayment: 0, videoViews2s: 0, videoViews25: 0, videoViews50: 0,
+      videoViews75: 0, videoViews100: 0, rawPayload: {},
+    };
+    const [s] = await db.insert(uploadValidationSessions).values({
+      accountId: ACCOUNT_A, platform: "instagram", fileName: "lp2.csv", uploadedByUserId: ADMIN,
+      payload: { summary: { rows: 1, creatives: 1, dateRange: null }, rows: [row], warnings: [] },
+      expiresAt: new Date(Date.now() + 600_000),
+    }).returning({ token: uploadValidationSessions.token });
+    return s!.token;
+  }
+
+  beforeEach(async () => {
+    await db.insert(products).values({
+      id: PRODUCT_A2, accountId: ACCOUNT_A, name: "Product A2", slug: "product-a2", createdByUserId: USER,
+    });
+    await db.insert(landingPages).values({
+      id: LP, accountId: ACCOUNT_A, name: "LP two", code: "lp2", url: "https://a.test/lp2",
+      productId: PRODUCT_A, createdByUserId: USER,
+    });
+  });
+
+  const lp2Rows = async () =>
+    db.select({ id: performanceRecords.id }).from(performanceRecords)
+      .where(eq(performanceRecords.landingPageId, LP));
+
+  it("imports when the page still sells the creative's product", async () => {
+    const res = await commit(await landingSession());
+    expect(res.status).toBe(200);
+    expect(await lp2Rows()).toHaveLength(1);
+  });
+
+  it("refuses — and writes nothing — when the page moved to another product after validate", async () => {
+    const token = await landingSession();
+    // Allowed by updateLandingPage: no records use lp2 yet.
+    await db.update(landingPages).set({ productId: PRODUCT_A2 }).where(eq(landingPages.id, LP));
+
+    const res = await commit(token);
+    // Before: 200, a Product A creative filed under a Product A2 page — what E024 forbids.
+    expect(res.status).toBe(422);
+    expect(await lp2Rows()).toHaveLength(0);
   });
 });

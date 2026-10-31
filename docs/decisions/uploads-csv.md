@@ -24,6 +24,11 @@
 - Matching is **trim-then-exact** (case-sensitive, no NFC); blank/`-`/`N/A`
   numeric cells read as **0**; E042 is for blank IDENTITY fields only, and a
   missing required column is E010. This is a decision, not a bug.
+- **The commit re-checks E024 under its lock (2026-10-31).** A page's product
+  may change while no records use it, so the product checked at validate time
+  is re-read with the codes (`FOR KEY SHARE`) inside the commit's transaction;
+  a row whose creative no longer sells its page's product is a 422 "Validate
+  the file again", never a Product A creative filed under a Product B page.
 - **A number is read or refused, never guessed (2026-10-31).** `parseNumber`
   (`csv/numeric.ts`, shared by the ads pipeline and the Budget plan sheet)
   takes a comma only as a thousands separator and refuses a magnitude
