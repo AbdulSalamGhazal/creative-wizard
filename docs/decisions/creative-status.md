@@ -20,6 +20,9 @@
   ACTIVITY and FRESHNESS scans only: terminations come from the one cached
   `brandOverrides()` read (with each row's `terminated_at::date`), filtered
   by day in JS (W2-3, 2026-10; the Dashboard read the table three times).
+  Reconstructing SEVERAL days is still ONE activity scan and ONE freshness
+  scan — a `MAX(date) FILTER (WHERE date <= day)` per day over
+  `date <= latest day` — never a pair of scans per day (2026-11).
 - Terminated is manual, sticky, and per creative×platform.
 - The Library's status STRIP is a FACET of the listing: counted after every
   other filter and BEFORE the status filter, so selecting one chip can never
@@ -141,3 +144,18 @@ as it stood before the restructure.*
   activity and freshness scans of the reconstruction stay date-bounded — they
   are the reconstruction. Pinned by `tests/db/dashboard-queries.test.ts` (a
   termination counts from its own day, not the day before).
+
+### The status flow reconstructs both days in one pass (2026-11, agent-04 perf pass)
+
+- `statusFlowBreakdown` reconstructs two days (the day before the range and
+  its last day) and ran the `asOf` activity and freshness scans once PER DAY:
+  four scans on the per-platform branch, and four more queries (anchor ×2,
+  last-spend ×2) on the per-campaign branch. A FILTERed `MAX(date)` per day,
+  over rows bounded by the later day, returns exactly what a `date <= day`
+  query per day returns (NULL where nothing had happened yet, which the
+  per-day split skips), so both branches now read each shape ONCE:
+  7 → 4 selects per platform, 6 → 4 per campaign. The single-day
+  `creativeStatusMap(ids, { asOf })` is the same code with one day. Pinned by
+  `tests/db/status-flow.test.ts` (a scenario where statuses move between the
+  days; its transitions pass on the old code too, only the read counts
+  differ).

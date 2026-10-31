@@ -202,26 +202,52 @@ export async function creativeStatusMap(
 
   // Point-in-time: reconstructs a PAST day, so it can't read today's cached
   // numbers and keeps its own (date-bounded) queries.
-  return creativeStatusMapAsOf(creativeIds, opts.asOf);
+  const [map] = await creativeStatusMapsAsOf(creativeIds, [opts.asOf]);
+  return map!;
 }
 
-/** The `asOf` path: same derivation, but every scan is bounded by the date. */
-async function creativeStatusMapAsOf(
+/**
+ * `MAX(date)` as of each day in `days`, in ONE grouped pass: the WHERE bounds
+ * the scan by the latest day and a FILTER per day bounds each column — the
+ * same value a `date <= day` query per day returns, NULL where nothing had
+ * happened by then.
+ */
+function maxDateAsOf(days: readonly string[]): Record<string, SQL<string | null>> {
+  const cols: Record<string, SQL<string | null>> = {};
+  days.forEach((d, i) => {
+    cols[`d${i}`] = sql<string | null>`MAX(${performanceRecords.date}) FILTER (WHERE ${performanceRecords.date} <= ${d})`;
+  });
+  return cols;
+}
+const latestIso = (days: readonly string[]): string =>
+  days.reduce((a, b) => (b > a ? b : a));
+
+/**
+ * The `asOf` path, for one or more days: same derivation, but every scan is
+ * bounded by the date. Several days share ONE activity scan and ONE freshness
+ * scan (2026-11: the Dashboard's status flow reconstructs two days and paid
+ * four scans for them); the result is one map per day, in `days` order.
+ */
+async function creativeStatusMapsAsOf(
   creativeIds: string[] | undefined,
-  asOf: string,
-): Promise<Map<string, CreativeStatusResult>> {
+  days: readonly string[],
+): Promise<Map<string, CreativeStatusResult>[]> {
+  if ((creativeIds && creativeIds.length === 0) || days.length === 0) {
+    return days.map(() => new Map());
+  }
   const restrict = Boolean(creativeIds && creativeIds.length > 0);
   const [acct, windowHours] = await Promise.all([
     getActiveAccountId(),
     getActiveStatusWindowHours(),
   ]);
   const windowDays = hoursToWindowDays(windowHours);
+  const until = latestIso(days);
 
   const activity = await db
     .select({
       creativeId: performanceRecords.creativeId,
       platform: performanceRecords.platform,
-      lastDate: sql<string>`MAX(${performanceRecords.date})`,
+      ...maxDateAsOf(days),
     })
     .from(performanceRecords)
     .where(
@@ -229,7 +255,7 @@ async function creativeStatusMapAsOf(
         eq(performanceRecords.accountId, acct),
         eq(performanceRecords.excludedFromAggregates, false),
         sql`${performanceRecords.spend} > 0`,
-        sql`${performanceRecords.date} <= ${asOf}`,
+        sql`${performanceRecords.date} <= ${until}`,
         ...(restrict ? [inArray(performanceRecords.creativeId, creativeIds!)] : []),
       ),
     )
@@ -238,7 +264,7 @@ async function creativeStatusMapAsOf(
   const freshness = await db
     .select({
       platform: performanceRecords.platform,
-      lastDate: sql<string>`MAX(${performanceRecords.date})`,
+      ...maxDateAsOf(days),
     })
     .from(performanceRecords)
     .where(
@@ -246,22 +272,34 @@ async function creativeStatusMapAsOf(
         eq(performanceRecords.accountId, acct),
         eq(performanceRecords.excludedFromAggregates, false),
         sql`${performanceRecords.spend} > 0`,
-        sql`${performanceRecords.date} <= ${asOf}`,
+        sql`${performanceRecords.date} <= ${until}`,
       ),
     )
     .groupBy(performanceRecords.platform);
 
-  // Terminations in force on `asOf` — the cached brand read, filtered by day
+  // Terminations in force on each day — the cached brand read, filtered by day
   // here instead of a date-bounded query per call (the activity and freshness
   // scans above stay date-bounded: they ARE the reconstruction).
   const keep = restrict ? new Set(creativeIds) : null;
-  const overrides = (await brandOverrides()).filter(
-    (o) => o.terminatedOn <= asOf && (!keep || keep.has(o.creativeId)),
-  );
+  const allOverrides = await brandOverrides();
 
-  const latestDayByPlatform: Partial<Record<Platform, string>> = {};
-  for (const f of freshness) latestDayByPlatform[f.platform as Platform] = f.lastDate;
-  return buildStatusMap(activity, overrides, { latestDayByPlatform, windowDays }, null);
+  return days.map((asOf, i) => {
+    const key = `d${i}`;
+    const dayActivity: BrandStatusInputs["activity"] = [];
+    for (const a of activity) {
+      const lastDate = (a as Record<string, unknown>)[key] as string | null;
+      if (lastDate) dayActivity.push({ creativeId: a.creativeId, platform: a.platform, lastDate });
+    }
+    const latestDayByPlatform: Partial<Record<Platform, string>> = {};
+    for (const f of freshness) {
+      const lastDate = (f as Record<string, unknown>)[key] as string | null;
+      if (lastDate) latestDayByPlatform[f.platform as Platform] = lastDate;
+    }
+    const overrides = allOverrides.filter(
+      (o) => o.terminatedOn <= asOf && (!keep || keep.has(o.creativeId)),
+    );
+    return buildStatusMap(dayActivity, overrides, { latestDayByPlatform, windowDays }, null);
+  });
 }
 
 /** Look up a creative's status, defaulting to "new" when absent from the map. */
@@ -427,10 +465,11 @@ export async function statusFlowBreakdown(
 
   // --- Per-platform breakdown (default) -----------------------------------
   if (dimension !== "campaign" || !platform) {
-    const [startMap, endMap] = await Promise.all([
-      creativeStatusMap(restrictIds, { asOf: isoMinusOneDay(filters.from) }),
-      creativeStatusMap(restrictIds, { asOf: filters.to }),
-    ]);
+    // Both days in one reconstruction pass (two scans, not four).
+    const [startMap, endMap] = (await creativeStatusMapsAsOf(restrictIds, [
+      isoMinusOneDay(filters.from),
+      filters.to,
+    ])) as [Map<string, CreativeStatusResult>, Map<string, CreativeStatusResult>];
     let totalInScope: number;
     if (restrictIds) {
       totalInScope = restrictIds.length;
@@ -504,61 +543,62 @@ export async function statusFlowBreakdown(
     .groupBy(performanceRecords.creativeId);
   const universe = uniRows.map((r) => r.id);
 
-  // Each platform's freshness anchor at each as-of (latest SPEND day ≤ as-of).
-  const latestDay = async (asOf: string): Promise<string | null> => {
-    const [r] = await db
-      .select({ last: sql<string>`MAX(${performanceRecords.date})` })
-      .from(performanceRecords)
-      .where(
-        and(
-          eq(performanceRecords.accountId, acct),
-          eq(performanceRecords.platform, P),
-          eq(performanceRecords.excludedFromAggregates, false),
-          sql`${performanceRecords.spend} > 0`,
-          sql`${performanceRecords.date} <= ${asOf}`,
-        ),
-      );
-    return r?.last ?? null;
-  };
+  // Both as-of days in one pass each (2026-11: four queries → two) — the
+  // FILTERed MAX per day is what a `date <= day` query per day returns.
+  const asOfDays = [startAsOf, endAsOf] as const;
+  const until = latestIso(asOfDays);
 
-  // Per-(creative, campaign) last spend date on P, as of `asOf`.
-  const lastSpend = async (asOf: string): Promise<Map<string, Map<string, string>>> => {
-    const rows = await db
-      .select({
-        creativeId: performanceRecords.creativeId,
-        campaign: campaigns.name,
-        last: sql<string>`MAX(${performanceRecords.date})`,
-      })
-      .from(performanceRecords)
-      .innerJoin(campaigns, eq(campaigns.id, performanceRecords.campaignId))
-      .where(
-        and(
-          ...scopeConds([
-            inArray(campaigns.name, campaignNames),
-            sql`${performanceRecords.spend} > 0`,
-            sql`${performanceRecords.date} <= ${asOf}`,
-          ]),
-        ),
-      )
-      .groupBy(performanceRecords.creativeId, campaigns.id);
+  // P's freshness anchor at each as-of (latest SPEND day ≤ as-of).
+  const [anchors] = await db
+    .select(maxDateAsOf(asOfDays))
+    .from(performanceRecords)
+    .where(
+      and(
+        eq(performanceRecords.accountId, acct),
+        eq(performanceRecords.platform, P),
+        eq(performanceRecords.excludedFromAggregates, false),
+        sql`${performanceRecords.spend} > 0`,
+        sql`${performanceRecords.date} <= ${until}`,
+      ),
+    );
+  const startAnchor = (anchors?.d0 as string | null | undefined) ?? null;
+  const endAnchor = (anchors?.d1 as string | null | undefined) ?? null;
+
+  // Per-(creative, campaign) last spend date on P, as of each day.
+  const spendRows = await db
+    .select({
+      creativeId: performanceRecords.creativeId,
+      campaign: campaigns.name,
+      ...maxDateAsOf(asOfDays),
+    })
+    .from(performanceRecords)
+    .innerJoin(campaigns, eq(campaigns.id, performanceRecords.campaignId))
+    .where(
+      and(
+        ...scopeConds([
+          inArray(campaigns.name, campaignNames),
+          sql`${performanceRecords.spend} > 0`,
+          sql`${performanceRecords.date} <= ${until}`,
+        ]),
+      ),
+    )
+    .groupBy(performanceRecords.creativeId, campaigns.id);
+  const lastSpendAsOf = (key: "d0" | "d1"): Map<string, Map<string, string>> => {
     const m = new Map<string, Map<string, string>>();
-    for (const r of rows) {
+    for (const r of spendRows) {
+      const last = (r as Record<string, unknown>)[key] as string | null;
+      if (!last) continue;
       let cm = m.get(r.campaign);
       if (!cm) {
         cm = new Map();
         m.set(r.campaign, cm);
       }
-      cm.set(r.creativeId, r.last);
+      cm.set(r.creativeId, last);
     }
     return m;
   };
-
-  const [startAnchor, endAnchor, startSpend, endSpend] = await Promise.all([
-    latestDay(startAsOf),
-    latestDay(endAsOf),
-    lastSpend(startAsOf),
-    lastSpend(endAsOf),
-  ]);
+  const startSpend = lastSpendAsOf("d0");
+  const endSpend = lastSpendAsOf("d1");
 
   const statusOf = (
     last: string | undefined,
