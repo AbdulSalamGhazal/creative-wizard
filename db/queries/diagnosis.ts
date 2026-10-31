@@ -269,7 +269,20 @@ export async function campaignDiagnosisInput(
     window,
     excludedRecords: opts.includeExcluded ? "included" : "hidden",
     coverage,
-    days,
+    // The day query keeps an unmeasured field NULL for the records table; the
+    // bundle's day rows are numeric and `nullUnavailable` re-nulls whatever
+    // the campaign's platform can't report.
+    days: days.map((d) => ({
+      ...d,
+      landingPageViews: d.landingPageViews ?? 0,
+      addToCart: d.addToCart ?? 0,
+      addPayment: d.addPayment ?? 0,
+      videoViews2s: d.videoViews2s ?? 0,
+      videoViews25: d.videoViews25 ?? 0,
+      videoViews50: d.videoViews50 ?? 0,
+      videoViews75: d.videoViews75 ?? 0,
+      videoViews100: d.videoViews100 ?? 0,
+    })),
     lifetime: lifetime.totals as unknown as Record<string, number | null>,
     creatives: creativeRows,
     creativesTotal: creativeRows.length,

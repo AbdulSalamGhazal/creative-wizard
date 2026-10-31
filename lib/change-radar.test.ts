@@ -14,6 +14,8 @@ function block(partial: Partial<ChangeWindowBlock>): ChangeWindowBlock {
     conversionValue: 0,
     landingPageViews: 0,
     ...partial,
+    // Every platform in these fixtures reports LP views unless a test says otherwise.
+    cvrConversions: partial.cvrConversions ?? partial.conversions ?? 0,
   };
 }
 
@@ -46,6 +48,18 @@ describe("deriveChangeMetrics", () => {
     expect(m.cpa!.prev).toBeCloseTo(10);
     expect(m.cpa!.deterioration).toBeCloseTo(0); // unchanged
     expect(m.ctr!.cur).toBeCloseTo(0.02);
+  });
+
+  it("CvR's numerator leaves out the platforms without LP views — google's conversions can't inflate it", () => {
+    // IG: 1,000 LPV, 20 conversions. Google adds 80 conversions and no LPV.
+    // Over all conversions CvR read 10%; the measured rate is 2%. And when
+    // google stopped, a "Big drop" appeared on a CvR that never moved.
+    const cur = block({ conversions: 100, cvrConversions: 20, landingPageViews: 1000 });
+    const prev = block({ conversions: 20, cvrConversions: 20, landingPageViews: 1000 });
+    const m = deriveChangeMetrics(cur, prev).find((x) => x.key === "cvr")!;
+    expect(m.cur).toBeCloseTo(0.02);
+    expect(m.prev).toBeCloseTo(0.02);
+    expect(m.deterioration).toBeCloseTo(0);
   });
 
   it("spend carries a change but never a deterioration", () => {

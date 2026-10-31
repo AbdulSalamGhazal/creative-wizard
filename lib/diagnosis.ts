@@ -179,7 +179,10 @@ export interface DiagnosisWeek {
   clicks: number;
   conversions: number;
   revenue: number;
+  /** null on a platform that doesn't report it (google) — never 0. */
+  landingPageViews: number | null;
   ctr: number | null;
+  /** conversions ÷ landing-page views, the conventions' definition. */
   cvr: number | null;
   roas: number | null;
 }
@@ -276,7 +279,9 @@ function weekStartOf(iso: string): string {
 export function weeklyRollup(
   days: readonly DiagnosisDayRow[],
   cap = MAX_DIAGNOSIS_WEEKS,
+  platform: Platform | null = null,
 ): { weeks: DiagnosisWeek[]; truncated: boolean } {
+  const noLpv = platform !== null && isFieldUnavailableOn("landing_page_views", platform);
   const byWeek = new Map<string, DiagnosisWeek>();
   for (const d of days) {
     const key = weekStartOf(d.date);
@@ -288,11 +293,13 @@ export function weeklyRollup(
       clicks: 0,
       conversions: 0,
       revenue: 0,
+      landingPageViews: noLpv ? null : 0,
       ctr: null,
       cvr: null,
       roas: null,
     };
     w.days += 1;
+    if (w.landingPageViews !== null) w.landingPageViews += d.landingPageViews;
     w.spend += d.spend;
     w.impressions += d.impressions;
     w.clicks += d.clicks;
@@ -306,7 +313,7 @@ export function weeklyRollup(
       spend: r2(w.spend) ?? 0,
       revenue: r2(w.revenue) ?? 0,
       ctr: ratio(w.clicks, w.impressions),
-      cvr: ratio(w.conversions, w.clicks),
+      cvr: w.landingPageViews === null ? null : ratio(w.conversions, w.landingPageViews),
       roas: ratio(w.revenue, w.spend),
     }))
     .sort((a, b) => (a.weekStart < b.weekStart ? -1 : 1));
@@ -407,7 +414,11 @@ export function serializeDiagnosis(input: DiagnosisInput): DiagnosisBundle {
 
   const inWindow = input.days.filter((d) => d.date >= windowStart);
   const before = input.days.filter((d) => d.date < windowStart);
-  const { weeks, truncated: weeklyTruncated } = weeklyRollup(before);
+  const { weeks, truncated: weeklyTruncated } = weeklyRollup(
+    before,
+    MAX_DIAGNOSIS_WEEKS,
+    platform,
+  );
 
   const daily = inWindow.map((d) => {
     const row = {
@@ -427,7 +438,11 @@ export function serializeDiagnosis(input: DiagnosisInput): DiagnosisBundle {
       videoViews75: d.videoViews75,
       videoViews100: d.videoViews100,
       ctr: ratio(d.clicks, d.impressions),
-      cvr: ratio(d.conversions, d.clicks),
+      // Divided by LP views, as the conventions define it — nullUnavailable
+      // below can't reach a ratio, so a platform without LP views gets null here.
+      cvr: platform !== null && isFieldUnavailableOn("landing_page_views", platform)
+        ? null
+        : ratio(d.conversions, d.landingPageViews),
       roas: ratio(d.conversionValue, d.spend),
       cpa: d.conversions ? r2(d.spend / d.conversions) : null,
     };

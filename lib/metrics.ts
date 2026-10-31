@@ -124,6 +124,22 @@ export const holdRate: SQL<number> = sql<number>`${scopedSum(p.videoViews50, hol
 export const completeRate: SQL<number> = sql<number>`${scopedSum(p.videoViews100, completeScope)}::numeric / NULLIF(${scopedSum(p.videoViews2s, completeScope)}, 0)`;
 
 /**
+ * CvR's component pair, restricted to `window` — for code that carries SUMS
+ * and recombines the ratio later (Trends → Over time's change radar). Both
+ * sides are `cvr`'s own scoped sums, so google's conversions — which no LP
+ * view backs — never reach the numerator.
+ */
+export function cvrComponents(window: SQL): {
+  conversions: SQL<number>;
+  landingPageViews: SQL<number>;
+} {
+  return {
+    conversions: scopedSum(p.conversions, cvrScope, window),
+    landingPageViews: scopedSum(p.landingPageViews, cvrScope, window),
+  };
+}
+
+/**
  * Per-platform metric fragments built on Postgres FILTER aggregates. Used by
  * the Summary view to compute every platform's columns side-by-side in a
  * single grouped query — one row per creative, columns per (platform, metric).

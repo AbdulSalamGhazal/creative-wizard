@@ -20,7 +20,8 @@ vi.mock("@/lib/tenant", () => ({
 import { sql, type SQL } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { launchFatigue } from "@/db/queries/performance";
-import { CREATIVE_1, resetAndSeed } from "./fixtures";
+import { performanceRecords } from "@/db/schema";
+import { CAMPAIGN_1, CREATIVE_1, resetAndSeed } from "./fixtures";
 
 beforeAll(async () => {
   await resetAndSeed();
@@ -46,5 +47,22 @@ describe("launchFatigue", () => {
     const text = JSON.stringify(plan[0]!["QUERY PLAN"]);
     expect(text).toContain('"Node Type":"CTE Scan"');
     expect(text).toContain('"CTE Name":"eff"');
+  });
+
+  it("leaves google out of the windows — Launches is a PLATFORMS_WITH_CREATIVES surface (2026-10-31)", async () => {
+    const before = (await launchFatigue({})).find((r) => r.creativeId === CREATIVE_1)!;
+    // A google day inside the launch week: its spend and conversions came in
+    // with no LP views behind them, moving ROAS, CvR and the verdict.
+    await db.insert(performanceRecords).values({
+      accountId: ACCOUNT_A, creativeId: CREATIVE_1, platform: "google", campaignId: CAMPAIGN_1,
+      date: "2026-01-03", spend: "1000", impressions: 5000, clicks: 300, conversions: 50,
+      conversionValue: "4000", landingPageViews: null, rawPayload: {},
+      uploadBatchId: "55555555-5555-5555-5555-555555555001",
+    });
+    const after = (await launchFatigue({})).find((r) => r.creativeId === CREATIVE_1)!;
+    expect(after.w1).toEqual(before.w1);
+    // An explicit pick still scopes to what was picked.
+    const igOnly = (await launchFatigue({ platforms: ["instagram"] })).find((r) => r.creativeId === CREATIVE_1)!;
+    expect(igOnly.w1.spend).toBeLessThan(before.w1.spend);
   });
 });

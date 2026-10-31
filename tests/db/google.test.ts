@@ -24,6 +24,7 @@ import { campaigns, performanceRecords, uploadBatches } from "@/db/schema";
 import { campaignFunnel, funnelOverview } from "@/db/queries/funnel";
 import { kpis, compareDimensions } from "@/db/queries/performance";
 import { listCreativeSummary } from "@/db/queries/summary";
+import { campaignRecordsByDay } from "@/db/queries/campaign";
 import { resetAndSeed, CREATIVE_1, CREATIVE_2 } from "./fixtures";
 
 const setAccount = (id: string) => vi.mocked(getActiveAccountId).mockResolvedValue(id);
@@ -224,5 +225,32 @@ describe("creative-level surfaces: the creative is ordinary, the DATA stays out"
     // it isn't offered — not because of what it IS, but because of where its
     // data is. A creative with rows on both would appear, for the other ones.
     expect(dims.some((d) => d.creativeId === GOOGLE_ONLY_CREATIVE)).toBe(false);
+  });
+});
+
+describe("a google campaign's records grouped by day keep NULL as NULL (2026-10-31)", () => {
+  const CAMPAIGN = "44444444-4444-4444-4444-44444444a0f2";
+  const NAME = "Search Only ➤ All";
+
+  beforeAll(async () => {
+    await db.insert(campaigns).values({
+      id: CAMPAIGN, accountId: ACCOUNT_A, name: NAME, platform: "google", objective: "Sales",
+      createdByUserId: USER,
+    });
+    await db.insert(performanceRecords).values({
+      accountId: ACCOUNT_A, creativeId: GOOGLE_ONLY_CREATIVE, platform: "google",
+      date: "2026-04-02", campaignId: CAMPAIGN, spend: "50", impressions: 900, clicks: 40,
+      conversions: 4, conversionValue: "200", landingPageViews: null, addToCart: null,
+      addPayment: null, rawPayload: {}, uploadBatchId: GOOGLE_BATCH,
+    });
+  });
+
+  it("an unreported field reads null — the raw view's '—', never a measured 0", async () => {
+    const [day] = await campaignRecordsByDay(NAME, { from: "2026-04-01", to: "2026-04-30" });
+    expect(day!.spend).toBe(50);
+    expect(day!.conversions).toBe(4);
+    expect(day!.landingPageViews).toBeNull();
+    expect(day!.addToCart).toBeNull();
+    expect(day!.videoViews2s).toBeNull();
   });
 });

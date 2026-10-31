@@ -725,14 +725,19 @@ export interface CampaignDayRow {
   clicks: number;
   conversions: number;
   conversionValue: number;
-  landingPageViews: number;
-  addToCart: number;
-  addPayment: number;
-  videoViews2s: number;
-  videoViews25: number;
-  videoViews50: number;
-  videoViews75: number;
-  videoViews100: number;
+  /**
+   * NULL when no row that day measured it — a google campaign's funnel, an
+   * image campaign's video — rendered "—" like the raw view, never a measured
+   * 0 (NULL ≠ 0). A filled GAP day is all zeros, as before.
+   */
+  landingPageViews: number | null;
+  addToCart: number | null;
+  addPayment: number | null;
+  videoViews2s: number | null;
+  videoViews25: number | null;
+  videoViews50: number | null;
+  videoViews75: number | null;
+  videoViews100: number | null;
 }
 
 export async function campaignRecordsByDay(
@@ -776,14 +781,14 @@ export async function campaignRecordsByDay(
       clicks: num(r.clicks),
       conversions: num(r.conversions),
       conversionValue: num(r.conversionValue),
-      landingPageViews: num(r.landingPageViews),
-      addToCart: num(r.addToCart),
-      addPayment: num(r.addPayment),
-      videoViews2s: num(r.videoViews2s),
-      videoViews25: num(r.videoViews25),
-      videoViews50: num(r.videoViews50),
-      videoViews75: num(r.videoViews75),
-      videoViews100: num(r.videoViews100),
+      landingPageViews: numOrNull(r.landingPageViews),
+      addToCart: numOrNull(r.addToCart),
+      addPayment: numOrNull(r.addPayment),
+      videoViews2s: numOrNull(r.videoViews2s),
+      videoViews25: numOrNull(r.videoViews25),
+      videoViews50: numOrNull(r.videoViews50),
+      videoViews75: numOrNull(r.videoViews75),
+      videoViews100: numOrNull(r.videoViews100),
     })),
     {
       dateKey: "date",

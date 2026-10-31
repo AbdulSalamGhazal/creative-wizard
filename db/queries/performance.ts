@@ -32,6 +32,7 @@ import {
   sumSpend,
   voc,
   scopedMetrics,
+  cvrComponents,
 } from "@/lib/metrics";
 import { PLATFORMS_WITH_CREATIVES } from "@/lib/palette";
 import {
@@ -1785,6 +1786,8 @@ export interface ChangeWindowSums {
   conversions: number;
   conversionValue: number;
   landingPageViews: number;
+  /** Conversions on platforms that report LP views — CvR's numerator. */
+  cvrConversions: number;
 }
 
 /**
@@ -1818,6 +1821,12 @@ export async function changeBreakdown(
   const conversions = split(performanceRecords.conversions);
   const conversionValue = split(performanceRecords.conversionValue);
   const landingPageViews = split(performanceRecords.landingPageViews);
+  // CvR's numerator, scoped to the platforms that report LP views (both
+  // sides of the ratio — lib/metrics `cvrComponents`).
+  const cvrConversions = {
+    cur: sql<string>`COALESCE(${cvrComponents(inCur).conversions}, 0)`,
+    prev: sql<string>`COALESCE(${cvrComponents(inPrev).conversions}, 0)`,
+  };
 
   const keyExpr: AnyPgColumn =
     dim === "platform"
@@ -1843,6 +1852,8 @@ export async function changeBreakdown(
       cvPrev: conversionValue.prev,
       lpvCur: landingPageViews.cur,
       lpvPrev: landingPageViews.prev,
+      cvrConvCur: cvrConversions.cur,
+      cvrConvPrev: cvrConversions.prev,
     })
     .from(performanceRecords)
     .$dynamic();
@@ -1884,6 +1895,7 @@ export async function changeBreakdown(
         conversions: num(r.convCur) ?? 0,
         conversionValue: num(r.cvCur) ?? 0,
         landingPageViews: num(r.lpvCur) ?? 0,
+        cvrConversions: num(r.cvrConvCur) ?? 0,
       },
       prev: {
         spend: num(r.spendPrev) ?? 0,
@@ -1892,6 +1904,7 @@ export async function changeBreakdown(
         conversions: num(r.convPrev) ?? 0,
         conversionValue: num(r.cvPrev) ?? 0,
         landingPageViews: num(r.lpvPrev) ?? 0,
+        cvrConversions: num(r.cvrConvPrev) ?? 0,
       },
     })),
   };
@@ -1960,10 +1973,13 @@ export async function launchFatigue(
     : sql``;
 
   // Perf-row scoping on the join (platform / excluded) so a creative still
-  // appears even if a filter zeroes it out — those are dropped below.
-  const platformJoin = f.platforms?.length
-    ? sql` AND pr.platform IN (${inList(f.platforms)})`
-    : sql``;
+  // appears even if a filter zeroes it out — those are dropped below. No pick
+  // means the page's own platform set, PLATFORMS_WITH_CREATIVES — never every
+  // platform: google's spend and conversions, with no LP views behind them,
+  // moved the windows' ROAS, CvR and the fatigue verdict (2026-10-31).
+  const platformJoin = sql` AND pr.platform IN (${inList(
+    f.platforms?.length ? f.platforms : [...PLATFORMS_WITH_CREATIVES],
+  )})`;
   const excludedJoin = f.includeExcluded
     ? sql``
     : sql` AND pr.excluded_from_aggregates = false`;

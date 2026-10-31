@@ -163,6 +163,24 @@ describe("the bundle's shape", () => {
     expect(weeks[0]!.ctr).not.toBeCloseTo(0.055, 3);
   });
 
+  it("CvR is conversions ÷ landing-page views — the bundle's own definition, daily and weekly", () => {
+    // Was conversions ÷ clicks, beside benchmarks (lib/metrics) that divide by
+    // LP views: 30 conversions on 1,000 clicks / 600 LPV read 0.030 next to a
+    // 0.050 benchmark for the same traffic — a gap that doesn't exist.
+    const d = day("2026-09-06", { clicks: 1_000, landingPageViews: 600, conversions: 30 });
+    const { weeks } = weeklyRollup([d]);
+    expect(weeks[0]!.cvr).toBeCloseTo(0.05, 6);
+    expect(weeks[0]!.landingPageViews).toBe(600);
+    const b = serializeDiagnosis(input({ days: [{ ...d, date: "2026-09-04" }] }));
+    expect(b.series.daily[0]!.cvr).toBeCloseTo(0.05, 6);
+  });
+
+  it("a google week has no LP views and so no CvR — null, never 0", () => {
+    const { weeks } = weeklyRollup([day("2026-09-06", { landingPageViews: 0 })], undefined, "google");
+    expect(weeks[0]!.landingPageViews).toBeNull();
+    expect(weeks[0]!.cvr).toBeNull();
+  });
+
   it("keeps the MOST RECENT weeks at the cap, and says it truncated", () => {
     const many: DiagnosisDayRow[] = [];
     for (let w = 0; w < MAX_DIAGNOSIS_WEEKS + 6; w++) {

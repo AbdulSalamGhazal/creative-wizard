@@ -15,6 +15,13 @@ export interface ChangeWindowBlock {
   conversions: number;
   conversionValue: number;
   landingPageViews: number;
+  /**
+   * CvR's numerator: conversions on the platforms that REPORT landing-page
+   * views (lib/metrics `cvrComponents`). `conversions` counts every
+   * platform's — google's included, with no LP views behind them — so a
+   * CvR over it read 10% where the measured rate was 2%.
+   */
+  cvrConversions: number;
 }
 
 export type ChangeMetricKey = "spend" | "roas" | "cpa" | "ctr" | "cvr";
@@ -104,8 +111,8 @@ export function deriveChangeMetrics(
     ),
     delta(
       "cvr",
-      safeRatio(cur.conversions, cur.landingPageViews),
-      safeRatio(prev.conversions, prev.landingPageViews),
+      safeRatio(cur.cvrConversions, cur.landingPageViews),
+      safeRatio(prev.cvrConversions, prev.landingPageViews),
       false,
     ),
   ];
