@@ -262,7 +262,9 @@ export function halfSplitTrend(
   return {
     firstPerDay,
     secondPerDay,
-    pct: firstPerDay > 0 ? (secondPerDay - firstPerDay) / firstPerDay : null,
+    // One day has no second half: `mid` is the day AFTER the range, so the
+    // "second half" was always empty and read −100% (2026-10-31).
+    pct: days >= 2 && firstPerDay > 0 ? (secondPerDay - firstPerDay) / firstPerDay : null,
   };
 }
 

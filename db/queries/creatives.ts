@@ -5,8 +5,10 @@ import {
   between,
   desc,
   eq,
+  gte,
   ilike,
   inArray,
+  lte,
   or,
   sql,
   type SQL,
@@ -26,6 +28,7 @@ import {
 } from "@/db/schema";
 import type { CreativeSort } from "@/validators/creative";
 import { getActiveAccountId } from "@/lib/tenant";
+import { shiftIso, todayIso } from "@/lib/date-presets";
 import { creativeStatusMap, statusFor } from "@/db/queries/creative-status";
 import { sortCreativeRows } from "@/lib/creative-sort";
 import {
@@ -163,16 +166,22 @@ function creativeListConditions(filters: CreativeListFilters, acct: string): SQL
  * Recent-spend window CTE. Built via the query builder (not a raw subquery) so
  * the platform predicate binds safely through `inArray`. It respects the
  * platform filter so the 7d/30d columns reflect what's actually filtered
- * (without it they summed every platform). The interval is inlined from a
- * trusted integer.
+ * (without it they summed every platform).
+ *
+ * The window is the house's "Last N days" (lib/date-presets): the N days
+ * before TODAY IN KSA. It was `date >= CURRENT_DATE - N` — the database's UTC
+ * date and no upper bound, so "7d" summed EIGHT days (today included), and a
+ * day behind for the first three hours of every KSA morning (2026-10-31).
  */
 function spendWindowCte(filters: CreativeListFilters, alias: string, days: number, acct: string) {
+  const today = todayIso();
   const conds: SQL[] = [
     // Account is already enforced by the creative_id join to the
     // account-scoped `creatives`; stating it HERE too lets the CTE use the
     // (account_id, …) index instead of scanning every brand's rows first.
     eq(performanceRecords.accountId, acct),
-    sql`${performanceRecords.date} >= CURRENT_DATE - ${sql.raw(`INTERVAL '${days} days'`)}`,
+    gte(performanceRecords.date, shiftIso(today, -days)),
+    lte(performanceRecords.date, shiftIso(today, -1)),
   ];
   if (!filters.includeExcluded) {
     conds.push(eq(performanceRecords.excludedFromAggregates, false));

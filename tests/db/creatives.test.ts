@@ -12,9 +12,10 @@ vi.mock("@/lib/tenant", () => ({
 import { getActiveAccountId } from "@/lib/tenant";
 import { creativeDeletionSummary, listCreatives } from "@/db/queries/creatives";
 import { db } from "@/lib/db";
-import { creatives } from "@/db/schema";
+import { creatives, performanceRecords } from "@/db/schema";
+import { shiftIso, todayIso } from "@/lib/date-presets";
 import { eq } from "drizzle-orm";
-import { resetAndSeed, CREATIVE_1, CREATIVE_2, CREATIVE_B } from "./fixtures";
+import { resetAndSeed, CAMPAIGN_1, CREATIVE_1, CREATIVE_2, CREATIVE_B } from "./fixtures";
 
 const setAccount = (id: string) =>
   vi.mocked(getActiveAccountId).mockResolvedValue(id);
@@ -243,5 +244,23 @@ describe("Library status facet (listCreatives().breakdown)", () => {
     setAccount(ACCOUNT_B);
     const b = await listCreatives({ sort: "name-asc" });
     expect(b.breakdown.total).toBe(1); // B-Creative-1 only
+  });
+});
+
+describe("the Library's 7d / 30d spend is the house's 'Last N days' (2026-10-31)", () => {
+  it("sums the N days before today in KSA — not today, not N+1 days", async () => {
+    const today = todayIso();
+    const day = (offset: number, spend: number) => ({
+      accountId: ACCOUNT_A, creativeId: CREATIVE_2, platform: "facebook" as const,
+      campaignId: CAMPAIGN_1, date: shiftIso(today, offset), spend: String(spend),
+      impressions: 1, clicks: 0, conversions: 0, conversionValue: "0", rawPayload: {},
+      uploadBatchId: "55555555-5555-5555-5555-555555555001",
+    });
+    // Today (partial), the 7th day back (in), the 8th day back (out of 7d).
+    await db.insert(performanceRecords).values([day(0, 1000), day(-7, 10), day(-8, 100)]);
+    const row = (await listCreatives({ sort: "name-asc" })).rows.find((r) => r.id === CREATIVE_2)!;
+    // Was CURRENT_DATE − 7 with no upper bound: 1,000 + 10 + 100 = 1,110.
+    expect(row.spend7d).toBe(10);
+    expect(row.spend30d).toBe(110);
   });
 });

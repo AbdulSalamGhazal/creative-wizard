@@ -124,6 +124,16 @@ describe("halfSplitTrend", () => {
     expect(t.pct).toBeCloseTo(1);
   });
 
+  it("is NULL for a one-day range — a single day has no halves (was −100% on every row)", () => {
+    // "Yesterday": the second "half" began the day AFTER the range, so it was
+    // always empty and every source read −100%.
+    const t = halfSplitTrend([{ day: "2026-10-30", orders: 40 }], {
+      from: "2026-10-30",
+      to: "2026-10-30",
+    });
+    expect(t.pct).toBeNull();
+  });
+
   it("is NULL when the first half had nothing (no base to grow from)", () => {
     const t = halfSplitTrend([{ day: "2026-06-09", orders: 3 }], range);
     expect(t.pct).toBeNull();

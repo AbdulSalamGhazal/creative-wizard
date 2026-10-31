@@ -75,7 +75,8 @@
   channel (user decision; a website-only column was offered and declined).
 - **No period comparison on UTMs either.** The only trend is the
   `halfSplitTrend` of the selected range — its two halves compared PER DAY
-  — never an earlier window.
+  — never an earlier window. A one-day range has no halves: its trend is
+  null ("—"), never the −100% it read until 2026-10-31.
 - **Attribution config stays ONE mechanism.** Several raw values → one
   platform is what `store_source_mappings` already does; the UTMs page adds
   no second one. Its hygiene list assigns a value through the SAME
