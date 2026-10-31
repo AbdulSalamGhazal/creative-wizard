@@ -14,6 +14,18 @@ const COLOR: Record<Rating, string> = {
   bad: "var(--neg)",
   na: "var(--ink-3)",
 };
+// In-segment ink follows the fill's lightness, as RATING_META's badges do.
+// On the dark themes the pos/warn/neg fills are light, and white read at
+// 2.5–2.75:1 even darkened; the background ink reads at 7:1+. Frost/Paper
+// fills are dark, so white stays there. N/A's grey takes white everywhere.
+const ON_LIGHT_FILL =
+  "text-white/95 [text-shadow:0_1px_1.5px_rgb(0_0_0/0.4)] dark:text-background dark:[text-shadow:none]";
+const INK: Record<Rating, string> = {
+  good: ON_LIGHT_FILL,
+  decent: ON_LIGHT_FILL,
+  bad: ON_LIGHT_FILL,
+  na: "text-white/95 [text-shadow:0_1px_1.5px_rgb(0_0_0/0.4)]",
+};
 const LABEL: Record<Rating, string> = {
   good: "Good",
   decent: "Decent",
@@ -91,12 +103,10 @@ export function RatingMixBars({
           <span
             key={r}
             title={`${LABEL[r]}: ${p}%`}
-            className="flex items-center justify-center overflow-hidden text-[11px] font-semibold tabular-nums leading-none"
+            className={`flex items-center justify-center overflow-hidden text-[11px] font-semibold tabular-nums leading-none ${INK[r]}`}
             style={{
               width: `${frac * 100}%`,
               background: COLOR[r],
-              color: "rgba(255,255,255,0.96)",
-              textShadow: "0 1px 1.5px rgba(0,0,0,0.4)",
             }}
           >
             {frac >= LABEL_MIN_FRAC ? `${p}%` : ""}
