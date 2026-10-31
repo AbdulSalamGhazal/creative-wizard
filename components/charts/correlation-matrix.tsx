@@ -142,7 +142,13 @@ export function CorrelationMatrix({ rows }: { rows: CreativeMetricRow[] }) {
                     value={key}
                     onValueChange={(v) => changeSlot(i, v as MetricKey)}
                   >
-                    <SelectTrigger className="h-6 w-full justify-center gap-0.5 border-0 bg-transparent px-0.5 text-[10px] font-semibold text-ink-2 shadow-none hover:text-ink focus:ring-0 focus:ring-offset-0 [&>svg]:size-3 [&>svg]:opacity-50">
+                    {/* A narrow column (six across on a phone) can't hold
+                        "Spend"/"ROAS" + the chevron: the value truncates with
+                        an ellipsis and the full name is the trigger's title. */}
+                    <SelectTrigger
+                      title={LABEL[key]}
+                      className="h-6 w-full justify-center gap-0 border-0 bg-transparent px-0 text-[10px] font-semibold text-ink-2 shadow-none hover:text-ink focus:ring-0 focus:ring-offset-0 [&>svg]:size-3 [&>svg]:opacity-50 *:data-[slot=select-value]:block *:data-[slot=select-value]:min-w-0 *:data-[slot=select-value]:truncate"
+                    >
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
