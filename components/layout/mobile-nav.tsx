@@ -43,6 +43,12 @@ export function MobileNav({ granted }: { granted: string[] }) {
     setOpen(false);
   }, [pathname]);
 
+  // …and when the tapped link is the page already showing: no route change
+  // comes to close it, so the tap would otherwise look like it did nothing.
+  const closeIfHere = (href: string) => {
+    if (href.split("?")[0] === pathname) setOpen(false);
+  };
+
   const sections = navSections(granted);
 
   const link = (
@@ -53,7 +59,10 @@ export function MobileNav({ granted }: { granted: string[] }) {
     <Link
       key={href + label}
       href={opts?.link?.href ?? href}
-      onClick={opts?.link?.onClick}
+      onClick={(e) => {
+        opts?.link?.onClick?.(e);
+        closeIfHere(href);
+      }}
       className={cn(
         "block rounded-md px-3 py-2 text-sm transition-colors",
         opts?.child && "ml-3 text-xs",
