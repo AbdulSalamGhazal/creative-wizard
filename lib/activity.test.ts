@@ -10,7 +10,7 @@ import {
   isActivityFiltered,
   type ActivityParams,
 } from "@/lib/activity";
-import { PAGE_REFUSAL_GATES, refusedRoutes } from "@/lib/page-gates";
+import { PAGE_REFUSAL_GATES, refusedRoutes, viewAnchorRefused } from "@/lib/page-gates";
 import { activityParamsSchema } from "@/validators/activity";
 
 const DEFAULT: ActivityParams = { who: "all", types: [], q: "", page: 1 };
@@ -87,5 +87,24 @@ describe("refusedRoutes — the pages whose PAGE refuses, not the sidebar's gate
   it("the upload pages are never refused: their history renders for every member", () => {
     expect(Object.keys(PAGE_REFUSAL_GATES)).not.toContain("/uploads");
     expect(Object.keys(PAGE_REFUSAL_GATES)).not.toContain("/store/uploads");
+  });
+});
+
+describe("viewAnchorRefused — a refused page's THREAD is refused too", () => {
+  // The /api/comments thread and the post path used to answer any brand
+  // member for /admin/users — /activity hid it, a direct GET did not.
+  it("refuses a view anchor on a page that refuses the holder", () => {
+    expect(viewAnchorRefused("view", "/admin/users", () => false)).toBe(true);
+    expect(viewAnchorRefused("view", "/admin/audit", (p) => p === "users.manage")).toBe(true);
+  });
+
+  it("passes the page's own holders, admins, and every page that doesn't refuse", () => {
+    expect(viewAnchorRefused("view", "/admin/users", (p) => p === "users.manage")).toBe(false);
+    expect(viewAnchorRefused("view", "/admin/users", () => true)).toBe(false);
+    expect(viewAnchorRefused("view", "/uploads", () => false)).toBe(false);
+  });
+
+  it("never applies to an entity anchor", () => {
+    expect(viewAnchorRefused("creative", "/admin/users", () => false)).toBe(false);
   });
 });

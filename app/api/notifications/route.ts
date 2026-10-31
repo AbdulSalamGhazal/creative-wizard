@@ -1,10 +1,11 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { auth } from "@/lib/auth";
+import { auth, can } from "@/lib/auth";
 import { bellNotifications, unreadCount } from "@/db/queries/notifications";
 import { commentCount } from "@/db/queries/comments";
 import { listCommentsSchema } from "@/validators/comments";
 import { categoryForType, safeHref } from "@/lib/notifications";
 import type { CommentAnchorType } from "@/lib/comments";
+import { viewAnchorRefused } from "@/lib/page-gates";
 
 export const dynamic = "force-dynamic";
 
@@ -50,7 +51,9 @@ export async function GET(request: NextRequest) {
     unreadCount(),
     bellNotifications(),
     anchor?.success
-      ? commentCount(anchor.data.anchorType as CommentAnchorType, anchor.data.anchorId)
+      ? viewAnchorRefused(anchor.data.anchorType, anchor.data.anchorId, (p) => can(user, p))
+        ? Promise.resolve(0)
+        : commentCount(anchor.data.anchorType as CommentAnchorType, anchor.data.anchorId)
       : Promise.resolve(undefined),
   ]);
 

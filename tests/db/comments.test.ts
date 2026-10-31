@@ -120,6 +120,26 @@ describe("anchors are re-validated against the active brand", () => {
     expect(await db.select().from(comments)).toHaveLength(0);
   });
 
+  it("refuses a page that refuses the commenter — and only that commenter (2026-10-31)", async () => {
+    // Alice holds nothing (`can` → false): Team refuses her, so its thread does.
+    const refused = await createComment({
+      anchorType: "view",
+      anchorId: "/admin/users",
+      body: "Reading the Team thread from outside",
+    });
+    expect(refused.ok).toBe(false);
+    expect(await db.select().from(comments)).toHaveLength(0);
+
+    // A Team manager posts there.
+    vi.mocked(can).mockImplementation((_u, p) => p === "users.manage");
+    const allowed = await createComment({
+      anchorType: "view",
+      anchorId: "/admin/users",
+      body: "Onboarding Bob next week",
+    });
+    expect(allowed.ok).toBe(true);
+  });
+
   it("accepts an allow-listed page and stores the view verbatim", async () => {
     const res = await createComment({
       anchorType: "view",

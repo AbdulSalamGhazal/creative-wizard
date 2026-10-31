@@ -110,6 +110,12 @@
   bounded mentions lookup so a body highlights as it does in its thread, and
   two PARTIAL indexes on live rows only (`comments_account_created_idx`,
   `comments_account_author_created_idx`, migration 0063).
+- **A page that refuses you refuses its THREAD (2026-10-31).** The thread
+  endpoint (`GET /api/comments`, thread and count), the bell's comment count
+  and `createComment` all ask `viewAnchorRefused` (lib/page-gates.ts —
+  `refusedRoutes`, the same three pages /activity hides). A refused anchor
+  reads as an empty thread / count 0 and refuses a post. Before this, any
+  brand member could read the Team page's thread with one GET.
 - **Every client call to a comment, reaction or notification action goes
   through `safeAction`** (lib/action-failure.ts) and fails through
   `toastActionFailure` (lib/action-toast.ts): a REJECTED call — a network

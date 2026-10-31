@@ -131,3 +131,17 @@ export function refusedRoutes(has: (perm: Permission) => boolean): string[] {
     .filter(([, gates]) => !gates.some((g) => passes(g, has)))
     .map(([path]) => path);
 }
+
+/**
+ * A `view` comment anchor on a page that refuses the holder of `has` — its
+ * thread is theirs neither to read nor to post to (2026-10-31). /activity
+ * already hid these; the thread endpoint and the post path did not, so any
+ * brand member could read the Team page's thread with one GET.
+ */
+export function viewAnchorRefused(
+  anchorType: string,
+  anchorId: string,
+  has: (perm: Permission) => boolean,
+): boolean {
+  return anchorType === "view" && refusedRoutes(has).includes(anchorId);
+}

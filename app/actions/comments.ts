@@ -3,8 +3,9 @@
 import { and, eq, isNotNull, isNull } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { auditEvents, commentReactions, comments } from "@/db/schema";
-import { requireAuth } from "@/lib/auth";
+import { can, requireAuth } from "@/lib/auth";
 import { getActiveAccountId } from "@/lib/tenant";
+import { viewAnchorRefused } from "@/lib/page-gates";
 import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
 import { actionError } from "@/lib/action-error";
 // Names and anchor labels are USER-SUPPLIED text inside English templates:
@@ -91,6 +92,10 @@ export async function createComment(input: unknown): Promise<CommentActionResult
       return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid comment." };
     }
     const { anchorType, anchorId, viewQuery, body, mentionUserIds } = parsed.data;
+    // A page that refuses this user refuses its thread (lib/page-gates.ts).
+    if (viewAnchorRefused(anchorType, anchorId, (p) => can(user, p))) {
+      return { ok: false, error: "That isn't something you can comment on." };
+    }
     const acct = await getActiveAccountId();
 
     // The FK this column can't have.

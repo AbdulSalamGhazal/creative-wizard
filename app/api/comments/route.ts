@@ -1,8 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { auth } from "@/lib/auth";
+import { auth, can } from "@/lib/auth";
 import { commentCount, listComments } from "@/db/queries/comments";
 import { listCommentsSchema } from "@/validators/comments";
 import type { CommentAnchorType } from "@/lib/comments";
+import { viewAnchorRefused } from "@/lib/page-gates";
 
 export const dynamic = "force-dynamic";
 
@@ -28,22 +29,27 @@ export async function GET(request: NextRequest) {
   if (!parsed.success) {
     return NextResponse.json({ error: "Invalid anchor" }, { status: 400 });
   }
+  // A page that refuses this viewer refuses its thread too: empty, the same
+  // shape a page nobody commented on answers with (the panel can still be
+  // open over that page's refusal).
+  const refused = viewAnchorRefused(parsed.data.anchorType, parsed.data.anchorId, (p) =>
+    can(user, p),
+  );
 
   // The count alone. Since W2-7 (2026-10) the badge's count rides on the
   // bell's per-navigation `/api/notifications?anchorType=&anchorId=` call; this
   // branch stays for tabs opened before that deploy, which still ask here.
   if (searchParams.get("count") === "1") {
-    const count = await commentCount(
+    const count = refused ? 0 : await commentCount(
       parsed.data.anchorType as CommentAnchorType,
       parsed.data.anchorId,
     );
     return NextResponse.json({ count }, { headers: { "Cache-Control": "no-store" } });
   }
 
-  const rows = await listComments(
-    parsed.data.anchorType as CommentAnchorType,
-    parsed.data.anchorId,
-  );
+  const rows = refused
+    ? []
+    : await listComments(parsed.data.anchorType as CommentAnchorType, parsed.data.anchorId);
   return NextResponse.json(
     { comments: rows },
     { headers: { "Cache-Control": "no-store" } },
