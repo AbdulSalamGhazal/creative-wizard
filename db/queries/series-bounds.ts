@@ -71,26 +71,69 @@ export const platformHorizons = cache(
   },
 );
 
+/** Every record of one creative (excluded included), summarized. */
+export interface CreativeRecordSpans {
+  /** Per platform: record count and first/last day, ordered by platform. */
+  byPlatform: Array<{ platform: Platform; records: number; firstDate: string; lastDate: string }>;
+  /** Distinct campaigns across all of the creative's records. */
+  campaigns: number;
+}
+
+/**
+ * One creative's record spans, in ONE read, `cache()`-shared per request
+ * (2026-11): the detail page's analytics body needs each platform's first day
+ * and its danger zone needs the counts, the date range and the distinct
+ * campaigns — three reads of the same rows before. `GROUPING SETS` gives the
+ * per-platform rows plus a grand-total row (the only place a DISTINCT count
+ * across platforms can come from). Account-scoped for defence in depth.
+ */
+export const creativeRecordSpans = cache(
+  async (creativeId: string): Promise<CreativeRecordSpans> => {
+    const acct = await getActiveAccountId();
+    const rows = await db
+      .select({
+        platform: performanceRecords.platform,
+        isTotal: sql<number>`GROUPING(${performanceRecords.platform})`,
+        records: sql<number>`COUNT(*)::int`,
+        firstDate: sql<string>`MIN(${performanceRecords.date})`,
+        lastDate: sql<string>`MAX(${performanceRecords.date})`,
+        campaigns: sql<number>`COUNT(DISTINCT ${performanceRecords.campaignId})::int`,
+      })
+      .from(performanceRecords)
+      .where(
+        and(
+          eq(performanceRecords.accountId, acct),
+          eq(performanceRecords.creativeId, creativeId),
+        ),
+      )
+      .groupBy(sql`GROUPING SETS ((${performanceRecords.platform}), ())`)
+      .orderBy(performanceRecords.platform);
+    const byPlatform: CreativeRecordSpans["byPlatform"] = [];
+    let campaigns = 0;
+    for (const r of rows) {
+      if (Number(r.isTotal) === 1) {
+        campaigns = Number(r.campaigns);
+        continue;
+      }
+      byPlatform.push({
+        platform: r.platform as Platform,
+        records: Number(r.records),
+        firstDate: r.firstDate,
+        lastDate: r.lastDate,
+      });
+    }
+    return { byPlatform, campaigns };
+  },
+);
+
 /** First-ever record date PER PLATFORM for one creative (unbounded), account-scoped. */
 export async function creativePlatformFirstDays(
   creativeId: string,
 ): Promise<Partial<Record<Platform, string>>> {
-  const acct = await getActiveAccountId();
-  const rows = await db
-    .select({
-      platform: performanceRecords.platform,
-      min: sql<string>`MIN(${performanceRecords.date})`,
-    })
-    .from(performanceRecords)
-    .where(
-      and(
-        eq(performanceRecords.accountId, acct),
-        eq(performanceRecords.creativeId, creativeId),
-      ),
-    )
-    .groupBy(performanceRecords.platform);
   const out: Partial<Record<Platform, string>> = {};
-  for (const r of rows) out[r.platform as Platform] = r.min;
+  for (const r of (await creativeRecordSpans(creativeId)).byPlatform) {
+    out[r.platform] = r.firstDate;
+  }
   return out;
 }
 

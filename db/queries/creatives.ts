@@ -30,6 +30,7 @@ import type { CreativeSort } from "@/validators/creative";
 import { getActiveAccountId } from "@/lib/tenant";
 import { shiftIso, todayIso } from "@/lib/date-presets";
 import { creativeStatusMap, statusFor } from "@/db/queries/creative-status";
+import { creativeRecordSpans } from "@/db/queries/series-bounds";
 import { sortCreativeRows } from "@/lib/creative-sort";
 import {
   statusBreakdownOf,
@@ -580,50 +581,22 @@ export interface CreativeDeletionSummary {
 export async function creativeDeletionSummary(
   creativeId: string,
 ): Promise<CreativeDeletionSummary> {
-  // Account guard for defence in depth — callers pre-scope the creative id
-  // today, but this query must not depend on that (the sibling
-  // campaignDeletionSummary carries the same explicit guard).
-  const acct = await getActiveAccountId();
-  const rows = await db
-    .select({
-      platform: performanceRecords.platform,
-      records: sql<number>`COUNT(*)::int`,
-      firstDate: sql<string | null>`MIN(${performanceRecords.date})`,
-      lastDate: sql<string | null>`MAX(${performanceRecords.date})`,
-    })
-    .from(performanceRecords)
-    .where(
-      and(
-        eq(performanceRecords.accountId, acct),
-        eq(performanceRecords.creativeId, creativeId),
-      ),
-    )
-    .groupBy(performanceRecords.platform);
-
+  // From the request's ONE spans read (2026-11) — the analytics body reads
+  // the same rows for its first days. It keeps the account guard (defence in
+  // depth, like the sibling campaignDeletionSummary).
+  const spans = await creativeRecordSpans(creativeId);
   let records = 0;
   let firstDate: string | null = null;
   let lastDate: string | null = null;
-  const platforms = rows.map((r) => {
+  const platforms = spans.byPlatform.map((r) => {
     records += r.records;
-    if (r.firstDate && (!firstDate || r.firstDate < firstDate)) firstDate = r.firstDate;
-    if (r.lastDate && (!lastDate || r.lastDate > lastDate)) lastDate = r.lastDate;
-    return { platform: r.platform as Platform, records: r.records };
+    if (!firstDate || r.firstDate < firstDate) firstDate = r.firstDate;
+    if (!lastDate || r.lastDate > lastDate) lastDate = r.lastDate;
+    return { platform: r.platform, records: r.records };
   });
   platforms.sort((a, b) => b.records - a.records);
 
-  const [agg] = await db
-    .select({
-      campaigns: sql<number>`COUNT(DISTINCT ${performanceRecords.campaignId})::int`,
-    })
-    .from(performanceRecords)
-    .where(
-      and(
-        eq(performanceRecords.accountId, acct),
-        eq(performanceRecords.creativeId, creativeId),
-      ),
-    );
-
-  return { records, platforms, campaigns: agg?.campaigns ?? 0, firstDate, lastDate };
+  return { records, platforms, campaigns: spans.campaigns, firstDate, lastDate };
 }
 
 export interface CreativeRecordRow {
