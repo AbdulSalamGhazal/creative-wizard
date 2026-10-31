@@ -21,7 +21,7 @@ import { sql, type SQL } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { launchFatigue } from "@/db/queries/performance";
 import { performanceRecords } from "@/db/schema";
-import { CAMPAIGN_1, CREATIVE_1, resetAndSeed } from "./fixtures";
+import { CAMPAIGN_1, CREATIVE_1, CREATIVE_2, resetAndSeed } from "./fixtures";
 
 beforeAll(async () => {
   await resetAndSeed();
@@ -47,6 +47,18 @@ describe("launchFatigue", () => {
     const text = JSON.stringify(plan[0]!["QUERY PLAN"]);
     expect(text).toContain('"Node Type":"CTE Scan"');
     expect(text).toContain('"CTE Name":"eff"');
+    // …and the derivation is ONE grouped scan, not a correlated MIN(date) per
+    // creative (2026-11: 57,309 → 3,496 buffers on the 54k-row synthetic
+    // brand, and the old cost estimate tripped Postgres's JIT).
+    expect(text).not.toContain('"Parent Relationship":"SubPlan"');
+  });
+
+  it("derives no launch from excluded rows alone — with or without the toggle", async () => {
+    // CREATIVE_2's only record is excluded, and it has no launch date.
+    for (const includeExcluded of [false, true]) {
+      const rows = await launchFatigue({ includeExcluded });
+      expect(rows.find((r) => r.creativeId === CREATIVE_2)).toBeUndefined();
+    }
   });
 
   it("leaves google out of the windows — Launches is a PLATFORMS_WITH_CREATIVES surface (2026-10-31)", async () => {

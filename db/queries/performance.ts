@@ -2041,16 +2041,26 @@ export async function launchFatigue(
   // row — 19,847 buffer hits and 25 ms on 547 local rows, roughly quadratic in
   // a brand's history. Materialized it runs once per creative: 139 buffers,
   // 0.6 ms, the same rows.
+  // The derived launch day (a creative's first non-excluded record) is ONE
+  // grouped scan, not a correlated MIN per creative (2026-11): the subquery
+  // re-read each creative's every heap row through a bitmap scan (150
+  // creatives × ~360 rows on the 54k-row synthetic brand: 57,309 buffers), and
+  // its cost estimate (116k) crossed Postgres's JIT threshold, adding 35–200 ms
+  // of compilation. Grouped: 3,496 buffers, 123–150 ms → ~50 ms, the same rows
+  // byte for byte.
   const rows = (await db.execute(sql`
     WITH eff AS MATERIALIZED (
       SELECT c.id, c.name, c.type, p.name AS product_name,
              (c.launch_date IS NULL) AS derived,
-             COALESCE(c.launch_date, (
-               SELECT MIN(pr0.date) FROM performance_records pr0
-               WHERE pr0.creative_id = c.id AND pr0.excluded_from_aggregates = false
-             )) AS eff_launch
+             COALESCE(c.launch_date, fd.first_day) AS eff_launch
       FROM creatives c
       JOIN products p ON p.id = c.product_id
+      LEFT JOIN (
+        SELECT pr0.creative_id, MIN(pr0.date) AS first_day
+          FROM performance_records pr0
+         WHERE pr0.account_id = ${acct} AND pr0.excluded_from_aggregates = false
+         GROUP BY pr0.creative_id
+      ) fd ON fd.creative_id = c.id
       WHERE c.account_id = ${acct}${creativeWhere}
     )
     SELECT eff.id, eff.name, eff.type, eff.product_name, eff.derived,
