@@ -396,10 +396,14 @@ export function AuditFeed({ rows, compact = false, filtered = false }: Props) {
         return (
           <li
             key={row.id}
-            className="flex items-start gap-3 px-3 py-2.5 rounded-md border border-line bg-surface hover:bg-surface-2/50 transition-colors"
+            className="@container flex flex-wrap items-start gap-x-3 gap-y-2 px-3 py-2.5 rounded-md border border-line bg-surface hover:bg-surface-2/50 transition-colors"
           >
             {actorBlock}
-            <div className="flex-1 min-w-0">
+            {/* A NARROW row (a phone, a docked comment panel) drops the action
+                line under the actor and the time: three columns left it 98px,
+                and a one-line chip like "Updated store source mapping" (180px)
+                ran over the timestamp and out of the card. */}
+            <div className="flex-1 min-w-0 @max-[28rem]:order-last @max-[28rem]:basis-full">
               <div className="flex items-center flex-wrap gap-2">
                 <span
                   // One line, always: in a phone's narrow column the chip
@@ -428,7 +432,7 @@ export function AuditFeed({ rows, compact = false, filtered = false }: Props) {
               )}
             </div>
             <time
-              className="text-[11px] text-ink-3 num shrink-0 tabular-nums"
+              className="ml-auto text-[11px] text-ink-3 num shrink-0 tabular-nums"
               dateTime={row.at.toISOString()}
               title={row.at.toISOString()}
             >
