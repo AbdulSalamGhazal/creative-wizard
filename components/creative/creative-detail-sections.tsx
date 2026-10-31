@@ -173,11 +173,12 @@ export async function CreativeRecordsActivity({
       <div>
         <div className="flex items-baseline justify-between mb-3">
           <h2 className="text-sm font-medium text-ink">Activity</h2>
-          <span className="text-[11px] text-ink-3">
-            {activity.length === 0
-              ? "No activity recorded yet."
-              : `Last ${activity.length} event${activity.length === 1 ? "" : "s"} for this creative.`}
-          </span>
+          {/* Empty says so ONCE — the feed's own EmptyState below. */}
+          {activity.length > 0 && (
+            <span className="text-[11px] text-ink-3">
+              {`Last ${activity.length} event${activity.length === 1 ? "" : "s"} for this creative.`}
+            </span>
+          )}
         </div>
         <AuditFeed rows={activity} />
       </div>
