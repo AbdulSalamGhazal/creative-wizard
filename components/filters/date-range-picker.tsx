@@ -14,6 +14,7 @@ import {
   activePresetKey,
   DATE_PRESETS,
   encodePreferredRange,
+  explicitRange,
   isoToLocalDate,
   localDateToIso,
   presetLabel,
@@ -60,7 +61,7 @@ export function DateRangePicker({
   /**
    * Range to show as the label / calendar seed when no explicit range is set —
    * the user's saved default, resolved server-side and passed in. Highlight
-   * stays driven by the raw `from`/`to`.
+   * stays driven by `from`/`to` — when they form a valid range.
    */
   fallback?: DateRangeValue;
   /** Full-width stacked trigger for the mobile filter Sheet. */
@@ -90,16 +91,22 @@ export function DateRangePicker({
     if (!remember || !value) return;
     rememberRange(value);
   };
+  // The URL's range counts only if the SERVER would take it — the same
+  // `explicitRange` rule (both ends real dates, in order). `?from=2026-02-30`
+  // renders the fallback range, so the pill must say the fallback too, not
+  // echo the text the page refused (filters.md: hand the RESOLVED values back).
+  const explicit = useMemo(() => explicitRange(from, to), [from, to]);
+
   // A bare URL shows the saved default. If Back/Forward restored this page
   // from the router cache after this tab picked a newer one, re-read it once.
-  useRangeCatchUp(remember && !from && !to ? fallback : undefined);
+  useRangeCatchUp(remember && !explicit ? fallback : undefined);
 
   // The effective range: the explicit one, else the passed-in fallback (the
   // saved default), else last 7 days. Drives the label, highlighted preset,
   // and calendar seed.
   const eff = useMemo(
-    () => (from && to ? { from, to } : (fallback ?? resolveDefaultRange(null, null))),
-    [from, to, fallback],
+    () => explicit ?? fallback ?? resolveDefaultRange(null, null),
+    [explicit, fallback],
   );
   // Registered only when the page TOLD us its range — never the client-side
   // last-7-days guess, which may not be what the server ran.
@@ -161,7 +168,7 @@ export function DateRangePicker({
           type="button"
           className={cn(
             "inline-flex items-center gap-2 h-8 px-3 rounded-md border text-xs transition-colors",
-            from || to
+            explicit
               ? "border-brand/50 text-ink bg-[var(--brand-soft)]"
               : "border-line text-ink-2 bg-surface hover:bg-surface-2 hover:text-ink",
             fullWidth && "w-full justify-between",

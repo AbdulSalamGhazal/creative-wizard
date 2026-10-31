@@ -49,7 +49,9 @@
   (`explicitRange`, lib/date-presets, 2026-10-31); anything else falls back to
   the saved range. The shape alone let `?from=2026-02-30` reach Postgres and
   error the page. Store's date schemas DROP a bad date (`.date().catch`),
-  never throw.
+  never throw. **The date picker applies the SAME rule** to the `from`/`to` it
+  is handed (2026-11-01): a refused URL range shows the fallback on the pill
+  and isn't highlighted, instead of echoing the text the page ignored.
 - Precedence per key: **URL → preference → page default**, with two central
   suppressions — `sv` (a saved view owns its state, including what it omits)
   and `fx` (this URL states its filters in full).
