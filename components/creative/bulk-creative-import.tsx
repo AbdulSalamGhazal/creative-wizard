@@ -54,6 +54,8 @@ export function BulkCreativeImport({ products }: Props) {
     if (!file || !preview?.allValid) return;
     const fd = new FormData();
     fd.append("file", file);
+    // Pinned to the brand the preview ran under — the server refuses a moved one.
+    if (preview.brand) fd.append("brand", preview.brand);
     startTransition(async () => {
       const res = await safeAction(() => commitBulkCreatives(fd));
       if (!res.ok) {

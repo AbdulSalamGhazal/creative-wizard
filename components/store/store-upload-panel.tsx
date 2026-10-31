@@ -83,7 +83,10 @@ export function StoreUploadPanel({
     if (stage.s !== "valid" || !file) return;
     const report = stage.report;
     setStage({ s: "committing", report });
-    const res = await safeAction(() => commitStoreUpload(formData()));
+    // Pinned to the brand the preview ran under — the server refuses a moved one.
+    const fd = formData();
+    fd.set("brand", report.brand);
+    const res = await safeAction(() => commitStoreUpload(fd));
     if (!res.ok) {
       toastActionFailure(res, "Commit failed");
       setStage({ s: "valid", report });

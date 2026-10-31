@@ -23,6 +23,23 @@ export interface ActionFailure {
 
 export const STALE_DEPLOYMENT_MESSAGE = "Wizard was updated — reload.";
 
+/**
+ * The brand a preview ran under is no longer the active one — another tab
+ * switched it. The commit would write into the OTHER brand, so it refuses
+ * (2026-11-01); only a reload shows this tab which brand it is in.
+ */
+export const BRAND_CHANGED_MESSAGE = "The brand changed in another tab — reload.";
+
+/**
+ * A commit's brand pin, checked against the active brand: null to go ahead,
+ * else the stale-tab failure (`stale` → the Reload toast). `pinned` is what
+ * the preview handed the client; absent means the caller pinned nothing.
+ */
+export function brandChanged(pinned: unknown, active: string): ActionFailure | null {
+  if (pinned === undefined || pinned === null || pinned === active) return null;
+  return { ok: false, error: BRAND_CHANGED_MESSAGE, stale: true };
+}
+
 export const OFFLINE_MESSAGE = "Can't reach the server.";
 
 /** Mirrors lib/action-error's GENERIC_ACTION_ERROR — one voice for "it broke". */

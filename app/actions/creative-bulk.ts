@@ -12,6 +12,7 @@ import {
 import { parseFile } from "@/csv/parse";
 import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
 import { getActiveAccountId } from "@/lib/tenant";
+import { brandChanged } from "@/lib/action-failure";
 import { addToVocabulary } from "@/db/queries/angles";
 import { actionError } from "@/lib/action-error";
 import {
@@ -59,12 +60,16 @@ export interface BulkPreview {
   validCount: number;
   errorCount: number;
   allValid: boolean;
+  /** The brand this preview ran under — the commit is pinned to it. */
+  brand?: string;
 }
 
 export interface BulkCommitResult {
   ok: boolean;
   created?: number;
   error?: string;
+  /** The tab is out of step (its brand moved) — only a reload fixes it. */
+  stale?: boolean;
 }
 
 // Header synonyms (lowercased) → internal field.
@@ -336,8 +341,9 @@ async function build(formData: FormData): Promise<BuildResult> {
 export async function previewBulkCreatives(formData: FormData): Promise<BulkPreview> {
   try {
     await requirePermission("creative.create");
+    const acct = await getActiveAccountId();
     const { preview } = await build(formData);
-    return preview;
+    return { ...preview, brand: acct };
   } catch (err) {
     return {
       ok: false,
@@ -362,6 +368,11 @@ export async function commitBulkCreatives(
 ): Promise<BulkCommitResult> {
   try {
     const user = await requirePermission("creative.create");
+    const acct = await getActiveAccountId();
+    // Pinned at preview: a brand switched in another tab would create these
+    // creatives in the OTHER brand, products matched by name (2026-11-01).
+    const moved = brandChanged(formData.get("brand"), acct);
+    if (moved) return moved;
     const { preview, normalized } = await build(formData);
 
     if (!preview.ok) return { ok: false, error: preview.error ?? "Couldn't parse the file." };
@@ -370,7 +381,6 @@ export async function commitBulkCreatives(
     }
     if (normalized.length === 0) return { ok: false, error: "Nothing to create." };
 
-    const acct = await getActiveAccountId();
     await db.transaction(async (tx) => {
       for (const r of normalized) {
         const [inserted] = await tx

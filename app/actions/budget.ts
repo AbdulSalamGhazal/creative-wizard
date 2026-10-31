@@ -7,6 +7,7 @@ import { db } from "@/lib/db";
 import { accounts } from "@/db/schema";
 import { requireAuth, requirePermission } from "@/lib/auth";
 import { getActiveAccountId } from "@/lib/tenant";
+import { brandChanged } from "@/lib/action-failure";
 import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
 import {
   daysInMonth,
@@ -50,6 +51,8 @@ export interface BudgetActionResult {
   ok: boolean;
   error?: string;
   copied?: number;
+  /** The tab is out of step (its brand moved) — only a reload fixes it. */
+  stale?: boolean;
 }
 
 export async function saveBudgetMonth(input: unknown): Promise<BudgetActionResult> {
@@ -76,6 +79,10 @@ export async function saveBudgetMonth(input: unknown): Promise<BudgetActionResul
     if (problem) return { ok: false, error: problem };
 
     const acct = await getActiveAccountId();
+    // Pinned to the brand the page rendered under: a brand switched in
+    // another tab would save this plan into the OTHER brand (2026-11-01).
+    const moved = brandChanged(parsed.data.brand, acct);
+    if (moved) return moved;
 
     // DELETE: refuse a month with nothing to delete, and make sure the plan
     // being removed is IN Revisions — the confirm dialog promises that. Every

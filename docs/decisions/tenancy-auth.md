@@ -67,6 +67,13 @@
   the same way. The address is `clientIp()` (first `x-forwarded-for` hop,
   else `x-real-ip`) stored as `meta.ip`; with NO address the count is the
   email across every address — never relax that fallback into a fresh key.
+- **A preview-then-commit write is pinned to the PREVIEW's brand (2026-11-01).**
+  The ads commit pins it in its validation session; the Store upload, the bulk
+  creative import and the Budget plan save resolve the cookie at commit, so
+  their preview (or the page render) hands the client its brand and the
+  commit refuses a moved one through `brandChanged` (lib/action-failure.ts —
+  the stale-tab failure, so the toast offers Reload). Without it, preview in
+  brand A + a switch in another tab + Confirm wrote into brand B.
 - **The last admin is counted and demoted in ONE transaction (2026-10-31).**
   `updateUserAccess` holds the admin rows `FOR UPDATE` while it counts them,
   so two admins demoting each other at once can't both see two admins and

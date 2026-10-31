@@ -95,11 +95,14 @@ export function downloadPlanSheet(month: string, data: BudgetMonthData): void {
  */
 export function BudgetPlanUpload({
   month,
+  brand,
   data,
   open,
   onOpenChange,
 }: {
   month: string;
+  /** The brand the page rendered under — the save is pinned to it. */
+  brand: string;
   data: BudgetMonthData;
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -220,6 +223,7 @@ export function BudgetPlanUpload({
     try {
       const res = await safeAction(() => saveBudgetMonth({
         month,
+        brand,
         mode: "daily",
         source: "upload",
         days: staged.plan.days,

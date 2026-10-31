@@ -1,4 +1,5 @@
 import { auth, can } from "@/lib/auth";
+import { getActiveAccountId } from "@/lib/tenant";
 import { PageShell } from "@/components/layout/page-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { todayIso } from "@/lib/date-presets";
@@ -36,6 +37,7 @@ export default async function BudgetPlanPage({
 
   const user = await auth();
   const canManage = user ? can(user, "budget.manage") : false;
+  const brand = await getActiveAccountId();
   const [data, months, revisions, dailyMonths] = await Promise.all([
     getBudgetMonth(month),
     plannedMonths(),
@@ -69,6 +71,7 @@ export default async function BudgetPlanPage({
         seedMonth={seedMonth}
         revisions={revisions}
         canManage={canManage}
+        brand={brand}
       />
     </PageShell>
   );

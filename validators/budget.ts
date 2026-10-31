@@ -141,7 +141,12 @@ export const planSourceSchema = z.enum(["editor", "upload", "delete"]).default("
  * writes daily ones — so neither door can quietly open the other's mode.
  */
 export const savePlanSchema = planSchema.and(
-  z.object({ note: planNoteSchema, source: planSourceSchema }),
+  z.object({
+    note: planNoteSchema,
+    source: planSourceSchema,
+    /** The brand the page rendered under; the save refuses a moved one. */
+    brand: z.string().optional(),
+  }),
 ).superRefine((plan, ctx) => {
   if (plan.source === "delete") {
     // A delete carries NOTHING: the writer's empty full-replace is the whole

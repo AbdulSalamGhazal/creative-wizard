@@ -178,6 +178,7 @@ export function BudgetPlanEditor({
   seedMonth,
   revisions,
   canManage,
+  brand,
 }: {
   month: string; // YYYY-MM
   today: string; // ISO date
@@ -194,6 +195,8 @@ export function BudgetPlanEditor({
   seedMonth: string | null;
   revisions: PlanRevisionSummary[];
   canManage: boolean;
+  /** The brand this page rendered under — every save is pinned to it. */
+  brand: string;
 }) {
   const [isPending, setIsPending] = useState(false);
 
@@ -594,6 +597,7 @@ export function BudgetPlanEditor({
       const rev = draft.revenue.trim();
       const res = await safeAction(() => saveBudgetMonth({
         month,
+        brand,
         allocations,
         plannedRevenueSar: rev === "" ? null : Number(rev),
         reserveSpendUsd: reserve,
@@ -656,6 +660,7 @@ export function BudgetPlanEditor({
       const res = await safeAction(() =>
         saveBudgetMonth({
           month,
+          brand,
           mode: "curve",
           source: "delete",
           allocations: [],
@@ -1511,6 +1516,7 @@ export function BudgetPlanEditor({
         <BudgetPlanUpload
           key={uploadKey}
           month={month}
+          brand={brand}
           data={data}
           open={uploadOpen}
           onOpenChange={setUploadOpen}

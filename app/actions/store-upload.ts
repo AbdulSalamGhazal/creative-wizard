@@ -7,6 +7,7 @@ import { db } from "@/lib/db";
 import { storeOrders, storeUploadBatches } from "@/db/schema";
 import { can, requirePermission } from "@/lib/auth";
 import { getActiveAccountId } from "@/lib/tenant";
+import { brandChanged } from "@/lib/action-failure";
 import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
 import {
   listStoreFields,
@@ -54,10 +55,12 @@ export type StoreUploadReport =
         blankCounts: Array<{ key: string; label: string; count: number }>;
       };
       warnings: StoreValidationError[];
+      /** The brand this preview ran under — the commit is pinned to it. */
+      brand: string;
     };
 
 export type StoreCommitResult =
-  | { ok: false; error: string; errors?: StoreValidationError[] }
+  | { ok: false; error: string; errors?: StoreValidationError[]; stale?: boolean }
   | { ok: true; rowsInserted: number; rowsUpdated: number; batchId: string };
 
 interface FileInput {
@@ -157,11 +160,13 @@ export async function validateStoreUpload(
     const input = await readFile(formData);
     if (!input) return { ok: false, errors: [], warnings: [] };
     await gate(input.upsert);
+    const acct = await getActiveAccountId();
 
     const res = await validate(input);
     if (!res.ok) return { ok: false, errors: res.errors, warnings: res.warnings };
     return {
       ok: true,
+      brand: acct,
       summary: {
         total: res.rows.length,
         newCount: res.newCount,
@@ -196,6 +201,10 @@ export async function commitStoreUpload(
     if (!input) return { ok: false, error: "No file provided." };
     const me = await gate(input.upsert);
     const acct = await getActiveAccountId();
+    // Pinned at preview: a brand switched in another tab would file these
+    // orders under the OTHER brand (2026-11-01).
+    const moved = brandChanged(formData.get("brand"), acct);
+    if (moved) return moved;
 
     const res = await validate(input);
     if (!res.ok) {

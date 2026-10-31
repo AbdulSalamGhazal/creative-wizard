@@ -1,8 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  BRAND_CHANGED_MESSAGE,
   OFFLINE_MESSAGE,
   STALE_DEPLOYMENT_MESSAGE,
   UNKNOWN_FAILURE_MESSAGE,
+  brandChanged,
   describeActionFailure,
   isNavigationSignal,
   isStaleDeploymentError,
@@ -92,5 +94,22 @@ describe("a redirect or notFound from an action is a navigation, not a failure",
         throw redirect;
       }),
     ).rejects.toBe(redirect);
+  });
+});
+
+describe("brandChanged — a commit refuses a brand that moved since its preview", () => {
+  const A = "00000000-0000-0000-0000-00000000000a";
+  const B = "00000000-0000-0000-0000-00000000000b";
+
+  it("passes when the pinned brand is still the active one, or nothing was pinned", () => {
+    expect(brandChanged(A, A)).toBeNull();
+    expect(brandChanged(undefined, A)).toBeNull();
+    expect(brandChanged(null, A)).toBeNull();
+  });
+
+  it("refuses with the stale-tab failure — the toast offers Reload", () => {
+    expect(brandChanged(A, B)).toEqual({ ok: false, error: BRAND_CHANGED_MESSAGE, stale: true });
+    // A forged or garbled pin is a moved brand too, never a pass.
+    expect(brandChanged("", B)).toEqual({ ok: false, error: BRAND_CHANGED_MESSAGE, stale: true });
   });
 });
