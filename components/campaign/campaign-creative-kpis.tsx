@@ -51,7 +51,7 @@ export function CampaignCreativeKpis({
       .map((c) => ({
         key: c.creativeId,
         label: c.name,
-        color: colorOf.get(c.creativeId) ?? "#888",
+        color: colorOf.get(c.creativeId) ?? "var(--ink-3)",
         fraction: total > 0 ? pick(c) / total : 0,
         display: fmt(pick(c)),
       }));
@@ -70,7 +70,7 @@ export function CampaignCreativeKpis({
       .map(({ c, v }) => ({
         key: c.creativeId,
         label: c.name,
-        color: colorOf.get(c.creativeId) ?? "#888",
+        color: colorOf.get(c.creativeId) ?? "var(--ink-3)",
         fraction: max > 0 ? v / max : 0,
         display: fmt(v),
       }));

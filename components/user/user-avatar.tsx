@@ -56,7 +56,10 @@ export function UserAvatar({
     <span
       aria-hidden
       className={cn(
-        "relative inline-flex shrink-0 select-none items-center justify-center overflow-hidden rounded-full font-semibold leading-none text-[var(--primary-foreground)]",
+        // Ink follows the fill's lightness: the series fills are 400-level
+        // (light) on the dark themes, where white initials read at 1.5–3:1,
+        // and 600-level (dark) on Frost/Paper, where white reads.
+        "relative inline-flex shrink-0 select-none items-center justify-center overflow-hidden rounded-full font-semibold leading-none text-white dark:text-background",
         SIZE[size],
         className,
       )}

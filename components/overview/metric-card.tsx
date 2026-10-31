@@ -111,13 +111,16 @@ export function MetricCard({
                 className="h-2 w-2 rounded-full shrink-0"
                 style={{ background: b.color }}
               />
+              {/* A narrow tile (five abreast at lg, two on a phone) can't
+                  hold label + bar + value: the bar goes and the label
+                  truncates, so the value stays inside the tile. */}
               <span
-                className="truncate text-ink-3 w-[4.5rem] shrink-0"
+                className="truncate text-ink-3 w-[4.5rem] min-w-0"
                 title={b.label}
               >
                 {b.label}
               </span>
-              <span className="h-1.5 flex-1 rounded-full bg-surface-2 overflow-hidden">
+              <span className="h-1.5 flex-1 rounded-full bg-surface-2 overflow-hidden @max-[9rem]:hidden">
                 <span
                   className="block h-full rounded-full"
                   style={{
@@ -126,7 +129,7 @@ export function MetricCard({
                   }}
                 />
               </span>
-              <span className="num text-ink-2 shrink-0 tabular-nums">
+              <span className="num text-ink-2 shrink-0 tabular-nums ml-auto">
                 {b.display}
               </span>
             </li>
