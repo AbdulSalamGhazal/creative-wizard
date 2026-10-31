@@ -172,6 +172,36 @@ describe("CSV pipeline — Stage 3 (row content)", () => {
     }
   });
 
+  it("reads a month-first file month-first on EVERY row, not just the unambiguous ones", async () => {
+    // A US-locale export: 05/28 only parses month-first, so 05/03 is May 3 —
+    // read per row it was 5 March, silently, beside a correct May 28.
+    const res = await run(
+      `${META_HEADER}\n${row({ date: "05/28/2026" })}\n${row({
+        name: "URJ_VID_002",
+        date: "05/03/2026",
+      })}\n${row({ name: "URJ_IMG_010", date: "5/1/2026" })}\n`,
+    );
+    expect(res.ok).toBe(true);
+    if (res.ok) {
+      expect(res.rows.map((r) => r.date)).toEqual([
+        "2026-05-28",
+        "2026-05-03",
+        "2026-05-01",
+      ]);
+    }
+  });
+
+  it("keeps day-first for a file whose dates never settle the order", async () => {
+    const res = await run(
+      `${META_HEADER}\n${row({ date: "03/05/2026" })}\n${row({
+        name: "URJ_VID_002",
+        date: "04/05/2026",
+      })}\n`,
+    );
+    expect(res.ok).toBe(true);
+    if (res.ok) expect(res.rows.map((r) => r.date)).toEqual(["2026-05-03", "2026-05-04"]);
+  });
+
   it("accepts dash and dot separators", async () => {
     const res = await run(
       `${META_HEADER}\n${row({ date: "28-05-2026" })}\n${row({

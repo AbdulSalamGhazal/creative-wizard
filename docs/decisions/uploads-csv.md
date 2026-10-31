@@ -24,6 +24,16 @@
 - Matching is **trim-then-exact** (case-sensitive, no NFC); blank/`-`/`N/A`
   numeric cells read as **0**; E042 is for blank IDENTITY fields only, and a
   missing required column is E010. This is a decision, not a bug.
+- **A number is read or refused, never guessed (2026-10-31).** `parseNumber`
+  (`csv/numeric.ts`, shared by the ads pipeline and the Budget plan sheet)
+  takes a comma only as a thousands separator and refuses a magnitude
+  suffix: `12,50`, `1.234,56` and `5K` are E040 (they read as 1250, 1.23456
+  and 5). The Store parser has held the same line since D6.
+- **A file has ONE day/month order (2026-10-31).** An ambiguous `05/03/2026`
+  reads day-first (the adapter's order), but a file in which some date only
+  reads month-first (`05/28/2026`) and none only day-first is read month-first
+  on EVERY row (`fileDateFormats` in `csv/pipeline.ts`). Never resolve the
+  order per row: a US-locale export then mixed both readings in one file.
 - **CSV or XLSX through ONE conversion layer** — nothing downstream may branch
   on the format. SheetJS is the reader; never add a second one.
 - **ONE upload limit: 4 MB, on every surface (D5, 2026-10-23)** —
@@ -241,3 +251,11 @@ as it stood before the restructure.*
     SHARE` inside its transaction and refuses (422) if a code changed — the
     two locks conflict, so they can't interleave.
 
+### One day/month order per file (2026-10-31)
+
+`parseDate` tried `DD/MM/YYYY` then `MM/DD/YYYY` on each row by itself, so a
+CSV re-saved from a US-locale Excel (`10/5/2026` … `10/13/2026`) read its
+1st–12th as day-first (10 May) and its 13th–31st as month-first (13 Oct) —
+silently, unless a misread day happened to land in the future (E031). The
+order is now decided once per file from the cells that settle it; a file whose
+dates never settle it keeps day-first, as before.

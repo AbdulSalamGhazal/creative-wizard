@@ -259,6 +259,13 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
   const asCountOrNull = (field: InternalField, value: number | null): number | null =>
     value === null ? null : asCount(field, value);
 
+  // The file's day/month order, decided ONCE from every date cell.
+  const dateIdx = fieldIndex.date;
+  const dateFormats = fileDateFormats(
+    dateIdx === undefined ? [] : parsed.rows.map((r) => (r[dateIdx] ?? "").trim()),
+    adapter.acceptedDateFormats,
+  );
+
   for (let i = 0; i < parsed.rows.length; i++) {
     const csvRow = parsed.rows[i]!;
     const rowNumber = parsed.rowNumbers[i]!;
@@ -371,7 +378,7 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
         field: "date",
       });
     } else {
-      canonicalDate = parseDate(rawDate, adapter.acceptedDateFormats);
+      canonicalDate = parseDate(rawDate, dateFormats);
       if (canonicalDate === null) {
         errorsForRow.push({
           code: "E030",
@@ -662,19 +669,53 @@ const MONTHS: Record<string, number> = {
   jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12,
 };
 
+const SLASH_DATE = /^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})$/;
+
+/**
+ * A file is exported in ONE day/month order. `05/03/2026` alone can't say
+ * which, so the adapter's first-listed order (day-first) decides — but a file
+ * that also holds `05/28/2026`, which only reads month-first, IS month-first,
+ * and every row in it is read that way. Resolved per row, a US-locale export
+ * read its 1st–12th day-first and its 13th–31st month-first: `10/05/2026` →
+ * 10 May beside `10/13/2026` → 13 Oct, silently. Evidence both ways (a file
+ * no export produces) keeps the adapter's order, each row taking the only
+ * reading it has.
+ */
+function fileDateFormats(rawDates: string[], formats: DateFormat[]): DateFormat[] {
+  const dmy = formats.indexOf("DD/MM/YYYY");
+  const mdy = formats.indexOf("MM/DD/YYYY");
+  if (dmy === -1 || mdy === -1) return formats;
+  let dayFirst = false;
+  let monthFirst = false;
+  for (const raw of rawDates) {
+    const m = raw.match(SLASH_DATE);
+    if (!m) continue;
+    const a = +m[1]!;
+    const b = +m[2]!;
+    if (a > 12 && b <= 12) dayFirst = true;
+    else if (b > 12 && a <= 12) monthFirst = true;
+  }
+  const preferred: DateFormat | null =
+    monthFirst && !dayFirst ? "MM/DD/YYYY" : dayFirst && !monthFirst ? "DD/MM/YYYY" : null;
+  if (preferred === null) return formats;
+  const other: DateFormat = preferred === "MM/DD/YYYY" ? "DD/MM/YYYY" : "MM/DD/YYYY";
+  return formats.filter((f) => f !== other).flatMap((f) => (f === preferred ? [f, other] : [f]));
+}
+
 /**
  * Try the accepted formats in order; return canonical YYYY-MM-DD or null.
  *
  * Slash / dash / dot are all accepted as separators for MM/DD/YYYY and
  * DD/MM/YYYY (e.g. `28/05/2026`, `28-05-2026`, `28.05.2026` all work).
- * Ambiguous inputs (`05/04/2026`) resolve to whichever format the adapter
- * lists first. Inputs where one position exceeds 12 (e.g. `28/05/2026`)
- * are unambiguous regardless of order — the wrong interpretation simply
- * fails the calendar-validity check and the next format is tried.
+ * Ambiguous inputs (`05/04/2026`) resolve to whichever format comes first —
+ * the adapter's order, or the file's own (`fileDateFormats`). Inputs where
+ * one position exceeds 12 (e.g. `28/05/2026`) are unambiguous regardless of
+ * order — the wrong interpretation simply fails the calendar-validity check
+ * and the next format is tried.
  */
 function parseDate(raw: string, formats: DateFormat[]): string | null {
   const s = raw.trim();
-  const slashOrDashOrDot = /^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})$/;
+  const slashOrDashOrDot = SLASH_DATE;
   for (const fmt of formats) {
     let m: RegExpMatchArray | null = null;
     let y: number | undefined;

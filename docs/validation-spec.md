@@ -188,15 +188,16 @@ Applies to: `spend`, `impressions`, `clicks`, `conversions`, `conversion_value`,
 - Must parse as a number.
 - Comma thousand separators are accepted: `"1,234.56"` parses as `1234.56`.
 - Currency symbols and trailing unit strings are stripped: `"$1,234"`, `"1234 USD"` parse to `1234`.
-- Decimal point only as the decimal separator (no European comma-as-decimal in v1; flagged as future work if any platform exports that way).
+- Decimal point only as the decimal separator (no European comma-as-decimal in v1; flagged as future work if any platform exports that way). A cell that would need a guess is **E040, never read**: a comma that isn't a thousands separator (`12,50`, `1.234,56`) or a magnitude suffix (`5K`, `1.2M`) — until 2026-10-31 these read as 1250, 1.23456 and 5.
 - **Negative values are rejected** (E041). Refunds, adjustments, and credits are out of scope for v1.
 - Empty values and the empty markers `"-"`, `"—"`, `"N/A"`, `"null"` (case-insensitive, trimmed) are treated as `0` in **every** numeric column — optional *and* required. A day with no conversions is a real, valid row, so a blank numeric cell never fails a row. A **required** numeric field is only enforced at the header stage: if its COLUMN is absent from the mapping the file is rejected with **E010** (`Required column missing`, §3.2) — never per-cell E042.
-- `impressions` and `clicks` are stored as integers; decimal values are accepted and floored (some platforms export `1234.0`).
+- `impressions` and `clicks` are stored as integers; decimal values are accepted and rounded to the nearest whole number with W004 (some platforms export `1234.0`, which changes nothing and says nothing) — the same rule as every count column, see §6.
 
 ### 5.2 Date field
 
 - Must parse to a valid calendar date.
 - ISO 8601 (`YYYY-MM-DD`) is canonical; per-platform accepted formats are documented in §9.
+- A file has ONE day/month order. `05/03/2026` alone is ambiguous and reads day-first (the adapters list `DD/MM/YYYY` first); but when any date in the file only reads month-first (`05/28/2026`) and none only reads day-first, the whole file is read month-first. (Resolved per row, a US-locale export silently read its 1st–12th as day-first and its 13th–31st as month-first.)
 - Dates more than 24 hours in the future are rejected (E031).
 - No lower bound — historical backfill is explicitly supported per the PRD.
 
