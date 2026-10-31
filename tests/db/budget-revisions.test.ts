@@ -643,4 +643,14 @@ describe("plannedMonths()", () => {
     setAccount(ACCOUNT_B);
     expect(await plannedMonths()).toEqual([]);
   });
+
+  it("is ONE round trip — the two month lists are a UNION (2026-11)", async () => {
+    await saveBudgetMonth(PLAN_A);
+    // Count what reaches postgres.js, not query-builder calls (a UNION is
+    // built from two `db.select`s but sent as one statement).
+    const spy = vi.spyOn(db.$client, "unsafe");
+    expect(await plannedMonths()).toEqual(["2026-01"]);
+    expect(spy).toHaveBeenCalledTimes(1);
+    spy.mockRestore();
+  });
 });

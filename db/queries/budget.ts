@@ -1,4 +1,5 @@
 import { and, asc, desc, eq, gte, inArray, lt, lte, sql } from "drizzle-orm";
+import { union } from "drizzle-orm/pg-core";
 import { db } from "@/lib/db";
 import {
   accounts,
@@ -714,25 +715,24 @@ export async function budgetPlansForMonths(months: string[]): Promise<MonthPlanR
 
 /**
  * Every month the brand has ever planned — allocations OR a target row (a
- * month can carry only a reserve or a revenue target). Newest first; two cheap
- * month-grain GROUP BYs merged in JS.
+ * month can carry only a reserve or a revenue target). Newest first; ONE
+ * month-grain UNION (2026-11 — it was two GROUP BYs, two round trips on the
+ * `max: 1` connection), keyed by month in JS as before.
  */
 export async function plannedMonths(): Promise<string[]> {
   const acct = await getActiveAccountId();
-  const [allocMonths, targetMonths] = await Promise.all([
+  const rows = await union(
     db
       .select({ month: budgetAllocations.month })
       .from(budgetAllocations)
-      .where(eq(budgetAllocations.accountId, acct))
-      .groupBy(budgetAllocations.month),
+      .where(eq(budgetAllocations.accountId, acct)),
     db
       .select({ month: budgetTargets.month })
       .from(budgetTargets)
-      .where(eq(budgetTargets.accountId, acct))
-      .groupBy(budgetTargets.month),
-  ]);
+      .where(eq(budgetTargets.accountId, acct)),
+  );
   const keys = new Set<string>();
-  for (const r of [...allocMonths, ...targetMonths]) keys.add(r.month.slice(0, 7));
+  for (const r of rows) keys.add(r.month.slice(0, 7));
   return [...keys].sort((a, b) => (a < b ? 1 : -1));
 }
 
