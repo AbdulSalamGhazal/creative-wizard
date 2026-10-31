@@ -45,6 +45,11 @@
   (`resolvePreferredRange`, `resolveFilterPrefs`): pass RAW search params, never
   validator output, and hand the resolved values BACK to the bar — a filter the
   query ran and the chips don't show is the same lie as a label that lies.
+- **A URL range counts only when both ends are REAL dates in order**
+  (`explicitRange`, lib/date-presets, 2026-10-31); anything else falls back to
+  the saved range. The shape alone let `?from=2026-02-30` reach Postgres and
+  error the page. Store's date schemas DROP a bad date (`.date().catch`),
+  never throw.
 - Precedence per key: **URL → preference → page default**, with two central
   suppressions — `sv` (a saved view owns its state, including what it omits)
   and `fx` (this URL states its filters in full).

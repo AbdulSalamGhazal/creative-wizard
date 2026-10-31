@@ -23,6 +23,7 @@ import {
 } from "@/lib/notifications";
 import {
   decodePreferredRange,
+  explicitRange,
   todayIso,
   type DateRangeValue,
 } from "@/lib/date-presets";
@@ -39,11 +40,9 @@ export const getPreferredRange = cache(
   },
 );
 
-const ISO = /^\d{4}-\d{2}-\d{2}$/;
-
 /**
  * Effective range for a page: the explicit URL range when both ends are present
- * AND valid ISO dates, otherwise the user's remembered range, otherwise the
+ * AND real dates in order (`explicitRange`), otherwise the user's remembered range, otherwise the
  * page's own `fallback` (so a first-time user keeps the existing default).
  *
  * IMPORTANT: pass the RAW search params (e.g. `pickFirst(params.from)`), NOT a
@@ -58,10 +57,7 @@ export async function resolvePreferredRange(
   to: string | null | undefined,
   fallback: DateRangeValue,
 ): Promise<DateRangeValue> {
-  if (from && to && ISO.test(from) && ISO.test(to) && from <= to) {
-    return { from, to };
-  }
-  return (await getPreferredRange()) ?? fallback;
+  return explicitRange(from, to) ?? (await getPreferredRange()) ?? fallback;
 }
 
 /**

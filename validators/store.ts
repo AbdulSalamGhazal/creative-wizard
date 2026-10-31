@@ -5,12 +5,14 @@ import { CORE_KEYS } from "@/store/fields";
 import { CHANNEL_DESTINATIONS, UNMAPPED_CHANNEL } from "@/store/channels";
 import { UNATTRIBUTED } from "@/store/sources";
 
-const ISO = /^\d{4}-\d{2}-\d{2}$/;
-
-/** URL filters for the Store orders table — date range + order-id search ONLY. */
+/**
+ * URL filters for the Store orders table — date range + order-id search ONLY.
+ * A malformed or impossible date is DROPPED (the saved range then applies),
+ * never a thrown parse: `?from=abc` used to error the whole page (2026-10-31).
+ */
 export const storeOrdersFiltersSchema = z.object({
-  from: z.string().regex(ISO).optional(),
-  to: z.string().regex(ISO).optional(),
+  from: z.string().date().optional().catch(undefined),
+  to: z.string().date().optional().catch(undefined),
   q: z
     .string()
     .optional()
@@ -28,8 +30,9 @@ export const storeOrdersFiltersSchema = z.object({
  */
 export const storeCleanupFiltersSchema = z
   .object({
-    from: z.string().regex(ISO).optional(),
-    to: z.string().regex(ISO).optional(),
+    // Real dates, not just the shape — `2026-02-30` reached Postgres (22008).
+    from: z.string().date().optional(),
+    to: z.string().date().optional(),
     batchId: z.string().uuid().optional(),
     orderIds: z.array(z.string().trim().min(1)).default([]),
   })
@@ -72,8 +75,8 @@ export const storeChannelMappingSchema = z.object({
  * here; the csv helpers keep the two bucket lists tied to their vocabularies.
  */
 export const storeInsightsFiltersSchema = z.object({
-  from: z.string().regex(ISO).optional(),
-  to: z.string().regex(ISO).optional(),
+  from: z.string().date().optional().catch(undefined),
+  to: z.string().date().optional().catch(undefined),
   by: z
     .string()
     .max(64)
@@ -87,8 +90,8 @@ export const storeInsightsFiltersSchema = z.object({
 
 /** URL filters for the Reconciliation page — date range only. */
 export const reconciliationFiltersSchema = z.object({
-  from: z.string().regex(ISO).optional(),
-  to: z.string().regex(ISO).optional(),
+  from: z.string().date().optional().catch(undefined),
+  to: z.string().date().optional().catch(undefined),
 });
 
 /**
@@ -97,6 +100,6 @@ export const reconciliationFiltersSchema = z.object({
  * so the server never parses it.
  */
 export const storeUtmsFiltersSchema = z.object({
-  from: z.string().regex(ISO).optional(),
-  to: z.string().regex(ISO).optional(),
+  from: z.string().date().optional().catch(undefined),
+  to: z.string().date().optional().catch(undefined),
 });

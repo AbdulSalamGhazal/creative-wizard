@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   decodePreferredRange,
+  explicitRange,
   encodePreferredRange,
   LIFETIME_FLOOR,
   shiftIso,
@@ -70,5 +71,27 @@ describe("shiftIso — the one day-arithmetic helper (C-25)", () => {
   });
   it("an unparseable input shifts from today rather than throwing", () => {
     expect(shiftIso("nope", 0)).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+});
+
+describe("explicitRange — a URL range is used only when both ends are REAL dates", () => {
+  // The shape alone let `?from=2026-02-30` reach Postgres (22008) and
+  // `2026-13-01` throw a RangeError in date math: the page errored instead
+  // of falling back to the saved range (2026-10-31).
+  it("accepts real, ordered dates", () => {
+    expect(explicitRange("2026-02-01", "2026-02-28")).toEqual({ from: "2026-02-01", to: "2026-02-28" });
+    expect(explicitRange("2028-02-29", "2028-03-01")).toEqual({ from: "2028-02-29", to: "2028-03-01" });
+  });
+
+  it("refuses impossible dates, half ranges and reversed ranges", () => {
+    expect(explicitRange("2026-02-30", "2026-03-05")).toBeNull();
+    expect(explicitRange("2026-13-01", "2026-12-31")).toBeNull();
+    expect(explicitRange("2026-01-01", null)).toBeNull();
+    expect(explicitRange("2026-03-01", "2026-02-01")).toBeNull();
+    expect(explicitRange("abc", "2026-02-01")).toBeNull();
+  });
+
+  it("guards a stored custom range the same way", () => {
+    expect(decodePreferredRange("custom:2026-02-30..2026-03-05", TODAY)).toBeNull();
   });
 });

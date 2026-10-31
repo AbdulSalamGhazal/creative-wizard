@@ -198,6 +198,27 @@ export function encodePreferredRange(
   return null;
 }
 
+/** A real calendar date — `2026-02-30` has the shape and isn't one. */
+function isRealIsoDate(v: string): boolean {
+  if (!ISO_RE.test(v)) return false;
+  const d = new Date(`${v}T00:00:00Z`);
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === v;
+}
+
+/**
+ * An explicit range from the URL (or a stored custom one), or null unless BOTH
+ * ends are real dates in order. The shape alone let `?from=2026-02-30` reach
+ * Postgres (22008) and `2026-13-01` throw in date math — the page errored
+ * instead of falling back (2026-10-31).
+ */
+export function explicitRange(
+  from: string | null | undefined,
+  to: string | null | undefined,
+): DateRangeValue | null {
+  if (!from || !to || !isRealIsoDate(from) || !isRealIsoDate(to) || from > to) return null;
+  return { from, to };
+}
+
 /**
  * Decode the stored preferred-range string into a concrete range for the given
  * "today". A preset key resolves through DATE_PRESETS (rolling); `custom:a..b`
@@ -210,10 +231,7 @@ export function decodePreferredRange(
   if (!raw) return null;
   if (raw.startsWith("custom:")) {
     const [from, to] = raw.slice("custom:".length).split("..");
-    if (from && to && ISO_RE.test(from) && ISO_RE.test(to) && from <= to) {
-      return { from, to };
-    }
-    return null;
+    return explicitRange(from, to);
   }
   const preset = DATE_PRESETS.find((p) => p.key === raw);
   return preset?.range(today) ?? null;

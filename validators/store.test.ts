@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { storeCleanupFiltersSchema } from "@/validators/store";
+import {
+  reconciliationFiltersSchema,
+  storeCleanupFiltersSchema,
+  storeInsightsFiltersSchema,
+  storeOrdersFiltersSchema,
+  storeUtmsFiltersSchema,
+} from "@/validators/store";
 
 describe("storeCleanupFiltersSchema", () => {
   it("rejects an empty selection (no filter set)", () => {
@@ -32,5 +38,27 @@ describe("storeCleanupFiltersSchema", () => {
     expect(ok.success && ok.data.orderIds).toEqual([]);
     expect(storeCleanupFiltersSchema.safeParse({ from: "01-01-2026", to: "2026-01-31" }).success).toBe(false);
     expect(storeCleanupFiltersSchema.safeParse({ batchId: "not-a-uuid" }).success).toBe(false);
+  });
+});
+
+describe("real dates only (2026-10-31)", () => {
+  it("the orders page DROPS a malformed or impossible date instead of throwing", () => {
+    const f = storeOrdersFiltersSchema.parse({ from: "abc", to: "2026-02-30" });
+    expect(f.from).toBeUndefined();
+    expect(f.to).toBeUndefined();
+    expect(storeOrdersFiltersSchema.parse({ from: "2026-02-01", to: "2026-02-28" })).toMatchObject({
+      from: "2026-02-01",
+      to: "2026-02-28",
+    });
+  });
+
+  it("so do Insights, Reconciliation and UTMs", () => {
+    for (const schema of [storeInsightsFiltersSchema, reconciliationFiltersSchema, storeUtmsFiltersSchema]) {
+      expect(schema.parse({ from: "2026-02-30", to: "nope" })).toMatchObject({ from: undefined, to: undefined });
+    }
+  });
+
+  it("the cleanup tool refuses an impossible date", () => {
+    expect(storeCleanupFiltersSchema.safeParse({ from: "2026-02-30", to: "2026-03-05" }).success).toBe(false);
   });
 });
