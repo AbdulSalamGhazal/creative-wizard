@@ -13,7 +13,7 @@ import { newId } from "@/price-structure/engine/ids";
 import { METRICS } from "@/price-structure/engine/metrics";
 import { evenPlan } from "@/price-structure/engine/sample";
 import { isRoasTargetMetric, resolveRoasTarget } from "@/price-structure/engine/targets";
-import type { ActualPeriod, Plan, VersionData } from "@/price-structure/engine/types";
+import type { ActualPeriod, Plan } from "@/price-structure/engine/types";
 import { formatMetric, money0, num2, pct2, roas2, usd0, usd2 } from "@/price-structure/format";
 import { LADDER_COLOR, productColor } from "../palette";
 import { PsPageHeader } from "../ps-page-header";

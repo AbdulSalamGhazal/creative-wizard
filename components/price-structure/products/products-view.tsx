@@ -35,7 +35,7 @@ export function ProductsView({ productId, offerId }: { productId: string | null;
   const wantProduct = segs[0] ?? productId;
   const wantOffer = segs[1] ?? offerId;
 
-  const products = version?.data.products ?? [];
+  const products = useMemo(() => version?.data.products ?? [], [version]);
   const product = products.find((p) => p.id === wantProduct) ?? products[0] ?? null;
   const offer = product?.offers.find((o) => o.id === wantOffer) ?? product?.offers[0] ?? null;
 
