@@ -36,6 +36,8 @@ const ALLOWED: Record<string, string> = {
     "the USD/SAR display toggle, which is explicitly display-only (ROAS always computes through the brand rate)",
   "components/layout/notification-bell.tsx":
     "`lastToastedId` per brand — a pointer to what THIS browser has already interrupted you about; it must not follow you to another device",
+  "components/price-structure/view-prefs.ts":
+    "the Price Structure pages' VIEW toggles (Overview grouping / cost view / chart metric, Plan mode / period grain / selected period / mix grouping) — display conveniences in the USD/SAR toggle's class, never data; the data is the version, which lives in the brand",
 };
 
 function walk(dir: string, out: string[] = []): string[] {

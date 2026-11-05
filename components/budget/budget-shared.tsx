@@ -309,70 +309,10 @@ export function platformAnchorId(platform: string): string {
   return `platform-${platform}`;
 }
 
-/**
- * Phone + keyboard flow for a form full of numeric fields (the Plan editor's
- * cascade, the Audience record grid).
- *
- * One ref goes on the form container; every field spreads `fieldProps`. Enter
- * walks to the next `[data-budget-field]` in DOM order — which both callers
- * keep as the visual order — skipping disabled fields; Escape blurs; focus
- * selects, so a correction overwrites instead of appending to what's there.
- */
-export function useFieldFlow(inputMode: "decimal" | "numeric" = "decimal") {
-  const formRef = useRef<HTMLDivElement>(null);
-  const fieldProps = {
-    inputMode,
-    "data-budget-field": true,
-    onFocus: (e: React.FocusEvent<HTMLInputElement>) => e.currentTarget.select(),
-    onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => {
-      if (e.key === "Escape") {
-        e.currentTarget.blur();
-        return;
-      }
-      if (e.key !== "Enter") return;
-      e.preventDefault();
-      const fields = Array.from(
-        formRef.current?.querySelectorAll<HTMLInputElement>("[data-budget-field]") ?? [],
-      ).filter((el) => !el.disabled);
-      const next = fields[fields.indexOf(e.currentTarget) + 1];
-      if (next) {
-        next.focus();
-        next.select();
-      } else {
-        e.currentTarget.blur();
-      }
-    },
-  };
-  return { formRef, fieldProps };
-}
-
-/**
- * A numeric field with its unit INSIDE the box — the Budget module's house
- * money input. Shared by the Plan cascade and the CSV upload dialog so the
- * two never drift on padding or the unit's weight.
- */
-export function UnitInput({
-  unit,
-  title,
-  wrapperClassName,
-  className,
-  ...props
-}: React.ComponentProps<typeof Input> & { unit: string; wrapperClassName?: string }) {
-  return (
-    <div className={cn("relative", wrapperClassName)} title={title}>
-      <Input
-        {...props}
-        className={cn("peer text-right num", unit.length > 1 ? "pr-11" : "pl-2 pr-6", className)}
-      />
-      <span
-        aria-hidden
-        className="pointer-events-none absolute inset-y-0 right-2.5 flex items-center text-[11px] text-ink-3 peer-disabled:opacity-50"
-      >
-        {unit}
-      </span>
-    </div>
-  );
-}
+// `useFieldFlow` and `UnitInput` moved to components/ui/unit-input.tsx
+// (2026-11) so the Price Structure module could share the house money input
+// without importing the Budget module; re-exported here for the callers.
+export { useFieldFlow, UnitInput } from "@/components/ui/unit-input";
 
 /**
  * One bar per day of the month, height = that day's planned money — the Plan
