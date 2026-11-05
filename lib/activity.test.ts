@@ -10,7 +10,7 @@ import {
   isActivityFiltered,
   type ActivityParams,
 } from "@/lib/activity";
-import { PAGE_REFUSAL_GATES, refusedRoutes, viewAnchorRefused } from "@/lib/page-gates";
+import { PAGE_REFUSAL_GATES, PRICE_STRUCTURE_ROUTES, refusedRoutes, viewAnchorRefused } from "@/lib/page-gates";
 import { activityParamsSchema } from "@/validators/activity";
 
 const DEFAULT: ActivityParams = { who: "all", types: [], q: "", page: 1 };
@@ -70,6 +70,7 @@ describe("refusedRoutes — the pages whose PAGE refuses, not the sidebar's gate
     expect(refusedRoutes((p) => p === "users.manage")).toEqual([
       "/admin/catalog",
       "/admin/audit",
+      ...PRICE_STRUCTURE_ROUTES,
     ]);
   });
 
@@ -77,6 +78,7 @@ describe("refusedRoutes — the pages whose PAGE refuses, not the sidebar's gate
     expect(refusedRoutes((p) => p === "record.exclude")).toEqual([
       "/admin/users",
       "/admin/audit",
+      ...PRICE_STRUCTURE_ROUTES,
     ]);
   });
 

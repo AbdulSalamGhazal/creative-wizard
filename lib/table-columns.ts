@@ -89,6 +89,18 @@ export const TABLE_KEYS = {
   // ── 2026-10-25 ─────────────────────────────────────────────────────────
   /** Trends → LPs, the per-landing-page table (both row modes share it). */
   TRENDS_LANDING_PAGES: "trends-landing-pages",
+
+  // ── Price Structure (2026-11) ──────────────────────────────────────────
+  /** Price structure → Overview, the per-offer table. */
+  PS_OVERVIEW: "ps-overview",
+  /** Price structure → Targets, every offer against every target. */
+  PS_TARGET_MATRIX: "ps-target-matrix",
+  /** Price structure → Targets → What it takes (both views). */
+  PS_WHAT_IT_TAKES: "ps-what-it-takes",
+  /** Price structure → Plan, the breakdown table. */
+  PS_PLAN_BREAKDOWN: "ps-plan-breakdown",
+  /** Price structure → Versions, the all-versions table. */
+  PS_VERSIONS: "ps-versions",
 } as const;
 
 export type TableKey = (typeof TABLE_KEYS)[keyof typeof TABLE_KEYS];

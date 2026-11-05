@@ -1754,3 +1754,61 @@ export const commentMentions = pgTable(
     ),
   }),
 );
+
+// ── Price Structure module (2026-11) ────────────────────────────────────────
+
+/**
+ * A Price Structure VERSION: a complete, separate copy of everything the
+ * module knows for a brand — products and offers, settings, targets, plans and
+ * actual periods — stored as ONE jsonb document (`price-structure/schema.ts`
+ * validates it on every read and write). The module versions, copies, exports
+ * and imports whole documents, so the document is the storage unit too.
+ *
+ * `revision` is the optimistic-concurrency counter: a save carries the
+ * revision it was based on and goes through only when it still matches
+ * (`UPDATE … WHERE revision = $n`), +1 on success. Two tabs or two people on
+ * the same version therefore never overwrite each other silently.
+ * Tenant table (§4.1).
+ */
+export const psVersions = pgTable(
+  "ps_versions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    accountId: accountId(),
+    name: varchar("name", { length: 120 }).notNull(),
+    notes: text("notes").notNull().default(""),
+    revision: integer("revision").notNull().default(1),
+    data: jsonb("data").notNull(),
+    // Nullable + SET NULL: a version outlives the people who touched it.
+    createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+    updatedBy: uuid("updated_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    /** Last time any user opened it ("Last opened"). */
+    openedAt: timestamp("opened_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    accountOpenedIdx: index("ps_versions_account_opened_idx").on(t.accountId, t.openedAt.desc()),
+  }),
+);
+
+/**
+ * Per user per brand: the Price Structure version a tab opens when its URL
+ * names none. A pointer, not a preference — it follows the person between
+ * devices, and a deleted version clears it (SET NULL) rather than dangling.
+ */
+export const psUserState = pgTable(
+  "ps_user_state",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    accountId: accountId(),
+    lastVersionId: uuid("last_version_id").references(() => psVersions.id, { onDelete: "set null" }),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    userAccountIdx: uniqueIndex("ps_user_state_user_account_idx").on(t.userId, t.accountId),
+  }),
+);

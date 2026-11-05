@@ -120,6 +120,13 @@ export const AUDIT_ACTIONS = {
   // duplicate this table row for row.
   NOTIFY_ROUTES_UPDATE: "notify.routes_update",
 
+  // Price Structure versions (2026-11). Autosaves are NOT audited — a
+  // keystroke every 500 ms is churn, like a preference write; the events
+  // that create, import or remove a whole version are.
+  PS_VERSION_CREATE: "price_structure.version_create",
+  PS_VERSION_IMPORT: "price_structure.version_import",
+  PS_VERSION_DELETE: "price_structure.version_delete",
+
   // Brands (accounts)
   ACCOUNT_CREATE: "account.create",
   ACCOUNT_RENAME: "account.rename",
@@ -148,7 +155,8 @@ export type AuditEntityType =
   | "budget"
   | "audience"
   | "notification"
-  | "comment";
+  | "comment"
+  | "price_structure";
 
 export interface AuditEventInput {
   action: AuditAction;
@@ -274,6 +282,9 @@ export const AUDIT_LABELS: Record<AuditAction, string> = {
   "comment.delete": "Deleted a comment",
   "comment.restore": "Restored a comment",
   "notify.routes_update": "Updated notification routing",
+  "price_structure.version_create": "Created a price version",
+  "price_structure.version_import": "Imported a price version",
+  "price_structure.version_delete": "Deleted a price version",
   "account.create": "Created brand",
   "account.rename": "Renamed brand",
   "account.window_update": "Changed status window",

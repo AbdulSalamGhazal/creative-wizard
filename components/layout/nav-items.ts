@@ -20,6 +20,10 @@ import {
   ScrollText,
   Tags,
   Workflow,
+  Coins,
+  Package,
+  Target,
+  TrendingUp,
 } from "lucide-react";
 import type { Permission } from "@/lib/permissions";
 import { NAV_ROUTE_GATES } from "@/lib/page-gates";
@@ -42,6 +46,7 @@ export interface NavChild {
 export const NAV_SECTIONS = [
   { key: "ads", label: "Ads" },
   { key: "budget", label: "Budget" },
+  { key: "pricing", label: "Price structure" },
   { key: "store", label: "Store" },
   { key: "admin", label: "Admin" },
 ] as const;
@@ -120,6 +125,40 @@ export const NAV_ITEMS: NavItem[] = [
   // Funnel-audience sizes vs spend. Open to any brand member, like the other
   // read surfaces; recording is gated behind audience.manage on the page.
   { href: "/budget/audience", label: "Audience", icon: UsersRound, group: "budget" },
+
+  // ── Price structure ──────────────────────────────────────────────────────
+  // Offer pricing → Clean Money Left → the ROAS each offer and mix needs
+  // (2026-11). ONE permission opens the whole module, so every entry carries
+  // the same derived gate; Versions is reached from the page header's picker,
+  // not from here. Links carry the open version (`?v=`) like Budget's month.
+  {
+    href: "/price-structure/overview",
+    label: "Overview",
+    icon: Coins,
+    group: "pricing",
+    perms: [...NAV_ROUTE_GATES["/price-structure/overview"]],
+  },
+  {
+    href: "/price-structure/plan",
+    label: "Plan",
+    icon: TrendingUp,
+    group: "pricing",
+    perms: [...NAV_ROUTE_GATES["/price-structure/plan"]],
+  },
+  {
+    href: "/price-structure/products",
+    label: "Products & offers",
+    icon: Package,
+    group: "pricing",
+    perms: [...NAV_ROUTE_GATES["/price-structure/products"]],
+  },
+  {
+    href: "/price-structure/targets",
+    label: "Targets",
+    icon: Target,
+    group: "pricing",
+    perms: [...NAV_ROUTE_GATES["/price-structure/targets"]],
+  },
 
   // ── Store ────────────────────────────────────────────────────────────────
   {
@@ -226,20 +265,40 @@ export function isActive(pathname: string, href: string, exact?: boolean): boole
 }
 
 const MONTH_PARAM = /^\d{4}-\d{2}$/;
+const UUID_PARAM = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * The sections whose links carry a URL param while the user is inside them:
+ * Budget keeps `?month=` across Overview / Plan / Pacing, Price structure keeps
+ * the open version `?v=` across its four pages (each browser tab has its own
+ * version open — brief §7). A value that fails the shape is dropped.
+ */
+export const CARRIED_PARAMS: Partial<
+  Record<NavSectionKey, { prefix: string; param: string; shape: RegExp }>
+> = {
+  budget: { prefix: "/budget", param: "month", shape: MONTH_PARAM },
+  pricing: { prefix: "/price-structure", param: "v", shape: UUID_PARAM },
+};
+
+/** Whether a section's links are resolved at click time (see use-nav-link.ts). */
+export function carriesParam(group: NavSectionKey): boolean {
+  return CARRIED_PARAMS[group] !== undefined;
+}
 
 /**
  * The href a nav item should link to given where the user is. Budget items
  * carry the current `?month=` while the user is inside the Budget section, so
- * switching between Overview / Plan / Pacing never loses the month.
- * Everything else links plain.
+ * switching between Overview / Plan / Pacing never loses the month; Price
+ * structure items carry `?v=` the same way. Everything else links plain.
  */
 export function navItemHref(
   item: Pick<NavItem, "href" | "group">,
   pathname: string,
   search: { get(name: string): string | null } | null,
 ): string {
-  if (item.group !== "budget" || !pathname.startsWith("/budget")) return item.href;
-  const month = search?.get("month");
-  if (!month || !MONTH_PARAM.test(month)) return item.href;
-  return `${item.href}?month=${month}`;
+  const carried = CARRIED_PARAMS[item.group];
+  if (!carried || !pathname.startsWith(carried.prefix)) return item.href;
+  const value = search?.get(carried.param);
+  if (!value || !carried.shape.test(value)) return item.href;
+  return `${item.href}?${carried.param}=${value}`;
 }

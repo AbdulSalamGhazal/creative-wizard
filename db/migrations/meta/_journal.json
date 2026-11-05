@@ -463,6 +463,13 @@
       "when": 1793290176930,
       "tag": "0065_backfill_landing_page_product",
       "breakpoints": true
+    },
+    {
+      "idx": 66,
+      "version": "7",
+      "when": 1793894574565,
+      "tag": "0066_price_structure",
+      "breakpoints": true
     }
   ]
 }

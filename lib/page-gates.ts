@@ -87,6 +87,17 @@ export const UPLOAD_ORDERS_ACTIONS = [
 // ── Whole-page gates (`requirePermission` at the top of the page). ──────────
 export const TEAM_GATE = "users.manage" as const satisfies Permission;
 export const AUDIT_GATE = "audit.view" as const satisfies Permission;
+/** The Price Structure module: one permission opens every page of it (2026-11). */
+export const PRICE_STRUCTURE_GATE = "price_structure.access" as const satisfies Permission;
+
+/** The module's routes, one sidebar entry each (Versions is reached from the picker). */
+export const PRICE_STRUCTURE_ROUTES = [
+  "/price-structure/overview",
+  "/price-structure/plan",
+  "/price-structure/products",
+  "/price-structure/targets",
+  "/price-structure/versions",
+] as const;
 
 /**
  * The sidebar gate of every gated nav route, DERIVED from the page's own
@@ -107,6 +118,11 @@ export const NAV_ROUTE_GATES = {
   "/admin/catalog": gatePermissions(CONFIGURATION_TABS.map((t) => t.perm)),
   "/admin/users": [TEAM_GATE],
   "/admin/audit": [AUDIT_GATE],
+  "/price-structure/overview": [PRICE_STRUCTURE_GATE],
+  "/price-structure/plan": [PRICE_STRUCTURE_GATE],
+  "/price-structure/products": [PRICE_STRUCTURE_GATE],
+  "/price-structure/targets": [PRICE_STRUCTURE_GATE],
+  "/price-structure/versions": [PRICE_STRUCTURE_GATE],
 } as const satisfies Record<string, readonly Permission[]>;
 
 /**
@@ -123,6 +139,12 @@ export const PAGE_REFUSAL_GATES = {
   "/admin/catalog": CONFIGURATION_TABS.map((t) => t.perm),
   "/admin/users": [TEAM_GATE],
   "/admin/audit": [AUDIT_GATE],
+  // Every Price Structure page refuses without the module's one gate.
+  "/price-structure/overview": [PRICE_STRUCTURE_GATE],
+  "/price-structure/plan": [PRICE_STRUCTURE_GATE],
+  "/price-structure/products": [PRICE_STRUCTURE_GATE],
+  "/price-structure/targets": [PRICE_STRUCTURE_GATE],
+  "/price-structure/versions": [PRICE_STRUCTURE_GATE],
 } as const satisfies Record<string, readonly Gate[]>;
 
 /** The routes in `PAGE_REFUSAL_GATES` that refuse a holder of `has`. */

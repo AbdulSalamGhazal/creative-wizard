@@ -296,6 +296,12 @@ describe("the registry", () => {
         "funnel-platforms",
         "upload-history-ads",
         "upload-history-store",
+        // Price structure (2026-11): five read-only DataTables.
+        "ps-overview",
+        "ps-target-matrix",
+        "ps-what-it-takes",
+        "ps-plan-breakdown",
+        "ps-versions",
       ].sort(),
     );
   });

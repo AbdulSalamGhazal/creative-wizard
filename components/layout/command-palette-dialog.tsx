@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import { useRouter } from "next/navigation";
 import {
   Hash,
+  History,
   Link2,
   Images,
   Package,
@@ -27,6 +28,7 @@ import type { Permission } from "@/lib/permissions";
 import {
   CONFIGURATION_TABS,
   LIBRARY_TABS,
+  PRICE_STRUCTURE_GATE,
   UPLOAD_ADS_TABS,
   UPLOAD_ORDERS_TABS,
   type Gate,
@@ -77,6 +79,8 @@ const EXTRA_PAGES: Array<{
   { href: "/store/uploads/new", label: "New order upload", icon: Upload, perm: "store.upload" },
   ...tabEntries("/store/uploads", "Upload orders", UPLOAD_ORDERS_TABS, { fields: Settings }),
   ...tabEntries("/admin/catalog", "Configuration", CONFIGURATION_TABS, { rating: Star }),
+  // Versions has no sidebar entry (the page header's picker leads there).
+  { href: "/price-structure/versions", label: "Price structure · Versions", icon: History, perm: PRICE_STRUCTURE_GATE },
 ];
 
 /**

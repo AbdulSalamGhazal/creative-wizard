@@ -3,7 +3,7 @@
 import { useCallback, type MouseEvent } from "react";
 import { useRouter } from "next/navigation";
 import { useNavTransition } from "@/lib/nav-progress";
-import { navItemHref, type NavItem } from "@/components/layout/nav-items";
+import { carriesParam, navItemHref, type NavItem } from "@/components/layout/nav-items";
 
 type LinkableItem = Pick<NavItem, "href" | "group">;
 
@@ -26,7 +26,8 @@ export interface NavLinkProps {
  * correct in the server HTML, correct once hydrated, and the only thing a
  * modified click (cmd/ctrl/middle → new tab) or a pre-hydration click can use.
  *
- * Non-Budget items get a plain href and no handler — normal `<Link>` behavior.
+ * Items outside a param-carrying section (Budget's month, Price structure's
+ * version) get a plain href and no handler — normal `<Link>` behavior.
  */
 export function useNavLinkProps(
   pathname: string,
@@ -38,8 +39,8 @@ export function useNavLinkProps(
   return useCallback(
     (item: LinkableItem): NavLinkProps => {
       const href = navItemHref(item, pathname, search);
-      // Only month-carrying links need click-time resolution.
-      if (item.group !== "budget") return { href };
+      // Only param-carrying links need click-time resolution.
+      if (!carriesParam(item.group)) return { href };
 
       return {
         href,
