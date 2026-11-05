@@ -30,6 +30,12 @@ If a rule here conflicts with one of those documents, the documents win — flag
 - Tailwind + shadcn/ui + shadcn charts (Recharts under the hood)
 - papaparse (CSV), Zod (validation)
 - **`@xyflow/react` (React Flow), EXACT-pinned `12.11.6`** — the one dependency added in months, user-approved. Justification: *purpose-built node canvas (pan/zoom/minimap/focus) for the Canvas page; hand-rolling it is weeks of work.* It is imported by ONE module (`components/canvas/canvas-flow.tsx`) and loaded with `next/dynamic` (`ssr: false`), so it ships as a lazy chunk on `/canvas` only — see `docs/decisions/canvas.md`.
+- **Price Structure (2026-11)** is an isolated module: `price-structure/`
+  (pure engine + Zod schema + formats), `db/queries/price-structure.ts`,
+  `app/actions/price-structure.ts`, `components/price-structure/*`, routes
+  under `app/(dashboard)/price-structure/` — the app's ONE nested layout,
+  which holds the client version provider. Tables `ps_versions`,
+  `ps_user_state`. → `docs/decisions/price-structure.md`
 - Vercel hosting. Vercel KV is NOT used (upload-validation sessions live in Postgres). **Vercel Blob IS used** for creative thumbnails: uploaded via `POST /api/uploads/thumbnail` (requires `creative.edit`; client downscales→WebP first), stored public, and the returned URL is saved to `creatives.thumbnail_url`. **Profile photos** (2026-10-20) use the same store via `POST /api/uploads/avatar` (yours: signed in; anyone's: `users.manage`) → `users.avatar_url`; with no token in LOCAL dev they fall back to gitignored `public/dev-uploads/avatars/`. Requires `BLOB_READ_WRITE_TOKEN` (auto-added when a Blob store is connected to the project); the blob host is allow-listed in `next.config.ts` `images.remotePatterns`.
 
 Do not introduce a new dependency without a one-line justification in the PR description.
@@ -313,7 +319,7 @@ These are not domain knowledge — they bite any change, so they live here.
   `METRIC_FILTER_SCOPES` (kept dead `meta`, dropped IG/FB filters). Both now use
   `[...platformEnum]` / `INTERNAL_FIELDS`. **Import those enums from
   `lib/enums`, never `@/db/schema`, in anything a client can reach**: the
-  schema can't be tree-shaken, so one enum shipped all 42 tables and their
+  schema can't be tree-shaken, so one enum shipped all 44 tables and their
   names to the browser (W2-6; `app/client-bundle.test.ts` fails the build).
   The roles, exclusion-rule kinds and store field types live there too, and
   `lib/enums.test.ts` fails on a hand-listed copy of any stored vocabulary
@@ -447,6 +453,17 @@ this map is still a rule you broke.
 - OAuth's non-negotiables are test-pinned; don't relax one to make a client work.
 
 → **`docs/decisions/mcp-diagnosis.md`**
+
+### Price Structure
+
+- The engine (`price-structure/engine/*`) is pure and is the contract: the
+  brief's §11 numbers are its tests; no arithmetic in components.
+- Every blended figure is a weighted sum via component totals; x ÷ 0 is never NaN.
+- A version is ONE jsonb document, validated on write AND read; a save carries
+  its revision and a refused save merges by section, never silently.
+- One permission opens the module; `?v=` names the tab's open version.
+
+→ **`docs/decisions/price-structure.md`**
 
 ### Schema and migrations
 
