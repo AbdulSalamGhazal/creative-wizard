@@ -87,7 +87,40 @@
 - **The last admin is counted and demoted in ONE transaction (2026-10-31).**
   `updateUserAccess` holds the admin rows `FOR UPDATE` while it counts them,
   so two admins demoting each other at once can't both see two admins and
-  leave none (pinned in `tests/db/bug-sweep.test.ts`).
+  leave none (pinned in `tests/db/bug-sweep.test.ts`). Since D4 the count is
+  of ACTIVE admins (`lockActiveAdminCount`, shared by demote, deactivate and
+  remove): a deactivated admin can't get in, so they don't keep the team's
+  door open.
+- **A member has three states, read by ONE function (D4, 2026-11-06):**
+  `memberStatus()` in `lib/team-lifecycle.ts` over two stamps on `users`.
+  `deactivated_at` = on hold, REVERSIBLE: can't sign in (told so, but only
+  after the right password — a stranger learns nothing), every session ended,
+  still on the Team page, access/brands/photo untouched, notifications keep
+  arriving for when they return, but not routable or mentionable
+  (`brandMembers`). `removed_at` = gone for good: off every Team read,
+  credentials cleared, memberships / API tokens / OAuth grants / prefs /
+  notifications purged, and **the email is free again** — `users.email` is
+  unique only among current members (`users_email_active_uq`, partial on
+  `removed_at IS NULL`; the seed and `create-admin.ts` match that predicate).
+  **The row stays**: every `created_by`, upload, comment and audit actor keeps
+  its name, because removal never rewrites history (the comment thread's
+  "Former member" made the same choice). `auth()` — and so every cookie, MCP
+  token and OAuth grant — reads a deactivated or removed row as GONE, in one
+  filter in `loadUserRow`; never add a second place that decides this.
+- **Lifecycle writes run through the same guard (D4).** Three new
+  `TeamChange` kinds: `status` (deactivate/reactivate) and `remove` follow the
+  password rule below admin — only someone whose whole access is within the
+  manager's, never an admin — because taking access away is the other face of
+  handing it out; `sessions` (sign out everywhere) needs only "not an admin":
+  a nuisance, not an escalation. Never yourself; never the last active admin.
+  Audited `user.deactivate` / `user.reactivate` / `user.remove` (with what
+  stayed: `meta.kept`) / `user.sessions_end`. Pinned by
+  `tests/db/team-lifecycle.test.ts` (the actions) and
+  `tests/db/team-lifecycle-auth.test.ts` (the door: real `signIn` + `auth()`).
+- **`users.last_sign_in_at` is stamped by `signIn` and backfilled from
+  `auth.signin` audit rows (migration 0067).** It is "last sign-in", not
+  "last active" — a 30-day cookie never touches it — and the Team page says
+  which. "Never signed in" is the pending state of an invite.
 
 ## History and rationale
 
@@ -285,3 +318,61 @@ sign-out audits under its own action, and the two-device test in
 `tests/db/sessions.test.ts` pins both (3 of its 7 cases fail on the D3
 code).
 
+
+### The Team page could not let anyone go (D4, 2026-11-06)
+
+The user's words: "the current user management system is so bad. the flow,
+the options… I can't even delete a user?!" — and a brief to review the whole
+feature and rebuild it to the market's standard without further guidance.
+
+What was there: one always-open invite form (name, email, role, a password
+the inviter typed and had to remember, brands), then one full-height card
+per member with the entire permission grid, the brands grid and a Set
+password button — fifteen members made a wall of some four hundred
+checkboxes. No search, no status, no sign-in history, no way to suspend or
+remove a person: a departed teammate's row stayed forever with a working
+password, and the only lever was resetting it to something nobody knew.
+
+What the market does (Vercel, Linear, Notion, Slack, GitHub organisations):
+a members directory — one row per person with role, access scope and last
+activity, search, a row menu — an Invite button that opens a dialog, a
+detail surface for one person, and two distinct ways out: **suspend /
+deactivate** (reversible, keeps everything) and **remove** (final; the
+person's work stays attributed, the seat frees up). Apps without a mailer
+hand the inviter the credentials once (the API-token "shown once" pattern
+this app already had).
+
+What was built, and the judgment calls inside it:
+
+- **A row list, not a `DataTable`.** A directory of people has five short
+  facts, no totals, no export and nothing to sort by except the name; the
+  table primitive's 960px floor would have made the phone a sideways scroll
+  for them. The list follows the Activity feed's row pattern.
+- **A drawer, not a page.** The old card's access editor and brands section
+  moved into a right-hand Sheet (the Price Structure settings drawer's
+  shape) that a row opens; `?member=<id>` mirrors it so a link or reload
+  lands on the same person. It refuses to close over unsaved changes in
+  either editor — the old card could not lose a half-edited grid; a drawer
+  that swallows one would be a regression — and says so in a toast.
+- **Remove is a TOMBSTONE, not a hard delete.** Eighteen tables reference
+  `users.id` with no cascade (every `created_by`, the upload batches, the
+  audit actor); a hard delete would have meant either refusing anyone who
+  ever did anything or nulling the history's names. The row stays,
+  stamped, invisible to the Team page and dead at the door; the email is
+  freed by a partial unique index. From the user's seat it is a delete.
+- **Deactivate is the reversible door, so it gets the house destructive
+  dialog without the typing step** (the Budget Plan precedent); reactivate
+  is one click; remove is the full preview → acknowledge → type-the-name.
+- **The starter password is generated** (14 unambiguous characters, no
+  0/O/1/l/I) and shown once beside the email with "Copy both" — the
+  inviter no longer invents "Welcome123" and no longer has to remember it.
+- **"Last sign-in", not "last active".** Stamping on every request would be
+  a write per page view; the honest fact is the sign-in, backfilled from
+  the audit rows every sign-in already wrote.
+- **`lockActiveAdminCount`** replaced the inline count in `updateUserAccess`
+  so demote, deactivate and remove share the one `FOR UPDATE` rule, now
+  over active admins only.
+
+Decided alone because the brief said to; each line above is the kind of
+choice the user could look at and want otherwise, and the report named
+them.

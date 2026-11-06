@@ -26,7 +26,7 @@ If a rule here conflicts with one of those documents, the documents win — flag
   logged errors and fell back to system fonts. Don't switch either back to
   Turbopack without re-measuring and re-checking the fonts.
 - Drizzle ORM + Postgres (Neon)
-- Auth: custom HMAC-signed cookie sessions (`lib/auth-cookie.ts`) + bcrypt passwords (`lib/auth-password.ts`). Users created via `/admin/users`; first admin via `db/create-admin.ts`. NOT Auth.js/Google — those were never wired up. **Authorization is GRANULAR per-user permissions** (`lib/permissions.ts` catalog is the single source of truth) — see `docs/decisions/tenancy-auth.md`. Admins bypass every check; below admin, each capability is individually grantable and managed on the unified **Team** page (`/admin/users`).
+- Auth: custom HMAC-signed cookie sessions (`lib/auth-cookie.ts`) + bcrypt passwords (`lib/auth-password.ts`). Users created via `/admin/users`; first admin via `db/create-admin.ts`. NOT Auth.js/Google — those were never wired up. **A member is active, deactivated (reversible, can't sign in) or removed (final; the row stays so history keeps its names, the email is freed) — `memberStatus()` in `lib/team-lifecycle.ts`, and `auth()` reads the two stamps so every cookie, token and grant stops at once (D4, 2026-11-06).** **Authorization is GRANULAR per-user permissions** (`lib/permissions.ts` catalog is the single source of truth) — see `docs/decisions/tenancy-auth.md`. Admins bypass every check; below admin, each capability is individually grantable and managed on the unified **Team** page (`/admin/users`).
 - Tailwind + shadcn/ui + shadcn charts (Recharts under the hood)
 - papaparse (CSV), Zod (validation)
 - **`@xyflow/react` (React Flow), EXACT-pinned `12.11.6`** — the one dependency added in months, user-approved. Justification: *purpose-built node canvas (pan/zoom/minimap/focus) for the Canvas page; hand-rolling it is weeks of work.* It is imported by ONE module (`components/canvas/canvas-flow.tsx`) and loaded with `next/dynamic` (`ssr: false`), so it ships as a lazy chunk on `/canvas` only — see `docs/decisions/canvas.md`.
@@ -501,6 +501,9 @@ this map is still a rule you broke.
 - Membership says WHERE, permissions say WHAT; the server is the gate.
 - Re-validate a caller-supplied FK against the active account before writing.
 - Below admin, `users.manage` works within the manager's own access — one guard, `teamGuard`.
+- Three member states from two stamps, ONE reader (`memberStatus`); removal is a
+  tombstone that frees the email and never rewrites history; the last ACTIVE
+  admin can't be demoted, deactivated or removed.
 
 → **`docs/decisions/tenancy-auth.md`**
 
