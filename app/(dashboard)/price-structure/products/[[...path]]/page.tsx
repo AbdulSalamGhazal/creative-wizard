@@ -1,5 +1,4 @@
-import { requirePermission } from "@/lib/auth";
-import { PRICE_STRUCTURE_GATE } from "@/lib/page-gates";
+import { requirePriceStructureAccess } from "@/lib/price-structure-access";
 import { versionNameFor } from "@/db/queries/price-structure";
 import { PageShell } from "@/components/layout/page-shell";
 import { ProductsView } from "@/components/price-structure/products/products-view";
@@ -18,7 +17,7 @@ export async function generateMetadata({ searchParams }: { searchParams: SearchP
 
 /** `/price-structure/products/:productId?/:offerId?` — the selection lives in the path. */
 export default async function Page({ params }: { params: Params }) {
-  await requirePermission(PRICE_STRUCTURE_GATE);
+  await requirePriceStructureAccess();
   const { path = [] } = await params;
   return (
     <PageShell>

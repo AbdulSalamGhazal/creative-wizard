@@ -461,7 +461,8 @@ this map is still a rule you broke.
 - Every blended figure is a weighted sum via component totals; x ÷ 0 is never NaN.
 - A version is ONE jsonb document, validated on write AND read; a save carries
   its revision and a refused save merges by section, never silently.
-- One permission opens the module; `?v=` names the tab's open version.
+- Three grants — view · edit · versions — and the SERVER decides per action;
+  the client only disables. `?v=` names the tab's open version.
 
 → **`docs/decisions/price-structure.md`**
 

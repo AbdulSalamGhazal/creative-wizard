@@ -87,8 +87,17 @@ export const UPLOAD_ORDERS_ACTIONS = [
 // ── Whole-page gates (`requirePermission` at the top of the page). ──────────
 export const TEAM_GATE = "users.manage" as const satisfies Permission;
 export const AUDIT_GATE = "audit.view" as const satisfies Permission;
-/** The Price Structure module: one permission opens every page of it (2026-11). */
-export const PRICE_STRUCTURE_GATE = "price_structure.access" as const satisfies Permission;
+/**
+ * The Price Structure module's three grants (2026-11-06): view · edit ·
+ * versions. ANY of them opens every page (edit and versions imply view); what
+ * a member may change is decided per action in `lib/price-structure-access.ts`.
+ */
+export const PRICE_STRUCTURE_PERMS = [
+  "price_structure.view",
+  "price_structure.edit",
+  "price_structure.versions",
+] as const satisfies readonly Permission[];
+export const PRICE_STRUCTURE_GATE: readonly Permission[] = PRICE_STRUCTURE_PERMS;
 
 /** The module's routes, one sidebar entry each (Versions is reached from the picker). */
 export const PRICE_STRUCTURE_ROUTES = [
@@ -118,11 +127,11 @@ export const NAV_ROUTE_GATES = {
   "/admin/catalog": gatePermissions(CONFIGURATION_TABS.map((t) => t.perm)),
   "/admin/users": [TEAM_GATE],
   "/admin/audit": [AUDIT_GATE],
-  "/price-structure/overview": [PRICE_STRUCTURE_GATE],
-  "/price-structure/plan": [PRICE_STRUCTURE_GATE],
-  "/price-structure/products": [PRICE_STRUCTURE_GATE],
-  "/price-structure/targets": [PRICE_STRUCTURE_GATE],
-  "/price-structure/versions": [PRICE_STRUCTURE_GATE],
+  "/price-structure/overview": [...PRICE_STRUCTURE_PERMS],
+  "/price-structure/plan": [...PRICE_STRUCTURE_PERMS],
+  "/price-structure/products": [...PRICE_STRUCTURE_PERMS],
+  "/price-structure/targets": [...PRICE_STRUCTURE_PERMS],
+  "/price-structure/versions": [...PRICE_STRUCTURE_PERMS],
 } as const satisfies Record<string, readonly Permission[]>;
 
 /**
@@ -139,7 +148,7 @@ export const PAGE_REFUSAL_GATES = {
   "/admin/catalog": CONFIGURATION_TABS.map((t) => t.perm),
   "/admin/users": [TEAM_GATE],
   "/admin/audit": [AUDIT_GATE],
-  // Every Price Structure page refuses without the module's one gate.
+  // Every Price Structure page refuses a member holding none of its three grants.
   "/price-structure/overview": [PRICE_STRUCTURE_GATE],
   "/price-structure/plan": [PRICE_STRUCTURE_GATE],
   "/price-structure/products": [PRICE_STRUCTURE_GATE],

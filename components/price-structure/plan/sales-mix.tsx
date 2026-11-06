@@ -28,6 +28,7 @@ export function SalesMix({
   mult,
   perLabel,
   onChange,
+  readOnly = false,
 }: {
   plan: Plan;
   products: readonly Product[];
@@ -38,6 +39,7 @@ export function SalesMix({
   mult: number;
   perLabel: string;
   onChange: (fn: (p: Plan) => Plan) => void;
+  readOnly?: boolean;
 }) {
   const [copyFrom, setCopyFrom] = useState("");
   const P = productShareSum(plan, products);
@@ -54,6 +56,7 @@ export function SalesMix({
       title="Sales mix"
       subtitle="Share of orders per product, then each offer's share within its product."
       actions={
+        readOnly ? undefined : (
         <>
           <Button type="button" size="sm" variant="outline" className="h-8 text-xs" onClick={() => onChange((pl) => ({ ...pl, ...evenShares(products) }))}>
             Even split
@@ -80,9 +83,11 @@ export function SalesMix({
             </Select>
           )}
         </>
+        )
       }
       contentClassName="space-y-3"
     >
+      <fieldset disabled={readOnly} className="min-w-0 space-y-3">
       {/* Mix bar */}
       <div className="flex h-5 w-full overflow-hidden rounded-md bg-surface-2" role="img" aria-label={products.map((p) => `${p.name} ${pct1(pShare(p))}`).join(", ")}>
         {products.map((p) => {
@@ -103,9 +108,11 @@ export function SalesMix({
       {off && (
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-warn/40 bg-warn/10 px-2 py-1.5 text-[11px] text-ink-2">
           Some shares don&apos;t add up to 100%. Results scale them to 100% for you.
-          <Button type="button" size="xs" variant="outline" onClick={() => onChange((pl) => normaliseShares(pl, products))}>
-            Make them 100%
-          </Button>
+          {!readOnly && (
+            <Button type="button" size="xs" variant="outline" onClick={() => onChange((pl) => normaliseShares(pl, products))}>
+              Make them 100%
+            </Button>
+          )}
         </div>
       )}
       <div className="overflow-x-auto rounded-md border border-line">
@@ -164,6 +171,7 @@ export function SalesMix({
           </div>
         </div>
       </div>
+      </fieldset>
     </SectionCard>
   );
 }

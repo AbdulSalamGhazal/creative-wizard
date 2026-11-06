@@ -23,6 +23,7 @@ export function OffersCard({
   onSelect,
   onChangeOffers,
   onDeleteOffer,
+  readOnly = false,
 }: {
   product: Product;
   data: VersionData;
@@ -30,6 +31,7 @@ export function OffersCard({
   onSelect: (offerId: string) => void;
   onChangeOffers: (fn: (offers: Offer[]) => Offer[]) => void;
   onDeleteOffer: (offerId: string) => void;
+  readOnly?: boolean;
 }) {
   const [template, setTemplate] = useState(OFFER_TEMPLATES[0]!.key);
   const [dragging, setDragging] = useState<string | null>(null);
@@ -100,6 +102,7 @@ export function OffersCard({
       title="Offers"
       subtitle="Money is per delivered order."
       actions={
+        readOnly ? undefined : (
         <>
           <Select value={template} onValueChange={setTemplate}>
             <SelectTrigger size="sm" className="h-8 text-xs" aria-label="Offer template">
@@ -117,6 +120,7 @@ export function OffersCard({
             <Plus aria-hidden /> Add offer
           </Button>
         </>
+        )
       }
       contentClassName="space-y-3"
     >
@@ -167,6 +171,7 @@ export function OffersCard({
               onMove={(delta) => move(o.id, delta)}
               onDuplicate={() => duplicate(o.id)}
               onDelete={() => onDeleteOffer(o.id)}
+              readOnly={readOnly}
             />
           ))}
         </div>

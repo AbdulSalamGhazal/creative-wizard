@@ -25,6 +25,7 @@ export function PlanToolbar({
   onDuplicate,
   onNew,
   onDelete,
+  readOnly = false,
 }: {
   plans: readonly Plan[];
   plan: Plan;
@@ -35,6 +36,8 @@ export function PlanToolbar({
   onDuplicate: () => void;
   onNew: () => void;
   onDelete: () => void;
+  /** A viewer: the plan select still works (locally), the rest is disabled and the buttons go. */
+  readOnly?: boolean;
 }) {
   const ids = { plan: useId(), name: useId(), orders: useId() };
   const [confirm, setConfirm] = useState(false);
@@ -54,12 +57,14 @@ export function PlanToolbar({
           </SelectContent>
         </Select>
       </Field>
-      <Field label="Name" htmlFor={ids.name}>
-        <TextField id={ids.name} value={plan.name} onChange={(v) => onChange((p) => ({ ...p, name: v }))} className="w-44" />
-      </Field>
-      <Field label="Orders per day" hint={`≈ ${num2(plan.ordersPerDay * 7)} / week · ${num2(plan.ordersPerDay * 30)} / month`} htmlFor={ids.orders}>
-        <NumberField id={ids.orders} value={plan.ordersPerDay} min={0} wrapperClassName="w-28" onChange={(v) => onChange((p) => ({ ...p, ordersPerDay: v }))} />
-      </Field>
+      <fieldset disabled={readOnly} className="contents">
+        <Field label="Name" htmlFor={ids.name}>
+          <TextField id={ids.name} value={plan.name} onChange={(v) => onChange((p) => ({ ...p, name: v }))} className="w-44" />
+        </Field>
+        <Field label="Orders per day" hint={`≈ ${num2(plan.ordersPerDay * 7)} / week · ${num2(plan.ordersPerDay * 30)} / month`} htmlFor={ids.orders}>
+          <NumberField id={ids.orders} value={plan.ordersPerDay} min={0} wrapperClassName="w-28" onChange={(v) => onChange((p) => ({ ...p, ordersPerDay: v }))} />
+        </Field>
+      </fieldset>
       <Field label="Show numbers">
         <SegmentedControl<Period>
           ariaLabel="Show numbers per"
@@ -72,6 +77,7 @@ export function PlanToolbar({
           ]}
         />
       </Field>
+      {!readOnly && (
       <div className="ml-auto flex flex-wrap items-center gap-2">
         <Button type="button" size="sm" variant="outline" className="h-8 text-xs" onClick={onDuplicate}>
           <CopyPlus aria-hidden /> Duplicate
@@ -91,6 +97,7 @@ export function PlanToolbar({
           <Trash2 aria-hidden /> Delete
         </Button>
       </div>
+      )}
       <ConfirmDialog
         open={confirm}
         onOpenChange={setConfirm}

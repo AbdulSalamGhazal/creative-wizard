@@ -35,6 +35,7 @@ export function OfferEditor({
   onMove,
   onDuplicate,
   onDelete,
+  readOnly = false,
 }: {
   index: number;
   count: number;
@@ -47,6 +48,7 @@ export function OfferEditor({
   onMove: (delta: number) => void;
   onDuplicate: () => void;
   onDelete: () => void;
+  readOnly?: boolean;
 }) {
   const ids = { name: useId(), type: useId(), coupon: useId(), cpa: useId(), roas: useId(), orders: useId(), own: useId(), rate: useId() };
   const [confirm, setConfirm] = useState(false);
@@ -119,6 +121,7 @@ export function OfferEditor({
             </span>
           );
         })}
+        {!readOnly && (
         <span className="ml-auto flex items-center gap-0.5">
           <Button type="button" size="icon-xs" variant="ghost" aria-label="Move up" disabled={index === 0} onClick={() => onMove(-1)}>
             <ArrowUp aria-hidden />
@@ -133,6 +136,7 @@ export function OfferEditor({
             <Trash2 aria-hidden />
           </Button>
         </span>
+        )}
       </div>
 
       <div className="mt-3 grid gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">

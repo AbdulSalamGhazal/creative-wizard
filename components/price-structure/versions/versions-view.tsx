@@ -70,7 +70,8 @@ function summarise(row: VersionRow) {
 
 /** Versions (brief §6.5): manage the brand's complete copies. */
 export function VersionsView() {
-  const { versions, open, updateMeta, switchTo, openInNewTab, create, remove, flush } = useVersion();
+  const { access, versions, open, updateMeta, switchTo, openInNewTab, create, remove, flush } = useVersion();
+  const manage = access.versions;
   const ids = { name: useId(), notes: useId(), newName: useId(), from: useId() };
   const [newName, setNewName] = useState("");
   const [from, setFrom] = useState<StartFrom>("copy");
@@ -189,31 +190,35 @@ export function VersionsView() {
               <Button type="button" size="icon-xs" variant="ghost" aria-label="Open in a new tab" title="New tab" onClick={() => openInNewTab(r.id)}>
                 <ExternalLink aria-hidden />
               </Button>
-              <Button type="button" size="icon-xs" variant="ghost" aria-label="Duplicate" title="Duplicate" disabled={busy !== null} onClick={() => void duplicate(r)}>
-                {busy === `dup-${r.id}` ? <Loader2 className="animate-spin" aria-hidden /> : <CopyPlus aria-hidden />}
-              </Button>
+              {manage && (
+                <Button type="button" size="icon-xs" variant="ghost" aria-label="Duplicate" title="Duplicate" disabled={busy !== null} onClick={() => void duplicate(r)}>
+                  {busy === `dup-${r.id}` ? <Loader2 className="animate-spin" aria-hidden /> : <CopyPlus aria-hidden />}
+                </Button>
+              )}
               <Button type="button" size="icon-xs" variant="ghost" aria-label="Export to JSON" title="Export" onClick={() => exportRow(r)}>
                 <Download aria-hidden />
               </Button>
-              <Button
-                type="button"
-                size="icon-xs"
-                variant="ghost"
-                aria-label="Delete version"
-                title={current ? "Open in this tab. Switch this tab to another version first." : "Delete"}
-                disabled={current || busy !== null}
-                className="text-neg hover:text-neg"
-                onClick={() => setToDelete(r)}
-              >
-                <Trash2 aria-hidden />
-              </Button>
+              {manage && (
+                <Button
+                  type="button"
+                  size="icon-xs"
+                  variant="ghost"
+                  aria-label="Delete version"
+                  title={current ? "Open in this tab. Switch this tab to another version first." : "Delete"}
+                  disabled={current || busy !== null}
+                  className="text-neg hover:text-neg"
+                  onClick={() => setToDelete(r)}
+                >
+                  <Trash2 aria-hidden />
+                </Button>
+              )}
             </span>
           );
         },
       },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [open?.id, busy],
+    [open?.id, busy, manage],
   );
   const hideable = columns.filter((c) => !c.pinned && !c.lockedVisible).map((c) => c.key);
   const cols = useTableColumns({ tableKey: TABLE_KEYS.PS_VERSIONS, hideable, defaults: columns.filter((c) => !c.pinned).map((c) => c.key) });
@@ -224,24 +229,33 @@ export function VersionsView() {
     <>
       <PsPageHeader title="Versions" info={INTRO} />
       <div className="grid gap-4 lg:grid-cols-2">
-        <SectionCard title="Open in this tab" subtitle={`Opened ${WHEN.format(new Date(open.openedAt))} · saving automatically`} contentClassName="space-y-3">
-          <Field label="Name" htmlFor={ids.name}>
-            <TextField id={ids.name} value={open.name} onChange={(v) => updateMeta({ name: v.slice(0, VERSION_NAME_MAX) })} />
-          </Field>
-          <Field label="Notes" htmlFor={ids.notes}>
-            <Textarea id={ids.notes} dir="auto" rows={2} value={open.notes} maxLength={VERSION_NOTES_MAX} placeholder="What is this version for?" onChange={(e) => updateMeta({ notes: e.target.value })} className="text-sm" />
-          </Field>
+        <SectionCard title="Open in this tab" subtitle={`Opened ${WHEN.format(new Date(open.openedAt))}${manage ? " · saving automatically" : ""}`} contentClassName="space-y-3">
+          <fieldset disabled={!manage} className="min-w-0 space-y-3">
+            <Field label="Name" htmlFor={ids.name}>
+              <TextField id={ids.name} value={open.name} onChange={(v) => updateMeta({ name: v.slice(0, VERSION_NAME_MAX) })} />
+            </Field>
+            <Field label="Notes" htmlFor={ids.notes}>
+              <Textarea id={ids.notes} dir="auto" rows={2} value={open.notes} maxLength={VERSION_NOTES_MAX} placeholder="What is this version for?" onChange={(e) => updateMeta({ notes: e.target.value })} className="text-sm" />
+            </Field>
+          </fieldset>
           <div className="flex flex-wrap items-center gap-2">
-            <Button type="button" size="sm" className="h-8 text-xs" disabled={busy !== null} onClick={() => void saveCopy()}>
-              {busy === "copy" ? <Loader2 className="animate-spin" aria-hidden /> : <CopyPlus aria-hidden />}
-              Save a copy
-            </Button>
+            {manage && (
+              <Button type="button" size="sm" className="h-8 text-xs" disabled={busy !== null} onClick={() => void saveCopy()}>
+                {busy === "copy" ? <Loader2 className="animate-spin" aria-hidden /> : <CopyPlus aria-hidden />}
+                Save a copy
+              </Button>
+            )}
             <Button type="button" size="sm" variant="outline" className="h-8 text-xs" onClick={() => exportRow(open)}>
               <Download aria-hidden /> Export to JSON
             </Button>
           </div>
-          <p className="text-[11px] text-ink-3">&ldquo;Save a copy&rdquo; keeps a snapshot of how things are now. You stay in this version.</p>
+          {manage ? (
+            <p className="text-[11px] text-ink-3">&ldquo;Save a copy&rdquo; keeps a snapshot of how things are now. You stay in this version.</p>
+          ) : (
+            <p className="text-[11px] text-ink-3">Renaming, copying and creating versions needs the Manage versions permission.</p>
+          )}
         </SectionCard>
+        {manage && (
         <SectionCard title="Start a new version" subtitle="Creates the version and opens it in this tab. Everything you've done so far stays saved in the current one." contentClassName="space-y-3">
           <Field label="Name" htmlFor={ids.newName}>
             <TextField id={ids.newName} value={newName} onChange={setNewName} placeholder="e.g. Ramadan pricing" />
@@ -294,6 +308,7 @@ export function VersionsView() {
             />
           </div>
         </SectionCard>
+        )}
       </div>
       <SectionCard title="All versions" subtitle="Each version is summarised with its own settings and active plan." contentClassName="px-0">
         <DataTable<VersionRow> columns={columns} rows={versions} rowKey={(r) => r.id} minWidthClass="min-w-[1000px]" {...cols.tableProps} />

@@ -26,7 +26,7 @@ const BASE = "/price-structure/products";
  * presentation-only shallow push (D12) — the data is already in the tab.
  */
 export function ProductsView({ productId, offerId }: { productId: string | null; offerId: string | null }) {
-  const { open: version, updateData } = useVersion();
+  const { open: version, updateData, access } = useVersion();
   const pathname = usePathname();
   const v = useSearchParams().get("v");
 
@@ -167,11 +167,13 @@ export function ProductsView({ productId, offerId }: { productId: string | null;
       {!version ? null : products.length === 0 ? (
         <EmptyState
           title="No products yet"
-          hint="A product is a unit cost and a list price; its offers are the ways you sell it."
+          hint={access.edit ? "A product is a unit cost and a list price; its offers are the ways you sell it." : "Someone with the Edit permission adds the first product."}
           action={
-            <Button type="button" size="sm" onClick={addProduct}>
-              <Plus aria-hidden /> Add your first product
-            </Button>
+            access.edit ? (
+              <Button type="button" size="sm" onClick={addProduct}>
+                <Plus aria-hidden /> Add your first product
+              </Button>
+            ) : undefined
           }
         />
       ) : (
@@ -180,9 +182,10 @@ export function ProductsView({ productId, offerId }: { productId: string | null;
             products={products}
             selectedId={product?.id ?? null}
             onSelect={(pid) => select(pid, products.find((p) => p.id === pid)?.offers[0]?.id)}
-            onAdd={addProduct}
+            onAdd={access.edit ? addProduct : null}
           />
-          <div className="min-w-0 space-y-4">
+          {/* A viewer sees every field, disabled: the whole column is one fieldset. */}
+          <fieldset disabled={!access.edit} className="min-w-0 space-y-4">
             {product && settings && (
               <>
                 <ProductCard
@@ -191,6 +194,7 @@ export function ProductsView({ productId, offerId }: { productId: string | null;
                   onChange={(fn) => patchProduct(product.id, fn)}
                   onDuplicate={() => duplicateProduct(product)}
                   onDelete={() => deleteProduct(product)}
+                  readOnly={!access.edit}
                 />
                 <OffersCard
                   product={product}
@@ -199,6 +203,7 @@ export function ProductsView({ productId, offerId }: { productId: string | null;
                   onSelect={(oid) => select(product.id, oid)}
                   onChangeOffers={(fn) => setOffers(product.id, fn)}
                   onDeleteOffer={(oid) => deleteOffer(product.id, oid)}
+                  readOnly={!access.edit}
                 />
                 {offer && (
                   <div className="grid gap-4 xl:grid-cols-2">
@@ -208,7 +213,7 @@ export function ProductsView({ productId, offerId }: { productId: string | null;
                 )}
               </>
             )}
-          </div>
+          </fieldset>
         </div>
       )}
     </>

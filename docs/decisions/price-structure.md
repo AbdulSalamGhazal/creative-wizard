@@ -6,7 +6,7 @@ net revenue → COGS → marketing → **Clean Money Left**), the ROAS each offe
 and each sales mix needs for the team's targets A and B, a plan-vs-actual
 check for a past period, and complete, separate **versions** of all of it.
 Routes under `/price-structure`; its own tables (`ps_*`), actions, engine and
-component folder; one permission.
+component folder; three grants (view · edit · versions).
 
 ## Invariants
 
@@ -46,9 +46,18 @@ component folder; one permission.
   module carry `?v=` like Budget's `?month=` (`CARRIED_PARAMS`).
 - **The module imports nothing from other modules' code or tables**; from the
   host it uses auth/permissions, tenancy, the design system, `lib/format`,
-  the shared `readSheetRows` action and the CSV download helper. The one
-  permission, `price_structure.access`, opens every page (layout gate + page
-  re-check) and is granted explicitly — not in the editor preset.
+  the shared `readSheetRows` action and the CSV download helper.
+- **Three grants, and the SERVER decides per action** (2026-11-06):
+  `price_structure.view` opens every page read-only; `price_structure.edit`
+  changes the open version's document; `price_structure.versions` creates,
+  copies, imports, renames and deletes versions. Edit and versions each imply
+  view (`lib/price-structure-access.ts`); none is in the editor preset. The
+  layout and every page need any grant; `saveVersion` compares the request
+  with the live row and refuses a document change without `edit` or a
+  name/notes change without `versions`; create / delete need `versions`;
+  bootstrap, open and poll need any grant. The client only mirrors this — a
+  viewer sees every field disabled (one `fieldset` per editing surface) and
+  no add/delete affordance; the save status reads "Read-only".
 - **CSV or Excel for actuals, one semantic layer**: `.csv` is split in the
   browser by `splitCsv` (`;` when it outnumbers `,`, quotes, BOM); a workbook
   goes through the house `readSheetRows`; both feed `parseActualRows`, which
@@ -59,6 +68,13 @@ component folder; one permission.
 
 ## History and rationale
 
+- **2026-11-06 — access split in three** (user request after the first day in
+  production: "more than one option"). The single `price_structure.access`
+  became view · edit · versions, chosen over a two-way split and a per-page
+  split because the team's real roles are "looks at it", "prices offers" and
+  "keeps the versions tidy". The key `price_structure.access` is gone; any
+  explicit grant of it falls out of `resolvePermissions` (unknown keys are
+  filtered), so nobody silently keeps the old all-in-one right.
 - **2026-11-05 — built from the team's brief** (`PRICE_STRUCTURE_MODULE_PROMPT.md`).
   Decisions taken with the user before building: a sidebar SECTION of four
   pages (the house pattern of Budget and Store) rather than in-page tabs;

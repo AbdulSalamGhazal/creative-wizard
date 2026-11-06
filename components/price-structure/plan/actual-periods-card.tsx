@@ -36,6 +36,7 @@ export function ActualPeriodsCard({
   onCompare,
   onAdd,
   onDelete,
+  readOnly = false,
 }: {
   products: readonly Product[];
   plans: readonly Plan[];
@@ -46,6 +47,8 @@ export function ActualPeriodsCard({
   onCompare: (id: string) => void;
   onAdd: (period: ActualPeriod) => void;
   onDelete: (id: string) => void;
+  /** A viewer: the template downloads and the selects work; nothing is added or deleted. */
+  readOnly?: boolean;
 }) {
   const [uploadOpen, setUploadOpen] = useState(false);
   const [file, setFile] = useState<File | null>(null);
@@ -99,12 +102,16 @@ export function ActualPeriodsCard({
           <Button type="button" size="sm" variant="outline" className="h-8 text-xs" onClick={download} disabled={products.length === 0}>
             <Download aria-hidden /> Download template
           </Button>
-          <Button type="button" size="sm" variant="outline" className="h-8 text-xs" onClick={() => setUploadOpen(true)} disabled={products.length === 0}>
-            <Upload aria-hidden /> Upload file
-          </Button>
-          <Button type="button" size="sm" variant="outline" className="h-8 text-xs" onClick={() => onAdd(blankPeriod(new Date()))}>
-            <FilePlus2 aria-hidden /> Enter by hand
-          </Button>
+          {!readOnly && (
+            <>
+              <Button type="button" size="sm" variant="outline" className="h-8 text-xs" onClick={() => setUploadOpen(true)} disabled={products.length === 0}>
+                <Upload aria-hidden /> Upload file
+              </Button>
+              <Button type="button" size="sm" variant="outline" className="h-8 text-xs" onClick={() => onAdd(blankPeriod(new Date()))}>
+                <FilePlus2 aria-hidden /> Enter by hand
+              </Button>
+            </>
+          )}
         </>
       }
       contentClassName="space-y-3"
@@ -121,7 +128,9 @@ export function ActualPeriodsCard({
           )}
         </div>
       )}
-      {periods.length === 0 ? (
+      {periods.length === 0 && readOnly ? (
+        <p className="text-xs text-ink-3">No actual periods yet. Someone with the Edit permission uploads or enters one.</p>
+      ) : periods.length === 0 ? (
         <ol className="list-decimal space-y-0.5 pl-5 text-xs text-ink-3">
           <li>Download the template.</li>
           <li>Fill in last month&rsquo;s orders per offer and ad spend.</li>
@@ -159,7 +168,7 @@ export function ActualPeriodsCard({
               </SelectContent>
             </Select>
           </label>
-          {selected && (
+          {selected && !readOnly && (
             <Button type="button" size="sm" variant="outline" className="h-8 text-xs text-neg hover:text-neg" onClick={() => setConfirm(true)}>
               <Trash2 aria-hidden /> Delete period
             </Button>

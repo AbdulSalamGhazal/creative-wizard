@@ -17,7 +17,7 @@ const UNIT_LABEL = { pct: "%", sar: "SAR", x: "×", usd: "$" } as const;
 
 /** "Your targets" (brief §6.3): a row per target — on/off, metric, A, B, remove. */
 export function TargetsEditor() {
-  const { open, updateData } = useVersion();
+  const { open, updateData, access } = useVersion();
   if (!open) return null;
   const targets = open.data.targets;
   const setTargets = (fn: (t: Target[]) => Target[]) => updateData("data.targets", (d) => ({ ...d, targets: fn(d.targets) }));
@@ -30,12 +30,15 @@ export function TargetsEditor() {
       title="Your targets"
       subtitle="Turn a target off to leave it out of the status column on the other pages."
       actions={
-        <Button type="button" size="sm" className="h-8 text-xs" onClick={add}>
-          <Plus aria-hidden /> Add target
-        </Button>
+        access.edit ? (
+          <Button type="button" size="sm" className="h-8 text-xs" onClick={add}>
+            <Plus aria-hidden /> Add target
+          </Button>
+        ) : undefined
       }
       contentClassName="space-y-3"
     >
+      <fieldset disabled={!access.edit} className="min-w-0 space-y-3">
       {targets.length === 0 ? (
         <p className="text-xs text-ink-3">No targets yet.</p>
       ) : (
@@ -89,6 +92,7 @@ export function TargetsEditor() {
           <span>Add a CML %, CML per order or CML per unit target to see the ROAS for A / B across the app.</span>
         )}
       </div>
+      </fieldset>
     </SectionCard>
   );
 }

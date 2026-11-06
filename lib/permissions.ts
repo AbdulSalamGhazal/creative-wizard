@@ -80,10 +80,14 @@ export const PERMISSION_GROUPS = [
     key: "pricing",
     label: "Price structure",
     perms: [
-      // ONE permission for the whole module (brief §3): everyone who holds it
-      // sees and edits every version of the brand. Deliberately NOT in the
-      // editor preset — granted explicitly on the Team page (admins bypass).
-      { key: "price_structure.access", label: "Open Price Structure (view and edit every version)" },
+      // Three grants (user decision, 2026-11-06): view opens every page
+      // read-only; edit changes the open version's document; versions
+      // manages the versions themselves. Edit and versions each imply view
+      // (`lib/price-structure-access.ts`). None is in the editor preset —
+      // granted explicitly on the Team page (admins bypass).
+      { key: "price_structure.view", label: "Open Price Structure (read-only)" },
+      { key: "price_structure.edit", label: "Edit products, offers, targets, plans and settings" },
+      { key: "price_structure.versions", label: "Manage versions (create, copy, import, rename, delete)" },
     ],
   },
   {

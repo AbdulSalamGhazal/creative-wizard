@@ -1,5 +1,4 @@
-import { requirePermission } from "@/lib/auth";
-import { PRICE_STRUCTURE_GATE } from "@/lib/page-gates";
+import { requirePriceStructureAccess } from "@/lib/price-structure-access";
 import { versionNameFor } from "@/db/queries/price-structure";
 import { PageShell } from "@/components/layout/page-shell";
 import { VersionsView } from "@/components/price-structure/versions/versions-view";
@@ -16,7 +15,7 @@ export async function generateMetadata({ searchParams }: { searchParams: SearchP
 }
 
 export default async function Page() {
-  await requirePermission(PRICE_STRUCTURE_GATE);
+  await requirePriceStructureAccess();
   return (
     <PageShell>
       <VersionsView />

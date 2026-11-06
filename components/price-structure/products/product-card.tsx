@@ -17,12 +17,15 @@ export function ProductCard({
   onChange,
   onDuplicate,
   onDelete,
+  readOnly = false,
 }: {
   product: Product;
   settings: Settings;
   onChange: (fn: (p: Product) => Product) => void;
   onDuplicate: () => void;
   onDelete: () => void;
+  /** A viewer: no Duplicate / Delete (the fields are disabled by the page's fieldset). */
+  readOnly?: boolean;
 }) {
   const ids = { name: useId(), cost: useId(), price: useId(), sku: useId() };
   const [confirm, setConfirm] = useState(false);
@@ -39,6 +42,7 @@ export function ProductCard({
         </span>
       }
       actions={
+        readOnly ? undefined : (
         <>
           <Button type="button" size="sm" variant="outline" className="h-8 text-xs" onClick={onDuplicate}>
             <CopyPlus aria-hidden /> Duplicate
@@ -47,6 +51,7 @@ export function ProductCard({
             <Trash2 aria-hidden /> Delete
           </Button>
         </>
+        )
       }
     >
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">

@@ -28,6 +28,7 @@ import { useNavTransition } from "@/lib/nav-progress";
 import { actionSettled } from "@/lib/router-queue";
 import { shallowParams } from "@/lib/shallow-url";
 import type { VersionData } from "@/price-structure/engine/types";
+import type { PriceStructureAccess } from "@/lib/price-structure-access";
 import { SAVE_CONFLICT_MESSAGE, VERSION_GONE_MESSAGE } from "@/price-structure/messages";
 import { mergeOnConflict, type VersionDoc } from "./merge";
 
@@ -55,6 +56,8 @@ const RETRY_MS = [1_000, 2_000, 5_000, 10_000, 10_000];
 const MAX_MERGES = 3;
 
 interface Ctx {
+  /** What this member may change (the server decides; this hides or disables controls). */
+  access: PriceStructureAccess;
   /** Every version of the brand, most recently opened first. */
   versions: VersionRow[];
   open: VersionRow | null;
@@ -87,6 +90,11 @@ export function useOpenVersion(): VersionRow | null {
   return useVersion().open;
 }
 
+/** What this member may change. */
+export function useAccess(): PriceStructureAccess {
+  return useVersion().access;
+}
+
 const byOpened = (a: VersionSummary, b: VersionSummary) =>
   b.openedAt.localeCompare(a.openedAt) || b.createdAt.localeCompare(a.createdAt);
 
@@ -95,10 +103,12 @@ const docOf = (r: VersionRow): VersionDoc => ({ name: r.name, notes: r.notes, da
 export function VersionProvider({
   initialRows,
   lastOpenedId,
+  access,
   children,
 }: {
   initialRows: VersionRow[];
   lastOpenedId: string | null;
+  access: PriceStructureAccess;
   children: ReactNode;
 }) {
   const router = useRouter();
@@ -297,26 +307,26 @@ export function VersionProvider({
   const updateData = useCallback(
     (path: string | string[], fn: (data: VersionData) => VersionData) => {
       const id = openIdRef.current;
-      if (!id) return;
+      if (!id || !access.edit) return;
       for (const p of typeof path === "string" ? [path] : path) pendingRef.current.add(p);
       setRows((prev) => prev.map((r) => (r.id === id ? { ...r, data: fn(r.data) } : r)));
       setSaveState("dirty");
       scheduleSave();
     },
-    [scheduleSave],
+    [scheduleSave, access.edit],
   );
 
   const updateMeta = useCallback(
     (patch: Partial<Pick<VersionRow, "name" | "notes">>) => {
       const id = openIdRef.current;
-      if (!id) return;
+      if (!id || !access.versions) return;
       if (patch.name !== undefined) pendingRef.current.add("name");
       if (patch.notes !== undefined) pendingRef.current.add("notes");
       setRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)));
       setSaveState("dirty");
       scheduleSave();
     },
-    [scheduleSave],
+    [scheduleSave, access.versions],
   );
 
   // Leaving with unsaved edits: the browser's own "are you sure" is the only
@@ -438,8 +448,8 @@ export function VersionProvider({
   const open = useMemo(() => rows.find((r) => r.id === openId) ?? null, [rows, openId]);
 
   const value = useMemo<Ctx>(
-    () => ({ versions: rows, open, saveState, updateData, updateMeta, switchTo, openInNewTab, create, remove, flush, retry }),
-    [rows, open, saveState, updateData, updateMeta, switchTo, openInNewTab, create, remove, flush, retry],
+    () => ({ access, versions: rows, open, saveState, updateData, updateMeta, switchTo, openInNewTab, create, remove, flush, retry }),
+    [access, rows, open, saveState, updateData, updateMeta, switchTo, openInNewTab, create, remove, flush, retry],
   );
 
   return <VersionContext.Provider value={value}>{children}</VersionContext.Provider>;

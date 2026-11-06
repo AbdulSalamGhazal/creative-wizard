@@ -1,7 +1,6 @@
 import { Suspense } from "react";
-import { requirePermission } from "@/lib/auth";
 import { getActiveAccountId } from "@/lib/tenant";
-import { PRICE_STRUCTURE_GATE } from "@/lib/page-gates";
+import { requirePriceStructureAccess } from "@/lib/price-structure-access";
 import { getLastVersionId, listVersions } from "@/db/queries/price-structure";
 import { VersionProvider } from "@/components/price-structure/version-provider";
 import { HeaderSkeleton } from "@/components/layout/page-skeletons";
@@ -16,11 +15,13 @@ export const dynamic = "force-dynamic";
  * versions are read once here — a few KB each — because the picker needs them
  * all and the Versions page summarises every one from its data.
  *
- * One permission opens the whole module; each page re-checks it as well, so
- * the sidebar's derived gate and the pages agree (nav-gates.test.ts).
+ * Any of the module's three grants opens it (view · edit · versions); each
+ * page re-checks, so the sidebar's derived gate and the pages agree
+ * (nav-gates.test.ts). What the member may CHANGE travels to the provider as
+ * `access`, which hides or disables the controls — the actions are the gate.
  */
 export default async function PriceStructureLayout({ children }: { children: React.ReactNode }) {
-  const me = await requirePermission(PRICE_STRUCTURE_GATE);
+  const { user: me, access } = await requirePriceStructureAccess();
   const acct = await getActiveAccountId();
   const [rows, lastOpenedId] = await Promise.all([listVersions(acct), getLastVersionId(me.id, acct)]);
   return (
@@ -32,7 +33,7 @@ export default async function PriceStructureLayout({ children }: { children: Rea
         </div>
       }
     >
-      <VersionProvider initialRows={rows} lastOpenedId={lastOpenedId}>
+      <VersionProvider initialRows={rows} lastOpenedId={lastOpenedId} access={access}>
         {children}
       </VersionProvider>
     </Suspense>

@@ -19,7 +19,7 @@ import { useVersion } from "./version-provider";
  * provider's autosave.
  */
 export function SettingsSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
-  const { open: version, updateData } = useVersion();
+  const { open: version, updateData, access } = useVersion();
   const ids = { vat: useId(), incl: useId(), fx: useId(), delivery: useId(), undelivered: useId() };
   const s = version?.data.settings;
   const set = <K extends keyof Settings>(key: K, value: Settings[K]) =>
@@ -35,7 +35,7 @@ export function SettingsSheet({ open, onOpenChange }: { open: boolean; onOpenCha
           </SheetDescription>
         </SheetHeader>
         {s && (
-          <div className="space-y-5 px-4 pb-6">
+          <fieldset disabled={!access.edit} className="min-w-0 space-y-5 px-4 pb-6">
             <Field label="VAT rate" htmlFor={ids.vat}>
               <NumberField id={ids.vat} value={s.vatRate} pct unit="%" min={0} max={100} onChange={(v) => set("vatRate", v)} />
             </Field>
@@ -51,7 +51,8 @@ export function SettingsSheet({ open, onOpenChange }: { open: boolean; onOpenCha
             <Field label="Cost per undelivered order" hint="Shipping out and back, handling" htmlFor={ids.undelivered}>
               <NumberField id={ids.undelivered} value={s.undeliveredCost} unit="SAR" min={0} onChange={(v) => set("undeliveredCost", v)} />
             </Field>
-          </div>
+            {!access.edit && <p className="text-[11px] text-ink-3">Read-only: changing settings needs the Edit permission.</p>}
+          </fieldset>
         )}
       </SheetContent>
     </Sheet>

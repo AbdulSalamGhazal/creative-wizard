@@ -11,13 +11,13 @@ import { useVersion } from "./version-provider";
  * are eligible; saved on the version, so a change here changes it everywhere.
  */
 export function RoasTargetPicker() {
-  const { open, updateData } = useVersion();
+  const { open, updateData, access } = useVersion();
   if (!open) return null;
   const eligible = eligibleRoasTargets(open.data.targets);
   if (eligible.length < 2) return null;
   const current = resolveRoasTarget(open.data.targets, open.data.roasTargetId);
   return (
-    <Select value={current?.id ?? ""} onValueChange={(id) => updateData("data.roasTargetId", (d) => ({ ...d, roasTargetId: id }))}>
+    <Select value={current?.id ?? ""} disabled={!access.edit} onValueChange={(id) => updateData("data.roasTargetId", (d) => ({ ...d, roasTargetId: id }))}>
       <SelectTrigger size="sm" className="h-8 text-xs" aria-label="Which target drives ROAS for A / B">
         <span className="text-ink-3">ROAS for A / B:</span>
         <SelectValue />

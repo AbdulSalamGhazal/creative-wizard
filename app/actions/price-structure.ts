@@ -1,10 +1,9 @@
 "use server";
 
-import { requirePermission } from "@/lib/auth";
 import { getActiveAccountId } from "@/lib/tenant";
 import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
 import { actionError } from "@/lib/action-error";
-import { PRICE_STRUCTURE_GATE } from "@/lib/page-gates";
+import { EDIT_REFUSED, requirePriceStructureAccess, VERSIONS_REFUSED } from "@/lib/price-structure-access";
 import {
   bootstrapVersion as bootstrapVersionRow,
   deleteVersion as deleteVersionRow,
@@ -32,7 +31,9 @@ import { SAVE_CONFLICT_MESSAGE, VERSION_GONE_MESSAGE } from "@/price-structure/m
 
 /**
  * Price Structure versions — the server actions (brief §7). Every one needs
- * the module's single permission and works inside the active brand. NONE
+ * a grant that opens the module and works inside the active brand; a write
+ * also needs the capability it touches (`edit` for the document, `versions`
+ * for the version itself — see lib/price-structure-access.ts). NONE
  * revalidates a path: the client holds the open version and applies the
  * result itself (the autosave would otherwise re-render the page every
  * 500 ms), and create / delete update the provider's list in place.
@@ -47,13 +48,22 @@ export type SaveVersionResult =
 
 export async function saveVersion(input: unknown): Promise<SaveVersionResult> {
   try {
-    const me = await requirePermission(PRICE_STRUCTURE_GATE);
+    const { user: me, access } = await requirePriceStructureAccess();
     const parsed = saveVersionSchema.safeParse(input);
     if (!parsed.success) {
       return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
     }
     const acct = await getActiveAccountId();
     const { id, revision, name, notes, data } = parsed.data;
+    // A member without the full set may still save — as long as what they
+    // changed is theirs to change: the document needs `edit`, the name and
+    // notes need `versions`. Compared against the live row, read first.
+    if (!access.edit || !access.versions) {
+      const live = await getVersion(acct, id);
+      if (!live) return { ok: false, error: VERSION_GONE_MESSAGE, gone: true };
+      if (!access.edit && JSON.stringify(live.data) !== JSON.stringify(data)) return { ok: false, error: EDIT_REFUSED };
+      if (!access.versions && (live.name !== name || live.notes !== notes)) return { ok: false, error: VERSIONS_REFUSED };
+    }
     const saved = await updateVersionIfRevision(acct, id, revision, { name, notes, data }, me.id);
     if (saved) return { ok: true, revision: saved.revision, updatedAt: saved.updatedAt };
     const live = await getVersion(acct, id);
@@ -75,7 +85,8 @@ function nameFromFile(fileName: string): string {
 
 export async function createVersion(input: unknown): Promise<CreateVersionResult> {
   try {
-    const me = await requirePermission(PRICE_STRUCTURE_GATE);
+    const { user: me, access } = await requirePriceStructureAccess();
+    if (!access.versions) return { ok: false, error: VERSIONS_REFUSED };
     const parsed = createVersionSchema.safeParse(input);
     if (!parsed.success) {
       return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
@@ -144,7 +155,9 @@ export type BootstrapResult = { ok: true; version: VersionRow; created: boolean 
  */
 export async function bootstrapVersion(): Promise<BootstrapResult> {
   try {
-    const me = await requirePermission(PRICE_STRUCTURE_GATE);
+    // Any grant: a brand's first Blank "Main" is the module's floor, not a
+    // member's authored content, so a viewer's first visit creates it too.
+    const { user: me } = await requirePriceStructureAccess();
     const acct = await getActiveAccountId();
     const { version, created } = await bootstrapVersionRow(acct, me.id, () => ({
       name: "Main",
@@ -169,7 +182,8 @@ export async function bootstrapVersion(): Promise<BootstrapResult> {
 
 export async function deleteVersion(input: unknown): Promise<{ ok: boolean; error?: string }> {
   try {
-    const me = await requirePermission(PRICE_STRUCTURE_GATE);
+    const { user: me, access } = await requirePriceStructureAccess();
+    if (!access.versions) return { ok: false, error: VERSIONS_REFUSED };
     const parsed = versionIdSchema.safeParse(input);
     if (!parsed.success) return { ok: false, error: "Invalid input" };
     const acct = await getActiveAccountId();
@@ -197,7 +211,7 @@ export async function deleteVersion(input: unknown): Promise<{ ok: boolean; erro
  */
 export async function openVersion(input: unknown): Promise<{ ok: boolean }> {
   try {
-    const me = await requirePermission(PRICE_STRUCTURE_GATE);
+    const { user: me } = await requirePriceStructureAccess();
     const parsed = versionIdSchema.safeParse(input);
     if (!parsed.success) return { ok: false };
     const acct = await getActiveAccountId();
@@ -214,7 +228,7 @@ export type PollVersionsResult =
 /** What changed since the client last looked (every ~10 s while visible, and on focus). */
 export async function pollVersions(input: unknown): Promise<PollVersionsResult> {
   try {
-    await requirePermission(PRICE_STRUCTURE_GATE);
+    await requirePriceStructureAccess();
     const parsed = pollVersionsSchema.safeParse(input);
     if (!parsed.success) return { ok: false, error: "Invalid input" };
     const acct = await getActiveAccountId();

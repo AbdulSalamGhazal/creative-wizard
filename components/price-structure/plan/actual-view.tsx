@@ -11,6 +11,7 @@ import { formatMetric, money0, pct2, roas2, signedPct1, usd0, usd2 } from "@/pri
 import { LADDER_COLOR } from "../palette";
 import { RiyalBars, type RiyalRow } from "../riyal-bars";
 import { SectionCard } from "../section-card";
+import { useAccess } from "../version-provider";
 import { useViewPref } from "../view-prefs";
 import { CostShares } from "./cost-shares";
 import { MixCompare, type MixGroup } from "./mix-compare";
@@ -22,6 +23,7 @@ import { VerdictBox, verdictOf } from "./verdict-box";
 /** Actual vs plan (brief §6.4) for one period: the verdict, tiles, cost shares, ladder, mix and the orders grid. */
 export function ActualView({ data, period, plan, onChangePeriod }: { data: VersionData; period: ActualPeriod; plan: Plan; onChangePeriod: (fn: (p: ActualPeriod) => ActualPeriod) => void }) {
   const s = data.settings;
+  const { edit } = useAccess();
   const [group, setGroup] = useViewPref<MixGroup>("plan.mixGroup", "product", ["product", "offer"]);
   const { lines, baked, actual, days } = useMemo(() => actualBlends(period, data.products, s), [period, data.products, s]);
   const planB = useMemo(() => blend(planLines(plan, data.products, s), s), [plan, data.products, s]);
@@ -58,7 +60,9 @@ export function ActualView({ data, period, plan, onChangePeriod }: { data: Versi
 
   return (
     <>
-      <PeriodDetails period={period} settings={s} onChange={onChangePeriod} />
+      <fieldset disabled={!edit} className="min-w-0">
+        <PeriodDetails period={period} settings={s} onChange={onChangePeriod} />
+      </fieldset>
       {verdict ? (
         <VerdictBox verdict={verdict} actual={actual} baked={baked} planB={planB} days={days} usdToSar={s.usdToSar} />
       ) : (
@@ -98,7 +102,9 @@ export function ActualView({ data, period, plan, onChangePeriod }: { data: Versi
       </div>
       <RoasLadder title="ROAS ladder" subtitle="Where actual ROAS landed against the levels for the mix you sold." marks={marks} targetA={target ? roasA : null} />
       <MixCompare planLines={planLs} actualLines={lines} planName={plan.name} periodName={period.name} group={group} onGroup={setGroup} />
-      <PeriodOrdersTable period={period} products={data.products} lines={lines} baked={baked} onChange={onChangePeriod} />
+      <fieldset disabled={!edit} className="min-w-0">
+        <PeriodOrdersTable period={period} products={data.products} lines={lines} baked={baked} onChange={onChangePeriod} />
+      </fieldset>
     </>
   );
 }

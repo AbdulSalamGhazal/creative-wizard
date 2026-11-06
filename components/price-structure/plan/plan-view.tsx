@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Coins, DollarSign, Gauge, Package, Receipt, Target as TargetIcon } from "lucide-react";
 import { MetricCard } from "@/components/overview/metric-card";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -38,20 +38,28 @@ const INTRO =
 
 /** Plan (brief §6.4): the sales mix → baked-in ROAS, and actual vs plan. */
 export function PlanView() {
-  const { open: version, updateData } = useVersion();
+  const { open: version, updateData, access } = useVersion();
   const v = useSearchParams().get("v");
+  // A viewer may look at any plan; the choice stays in this tab, not on the version.
+  const [viewPlanId, setViewPlanId] = useState<string | null>(null);
   const [mode, setMode] = useViewPref<Mode>("plan.mode", "plan", ["plan", "actual"]);
   const [period, setPeriod] = useViewPref<Period>("plan.period", "day", ["day", "week", "month"]);
   const [selectedPeriodId, setSelectedPeriodId] = useViewPref<string>("plan.selectedPeriod", "");
   const [compareIdRaw, setCompareId] = useViewPref<string>("plan.comparePlan", "");
   const data = version?.data;
 
-  const plan = useMemo(() => data?.plans.find((p) => p.id === data.activePlanId) ?? data?.plans[0] ?? null, [data]);
+  const plan = useMemo(() => {
+    const wanted = access.edit ? data?.activePlanId : (viewPlanId ?? data?.activePlanId);
+    return data?.plans.find((p) => p.id === wanted) ?? data?.plans[0] ?? null;
+  }, [data, access.edit, viewPlanId]);
   const setPlan = useCallback(
     (id: string, fn: (p: Plan) => Plan) => updateData(`data.plans.${id}`, (d) => ({ ...d, plans: d.plans.map((p) => (p.id === id ? fn(p) : p)) })),
     [updateData],
   );
-  const selectPlan = useCallback((id: string) => updateData("data.activePlanId", (d) => ({ ...d, activePlanId: id })), [updateData]);
+  const selectPlan = useCallback(
+    (id: string) => (access.edit ? updateData("data.activePlanId", (d) => ({ ...d, activePlanId: id })) : setViewPlanId(id)),
+    [updateData, access.edit],
+  );
   const addPlan = useCallback(
     (next: Plan) => updateData([`data.plans.${next.id}`, "data.activePlanId"], (d) => ({ ...d, plans: [...d.plans, next], activePlanId: next.id })),
     [updateData],
@@ -136,6 +144,7 @@ export function PlanView() {
           onCompare={setCompareId}
           onAdd={addActual}
           onDelete={deleteActual}
+          readOnly={!access.edit}
         />
         {selected && <ActualView data={data} period={selected} plan={compare} onChangePeriod={(fn) => setActual(selected.id, fn)} />}
       </>
@@ -185,6 +194,7 @@ export function PlanView() {
         onDuplicate={() => addPlan({ ...plan, id: newId(), name: `${plan.name} (copy)` })}
         onNew={() => addPlan(evenPlan("New plan", products))}
         onDelete={() => deletePlan(plan.id)}
+        readOnly={!access.edit}
       />
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6">
         <MetricCard label="Baked-in ROAS" value={roas2(b.platformRoas)} icon={Gauge} hideBreakdown footer={`Accountant ROAS ${roas2(b.accountantRoas)}`} />
@@ -219,7 +229,7 @@ export function PlanView() {
         marks={marks}
         targetA={target ? roasA : null}
       />
-      <SalesMix plan={plan} products={products} settings={s} lines={lines} total={b} actuals={data.actuals} mult={mult} perLabel={per} onChange={(fn) => setPlan(plan.id, fn)} />
+      <SalesMix plan={plan} products={products} settings={s} lines={lines} total={b} actuals={data.actuals} mult={mult} perLabel={per} onChange={(fn) => setPlan(plan.id, fn)} readOnly={!access.edit} />
       <OfferRoasChart lines={lines} total={b} />
       <PlanBreakdown lines={lines} total={b} products={products} settings={s} mult={mult} perLabel={per} />
     </>

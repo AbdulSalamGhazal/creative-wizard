@@ -4,6 +4,8 @@ import { ACCOUNT_A, ACCOUNT_B } from "./config";
 
 let activeAccount = ACCOUNT_A;
 const USER_ID = "11111111-1111-1111-1111-111111111111";
+/** The member's grants: "all" (an admin) or an explicit set. */
+let grants: "all" | Set<string> = "all";
 vi.mock("@/lib/tenant", () => ({
   ACCOUNT_COOKIE: "ccms_account",
   getActiveAccountId: vi.fn(async () => activeAccount),
@@ -15,7 +17,7 @@ vi.mock("@/lib/auth", () => ({
   requirePermission: vi.fn(async () => ({ id: USER_ID, role: "admin" })),
   requireAuth: vi.fn(async () => ({ id: USER_ID, role: "admin" })),
   auth: vi.fn(async () => ({ id: USER_ID, role: "admin" })),
-  can: vi.fn(() => true),
+  can: vi.fn((_user: unknown, perm: string) => grants === "all" || grants.has(perm)),
 }));
 
 import { db } from "@/lib/db";
@@ -34,6 +36,7 @@ import {
   createVersion,
   deleteVersion,
   openVersion,
+  pollVersions as pollVersionsAction,
   saveVersion,
 } from "@/app/actions/price-structure";
 import { blankVersionData, sampleVersionData } from "@/price-structure/engine/sample";
@@ -46,6 +49,7 @@ beforeAll(async () => {
 
 beforeEach(async () => {
   activeAccount = ACCOUNT_A;
+  grants = "all";
   await db.delete(psUserState);
   await db.delete(psVersions);
 });
@@ -202,5 +206,58 @@ describe("poll", () => {
     expect(out.summaries.map((s) => s.name).sort()).toEqual(["One", "Two!"]);
     expect(out.changed.map((c) => c.id)).toEqual([v2.id]);
     expect(out.deleted).toEqual(["00000000-0000-0000-0000-00000000dead"]);
+  });
+});
+
+describe("the three grants (2026-11-06)", () => {
+  const seed = () => insertVersion(db, ACCOUNT_A, USER_ID, { name: "Main", notes: "", data: sampleVersionData() });
+
+  it("a viewer opens, polls and bootstraps, but saves and creates nothing", async () => {
+    grants = new Set(["price_structure.view"]);
+    const boot = await bootstrapVersion();
+    expect(boot.ok && boot.created).toBe(true);
+    if (!boot.ok) return;
+    const v = boot.version;
+    expect((await openVersion({ id: v.id })).ok).toBe(true);
+    const changed = { ...v.data, settings: { ...v.data.settings, deliveryRate: 0.9 } };
+    const save = await saveVersion({ id: v.id, revision: v.revision, name: v.name, notes: v.notes, data: changed });
+    expect(save.ok).toBe(false);
+    expect(!save.ok && save.error).toBe("Missing permission: price_structure.edit");
+    const rename = await saveVersion({ id: v.id, revision: v.revision, name: "Renamed", notes: v.notes, data: v.data });
+    expect(!rename.ok && rename.error).toBe("Missing permission: price_structure.versions");
+    expect((await createVersion({ name: "", notes: "", from: { kind: "blank" } })).ok).toBe(false);
+    expect((await deleteVersion({ id: v.id })).ok).toBe(false);
+    expect((await getVersion(ACCOUNT_A, v.id))?.revision).toBe(1);
+  });
+
+  it("an editor changes the document but not the version's name", async () => {
+    grants = new Set(["price_structure.edit"]);
+    const v = await seed();
+    const changed = { ...v.data, settings: { ...v.data.settings, deliveryRate: 0.9 } };
+    const save = await saveVersion({ id: v.id, revision: 1, name: v.name, notes: v.notes, data: changed });
+    expect(save.ok).toBe(true);
+    const rename = await saveVersion({ id: v.id, revision: 2, name: "Renamed", notes: "", data: changed });
+    expect(!rename.ok && rename.error).toBe("Missing permission: price_structure.versions");
+    expect((await createVersion({ name: "", notes: "", from: { kind: "copy", id: v.id } })).ok).toBe(false);
+  });
+
+  it("a version manager renames, copies and deletes, but leaves the document alone", async () => {
+    grants = new Set(["price_structure.versions"]);
+    const v = await seed();
+    const rename = await saveVersion({ id: v.id, revision: 1, name: "Renamed", notes: "why", data: v.data });
+    expect(rename.ok).toBe(true);
+    const changed = { ...v.data, settings: { ...v.data.settings, deliveryRate: 0.9 } };
+    const edit = await saveVersion({ id: v.id, revision: 2, name: "Renamed", notes: "why", data: changed });
+    expect(!edit.ok && edit.error).toBe("Missing permission: price_structure.edit");
+    const copy = await createVersion({ name: "", notes: "", from: { kind: "copy", id: v.id } });
+    expect(copy.ok).toBe(true);
+    if (!copy.ok) return;
+    expect((await deleteVersion({ id: copy.version.id })).ok).toBe(true);
+  });
+
+  it("no grant at all is refused everywhere", async () => {
+    grants = new Set();
+    expect((await bootstrapVersion()).ok).toBe(false);
+    expect((await pollVersionsAction({ known: [] })).ok).toBe(false);
   });
 });

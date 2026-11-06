@@ -22,7 +22,8 @@ export function ProductList({
   products: readonly Product[];
   selectedId: string | null;
   onSelect: (id: string) => void;
-  onAdd: () => void;
+  /** null for a viewer: no Add button. */
+  onAdd: (() => void) | null;
 }) {
   const summary = (p: Product) => `${p.offers.length} offer${p.offers.length === 1 ? "" : "s"} · ${money0(p.price)} SAR`;
   return (
@@ -43,16 +44,20 @@ export function ProductList({
             ))}
           </SelectContent>
         </Select>
-        <Button type="button" size="sm" variant="outline" className="h-8 text-xs" onClick={onAdd}>
-          <Plus aria-hidden /> Add
-        </Button>
+        {onAdd && (
+          <Button type="button" size="sm" variant="outline" className="h-8 text-xs" onClick={onAdd}>
+            <Plus aria-hidden /> Add
+          </Button>
+        )}
       </div>
       <nav aria-label="Products" className="hidden self-start rounded-lg border border-line bg-surface lg:block">
         <div className="flex items-center justify-between border-b border-line px-3 py-2">
           <span className="text-label text-ink-3">Products</span>
-          <Button type="button" size="xs" variant="ghost" onClick={onAdd}>
-            <Plus aria-hidden /> Add
-          </Button>
+          {onAdd && (
+            <Button type="button" size="xs" variant="ghost" onClick={onAdd}>
+              <Plus aria-hidden /> Add
+            </Button>
+          )}
         </div>
         <ul className="max-h-[70vh] overflow-y-auto py-1">
           {products.map((p) => {

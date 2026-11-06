@@ -12,7 +12,7 @@ import {
   AUDIT_GATE,
   CONFIGURATION_TABS,
   NAV_ROUTE_GATES,
-  PRICE_STRUCTURE_GATE,
+  PRICE_STRUCTURE_PERMS,
   PRICE_STRUCTURE_ROUTES,
   TEAM_GATE,
   UPLOAD_ADS_ACTIONS,
@@ -51,7 +51,7 @@ function pageAccess(perms: readonly string[]): Record<string, boolean> {
     ...Object.fromEntries(
       PRICE_STRUCTURE_ROUTES.filter((r) => !r.endsWith("/versions")).map((r) => [
         r,
-        has(PRICE_STRUCTURE_GATE),
+        PRICE_STRUCTURE_PERMS.some(has),
       ]),
     ),
   };
@@ -78,14 +78,10 @@ describe("every gated nav item reads its page's gates", () => {
     expect(src("app/(dashboard)/admin/users/page.tsx")).toContain("requirePermission(TEAM_GATE)");
     expect(src("app/(dashboard)/admin/audit/page.tsx")).toContain("requirePermission(AUDIT_GATE)");
     // The module's layout gates every page under it, and each page re-checks.
-    expect(src("app/(dashboard)/price-structure/layout.tsx")).toContain(
-      "requirePermission(PRICE_STRUCTURE_GATE)",
-    );
+    expect(src("app/(dashboard)/price-structure/layout.tsx")).toContain("requirePriceStructureAccess()");
     for (const route of PRICE_STRUCTURE_ROUTES) {
       const dir = route === "/price-structure/products" ? `${route}/[[...path]]` : route;
-      expect(src(`app/(dashboard)${dir}/page.tsx`), route).toContain(
-        "requirePermission(PRICE_STRUCTURE_GATE)",
-      );
+      expect(src(`app/(dashboard)${dir}/page.tsx`), route).toContain("requirePriceStructureAccess()");
     }
   });
 

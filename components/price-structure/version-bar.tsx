@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { Check, Loader2, RefreshCw, Settings2, TriangleAlert } from "lucide-react";
+import { Check, Eye, Loader2, RefreshCw, Settings2, TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -25,7 +25,7 @@ const MANAGE = "__manage";
  * every page header's right slot.
  */
 export function VersionBar() {
-  const { versions, open, saveState, switchTo, flush, retry } = useVersion();
+  const { access, versions, open, saveState, switchTo, flush, retry } = useVersion();
   const router = useRouter();
   const pathname = usePathname();
   const [, startNav] = useNavTransition();
@@ -46,7 +46,13 @@ export function VersionBar() {
 
   return (
     <div className="flex flex-wrap items-center justify-end gap-2">
-      <SaveStatus state={saveState} onRetry={retry} />
+      {access.edit || access.versions ? (
+        <SaveStatus state={saveState} onRetry={retry} />
+      ) : (
+        <span className="inline-flex items-center gap-1 text-[11px] text-ink-3" title="You can open every page; editing needs the Edit permission.">
+          <Eye className="size-3" aria-hidden /> Read-only
+        </span>
+      )}
       <Select value={open?.id ?? ""} onValueChange={pick}>
         <SelectTrigger size="sm" className="h-8 max-w-[14rem] text-xs" aria-label="Version">
           <SelectValue placeholder="Version…" />
