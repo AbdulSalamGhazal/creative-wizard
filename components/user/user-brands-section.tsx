@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Check } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -36,6 +36,7 @@ export function UserBrandsSection({
   scope,
   initialAllAccounts,
   initialAccountIds,
+  onDirtyChange,
 }: {
   userId: string;
   isSelf: boolean;
@@ -46,6 +47,8 @@ export function UserBrandsSection({
   scope: ManagerScope;
   initialAllAccounts: boolean;
   initialAccountIds: string[];
+  /** The drawer refuses to close over unsaved changes (D4). */
+  onDirtyChange?: (dirty: boolean) => void;
 }) {
   const [allAccounts, setAllAccounts] = useState(initialAllAccounts);
   const [checked, setChecked] = useState<Set<string>>(
@@ -70,6 +73,7 @@ export function UserBrandsSection({
         JSON.stringify([...checked].sort()) !== JSON.stringify(initialSorted)));
 
   const noneChosen = !allAccounts && checked.size === 0;
+  useEffect(() => onDirtyChange?.(dirty), [dirty, onDirtyChange]);
 
   function toggle(id: string) {
     if (locked || allAccounts || outOfReach(id)) return;
@@ -106,9 +110,11 @@ export function UserBrandsSection({
   }
 
   return (
-    <div className="border-t border-line px-4 py-3">
-      <div className="mb-2 flex items-center justify-between gap-3">
-        <div className="text-label text-ink-3">Brands</div>
+    <section aria-labelledby="member-brands-heading" className="space-y-2">
+      <div className="flex items-center justify-between gap-3">
+        <h3 id="member-brands-heading" className="text-label text-ink-3">
+          Brands
+        </h3>
         {!locked && everyBrand && (
           <button
             type="button"
@@ -142,7 +148,7 @@ export function UserBrandsSection({
           Member of every brand, including brands created later.
         </p>
       ) : (
-        <div className="grid gap-1 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-1 sm:grid-cols-2">
           {brands.map((b) => {
             const on = checked.has(b.id);
             const unheld = !locked && outOfReach(b.id);
@@ -195,7 +201,7 @@ export function UserBrandsSection({
       )}
 
       {dirty && (
-        <div className="mt-3 flex items-center justify-end gap-2">
+        <div className="flex items-center justify-end gap-2 rounded-md border border-line bg-surface-2/50 px-3 py-2">
           <Button
             type="button"
             variant="ghost"
@@ -215,6 +221,6 @@ export function UserBrandsSection({
           </Button>
         </div>
       )}
-    </div>
+    </section>
   );
 }

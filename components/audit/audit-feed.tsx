@@ -6,6 +6,7 @@ import {
   Images,
   Layers3,
   Link2,
+  ListFilter,
   LogIn,
   LogOut,
   Package,
@@ -14,9 +15,11 @@ import {
   Tags as AnglesIcon,
   Trash2,
   Upload,
+  UserCheck,
+  UserMinus,
   UserPlus,
+  UserX,
   Users,
-  ListFilter,
 } from "lucide-react";
 import {
   auditLabel,
@@ -120,6 +123,10 @@ function ActionIcon({ action }: { action: AuditAction }) {
     "user.role_change": Users,
     "user.permissions_update": Users,
     "user.password_reset": ShieldAlert,
+    "user.deactivate": UserX,
+    "user.reactivate": UserCheck,
+    "user.remove": UserMinus,
+    "user.sessions_end": LogOut,
     "mapping.add": Layers3,
     "mapping.remove": Layers3,
     "angle.create": AnglesIcon,
@@ -297,6 +304,11 @@ function metaSummary(row: AuditFeedRow): string | null {
         | undefined;
       if (!before) return "thresholds set";
       return `was Good ≥ ${roas(before.goodRoas)}, Decent ≥ ${roas(before.decentRoas)}, min ${usd0(before.minSpend)}`;
+    }
+    case "user.remove": {
+      const kept = m.kept as { creatives?: number; uploads?: number; comments?: number } | undefined;
+      if (!kept) return null;
+      return `kept ${plural(kept.creatives ?? 0, "creative")}, ${plural(kept.uploads ?? 0, "upload")}, ${plural(kept.comments ?? 0, "comment")}`;
     }
     case "user.role_change": {
       const from = m.from as string | null | undefined;
