@@ -57,9 +57,16 @@ export const productStatusEnum = ["active", "archived"] as const;
  */
 export const DEFAULT_ACCOUNT_ID = "00000000-0000-0000-0000-000000000001";
 
-export const users = pgTable("users", {
+export const users = pgTable(
+  "users",
+  {
   id: uuid("id").primaryKey().defaultRandom(),
-  email: varchar("email", { length: 255 }).notNull().unique(),
+  /**
+   * Unique among CURRENT members only (`users_email_active_uq`, migration
+   * 0067): a removed person's row keeps its email for attribution and the
+   * audit trail, and the same address can be invited again as a new row.
+   */
+  email: varchar("email", { length: 255 }).notNull(),
   name: varchar("name", { length: 255 }).notNull(),
   /** bcrypt hash. Nullable so existing rows can be migrated lazily; sign-in
    *  rejects users with no hash and points them to ask an admin to set one. */
@@ -127,8 +134,33 @@ export const users = pgTable("users", {
    * through; every page, action and route behind it calls `auth()`.
    */
   sessionsRevokedAt: timestamp("sessions_revoked_at", { withTimezone: true }),
+  /**
+   * The member lifecycle (D4, 2026-11-06). Three states, derived from two
+   * stamps — `memberStatus()` in lib/team-lifecycle.ts is the one reader:
+   *  · active        — both NULL;
+   *  · deactivated   — `deactivated_at` set: can't sign in, every session and
+   *                    token refuses them (`auth()` reads the row as gone),
+   *                    still listed on the Team page, REVERSIBLE (reactivate);
+   *  · removed       — `removed_at` set: gone from the Team page for good,
+   *                    memberships / tokens / grants / prefs / notifications
+   *                    purged, password cleared, email freed for a new invite.
+   *                    The row itself stays so every `created_by`, comment and
+   *                    audit actor keeps its name — removal never rewrites
+   *                    history. Not reversible from the UI.
+   */
+  deactivatedAt: timestamp("deactivated_at", { withTimezone: true }),
+  removedAt: timestamp("removed_at", { withTimezone: true }),
+  /** Stamped by a successful password sign-in — the Team page's "last sign-in". */
+  lastSignInAt: timestamp("last_sign_in_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+  },
+  (t) => ({
+    // Partial: only members who have not been removed hold their address.
+    emailActiveUq: uniqueIndex("users_email_active_uq")
+      .on(t.email)
+      .where(sql`${t.removedAt} IS NULL`),
+  }),
+);
 
 /**
  * Personal access tokens — a user links their OWN LLM to the read-only MCP

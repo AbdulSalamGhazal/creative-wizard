@@ -9,9 +9,11 @@
  *   Prod:   DATABASE_URL='<pooled-url>' ADMIN_EMAIL=you@co.com \
  *             ADMIN_PASSWORD='a-strong-pass' npx tsx db/create-admin.ts
  *
- * Idempotent: if the email already exists, its password is reset and role set
- * to admin.
+ * Idempotent: if the email is already on the team, its password is reset, its
+ * role set to admin and a deactivation lifted (the recovery for a team that
+ * locked itself out).
  */
+import { and, eq, isNull } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { users } from "@/db/schema";
 import { hashPassword, PASSWORD_MIN_LENGTH } from "@/lib/auth-password";
@@ -34,16 +36,27 @@ async function main() {
   }
 
   const passwordHash = await hashPassword(password);
-  const [row] = await db
-    .insert(users)
-    .values({ email, name, role: "admin", passwordHash })
-    .onConflictDoUpdate({
-      target: users.email,
-      set: { passwordHash, role: "admin" },
-    })
-    .returning({ id: users.id, email: users.email });
+  // Look up, then insert or update: the email index is PARTIAL (a removed
+  // member's address is free again, migration 0067), so a plain ON CONFLICT
+  // would not match it. A removed row never comes back — a fresh one is made.
+  const [existing] = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(and(eq(users.email, email), isNull(users.removedAt)))
+    .limit(1);
+  const [row] = existing
+    ? await db
+        .update(users)
+        // Reactivated as well, so a locked-out team gets its admin back.
+        .set({ passwordHash, role: "admin", deactivatedAt: null })
+        .where(eq(users.id, existing.id))
+        .returning({ id: users.id, email: users.email })
+    : await db
+        .insert(users)
+        .values({ email, name, role: "admin", passwordHash })
+        .returning({ id: users.id, email: users.email });
 
-  console.log(`Admin ready: ${row?.email} (${row?.id})`);
+  console.log(`Admin ${existing ? "reset" : "created"}: ${row?.email} (${row?.id})`);
 }
 
 main()

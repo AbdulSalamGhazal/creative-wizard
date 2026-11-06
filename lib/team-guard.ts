@@ -21,7 +21,12 @@ import {
  *  - if they are restricted to some brands: grants or removes only those
  *    brands, never "every brand", and leaves an every-brand member alone;
  *  - sets a password only for someone whose access is within theirs (a
- *    password reset is a takeover — it hands the actor that person's access).
+ *    password reset is a takeover — it hands the actor that person's access);
+ *  - deactivates, reactivates or removes only someone whose access is within
+ *    theirs, by the same reasoning: taking a person's access away is the
+ *    other face of handing it out (D4, 2026-11-06); ending someone's
+ *    sessions is a nuisance, not an escalation, so it needs only "not an
+ *    admin".
  *
  * Admins pass every check. The self-edit and last-admin rules stay in the
  * actions, where they always were.
@@ -73,7 +78,13 @@ export type TeamChange =
       accountIds: readonly string[];
     }
   | { kind: "password"; target: MemberAccess }
-  | { kind: "photo"; target: Pick<MemberAccess, "role"> };
+  | { kind: "photo"; target: Pick<MemberAccess, "role"> }
+  /** Deactivate or reactivate — the same judgement either way (D4). */
+  | { kind: "status"; target: MemberAccess }
+  /** Remove from the team for good (D4). */
+  | { kind: "remove"; target: MemberAccess }
+  /** End every session the person has (D4). */
+  | { kind: "sessions"; target: Pick<MemberAccess, "role"> };
 
 /** Every refusal, in the house voice. Tests and the UI read these too. */
 export const TEAM_REFUSAL = {
@@ -87,6 +98,11 @@ export const TEAM_REFUSAL = {
   grantBrand: "You can only grant brands you belong to.",
   removeBrand: "You can only remove brands you belong to.",
   passwordBeyond: "You can't set the password of someone with access you don't have.",
+  adminStatus: "Only an admin can deactivate or reactivate an admin.",
+  statusBeyond: "You can't deactivate or reactivate someone with access you don't have.",
+  adminRemove: "Only an admin can remove an admin.",
+  removeBeyond: "You can't remove someone with access you don't have.",
+  adminSessions: "Only an admin can end an admin's sessions.",
 } as const;
 
 const PERMISSION_LABEL: ReadonlyMap<string, string> = new Map(
@@ -215,5 +231,18 @@ export function teamGuard(scope: ManagerScope, change: TeamChange): string | nul
 
     case "photo":
       return change.target.role === "admin" ? TEAM_REFUSAL.adminPhoto : null;
+
+    case "status": {
+      if (change.target.role === "admin") return TEAM_REFUSAL.adminStatus;
+      return withinScope(scope, change.target) ? null : TEAM_REFUSAL.statusBeyond;
+    }
+
+    case "remove": {
+      if (change.target.role === "admin") return TEAM_REFUSAL.adminRemove;
+      return withinScope(scope, change.target) ? null : TEAM_REFUSAL.removeBeyond;
+    }
+
+    case "sessions":
+      return change.target.role === "admin" ? TEAM_REFUSAL.adminSessions : null;
   }
 }

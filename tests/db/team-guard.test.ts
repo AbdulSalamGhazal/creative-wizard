@@ -183,7 +183,7 @@ describe("invite — below admin", () => {
 
   it("can invite a Viewer", async () => {
     actor = ACTORS.lead;
-    expect(await invite({ role: "viewer" })).toEqual({ ok: true });
+    expect(await invite({ role: "viewer" })).toMatchObject({ ok: true });
     expect((await byEmail("new@test.local"))?.role).toBe("viewer");
   });
 
@@ -203,14 +203,14 @@ describe("invite — below admin", () => {
 
   it("a restricted holder can grant their own brand", async () => {
     actor = ACTORS.rlead;
-    expect(await invite({ role: "viewer", allAccounts: false, accountIds: [ACCOUNT_A] })).toEqual({ ok: true });
+    expect(await invite({ role: "viewer", allAccounts: false, accountIds: [ACCOUNT_A] })).toMatchObject({ ok: true });
     const created = await byEmail("new@test.local");
     expect(created?.allAccounts).toBe(false);
     expect(await brandsOf(created!.id)).toEqual([ACCOUNT_A]);
   });
 
   it("an admin still can create an admin", async () => {
-    expect(await invite({ role: "admin" })).toEqual({ ok: true });
+    expect(await invite({ role: "admin" })).toMatchObject({ ok: true });
     expect((await byEmail("new@test.local"))?.role).toBe("admin");
   });
 });

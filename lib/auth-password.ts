@@ -2,8 +2,9 @@ import bcrypt from "bcryptjs";
 
 const BCRYPT_COST = 12;
 
-export const PASSWORD_MIN_LENGTH = 8;
-export const PASSWORD_MAX_LENGTH = 128;
+import { PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH } from "@/lib/password-policy";
+
+export { PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH };
 
 export async function hashPassword(plain: string): Promise<string> {
   if (plain.length < PASSWORD_MIN_LENGTH) {

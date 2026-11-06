@@ -2,11 +2,12 @@
 
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { users } from "@/db/schema";
 import { clearSessionCookie, setSessionCookie } from "@/lib/auth-cookie";
+import { DEACTIVATED_SIGNIN_MESSAGE } from "@/lib/team-lifecycle";
 import {
   hashPassword,
   verifyPassword,
@@ -119,13 +120,16 @@ export async function signIn(formData: FormData): Promise<SignInResult> {
     return { ok: false, error: throttledError };
   }
 
+  // A REMOVED person's row keeps its email for history but is nobody's
+  // sign-in (D4): it reads exactly like an unknown address.
   const [row] = await db
     .select({
       id: users.id,
       passwordHash: users.passwordHash,
+      deactivatedAt: users.deactivatedAt,
     })
     .from(users)
-    .where(sql`LOWER(${users.email}) = ${email}`)
+    .where(and(sql`LOWER(${users.email}) = ${email}`, isNull(users.removedAt)))
     .limit(1);
 
   if (!row) {
@@ -145,8 +149,16 @@ export async function signIn(formData: FormData): Promise<SignInResult> {
     await auditAnonymous(AUDIT_ACTIONS.AUTH_SIGNIN_FAILED, row.id, { reason: "bad_password" });
     return { ok: false, error: genericError };
   }
+  // Only AFTER the password: a stranger learns nothing about who is on the
+  // team, and the person themself learns why the door is shut (D4).
+  if (row.deactivatedAt) {
+    await auditAnonymous(AUDIT_ACTIONS.AUTH_SIGNIN_FAILED, row.id, { reason: "deactivated" });
+    return { ok: false, error: DEACTIVATED_SIGNIN_MESSAGE };
+  }
 
   await setSessionCookie(row.id);
+  // The Team page's "last sign-in" (D4) — one stamp per successful sign-in.
+  await db.update(users).set({ lastSignInAt: new Date() }).where(eq(users.id, row.id));
   await logAudit({
     action: AUDIT_ACTIONS.AUTH_SIGNIN,
     entityType: "auth",

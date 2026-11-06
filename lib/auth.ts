@@ -1,5 +1,5 @@
 import { cache } from "react";
-import { eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { users } from "@/db/schema";
 import { readSession, sessionRevoked } from "@/lib/auth-cookie";
@@ -66,7 +66,13 @@ export interface SessionPrefs {
   toastScope: string | null;
 }
 
-/** The user plus their session-revocation stamp and prefs (kept off `SessionUser`). */
+/**
+ * The user plus their session-revocation stamp and prefs (kept off
+ * `SessionUser`). A DEACTIVATED or REMOVED person (D4, 2026-11-06) reads as
+ * gone: every cookie, MCP token and OAuth grant resolves identity through
+ * here, so one filter ends all of them at once — the dashboard layout then
+ * sends the cookie back through sign-in, which refuses it in words.
+ */
 async function loadUserRow(
   userId: string,
 ): Promise<{ user: SessionUser; sessionsRevokedAt: Date | null; prefs: SessionPrefs } | null> {
@@ -85,7 +91,7 @@ async function loadUserRow(
       toastScope: users.toastScope,
     })
     .from(users)
-    .where(eq(users.id, userId))
+    .where(and(eq(users.id, userId), isNull(users.deactivatedAt), isNull(users.removedAt)))
     .limit(1);
 
   if (!row) return null;

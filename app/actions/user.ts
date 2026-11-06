@@ -6,7 +6,20 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { requirePermission } from "@/lib/auth";
 import { setSessionCookie } from "@/lib/auth-cookie";
-import { accounts, userAccounts, users } from "@/db/schema";
+import {
+  accounts,
+  apiTokens,
+  commentReads,
+  notificationRoutes,
+  notifications,
+  oauthCodes,
+  oauthTokens,
+  psUserState,
+  userAccounts,
+  userFilterPrefs,
+  userTablePrefs,
+  users,
+} from "@/db/schema";
 import { roleEnum } from "@/lib/enums";
 import {
   hashPassword,
@@ -19,14 +32,26 @@ import { isPermission } from "@/lib/permissions";
 import { actionError } from "@/lib/action-error";
 import { listAllAccounts } from "@/lib/tenant";
 import { teamGuard } from "@/lib/team-guard";
-import { managerScope, memberAccess } from "@/db/queries/team";
+import {
+  lockActiveAdminCount,
+  managerScope,
+  memberAccess,
+  memberFootprint,
+  teamMemberByEmail,
+} from "@/db/queries/team";
+import type { MemberFootprint } from "@/lib/team-member";
+import { discardAvatar } from "@/lib/avatar-storage";
 import { createNotifications } from "@/db/queries/notifications";
 import { DIRECT_EVENT_TYPES, categoryForType } from "@/lib/notifications";
 
 export interface UserMutationResult {
   ok: boolean;
   error?: string;
+  /** The created member's id (invite only) — the dialog opens their row. */
+  userId?: string;
 }
+
+const userIdSchema = z.object({ userId: z.string().uuid() });
 
 const passwordSchema = z
   .string()
@@ -116,13 +141,16 @@ export async function inviteUser(input: unknown): Promise<UserMutationResult> {
     });
     if (refusal) return { ok: false, error: refusal };
 
-    const [existing] = await db
-      .select({ id: users.id })
-      .from(users)
-      .where(eq(users.email, normalizedEmail))
-      .limit(1);
+    // A REMOVED person's address is free again (D4); a deactivated one is
+    // still on the team, and the answer is to reactivate them, not clone them.
+    const existing = await teamMemberByEmail(normalizedEmail);
     if (existing) {
-      return { ok: false, error: "Email already on the team." };
+      return {
+        ok: false,
+        error: existing.deactivatedAt
+          ? `${existing.name} is on the team but deactivated — reactivate them instead of inviting again.`
+          : "Email already on the team.",
+      };
     }
 
     const hash = await hashPassword(password);
@@ -166,7 +194,7 @@ export async function inviteUser(input: unknown): Promise<UserMutationResult> {
         },
       });
     }
-    return { ok: true };
+    return { ok: true, userId: inserted?.id };
   } catch (err) {
     return {
       ok: false,
@@ -229,12 +257,9 @@ export async function updateUserAccess(
     // The loser re-reads after the winner commits and sees one admin left.
     const lastAdmin = await db.transaction(async (tx) => {
       if (before.role === "admin" && role !== "admin") {
-        const admins = await tx
-          .select({ id: users.id })
-          .from(users)
-          .where(eq(users.role, "admin"))
-          .for("update");
-        if (admins.length <= 1) return true;
+        // ACTIVE admins only (D4): a deactivated admin can't get in, so
+        // demoting the one who can would still lock the team out.
+        if ((await lockActiveAdminCount(tx)) <= 1) return true;
       }
       await tx.update(users).set({ role, permissions }).where(eq(users.id, userId));
       return false;
@@ -444,5 +469,219 @@ export async function adminSetPassword(input: unknown): Promise<UserMutationResu
       ok: false,
       error: actionError(err, "user"),
     };
+  }
+}
+
+// ─── The member lifecycle (D4, 2026-11-06) ──────────────────────────────────
+//
+// Three writes, one shape each: who may do it is `teamGuard` (never yourself,
+// never the last active admin), what it changes is a stamp on `users`, and
+// every one is audited. `auth()` reads the stamps, so a deactivated or removed
+// person's cookies, MCP tokens and OAuth grants all stop at their next request.
+
+const statusSchema = userIdSchema.extend({ active: z.boolean() });
+
+/**
+ * Deactivate (`active: false`) or reactivate (`active: true`) a member.
+ * REVERSIBLE: the row, its memberships, permissions and photo all stay; only
+ * sign-in is shut. Deactivating also ends every session the person has, so
+ * an open tab doesn't outlive the decision.
+ */
+export async function setUserStatus(input: unknown): Promise<UserMutationResult> {
+  try {
+    const me = await requirePermission("users.manage");
+    const parsed = statusSchema.safeParse(input);
+    if (!parsed.success) {
+      return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
+    }
+    const { userId, active } = parsed.data;
+    if (userId === me.id) {
+      return { ok: false, error: "You can't deactivate your own account." };
+    }
+    const target = await memberAccess(userId);
+    if (!target) return { ok: false, error: "User not found." };
+    const refusal = teamGuard(await managerScope(me), { kind: "status", target });
+    if (refusal) return { ok: false, error: refusal };
+
+    const wasActive = target.deactivatedAt === null;
+    if (wasActive === active) return { ok: true }; // already so — nothing to write
+
+    const lastAdmin = await db.transaction(async (tx) => {
+      if (!active && target.role === "admin") {
+        if ((await lockActiveAdminCount(tx)) <= 1) return true;
+      }
+      const now = new Date();
+      await tx
+        .update(users)
+        .set(
+          active
+            ? { deactivatedAt: null }
+            : { deactivatedAt: now, sessionsRevokedAt: now },
+        )
+        .where(eq(users.id, userId));
+      return false;
+    });
+    if (lastAdmin) return { ok: false, error: "Can't deactivate the last admin." };
+
+    try {
+      revalidatePath("/admin/users");
+    } catch (err) {
+      console.warn("revalidatePath after status change failed:", err);
+    }
+    await logAudit({
+      action: active ? AUDIT_ACTIONS.USER_REACTIVATE : AUDIT_ACTIONS.USER_DEACTIVATE,
+      entityType: "user",
+      entityId: userId,
+      entityLabel: target.email,
+      actorUserId: me.id,
+    });
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: actionError(err, "user") };
+  }
+}
+
+/**
+ * End every session a member has (D3's stamp, from the Team page). Their
+ * password is unchanged; they simply sign in again. Your own sessions end
+ * from the account menu ("Sign out everywhere"), which keeps this device.
+ */
+export async function endUserSessions(input: unknown): Promise<UserMutationResult> {
+  try {
+    const me = await requirePermission("users.manage");
+    const parsed = userIdSchema.safeParse(input);
+    if (!parsed.success) {
+      return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
+    }
+    const { userId } = parsed.data;
+    if (userId === me.id) {
+      return { ok: false, error: "Use “Sign out everywhere” in your account menu for your own sessions." };
+    }
+    const target = await memberAccess(userId);
+    if (!target) return { ok: false, error: "User not found." };
+    const refusal = teamGuard(await managerScope(me), { kind: "sessions", target });
+    if (refusal) return { ok: false, error: refusal };
+
+    await db.update(users).set({ sessionsRevokedAt: new Date() }).where(eq(users.id, userId));
+    // No revalidation: nothing the Team page shows has changed (W2-1).
+    await logAudit({
+      action: AUDIT_ACTIONS.USER_SESSIONS_END,
+      entityType: "user",
+      entityId: userId,
+      entityLabel: target.email,
+      actorUserId: me.id,
+    });
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: actionError(err, "user") };
+  }
+}
+
+/**
+ * Remove a member from the team for good. Their sign-in is deleted (password
+ * cleared, every session ended), their memberships, API tokens, OAuth grants,
+ * saved preferences and notifications are purged, and the email is free to
+ * invite again. The `users` row itself STAYS, stamped `removed_at`, so every
+ * creative, upload, comment and audit event they left keeps its name —
+ * removal never rewrites history (the same choice the comment thread made
+ * with its SET NULL "Former member": history outlives the account).
+ */
+export async function removeUser(input: unknown): Promise<UserMutationResult> {
+  try {
+    const me = await requirePermission("users.manage");
+    const parsed = userIdSchema.safeParse(input);
+    if (!parsed.success) {
+      return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
+    }
+    const { userId } = parsed.data;
+    if (userId === me.id) {
+      return { ok: false, error: "You can't remove yourself from the team." };
+    }
+    const target = await memberAccess(userId);
+    if (!target) return { ok: false, error: "User not found." };
+    const refusal = teamGuard(await managerScope(me), { kind: "remove", target });
+    if (refusal) return { ok: false, error: refusal };
+
+    // What stays behind, for the audit row — resolved BEFORE the transaction
+    // (prod's pool is one connection; nothing may run on `db` inside it).
+    const kept = await memberFootprint(userId);
+
+    const lastAdmin = await db.transaction(async (tx) => {
+      if (target.role === "admin" && target.deactivatedAt === null) {
+        if ((await lockActiveAdminCount(tx)) <= 1) return true;
+      }
+      const now = new Date();
+      // Credentials and reach, gone. Each table below cascades on a hard
+      // delete of the row; the row stays, so each is cleared by hand.
+      await tx.delete(userAccounts).where(eq(userAccounts.userId, userId));
+      await tx.delete(apiTokens).where(eq(apiTokens.userId, userId));
+      await tx.delete(oauthCodes).where(eq(oauthCodes.userId, userId));
+      await tx.delete(oauthTokens).where(eq(oauthTokens.userId, userId));
+      await tx.delete(userFilterPrefs).where(eq(userFilterPrefs.userId, userId));
+      await tx.delete(userTablePrefs).where(eq(userTablePrefs.userId, userId));
+      await tx.delete(notifications).where(eq(notifications.recipientUserId, userId));
+      await tx.delete(notificationRoutes).where(eq(notificationRoutes.userId, userId));
+      await tx.delete(commentReads).where(eq(commentReads.userId, userId));
+      await tx.delete(psUserState).where(eq(psUserState.userId, userId));
+      await tx
+        .update(users)
+        .set({
+          removedAt: now,
+          sessionsRevokedAt: now,
+          passwordHash: null,
+          role: "viewer",
+          permissions: [],
+          allAccounts: false,
+          avatarUrl: null,
+        })
+        .where(eq(users.id, userId));
+      return false;
+    });
+    if (lastAdmin) return { ok: false, error: "Can't remove the last admin." };
+
+    // The photo file: best effort, after the commit, like every avatar change.
+    if (target.avatarUrl) await discardAvatar(target.avatarUrl);
+
+    try {
+      revalidatePath("/admin/users");
+    } catch (err) {
+      console.warn("revalidatePath after remove failed:", err);
+    }
+    await logAudit({
+      action: AUDIT_ACTIONS.USER_REMOVE,
+      entityType: "user",
+      entityId: userId,
+      entityLabel: target.email,
+      actorUserId: me.id,
+      meta: {
+        email: target.email,
+        name: target.name,
+        role: target.role,
+        wasDeactivated: target.deactivatedAt !== null,
+        kept,
+      },
+    });
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: actionError(err, "user") };
+  }
+}
+
+/**
+ * READ-ONLY: what a member would leave behind, for the Remove dialog's
+ * preview (ux-standards "Economy": preview → acknowledge → type the name).
+ * Returns zeros rather than refusing for someone who is already gone — the
+ * dialog's Remove button is what the guard refuses.
+ */
+export async function memberRemovalPreview(
+  input: unknown,
+): Promise<{ ok: true; kept: MemberFootprint } | { ok: false; error: string }> {
+  try {
+    await requirePermission("users.manage");
+    const parsed = userIdSchema.safeParse(input);
+    if (!parsed.success) return { ok: false, error: "Invalid input" };
+    return { ok: true, kept: await memberFootprint(parsed.data.userId) };
+  } catch (err) {
+    return { ok: false, error: actionError(err, "user") };
   }
 }

@@ -58,6 +58,11 @@ export const AUDIT_ACTIONS = {
   USER_PERMISSIONS_UPDATE: "user.permissions_update",
   USER_BRANDS_UPDATE: "user.brands_update",
   USER_PASSWORD_RESET: "user.password_reset",
+  // The member lifecycle (D4, 2026-11-06).
+  USER_DEACTIVATE: "user.deactivate",
+  USER_REACTIVATE: "user.reactivate",
+  USER_REMOVE: "user.remove",
+  USER_SESSIONS_END: "user.sessions_end",
   /** A profile photo set or removed — by the person, or by `users.manage`. */
   USER_AVATAR_UPDATE: "user.avatar_update",
 
@@ -249,6 +254,10 @@ export const AUDIT_LABELS: Record<AuditAction, string> = {
   "user.permissions_update": "Updated user access",
   "user.brands_update": "Updated brand access",
   "user.password_reset": "Reset user password",
+  "user.deactivate": "Deactivated user",
+  "user.reactivate": "Reactivated user",
+  "user.remove": "Removed user from the team",
+  "user.sessions_end": "Ended user's sessions",
   "user.avatar_update": "Changed profile photo",
   "token.create": "Created API token",
   "token.revoke": "Revoked API token",

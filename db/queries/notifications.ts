@@ -1,4 +1,4 @@
-import { and, desc, eq, ilike, inArray, isNull, isNotNull, or, sql } from "drizzle-orm";
+import { and, desc, eq, ilike, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { notificationRoutes, notifications, userAccounts, users } from "@/db/schema";
 import { auth } from "@/lib/auth";
@@ -114,7 +114,9 @@ async function toCurrentMembers(tx: Exec, rows: NewNotification[]): Promise<NewN
       userAccounts,
       and(eq(userAccounts.userId, users.id), inArray(userAccounts.accountId, accountIds)),
     )
-    .where(inArray(users.id, userIds));
+    // A removed person gets nothing more; a deactivated one keeps receiving,
+    // so the feed is whole when they are reactivated (D4).
+    .where(and(inArray(users.id, userIds), isNull(users.removedAt)));
   const everywhere = new Set(members.filter((m) => m.allAccounts).map((m) => m.userId));
   const of = new Set(
     members.filter((m) => m.accountId !== null).map((m) => `${m.userId}\u0001${m.accountId}`),
@@ -403,15 +405,20 @@ export async function brandMembers(): Promise<BrandMember[]> {
     })
     .from(users)
     .where(
-      or(
-        eq(users.role, "admin"),
-        eq(users.allAccounts, true),
-        inArray(
-          users.id,
-          db
-            .select({ id: userAccounts.userId })
-            .from(userAccounts)
-            .where(eq(userAccounts.accountId, acct)),
+      and(
+        // Someone who can't sign in isn't routable or mentionable (D4).
+        isNull(users.deactivatedAt),
+        isNull(users.removedAt),
+        or(
+          eq(users.role, "admin"),
+          eq(users.allAccounts, true),
+          inArray(
+            users.id,
+            db
+              .select({ id: userAccounts.userId })
+              .from(userAccounts)
+              .where(eq(userAccounts.accountId, acct)),
+          ),
         ),
       ),
     )

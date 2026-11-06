@@ -157,3 +157,32 @@ describe("teamGuard — photo", () => {
     expect(teamGuard(RLEAD, { kind: "photo", target: member({ role: "editor", permissions: null }) })).toBeNull();
   });
 });
+
+describe("teamGuard — the member lifecycle (D4)", () => {
+  const junior = member({ permissions: ["creative.edit"], allAccounts: false, accountIds: [A] });
+  const senior = member({ permissions: ["audit.view"] });
+
+  it("admins pass every lifecycle kind, admins included", () => {
+    expect(teamGuard(ADMIN_SCOPE, { kind: "status", target: ADMIN_MEMBER })).toBeNull();
+    expect(teamGuard(ADMIN_SCOPE, { kind: "remove", target: ADMIN_MEMBER })).toBeNull();
+    expect(teamGuard(ADMIN_SCOPE, { kind: "sessions", target: ADMIN_MEMBER })).toBeNull();
+  });
+  it("an admin is off limits below admin", () => {
+    expect(teamGuard(LEAD, { kind: "status", target: ADMIN_MEMBER })).toBe(TEAM_REFUSAL.adminStatus);
+    expect(teamGuard(LEAD, { kind: "remove", target: ADMIN_MEMBER })).toBe(TEAM_REFUSAL.adminRemove);
+    expect(teamGuard(LEAD, { kind: "sessions", target: ADMIN_MEMBER })).toBe(TEAM_REFUSAL.adminSessions);
+  });
+  it("deactivating and removing follow the password rule: within the manager's access", () => {
+    expect(teamGuard(LEAD, { kind: "status", target: junior })).toBeNull();
+    expect(teamGuard(LEAD, { kind: "remove", target: junior })).toBeNull();
+    expect(teamGuard(LEAD, { kind: "status", target: senior })).toBe(TEAM_REFUSAL.statusBeyond);
+    expect(teamGuard(LEAD, { kind: "remove", target: senior })).toBe(TEAM_REFUSAL.removeBeyond);
+    // Brands count too: a restricted manager can't take away a brand they don't hold.
+    expect(teamGuard(RLEAD, { kind: "remove", target: member({ permissions: [], allAccounts: false, accountIds: [B] }) })).toBe(TEAM_REFUSAL.removeBeyond);
+    expect(teamGuard(RLEAD, { kind: "status", target: member({ permissions: [] }) })).toBe(TEAM_REFUSAL.statusBeyond);
+  });
+  it("ending sessions needs only 'not an admin' — a nuisance, not an escalation", () => {
+    expect(teamGuard(LEAD, { kind: "sessions", target: senior })).toBeNull();
+    expect(teamGuard(RLEAD, { kind: "sessions", target: member({ allAccounts: true }) })).toBeNull();
+  });
+});

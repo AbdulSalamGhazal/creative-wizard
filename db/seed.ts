@@ -61,6 +61,9 @@ async function main() {
     })
     .onConflictDoUpdate({
       target: users.email,
+      // The email index is PARTIAL (removed members free their address) —
+      // ON CONFLICT must name the same predicate to match it (migration 0067).
+      targetWhere: sql`removed_at IS NULL`,
       set: { passwordHash: adminHash },
     })
     .returning();

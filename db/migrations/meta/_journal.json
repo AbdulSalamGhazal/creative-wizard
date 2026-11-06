@@ -470,6 +470,13 @@
       "when": 1793894574565,
       "tag": "0066_price_structure",
       "breakpoints": true
+    },
+    {
+      "idx": 67,
+      "version": "7",
+      "when": 1793975243740,
+      "tag": "0067_user_lifecycle",
+      "breakpoints": true
     }
   ]
 }
