@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addDays, computeDelta, dayCount, prevPeriod } from "@/lib/period";
+import { addDays, computeDelta, dayCount, deltaVsLabel, prevPeriod } from "@/lib/period";
 
 describe("dayCount — inclusive", () => {
   it("counts both endpoints", () => {
@@ -75,5 +75,11 @@ describe("computeDelta — modes", () => {
   it("absent on both sides is 'absent', not 0%", () => {
     expect(computeDelta(null, null)).toEqual({ pct: null, mode: "absent" });
     expect(computeDelta(0, 0)).toEqual({ pct: null, mode: "absent" });
+  });
+});
+
+describe("deltaVsLabel (R-050)", () => {
+  it("names the previous equal window and the previous value", () => {
+    expect(deltaVsLabel("2026-10-08", "2026-10-14", "$10,412")).toBe("vs Oct 1 – Oct 7: $10,412");
   });
 });

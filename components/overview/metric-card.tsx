@@ -44,6 +44,7 @@ export function MetricCard({
   bars = [],
   delta,
   deltaInverted = false,
+  deltaVs,
   emptyText = "No data in this range.",
   footer,
   hideBreakdown = false,
@@ -57,6 +58,8 @@ export function MetricCard({
   delta?: Delta;
   /** Lower-is-better metric (e.g. CPA) → flip the badge color semantics. */
   deltaInverted?: boolean;
+  /** The delta's baseline for its title / sr-only text (`deltaVsLabel`). */
+  deltaVs?: string;
   /** Subline under the headline when there are no bars (string or rich node —
    *  Budget stacks a plan line + a projection line here). */
   emptyText?: ReactNode;
@@ -89,7 +92,7 @@ export function MetricCard({
             <span className="truncate" title={label}>{label}</span>
           </div>
           {delta && !empty ? (
-            <DeltaBadge delta={delta} inverted={deltaInverted} />
+            <DeltaBadge delta={delta} inverted={deltaInverted} vs={deltaVs} />
           ) : null}
         </div>
         <div

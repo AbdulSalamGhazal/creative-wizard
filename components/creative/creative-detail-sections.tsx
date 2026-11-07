@@ -26,7 +26,7 @@ import { CreativeCampaignsTable } from "@/components/creative/creative-campaigns
 import { CreativeRecordsTable } from "@/components/creative/creative-records-table";
 import { MetricCard } from "@/components/overview/metric-card";
 import { int, roas, usd, usd0 } from "@/lib/format";
-import { computeDelta } from "@/lib/period";
+import { computeDelta, deltaVsLabel } from "@/lib/period";
 
 /**
  * Creative detail's STREAMED sections (D11, 2026-10). The page renders the
@@ -116,15 +116,19 @@ export async function CreativeAnalyticsBody({
   const k = kd.current;
   const d = kd.delta;
   const revenueDelta = computeDelta(kd.current.conversionValue, kd.previous.conversionValue);
+  // "vs Oct 1 – Oct 7: $10,412" on each delta chip's title (R-050).
+  const vs = (previous: string) =>
+    deltaVsLabel(range.from, range.to, previous);
+  const p = kd.previous;
 
   return (
     <>
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-        <MetricCard label="Spend" value={usd0(k.spend)} icon={DollarSign} delta={d.spend} hideBreakdown />
-        <MetricCard label="Conversions" value={int(k.conversions)} icon={Target} delta={d.conversions} hideBreakdown />
-        <MetricCard label="Revenue" value={usd0(k.conversionValue)} icon={Banknote} delta={revenueDelta} hideBreakdown />
-        <MetricCard label="CPA" value={usd(k.cpa)} icon={Receipt} delta={d.cpa} deltaInverted hideBreakdown />
-        <MetricCard label="ROAS" value={roas(k.roas)} icon={TrendingUp} delta={d.roas} hideBreakdown />
+        <MetricCard label="Spend" value={usd0(k.spend)} icon={DollarSign} delta={d.spend} deltaVs={vs(usd0(p.spend))} hideBreakdown />
+        <MetricCard label="Conversions" value={int(k.conversions)} icon={Target} delta={d.conversions} deltaVs={vs(int(p.conversions))} hideBreakdown />
+        <MetricCard label="Revenue" value={usd0(k.conversionValue)} icon={Banknote} delta={revenueDelta} deltaVs={vs(usd0(p.conversionValue))} hideBreakdown />
+        <MetricCard label="CPA" value={usd(k.cpa)} icon={Receipt} delta={d.cpa} deltaInverted deltaVs={vs(usd(p.cpa))} hideBreakdown />
+        <MetricCard label="ROAS" value={roas(k.roas)} icon={TrendingUp} delta={d.roas} deltaVs={vs(roas(p.roas))} hideBreakdown />
       </div>
 
       <CreativePerfLineChart

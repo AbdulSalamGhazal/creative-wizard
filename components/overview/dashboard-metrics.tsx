@@ -8,7 +8,7 @@ import {
   type MetricBreakdownRow,
 } from "@/db/queries/performance";
 import { MetricCard, type BreakdownBar } from "@/components/overview/metric-card";
-import { computeDelta } from "@/lib/period";
+import { computeDelta, deltaVsLabel } from "@/lib/period";
 import { PLATFORM_COLOR, PLATFORM_LABEL, swatchColor } from "@/lib/palette";
 import { int, intCompact, roas, usd, usd0, usdCompact } from "@/lib/format";
 
@@ -48,6 +48,9 @@ export async function DashboardMetrics({
   // No spend ⇒ the range has no data at all — every card is empty, so suppress
   // the delta chips (a red "Gone" beside a "—" value reads as an error).
   const empty = k.spend == null;
+  // "vs Oct 1 – Oct 7: $10,412" on each delta chip's title (R-050).
+  const vs = (previous: string) =>
+    kd && filters.from && filters.to ? deltaVsLabel(filters.from, filters.to, previous) : undefined;
 
   const isCampaign = dimension === "campaign";
   const shown = isCampaign ? full.slice(0, CAMPAIGN_LIMIT) : full;
@@ -101,6 +104,7 @@ export async function DashboardMetrics({
           value={usd0(k.spend)}
           icon={DollarSign}
           delta={d?.spend}
+          deltaVs={kd ? vs(usd0(kd.previous.spend)) : undefined}
           bars={shareBars((r) => r.spend, usdCompact)}
           empty={empty}
         />
@@ -109,6 +113,7 @@ export async function DashboardMetrics({
           value={int(k.conversions)}
           icon={Target}
           delta={d?.conversions}
+          deltaVs={kd ? vs(int(kd.previous.conversions)) : undefined}
           bars={shareBars((r) => r.conversions, intCompact)}
           empty={empty}
         />
@@ -117,6 +122,7 @@ export async function DashboardMetrics({
           value={usd0(k.conversionValue)}
           icon={Banknote}
           delta={revenueDelta}
+          deltaVs={kd ? vs(usd0(kd.previous.conversionValue)) : undefined}
           bars={shareBars((r) => r.conversionValue, usdCompact)}
           empty={empty}
         />
@@ -126,6 +132,7 @@ export async function DashboardMetrics({
           icon={Receipt}
           delta={d?.cpa}
           deltaInverted
+          deltaVs={kd ? vs(usd(kd.previous.cpa)) : undefined}
           bars={valueBars((r) => r.cpa, usd)}
           empty={empty}
         />
@@ -134,6 +141,7 @@ export async function DashboardMetrics({
           value={roas(k.roas)}
           icon={TrendingUp}
           delta={d?.roas}
+          deltaVs={kd ? vs(roas(kd.previous.roas)) : undefined}
           bars={valueBars((r) => r.roas, (v) => roas(v))}
           empty={empty}
         />

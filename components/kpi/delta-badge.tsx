@@ -16,10 +16,14 @@ import { Chip } from "@/components/ui/chip";
 export function DeltaBadge({
   delta,
   inverted = false,
+  vs,
   className = "",
 }: {
   delta: Delta;
   inverted?: boolean;
+  /** The baseline, `deltaVsLabel(...)` — "vs Oct 1 – Oct 7: $10,412". Shown
+   *  as the chip's title and read after the figure (R-050). */
+  vs?: string;
   className?: string;
 }) {
   if (delta.mode === "absent") {
@@ -66,9 +70,10 @@ export function DeltaBadge({
   const formatted = signedPct(pct);
 
   return (
-    <Chip size="sm" tone={good ? "pos" : "neg"} className={`gap-0.5 tabular-nums ${className}`}>
+    <Chip size="sm" tone={good ? "pos" : "neg"} className={`gap-0.5 tabular-nums ${className}`} title={vs}>
       <Icon />
       {formatted}
+      {vs && <span className="sr-only"> {vs}</span>}
     </Chip>
   );
 }

@@ -9,6 +9,8 @@
  * on the runtime's local timezone.
  */
 
+import { monthDay } from "@/lib/format";
+
 /** Inclusive day count of an ISO range. dayCount("2026-05-01", "2026-05-07") === 7. */
 export function dayCount(from: string, to: string): number {
   const f = Date.parse(from + "T00:00:00Z");
@@ -36,6 +38,16 @@ export function addDays(iso: string, n: number): string {
   const d = new Date(iso + "T00:00:00Z");
   d.setUTCDate(d.getUTCDate() + n);
   return d.toISOString().slice(0, 10);
+}
+
+/**
+ * What a period-over-period delta is measured against, for its title and
+ * screen-reader text (R-050): "vs Oct 1 – Oct 7: $10,412". The window is
+ * `prevPeriod` of the current range; `previous` is already formatted.
+ */
+export function deltaVsLabel(from: string, to: string, previous: string): string {
+  const p = prevPeriod(from, to);
+  return `vs ${monthDay(p.from)} – ${monthDay(p.to)}: ${previous}`;
 }
 
 export type DeltaMode = "pct" | "new" | "removed" | "absent";
