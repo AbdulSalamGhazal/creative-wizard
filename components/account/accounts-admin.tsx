@@ -13,6 +13,7 @@ import {
 import { safeAction } from "@/lib/action-failure";
 import { toastActionFailure } from "@/lib/action-toast";
 import { Chip } from "@/components/ui/chip";
+import { panelClass } from "@/components/ui/panel";
 
 interface AccountRow {
   id: string;
@@ -102,7 +103,7 @@ export function AccountsAdmin({
 
   return (
     <div className="space-y-4">
-      <div className="rounded-lg border border-line bg-surface p-4">
+      <div className={panelClass()}>
         <form
           onSubmit={(e) => {
             e.preventDefault();

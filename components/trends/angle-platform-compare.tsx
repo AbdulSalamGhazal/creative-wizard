@@ -9,6 +9,7 @@ import { PlatformDot } from "@/components/ui/platform-dot";
 import type { AnglePlatformRow } from "@/db/queries/trends";
 import { METRIC_LABEL } from "@/lib/metric-labels";
 import { EmptyState } from "@/components/ui/empty-state";
+import { panelClass } from "@/components/ui/panel";
 
 type MetricKey =
   | "spend" | "conversions" | "revenue" | "roas"
@@ -125,7 +126,7 @@ export function AnglePlatformCompare({ rows }: { rows: AnglePlatformRow[] }) {
   }
 
   return (
-    <div className="rounded-lg border border-line bg-surface p-4">
+    <div className={panelClass()}>
       <div className="flex items-start justify-between flex-wrap gap-3 mb-4">
         <div>
           <h3 className="text-sm font-medium text-ink">Platform comparison</h3>

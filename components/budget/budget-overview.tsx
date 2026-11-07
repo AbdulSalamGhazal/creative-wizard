@@ -80,6 +80,7 @@ import {
   type HeroState,
 } from "@/components/budget/budget-shared";
 import { EmptyState } from "@/components/ui/empty-state";
+import { panelClass } from "@/components/ui/panel";
 
 /**
  * Budget → Overview (rebuilt 2026-10): the month at a glance, in four pieces —
@@ -926,7 +927,7 @@ function PaceBoard({
     "grid gap-x-4 gap-y-1 sm:grid-cols-[minmax(7rem,9rem)_minmax(0,1fr)_11rem] sm:items-center";
 
   return (
-    <section className="rounded-lg border border-line bg-surface">
+    <section className={panelClass({ padding: "none" })}>
       <header className="border-b border-line px-4 py-2.5">
         <h2 className="text-sm font-medium text-ink">Pace board</h2>
       </header>

@@ -1,5 +1,6 @@
 import { Skeleton } from "@/components/ui/skeleton";
 import { metricCardFrame } from "@/components/overview/metric-card";
+import { panelClass } from "@/components/ui/panel";
 
 /**
  * The Dashboard's per-SECTION skeletons (D11, 2026-10). The page now streams:
@@ -93,7 +94,7 @@ export function OverviewSectionSkeleton() {
         <CardSkeleton body="h-[207px] lg:h-[510px]" title="w-24" />
         <CardSkeleton body="h-[351px] lg:h-[510px]" title="w-36" />
       </div>
-      <div className="rounded-lg border border-line bg-surface p-4 space-y-3">
+      <div className={`${panelClass()} space-y-3`}>
         <Skeleton className="h-4 w-40" />
         {Array.from({ length: 8 }).map((_, i) => (
           <Skeleton key={i} className="h-7 w-full" />

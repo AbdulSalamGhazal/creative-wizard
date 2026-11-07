@@ -6,6 +6,7 @@ import { FileSpreadsheet, Upload as UploadIcon, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { FILE_TOO_LARGE_MESSAGE, MAX_FILE_BYTES, MAX_FILE_MB } from "@/csv/limits";
 import { cn } from "@/lib/utils";
+import { panelClass } from "@/components/ui/panel";
 
 interface Props {
   file: File | null;
@@ -52,7 +53,7 @@ export function Dropzone({ file, onFile, disabled }: Props) {
 
   if (file) {
     return (
-      <div className="rounded-lg border border-line bg-surface px-4 py-4 flex items-center gap-3">
+      <div className={`${panelClass({ padding: "none" })} px-4 py-4 flex items-center gap-3`}>
         <div className="w-10 h-10 rounded-md bg-surface-2 flex items-center justify-center shrink-0">
           <FileSpreadsheet className="w-5 h-5 text-ink-2" />
         </div>

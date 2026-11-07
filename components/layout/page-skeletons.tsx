@@ -1,5 +1,6 @@
 import { Skeleton } from "@/components/ui/skeleton";
 import { metricCardFrame } from "@/components/overview/metric-card";
+import { panelClass } from "@/components/ui/panel";
 
 /**
  * Shared skeleton building blocks for per-route `loading.tsx` files. They
@@ -101,7 +102,7 @@ export function KpiRowSkeleton({
 /** A bordered card wrapping a titled chart placeholder. */
 export function ChartCardSkeleton({ height = "h-64" }: { height?: string }) {
   return (
-    <div className="rounded-lg border border-line bg-surface p-4 space-y-3">
+    <div className={`${panelClass()} space-y-3`}>
       <Skeleton className="h-4 w-40" />
       <Skeleton className={`${height} w-full`} />
     </div>
@@ -117,7 +118,7 @@ export function TableSkeleton({
   wide?: boolean;
 }) {
   return (
-    <div className="rounded-lg border border-line bg-surface overflow-hidden">
+    <div className={`${panelClass({ padding: "none" })} overflow-hidden`}>
       <div className="h-9 border-b border-line bg-surface-2/40" />
       <div className="divide-y divide-line">
         {Array.from({ length: rows }).map((_, i) => (
@@ -145,7 +146,7 @@ export function FormSkeleton({
     <div
       className={
         card
-          ? "rounded-lg border border-line bg-surface p-5 space-y-4"
+          ? `${panelClass()} space-y-4`
           : "space-y-5"
       }
     >

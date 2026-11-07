@@ -19,6 +19,7 @@ import { useNavTransition } from "@/lib/nav-progress";
 import { safeAction } from "@/lib/action-failure";
 import { actionSettled } from "@/lib/router-queue";
 import { toastActionFailure } from "@/lib/action-toast";
+import { panelClass } from "@/components/ui/panel";
 
 type Stage =
   | { s: "idle" }
@@ -109,7 +110,7 @@ export function StoreUploadPanel({
 
   if (stage.s === "committed") {
     return (
-      <div className="rounded-lg border border-line bg-surface p-5">
+      <div className={panelClass()}>
         <div className="flex items-center gap-2 text-sm text-ink">
           <CheckCircle2 className="h-4 w-4 text-pos" />
           Imported {int(stage.inserted)} new order{stage.inserted === 1 ? "" : "s"}
@@ -125,7 +126,7 @@ export function StoreUploadPanel({
   }
 
   return (
-    <div className="space-y-3 rounded-lg border border-line bg-surface p-4">
+    <div className={`${panelClass()} space-y-3`}>
       <div className="flex items-center gap-2 text-sm font-medium text-ink">
         <UploadCloud className="h-4 w-4 text-ink-3" />
         Upload orders

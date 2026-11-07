@@ -23,6 +23,7 @@ import { cn } from "@/lib/utils";
 import type { CompareDimensionRow } from "@/db/queries/performance";
 import type { CompareSide, SideKey } from "@/validators/compare";
 import { ExcludedParamToggle } from "@/components/filters/excluded-param-toggle";
+import { panelClass } from "@/components/ui/panel";
 
 type Platform = CompareDimensionRow["platform"];
 
@@ -193,7 +194,7 @@ function SideCard({
   const hasOwnWindow = Boolean(side.from && side.to);
 
   return (
-    <div className="rounded-lg border border-line bg-surface p-3 space-y-2.5">
+    <div className={`${panelClass({ padding: "sm" })} space-y-2.5`}>
       <div className="flex items-center gap-2">
         <span
           className="w-2.5 h-2.5 rounded-sm shrink-0"

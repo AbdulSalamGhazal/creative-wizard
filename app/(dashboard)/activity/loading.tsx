@@ -1,5 +1,6 @@
 import { Skeleton } from "@/components/ui/skeleton";
 import { HeaderSkeleton } from "@/components/layout/page-skeletons";
+import { panelClass } from "@/components/ui/panel";
 
 /**
  * Mirrors the real page inside its admin lane: the header with the
@@ -15,7 +16,7 @@ export default function ActivityLoading() {
         {[3, 1, 2].map((rows, i) => (
           <div key={i} className="space-y-1.5">
             <Skeleton className="h-3 w-16" />
-            <div className="rounded-lg border border-line bg-surface">
+            <div className={panelClass({ padding: "none" })}>
               <div className="px-3 pt-2.5 pb-1">
                 <Skeleton className="h-4 w-48" />
               </div>

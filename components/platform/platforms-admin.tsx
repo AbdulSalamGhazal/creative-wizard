@@ -13,6 +13,7 @@ import {
   type Platform,
 } from "@/csv/platforms/types";
 import { Chip } from "@/components/ui/chip";
+import { panelClass } from "@/components/ui/panel";
 
 // Derived from the single field registry (csv/platforms/types), PER PLATFORM:
 // a field the platform can't report at all (google has no landing-page views,
@@ -67,7 +68,7 @@ export async function PlatformsAdmin() {
           return (
             <div
               key={p}
-              className="rounded-lg border border-line bg-surface p-4 space-y-3"
+              className={`${panelClass()} space-y-3`}
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">

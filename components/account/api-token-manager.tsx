@@ -21,6 +21,7 @@ import {
 } from "@/app/actions/api-token";
 import { safeAction } from "@/lib/action-failure";
 import { toastActionFailure } from "@/lib/action-toast";
+import { panelClass } from "@/components/ui/panel";
 
 export interface TokenRow {
   id: string;
@@ -35,7 +36,7 @@ export function ApiTokenManager({ tokens }: { tokens: TokenRow[] }) {
   const [revokeTarget, setRevokeTarget] = useState<TokenRow | null>(null);
 
   return (
-    <div className="rounded-lg border border-line bg-surface">
+    <div className={panelClass({ padding: "none" })}>
       <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
         <div>
           <h2 className="text-sm font-medium text-ink">Personal access tokens</h2>

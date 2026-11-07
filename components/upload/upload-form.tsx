@@ -17,6 +17,7 @@ import { ROLLBACK_WINDOW_HOURS } from "@/lib/upload-batches";
 import { useCan } from "@/components/auth/permissions-context";
 import type { ValidationError } from "@/csv/errors";
 import { Callout } from "@/components/ui/callout";
+import { panelClass } from "@/components/ui/panel";
 
 type Platform = (typeof PLATFORMS)[number]["value"];
 
@@ -305,7 +306,7 @@ export function UploadForm() {
       )}
 
       {stage.kind === "validating" && (
-        <div className="rounded-lg border border-line bg-surface px-4 py-3 flex items-center gap-3">
+        <div className={`${panelClass({ padding: "none" })} px-4 py-3 flex items-center gap-3`}>
           <Loader2 className="w-4 h-4 animate-spin text-brand" />
           <span className="text-sm text-ink-2">Validating your file…</span>
         </div>
@@ -339,7 +340,7 @@ export function UploadForm() {
       )}
 
       {stage.kind === "committing" && (
-        <div className="rounded-lg border border-line bg-surface px-4 py-3 flex items-center gap-3">
+        <div className={`${panelClass({ padding: "none" })} px-4 py-3 flex items-center gap-3`}>
           <Loader2 className="w-4 h-4 animate-spin text-brand" />
           <span className="text-sm text-ink-2">Committing rows…</span>
         </div>

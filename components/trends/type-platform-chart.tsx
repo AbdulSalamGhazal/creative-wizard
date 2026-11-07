@@ -16,6 +16,7 @@ import { MetricPicker } from "@/components/charts/metric-picker";
 import type { TypeRollupRow } from "@/db/queries/trends";
 import { ChartTooltip } from "@/components/charts/chart-tooltip";
 import { EmptyState } from "@/components/ui/empty-state";
+import { panelClass } from "@/components/ui/panel";
 
 type Metric = "spend" | "impressions" | "roas" | "ctr" | "cvr" | "cpc" | "cpa";
 type CreativeType = TypeRollupRow["type"];
@@ -77,7 +78,7 @@ export function TypePlatformChart({ rows }: { rows: TypeRollupRow[] }) {
   const m = METRICS[metric];
 
   return (
-    <div className="rounded-lg border border-line bg-surface p-4">
+    <div className={panelClass()}>
       <div className="flex items-center justify-between flex-wrap gap-3 mb-3">
         <div className="flex items-center gap-3">
           {TYPES.map((t) => (

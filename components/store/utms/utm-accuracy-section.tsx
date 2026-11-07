@@ -40,6 +40,7 @@ import {
   type UtmBucketDay,
 } from "@/lib/store-utms";
 import type { UtmClaimedDay } from "@/db/queries/store-utms";
+import { panelClass } from "@/components/ui/panel";
 
 type GroupBy = "day" | "week" | "month";
 type Side = "claimed" | "utm";
@@ -406,7 +407,7 @@ function PlatformPanel({
 }) {
   const warn = reconDeltaTone(row.deltaPct) === "warn";
   return (
-    <div className="rounded-lg border border-line bg-surface p-3">
+    <div className={panelClass({ padding: "sm" })}>
       <div className="mb-2 flex items-center gap-2">
         <PlatformDot platform={platform} size="sm" />
         <span className="text-xs font-medium text-ink">{PLATFORM_LABEL[platform]}</span>

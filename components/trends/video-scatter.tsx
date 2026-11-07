@@ -19,6 +19,7 @@ import { CHART_CURSOR, ChartTooltip } from "@/components/charts/chart-tooltip";
 import { MetricPicker } from "@/components/charts/metric-picker";
 import { useNavTransition } from "@/lib/nav-progress";
 import { EmptyState } from "@/components/ui/empty-state";
+import { panelClass } from "@/components/ui/panel";
 
 type Axis = "hookRate" | "holdRate" | "completeRate" | "ctr" | "cvr" | "roas" | "cpa";
 
@@ -67,7 +68,7 @@ export function VideoScatter({ rows }: { rows: VideoDiagnosticRow[] }) {
   );
 
   return (
-    <div className="rounded-lg border border-line bg-surface p-4">
+    <div className={panelClass()}>
       <div className="flex items-start justify-between flex-wrap gap-3 mb-3">
         <div>
           <h3 className="text-sm font-medium text-ink">Diagnostic scatter</h3>

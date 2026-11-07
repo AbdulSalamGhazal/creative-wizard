@@ -1,5 +1,6 @@
 import { HeaderSkeleton } from "@/components/layout/page-skeletons";
 import { Skeleton } from "@/components/ui/skeleton";
+import { panelClass } from "@/components/ui/panel";
 
 /** Mirrors Pacing's real order: header → the controls bar (date picker,
  *  platform pill, group-by, split, currency) → the range card → the chart
@@ -19,7 +20,7 @@ export default function Loading() {
       </div>
       <Skeleton className="h-80 w-full rounded-lg" />
       <Skeleton className="h-4 w-24" />
-      <div className="rounded-lg border border-line bg-surface">
+      <div className={panelClass({ padding: "none" })}>
         <div className="flex items-center gap-3 border-b border-line px-4 py-2.5">
           <Skeleton className="h-4 w-24" />
           <Skeleton className="h-6 w-48 rounded-md" />

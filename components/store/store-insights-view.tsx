@@ -54,6 +54,7 @@ import {
 import type { StoreInsightsDay } from "@/db/queries/store-insights";
 import type { BreakdownValue } from "@/lib/store-insights";
 import { EmptyState } from "@/components/ui/empty-state";
+import { panelClass } from "@/components/ui/panel";
 
 type GroupBy = "day" | "week" | "month";
 
@@ -625,7 +626,7 @@ export function StoreInsightsView({
         </div>
 
         {!dimension ? (
-          <p className="rounded-lg border border-line bg-surface p-6 text-sm text-ink-3">
+          <p className={`${panelClass({ padding: "none" })} p-6 text-sm text-ink-3`}>
             This brand has no analyzable order field yet. Add one in Upload
             orders → Order fields.
           </p>

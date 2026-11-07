@@ -38,6 +38,7 @@ import {
   platformLabel,
   toneText,
 } from "@/components/budget/budget-shared";
+import { panelClass } from "@/components/ui/panel";
 
 /**
  * The Pacing BOARD (2026-10-19, user decision — the Tracker merged into
@@ -116,7 +117,7 @@ export function PacingBoard({
     "grid gap-x-4 gap-y-1 sm:grid-cols-[minmax(7rem,9rem)_minmax(0,1fr)_6.5rem_11rem] sm:items-center";
 
   return (
-    <section className="rounded-lg border border-line bg-surface">
+    <section className={panelClass({ padding: "none" })}>
       <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-line px-4 py-2.5">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
           <h2 className="text-sm font-medium text-ink">Pace board</h2>

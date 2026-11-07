@@ -13,6 +13,7 @@ import { safeAction } from "@/lib/action-failure";
 import { actionSettled } from "@/lib/router-queue";
 import { toastActionFailure } from "@/lib/action-toast";
 import { safeInternalPath } from "@/lib/url";
+import { panelClass } from "@/components/ui/panel";
 
 export function SignInForm({ nextPath }: { nextPath: string }) {
   const router = useRouter();
@@ -57,7 +58,7 @@ export function SignInForm({ nextPath }: { nextPath: string }) {
 
       <form
         onSubmit={submit}
-        className="space-y-3 rounded-lg border border-line bg-surface p-5"
+        className={`${panelClass()} space-y-3`}
       >
         <div className="space-y-1.5">
           <Label htmlFor="email">Email</Label>

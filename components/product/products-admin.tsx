@@ -7,6 +7,7 @@ import {
 } from "@/db/queries/products";
 import { isoDate } from "@/lib/format";
 import { EmptyState } from "@/components/ui/empty-state";
+import { panelClass } from "@/components/ui/panel";
 
 /**
  * Products management section — the body of the former /admin/products page,
@@ -29,7 +30,7 @@ export async function ProductsAdmin() {
         creatives can be archived but not deleted.
       </p>
 
-      <div className="rounded-lg border border-line bg-surface p-4">
+      <div className={panelClass()}>
         <ProductCreateForm />
       </div>
 

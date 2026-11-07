@@ -16,6 +16,7 @@ import { useNavTransition } from "@/lib/nav-progress";
 import { revokeOauthGrantAction } from "@/app/actions/oauth";
 import { safeAction } from "@/lib/action-failure";
 import { toastActionFailure } from "@/lib/action-toast";
+import { panelClass } from "@/components/ui/panel";
 
 export interface GrantRow {
   familyId: string;
@@ -34,7 +35,7 @@ export function OauthGrants({ grants }: { grants: GrantRow[] }) {
   const [target, setTarget] = useState<GrantRow | null>(null);
 
   return (
-    <div className="rounded-lg border border-line bg-surface">
+    <div className={panelClass({ padding: "none" })}>
       <div className="border-b border-line px-4 py-3">
         <h2 className="text-sm font-medium text-ink">Connected apps</h2>
         <p className="text-xs text-ink-3">

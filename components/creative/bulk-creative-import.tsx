@@ -19,6 +19,7 @@ import { plural } from "@/lib/format";
 import { DownloadCsvButton } from "@/components/ui/download-csv-button";
 import { rowsToCsv, todayStamp } from "@/lib/csv-export";
 import { cn } from "@/lib/utils";
+import { panelClass } from "@/components/ui/panel";
 
 interface Props {
   /** Existing product names — shown as a hint and used in the CSV template. */
@@ -106,7 +107,7 @@ export function BulkCreativeImport({ products }: Props) {
   return (
     <div className="space-y-5">
       {/* Format guidance */}
-      <div className="rounded-lg border border-line bg-surface p-4 space-y-3">
+      <div className={`${panelClass()} space-y-3`}>
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div className="flex items-center gap-2 text-sm text-ink">
             <Sparkles className="w-4 h-4 text-brand" />

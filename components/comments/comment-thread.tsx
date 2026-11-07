@@ -31,6 +31,7 @@ import {
 } from "@/components/comments/comment-reactions";
 import { UserAvatar } from "@/components/user/user-avatar";
 import type { CommentRow } from "@/db/queries/comments";
+import { panelClass } from "@/components/ui/panel";
 
 /**
  * A thread row as the panel holds it: a stored comment, or one of YOURS the
@@ -412,7 +413,7 @@ export function CommentThread({
   return (
     <div className="space-y-3">
       {display.map(({ root, hidden, shown }) => (
-        <div key={root.id} className="rounded-lg border border-line bg-surface p-1.5">
+        <div key={root.id} className={`${panelClass({ padding: "none" })} p-1.5`}>
           {renderOne(root, false)}
           {(hidden > 0 || shown.length > 0) && (
             <div className="ml-5 space-y-0.5 border-l border-line pl-2">

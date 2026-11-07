@@ -9,6 +9,7 @@ import {
   type InternalField,
 } from "@/csv/platforms/types";
 import { PlatformsAdmin } from "@/components/platform/platforms-admin";
+import { panelClass } from "@/components/ui/panel";
 
 /**
  * The CSV-mapping surface: per-platform readiness up top (the former separate
@@ -35,11 +36,11 @@ export async function MappingsAdmin() {
               </h3>
             </div>
 
-            <div className="rounded-lg border border-line bg-surface p-4">
+            <div className={panelClass()}>
               <MappingAddForm platform={platform} />
             </div>
 
-            <div className="rounded-lg border border-line bg-surface overflow-hidden">
+            <div className={`${panelClass({ padding: "none" })} overflow-hidden`}>
               <table className="w-full text-xs">
                 <thead>
                   <tr className="text-left text-label text-ink-2 border-b border-line bg-surface-2/40">

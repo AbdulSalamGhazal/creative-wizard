@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { panelClass } from "@/components/ui/panel";
 
 /**
  * Creative detail's per-SECTION skeletons (D11, 2026-10). The page streams:
@@ -57,7 +58,7 @@ export function AnalyticsBodySkeleton() {
           <TileSkeleton key={i} />
         ))}
       </div>
-      <div className="rounded-lg border border-line bg-surface p-4 space-y-3">
+      <div className={`${panelClass()} space-y-3`}>
         <Skeleton className="h-4 w-44" />
         <Skeleton className="h-[434px] lg:h-[302px] w-full" />
       </div>
@@ -80,7 +81,7 @@ export function AnalyticsBodySkeleton() {
  *  under it moved to the rail's Activity (2026-11-07). */
 export function RecordsActivitySkeleton() {
   return (
-    <div className="rounded-lg border border-line bg-surface px-4 py-3 flex items-center justify-between">
+    <div className={`${panelClass({ padding: "none" })} px-4 py-3 flex items-center justify-between`}>
       <Skeleton className="h-4 w-40" />
       <Skeleton className="h-4 w-16" />
     </div>

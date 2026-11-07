@@ -28,6 +28,7 @@ import {
   type ActivityWho,
 } from "@/lib/activity";
 import type { ActivityRow } from "@/db/queries/activity";
+import { panelClass } from "@/components/ui/panel";
 
 /**
  * The /activity surface (2026-10): Everyone | Mine, the search + type chips,
@@ -191,7 +192,7 @@ export function ActivityFeed({
               <h3 className="text-label text-ink-3">{day.label}</h3>
               <ul className="space-y-2">
                 {day.items.map((item) => (
-                  <li key={item.key} className="rounded-lg border border-line bg-surface">
+                  <li key={item.key} className={panelClass({ padding: "none" })}>
                     <RunHeader row={item.rows[0]!} />
                     <div className="divide-y divide-line">
                       {item.rows.map((row) => (

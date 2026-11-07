@@ -32,6 +32,7 @@ import { safeAction } from "@/lib/action-failure";
 import { toastActionFailure } from "@/lib/action-toast";
 import type { StoreField, StoreFieldType } from "@/store/fields";
 import { Chip } from "@/components/ui/chip";
+import { panelClass } from "@/components/ui/panel";
 
 /**
  * Admin config for the Store module's order fields — THREE tiers, and the UI
@@ -55,7 +56,7 @@ export function StoreFieldsAdmin({ fields }: { fields: StoreField[] }) {
 
   return (
     <div className="max-w-3xl space-y-4">
-      <div className="rounded-lg border border-line bg-surface p-4">
+      <div className={panelClass()}>
         <NewFieldForm />
       </div>
       <div className="divide-y divide-line rounded-lg border border-line bg-surface">

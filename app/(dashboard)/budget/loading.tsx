@@ -1,5 +1,6 @@
 import { ChartCardSkeleton, HeaderSkeleton } from "@/components/layout/page-skeletons";
 import { Skeleton } from "@/components/ui/skeleton";
+import { panelClass } from "@/components/ui/panel";
 
 /** Mirrors the Overview's real order: the month bar (steppers left, controls
  *  right) and its coverage line → the three hero cards → the cumulative chart
@@ -28,7 +29,7 @@ export default function Loading() {
           ))}
         </div>
         <ChartCardSkeleton height="h-56 sm:h-64" />
-        <div className="rounded-lg border border-line bg-surface">
+        <div className={panelClass({ padding: "none" })}>
           <div className="border-b border-line px-4 py-2.5">
             <Skeleton className="h-4 w-24" />
           </div>

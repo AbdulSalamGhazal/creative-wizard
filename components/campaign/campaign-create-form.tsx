@@ -20,6 +20,7 @@ import { safeAction } from "@/lib/action-failure";
 import { actionSettled } from "@/lib/router-queue";
 import { toastActionFailure } from "@/lib/action-toast";
 import { useNavTransition } from "@/lib/nav-progress";
+import { panelClass } from "@/components/ui/panel";
 
 /**
  * Register a campaign. Mirrors how an upload builds the stored name — the buyer
@@ -65,7 +66,7 @@ export function CampaignCreateForm() {
   return (
     <form
       onSubmit={submit}
-      className="rounded-lg border border-line bg-surface p-5 space-y-4"
+      className={`${panelClass()} space-y-4`}
     >
       <Field label="Campaign name" htmlFor={`${fid}-campaign`}>
         <Input

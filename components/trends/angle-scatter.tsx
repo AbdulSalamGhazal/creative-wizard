@@ -19,6 +19,7 @@ import type { AngleRollupRow } from "@/db/queries/trends";
 import { CHART_CURSOR, ChartTooltip } from "@/components/charts/chart-tooltip";
 import { useNavTransition } from "@/lib/nav-progress";
 import { EmptyState } from "@/components/ui/empty-state";
+import { panelClass } from "@/components/ui/panel";
 
 type YMetric = "cpa" | "roas" | "cvr";
 const Y: Record<YMetric, { label: string; fmt: (v: number | null) => string; tick: (v: number) => string }> = {
@@ -58,7 +59,7 @@ export function AngleScatter({ rows }: { rows: AngleRollupRow[] }) {
   );
 
   return (
-    <div className="rounded-lg border border-line bg-surface p-4">
+    <div className={panelClass()}>
       <div className="flex items-center justify-between flex-wrap gap-3 mb-3">
         <div>
           <h3 className="text-sm font-medium text-ink">Spend vs {y.label}</h3>

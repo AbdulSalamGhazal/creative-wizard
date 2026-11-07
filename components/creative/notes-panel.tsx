@@ -10,6 +10,7 @@ import { updateCreativeNotes } from "@/app/actions/creative";
 import { safeAction } from "@/lib/action-failure";
 import { toastActionFailure } from "@/lib/action-toast";
 import { useCan } from "@/components/auth/permissions-context";
+import { panelClass } from "@/components/ui/panel";
 
 const MAX = 5000;
 
@@ -51,7 +52,7 @@ export function NotesPanel({
 
   if (!editing) {
     return (
-      <div className="rounded-lg border border-line bg-surface p-4 space-y-2">
+      <div className={`${panelClass()} space-y-2`}>
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-medium text-ink">Notes</h2>
           {canEdit && (
@@ -79,7 +80,7 @@ export function NotesPanel({
   }
 
   return (
-    <div className="rounded-lg border border-line bg-surface p-4 space-y-2">
+    <div className={`${panelClass()} space-y-2`}>
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-medium text-ink">Edit notes</h2>
         <span

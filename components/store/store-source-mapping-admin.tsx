@@ -22,6 +22,7 @@ import {
   CHANNEL_LABEL,
   type ChannelDestination,
 } from "@/store/channels";
+import { panelClass } from "@/components/ui/panel";
 
 type ChannelAssignment = ChannelDestination | "unset";
 
@@ -92,7 +93,7 @@ export function StoreSourceMappingAdmin({
       </div>
 
       {/* ── Axis 1: UTM source → platform ───────────────────────────────── */}
-      <div className="rounded-lg border border-line bg-surface p-4 space-y-4">
+      <div className={`${panelClass()} space-y-4`}>
         <div>
           <h3 className="text-sm font-medium text-ink">UTM source → platform</h3>
           <p className="mt-0.5 text-[11px] text-ink-3">
@@ -154,7 +155,7 @@ export function StoreSourceMappingAdmin({
       </div>
 
       {/* ── Axis 2: channel → Website / Application ─────────────────────── */}
-      <div className="rounded-lg border border-line bg-surface p-4 space-y-4">
+      <div className={`${panelClass()} space-y-4`}>
         <div>
           <h3 className="text-sm font-medium text-ink">
             Channel → Website / Application

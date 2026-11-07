@@ -103,6 +103,7 @@ import { BudgetPlanRevisions } from "@/components/budget/budget-plan-revisions";
 import { BudgetPlanUpload, downloadPlanSheet } from "@/components/budget/budget-plan-upload";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Callout } from "@/components/ui/callout";
+import { panelClass } from "@/components/ui/panel";
 
 const WEIGHT_STEP = 0.5;
 /** An objective's share of its platform colour, in BUDGET_OBJECTIVES order. */
@@ -1967,7 +1968,7 @@ function DayCurveEditor({
   };
 
   return (
-    <div className="rounded-lg border border-line bg-surface p-4 space-y-3">
+    <div className={`${panelClass()} space-y-3`}>
       <div>
         <h3 className="inline-flex items-center gap-1.5 text-sm font-medium text-ink">
           Plan curve

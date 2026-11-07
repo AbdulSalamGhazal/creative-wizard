@@ -20,6 +20,7 @@ import { safeAction } from "@/lib/action-failure";
 import { toastActionFailure } from "@/lib/action-toast";
 import type { AngleRow } from "@/db/queries/angles";
 import { EmptyState } from "@/components/ui/empty-state";
+import { panelClass } from "@/components/ui/panel";
 
 /**
  * Angle vocabulary admin. Add an angle, rename it inline (cascades to every
@@ -94,7 +95,7 @@ export function AnglesTable({ rows }: { rows: AngleRow[] }) {
 
   return (
     <div className="space-y-4">
-      <div className="rounded-lg border border-line bg-surface p-4">
+      <div className={panelClass()}>
         <form
           onSubmit={(e) => {
             e.preventDefault();

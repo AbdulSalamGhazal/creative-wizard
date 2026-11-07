@@ -8,6 +8,7 @@ import { DeltaBadge } from "@/components/kpi/delta-badge";
 import { InfoTip } from "@/components/ui/info-tip";
 import { FUNNEL_METRIC_COLOR } from "@/lib/palette";
 import type { FunnelTotals } from "@/db/queries/funnel";
+import { panelClass } from "@/components/ui/panel";
 
 /**
  * A clean, classic funnel: the six stages stacked top to bottom, each a
@@ -72,7 +73,7 @@ export function FunnelStages({
   const overall = totals.impressions > 0 ? totals.conversions / totals.impressions : null;
 
   return (
-    <div className="rounded-lg border border-line bg-surface p-4">
+    <div className={panelClass()}>
       <div className="flex items-baseline justify-between gap-3 mb-4">
         <div className="flex items-center gap-1.5">
           <h3 className="text-sm font-medium text-ink">Volume by stage</h3>

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Check, Copy } from "lucide-react";
 import { toast } from "sonner";
+import { panelClass } from "@/components/ui/panel";
 
 /**
  * How to connect. TWO PATHS, and the order is the recommendation: sign-in
@@ -57,7 +58,7 @@ Header: Authorization: Bearer YOUR_TOKEN`,
 
 export function McpConnectPanel() {
   return (
-    <div className="rounded-lg border border-line bg-surface">
+    <div className={panelClass({ padding: "none" })}>
       <div className="border-b border-line px-4 py-3">
         <h2 className="text-sm font-medium text-ink">How to connect</h2>
         <p className="text-xs text-ink-3">

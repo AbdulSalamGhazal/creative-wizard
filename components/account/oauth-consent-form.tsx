@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { decideOauthConsent } from "@/app/actions/oauth";
 import { safeAction } from "@/lib/action-failure";
 import { toastActionFailure } from "@/lib/action-toast";
+import { panelClass } from "@/components/ui/panel";
 
 /**
  * Allow / Deny. Deliberately plain: it names the app, the account it would act
@@ -60,7 +61,7 @@ export function ConsentForm({
   }
 
   return (
-    <div className="w-full max-w-md rounded-lg border border-line bg-surface p-5">
+    <div className={`w-full max-w-md ${panelClass()}`}>
       <div className="flex items-start gap-3">
         <span className="mt-0.5 rounded-md border border-line bg-surface-2 p-2 text-ink-2">
           <ShieldCheck className="h-4 w-4" />

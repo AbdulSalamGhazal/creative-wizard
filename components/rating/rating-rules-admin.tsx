@@ -19,6 +19,7 @@ import { ALL_PLATFORMS, PLATFORM_LABEL } from "@/lib/palette";
 import { PlatformDot } from "@/components/ui/platform-dot";
 import { usd } from "@/lib/format";
 import { Chip } from "@/components/ui/chip";
+import { panelClass } from "@/components/ui/panel";
 
 type Platform = (typeof ALL_PLATFORMS)[number];
 
@@ -161,7 +162,7 @@ function DefaultEditor({ rules }: { rules: RatingRules }) {
         minSpend={minSpend} goodRoas={goodRoas} decentRoas={decentRoas}
         setMinSpend={setMinSpend} setGoodRoas={setGoodRoas} setDecentRoas={setDecentRoas}
       />
-      <div className="rounded-lg border border-line bg-surface p-3">
+      <div className={panelClass({ padding: "sm" })}>
         <ul className="space-y-1.5">
           {tiers.map((t) => (
             <li key={t.rating} className="flex items-center gap-2.5 text-xs">

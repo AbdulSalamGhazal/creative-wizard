@@ -54,6 +54,7 @@ import type {
 } from "@/db/queries/exclusion-rules";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Chip } from "@/components/ui/chip";
+import { panelClass } from "@/components/ui/panel";
 
 const KIND_LABEL: Record<ExclusionRuleKind, string> = {
   campaign_objective: "Campaign objective",
@@ -185,7 +186,7 @@ export function ExclusionRulesAdmin({
   return (
     <div className="max-w-3xl space-y-4">
       {/* Add-rule card */}
-      <div className="rounded-lg border border-line bg-surface p-4 space-y-3">
+      <div className={`${panelClass()} space-y-3`}>
         <div className="text-sm font-medium text-ink">Add a rule</div>
         <p className="text-xs text-ink-3">
           Everything the rule matches is excluded from aggregates everywhere,
