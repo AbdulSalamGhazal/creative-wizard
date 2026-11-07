@@ -158,6 +158,7 @@ export default async function CampaignDetailPage({
         backLink={{ href: "/campaigns", label: "Back to Campaigns" }}
         eyebrow={meta.productNames.join(" · ") || "Campaign"}
         title={meta.campaign}
+        clampTitle
         rightSlot={
           <div className="flex flex-wrap items-center gap-2">
             {registry && nameParts && (

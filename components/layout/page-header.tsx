@@ -28,6 +28,12 @@ interface PageHeaderProps {
   children?: ReactNode;
   /** Right-aligned slot — a primary action button or a context badge. */
   rightSlot?: ReactNode;
+  /**
+   * An ENTITY's name as the title (campaign / creative detail): clamp it to two
+   * lines with the full name as its tooltip, so an 80-character name can't
+   * fill a phone's first screen (R-030).
+   */
+  clampTitle?: boolean;
 }
 
 /**
@@ -45,7 +51,21 @@ export function PageHeader({
   infoLabel = "About this page",
   children,
   rightSlot,
+  clampTitle = false,
 }: PageHeaderProps) {
+  // The title follows the frame (R-030, 2026-11): 36px display type is right
+  // for "Dashboard" on a desktop, not for a 327px phone column.
+  const h1 = (
+    <h1
+      className={
+        "font-display text-2xl sm:text-3xl lg:text-4xl tracking-tight break-words" +
+        (clampTitle ? " line-clamp-2" : "")
+      }
+      title={clampTitle ? title : undefined}
+    >
+      {title}
+    </h1>
+  );
   return (
     <div className="flex items-end justify-between flex-wrap gap-3">
       <div className="min-w-0">
@@ -65,13 +85,13 @@ export function PageHeader({
         )}
         {info ? (
           <div className="flex items-center gap-2">
-            <h1 className="font-display text-4xl tracking-tight break-words">{title}</h1>
+            {h1}
             <InfoTip label={infoLabel} className="mt-1">
               {info}
             </InfoTip>
           </div>
         ) : (
-          <h1 className="font-display text-4xl tracking-tight break-words">{title}</h1>
+          h1
         )}
         {subtitle && (
           <p className="text-ink-2 text-sm mt-1 max-w-2xl">{subtitle}</p>
