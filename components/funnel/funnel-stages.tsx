@@ -84,7 +84,7 @@ export function FunnelStages({
             className={cn(
               "h-7 px-2.5 rounded-md border text-[11px] font-medium transition-colors shrink-0",
               compare
-                ? "border-brand/50 bg-[var(--brand-soft)] text-ink"
+                ? "border-brand/50 bg-brand-soft text-ink"
                 : "border-line text-ink-2 hover:text-ink hover:bg-surface-2",
             )}
           >

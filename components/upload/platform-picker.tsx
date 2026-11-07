@@ -44,7 +44,7 @@ export function PlatformPicker({ value, onChange, disabled }: Props) {
               "relative rounded-lg border bg-surface px-4 py-3 text-left transition-colors",
               "hover:border-line-2 disabled:opacity-50 disabled:cursor-not-allowed",
               selected
-                ? "border-brand/60 bg-[var(--brand-soft)] ring-1 ring-brand/40"
+                ? "border-brand/60 bg-brand-soft ring-1 ring-brand/40"
                 : "border-line",
             )}
           >

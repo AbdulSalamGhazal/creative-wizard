@@ -169,7 +169,7 @@ export function DateRangePicker({
           className={cn(
             "inline-flex items-center gap-2 h-8 px-3 rounded-md border text-xs transition-colors",
             explicit
-              ? "border-brand/50 text-ink bg-[var(--brand-soft)]"
+              ? "border-brand/50 text-ink bg-brand-soft"
               : "border-line text-ink-2 bg-surface hover:bg-surface-2 hover:text-ink",
             fullWidth && "w-full justify-between",
           )}

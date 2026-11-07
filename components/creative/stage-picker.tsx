@@ -48,7 +48,7 @@ export function StagePicker({
           // Midnight and barely moved the fill on the light themes; ink-3
           // reads as pressed without borrowing the funnel's colour.
           ? "border-ink-3 bg-surface-3 text-ink"
-          : "border-brand bg-[var(--brand-soft)] text-ink"
+          : "border-brand bg-brand-soft text-ink"
         : "border-line text-ink-2 hover:text-ink hover:bg-surface-2",
     );
 

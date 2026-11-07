@@ -60,7 +60,7 @@ const TIER_META: Record<
   new: {
     label: "New",
     row: "border-brand/30",
-    badge: "border-brand/40 bg-[var(--brand-soft)] text-ink",
+    badge: "border-brand/40 bg-brand-soft text-ink",
     icon: Sparkles,
   },
   stable: {

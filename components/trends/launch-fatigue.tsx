@@ -59,7 +59,7 @@ const TIER_META: Record<
   },
   new: {
     row: "",
-    badge: "border-brand/40 bg-[var(--brand-soft)] text-ink",
+    badge: "border-brand/40 bg-brand-soft text-ink",
     icon: Sparkles,
   },
   low: {

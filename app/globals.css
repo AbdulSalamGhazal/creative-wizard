@@ -275,6 +275,8 @@
   --color-ink-3: var(--ink-3);
   --color-brand: var(--brand);
   --color-brand-2: var(--brand-2);
+  --color-brand-soft: var(--brand-soft);
+  --color-brand-glow: var(--brand-glow);
   --color-pos: var(--pos);
   --color-neg: var(--neg);
   --color-warn: var(--warn);

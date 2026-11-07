@@ -247,8 +247,8 @@ export function CommentThread({
             "group flex gap-2 rounded-md px-2 py-2 transition-colors",
             isReply && "py-1.5",
             hasView && "cursor-pointer hover:bg-surface-2",
-            isNew && !highlighted && "bg-[var(--brand-soft)]/40",
-            highlighted && "bg-[var(--brand-soft)] ring-1 ring-brand",
+            isNew && !highlighted && "bg-brand-soft/40",
+            highlighted && "bg-brand-soft ring-1 ring-brand",
             pending && "opacity-60",
           )}
           aria-busy={pending || undefined}

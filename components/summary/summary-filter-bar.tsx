@@ -487,7 +487,7 @@ function ScopePicker({
           className={cn(
             "h-6 rounded border px-2 text-[11px] transition-colors",
             value === s.value
-              ? "border-brand/50 bg-[var(--brand-soft)] text-ink"
+              ? "border-brand/50 bg-brand-soft text-ink"
               : "border-line text-ink-2 hover:bg-surface-2 hover:text-ink",
           )}
         >

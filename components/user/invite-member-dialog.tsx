@@ -296,7 +296,7 @@ export function InviteMemberDialog({
                         className={cn(
                           "flex h-4 w-4 shrink-0 items-center justify-center rounded border",
                           allAccounts
-                            ? "border-transparent bg-[var(--brand)] text-[var(--primary-foreground)]"
+                            ? "border-transparent bg-brand text-primary-foreground"
                             : "border-line",
                         )}
                         aria-hidden
@@ -325,7 +325,7 @@ export function InviteMemberDialog({
                               className={cn(
                                 "flex h-4 w-4 shrink-0 items-center justify-center rounded border",
                                 on
-                                  ? "border-transparent bg-[var(--brand)] text-[var(--primary-foreground)]"
+                                  ? "border-transparent bg-brand text-primary-foreground"
                                   : "border-line",
                               )}
                               aria-hidden

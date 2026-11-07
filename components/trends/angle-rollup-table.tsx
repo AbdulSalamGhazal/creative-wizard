@@ -115,7 +115,7 @@ export function AngleRollupTable({ rows }: { rows: AngleRollupRow[] }) {
               className={cn(
                 "inline-flex items-center h-4 px-1 rounded text-[10px] border tabular-nums",
                 rk <= 3
-                  ? "border-brand/40 text-brand bg-[var(--brand-soft)]"
+                  ? "border-brand/40 text-brand bg-brand-soft"
                   : "border-line-2 text-ink-3",
               )}
             >

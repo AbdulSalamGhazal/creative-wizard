@@ -67,7 +67,7 @@ export function MobileNav({ granted }: { granted: string[] }) {
         "block rounded-md px-3 py-2 text-sm transition-colors",
         opts?.child && "ml-3 text-xs",
         isActive(pathname, href, opts?.exact)
-          ? "bg-[var(--brand-soft)] text-ink font-medium"
+          ? "bg-brand-soft text-ink font-medium"
           : "text-ink-2 hover:bg-surface-2 hover:text-ink",
       )}
     >

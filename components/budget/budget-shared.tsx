@@ -361,11 +361,11 @@ export function PlanDayBars({
           tone === "data"
             ? selected
               ? "bg-ink"
-              : "bg-[var(--brand)]"
+              : "bg-brand"
             : selected
-              ? "bg-[var(--brand)]"
+              ? "bg-brand"
               : emphasize?.(day)
-                ? "bg-[var(--brand)]/60"
+                ? "bg-brand/60"
                 : "bg-surface-3";
         const style = { height: `${Math.max(3, (value / peak) * 100)}%` };
         const title = `Day ${day} · ${label(value)}`;
@@ -377,7 +377,7 @@ export function PlanDayBars({
             title={title}
             aria-label={title}
             className={cn(
-              "min-w-0 flex-1 cursor-pointer rounded-t-[2px] transition-all hover:bg-[var(--brand)]/40",
+              "min-w-0 flex-1 cursor-pointer rounded-t-[2px] transition-all hover:bg-brand/40",
               fill,
             )}
             style={style}

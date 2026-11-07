@@ -164,7 +164,7 @@ export function ThumbnailUpload({ value, onChange, disabled }: Props) {
           className={cn(
             "flex aspect-[4/3] w-full flex-col items-center justify-center gap-2 rounded-lg border border-dashed text-center transition-colors disabled:cursor-not-allowed disabled:opacity-60",
             dragOver
-              ? "border-brand bg-[var(--brand-soft)]"
+              ? "border-brand bg-brand-soft"
               : "border-line-2 bg-surface-2 hover:bg-surface-3",
           )}
         >

@@ -156,7 +156,7 @@ export function StoreUploadPanel({
             className={cn(
               "flex h-4 w-4 shrink-0 items-center justify-center rounded border",
               upsert
-                ? "border-transparent bg-[var(--brand)] text-[var(--primary-foreground)]"
+                ? "border-transparent bg-brand text-primary-foreground"
                 : "border-line",
             )}
             aria-hidden

@@ -251,7 +251,7 @@ export function NotificationCenter({
                 className={cn(
                   "rounded-full border px-2.5 py-1 text-[11px] transition-colors",
                   on
-                    ? "border-brand bg-[var(--brand-soft)] text-ink"
+                    ? "border-brand bg-brand-soft text-ink"
                     : "border-line text-ink-3 hover:text-ink",
                 )}
               >
@@ -321,7 +321,7 @@ export function NotificationCenter({
                             )}
                           </span>
                           {unreadInGroup.length > 0 && (
-                            <span className="num rounded-full bg-brand px-1.5 text-[10px] leading-4 text-[var(--primary-foreground)]">
+                            <span className="num rounded-full bg-brand px-1.5 text-[10px] leading-4 text-primary-foreground">
                               {unreadInGroup.length}
                             </span>
                           )}
@@ -458,7 +458,7 @@ function NotificationRow({
       className={cn(
         "group/row flex gap-3 px-3 py-3",
         nested && "pl-6",
-        unreadRow && "bg-[var(--brand-soft)]/30",
+        unreadRow && "bg-brand-soft/30",
       )}
     >
       {/* Who it was — the shared avatar (photo, or initials in their own

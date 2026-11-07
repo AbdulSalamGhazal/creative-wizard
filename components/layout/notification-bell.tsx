@@ -347,7 +347,7 @@ export function NotificationBell({
       >
         <Bell className="h-4 w-4" />
         {badge && (
-          <span className="num absolute -right-0.5 -top-0.5 min-w-4 rounded-full bg-brand px-1 text-[10px] font-medium leading-4 text-[var(--primary-foreground)]">
+          <span className="num absolute -right-0.5 -top-0.5 min-w-4 rounded-full bg-brand px-1 text-[10px] font-medium leading-4 text-primary-foreground">
             {badge}
           </span>
         )}
@@ -375,7 +375,7 @@ export function NotificationBell({
                     onClick={() => openItem(item)}
                     className={cn(
                       "flex w-full items-start gap-2.5 px-3 py-2.5 text-left transition-colors hover:bg-surface-2",
-                      isNew && "bg-[var(--brand-soft)]/40",
+                      isNew && "bg-brand-soft/40",
                     )}
                   >
                     <NotificationAvatar

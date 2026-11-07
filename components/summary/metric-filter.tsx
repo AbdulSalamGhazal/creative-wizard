@@ -135,7 +135,7 @@ export function MetricFilterControl({ platforms }: Props) {
           className={cn(
             "inline-flex items-center gap-2 h-8 px-3 rounded-md border text-xs transition-colors",
             conditions.length > 0
-              ? "border-brand/50 text-ink bg-[var(--brand-soft)]"
+              ? "border-brand/50 text-ink bg-brand-soft"
               : "border-line text-ink-2 bg-surface hover:bg-surface-2 hover:text-ink",
           )}
         >
@@ -271,7 +271,7 @@ export function MetricFilterControl({ platforms }: Props) {
               type="button"
               onClick={addCondition}
               disabled={draftValue.trim() === "" || !Number.isFinite(Number(draftValue))}
-              className="inline-flex items-center gap-1 h-8 px-3 rounded-md border border-brand/50 bg-[var(--brand-soft)] text-xs text-ink hover:bg-brand/15 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              className="inline-flex items-center gap-1 h-8 px-3 rounded-md border border-brand/50 bg-brand-soft text-xs text-ink hover:bg-brand/15 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <Plus className="w-3.5 h-3.5" />
               Add

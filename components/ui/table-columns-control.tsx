@@ -189,7 +189,7 @@ export function TableColumnsControl({
                           type="checkbox"
                           checked={!isHidden}
                           onChange={() => onToggle(item.key)}
-                          className="h-3 w-3 shrink-0 accent-[var(--brand)]"
+                          className="h-3 w-3 shrink-0 accent-brand"
                         />
                       ) : (
                         // Always present: its platform is chosen by the filter.

@@ -205,7 +205,7 @@ export function ViewsControl({
           className={cn(
             "inline-flex items-center gap-2 h-8 px-3 rounded-md border text-xs transition-colors",
             activeView
-              ? "border-brand/50 text-ink bg-[var(--brand-soft)]"
+              ? "border-brand/50 text-ink bg-brand-soft"
               : "border-line text-ink-2 bg-surface hover:bg-surface-2 hover:text-ink",
           )}
         >
@@ -237,7 +237,7 @@ export function ViewsControl({
                   className={cn(
                     "group flex items-center gap-2 px-2 py-1.5 rounded-md text-xs transition-colors",
                     isActive
-                      ? "bg-[var(--brand-soft)] text-ink"
+                      ? "bg-brand-soft text-ink"
                       : "hover:bg-surface-2 text-ink-2",
                   )}
                 >
@@ -333,7 +333,7 @@ export function ViewsControl({
               type="button"
               onClick={save}
               disabled={isPending || name.trim() === ""}
-              className="inline-flex items-center gap-1 h-8 px-3 rounded-md border border-brand/50 bg-[var(--brand-soft)] text-xs text-ink hover:bg-brand/15 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              className="inline-flex items-center gap-1 h-8 px-3 rounded-md border border-brand/50 bg-brand-soft text-xs text-ink hover:bg-brand/15 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <Plus className="w-3.5 h-3.5" />
               Save

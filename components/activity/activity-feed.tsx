@@ -169,7 +169,7 @@ export function ActivityFeed({
                 className={cn(
                   "rounded-full border px-2.5 py-1 text-[11px] transition-colors",
                   on
-                    ? "border-brand bg-[var(--brand-soft)] text-ink"
+                    ? "border-brand bg-brand-soft text-ink"
                     : "border-line text-ink-3 hover:text-ink",
                 )}
               >

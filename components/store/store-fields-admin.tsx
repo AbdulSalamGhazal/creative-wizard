@@ -290,7 +290,7 @@ function Toggle({
       <span
         className={cn(
           "h-3.5 w-3.5 rounded border",
-          on ? "border-transparent bg-[var(--brand)]" : "border-line",
+          on ? "border-transparent bg-brand" : "border-line",
         )}
       />
       {label}

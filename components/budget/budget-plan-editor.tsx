@@ -837,7 +837,7 @@ export function BudgetPlanEditor({
       <BudgetMonthBar month={month} today={today} locked={editing}>
         {isDaily && (
           <span
-            className="inline-flex items-center gap-1 rounded-full border border-brand/40 bg-[var(--brand-soft)] px-2 py-0.5 text-[11px] text-ink"
+            className="inline-flex items-center gap-1 rounded-full border border-brand/40 bg-brand-soft px-2 py-0.5 text-[11px] text-ink"
             title="Planned from an uploaded sheet, one day at a time. The editor and the curve are read-only for this month."
           >
             <CalendarDays className="h-3 w-3" aria-hidden />
@@ -1221,7 +1221,7 @@ export function BudgetPlanEditor({
                         <span
                           className={cn(
                             "flex h-4 w-4 items-center justify-center rounded border",
-                            on ? "border-brand bg-[var(--brand-soft)]" : "border-line",
+                            on ? "border-brand bg-brand-soft" : "border-line",
                           )}
                         >
                           {on && <Check className="h-3 w-3 text-brand" />}
@@ -2003,11 +2003,11 @@ function DayCurveEditor({
                 className={cn(
                   "flex h-10 flex-col items-center justify-center rounded-md border text-[11px] num transition-colors",
                   overridden
-                    ? "border-brand/50 bg-[var(--brand-soft)] text-ink"
+                    ? "border-brand/50 bg-brand-soft text-ink"
                     : "border-line text-ink-2",
                   editing && "hover:border-brand/60 cursor-pointer",
                   !editing && "cursor-default",
-                  selected && "ring-2 ring-[var(--brand)]",
+                  selected && "ring-2 ring-brand",
                 )}
               >
                 <span>{day}</span>

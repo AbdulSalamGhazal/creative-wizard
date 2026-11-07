@@ -95,7 +95,7 @@ export function Dropzone({ file, onFile, disabled }: Props) {
         className={cn(
           "rounded-lg border-2 border-dashed transition-colors text-center px-6 py-12 cursor-pointer",
           isDragActive
-            ? "border-brand/60 bg-[var(--brand-soft)]"
+            ? "border-brand/60 bg-brand-soft"
             : "border-line-2 bg-surface hover:border-line hover:bg-surface-2/60",
           disabled && "opacity-60 cursor-not-allowed",
         )}

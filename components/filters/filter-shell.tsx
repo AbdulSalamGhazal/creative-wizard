@@ -130,7 +130,7 @@ export function FilterShell({
           {chips.map((chip) => (
             <span
               key={chip.key}
-              className="inline-flex h-6 max-w-[16rem] items-center gap-1 rounded-md border border-brand/40 bg-[var(--brand-soft)] pl-2 pr-1 text-[11px] text-ink"
+              className="inline-flex h-6 max-w-[16rem] items-center gap-1 rounded-md border border-brand/40 bg-brand-soft pl-2 pr-1 text-[11px] text-ink"
             >
               <span className="truncate" title={chip.label}>
                 {chip.label}
@@ -214,14 +214,14 @@ function FilterDialog({
           className={cn(
             "inline-flex h-8 items-center gap-2 rounded-md border px-3 text-xs transition-colors",
             count > 0
-              ? "border-brand/50 bg-[var(--brand-soft)] text-ink"
+              ? "border-brand/50 bg-brand-soft text-ink"
               : "border-line bg-surface text-ink-2 hover:bg-surface-2 hover:text-ink",
           )}
         >
           <SlidersHorizontal className="h-3.5 w-3.5" />
           <span>{title}</span>
           {count > 0 && (
-            <span className="inline-flex h-[1.1rem] min-w-[1.1rem] items-center justify-center rounded-full bg-brand px-1 text-[10px] font-medium tabular-nums text-[var(--primary-foreground)]">
+            <span className="inline-flex h-[1.1rem] min-w-[1.1rem] items-center justify-center rounded-full bg-brand px-1 text-[10px] font-medium tabular-nums text-primary-foreground">
               {count}
             </span>
           )}
@@ -294,7 +294,7 @@ function FilterDialog({
                 <button
                   type="button"
                   onClick={() => setOpen(false)}
-                  className="inline-flex h-8 items-center rounded-md bg-brand px-3 text-xs font-medium text-[var(--primary-foreground)] transition-opacity hover:opacity-90"
+                  className="inline-flex h-8 items-center rounded-md bg-brand px-3 text-xs font-medium text-primary-foreground transition-opacity hover:opacity-90"
                 >
                   Done
                 </button>

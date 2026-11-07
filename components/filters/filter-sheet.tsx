@@ -48,14 +48,14 @@ export function FilterSheet({
           className={cn(
             "inline-flex items-center gap-2 h-8 px-3 rounded-md border text-xs transition-colors",
             activeCount > 0
-              ? "border-brand/50 text-ink bg-[var(--brand-soft)]"
+              ? "border-brand/50 text-ink bg-brand-soft"
               : "border-line text-ink-2 bg-surface hover:bg-surface-2 hover:text-ink",
           )}
         >
           <SlidersHorizontal className="w-3.5 h-3.5" />
           <span>Filters</span>
           {activeCount > 0 && (
-            <span className="inline-flex items-center justify-center min-w-[1.1rem] h-[1.1rem] px-1 rounded-full bg-brand text-[10px] font-medium text-[var(--primary-foreground)] tabular-nums">
+            <span className="inline-flex items-center justify-center min-w-[1.1rem] h-[1.1rem] px-1 rounded-full bg-brand text-[10px] font-medium text-primary-foreground tabular-nums">
               {activeCount}
             </span>
           )}

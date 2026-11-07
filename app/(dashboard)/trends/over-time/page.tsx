@@ -220,7 +220,7 @@ export default async function TrendsOverTimePage({
               className={cn(
                 "px-3 h-8 inline-flex items-center transition-colors",
                 d.value === dim
-                  ? "bg-[var(--brand-soft)] text-ink"
+                  ? "bg-brand-soft text-ink"
                   : "text-ink-2 hover:text-ink hover:bg-surface-2",
               )}
             >

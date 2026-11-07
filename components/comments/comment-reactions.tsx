@@ -162,7 +162,7 @@ export function ReactionPicker({
               aria-pressed={mineKinds.has(r.key)}
               className={cn(
                 "flex h-8 w-8 items-center justify-center rounded-md text-base leading-none transition-colors hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50",
-                mineKinds.has(r.key) && "bg-[var(--brand-soft)]",
+                mineKinds.has(r.key) && "bg-brand-soft",
               )}
             >
               <span aria-hidden>{r.emoji}</span>
@@ -204,7 +204,7 @@ export function ReactionPills({
             // Your own reaction is tinted — the pill answers "did I react?"
             // before you count anything.
             r.mine
-              ? "border-brand/40 bg-[var(--brand-soft)] text-ink"
+              ? "border-brand/40 bg-brand-soft text-ink"
               : "border-line bg-surface-2 text-ink-2 hover:text-ink",
           )}
         >
