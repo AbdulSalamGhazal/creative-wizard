@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { DisabledReason } from "@/components/ui/disabled-reason";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -43,6 +44,9 @@ import { SegmentedControl } from "@/components/ui/segmented-control";
  * the pacing-deviation cell. Keeping these here means the pages can't drift
  * apart on month navigation, currency semantics or how a deviation reads.
  */
+
+/** Why the month bar is locked while the plan is being edited. */
+const LOCKED_REASON = "Finish editing first";
 
 export type BudgetCurrency = "USD" | "SAR";
 const CURRENCY_KEY = "cw-budget-currency";
@@ -145,7 +149,7 @@ export function BudgetMonthBar({
     }
     startNav(() => router.replace(`${pathname}?month=${m}`, { scroll: false }));
   };
-  const lockedTitle = locked ? "Finish editing first" : undefined;
+  const lockedTitle = locked ? LOCKED_REASON : undefined;
 
   const [yearStr, monthStr] = month.split("-");
   const year = Number(yearStr);
@@ -163,17 +167,18 @@ export function BudgetMonthBar({
   return (
     <div className="flex flex-wrap items-center justify-between gap-2">
       <div className="flex items-center gap-1">
-        <Button
-          type="button"
-          variant="outline"
-          size="xs"
-          onClick={() => go(prevMonthKey(month))}
-          aria-label="Previous month"
-          disabled={locked}
-          title={lockedTitle}
-        >
-          <ChevronLeft className="h-3.5 w-3.5" />
-        </Button>
+        <DisabledReason disabled={locked} reason={LOCKED_REASON}>
+          <Button
+            type="button"
+            variant="outline"
+            size="xs"
+            onClick={() => go(prevMonthKey(month))}
+            aria-label="Previous month"
+            disabled={locked}
+          >
+            <ChevronLeft className="h-3.5 w-3.5" />
+          </Button>
+        </DisabledReason>
         <span className="min-w-[6.5rem] text-center font-display text-lg">{monthName}</span>
         <Select
           value={String(year)}
@@ -195,17 +200,18 @@ export function BudgetMonthBar({
             ))}
           </SelectContent>
         </Select>
-        <Button
-          type="button"
-          variant="outline"
-          size="xs"
-          onClick={() => go(nextMonthKey(month))}
-          aria-label="Next month"
-          disabled={locked}
-          title={lockedTitle}
-        >
-          <ChevronRight className="h-3.5 w-3.5" />
-        </Button>
+        <DisabledReason disabled={locked} reason={LOCKED_REASON}>
+          <Button
+            type="button"
+            variant="outline"
+            size="xs"
+            onClick={() => go(nextMonthKey(month))}
+            aria-label="Next month"
+            disabled={locked}
+          >
+            <ChevronRight className="h-3.5 w-3.5" />
+          </Button>
+        </DisabledReason>
         {!isCurrentMonth && (
           <Button
             type="button"

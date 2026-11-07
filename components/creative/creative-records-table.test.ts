@@ -34,6 +34,8 @@ const row = (over: Partial<CreativeRecordRow> = {}): CreativeRecordRow => ({
   excludedSource: null,
   excludedReason: null,
   excludedAt: null,
+  excludedRuleKind: null,
+  excludedRuleObjective: null,
   ...over,
 });
 

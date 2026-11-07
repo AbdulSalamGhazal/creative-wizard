@@ -3,6 +3,7 @@
 import { useId, useState } from "react";
 import { CopyPlus, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { DisabledReason } from "@/components/ui/disabled-reason";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import type { Plan } from "@/price-structure/engine/types";
@@ -85,17 +86,18 @@ export function PlanToolbar({
         <Button type="button" size="sm" variant="outline" className="h-8 text-xs" onClick={onNew}>
           <Plus aria-hidden /> New plan
         </Button>
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          className="h-8 text-xs text-neg hover:text-neg"
-          disabled={plans.length <= 1}
-          title={plans.length <= 1 ? "A version keeps at least one plan" : undefined}
-          onClick={() => setConfirm(true)}
-        >
-          <Trash2 aria-hidden /> Delete
-        </Button>
+        <DisabledReason disabled={plans.length <= 1} reason="A version keeps at least one plan">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="h-8 text-xs text-neg hover:text-neg"
+            disabled={plans.length <= 1}
+            onClick={() => setConfirm(true)}
+          >
+            <Trash2 aria-hidden /> Delete
+          </Button>
+        </DisabledReason>
       </div>
       )}
       <ConfirmDialog

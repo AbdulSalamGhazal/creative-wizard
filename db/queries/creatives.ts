@@ -25,6 +25,7 @@ import {
   users,
   platformEnum,
   type creativeTypeEnum,
+  exclusionRules,
 } from "@/db/schema";
 import type { CreativeSort } from "@/validators/creative";
 import { getActiveAccountId } from "@/lib/tenant";
@@ -640,6 +641,9 @@ export interface CreativeRecordRow {
   excludedSource: "manual" | "rule" | null;
   excludedReason: string | null;
   excludedAt: Date | null;
+  /** The rule that excluded the row (`excludedSource='rule'`), to name it. */
+  excludedRuleKind: "campaign_objective" | "campaign" | "creative" | null;
+  excludedRuleObjective: string | null;
 }
 
 /**
@@ -678,9 +682,14 @@ export async function creativeRecords(
       excludedSource: performanceRecords.excludedSource,
       excludedReason: performanceRecords.excludedReason,
       excludedAt: performanceRecords.excludedAt,
+      excludedRuleKind: exclusionRules.kind,
+      excludedRuleObjective: exclusionRules.objective,
     })
     .from(performanceRecords)
     .innerJoin(campaigns, eq(campaigns.id, performanceRecords.campaignId))
+    // A PK join off a column the row already carries: names the rule behind a
+    // rule-excluded row (R-007 — "Excluded by rule «…»", never a bare refusal).
+    .leftJoin(exclusionRules, eq(exclusionRules.id, performanceRecords.excludedRuleId))
     // A PK join off a column the row already carries — the admission price
     // for a defaultHidden column (docs/decisions/tables-columns.md).
     .leftJoin(landingPages, eq(landingPages.id, performanceRecords.landingPageId))
@@ -719,6 +728,8 @@ export async function creativeRecords(
     excludedSource: r.excludedSource ?? null,
     excludedReason: r.excludedReason,
     excludedAt: r.excludedAt,
+    excludedRuleKind: r.excludedRuleKind ?? null,
+    excludedRuleObjective: r.excludedRuleObjective ?? null,
   }));
 }
 

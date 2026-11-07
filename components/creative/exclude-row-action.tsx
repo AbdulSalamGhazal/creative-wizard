@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState, useTransition } from "react";
 import { Ban, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
@@ -25,13 +26,15 @@ interface Props {
   excluded: boolean;
   /** Exclusion provenance — 'rule' rows can only be restored via the rule. */
   excludedSource?: "manual" | "rule" | null;
+  /** The rule's words when `excludedSource='rule'` ("Objective awareness"). */
+  ruleLabel?: string;
   /** Optional context shown in the dialog header. */
   context?: string;
 }
 
 const REASON_MAX = 200;
 
-export function ExcludeRowAction({ recordId, excluded, excludedSource, context }: Props) {
+export function ExcludeRowAction({ recordId, excluded, excludedSource, ruleLabel, context }: Props) {
   const canExclude = useCan("record.exclude");
   const [open, setOpen] = useState(false);
   const [reason, setReason] = useState("");
@@ -80,21 +83,28 @@ export function ExcludeRowAction({ recordId, excluded, excludedSource, context }
 
   if (excluded) {
     // Rule-excluded rows can't be un-excluded here — the rule owns them (the
-    // server refuses too; this just explains it up front).
-    const byRule = excludedSource === "rule";
+    // server refuses too). Instead of a greyed button that says nothing, the
+    // row names the rule and links to where it lives (R-007, "No dead ends").
+    if (excludedSource === "rule") {
+      return (
+        <Link
+          href="/admin/catalog?tab=exclusions"
+          className="block max-w-[12rem] truncate text-[11px] text-ink-3 underline-offset-2 hover:text-ink hover:underline"
+          title={`Excluded by rule «${ruleLabel ?? "an exclusion rule"}» — deactivate the rule in Configuration → Exclusions to restore it.`}
+        >
+          By rule «{ruleLabel ?? "exclusion rule"}»
+        </Link>
+      );
+    }
     return (
       <Button
         type="button"
         variant="ghost"
         size="xs"
         onClick={submitInclude}
-        disabled={isPending || byRule}
+        disabled={isPending}
         className="text-ink-3 hover:text-ink disabled:opacity-50"
-        title={
-          byRule
-            ? "Excluded by an exclusion rule — deactivate the rule in Configuration → Exclusions to restore it."
-            : "Re-include in totals"
-        }
+        title="Re-include in totals"
       >
         <RotateCcw className="w-3 h-3" />
         Re-include

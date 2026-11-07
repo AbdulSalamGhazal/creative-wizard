@@ -16,6 +16,7 @@ import {
   performanceRecords,
   platformEnum,
   products,
+  exclusionRules,
 } from "@/db/schema";
 import { creativeStatusMap, statusFor } from "@/db/queries/creative-status";
 import type { CreativeStatus } from "@/lib/creative-status";
@@ -674,6 +675,9 @@ export interface CampaignRecordRow {
   videoViews100: number | null;
   excludedFromAggregates: boolean;
   excludedSource: "manual" | "rule" | null;
+  /** The rule that excluded the row (`excludedSource='rule'`), to name it. */
+  excludedRuleKind: "campaign_objective" | "campaign" | "creative" | null;
+  excludedRuleObjective: string | null;
 }
 
 export async function campaignRecords(
@@ -703,10 +707,14 @@ export async function campaignRecords(
       videoViews100: performanceRecords.videoViews100,
       excludedFromAggregates: performanceRecords.excludedFromAggregates,
       excludedSource: performanceRecords.excludedSource,
+      excludedRuleKind: exclusionRules.kind,
+      excludedRuleObjective: exclusionRules.objective,
     })
     .from(performanceRecords)
     .innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId))
     .innerJoin(campaigns, eq(campaigns.id, performanceRecords.campaignId))
+    // PK join: names the rule behind a rule-excluded row (R-007).
+    .leftJoin(exclusionRules, eq(exclusionRules.id, performanceRecords.excludedRuleId))
     .where(detailCond(name, range, acct, includeExcluded))
     .orderBy(desc(performanceRecords.date), desc(performanceRecords.spend))
     .limit(2000);
@@ -730,6 +738,8 @@ export async function campaignRecords(
     videoViews100: numOrNull(r.videoViews100),
     excludedFromAggregates: r.excludedFromAggregates,
     excludedSource: (r.excludedSource ?? null) as "manual" | "rule" | null,
+    excludedRuleKind: r.excludedRuleKind ?? null,
+    excludedRuleObjective: r.excludedRuleObjective ?? null,
   }));
 }
 

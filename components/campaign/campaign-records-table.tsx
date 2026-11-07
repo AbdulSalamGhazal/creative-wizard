@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { exclusionRuleLabel } from "@/lib/exclusion-rule-label";
 import { DataTable, type DataColumn } from "@/components/ui/data-table";
 import { useTableColumns } from "@/components/ui/use-table-columns";
 import { TABLE_KEYS, type TableColumnPref } from "@/lib/table-columns";
@@ -197,11 +198,15 @@ export function CampaignRecordsTable({
               tone="warn"
               title={
                 r.excludedSource === "rule"
-                  ? "Excluded by an exclusion rule — manage it in Configuration → Exclusions."
+                  ? `Excluded by rule «${exclusionRuleLabel(
+                      { kind: r.excludedRuleKind, objective: r.excludedRuleObjective },
+                      { creativeName: r.creativeName },
+                    )}» — manage it in Configuration → Exclusions.`
                   : undefined
               }
             >
-              Excluded
+              {/* Rule vs manual is visible, not only in a title (R-007). */}
+              {r.excludedSource === "rule" ? "Excluded · rule" : "Excluded"}
             </Chip>
           )}
         </span>

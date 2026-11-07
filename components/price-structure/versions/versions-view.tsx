@@ -4,6 +4,7 @@ import { useId, useMemo, useRef, useState } from "react";
 import { CopyPlus, Download, ExternalLink, FolderOpen, Loader2, Plus, Trash2, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { DisabledReason } from "@/components/ui/disabled-reason";
 import { DataTable, type DataColumn } from "@/components/ui/data-table";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -199,18 +200,23 @@ export function VersionsView() {
                 <Download aria-hidden />
               </Button>
               {manage && (
+                <DisabledReason
+                  disabled={current}
+                  reason="Open in this tab. Switch this tab to another version first."
+                >
                 <Button
                   type="button"
                   size="icon-xs"
                   variant="ghost"
                   aria-label="Delete version"
-                  title={current ? "Open in this tab. Switch this tab to another version first." : "Delete"}
+                  title="Delete"
                   disabled={current || busy !== null}
                   className="text-neg hover:text-neg"
                   onClick={() => setToDelete(r)}
                 >
                   <Trash2 aria-hidden />
                 </Button>
+                </DisabledReason>
               )}
             </span>
           );

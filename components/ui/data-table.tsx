@@ -347,7 +347,7 @@ export function DataTable<T>({
           only order the table against ITSELF, and the frame as a whole stays
           under the page's sticky filter bar when the page scrolls it there. */}
       <div className="relative isolate">
-      <div className="rounded-lg border border-line bg-surface overflow-auto max-h-[70vh]">
+      <div className="relative rounded-lg border border-line bg-surface overflow-auto max-h-[70vh]">
       <table className={cn(minWidthClass, "w-full text-xs tabular-nums", evenColumns && "table-fixed")}>
         <thead className="sticky top-0 z-20 bg-surface">
           <tr className="text-label text-ink-2 border-b border-line bg-surface-2/40">

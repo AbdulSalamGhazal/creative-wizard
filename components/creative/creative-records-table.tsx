@@ -7,6 +7,7 @@ import { useTableColumns } from "@/components/ui/use-table-columns";
 import { TABLE_KEYS } from "@/lib/table-columns";
 import { DownloadCsvButton } from "@/components/ui/download-csv-button";
 import { ExcludeRowAction } from "@/components/creative/exclude-row-action";
+import { exclusionRuleLabel } from "@/lib/exclusion-rule-label";
 import { PLATFORM_LABEL } from "@/lib/palette";
 import { PlatformDot } from "@/components/ui/platform-dot";
 import { int, isoDate, usd } from "@/lib/format";
@@ -91,6 +92,14 @@ const DEFAULT_HIDDEN = [
  * primitive's nulls-sink rule), everything else by string compare. The
  * wrapper owns the sort, so the CSV can export in the on-screen order.
  */
+/** The rule behind a rule-excluded row, in words (this page IS the creative). */
+function ruleLabel(r: CreativeRecordRow): string {
+  return exclusionRuleLabel(
+    { kind: r.excludedRuleKind, objective: r.excludedRuleObjective },
+    { campaignName: r.campaignName },
+  );
+}
+
 export function compareRecords(
   a: CreativeRecordRow,
   b: CreativeRecordRow,
@@ -159,11 +168,12 @@ export function CreativeRecordsTable({ rows, title = "All records" }: Props) {
                 tone="warn"
                 title={
                   r.excludedSource === "rule"
-                    ? "Excluded by an exclusion rule — manage it in Configuration → Exclusions."
+                    ? `Excluded by rule «${ruleLabel(r)}» — manage it in Configuration → Exclusions.`
                     : (r.excludedReason ?? undefined)
                 }
               >
-                Excluded
+                {/* Rule vs manual is visible, not only in a title (R-007). */}
+                {r.excludedSource === "rule" ? "Excluded · rule" : "Excluded"}
               </Chip>
             )}
           </span>
@@ -274,6 +284,7 @@ export function CreativeRecordsTable({ rows, title = "All records" }: Props) {
             recordId={r.id}
             excluded={r.excludedFromAggregates}
             excludedSource={r.excludedSource}
+            ruleLabel={r.excludedSource === "rule" ? ruleLabel(r) : undefined}
             context={`${isoDate(r.date)} · ${PLATFORM_LABEL[r.platform]} · ${usd(r.spend)}`}
           />
         ),

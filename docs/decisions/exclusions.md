@@ -41,7 +41,10 @@ as it stood before the restructure.*
   then RE-SWEEPS the remaining active rules, so a row covered by two rules stays
   excluded (re-stamped by the survivor) instead of silently returning to totals;
   **manual un-exclude REFUSES rule-excluded rows** (the action returns
-  "Excluded by rule «…»" and the row's Re-include button is disabled) — restore
+  "Excluded by rule «…»"; the row shows no Re-include at all but "By rule
+  «Objective awareness»" — the rule named by kind and target, linking to
+  Configuration → Exclusions — and its badge reads "Excluded · rule" (R-007,
+  2026-11; rules have no name, `lib/exclusion-rule-label.ts` words them)) — restore
   them by deactivating the rule in Configuration → Exclusions (still there). Rule mutations
   reuse `record.exclude` but are always preview-then-confirm with an
   acknowledgement checkbox, and audited (`exclusion.rule_*`) with the count the
