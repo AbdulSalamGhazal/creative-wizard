@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
-import { AlertTriangle, Loader2, UserMinus } from "lucide-react";
+import { Loader2, UserMinus } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -12,8 +12,8 @@ import {
   DialogDescription,
   DialogFooter,
   DialogHeader,
-  DialogTitle,
 } from "@/components/ui/dialog";
+import { ToneDialogTitle } from "@/components/ui/dialog-tone";
 import { Skeleton } from "@/components/ui/skeleton";
 import { memberRemovalPreview, removeUser } from "@/app/actions/user";
 import { safeAction } from "@/lib/action-failure";
@@ -97,12 +97,7 @@ export function RemoveMemberDialog({
     >
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-neg/10 text-neg">
-              <AlertTriangle className="h-4 w-4" />
-            </span>
-            Remove {member?.name} from the team?
-          </DialogTitle>
+          <ToneDialogTitle tone="destructive">Remove {member?.name} from the team?</ToneDialogTitle>
           <DialogDescription>
             Their sign-in is deleted, every session ends, and their brand access, API tokens
             and connected apps are revoked. <span className="font-medium text-ink">{member?.email}</span>{" "}

@@ -11,8 +11,8 @@ import {
   DialogDescription,
   DialogFooter,
   DialogHeader,
-  DialogTitle,
 } from "@/components/ui/dialog";
+import { ToneDialogTitle } from "@/components/ui/dialog-tone";
 import { setUserStatus } from "@/app/actions/user";
 import { safeAction } from "@/lib/action-failure";
 import { toastActionFailure } from "@/lib/action-toast";
@@ -58,12 +58,9 @@ export function DeactivateMemberDialog({
     >
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-warn/15 text-warn">
-              <UserX className="h-4 w-4" />
-            </span>
+          <ToneDialogTitle tone="warn" icon={UserX}>
             Deactivate {member?.name}?
-          </DialogTitle>
+          </ToneDialogTitle>
           <DialogDescription>
             They are signed out everywhere and can&apos;t sign in until reactivated. Their
             access, brands and work stay exactly as they are.

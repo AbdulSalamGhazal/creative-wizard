@@ -11,8 +11,8 @@ import {
   DialogDescription,
   DialogFooter,
   DialogHeader,
-  DialogTitle,
 } from "@/components/ui/dialog";
+import { ToneDialogTitle } from "@/components/ui/dialog-tone";
 import { endUserSessions } from "@/app/actions/user";
 import { safeAction } from "@/lib/action-failure";
 import { toastActionFailure } from "@/lib/action-toast";
@@ -57,7 +57,7 @@ export function EndSessionsDialog({
     >
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Sign {member?.name} out everywhere?</DialogTitle>
+          <ToneDialogTitle tone="warn">Sign {member?.name} out everywhere?</ToneDialogTitle>
           <DialogDescription>
             Every device they are signed in on is signed out. Their password is unchanged —
             they simply sign in again.

@@ -28,6 +28,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { ToneDialogTitle } from "@/components/ui/dialog-tone";
 import {
   Select,
   SelectContent,
@@ -1563,7 +1564,7 @@ export function BudgetPlanEditor({
       <Dialog open={deleteOpen} onOpenChange={(o) => !isPending && setDeleteOpen(o)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Delete {monthLabel(month)}&rsquo;s plan?</DialogTitle>
+            <ToneDialogTitle tone="destructive">Delete {monthLabel(month)}&rsquo;s plan?</ToneDialogTitle>
             <DialogDescription>
               Deletes {monthLabel(month)}&rsquo;s plan entirely. Recoverable — the previous
               plan stays in Revisions.

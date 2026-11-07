@@ -9,8 +9,8 @@ import {
   DialogDescription,
   DialogFooter,
   DialogHeader,
-  DialogTitle,
 } from "@/components/ui/dialog";
+import { ToneDialogTitle } from "@/components/ui/dialog-tone";
 
 /**
  * The house simple confirm (a Dialog, ghost Cancel, destructive Confirm) for
@@ -39,7 +39,7 @@ export function ConfirmDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
+          <ToneDialogTitle tone="destructive">{title}</ToneDialogTitle>
           {description && <DialogDescription>{description}</DialogDescription>}
         </DialogHeader>
         {children}

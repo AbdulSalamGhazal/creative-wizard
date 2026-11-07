@@ -6,7 +6,8 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { DisabledReason } from "@/components/ui/disabled-reason";
 import { DataTable, type DataColumn } from "@/components/ui/data-table";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader } from "@/components/ui/dialog";
+import { ToneDialogTitle } from "@/components/ui/dialog-tone";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { TypeToConfirm, confirmMatches } from "@/components/ui/type-to-confirm";
@@ -322,9 +323,9 @@ export function VersionsView() {
       <Dialog open={toDelete !== null} onOpenChange={(o) => !o && busy === null && (setToDelete(null), setTyped(""))}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>
+            <ToneDialogTitle tone="destructive">
               Delete version &ldquo;<span dir="auto">{toDelete?.name}</span>&rdquo;?
-            </DialogTitle>
+            </ToneDialogTitle>
             <DialogDescription>This can&rsquo;t be undone. Export it first if you may want it back.</DialogDescription>
           </DialogHeader>
           {toDelete && <TypeToConfirm phrase={toDelete.name} value={typed} onChange={setTyped} disabled={busy !== null} />}

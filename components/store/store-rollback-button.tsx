@@ -11,8 +11,8 @@ import {
   DialogDescription,
   DialogFooter,
   DialogHeader,
-  DialogTitle,
 } from "@/components/ui/dialog";
+import { ToneDialogTitle } from "@/components/ui/dialog-tone";
 import { useNavTransition } from "@/lib/nav-progress";
 import { rollbackStoreBatch } from "@/app/actions/store-upload";
 import { safeAction } from "@/lib/action-failure";
@@ -80,7 +80,7 @@ export function StoreRollbackButton({
       >
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
-            <DialogTitle>Roll back this upload</DialogTitle>
+            <ToneDialogTitle tone="destructive">Roll back this upload</ToneDialogTitle>
             <DialogDescription>
               Removes the {rowsInserted} order{rowsInserted === 1 ? "" : "s"} that{" "}
               <span className="font-medium text-ink">{fileName}</span> inserted.

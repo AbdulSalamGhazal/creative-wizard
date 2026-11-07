@@ -24,6 +24,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { ToneDialogTitle } from "@/components/ui/dialog-tone";
 import { int, isoDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { LANDING_CODE_MAX, LANDING_CODE_MARKER } from "@/lib/landing-code";
@@ -275,7 +276,7 @@ export function LandingPagesTable({
       >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Delete this landing page?</DialogTitle>
+            <ToneDialogTitle tone="destructive">Delete this landing page?</ToneDialogTitle>
             <DialogDescription>
               <span className="font-medium text-ink">{deleting?.name}</span>{" "}
               <span className="font-mono">@{deleting?.code}</span> will be removed.

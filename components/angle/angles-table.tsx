@@ -12,8 +12,8 @@ import {
   DialogDescription,
   DialogFooter,
   DialogHeader,
-  DialogTitle,
 } from "@/components/ui/dialog";
+import { ToneDialogTitle } from "@/components/ui/dialog-tone";
 import { isoDate } from "@/lib/format";
 import { createAngle, deleteAngle, renameAngle } from "@/app/actions/angle";
 import { safeAction } from "@/lib/action-failure";
@@ -232,7 +232,7 @@ export function AnglesTable({ rows }: { rows: AngleRow[] }) {
       >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Delete this angle?</DialogTitle>
+            <ToneDialogTitle tone="destructive">Delete this angle?</ToneDialogTitle>
             <DialogDescription>
               {deleting && deleting.usage > 0 ? (
                 <>

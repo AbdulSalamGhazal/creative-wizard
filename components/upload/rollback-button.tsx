@@ -11,8 +11,8 @@ import {
   DialogDescription,
   DialogFooter,
   DialogHeader,
-  DialogTitle,
 } from "@/components/ui/dialog";
+import { ToneDialogTitle } from "@/components/ui/dialog-tone";
 import { rollbackBatch } from "@/app/actions/rollback";
 import { safeAction } from "@/lib/action-failure";
 import { toastActionFailure } from "@/lib/action-toast";
@@ -80,7 +80,7 @@ export function RollbackButton({
       </Button>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Roll back this upload?</DialogTitle>
+          <ToneDialogTitle tone="destructive">Roll back this upload?</ToneDialogTitle>
           <DialogDescription>
             This deletes the {plural(rowCount, "performance record")} imported from{" "}
             <code className="font-mono text-ink-2">{fileName}</code>. Blended

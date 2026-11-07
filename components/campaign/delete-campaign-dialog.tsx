@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, Loader2, Trash2 } from "lucide-react";
+import { Loader2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -13,9 +13,9 @@ import {
   DialogDescription,
   DialogFooter,
   DialogHeader,
-  DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { ToneDialogTitle } from "@/components/ui/dialog-tone";
 import { deleteCampaign } from "@/app/actions/campaign";
 import { safeAction } from "@/lib/action-failure";
 import { actionSettled } from "@/lib/router-queue";
@@ -105,12 +105,7 @@ export function DeleteCampaignDialog({
 
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <span className="inline-flex items-center justify-center h-7 w-7 rounded-full bg-neg/10 text-neg">
-              <AlertTriangle className="w-4 h-4" />
-            </span>
-            Delete this campaign?
-          </DialogTitle>
+          <ToneDialogTitle tone="destructive">Delete this campaign?</ToneDialogTitle>
           <DialogDescription>
             Permanently remove{" "}
             <span className="font-medium text-ink">{campaignName}</span> and all
