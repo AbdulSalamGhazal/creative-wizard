@@ -182,8 +182,7 @@ export default async function TrendsOverTimePage({
             variant="outline"
             className="h-auto max-w-full whitespace-normal rounded-md text-left text-ink-3"
           >
-            {from} → {to} · vs {breakdown.prevRange.from} →{" "}
-            {breakdown.prevRange.to}
+            vs {breakdown.prevRange.from} → {breakdown.prevRange.to}
           </Badge>
         }
       />

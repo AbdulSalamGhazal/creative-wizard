@@ -94,7 +94,8 @@ export default async function TrendsVideoPage({
         title="Video"
         info="Video creatives only; rates below the portfolio median are flagged amber."
         rightSlot={
-          <Badge variant="outline" className="text-ink-3">
+          // Phone only (R-049): the strip shows the range on desktop.
+          <Badge variant="outline" className="text-ink-3 lg:hidden">
             {from} → {to}
           </Badge>
         }

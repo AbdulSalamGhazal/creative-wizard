@@ -25,8 +25,8 @@ import {
   joinAdsHidden,
   splitAdsHidden,
 } from "@/components/summary/summary-columns";
-import { LIFETIME_FLOOR, presetLabel, todayIso } from "@/lib/date-presets";
-import { PLATFORM_LABEL, PLATFORMS_WITH_CREATIVES } from "@/lib/palette";
+import { LIFETIME_FLOOR, todayIso } from "@/lib/date-presets";
+import { PLATFORMS_WITH_CREATIVES } from "@/lib/palette";
 import { requireAuth } from "@/lib/auth";
 import { SummaryFilterBar } from "@/components/summary/summary-filter-bar";
 import { SummaryTable } from "@/components/summary/summary-table";
@@ -161,14 +161,6 @@ export default async function SummaryPage({
     listSummaryViews(user.id, "summary"),
   ]);
 
-  const rangeLabel = presetLabel(range.from, range.to);
-  const platformsLabel =
-    selectedPlatforms.length === 0
-      ? "no platforms selected"
-      : selectedPlatforms.length === PLATFORMS_WITH_CREATIVES.length
-        ? "all platforms"
-        : // The platforms' NAMES, never the stored keys ("tiktok") — copy rule.
-          selectedPlatforms.map((p) => PLATFORM_LABEL[p]).join(", ");
 
   // COLUMNS: URL → applied saved view → this user's preference → the config.
   // The URL keeps its four params untouched (every saved view is a stored
@@ -202,10 +194,6 @@ export default async function SummaryPage({
         subtitle={
           <>
             {int(rows.length)} creative{rows.length === 1 ? "" : "s"}
-            {" · "}
-            {rangeLabel}
-            {" · "}
-            {platformsLabel}
           </>
         }
       />

@@ -112,7 +112,8 @@ export default async function FunnelPage({
         eyebrow="Main metrics"
         title="Funnel"
         rightSlot={
-          <Badge variant="outline" className="text-ink-3">
+          // Phone only (R-049): the strip shows the range on desktop.
+          <Badge variant="outline" className="text-ink-3 lg:hidden">
             {from} → {to}
           </Badge>
         }

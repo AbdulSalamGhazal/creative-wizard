@@ -105,7 +105,8 @@ export default async function TrendsLandingPagesPage({
         title="LPs"
         info={`Each product's own page (${PRODUCT_PAGE_LABEL}: its ads with no @code) beside the landing pages registered under it. A product with no landing page isn't listed. A page registered before pages had a product shows under "No product" until it gets one. Google is not included.`}
         rightSlot={
-          <Badge variant="outline" className="text-ink-3">
+          // Phone only (R-049): the strip shows the range on desktop.
+          <Badge variant="outline" className="text-ink-3 lg:hidden">
             {range.from} → {range.to}
           </Badge>
         }

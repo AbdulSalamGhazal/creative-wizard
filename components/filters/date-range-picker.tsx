@@ -177,6 +177,9 @@ export function DateRangePicker({
       <PopoverTrigger asChild>
         <button
           type="button"
+          // The exact dates behind a preset ("Last 30 days"), in ONE place —
+          // the page headers no longer restate the range (R-049).
+          title={`${eff.from} → ${eff.to}`}
           className={cn(
             "inline-flex items-center gap-2 h-8 px-3 rounded-md border text-xs transition-colors",
             explicit

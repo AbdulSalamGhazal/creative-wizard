@@ -108,9 +108,11 @@ export default async function DashboardPage({
         title="Dashboard"
         rightSlot={
           // Wraps on a phone: on one line it ran ~11px past a 375px frame.
+          // Phone only (R-049): on desktop the strip right above shows the
+          // range and platforms, and the Excluded toggle states itself.
           <Badge
             variant="outline"
-            className="h-auto max-w-full whitespace-normal rounded-md text-left text-ink-3"
+            className="h-auto max-w-full whitespace-normal rounded-md text-left text-ink-3 lg:hidden"
           >
             {from} → {to} · {platformsBadge}
           </Badge>

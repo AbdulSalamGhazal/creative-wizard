@@ -142,7 +142,7 @@ export default async function CampaignsPage({
         subtitle={
           <span className="tabular-nums">
             {int(campaigns.length)} campaign
-            {campaigns.length === 1 ? "" : "s"} · {from} → {to}
+            {campaigns.length === 1 ? "" : "s"}
           </span>
         }
         rightSlot={
