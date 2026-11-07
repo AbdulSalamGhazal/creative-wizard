@@ -1,3 +1,4 @@
+import { PageShell } from "@/components/layout/page-shell";
 import { Skeleton } from "@/components/ui/skeleton";
 import { HeaderSkeleton } from "@/components/layout/page-skeletons";
 import { panelClass } from "@/components/ui/panel";
@@ -9,7 +10,7 @@ import { panelClass } from "@/components/ui/panel";
  */
 export default function ActivityLoading() {
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
+    <PageShell width="admin">
       <HeaderSkeleton right />
       <Skeleton className="h-12 w-full rounded-lg" />
       <div className="space-y-4">
@@ -34,6 +35,6 @@ export default function ActivityLoading() {
           </div>
         ))}
       </div>
-    </div>
+    </PageShell>
   );
 }

@@ -1,10 +1,11 @@
+import { PageShell } from "@/components/layout/page-shell";
 import { HeaderSkeleton, FormSkeleton } from "@/components/layout/page-skeletons";
 
 export default function NewCreativeLoading() {
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
+    <PageShell width="form">
       <HeaderSkeleton back />
       <FormSkeleton fields={8} card />
-    </div>
+    </PageShell>
   );
 }

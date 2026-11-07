@@ -1,9 +1,10 @@
+import { PageShell } from "@/components/layout/page-shell";
 import { Skeleton } from "@/components/ui/skeleton";
 import { HeaderSkeleton, TableSkeleton } from "@/components/layout/page-skeletons";
 
 export default function AuditLoading() {
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
+    <PageShell width="admin">
       <HeaderSkeleton eyebrow subtitle />
       {/* Category filter chips */}
       <div className="flex items-center gap-1.5 flex-wrap">
@@ -12,6 +13,6 @@ export default function AuditLoading() {
         ))}
       </div>
       <TableSkeleton rows={10} wide />
-    </div>
+    </PageShell>
   );
 }

@@ -1,10 +1,11 @@
+import { PageShell } from "@/components/layout/page-shell";
 import { HeaderSkeleton } from "@/components/layout/page-skeletons";
 import { Skeleton } from "@/components/ui/skeleton";
 
 /** Mirrors the real page: header → tabs + filters row → the list of rows. */
 export default function Loading() {
   return (
-    <div className="space-y-6">
+    <PageShell width="admin">
       <HeaderSkeleton />
       <Skeleton className="h-10 w-full rounded-lg" />
       <div className="space-y-2">
@@ -12,6 +13,6 @@ export default function Loading() {
           <Skeleton key={i} className="h-16 w-full rounded-lg" />
         ))}
       </div>
-    </div>
+    </PageShell>
   );
 }

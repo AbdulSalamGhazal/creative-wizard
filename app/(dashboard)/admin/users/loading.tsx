@@ -1,10 +1,11 @@
+import { PageShell } from "@/components/layout/page-shell";
 import { Skeleton } from "@/components/ui/skeleton";
 import { HeaderSkeleton } from "@/components/layout/page-skeletons";
 
 /** Mirrors the Team directory: toolbar, then one row per member. */
 export default function TeamLoading() {
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
+    <PageShell width="admin">
       <HeaderSkeleton eyebrow subtitle />
       {/* Toolbar: search · status · Invite */}
       <div className="flex flex-wrap items-center gap-2">
@@ -26,6 +27,6 @@ export default function TeamLoading() {
           </div>
         ))}
       </div>
-    </div>
+    </PageShell>
   );
 }

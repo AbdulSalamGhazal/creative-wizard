@@ -1,9 +1,10 @@
+import { PageShell } from "@/components/layout/page-shell";
 import { Skeleton } from "@/components/ui/skeleton";
 import { HeaderSkeleton, TableSkeleton } from "@/components/layout/page-skeletons";
 
 export default function CatalogLoading() {
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
+    <PageShell width="admin">
       <HeaderSkeleton eyebrow />
       {/* Tab nav */}
       <div className="flex items-center gap-1 border-b border-line pb-2">
@@ -12,6 +13,6 @@ export default function CatalogLoading() {
         ))}
       </div>
       <TableSkeleton rows={6} wide />
-    </div>
+    </PageShell>
   );
 }

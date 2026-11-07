@@ -1,10 +1,11 @@
+import { PageShell } from "@/components/layout/page-shell";
 import { HeaderSkeleton, DropzoneSkeleton } from "@/components/layout/page-skeletons";
 
 export default function NewUploadLoading() {
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
+    <PageShell width="import">
       <HeaderSkeleton back />
       <DropzoneSkeleton options />
-    </div>
+    </PageShell>
   );
 }
