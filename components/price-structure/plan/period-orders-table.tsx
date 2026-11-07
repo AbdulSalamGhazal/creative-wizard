@@ -23,7 +23,7 @@ export function PeriodOrdersTable({ period, products, lines, baked, onChange }: 
     <SectionCard title="Orders in this period" subtitle="Placed orders per offer, for the whole period." contentClassName="px-0">
       <div className="overflow-x-auto">
         <div className="min-w-[520px]">
-          <div className={cn(row, "border-y border-line bg-surface-2/40 text-[10px] uppercase tracking-wide text-ink-3")}>
+          <div className={cn(row, "border-y border-line bg-surface-2/40 text-label text-ink-3")}>
             <span>Product / offer</span>
             <span className="text-right">Orders</span>
             <span className="text-right">Per day</span>

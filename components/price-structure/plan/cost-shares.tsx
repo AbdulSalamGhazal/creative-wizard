@@ -34,7 +34,7 @@ export function CostShares({ title = "Cost shares", subtitle, columns, sarLabel 
       {/* Two blends are five columns: on a phone the grid scrolls inside the card. */}
       <div className={columns.length > 1 ? "min-w-[30rem]" : "min-w-[18rem]"}>
       <div className="grid gap-x-4 gap-y-1.5 text-xs" style={{ gridTemplateColumns: gridCols }} role="table">
-        <div role="row" className="contents text-[10px] uppercase tracking-wide text-ink-3">
+        <div role="row" className="contents text-label text-ink-3">
           <span role="columnheader" />
           {columns.map((c) => (
             <span key={c.label} className="contents">

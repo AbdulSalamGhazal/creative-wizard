@@ -483,7 +483,7 @@ function LandingPageDialog({
           </Field>
 
           <div className="rounded-md border border-line bg-surface-2 px-3 py-2.5">
-            <div className="text-[10px] uppercase tracking-wide text-ink-3 mb-0.5">
+            <div className="text-label text-ink-3 mb-0.5">
               Ad name
             </div>
             <div className="font-mono text-sm text-ink break-all">

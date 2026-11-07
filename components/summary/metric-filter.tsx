@@ -161,7 +161,7 @@ export function MetricFilterControl({ platforms }: Props) {
                 key={`${c.scope}:${c.metric}:${c.op}:${i}`}
                 className="flex items-center gap-2 px-2 py-1.5 rounded-md border border-line bg-surface-2/50 text-xs"
               >
-                <span className="text-ink-3 text-[10px] uppercase tracking-wide shrink-0">
+                <span className="text-ink-3 text-label shrink-0">
                   {scopeLabel(c.scope)}
                 </span>
                 <span className="text-ink font-medium">

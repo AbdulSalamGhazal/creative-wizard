@@ -230,7 +230,7 @@ export function CommentThread({
             ref={dividerRef}
             role="separator"
             aria-label="New since your last visit"
-            className="my-1 flex items-center gap-2 px-2 text-[10px] font-medium uppercase tracking-[0.14em] text-brand"
+            className="my-1 flex items-center gap-2 px-2 text-eyebrow font-medium text-brand"
           >
             <span className="h-px flex-1 bg-brand/40" aria-hidden />
             New

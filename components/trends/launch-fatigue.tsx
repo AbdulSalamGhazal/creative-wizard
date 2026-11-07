@@ -304,7 +304,7 @@ function DecayBar({
           style={{ height: `${heightPct}%` }}
         />
       </div>
-      <div className="text-[10px] uppercase tracking-[0.08em] text-ink-3 text-center leading-tight">
+      <div className="text-label text-ink-3 text-center leading-tight">
         {label}
       </div>
       {delta !== null && (

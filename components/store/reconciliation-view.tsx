@@ -747,7 +747,7 @@ function NotConfigured({ canConfig }: { canConfig: boolean }) {
  * 1366px desktop without horizontal scroll.
  */
 const CELL = "px-1.5 py-1.5 text-right tabular-nums";
-const SUB = "px-1.5 py-1 text-right text-[10px] font-medium uppercase tracking-[0.06em]";
+const SUB = "px-1.5 py-1 text-right text-label font-medium";
 
 function ByPlatformTable({
   rows,

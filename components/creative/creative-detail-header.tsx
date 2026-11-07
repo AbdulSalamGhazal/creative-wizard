@@ -686,7 +686,7 @@ function TerminationDialog({
                 />
                 <span className="text-sm text-ink">{PLATFORM_LABEL[p]}</span>
                 {original.has(p) && (
-                  <span className="ml-auto text-[10px] uppercase tracking-wider text-neg">
+                  <span className="ml-auto text-eyebrow text-neg">
                     Terminated
                   </span>
                 )}

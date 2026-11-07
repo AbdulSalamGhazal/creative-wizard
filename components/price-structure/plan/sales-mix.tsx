@@ -117,7 +117,7 @@ export function SalesMix({
       )}
       <div className="overflow-x-auto rounded-md border border-line">
         <div className="min-w-[520px]">
-          <div className={cn(row, "border-b border-line bg-surface-2/40 text-[10px] uppercase tracking-wide text-ink-3")}>
+          <div className={cn(row, "border-b border-line bg-surface-2/40 text-label text-ink-3")}>
             <span>Product / offer</span>
             <span className="text-right">Share %</span>
             <span className="text-right">Of all orders</span>

@@ -64,4 +64,11 @@ describe("design-system spellings", () => {
     );
     expect(rogue, "use rounded-sm / -md / -lg / -full").toEqual([]);
   });
+
+  it("an uppercase micro-label is text-label or text-eyebrow, never hand-rolled (R-051)", () => {
+    // text-label = table header / field caption (11px, 0.14em); text-eyebrow =
+    // kicker / tag (10px, 0.18em). A tag that needs a box is a <Chip>.
+    const rogue = offenders((b) => /(^|\s)uppercase(\s|$)/.test(b) && /(^|\s)text-\[\d+px\]/.test(b));
+    expect(rogue, "use text-label / text-eyebrow").toEqual([]);
+  });
 });
