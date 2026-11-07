@@ -1,8 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { Target } from "lucide-react";
 import { auth, can } from "@/lib/auth";
-import { Badge } from "@/components/ui/badge";
 import {
   campaignAnalytics,
   campaignCreatives,
@@ -35,7 +33,7 @@ import { PageShell } from "@/components/layout/page-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { CommentAnchor } from "@/components/comments/comment-anchor-context";
 import { isoDate, int } from "@/lib/format";
-import { defaultDateRange, presetLabel } from "@/lib/date-presets";
+import { defaultDateRange } from "@/lib/date-presets";
 import { resolvePreferredRange, resolveIncludeExcluded } from "@/db/queries/user-prefs";
 import { ExcludedParamToggle } from "@/components/filters/excluded-param-toggle";
 
@@ -82,7 +80,6 @@ export default async function CampaignDetailPage({
 
   const eff = await resolvePreferredRange(parsed.from, parsed.to, defaultDateRange());
   const range = { from: eff.from, to: eff.to };
-  const rangeLabel = presetLabel(eff.from, eff.to);
 
   const meta = await campaignMeta(decoded);
   if (!meta) notFound();
@@ -183,33 +180,35 @@ export default async function CampaignDetailPage({
           </div>
         }
       >
-        <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
-          <Badge variant="outline" className="border-brand/40 text-ink">
-            <Target className="w-3 h-3 mr-1" />
-            {meta.objective}
-          </Badge>
+        {/* One muted meta line, not a wall of equal-weight pills (R-065): the
+            status is the bare StatusDot it is everywhere else. */}
+        <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-2">
           {campaignStatus && (
-            <Badge variant="outline" className="text-ink-2">
+            <>
               <CampaignStatusBadge status={campaignStatus} />
-            </Badge>
+              <span aria-hidden className="text-ink-3">·</span>
+            </>
           )}
+          <span>{meta.objective}</span>
           {meta.platforms.map((p) => (
-            <Badge key={p} variant="outline" className="text-ink-2">
-              <PlatformDot platform={p} size="sm" className="mr-1.5" />
+            <span key={p} className="inline-flex items-center gap-1.5">
+              <span aria-hidden className="text-ink-3">·</span>
+              <PlatformDot platform={p} size="sm" />
               {PLATFORM_LABEL[p]}
-            </Badge>
+            </span>
           ))}
-          <Badge variant="outline" className="text-ink-3">
+          <span aria-hidden className="text-ink-3">·</span>
+          <span className="tabular-nums">
             {meta.creativeCount} creative{meta.creativeCount === 1 ? "" : "s"}
-          </Badge>
+          </span>
           {meta.firstDate && meta.lastDate && (
-            <Badge variant="outline" className="text-ink-3 tabular-nums">
-              Active {isoDate(meta.firstDate)} → {isoDate(meta.lastDate)}
-            </Badge>
+            <>
+              <span aria-hidden className="text-ink-3">·</span>
+              <span className="tabular-nums">
+                {isoDate(meta.firstDate)} → {isoDate(meta.lastDate)}
+              </span>
+            </>
           )}
-          <Badge variant="outline" className="text-ink-3 tabular-nums">
-            {rangeLabel}
-          </Badge>
         </div>
       </PageHeader>
 
