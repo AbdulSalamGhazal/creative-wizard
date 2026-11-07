@@ -8,8 +8,30 @@ import {
   unattributedShare,
   sumPlatformDays,
   RECON_WARN_THRESHOLD,
+  formatMatchRate,
+  reconPctReadable,
   type PlatformDayRow,
 } from "@/lib/reconciliation";
+
+describe("formatMatchRate — readable at the extremes (R-080)", () => {
+  it("is a percentage up to 200%, then a multiple", () => {
+    expect(formatMatchRate(0.8)).toBe("80.0%");
+    expect(formatMatchRate(1.999)).toBe("199.9%");
+    expect(formatMatchRate(2)).toBe("2.0×");
+    expect(formatMatchRate(1118 / 16)).toBe("69.9×");
+  });
+  it("is a dash when undefined", () => {
+    expect(formatMatchRate(null)).toBe("—");
+  });
+});
+
+describe("reconPctReadable — a Δ% needs a base of 5 store orders", () => {
+  it("greys a % over fewer than 5 store orders", () => {
+    expect(reconPctReadable(0)).toBe(false);
+    expect(reconPctReadable(4)).toBe(false);
+    expect(reconPctReadable(5)).toBe(true);
+  });
+});
 import { compareSortValues } from "@/components/ui/data-table";
 
 describe("reconDelta / reconDeltaPct", () => {

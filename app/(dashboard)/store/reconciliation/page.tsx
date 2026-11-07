@@ -85,7 +85,7 @@ export default async function ReconciliationPage({
       <PageHeader
         eyebrow="Store"
         title="Reconciliation"
-        info="Counts only — no revenue comparison. Δ positive = platforms claim more than the store recorded. Platform pixels largely see website purchases, so Δ excl. app is the honest attribution gap and Application explains the rest."
+        info="Counts only — no revenue comparison. Δ positive = platforms claim more than the store recorded. Platform pixels largely see website purchases, so Δ excl. app is the honest attribution gap and Application explains the rest. A Δ% over fewer than 5 store orders is greyed — too small a base to read; a match rate past 200% reads as a multiple."
       />
       <ReconciliationView
         from={f.from ?? null}

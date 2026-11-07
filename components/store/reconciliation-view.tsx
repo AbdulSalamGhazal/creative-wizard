@@ -26,6 +26,8 @@ import {
   reconDeltaPct,
   reconDeltaTone,
   reconMatchRate,
+  reconPctReadable,
+  formatMatchRate,
   isWithinAttributionLag,
   unattributedShare,
   sumPlatformDays,
@@ -310,17 +312,22 @@ export function ReconciliationView({
     const tot = (v: string) => (
       <span className="tabular-nums font-semibold">{v}</span>
     );
-    const pctCell = (pct: number | null, bold = false) => (
-      <span
-        className={cn(
-          "tabular-nums",
-          bold && "font-semibold",
-          reconDeltaTone(pct) === "warn" ? "text-warn" : "text-ink-2",
-        )}
-      >
-        {pctText(pct)}
-      </span>
-    );
+    const pctCell = (pct: number | null, store: number, bold = false) => {
+      // Too few store orders to read a % of (R-080): shown, but greyed.
+      const readable = reconPctReadable(store);
+      return (
+        <span
+          className={cn(
+            "tabular-nums",
+            bold && "font-semibold",
+            !readable ? "text-ink-3" : reconDeltaTone(pct) === "warn" ? "text-warn" : "text-ink-2",
+          )}
+          title={readable ? undefined : `Only ${store} store orders — too few to read a % of`}
+        >
+          {pctText(pct)}
+        </span>
+      );
+    };
     const cols: DataColumn<ChannelRow>[] = [
       {
         key: "day",
@@ -401,10 +408,10 @@ export function ReconciliationView({
         label: "Δ incl. app %",
         align: "right",
         sortable: true,
-        render: (r) => pctCell(reconDeltaPct(r.website + r.application, r.claimed)),
+        render: (r) => pctCell(reconDeltaPct(r.website + r.application, r.claimed), r.website + r.application),
         sortValue: (r) => reconDeltaPct(r.website + r.application, r.claimed),
         csv: (r) => csvPct(reconDeltaPct(r.website + r.application, r.claimed)),
-        total: () => pctCell(reconDeltaPct(t.website + t.application, t.claimed), true),
+        total: () => pctCell(reconDeltaPct(t.website + t.application, t.claimed), t.website + t.application, true),
       },
       {
         key: "delta_excl",
@@ -424,10 +431,10 @@ export function ReconciliationView({
         label: "Δ excl. app %",
         align: "right",
         sortable: true,
-        render: (r) => pctCell(reconDeltaPct(r.website, r.claimed)),
+        render: (r) => pctCell(reconDeltaPct(r.website, r.claimed), r.website),
         sortValue: (r) => reconDeltaPct(r.website, r.claimed),
         csv: (r) => csvPct(reconDeltaPct(r.website, r.claimed)),
-        total: () => pctCell(reconDeltaPct(t.website, t.claimed), true),
+        total: () => pctCell(reconDeltaPct(t.website, t.claimed), t.website, true),
       },
       // Context, hidden by default: the only money on this page, and it is
       // never differenced against anything.
@@ -580,11 +587,16 @@ export function ReconciliationView({
         />
         <MetricCard
           label="Match rate"
-          value={(() => {
-            if (overview.length === 0) return "—";
-            const rate = reconMatchRate(overviewTotals.orders, overviewTotals.conv);
-            return pct1(rate);
-          })()}
+          value={
+            overview.length === 0
+              ? "—"
+              : formatMatchRate(reconMatchRate(overviewTotals.orders, overviewTotals.conv))
+          }
+          valueTitle={
+            overview.length === 0
+              ? undefined
+              : `Claimed ÷ store = ${pct1(reconMatchRate(overviewTotals.orders, overviewTotals.conv))}`
+          }
           icon={Percent}
           bars={tileBars?.match ?? []}
           hideBreakdown={!tileBars}
@@ -702,13 +714,24 @@ function ModeToggle({ mode, onChange }: { mode: Mode; onChange: (m: Mode) => voi
  * One Δ% cell in the Platforms grid: warn-tinted by MAGNITUDE (never
  * good/bad — both directions are discrepancies), "—" when the store side is 0.
  */
-function PctCell({ pct, className }: { pct: number | null; className?: string }) {
+function PctCell({
+  pct,
+  store,
+  className,
+}: {
+  pct: number | null;
+  /** The base's store orders — under the floor the % is greyed (R-080). */
+  store?: number;
+  className?: string;
+}) {
+  const readable = store === undefined || reconPctReadable(store);
   return (
     <span
       className={cn(
-        reconDeltaTone(pct) === "warn" ? "text-warn" : "text-ink-3",
+        !readable ? "text-ink-3" : reconDeltaTone(pct) === "warn" ? "text-warn" : "text-ink-3",
         className,
       )}
+      title={readable ? undefined : `Only ${store} store orders — too few to read a % of`}
     >
       {pct === null ? "—" : signedPct(pct)}
     </span>
@@ -946,7 +969,7 @@ function GroupCells({ store, claimed }: { store: number; claimed: number }) {
       <td className={CELL}>{intCompact(claimed)}</td>
       <td className={cn(CELL, "text-ink-2")}>{signedCompact(reconDelta(store, claimed))}</td>
       <td className={CELL}>
-        <PctCell pct={reconDeltaPct(store, claimed)} />
+        <PctCell pct={reconDeltaPct(store, claimed)} store={store} />
       </td>
     </>
   );

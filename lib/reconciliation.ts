@@ -9,6 +9,31 @@
  * Actual 80, claimed 100 → Δ = +20, Δ% = +25%. Don't "fix" the sign back.
  */
 
+/**
+ * Below this many store orders a Δ% is too small a base to read ("+9216.7%"
+ * on 3 orders reads as a bug): the cell still shows it, greyed (R-080).
+ */
+export const RECON_PCT_MIN_STORE = 5;
+
+/** Is a Δ% over `storeOrders` a base worth reading? */
+export function reconPctReadable(storeOrders: number): boolean {
+  return storeOrders >= RECON_PCT_MIN_STORE;
+}
+
+/** From this ratio up, a match rate reads as a MULTIPLE, not a percentage. */
+export const MATCH_RATE_MULTIPLE_FROM = 2;
+
+/**
+ * The match rate (claimed ÷ store) in the form that stays readable at its
+ * extremes (R-080): a percentage up to 200%, then a multiple — 16 store
+ * orders against 1,118 claimed is "69.9×", not "6987.5%". "—" when undefined.
+ */
+export function formatMatchRate(rate: number | null): string {
+  if (rate === null || !Number.isFinite(rate)) return "—";
+  if (rate >= MATCH_RATE_MULTIPLE_FROM) return `${rate.toFixed(1)}×`;
+  return `${(rate * 100).toFixed(1)}%`;
+}
+
 /** Δ = platform-claimed conversions − store orders (signed; + = over-claim). */
 export function reconDelta(storeOrders: number, claimed: number): number {
   return claimed - storeOrders;

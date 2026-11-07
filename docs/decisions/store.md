@@ -33,6 +33,12 @@
 - Reconciliation is **counts only — no revenue comparison anywhere**. Δ =
   claimed − store; Δ% divides by the STORE side; attribution is EXPLICIT
   mapping only on both axes; unmapped stays its own bucket.
+- **An extreme ratio is shown in a form that stays readable** (R-080,
+  2026-11) — presentation only, the math is unchanged: the Match rate tile
+  (claimed ÷ store) is a percentage up to 200% and a MULTIPLE beyond
+  ("69.9×", `formatMatchRate`), and a Δ% whose store base is under
+  `RECON_PCT_MIN_STORE` (5) orders is shown greyed (`reconPctReadable`), with
+  the reason in the cell's title and the page ⓘ.
 - Every totals row on Reconciliation is computed from the range SUMS, never by
   averaging per-day figures.
 - Insights' two lenses must bucket EXACTLY as Reconciliation does — the two
