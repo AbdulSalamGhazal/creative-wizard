@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Maximize2, X } from "lucide-react";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 
 /**
  * The canonical line-chart frame: a bordered card that can expand to a
@@ -37,16 +38,6 @@ export function ChartShell({
   }) => React.ReactNode;
 }) {
   const [expanded, setExpanded] = useState(false);
-
-  useEffect(() => {
-    if (!expanded) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setExpanded(false);
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [expanded]);
-
   const toggleExpand = () => setExpanded((v) => !v);
 
   return (
@@ -56,19 +47,21 @@ export function ChartShell({
         {children({ inFull: false, expanded, toggleExpand })}
         {legend && <div className="mt-3">{legend}</div>}
       </div>
-      {expanded && (
-        <div
-          className="fixed inset-0 z-50 bg-background/95 backdrop-blur-sm p-3 sm:p-6 flex flex-col"
-          role="dialog"
-          aria-modal="true"
-          aria-label={ariaLabel}
+      {/* The expanded view is the HOUSE Dialog (R-020): focus moves in and is
+          trapped there, Escape closes, the page behind can't scroll, and focus
+          returns to the Expand button on close — the hand-rolled overlay did
+          none of that but Escape. */}
+      <Dialog open={expanded} onOpenChange={setExpanded}>
+        <DialogContent
+          showCloseButton={false}
+          aria-describedby={undefined}
+          className="flex h-[calc(100dvh-1.5rem)] w-[calc(100vw-1.5rem)] max-w-none flex-col gap-0 border-line bg-surface p-4 shadow-2xl sm:max-w-none sm:h-[calc(100dvh-3rem)] sm:w-[calc(100vw-3rem)]"
         >
-          <div className="flex-1 min-h-0 flex flex-col rounded-lg border border-line bg-surface p-4 shadow-2xl">
-            {children({ inFull: true, expanded, toggleExpand })}
-            {legend && <div className="mt-3">{legend}</div>}
-          </div>
-        </div>
-      )}
+          <DialogTitle className="sr-only">{ariaLabel ?? "Chart"}</DialogTitle>
+          {expanded && children({ inFull: true, expanded, toggleExpand })}
+          {legend && <div className="mt-3">{legend}</div>}
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

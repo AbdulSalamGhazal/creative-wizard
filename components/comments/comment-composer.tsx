@@ -540,12 +540,12 @@ function ToolButton({
       type="button"
       variant="ghost"
       size="xs"
-      // mousedown, not click: the textarea keeps its focus and its selection,
-      // which is the thing the tool is about to wrap.
-      onMouseDown={(e) => {
-        e.preventDefault();
-        onClick();
-      }}
+      // mousedown's default is prevented so a MOUSE press leaves the textarea
+      // its focus and selection (the thing the tool is about to wrap); the
+      // action itself is on click, which Enter / Space also fire — on
+      // mousedown alone the four tools were dead for the keyboard (R-028).
+      onMouseDown={(e) => e.preventDefault()}
+      onClick={onClick}
       aria-label={label}
       title={label}
       className="h-6 w-6 p-0 text-ink-3"
