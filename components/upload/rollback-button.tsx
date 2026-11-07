@@ -18,6 +18,7 @@ import { safeAction } from "@/lib/action-failure";
 import { toastActionFailure } from "@/lib/action-toast";
 import { plural } from "@/lib/format";
 import { batchStatusLabel } from "@/lib/upload-batches";
+import { Callout } from "@/components/ui/callout";
 
 interface Props {
   batchId: string;
@@ -95,12 +96,12 @@ export function RollbackButton({
         {/* A LATER upload has revised some of these rows. Rolling back deletes
             them outright, so those newer values go too — warn, don't block. */}
         {updatedSince > 0 && (
-          <div className="rounded-md border border-warn/40 bg-warn/10 px-3 py-2.5 text-xs text-ink">
+          <Callout tone="warn">
             <span className="font-medium">
               {updatedSince} of these rows were updated by a later upload
             </span>{" "}
             — rolling back deletes the newer values too.
-          </div>
+          </Callout>
         )}
 
         {/* Acknowledgement guard — same strength as the delete dialogs. */}

@@ -102,6 +102,7 @@ import {
 import { BudgetPlanRevisions } from "@/components/budget/budget-plan-revisions";
 import { BudgetPlanUpload, downloadPlanSheet } from "@/components/budget/budget-plan-upload";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Callout } from "@/components/ui/callout";
 
 const WEIGHT_STEP = 0.5;
 const NOTE_MAX = 200;
@@ -1316,7 +1317,7 @@ export function BudgetPlanEditor({
 
           {/* Blocked-save explanation */}
           {problems.length > 0 && (
-            <div className="rounded-md border border-warn/40 bg-warn/5 px-4 py-3">
+            <Callout tone="warn">
               <p className="text-xs font-medium text-ink">
                 Finish the split to save — every level has to reach 100%.
               </p>
@@ -1330,7 +1331,7 @@ export function BudgetPlanEditor({
               <p className="mt-1 text-[11px] text-ink-3">
                 Money you don&rsquo;t want to commit yet belongs in the reserve.
               </p>
-            </div>
+            </Callout>
           )}
         </>
       ) : (

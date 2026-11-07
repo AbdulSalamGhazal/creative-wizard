@@ -48,6 +48,7 @@ import { safeAction } from "@/lib/action-failure";
 import { toastActionFailure } from "@/lib/action-toast";
 import type { BudgetMonthData } from "@/db/queries/budget";
 import { PlanDayBars, UnitInput } from "@/components/budget/budget-shared";
+import { Callout } from "@/components/ui/callout";
 
 const NOTE_MAX = 200;
 const DEFAULT_NOTE = "Uploaded from file";
@@ -304,7 +305,7 @@ export function BudgetPlanUpload({
             </div>
 
             {issues.length > 0 && (
-              <div className="space-y-1 rounded-lg border border-neg/40 bg-neg/5 p-3">
+              <Callout tone="neg" className="space-y-1">
                 <p className="text-xs font-medium text-neg">
                   {int(issues.length)} {issues.length === 1 ? "problem" : "problems"} in this
                   file — nothing has been changed.
@@ -316,19 +317,19 @@ export function BudgetPlanUpload({
                     </li>
                   ))}
                 </ul>
-              </div>
+              </Callout>
             )}
 
             {staged && totals && diff && (
               <>
                 {!isDaily && (
-                  <p className="flex items-start gap-2 rounded-lg border border-warn/40 bg-warn/5 px-3 py-2 text-xs text-ink">
+                  <Callout tone="warn" className="flex items-start gap-2">
                     <CalendarDays className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warn" aria-hidden />
                     <span>
                       This switches {monthLabel(month)} to day-by-day planning; the editor and
                       curve become read-only for it.
                     </span>
-                  </p>
+                  </Callout>
                 )}
 
                 {/* ── 3. The revenue link (typed, never in the sheet) ───── */}

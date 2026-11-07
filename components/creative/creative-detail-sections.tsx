@@ -27,6 +27,7 @@ import { CreativeRecordsTable } from "@/components/creative/creative-records-tab
 import { MetricCard } from "@/components/overview/metric-card";
 import { int, roas, usd, usd0 } from "@/lib/format";
 import { computeDelta, deltaVsLabel } from "@/lib/period";
+import { DangerZone } from "@/components/ui/callout";
 
 /**
  * Creative detail's STREAMED sections (D11, 2026-10). The page renders the
@@ -174,7 +175,7 @@ export async function CreativeRecordsActivity({
 
       {/* Danger zone (delete permission only) */}
       {deletionSummary && (
-        <div className="rounded-lg border border-neg/30 bg-neg/5 p-4 md:p-5">
+        <DangerZone>
           <div className="flex items-center justify-between gap-4 flex-wrap">
             <div>
               <h2 className="text-sm font-medium text-ink">Delete this creative</h2>
@@ -190,7 +191,7 @@ export async function CreativeRecordsActivity({
               summary={deletionSummary}
             />
           </div>
-        </div>
+        </DangerZone>
       )}
     </>
   );

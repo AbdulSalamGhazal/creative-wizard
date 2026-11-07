@@ -18,6 +18,7 @@ import { rollbackStoreBatch } from "@/app/actions/store-upload";
 import { safeAction } from "@/lib/action-failure";
 import { toastActionFailure } from "@/lib/action-toast";
 import { plural } from "@/lib/format";
+import { Callout } from "@/components/ui/callout";
 
 /**
  * Roll back a store upload batch — deletes only the orders it INSERTED (updates
@@ -90,12 +91,12 @@ export function StoreRollbackButton({
               deletes them outright, so those newer values go too — warn,
               don't block. */}
           {updatedSince > 0 && (
-            <div className="rounded-md border border-warn/40 bg-warn/10 px-3 py-2.5 text-xs text-ink">
+            <Callout tone="warn">
               <span className="font-medium">
                 {updatedSince} of these orders were updated by a later upload
               </span>{" "}
               — rolling back deletes the newer values too.
-            </div>
+            </Callout>
           )}
           <label className="flex items-start gap-2.5 rounded-md px-1 py-1 text-sm">
             <Checkbox

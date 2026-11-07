@@ -14,6 +14,7 @@ import { plural } from "@/lib/format";
 import { ROLLBACK_WINDOW_HOURS } from "@/lib/upload-batches";
 import { useCan } from "@/components/auth/permissions-context";
 import type { ValidationError } from "@/csv/errors";
+import { Callout } from "@/components/ui/callout";
 
 type Platform = (typeof PLATFORMS)[number]["value"];
 
@@ -347,14 +348,14 @@ export function UploadForm() {
       )}
 
       {stage.kind === "error" && (
-        <div className="rounded-lg border border-neg/30 bg-neg/5 px-4 py-3 text-sm text-ink space-y-2">
+        <Callout tone="neg" size="md" className="space-y-2">
           <div>{stage.message}</div>
           <div className="flex justify-end">
             <Button variant="ghost" size="sm" onClick={reset}>
               Reset
             </Button>
           </div>
-        </div>
+        </Callout>
       )}
     </div>
   );

@@ -36,6 +36,7 @@ import { isoDate, int } from "@/lib/format";
 import { defaultDateRange } from "@/lib/date-presets";
 import { resolvePreferredRange, resolveIncludeExcluded } from "@/db/queries/user-prefs";
 import { ExcludedParamToggle } from "@/components/filters/excluded-param-toggle";
+import { DangerZone } from "@/components/ui/callout";
 
 export const dynamic = "force-dynamic";
 
@@ -246,7 +247,7 @@ export default async function CampaignDetailPage({
 
       {/* ─────────── Danger zone (delete permission only) ─────────── */}
       {canDelete && registry && deletionSummary && (
-        <div className="rounded-lg border border-neg/30 bg-neg/5 p-4 md:p-5">
+        <DangerZone>
           <div className="flex items-center justify-between gap-4 flex-wrap">
             <div>
               <h2 className="text-sm font-medium text-ink">
@@ -266,7 +267,7 @@ export default async function CampaignDetailPage({
               summary={deletionSummary}
             />
           </div>
-        </div>
+        </DangerZone>
       )}
     </PageShell>
   );
