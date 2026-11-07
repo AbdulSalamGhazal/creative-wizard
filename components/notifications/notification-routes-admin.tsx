@@ -18,6 +18,7 @@ import { saveNotificationRoutes } from "@/app/actions/notification-routes";
 import { safeAction } from "@/lib/action-failure";
 import { toastActionFailure } from "@/lib/action-toast";
 import type { BrandMember } from "@/db/queries/notifications";
+import { Chip } from "@/components/ui/chip";
 
 /**
  * Who receives which event, in THIS brand. One row per catalog entry — the
@@ -95,9 +96,7 @@ export function NotificationRoutesAdmin({
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-sm text-ink">{event.label}</span>
-                  <span className="rounded-sm border border-line px-1.5 py-0.5 text-[10px] text-ink-3">
-                    {CATEGORY_LABEL[event.category]}
-                  </span>
+                  <Chip tone="outline">{CATEGORY_LABEL[event.category]}</Chip>
                 </div>
                 <p className="mt-0.5 text-xs text-ink-3">{event.description}</p>
               </div>

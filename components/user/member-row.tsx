@@ -1,7 +1,6 @@
 "use client";
 
 import { KeyRound, LogOut, MoreHorizontal, Settings2, UserCheck, UserMinus, UserX } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -18,6 +17,7 @@ import { memberStatus } from "@/lib/team-lifecycle";
 import type { MemberDialog, TeamMember } from "@/lib/team-member";
 import type { BrandOption } from "@/components/user/user-brands-section";
 import { teamGuard, type ManagerScope, type MemberAccess } from "@/lib/team-guard";
+import { Chip } from "@/components/ui/chip";
 
 /** Which lifecycle actions the guard lets this manager take on this member. */
 export function memberAbilities(member: TeamMember, isSelf: boolean, scope: ManagerScope) {
@@ -90,24 +90,10 @@ export function MemberRow({
           <div className="flex min-w-0 items-center gap-2">
             <span className="truncate text-sm font-medium text-ink">{member.name}</span>
             {isSelf && (
-              <span className="shrink-0 rounded bg-surface-2 px-1.5 py-0.5 text-[10px] text-ink-3">
-                You
-              </span>
+              <Chip>You</Chip>
             )}
-            <Badge
-              variant="outline"
-              className={cn(
-                "shrink-0 px-1.5 py-0 text-[10px] font-medium",
-                preset === "admin" && "border-brand/40 text-brand",
-              )}
-            >
-              {PRESET_LABEL[preset]}
-            </Badge>
-            {deactivated && (
-              <Badge variant="outline" className="shrink-0 px-1.5 py-0 text-[10px] text-warn border-warn/40">
-                Deactivated
-              </Badge>
-            )}
+            <Chip tone={preset === "admin" ? "brand" : "outline"}>{PRESET_LABEL[preset]}</Chip>
+            {deactivated && <Chip tone="warn">Deactivated</Chip>}
           </div>
           <div className="flex min-w-0 flex-wrap items-center gap-x-2 text-xs text-ink-3">
             <span className="truncate font-mono">{member.email}</span>

@@ -50,6 +50,7 @@ import { PriorityStars } from "@/components/creative/priority-stars";
 import { StageChips } from "@/components/creative/stage-chips";
 import type { PlatformStatus } from "@/lib/creative-status";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Chip } from "@/components/ui/chip";
 
 interface Props {
   rows: SummaryRow[];
@@ -77,14 +78,9 @@ function RateBadge({ block, rules }: { block: PlatformMetricBlock | undefined; r
   const rating = rateBlock(block, rules);
   const meta = RATING_META[rating];
   return (
-    <span
-      className={
-        "inline-flex items-center justify-center h-5 px-1.5 rounded text-[10px] border whitespace-nowrap " +
-        meta.badgeClass
-      }
-    >
+    <Chip tone="solid" className={meta.badgeClass}>
       {meta.label}
-    </span>
+    </Chip>
   );
 }
 

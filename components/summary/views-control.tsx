@@ -20,6 +20,7 @@ import { safeAction } from "@/lib/action-failure";
 import { toastActionFailure } from "@/lib/action-toast";
 import type { SummaryViewRow } from "@/db/queries/summary-views";
 import { FILTERS_EXPLICIT_PARAM, VIEW_MARKER_PARAM } from "@/validators/user-prefs";
+import { Chip } from "@/components/ui/chip";
 
 interface Props {
   views: SummaryViewRow[];
@@ -255,9 +256,9 @@ export function ViewsControl({
                       <span className="flex items-center gap-1.5 min-w-0">
                         <span className="truncate text-ink">{v.name}</span>
                         {v.isDefault && (
-                          <span className="shrink-0 inline-flex items-center h-4 px-1 rounded text-[9px] uppercase tracking-wide border border-brand/40 bg-brand/10 text-brand">
+                          <Chip size="sm" tone="brand">
                             Default
-                          </span>
+                          </Chip>
                         )}
                       </span>
                       {v.ownerName && (

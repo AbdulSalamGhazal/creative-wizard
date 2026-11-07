@@ -12,6 +12,7 @@ import {
   type InternalField,
   type Platform,
 } from "@/csv/platforms/types";
+import { Chip } from "@/components/ui/chip";
 
 // Derived from the single field registry (csv/platforms/types), PER PLATFORM:
 // a field the platform can't report at all (google has no landing-page views,
@@ -73,16 +74,9 @@ export async function PlatformsAdmin() {
                   <PlatformDot platform={p} />
                   <span className="text-ink font-medium">{PLATFORM_LABEL[p]}</span>
                 </div>
-                <span
-                  className={
-                    "inline-flex items-center h-5 px-1.5 rounded text-[10px] border " +
-                    (ready
-                      ? "border-pos/40 text-pos bg-pos/10"
-                      : "border-warn/40 text-warn bg-warn/10")
-                  }
-                >
+                <Chip tone={ready ? "pos" : "warn"}>
                   {ready ? "Mapping ready" : "Mapping incomplete"}
-                </span>
+                </Chip>
               </div>
 
               <div className="grid grid-cols-2 gap-3 text-sm">

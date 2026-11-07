@@ -12,6 +12,7 @@ import {
 } from "@/app/actions/account";
 import { safeAction } from "@/lib/action-failure";
 import { toastActionFailure } from "@/lib/action-toast";
+import { Chip } from "@/components/ui/chip";
 
 interface AccountRow {
   id: string;
@@ -165,9 +166,7 @@ export function AccountsAdmin({
                       <span className="inline-flex items-center gap-2">
                         <span className="text-ink">{r.name}</span>
                         {isActive && (
-                          <span className="text-[10px] uppercase tracking-wider rounded px-1.5 py-0.5 bg-brand/15 text-brand">
-                            Current
-                          </span>
+                          <Chip tone="brand">Current</Chip>
                         )}
                       </span>
                     )}

@@ -3,7 +3,6 @@
 import { useCallback, useState } from "react";
 import { KeyRound, LogOut, UserCheck, UserMinus, UserX } from "lucide-react";
 import { toast } from "sonner";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -22,6 +21,7 @@ import { dateTimeLabel, isoDate, relativeTime } from "@/lib/format";
 import { PRESET_LABEL, presetOf } from "@/lib/team-presets";
 import { teamGuard, type ManagerScope } from "@/lib/team-guard";
 import type { MemberDialog, TeamMember } from "@/lib/team-member";
+import { Chip } from "@/components/ui/chip";
 
 /**
  * One member, in full (D4, 2026-11-06): the drawer a row opens. Header =
@@ -92,21 +92,12 @@ export function MemberDrawer({
                   <SheetTitle className="flex min-w-0 flex-wrap items-center gap-2 text-base">
                     <span className="truncate">{member.name}</span>
                     {isSelf && (
-                      <span className="rounded bg-surface-2 px-1.5 py-0.5 text-[10px] font-normal text-ink-3">
-                        You
-                      </span>
+                      <Chip>You</Chip>
                     )}
-                    <Badge variant="outline" className="px-1.5 py-0 text-[10px] font-medium">
+                    <Chip tone={presetOf(member.role, member.permissions) === "admin" ? "brand" : "outline"}>
                       {PRESET_LABEL[presetOf(member.role, member.permissions)]}
-                    </Badge>
-                    {deactivated && (
-                      <Badge
-                        variant="outline"
-                        className="border-warn/40 px-1.5 py-0 text-[10px] font-medium text-warn"
-                      >
-                        Deactivated
-                      </Badge>
-                    )}
+                    </Chip>
+                    {deactivated && <Chip tone="warn">Deactivated</Chip>}
                   </SheetTitle>
                   <SheetDescription className="flex min-w-0 flex-wrap items-center gap-x-2 text-xs">
                     <span className="truncate font-mono">{member.email}</span>

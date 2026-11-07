@@ -8,7 +8,7 @@ import type { TableKey } from "@/lib/table-columns";
 import { PLATFORM_LABEL } from "@/lib/palette";
 import { int, isoDate } from "@/lib/format";
 import { batchStatusLabel } from "@/lib/upload-batches";
-import { cn } from "@/lib/utils";
+import { Chip } from "@/components/ui/chip";
 
 /** One upload batch, as both histories show it. */
 export interface BatchHistoryRow {
@@ -143,16 +143,9 @@ export function BatchHistoryTable({
         sortValue: (r) => r.status,
         csv: (r) => batchStatusLabel(r.status),
         render: (r) => (
-          <span
-            className={cn(
-              "inline-flex h-5 items-center whitespace-nowrap rounded border px-1.5 text-[10px]",
-              r.status === "active"
-                ? "border-pos/40 bg-pos/10 text-pos"
-                : "border-line-2 bg-surface-2 text-ink-3",
-            )}
-          >
+          <Chip tone={r.status === "active" ? "pos" : "neutral"}>
             {batchStatusLabel(r.status)}
-          </span>
+          </Chip>
         ),
       },
       {

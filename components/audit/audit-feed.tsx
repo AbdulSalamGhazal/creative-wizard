@@ -31,6 +31,7 @@ import { UserAvatar } from "@/components/user/user-avatar";
 import { EmptyState } from "@/components/ui/empty-state";
 import { relativeTime } from "@/lib/format";
 import { metaSummary } from "@/lib/audit-summary";
+import { Chip } from "@/components/ui/chip";
 
 /**
  * Renders an append-only audit feed. Used by /admin/audit (full feed) and
@@ -195,14 +196,12 @@ export function AuditFeed({ rows, compact = false, filtered = false }: Props) {
                 ran over the timestamp and out of the card. */}
             <div className="flex-1 min-w-0 @max-[28rem]:order-last @max-[28rem]:basis-full">
               <div className="flex items-center flex-wrap gap-2">
-                <span
-                  // One line, always: in a phone's narrow column the chip
-                  // shrank and broke "Deleted a / view" out of its border (W3).
-                  className={`inline-flex shrink-0 items-center gap-1 h-5 px-1.5 rounded text-[10px] border whitespace-nowrap ${categoryColor(category)}`}
-                >
+                {/* One line, always: in a phone's narrow column the chip
+                    shrank and broke "Deleted a / view" out of its border (W3). */}
+                <Chip className={`inline-flex shrink-0 whitespace-nowrap ${categoryColor(category)}`}>
                   <ActionIcon action={row.action} />
                   {auditLabel(row.action)}
-                </span>
+                </Chip>
                 {row.entityLabel &&
                   (href ? (
                     <Link

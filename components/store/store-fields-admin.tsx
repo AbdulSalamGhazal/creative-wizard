@@ -31,6 +31,7 @@ import {
 import { safeAction } from "@/lib/action-failure";
 import { toastActionFailure } from "@/lib/action-toast";
 import type { StoreField, StoreFieldType } from "@/store/fields";
+import { Chip } from "@/components/ui/chip";
 
 /**
  * Admin config for the Store module's order fields — THREE tiers, and the UI
@@ -185,21 +186,18 @@ function FieldRow({ field }: { field: StoreField }) {
           className="h-7 min-w-0 flex-1 rounded border-b border-transparent bg-transparent text-sm font-medium text-ink hover:border-line focus:border-brand focus:outline-none"
         />
         <span className="font-mono text-[11px] text-ink-3">{field.key}</span>
-        <span className="rounded bg-surface-2 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-ink-3">
-          {field.type}
-        </span>
+        <Chip className="capitalize">{field.type}</Chip>
         {locked ? (
-          <span
-            className="inline-flex items-center gap-1 rounded bg-surface-2 px-1.5 py-0.5 text-[10px] text-ink-3"
+          <Chip
             title={
               field.core
                 ? "One of the three core identity columns."
                 : "Required in every upload file; can't be deleted."
             }
           >
-            <Lock className="h-3 w-3" />{" "}
+            <Lock />
             {field.core ? "System field" : "System field — required in uploads"}
-          </span>
+          </Chip>
         ) : (
           <button
             type="button"

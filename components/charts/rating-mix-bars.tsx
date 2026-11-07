@@ -17,14 +17,15 @@ const COLOR: Record<Rating, string> = {
 // In-segment ink follows the fill's lightness, as RATING_META's badges do.
 // On the dark themes the pos/warn/neg fills are light, and white read at
 // 2.5–2.75:1 even darkened; the background ink reads at 7:1+. Frost/Paper
-// fills are dark, so white stays there. N/A's grey takes white everywhere.
+// fills are dark, so white stays there (`text-on-fill`). N/A's grey takes
+// `text-on-fill-muted`, which flips per theme (globals.css).
 const ON_LIGHT_FILL =
-  "text-white/95 [text-shadow:0_1px_1.5px_rgb(0_0_0/0.4)] dark:text-background dark:[text-shadow:none]";
+  "text-on-fill [text-shadow:0_1px_1.5px_rgb(0_0_0/0.4)] dark:[text-shadow:none]";
 const INK: Record<Rating, string> = {
   good: ON_LIGHT_FILL,
   decent: ON_LIGHT_FILL,
   bad: ON_LIGHT_FILL,
-  na: "text-white/95 [text-shadow:0_1px_1.5px_rgb(0_0_0/0.4)]",
+  na: "text-on-fill-muted",
 };
 const LABEL: Record<Rating, string> = {
   good: "Good",

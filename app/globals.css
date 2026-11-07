@@ -58,6 +58,19 @@
   --ahead: #5aa0ff;
   --behind: #f5c97a;
 
+  /* Text ON a solid fill (R-006, 2026-11) follows the fill's lightness, per
+     theme — never a literal #101014 / white at the call site. Measured WCAG:
+     --on-fill (neg, series/product fills): the bg ink on the dark themes'
+       light 400-level fills (neg 7.2:1), white on the light themes' 600-level
+       fills (neg 4.6:1). Same rule as `text-white dark:text-background`.
+     --on-fill-strong (the pale pos/warn fills): near-black in every theme
+       (12:1 dark, 4.6–4.9:1 light; white is 1.6 / 3.9–4.1).
+     --on-fill-muted (the ink-3 "N/A" fill): white on Midnight (5.5:1),
+       near-black on Contrast/Frost/Paper (7.5 / 5.2 / 4.9:1). */
+  --on-fill: var(--bg);
+  --on-fill-strong: #101014;
+  --on-fill-muted: #ffffff;
+
   /* ---------------------------------------------------------------
    * Data-viz palette — chart series, product/type slices, and the
    * two low-contrast platform hues. Dark values here (400-level,
@@ -162,6 +175,7 @@
   --brand: #f59e0b;
   --brand-2: #fbbf24;
   --primary-foreground: #1a1205;
+  --on-fill-muted: #101014;
   --ahead: #5aa0ff;
   --behind: #f5c97a;
 }
@@ -227,6 +241,8 @@
 .frost,
 .paper {
   color-scheme: light;
+  --on-fill: #ffffff;
+  --on-fill-muted: #101014;
   /* These platform hues fail on white (tiktok ~1.45:1, snapchat ~1.39:1,
      google red ~3.4:1); IG magenta / FB blue stay as-is. */
   --tiktok: #52525b;
@@ -282,6 +298,9 @@
   --color-warn: var(--warn);
   --color-ahead: var(--ahead);
   --color-behind: var(--behind);
+  --color-on-fill: var(--on-fill);
+  --color-on-fill-strong: var(--on-fill-strong);
+  --color-on-fill-muted: var(--on-fill-muted);
   --color-instagram: var(--instagram);
   --color-facebook: var(--facebook);
   --color-tiktok: var(--tiktok);

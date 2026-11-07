@@ -1,5 +1,6 @@
 import { cn } from "@/lib/utils";
 import { NA_STAGE, STAGE_SHORT, sortStages, stageLabel } from "@/lib/funnel-stages";
+import { Chip } from "@/components/ui/chip";
 
 /**
  * Read-only STAGE display for list surfaces — compact TOF / MOF / BOF chips,
@@ -48,18 +49,14 @@ export function StageChips({
       title={full}
     >
       {ordered.map((s) => (
-        <span
+        <Chip
           key={s}
-          className={cn(
-            "inline-flex h-5 items-center rounded border px-1.5 text-[10px]",
-            // Muted: a declaration, but not a place in the funnel.
-            s === NA_STAGE
-              ? "border-dashed border-line bg-transparent text-ink-3"
-              : "border-line bg-surface-2 text-ink-2",
-          )}
+          // Muted: a declaration, but not a place in the funnel.
+          tone={s === NA_STAGE ? "outline" : "neutral"}
+          className={cn(s === NA_STAGE && "border-dashed")}
         >
           {STAGE_SHORT[s]}
-        </span>
+        </Chip>
       ))}
     </span>
   );

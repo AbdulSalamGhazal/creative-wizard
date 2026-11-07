@@ -8,6 +8,7 @@ import { setStatusWindow } from "@/app/actions/account";
 import { safeAction } from "@/lib/action-failure";
 import { toastActionFailure } from "@/lib/action-toast";
 import { cn } from "@/lib/utils";
+import { Chip } from "@/components/ui/chip";
 
 interface BrandWindow {
   id: string;
@@ -76,9 +77,7 @@ export function StatusConfigAdmin({ brands }: { brands: BrandWindow[] }) {
             <div key={b.id} className="space-y-3">
               <div className="flex items-center gap-2">
                 <span className="text-sm font-medium text-ink">{b.name}</span>
-                <span className="text-[10px] uppercase tracking-wider text-ink-3 px-1.5 py-0.5 rounded bg-surface-2">
-                  {current}h window
-                </span>
+                <Chip className="tabular-nums">{current}h window</Chip>
               </div>
 
               {/* Preset buttons */}

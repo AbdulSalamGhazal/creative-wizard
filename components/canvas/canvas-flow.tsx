@@ -59,6 +59,7 @@ import {
   type CanvasGraph,
   type CanvasNode,
 } from "@/lib/canvas";
+import { Chip } from "@/components/ui/chip";
 
 /**
  * The Network view: campaigns left, creatives right, an edge wherever a
@@ -159,9 +160,9 @@ const CampaignNodeView = memo(function CampaignNodeView({
           </span>
         </div>
         <div className="mt-1.5 flex items-center gap-1.5">
-          <span className="truncate rounded border border-line bg-surface-2 px-1.5 text-[10px] leading-5 text-ink-2">
-            {n.objective}
-          </span>
+          <Chip className="min-w-0 shrink">
+            <span className="truncate">{n.objective}</span>
+          </Chip>
           <span className="shrink-0 text-[10px] text-ink-3">
             {CAMPAIGN_STATUS_LABEL[n.status]}
           </span>

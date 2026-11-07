@@ -3,6 +3,7 @@
 import { AlertTriangle, Info } from "lucide-react";
 import type { ValidationError } from "@/csv/errors";
 import { cn } from "@/lib/utils";
+import { Chip } from "@/components/ui/chip";
 
 interface Props {
   errors: ValidationError[];
@@ -67,16 +68,9 @@ function Row({ entry }: { entry: ValidationError }) {
         isWarn ? "bg-warn/5" : "",
       )}
     >
-      <span
-        className={cn(
-          "inline-flex items-center justify-center px-1.5 h-5 rounded text-[10px] uppercase tracking-wide shrink-0 mt-0.5",
-          isWarn
-            ? "bg-warn/15 text-warn border border-warn/30"
-            : "bg-neg/15 text-neg border border-neg/30",
-        )}
-      >
+      <Chip tone={isWarn ? "warn" : "neg"} className="mt-0.5">
         {SEVERITY_LABEL[entry.severity]}
-      </span>
+      </Chip>
       <span className="text-ink-2 leading-relaxed">
         {entry.message}
       </span>

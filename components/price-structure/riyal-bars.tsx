@@ -50,7 +50,7 @@ export function RiyalBars({ rows, mode, className }: { rows: readonly RiyalRow[]
                   <span
                     key={part}
                     title={`${PART_LABEL[part]}: ${pct1(share)} · ${money2(sar)} SAR`}
-                    className="flex items-center justify-center overflow-hidden text-[10px] font-semibold leading-none text-white/95 [text-shadow:0_1px_1.5px_rgb(0_0_0/0.4)] dark:text-background dark:[text-shadow:none]"
+                    className="flex items-center justify-center overflow-hidden text-[10px] font-semibold leading-none text-on-fill [text-shadow:0_1px_1.5px_rgb(0_0_0/0.4)] dark:[text-shadow:none]"
                     style={{ width: `${frac * 100}%`, background: PART_COLOR[part] }}
                   >
                     {frac >= 0.12 ? (mode === "pct" ? pct1(share) : money0(sar)) : ""}

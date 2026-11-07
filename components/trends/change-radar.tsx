@@ -17,6 +17,7 @@ import {
   type ChangeTier,
 } from "@/lib/change-radar";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Chip } from "@/components/ui/chip";
 
 export interface ChangeRadarRow {
   key: string;
@@ -139,15 +140,10 @@ export function ChangeRadar({ rows }: { rows: ChangeRadarRow[] }) {
           >
             <div className="min-w-[240px] flex-1">
               <div className="flex items-center gap-2 min-w-0">
-                <span
-                  className={cn(
-                    "inline-flex h-5 items-center gap-1 px-1.5 rounded text-[10px] border whitespace-nowrap shrink-0",
-                    meta.badge,
-                  )}
-                >
-                  {TierIcon && <TierIcon className="w-3 h-3" />}
+                <Chip className={meta.badge}>
+                  {TierIcon && <TierIcon />}
                   {meta.label}
-                </span>
+                </Chip>
                 <Link
                   href={r.href}
                   title={r.label}

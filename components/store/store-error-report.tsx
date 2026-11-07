@@ -1,6 +1,7 @@
 import { AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SEVERITY_LABEL, type StoreValidationError } from "@/store/errors";
+import { Chip } from "@/components/ui/chip";
 
 /**
  * Store upload error report — mirrors the ads `ErrorReport` look, but over the
@@ -38,16 +39,9 @@ export function StoreErrorReport({
               e.severity === "WARNING" && "bg-warn/5",
             )}
           >
-            <span
-              className={cn(
-                "mt-0.5 shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide",
-                e.severity === "WARNING"
-                  ? "bg-warn/15 text-warn"
-                  : "bg-neg/15 text-neg",
-              )}
-            >
+            <Chip tone={e.severity === "WARNING" ? "warn" : "neg"} className="mt-0.5">
               {SEVERITY_LABEL[e.severity]}
-            </span>
+            </Chip>
             <span className="text-ink-2">
               <span className="font-mono text-ink-3">{e.code}</span> · {e.message}
             </span>

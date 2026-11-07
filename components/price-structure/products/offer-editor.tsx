@@ -17,6 +17,7 @@ import { ConfirmDialog } from "../confirm-dialog";
 import { Field, NumberField } from "../fields";
 import { Num } from "../num";
 import { StatusBadge } from "../status-badge";
+import { Chip } from "@/components/ui/chip";
 
 /**
  * One offer's editor block (brief §6.2): header (number, name, mechanic chip,
@@ -105,9 +106,7 @@ export function OfferEditor({
           placeholder="Offer name"
           className="h-7 min-w-0 flex-1 basis-40 rounded-md border border-transparent bg-transparent px-1 text-sm font-medium text-ink outline-none transition-colors hover:border-line focus:border-brand"
         />
-        <span className="rounded-md border border-line bg-surface px-1.5 py-0.5 text-[11px] text-ink-2" title="Mechanic">
-          {text}
-        </span>
+        <Chip title="Mechanic">{text}</Chip>
         {enabled.map((t) => {
           const s = statusAgainst(r, t);
           return (

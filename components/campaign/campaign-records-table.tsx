@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Badge } from "@/components/ui/badge";
 import { DataTable, type DataColumn } from "@/components/ui/data-table";
 import { useTableColumns } from "@/components/ui/use-table-columns";
 import { TABLE_KEYS, type TableColumnPref } from "@/lib/table-columns";
@@ -14,6 +13,7 @@ import { PlatformDot } from "@/components/ui/platform-dot";
 import { cn } from "@/lib/utils";
 import type { CampaignDayRow, CampaignRecordRow } from "@/db/queries/campaign";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Chip } from "@/components/ui/chip";
 
 /** Every uploaded metric column. `money` → currency, else integer count. */
 const METRIC_COLS: Array<{ key: MetricKey; label: string; money?: boolean }> = [
@@ -193,9 +193,8 @@ export function CampaignRecordsTable({
             {r.creativeName}
           </span>
           {r.excludedFromAggregates && (
-            <Badge
-              variant="outline"
-              className="text-[9px] border-warn/40 text-warn bg-warn/10"
+            <Chip
+              tone="warn"
               title={
                 r.excludedSource === "rule"
                   ? "Excluded by an exclusion rule — manage it in Configuration → Exclusions."
@@ -203,7 +202,7 @@ export function CampaignRecordsTable({
               }
             >
               Excluded
-            </Badge>
+            </Chip>
           )}
         </span>
       ),

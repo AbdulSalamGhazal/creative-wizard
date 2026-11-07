@@ -118,8 +118,8 @@ export const RATING_META: Record<
 > = {
   // Dark label on the light fills (green/amber), white on the dark ones
   // (red/gray) — keeps every chip a high-contrast solid block.
-  good: { label: "Good", badgeClass: "bg-pos text-[#101014] border-transparent font-semibold" },
-  decent: { label: "Decent", badgeClass: "bg-warn text-[#101014] border-transparent font-semibold" },
-  bad: { label: "Bad", badgeClass: "bg-neg text-white border-transparent font-semibold" },
-  na: { label: "N/A", badgeClass: "bg-ink-3 text-white border-transparent font-semibold" },
+  good: { label: "Good", badgeClass: "bg-pos text-on-fill-strong border-transparent font-semibold" },
+  decent: { label: "Decent", badgeClass: "bg-warn text-on-fill-strong border-transparent font-semibold" },
+  bad: { label: "Bad", badgeClass: "bg-neg text-on-fill border-transparent font-semibold" },
+  na: { label: "N/A", badgeClass: "bg-ink-3 text-on-fill-muted border-transparent font-semibold" },
 };

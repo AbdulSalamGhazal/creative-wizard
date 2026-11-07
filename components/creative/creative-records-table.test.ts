@@ -131,6 +131,6 @@ describe("what the migration had to keep", () => {
 
   it("still dims excluded rows and badges them in the identity cell", () => {
     expect(SRC).toContain('r.excludedFromAggregates && "opacity-70"');
-    expect(SRC).toMatch(/key: "date"[\s\S]{0,1200}<Badge/);
+    expect(SRC).toMatch(/key: "date"[\s\S]{0,1200}<Chip/);
   });
 });

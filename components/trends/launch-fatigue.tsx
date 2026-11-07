@@ -25,6 +25,7 @@ import {
   type FatigueWindowMetrics,
 } from "@/lib/launch-fatigue";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Chip } from "@/components/ui/chip";
 
 export interface LaunchFatigueViewRow {
   creativeId: string;
@@ -106,15 +107,10 @@ function TrendBadge({
   const meta = TIER_META[tier];
   const Icon = meta.icon;
   return (
-    <span
-      className={cn(
-        "inline-flex h-5 items-center gap-1 px-1.5 rounded text-[10px] border whitespace-nowrap",
-        meta.badge,
-      )}
-    >
-      <Icon className="w-3 h-3" />
+    <Chip className={meta.badge}>
+      <Icon />
       {tierLabel(tier, daysSinceLaunch)}
-    </span>
+    </Chip>
   );
 }
 
@@ -489,12 +485,13 @@ export function LaunchFatigueTable({ rows }: { rows: LaunchFatigueViewRow[] }) {
                 {r.launchDate}
               </span>
               {r.derived && (
-                <span
-                  className="rounded border border-warn/30 bg-warn/5 px-1 py-0.5 text-[9px] leading-none text-warn/90"
+                <Chip
+                  size="sm"
+                  tone="warn"
                   title="Estimated from the first day with spend — no manual launch date is set on this creative."
                 >
                   est.
-                </span>
+                </Chip>
               )}
             </div>
             <div className="text-[11px] text-ink-3">{r.daysSinceLaunch}d ago</div>
@@ -663,9 +660,9 @@ function FatigueLegend() {
         <Clock className="w-3 h-3 text-ink-3/70" /> window in progress (partial ROAS)
       </span>
       <span className="inline-flex items-center gap-1.5">
-        <span className="text-[9px] px-1 py-0.5 rounded border border-warn/30 text-warn/90 bg-warn/5">
+        <Chip size="sm" tone="warn">
           est.
-        </span>
+        </Chip>
         launch estimated from first spend day
       </span>
     </div>

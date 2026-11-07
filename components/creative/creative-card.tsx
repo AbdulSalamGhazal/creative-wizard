@@ -6,6 +6,7 @@ import { StatusBadge } from "@/components/creative/status-badge";
 import { gradientFor } from "@/lib/palette";
 import { cn } from "@/lib/utils";
 import { isoDate, usd } from "@/lib/format";
+import { Chip } from "@/components/ui/chip";
 
 const TYPE_LABEL: Record<CreativeListRow["type"], string> = {
   video: "Video",
@@ -110,12 +111,7 @@ export function CreativeCard({
         {/* Angles */}
         <div className="mt-2 flex items-center gap-1 flex-wrap min-h-[20px]">
           {visibleAngles.map((t) => (
-            <span
-              key={t}
-              className="inline-flex items-center h-5 px-1.5 rounded text-[10px] bg-surface-2 border border-line text-ink-2"
-            >
-              {t}
-            </span>
+            <Chip key={t}>{t}</Chip>
           ))}
           {overflow > 0 && (
             <span className="text-[10px] text-ink-3">+{overflow} more</span>

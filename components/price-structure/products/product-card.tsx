@@ -90,7 +90,7 @@ export function ProductCard({
                   )}
                   style={{ background: productColor(slot) }}
                 >
-                  {active && <Check className="size-3 text-[#101014]" aria-hidden />}
+                  {active && <Check className="size-3 text-on-fill" aria-hidden />}
                 </button>
               );
             })}

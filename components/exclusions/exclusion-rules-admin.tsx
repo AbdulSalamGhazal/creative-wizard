@@ -53,6 +53,7 @@ import type {
   RuleImpactPreview,
 } from "@/db/queries/exclusion-rules";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Chip } from "@/components/ui/chip";
 
 const KIND_LABEL: Record<ExclusionRuleKind, string> = {
   campaign_objective: "Campaign objective",
@@ -281,9 +282,7 @@ export function ExclusionRulesAdmin({
                     {r.kind === "campaign_objective" ? r.objective : (r.targetLabel ?? "—")}
                   </span>
                   {!r.active && (
-                    <span className="rounded bg-surface-2 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-ink-3">
-                      inactive
-                    </span>
+                    <Chip>Inactive</Chip>
                   )}
                 </div>
                 <p className="mt-0.5 text-[11px] text-ink-3">

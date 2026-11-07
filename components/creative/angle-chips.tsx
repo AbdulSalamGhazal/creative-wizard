@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+import { Chip } from "@/components/ui/chip";
 
 /** How many angle chips a list cell shows before collapsing the rest into +N. */
 const MAX_CHIPS = 2;
@@ -42,20 +43,14 @@ export function AngleChips({
       title={all}
     >
       {shown.map((a) => (
-        <span
-          key={a}
-          className="inline-block max-w-[7rem] truncate rounded border border-line bg-surface-2 px-1.5 text-[10px] leading-5 text-ink-2"
-        >
-          {a}
-        </span>
+        <Chip key={a} className="max-w-[7rem] shrink">
+          <span className="truncate">{a}</span>
+        </Chip>
       ))}
       {rest.length > 0 && (
-        <span
-          className="shrink-0 rounded border border-line bg-surface-2 px-1.5 text-[10px] leading-5 text-ink-3"
-          title={rest.join(", ")}
-        >
+        <Chip title={rest.join(", ")} className="tabular-nums">
           +{rest.length}
-        </span>
+        </Chip>
       )}
     </span>
   );

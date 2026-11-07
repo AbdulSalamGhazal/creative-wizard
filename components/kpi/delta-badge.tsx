@@ -1,6 +1,7 @@
 import { ArrowDownRight, ArrowUpRight, Sparkles } from "lucide-react";
 import type { Delta } from "@/lib/period";
 import { signedPct } from "@/lib/format";
+import { Chip } from "@/components/ui/chip";
 
 /**
  * Renders a single period-over-period delta as a small inline badge.
@@ -31,25 +32,29 @@ export function DeltaBadge({
 
   if (delta.mode === "new") {
     return (
-      <span
-        className={`inline-flex items-center gap-0.5 h-4 px-1 rounded text-[10px] border border-pos/40 bg-pos/10 text-pos ${className}`}
+      <Chip
+        size="sm"
+        tone="pos"
+        className={`gap-0.5 ${className}`}
         title="No spend in the prior window — this is new activity."
       >
-        <Sparkles className="w-2.5 h-2.5" />
+        <Sparkles />
         New
-      </span>
+      </Chip>
     );
   }
 
   if (delta.mode === "removed") {
     return (
-      <span
-        className={`inline-flex items-center gap-0.5 h-4 px-1 rounded text-[10px] border border-neg/40 bg-neg/10 text-neg ${className}`}
+      <Chip
+        size="sm"
+        tone="neg"
+        className={`gap-0.5 ${className}`}
         title="Activity in the prior window, none in the current."
       >
-        <ArrowDownRight className="w-2.5 h-2.5" />
+        <ArrowDownRight />
         Gone
-      </span>
+      </Chip>
     );
   }
 
@@ -58,17 +63,12 @@ export function DeltaBadge({
   const up = pct >= 0;
   const good = inverted ? !up : up;
   const Icon = up ? ArrowUpRight : ArrowDownRight;
-  const color = good
-    ? "border-pos/40 bg-pos/10 text-pos"
-    : "border-neg/40 bg-neg/10 text-neg";
   const formatted = signedPct(pct);
 
   return (
-    <span
-      className={`inline-flex items-center gap-0.5 h-4 px-1 rounded text-[10px] border tabular-nums ${color} ${className}`}
-    >
-      <Icon className="w-2.5 h-2.5" />
+    <Chip size="sm" tone={good ? "pos" : "neg"} className={`gap-0.5 tabular-nums ${className}`}>
+      <Icon />
       {formatted}
-    </span>
+    </Chip>
   );
 }

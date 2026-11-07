@@ -97,7 +97,7 @@ export function SalesMix({
             <span
               key={p.id}
               title={`${p.name}: ${pct1(share)}`}
-              className="flex items-center justify-center overflow-hidden text-[10px] font-semibold text-[#101014]"
+              className="flex items-center justify-center overflow-hidden text-[10px] font-semibold text-on-fill"
               style={{ width: `${share * 100}%`, background: productColor(p.colorSlot) }}
             >
               {share >= 0.1 ? pct1(share) : ""}

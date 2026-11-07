@@ -2,7 +2,6 @@
 
 import { useMemo, useState } from "react";
 import { ChevronRight } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import { DataTable, type DataColumn } from "@/components/ui/data-table";
 import { useTableColumns } from "@/components/ui/use-table-columns";
 import { TABLE_KEYS } from "@/lib/table-columns";
@@ -16,6 +15,7 @@ import type { CreativeRecordRow } from "@/db/queries/creatives";
 import { rowsToCsv, todayStamp, type CsvColumn } from "@/lib/csv-export";
 import { METRIC_LABEL } from "@/lib/metric-labels";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Chip } from "@/components/ui/chip";
 
 // CSV export is always the full record (every uploaded field), independent of
 // which columns the table is currently showing — the Library's rule.
@@ -155,9 +155,8 @@ export function CreativeRecordsTable({ rows, title = "All records" }: Props) {
                 records table — so it stays visible with the date when the
                 metrics scroll sideways. */}
             {r.excludedFromAggregates && (
-              <Badge
-                variant="outline"
-                className="border-warn/40 bg-warn/10 text-[9px] text-warn"
+              <Chip
+                tone="warn"
                 title={
                   r.excludedSource === "rule"
                     ? "Excluded by an exclusion rule — manage it in Configuration → Exclusions."
@@ -165,7 +164,7 @@ export function CreativeRecordsTable({ rows, title = "All records" }: Props) {
                 }
               >
                 Excluded
-              </Badge>
+              </Chip>
             )}
           </span>
         ),

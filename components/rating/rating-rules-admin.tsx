@@ -17,6 +17,7 @@ import { ALL_PLATFORMS, PLATFORM_LABEL } from "@/lib/palette";
 import { PlatformDot } from "@/components/ui/platform-dot";
 import { usd } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { Chip } from "@/components/ui/chip";
 
 type Platform = (typeof ALL_PLATFORMS)[number];
 
@@ -164,9 +165,9 @@ function DefaultEditor({ rules }: { rules: RatingRules }) {
         <ul className="space-y-1.5">
           {tiers.map((t) => (
             <li key={t.rating} className="flex items-center gap-2.5 text-xs">
-              <span className={"inline-flex items-center justify-center h-5 px-1.5 rounded text-[10px] border whitespace-nowrap w-14 " + RATING_META[t.rating].badgeClass}>
+              <Chip tone="solid" className={"w-14 justify-center " + RATING_META[t.rating].badgeClass}>
                 {RATING_META[t.rating].label}
-              </span>
+              </Chip>
               <span className="text-ink-2 tabular-nums">{t.when}</span>
             </li>
           ))}

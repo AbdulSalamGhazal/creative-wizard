@@ -23,5 +23,6 @@ export function withinRollbackWindow(
 /** A batch status in the product's words — never the stored identifier
  *  (the ads history printed `rolled_back`; the Store history's wording won). */
 export function batchStatusLabel(status: string): string {
-  return status.replace(/_/g, " ");
+  const words = status.replace(/_/g, " ");
+  return words.charAt(0).toUpperCase() + words.slice(1);
 }

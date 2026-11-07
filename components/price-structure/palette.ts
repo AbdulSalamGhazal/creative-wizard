@@ -35,9 +35,9 @@ export const STATUS_META: Record<
   Status,
   { label: string; short: string; icon: string; chip: string; text: string }
 > = {
-  b: { label: "Hits B", short: "B", icon: "✓", chip: "bg-pos text-[#101014]", text: "text-pos" },
-  a: { label: "Hits A", short: "A", icon: "◐", chip: "bg-warn text-[#101014]", text: "text-warn" },
-  miss: { label: "Misses A", short: "Miss", icon: "✕", chip: "bg-neg text-white", text: "text-neg" },
+  b: { label: "Hits B", short: "B", icon: "✓", chip: "bg-pos text-on-fill-strong", text: "text-pos" },
+  a: { label: "Hits A", short: "A", icon: "◐", chip: "bg-warn text-on-fill-strong", text: "text-warn" },
+  miss: { label: "Misses A", short: "Miss", icon: "✕", chip: "bg-neg text-on-fill", text: "text-neg" },
 };
 
 export const STATUS_ORDER: readonly Status[] = ["b", "a", "miss"];

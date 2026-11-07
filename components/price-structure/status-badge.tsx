@@ -1,6 +1,7 @@
 import { cn } from "@/lib/utils";
 import type { Status } from "@/price-structure/engine/types";
 import { STATUS_META } from "./palette";
+import { Chip } from "@/components/ui/chip";
 
 /**
  * The status chip (brief §8.2): ✓ Hits B · ◐ Hits A · ✕ Misses A. The
@@ -21,18 +22,14 @@ export function StatusBadge({
 }) {
   const meta = STATUS_META[status];
   return (
-    <span
+    <Chip
+      tone="solid"
       title={title ?? meta.label}
       aria-label={meta.label}
-      className={cn(
-        "inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-md border border-transparent font-semibold leading-none",
-        compact ? "h-5 px-1.5 text-[10px]" : "h-6 px-2 text-[11px]",
-        meta.chip,
-        className,
-      )}
+      className={cn(!compact && "h-6 px-2", meta.chip, className)}
     >
       <span aria-hidden>{meta.icon}</span>
       {compact ? meta.short : meta.label}
-    </span>
+    </Chip>
   );
 }
