@@ -343,7 +343,7 @@ function LineTooltip({
               style={{ background: p.color }}
             />
             <span className="text-ink-2">{labelByKey.get(p.dataKey) ?? p.dataKey}</span>
-            <span className="ml-auto text-ink num">{fmt(p.value)}</span>
+            <span className="ml-auto text-ink tabular-nums">{fmt(p.value)}</span>
           </div>
         ))}
       </div>

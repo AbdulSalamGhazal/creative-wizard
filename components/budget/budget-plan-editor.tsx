@@ -824,7 +824,7 @@ export function BudgetPlanEditor({
             onAmount(numeric(e.target.value));
           }}
           placeholder="0"
-          className="h-8 text-right num text-ink-2"
+          className="h-8 text-right tabular-nums text-ink-2"
           aria-label={ariaAmount}
           disabled={lock.amount !== undefined}
         />
@@ -845,7 +845,7 @@ export function BudgetPlanEditor({
           </span>
         )}
         {/* Rate (display + inline edit) */}
-        <span className="text-[11px] text-ink-3 num">
+        <span className="text-[11px] text-ink-3 tabular-nums">
           1 USD ={" "}
           {rateDraft === null ? (
             <>
@@ -866,7 +866,7 @@ export function BudgetPlanEditor({
               <Input
                 value={rateDraft}
                 onChange={(e) => setRateDraft(numeric(e.target.value))}
-                className="h-6 w-20 text-right num"
+                className="h-6 w-20 text-right tabular-nums"
                 aria-label="USD to SAR rate"
               />
               <button type="button" onClick={saveRate} disabled={isPending} className="text-pos" aria-label="Save rate">
@@ -1059,8 +1059,8 @@ export function BudgetPlanEditor({
                   className="flex h-9 items-baseline gap-2 rounded-md border border-dashed border-line px-3"
                   aria-live="polite"
                 >
-                  <span className="num tabular-nums text-sm text-ink">{fmtRoas(impliedRoas)}</span>
-                  <span className="num truncate text-[11px] text-ink-3">at {fxRate(rate)} SAR/USD</span>
+                  <span className="tabular-nums text-sm text-ink">{fmtRoas(impliedRoas)}</span>
+                  <span className="tabular-nums truncate text-[11px] text-ink-3">at {fxRate(rate)} SAR/USD</span>
                 </div>
               </div>
             </div>
@@ -1068,12 +1068,12 @@ export function BudgetPlanEditor({
               {/* Each label + value wraps as a unit at 375px. */}
               <span className="whitespace-nowrap">
                 <span className="text-label text-ink-3">Allocated</span>{" "}
-                <span className="num text-sm text-ink-2">{usd(allocatable)}</span>
+                <span className="tabular-nums text-sm text-ink-2">{usd(allocatable)}</span>
               </span>
               {reserve > 0 && (
                 <span className="whitespace-nowrap">
                   <span className="text-label text-ink-3">Reserve</span>{" "}
-                  <span className="num text-sm text-ink-2">{usd(reserve)}</span>
+                  <span className="tabular-nums text-sm text-ink-2">{usd(reserve)}</span>
                 </span>
               )}
             </p>
@@ -1092,7 +1092,7 @@ export function BudgetPlanEditor({
               <h3 className="text-sm font-medium text-ink">Split the budget</h3>
               <div className="flex flex-wrap items-center gap-2">
                 <span
-                  className={cn("num text-[11px]", totalSharesOk ? "text-ink-3" : "text-warn")}
+                  className={cn("tabular-nums text-[11px]", totalSharesOk ? "text-ink-3" : "text-warn")}
                 >
                   {pct1(totalShareSum / 100)} of 100%
                 </span>
@@ -1253,7 +1253,7 @@ export function BudgetPlanEditor({
                         {on && (
                           <span
                             className={cn(
-                              "num text-[11px]",
+                              "tabular-nums text-[11px]",
                               objectivesOk ? "text-ink-3" : "text-warn",
                             )}
                           >
@@ -1322,7 +1322,7 @@ export function BudgetPlanEditor({
               </p>
               <ul className="mt-1 space-y-0.5 text-xs text-ink-2">
                 {problems.map((p) => (
-                  <li key={p} className="num">
+                  <li key={p} className="tabular-nums">
                     {p}
                   </li>
                 ))}
@@ -1344,21 +1344,21 @@ export function BudgetPlanEditor({
               <div className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-lg border border-line bg-surface px-4 py-3 text-sm">
                 <span className="inline-flex items-center gap-2">
                   <span className="text-label text-ink-3">Total budget</span>
-                  <span className="num tabular-nums text-ink">{fmtSpend(storedTotal)}</span>
+                  <span className="tabular-nums text-ink">{fmtSpend(storedTotal)}</span>
                 </span>
                 <span className="inline-flex items-center gap-2">
                   <span className="text-label text-ink-3">Revenue target (SAR)</span>
-                  <span className="num tabular-nums text-ink">
+                  <span className="tabular-nums text-ink">
                     {data.plannedRevenueSar !== null ? sar(data.plannedRevenueSar) : "—"}
                   </span>
                 </span>
                 <span className="inline-flex items-center gap-2">
                   <span className="text-label text-ink-3">Reserve</span>
-                  <span className="num tabular-nums text-ink">
+                  <span className="tabular-nums text-ink">
                     {data.reserveSpendUsd > 0 ? fmtSpend(data.reserveSpendUsd) : "—"}
                   </span>
                   {data.reserveSpendUsd > 0 && storedTotal > 0 && (
-                    <span className="num tabular-nums text-[11px] text-ink-3">
+                    <span className="tabular-nums text-[11px] text-ink-3">
                       {pct1((pctShare(data.reserveSpendUsd, storedTotal) ?? 0) / 100)}
                     </span>
                   )}
@@ -1372,8 +1372,8 @@ export function BudgetPlanEditor({
                         : "Revenue target ÷ (allocated spend × rate). The reserve is not expected to be spent."}
                     </InfoTip>
                   </span>
-                  <span className="num tabular-nums text-ink">{fmtRoas(storedImpliedRoas)}</span>
-                  <span className="num text-[11px] text-ink-3">at {fxRate(rate)} SAR/USD</span>
+                  <span className="tabular-nums text-ink">{fmtRoas(storedImpliedRoas)}</span>
+                  <span className="tabular-nums text-[11px] text-ink-3">at {fxRate(rate)} SAR/USD</span>
                 </span>
               </div>
 
@@ -1400,7 +1400,7 @@ export function BudgetPlanEditor({
                           <PlatformDot platform={p.platform} size="sm" />
                           {PLATFORM_LABEL[p.platform]}
                         </span>
-                        <span className="num tabular-nums text-sm text-ink">
+                        <span className="tabular-nums text-sm text-ink">
                           {fmtSpend(p.amount)}
                           <span className="ml-1.5 text-[11px] text-ink-3">
                             {pct1((pctShare(p.amount, storedTotal) ?? 0) / 100)}
@@ -1440,7 +1440,7 @@ export function BudgetPlanEditor({
                               />
                               <span className="truncate">{o.objective}</span>
                             </span>
-                            <span className="num tabular-nums text-ink-2">
+                            <span className="tabular-nums text-ink-2">
                               {fmtSpend(o.amount)}
                               <span className="ml-1.5 text-[11px] text-ink-3">
                                 {pct1((pctShare(o.amount, p.amount) ?? 0) / 100)}
@@ -1676,7 +1676,7 @@ export function BudgetPlanEditor({
                 onChange={(e) => setMoveAmount(numeric(e.target.value))}
                 inputMode="decimal"
                 placeholder="0"
-                className="h-9 w-full text-right num"
+                className="h-9 w-full text-right tabular-nums"
                 aria-label="Amount to move"
               />
               <span className="block text-[11px] text-ink-3">
@@ -1775,7 +1775,7 @@ function CompositionBar({
               style={{ width: `${pct}%`, background: s.color ?? undefined }}
             >
               {pct >= LABEL_MIN_SHARE && (
-                <span className="hidden whitespace-nowrap px-1.5 num tabular-nums @min-[2.75rem]:inline">
+                <span className="hidden whitespace-nowrap px-1.5 tabular-nums @min-[2.75rem]:inline">
                   <span className="hidden @min-[7rem]:inline">{s.label} </span>
                   {pct1(pct / 100)}
                 </span>
@@ -1800,8 +1800,8 @@ function CompositionBar({
               />
             )}
             <span className="text-ink-2">{s.label}</span>
-            <span className="num tabular-nums text-ink">{fmt(s.amount)}</span>
-            <span className="num tabular-nums text-ink-3">{pct1(share(s.amount) / 100)}</span>
+            <span className="tabular-nums text-ink">{fmt(s.amount)}</span>
+            <span className="tabular-nums text-ink-3">{pct1(share(s.amount) / 100)}</span>
           </li>
         ))}
       </ul>
@@ -1894,12 +1894,12 @@ function DailyPlanPanel({
         {selectedDay !== null ? (
           <>
             Day {selectedDay} ·{" "}
-            <span className="num text-ink-2">{fmtSpend(values[selectedDay - 1] ?? 0)}</span>
+            <span className="tabular-nums text-ink-2">{fmtSpend(values[selectedDay - 1] ?? 0)}</span>
           </>
         ) : total > 0 ? (
           <>
             {planned} of {values.length} days carry spend; the biggest is day {peakDay} at{" "}
-            <span className="num text-ink-2">{fmtSpend(values[peakDay - 1] ?? 0)}</span>.
+            <span className="tabular-nums text-ink-2">{fmtSpend(values[peakDay - 1] ?? 0)}</span>.
           </>
         ) : (
           <>The sheet planned no spend for this month.</>
@@ -1970,7 +1970,7 @@ function DayCurveEditor({
         </h3>
         {overrideCount > 0 && (
           <p className="text-[11px] text-ink-3">
-            <span className="num tabular-nums">{overrideCount}</span> weighted day
+            <span className="tabular-nums">{overrideCount}</span> weighted day
             {overrideCount === 1 ? "" : "s"}
           </p>
         )}
@@ -2001,7 +2001,7 @@ function DayCurveEditor({
                 title={`${label(dayValue(day))}${overridden ? ` · ×${w}` : ""}`}
                 aria-label={`Day ${day}, weight ${w}, ${label(dayValue(day))}`}
                 className={cn(
-                  "flex h-10 flex-col items-center justify-center rounded-md border text-[11px] num transition-colors",
+                  "flex h-10 flex-col items-center justify-center rounded-md border text-[11px] tabular-nums transition-colors",
                   overridden
                     ? "border-brand/50 bg-brand-soft text-ink"
                     : "border-line text-ink-2",
@@ -2031,7 +2031,7 @@ function DayCurveEditor({
             {selectedDay !== null ? (
               <>
                 Day {selectedDay} · ×{weightOf(selectedDay)} · ≈{" "}
-                <span className="num text-ink-2">{label(dayValue(selectedDay))}</span>{" "}
+                <span className="tabular-nums text-ink-2">{label(dayValue(selectedDay))}</span>{" "}
                 (normal day ≈ {label(normalDay)})
               </>
             ) : hasMoney ? (
@@ -2058,7 +2058,7 @@ function DayCurveEditor({
               >
                 −
               </Button>
-              <span className="num tabular-nums w-10 text-center">×{weightOf(selectedDay)}</span>
+              <span className="tabular-nums w-10 text-center">×{weightOf(selectedDay)}</span>
               <Button
                 type="button"
                 variant="outline"
@@ -2084,7 +2084,7 @@ function DayCurveEditor({
                 }}
                 placeholder="e.g. 2.5"
                 inputMode="decimal"
-                className="h-7 w-20 text-right num"
+                className="h-7 w-20 text-right tabular-nums"
                 aria-label={`Weight for day ${selectedDay}`}
               />
               {weightOf(selectedDay) !== 1 && (

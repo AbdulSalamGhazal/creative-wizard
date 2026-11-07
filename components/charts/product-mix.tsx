@@ -66,7 +66,7 @@ export function ProductMixDonut({ rows }: Props) {
           <div className="text-eyebrow text-ink-3">
             Total spend
           </div>
-          <div className="font-display text-2xl num text-ink mt-1">
+          <div className="font-display text-2xl tabular-nums text-ink mt-1">
             {usdCompact(total)}
           </div>
         </div>
@@ -82,7 +82,7 @@ export function ProductMixDonut({ rows }: Props) {
             <span className="text-ink-2 flex-1 truncate" title={d.productName}>
               {d.productName}
             </span>
-            <span className="text-ink num shrink-0">
+            <span className="text-ink tabular-nums shrink-0">
               {pct1(d.share)}
             </span>
           </li>
@@ -122,11 +122,11 @@ function DonutTooltip({
       </div>
       <div className="flex items-baseline gap-3 min-w-[140px]">
         <span className="text-ink-3">Spend</span>
-        <span className="ml-auto text-ink num">{usd(entry.spend)}</span>
+        <span className="ml-auto text-ink tabular-nums">{usd(entry.spend)}</span>
       </div>
       <div className="flex items-baseline gap-3">
         <span className="text-ink-3">Share</span>
-        <span className="ml-auto text-ink num">
+        <span className="ml-auto text-ink tabular-nums">
           {pct1(entry.share)}
         </span>
       </div>

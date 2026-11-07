@@ -37,7 +37,7 @@ export function Num({
 }) {
   const negative = red && typeof value === "number" && Number.isFinite(value) && value < 0;
   return (
-    <span title={title} className={cn("num tabular-nums", negative && "text-neg", className)}>
+    <span title={title} className={cn("tabular-nums", negative && "text-neg", className)}>
       {formatNum(kind, value)}
     </span>
   );

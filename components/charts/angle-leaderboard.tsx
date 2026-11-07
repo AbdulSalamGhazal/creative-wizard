@@ -140,7 +140,7 @@ export function AngleLeaderboard({
                         name
                       )}
                     </span>
-                    <span className="num shrink-0 text-ink">{metric.fmt(r.value)}</span>
+                    <span className="tabular-nums shrink-0 text-ink">{metric.fmt(r.value)}</span>
                   </div>
                   <div className="ml-6 h-2 overflow-hidden rounded-full bg-surface-2">
                     <div

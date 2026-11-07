@@ -200,7 +200,7 @@ export function UploadForm() {
           <Check className="w-5 h-5 text-pos" />
         </div>
         <h2 className="mt-4 font-display text-3xl tracking-tight">Upload complete</h2>
-        <p className="mt-2 text-ink-2 text-sm num">
+        <p className="mt-2 text-ink-2 text-sm tabular-nums">
           {stage.upsert ? (
             <>
               {stage.rowsImported} imported · {stage.rowsUpdated} updated for{" "}

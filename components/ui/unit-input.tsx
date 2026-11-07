@@ -57,7 +57,7 @@ export function UnitInput({
     <div className={cn("relative", wrapperClassName)} title={title}>
       <Input
         {...props}
-        className={cn("peer text-right num", unit.length > 1 ? "pr-11" : "pl-2 pr-6", className)}
+        className={cn("peer text-right tabular-nums", unit.length > 1 ? "pr-11" : "pl-2 pr-6", className)}
       />
       <span
         aria-hidden

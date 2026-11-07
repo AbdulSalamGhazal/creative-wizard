@@ -124,7 +124,7 @@ export function AnglesTable({ rows }: { rows: AngleRow[] }) {
         />
       ) : (
         <div className="overflow-x-auto rounded-lg border border-line bg-surface">
-          <table className="w-full text-sm num">
+          <table className="w-full text-sm tabular-nums">
             <thead>
               <tr className="text-left text-label text-ink-3 border-b border-line">
                 <th className="font-medium px-3 py-2.5">Angle</th>

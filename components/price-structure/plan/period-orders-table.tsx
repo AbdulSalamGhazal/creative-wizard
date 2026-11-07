@@ -47,9 +47,9 @@ export function PeriodOrdersTable({ period, products, lines, baked, onChange }: 
                   <div key={o.id} className={row}>
                     <span className="truncate pl-6 text-ink-2" dir="auto">{o.name}</span>
                     <NumberField value={n} integer min={0} size="xs" ariaLabel={`${p.name} · ${o.name} orders`} onChange={(v) => setOrders(key, v)} />
-                    <span className="text-right num tabular-nums text-ink-2">{num2(n / days)}</span>
-                    <span className="text-right num tabular-nums text-ink-3">{pct1(total > 0 ? n / total : 0)}</span>
-                    <span className="text-right num tabular-nums text-ink-2">{line ? roas2(line.r.platformRoas) : "—"}</span>
+                    <span className="text-right tabular-nums text-ink-2">{num2(n / days)}</span>
+                    <span className="text-right tabular-nums text-ink-3">{pct1(total > 0 ? n / total : 0)}</span>
+                    <span className="text-right tabular-nums text-ink-2">{line ? roas2(line.r.platformRoas) : "—"}</span>
                   </div>
                 );
               })}
@@ -57,10 +57,10 @@ export function PeriodOrdersTable({ period, products, lines, baked, onChange }: 
           ))}
           <div className={cn(row, "bg-surface-2/40 font-medium")}>
             <span>Total</span>
-            <span className="text-right num tabular-nums text-ink">{int0(total)}</span>
-            <span className="text-right num tabular-nums text-ink">{num2(total / days)}</span>
-            <span className="text-right num tabular-nums text-ink">100%</span>
-            <span className="text-right num tabular-nums text-ink">{baked.orders > 0 ? roas2(baked.platformRoas) : "—"}</span>
+            <span className="text-right tabular-nums text-ink">{int0(total)}</span>
+            <span className="text-right tabular-nums text-ink">{num2(total / days)}</span>
+            <span className="text-right tabular-nums text-ink">100%</span>
+            <span className="text-right tabular-nums text-ink">{baked.orders > 0 ? roas2(baked.platformRoas) : "—"}</span>
           </div>
         </div>
       </div>

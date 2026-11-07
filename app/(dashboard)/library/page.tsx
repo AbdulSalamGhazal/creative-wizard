@@ -203,7 +203,7 @@ export default async function CreativesPage({
         />
       ) : (
         <div className="space-y-2">
-          <p className="text-xs text-ink-3 num">
+          <p className="text-xs text-ink-3 tabular-nums">
             Showing {listResult.rows.length} of {listResult.totalMatching}{" "}
             creatives
           </p>

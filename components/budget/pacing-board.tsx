@@ -125,7 +125,7 @@ export function PacingBoard({
           )}
           {hidden > 0 && (
             <span
-              className="num tabular-nums text-[11px] text-ink-3"
+              className="tabular-nums text-[11px] text-ink-3"
               title="A filter is hiding rows — the range card above is the whole range"
             >
               {rows.length} of {totalRows} platforms
@@ -224,7 +224,7 @@ export function PacingBoard({
                       className="text-[11px] text-ink-3"
                       title="No plan for this platform in the range — its spend draws on the reserve"
                     >
-                      <span className="num tabular-nums text-ink">{fmt(p.actual)}</span> spent ·
+                      <span className="tabular-nums text-ink">{fmt(p.actual)}</span> spent ·
                       no plan
                     </p>
                   )}
@@ -281,7 +281,7 @@ export function PacingBoard({
                   className="mt-1.5 pl-5 text-[11px] text-ink-3"
                   title={`No allocation for ${p.unplannedBuckets.map((u) => u.label).join(", ")} — spend in a bucket the plan has no line for`}
                 >
-                  Unplanned <span className="num tabular-nums text-ink">{fmt(p.unplanned)}</span>
+                  Unplanned <span className="tabular-nums text-ink">{fmt(p.unplanned)}</span>
                   {` · ${p.unplannedBuckets.map((u) => u.label).join(", ")}`}
                 </p>
               )}
@@ -304,7 +304,7 @@ export function PacingBoard({
                   {reserve.kind === "month" ? (
                     <ReserveVerdict used={reserve.used} reserve={reserve.reserve} fmt={fmt} />
                   ) : (
-                    <span className="num text-xs text-ink-3">—</span>
+                    <span className="tabular-nums text-xs text-ink-3">—</span>
                   )}
                 </span>
               </div>
@@ -350,7 +350,7 @@ export function PacingBoard({
                     />
                   </>
                 ) : (
-                  <span className="num text-xs text-ink-3">—</span>
+                  <span className="tabular-nums text-xs text-ink-3">—</span>
                 )}
               </div>
             </div>
@@ -428,7 +428,7 @@ function Needed({
       : `Needs ${fmt(value)} a day for the ${days} day${days === 1 ? "" : "s"} left to land on ${fmt(row.plan)}`;
   return (
     <p
-      className={cn("num tabular-nums text-ink-3", small ? "text-[10px]" : "text-[11px]", className)}
+      className={cn("tabular-nums text-ink-3", small ? "text-[10px]" : "text-[11px]", className)}
       title={title}
     >
       {value === null ? "—" : `needs ${fmt(value)}/day`}
@@ -458,13 +458,13 @@ function SummaryStrip({
       {/* Each chip reads in its direction colour once it counts anything —
           the same tokens the verdicts use, so the strip and the rows agree. */}
       <span className={cn(chip, counts.ahead > 0 ? "border-ahead/50 text-ahead" : "border-line text-ink-2")}>
-        <span className={cn("num tabular-nums", counts.ahead > 0 ? toneText(AHEAD_STRONG) : "text-ink")}>
+        <span className={cn("tabular-nums", counts.ahead > 0 ? toneText(AHEAD_STRONG) : "text-ink")}>
           {counts.ahead}
         </span>{" "}
         ahead
       </span>
       <span className={cn(chip, "border-line text-ink-2")}>
-        <span className="num tabular-nums text-ink">{counts.onTrack}</span> on track
+        <span className="tabular-nums text-ink">{counts.onTrack}</span> on track
       </span>
       <button
         type="button"
@@ -483,7 +483,7 @@ function SummaryStrip({
         )}
       >
         <span
-          className={cn("num tabular-nums", counts.behind > 0 ? toneText(BEHIND_STRONG) : "text-ink")}
+          className={cn("tabular-nums", counts.behind > 0 ? toneText(BEHIND_STRONG) : "text-ink")}
         >
           {counts.behind}
         </span>{" "}
@@ -625,7 +625,7 @@ function BoardTable({
   );
 
   const columns: DataColumn<BoardTableRow>[] = useMemo(() => {
-    const num = (v: number) => <span className="num tabular-nums">{fmt(v)}</span>;
+    const num = (v: number) => <span className="tabular-nums">{fmt(v)}</span>;
     // The footer sums the SUBTOTALS — platforms or objectives — and the two
     // groupings foot to the same range (a regroup moves money, never loses it).
     const totals = rows.filter((r) => r.kind === "subtotal");
@@ -676,7 +676,7 @@ function BoardTable({
         sortable: true,
         sortValue: (r) => r.bar.plan,
         // An unplanned combo has no plan at all — a dash, never a fabricated $0.
-        render: (r) => (r.unplanned ? <span className="num text-ink-3">—</span> : num(r.bar.plan)),
+        render: (r) => (r.unplanned ? <span className="tabular-nums text-ink-3">—</span> : num(r.bar.plan)),
         csv: (r) => (r.unplanned ? null : money(r.bar.plan)),
         total: () => num(sum((b) => b.plan)),
       },
@@ -710,7 +710,7 @@ function BoardTable({
         render: (r) => (
           // The same sign grammar as the Verdict: a true minus, never a hyphen.
           <span
-            className={cn("num tabular-nums", toneText(pacingTone(r.bar.deviation), "text-ink-2"))}
+            className={cn("tabular-nums", toneText(pacingTone(r.bar.deviation), "text-ink-2"))}
           >
             {r.bar.delta > 0 ? "+" : r.bar.delta < 0 ? "\u2212" : ""}
             {fmt(Math.abs(r.bar.delta))}
@@ -719,7 +719,7 @@ function BoardTable({
         total: () => {
           const d = sum((b) => b.delta);
           return (
-            <span className="num tabular-nums">
+            <span className="tabular-nums">
               {d > 0 ? "+" : d < 0 ? "\u2212" : ""}
               {fmt(Math.abs(d))}
             </span>
@@ -734,7 +734,7 @@ function BoardTable({
         sortValue: (r) => r.bar.deviation,
         csv: (r) => r.bar.deviation,
         render: (r) => (
-          <span className={cn("num tabular-nums", toneText(pacingTone(r.bar.deviation)))}>
+          <span className={cn("tabular-nums", toneText(pacingTone(r.bar.deviation)))}>
             {r.bar.deviation === null ? "—" : signedPct(r.bar.deviation, 0)}
           </span>
         ),
@@ -748,7 +748,7 @@ function BoardTable({
         csv: (r) => money(projectionOf(r)),
         render: (r) => {
           const p = projectionOf(r);
-          return <span className="num tabular-nums text-ink-3">{p === null ? "—" : fmt(p)}</span>;
+          return <span className="tabular-nums text-ink-3">{p === null ? "—" : fmt(p)}</span>;
         },
       },
       {
@@ -760,7 +760,7 @@ function BoardTable({
         csv: (r) => money(neededOf(r)),
         render: (r) => {
           const n = neededOf(r);
-          return <span className="num tabular-nums text-ink-3">{n === null ? "—" : fmt(n)}</span>;
+          return <span className="tabular-nums text-ink-3">{n === null ? "—" : fmt(n)}</span>;
         },
       },
     ];

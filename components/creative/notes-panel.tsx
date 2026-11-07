@@ -84,8 +84,8 @@ export function NotesPanel({
         <span
           className={
             value.length > MAX
-              ? "text-[11px] text-neg num"
-              : "text-[11px] text-ink-3 num"
+              ? "text-[11px] text-neg tabular-nums"
+              : "text-[11px] text-ink-3 tabular-nums"
           }
         >
           {value.length} / {MAX}

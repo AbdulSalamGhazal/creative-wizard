@@ -194,7 +194,7 @@ export function CampaignCreativesTable({
       label: "Launch date",
       sortable: true,
       render: (r) => (
-        <span className="num text-ink-2">{r.launchDate ? isoDate(r.launchDate) : DASH}</span>
+        <span className="tabular-nums text-ink-2">{r.launchDate ? isoDate(r.launchDate) : DASH}</span>
       ),
       csv: (r) => r.launchDate,
     },

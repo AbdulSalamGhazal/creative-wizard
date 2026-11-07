@@ -314,7 +314,7 @@ export function AudienceBoard({
       align: "right",
       sortable: true,
       render: (r) => (
-        <span className="num">{r.latestSize === null ? "—" : int(r.latestSize)}</span>
+        <span className="tabular-nums">{r.latestSize === null ? "—" : int(r.latestSize)}</span>
       ),
       sortValue: (r) => r.latestSize,
       csv: (r) => r.latestSize,
@@ -325,7 +325,7 @@ export function AudienceBoard({
       align: "right",
       sortable: true,
       render: (r) => (
-        <span className="num">{r.avgSize === null ? "—" : int(r.avgSize)}</span>
+        <span className="tabular-nums">{r.avgSize === null ? "—" : int(r.avgSize)}</span>
       ),
       sortValue: (r) => r.avgSize,
       csv: (r) => r.avgSize,
@@ -336,7 +336,7 @@ export function AudienceBoard({
       align: "right",
       sortable: true,
       render: (r) => (
-        <span className="num text-ink-2">
+        <span className="tabular-nums text-ink-2">
           {r.knownDays} <span className="text-ink-3">of {days.length}</span>
         </span>
       ),
@@ -348,11 +348,11 @@ export function AudienceBoard({
       label: "Spend",
       align: "right",
       sortable: true,
-      render: (r) => <span className="num">{usd(r.spend)}</span>,
+      render: (r) => <span className="tabular-nums">{usd(r.spend)}</span>,
       sortValue: (r) => r.spend,
       csv: (r) => r.spend.toFixed(2),
       total: () => (
-        <span className="num">{usd(rows.reduce((s, r) => s + r.spend, 0))}</span>
+        <span className="tabular-nums">{usd(rows.reduce((s, r) => s + r.spend, 0))}</span>
       ),
     },
     {
@@ -361,7 +361,7 @@ export function AudienceBoard({
       align: "right",
       sortable: true,
       render: (r) => (
-        <span className="num">{r.pressure === null ? "—" : usd(r.pressure)}</span>
+        <span className="tabular-nums">{r.pressure === null ? "—" : usd(r.pressure)}</span>
       ),
       sortValue: (r) => r.pressure,
       csv: (r) => r.pressure?.toFixed(2) ?? "",
@@ -371,11 +371,11 @@ export function AudienceBoard({
       label: "Measurements",
       align: "right",
       sortable: true,
-      render: (r) => <span className="num text-ink-2">{r.snapshots}</span>,
+      render: (r) => <span className="tabular-nums text-ink-2">{r.snapshots}</span>,
       sortValue: (r) => r.snapshots,
       csv: (r) => r.snapshots,
       total: () => (
-        <span className="num">{rows.reduce((s, r) => s + r.snapshots, 0)}</span>
+        <span className="tabular-nums">{rows.reduce((s, r) => s + r.snapshots, 0)}</span>
       ),
     },
     {
@@ -388,7 +388,7 @@ export function AudienceBoard({
           <span className="text-ink-3">—</span>
         ) : (
           <span
-            className={cn("num text-xs", isStale(r.lastAge) ? "text-warn" : "text-ink-2")}
+            className={cn("tabular-nums text-xs", isStale(r.lastAge) ? "text-warn" : "text-ink-2")}
           >
             {r.lastMeasured}
             <span className="ml-1 text-ink-3">{r.lastAge}d</span>
@@ -525,7 +525,7 @@ export function AudienceBoard({
                             key={platform}
                             className="border-l border-t border-line px-3 py-2 align-top"
                           >
-                            <div className="num text-sm text-ink">
+                            <div className="tabular-nums text-sm text-ink">
                               {known ? intCompact(known.size) : "—"}
                             </div>
                             {/* The micro-label token is uppercase and tracked,
@@ -540,7 +540,7 @@ export function AudienceBoard({
                             >
                               {known ? `${monthDay(known.date)} · ${age}d` : "never measured"}
                             </div>
-                            <div className="num mt-1 text-[11px] text-ink-2">
+                            <div className="tabular-nums mt-1 text-[11px] text-ink-2">
                               {press === null ? "—" : `${usd(press)} / 1k`}
                             </div>
                           </td>
@@ -655,7 +655,7 @@ export function AudienceBoard({
                                     <span className="text-ink-3">
                                       {def?.label ?? "Stage spend"}
                                     </span>
-                                    <span className="num tabular-nums text-ink ml-auto">
+                                    <span className="tabular-nums text-ink ml-auto">
                                       {typeof entry.value !== "number"
                                         ? "—"
                                         : key === "spend"

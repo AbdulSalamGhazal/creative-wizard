@@ -214,7 +214,7 @@ function RangeCard({
         value={fmtRoas(r.actual)}
         context={
           <>
-            on plan <span className="num tabular-nums text-ink-2">{fmtRoas(r.target)}</span> for{" "}
+            on plan <span className="tabular-nums text-ink-2">{fmtRoas(r.target)}</span> for{" "}
             {title} · {rateNote}
           </>
         }
@@ -269,7 +269,7 @@ function RangeCard({
       value={fmt(bar.actual)}
       context={
         <>
-          of <span className="num tabular-nums text-ink-2">{fmt(bar.plan)}</span> planned for {title}
+          of <span className="tabular-nums text-ink-2">{fmt(bar.plan)}</span> planned for {title}
         </>
       }
     >
@@ -287,7 +287,7 @@ function RangeCard({
         // range's plan against everything that happened, but a verdict and a
         // projection over that comparison would be noise — say why instead.
         <p className="mt-2 text-xs text-ink-3">
-          <span className="num tabular-nums text-ink-2">{fmt(side.unplanned.amount)}</span> of it
+          <span className="tabular-nums text-ink-2">{fmt(side.unplanned.amount)}</span> of it
           fell in {side.unplanned.months === 1 ? "a month" : `${side.unplanned.months} months`}{" "}
           with no plan — nothing to pace the whole range against.
         </p>
@@ -966,7 +966,7 @@ export function BudgetPacing({
       // ~298px, wider than a 375px viewport's scroll frame — and this cell is
       // pinned, so past that it stops pinning and scrolls off the left edge.
       <span className="inline-flex max-w-[12rem] items-center gap-1.5 sm:max-w-none">
-        <span className="num truncate tabular-nums">{r.bucket.label}</span>
+        <span className="truncate tabular-nums">{r.bucket.label}</span>
         {r.spendPartial && r.spendThrough && (
           <span className="shrink-0 text-label text-ink-3">
             through {monthDay(r.spendThrough)}
@@ -998,14 +998,14 @@ export function BudgetPacing({
           align: "right",
           render: (r) => {
             const v = actualRoas(r);
-            return v === null ? dash : <span className="num tabular-nums">{fmtRoas(v)}</span>;
+            return v === null ? dash : <span className="tabular-nums">{fmtRoas(v)}</span>;
           },
           csv: (r) => actualRoas(r)?.toFixed(2) ?? "",
           total: () => {
             const lastKnownRoas = rows.filter((r) => !r.roasUnknown).at(-1);
             const v = lastKnownRoas ? actualRoas(lastKnownRoas) : null;
             return v === null ? dash : (
-              <span className="num tabular-nums font-semibold">{fmtRoas(v)}</span>
+              <span className="tabular-nums font-semibold">{fmtRoas(v)}</span>
             );
           },
         },
@@ -1016,7 +1016,7 @@ export function BudgetPacing({
           render: (r) => {
             const v = planRoas(r);
             return v === null ? dash : (
-              <span className="num tabular-nums text-ink-3">{fmtRoas(v)}</span>
+              <span className="tabular-nums text-ink-3">{fmtRoas(v)}</span>
             );
           },
           csv: (r) => planRoas(r)?.toFixed(2) ?? "",
@@ -1036,7 +1036,7 @@ export function BudgetPacing({
             return (
               <span
                 className={cn(
-                  "num tabular-nums text-xs",
+                  "tabular-nums text-xs",
                   // Same direction + threshold rule as every other deviation
                   // in Budget — a ROAS miss is judged as a share of the planned ROAS.
                   toneText(pacingTone(diff / p)),
@@ -1064,11 +1064,11 @@ export function BudgetPacing({
           label: "Revenue (SAR)",
           align: "right",
           render: (r) =>
-            r.revenueUnknown ? dash : <span className="num tabular-nums">{sar(r.revenue)}</span>,
+            r.revenueUnknown ? dash : <span className="tabular-nums">{sar(r.revenue)}</span>,
           csv: (r) => (r.revenueUnknown ? "" : r.revenue.toFixed(2)),
           total: () =>
             lastKnownRevenue ? (
-              <span className="num tabular-nums font-semibold">
+              <span className="tabular-nums font-semibold">
                 {sar(lastKnownRevenue.revenueCum)}
               </span>
             ) : (
@@ -1081,7 +1081,7 @@ export function BudgetPacing({
           align: "right",
           render: (r) =>
             r.revenueUnknown ? dash : (
-              <span className="num tabular-nums">{sar(r.revenueCum)}</span>
+              <span className="tabular-nums">{sar(r.revenueCum)}</span>
             ),
           csv: (r) => (r.revenueUnknown ? "" : r.revenueCum.toFixed(2)),
         },
@@ -1091,14 +1091,14 @@ export function BudgetPacing({
           align: "right",
           render: (r) =>
             r.planRevenueCum > 0 ? (
-              <span className="num tabular-nums text-ink-3">{sar(r.planRevenueCum)}</span>
+              <span className="tabular-nums text-ink-3">{sar(r.planRevenueCum)}</span>
             ) : (
               dash
             ),
           csv: (r) => (r.planRevenueCum > 0 ? r.planRevenueCum.toFixed(2) : ""),
           total: () =>
             lastRow && lastRow.planRevenueCum > 0 ? (
-              <span className="num tabular-nums font-semibold">{sar(lastRow.planRevenueCum)}</span>
+              <span className="tabular-nums font-semibold">{sar(lastRow.planRevenueCum)}</span>
             ) : (
               dash
             ),
@@ -1146,7 +1146,7 @@ export function BudgetPacing({
           align: "right",
           render: (r) =>
             r.spendUnknownBy.has(key) ? dash : (
-              <span className={cn("num tabular-nums", isTotal && isSplit && "font-medium")}>
+              <span className={cn("tabular-nums", isTotal && isSplit && "font-medium")}>
                 {fmtSpend(r.spend.get(key) ?? 0)}
               </span>
             ),
@@ -1156,7 +1156,7 @@ export function BudgetPacing({
               : spendInDisplayCurrency(r.spend.get(key) ?? 0, currency, rate).toFixed(2),
           total: () =>
             lastKnownSpend ? (
-              <span className="num tabular-nums font-semibold">
+              <span className="tabular-nums font-semibold">
                 {fmtSpend(lastKnownSpend.spendCum.get(key) ?? 0)}
               </span>
             ) : (
@@ -1173,7 +1173,7 @@ export function BudgetPacing({
             // No plan anywhere in the range → a dash, not a column of $0.00.
             // The revenue side already reads this way; mirror it.
             hasSpendPlan ? (
-              <span className="num tabular-nums text-ink-3">
+              <span className="tabular-nums text-ink-3">
                 {fmtSpend(r.planSpendCum.get(key) ?? 0)}
               </span>
             ) : (
@@ -1185,7 +1185,7 @@ export function BudgetPacing({
               : "",
           total: () =>
             lastRow && hasSpendPlan ? (
-              <span className="num tabular-nums font-semibold">
+              <span className="tabular-nums font-semibold">
                 {fmtSpend(lastRow.planSpendCum.get(key) ?? 0)}
               </span>
             ) : (
@@ -1657,17 +1657,17 @@ export function BudgetPacing({
                                     </div>
                                     <div className="grid grid-cols-[auto_1fr] gap-x-3 pl-4 text-ink-3">
                                       <span>actual</span>
-                                      <span className="num tabular-nums text-right text-ink">
+                                      <span className="tabular-nums text-right text-ink">
                                         {unknown ? "—" : show(actual)}
                                       </span>
                                       <span>plan</span>
-                                      <span className="num tabular-nums text-right text-ink">
+                                      <span className="tabular-nums text-right text-ink">
                                         {plan > 0 ? show(plan) : "—"}
                                       </span>
                                       <span>Δ</span>
                                       <span
                                         className={cn(
-                                          "num tabular-nums text-right",
+                                          "tabular-nums text-right",
                                           toneText(
                                             !unknown && plan > 0
                                               ? pacingTone(pacingDeviation(actual, plan))
@@ -1705,7 +1705,7 @@ export function BudgetPacing({
                                 <span className="text-ink-3">
                                   {isPlan ? `${def?.label ?? ""} plan` : (def?.label ?? key)}
                                 </span>
-                                <span className="num tabular-nums text-ink ml-auto">
+                                <span className="tabular-nums text-ink ml-auto">
                                   {typeof entry.value === "number" ? fmtValue(entry.value) : "—"}
                                 </span>
                               </div>

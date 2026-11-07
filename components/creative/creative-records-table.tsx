@@ -307,7 +307,7 @@ export function CreativeRecordsTable({ rows, title = "All records" }: Props) {
             )}
           />
           {title}
-          <span className="num text-[11px] font-normal text-ink-3">
+          <span className="tabular-nums text-[11px] font-normal text-ink-3">
             {rows.length} record{rows.length === 1 ? "" : "s"}
             {excludedCount > 0 && (
               <span className="text-warn"> · {excludedCount} excluded</span>

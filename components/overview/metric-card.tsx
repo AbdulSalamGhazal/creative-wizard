@@ -93,7 +93,7 @@ export function MetricCard({
           ) : null}
         </div>
         <div
-          className="font-display leading-none num text-ink mt-2 whitespace-nowrap"
+          className="font-display leading-none tabular-nums text-ink mt-2 whitespace-nowrap"
           style={{ fontSize: displayValueFontSize(value) }}
         >
           {value}
@@ -129,7 +129,7 @@ export function MetricCard({
                   }}
                 />
               </span>
-              <span className="num text-ink-2 shrink-0 tabular-nums ml-auto">
+              <span className="text-ink-2 shrink-0 tabular-nums ml-auto">
                 {b.display}
               </span>
             </li>

@@ -181,7 +181,7 @@ export function BudgetMonthBar({
           disabled={locked}
         >
           <SelectTrigger
-            className="h-7 w-[5.4rem] text-sm num"
+            className="h-7 w-[5.4rem] text-sm tabular-nums"
             aria-label="Year"
             title={lockedTitle}
           >
@@ -292,7 +292,7 @@ export function PacingDevCell({ deviation }: { deviation: number | null }) {
   const tone = unknown || pctReadsZero(deviation) ? MUTED_TONE : pacingTone(deviation);
   const words = pacingVerdict(deviation);
   return (
-    <span className={cn("num tabular-nums text-xs", toneText(tone))} title={words}>
+    <span className={cn("tabular-nums text-xs", toneText(tone))} title={words}>
       {tone.direction !== "muted" && <span className="sr-only">{tone.direction} </span>}
       {text}
     </span>
@@ -535,8 +535,8 @@ export function Amounts({
 }) {
   return (
     <p className={cn("mt-1 text-[11px] text-ink-3", className)}>
-      <span className="num tabular-nums text-ink">{fmt(bar.actual)}</span> of{" "}
-      <span className="num tabular-nums text-ink-2">{fmt(bar.plan)}</span>
+      <span className="tabular-nums text-ink">{fmt(bar.actual)}</span> of{" "}
+      <span className="tabular-nums text-ink-2">{fmt(bar.plan)}</span>
     </p>
   );
 }
@@ -565,7 +565,7 @@ export function Verdict({
   const size = small ? "text-[11px]" : "text-xs";
   // No expectation yet (future month, or nothing planned) → no verdict at all.
   if (bar.deviation === null) {
-    return <span className={cn("num tabular-nums text-ink-3", size)}>—</span>;
+    return <span className={cn("tabular-nums text-ink-3", size)}>—</span>;
   }
   // Zero is judged by what will be SHOWN: whole dollars or a percent that
   // rounds to 0% on a pace bar (the shared `paceReadsOnTrack`), the ratio's
@@ -576,7 +576,7 @@ export function Verdict({
       : paceReadsOnTrack(bar);
   if (onTrack) {
     return (
-      <span className={cn("num tabular-nums text-ink-3", size)}>
+      <span className={cn("tabular-nums text-ink-3", size)}>
         {variant === "target" ? "on target" : "on track"}
       </span>
     );
@@ -594,7 +594,7 @@ export function Verdict({
         : "behind by";
   return (
     <span
-      className={cn("num tabular-nums", size, toneText(pacingTone(bar.deviation)))}
+      className={cn("tabular-nums", size, toneText(pacingTone(bar.deviation)))}
       title={`${words} ${fmt(Math.abs(bar.delta))} (${signedPct(bar.deviation, 0)})`}
     >
       <span className="sr-only">{words} </span>
@@ -619,11 +619,11 @@ export function ReserveAmounts({
 }) {
   return (
     <p className={cn("mt-1 text-[11px] text-ink-3", className)}>
-      <span className="num tabular-nums text-ink">{fmt(used)}</span>
+      <span className="tabular-nums text-ink">{fmt(used)}</span>
       {reserve > 0 && (
         <>
           {" "}
-          of <span className="num tabular-nums text-ink-2">{fmt(reserve)}</span>
+          of <span className="tabular-nums text-ink-2">{fmt(reserve)}</span>
         </>
       )}{" "}
       used
@@ -649,14 +649,14 @@ export function ReserveVerdict({
     const over = used - reserve;
     return (
       <span
-        className={cn("num tabular-nums text-xs", toneText(BEHIND_STRONG))}
+        className={cn("tabular-nums text-xs", toneText(BEHIND_STRONG))}
         title={`past the reserve by ${fmt(over)}`}
       >
         <span className="sr-only">past the reserve by </span>&minus;{fmt(over)}
       </span>
     );
   }
-  return <span className="num tabular-nums text-xs text-ink-3">{fmt(reserve - used)} left</span>;
+  return <span className="tabular-nums text-xs text-ink-3">{fmt(reserve - used)} left</span>;
 }
 
 // ── What the comparisons counted through (2026-10) ──────────────────────────
@@ -684,14 +684,14 @@ export function CoverageLine({
         <>Not started — {monthLabel(t.month)} is ahead of us</>
       ) : (
         <>
-          Day <span className="num tabular-nums">{t.elapsedDays}</span> of{" "}
-          <span className="num tabular-nums">{t.totalDays}</span>
+          Day <span className="tabular-nums">{t.elapsedDays}</span> of{" "}
+          <span className="tabular-nums">{t.totalDays}</span>
           {/* What the comparisons actually counted through — the last
               uploaded day, not today. */}
           {t.coverage?.through && (
             <span className="text-ink-3">
               {" · data through "}
-              <span className="num tabular-nums">{t.coverage.through}</span>
+              <span className="tabular-nums">{t.coverage.through}</span>
             </span>
           )}
           {children}
@@ -766,7 +766,7 @@ export function Hero({
         {aside}
       </div>
       <div
-        className="mt-1.5 whitespace-nowrap font-display leading-none num tabular-nums text-ink"
+        className="mt-1.5 whitespace-nowrap font-display leading-none tabular-nums text-ink"
         style={{ fontSize: displayValueFontSize(value, "2.2rem") }}
       >
         {value}
@@ -823,7 +823,7 @@ export function HeroVerdict({
     <p className="mt-2 flex flex-wrap items-baseline gap-x-1.5 text-xs">
       <Verdict bar={bar} fmt={fmt} variant={variant} />
       {projected !== null && (
-        <span className={cn("num tabular-nums", toneText(pacingTone(pct)))}>
+        <span className={cn("tabular-nums", toneText(pacingTone(pct)))}>
           · projected {fmt(projected)}
           {pct !== null && ` (${signedPct(pct, 0)} ${vsLabel}${reserveNote})`}
         </span>

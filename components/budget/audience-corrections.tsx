@@ -99,7 +99,7 @@ export function AudienceCorrections({
           <ul className="max-h-[26rem] divide-y divide-line overflow-y-auto">
             {rows.map((row) => (
               <li key={row.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2">
-                <span className="num w-24 shrink-0 text-xs text-ink-2">{row.date}</span>
+                <span className="tabular-nums w-24 shrink-0 text-xs text-ink-2">{row.date}</span>
                 <span className="inline-flex min-w-[9rem] items-center gap-1.5 text-xs text-ink">
                   <PlatformDot platform={row.platform} size="sm" />
                   {platformLabel(row.platform)}
@@ -111,7 +111,7 @@ export function AudienceCorrections({
                       value={draft}
                       onChange={(e) => setDraft(digits(e.target.value))}
                       inputMode="numeric"
-                      className="h-7 w-28 text-right num"
+                      className="h-7 w-28 text-right tabular-nums"
                       aria-label="Corrected size"
                     />
                     <button
@@ -133,7 +133,7 @@ export function AudienceCorrections({
                     </button>
                   </span>
                 ) : (
-                  <span className="num text-xs text-ink">{int(row.size)}</span>
+                  <span className="tabular-nums text-xs text-ink">{int(row.size)}</span>
                 )}
                 <span className="ml-auto flex items-center gap-2">
                   {row.recordedBy && (

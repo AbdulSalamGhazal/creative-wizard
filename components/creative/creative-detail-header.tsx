@@ -392,7 +392,7 @@ export function CreativeDetailHeader({
                     )}
                   >
                     <CalendarDays className="w-3.5 h-3.5" />
-                    <span className="num">
+                    <span className="tabular-nums">
                       {launchDate ? isoDate(launchDate) : "Set a date"}
                     </span>
                   </button>

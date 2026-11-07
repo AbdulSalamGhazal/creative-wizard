@@ -234,8 +234,8 @@ export function UtmSourcesSection({
         align: "right",
         sortable: true,
         sortValue: (r) => sortOf(r, r.orders),
-        render: (r) => <span className="num tabular-nums">{int(r.orders)}</span>,
-        total: () => <span className="num tabular-nums">{int(coverage.orders)}</span>,
+        render: (r) => <span className="tabular-nums">{int(r.orders)}</span>,
+        total: () => <span className="tabular-nums">{int(coverage.orders)}</span>,
       },
       {
         key: "ordersShare",
@@ -252,10 +252,10 @@ export function UtmSourcesSection({
                 style={{ width: `${Math.min(100, (r.ordersShare ?? 0) * 100)}%` }}
               />
             </span>
-            <span className="num tabular-nums w-12">{pct1(r.ordersShare)}</span>
+            <span className="tabular-nums w-12">{pct1(r.ordersShare)}</span>
           </div>
         ),
-        total: () => <span className="num tabular-nums">{pct1(1)}</span>,
+        total: () => <span className="tabular-nums">{pct1(1)}</span>,
       },
       {
         key: "revenue",
@@ -263,8 +263,8 @@ export function UtmSourcesSection({
         align: "right",
         sortable: true,
         sortValue: (r) => sortOf(r, r.revenue),
-        render: (r) => <span className="num tabular-nums">{sar(r.revenue)}</span>,
-        total: () => <span className="num tabular-nums">{sar(coverage.revenue)}</span>,
+        render: (r) => <span className="tabular-nums">{sar(r.revenue)}</span>,
+        total: () => <span className="tabular-nums">{sar(coverage.revenue)}</span>,
       },
       {
         key: "aov",
@@ -272,10 +272,10 @@ export function UtmSourcesSection({
         align: "right",
         sortable: true,
         sortValue: (r) => sortOf(r, r.aov),
-        render: (r) => <span className="num tabular-nums">{r.aov === null ? "—" : sar(r.aov)}</span>,
+        render: (r) => <span className="tabular-nums">{r.aov === null ? "—" : sar(r.aov)}</span>,
         total: () => {
           const a = aov(coverage.revenue, coverage.orders);
-          return <span className="num tabular-nums">{a === null ? "—" : sar(a)}</span>;
+          return <span className="tabular-nums">{a === null ? "—" : sar(a)}</span>;
         },
       },
       {
@@ -285,9 +285,9 @@ export function UtmSourcesSection({
         sortable: true,
         sortValue: (r) => sortOf(r, r.websiteShare),
         csv: (r) => r.websiteShare,
-        render: (r) => <span className="num tabular-nums">{pct1(r.websiteShare)}</span>,
+        render: (r) => <span className="tabular-nums">{pct1(r.websiteShare)}</span>,
         total: () => (
-          <span className="num tabular-nums">{pct1(share(website, coverage.orders))}</span>
+          <span className="tabular-nums">{pct1(share(website, coverage.orders))}</span>
         ),
       },
       {
@@ -299,13 +299,13 @@ export function UtmSourcesSection({
         csv: (r) => r.trend,
         render: (r) => (
           <span
-            className="num tabular-nums"
+            className="tabular-nums"
             title="Orders per day, second half of the range vs the first"
           >
             {signedPct(r.trend)}
           </span>
         ),
-        total: () => <span className="num tabular-nums">{signedPct(totalTrend)}</span>,
+        total: () => <span className="tabular-nums">{signedPct(totalTrend)}</span>,
       },
     ];
   }, [sourceFieldLabel, coverage.orders, coverage.revenue, website, totalTrend]);
@@ -428,7 +428,7 @@ export function UtmSourcesSection({
                                 style={{ background: utmBucketColor(b) }}
                               />
                               <span className="text-ink-3">{utmBucketLabel(b)}</span>
-                              <span className="num tabular-nums text-ink ml-auto">
+                              <span className="tabular-nums text-ink ml-auto">
                                 {int(point.values[b])}
                               </span>
                             </div>
@@ -436,7 +436,7 @@ export function UtmSourcesSection({
                           {visible.length > 1 && (
                             <div className="mt-1 flex items-center gap-2 border-t border-line pt-1">
                               <span className="text-ink-3">Total</span>
-                              <span className="num tabular-nums text-ink ml-auto">{int(total)}</span>
+                              <span className="tabular-nums text-ink ml-auto">{int(total)}</span>
                             </div>
                           )}
                         </ChartTooltip>

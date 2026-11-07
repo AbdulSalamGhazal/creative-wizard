@@ -307,7 +307,7 @@ export function DataTable<T>({
           under the page's sticky filter bar when the page scrolls it there. */}
       <div className="relative isolate">
       <div className="rounded-lg border border-line bg-surface overflow-auto max-h-[70vh]">
-      <table className={cn(minWidthClass, "w-full text-xs num", evenColumns && "table-fixed")}>
+      <table className={cn(minWidthClass, "w-full text-xs tabular-nums", evenColumns && "table-fixed")}>
         <thead className="sticky top-0 z-20 bg-surface">
           <tr className="text-label text-ink-3 border-b border-line bg-surface-2/40">
             {cols.map((c, i) => {

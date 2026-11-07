@@ -57,8 +57,8 @@ export function CostShares({ title = "Cost shares", subtitle, columns, sarLabel 
               const neg = Number.isFinite(sar) && sar < 0;
               return (
                 <span key={c.label} className="contents">
-                  <span role="cell" className={`text-right num tabular-nums ${neg ? "text-neg" : "text-ink"}`}>{pct2(pct)}</span>
-                  <span role="cell" className={`text-right num tabular-nums ${neg ? "text-neg" : "text-ink"}`}>{money0(sar)}</span>
+                  <span role="cell" className={`text-right tabular-nums ${neg ? "text-neg" : "text-ink"}`}>{pct2(pct)}</span>
+                  <span role="cell" className={`text-right tabular-nums ${neg ? "text-neg" : "text-ink"}`}>{money0(sar)}</span>
                 </span>
               );
             })}

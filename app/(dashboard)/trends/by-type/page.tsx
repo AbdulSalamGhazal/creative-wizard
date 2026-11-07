@@ -119,7 +119,7 @@ export default async function TrendsByTypePage({
                   {pct(share)} of spend
                 </span>
               </div>
-              <div className="font-display text-2xl text-ink num leading-none">
+              <div className="font-display text-2xl text-ink tabular-nums leading-none">
                 {usd(spend)}
               </div>
               <div className="mt-2 flex items-center gap-4 text-[11px] text-ink-3">

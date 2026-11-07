@@ -323,7 +323,7 @@ export function CreativeCampaignsTable({ campaigns, platforms }: Props) {
             </button>
           ))}
         </div>
-        <span className="text-[11px] text-ink-3 num">
+        <span className="text-[11px] text-ink-3 tabular-nums">
           {mode === "campaign"
             ? `${campaigns.length} campaign${campaigns.length === 1 ? "" : "s"}`
             : `${platforms.length} platform${platforms.length === 1 ? "" : "s"}`}

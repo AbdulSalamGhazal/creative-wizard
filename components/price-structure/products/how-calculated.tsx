@@ -70,7 +70,7 @@ export function HowCalculated({ product, offer, data }: { product: Product; offe
         {rows.map((row) => (
           <div key={row.name} className="grid grid-cols-[minmax(0,7.5rem)_minmax(0,1fr)_auto] items-baseline gap-x-3 py-1.5">
             <dt className="text-ink-2">{row.name}</dt>
-            <dd className="min-w-0 break-words text-ink-3 num tabular-nums">{row.expr}</dd>
+            <dd className="min-w-0 break-words text-ink-3 tabular-nums">{row.expr}</dd>
             <dd className="text-right text-ink">{row.value}</dd>
           </div>
         ))}

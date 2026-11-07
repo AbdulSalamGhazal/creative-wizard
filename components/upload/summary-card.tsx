@@ -35,13 +35,13 @@ export function SummaryCard({
 
       {isUpsert && (
         <div className="px-4 pt-4 -mb-1 flex flex-wrap items-center gap-2 text-xs">
-          <span className="inline-flex items-center gap-1.5 rounded-md border border-pos/30 bg-pos/10 px-2 py-1 text-pos num">
+          <span className="inline-flex items-center gap-1.5 rounded-md border border-pos/30 bg-pos/10 px-2 py-1 text-pos tabular-nums">
             <span className="font-display text-sm leading-none">
               {int(summary.newRows ?? 0)}
             </span>
             new
           </span>
-          <span className="inline-flex items-center gap-1.5 rounded-md border border-brand/30 bg-brand/10 px-2 py-1 text-brand num">
+          <span className="inline-flex items-center gap-1.5 rounded-md border border-brand/30 bg-brand/10 px-2 py-1 text-brand tabular-nums">
             <span className="font-display text-sm leading-none">
               {int(summary.updatedRows ?? 0)}
             </span>
@@ -79,7 +79,7 @@ export function SummaryCard({
                 className="inline-flex max-w-full items-center gap-1.5 rounded-md border border-line bg-surface-2 px-2 py-0.5 text-xs"
               >
                 <span className="truncate font-mono text-ink-2">@{l.code}</span>
-                <span className="num text-ink-3">
+                <span className="tabular-nums text-ink-3">
                   {int(l.rows)}
                   <span className="sr-only">{l.rows === 1 ? " row" : " rows"}</span>
                 </span>
@@ -118,7 +118,7 @@ function Stat({ label, value }: { label: string; value: string }) {
       <div className="text-eyebrow text-ink-3 mb-1">
         {label}
       </div>
-      <div className="font-display text-2xl num text-ink leading-none">
+      <div className="font-display text-2xl tabular-nums text-ink leading-none">
         {value}
       </div>
     </div>

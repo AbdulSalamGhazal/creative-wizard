@@ -167,7 +167,7 @@ const CampaignNodeView = memo(function CampaignNodeView({
           </span>
           <span
             className={cn(
-              "num shrink-0 text-[10px] tabular-nums",
+              "shrink-0 text-[10px] tabular-nums",
               n.liveChildren === 0 ? "text-warn" : "text-ink-2",
             )}
             title={`${n.liveChildren} of ${n.totalChildren} creatives currently spending here`}
@@ -175,7 +175,7 @@ const CampaignNodeView = memo(function CampaignNodeView({
           >
             {n.liveChildren}/{n.totalChildren}
           </span>
-          <span className="num ml-auto shrink-0 text-xs tabular-nums text-ink">
+          <span className="ml-auto shrink-0 text-xs tabular-nums text-ink">
             {usdCompact(n.spend)}
           </span>
         </div>
@@ -222,7 +222,7 @@ const CreativeNodeView = memo(function CreativeNodeView({
           <div className="mt-1.5 flex items-center gap-1.5">
             <span className="shrink-0 text-[10px] text-ink-3">{STATUS_LABEL[n.status]}</span>
             <PriorityStars value={n.priority} className="origin-left scale-90" />
-            <span className="num ml-auto shrink-0 text-xs tabular-nums text-ink">
+            <span className="ml-auto shrink-0 text-xs tabular-nums text-ink">
               {n.spend > 0 ? usdCompact(n.spend) : "idle"}
             </span>
           </div>
@@ -555,7 +555,7 @@ function Flow({
                       </>
                     )}
                     {" · "}
-                    <span className="num tabular-nums text-ink">{usd(edge.spend)}</span>
+                    <span className="tabular-nums text-ink">{usd(edge.spend)}</span>
                   </p>
                   <p className="mt-0.5 max-w-[16rem] text-[11px] text-ink-3">
                     {share === null ? "—" : pct1(share)} of{" "}
@@ -583,11 +583,11 @@ function Flow({
             <p className="max-w-[16rem] truncate text-xs font-medium text-ink">{n.name}</p>
             <dl className="mt-1 grid grid-cols-[auto_auto] gap-x-3 gap-y-0.5 text-[11px]">
               <dt className="text-ink-3">Spend</dt>
-              <dd className="num text-right tabular-nums text-ink">{usd(n.spend)}</dd>
+              <dd className="text-right tabular-nums text-ink">{usd(n.spend)}</dd>
               <dt className="text-ink-3">Conversions</dt>
-              <dd className="num text-right tabular-nums text-ink">{int(n.conversions)}</dd>
+              <dd className="text-right tabular-nums text-ink">{int(n.conversions)}</dd>
               <dt className="text-ink-3">ROAS</dt>
-              <dd className="num text-right tabular-nums text-ink">
+              <dd className="text-right tabular-nums text-ink">
                 {roas(n.spend > 0 ? n.revenue / n.spend : null)}
               </dd>
             </dl>
@@ -619,7 +619,7 @@ function Flow({
                 </>
               )}
               {" · "}
-              <span className="num tabular-nums text-ink">{usd(edge.spend)}</span>
+              <span className="tabular-nums text-ink">{usd(edge.spend)}</span>
             </p>
             <p className="mt-0.5 max-w-[16rem] text-[11px] text-ink-3">
               {share === null ? "—" : pct1(share)} of{" "}

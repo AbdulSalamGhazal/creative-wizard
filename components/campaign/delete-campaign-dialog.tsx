@@ -123,7 +123,7 @@ export function DeleteCampaignDialog({
           <div className="rounded-lg border border-line bg-surface-2 p-3 space-y-2.5">
             <div className="flex items-baseline justify-between">
               <span className="text-xs text-ink-2">Performance records</span>
-              <span className="font-display text-2xl num text-ink leading-none">
+              <span className="font-display text-2xl tabular-nums text-ink leading-none">
                 {int(summary.records)}
               </span>
             </div>
@@ -140,7 +140,7 @@ export function DeleteCampaignDialog({
                       <span className="text-ink-3">
                         {PLATFORM_LABEL[p.platform]}
                       </span>
-                      <span className="text-ink-2 num">{int(p.records)}</span>
+                      <span className="text-ink-2 tabular-nums">{int(p.records)}</span>
                     </div>
                   ))}
                 </div>
@@ -150,7 +150,7 @@ export function DeleteCampaignDialog({
                     {summary.creatives === 1 ? "" : "s"} (kept)
                   </span>
                   {summary.firstDate && summary.lastDate && (
-                    <span className="num">
+                    <span className="tabular-nums">
                       {summary.firstDate} → {summary.lastDate}
                     </span>
                   )}

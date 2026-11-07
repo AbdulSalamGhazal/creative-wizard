@@ -96,20 +96,20 @@ function ThresholdInputs({
         </Label>
         <div className="relative">
           <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-3 text-xs">$</span>
-          <Input id={`${idPrefix}-minSpend`} inputMode="decimal" value={minSpend} onChange={(e) => setMinSpend(e.target.value)} className="h-9 pl-5 num" />
+          <Input id={`${idPrefix}-minSpend`} inputMode="decimal" value={minSpend} onChange={(e) => setMinSpend(e.target.value)} className="h-9 pl-5 tabular-nums" />
         </div>
       </div>
       <div className="space-y-1">
         <Label htmlFor={`${idPrefix}-goodRoas`} className="text-[11px]">Good when ROAS ≥</Label>
         <div className="relative">
-          <Input id={`${idPrefix}-goodRoas`} inputMode="decimal" value={goodRoas} onChange={(e) => setGoodRoas(e.target.value)} className="h-9 pr-6 num" />
+          <Input id={`${idPrefix}-goodRoas`} inputMode="decimal" value={goodRoas} onChange={(e) => setGoodRoas(e.target.value)} className="h-9 pr-6 tabular-nums" />
           <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-ink-3 text-xs">×</span>
         </div>
       </div>
       <div className="space-y-1">
         <Label htmlFor={`${idPrefix}-decentRoas`} className="text-[11px]">Decent when ROAS ≥</Label>
         <div className="relative">
-          <Input id={`${idPrefix}-decentRoas`} inputMode="decimal" value={decentRoas} onChange={(e) => setDecentRoas(e.target.value)} className="h-9 pr-6 num" />
+          <Input id={`${idPrefix}-decentRoas`} inputMode="decimal" value={decentRoas} onChange={(e) => setDecentRoas(e.target.value)} className="h-9 pr-6 tabular-nums" />
           <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-ink-3 text-xs">×</span>
         </div>
       </div>
@@ -167,7 +167,7 @@ function DefaultEditor({ rules }: { rules: RatingRules }) {
               <span className={"inline-flex items-center justify-center h-5 px-1.5 rounded text-[10px] border whitespace-nowrap w-14 " + RATING_META[t.rating].badgeClass}>
                 {RATING_META[t.rating].label}
               </span>
-              <span className="text-ink-2 num">{t.when}</span>
+              <span className="text-ink-2 tabular-nums">{t.when}</span>
             </li>
           ))}
         </ul>

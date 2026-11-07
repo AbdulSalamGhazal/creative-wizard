@@ -292,7 +292,7 @@ export function ExclusionRulesAdmin({
                     : "not applied"}
                   {r.note ? ` · “${r.note}”` : ""}
                   {r.createdByName ? ` · ${r.createdByName}` : ""} ·{" "}
-                  <span className="num">{isoDate(r.createdAt)}</span>
+                  <span className="tabular-nums">{isoDate(r.createdAt)}</span>
                 </p>
               </div>
               <Button
@@ -350,8 +350,8 @@ export function ExclusionRulesAdmin({
                       {pending.preview.from && pending.preview.to && (
                         <>
                           {" "}
-                          (<span className="num">{pending.preview.from}</span> →{" "}
-                          <span className="num">{pending.preview.to}</span>)
+                          (<span className="tabular-nums">{pending.preview.from}</span> →{" "}
+                          <span className="tabular-nums">{pending.preview.to}</span>)
                         </>
                       )}{" "}
                       from every aggregate, for everyone — and future uploads

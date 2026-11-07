@@ -336,10 +336,6 @@ body {
   --font-ui: var(--ff-jakarta);
 }
 
-.num {
-  font-variant-numeric: tabular-nums;
-}
-
 /* Keyboard focus — ONE ring for every control that doesn't draw its own.
    The shadcn primitives swap the outline for a `ring` (and set
    `outline-none`), so this only reaches the bare <button>/<a> chips — the

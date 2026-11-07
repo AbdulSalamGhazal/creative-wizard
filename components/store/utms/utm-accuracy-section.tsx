@@ -150,8 +150,8 @@ export function UtmAccuracySection({
         align: "right",
         sortable: true,
         sortValue: (r) => r.claimed,
-        render: (r) => <span className="num tabular-nums">{int(r.claimed)}</span>,
-        total: () => <span className="num tabular-nums">{int(totals.claimed)}</span>,
+        render: (r) => <span className="tabular-nums">{int(r.claimed)}</span>,
+        total: () => <span className="tabular-nums">{int(totals.claimed)}</span>,
       },
       {
         key: "utm",
@@ -159,8 +159,8 @@ export function UtmAccuracySection({
         align: "right",
         sortable: true,
         sortValue: (r) => r.utm,
-        render: (r) => <span className="num tabular-nums">{int(r.utm)}</span>,
-        total: () => <span className="num tabular-nums">{int(totals.utm)}</span>,
+        render: (r) => <span className="tabular-nums">{int(r.utm)}</span>,
+        total: () => <span className="tabular-nums">{int(totals.utm)}</span>,
       },
       {
         key: "delta",
@@ -169,11 +169,11 @@ export function UtmAccuracySection({
         sortable: true,
         sortValue: (r) => r.delta,
         render: (r) => (
-          <span className="num tabular-nums" title="Claimed − UTM orders">
+          <span className="tabular-nums" title="Claimed − UTM orders">
             {signedInt(r.delta)}
           </span>
         ),
-        total: () => <span className="num tabular-nums">{signedInt(totals.delta)}</span>,
+        total: () => <span className="tabular-nums">{signedInt(totals.delta)}</span>,
       },
       {
         key: "deltaPct",
@@ -184,7 +184,7 @@ export function UtmAccuracySection({
         csv: (r) => r.deltaPct,
         render: (r) => (
           <span
-            className={cn("num tabular-nums", reconDeltaTone(r.deltaPct) === "warn" && "text-warn")}
+            className={cn("tabular-nums", reconDeltaTone(r.deltaPct) === "warn" && "text-warn")}
             title="Δ as a share of UTM orders"
           >
             {signedPct(r.deltaPct)}
@@ -192,7 +192,7 @@ export function UtmAccuracySection({
         ),
         total: () => (
           <span
-            className={cn("num tabular-nums", reconDeltaTone(totals.deltaPct) === "warn" && "text-warn")}
+            className={cn("tabular-nums", reconDeltaTone(totals.deltaPct) === "warn" && "text-warn")}
           >
             {signedPct(totals.deltaPct)}
           </span>
@@ -205,8 +205,8 @@ export function UtmAccuracySection({
         sortable: true,
         sortValue: (r) => r.ratio,
         csv: (r) => r.ratio,
-        render: (r) => <span className="num tabular-nums">{ratioX(r.ratio)}</span>,
-        total: () => <span className="num tabular-nums">{ratioX(totals.ratio)}</span>,
+        render: (r) => <span className="tabular-nums">{ratioX(r.ratio)}</span>,
+        total: () => <span className="tabular-nums">{ratioX(totals.ratio)}</span>,
       },
     ],
     [totals],
@@ -314,12 +314,12 @@ export function UtmAccuracySection({
                                 <div key={s} className="flex items-center gap-2">
                                   <span className="h-2 w-2 rounded-full" style={{ background: SIDE_COLOR[s] }} />
                                   <span className="text-ink-3">{SIDE_LABEL[s]}</span>
-                                  <span className="num tabular-nums text-ink ml-auto">{int(d[s])}</span>
+                                  <span className="tabular-nums text-ink ml-auto">{int(d[s])}</span>
                                 </div>
                               ))}
                               <div className="mt-1 flex items-center gap-2 border-t border-line pt-1">
                                 <span className="text-ink-3">Δ</span>
-                                <span className="num tabular-nums text-ink ml-auto">
+                                <span className="tabular-nums text-ink ml-auto">
                                   {signedInt(r.delta)} ({signedPct(r.deltaPct)})
                                 </span>
                               </div>
@@ -411,7 +411,7 @@ function PlatformPanel({
         <PlatformDot platform={platform} size="sm" />
         <span className="text-xs font-medium text-ink">{PLATFORM_LABEL[platform]}</span>
         <span
-          className={cn("ml-auto num tabular-nums text-xs", warn ? "text-warn" : "text-ink-3")}
+          className={cn("ml-auto tabular-nums text-xs", warn ? "text-warn" : "text-ink-3")}
           title="Claimed per UTM order over the range"
         >
           {ratioX(row.ratio)}
@@ -448,7 +448,7 @@ function PlatformPanel({
                       <div key={s} className="flex items-center gap-2">
                         <span className="h-2 w-2 rounded-full" style={{ background: SIDE_COLOR[s] }} />
                         <span className="text-ink-3">{SIDE_LABEL[s]}</span>
-                        <span className="num tabular-nums text-ink ml-auto">{int(point.values[s])}</span>
+                        <span className="tabular-nums text-ink ml-auto">{int(point.values[s])}</span>
                       </div>
                     ))}
                   </ChartTooltip>

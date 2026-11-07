@@ -127,7 +127,7 @@ export function BulkCreativeImport({ products }: Props) {
           {isPending && !preview ? "Validating…" : "Validate file"}
         </Button>
         {preview?.ok && (
-          <span className="text-xs text-ink-2 num">
+          <span className="text-xs text-ink-2 tabular-nums">
             {preview.total} row{preview.total === 1 ? "" : "s"} ·{" "}
             <span className="text-pos">{preview.validCount} valid</span>
             {preview.errorCount > 0 && (
@@ -152,7 +152,7 @@ export function BulkCreativeImport({ products }: Props) {
       {preview?.ok && preview.rows.length > 0 && (
         <div className="space-y-3">
           <div className="overflow-x-auto rounded-lg border border-line bg-surface">
-            <table className="w-full text-xs num">
+            <table className="w-full text-xs tabular-nums">
               <thead>
                 <tr className="text-left text-eyebrow text-ink-3 border-b border-line">
                   <th className="font-medium px-3 py-2 w-10">Row</th>

@@ -312,7 +312,7 @@ export function BudgetPlanUpload({
                 <ul className="max-h-48 space-y-0.5 overflow-y-auto">
                   {issues.map((i, k) => (
                     <li key={`${i.cell}-${k}`} className="text-[11px] text-ink-2">
-                      <span className="num text-ink-3">{i.cell}</span> — {i.message}
+                      <span className="tabular-nums text-ink-3">{i.cell}</span> — {i.message}
                     </li>
                   ))}
                 </ul>
@@ -432,7 +432,7 @@ export function BudgetPlanUpload({
                               <td
                                 key={c.objective}
                                 className={cn(
-                                  "py-1 text-right num tabular-nums whitespace-nowrap",
+                                  "py-1 text-right tabular-nums whitespace-nowrap",
                                   c.change === "same" ? "text-ink-3" : "text-ink",
                                 )}
                               >
@@ -453,7 +453,7 @@ export function BudgetPlanUpload({
                                 )}
                               </td>
                             ))}
-                            <td className="py-1 text-right num tabular-nums whitespace-nowrap text-ink-2">
+                            <td className="py-1 text-right tabular-nums whitespace-nowrap text-ink-2">
                               {usd(row.next)}
                             </td>
                           </tr>
@@ -485,14 +485,14 @@ export function BudgetPlanUpload({
                     />
                     <div className="flex flex-wrap items-baseline justify-between gap-x-3 border-t border-line pt-1">
                       <dt className="font-medium text-ink">Total budget</dt>
-                      <dd className="num tabular-nums text-ink">
+                      <dd className="tabular-nums text-ink">
                         {usd(totals.total)}{" "}
                         <span className="text-ink-3">· {sar(round2(totals.total * rate))}</span>
                       </dd>
                     </div>
                     <div className="flex flex-wrap items-baseline justify-between gap-x-3">
                       <dt className="text-ink-2">Revenue target</dt>
-                      <dd className="num tabular-nums text-ink-2">
+                      <dd className="tabular-nums text-ink-2">
                         {targetRevenue === null ? "—" : sar(targetRevenue)}{" "}
                         <span className="text-ink-3">
                           · ROAS {roas(targetRoas)}
@@ -580,9 +580,9 @@ function Line({
     <div className="flex flex-wrap items-baseline justify-between gap-x-3">
       <dt className="text-ink-2">
         {label}
-        {was !== undefined && <span className="ml-1.5 num text-ink-3 line-through">{usd(was)}</span>}
+        {was !== undefined && <span className="ml-1.5 tabular-nums text-ink-3 line-through">{usd(was)}</span>}
       </dt>
-      <dd className="num tabular-nums text-ink-2">
+      <dd className="tabular-nums text-ink-2">
         {usd(value)} <span className="text-ink-3">· {sar(round2(value * rate))}</span>
       </dd>
     </div>

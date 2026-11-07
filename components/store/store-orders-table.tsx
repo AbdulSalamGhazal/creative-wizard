@@ -104,7 +104,7 @@ export function StoreOrdersTable({
         key: "order_date",
         label: "Date",
         sortable: true,
-        render: (r) => <span className="num">{isoDate(r.orderDate)}</span>,
+        render: (r) => <span className="tabular-nums">{isoDate(r.orderDate)}</span>,
         sortValue: (r) => r.orderDate,
         defaultSortDir: "desc",
       },
@@ -113,11 +113,11 @@ export function StoreOrdersTable({
         label: "Total (SAR)",
         align: "right",
         sortable: true,
-        render: (r) => <span className="num tabular-nums">{sar(r.totalAmount)}</span>,
+        render: (r) => <span className="tabular-nums">{sar(r.totalAmount)}</span>,
         sortValue: (r) => r.totalAmount,
         defaultSortDir: "desc",
         total: () => (
-          <span className="num tabular-nums font-semibold">{sar(sumTotal)}</span>
+          <span className="tabular-nums font-semibold">{sar(sumTotal)}</span>
         ),
       },
       ...customCols.map((f): DataColumn<StoreOrderRow> => {
@@ -133,7 +133,7 @@ export function StoreOrdersTable({
               return v === undefined || v === null ? (
                 "—"
               ) : (
-                <span className="num tabular-nums">{num(Number(v))}</span>
+                <span className="tabular-nums">{num(Number(v))}</span>
               );
             },
             sortValue: (r) => {
@@ -149,7 +149,7 @@ export function StoreOrdersTable({
             sortable: true,
             render: (r) => {
               const v = get(r);
-              return v ? <span className="num">{isoDate(String(v))}</span> : "—";
+              return v ? <span className="tabular-nums">{isoDate(String(v))}</span> : "—";
             },
             sortValue: (r) => (get(r) ? String(get(r)) : null),
           };
@@ -258,7 +258,7 @@ export function StoreOrdersTable({
       {/* Pager */}
       {total > pageSize && (
         <div className="flex items-center justify-between gap-3 px-1 text-xs text-ink-3">
-          <span className="num">
+          <span className="tabular-nums">
             {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, total)} of{" "}
             {int(total)}
           </span>
@@ -273,7 +273,7 @@ export function StoreOrdersTable({
               <ChevronLeft className="h-3.5 w-3.5" />
               Prev
             </Button>
-            <span className="num">
+            <span className="tabular-nums">
               Page {page} / {totalPages}
             </span>
             <Button

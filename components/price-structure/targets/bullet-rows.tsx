@@ -40,7 +40,7 @@ export function BulletRows({ rows, target }: { rows: readonly OfferRow[]; target
     <div className="space-y-1.5">
       <div className="flex items-center gap-2.5">
         <div className="w-28 shrink-0 sm:w-48" />
-        <div className="relative h-4 flex-1 text-[10px] text-ink-3 num tabular-nums">
+        <div className="relative h-4 flex-1 text-[10px] text-ink-3 tabular-nums">
           {/* A phone's track is too short for every tick: show every other one. */}
           {axis.ticks.map((t, i) => (
             <span key={t} className={cn("absolute -translate-x-1/2", i % 2 === 1 && "max-sm:hidden")} style={{ left: `${pos(t)}%` }}>
@@ -71,7 +71,7 @@ export function BulletRows({ rows, target }: { rows: readonly OfferRow[]; target
               ))}
             </div>
             <div className="flex w-24 shrink-0 items-center justify-end gap-1.5 sm:w-32">
-              <span className={cn("num tabular-nums text-[11px]", Number.isFinite(value) && value < 0 ? "text-neg" : "text-ink")}>{fmt(value)}</span>
+              <span className={cn("tabular-nums text-[11px]", Number.isFinite(value) && value < 0 ? "text-neg" : "text-ink")}>{fmt(value)}</span>
               <StatusBadge status={status} compact />
             </div>
           </div>

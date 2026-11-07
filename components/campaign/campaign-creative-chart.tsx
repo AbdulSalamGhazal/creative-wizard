@@ -369,7 +369,7 @@ function ChartTip({
                 style={{ background: c.color }}
               />
               <span className="text-ink-2 truncate max-w-[10rem]">{c.name}</span>
-              <span className="ml-auto text-ink num tabular-nums">{cellFmt(kind, v)}</span>
+              <span className="ml-auto text-ink tabular-nums">{cellFmt(kind, v)}</span>
             </div>
           ))
         )}

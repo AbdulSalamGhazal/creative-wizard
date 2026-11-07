@@ -119,7 +119,7 @@ export function DeleteCreativeDialog({
               <span className="text-xs text-ink-2">
                 Attached performance records
               </span>
-              <span className="font-display text-2xl num text-ink leading-none">
+              <span className="font-display text-2xl tabular-nums text-ink leading-none">
                 {int(summary.records)}
               </span>
             </div>
@@ -136,7 +136,7 @@ export function DeleteCreativeDialog({
                       <span className="text-ink-3">
                         {PLATFORM_LABEL[p.platform]}
                       </span>
-                      <span className="text-ink-2 num">{int(p.records)}</span>
+                      <span className="text-ink-2 tabular-nums">{int(p.records)}</span>
                     </div>
                   ))}
                 </div>
@@ -146,7 +146,7 @@ export function DeleteCreativeDialog({
                     {summary.campaigns === 1 ? "" : "s"}
                   </span>
                   {summary.firstDate && summary.lastDate && (
-                    <span className="num">
+                    <span className="tabular-nums">
                       {summary.firstDate} → {summary.lastDate}
                     </span>
                   )}

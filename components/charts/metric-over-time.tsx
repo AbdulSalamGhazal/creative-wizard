@@ -374,13 +374,13 @@ function CustomTooltip({
             <span className="text-ink-2 truncate max-w-[110px]">
               {labelByKey.get(p.dataKey) ?? p.dataKey}
             </span>
-            <span className="ml-auto text-ink num">{fmt(p.value)}</span>
+            <span className="ml-auto text-ink tabular-nums">{fmt(p.value)}</span>
           </div>
         ))}
         {showTotal && (
           <div className="flex items-center gap-2 pt-1 mt-1 border-t border-line">
             <span className="text-ink-3">Total</span>
-            <span className="ml-auto text-ink num font-semibold">{fmt(total)}</span>
+            <span className="ml-auto text-ink tabular-nums font-semibold">{fmt(total)}</span>
           </div>
         )}
       </div>

@@ -84,7 +84,7 @@ export function FunnelRateTiles({
               </span>
               <DeltaBadge delta={delta} inverted={r.inverted} />
             </div>
-            <span className="font-display text-[2rem] leading-[0.95] num text-ink">
+            <span className="font-display text-[2rem] leading-[0.95] tabular-nums text-ink">
               {value}
             </span>
             <Sparkline

@@ -147,7 +147,7 @@ function TargetMatrix({ rows, targets }: { rows: readonly OfferRow[]; targets: r
           align: "right",
           render: (r) => (
             <span className="inline-flex items-center gap-1.5">
-              <span className="num tabular-nums">{formatMetric(t.metric, metricValue(r.r, t.metric))}</span>
+              <span className="tabular-nums">{formatMetric(t.metric, metricValue(r.r, t.metric))}</span>
               <StatusBadge status={statusAgainst(r.r, t)} compact />
             </span>
           ),

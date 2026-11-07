@@ -90,7 +90,7 @@ export async function PlatformsAdmin() {
                   <div className="text-eyebrow text-ink-3">
                     Required fields
                   </div>
-                  <div className="text-ink num mt-0.5">
+                  <div className="text-ink tabular-nums mt-0.5">
                     {requiredMapped}/{requiredFields.length}
                   </div>
                 </div>
@@ -98,7 +98,7 @@ export async function PlatformsAdmin() {
                   <div className="text-eyebrow text-ink-3">
                     All fields
                   </div>
-                  <div className="text-ink num mt-0.5">
+                  <div className="text-ink tabular-nums mt-0.5">
                     {totalMapped}/{allFields.length}
                   </div>
                 </div>
@@ -106,7 +106,7 @@ export async function PlatformsAdmin() {
                   <div className="text-eyebrow text-ink-3">
                     Performance rows
                   </div>
-                  <div className="text-ink num mt-0.5">{int(recordCount)}</div>
+                  <div className="text-ink tabular-nums mt-0.5">{int(recordCount)}</div>
                 </div>
               </div>
             </div>

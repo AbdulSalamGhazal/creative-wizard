@@ -72,7 +72,7 @@ export function TopMoversChart({
                     </div>
                   </div>
                   <span
-                    className="num shrink-0 w-16 text-right tabular-nums"
+                    className="shrink-0 w-16 text-right tabular-nums"
                     style={{ color: up ? "var(--pos)" : "var(--neg)" }}
                   >
                     {up ? "+" : "−"}

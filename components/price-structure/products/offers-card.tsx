@@ -144,7 +144,7 @@ export function OffersCard({
                 )}
               >
                 <GripVertical className="size-3 text-ink-3" aria-hidden />
-                <span className="num tabular-nums text-ink-3">{i + 1}</span>
+                <span className="tabular-nums text-ink-3">{i + 1}</span>
                 <span dir="auto" className="truncate">
                   {o.name || "Offer"}
                 </span>

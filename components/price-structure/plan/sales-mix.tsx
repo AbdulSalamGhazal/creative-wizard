@@ -136,15 +136,15 @@ export function SalesMix({
                     <span className="size-2 shrink-0 rounded-full" style={{ background: productColor(p.colorSlot) }} aria-hidden />
                     <span className="truncate font-medium text-ink" dir="auto">{p.name}</span>
                     {offersOff && (
-                      <span className="shrink-0 rounded border border-warn/50 px-1 text-[10px] text-warn num tabular-nums" title="This product's offer shares are scaled to 100%">
+                      <span className="shrink-0 rounded border border-warn/50 px-1 text-[10px] text-warn tabular-nums" title="This product's offer shares are scaled to 100%">
                         offers add to {pct1(O)}
                       </span>
                     )}
                   </span>
                   <NumberField value={plan.productShare[p.id] ?? 0} pct unit="%" min={0} size="xs" ariaLabel={`${p.name} share`} onChange={(v) => setProductShare(p.id, v)} />
-                  <span className="text-right num tabular-nums text-ink-2">{pct1(share)}</span>
-                  <span className="text-right num tabular-nums text-ink">{num2(plan.ordersPerDay * share * mult)}</span>
-                  <span className="text-right num tabular-nums text-ink">{pb.orders > 0 ? roas2(pb.platformRoas) : "—"}</span>
+                  <span className="text-right tabular-nums text-ink-2">{pct1(share)}</span>
+                  <span className="text-right tabular-nums text-ink">{num2(plan.ordersPerDay * share * mult)}</span>
+                  <span className="text-right tabular-nums text-ink">{pb.orders > 0 ? roas2(pb.platformRoas) : "—"}</span>
                 </div>
                 {p.offers.map((o) => {
                   const line = lines.find((l) => l.offer.id === o.id);
@@ -153,9 +153,9 @@ export function SalesMix({
                     <div key={o.id} className={row}>
                       <span className="truncate pl-6 text-ink-2" dir="auto">{o.name}</span>
                       <NumberField value={plan.offerShare[o.id] ?? 0} pct unit="%" min={0} size="xs" ariaLabel={`${o.name} share within ${p.name}`} onChange={(v) => setOfferShare(o.id, v)} />
-                      <span className="text-right num tabular-nums text-ink-3">{pct1(share * within)}</span>
-                      <span className="text-right num tabular-nums text-ink-2">{num2((line?.orders ?? 0) * mult)}</span>
-                      <span className="text-right num tabular-nums text-ink-2">{line ? roas2(line.r.platformRoas) : "—"}</span>
+                      <span className="text-right tabular-nums text-ink-3">{pct1(share * within)}</span>
+                      <span className="text-right tabular-nums text-ink-2">{num2((line?.orders ?? 0) * mult)}</span>
+                      <span className="text-right tabular-nums text-ink-2">{line ? roas2(line.r.platformRoas) : "—"}</span>
                     </div>
                   );
                 })}
@@ -164,10 +164,10 @@ export function SalesMix({
           })}
           <div className={cn(row, "border-t border-line bg-surface-2/40 font-medium")}>
             <span>Total</span>
-            <span className={cn("text-right num tabular-nums", Math.abs(P - 1) > SHARE_TOLERANCE ? "text-neg" : "text-ink")}>{pct1(P)}</span>
-            <span className="text-right num tabular-nums text-ink">100%</span>
-            <span className="text-right num tabular-nums text-ink">{num2(total.orders * mult)}</span>
-            <span className="text-right num tabular-nums text-ink">{total.orders > 0 ? roas2(total.platformRoas) : "—"}</span>
+            <span className={cn("text-right tabular-nums", Math.abs(P - 1) > SHARE_TOLERANCE ? "text-neg" : "text-ink")}>{pct1(P)}</span>
+            <span className="text-right tabular-nums text-ink">100%</span>
+            <span className="text-right tabular-nums text-ink">{num2(total.orders * mult)}</span>
+            <span className="text-right tabular-nums text-ink">{total.orders > 0 ? roas2(total.platformRoas) : "—"}</span>
           </div>
         </div>
       </div>

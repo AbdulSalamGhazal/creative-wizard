@@ -115,7 +115,7 @@ export function AudienceRecordDialog({
               value={date}
               max={today}
               onChange={(e) => setDate(e.target.value)}
-              className="h-9 w-44 num"
+              className="h-9 w-44 tabular-nums"
               aria-label="Measurement date"
             />
           </label>
@@ -162,7 +162,7 @@ export function AudienceRecordDialog({
                               setSizes((s) => ({ ...s, [key]: digits(e.target.value) }))
                             }
                             placeholder={known ? String(known.size) : "—"}
-                            className="h-8 w-full text-right num"
+                            className="h-8 w-full text-right tabular-nums"
                             aria-label={`${PLATFORM_LABEL[platform]} ${stage} audience size`}
                           />
                           <span

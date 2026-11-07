@@ -85,7 +85,7 @@ export function PriceStructureTable({
             <span className="truncate font-medium text-ink" dir="auto" title={r.product.name}>
               {r.product.name}
             </span>
-            <span className="hidden truncate text-ink-3 num tabular-nums sm:inline">
+            <span className="hidden truncate text-ink-3 tabular-nums sm:inline">
               cost {money0(r.product.unitCost)} · price {money0(r.product.price)} SAR
             </span>
           </span>
@@ -114,7 +114,7 @@ export function PriceStructureTable({
     const only = (fn: (row: OfferRow) => React.ReactNode) => (r: Row) => (r.kind === "offer" ? fn(r.row) : "");
     const cols: DataColumn<Row>[] = [
       { key: "offer", label: "Offer", pinned: true, render: offerCell },
-      { key: "units", label: "Units", align: "right", render: only((o) => <span className="num tabular-nums">{o.r.units}</span>) },
+      { key: "units", label: "Units", align: "right", render: only((o) => <span className="tabular-nums">{o.r.units}</span>) },
       { key: "list", label: "List price", align: "right", render: only((o) => <Num value={o.r.listPrice} kind="money2" title="List price of the units in the order" />) },
       { key: "pays", label: "Customer pays", align: "right", render: only((o) => <Num value={o.r.paidGross} kind="money2" title="Incl. VAT, after all discounts" />) },
       { key: "discount", label: "Discount", align: "right", render: only((o) => <Num value={o.r.discount} kind="pct1" title="Effective discount off list" red={false} />) },

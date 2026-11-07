@@ -239,8 +239,8 @@ export function StoreInsightsView({
         align: "right",
         sortable: true,
         sortValue: (r) => sortOf(r, r.orders),
-        render: (r) => <span className="num tabular-nums">{int(r.orders)}</span>,
-        total: () => <span className="num tabular-nums">{int(totals.orders)}</span>,
+        render: (r) => <span className="tabular-nums">{int(r.orders)}</span>,
+        total: () => <span className="tabular-nums">{int(totals.orders)}</span>,
       },
       {
         key: "ordersShare",
@@ -262,11 +262,11 @@ export function StoreInsightsView({
                 style={{ width: `${Math.min(100, (r.ordersShare ?? 0) * 100)}%` }}
               />
             </span>
-            <span className="num tabular-nums w-12">{pct1(r.ordersShare)}</span>
+            <span className="tabular-nums w-12">{pct1(r.ordersShare)}</span>
           </div>
         ),
         total: () => (
-          <span className="num tabular-nums">{empty ? "—" : pct1(1)}</span>
+          <span className="tabular-nums">{empty ? "—" : pct1(1)}</span>
         ),
       },
       {
@@ -275,8 +275,8 @@ export function StoreInsightsView({
         align: "right",
         sortable: true,
         sortValue: (r) => sortOf(r, r.revenue),
-        render: (r) => <span className="num tabular-nums">{sar(r.revenue)}</span>,
-        total: () => <span className="num tabular-nums">{sar(totals.revenue)}</span>,
+        render: (r) => <span className="tabular-nums">{sar(r.revenue)}</span>,
+        total: () => <span className="tabular-nums">{sar(totals.revenue)}</span>,
       },
       {
         key: "revenueShare",
@@ -285,9 +285,9 @@ export function StoreInsightsView({
         sortable: true,
         sortValue: (r) => sortOf(r, r.revenueShare),
         csv: (r) => (r.revenueShare === null ? null : r.revenueShare),
-        render: (r) => <span className="num tabular-nums">{pct1(r.revenueShare)}</span>,
+        render: (r) => <span className="tabular-nums">{pct1(r.revenueShare)}</span>,
         total: () => (
-          <span className="num tabular-nums">{empty ? "—" : pct1(1)}</span>
+          <span className="tabular-nums">{empty ? "—" : pct1(1)}</span>
         ),
       },
       {
@@ -297,10 +297,10 @@ export function StoreInsightsView({
         sortable: true,
         sortValue: (r) => sortOf(r, r.aov),
         render: (r) => (
-          <span className="num tabular-nums">{r.aov === null ? "—" : sar(r.aov)}</span>
+          <span className="tabular-nums">{r.aov === null ? "—" : sar(r.aov)}</span>
         ),
         total: () => (
-          <span className="num tabular-nums">
+          <span className="tabular-nums">
             {aov(totals.revenue, totals.orders) === null
               ? "—"
               : sar(aov(totals.revenue, totals.orders)!)}
@@ -554,7 +554,7 @@ export function StoreInsightsView({
                                   <span className="text-ink-3">
                                     {isRevenue ? "Revenue" : "Orders"}
                                   </span>
-                                  <span className="num tabular-nums text-ink ml-auto">
+                                  <span className="tabular-nums text-ink ml-auto">
                                     {typeof entry.value !== "number"
                                       ? "—"
                                       : isRevenue

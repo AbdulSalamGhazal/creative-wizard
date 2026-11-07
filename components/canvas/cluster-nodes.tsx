@@ -70,7 +70,7 @@ export const ChipNodeView = memo(function ChipNodeView({ data }: { data: ChipDat
       >
         {entity.name}
       </span>
-      <span className="num shrink-0 text-[10px] tabular-nums text-ink-2">
+      <span className="shrink-0 text-[10px] tabular-nums text-ink-2">
         {chip.edgeId ? usdCompact(chip.spend) : "idle"}
       </span>
     </div>

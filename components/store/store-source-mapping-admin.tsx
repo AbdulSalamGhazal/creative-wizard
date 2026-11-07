@@ -134,7 +134,7 @@ export function StoreSourceMappingAdmin({
                       >
                         {v.value}
                       </span>
-                      <span className="text-[11px] text-ink-3 num shrink-0">
+                      <span className="text-[11px] text-ink-3 tabular-nums shrink-0">
                         {int(v.count)}
                       </span>
                       {unmapped && (
@@ -195,7 +195,7 @@ export function StoreSourceMappingAdmin({
                     >
                       {v.value}
                     </span>
-                    <span className="text-[11px] text-ink-3 num shrink-0">
+                    <span className="text-[11px] text-ink-3 tabular-nums shrink-0">
                       {int(v.count)}
                     </span>
                     {current === "unset" && (

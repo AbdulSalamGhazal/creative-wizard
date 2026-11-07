@@ -263,7 +263,7 @@ function EventRow({ row }: { row: EntityActivityRow }) {
         <div className="flex min-w-0 items-baseline gap-2">
           <bdi className="min-w-0 truncate text-xs font-medium text-ink">{name}</bdi>
           <time
-            className="ml-auto shrink-0 text-[11px] text-ink-3 num"
+            className="ml-auto shrink-0 text-[11px] text-ink-3 tabular-nums"
             dateTime={row.at}
             title={dateTimeLabel(row.at)}
           >

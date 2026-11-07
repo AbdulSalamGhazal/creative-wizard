@@ -194,17 +194,17 @@ export default async function TrendsOverTimePage({
         </span>
         <span className="inline-flex items-center gap-2">
           <span className="text-ink-2">Spend</span>
-          <span className="num text-ink">{usd(k.current.spend)}</span>
+          <span className="tabular-nums text-ink">{usd(k.current.spend)}</span>
           <DeltaBadge delta={k.delta.spend} />
         </span>
         <span className="inline-flex items-center gap-2">
           <span className="text-ink-2">ROAS</span>
-          <span className="num text-ink">{roas(k.current.roas)}</span>
+          <span className="tabular-nums text-ink">{roas(k.current.roas)}</span>
           <DeltaBadge delta={k.delta.roas} />
         </span>
         <span className="inline-flex items-center gap-2">
           <span className="text-ink-2">CPA</span>
-          <span className="num text-ink">{usd(k.current.cpa)}</span>
+          <span className="tabular-nums text-ink">{usd(k.current.cpa)}</span>
           <DeltaBadge delta={k.delta.cpa} inverted />
         </span>
       </div>

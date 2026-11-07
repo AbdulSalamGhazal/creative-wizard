@@ -124,7 +124,7 @@ export function CreativeCard({
       </div>
 
       {/* Footer */}
-      <div className="px-3 py-2 border-t border-line flex items-center justify-between text-[11px] num">
+      <div className="px-3 py-2 border-t border-line flex items-center justify-between text-[11px] tabular-nums">
         <span className="text-ink-3">
           {row.launchDate ? isoDate(row.launchDate) : "Not launched"}
         </span>

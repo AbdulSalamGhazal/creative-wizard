@@ -119,7 +119,7 @@ export function CampaignCreateForm() {
         <div className="text-[10px] uppercase tracking-wide text-ink-3 mb-0.5">
           Will be stored as
         </div>
-        <div className="text-sm text-ink num break-all">
+        <div className="text-sm text-ink tabular-nums break-all">
           {preview || <span className="text-ink-3">—</span>}
         </div>
       </div>

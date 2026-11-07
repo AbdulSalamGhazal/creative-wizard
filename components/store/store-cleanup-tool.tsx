@@ -193,7 +193,7 @@ export function StoreCleanupTool({ batches }: { batches: CleanupBatch[] }) {
                 className="flex items-center gap-2"
               >
                 <span className="font-mono text-xs truncate">{b.fileName}</span>
-                <span className="ml-auto text-[11px] text-ink-3 num shrink-0">
+                <span className="ml-auto text-[11px] text-ink-3 tabular-nums shrink-0">
                   {isoDate(b.uploadedAt)}
                 </span>
               </DropdownMenuItem>
@@ -238,17 +238,17 @@ export function StoreCleanupTool({ batches }: { batches: CleanupBatch[] }) {
             <>
               <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-sm">
                 <span className="text-ink">
-                  <span className="num font-semibold">{int(preview.orders)}</span>{" "}
+                  <span className="tabular-nums font-semibold">{int(preview.orders)}</span>{" "}
                   <span className="text-ink-3">
                     order{preview.orders === 1 ? "" : "s"}
                   </span>
                 </span>
                 <span className="text-ink">
-                  <span className="num tabular-nums">{sar(preview.sumTotal)}</span>{" "}
+                  <span className="tabular-nums">{sar(preview.sumTotal)}</span>{" "}
                   <span className="text-ink-3">total</span>
                 </span>
                 {preview.from && preview.to && (
-                  <span className="text-ink-3 num text-xs">
+                  <span className="text-ink-3 tabular-nums text-xs">
                     {preview.from} → {preview.to}
                   </span>
                 )}

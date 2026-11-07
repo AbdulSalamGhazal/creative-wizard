@@ -42,7 +42,7 @@ function GoalCell({ result, meta }: { result: GoalSeekResult; meta: LeverMeta })
   else if (meta.unit === "pct") note = pp1(result.value - result.now);
   else if (result.now !== 0) note = signedPct1(result.value / result.now - 1);
   return (
-    <span className="num tabular-nums">
+    <span className="tabular-nums">
       {arrow} {leverValue(meta, result.value)}
       {note && <span className={cn("ml-1.5 text-[10px]", result.alreadyMet ? "text-pos" : "text-ink-3")}>{note}</span>}
     </span>
@@ -175,9 +175,9 @@ function LeverTable({ data, rows, target, lever, aText, bText }: { data: Version
         </span>
       ),
     },
-    { key: "now", label: `${meta.short} now`, align: "right", render: (r) => <span className="num tabular-nums">{formatMetric(target.metric, r.now)}</span> },
+    { key: "now", label: `${meta.short} now`, align: "right", render: (r) => <span className="tabular-nums">{formatMetric(target.metric, r.now)}</span> },
     { key: "status", label: "Status", align: "right", render: (r) => <StatusBadge status={statusAgainst(r.row.r, target)} compact /> },
-    { key: "leverNow", label: `${lm.label} now`, align: "right", render: (r) => <span className="num tabular-nums">{leverValue(lm, r.leverNow)}</span> },
+    { key: "leverNow", label: `${lm.label} now`, align: "right", render: (r) => <span className="tabular-nums">{leverValue(lm, r.leverNow)}</span> },
     { key: "a", label: "Needed for A", align: "right", render: (r) => <GoalCell result={r.a} meta={lm} /> },
     { key: "b", label: "Needed for B", align: "right", render: (r) => <GoalCell result={r.b} meta={lm} /> },
   ];
@@ -217,7 +217,7 @@ function OfferTable({ data, row, target, aText, bText }: { data: VersionData; ro
   );
   const columns: DataColumn<OfferLeverRow>[] = [
     { key: "lever", label: "Lever", pinned: true, render: (r) => r.meta.label },
-    { key: "now", label: "Now", align: "right", render: (r) => <span className="num tabular-nums">{leverValue(r.meta, r.now)}</span> },
+    { key: "now", label: "Now", align: "right", render: (r) => <span className="tabular-nums">{leverValue(r.meta, r.now)}</span> },
     { key: "a", label: `Needed for A (${aText})`, align: "right", render: (r) => <GoalCell result={r.a} meta={r.meta} /> },
     { key: "b", label: `Needed for B (${bText})`, align: "right", render: (r) => <GoalCell result={r.b} meta={r.meta} /> },
   ];

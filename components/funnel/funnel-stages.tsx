@@ -73,7 +73,7 @@ export function FunnelStages({
       <div className="flex items-baseline justify-between gap-3 mb-4">
         <h3 className="text-sm text-ink-2">Funnel</h3>
         <div className="flex items-center gap-3">
-          <span className="text-[11px] text-ink-3 num">
+          <span className="text-[11px] text-ink-3 tabular-nums">
             {intCompact(totals.impressions)} → {int(totals.conversions)} ·{" "}
             {pct(overall)} overall
           </span>
@@ -107,7 +107,7 @@ export function FunnelStages({
                 <span className="text-xs text-ink-2">{s.label}</span>
                 <span className="flex items-baseline gap-2">
                   {compare && <CountDelta cur={count} cmp={cmp} />}
-                  <span className="text-xs text-ink num tabular-nums">
+                  <span className="text-xs text-ink tabular-nums">
                     {int(count)}
                   </span>
                 </span>
@@ -134,7 +134,7 @@ export function FunnelStages({
                     />
                   )}
                 </div>
-                <span className="w-24 shrink-0 text-right text-[11px] text-ink-3 num tabular-nums">
+                <span className="w-24 shrink-0 text-right text-[11px] text-ink-3 tabular-nums">
                   {stepRate !== null ? (
                     <>
                       ↓ {pct(stepRate)}
@@ -162,11 +162,11 @@ export function FunnelStages({
 
 function CountDelta({ cur, cmp }: { cur: number; cmp: number }) {
   if (cmp <= 0)
-    return <span className="text-[10px] text-ink-3 num">new</span>;
+    return <span className="text-[10px] text-ink-3 tabular-nums">new</span>;
   const d = (cur - cmp) / cmp;
   const up = d >= 0;
   return (
-    <span className={cn("text-[10px] num tabular-nums", up ? "text-pos" : "text-neg")}>
+    <span className={cn("text-[10px] tabular-nums", up ? "text-pos" : "text-neg")}>
       {signedPct(d, 0)}
     </span>
   );

@@ -217,7 +217,7 @@ export function BudgetPlanRevisions({
           <History className="h-3.5 w-3.5" />
           Revisions
           {revisions.length > 0 && (
-            <span className="ml-1 num text-ink-3">{int(revisions.length)}</span>
+            <span className="ml-1 tabular-nums text-ink-3">{int(revisions.length)}</span>
           )}
         </Button>
       </SheetTrigger>
@@ -254,7 +254,7 @@ export function BudgetPlanRevisions({
                     >
                       <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
                         <span className="text-sm text-ink">{when(r.createdAt)}</span>
-                        <span className="num tabular-nums text-sm text-ink-2">
+                        <span className="tabular-nums text-sm text-ink-2">
                           {usd(r.plannedTotal)}
                         </span>
                       </div>
@@ -267,7 +267,7 @@ export function BudgetPlanRevisions({
                             </span>
                           )}
                         </span>
-                        <span className="num">
+                        <span className="tabular-nums">
                           {plural(r.allocationCount, "allocation")}
                         </span>
                       </div>
@@ -365,7 +365,7 @@ export function BudgetPlanRevisions({
                               {a.objective}
                             </span>
                           </td>
-                          <td className="py-1 text-right num tabular-nums">
+                          <td className="py-1 text-right tabular-nums">
                             {usd(a.plannedSpend)}
                           </td>
                         </tr>
@@ -409,7 +409,7 @@ export function BudgetPlanRevisions({
                                     : "would change"}
                               </span>
                             </span>
-                            <span className="num tabular-nums whitespace-nowrap text-ink-2">
+                            <span className="tabular-nums whitespace-nowrap text-ink-2">
                               {d.to === null ? "—" : usd(d.to)} →{" "}
                               {d.from === null ? "—" : usd(d.from)}
                             </span>
@@ -418,7 +418,7 @@ export function BudgetPlanRevisions({
                         {diff?.revenueChanged && (
                           <li className="flex items-baseline justify-between gap-2 text-ink-2">
                             <span>Revenue target</span>
-                            <span className="num tabular-nums whitespace-nowrap">
+                            <span className="tabular-nums whitespace-nowrap">
                               {current.plannedRevenueSar !== null
                                 ? sar(current.plannedRevenueSar)
                                 : "—"}{" "}
@@ -432,7 +432,7 @@ export function BudgetPlanRevisions({
                         {diff?.reserveChanged && (
                           <li className="flex items-baseline justify-between gap-2 text-ink-2">
                             <span>Reserve</span>
-                            <span className="num tabular-nums whitespace-nowrap">
+                            <span className="tabular-nums whitespace-nowrap">
                               {usd(current.reserveSpendUsd)} →{" "}
                               {usd(snapshot.reserveSpendUsd)}
                             </span>
@@ -449,7 +449,7 @@ export function BudgetPlanRevisions({
                         {diff?.daysChanged && (
                           <li className="flex items-baseline justify-between gap-2 text-ink-2">
                             <span>Day cells</span>
-                            <span className="num tabular-nums whitespace-nowrap">
+                            <span className="tabular-nums whitespace-nowrap">
                               {diff.curDays === diff.revDays
                                 ? `${int(diff.curDays)} cells, changed`
                                 : `${int(diff.curDays)} → ${int(diff.revDays)} cells`}
@@ -459,7 +459,7 @@ export function BudgetPlanRevisions({
                         {diff?.targetRoasChanged && (
                           <li className="flex items-baseline justify-between gap-2 text-ink-2">
                             <span>Target ROAS</span>
-                            <span className="num tabular-nums whitespace-nowrap">
+                            <span className="tabular-nums whitespace-nowrap">
                               {roas(diff.curRoas)} →{" "}
                               {roas(diff.revRoas)}
                             </span>
@@ -468,7 +468,7 @@ export function BudgetPlanRevisions({
                         {diff?.weightsChanged && (
                           <li className="flex items-baseline justify-between gap-2 text-ink-2">
                             <span>Plan curve</span>
-                            <span className="num tabular-nums whitespace-nowrap">
+                            <span className="tabular-nums whitespace-nowrap">
                               {diff.curWeights === diff.revWeights
                                 ? `${int(diff.curWeights)} weighted days, moved`
                                 : `${int(diff.curWeights)} → ${int(diff.revWeights)} weighted days`}

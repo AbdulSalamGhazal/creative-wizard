@@ -176,7 +176,7 @@ export function CorrelationMatrix({ rows }: { rows: CreativeMetricRow[] }) {
                         return (
                           <div
                             key={colKey}
-                            className="aspect-square rounded-[3px] bg-surface-2/50 flex items-center justify-center text-ink-3 num"
+                            className="aspect-square rounded-[3px] bg-surface-2/50 flex items-center justify-center text-ink-3 tabular-nums"
                           >
                             1
                           </div>
@@ -200,7 +200,7 @@ export function CorrelationMatrix({ rows }: { rows: CreativeMetricRow[] }) {
                       return (
                         <div
                           key={colKey}
-                          className="aspect-square rounded-[3px] flex items-center justify-center num font-semibold text-ink"
+                          className="aspect-square rounded-[3px] flex items-center justify-center tabular-nums font-semibold text-ink"
                           style={{
                             backgroundColor: `color-mix(in srgb, ${base} ${pct}%, transparent)`,
                           }}

@@ -233,9 +233,9 @@ function FunnelTip({
               style={{ background: m.color }}
             />
             <span className="text-ink-2">{m.label}</span>
-            <span className="ml-auto text-ink num">{pct(byKey.get(m.key) ?? null)}</span>
+            <span className="ml-auto text-ink tabular-nums">{pct(byKey.get(m.key) ?? null)}</span>
             {compare && (
-              <span className="text-ink-3 num w-12 text-right">
+              <span className="text-ink-3 tabular-nums w-12 text-right">
                 {pct(byKey.get(`${m.key}_prev`) ?? null)}
               </span>
             )}

@@ -321,7 +321,7 @@ export function NotificationCenter({
                             )}
                           </span>
                           {unreadInGroup.length > 0 && (
-                            <span className="num rounded-full bg-brand px-1.5 text-[10px] leading-4 text-primary-foreground">
+                            <span className="tabular-nums rounded-full bg-brand px-1.5 text-[10px] leading-4 text-primary-foreground">
                               {unreadInGroup.length}
                             </span>
                           )}
@@ -390,7 +390,7 @@ export function NotificationCenter({
       {/* Pager */}
       {total > pageSize && (
         <div className="flex items-center justify-between gap-3 px-1 text-xs text-ink-3">
-          <span className="num">
+          <span className="tabular-nums">
             {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, total)} of {int(total)}
           </span>
           <div className="flex items-center gap-2">
@@ -404,7 +404,7 @@ export function NotificationCenter({
               <ChevronLeft className="h-3.5 w-3.5" />
               Prev
             </Button>
-            <span className="num">
+            <span className="tabular-nums">
               Page {page} / {totalPages}
             </span>
             <Button

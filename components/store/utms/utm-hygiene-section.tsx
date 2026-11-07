@@ -88,8 +88,8 @@ export function UtmHygieneSection({
                 >
                   {r.value}
                 </span>
-                <span className="num tabular-nums shrink-0 text-xs text-ink-2">{int(r.orders)}</span>
-                <span className="num tabular-nums w-12 shrink-0 text-right text-[11px] text-ink-3">
+                <span className="tabular-nums shrink-0 text-xs text-ink-2">{int(r.orders)}</span>
+                <span className="tabular-nums w-12 shrink-0 text-right text-[11px] text-ink-3">
                   {pct1(share(r.orders, totalOrders))}
                 </span>
                 {canConfig && (
@@ -136,7 +136,7 @@ export function UtmHygieneSection({
                       aria-hidden
                     />
                     <span className="truncate font-mono text-ink">{m.value}</span>
-                    <span className="num tabular-nums text-ink-3">{int(m.orders)}</span>
+                    <span className="tabular-nums text-ink-3">{int(m.orders)}</span>
                   </span>
                 ))}
                 <span className={cn("ml-auto text-[11px]", g.sameBucket ? "sr-only" : "text-warn")}>

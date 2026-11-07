@@ -222,7 +222,7 @@ export function AuditFeed({ rows, compact = false, filtered = false }: Props) {
               )}
             </div>
             <time
-              className="ml-auto text-[11px] text-ink-3 num shrink-0 tabular-nums"
+              className="ml-auto text-[11px] text-ink-3 shrink-0 tabular-nums"
               dateTime={row.at.toISOString()}
               title={row.at.toISOString()}
             >

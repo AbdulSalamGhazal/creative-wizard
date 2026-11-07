@@ -203,11 +203,11 @@ export default async function CampaignDetailPage({
             {meta.creativeCount} creative{meta.creativeCount === 1 ? "" : "s"}
           </Badge>
           {meta.firstDate && meta.lastDate && (
-            <Badge variant="outline" className="text-ink-3 num">
+            <Badge variant="outline" className="text-ink-3 tabular-nums">
               Active {isoDate(meta.firstDate)} → {isoDate(meta.lastDate)}
             </Badge>
           )}
-          <Badge variant="outline" className="text-ink-3 num">
+          <Badge variant="outline" className="text-ink-3 tabular-nums">
             {rangeLabel}
           </Badge>
         </div>

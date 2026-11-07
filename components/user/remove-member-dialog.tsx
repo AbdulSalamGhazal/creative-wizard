@@ -116,7 +116,7 @@ export function RemoveMemberDialog({
             <div className="flex items-baseline justify-between">
               <span className="text-xs text-ink-2">Work that stays, in their name</span>
               {kept ? (
-                <span className="num font-display text-2xl leading-none text-ink">{int(total)}</span>
+                <span className="tabular-nums font-display text-2xl leading-none text-ink">{int(total)}</span>
               ) : (
                 <Skeleton className="h-6 w-10" />
               )}
@@ -136,7 +136,7 @@ export function RemoveMemberDialog({
                     .map(([label, n]) => (
                       <div key={label} className="flex items-center justify-between">
                         <span className="text-ink-3">{label}</span>
-                        <span className="num text-ink-2">{int(n)}</span>
+                        <span className="tabular-nums text-ink-2">{int(n)}</span>
                       </div>
                     ))}
                 </div>

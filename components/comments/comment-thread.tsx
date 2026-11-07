@@ -420,7 +420,7 @@ export function CommentThread({
                 <button
                   type="button"
                   onClick={() => setExpanded((prev) => new Set(prev).add(root.id))}
-                  className="num px-2 py-1 text-[11px] text-brand hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50"
+                  className="tabular-nums px-2 py-1 text-[11px] text-brand hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50"
                 >
                   Show {hidden} earlier {hidden === 1 ? "reply" : "replies"}
                 </button>

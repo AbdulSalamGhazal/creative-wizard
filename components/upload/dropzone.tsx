@@ -58,7 +58,7 @@ export function Dropzone({ file, onFile, disabled }: Props) {
         </div>
         <div className="flex-1 min-w-0">
           <div className="text-sm text-ink truncate">{file.name}</div>
-          <div className="text-xs text-ink-3 num">
+          <div className="text-xs text-ink-3 tabular-nums">
             {prettyBytes(file.size)}
           </div>
         </div>

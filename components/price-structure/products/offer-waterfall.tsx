@@ -72,7 +72,7 @@ export function OfferWaterfall({ product, offer, data }: { product: Product; off
                 return (
                   <ChartTooltip>
                     <div className="mb-0.5 font-medium text-ink">{s.name}</div>
-                    <div className="num tabular-nums text-ink">{s.total ? "" : "− "}{money2(s.value)} SAR</div>
+                    <div className="tabular-nums text-ink">{s.total ? "" : "− "}{money2(s.value)} SAR</div>
                     <div className="text-ink-3">{r.netRevenue > 0 ? pct1(s.value / r.netRevenue) : "—"} of net revenue</div>
                   </ChartTooltip>
                 );

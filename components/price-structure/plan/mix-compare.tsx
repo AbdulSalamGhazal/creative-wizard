@@ -61,8 +61,8 @@ export function MixCompare({ planLines, actualLines, planName, periodName, group
                 return (
                   <ChartTooltip>
                     <div className="font-medium text-ink" dir="auto">{d.label}</div>
-                    <div className="num tabular-nums text-ink-2">{planLabel}: {pct1(d.plan)}</div>
-                    <div className="num tabular-nums text-ink-2">{actualLabel}: {pct1(d.actual)}</div>
+                    <div className="tabular-nums text-ink-2">{planLabel}: {pct1(d.plan)}</div>
+                    <div className="tabular-nums text-ink-2">{actualLabel}: {pct1(d.actual)}</div>
                   </ChartTooltip>
                 );
               }}

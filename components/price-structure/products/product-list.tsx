@@ -78,7 +78,7 @@ export function ProductList({
                     <span dir="auto" className={cn("block truncate", active ? "text-ink" : "text-ink-2")} title={p.name}>
                       {p.name}
                     </span>
-                    <span className="block text-[11px] text-ink-3 num tabular-nums">{summary(p)}</span>
+                    <span className="block text-[11px] text-ink-3 tabular-nums">{summary(p)}</span>
                   </span>
                 </button>
               </li>

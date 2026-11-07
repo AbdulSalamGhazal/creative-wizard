@@ -370,19 +370,19 @@ export function CleanupTool({ products, creatives, campaigns }: Props) {
             <>
               <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-sm">
                 <span className="text-ink">
-                  <span className="num font-semibold">{int(preview.rows)}</span>{" "}
+                  <span className="tabular-nums font-semibold">{int(preview.rows)}</span>{" "}
                   <span className="text-ink-3">rows</span>
                 </span>
                 <span className="text-ink">
-                  <span className="num">{usd(preview.spend)}</span>{" "}
+                  <span className="tabular-nums">{usd(preview.spend)}</span>{" "}
                   <span className="text-ink-3">spend</span>
                 </span>
                 <span className="text-ink">
-                  <span className="num">{int(preview.creatives)}</span>{" "}
+                  <span className="tabular-nums">{int(preview.creatives)}</span>{" "}
                   <span className="text-ink-3">creatives</span>
                 </span>
                 {preview.from && preview.to && (
-                  <span className="text-ink-3 num text-xs">
+                  <span className="text-ink-3 tabular-nums text-xs">
                     {preview.from} → {preview.to}
                   </span>
                 )}

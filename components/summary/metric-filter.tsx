@@ -168,7 +168,7 @@ export function MetricFilterControl({ platforms }: Props) {
                   {METRIC_META[c.metric].label}
                 </span>
                 <span className="text-ink-3">{OP_SYMBOL[c.op]}</span>
-                <span className="text-ink num tabular-nums">
+                <span className="text-ink tabular-nums">
                   {formatValue(c.metric, c.value)}
                 </span>
                 <button

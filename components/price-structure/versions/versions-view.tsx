@@ -158,21 +158,21 @@ export function VersionsView() {
           );
         },
       },
-      { key: "products", label: "Products", align: "right", render: (r) => <span className="num tabular-nums">{summarise(r).products}</span> },
-      { key: "offers", label: "Offers", align: "right", render: (r) => <span className="num tabular-nums">{summarise(r).offers}</span> },
-      { key: "avg", label: "Avg CML %", align: "right", render: (r) => <span className="num tabular-nums">{pct2(summarise(r).avgMargin)}</span> },
-      { key: "baked", label: "Baked-in ROAS", align: "right", render: (r) => <span className="num tabular-nums">{roas2(summarise(r).baked)}</span> },
+      { key: "products", label: "Products", align: "right", render: (r) => <span className="tabular-nums">{summarise(r).products}</span> },
+      { key: "offers", label: "Offers", align: "right", render: (r) => <span className="tabular-nums">{summarise(r).offers}</span> },
+      { key: "avg", label: "Avg CML %", align: "right", render: (r) => <span className="tabular-nums">{pct2(summarise(r).avgMargin)}</span> },
+      { key: "baked", label: "Baked-in ROAS", align: "right", render: (r) => <span className="tabular-nums">{roas2(summarise(r).baked)}</span> },
       {
         key: "roasAB",
         label: "ROAS for A / B",
         align: "right",
         render: (r) => {
           const s = summarise(r);
-          return <span className="num tabular-nums">{roas2(s.roasA)} / {roas2(s.roasB)}</span>;
+          return <span className="tabular-nums">{roas2(s.roasA)} / {roas2(s.roasB)}</span>;
         },
       },
-      { key: "periods", label: "Actual periods", align: "right", render: (r) => <span className="num tabular-nums">{summarise(r).periods}</span> },
-      { key: "opened", label: "Last opened", align: "right", render: (r) => <span className="num tabular-nums text-ink-2">{WHEN.format(new Date(r.openedAt))}</span> },
+      { key: "periods", label: "Actual periods", align: "right", render: (r) => <span className="tabular-nums">{summarise(r).periods}</span> },
+      { key: "opened", label: "Last opened", align: "right", render: (r) => <span className="tabular-nums text-ink-2">{WHEN.format(new Date(r.openedAt))}</span> },
       {
         key: "actions",
         label: "Actions",

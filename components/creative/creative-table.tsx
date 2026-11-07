@@ -202,7 +202,7 @@ export function CreativeTable({
         label: "Launch date",
         sortable: true,
         render: (r) => (
-          <span className="num text-ink-2">
+          <span className="tabular-nums text-ink-2">
             {r.launchDate ? isoDate(r.launchDate) : "—"}
           </span>
         ),
@@ -213,7 +213,7 @@ export function CreativeTable({
         align: "right",
         sortable: true,
         render: (r) => (
-          <span className="num tabular-nums text-ink">
+          <span className="tabular-nums text-ink">
             {r.spend7d > 0 ? usd(r.spend7d) : "—"}
           </span>
         ),
@@ -224,7 +224,7 @@ export function CreativeTable({
         align: "right",
         sortable: true,
         render: (r) => (
-          <span className="num tabular-nums text-ink">
+          <span className="tabular-nums text-ink">
             {r.spend30d > 0 ? usd(r.spend30d) : "—"}
           </span>
         ),
@@ -271,7 +271,7 @@ export function CreativeTable({
         key: "createdAt",
         label: "Created at",
         render: (r) => (
-          <span className="num text-ink-2">{isoDate(r.createdAt)}</span>
+          <span className="tabular-nums text-ink-2">{isoDate(r.createdAt)}</span>
         ),
       },
     ],
@@ -291,7 +291,7 @@ export function CreativeTable({
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="num text-xs text-ink-3">
+        <p className="tabular-nums text-xs text-ink-3">
           Showing {rows.length}
           {total !== undefined ? ` of ${total}` : ""} creatives
         </p>

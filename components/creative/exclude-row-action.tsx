@@ -150,7 +150,7 @@ export function ExcludeRowAction({ recordId, excluded, excludedSource, context }
             </span>
             <span
               className={cn(
-                "num",
+                "tabular-nums",
                 reason.length > REASON_MAX ? "text-neg" : "text-ink-3",
               )}
             >

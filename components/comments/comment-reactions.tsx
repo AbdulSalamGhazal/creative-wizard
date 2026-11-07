@@ -209,7 +209,7 @@ export function ReactionPills({
           )}
         >
           <span aria-hidden>{reactionEmoji(r.kind)}</span>
-          <span className="num">{r.count}</span>
+          <span className="tabular-nums">{r.count}</span>
         </button>
       ))}
     </div>

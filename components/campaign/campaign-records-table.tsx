@@ -286,7 +286,7 @@ export function CampaignRecordsTable({
           ))}
         </div>
         <div className="flex items-center gap-3">
-          <span className="text-[11px] text-ink-3 num">
+          <span className="text-[11px] text-ink-3 tabular-nums">
             {mode === "raw"
               ? `${records.length}${truncated ? "+" : ""} records`
               : `${byDay.length} days`}

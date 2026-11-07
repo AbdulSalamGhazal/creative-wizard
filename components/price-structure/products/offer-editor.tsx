@@ -95,7 +95,7 @@ export function OfferEditor({
       )}
     >
       <div className="flex flex-wrap items-center gap-2">
-        <span className="num tabular-nums text-xs text-ink-3">{index + 1}</span>
+        <span className="tabular-nums text-xs text-ink-3">{index + 1}</span>
         <input
           id={ids.name}
           aria-label="Offer name"
@@ -286,10 +286,10 @@ export function OfferEditor({
             label="ROAS for A / B"
             title={needed ? `Platform ROAS needed for ${needed.text}` : "Set a CML target on the Targets page"}
           >
-            {needed ? <span className="num tabular-nums">{roas2(needed.a.roas)} / {roas2(needed.b.roas)}</span> : "—"}
+            {needed ? <span className="tabular-nums">{roas2(needed.a.roas)} / {roas2(needed.b.roas)}</span> : "—"}
           </Result>
           <Result label="Max CPA for A / B" title={needed ? `CPA per placed order allowed for ${needed.text}` : "Set a CML target on the Targets page"}>
-            {needed ? <span className="num tabular-nums">{usd2(needed.a.maxCpaUsd)} / {usd2(needed.b.maxCpaUsd)}</span> : "—"}
+            {needed ? <span className="tabular-nums">{usd2(needed.a.maxCpaUsd)} / {usd2(needed.b.maxCpaUsd)}</span> : "—"}
           </Result>
           <Result label="COGS %" title="Product cost ÷ net revenue."><Num value={r.cogsPct} kind="pct2" /></Result>
         </dl>

@@ -112,7 +112,7 @@ export function FunnelRates({
                 {r.delta ? <Trend delta={r.delta} inverted={r.inverted} /> : null}
               </div>
               <span
-                className="font-display leading-[0.95] num text-ink"
+                className="font-display leading-[0.95] tabular-nums text-ink"
                 style={{ fontSize: displayValueFontSize(r.value, "3rem") }}
               >
                 {r.value}
@@ -143,7 +143,7 @@ function Trend({ delta, inverted }: { delta: Delta; inverted?: boolean }) {
   const Icon = up ? ArrowUpRight : ArrowDownRight;
   return (
     <span
-      className={`inline-flex items-center gap-0.5 text-sm font-semibold num ${
+      className={`inline-flex items-center gap-0.5 text-sm font-semibold tabular-nums ${
         good ? "text-pos" : "text-neg"
       }`}
     >

@@ -43,7 +43,7 @@ export function OfferRoasChart({ lines, total }: { lines: readonly Line[]; total
                     <ChartTooltip>
                       <div className="font-medium text-ink" dir="auto">{d.label}</div>
                       <div className="text-ink-3" dir="auto">{d.sub}</div>
-                      <div className="mt-1 num tabular-nums text-ink">Platform ROAS {roas2(d.value)}</div>
+                      <div className="mt-1 tabular-nums text-ink">Platform ROAS {roas2(d.value)}</div>
                     </ChartTooltip>
                   );
                 }}

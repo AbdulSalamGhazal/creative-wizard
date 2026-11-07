@@ -345,7 +345,7 @@ function SpendCard({
         context={
           reserve > 0 ? (
             <>
-              + <span className="num tabular-nums text-ink-2">{fmt(reserve)}</span> reserve
+              + <span className="tabular-nums text-ink-2">{fmt(reserve)}</span> reserve
             </>
           ) : null
         }
@@ -362,11 +362,11 @@ function SpendCard({
       value={fmt(bar.actual)}
       context={
         <>
-          of <span className="num tabular-nums text-ink-2">{fmt(bar.plan)}</span>
+          of <span className="tabular-nums text-ink-2">{fmt(bar.plan)}</span>
           {reserve > 0 && (
             <>
               {" "}
-              + <span className="num tabular-nums text-ink-2">{fmt(reserve)}</span> reserve
+              + <span className="tabular-nums text-ink-2">{fmt(reserve)}</span> reserve
             </>
           )}
         </>
@@ -408,7 +408,7 @@ function RevenueCard({
 }) {
   const bar = t.revenue;
   const ordersAside = (
-    <span className="num tabular-nums text-[11px] text-ink-3">{int(orders)} orders</span>
+    <span className="tabular-nums text-[11px] text-ink-3">{int(orders)} orders</span>
   );
   if (bar.target === null) {
     return <Hero label="Revenue" value={sar(bar.actual)} aside={ordersAside} context="no target" />;
@@ -433,7 +433,7 @@ function RevenueCard({
       aside={ordersAside}
       context={
         <>
-          of <span className="num tabular-nums text-ink-2">{sar(bar.target)}</span>
+          of <span className="tabular-nums text-ink-2">{sar(bar.target)}</span>
         </>
       }
     >
@@ -523,7 +523,7 @@ function RoasCard({
       value={fmtRoas(figures.actual)}
       context={
         <>
-          target <span className="num tabular-nums text-ink-2">{fmtRoas(figures.target)}</span>{" "}
+          target <span className="tabular-nums text-ink-2">{fmtRoas(figures.target)}</span>{" "}
           · {rateNote}
         </>
       }
@@ -545,7 +545,7 @@ function RoasCard({
           <p className="mt-2 flex flex-wrap items-baseline gap-x-1.5 text-xs">
             <Verdict bar={bar} fmt={fmtRoas} variant="target" />
             {figures.projected !== null && (
-              <span className="num tabular-nums text-ink-3">
+              <span className="tabular-nums text-ink-3">
                 · projected {fmtRoas(figures.projected)}
               </span>
             )}
@@ -813,7 +813,7 @@ function MonthChart({
                                 style={{ background: def?.color ?? entry.color }}
                               />
                               <span className="text-ink-3">{def?.label ?? key}</span>
-                              <span className="num tabular-nums ml-auto text-ink">
+                              <span className="tabular-nums ml-auto text-ink">
                                 {fmtValue(entry.value as number)}
                               </span>
                             </div>
@@ -970,7 +970,7 @@ function PaceBoard({
                         className="text-[11px] text-ink-3"
                         title="No plan for this platform this month — its spend draws on the reserve"
                       >
-                        <span className="num tabular-nums text-ink">{fmt(p.actual)}</span> spent ·
+                        <span className="tabular-nums text-ink">{fmt(p.actual)}</span> spent ·
                         no plan
                       </p>
                     )}
@@ -1002,7 +1002,7 @@ function PaceBoard({
                   title={`No allocation for ${p.unplannedBuckets.map((u) => u.label).join(", ")} — spend in a bucket the plan has no line for`}
                 >
                   Unplanned{" "}
-                  <span className="num tabular-nums text-ink">{fmt(p.unplanned)}</span>
+                  <span className="tabular-nums text-ink">{fmt(p.unplanned)}</span>
                   {` · ${p.unplannedBuckets.map((u) => u.label).join(", ")}`}
                 </p>
               )}
@@ -1124,13 +1124,13 @@ function EmptyMonth({
             <p>
               {spent > 0 && (
                 <>
-                  <span className="num tabular-nums text-ink-2">{fmt(spent)}</span> spent
+                  <span className="tabular-nums text-ink-2">{fmt(spent)}</span> spent
                 </>
               )}
               {spent > 0 && revenue > 0 && " and "}
               {revenue > 0 && (
                 <>
-                  <span className="num tabular-nums text-ink-2">{sar(revenue)}</span> in revenue
+                  <span className="tabular-nums text-ink-2">{sar(revenue)}</span> in revenue
                 </>
               )}
               {" so far — nothing to pace it against yet."}

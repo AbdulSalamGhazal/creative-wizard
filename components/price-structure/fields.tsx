@@ -117,7 +117,7 @@ export function NumberField({
     onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => {
       if (e.key === "Escape" || e.key === "Enter") e.currentTarget.blur();
     },
-    className: cn(size === "xs" ? "h-7 text-xs" : "h-8 text-sm", "num", className),
+    className: cn(size === "xs" ? "h-7 text-xs" : "h-8 text-sm", "tabular-nums", className),
   };
   if (unit) return <UnitInput {...common} unit={unit} wrapperClassName={wrapperClassName} />;
   return <Input {...common} className={cn(common.className, "text-right")} />;

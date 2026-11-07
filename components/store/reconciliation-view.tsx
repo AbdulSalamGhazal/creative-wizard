@@ -305,14 +305,14 @@ export function ReconciliationView({
   const channelColumns: DataColumn<ChannelRow>[] = useMemo(() => {
     const t = channelTotals;
     const td = channelDeltas(t);
-    const num = (v: number) => <span className="num tabular-nums">{int(v)}</span>;
+    const num = (v: number) => <span className="tabular-nums">{int(v)}</span>;
     const tot = (v: string) => (
-      <span className="num tabular-nums font-semibold">{v}</span>
+      <span className="tabular-nums font-semibold">{v}</span>
     );
     const pctCell = (pct: number | null, bold = false) => (
       <span
         className={cn(
-          "num tabular-nums",
+          "tabular-nums",
           bold && "font-semibold",
           reconDeltaTone(pct) === "warn" ? "text-warn" : "text-ink-2",
         )}
@@ -367,9 +367,9 @@ export function ReconciliationView({
         label: "Unmapped",
         align: "right",
         sortable: true,
-        render: (r) => <span className="num tabular-nums text-ink-3">{int(r.unmapped)}</span>,
+        render: (r) => <span className="tabular-nums text-ink-3">{int(r.unmapped)}</span>,
         sortValue: (r) => r.unmapped,
-        total: () => <span className="num tabular-nums font-semibold text-ink-3">{int(t.unmapped)}</span>,
+        total: () => <span className="tabular-nums font-semibold text-ink-3">{int(t.unmapped)}</span>,
       });
     }
     cols.push(
@@ -388,7 +388,7 @@ export function ReconciliationView({
         align: "right",
         sortable: true,
         render: (r) => (
-          <span className="num tabular-nums">
+          <span className="tabular-nums">
             {signed(channelDeltas(r).inclApp)}
           </span>
         ),
@@ -411,7 +411,7 @@ export function ReconciliationView({
         align: "right",
         sortable: true,
         render: (r) => (
-          <span className="num tabular-nums">
+          <span className="tabular-nums">
             {signed(channelDeltas(r).exclApp)}
           </span>
         ),
@@ -435,7 +435,7 @@ export function ReconciliationView({
         label: "Revenue (SAR)",
         align: "right",
         sortable: true,
-        render: (r) => <span className="num tabular-nums text-ink-2">{sar(r.revenue)}</span>,
+        render: (r) => <span className="tabular-nums text-ink-2">{sar(r.revenue)}</span>,
         sortValue: (r) => r.revenue,
         total: () => tot(sar(t.revenue)),
       },
@@ -444,7 +444,7 @@ export function ReconciliationView({
         label: "Spend (USD)",
         align: "right",
         sortable: true,
-        render: (r) => <span className="num tabular-nums text-ink-2">{usd(r.spend)}</span>,
+        render: (r) => <span className="tabular-nums text-ink-2">{usd(r.spend)}</span>,
         sortValue: (r) => r.spend,
         total: () => tot(usd(t.spend)),
       },
@@ -670,7 +670,7 @@ export function ReconciliationView({
 function DayCell({ day, isLag }: { day: string; isLag: boolean }) {
   return (
     <span className="inline-flex items-center gap-1.5">
-      <span className="num">{isoDate(day)}</span>
+      <span className="tabular-nums">{isoDate(day)}</span>
       {isLag && (
         <span
           className="h-1.5 w-1.5 rounded-full bg-ink-3/60"
@@ -811,7 +811,7 @@ function ByPlatformTable({
     <div className="space-y-2">
     <div className="relative isolate">
     <div className="overflow-x-auto rounded-lg border border-line bg-surface">
-      <table className="w-full min-w-[720px] border-collapse text-xs num">
+      <table className="w-full min-w-[720px] border-collapse text-xs tabular-nums">
         <thead className="sticky top-0 z-20 bg-surface">
           {/* Group banners */}
           <tr className="border-b border-line">

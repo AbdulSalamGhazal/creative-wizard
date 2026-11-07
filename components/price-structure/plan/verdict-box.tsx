@@ -52,20 +52,20 @@ export function VerdictBox({ verdict, actual, baked, planB, days, usdToSar }: { 
         {title}
       </p>
       <p className="mt-1 text-ink-2">
-        Ads returned <b className="text-ink num tabular-nums">{roas2(actual.platformRoas)}</b>. The mix you actually sold needed{" "}
-        <b className="text-ink num tabular-nums">{roas2(baked.platformRoas)}</b>, so you were{" "}
-        <b className={cn("num tabular-nums", ahead ? "text-pos" : "text-neg")}>
+        Ads returned <b className="text-ink tabular-nums">{roas2(actual.platformRoas)}</b>. The mix you actually sold needed{" "}
+        <b className="text-ink tabular-nums">{roas2(baked.platformRoas)}</b>, so you were{" "}
+        <b className={cn("tabular-nums", ahead ? "text-pos" : "text-neg")}>
           {pct1(Math.abs(verdict.gap))} {ahead ? "ahead" : "behind"}
         </b>
         .
       </p>
       <p className="mt-1 text-ink-2">
-        Your plan&rsquo;s mix needed <span className="num tabular-nums text-ink">{roas2(planB.platformRoas)}</span>. {mixLine}
+        Your plan&rsquo;s mix needed <span className="tabular-nums text-ink">{roas2(planB.platformRoas)}</span>. {mixLine}
       </p>
       <p className="mt-1 text-ink-2">
-        You spent <span className="num tabular-nums text-ink">{usd0(Math.abs(spendDiff) / usdToSar)}</span> {spendDiff >= 0 ? "more" : "less"} than the baked-in CPAs allow, so CML was{" "}
-        <span className="num tabular-nums text-ink">{money0(actual.profit * days)} SAR</span> instead of{" "}
-        <span className="num tabular-nums text-ink">{money0(baked.profit * days)} SAR</span>.
+        You spent <span className="tabular-nums text-ink">{usd0(Math.abs(spendDiff) / usdToSar)}</span> {spendDiff >= 0 ? "more" : "less"} than the baked-in CPAs allow, so CML was{" "}
+        <span className="tabular-nums text-ink">{money0(actual.profit * days)} SAR</span> instead of{" "}
+        <span className="tabular-nums text-ink">{money0(baked.profit * days)} SAR</span>.
       </p>
     </div>
   );

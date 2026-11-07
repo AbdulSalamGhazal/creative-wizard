@@ -82,7 +82,7 @@ export function CompareOffersChart({
                   <ChartTooltip>
                     <div className="font-medium text-ink" dir="auto">{d.label}</div>
                     <div className="text-ink-3" dir="auto">{d.product}</div>
-                    <div className="mt-1 num tabular-nums text-ink">{meta.short} {fmt(d.raw)}</div>
+                    <div className="mt-1 tabular-nums text-ink">{meta.short} {fmt(d.raw)}</div>
                   </ChartTooltip>
                 );
               }}

@@ -347,7 +347,7 @@ export function NotificationBell({
       >
         <Bell className="h-4 w-4" />
         {badge && (
-          <span className="num absolute -right-0.5 -top-0.5 min-w-4 rounded-full bg-brand px-1 text-[10px] font-medium leading-4 text-primary-foreground">
+          <span className="tabular-nums absolute -right-0.5 -top-0.5 min-w-4 rounded-full bg-brand px-1 text-[10px] font-medium leading-4 text-primary-foreground">
             {badge}
           </span>
         )}
@@ -447,7 +447,7 @@ export function NotificationBell({
             <Link
               href="/notifications?tab=unread"
               onClick={() => onOpenChange(false)}
-              className="num text-xs text-brand hover:underline"
+              className="tabular-nums text-xs text-brand hover:underline"
               aria-label={`${beyond} more unread`}
             >
               +{beyond} more

@@ -38,7 +38,7 @@ export function CollapsibleSection({
         />
         {title}
         {subtitle && (
-          <span className="normal-case tracking-normal text-ink-3 num">
+          <span className="normal-case tracking-normal text-ink-3 tabular-nums">
             · {subtitle}
           </span>
         )}

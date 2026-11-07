@@ -218,8 +218,8 @@ export function UtmCompareSection({
         align: "right",
         sortable: true,
         sortValue: (r) => r.orders,
-        render: (r) => <span className="num tabular-nums">{int(r.orders)}</span>,
-        total: () => <span className="num tabular-nums">{int(totals.orders)}</span>,
+        render: (r) => <span className="tabular-nums">{int(r.orders)}</span>,
+        total: () => <span className="tabular-nums">{int(totals.orders)}</span>,
       },
       {
         key: "ordersShare",
@@ -228,9 +228,9 @@ export function UtmCompareSection({
         sortable: true,
         sortValue: (r) => r.ordersShare,
         csv: (r) => r.ordersShare,
-        render: (r) => <span className="num tabular-nums">{pct1(r.ordersShare)}</span>,
+        render: (r) => <span className="tabular-nums">{pct1(r.ordersShare)}</span>,
         total: () => (
-          <span className="num tabular-nums">{pct1(share(totals.orders, totalOrders))}</span>
+          <span className="tabular-nums">{pct1(share(totals.orders, totalOrders))}</span>
         ),
       },
       {
@@ -239,8 +239,8 @@ export function UtmCompareSection({
         align: "right",
         sortable: true,
         sortValue: (r) => r.revenue,
-        render: (r) => <span className="num tabular-nums">{sar(r.revenue)}</span>,
-        total: () => <span className="num tabular-nums">{sar(totals.revenue)}</span>,
+        render: (r) => <span className="tabular-nums">{sar(r.revenue)}</span>,
+        total: () => <span className="tabular-nums">{sar(totals.revenue)}</span>,
       },
       {
         key: "aov",
@@ -248,10 +248,10 @@ export function UtmCompareSection({
         align: "right",
         sortable: true,
         sortValue: (r) => r.aov,
-        render: (r) => <span className="num tabular-nums">{r.aov === null ? "—" : sar(r.aov)}</span>,
+        render: (r) => <span className="tabular-nums">{r.aov === null ? "—" : sar(r.aov)}</span>,
         total: () => {
           const a = aov(totals.revenue, totals.orders);
-          return <span className="num tabular-nums">{a === null ? "—" : sar(a)}</span>;
+          return <span className="tabular-nums">{a === null ? "—" : sar(a)}</span>;
         },
       },
       {
@@ -261,9 +261,9 @@ export function UtmCompareSection({
         sortable: true,
         sortValue: (r) => r.websiteShare,
         csv: (r) => r.websiteShare,
-        render: (r) => <span className="num tabular-nums">{pct1(r.websiteShare)}</span>,
+        render: (r) => <span className="tabular-nums">{pct1(r.websiteShare)}</span>,
         total: () => (
-          <span className="num tabular-nums">{pct1(share(totals.website, totals.orders))}</span>
+          <span className="tabular-nums">{pct1(share(totals.website, totals.orders))}</span>
         ),
       },
       {
@@ -274,11 +274,11 @@ export function UtmCompareSection({
         sortValue: (r) => r.trend,
         csv: (r) => r.trend,
         render: (r) => (
-          <span className="num tabular-nums" title="Orders per day, second half of the range vs the first">
+          <span className="tabular-nums" title="Orders per day, second half of the range vs the first">
             {signedPct(r.trend)}
           </span>
         ),
-        total: () => <span className="num tabular-nums">{signedPct(totals.trend)}</span>,
+        total: () => <span className="tabular-nums">{signedPct(totals.trend)}</span>,
       },
     ],
     [sourceFieldLabel, totals, totalOrders],
@@ -348,7 +348,7 @@ export function UtmCompareSection({
                         <span className="truncate" title={label}>
                           {label}
                         </span>
-                        <span className="ml-auto num tabular-nums text-xs text-ink-3">
+                        <span className="ml-auto tabular-nums text-xs text-ink-3">
                           {int(r.orders)}
                         </span>
                       </CommandItem>
@@ -433,7 +433,7 @@ export function UtmCompareSection({
                               <div key={k} className="flex items-center gap-2">
                                 <span className="h-2 w-2 rounded-full" style={{ background: colorOf(k) }} />
                                 <span className="max-w-[10rem] truncate text-ink-3">{labelOf(k)}</span>
-                                <span className="num tabular-nums text-ink ml-auto">
+                                <span className="tabular-nums text-ink ml-auto">
                                   {fmt(point.values[k])}
                                 </span>
                               </div>

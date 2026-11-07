@@ -139,7 +139,7 @@ export default async function CampaignsPage({
       <PageHeader
         title="Campaigns"
         subtitle={
-          <span className="num">
+          <span className="tabular-nums">
             {int(campaigns.length)} campaign
             {campaigns.length === 1 ? "" : "s"} · {from} → {to}
           </span>

@@ -501,7 +501,7 @@ export function CommentComposer({
 
         <span className="ml-auto flex items-center gap-2">
           {remaining < 200 && (
-            <span className={cn("num text-[11px]", remaining < 0 ? "text-warn" : "text-ink-3")}>
+            <span className={cn("tabular-nums text-[11px]", remaining < 0 ? "text-warn" : "text-ink-3")}>
               {remaining}
             </span>
           )}

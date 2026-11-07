@@ -47,7 +47,7 @@ export function CreativeStatusSummary({
 
   return (
     <div className="flex flex-wrap items-center gap-1.5">
-      <span className="num mr-0.5 text-sm text-ink-3">{total} creatives</span>
+      <span className="tabular-nums mr-0.5 text-sm text-ink-3">{total} creatives</span>
       {CREATIVE_STATUSES.map((s) => {
         const active = curStatuses.length === 1 && curStatuses[0] === s;
         return (
@@ -57,7 +57,7 @@ export function CreativeStatusSummary({
             scroll={false}
             aria-pressed={active}
             className={cn(
-              "num inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-sm transition-colors",
+              "tabular-nums inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-sm transition-colors",
               active
                 ? "border-line-2 bg-surface-2 text-ink"
                 : "border-transparent text-ink-2 hover:bg-surface-2 hover:text-ink",

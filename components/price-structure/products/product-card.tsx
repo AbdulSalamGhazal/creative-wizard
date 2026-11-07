@@ -97,7 +97,7 @@ export function ProductCard({
           </div>
         </div>
       </div>
-      <p className="mt-3 text-[11px] text-ink-3 num tabular-nums">
+      <p className="mt-3 text-[11px] text-ink-3 tabular-nums">
         Gross markup {Number.isFinite(markup) ? markup.toFixed(2) : "—"}× on cost (ex VAT)
       </p>
       <ConfirmDialog

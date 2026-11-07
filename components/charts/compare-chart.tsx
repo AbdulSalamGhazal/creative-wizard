@@ -294,7 +294,7 @@ export function CompareChart({
                                       </span>
                                     )}
                                   </span>
-                                  <span className="ml-auto text-ink num">
+                                  <span className="ml-auto text-ink tabular-nums">
                                     {fmt(metric, p.value as number | null)}
                                   </span>
                                 </div>
