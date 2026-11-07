@@ -12,9 +12,11 @@ import type {
   StatusFlowScope,
 } from "@/db/queries/creative-status";
 
-// SVG coordinate space (scales to its cell width via viewBox).
-// Narrow viewBox (the two columns sit close together) so each diagram scales UP
-// to fill its quarter-row cell instead of shrinking; taller for presence.
+// SVG coordinate space (scales to its cell width via viewBox), so the 10-unit
+// labels render at 10px only when a cell is ~234px wide. The grid's columns
+// follow the CARD's width (container query), never the viewport: one column
+// until two cells fit at ≥234px (@lg, 32rem), four only from @5xl (64rem) —
+// a 2-up row on a phone drew the labels at ~6px (R-014, 2026-11).
 const W = 234;
 const H = 235;
 const PAD = 12;
@@ -161,7 +163,8 @@ export function StatusFlowGrid({
             No status data in this window.
           </div>
         ) : (
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-x-4 gap-y-5">
+          <div className="@container">
+          <div className="grid grid-cols-1 @lg:grid-cols-2 @5xl:grid-cols-4 gap-x-4 gap-y-5">
             {scopes.map((sc) => (
               <div key={sc.key} className="min-w-0">
                 <span
@@ -187,6 +190,7 @@ export function StatusFlowGrid({
                 <StatusFlowDiagram data={sc.data} />
               </div>
             ))}
+          </div>
           </div>
         )}
       </CardContent>
