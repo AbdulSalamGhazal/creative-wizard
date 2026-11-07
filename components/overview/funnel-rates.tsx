@@ -95,7 +95,7 @@ export function FunnelRates({
           return (
             <div
               key={r.key}
-              className="@container min-w-0 rounded-xl bg-surface-2/60 px-4 py-4 flex flex-col gap-3"
+              className="@container min-w-0 rounded-md bg-surface-2/60 px-4 py-4 flex flex-col gap-3"
             >
               {/* A narrow tile stacks the delta under the label, as the KPI
                   tiles do (metric-card): side by side, "+3.0%" already ran

@@ -51,4 +51,17 @@ describe("design-system spellings", () => {
     );
     expect(rogue, "use bg-brand / bg-brand-soft / text-primary-foreground").toEqual([]);
   });
+
+  it("corners come from the four-step scale tied to --radius (R-089)", () => {
+    // sm = chips, swatches, checkboxes · md = inputs, buttons, menus, nested
+    // tiles · lg = cards, tiles, tables, dialogs · full = avatars, dots. A bare
+    // `rounded` is Tailwind's fixed 4px and escapes --radius; xl and arbitrary
+    // values are retired.
+    const rogue = offenders(
+      (b) =>
+        /\s/.test(b.trim()) &&
+        /(^|[\s:])rounded(-(t|b|l|r|s|e|tl|tr|bl|br))?(\s|$)|(^|[\s:])rounded(-[a-z]{1,2})?-(xl|2xl|3xl|\[)/.test(b),
+    );
+    expect(rogue, "use rounded-sm / -md / -lg / -full").toEqual([]);
+  });
 });

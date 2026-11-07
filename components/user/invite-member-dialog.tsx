@@ -294,7 +294,7 @@ export function InviteMemberDialog({
                     >
                       <span
                         className={cn(
-                          "flex h-4 w-4 shrink-0 items-center justify-center rounded border",
+                          "flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border",
                           allAccounts
                             ? "border-transparent bg-brand text-primary-foreground"
                             : "border-line",
@@ -323,7 +323,7 @@ export function InviteMemberDialog({
                           >
                             <span
                               className={cn(
-                                "flex h-4 w-4 shrink-0 items-center justify-center rounded border",
+                                "flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border",
                                 on
                                   ? "border-transparent bg-brand text-primary-foreground"
                                   : "border-line",

@@ -274,7 +274,7 @@ export function LibraryFilterBar({
         onClick={() => setView("grid")}
         aria-label="Grid view"
         className={cn(
-          "inline-flex h-7 items-center justify-center rounded px-2 transition-colors",
+          "inline-flex h-7 items-center justify-center rounded-sm px-2 transition-colors",
           view === "grid" ? "bg-surface-3 text-ink" : "text-ink-3 hover:text-ink",
         )}
       >
@@ -285,7 +285,7 @@ export function LibraryFilterBar({
         onClick={() => setView("table")}
         aria-label="Table view"
         className={cn(
-          "inline-flex h-7 items-center justify-center rounded px-2 transition-colors",
+          "inline-flex h-7 items-center justify-center rounded-sm px-2 transition-colors",
           view === "table" ? "bg-surface-3 text-ink" : "text-ink-3 hover:text-ink",
         )}
       >

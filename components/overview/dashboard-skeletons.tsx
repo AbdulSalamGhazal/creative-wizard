@@ -11,7 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 /** One KPI tile: label row, headline, and the per-platform breakdown bars. */
 export function MetricCardSkeleton({ bars = 3 }: { bars?: number }) {
   return (
-    <div className="@container min-w-0 rounded-xl border border-line bg-surface p-4 flex flex-col gap-3.5">
+    <div className="@container min-w-0 rounded-lg border border-line bg-surface p-4 flex flex-col gap-3.5">
       {/* Heights measured against the real tile (176px with three bars at
           1280px): the label row is 17px, the display-size value 41px. A
           narrow (phone) tile stacks the chip under the label, as the real

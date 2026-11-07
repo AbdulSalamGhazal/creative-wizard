@@ -96,7 +96,7 @@ function HeadersEditor({
       {headers.map((h) => (
         <span
           key={h}
-          className="inline-flex h-6 items-center gap-1 rounded border border-line bg-surface-2 pl-2 pr-1 text-[11px]"
+          className="inline-flex h-6 items-center gap-1 rounded-sm border border-line bg-surface-2 pl-2 pr-1 text-[11px]"
         >
           <span className="font-mono text-ink">{h}</span>
           {!disabled && (
@@ -123,7 +123,7 @@ function HeadersEditor({
           }}
           onBlur={add}
           placeholder="Add header…"
-          className="h-6 w-28 rounded border border-line bg-transparent px-2 text-[11px] focus:border-brand focus:outline-none"
+          className="h-6 w-28 rounded-sm border border-line bg-transparent px-2 text-[11px] focus:border-brand focus:outline-none"
         />
       )}
     </div>
@@ -183,7 +183,7 @@ function FieldRow({ field }: { field: StoreField }) {
           value={label}
           onChange={(e) => setLabel(e.target.value)}
           disabled={isPending}
-          className="h-7 min-w-0 flex-1 rounded border-b border-transparent bg-transparent text-sm font-medium text-ink hover:border-line focus:border-brand focus:outline-none"
+          className="h-7 min-w-0 flex-1 rounded-sm border-b border-transparent bg-transparent text-sm font-medium text-ink hover:border-line focus:border-brand focus:outline-none"
         />
         <span className="font-mono text-[11px] text-ink-3">{field.key}</span>
         <Chip className="capitalize">{field.type}</Chip>
@@ -287,7 +287,7 @@ function Toggle({
     >
       <span
         className={cn(
-          "h-3.5 w-3.5 rounded border",
+          "h-3.5 w-3.5 rounded-sm border",
           on ? "border-transparent bg-brand" : "border-line",
         )}
       />

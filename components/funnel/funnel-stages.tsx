@@ -113,7 +113,7 @@ export function FunnelStages({
                 </span>
               </div>
               <div className="flex items-center gap-3">
-                <div className="relative flex-1 h-7 rounded bg-surface-2/50 overflow-hidden">
+                <div className="relative flex-1 h-7 rounded-sm bg-surface-2/50 overflow-hidden">
                   {compare && (
                     <div
                       className="absolute inset-y-0 left-0"
@@ -121,7 +121,7 @@ export function FunnelStages({
                     />
                   )}
                   <div
-                    className="absolute inset-y-0 left-0 rounded-r"
+                    className="absolute inset-y-0 left-0 rounded-r-sm"
                     style={{ width: `${curW}%`, background: s.color, opacity: 0.9 }}
                   />
                   {compare && (

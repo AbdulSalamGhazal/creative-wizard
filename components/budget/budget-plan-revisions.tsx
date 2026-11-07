@@ -262,7 +262,7 @@ export function BudgetPlanRevisions({
                         <span>
                           {r.savedBy}
                           {r.mode === "daily" && (
-                            <span className="ml-1.5 rounded bg-surface-2 px-1 text-eyebrow text-ink-3">
+                            <span className="ml-1.5 rounded-sm bg-surface-2 px-1 text-eyebrow text-ink-3">
                               day by day
                             </span>
                           )}
@@ -306,7 +306,7 @@ export function BudgetPlanRevisions({
                     <button
                       type="button"
                       onClick={() => void loadSnapshot(selected.id)}
-                      className="rounded text-brand hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50"
+                      className="rounded-sm text-brand hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50"
                     >
                       Retry
                     </button>
@@ -401,7 +401,7 @@ export function BudgetPlanRevisions({
                             <span className="inline-flex items-center gap-1.5 text-ink-2">
                               <PlatformDot platform={d.platform} size="sm" />
                               {d.objective}
-                              <span className="rounded bg-surface-2 px-1 text-eyebrow text-ink-3">
+                              <span className="rounded-sm bg-surface-2 px-1 text-eyebrow text-ink-3">
                                 {d.kind === "added"
                                   ? "would be dropped"
                                   : d.kind === "removed"

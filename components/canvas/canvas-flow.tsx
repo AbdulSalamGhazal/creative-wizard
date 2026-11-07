@@ -208,7 +208,7 @@ const CreativeNodeView = memo(function CreativeNodeView({
           // A background, not an <img>: a broken or slow thumbnail can't reflow
           // the node, and the canvas never waits on it.
           <span
-            className="h-9 w-9 shrink-0 rounded border border-line bg-surface-2 bg-cover bg-center"
+            className="h-9 w-9 shrink-0 rounded-sm border border-line bg-surface-2 bg-cover bg-center"
             style={{ backgroundImage: `url("${n.thumbnailUrl}")` }}
             aria-hidden
           />
@@ -804,7 +804,7 @@ function Legend({ view }: { view: CanvasViewMode }) {
     );
   }
 
-  const swatch = "h-3 w-5 shrink-0 rounded-[3px] border-2 bg-surface";
+  const swatch = "h-3 w-5 shrink-0 rounded-sm border-2 bg-surface";
   return (
     <div className="w-56 rounded-lg border border-line bg-surface p-3 text-[11px] text-ink-2 shadow-lg">
       <div className="mb-2 flex items-center justify-between">
@@ -840,11 +840,11 @@ function Legend({ view }: { view: CanvasViewMode }) {
           <p className="mb-1 mt-2.5 text-ink-3">Chip — a pairing, not the whole {view === "campaign" ? "creative" : "campaign"}</p>
           <ul className="space-y-1">
             <li className="flex items-center gap-1.5">
-              <span className="h-3 w-5 shrink-0 rounded-[3px] border-2 bg-surface" style={{ borderColor: "var(--ink-2)" }} />
+              <span className="h-3 w-5 shrink-0 rounded-sm border-2 bg-surface" style={{ borderColor: "var(--ink-2)" }} />
               Solid — live here
             </li>
             <li className="flex items-center gap-1.5">
-              <span className="h-3 w-5 shrink-0 rounded-[3px] border-2 border-dashed bg-transparent" style={{ borderColor: "var(--ink-2)" }} />
+              <span className="h-3 w-5 shrink-0 rounded-sm border-2 border-dashed bg-transparent" style={{ borderColor: "var(--ink-2)" }} />
               Dashed + dimmed — paused here (the network&rsquo;s dashed line)
             </li>
           </ul>

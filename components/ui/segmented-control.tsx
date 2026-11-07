@@ -51,7 +51,7 @@ export function SegmentedControl<T extends string>({
           title={o.title}
           onClick={() => onChange(o.value)}
           className={cn(
-            "px-2.5 h-7 rounded transition-colors whitespace-nowrap",
+            "px-2.5 h-7 rounded-sm transition-colors whitespace-nowrap",
             value === o.value ? "bg-surface-3 text-ink" : "text-ink-3 hover:text-ink",
             // An unavailable option stays readable but visibly out of reach —
             // hiding it would leave the reader wondering where it went.

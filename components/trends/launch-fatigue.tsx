@@ -163,7 +163,7 @@ export function LaunchFatigueSummary({
   const maxRoas = Math.max(0, ...bars.map((b) => b.metrics.roas ?? 0));
 
   return (
-    <div className="rounded-xl border border-line bg-surface overflow-hidden">
+    <div className="rounded-lg border border-line bg-surface overflow-hidden">
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.5fr)_minmax(0,0.75fr)] divide-y divide-line lg:divide-y-0 lg:divide-x">
         {/* Portfolio headline + verdict tally */}
         <div className="p-5 flex flex-col gap-4">

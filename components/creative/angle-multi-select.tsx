@@ -128,7 +128,7 @@ export function AngleMultiSelect({
                   >
                     <span
                       className={cn(
-                        "inline-flex items-center justify-center w-4 h-4 rounded border",
+                        "inline-flex items-center justify-center w-4 h-4 rounded-sm border",
                         isSel
                           ? "bg-brand border-brand text-primary-foreground"
                           : "border-line",
@@ -150,14 +150,14 @@ export function AngleMultiSelect({
           {value.map((t) => (
             <span
               key={t}
-              className="inline-flex items-center gap-1 h-6 pl-2 pr-1 rounded text-[11px] bg-surface-2 border border-line text-ink-2"
+              className="inline-flex items-center gap-1 h-6 pl-2 pr-1 rounded-sm text-[11px] bg-surface-2 border border-line text-ink-2"
             >
               {t}
               <button
                 type="button"
                 disabled={disabled}
                 onClick={() => onChange(value.filter((x) => x !== t))}
-                className="inline-flex items-center justify-center w-4 h-4 rounded hover:bg-line text-ink-3 hover:text-neg transition-colors"
+                className="inline-flex items-center justify-center w-4 h-4 rounded-sm hover:bg-line text-ink-3 hover:text-neg transition-colors"
                 aria-label={`Remove ${t}`}
               >
                 <X className="w-3 h-3" />

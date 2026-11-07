@@ -44,7 +44,7 @@ export function RatingWindowControl({
           title={HINT[w]}
           aria-pressed={value === w}
           className={cn(
-            "px-1.5 py-0.5 rounded text-[10px] font-medium leading-none transition-colors",
+            "px-1.5 py-0.5 rounded-sm text-[10px] font-medium leading-none transition-colors",
             value === w ? "bg-brand/15 text-brand" : "text-ink-3 hover:text-ink",
           )}
         >

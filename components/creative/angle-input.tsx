@@ -71,8 +71,8 @@ export function AngleInput({
                   onClick={() => addAngle(angle)}
                   className={
                     isSelected
-                      ? "inline-flex items-center gap-1 h-6 px-2 rounded text-[11px] bg-surface-2 border border-line text-ink-3 cursor-not-allowed opacity-70"
-                      : "inline-flex items-center gap-1 h-6 px-2 rounded text-[11px] bg-surface border border-line text-ink-2 hover:bg-surface-2 hover:text-ink transition-colors"
+                      ? "inline-flex items-center gap-1 h-6 px-2 rounded-sm text-[11px] bg-surface-2 border border-line text-ink-3 cursor-not-allowed opacity-70"
+                      : "inline-flex items-center gap-1 h-6 px-2 rounded-sm text-[11px] bg-surface border border-line text-ink-2 hover:bg-surface-2 hover:text-ink transition-colors"
                   }
                 >
                   {!isSelected && <Plus className="w-2.5 h-2.5" />}

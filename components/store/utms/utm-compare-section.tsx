@@ -310,7 +310,7 @@ export function UtmCompareSection({
               type="button"
               onClick={() => remove(key)}
               aria-label={`Remove ${labelOf(key)}`}
-              className="inline-flex h-5 w-5 items-center justify-center rounded text-ink-3 hover:bg-surface-2 hover:text-ink"
+              className="inline-flex h-5 w-5 items-center justify-center rounded-sm text-ink-3 hover:bg-surface-2 hover:text-ink"
             >
               <X className="h-3 w-3" />
             </button>

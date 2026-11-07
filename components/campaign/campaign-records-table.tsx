@@ -276,7 +276,7 @@ export function CampaignRecordsTable({
               type="button"
               onClick={() => setMode(k)}
               className={cn(
-                "px-2.5 h-7 rounded transition-colors",
+                "px-2.5 h-7 rounded-sm transition-colors",
                 mode === k ? "bg-surface-3 text-ink" : "text-ink-3 hover:text-ink",
               )}
             >

@@ -72,7 +72,7 @@ export function FunnelRateTiles({
         return (
           <div
             key={r.key}
-            className="rounded-xl bg-surface-2/60 px-4 py-3.5 flex flex-col gap-2.5"
+            className="rounded-md bg-surface-2/60 px-4 py-3.5 flex flex-col gap-2.5"
           >
             <div className="flex items-center justify-between gap-1.5">
               <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold tracking-wide text-ink-2 truncate">

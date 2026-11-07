@@ -154,7 +154,7 @@ export function StoreUploadPanel({
         >
           <span
             className={cn(
-              "flex h-4 w-4 shrink-0 items-center justify-center rounded border",
+              "flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border",
               upsert
                 ? "border-transparent bg-brand text-primary-foreground"
                 : "border-line",
@@ -177,11 +177,11 @@ export function StoreUploadPanel({
       {(stage.s === "valid" || stage.s === "committing") && (
         <div className="rounded-md border border-line bg-surface-2 px-4 py-3 text-sm">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="rounded bg-pos/10 px-2 py-0.5 text-xs text-pos">
+            <span className="rounded-sm bg-pos/10 px-2 py-0.5 text-xs text-pos">
               {int(stage.report.summary.newCount)} new
             </span>
             {stage.report.summary.upsert && (
-              <span className="rounded bg-brand/10 px-2 py-0.5 text-xs text-ink-2">
+              <span className="rounded-sm bg-brand/10 px-2 py-0.5 text-xs text-ink-2">
                 {int(stage.report.summary.updatedCount)} updated
               </span>
             )}

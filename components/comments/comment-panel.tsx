@@ -334,7 +334,7 @@ function PanelBodyLoading() {
               {mode === "activity" ? "Activity" : "Comments"}
             </SheetTitle>
           )}
-          <div className="h-5 w-40 max-w-full animate-pulse rounded bg-surface-2" />
+          <div className="h-5 w-40 max-w-full animate-pulse rounded-sm bg-surface-2" />
         </div>
         <Button
           type="button"

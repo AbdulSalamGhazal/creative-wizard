@@ -241,7 +241,7 @@ function Toggle({
           type="button"
           onClick={() => onChange(o.k)}
           className={cn(
-            "px-2.5 py-1 rounded transition-colors",
+            "px-2.5 py-1 rounded-sm transition-colors",
             value === o.k ? "bg-surface text-ink shadow-sm" : "text-ink-3 hover:text-ink",
           )}
         >

@@ -632,7 +632,7 @@ function BoardTable({
     const sum = (pick: (b: TrackerBar) => number) =>
       totals.reduce((s, r) => s + pick(r.bar), 0);
     const unplannedBadge = (
-      <span className="rounded bg-surface-2 px-1.5 py-0.5 text-eyebrow text-ink-3">
+      <span className="rounded-sm bg-surface-2 px-1.5 py-0.5 text-eyebrow text-ink-3">
         unplanned
       </span>
     );

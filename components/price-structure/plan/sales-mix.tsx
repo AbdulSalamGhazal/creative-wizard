@@ -136,7 +136,7 @@ export function SalesMix({
                     <span className="size-2 shrink-0 rounded-full" style={{ background: productColor(p.colorSlot) }} aria-hidden />
                     <span className="truncate font-medium text-ink" dir="auto">{p.name}</span>
                     {offersOff && (
-                      <span className="shrink-0 rounded border border-warn/50 px-1 text-[10px] text-warn tabular-nums" title="This product's offer shares are scaled to 100%">
+                      <span className="shrink-0 rounded-sm border border-warn/50 px-1 text-[10px] text-warn tabular-nums" title="This product's offer shares are scaled to 100%">
                         offers add to {pct1(O)}
                       </span>
                     )}

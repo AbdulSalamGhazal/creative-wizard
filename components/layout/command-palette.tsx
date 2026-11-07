@@ -155,7 +155,7 @@ export function CommandPalette({ accountId, granted, showTrigger = true }: Props
         >
           <Search className="w-3.5 h-3.5 text-ink-3" />
           <span className="text-ink-3">Search creatives, pages…</span>
-          <span className="ml-auto px-1.5 py-0.5 rounded text-[10px] bg-surface-2 border border-line text-ink-3">
+          <span className="ml-auto px-1.5 py-0.5 rounded-sm text-[10px] bg-surface-2 border border-line text-ink-3">
             ⌘K
           </span>
         </button>

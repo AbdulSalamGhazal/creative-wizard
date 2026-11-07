@@ -421,7 +421,7 @@ export function CommentComposer({
                   // the focused button works too.
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={retryMembers}
-                  className="shrink-0 rounded px-1.5 py-0.5 text-brand hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50"
+                  className="shrink-0 rounded-sm px-1.5 py-0.5 text-brand hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50"
                 >
                   Retry
                   <span className="sr-only"> (Enter)</span>

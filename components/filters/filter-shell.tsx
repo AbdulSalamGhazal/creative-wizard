@@ -139,7 +139,7 @@ export function FilterShell({
                 type="button"
                 onClick={chip.onRemove}
                 aria-label={`Remove filter ${chip.label}`}
-                className="shrink-0 rounded p-0.5 text-ink-3 transition-colors hover:bg-surface-2 hover:text-ink"
+                className="shrink-0 rounded-sm p-0.5 text-ink-3 transition-colors hover:bg-surface-2 hover:text-ink"
               >
                 <X className="h-3 w-3" />
               </button>
@@ -488,7 +488,7 @@ function OptionList({
           <label
             key={o.value}
             className={cn(
-              "flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-xs transition-colors",
+              "flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-xs transition-colors",
               o.disabled ? "cursor-not-allowed opacity-50" : "hover:bg-surface-2",
             )}
           >

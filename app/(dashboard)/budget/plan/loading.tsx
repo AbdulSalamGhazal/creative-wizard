@@ -39,7 +39,7 @@ export default function Loading() {
             </div>
           ))}
         </div>
-        <Skeleton className="h-4 w-48 rounded" />
+        <Skeleton className="h-4 w-48 rounded-sm" />
       </div>
     </div>
   );

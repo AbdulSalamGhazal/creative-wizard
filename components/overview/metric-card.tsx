@@ -75,7 +75,7 @@ export function MetricCard({
   empty?: boolean;
 }) {
   return (
-    <div className="@container min-w-0 rounded-xl border border-line bg-surface p-4 flex flex-col gap-3.5">
+    <div className="@container min-w-0 rounded-lg border border-line bg-surface p-4 flex flex-col gap-3.5">
       {/* Headline */}
       <div>
         {/* In a phone's two-column grid the header is ~124px, and

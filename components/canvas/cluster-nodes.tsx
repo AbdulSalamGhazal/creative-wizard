@@ -86,7 +86,7 @@ export interface FrameData {
  *  pseudo-cluster has no header node, so its frame carries a caption. */
 export const ClusterFrameView = memo(function ClusterFrameView({ data }: { data: FrameData }) {
   return (
-    <div className="h-full w-full rounded-xl border border-line bg-surface-2/40">
+    <div className="h-full w-full rounded-lg border border-line bg-surface-2/40">
       {data.kind === "idle" && (
         <p className="text-label px-3 pt-3 text-ink-3">
           Idle creatives · {int(data.count)}

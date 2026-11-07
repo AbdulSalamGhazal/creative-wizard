@@ -217,7 +217,7 @@ export function TableColumnsControl({
                           aria-label={`Move ${item.label} up`}
                           disabled={i <= (items[0]?.pinned ? 1 : 0)}
                           onClick={() => onMove(item.key, -1)}
-                          className="rounded p-0.5 text-ink-3 hover:bg-surface-3 hover:text-ink disabled:opacity-30"
+                          className="rounded-sm p-0.5 text-ink-3 hover:bg-surface-3 hover:text-ink disabled:opacity-30"
                         >
                           <ChevronUp className="h-3 w-3" />
                         </button>
@@ -226,7 +226,7 @@ export function TableColumnsControl({
                           aria-label={`Move ${item.label} down`}
                           disabled={i === items.length - 1}
                           onClick={() => onMove(item.key, 1)}
-                          className="rounded p-0.5 text-ink-3 hover:bg-surface-3 hover:text-ink disabled:opacity-30"
+                          className="rounded-sm p-0.5 text-ink-3 hover:bg-surface-3 hover:text-ink disabled:opacity-30"
                         >
                           <ChevronDown className="h-3 w-3" />
                         </button>

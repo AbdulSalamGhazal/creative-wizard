@@ -377,7 +377,7 @@ export function PlanDayBars({
             title={title}
             aria-label={title}
             className={cn(
-              "min-w-0 flex-1 cursor-pointer rounded-t-[2px] transition-all hover:bg-brand/40",
+              "min-w-0 flex-1 cursor-pointer rounded-t-sm transition-all hover:bg-brand/40",
               fill,
             )}
             style={style}
@@ -386,7 +386,7 @@ export function PlanDayBars({
           <div
             key={day}
             title={title}
-            className={cn("min-w-0 flex-1 rounded-t-[2px]", fill)}
+            className={cn("min-w-0 flex-1 rounded-t-sm", fill)}
             style={style}
           />
         );

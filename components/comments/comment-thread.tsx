@@ -299,7 +299,7 @@ export function CommentThread({
                       onClick={(e) => e.stopPropagation()}
                       aria-label="More actions"
                       className={cn(
-                        "ml-auto inline-flex h-6 w-6 shrink-0 items-center justify-center rounded text-ink-3 hover:bg-surface-2 hover:text-ink",
+                        "ml-auto inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-sm text-ink-3 hover:bg-surface-2 hover:text-ink",
                         // Revealed on hover or keyboard focus; ALWAYS shown on a
                         // touch screen, where there is no hover to reveal it.
                         "opacity-0 group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100 [@media(hover:none)]:opacity-100",

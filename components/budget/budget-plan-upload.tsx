@@ -559,7 +559,7 @@ export function BudgetPlanUpload({
 function RowMark({ change }: { change: PlanChange }) {
   if (change === "same") return null;
   return (
-    <span className="rounded bg-surface-2 px-1 text-eyebrow text-ink-3">
+    <span className="rounded-sm bg-surface-2 px-1 text-eyebrow text-ink-3">
       {change === "added" ? "new" : change === "removed" ? "dropped" : "changed"}
     </span>
   );

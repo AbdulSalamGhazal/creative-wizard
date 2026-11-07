@@ -1220,7 +1220,7 @@ export function BudgetPlanEditor({
                       >
                         <span
                           className={cn(
-                            "flex h-4 w-4 items-center justify-center rounded border",
+                            "flex h-4 w-4 items-center justify-center rounded-sm border",
                             on ? "border-brand bg-brand-soft" : "border-line",
                           )}
                         >

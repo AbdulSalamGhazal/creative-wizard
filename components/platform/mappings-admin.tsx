@@ -73,7 +73,7 @@ export async function MappingsAdmin() {
                             byField[f.key]!.map((r) => (
                               <span
                                 key={r.id}
-                                className="inline-flex items-center gap-1 h-6 pl-2 pr-1 rounded text-[11px] bg-surface-2 border border-line text-ink-2"
+                                className="inline-flex items-center gap-1 h-6 pl-2 pr-1 rounded-sm text-[11px] bg-surface-2 border border-line text-ink-2"
                               >
                                 <span className="font-mono text-ink">
                                   {r.headerName}

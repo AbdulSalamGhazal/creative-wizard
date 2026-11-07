@@ -57,7 +57,7 @@ export function StatusSquare({
       title={STATUS_LABEL[s]}
       aria-label={STATUS_LABEL[s]}
       className={cn(
-        "inline-flex h-4 w-4 items-center justify-center rounded-[3px] border text-[9px] font-semibold leading-none tabular-nums",
+        "inline-flex h-4 w-4 items-center justify-center rounded-sm border text-[9px] font-semibold leading-none tabular-nums",
         className,
       )}
       style={{

@@ -242,9 +242,9 @@ export function PlatformFunnelComparison({
               >
                 {rate.fmt(v)}
               </span>
-              <span className="block h-1 w-14 overflow-hidden rounded bg-surface-2">
+              <span className="block h-1 w-14 overflow-hidden rounded-sm bg-surface-2">
                 <span
-                  className="block h-full rounded"
+                  className="block h-full rounded-sm"
                   style={{
                     width: `${widthPct}%`,
                     background: PLATFORM_COLOR[r.platform],

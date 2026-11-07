@@ -190,7 +190,7 @@ export function CommandPaletteDialog({
                 <button
                   type="button"
                   onClick={onRetryCreatives}
-                  className="rounded text-brand hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50"
+                  className="rounded-sm text-brand hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50"
                 >
                   Retry
                 </button>

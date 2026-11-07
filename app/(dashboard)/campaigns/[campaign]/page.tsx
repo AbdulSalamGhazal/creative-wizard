@@ -247,7 +247,7 @@ export default async function CampaignDetailPage({
 
       {/* ─────────── Danger zone (delete permission only) ─────────── */}
       {canDelete && registry && deletionSummary && (
-        <div className="rounded-xl border border-neg/30 bg-neg/5 p-4 md:p-5">
+        <div className="rounded-lg border border-neg/30 bg-neg/5 p-4 md:p-5">
           <div className="flex items-center justify-between gap-4 flex-wrap">
             <div>
               <h2 className="text-sm font-medium text-ink">

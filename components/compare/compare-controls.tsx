@@ -366,7 +366,7 @@ function MultiSelect({
                 type="button"
                 onClick={() => onToggle(v)}
                 title={`Remove ${labelFor(v)}`}
-                className="group inline-flex max-w-full items-center gap-1 rounded border border-line bg-surface px-1.5 py-0.5 text-[10px] text-ink-2 hover:border-line-2 hover:text-ink transition-colors"
+                className="group inline-flex max-w-full items-center gap-1 rounded-sm border border-line bg-surface px-1.5 py-0.5 text-[10px] text-ink-2 hover:border-line-2 hover:text-ink transition-colors"
               >
                 {dotFor(v) && (
                   <span

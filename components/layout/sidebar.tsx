@@ -147,7 +147,7 @@ function NavLink({
     >
       {active && (
         <span
-          className="absolute -left-3 top-1/2 -translate-y-1/2 w-0.5 h-5 rounded-r bg-brand"
+          className="absolute -left-3 top-1/2 -translate-y-1/2 w-0.5 h-5 rounded-r-sm bg-brand"
           aria-hidden
         />
       )}
@@ -232,7 +232,7 @@ function NavGroup({
               >
                 {active && (
                   <span
-                    className="absolute -left-3 top-1/2 -translate-y-1/2 w-0.5 h-5 rounded-r bg-brand"
+                    className="absolute -left-3 top-1/2 -translate-y-1/2 w-0.5 h-5 rounded-r-sm bg-brand"
                     aria-hidden
                   />
                 )}

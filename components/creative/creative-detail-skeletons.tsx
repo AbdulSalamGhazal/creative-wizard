@@ -32,7 +32,7 @@ export function PagerSkeleton({ backHref }: { backHref?: string }) {
 /** One headline tile without a breakdown (the detail page's tiles). */
 function TileSkeleton() {
   return (
-    <div className="min-w-0 rounded-xl border border-line bg-surface p-4 flex flex-col gap-3.5">
+    <div className="min-w-0 rounded-lg border border-line bg-surface p-4 flex flex-col gap-3.5">
       <div>
         <div className="flex h-[17px] items-center justify-between gap-2">
           <Skeleton className="h-3.5 w-20" />

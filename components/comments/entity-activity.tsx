@@ -317,8 +317,8 @@ function ActivitySkeleton() {
         <div key={i} className="flex gap-2.5 px-1.5">
           <div className="h-6 w-6 shrink-0 animate-pulse rounded-full bg-surface-2" />
           <div className="flex-1 space-y-1.5">
-            <div className="h-3 w-24 animate-pulse rounded bg-surface-2" />
-            <div className="h-3 w-40 max-w-full animate-pulse rounded bg-surface-2" />
+            <div className="h-3 w-24 animate-pulse rounded-sm bg-surface-2" />
+            <div className="h-3 w-40 max-w-full animate-pulse rounded-sm bg-surface-2" />
           </div>
         </div>
       ))}

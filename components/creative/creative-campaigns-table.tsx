@@ -315,7 +315,7 @@ export function CreativeCampaignsTable({ campaigns, platforms }: Props) {
               type="button"
               onClick={() => switchMode(k)}
               className={cn(
-                "px-2.5 h-7 rounded transition-colors",
+                "px-2.5 h-7 rounded-sm transition-colors",
                 mode === k ? "bg-surface-3 text-ink" : "text-ink-3 hover:text-ink",
               )}
             >
