@@ -189,7 +189,7 @@ export function CampaignRecordsTable({
       sortable: true,
       render: (r) => (
         <span className="flex items-center gap-1.5 min-w-0">
-          <span className="block truncate max-w-[14rem] font-mono text-xs" title={r.creativeName}>
+          <span dir="auto" className="block truncate max-w-[14rem] font-mono text-xs" title={r.creativeName}>
             {r.creativeName}
           </span>
           {r.excludedFromAggregates && (

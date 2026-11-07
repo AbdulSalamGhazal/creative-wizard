@@ -159,7 +159,7 @@ export function TopCreativesTable({
             <span className="w-4 shrink-0 text-right text-ink-3 tabular-nums">
               {rankOf.get(r.creativeId)}
             </span>
-            <span className="truncate font-mono text-xs text-ink" title={r.name}>
+            <span dir="auto" className="truncate font-mono text-xs text-ink" title={r.name}>
               {r.name}
             </span>
           </span>

@@ -216,7 +216,7 @@ const CreativeNodeView = memo(function CreativeNodeView({
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
             <TypeIcon className="h-3 w-3 shrink-0 text-ink-3" aria-hidden />
-            <span className="truncate font-mono text-[11px] text-ink" title={n.name}>
+            <span dir="auto" className="truncate font-mono text-[11px] text-ink" title={n.name}>
               {n.name}
             </span>
           </div>

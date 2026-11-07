@@ -220,6 +220,7 @@ export function StoreInsightsView({
         csv: (r) => r.label,
         render: (r) => (
           <span
+            dir="auto"
             className={cn(
               // A dimension VALUE is free text (a UTM string, a city, any
               // custom field) — it needs something to truncate against, and

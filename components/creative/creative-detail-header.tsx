@@ -324,6 +324,7 @@ export function CreativeDetailHeader({
               onChange={(e) => setName(e.target.value)}
               disabled={locked}
               placeholder="Creative name"
+              dir="auto"
               className={cn(
                 "w-full bg-transparent font-display text-3xl tracking-tight text-ink",
                 "border-b border-line focus:border-brand focus:outline-none pb-1 transition-colors",

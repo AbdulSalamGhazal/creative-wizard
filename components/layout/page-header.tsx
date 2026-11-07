@@ -62,6 +62,8 @@ export function PageHeader({
         (clampTitle ? " line-clamp-2" : "")
       }
       title={clampTitle ? title : undefined}
+      // A name may be Arabic, or Arabic mixed with Latin and digits (R-040).
+      dir="auto"
     >
       {title}
     </h1>
