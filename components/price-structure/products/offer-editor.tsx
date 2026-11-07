@@ -121,7 +121,7 @@ export function OfferEditor({
           );
         })}
         {!readOnly && (
-        <span className="ml-auto flex items-center gap-0.5">
+        <span className="ml-auto flex items-center gap-0.5 pointer-coarse:gap-2">
           <Button type="button" size="icon-xs" variant="ghost" aria-label="Move up" disabled={index === 0} onClick={() => onMove(-1)}>
             <ArrowUp aria-hidden />
           </Button>

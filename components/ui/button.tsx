@@ -4,6 +4,15 @@ import { Slot } from "radix-ui"
 
 import { cn } from "@/lib/utils"
 
+/**
+ * Touch targets (UI audit R-036, 2026-11): the compact sizes keep their look,
+ * but on a coarse pointer an invisible ::after grows the hit box 8px on every
+ * side — a 24px icon button becomes a 40px target, a 32px one 48px. Desktop
+ * density is unchanged.
+ */
+const COARSE_HIT =
+  "relative pointer-coarse:after:absolute pointer-coarse:after:-inset-2 pointer-coarse:after:content-['']"
+
 const buttonVariants = cva(
   "inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-all outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
@@ -22,12 +31,12 @@ const buttonVariants = cva(
       },
       size: {
         default: "h-9 px-4 py-2 has-[>svg]:px-3",
-        xs: "h-6 gap-1 rounded-md px-2 text-xs has-[>svg]:px-1.5 [&_svg:not([class*='size-'])]:size-3",
-        sm: "h-8 gap-1.5 rounded-md px-3 has-[>svg]:px-2.5",
+        xs: `h-6 gap-1 rounded-md px-2 text-xs has-[>svg]:px-1.5 [&_svg:not([class*='size-'])]:size-3 ${COARSE_HIT}`,
+        sm: `h-8 gap-1.5 rounded-md px-3 has-[>svg]:px-2.5 ${COARSE_HIT}`,
         lg: "h-10 rounded-md px-6 has-[>svg]:px-4",
         icon: "size-9",
-        "icon-xs": "size-6 rounded-md [&_svg:not([class*='size-'])]:size-3",
-        "icon-sm": "size-8",
+        "icon-xs": `size-6 rounded-md [&_svg:not([class*='size-'])]:size-3 ${COARSE_HIT}`,
+        "icon-sm": `size-8 ${COARSE_HIT}`,
         "icon-lg": "size-10",
       },
     },

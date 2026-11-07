@@ -51,7 +51,9 @@ export function SegmentedControl<T extends string>({
           title={o.title}
           onClick={() => onChange(o.value)}
           className={cn(
-            "px-2.5 h-7 rounded-sm transition-colors whitespace-nowrap",
+            // On touch the 28px option's hit box grows 8px up and down only, so
+            // neighbours never overlap (R-036).
+            "relative px-2.5 h-7 rounded-sm transition-colors whitespace-nowrap pointer-coarse:after:absolute pointer-coarse:after:inset-x-0 pointer-coarse:after:-inset-y-2 pointer-coarse:after:content-['']",
             value === o.value ? "bg-surface-3 text-ink" : "text-ink-3 hover:text-ink",
             // An unavailable option stays readable but visibly out of reach —
             // hiding it would leave the reader wondering where it went.

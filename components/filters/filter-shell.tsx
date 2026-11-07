@@ -139,7 +139,8 @@ export function FilterShell({
                 type="button"
                 onClick={chip.onRemove}
                 aria-label={`Remove filter ${chip.label}`}
-                className="shrink-0 rounded-sm p-0.5 text-ink-3 transition-colors hover:bg-surface-2 hover:text-ink"
+                // A 16px ×: on touch an invisible ::after makes it a 32px target (R-036).
+                className="relative shrink-0 rounded-sm p-0.5 text-ink-3 transition-colors hover:bg-surface-2 hover:text-ink pointer-coarse:after:absolute pointer-coarse:after:-inset-2 pointer-coarse:after:content-['']"
               >
                 <X className="h-3 w-3" />
               </button>
