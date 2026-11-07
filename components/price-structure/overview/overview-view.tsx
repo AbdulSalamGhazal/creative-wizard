@@ -96,22 +96,35 @@ export function OverviewView() {
             />
             <MetricCard
               label="Against your targets"
-              value={enabledTargets.length ? `${counts.b} ✓ · ${counts.a} ◐ · ${counts.miss} ✕` : "—"}
+              value={enabledTargets.length ? `${counts.b} · ${counts.a} · ${counts.miss}` : "—"}
+              // One row, each count once with its word, in its status colour
+              // (R-124: the glyph row and its legend said every count twice).
+              figure={
+                enabledTargets.length ? (
+                  <span className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                    {(
+                      [
+                        ["b", counts.b, "Hits B"],
+                        ["a", counts.a, "Hits A"],
+                        ["miss", counts.miss, "Misses A"],
+                      ] as const
+                    ).map(([k, n, word]) => (
+                      <span key={k} className="inline-flex items-baseline gap-1 whitespace-nowrap">
+                        <span className={`font-display text-[1.75rem] leading-none tabular-nums ${STATUS_META[k].text}`}>
+                          {n}
+                        </span>
+                        <span className="text-xs text-ink-3">{word}</span>
+                      </span>
+                    ))}
+                  </span>
+                ) : undefined
+              }
               icon={TargetIcon}
               hideBreakdown
               footer={
-                <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                  {enabledTargets.length > 0 && (
-                    <>
-                      <span className={STATUS_META.b.text}>✓ Hits B {counts.b}</span>
-                      <span className={STATUS_META.a.text}>◐ Hits A {counts.a}</span>
-                      <span className={STATUS_META.miss.text}>✕ Misses A {counts.miss}</span>
-                    </>
-                  )}
-                  <Link href={`/price-structure/targets${q}`} className="text-brand hover:underline">
-                    {enabledTargets.length ? "Edit targets" : "Set target A and B"}
-                  </Link>
-                </span>
+                <Link href={`/price-structure/targets${q}`} className="text-brand hover:underline">
+                  {enabledTargets.length ? "Edit targets" : "Set target A and B"}
+                </Link>
               }
             />
             {monthly && (

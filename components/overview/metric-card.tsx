@@ -78,6 +78,7 @@ export function MetricCard({
   variant = "card",
   size = "md",
   valueTitle,
+  figure,
   children,
 }: {
   label: string;
@@ -119,6 +120,12 @@ export function MetricCard({
   size?: "md" | "sm";
   /** Hover text for the figure (e.g. the exact value behind a rounded one). */
   valueTitle?: string;
+  /**
+   * A composite figure (several coloured counts, each with its word) drawn in
+   * place of `value`, which still names the figure for sizing. It wraps
+   * instead of shrinking.
+   */
+  figure?: ReactNode;
   /** Rich content under the figure — Budget's pace bar + verdict, a sparkline. */
   children?: ReactNode;
 }) {
@@ -150,18 +157,24 @@ export function MetricCard({
             <DeltaBadge delta={delta} inverted={deltaInverted} vs={deltaVs} />
           ) : null}
         </div>
-        <div
-          className={cn(
-            "font-display leading-none tabular-nums text-ink whitespace-nowrap",
-            size === "sm" ? "mt-1.5" : "mt-2",
-          )}
-          style={{
-            fontSize: displayValueFontSize(value, size === "sm" ? "1.6rem" : "2.6rem"),
-          }}
-          title={valueTitle}
-        >
-          {value}
-        </div>
+        {figure ? (
+          <div className={cn(size === "sm" ? "mt-1.5" : "mt-2")} title={valueTitle}>
+            {figure}
+          </div>
+        ) : (
+          <div
+            className={cn(
+              "font-display leading-none tabular-nums text-ink whitespace-nowrap",
+              size === "sm" ? "mt-1.5" : "mt-2",
+            )}
+            style={{
+              fontSize: displayValueFontSize(value, size === "sm" ? "1.6rem" : "2.6rem"),
+            }}
+            title={valueTitle}
+          >
+            {value}
+          </div>
+        )}
         {hasCaption && <p className="mt-1 text-xs text-ink-3">{caption}</p>}
         {children}
       </div>
