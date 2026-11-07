@@ -29,7 +29,7 @@ import { LIFETIME_FLOOR, presetLabel, todayIso } from "@/lib/date-presets";
 import { PLATFORM_LABEL, PLATFORMS_WITH_CREATIVES } from "@/lib/palette";
 import { requireAuth } from "@/lib/auth";
 import { SummaryFilterBar } from "@/components/summary/summary-filter-bar";
-import { SummarySortLabel, SummaryTable } from "@/components/summary/summary-table";
+import { SummaryTable } from "@/components/summary/summary-table";
 import { PageShell } from "@/components/layout/page-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { pickFirst } from "@/lib/url";
@@ -219,9 +219,6 @@ export default async function SummaryPage({
             {" · "}
             {platformsLabel}
           </>
-        }
-        rightSlot={
-          <SummarySortLabel platforms={selectedPlatforms} />
         }
       />
 

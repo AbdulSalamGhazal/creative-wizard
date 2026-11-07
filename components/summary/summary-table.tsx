@@ -1169,17 +1169,3 @@ function SortLink({
     </a>
   );
 }
-
-/**
- * "Sorted by …" in the page header — read off the live URL, so a shallow sort
- * click (D12) updates it without a server render.
- */
-export function SummarySortLabel({ platforms }: { platforms: string[] }) {
-  const searchParams = useSearchParams();
-  const sort = resolveSummarySort(searchParams.get("sort"), searchParams.get("dir"), platforms);
-  return (
-    <div className="text-[11px] text-ink-3 font-mono">
-      Sorted by {sort.key} {sort.dir}
-    </div>
-  );
-}
