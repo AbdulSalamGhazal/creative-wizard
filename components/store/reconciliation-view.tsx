@@ -19,7 +19,7 @@ import { useFilterParams } from "@/components/filters/use-filter-params";
 import type { DateRangeValue } from "@/lib/date-presets";
 import { PlatformDot } from "@/components/ui/platform-dot";
 import { PLATFORM_COLOR, PLATFORM_LABEL } from "@/lib/palette";
-import { sar, usd, isoDate, int, intCompact, pct1, signedPct } from "@/lib/format";
+import { usd, isoDate, int, intCompact, pct1, signedPct, sarBare } from "@/lib/format";
 import { downloadCsv, todayStamp, matrixToCsv } from "@/lib/csv-export";
 import {
   reconDelta,
@@ -436,9 +436,9 @@ export function ReconciliationView({
         label: "Revenue (SAR)",
         align: "right",
         sortable: true,
-        render: (r) => <span className="tabular-nums text-ink-2">{sar(r.revenue)}</span>,
+        render: (r) => <span className="tabular-nums text-ink-2">{sarBare(r.revenue)}</span>,
         sortValue: (r) => r.revenue,
-        total: () => tot(sar(t.revenue)),
+        total: () => tot(sarBare(t.revenue)),
       },
       {
         key: "spend",

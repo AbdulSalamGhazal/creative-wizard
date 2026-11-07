@@ -1378,7 +1378,7 @@ export function BudgetPlanEditor({
                   <span className="tabular-nums text-ink">{fmtSpend(storedTotal)}</span>
                 </span>
                 <span className="inline-flex items-center gap-2">
-                  <span className="text-label text-ink-3">Revenue target (SAR)</span>
+                  <span className="text-label text-ink-3">Revenue target</span>
                   <span className="tabular-nums text-ink">
                     {data.plannedRevenueSar !== null ? sar(data.plannedRevenueSar) : "—"}
                   </span>

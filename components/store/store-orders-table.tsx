@@ -9,7 +9,7 @@ import { DataTable, type DataColumn } from "@/components/ui/data-table";
 import { useTableColumns } from "@/components/ui/use-table-columns";
 import { TABLE_KEYS, type TableColumnPref } from "@/lib/table-columns";
 import { Button } from "@/components/ui/button";
-import { sar, isoDate, int, num } from "@/lib/format";
+import { isoDate, int, num, sarBare } from "@/lib/format";
 import { downloadCsv, todayStamp } from "@/lib/csv-export";
 import { useNavTransition } from "@/lib/nav-progress";
 import { exportStoreOrders } from "@/app/actions/store-export";
@@ -131,11 +131,11 @@ export function StoreOrdersTable({
         label: "Total (SAR)",
         align: "right",
         sortable: true,
-        render: (r) => <span className="tabular-nums">{sar(r.totalAmount)}</span>,
+        render: (r) => <span className="tabular-nums">{sarBare(r.totalAmount)}</span>,
         sortValue: (r) => r.totalAmount,
         defaultSortDir: "desc",
         total: () => (
-          <span className="tabular-nums font-semibold">{sar(sumTotal)}</span>
+          <span className="tabular-nums font-semibold">{sarBare(sumTotal)}</span>
         ),
       },
       ...customCols.map((f): DataColumn<StoreOrderRow> => {

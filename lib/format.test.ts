@@ -1,10 +1,19 @@
 import { describe, expect, it } from "vitest";
-import { fxRate, int, isoDate, num, pct, pct1, roas, sar, signedInt, signedPct, usd, plural } from "@/lib/format";
+import { fxRate, int, isoDate, num, pct, pct1, roas, sar, signedInt, signedPct, usd, plural, sarBare } from "@/lib/format";
 
 /**
  * The dash is load-bearing: `—` means "no value", and a real `0` must never
  * render as one (nor the reverse). Most of these guard that boundary.
  */
+describe("sarBare — a SAR amount under a (SAR) header", () => {
+  it("prints exactly 2 decimals, grouped, with no unit; dash for null", () => {
+    expect(sarBare(131.95)).toBe("131.95");
+    expect(sarBare(1227.6)).toBe("1,227.60");
+    expect(sarBare(0)).toBe("0.00");
+    expect(sarBare(null)).toBe("—");
+  });
+});
+
 describe("usd / sar / int — null vs zero", () => {
   it("renders a real zero, dashes a missing one", () => {
     expect(usd(0)).toBe("$0.00");

@@ -35,7 +35,7 @@ import {
   weekBucketsInRange,
   type RangeBucket,
 } from "@/lib/budget";
-import { int, intCompact, num, pct1, sar, sarCompact } from "@/lib/format";
+import { int, intCompact, num, pct1, sar, sarCompact, sarBare } from "@/lib/format";
 import { downloadCsv, matrixToCsv, todayStamp } from "@/lib/csv-export";
 import { PLATFORM_LABEL, seriesColor } from "@/lib/palette";
 import { platformEnum } from "@/lib/enums";
@@ -278,8 +278,8 @@ export function StoreInsightsView({
         align: "right",
         sortable: true,
         sortValue: (r) => sortOf(r, r.revenue),
-        render: (r) => <span className="tabular-nums">{sar(r.revenue)}</span>,
-        total: () => <span className="tabular-nums">{sar(totals.revenue)}</span>,
+        render: (r) => <span className="tabular-nums">{sarBare(r.revenue)}</span>,
+        total: () => <span className="tabular-nums">{sarBare(totals.revenue)}</span>,
       },
       {
         key: "revenueShare",

@@ -37,7 +37,7 @@ import {
   coversAllPlatforms,
   seriesColor,
 } from "@/lib/palette";
-import { fxRate, monthDay, roas as fmtRoas, sar, sarCompact, signedPct, usdCompact } from "@/lib/format";
+import { fxRate, monthDay, roas as fmtRoas, sar, sarCompact, signedPct, usdCompact, sarBare } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import {
   BUDGET_OBJECTIVES,
@@ -1065,12 +1065,12 @@ export function BudgetPacing({
           label: "Revenue (SAR)",
           align: "right",
           render: (r) =>
-            r.revenueUnknown ? dash : <span className="tabular-nums">{sar(r.revenue)}</span>,
+            r.revenueUnknown ? dash : <span className="tabular-nums">{sarBare(r.revenue)}</span>,
           csv: (r) => (r.revenueUnknown ? "" : r.revenue.toFixed(2)),
           total: () =>
             lastKnownRevenue ? (
               <span className="tabular-nums font-semibold">
-                {sar(lastKnownRevenue.revenueCum)}
+                {sarBare(lastKnownRevenue.revenueCum)}
               </span>
             ) : (
               dash
@@ -1082,7 +1082,7 @@ export function BudgetPacing({
           align: "right",
           render: (r) =>
             r.revenueUnknown ? dash : (
-              <span className="tabular-nums">{sar(r.revenueCum)}</span>
+              <span className="tabular-nums">{sarBare(r.revenueCum)}</span>
             ),
           csv: (r) => (r.revenueUnknown ? "" : r.revenueCum.toFixed(2)),
         },
@@ -1092,14 +1092,14 @@ export function BudgetPacing({
           align: "right",
           render: (r) =>
             r.planRevenueCum > 0 ? (
-              <span className="tabular-nums text-ink-3">{sar(r.planRevenueCum)}</span>
+              <span className="tabular-nums text-ink-3">{sarBare(r.planRevenueCum)}</span>
             ) : (
               dash
             ),
           csv: (r) => (r.planRevenueCum > 0 ? r.planRevenueCum.toFixed(2) : ""),
           total: () =>
             lastRow && lastRow.planRevenueCum > 0 ? (
-              <span className="tabular-nums font-semibold">{sar(lastRow.planRevenueCum)}</span>
+              <span className="tabular-nums font-semibold">{sarBare(lastRow.planRevenueCum)}</span>
             ) : (
               dash
             ),

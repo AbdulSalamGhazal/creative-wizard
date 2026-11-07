@@ -28,7 +28,7 @@ import {
   monthBucketsInRange,
   weekBucketsInRange,
 } from "@/lib/budget";
-import { int, intCompact, pct1, sar, signedPct } from "@/lib/format";
+import { int, intCompact, pct1, sar, signedPct, sarBare } from "@/lib/format";
 import { downloadCsv, matrixToCsv, todayStamp } from "@/lib/csv-export";
 import { aov } from "@/lib/store-insights";
 import {
@@ -264,8 +264,8 @@ export function UtmSourcesSection({
         align: "right",
         sortable: true,
         sortValue: (r) => sortOf(r, r.revenue),
-        render: (r) => <span className="tabular-nums">{sar(r.revenue)}</span>,
-        total: () => <span className="tabular-nums">{sar(coverage.revenue)}</span>,
+        render: (r) => <span className="tabular-nums">{sarBare(r.revenue)}</span>,
+        total: () => <span className="tabular-nums">{sarBare(coverage.revenue)}</span>,
       },
       {
         key: "aov",

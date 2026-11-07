@@ -37,7 +37,7 @@ import {
   monthBucketsInRange,
   weekBucketsInRange,
 } from "@/lib/budget";
-import { int, intCompact, pct1, sar, sarCompact, signedPct } from "@/lib/format";
+import { int, intCompact, pct1, sar, sarCompact, signedPct, sarBare } from "@/lib/format";
 import { seriesColor } from "@/lib/palette";
 import { shallowParams } from "@/lib/shallow-url";
 import { aov } from "@/lib/store-insights";
@@ -239,8 +239,8 @@ export function UtmCompareSection({
         align: "right",
         sortable: true,
         sortValue: (r) => r.revenue,
-        render: (r) => <span className="tabular-nums">{sar(r.revenue)}</span>,
-        total: () => <span className="tabular-nums">{sar(totals.revenue)}</span>,
+        render: (r) => <span className="tabular-nums">{sarBare(r.revenue)}</span>,
+        total: () => <span className="tabular-nums">{sarBare(totals.revenue)}</span>,
       },
       {
         key: "aov",

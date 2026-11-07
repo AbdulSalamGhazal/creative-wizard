@@ -186,6 +186,21 @@ export function sar(value: number | null | undefined): string {
   return sarFormatter.format(value);
 }
 
+const amount2Formatter = new Intl.NumberFormat("en-US", {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+
+/**
+ * A SAR amount WITHOUT its unit ("1,227.63") — for a table cell whose column
+ * header already says "(SAR)". A unit is printed once (R-111, ux-standards
+ * "Show, don't label"): header-only in a table, value-only for a single figure.
+ */
+export function sarBare(value: number | null | undefined): string {
+  if (value === null || value === undefined || Number.isNaN(value)) return EM_DASH;
+  return amount2Formatter.format(value);
+}
+
 /** SAR with no fils (e.g. "SAR 1,235") — a READING, where the cents are noise. */
 export function sar0(value: number | null | undefined): string {
   if (value === null || value === undefined || Number.isNaN(value)) return EM_DASH;
