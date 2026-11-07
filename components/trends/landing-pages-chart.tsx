@@ -14,6 +14,7 @@ import { ChartHeader, ChartShell, ExpandButton, plotClass } from "@/components/c
 import { CHART_CURSOR, ChartTooltip, CHART_STROKE } from "@/components/charts/chart-tooltip";
 import { MetricPicker } from "@/components/charts/metric-picker";
 import { SeriesLegend } from "@/components/charts/series-legend";
+import { useChartView } from "@/components/charts/use-chart-view";
 import { ChartFitToggle, useChartFit } from "@/components/charts/chart-fit";
 import { EmptyState } from "@/components/ui/empty-state";
 import { dayBucketsInRange } from "@/lib/budget";
@@ -94,7 +95,8 @@ export function LandingPagesChart({
   from: string;
   to: string;
 }) {
-  const [metric, setMetric] = useState<Metric>("spend");
+  // The metric survives Back and a shared link (R-102).
+  const { metric, setMetric } = useChartView<Metric>("lp", METRIC_ORDER, "spend");
   const [hidden, setHidden] = useState<Set<string>>(() => new Set());
 
   const series = useMemo<Series[]>(() => {

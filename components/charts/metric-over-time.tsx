@@ -20,6 +20,7 @@ import { useChartFit, ChartFitToggle } from "@/components/charts/chart-fit";
 import type { MetricOverTimeRow } from "@/db/queries/performance";
 import { CHART_CURSOR, ChartTooltip, CHART_STROKE } from "@/components/charts/chart-tooltip";
 import { EmptyState } from "@/components/ui/empty-state";
+import { useChartView } from "@/components/charts/use-chart-view";
 
 export interface OverTimeKey {
   key: string;
@@ -71,6 +72,7 @@ const METRICS: MetricDef[] = [
     fmt: (v) => roas(v),
   },
 ];
+const METRIC_KEYS = METRICS.map((m) => m.value);
 
 /** Combine many rows into one value: sum additive metrics; recombine a ratio
  *  from its weighted components so the grouped figure stays correct. */
@@ -124,9 +126,12 @@ export function MetricOverTimeChart({
   fillFrom,
   fillTo,
 }: Props) {
-  const [metric, setMetric] = useState<MetricKey>("spend");
-  const [smooth, setSmooth] = useState(false);
-  const [group, setGroup] = useState(false);
+  // Metric / Smooth / Group survive Back and a shared link (R-102).
+  const { metric, setMetric, smooth, setSmooth, group, setGroup } = useChartView<MetricKey>(
+    "ot",
+    METRIC_KEYS,
+    "spend",
+  );
   // Track which series are hidden (toggled off via the legend). A hidden-set
   // (not a shown-set) means series that appear later default to shown.
   const [hidden, setHidden] = useState<Set<string>>(() => new Set());
@@ -270,8 +275,8 @@ export function MetricOverTimeChart({
                     by campaign{dimensionLabel ? ` · ${dimensionLabel}` : ""}
                   </span>
                 )}
-                <GroupToggle on={group} onToggle={() => setGroup((v) => !v)} />
-                <SmoothToggle on={smooth} onToggle={() => setSmooth((v) => !v)} />
+                <GroupToggle on={group} onToggle={() => setGroup(!group)} />
+                <SmoothToggle on={smooth} onToggle={() => setSmooth(!smooth)} />
                 <ExpandButton inFull={inFull} onClick={toggleExpand} />
               </>
             }

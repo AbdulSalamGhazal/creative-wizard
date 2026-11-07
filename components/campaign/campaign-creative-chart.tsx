@@ -21,6 +21,7 @@ import { fillDailyGaps, fillGroupSeries } from "@/lib/time-series";
 import type { CampaignCreativeDailyPoint } from "@/db/queries/campaign";
 import { CHART_CURSOR, ChartTooltip, CHART_STROKE } from "@/components/charts/chart-tooltip";
 import { EmptyState } from "@/components/ui/empty-state";
+import { useChartView } from "@/components/charts/use-chart-view";
 
 type MetricKey =
   | "spend"
@@ -49,6 +50,7 @@ const METRICS: Array<{ key: MetricKey; label: string; kind: Kind }> = [
   { key: "cpm", label: "CPM", kind: "usd" },
   { key: "voc", label: "VOC", kind: "pct" },
 ];
+const METRIC_KEYS = METRICS.map((m) => m.key);
 
 const DEFAULT_SHOWN = 6;
 
@@ -144,9 +146,12 @@ export function CampaignCreativeChart({
   fillFrom?: string;
   fillTo?: string;
 }) {
-  const [metric, setMetric] = useState<MetricKey>("spend");
-  const [smooth, setSmooth] = useState(false);
-  const [group, setGroup] = useState(false);
+  // Metric / Smooth / Group survive Back and a shared link (R-102).
+  const { metric, setMetric, smooth, setSmooth, group, setGroup } = useChartView<MetricKey>(
+    "cc",
+    METRIC_KEYS,
+    "spend",
+  );
   const [shown, setShown] = useState<Set<string>>(
     () => new Set(creatives.slice(0, DEFAULT_SHOWN).map((c) => c.creativeId)),
   );
@@ -248,8 +253,8 @@ export function CampaignCreativeChart({
       }
       controls={
         <>
-          <GroupToggle on={group} onToggle={() => setGroup((v) => !v)} />
-          <SmoothToggle on={smooth} onToggle={() => setSmooth((v) => !v)} />
+          <GroupToggle on={group} onToggle={() => setGroup(!group)} />
+          <SmoothToggle on={smooth} onToggle={() => setSmooth(!smooth)} />
           <ExpandButton inFull={inFull} onClick={toggleExpand} />
         </>
       }
