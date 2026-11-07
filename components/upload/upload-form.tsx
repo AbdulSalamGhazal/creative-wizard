@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Check, Loader2, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
+import { cn } from "@/lib/utils";
 import { Dropzone } from "@/components/upload/dropzone";
 import { ErrorReport } from "@/components/upload/error-report";
 import { SummaryCard } from "@/components/upload/summary-card";
@@ -263,38 +265,34 @@ export function UploadForm() {
       {file && canUpsert && (
         <div className="space-y-2">
           <div className="text-sm text-ink">3. Mode</div>
-          <button
-            type="button"
-            role="switch"
-            aria-checked={upsert}
-            disabled={busy || stage.kind === "valid"}
-            onClick={() => setUpsert((v) => !v)}
-            className="w-full flex items-start gap-3 rounded-lg border border-line bg-surface px-3.5 py-3 text-left transition-colors hover:bg-surface-2/60 disabled:opacity-60 disabled:cursor-not-allowed"
+          {/* The shared Switch (R-114); the whole card is its label, so a
+              click anywhere on it flips the mode. */}
+          <label
+            className={cn(
+              "w-full flex items-start gap-3 rounded-lg border border-line bg-surface px-3.5 py-3 text-left transition-colors",
+              busy || stage.kind === "valid"
+                ? "opacity-60 cursor-not-allowed"
+                : "cursor-pointer hover:bg-surface-2/60",
+            )}
           >
-            <span
-              className={`mt-0.5 inline-flex h-5 w-9 shrink-0 items-center rounded-full border transition-colors ${
-                upsert
-                  ? "bg-brand/80 border-brand"
-                  : "bg-surface-2 border-line-2"
-              }`}
-            >
-              <span
-                className={`h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${
-                  upsert ? "translate-x-4" : "translate-x-0.5"
-                }`}
-              />
-            </span>
+            <Switch
+              className="mt-0.5"
+              checked={upsert}
+              onCheckedChange={setUpsert}
+              disabled={busy || stage.kind === "valid"}
+              aria-describedby="upsert-mode-note"
+            />
             <span className="space-y-0.5">
               <span className="block text-sm text-ink">
                 Update rows that already exist (upsert)
               </span>
-              <span className="block text-[11px] text-ink-3 leading-relaxed">
+              <span id="upsert-mode-note" className="block text-[11px] text-ink-3 leading-relaxed">
                 {upsert
                   ? "Matching rows (same creative · platform · campaign ➤ adset · date · landing page) are overwritten in place; new rows are inserted. Use for re-uploading a window after attribution lands."
                   : "Off — a strict import. Rows already in the database are rejected as duplicates."}
               </span>
             </span>
-          </button>
+          </label>
         </div>
       )}
 

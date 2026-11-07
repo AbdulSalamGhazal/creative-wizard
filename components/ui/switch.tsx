@@ -8,8 +8,9 @@ import { cn } from "@/lib/utils";
 /**
  * The shadcn Switch, on the house tokens: an on/off control for a setting
  * that applies the moment it flips (a checkbox is for a form that submits
- * later). Added with the Price Structure module (2026-11) — the two earlier
- * hand-rolled `role="switch"` buttons predate it and are left as they are.
+ * later). Added with the Price Structure module (2026-11); the upload form's
+ * upsert mode and the rate rules' per-platform override moved onto it too
+ * (R-114) — there is no hand-rolled `role="switch"` left.
  */
 function Switch({ className, ...props }: React.ComponentProps<typeof SwitchPrimitive.Root>) {
   return (

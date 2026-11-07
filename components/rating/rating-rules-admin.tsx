@@ -3,6 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { FormError } from "@/components/ui/form-error";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -17,7 +18,6 @@ import { RATING_META, type RatingConfig, type RatingRules } from "@/lib/rating";
 import { ALL_PLATFORMS, PLATFORM_LABEL } from "@/lib/palette";
 import { PlatformDot } from "@/components/ui/platform-dot";
 import { usd } from "@/lib/format";
-import { cn } from "@/lib/utils";
 import { Chip } from "@/components/ui/chip";
 
 type Platform = (typeof ALL_PLATFORMS)[number];
@@ -245,20 +245,13 @@ function PlatformOverrideEditor({
             {custom ? "Custom" : `Default · ${summarize(def)}`}
           </span>
         </div>
-        <button
-          type="button"
-          role="switch"
-          aria-checked={custom}
+        <Switch
+          checked={custom}
+          onCheckedChange={toggle}
           disabled={isPending}
-          onClick={toggle}
-          className={cn(
-            "inline-flex h-5 w-9 shrink-0 items-center rounded-full border transition-colors disabled:opacity-50",
-            custom ? "bg-brand/80 border-brand" : "bg-surface-2 border-line-2",
-          )}
+          aria-label={`Custom override for ${PLATFORM_LABEL[platform]}`}
           title={custom ? "Disable override (use default)" : "Add a custom override"}
-        >
-          <span className={cn("h-4 w-4 rounded-full bg-white shadow-sm transition-transform", custom ? "translate-x-4" : "translate-x-0.5")} />
-        </button>
+        />
       </div>
 
       {custom && (
