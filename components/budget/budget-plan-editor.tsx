@@ -152,9 +152,11 @@ const RESERVE_KEY = "reserve";
  * makes "change the total" a clean rescale: every share holds (the reserve's
  * too), every amount follows.
  *
- * Save is blocked until the shares add to exactly 100% at both levels — money
- * you don't want to commit belongs in the reserve, not in a gap, and "Send the
- * rest to reserve" does exactly that in one click. Moving money out of the
+ * Save is blocked until the shares add to 100% at both levels — at the one
+ * decimal the inputs show (`SHARE_EPSILON`), so a split every counter reads as
+ * "100.0% of 100%" saves (2026-11-07). Money you don't want to commit belongs
+ * in the reserve, not in a gap, and "Send the rest to reserve" does exactly
+ * that in one click. Moving money out of the
  * reserve later is a separate, explicit operation that leaves every other
  * platform's dollars alone.
  *

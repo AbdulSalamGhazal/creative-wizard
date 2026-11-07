@@ -875,8 +875,16 @@ export function monthsInRange(from: string, to: string): string[] {
 // "change the total" a pure rescale and what keeps a 33.3/33.3/33.4 split
 // summing to exactly the parent instead of a cent short.
 
-/** How close a set of shares must come to 100% — float dust only, not slack. */
-export const SHARE_EPSILON = 0.005;
+/**
+ * How close a set of shares must come to 100%: half of the ONE decimal the
+ * editor's share inputs show (2026-11-07, user decision). The inputs display
+ * a stored share like 46.1538% as "46.2", so a planner who retypes what they
+ * see can only ever land within a tenth — a gate at 2dp refused a split whose
+ * every counter read "100.0% of 100%" and blocked Save with no visible gap.
+ * The rule is now: a split that DISPLAYS as 100.0% saves. Beyond that, slack
+ * is not tolerated — money not yet decided on belongs in the reserve.
+ */
+export const SHARE_EPSILON = 0.05;
 
 /**
  * What's actually allocatable: the total minus the reserve. The reserve is
@@ -908,16 +916,22 @@ export function reserveFromShare(share: number, total: number): number {
  * what the 100%-or-no-save rule is there to surface. Rounding is still settled
  * by largest remainder, so once the shares DO reach 100% the parts sum to the
  * parent exactly.
+ *
+ * "Reach 100%" means within `SHARE_EPSILON` — the tenth the inputs can show.
+ * A COMPLETE split is normalised onto the parent (each row's share of the
+ * shares' own sum), so a split typed as 10 / 46.2 / 43.8 over $13,000 places
+ * exactly $13,000, never $13,006: what the planner typed as the total is what
+ * the plan stores. An incomplete split is still placed literally.
  */
 export function amountsFromShares(parentTotal: number, shares: number[]): number[] {
   const totalCents = Math.round(round2(parentTotal) * 100);
   if (shares.length === 0) return [];
   if (totalCents <= 0) return shares.map(() => 0);
-  const raw = shares.map((s) => {
-    const share = Number.isFinite(s) ? Math.max(0, s) : 0;
-    return (totalCents * share) / 100;
-  });
-  const target = Math.round(raw.reduce((sum, v) => sum + v, 0));
+  const clean = shares.map((s) => (Number.isFinite(s) ? Math.max(0, s) : 0));
+  const sum = clean.reduce((acc, v) => acc + v, 0);
+  const divisor = sharesComplete(clean) && sum > 0 ? sum : 100;
+  const raw = clean.map((share) => (totalCents * share) / divisor);
+  const target = Math.round(raw.reduce((acc, v) => acc + v, 0));
   const out = raw.map((v) => Math.floor(v));
   let left = target - out.reduce((sum, c) => sum + c, 0);
   const byRemainder = raw
@@ -945,10 +959,15 @@ export function shareRemainder(shares: number[]): number {
   return round2(100 - shares.reduce((s, v) => s + (Number.isFinite(v) ? v : 0), 0));
 }
 
-/** Do these shares add up to 100%? Tolerant of float dust, nothing more. */
-export function sharesComplete(shares: number[]): boolean {
+/**
+ * Do these shares add up to 100% — at the precision the inputs show? Judged on
+ * the EXACT sum (not the 2dp `shareRemainder`, which would round a 0.046 gap
+ * up to the epsilon and refuse it): the same number the "<sum> of 100%"
+ * counter rounds to one decimal, so the gate and the counter always agree.
+ */
+export function sharesComplete(shares: readonly number[]): boolean {
   if (shares.length === 0) return false;
-  return Math.abs(shareRemainder(shares)) < SHARE_EPSILON;
+  return Math.abs(exactRemainder(shares)) < SHARE_EPSILON;
 }
 
 /**

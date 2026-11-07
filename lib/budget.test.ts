@@ -589,6 +589,19 @@ describe("planning cascade", () => {
       expect(amountsFromShares(10_000, [60, 60])).toEqual([6_000, 6_000]);
     });
 
+    it("a COMPLETE split within the tolerance places exactly the parent", () => {
+      // 10 + 46.2 + 43.846 = 100.046%: displays as 100.0%, saves, and must
+      // place $13,000 — not $13,006 — so the typed total is the stored total.
+      const shares = [10, 46.2, shareFromAmount(5_700, 13_000)];
+      const amounts = amountsFromShares(13_000, shares);
+      expect(sum(amounts)).toBe(13_000);
+      // Every row keeps its proportion of the split as typed.
+      expect(amounts[0]).toBeCloseTo(1_299.4, 1);
+      expect(amounts[1]).toBeCloseTo(6_003.24, 1);
+      // Under 100 within the tolerance: scaled up onto the parent, not short.
+      expect(sum(amountsFromShares(13_000, [10, 46.2, 43.75]))).toBe(13_000);
+    });
+
     it("changing the total is a pure rescale through the same shares", () => {
       const shares = [50, 30, 20];
       expect(amountsFromShares(10_000, shares)).toEqual([5_000, 3_000, 2_000]);
@@ -635,11 +648,18 @@ describe("planning cascade", () => {
       expect(sharesComplete([100 / 3, 100 / 3, 100 / 3])).toBe(true);
     });
 
-    it("absorbs float dust but not a real gap", () => {
-      // The epsilon exists for binary-addition dust, which is orders of
-      // magnitude below a cent of share — not to wave through a 0.01% hole.
+    it("accepts a split that DISPLAYS as 100.0%, and nothing looser", () => {
+      // The share inputs show one decimal: a stored 46.1538% reads "46.2".
+      // Retyping what you see must still save (2026-11-07) — the gate used to
+      // sit at 2dp and refused a split whose every counter read 100.0%.
       expect(sharesComplete([50, 49.999_999])).toBe(true);
-      expect(sharesComplete([50, 49.99])).toBe(false);
+      expect(sharesComplete([50, 49.99])).toBe(true);
+      expect(sharesComplete([10, 46.2, 5_700 / 130])).toBe(true); // 100.046 → "100.0"
+      expect(sharesComplete([10, 46.2, 43.75])).toBe(true); // 99.95 → "100.0"
+      // A tenth off is a real gap the counter shows ("99.9" / "100.1").
+      expect(sharesComplete([50, 49.9])).toBe(false);
+      expect(sharesComplete([10, 6_000 / 130, 43.9])).toBe(false); // 100.054 → "100.1"
+      expect(sharesComplete([50, 50.1])).toBe(false);
     });
 
     it("reports exactly how much is unassigned", () => {

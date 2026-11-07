@@ -368,6 +368,9 @@ this map is still a rule you broke.
   amber), on track muted; |deviation| vs `PACING_WARN_THRESHOLD` decides strong vs faint.
   Never green/red. One helper, `pacingTone`; tokens only through `lib/palette.ts`.
 - Tracker merged into Pacing (2026-10-19); the board is range-based, one math path with the chart.
+- The plan gate judges "100%" at the one decimal the inputs show (`SHARE_EPSILON`
+  0.05 on the exact sum) — a split every counter reads as 100.0% saves, and a
+  complete split normalises onto the typed total. Gate and counter never disagree.
 
 → **`docs/decisions/budget.md`**
 

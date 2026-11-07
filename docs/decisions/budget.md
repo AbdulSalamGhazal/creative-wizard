@@ -60,6 +60,10 @@
   expectation; it is only the "data through" a footnote prints.
 - The reserve is part of the total, carved out of it, and sits OUTSIDE the
   curve. Save is blocked below 100% — uncommitted money belongs in the reserve.
+  "100%" is judged at the ONE decimal the share inputs show (`SHARE_EPSILON`
+  = 0.05, on the exact sum): a split every counter reads as "100.0% of 100%"
+  saves, and a complete split is normalised onto the typed total so the plan
+  stores exactly what was typed. The gate and the counter must never disagree.
 - **Reserve USED = Σ over platforms of max(0, actual − planned)**, where
   `planned` is the platform's whole allocation across its buckets (0 for a
   platform with no plan). Spend beyond the plan at PLATFORM level draws the
@@ -226,9 +230,9 @@ as it stood before the restructure.*
       move, other platforms' dollars untouched) and its result is mapped back
       onto shares of the new total at full precision.
   - **Save is BLOCKED below 100% (user decision).** Reserve share + platform
-    shares must reach exactly 100% of the TOTAL (2026-10-17; before that the
+    shares must reach 100% of the TOTAL (2026-10-17; before that the
     platforms alone reached 100% of the allocatable) and every planned
-    platform's objective shares must reach exactly 100%; the header counter
+    platform's objective shares must reach 100%; the header counter
     reads "<sum> of 100%" over reserve + platforms, the banner names each gap
     (naming the reserve: "Shares of the total: 70.0% (reserve 10.0% +
     platforms 60.0%) — 30.0% unassigned"), and THREE fixers close it in one
@@ -238,8 +242,26 @@ as it stood before the restructure.*
     an over-assigned split it cannot give back is not offered), "Normalize to
     100%" scales reserve and platforms together. Money not yet committed
     belongs in the RESERVE, never in a gap. Rounding must never block —
-    `SHARE_EPSILON` tolerates float dust only, and derived amounts are
-    cents-exact.
+    derived amounts are cents-exact.
+    - **"100%" is 100% AT THE PRECISION THE INPUTS SHOW (2026-11-07, user
+      decision).** `SHARE_EPSILON` was 0.005 — float dust only — while the
+      share inputs display ONE decimal: a plan saved from dollar amounts
+      reopens with shares like 46.1538% shown as "46.2", and a planner who
+      retyped a share as displayed landed the sum a few hundredths off. The
+      counter still rounded to "100.0% of 100%", the banner contradicted
+      itself ("Shares of the total: 100.0% … — 0.1% over"), and Save stayed
+      disabled with no visible gap — reported on the November 2026 plan. Now
+      `SHARE_EPSILON` is 0.05, `sharesComplete` judges the EXACT sum (the 2dp
+      `shareRemainder` would round a 0.046 gap up to the epsilon and refuse
+      it) — the same number the counter rounds to one decimal, so the two
+      always agree — and `amountsFromShares` NORMALISES a complete split onto
+      its parent (each row's share of the shares' own sum), so 10 / 46.2 /
+      43.846 over $13,000 places exactly $13,000, never $13,006: the typed
+      total is the stored total. An INCOMPLETE split is still placed
+      literally, so mid-edit 80% assigned still shows 80% of the money. The
+      alternative — showing two decimals so the inputs match a 2dp gate — was
+      declined: busier fields, and the editor would still refuse a plan that
+      looks finished.
   - **Two mid-month operations, KEEP THEM DISTINCT.** Changing the total (or
     reserve) RESCALES everything through the current shares. "Move money"
     moves money: the source (the reserve or a platform) falls by the amount —
