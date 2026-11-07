@@ -19,7 +19,7 @@ import { useChartFit, ChartFitToggle } from "@/components/charts/chart-fit";
 import { smoothColumns } from "@/lib/chart-smooth";
 import { fillDailyGaps, fillGroupSeries } from "@/lib/time-series";
 import type { CampaignCreativeDailyPoint } from "@/db/queries/campaign";
-import { CHART_CURSOR, ChartTooltip } from "@/components/charts/chart-tooltip";
+import { CHART_CURSOR, ChartTooltip, CHART_STROKE } from "@/components/charts/chart-tooltip";
 import { EmptyState } from "@/components/ui/empty-state";
 
 type MetricKey =
@@ -297,7 +297,7 @@ export function CampaignCreativeChart({
             dataKey={c.creativeId}
             name={c.name}
             stroke={c.color}
-            strokeWidth={group ? 2.2 : 1.8}
+            strokeWidth={group ? CHART_STROKE.emphasis : CHART_STROKE.primary}
             dot={false}
             // No connectNulls: a filled gap day carries null ratios and the
             // line must break there (before a creative's span, too).

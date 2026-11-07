@@ -17,7 +17,7 @@ import { ChartHeader, ChartShell, ExpandButton, SmoothToggle, plotClass } from "
 import { smoothColumns } from "@/lib/chart-smooth";
 import { FUNNEL_METRIC_COLOR } from "@/lib/palette";
 import type { FunnelDailyPoint } from "@/db/queries/funnel";
-import { CHART_CURSOR, ChartTooltip } from "@/components/charts/chart-tooltip";
+import { CHART_CURSOR, ChartTooltip, CHART_STROKE } from "@/components/charts/chart-tooltip";
 import { EmptyState } from "@/components/ui/empty-state";
 
 type MetricKey = "ctr" | "voc" | "atcRate" | "apRate" | "purchaseRate" | "cvr";
@@ -159,7 +159,7 @@ export function FunnelTrendChart({
             dataKey={m.key}
             name={m.label}
             stroke={m.color}
-            strokeWidth={1.8}
+            strokeWidth={CHART_STROKE.primary}
             dot={false}
             // No connectNulls: a no-data day carries null rates and the line
             // must break there rather than plot a fabricated 0%.
@@ -173,7 +173,7 @@ export function FunnelTrendChart({
               type="monotone"
               dataKey={`${m.key}_prev`}
               stroke={m.color}
-              strokeWidth={1.4}
+              strokeWidth={CHART_STROKE.secondary}
               strokeDasharray="4 3"
               strokeOpacity={0.5}
               dot={false}

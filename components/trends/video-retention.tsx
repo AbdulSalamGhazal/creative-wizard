@@ -14,7 +14,7 @@ import {
 import { cn } from "@/lib/utils";
 import { seriesColor } from "@/lib/palette";
 import type { VideoDiagnosticRow, VideoFunnel } from "@/db/queries/trends";
-import { CHART_CURSOR, ChartTooltip } from "@/components/charts/chart-tooltip";
+import { CHART_CURSOR, ChartTooltip, CHART_STROKE } from "@/components/charts/chart-tooltip";
 import { ChartHeader, ChartShell, ExpandButton } from "@/components/charts/chart-shell";
 // EXEMPT from fillDailyGaps: the x-axis here is funnel STAGE (2s → 100%), not
 // time — there are no calendar days to fill.
@@ -193,7 +193,7 @@ export function VideoRetention({
                     stroke="var(--brand)"
                     fill="var(--brand)"
                     fillOpacity={0.14}
-                    strokeWidth={2}
+                    strokeWidth={CHART_STROKE.primary}
                     dot={{ r: 3, fill: "var(--brand)" }}
                   />
                 ) : (
@@ -205,7 +205,7 @@ export function VideoRetention({
                         type="monotone"
                         dataKey={v.creativeId}
                         stroke={colorOf(v.creativeId)}
-                        strokeWidth={1.75}
+                        strokeWidth={CHART_STROKE.primary}
                         dot={false}
                         connectNulls
                       />

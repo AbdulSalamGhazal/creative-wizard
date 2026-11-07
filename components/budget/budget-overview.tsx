@@ -19,7 +19,7 @@ import type { TooltipProps } from "recharts";
 import { Button } from "@/components/ui/button";
 import { PlatformDot } from "@/components/ui/platform-dot";
 import { ChartHeader, ChartShell, ExpandButton, plotClass } from "@/components/charts/chart-shell";
-import { CHART_CURSOR, ChartTooltip } from "@/components/charts/chart-tooltip";
+import { CHART_CURSOR, ChartTooltip, CHART_STROKE } from "@/components/charts/chart-tooltip";
 import { MetricPicker } from "@/components/charts/metric-picker";
 import { SeriesLegend } from "@/components/charts/series-legend";
 import { ALL_PLATFORMS } from "@/lib/palette";
@@ -844,7 +844,7 @@ function MonthChart({
                     type="linear"
                     dataKey="plan"
                     stroke="var(--ink-3)"
-                    strokeWidth={1.4}
+                    strokeWidth={CHART_STROKE.secondary}
                     strokeDasharray="5 4"
                     dot={false}
                     activeDot={{ r: 3 }}
@@ -857,7 +857,7 @@ function MonthChart({
                     type="linear"
                     dataKey="projection"
                     stroke="var(--brand-2)"
-                    strokeWidth={1.6}
+                    strokeWidth={CHART_STROKE.secondary}
                     strokeDasharray="2 4"
                     dot={false}
                     activeDot={{ r: 3 }}
@@ -870,7 +870,7 @@ function MonthChart({
                     type="linear"
                     dataKey="actual"
                     stroke="var(--brand)"
-                    strokeWidth={2}
+                    strokeWidth={CHART_STROKE.primary}
                     dot={false}
                     activeDot={{ r: 4 }}
                     connectNulls={false}

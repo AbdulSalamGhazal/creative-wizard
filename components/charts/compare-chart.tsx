@@ -25,7 +25,7 @@ import { COMPARE_METRIC_LABEL } from "@/validators/compare";
 // side's first data day (deliberate design), so calendar gap-filling would
 // distort the alignment rather than fix it.
 import type { CompareMetric, CompareSeriesPoint } from "@/db/queries/performance";
-import { CHART_CURSOR, ChartTooltip } from "@/components/charts/chart-tooltip";
+import { CHART_CURSOR, ChartTooltip, CHART_STROKE } from "@/components/charts/chart-tooltip";
 import { EmptyState } from "@/components/ui/empty-state";
 
 interface SideOption {
@@ -310,7 +310,7 @@ export function CompareChart({
                       type="monotone"
                       dataKey={c.id}
                       stroke={colorById.get(c.id) ?? seriesColor(0)}
-                      strokeWidth={2}
+                      strokeWidth={CHART_STROKE.primary}
                       dot={{
                         r: 2.5,
                         fill: colorById.get(c.id) ?? seriesColor(0),

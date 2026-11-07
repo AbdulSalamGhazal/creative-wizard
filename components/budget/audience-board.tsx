@@ -15,7 +15,7 @@ import {
 import type { TooltipProps } from "recharts";
 import { Button } from "@/components/ui/button";
 import { ChartHeader, ChartShell, ExpandButton } from "@/components/charts/chart-shell";
-import { CHART_CURSOR, ChartTooltip } from "@/components/charts/chart-tooltip";
+import { CHART_CURSOR, ChartTooltip, CHART_STROKE } from "@/components/charts/chart-tooltip";
 import { MetricPicker } from "@/components/charts/metric-picker";
 import { SeriesLegend } from "@/components/charts/series-legend";
 import { SegmentedControl } from "@/components/ui/segmented-control";
@@ -690,7 +690,7 @@ export function AudienceBoard({
                             type="stepAfter"
                             dataKey={def.key}
                             stroke={def.color}
-                            strokeWidth={2}
+                            strokeWidth={CHART_STROKE.primary}
                             dot={false}
                             activeDot={{ r: 4 }}
                             connectNulls={false}

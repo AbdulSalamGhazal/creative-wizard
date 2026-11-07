@@ -15,7 +15,7 @@ import {
 } from "recharts";
 import type { TooltipProps } from "recharts";
 import { ChartHeader, ChartShell, ExpandButton, plotClass } from "@/components/charts/chart-shell";
-import { CHART_CURSOR, ChartTooltip } from "@/components/charts/chart-tooltip";
+import { CHART_CURSOR, ChartTooltip, CHART_STROKE } from "@/components/charts/chart-tooltip";
 import { MetricPicker } from "@/components/charts/metric-picker";
 import { SeriesLegend } from "@/components/charts/series-legend";
 import { SegmentedControl } from "@/components/ui/segmented-control";
@@ -1748,7 +1748,7 @@ export function BudgetPacing({
                         type="linear"
                         dataKey={`plan_${def.key}`}
                         stroke={seriesDefs.length > 1 ? def.color : "var(--ink-3)"}
-                        strokeWidth={1.4}
+                        strokeWidth={CHART_STROKE.secondary}
                         strokeDasharray="5 4"
                         strokeOpacity={seriesDefs.length > 1 ? 0.55 : 1}
                         dot={false}
@@ -1770,7 +1770,7 @@ export function BudgetPacing({
                           type="linear"
                           dataKey={def.key}
                           stroke={def.color}
-                          strokeWidth={2}
+                          strokeWidth={CHART_STROKE.primary}
                           dot={false}
                           activeDot={{ r: 4 }}
                           connectNulls={false}

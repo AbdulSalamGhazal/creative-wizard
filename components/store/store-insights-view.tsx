@@ -14,7 +14,7 @@ import {
 import type { TooltipProps } from "recharts";
 import { Coins, Download, Receipt, ShoppingBag, TrendingUp } from "lucide-react";
 import { ChartHeader, ChartShell, ExpandButton, plotClass } from "@/components/charts/chart-shell";
-import { CHART_CURSOR, ChartTooltip } from "@/components/charts/chart-tooltip";
+import { CHART_CURSOR, ChartTooltip, CHART_STROKE } from "@/components/charts/chart-tooltip";
 import { SeriesLegend } from "@/components/charts/series-legend";
 import { MetricPicker } from "@/components/charts/metric-picker";
 import { SegmentedControl } from "@/components/ui/segmented-control";
@@ -583,7 +583,7 @@ export function StoreInsightsView({
                         type="linear"
                         dataKey="revenue"
                         stroke={REVENUE_COLOR}
-                        strokeWidth={2}
+                        strokeWidth={CHART_STROKE.primary}
                         dot={false}
                         activeDot={{ r: 4 }}
                         isAnimationActive={false}

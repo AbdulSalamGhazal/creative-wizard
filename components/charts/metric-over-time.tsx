@@ -18,7 +18,7 @@ import { fillDailyGaps, fillGroupSeries } from "@/lib/time-series";
 import { int, intCompact, monthDay, roas, usd, usdCompact } from "@/lib/format";
 import { useChartFit, ChartFitToggle } from "@/components/charts/chart-fit";
 import type { MetricOverTimeRow } from "@/db/queries/performance";
-import { CHART_CURSOR, ChartTooltip } from "@/components/charts/chart-tooltip";
+import { CHART_CURSOR, ChartTooltip, CHART_STROKE } from "@/components/charts/chart-tooltip";
 import { EmptyState } from "@/components/ui/empty-state";
 
 export interface OverTimeKey {
@@ -321,7 +321,7 @@ export function MetricOverTimeChart({
                       type="monotone"
                       dataKey={l.id}
                       stroke={l.color}
-                      strokeWidth={group ? 2.2 : 1.8}
+                      strokeWidth={group ? CHART_STROKE.emphasis : CHART_STROKE.primary}
                       dot={false}
                       activeDot={{ r: 4 }}
                       connectNulls={false}

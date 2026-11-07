@@ -24,7 +24,7 @@ import { smoothColumns } from "@/lib/chart-smooth";
 import { fillDailyGaps, fillGroupSeries } from "@/lib/time-series";
 import { useChartFit, ChartFitToggle } from "@/components/charts/chart-fit";
 import type { DailyMetricRow } from "@/db/queries/performance";
-import { CHART_CURSOR, ChartTooltip } from "@/components/charts/chart-tooltip";
+import { CHART_CURSOR, ChartTooltip, CHART_STROKE } from "@/components/charts/chart-tooltip";
 import { EmptyState } from "@/components/ui/empty-state";
 
 interface Props {
@@ -289,7 +289,7 @@ export function CreativePerfLineChart({
                       type="monotone"
                       dataKey={l.id}
                       stroke={l.color}
-                      strokeWidth={group ? 2.2 : 2}
+                      strokeWidth={group ? CHART_STROKE.emphasis : CHART_STROKE.primary}
                       dot={false}
                       activeDot={{ r: 4 }}
                       connectNulls={false}

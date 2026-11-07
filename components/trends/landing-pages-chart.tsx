@@ -11,7 +11,7 @@ import {
   YAxis,
 } from "recharts";
 import { ChartHeader, ChartShell, ExpandButton, plotClass } from "@/components/charts/chart-shell";
-import { CHART_CURSOR, ChartTooltip } from "@/components/charts/chart-tooltip";
+import { CHART_CURSOR, ChartTooltip, CHART_STROKE } from "@/components/charts/chart-tooltip";
 import { MetricPicker } from "@/components/charts/metric-picker";
 import { SeriesLegend } from "@/components/charts/series-legend";
 import { ChartFitToggle, useChartFit } from "@/components/charts/chart-fit";
@@ -223,7 +223,7 @@ export function LandingPagesChart({
                       type="monotone"
                       dataKey={s.id}
                       stroke={s.color}
-                      strokeWidth={1.8}
+                      strokeWidth={CHART_STROKE.primary}
                       strokeDasharray={s.baseline ? "5 4" : undefined}
                       dot={false}
                       activeDot={{ r: 4 }}

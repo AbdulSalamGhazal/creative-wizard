@@ -14,7 +14,7 @@ import {
 import type { TooltipProps } from "recharts";
 import { Plus, X } from "lucide-react";
 import { ChartHeader, ChartShell, ExpandButton } from "@/components/charts/chart-shell";
-import { CHART_CURSOR, ChartTooltip } from "@/components/charts/chart-tooltip";
+import { CHART_CURSOR, ChartTooltip, CHART_STROKE } from "@/components/charts/chart-tooltip";
 import { MetricPicker } from "@/components/charts/metric-picker";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { Button } from "@/components/ui/button";
@@ -449,7 +449,7 @@ export function UtmCompareSection({
                         dataKey={(d: (typeof points)[number]) => d.values[k] ?? 0}
                         name={labelOf(k)}
                         stroke={colorOf(k)}
-                        strokeWidth={2}
+                        strokeWidth={CHART_STROKE.primary}
                         dot={false}
                         activeDot={{ r: 4 }}
                         isAnimationActive={false}

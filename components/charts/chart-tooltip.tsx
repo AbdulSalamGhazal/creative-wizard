@@ -10,6 +10,14 @@ import { cn } from "@/lib/utils";
 export const CHART_CURSOR = { stroke: "var(--ink-3)", strokeDasharray: "3 3" };
 
 /**
+ * The one line-weight ladder (R-101, 2026-11): a chart's data series is
+ * `primary`; a reference line (plan, projection, the previous period's ghost)
+ * is `secondary`; a single combined "Group" line is `emphasis`. Every <Line>
+ * reads it, so a series weighs the same on every page.
+ */
+export const CHART_STROKE = { primary: 2, secondary: 1.5, emphasis: 2.25 } as const;
+
+/**
  * The one Recharts custom-tooltip surface — the frosted popover card that every
  * chart's tooltip renders into. Was copy-pasted (with drift in class order and
  * width caps) across 10 chart files; they now all render through this. Pass a
