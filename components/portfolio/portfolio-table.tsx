@@ -19,6 +19,7 @@ import {
 } from "@/components/portfolio/portfolio-columns";
 import type { PortfolioCampaignRow } from "@/db/queries/portfolio";
 import { EmptyState } from "@/components/ui/empty-state";
+import { TotalLabel } from "@/components/ui/total-label";
 
 /**
  * The column META lives in a NON-client module (`portfolio-columns.ts`) because
@@ -176,7 +177,7 @@ export function PortfolioTable({
     const renderTotal = (key: string): React.ReactNode => {
       switch (key) {
         case "campaign":
-          return <span className="text-ink-2 font-medium">Totals · weighted</span>;
+          return <TotalLabel className="text-ink-2 font-medium" />;
         case "creatives":
           return <span className="text-ink-3">{int(totals.creatives)}</span>;
         case "spend":

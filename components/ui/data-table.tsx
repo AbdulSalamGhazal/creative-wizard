@@ -4,10 +4,12 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { ArrowDown, ArrowUp, ArrowUpDown, GripVertical } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { int } from "@/lib/format";
 import { DownloadCsvButton } from "@/components/ui/download-csv-button";
 import { TableColumnsControl, TableCorner } from "@/components/ui/table-columns-control";
 import { rowsToCsv, type CsvColumn } from "@/lib/csv-export";
 import { EmptyState } from "@/components/ui/empty-state";
+import { InfoTip } from "@/components/ui/info-tip";
 
 /**
  * The canonical data table. One sort/resize/reorder/visibility behaviour for
@@ -58,6 +60,11 @@ export interface DataColumn<T> {
    * stops propagation so the row handler doesn't double-fire.
    */
   href?: (row: T) => string;
+  /**
+   * A standing note on this column, as an ⓘ beside its header label (the
+   * house `InfoTip`) — e.g. why a column doesn't sort right now.
+   */
+  info?: string;
 }
 
 const MIN_W = 64;
@@ -105,6 +112,7 @@ export function DataTable<T>({
   minWidthClass = "min-w-[960px]",
   evenColumns = false,
   csvFileName,
+  pageSize,
   empty,
 }: {
   columns: DataColumn<T>[];
@@ -144,6 +152,12 @@ export function DataTable<T>({
    *  (in their current order/visibility/sort) using each column's `csv` value
    *  (or `sortValue` as a fallback). The filename gets a `.csv` suffix. */
   csvFileName?: string;
+  /**
+   * Opt-in progressive reveal for a long table (R-029): render the first
+   * `pageSize` sorted rows and a "Show N more · total" button under the frame.
+   * Sort, totals and the CSV still cover every row; only the DOM is capped.
+   */
+  pageSize?: number;
   empty?: React.ReactNode;
 }) {
   const pinnedCol = columns.find((c) => c.pinned);
@@ -180,6 +194,11 @@ export function DataTable<T>({
     const sv = col.sortValue;
     return [...rows].sort((a, b) => compareSortValues(sv(a), sv(b), dir));
   }, [rows, sortKey, dir, columns]);
+
+  // ── Progressive reveal (opt-in `pageSize`) ──
+  const [revealed, setRevealed] = useState(pageSize ?? 0);
+  const shown = pageSize ? sorted.slice(0, Math.max(revealed, pageSize)) : sorted;
+  const hiddenCount = sorted.length - shown.length;
 
   const toggleSort = (col: DataColumn<T>) => {
     if (!col.sortable || !onSort) return;
@@ -239,8 +258,18 @@ export function DataTable<T>({
     const w = widths[key];
     return w ? { width: w, minWidth: w, maxWidth: w } : undefined;
   };
+  /** Back to content sizing — the auto-fit (R-083). */
+  const fitColumn = (key: string) =>
+    setWidths((prev) => {
+      if (!(key in prev)) return prev;
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  const resized = Object.keys(widths).length > 0;
 
-  // CSV of exactly what's shown (visible columns, in order, current sort).
+  // CSV of exactly what's shown (visible columns, in order, current sort) —
+  // every row, including any not yet revealed.
   const csvContent = useMemo(() => {
     if (!csvFileName) return "";
     const csvCols: CsvColumn<T>[] = cols.map((c) => ({
@@ -250,6 +279,11 @@ export function DataTable<T>({
     }));
     return rowsToCsv(sorted, csvCols);
   }, [csvFileName, cols, sorted]);
+  // Export lives in the table's corner beside Columns (R-084) — one place
+  // for table-level actions, no row of its own above the frame.
+  const csvControl = csvFileName && rows.length > 0 && (
+    <DownloadCsvButton csvContent={csvContent} filename={`${csvFileName}.csv`} iconOnly />
+  );
 
   const columnsControl = columnsKey && onToggleColumn && onMoveColumn && onResetColumns && (
     <TableColumnsControl
@@ -265,11 +299,23 @@ export function DataTable<T>({
         hideable: c.lockedVisible ? false : undefined,
       }))}
       hidden={hidden}
-      dirty={columnsDirty}
+      // Resized columns count as "not default" — Reset puts widths back too.
+      dirty={columnsDirty || resized}
       onToggle={onToggleColumn}
       onMove={onMoveColumn}
-      onReset={onResetColumns}
+      onReset={() => {
+        setWidths({});
+        if (columnsDirty) onResetColumns();
+      }}
     />
+  );
+  const corner = (columnsControl || csvControl) && (
+    <TableCorner>
+      <span className="flex items-center">
+        {csvControl}
+        {columnsControl}
+      </span>
+    </TableCorner>
   );
 
   if (rows.length === 0) {
@@ -279,7 +325,7 @@ export function DataTable<T>({
       <div className="relative isolate space-y-2">
         {/* No header to float over — the control still has to be reachable, so
             it hangs from the top-right of the empty state's own box. */}
-        {columnsControl && <TableCorner>{columnsControl}</TableCorner>}
+        {corner}
         {empty ?? (
           <EmptyState title="No rows." />
         )}
@@ -293,11 +339,6 @@ export function DataTable<T>({
 
   return (
     <div className="space-y-2">
-      {csvFileName && (
-        <div className="flex justify-end">
-          <DownloadCsvButton csvContent={csvContent} filename={`${csvFileName}.csv`} />
-        </div>
-      )}
       {/* The corner control floats in the table's own header row — see
           `TableCorner`. The wrapper is what it is positioned against, so it
           holds the right edge while the table scrolls sideways under it.
@@ -316,6 +357,16 @@ export function DataTable<T>({
                 <th
                   key={c.key}
                   style={styleFor(c.key)}
+                  // The sort state in words, not only in the arrow (R-026).
+                  aria-sort={
+                    c.sortable && onSort
+                      ? sortKey === c.key
+                        ? dir === "asc"
+                          ? "ascending"
+                          : "descending"
+                        : "none"
+                      : undefined
+                  }
                   onDragOver={canReorder ? (e) => e.preventDefault() : undefined}
                   onDrop={canReorder ? () => onDrop(c.key) : undefined}
                   className={cn(
@@ -324,7 +375,8 @@ export function DataTable<T>({
                     border(i),
                     // Room for the corner control at rest (scrolled right, the
                     // button's own backdrop does the work instead).
-                    columnsControl && i === cols.length - 1 && "pr-10",
+                    i === cols.length - 1 &&
+                      (columnsControl && csvControl ? "pr-[4.5rem]" : corner && "pr-10"),
                     pinnedCls(c, "z-30 bg-surface-2"),
                   )}
                 >
@@ -373,10 +425,13 @@ export function DataTable<T>({
                     ) : (
                       c.label
                     )}
+                    {c.info && <InfoTip label={`About ${c.label}`}>{c.info}</InfoTip>}
                   </span>
                   <span
                     onMouseDown={(e) => onResizeStart(c.key, e)}
-                    title="Drag to resize"
+                    // Double-click fits the column to its content again.
+                    onDoubleClick={() => fitColumn(c.key)}
+                    title="Drag to resize · double-click to fit"
                     className="absolute top-0 right-0 h-full w-1.5 cursor-col-resize select-none hover:bg-brand/40 active:bg-brand/60"
                   />
                 </th>
@@ -385,7 +440,7 @@ export function DataTable<T>({
           </tr>
         </thead>
         <tbody className="divide-y divide-line">
-          {sorted.map((r) => (
+          {shown.map((r) => (
             <tr
               key={rowKey(r)}
               id={rowId?.(r)}
@@ -445,8 +500,22 @@ export function DataTable<T>({
         )}
       </table>
       </div>
-      {columnsControl && <TableCorner>{columnsControl}</TableCorner>}
+      {corner}
       </div>
+      {hiddenCount > 0 && (
+        // Progressive reveal (R-029): the rows past the page are kept out of
+        // the DOM until asked for; sort, totals and the CSV still use them all.
+        <div className="flex justify-center">
+          <button
+            type="button"
+            onClick={() => setRevealed((n) => n + (pageSize ?? 0))}
+            className="inline-flex h-8 items-center rounded-md border border-line bg-surface px-3 text-xs text-ink-2 transition-colors hover:bg-surface-2 hover:text-ink"
+          >
+            Show {int(Math.min(hiddenCount, pageSize ?? 0))} more
+            <span className="ml-1.5 tabular-nums text-ink-3">· {int(sorted.length)} total</span>
+          </button>
+        </div>
+      )}
     </div>
   );
 }

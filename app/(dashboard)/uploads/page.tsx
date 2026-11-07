@@ -128,6 +128,13 @@ export default async function UploadsPage({
       <BatchHistoryTable
         tableKey={TABLE_KEYS.UPLOAD_HISTORY_ADS}
         showPlatform
+        // The window rule, as the Status header's ⓘ (R-125) — it used to be a
+        // sentence under the table.
+        rollbackInfo={
+          canRollback || canCleanup
+            ? `Roll back any batch within ${ROLLBACK_WINDOW_HOURS} h of upload. Beyond that window, use the cleanup tool below or contact an operator.`
+            : undefined
+        }
         rows={rows.map((r) => ({
           id: r.id,
           uploadedAt: r.uploadedAt.toISOString(),
@@ -162,13 +169,6 @@ export default async function UploadsPage({
           />
         }
       />
-
-      {(canRollback || canCleanup) && (
-        <p className="text-[11px] text-ink-3">
-          Roll back any batch within {ROLLBACK_WINDOW_HOURS} h of upload. Beyond that window, use the
-          cleanup tool below or contact an operator.
-        </p>
-      )}
 
       {canCleanup && (
         <CleanupTool

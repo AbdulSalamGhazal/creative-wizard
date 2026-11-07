@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 import type { CampaignMixRow, PlatformMixRow } from "@/db/queries/performance";
 import { funnelTotals, type FunnelTotalsResult } from "@/lib/funnel-totals";
 import { EmptyState } from "@/components/ui/empty-state";
+import { TotalLabel } from "@/components/ui/total-label";
 
 type Mode = "campaign" | "platform";
 
@@ -199,6 +200,15 @@ export function CreativeCampaignsTable({ campaigns, platforms }: Props) {
   const [dir, setDir] = useState<"asc" | "desc">("desc");
 
   const totals = useMemo(() => weightedTotals(campaigns), [campaigns]);
+  // The campaign's page, carrying this page's range. A real link on the
+  // identity cell (keyboard, new tab — R-008) and the whole-row click target.
+  const from = searchParams.get("from");
+  const to = searchParams.get("to");
+  const campaignHref = useMemo(
+    () => (campaign: string) =>
+      withDateRange(`/campaigns/${encodeURIComponent(campaign)}`, from, to),
+    [from, to],
+  );
 
   const campaignColumns = useMemo<DataColumn<CampaignMixRow>[]>(
     () => [
@@ -211,6 +221,7 @@ export function CreativeCampaignsTable({ campaigns, platforms }: Props) {
         defaultSortDir: "asc",
         sortValue: (r) => r.campaign,
         csv: (r) => r.campaign,
+        href: (r) => campaignHref(r.campaign),
         render: (r) => (
           <span className="inline-flex items-center gap-1.5 min-w-0">
             <PlatformDot platform={r.platform} size="sm" />
@@ -228,11 +239,11 @@ export function CreativeCampaignsTable({ campaigns, platforms }: Props) {
             </span>
           </span>
         ),
-        total: () => <span className="text-ink-3">Totals</span>,
+        total: () => <TotalLabel className="text-ink-3" />,
       },
       ...metricColumns<CampaignMixRow>(totals),
     ],
-    [totals],
+    [totals, campaignHref],
   );
 
   const platformColumns = useMemo<DataColumn<PlatformMixRow>[]>(
@@ -254,7 +265,7 @@ export function CreativeCampaignsTable({ campaigns, platforms }: Props) {
             </span>
           </span>
         ),
-        total: () => <span className="text-ink-3">Totals</span>,
+        total: () => <TotalLabel className="text-ink-3" />,
       },
       ...metricColumns<PlatformMixRow>(totals),
     ],
@@ -339,17 +350,7 @@ export function CreativeCampaignsTable({ campaigns, platforms }: Props) {
           dir={dir}
           onSort={onSort}
           {...cols.tableProps}
-          onRowClick={(r) =>
-            startNav(() =>
-              router.push(
-                withDateRange(
-                  `/campaigns/${encodeURIComponent(r.campaign)}`,
-                  searchParams.get("from"),
-                  searchParams.get("to"),
-                ),
-              ),
-            )
-          }
+          onRowClick={(r) => startNav(() => router.push(campaignHref(r.campaign)))}
           showTotals
           csvFileName="creative-campaigns"
           empty={empty}

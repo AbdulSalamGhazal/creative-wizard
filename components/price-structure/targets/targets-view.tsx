@@ -120,6 +120,11 @@ function CheckOffers({ rows, targets }: { rows: readonly OfferRow[]; targets: re
   );
 }
 
+/** The offer's editor on Products & offers, keeping the open version (`?v=`). */
+function offerEditorHref(r: OfferRow, v: string | null): string {
+  return `/price-structure/products/${r.product.id}/${r.offer.id}${v ? `?v=${v}` : ""}`;
+}
+
 function TargetMatrix({ rows, targets }: { rows: readonly OfferRow[]; targets: readonly Target[] }) {
   const router = useRouter();
   const v = useSearchParams().get("v");
@@ -130,6 +135,8 @@ function TargetMatrix({ rows, targets }: { rows: readonly OfferRow[]; targets: r
         key: "offer",
         label: "Offer",
         pinned: true,
+        // A real link (keyboard, new tab — R-008); the row click goes there too.
+        href: (r) => offerEditorHref(r, v),
         render: (r) => (
           <span className="flex items-start gap-2">
             <span className="mt-1 size-2 shrink-0 rounded-full" style={{ background: productColor(r.product.colorSlot) }} aria-hidden />
@@ -156,7 +163,7 @@ function TargetMatrix({ rows, targets }: { rows: readonly OfferRow[]; targets: r
       { key: "overall", label: "Overall", align: "right", render: (r) => (r.overall ? <StatusBadge status={r.overall} compact /> : "—") },
     ];
     return cols;
-  }, [targets]);
+  }, [targets, v]);
   const hideable = columns.filter((c) => !c.pinned).map((c) => c.key);
   const cols = useTableColumns({ tableKey: TABLE_KEYS.PS_TARGET_MATRIX, hideable, defaults: hideable });
   return (
@@ -166,7 +173,7 @@ function TargetMatrix({ rows, targets }: { rows: readonly OfferRow[]; targets: r
         rows={[...rows]}
         rowKey={(r) => r.offer.id}
         minWidthClass="min-w-[640px]"
-        onRowClick={(r) => startNav(() => router.push(`/price-structure/products/${r.product.id}/${r.offer.id}${v ? `?v=${v}` : ""}`))}
+        onRowClick={(r) => startNav(() => router.push(offerEditorHref(r, v)))}
         {...cols.tableProps}
       />
     </SectionCard>

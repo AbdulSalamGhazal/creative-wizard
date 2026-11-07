@@ -325,7 +325,7 @@ export async function OverviewSection({
           COLUMNS control is in the table's header row, like every table) */}
       <Card>
         <CardContent>
-          <TopCreativesTable rows={topRows} />
+          <TopCreativesTable rows={topRows} from={rangeFrom} to={rangeTo} />
         </CardContent>
       </Card>
     </section>

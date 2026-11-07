@@ -78,6 +78,20 @@ export function StoreOrdersTable({
   const [clientSort, setClientSort] = useState<{ key: string; dir: "asc" | "desc" } | null>(
     null,
   );
+  // R-078: a page-local sort over a MULTI-page result would read as the top of
+  // all orders and be the top of 50. So while the orders span several pages a
+  // custom column doesn't sort, and its header says why.
+  const multiPage = total > pageSize;
+  const customSort = useMemo<Pick<DataColumn<StoreOrderRow>, "sortable" | "info">>(
+    () =>
+      multiPage
+        ? {
+            sortable: false,
+            info: "Sorting by this field would sort only the orders on this page, so it’s off while they span several pages.",
+          }
+        : { sortable: true },
+    [multiPage],
+  );
 
   const columns: DataColumn<StoreOrderRow>[] = useMemo(() => {
     const cols: DataColumn<StoreOrderRow>[] = [
@@ -127,7 +141,7 @@ export function StoreOrdersTable({
             key: f.key,
             label: f.label,
             align: "right",
-            sortable: true,
+            ...customSort,
             render: (r) => {
               const v = get(r);
               return v === undefined || v === null ? (
@@ -146,7 +160,7 @@ export function StoreOrdersTable({
           return {
             key: f.key,
             label: f.label,
-            sortable: true,
+            ...customSort,
             render: (r) => {
               const v = get(r);
               return v ? <span className="tabular-nums">{isoDate(String(v))}</span> : "—";
@@ -157,7 +171,7 @@ export function StoreOrdersTable({
         return {
           key: f.key,
           label: f.label,
-          sortable: true,
+          ...customSort,
           render: (r) => {
             const v = get(r);
             if (v === undefined || v === null || v === "") return "—";
@@ -173,10 +187,10 @@ export function StoreOrdersTable({
       }),
     ];
     return cols;
-  }, [customCols, total, sumTotal]);
+  }, [customCols, total, sumTotal, customSort]);
 
   const displayRows = useMemo(() => {
-    if (!clientSort) return rows;
+    if (!clientSort || multiPage) return rows;
     const col = columns.find((c) => c.key === clientSort.key);
     if (!col?.sortValue) return rows;
     const sv = col.sortValue;
@@ -190,7 +204,7 @@ export function StoreOrdersTable({
       if (av > bv) return 1 * mult;
       return 0;
     });
-  }, [rows, clientSort, columns]);
+  }, [rows, clientSort, columns, multiPage]);
 
   const pushSort = (key: string, d: "asc" | "desc") => {
     const next = new URLSearchParams(searchParams.toString());
@@ -215,8 +229,9 @@ export function StoreOrdersTable({
   };
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
-  const activeSort = clientSort?.key ?? sort;
-  const activeDir = clientSort?.dir ?? dir;
+  const liveClientSort = multiPage ? null : clientSort;
+  const activeSort = liveClientSort?.key ?? sort;
+  const activeDir = liveClientSort?.dir ?? dir;
 
   return (
     <div className="space-y-2">

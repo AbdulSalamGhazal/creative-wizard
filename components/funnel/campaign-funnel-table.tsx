@@ -12,6 +12,8 @@ import { PLATFORM_LABEL } from "@/lib/palette";
 import { PlatformDot } from "@/components/ui/platform-dot";
 import type { CampaignFunnelRow } from "@/db/queries/funnel";
 import { EmptyState } from "@/components/ui/empty-state";
+import { withDateRange } from "@/lib/url";
+import { TotalLabel } from "@/components/ui/total-label";
 
 export type SortKey =
   | "campaign"
@@ -101,7 +103,16 @@ const DEFAULT_HIDDEN: SortKey[] = ["clicks", "landingPageViews", "conversionValu
  * sums, and a row that never reported a step joins NEITHER side of that
  * ratio, so a column nobody reported renders "—" rather than a fabricated 0%.
  */
-export function CampaignFunnelTable({ rows }: { rows: CampaignFunnelRow[] }) {
+export function CampaignFunnelTable({
+  rows,
+  from,
+  to,
+}: {
+  rows: CampaignFunnelRow[];
+  /** The range the table ran — carried into each campaign's link (R-015). */
+  from?: string;
+  to?: string;
+}) {
   const [sort, setSort] = useState<{ key: SortKey; dir: Dir }>(DEFAULT_SORT);
 
   const sorted = useMemo(() => {
@@ -154,8 +165,10 @@ export function CampaignFunnelTable({ rows }: { rows: CampaignFunnelRow[] }) {
             {r.campaign}
           </span>
         ),
-        total: () => <span className="text-ink">Total · {rows.length}</span>,
+        total: () => <TotalLabel className="text-ink" />,
         csv: (r) => r.campaign,
+        // Drill-down to the campaign's page with this range (R-015).
+        href: (r) => withDateRange(`/campaigns/${encodeURIComponent(r.campaign)}`, from, to),
       },
       {
         key: "platform",
@@ -230,7 +243,7 @@ export function CampaignFunnelTable({ rows }: { rows: CampaignFunnelRow[] }) {
         (r) => r.conversionValue,
       ),
     ];
-  }, [rows.length, totals]);
+  }, [totals, from, to]);
 
   const columnKeys = columns.filter((c) => !c.pinned).map((c) => c.key);
   const cols = useTableColumns({

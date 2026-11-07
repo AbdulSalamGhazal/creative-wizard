@@ -51,6 +51,7 @@ import { StageChips } from "@/components/creative/stage-chips";
 import type { PlatformStatus } from "@/lib/creative-status";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Chip } from "@/components/ui/chip";
+import { TotalLabel } from "@/components/ui/total-label";
 
 interface Props {
   rows: SummaryRow[];
@@ -760,7 +761,7 @@ export function SummaryTable({
                     i === 0 && "left-0 z-20",
                   )}
                 >
-                  {i === 0 ? "Totals" : ""}
+                  {i === 0 ? <TotalLabel /> : ""}
                 </td>
               ))}
               {orderedGroups.map((g) => (
@@ -830,6 +831,7 @@ function IdentityTh({
     <th
       ref={thRef}
       style={style}
+      aria-sort={ariaSort(active, dir)}
       className={cn(
         "relative font-medium px-3 py-2 text-left",
         !width && "whitespace-nowrap",
@@ -896,6 +898,7 @@ function RateAndMetricsHead({
             <th
               className="font-medium px-2 py-2 text-center border-l border-line"
               title="Status on this platform — N: new · A: active · P: pause · T: terminated"
+              aria-sort={ariaSort(sort.key === `${scope}.status`, sort.dir)}
             >
               <SortLink
                 href={sortHref(`${scope}.status`)}
@@ -912,6 +915,7 @@ function RateAndMetricsHead({
           <th
             className="font-medium px-3 py-2 whitespace-nowrap text-center"
             title="Derived from ROAS and the spend gate in Configuration → Rate rules."
+            aria-sort={ariaSort(sort.key === `${scope}.rate`, sort.dir)}
           >
             <SortLink
               href={sortHref(`${scope}.rate`)}
@@ -959,6 +963,7 @@ function SortableTh({
 }) {
   return (
     <th
+      aria-sort={ariaSort(active, dir)}
       className={
         "font-medium px-3 py-2 whitespace-nowrap text-right " +
         (groupBorder ? "border-l border-line " : "")
@@ -1143,6 +1148,12 @@ function FooterCells({
       })}
     </>
   );
+}
+
+/** A sortable header's state in words for assistive tech (R-026). */
+function ariaSort(active: boolean, dir: SortDir): "ascending" | "descending" | "none" {
+  if (!active) return "none";
+  return dir === "asc" ? "ascending" : "descending";
 }
 
 /**

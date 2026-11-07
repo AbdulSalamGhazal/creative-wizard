@@ -305,6 +305,8 @@ export function CampaignRecordsTable({
           rows={sortedRecords}
           rowKey={(r) => String(r.id)}
           rowClassName={(r) => (r.excludedFromAggregates ? "opacity-55" : "")}
+          // Up to 2,000 rows: render 200 at a time (R-029).
+          pageSize={200}
         />
       ) : (
         <DataTable {...sharedProps} columns={dayColumns} rows={sortedDays} rowKey={(r) => r.date} />

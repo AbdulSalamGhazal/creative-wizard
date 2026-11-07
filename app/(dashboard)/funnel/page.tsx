@@ -152,7 +152,7 @@ export default async function FunnelPage({
         <h2 className="text-label text-ink-3">
           By campaign · {campaigns.length} campaign{campaigns.length === 1 ? "" : "s"}
         </h2>
-        <CampaignFunnelTable rows={campaigns} />
+        <CampaignFunnelTable rows={campaigns} from={from} to={to} />
       </div>
     </PageShell>
   );

@@ -344,6 +344,9 @@ export function CreativeRecordsTable({ rows, title = "All records" }: Props) {
               {...cols.tableProps}
               rowClassName={(r) => cn(r.excludedFromAggregates && "opacity-70")}
               minWidthClass="min-w-max"
+              // Lifetime × platforms × campaigns × days can run to thousands:
+              // render 200 at a time (R-029).
+              pageSize={200}
             />
 
             <p className="text-[11px] text-ink-3">

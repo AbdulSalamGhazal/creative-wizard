@@ -12,6 +12,7 @@ import { TYPE_LABEL } from "@/lib/palette";
 import type { LeaderboardRow } from "@/db/queries/performance";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SegmentedControl } from "@/components/ui/segmented-control";
+import { withDateRange } from "@/lib/url";
 
 type Num = number | null;
 const fPct = (v: Num) => (v === null ? "—" : pct(v));
@@ -128,9 +129,14 @@ export function rankRows(
 export function TopCreativesTable({
   rows,
   limit = 10,
+  from,
+  to,
 }: {
   rows: LeaderboardRow[];
   limit?: number;
+  /** The range the table ran — carried into each creative's link (R-015). */
+  from?: string;
+  to?: string;
 }) {
   const [rankBy, setRankBy] = useState("spend");
   const opt = RANK_OPTIONS.find((o) => o.key === rankBy) ?? RANK_OPTIONS[0]!;
@@ -165,6 +171,9 @@ export function TopCreativesTable({
           </span>
         ),
         csv: (r) => r.name,
+        // The creative's page with this range — the same link Top movers
+        // gives each name (R-015): a real link, so keyboard and new tab work.
+        href: (r) => withDateRange(`/library/${encodeURIComponent(r.name)}`, from, to),
       },
       ...COLS.map<DataColumn<LeaderboardRow>>((c) => ({
         key: c.key,
@@ -176,7 +185,7 @@ export function TopCreativesTable({
         lockedVisible: c.key === opt.col,
       })),
     ],
-    [opt.col, rankOf],
+    [opt.col, rankOf, from, to],
   );
 
   const cols = useTableColumns({

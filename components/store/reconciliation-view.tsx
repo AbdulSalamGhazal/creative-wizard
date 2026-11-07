@@ -40,6 +40,7 @@ import type {
 } from "@/db/queries/reconciliation";
 import { CHANNEL_LABEL, channelDayRows, channelDeltas, sumChannelDays } from "@/store/channels";
 import { EmptyState } from "@/components/ui/empty-state";
+import { TotalLabel } from "@/components/ui/total-label";
 
 /**
  * Two modes, Channels first. There is no "overview" mode: it showed store
@@ -330,7 +331,7 @@ export function ReconciliationView({
         sortValue: (r) => r.day,
         csv: (r) => r.day,
         total: () => (
-          <span className="text-ink-3">{int(channelRows.length)} days</span>
+          <TotalLabel className="text-ink-3" suffix={`${int(channelRows.length)} days`} />
         ),
       },
       {
@@ -810,7 +811,9 @@ function ByPlatformTable({
   return (
     <div className="space-y-2">
     <div className="relative isolate">
-    <div className="overflow-x-auto rounded-lg border border-line bg-surface">
+    {/* The house frame (R-079): a vertical scroller too, so the grouped
+        header and the totals footer actually stick on a long range. */}
+    <div className="max-h-[70vh] overflow-auto rounded-lg border border-line bg-surface">
       <table className="w-full min-w-[720px] border-collapse text-xs tabular-nums">
         <thead className="sticky top-0 z-20 bg-surface">
           {/* Group banners */}
@@ -890,7 +893,7 @@ function ByPlatformTable({
         <tfoot className="sticky bottom-0 z-20 bg-surface-2">
           <tr className="border-t border-line font-semibold">
             <td className="sticky left-0 z-30 bg-surface-2 px-1.5 py-1.5 text-left text-ink-3">
-              Totals
+              <TotalLabel />
             </td>
             {/* Every footer figure below is computed from the range SUMS, not
                 from averaging the per-day numbers. */}

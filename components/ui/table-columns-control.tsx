@@ -144,7 +144,9 @@ export function TableColumnsControl({
                   tabIndex={0}
                   onKeyDown={(e) => onKeyDown(e, item)}
                   className={cn(
-                    "group flex items-center gap-2 px-2 py-1.5 text-xs outline-none",
+                    // The base focus ring, inset inside the scroll box — a
+                    // background change alone was invisible (R-031).
+                    "group flex items-center gap-2 px-2 py-1.5 text-xs focus-visible:-outline-offset-2",
                     "focus-visible:bg-surface-2 hover:bg-surface-2",
                   )}
                 >

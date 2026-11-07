@@ -18,7 +18,29 @@
 - **Every `DataTable` passes a `columnsKey`** from the `TABLE_KEYS` registry,
   or appears in the coverage test's exemption list with a written reason.
 - **The columns control lives IN the table's header row** (`TableCorner`) and
-  costs zero vertical pixels. Never give it a row of its own again.
+  costs zero vertical pixels. Never give it a row of its own again. **Export
+  lives there too (R-084, 2026-11-07):** a `csvFileName` puts a Download icon
+  button beside Columns — the old "Download CSV" row above the frame is gone.
+  The CSV is built on click and covers every row (revealed or not).
+- **Table accessibility and drill-down (2026-11-07 audit):** every sortable
+  `<th>` carries `aria-sort` (DataTable and the Ads table, R-026); a table
+  that navigates on row click ALSO gives its identity column an `href`, so
+  the row is reachable by keyboard and opens in a new tab (R-008, R-015).
+- **Long tables reveal progressively** (`pageSize`, opt-in, R-029): the first
+  N sorted rows render with a "Show N more · total" button under the frame;
+  sort, totals and CSV still use every row. Creative and campaign records use
+  200.
+- **A totals row is labelled "Total"** — `TotalLabel`
+  (components/ui/total-label.tsx), with the weighting rule as its ⓘ (R-098).
+  A count with no other home rides as its suffix ("Total · 6 days").
+- **Column widths are ephemeral** (internal to DataTable): double-click a
+  resize handle to fit the column to its content again, and the Columns
+  control's Reset also clears widths (R-083). Persisting widths needs a
+  schema change and has not been made.
+- **A column note is `DataColumn.info`** — an ⓘ beside the header label.
+  Store orders uses it to say why a custom field doesn't sort while the
+  orders span several pages (a page-local sort would pass for a global one,
+  R-078).
 - HIDDEN-key semantics: a column absent from `hidden` is VISIBLE — **except a
   `defaultHidden` one, whose absence means HIDDEN and whose opt-in is stored
   explicitly as `!key`** (`SHOW_MARKER`), so a new catalog column cannot pop
@@ -391,7 +413,11 @@ as it stood before the restructure.*
   - **Upload histories** — one component for the twins (they disagreed: the
     ads one printed the stored `rolled_back`); the file name is pinned, the
     rollback column is `lockedVisible` (the only way to undo a batch), and the
-    Store keeps its "N new · M upd" rows.
+    Store keeps its "N new · M upd" rows. **2026-11-07 (R-125):** the rollback
+    column is gone — it was blank on almost every row. The control sits in
+    the Status cell while the batch is inside its window ("Roll back · 3 h
+    left"), the window rule is the Status header's ⓘ, and Status is the
+    `lockedVisible` column now.
 - The guard now also fails on a hand-rolled `<table>` outside DataTable and a
   named list (`HAND_ROLLED_OK`): the grouped twins, five admin lists and five
   editors/previews — decided in D22 (move the analytics/history tables,

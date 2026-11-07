@@ -31,6 +31,13 @@ type Row =
  * product or ranked by the chart metric. Costs read as % of net revenue or
  * SAR. A row click opens the offer on Products & offers.
  */
+/** The offer's editor (a product row opens its first offer), keeping `?v=`. */
+function offerHref(r: Row, v: string | null): string {
+  const pid = r.kind === "product" ? r.product.id : r.row.product.id;
+  const oid = r.kind === "product" ? r.product.offers[0]?.id : r.row.offer.id;
+  return `/price-structure/products/${pid}${oid ? `/${oid}` : ""}${v ? `?v=${v}` : ""}`;
+}
+
 export function PriceStructureTable({
   evaluated,
   grouping,
@@ -113,7 +120,8 @@ export function PriceStructureTable({
     };
     const only = (fn: (row: OfferRow) => React.ReactNode) => (r: Row) => (r.kind === "offer" ? fn(r.row) : "");
     const cols: DataColumn<Row>[] = [
-      { key: "offer", label: "Offer", pinned: true, render: offerCell },
+      // A real link (keyboard, new tab — R-008); the row click goes there too.
+      { key: "offer", label: "Offer", pinned: true, render: offerCell, href: (r) => offerHref(r, v) },
       { key: "units", label: "Units", align: "right", render: only((o) => <span className="tabular-nums">{o.r.units}</span>) },
       { key: "list", label: "List price", align: "right", render: only((o) => <Num value={o.r.listPrice} kind="money2" title="List price of the units in the order" />) },
       { key: "pays", label: "Customer pays", align: "right", render: only((o) => <Num value={o.r.paidGross} kind="money2" title="Incl. VAT, after all discounts" />) },
@@ -146,16 +154,12 @@ export function PriceStructureTable({
     });
     return cols;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [grouping, hasUndelivered, roasTarget, pctMode, targetA, targetB]);
+  }, [grouping, hasUndelivered, roasTarget, pctMode, targetA, targetB, v]);
 
   const hideable = columns.filter((c) => !c.pinned).map((c) => c.key);
   const cols = useTableColumns({ tableKey: TABLE_KEYS.PS_OVERVIEW, hideable, defaults: hideable });
 
-  const openOffer = (r: Row) => {
-    const pid = r.kind === "product" ? r.product.id : r.row.product.id;
-    const oid = r.kind === "product" ? r.product.offers[0]?.id : r.row.offer.id;
-    startNav(() => router.push(`/price-structure/products/${pid}${oid ? `/${oid}` : ""}${v ? `?v=${v}` : ""}`));
-  };
+  const openOffer = (r: Row) => startNav(() => router.push(offerHref(r, v)));
 
   return (
     <SectionCard

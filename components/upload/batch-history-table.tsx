@@ -7,8 +7,14 @@ import { PlatformDot } from "@/components/ui/platform-dot";
 import type { TableKey } from "@/lib/table-columns";
 import { PLATFORM_LABEL } from "@/lib/palette";
 import { int, isoDate } from "@/lib/format";
-import { batchStatusLabel } from "@/lib/upload-batches";
+import { batchStatusLabel, ROLLBACK_WINDOW_MS } from "@/lib/upload-batches";
 import { Chip } from "@/components/ui/chip";
+
+/** Whole hours left in the rollback window, at least 1 while it is open. */
+function rollbackHoursLeft(uploadedAt: string): number {
+  const left = Date.parse(uploadedAt) + ROLLBACK_WINDOW_MS - Date.now();
+  return Math.max(1, Math.ceil(left / 3_600_000));
+}
 
 /** One upload batch, as both histories show it. */
 export interface BatchHistoryRow {
@@ -40,20 +46,24 @@ export function BatchHistoryTable({
   rows,
   tableKey,
   showPlatform,
+  rollbackInfo,
   empty,
 }: {
   rows: BatchHistoryRow[];
   tableKey: TableKey;
   showPlatform: boolean;
+  /** The rollback window rule, as the Status header's ⓘ (R-125). */
+  rollbackInfo?: string;
   empty?: ReactNode;
 }) {
   const keys = useMemo(
-    () => ["uploadedAt", ...(showPlatform ? ["platform"] : []), "uploadedBy", "rows", "status", "rollback"],
+    () => ["uploadedAt", ...(showPlatform ? ["platform"] : []), "uploadedBy", "rows", "status"],
     [showPlatform],
   );
   const cols = useTableColumns({
     tableKey,
-    hideable: keys.filter((k) => k !== "rollback"),
+    // Status carries the rollback control now — never hideable.
+    hideable: keys.filter((k) => k !== "status"),
     defaults: keys,
   });
   const [sortKey, setSortKey] = useState("uploadedAt");
@@ -142,22 +152,30 @@ export function BatchHistoryTable({
         defaultSortDir: "asc",
         sortValue: (r) => r.status,
         csv: (r) => batchStatusLabel(r.status),
+        info: rollbackInfo,
+        // R-125: the rollback control lives in the status cell while the
+        // batch is inside its window — a whole column that was blank on almost
+        // every row is gone. It is the only route to undoing a batch, so this
+        // column can't be hidden (ux-standards).
+        lockedVisible: true,
         render: (r) => (
-          <Chip tone={r.status === "active" ? "pos" : "neutral"}>
-            {batchStatusLabel(r.status)}
-          </Chip>
+          <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+            <Chip tone={r.status === "active" ? "pos" : "neutral"}>
+              {batchStatusLabel(r.status)}
+            </Chip>
+            {r.rollback && (
+              <>
+                {r.rollback}
+                <span className="text-[10px] tabular-nums text-ink-2" suppressHydrationWarning>
+                  {rollbackHoursLeft(r.uploadedAt)} h left
+                </span>
+              </>
+            )}
+          </span>
         ),
       },
-      {
-        key: "rollback",
-        label: "Rollback",
-        align: "right",
-        // The only route to undoing a batch — never hideable (ux-standards).
-        lockedVisible: true,
-        render: (r) => r.rollback,
-      },
     ],
-    [showPlatform],
+    [showPlatform, rollbackInfo],
   );
 
   return (

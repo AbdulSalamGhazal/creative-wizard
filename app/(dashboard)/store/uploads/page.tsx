@@ -121,6 +121,12 @@ export default async function StoreUploadsPage({
       <BatchHistoryTable
         tableKey={TABLE_KEYS.UPLOAD_HISTORY_STORE}
         showPlatform={false}
+        // The window rule, as the Status header's ⓘ (R-125).
+        rollbackInfo={
+          canRollback || canCleanup
+            ? `Roll back a batch within ${ROLLBACK_WINDOW_HOURS} h of upload. Beyond that window, use the cleanup tool below to remove orders by date, batch, or ID.`
+            : undefined
+        }
         rows={batches.map((b) => ({
           id: b.id,
           uploadedAt: b.uploadedAt.toISOString(),
@@ -158,13 +164,6 @@ export default async function StoreUploadsPage({
           />
         }
       />
-
-      {(canRollback || canCleanup) && batches.length > 0 && (
-        <p className="text-[11px] text-ink-3">
-          Roll back a batch within {ROLLBACK_WINDOW_HOURS} h of upload. Beyond that window, use the
-          cleanup tool below to remove orders by date, batch, or ID.
-        </p>
-      )}
 
       {canCleanup && (
         <StoreCleanupTool
