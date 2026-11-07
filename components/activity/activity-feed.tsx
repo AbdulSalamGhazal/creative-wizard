@@ -49,7 +49,7 @@ function useActivityNav(params: ActivityParams) {
   const router = useRouter();
   const [, startNav] = useNavTransition();
   return (next: Partial<ActivityParams>) =>
-    startNav(() => router.replace(activityHref({ ...params, page: 1, ...next }), { scroll: false }));
+    startNav(() => router.replace(activityHref({ ...params, page: 1, comment: null, ...next }), { scroll: false }));
 }
 
 /** Everyone | Mine — rendered in the page header's right slot. */
@@ -110,7 +110,9 @@ export function ActivityFeed({
   );
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
-  const empty = isActivityFiltered(params)
+  const empty = params.comment
+    ? { title: "That comment is gone", hint: "It was deleted after the link was made." }
+    : isActivityFiltered(params)
     ? { title: "No matches", hint: "Try a different search or fewer filters." }
     : params.who === "me"
       ? {
@@ -119,12 +121,21 @@ export function ActivityFeed({
         }
       : {
           title: "No comments yet",
-          hint: "Open a creative, campaign or page and start a thread.",
+          hint: "Open a creative, a campaign or a budget month and start a thread.",
         };
 
   return (
     <div className="space-y-4">
-      {/* Filters */}
+      {/* One comment on its own — where a link to a comment with no page any
+          more lands (a retired page comment, a deleted creative's). */}
+      {params.comment ? (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-line bg-surface px-3 py-2 text-xs text-ink-3">
+          <span>One comment</span>
+          <Link href={activityHref({ ...params, comment: null })} className="text-brand hover:underline">
+            Show all comments
+          </Link>
+        </div>
+      ) : (
       <div className="flex flex-wrap items-center gap-2 rounded-lg border border-line bg-surface px-3 py-2">
         {/* The box takes the whole row on a phone and the chips wrap under
             it; beside them it would shrink to its icon (375px pass). */}
@@ -168,6 +179,7 @@ export function ActivityFeed({
           })}
         </div>
       </div>
+      )}
 
       {/* The feed — day groups of run cards. */}
       {rows.length === 0 ? (

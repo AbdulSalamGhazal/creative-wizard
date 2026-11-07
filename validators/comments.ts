@@ -3,8 +3,8 @@ import {
   COMMENT_ANCHOR_TYPES,
   COMMENT_MAX,
   COMMENT_REACTION_KEYS,
+  LIVE_ANCHOR_TYPES,
   VIEW_QUERY_MAX,
-  isCommentableView,
   stripCommentParam,
 } from "@/lib/comments";
 import { MONTH_KEY } from "@/validators/budget";
@@ -36,20 +36,18 @@ export const viewQuerySchema = z
   .nullable()
   .optional();
 
-/** A pathname safe to store and later redirect to, and one we actually offer. */
-const viewPathSchema = z
-  .string()
-  .max(255)
-  .refine((v) => v.startsWith("/") && !v.startsWith("//"), "Not an in-app path")
-  .refine(isCommentableView, "That page doesn't take comments.");
-
 /**
- * Anchor shape per type: a uuid for entities, `YYYY-MM` for a budget month, an
- * allow-listed pathname for a view.
+ * The anchors that take comments: an entity with its own page. A `view` (page)
+ * anchor is REFUSED — page comments were retired on 2026-11-07 and the old
+ * ones are read-only — so the stored vocabulary (`anchorTypeSchema`) and the
+ * writable one differ on purpose.
  */
+export const liveAnchorTypeSchema = z.enum(LIVE_ANCHOR_TYPES);
+
+/** Anchor shape per type: a uuid for a creative or campaign, `YYYY-MM` for a month. */
 export const createCommentSchema = z
   .object({
-    anchorType: anchorTypeSchema,
+    anchorType: liveAnchorTypeSchema,
     anchorId: z.string().min(1).max(255),
     viewQuery: viewQuerySchema,
     parentId: z.string().uuid().nullable().optional(),
@@ -64,10 +62,8 @@ export const createCommentSchema = z
       if (!z.string().uuid().safeParse(value.anchorId).success) {
         fail("That anchor isn't valid.");
       }
-    } else if (value.anchorType === "budget_month") {
-      if (!MONTH_KEY.test(value.anchorId)) fail("That month isn't valid.");
-    } else if (!viewPathSchema.safeParse(value.anchorId).success) {
-      fail("That page doesn't take comments.");
+    } else if (!MONTH_KEY.test(value.anchorId)) {
+      fail("That month isn't valid.");
     }
   });
 
@@ -104,16 +100,14 @@ export const setReactionSchema = z.object({
 /** Reading a thread: the anchor, same shape rules as posting to it. */
 export const listCommentsSchema = z
   .object({
-    anchorType: anchorTypeSchema,
+    anchorType: liveAnchorTypeSchema,
     anchorId: z.string().min(1).max(255),
   })
   .superRefine((value, ctx) => {
     const ok =
       value.anchorType === "budget_month"
         ? MONTH_KEY.test(value.anchorId)
-        : value.anchorType === "view"
-          ? viewPathSchema.safeParse(value.anchorId).success
-          : z.string().uuid().safeParse(value.anchorId).success;
+        : z.string().uuid().safeParse(value.anchorId).success;
     if (!ok) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,

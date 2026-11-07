@@ -3,14 +3,16 @@ import { PageHeader } from "@/components/layout/page-header";
 import { listActivity } from "@/db/queries/activity";
 import { activityParamsSchema } from "@/validators/activity";
 import { utcDay } from "@/lib/notifications";
+import { ALL_COMMENTS_TITLE } from "@/lib/activity";
 import { ActivityFeed, ActivityWhoSwitch } from "@/components/activity/activity-feed";
 
 export const dynamic = "force-dynamic";
 
-export const metadata = { title: "Activity" };
+export const metadata = { title: ALL_COMMENTS_TITLE };
 
 /**
- * Every comment in the brand, newest first (2026-10). No sidebar entry — the
+ * "All comments" (renamed from Activity, 2026-11-07, when each entity got an
+ * Activity of its own). Every comment in the brand, newest first (2026-10). No sidebar entry — the
  * bell's footer and the comment panel are the ways in — and no permission:
  * comment reads are brand-scoped, and the query hides the few pages that
  * would refuse the viewer.
@@ -26,7 +28,10 @@ export default async function ActivityPage({
 
   return (
     <PageShell width="admin">
-      <PageHeader title="Activity" rightSlot={<ActivityWhoSwitch params={params} />} />
+      <PageHeader
+        title={ALL_COMMENTS_TITLE}
+        rightSlot={params.comment ? undefined : <ActivityWhoSwitch params={params} />}
+      />
       <ActivityFeed
         params={params}
         rows={data.rows}

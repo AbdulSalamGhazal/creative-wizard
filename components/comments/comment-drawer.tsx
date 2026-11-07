@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { X } from "lucide-react";
@@ -14,7 +13,6 @@ import {
   monthAnchorLabel,
   settleSentPosts,
   stripCommentParam,
-  viewLabel,
   type CommentAnchor,
 } from "@/lib/comments";
 import { useCommentAnchor } from "@/components/comments/comment-anchor-context";
@@ -221,13 +219,8 @@ export function CommentPanelBody({
     }
   }, [deepLinkId, rows, load, setHighlightId, setDeepLinkId]);
 
-  const title = !anchor
-    ? "Comments"
-    : anchor.type === "view"
-      ? `Comments on ${viewLabel(anchor.id) ?? "this page"}`
-      : anchor.type === "budget_month"
-        ? `Comments on ${monthAnchorLabel(anchor.id)}`
-        : "Comments on this page";
+  const title =
+    anchor?.type === "budget_month" ? `Comments on ${monthAnchorLabel(anchor.id)}` : "Comments";
   // A helper that matters, kept out of the body copy ("show, don't label"):
   // an ⓘ beside the title.
   const description = "Click a comment to put the page back the way its author saw it.";
@@ -274,18 +267,10 @@ export function CommentPanelBody({
       </div>
 
       {!anchor ? (
-        // The panel persists across pages — on one with no thread it says so
-        // quietly rather than vanishing out from under the reader.
-        <div className="flex flex-1 flex-col items-center justify-center gap-1.5 px-6 text-center">
-          <p className="text-xs text-ink-3">
-            Nothing to comment on here. Open another page to see its thread.
-          </p>
-          {/* The brand's feed is the other way to find a conversation
-              (2026-10); the panel closes — its job here is done, and a row
-              there reopens it on the comment it leads to. */}
-          <Link href="/activity" onClick={onClose} className="text-xs text-brand hover:underline">
-            See all activity
-          </Link>
+        // The panel opens only on an entity's page (2026-11-07), so no anchor
+        // means the page hasn't registered it yet — it is still loading.
+        <div className="min-h-0 flex-1 px-3 py-3">
+          <p className="py-8 text-center text-xs text-ink-3">Loading…</p>
         </div>
       ) : (
         <>

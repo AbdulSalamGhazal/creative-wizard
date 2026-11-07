@@ -391,6 +391,8 @@ this map is still a rule you broke.
 
 ### Comments & notifications
 
+- An entity gets Comments and Activity only once it has its OWN page
+  (`isEntityRoute`); pages take no comments — old page comments are read-only.
 - Producers write notifications inside the transaction of the thing they describe.
 - Every read and write is scoped to (session user, active brand).
 - Silent by default; the actor never hears about their own event.

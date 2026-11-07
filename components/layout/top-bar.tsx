@@ -5,7 +5,7 @@ import type { ToastScope } from "@/lib/notifications";
 import { UserMenu } from "@/components/auth/user-menu";
 import { CommandPalette } from "@/components/layout/command-palette";
 import { NotificationBell } from "@/components/layout/notification-bell";
-import { CommentToggle } from "@/components/comments/comment-panel";
+import { PanelToggles } from "@/components/comments/comment-panel";
 import { AccountSwitcher } from "@/components/layout/account-switcher";
 import { MobileNav } from "@/components/layout/mobile-nav";
 import { LogoMark } from "@/components/layout/logo-mark";
@@ -61,9 +61,10 @@ export function TopBar({
             this row fit a phone. */}
         <div className="flex shrink-0 items-center gap-2 sm:gap-3">
           <CommandPalette accountId={activeAccountId} granted={granted} />
-          {/* Toggles the docked comment panel, which lives in the layout
-              beside the page and follows it from page to page. */}
-          <CommentToggle />
+          {/* Comments + Activity on an entity's page — HERE only below lg; on
+              a desktop they live in the rail at the page's right edge
+              (2026-11-07). Elsewhere they don't render at all. */}
+          <PanelToggles orientation="horizontal" className="lg:hidden" />
           {/* The bell is the ONLY entry to notifications — there is no sidebar
               item for them, on purpose. */}
           <NotificationBell

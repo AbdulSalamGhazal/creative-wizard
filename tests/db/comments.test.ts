@@ -94,21 +94,12 @@ describe("anchors are re-validated against the active brand", () => {
     });
     expect(foreign.ok).toBe(false);
 
-    // The admin section IS commentable now (the path set derives from the
-    // nav) — what stays refused is a path the nav doesn't offer.
-    const notAPage = await createComment({
-      anchorType: "view",
-      anchorId: "/uploads/new",
-      body: "Commenting on a flow step",
-    });
-    expect(notAPage.ok).toBe(false);
-
-    const itsOwnFeed = await createComment({
-      anchorType: "view",
-      anchorId: "/notifications",
-      body: "Commenting on the notifications feed",
-    });
-    expect(itsOwnFeed.ok).toBe(false);
+    // Page comments are retired (2026-11-07): no page takes one, not even
+    // one the nav offers.
+    for (const anchorId of ["/summary", "/uploads/new", "/notifications"]) {
+      const page = await createComment({ anchorType: "view", anchorId, body: "On a page" });
+      expect(page.ok).toBe(false);
+    }
 
     const madeUp = await createComment({
       anchorType: "creative",
@@ -120,37 +111,19 @@ describe("anchors are re-validated against the active brand", () => {
     expect(await db.select().from(comments)).toHaveLength(0);
   });
 
-  it("refuses a page that refuses the commenter — and only that commenter (2026-10-31)", async () => {
-    // Alice holds nothing (`can` → false): Team refuses her, so its thread does.
-    const refused = await createComment({
-      anchorType: "view",
-      anchorId: "/admin/users",
-      body: "Reading the Team thread from outside",
-    });
-    expect(refused.ok).toBe(false);
-    expect(await db.select().from(comments)).toHaveLength(0);
-
-    // A Team manager posts there.
-    vi.mocked(can).mockImplementation((_u, p) => p === "users.manage");
-    const allowed = await createComment({
-      anchorType: "view",
-      anchorId: "/admin/users",
-      body: "Onboarding Bob next week",
-    });
-    expect(allowed.ok).toBe(true);
-  });
-
-  it("accepts an allow-listed page and stores the view verbatim", async () => {
-    const res = await createComment({
+  it("refuses a REPLY to an old page comment — page threads are read-only", async () => {
+    const [old] = await db
+      .insert(comments)
+      .values({ accountId: ACCOUNT_A, anchorType: "view", anchorId: "/summary", authorUserId: BOB, body: "Old" })
+      .returning({ id: comments.id });
+    const reply = await createComment({
       anchorType: "view",
       anchorId: "/summary",
-      viewQuery: "?from=2026-01-01&to=2026-01-31&platforms=tiktok",
-      body: "TikTok looks off in this window",
+      parentId: old!.id,
+      body: "Replying to a page",
     });
-    expect(res.ok).toBe(true);
-    const [row] = await db.select().from(comments);
-    // The leading "?" is stripped; everything else is kept exactly.
-    expect(row?.viewQuery).toBe("from=2026-01-01&to=2026-01-31&platforms=tiktok");
+    expect(reply.ok).toBe(false);
+    expect(await db.select().from(comments)).toHaveLength(1);
   });
 });
 
@@ -636,21 +609,13 @@ describe("the /go resolver's reason to exist", () => {
     expect(await resolveAnchorPath("campaign", CAMPAIGN_B, ACCOUNT_A)).toBeNull();
   });
 
-  it("resolves a budget month and a view without touching the database", async () => {
+  it("resolves a budget month without touching the database; a page comment resolves nowhere", async () => {
     expect(await resolveAnchorPath("budget_month", "2026-09", ACCOUNT_A)).toEqual({
       path: "/budget?month=2026-09",
       label: "September 2026",
     });
-    expect(await resolveAnchorPath("view", "/summary", ACCOUNT_A)).toEqual({
-      path: "/summary",
-      label: "Ads",
-    });
-    // A nav page the admin section offers resolves too.
-    expect(await resolveAnchorPath("view", "/admin/users", ACCOUNT_A)).toEqual({
-      path: "/admin/users",
-      label: "Team",
-    });
-    // A pathname the nav doesn't offer resolves to nothing.
+    // Retired 2026-11-07: /go/comment sends these to "All comments".
+    expect(await resolveAnchorPath("view", "/summary", ACCOUNT_A)).toBeNull();
     expect(await resolveAnchorPath("view", "/uploads/new", ACCOUNT_A)).toBeNull();
   });
 });

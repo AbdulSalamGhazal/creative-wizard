@@ -120,11 +120,21 @@ export function isNavigationSignal(err: unknown): boolean {
  * pinned by `app/actions/action-calls.test.ts`), so a network blink or a tab
  * left open across a deploy is a toast with Reload, never the error boundary.
  */
+/** Fired on `window` after every action call that succeeded. */
+export const ACTION_SETTLED_EVENT = "cw:action-ok";
+
 export async function safeAction<T extends { ok: boolean }>(
   call: () => Promise<T>,
 ): Promise<T | ActionFailure> {
   try {
-    return await call();
+    const result = await call();
+    // A write landed: anything showing a history (the rail's Activity,
+    // 2026-11-07) refetches. An event, not a render — nothing re-renders
+    // that didn't ask to.
+    if (result.ok && typeof window !== "undefined") {
+      window.dispatchEvent(new Event(ACTION_SETTLED_EVENT));
+    }
+    return result;
   } catch (err) {
     if (isNavigationSignal(err)) throw err;
     // Visible in the browser console for whoever is debugging; the user gets

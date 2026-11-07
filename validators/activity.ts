@@ -17,4 +17,5 @@ export const activityParamsSchema = z.object({
     .catch(undefined)
     .transform((s) => (s && s.trim() ? s.trim() : "")),
   page: z.coerce.number().int().min(1).catch(1),
+  comment: z.string().uuid().nullable().optional().catch(null).transform((v) => v ?? null),
 });

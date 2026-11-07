@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { getActiveAccountId } from "@/lib/tenant";
 import { getComment, resolveAnchorPath } from "@/db/queries/comments";
 import { buildCommentTarget, type CommentAnchorType } from "@/lib/comments";
+import { activityCommentHref } from "@/lib/activity";
 
 export const dynamic = "force-dynamic";
 
@@ -36,17 +37,19 @@ export async function GET(
     return NextResponse.redirect(new URL("/notifications?missing=1", _request.url));
   }
 
-  const anchor = await resolveAnchorPath(
-    comment.anchorType as CommentAnchorType,
-    comment.anchorId,
-    acct,
-  );
+  // An old PAGE comment (retired 2026-11-07) has no page to open on: it is
+  // read where it lives now, in "All comments", on its own.
+  const anchor =
+    comment.anchorType === "view"
+      ? null
+      : await resolveAnchorPath(comment.anchorType as CommentAnchorType, comment.anchorId, acct);
   const target = anchor
     ? buildCommentTarget(anchor.path, comment.viewQuery, comment.id)
     : null;
   if (!target) {
-    // The thing it was about is gone (a deleted creative, say).
-    return NextResponse.redirect(new URL("/notifications?missing=1", _request.url));
+    // A page comment, or the thing it was about is gone (a deleted creative,
+    // say): the comment itself survives, read-only, in "All comments".
+    return NextResponse.redirect(new URL(activityCommentHref(comment.id), _request.url));
   }
 
   return NextResponse.redirect(new URL(target, _request.url));

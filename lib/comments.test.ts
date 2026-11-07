@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   canModerateComments,
-  COMMENTABLE_VIEWS,
+  LEGACY_VIEW_PAGES,
   COMMENT_PARAM,
   COMMENT_REACTIONS,
   COMMENT_REACTION_KEYS,
@@ -17,14 +17,14 @@ import {
   reactionEmoji,
   reactionTooltip,
   highlightMentions,
-  isCommentableView,
+  isEntityRoute,
+  isLegacyViewPage,
   monthAnchorLabel,
   normalizeQuery,
   resolveCommentAnchor,
   rootParentId,
   showViewChip,
   splitCommentRecipients,
-  viewAnchorFor,
   viewLabel,
 } from "@/lib/comments";
 import { NAV_ITEMS } from "@/components/layout/nav-items";
@@ -121,41 +121,57 @@ describe("the captured view", () => {
   });
 });
 
-describe("the view paths derive from the nav", () => {
-  it("accepts every nav-listed page, admin included", () => {
-    for (const view of COMMENTABLE_VIEWS) {
-      expect(isCommentableView(view.path)).toBe(true);
+describe("old page comments keep their page's name", () => {
+  it("labels every nav-listed page, derived from the nav", () => {
+    for (const view of LEGACY_VIEW_PAGES) {
+      expect(isLegacyViewPage(view.path)).toBe(true);
       expect(viewLabel(view.path)).toBe(view.label);
     }
-    // Derived, not re-listed: every nav href (or its children's) is here.
     for (const item of NAV_ITEMS) {
       const paths = item.children ? item.children.map((c) => c.href) : [item.href];
-      for (const path of paths) expect(isCommentableView(path)).toBe(true);
+      for (const path of paths) expect(isLegacyViewPage(path)).toBe(true);
     }
-    // The admin section is commentable now.
-    expect(isCommentableView("/admin/users")).toBe(true);
-    expect(isCommentableView("/admin/audit")).toBe(true);
   });
 
-  it("still refuses anything the nav doesn't offer", () => {
-    // An entity page is anchored to the ENTITY, never to its pathname.
-    expect(isCommentableView("/library/Some-Creative")).toBe(false);
-    // `/trends` is a redirect stub; its children are the real pages.
-    expect(isCommentableView("/trends")).toBe(false);
-    expect(isCommentableView("/trends/over-time")).toBe(true);
-    // A flow step, and the notifications feed itself.
-    expect(isCommentableView("/uploads/new")).toBe(false);
-    expect(isCommentableView("/notifications")).toBe(false);
-    expect(isCommentableView("/activity")).toBe(false);
-    expect(isCommentableView("/../etc/passwd")).toBe(false);
+  it("names nothing the nav doesn't offer", () => {
+    expect(isLegacyViewPage("/library/Some-Creative")).toBe(false);
+    expect(isLegacyViewPage("/notifications")).toBe(false);
+    expect(isLegacyViewPage("/activity")).toBe(false);
     expect(viewLabel("/nope")).toBeNull();
   });
 });
 
-describe("which anchor the drawer points at", () => {
+describe("an entity gets comments only on its own page (2026-11-07)", () => {
+  it("knows the entity routes by their path", () => {
+    expect(isEntityRoute("/library/Ad-One")).toBe(true);
+    expect(isEntityRoute(`/library/${encodeURIComponent("Hero v2 / UGC")}`)).toBe(true);
+    expect(isEntityRoute("/campaigns/Camp-One")).toBe(true);
+    expect(isEntityRoute("/budget")).toBe(true);
+  });
+
+  it("refuses every list, flow step and other page", () => {
+    for (const path of [
+      "/library",
+      "/library/new",
+      "/library/bulk",
+      "/campaigns",
+      "/campaigns/new",
+      "/budget/plan",
+      "/summary",
+      "/trends/by-angle",
+      "/uploads",
+      "/activity",
+      "/library/Ad-One/extra",
+    ]) {
+      expect(isEntityRoute(path)).toBe(false);
+    }
+  });
+});
+
+describe("which anchor the panel points at", () => {
   const creative = { type: "creative" as const, id: "cr-1" };
 
-  it("lets an ENTITY registration beat the page it was made on", () => {
+  it("is the ENTITY registered on this path", () => {
     expect(
       resolveCommentAnchor({
         pathname: "/library/Ad-One",
@@ -164,41 +180,27 @@ describe("which anchor the drawer points at", () => {
     ).toEqual(creative);
   });
 
-  it("ignores a registration made on a DIFFERENT path", () => {
-    // The stale one left behind by the page you just navigated away from.
+  it("is nothing for a stale registration or any other page — pages take no comments", () => {
     expect(
       resolveCommentAnchor({
         pathname: "/summary",
         entity: { path: "/library/Ad-One", anchor: creative },
       }),
-    ).toEqual({ type: "view", id: "/summary" });
-  });
-
-  it("derives a view anchor for a nav page, and none for anything else", () => {
-    expect(resolveCommentAnchor({ pathname: "/campaigns" })).toEqual({
-      type: "view",
-      id: "/campaigns",
-    });
-    expect(viewAnchorFor("/admin/catalog")).toEqual({
-      type: "view",
-      id: "/admin/catalog",
-    });
-    // No anchor → the drawer's icon is hidden rather than shown broken.
-    expect(resolveCommentAnchor({ pathname: "/uploads/new" })).toBeNull();
-    expect(resolveCommentAnchor({ pathname: "/notifications" })).toBeNull();
-    expect(resolveCommentAnchor({ pathname: "/activity" })).toBeNull();
-    expect(viewAnchorFor("/library/Ad-One")).toBeNull();
+    ).toBeNull();
+    expect(resolveCommentAnchor({ pathname: "/campaigns" })).toBeNull();
+    expect(resolveCommentAnchor({ pathname: "/summary" })).toBeNull();
   });
 });
 
 describe("anchorPathFor — the one place an anchor becomes a path", () => {
-  it("names address creatives and campaigns; a month and a page are their own path", () => {
+  it("names address creatives and campaigns; a month is its own path", () => {
     expect(anchorPathFor("creative", "id", "Hero v2 / UGC")).toBe("/library/Hero%20v2%20%2F%20UGC");
     expect(anchorPathFor("campaign", "id", "Camp One ➤ Broad (IG)")).toBe(
       `/campaigns/${encodeURIComponent("Camp One ➤ Broad (IG)")}`,
     );
     expect(anchorPathFor("budget_month", "2026-10", null)).toBe("/budget?month=2026-10");
-    expect(anchorPathFor("view", "/summary", null)).toBe("/summary");
+    // An old page comment leads nowhere — it is read in "All comments".
+    expect(anchorPathFor("view", "/summary", null)).toBeNull();
   });
 
   it("is null when the thing is gone, or the page is no longer one the nav offers", () => {

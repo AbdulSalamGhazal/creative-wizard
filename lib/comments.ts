@@ -27,28 +27,29 @@ export const COMMENT_ANCHOR_TYPES = [
 export type CommentAnchorType = (typeof COMMENT_ANCHOR_TYPES)[number];
 
 /**
- * Pages that accept a "view" comment, DERIVED from the nav (house rule: derive,
- * don't re-list). Every page the sidebar offers — the admin section included —
- * is commentable; the old hand-listed nine are gone, and a page added to
- * `NAV_ITEMS` becomes commentable without touching this file.
- *
- * The derivation still matters as a check, not a formality: `anchor_id` for a
- * view is a pathname, and an unchecked pathname is an open door (a comment
- * anchored to an arbitrary string, and a deep link to wherever it says).
+ * The anchor kinds that still TAKE comments (2026-11-07, user decision): an
+ * entity with its own page — a creative, a campaign, a budget month. `view`
+ * stays in `COMMENT_ANCHOR_TYPES` only because old rows carry it; nothing new
+ * is ever written with it.
  */
-const NOT_COMMENTABLE = new Set<string>([
-  // Its own feed — commenting on the list of comments-about-things is a loop.
-  "/notifications",
-  // The brand's comment feed, for the same reason (2026-10).
-  "/activity",
-]);
+export const LIVE_ANCHOR_TYPES = ["creative", "campaign", "budget_month"] as const;
+export type LiveAnchorType = (typeof LIVE_ANCHOR_TYPES)[number];
 
-export const COMMENTABLE_VIEWS: ReadonlyArray<{ path: string; label: string }> =
+/**
+ * The pages an OLD "view" comment may name — the retired page comments
+ * (2026-11-07). Page comments are read-only now: they are listed in "All
+ * comments" under the page's name and lead nowhere. Still DERIVED from the nav
+ * (house rule), so an old row on a page the nav still offers keeps its label;
+ * one on a page the nav dropped reads as "Retired page".
+ */
+const NOT_A_PAGE_LABEL = new Set<string>(["/notifications", "/activity"]);
+
+export const LEGACY_VIEW_PAGES: ReadonlyArray<{ path: string; label: string }> =
   (() => {
     const out: Array<{ path: string; label: string }> = [];
     const seen = new Set<string>();
     const add = (path: string, label: string) => {
-      if (seen.has(path) || NOT_COMMENTABLE.has(path)) return;
+      if (seen.has(path) || NOT_A_PAGE_LABEL.has(path)) return;
       seen.add(path);
       out.push({ path, label });
     };
@@ -72,12 +73,12 @@ export function canModerateComments(user: { role: string }): boolean {
   return user.role === "admin";
 }
 
-export function isCommentableView(path: string): boolean {
-  return COMMENTABLE_VIEWS.some((v) => v.path === path);
+export function isLegacyViewPage(path: string): boolean {
+  return LEGACY_VIEW_PAGES.some((v) => v.path === path);
 }
 
 export function viewLabel(path: string): string | null {
-  return COMMENTABLE_VIEWS.find((v) => v.path === path)?.label ?? null;
+  return LEGACY_VIEW_PAGES.find((v) => v.path === path)?.label ?? null;
 }
 
 /**
@@ -93,7 +94,9 @@ export function anchorPathFor(
   id: string,
   name: string | null,
 ): string | null {
-  if (type === "view") return isCommentableView(id) ? id : null;
+  // An old page comment leads nowhere: pages don't take comments any more,
+  // and it is read in "All comments" itself (2026-11-07).
+  if (type === "view") return null;
   if (type === "budget_month") return `/budget?month=${id}`;
   if (name === null) return null;
   return type === "creative"
@@ -324,27 +327,37 @@ export function collapseReplies<T extends { id: string }>(
   return { hidden: cut, shown: replies.slice(cut) };
 }
 
-/** The anchor a plain page gets: itself, if it is commentable. */
-export function viewAnchorFor(pathname: string): CommentAnchor | null {
-  return isCommentableView(pathname) ? { type: "view", id: pathname } : null;
+/**
+ * The routes that ARE an entity's page — the only places the comment rail,
+ * its panel and the entity's Activity exist (2026-11-07). Decided by the PATH,
+ * not by a registration, so moving between two creatives keeps the panel open
+ * while the next page loads; leaving for any other page closes it.
+ *
+ * THE RULE: an entity gets Comments and Activity only once it has its own
+ * page. A new entity page joins here (and renders `<CommentAnchor>`).
+ */
+const ENTITY_ROUTE_PATTERNS: ReadonlyArray<RegExp> = [
+  /^\/library\/(?!new$|bulk$)[^/]+$/,
+  /^\/campaigns\/(?!new$)[^/]+$/,
+  /^\/budget$/,
+];
+
+export function isEntityRoute(pathname: string): boolean {
+  return ENTITY_ROUTE_PATTERNS.some((re) => re.test(pathname));
 }
 
 /**
- * Which anchor the comment drawer is pointing at.
- *
- * An ENTITY beats the page it sits on: a creative's detail page anchors to the
- * creative, not to `/library/Some-Name` (which isn't commentable anyway — only
- * nav pages are). Entity registrations carry the pathname they were made on,
- * so a stale one from the page you just left can never leak onto the next.
- * A page with neither — a flow step, the notifications feed — has no anchor,
- * and the drawer's icon is hidden rather than shown broken.
+ * Which anchor the comment panel is pointing at: the entity the page
+ * registered, if the registration was made on THIS path (a stale one from the
+ * page just left can never leak onto the next). Anything else — every page
+ * that isn't an entity's own — has none (page comments retired 2026-11-07).
  */
 export function resolveCommentAnchor(input: {
   pathname: string;
   entity?: { path: string; anchor: CommentAnchor } | null;
 }): CommentAnchor | null {
   if (input.entity && input.entity.path === input.pathname) return input.entity.anchor;
-  return viewAnchorFor(input.pathname);
+  return null;
 }
 
 /** The query param that tells the drawer to open on one comment. */

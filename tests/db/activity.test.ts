@@ -38,7 +38,7 @@ import { CAMPAIGN_1, CREATIVE_1, resetAndSeed } from "./fixtures";
  * marker, mentions), labels and paths per anchor kind, and paging.
  */
 
-const ALL: ActivityParams = { who: "all", types: [], q: "", page: 1 };
+const ALL: ActivityParams = { who: "all", types: [], q: "", page: 1, comment: null };
 
 const setAccount = (id: string) => vi.mocked(getActiveAccountId).mockResolvedValue(id);
 const setUser = (id: string, name: string) => {
@@ -124,8 +124,9 @@ describe("scope", () => {
     vi.mocked(can).mockReturnValue(true);
     const manager = await listActivity(ALL);
     expect(manager.rows.map((r) => r.body)).toEqual(["On the Team page", "On Ads"]);
-    expect(manager.rows[0]!.anchorPath).toBe("/admin/users");
-    expect(manager.rows[0]!.anchorLabel).not.toBeNull();
+    // Read-only since 2026-11-07: labelled by its page, leading nowhere.
+    expect(manager.rows[0]!.anchorPath).toBeNull();
+    expect(manager.rows[0]!.anchorLabel).toBe("Team");
   });
 });
 
@@ -152,7 +153,8 @@ describe("what a row carries", () => {
       ["A-Creative-1", "/library/A-Creative-1"],
       ["Camp One ➤ Broad (IG)", `/campaigns/${encodeURIComponent("Camp One ➤ Broad (IG)")}`],
       ["October 2026", "/budget?month=2026-10"],
-      ["Ads", "/summary"],
+      // An old page comment keeps its page's name and leads nowhere.
+      ["Ads", null],
     ]);
   });
 
@@ -165,6 +167,14 @@ describe("what a row carries", () => {
       ["Orphan", null, null],
       ["Retired", null, null],
     ]);
+  });
+
+  it("?comment= shows that one comment on its own, ignoring the other filters", async () => {
+    const id = await seedComment({ body: "The one", anchorType: "view", anchorId: "/summary" });
+    await seedComment({ body: "Another", createdAt: at(1) });
+    const res = await listActivity({ ...ALL, who: "me", q: "nothing", comment: id });
+    expect(res.rows.map((r) => r.body)).toEqual(["The one"]);
+    expect(res.total).toBe(1);
   });
 
   it("carries the mentioned names, so the body highlights as it does in its thread", async () => {

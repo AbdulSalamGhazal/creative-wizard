@@ -15,7 +15,6 @@ import {
   REACTION_TOOLTIP_NAMES,
   anchorPathFor,
   monthAnchorLabel,
-  viewLabel,
   type CommentAnchorType,
   type CommentReactionTally,
 } from "@/lib/comments";
@@ -313,11 +312,9 @@ export async function resolveAnchorPath(
 ): Promise<{ path: string; label: string } | null> {
   // The path itself comes from `anchorPathFor` — the one builder the Activity
   // feed uses too, so a deep link and a feed header can never disagree.
-  if (anchorType === "view") {
-    const label = viewLabel(anchorId);
-    const path = anchorPathFor("view", anchorId, null);
-    return label && path ? { path, label } : null;
-  }
+  // A retired page comment (2026-11-07) has no page to open on — the
+  // resolver sends it to "All comments" instead.
+  if (anchorType === "view") return null;
   if (anchorType === "budget_month") {
     const path = anchorPathFor("budget_month", anchorId, null);
     return path ? { path, label: monthAnchorLabel(anchorId) } : null;

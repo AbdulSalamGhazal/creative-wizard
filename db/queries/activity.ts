@@ -69,9 +69,12 @@ export async function listActivity(params: ActivityParams): Promise<ActivityResu
   const acct = await getActiveAccountId();
 
   const filters = [eq(comments.accountId, acct), isNull(comments.deletedAt)];
-  if (params.who === "me") filters.push(eq(comments.authorUserId, user.id));
-  if (params.types.length > 0) filters.push(inArray(comments.anchorType, params.types));
-  if (params.q) filters.push(ilike(comments.body, `%${params.q}%`));
+  // One comment on its own: every other filter steps aside.
+  if (params.comment) filters.push(eq(comments.id, params.comment));
+  else if (params.who === "me") filters.push(eq(comments.authorUserId, user.id));
+  if (!params.comment && params.types.length > 0)
+    filters.push(inArray(comments.anchorType, params.types));
+  if (!params.comment && params.q) filters.push(ilike(comments.body, `%${params.q}%`));
   // The pages that would refuse this viewer — none for an admin, who passes
   // every gate. Only a `view` comment can sit on one.
   const refused = refusedRoutes((perm) => can(user, perm));

@@ -39,6 +39,7 @@ import { useMinuteTick } from "@/lib/use-minute-tick";
 import { useCommentAnchor } from "@/components/comments/comment-anchor-context";
 import { anchorKeyOf, usePanel } from "@/components/comments/comment-panel";
 import { NotificationAvatar } from "@/components/notifications/notification-avatar";
+import { ALL_COMMENTS_TITLE } from "@/lib/activity";
 
 interface FeedItem {
   id: string;
@@ -468,13 +469,14 @@ export function NotificationBell({
             <span aria-hidden className="text-ink-3">
               ·
             </span>
-            {/* The brand's comment feed (2026-10) — the bell is its way in. */}
+            {/* The brand's comment feed (2026-10; "All comments" since
+                2026-11-07) — the bell is its way in. */}
             <Link
               href="/activity"
               onClick={() => onOpenChange(false)}
               className="text-brand hover:underline"
             >
-              Activity
+              {ALL_COMMENTS_TITLE}
             </Link>
           </span>
           {beyond > 0 && (

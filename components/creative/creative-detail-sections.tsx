@@ -19,13 +19,11 @@ import {
   resolveEntityBounds,
   resolvePlatformBounds,
 } from "@/db/queries/series-bounds";
-import { listAuditEvents } from "@/db/queries/audit";
 import { CreativeDetailNav } from "@/components/creative/creative-detail-nav";
 import { DeleteCreativeDialog } from "@/components/creative/delete-creative-dialog";
 import { CreativePerfLineChart } from "@/components/charts/creative-perf-line";
 import { CreativeCampaignsTable } from "@/components/creative/creative-campaigns-table";
 import { CreativeRecordsTable } from "@/components/creative/creative-records-table";
-import { AuditFeed } from "@/components/audit/audit-feed";
 import { MetricCard } from "@/components/overview/metric-card";
 import { int, roas, usd, usd0 } from "@/lib/format";
 import { computeDelta } from "@/lib/period";
@@ -158,9 +156,10 @@ export async function CreativeRecordsActivity({
   recordsTitle: string;
   canDelete: boolean;
 }) {
-  const [records, activity, deletionSummary] = await Promise.all([
+  // The creative's history moved to the rail's Activity (2026-11-07) — one
+  // home, and it now includes what other pages did to it.
+  const [records, deletionSummary] = await Promise.all([
     creativeRecords(creativeId, range),
-    listAuditEvents({ entityType: "creative", entityId: creativeId, limit: 25 }),
     canDelete ? creativeDeletionSummary(creativeId) : Promise.resolve(null),
   ]);
 
@@ -168,20 +167,6 @@ export async function CreativeRecordsActivity({
     <>
       {/* Records (own block, collapsed by default) */}
       <CreativeRecordsTable rows={records} title={recordsTitle} />
-
-      {/* Activity log */}
-      <div>
-        <div className="flex items-baseline justify-between mb-3">
-          <h2 className="text-sm font-medium text-ink">Activity</h2>
-          {/* Empty says so ONCE — the feed's own EmptyState below. */}
-          {activity.length > 0 && (
-            <span className="text-[11px] text-ink-3">
-              {`Last ${activity.length} event${activity.length === 1 ? "" : "s"} for this creative.`}
-            </span>
-          )}
-        </div>
-        <AuditFeed rows={activity} />
-      </div>
 
       {/* Danger zone (delete permission only) */}
       {deletionSummary && (

@@ -76,25 +76,13 @@ export function AnalyticsBodySkeleton() {
   );
 }
 
-/** The records block (collapsed by default) and the activity feed. */
+/** The records block (collapsed by default). The activity feed that sat
+ *  under it moved to the rail's Activity (2026-11-07). */
 export function RecordsActivitySkeleton() {
   return (
-    <>
-      <div className="rounded-lg border border-line bg-surface px-4 py-3 flex items-center justify-between">
-        <Skeleton className="h-4 w-40" />
-        <Skeleton className="h-4 w-16" />
-      </div>
-      <div>
-        <div className="flex items-baseline justify-between mb-3">
-          <Skeleton className="h-4 w-16" />
-          <Skeleton className="h-3 w-40" />
-        </div>
-        <div className="space-y-1">
-          {Array.from({ length: 2 }).map((_, i) => (
-            <Skeleton key={i} className="h-9 w-full" />
-          ))}
-        </div>
-      </div>
-    </>
+    <div className="rounded-lg border border-line bg-surface px-4 py-3 flex items-center justify-between">
+      <Skeleton className="h-4 w-40" />
+      <Skeleton className="h-4 w-16" />
+    </div>
   );
 }

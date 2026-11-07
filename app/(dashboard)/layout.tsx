@@ -11,6 +11,7 @@ import { CommentAnchorProvider } from "@/components/comments/comment-anchor-cont
 import {
   CommentDock,
   CommentPanelProvider,
+  EntityRail,
 } from "@/components/comments/comment-panel";
 import { NoBrandAccess } from "@/components/layout/no-brand-access";
 import { getToastScope, resolveTablePrefs } from "@/db/queries/user-prefs";
@@ -98,6 +99,10 @@ export default async function DashboardLayout({
                   canModerate={canModerateComments(user)}
                 />
               </Suspense>
+              {/* The rail — Comments and Activity, on an entity's own page
+                  only, at the far right so its buttons never move when the
+                  panel opens beside it (2026-11-07). */}
+              <EntityRail />
             </div>
           </div>
         </CommentPanelProvider>

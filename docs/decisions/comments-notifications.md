@@ -8,6 +8,44 @@
 
 ## Invariants
 
+- **Comments live on ENTITIES, never on pages (2026-11-07, user decision).**
+  Only an entity with its OWN page takes comments — today a creative
+  (`/library/<name>`), a campaign (`/campaigns/<name>`) and a budget month
+  (`/budget`). **An entity gets Comments and Activity only once it has its own
+  page**: angles and landing pages have neither until they do. The routes are
+  `isEntityRoute` (lib/comments.ts) — a new entity page joins there and renders
+  `<CommentAnchor>`. `createCommentSchema` and `listCommentsSchema` accept
+  `LIVE_ANCHOR_TYPES` only; `view` stays in `COMMENT_ANCHOR_TYPES` for the old
+  rows alone.
+- **Old page comments are READ-ONLY** — no new comment, no reply. They are
+  listed in "All comments" under their page's name (`LEGACY_VIEW_PAGES`, still
+  derived from the nav), lead nowhere (`anchorPathFor("view")` is null), and a
+  link to one — like a link to a comment whose creative or campaign is gone —
+  lands on `/activity?comment=<id>`, that comment on its own.
+- **THE RAIL (2026-11-07).** On an entity's page, a thin column at the right
+  edge holds two buttons — Comments (count badge) and Activity (the entity's
+  history) — and each toggles its face of the ONE panel (`PanelToggles`,
+  `mode` in `usePanel`). Below `lg` the same two buttons sit in the top bar,
+  still on entity pages only. Leaving for a non-entity page CLOSES the panel
+  (the path decides, so creative A → creative B keeps it open while B loads);
+  a `?comment=` deep link opens it only on an entity page.
+- **An entity's ACTIVITY (2026-11-07) is its history of ACTIONS** — every
+  audit event linked to it through `audit_event_entities` (done on its page or
+  anywhere else), newest first, paged by event id, plus two DERIVED lines per
+  platform — went live / stopped — computed at read time by the status badge's
+  own rule (`statusEvents`, lib/entity-activity.ts; spend > 0, not excluded,
+  each platform against its own latest day). Comments are NOT in it (they have
+  their own face). Anyone who can open the page sees it (user decision) — the
+  read is brand-scoped, no extra permission. `GET /api/entity-activity`
+  phrases each row on the SERVER (`auditLabel` + `metaSummary`,
+  `lib/audit-summary.ts`): the labels live beside the audit writer, which no
+  client bundle may import. The open panel refetches on `ACTION_SETTLED_EVENT`
+  (fired by `safeAction` after any successful call), so an edit on the page
+  shows at once. The creative page's own "Activity" section was removed — one
+  home for the history.
+- **"All comments" is the brand feed's name (2026-11-07)** — it was
+  "Activity" until each entity got an Activity of its own. The route stays
+  `/activity` so stored links keep working (`ALL_COMMENTS_TITLE`).
 - A notification's href goes through the house `safeInternalPath` (no
   `/\host`, no control characters); /notifications' day labels use the SAME
   UTC clock as its grouping (W1-13, 2026-10-23).
@@ -201,6 +239,18 @@
   `DB_POOL_MAX=1` to catch it.
 
 ## History and rationale
+
+### 2026-11-07 — comments move onto entities; the rail
+
+Page comments aged badly (a "look at this dip" on the Dashboard meant nothing a
+week later) and carried the whole effective-view machinery. The user retired
+them: comments now live only on an entity with its own page, and every such
+page gets a rail at its right edge — Comments, and below it Activity, the
+entity's own history of actions (data layer: audit → entity links). The old
+page comments stay readable, read-only, in the brand feed, renamed "All
+comments" so it never shares a word with an entity's Activity. The effective
+view (`lib/effective-view.ts`) is KEPT: entity pages have ranges and filters
+of their own, so a comment there still reproduces what its author saw.
 
 *Moved verbatim from CLAUDE.md (2026-10). Line references are to the file
 as it stood before the restructure.*

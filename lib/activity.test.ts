@@ -7,13 +7,14 @@ import {
   ANCHOR_TYPE_LABEL,
   activityHref,
   activityQuery,
+  activityCommentHref,
   isActivityFiltered,
   type ActivityParams,
 } from "@/lib/activity";
 import { PAGE_REFUSAL_GATES, PRICE_STRUCTURE_ROUTES, refusedRoutes, viewAnchorRefused } from "@/lib/page-gates";
 import { activityParamsSchema } from "@/validators/activity";
 
-const DEFAULT: ActivityParams = { who: "all", types: [], q: "", page: 1 };
+const DEFAULT: ActivityParams = { who: "all", types: [], q: "", page: 1, comment: null };
 
 describe("labels derive from the vocabulary", () => {
   it("every anchor type has a chip label and a fallback; every who a label", () => {
@@ -32,7 +33,13 @@ describe("the URL is the state", () => {
   });
 
   it("writes only what differs from the default, and the schema reads it back", () => {
-    const params: ActivityParams = { who: "me", types: ["creative", "view"], q: "hook", page: 3 };
+    const params: ActivityParams = {
+      who: "me",
+      types: ["creative", "view"],
+      q: "hook",
+      page: 3,
+      comment: null,
+    };
     const query = activityQuery(params);
     expect(query).toBe("who=me&types=creative%2Cview&q=hook&page=3");
     expect(
@@ -48,7 +55,7 @@ describe("the URL is the state", () => {
         page: "x",
         q: ["a", "b"],
       }),
-    ).toEqual({ who: "all", types: ["creative"], page: 1, q: "" });
+    ).toEqual({ who: "all", types: ["creative"], page: 1, q: "", comment: null });
     expect(activityParamsSchema.parse({})).toEqual(DEFAULT);
     expect(activityParamsSchema.parse({ q: "  needle " }).q).toBe("needle");
   });
@@ -108,5 +115,14 @@ describe("viewAnchorRefused — a refused page's THREAD is refused too", () => {
 
   it("never applies to an entity anchor", () => {
     expect(viewAnchorRefused("creative", "/admin/users", () => false)).toBe(false);
+  });
+});
+
+describe("one comment on its own (?comment=)", () => {
+  it("round-trips the id and drops a malformed one", () => {
+    const id = "6f1c3c2e-9a7b-4d2e-8f00-1234567890ab";
+    expect(activityCommentHref(id)).toBe(`/activity?comment=${id}`);
+    expect(activityParamsSchema.parse({ comment: id }).comment).toBe(id);
+    expect(activityParamsSchema.parse({ comment: "nope" }).comment).toBeNull();
   });
 });

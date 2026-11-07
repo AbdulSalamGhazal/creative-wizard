@@ -11,6 +11,14 @@ import { type CommentAnchorType } from "@/lib/comments";
 
 export const ACTIVITY_PATH = "/activity";
 
+/**
+ * The feed's name (2026-11-07). It was "Activity" until each entity got an
+ * Activity of its own (its history, in the rail); the brand-wide list of
+ * comments is "All comments" so the two never share a word. The ROUTE stays
+ * `/activity` so every stored link keeps working.
+ */
+export const ALL_COMMENTS_TITLE = "All comments";
+
 /** Whose comments the feed shows. The URL carries `who=me`; absent = everyone. */
 export const ACTIVITY_WHO = ["all", "me"] as const;
 export type ActivityWho = (typeof ACTIVITY_WHO)[number];
@@ -28,7 +36,7 @@ export const ANCHOR_TYPE_LABEL: Record<CommentAnchorType, string> = {
   creative: "Creatives",
   campaign: "Campaigns",
   budget_month: "Budget",
-  view: "Pages",
+  view: "Old page comments",
 };
 
 /**
@@ -50,6 +58,12 @@ export interface ActivityParams {
   types: CommentAnchorType[];
   q: string;
   page: number;
+  /**
+   * One comment on its own (`?comment=<id>`) — where a link to a comment that
+   * has no page any more lands: a retired page comment, or one on a deleted
+   * creative or campaign. The other filters are ignored while it is set.
+   */
+  comment: string | null;
 }
 
 /**
@@ -63,12 +77,18 @@ export function activityQuery(p: ActivityParams): string {
   if (p.types.length > 0) params.set("types", p.types.join(","));
   if (p.q) params.set("q", p.q);
   if (p.page > 1) params.set("page", String(p.page));
+  if (p.comment) params.set("comment", p.comment);
   return params.toString();
 }
 
 export function activityHref(p: ActivityParams): string {
   const query = activityQuery(p);
   return query ? `${ACTIVITY_PATH}?${query}` : ACTIVITY_PATH;
+}
+
+/** One comment, on its own, in the feed. */
+export function activityCommentHref(id: string): string {
+  return `${ACTIVITY_PATH}?${new URLSearchParams({ comment: id })}`;
 }
 
 /** Is anything narrowing the feed beyond Everyone/Mine? Decides the empty copy. */

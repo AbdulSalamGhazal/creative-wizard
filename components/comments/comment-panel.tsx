@@ -10,12 +10,12 @@ import {
   useState,
 } from "react";
 import dynamic from "next/dynamic";
-import { useSearchParams } from "next/navigation";
-import { MessageSquare, X } from "lucide-react";
+import { usePathname, useSearchParams } from "next/navigation";
+import { Activity, MessageSquare, X } from "lucide-react";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { COMMENT_PARAM, type CommentAnchor } from "@/lib/comments";
+import { COMMENT_PARAM, isEntityRoute, type CommentAnchor } from "@/lib/comments";
 
 /**
  * The comment panel's EAGER half (W2-7 + W2-8, 2026-10): the shared state, the
@@ -39,13 +39,26 @@ import { COMMENT_PARAM, type CommentAnchor } from "@/lib/comments";
  */
 
 const OPEN_KEY = "cw-comments-open";
+const MODE_KEY = "cw-panel-mode";
 
 /** Tailwind's `lg`. Below it there's no room to squeeze — see CommentDock. */
 const DOCK_QUERY = "(min-width: 1024px)";
 
+/**
+ * What the panel shows (2026-11-07): the entity's comments, or its Activity —
+ * its history of actions. One panel, two faces, chosen by the rail's buttons.
+ */
+export type PanelMode = "comments" | "activity";
+
 interface PanelState {
   open: boolean;
   setOpen: (open: boolean) => void;
+  mode: PanelMode;
+  /**
+   * A rail button: opens the panel on `mode`, or closes it when it is already
+   * open on `mode` (the button toggles its own face).
+   */
+  toggleMode: (mode: PanelMode) => void;
   highlightId: string | null;
   setHighlightId: (id: string | null) => void;
   /**
@@ -82,10 +95,14 @@ const loadPanelBody = () => import("@/components/comments/comment-drawer");
 /** Fetch the panel's code now, so opening it doesn't wait for a download. */
 export function preloadCommentPanel(): void {
   void loadPanelBody();
+  void import("@/components/comments/entity-activity");
 }
 
 export function CommentPanelProvider({ children }: { children: React.ReactNode }) {
   const [open, setOpenState] = useState(false);
+  const [mode, setModeState] = useState<PanelMode>("comments");
+  const pathname = usePathname();
+  const onEntityPage = isEntityRoute(pathname);
   const [highlightId, setHighlightId] = useState<string | null>(null);
   const [deepLinkId, setDeepLinkId] = useState<string | null>(null);
   const [count, setCount] = useState(0);
@@ -95,6 +112,7 @@ export function CommentPanelProvider({ children }: { children: React.ReactNode }
   useEffect(() => {
     try {
       if (localStorage.getItem(OPEN_KEY) === "1") setOpenState(true);
+      if (localStorage.getItem(MODE_KEY) === "activity") setModeState("activity");
     } catch {
       /* private mode — start closed */
     }
@@ -125,10 +143,37 @@ export function CommentPanelProvider({ children }: { children: React.ReactNode }
     }
   }, []);
 
+  const toggleMode = useCallback(
+    (next: PanelMode) => {
+      if (open && mode === next) {
+        setOpen(false);
+        return;
+      }
+      setModeState(next);
+      try {
+        localStorage.setItem(MODE_KEY, next);
+      } catch {
+        /* ignore */
+      }
+      setOpen(true);
+    },
+    [open, mode, setOpen],
+  );
+
+  // The panel exists only on an ENTITY's page (2026-11-07): leaving for any
+  // other page closes it — there is no rail there to reopen it from. Moving
+  // between two entity pages keeps it open (the path decides, not the
+  // registration, which arrives only once the next page has rendered).
+  useEffect(() => {
+    if (!onEntityPage && open) setOpen(false);
+  }, [onEntityPage, open, setOpen]);
+
   const value = useMemo<PanelState>(
     () => ({
-      open,
+      open: open && onEntityPage,
       setOpen,
+      mode,
+      toggleMode,
       highlightId,
       setHighlightId,
       deepLinkId,
@@ -136,7 +181,7 @@ export function CommentPanelProvider({ children }: { children: React.ReactNode }
       count,
       setCount,
     }),
-    [open, setOpen, highlightId, deepLinkId, count],
+    [open, onEntityPage, setOpen, mode, toggleMode, highlightId, deepLinkId, count],
   );
 
   return (
@@ -163,45 +208,102 @@ export function CommentPanelProvider({ children }: { children: React.ReactNode }
  */
 function DeepLinkOpener() {
   const searchParams = useSearchParams();
-  const { setOpen, setDeepLinkId } = usePanel();
+  const pathname = usePathname();
+  const { setOpen, setDeepLinkId, mode, toggleMode } = usePanel();
   const id = searchParams.get(COMMENT_PARAM);
+  // Only an entity page has the panel; `/activity?comment=` is the feed's own
+  // one-comment view and never opens it.
+  const here = isEntityRoute(pathname);
   useEffect(() => {
-    if (!id) return;
-    setOpen(true);
+    if (!id || !here) return;
+    if (mode !== "comments") toggleMode("comments");
+    else setOpen(true);
     setDeepLinkId(id);
-  }, [id, setOpen, setDeepLinkId]);
+    // `mode`/`toggleMode` are read once per arrival, not tracked.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, here, setOpen, setDeepLinkId]);
   return null;
 }
 
 /**
- * The top-bar icon. It TOGGLES the panel (the panel's own X closes it too) and
- * stays visible everywhere — the panel persists across pages, so the control
- * for it can't disappear on a page that has no thread. Its badge is set by the
- * bell's per-navigation call (W2-7); pointing at it or focusing it preloads
- * the panel's code.
+ * The panel's two buttons — Comments (with its count badge) and Activity
+ * (2026-11-07). They live in the RAIL beside the page on a desktop and in the
+ * top bar below `lg`, and only on an entity's own page: anywhere else there is
+ * nothing to comment on and no history to show. Each toggles its own face of
+ * the one panel; pointing at either preloads the panel's code.
  */
-export function CommentToggle() {
-  const { open, setOpen, count } = usePanel();
+export function PanelToggles({
+  orientation,
+  className,
+}: {
+  orientation: "vertical" | "horizontal";
+  className?: string;
+}) {
+  const { open, mode, toggleMode, count } = usePanel();
+  const pathname = usePathname();
+  if (!isEntityRoute(pathname)) return null;
+  const button = (face: PanelMode) =>
+    cn(
+      "relative inline-flex h-8 w-8 items-center justify-center rounded-md border text-ink-2 transition-colors hover:bg-surface-2 hover:text-ink",
+      open && mode === face ? "border-line bg-surface-2 text-ink" : "border-transparent",
+      orientation === "horizontal" && !(open && mode === face) && "border-line",
+    );
   return (
-    <button
-      type="button"
-      onClick={() => setOpen(!open)}
-      onPointerEnter={preloadCommentPanel}
-      onFocus={preloadCommentPanel}
-      aria-pressed={open}
-      aria-label={count > 0 ? `Comments — ${count}` : "Comments"}
+    <div
       className={cn(
-        "relative inline-flex h-8 w-8 items-center justify-center rounded-md border border-line text-ink-2 transition-colors hover:bg-surface-2 hover:text-ink",
-        open && "bg-surface-2 text-ink",
+        "flex items-center gap-2",
+        orientation === "vertical" && "flex-col",
+        className,
       )}
     >
-      <MessageSquare className="h-4 w-4" />
-      {count > 0 && (
-        <span className="num absolute -right-0.5 -top-0.5 min-w-4 rounded-full bg-surface-2 px-1 text-[10px] leading-4 text-ink-2 ring-1 ring-line">
-          {count > 9 ? "9+" : count}
-        </span>
-      )}
-    </button>
+      <button
+        type="button"
+        onClick={() => toggleMode("comments")}
+        onPointerEnter={preloadCommentPanel}
+        onFocus={preloadCommentPanel}
+        aria-pressed={open && mode === "comments"}
+        aria-label={count > 0 ? `Comments — ${count}` : "Comments"}
+        title="Comments"
+        className={button("comments")}
+      >
+        <MessageSquare className="h-4 w-4" />
+        {count > 0 && (
+          <span className="num absolute -right-0.5 -top-0.5 min-w-4 rounded-full bg-surface-2 px-1 text-[10px] leading-4 text-ink-2 ring-1 ring-line">
+            {count > 9 ? "9+" : count}
+          </span>
+        )}
+      </button>
+      <button
+        type="button"
+        onClick={() => toggleMode("activity")}
+        onPointerEnter={preloadCommentPanel}
+        onFocus={preloadCommentPanel}
+        aria-pressed={open && mode === "activity"}
+        aria-label="Activity"
+        title="Activity"
+        className={button("activity")}
+      >
+        <Activity className="h-4 w-4" />
+      </button>
+    </div>
+  );
+}
+
+/**
+ * The RAIL (2026-11-07): a thin column at the page's right edge holding the
+ * panel's two buttons, on a desktop, on an entity's page only. It sits OUTSIDE
+ * the panel, so the buttons never move when the panel opens or closes.
+ */
+export function EntityRail() {
+  const pathname = usePathname();
+  if (!isEntityRoute(pathname)) return null;
+  return (
+    <aside
+      aria-label="Comments and activity"
+      className="sticky top-14 hidden h-[calc(100vh-3.5rem)] w-12 shrink-0 self-start border-l border-line bg-surface lg:block"
+    >
+      <PanelToggles orientation="vertical" className="pt-3" />
+    </aside>
   );
 }
 
@@ -228,7 +330,7 @@ function useCanDock(): boolean | null {
 const InSheetContext = createContext(false);
 
 function PanelBodyLoading() {
-  const { setOpen } = usePanel();
+  const { setOpen, mode } = usePanel();
   // In the phone Sheet the panel is a DIALOG, and it mounts before the body
   // (which carries the real SheetTitle) has loaded — an unnamed dialog. The
   // placeholder names it with the panel's own anchor-less title until then.
@@ -237,7 +339,11 @@ function PanelBodyLoading() {
     <>
       <div className="flex items-start gap-2 border-b border-line px-4 py-3">
         <div className="min-w-0 flex-1">
-          {inSheet && <SheetTitle className="sr-only">Comments</SheetTitle>}
+          {inSheet && (
+            <SheetTitle className="sr-only">
+              {mode === "activity" ? "Activity" : "Comments"}
+            </SheetTitle>
+          )}
           <div className="h-5 w-40 max-w-full animate-pulse rounded bg-surface-2" />
         </div>
         <Button
@@ -245,7 +351,7 @@ function PanelBodyLoading() {
           variant="ghost"
           size="xs"
           onClick={() => setOpen(false)}
-          aria-label="Close comments"
+          aria-label={mode === "activity" ? "Close activity" : "Close comments"}
           className="h-7 w-7 shrink-0 p-0"
         >
           <X className="h-4 w-4" />
@@ -263,6 +369,13 @@ function PanelBodyLoading() {
 
 const CommentPanelBody = dynamic(
   () => loadPanelBody().then((m) => m.CommentPanelBody),
+  { ssr: false, loading: () => <PanelBodyLoading /> },
+);
+
+/** The Activity face — lazy too, preloaded with the comments body. */
+const loadActivityBody = () => import("@/components/comments/entity-activity");
+const EntityActivityBody = dynamic(
+  () => loadActivityBody().then((m) => m.EntityActivityBody),
   { ssr: false, loading: () => <PanelBodyLoading /> },
 );
 
@@ -287,27 +400,34 @@ export function CommentDock({
   currentUserAvatarUrl: string | null;
   canModerate: boolean;
 }) {
-  const { open, setOpen } = usePanel();
+  const { open, setOpen, mode } = usePanel();
   const canDock = useCanDock();
 
   if (!open || canDock === null) return null;
 
+  const body = (inSheet: boolean) =>
+    mode === "activity" ? (
+      <EntityActivityBody onClose={() => setOpen(false)} inSheet={inSheet} />
+    ) : (
+      <CommentPanelBody
+        currentUserId={currentUserId}
+        currentUserName={currentUserName}
+        currentUserAvatarUrl={currentUserAvatarUrl}
+        canModerate={canModerate}
+        onClose={() => setOpen(false)}
+        inSheet={inSheet}
+      />
+    );
+
   if (canDock) {
     return (
       <aside
-        aria-label="Comments"
+        aria-label={mode === "activity" ? "Activity" : "Comments"}
         // Sticky under the 3.5rem top bar with its OWN scroll, so the panel
         // stays put while the page scrolls beside it.
         className="sticky top-14 flex h-[calc(100vh-3.5rem)] w-[380px] shrink-0 flex-col self-start border-l border-line bg-surface"
       >
-        <CommentPanelBody
-          currentUserId={currentUserId}
-          currentUserName={currentUserName}
-          currentUserAvatarUrl={currentUserAvatarUrl}
-          canModerate={canModerate}
-          onClose={() => setOpen(false)}
-          inSheet={false}
-        />
+        {body(false)}
       </aside>
     );
   }
@@ -319,16 +439,7 @@ export function CommentDock({
         showCloseButton={false}
         className="flex w-full flex-col gap-0 p-0 sm:max-w-md"
       >
-        <InSheetContext.Provider value>
-          <CommentPanelBody
-            currentUserId={currentUserId}
-            currentUserName={currentUserName}
-            currentUserAvatarUrl={currentUserAvatarUrl}
-            canModerate={canModerate}
-            onClose={() => setOpen(false)}
-            inSheet
-          />
-        </InSheetContext.Provider>
+        <InSheetContext.Provider value>{body(true)}</InSheetContext.Provider>
       </SheetContent>
     </Sheet>
   );

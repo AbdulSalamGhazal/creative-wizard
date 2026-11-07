@@ -527,14 +527,14 @@ describe("one background call per navigation: the feed carries the page's commen
   };
 
   it("an anchor adds commentCount — live comments on THAT anchor, in THIS brand", async () => {
-    const view = "/summary";
+    const month = "2026-09";
     await db.insert(comments).values([
-      { accountId: ACCOUNT_A, anchorType: "view", anchorId: view, authorUserId: BOB, body: "one" },
-      { accountId: ACCOUNT_A, anchorType: "view", anchorId: view, authorUserId: BOB, body: "two" },
-      { accountId: ACCOUNT_A, anchorType: "view", anchorId: view, authorUserId: BOB, body: "gone", deletedAt: new Date() },
-      { accountId: ACCOUNT_B, anchorType: "view", anchorId: view, authorUserId: BOB, body: "other brand" },
+      { accountId: ACCOUNT_A, anchorType: "budget_month", anchorId: month, authorUserId: BOB, body: "one" },
+      { accountId: ACCOUNT_A, anchorType: "budget_month", anchorId: month, authorUserId: BOB, body: "two" },
+      { accountId: ACCOUNT_A, anchorType: "budget_month", anchorId: month, authorUserId: BOB, body: "gone", deletedAt: new Date() },
+      { accountId: ACCOUNT_B, anchorType: "budget_month", anchorId: month, authorUserId: BOB, body: "other brand" },
     ]);
-    const body = (await (await req(`?anchorType=view&anchorId=${encodeURIComponent(view)}`)).json()) as {
+    const body = (await (await req(`?anchorType=budget_month&anchorId=${month}`)).json()) as {
       count: number;
       commentCount?: number;
       items: unknown[];
