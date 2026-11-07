@@ -128,7 +128,7 @@ export function AnglePlatformCompare({ rows }: { rows: AnglePlatformRow[] }) {
     <div className="rounded-lg border border-line bg-surface p-4">
       <div className="flex items-start justify-between flex-wrap gap-3 mb-4">
         <div>
-          <h3 className="text-sm text-ink-2">Platform comparison</h3>
+          <h3 className="text-sm font-medium text-ink">Platform comparison</h3>
           <p className="text-[10px] text-ink-3">
             Top {TOP_N} angles within each platform · bars min–max scaled per
             platform · pick one or more metrics to stack rows

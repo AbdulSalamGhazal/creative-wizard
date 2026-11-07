@@ -30,7 +30,7 @@ export async function MappingsAdmin() {
           <section key={platform} className="space-y-3">
             <div className="flex items-center gap-2">
               <PlatformDot platform={platform} />
-              <h3 className="font-display text-xl tracking-tight">
+              <h3 className="text-label text-ink-3">
                 {PLATFORM_LABEL[platform]}
               </h3>
             </div>

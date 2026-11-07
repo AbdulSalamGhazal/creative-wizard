@@ -61,7 +61,7 @@ export function AngleScatter({ rows }: { rows: AngleRollupRow[] }) {
     <div className="rounded-lg border border-line bg-surface p-4">
       <div className="flex items-center justify-between flex-wrap gap-3 mb-3">
         <div>
-          <h3 className="text-sm text-ink-2">Spend vs {y.label}</h3>
+          <h3 className="text-sm font-medium text-ink">Spend vs {y.label}</h3>
           <p className="text-[10px] text-ink-3">
             Each dot is an angle · bubble = creatives · click to open the Library
           </p>

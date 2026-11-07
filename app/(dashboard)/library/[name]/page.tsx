@@ -182,7 +182,7 @@ export default async function CreativeDetailPage({
       <section className="space-y-6 rounded-lg border border-line bg-surface/40 p-4 md:p-6">
         <div className="flex items-end justify-between gap-3 flex-wrap border-b border-line pb-4">
           <div>
-            <h2 className="font-display text-xl tracking-tight">Analytics</h2>
+            <h2 className="text-label text-ink-3">Analytics</h2>
             <p className="text-[11px] text-ink-3 tabular-nums mt-0.5">
               {rangeLabel} · across platforms
             </p>

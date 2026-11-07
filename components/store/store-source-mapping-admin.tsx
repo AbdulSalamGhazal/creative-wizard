@@ -94,7 +94,7 @@ export function StoreSourceMappingAdmin({
       {/* ── Axis 1: UTM source → platform ───────────────────────────────── */}
       <div className="rounded-lg border border-line bg-surface p-4 space-y-4">
         <div>
-          <h3 className="text-xs font-medium text-ink">UTM source → platform</h3>
+          <h3 className="text-sm font-medium text-ink">UTM source → platform</h3>
           <p className="mt-0.5 text-[11px] text-ink-3">
             Which ad platform each source value belongs to. Unmapped values count
             as Unattributed.
@@ -156,7 +156,7 @@ export function StoreSourceMappingAdmin({
       {/* ── Axis 2: channel → Website / Application ─────────────────────── */}
       <div className="rounded-lg border border-line bg-surface p-4 space-y-4">
         <div>
-          <h3 className="text-xs font-medium text-ink">
+          <h3 className="text-sm font-medium text-ink">
             Channel → Website / Application
           </h3>
           <p className="mt-0.5 text-[11px] text-ink-3">

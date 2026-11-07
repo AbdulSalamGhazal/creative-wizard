@@ -70,7 +70,7 @@ export function VideoScatter({ rows }: { rows: VideoDiagnosticRow[] }) {
     <div className="rounded-lg border border-line bg-surface p-4">
       <div className="flex items-start justify-between flex-wrap gap-3 mb-3">
         <div>
-          <h3 className="text-sm text-ink-2">Diagnostic scatter</h3>
+          <h3 className="text-sm font-medium text-ink">Diagnostic scatter</h3>
           <p className="text-[10px] text-ink-3">Each dot is a video · bubble = spend · click to open</p>
         </div>
         <div className="flex items-center gap-1.5 text-xs">

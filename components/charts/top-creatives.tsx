@@ -192,7 +192,7 @@ export function TopCreativesTable({
           is not here any more — it lives in the table's own header row. */}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-baseline gap-2">
-          <h3 className="text-sm font-semibold leading-none text-ink">Top creatives</h3>
+          <h3 className="text-sm font-medium leading-none text-ink">Top creatives</h3>
           <span className="text-[11px] text-ink-3">spend ≥ $300</span>
         </div>
         {/* The shared segmented control: it wraps (six metrics ran 6px out
