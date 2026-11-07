@@ -147,6 +147,10 @@ describe("an entity gets comments only on its own page (2026-11-07)", () => {
     expect(isEntityRoute(`/library/${encodeURIComponent("Hero v2 / UGC")}`)).toBe(true);
     expect(isEntityRoute("/campaigns/Camp-One")).toBe(true);
     expect(isEntityRoute("/budget")).toBe(true);
+    // A Price Structure version, on every page of the module (2026-11-07).
+    for (const page of ["", "/overview", "/plan", "/products", "/targets"]) {
+      expect(isEntityRoute(`/price-structure${page}`)).toBe(true);
+    }
   });
 
   it("refuses every list, flow step and other page", () => {
@@ -162,6 +166,7 @@ describe("an entity gets comments only on its own page (2026-11-07)", () => {
       "/uploads",
       "/activity",
       "/library/Ad-One/extra",
+      "/price-structure/versions",
     ]) {
       expect(isEntityRoute(path)).toBe(false);
     }

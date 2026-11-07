@@ -164,8 +164,10 @@ export function refusedRoutes(has: (perm: Permission) => boolean): string[] {
 }
 
 /**
- * A `view` comment anchor on a page that refuses the holder of `has` — its
- * thread is theirs neither to read nor to post to (2026-10-31). /activity
+ * A comment anchor whose page refuses the holder of `has` — its thread is
+ * theirs neither to read nor to post to (2026-10-31): an old `view` on one of
+ * the refusing pages, and a Price Structure version for anyone holding none
+ * of the module's three grants (2026-11-07). /activity
  * already hid these; the thread endpoint and the post path did not, so any
  * brand member could read the Team page's thread with one GET.
  */
@@ -174,5 +176,6 @@ export function viewAnchorRefused(
   anchorId: string,
   has: (perm: Permission) => boolean,
 ): boolean {
+  if (anchorType === "ps_version") return !PRICE_STRUCTURE_PERMS.some(has);
   return anchorType === "view" && refusedRoutes(has).includes(anchorId);
 }

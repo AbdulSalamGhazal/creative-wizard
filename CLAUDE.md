@@ -468,6 +468,8 @@ this map is still a rule you broke.
   its revision and a refused save merges by section, never silently.
 - Three grants — view · edit · versions — and the SERVER decides per action;
   the client only disables. `?v=` names the tab's open version.
+- A version is a comment + Activity entity (`ps_version`) on every module
+  page; edits are audited one line per person per section per sitting.
 
 → **`docs/decisions/price-structure.md`**
 

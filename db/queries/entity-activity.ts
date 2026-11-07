@@ -48,6 +48,12 @@ export const ENTITY_ACTIVITY_ACTIONS: Record<EntityActivityType, readonly AuditA
     ...EXCLUSION_ACTIONS,
   ],
   budget_month: [AUDIT_ACTIONS.BUDGET_UPDATE],
+  ps_version: [
+    AUDIT_ACTIONS.PS_VERSION_CREATE,
+    AUDIT_ACTIONS.PS_VERSION_IMPORT,
+    AUDIT_ACTIONS.PS_VERSION_EDIT,
+    AUDIT_ACTIONS.PS_VERSION_DELETE,
+  ],
 };
 
 /**
@@ -126,7 +132,7 @@ export async function entityStatusEvents(
   type: EntityActivityType,
   id: string,
 ): Promise<StatusEvent[]> {
-  if (type === "budget_month") return [];
+  if (type === "budget_month" || type === "ps_version") return [];
   const [acct, windowHours, latestDayByPlatform] = await Promise.all([
     getActiveAccountId(),
     getActiveStatusWindowHours(),

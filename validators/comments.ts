@@ -44,7 +44,7 @@ export const viewQuerySchema = z
  */
 export const liveAnchorTypeSchema = z.enum(LIVE_ANCHOR_TYPES);
 
-/** Anchor shape per type: a uuid for a creative or campaign, `YYYY-MM` for a month. */
+/** Anchor shape per type: `YYYY-MM` for a month, a uuid for everything else. */
 export const createCommentSchema = z
   .object({
     anchorType: liveAnchorTypeSchema,
@@ -58,12 +58,10 @@ export const createCommentSchema = z
   .superRefine((value, ctx) => {
     const fail = (message: string) =>
       ctx.addIssue({ code: z.ZodIssueCode.custom, message, path: ["anchorId"] });
-    if (value.anchorType === "creative" || value.anchorType === "campaign") {
-      if (!z.string().uuid().safeParse(value.anchorId).success) {
-        fail("That anchor isn't valid.");
-      }
-    } else if (!MONTH_KEY.test(value.anchorId)) {
-      fail("That month isn't valid.");
+    if (value.anchorType === "budget_month") {
+      if (!MONTH_KEY.test(value.anchorId)) fail("That month isn't valid.");
+    } else if (!z.string().uuid().safeParse(value.anchorId).success) {
+      fail("That anchor isn't valid.");
     }
   });
 

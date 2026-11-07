@@ -18,7 +18,7 @@ type Platform = (typeof platformEnum)[number];
  * A PLAIN module: the API route and the client panel both read it.
  */
 
-export const ENTITY_ACTIVITY_TYPES = ["creative", "campaign", "budget_month"] as const;
+export const ENTITY_ACTIVITY_TYPES = ["creative", "campaign", "budget_month", "ps_version"] as const;
 export type EntityActivityType = (typeof ENTITY_ACTIVITY_TYPES)[number];
 
 /** One audit event as the panel draws it — phrased on the server. */

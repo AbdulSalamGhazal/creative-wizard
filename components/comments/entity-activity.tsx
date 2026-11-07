@@ -39,6 +39,14 @@ interface Loaded {
   hasMore: boolean;
 }
 
+/** What a quiet history will hold, per kind of thing (ENTITY_ACTIVITY_ACTIONS). */
+const EMPTY_HINT: Record<string, string> = {
+  creative: "Edits and exclusions show here.",
+  campaign: "Edits and exclusions show here.",
+  budget_month: "Changes to this month’s plan show here.",
+  ps_version: "Edits to this version show here.",
+};
+
 const platformLabel = (p: string): string =>
   (PLATFORM_LABEL as Record<string, string>)[p] ?? p;
 
@@ -193,9 +201,7 @@ export function EntityActivityBody({
           <div className="py-10 text-center">
             <p className="text-xs text-ink-2">No activity yet</p>
             <p className="mt-1 text-[11px] text-ink-3">
-              {anchor.type === "budget_month"
-                ? "Changes to this month’s plan show here."
-                : "Edits and exclusions show here."}
+              {EMPTY_HINT[anchor.type] ?? EMPTY_HINT.creative}
             </p>
           </div>
         ) : (

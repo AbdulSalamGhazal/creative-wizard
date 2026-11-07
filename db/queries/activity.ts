@@ -1,6 +1,6 @@
 import { and, desc, eq, ilike, inArray, isNull, not, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { campaigns, commentMentions, comments, creatives, users } from "@/db/schema";
+import { campaigns, commentMentions, comments, creatives, psVersions, users } from "@/db/schema";
 import { auth, can } from "@/lib/auth";
 import { getActiveAccountId } from "@/lib/tenant";
 import { NOTIFICATIONS_PAGE_SIZE } from "@/lib/notifications";
@@ -10,7 +10,7 @@ import {
   viewLabel,
   type CommentAnchorType,
 } from "@/lib/comments";
-import { refusedRoutes } from "@/lib/page-gates";
+import { refusedRoutes, viewAnchorRefused } from "@/lib/page-gates";
 import type { ActivityParams } from "@/lib/activity";
 
 /**
@@ -83,6 +83,11 @@ export async function listActivity(params: ActivityParams): Promise<ActivityResu
       not(and(eq(comments.anchorType, "view"), inArray(comments.anchorId, refused))!),
     );
   }
+  // A Price Structure version's thread is for the module's members only
+  // (2026-11-07) — the same rule its thread endpoint applies.
+  if (viewAnchorRefused("ps_version", "", (perm) => can(user, perm))) {
+    filters.push(not(eq(comments.anchorType, "ps_version")));
+  }
   const where = and(...filters);
 
   const [rows, [count]] = await Promise.all([
@@ -112,7 +117,7 @@ export async function listActivity(params: ActivityParams): Promise<ActivityResu
   const total = count?.n ?? 0;
   if (rows.length === 0) return { ...empty, total };
 
-  // FOUR bounded lookups for the page — never one per row (prod's pool is ONE
+  // FIVE bounded lookups for the page — never one per row (prod's pool is ONE
   // connection). `anchor_id` is text and entity ids are uuid: each lookup
   // takes only the ids of ITS anchor type, which the write path validated.
   const ids = rows.map((r) => r.id);
@@ -120,9 +125,10 @@ export async function listActivity(params: ActivityParams): Promise<ActivityResu
     [...new Set(rows.filter((r) => r.anchorType === type).map((r) => r.anchorId))];
   const creativeIds = idsOf("creative");
   const campaignIds = idsOf("campaign");
+  const versionIds = idsOf("ps_version");
   const parentIds = [...new Set(rows.flatMap((r) => (r.parentId ? [r.parentId] : [])))];
 
-  const [creativeRows, campaignRows, parentRows, mentionRows] = await Promise.all([
+  const [creativeRows, campaignRows, versionRows, parentRows, mentionRows] = await Promise.all([
     creativeIds.length > 0
       ? db
           .select({ id: creatives.id, name: creatives.name })
@@ -134,6 +140,12 @@ export async function listActivity(params: ActivityParams): Promise<ActivityResu
           .select({ id: campaigns.id, name: campaigns.name })
           .from(campaigns)
           .where(and(eq(campaigns.accountId, acct), inArray(campaigns.id, campaignIds)))
+      : [],
+    versionIds.length > 0
+      ? db
+          .select({ id: psVersions.id, name: psVersions.name })
+          .from(psVersions)
+          .where(and(eq(psVersions.accountId, acct), inArray(psVersions.id, versionIds)))
       : [],
     parentIds.length > 0
       ? db
@@ -151,6 +163,7 @@ export async function listActivity(params: ActivityParams): Promise<ActivityResu
 
   const creativeName = new Map(creativeRows.map((r) => [r.id, r.name]));
   const campaignName = new Map(campaignRows.map((r) => [r.id, r.name]));
+  const versionName = new Map(versionRows.map((r) => [r.id, r.name]));
   const parentName = new Map(parentRows.map((r) => [r.id, r.name]));
   const mentionsOf = new Map<string, string[]>();
   for (const m of mentionRows) {
@@ -163,6 +176,7 @@ export async function listActivity(params: ActivityParams): Promise<ActivityResu
   const labelOf = (type: CommentAnchorType, id: string): string | null => {
     if (type === "creative") return creativeName.get(id) ?? null;
     if (type === "campaign") return campaignName.get(id) ?? null;
+    if (type === "ps_version") return versionName.get(id) ?? null;
     if (type === "budget_month") return monthAnchorLabel(id);
     return viewLabel(id);
   };

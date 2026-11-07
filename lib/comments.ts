@@ -21,6 +21,7 @@ export const COMMENT_ANCHOR_TYPES = [
   "creative",
   "campaign",
   "budget_month",
+  "ps_version",
   "view",
 ] as const;
 
@@ -28,11 +29,12 @@ export type CommentAnchorType = (typeof COMMENT_ANCHOR_TYPES)[number];
 
 /**
  * The anchor kinds that still TAKE comments (2026-11-07, user decision): an
- * entity with its own page — a creative, a campaign, a budget month. `view`
+ * entity with its own page — a creative, a campaign, a budget month, and a
+ * Price Structure version (its pages, keyed by `?v=`; 2026-11-07). `view`
  * stays in `COMMENT_ANCHOR_TYPES` only because old rows carry it; nothing new
  * is ever written with it.
  */
-export const LIVE_ANCHOR_TYPES = ["creative", "campaign", "budget_month"] as const;
+export const LIVE_ANCHOR_TYPES = ["creative", "campaign", "budget_month", "ps_version"] as const;
 export type LiveAnchorType = (typeof LIVE_ANCHOR_TYPES)[number];
 
 /**
@@ -98,6 +100,7 @@ export function anchorPathFor(
   // and it is read in "All comments" itself (2026-11-07).
   if (type === "view") return null;
   if (type === "budget_month") return `/budget?month=${id}`;
+  if (type === "ps_version") return name === null ? null : `/price-structure/overview?v=${encodeURIComponent(id)}`;
   if (name === null) return null;
   return type === "creative"
     ? `/library/${encodeURIComponent(name)}`
@@ -340,6 +343,10 @@ const ENTITY_ROUTE_PATTERNS: ReadonlyArray<RegExp> = [
   /^\/library\/(?!new$|bulk$)[^/]+$/,
   /^\/campaigns\/(?!new$)[^/]+$/,
   /^\/budget$/,
+  // A Price Structure VERSION (the open one is `?v=`) — every page of the
+  // module shows it, so the thread follows across them. Not the Versions
+  // list: that page is about all of them.
+  /^\/price-structure(\/(overview|plan|products|targets))?$/,
 ];
 
 export function isEntityRoute(pathname: string): boolean {

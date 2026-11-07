@@ -104,6 +104,7 @@ export const ANCHOR_ICONS: Readonly<Record<CommentAnchorType, NavIcon>> = {
   creative: navIcon("/library"),
   campaign: navIcon("/campaigns"),
   budget_month: navIcon("/budget"),
+  ps_version: navIcon("/price-structure/overview"),
   view: LayoutDashboard,
 };
 

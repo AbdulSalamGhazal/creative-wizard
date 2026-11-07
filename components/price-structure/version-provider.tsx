@@ -23,6 +23,7 @@ import {
 import type { VersionRow, VersionSummary } from "@/db/queries/price-structure";
 import type { CreateVersionInput } from "@/validators/price-structure";
 import { safeAction } from "@/lib/action-failure";
+import { CommentAnchor } from "@/components/comments/comment-anchor-context";
 import { toastActionFailure } from "@/lib/action-toast";
 import { useNavTransition } from "@/lib/nav-progress";
 import { actionSettled } from "@/lib/router-queue";
@@ -452,5 +453,13 @@ export function VersionProvider({
     [access, rows, open, saveState, updateData, updateMeta, switchTo, openInNewTab, create, remove, flush, retry],
   );
 
-  return <VersionContext.Provider value={value}>{children}</VersionContext.Provider>;
+  return (
+    <VersionContext.Provider value={value}>
+      {/* The open version is what the rail's Comments and Activity are about
+          (2026-11-07) — on every page of the module, re-registered as `?v=`
+          switches. */}
+      {open && <CommentAnchor type="ps_version" id={open.id} />}
+      {children}
+    </VersionContext.Provider>
+  );
 }

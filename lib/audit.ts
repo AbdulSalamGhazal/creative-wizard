@@ -136,6 +136,10 @@ export const AUDIT_ACTIONS = {
   PS_VERSION_CREATE: "price_structure.version_create",
   PS_VERSION_IMPORT: "price_structure.version_import",
   PS_VERSION_DELETE: "price_structure.version_delete",
+  // An edit to a version's document, name or notes — ONE row per person per
+  // section per sitting (`newEditSections`, lib/price-structure-edits.ts),
+  // never one per autosave (2026-11-07).
+  PS_VERSION_EDIT: "price_structure.version_edit",
 
   // Brands (accounts)
   ACCOUNT_CREATE: "account.create",
@@ -350,6 +354,7 @@ export const AUDIT_LABELS: Record<AuditAction, string> = {
   "price_structure.version_create": "Created a price version",
   "price_structure.version_import": "Imported a price version",
   "price_structure.version_delete": "Deleted a price version",
+  "price_structure.version_edit": "Edited the price version",
   "account.create": "Created brand",
   "account.rename": "Renamed brand",
   "account.window_update": "Changed status window",

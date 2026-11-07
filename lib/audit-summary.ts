@@ -160,6 +160,19 @@ export function metaSummary(row: AuditSummaryInput): string | null {
         note ? `note: ${note}` : null,
       ]);
     }
+    case "price_structure.version_edit": {
+      const sections = (m.sections as string[] | undefined) ?? [];
+      return sections.length ? sections.join(", ") : null;
+    }
+    case "price_structure.version_create":
+    case "price_structure.version_import": {
+      const from = m.from as string | undefined;
+      const n = m.products as number | undefined;
+      return join([
+        from && from !== "bootstrap" ? `from ${from}` : null,
+        n !== undefined ? plural(n, "product") : null,
+      ]);
+    }
     case "creative.delete": {
       const n = m.recordsDeleted as number | undefined;
       return n !== undefined ? `removed with ${plural(n, "record")}` : null;

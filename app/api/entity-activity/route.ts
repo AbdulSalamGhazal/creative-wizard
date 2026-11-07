@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { auth } from "@/lib/auth";
+import { auth, can } from "@/lib/auth";
+import { viewAnchorRefused } from "@/lib/page-gates";
 import { entityActivityPage, entityStatusEvents } from "@/db/queries/entity-activity";
 import { entityActivityQuerySchema } from "@/validators/entity-activity";
 import { auditLabel } from "@/lib/audit";
@@ -7,6 +8,14 @@ import { metaSummary } from "@/lib/audit-summary";
 import type { EntityActivityRow } from "@/lib/entity-activity";
 
 export const dynamic = "force-dynamic";
+
+/** The audit `entity_type` an entity's OWN events carry. */
+const AUDIT_ENTITY_OF = {
+  creative: "creative",
+  campaign: "campaign",
+  budget_month: "budget",
+  ps_version: "price_structure",
+} as const;
 
 /**
  * GET /api/entity-activity?type=&id=[&before=] — an entity's Activity for the
@@ -30,6 +39,14 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Invalid entity" }, { status: 400 });
   }
   const { type, id, before } = parsed.data;
+  // A Price Structure version is for the module's members only — the same
+  // gate as its comment thread. Empty, the shape of a quiet history.
+  if (viewAnchorRefused(type, id, (p) => can(user, p))) {
+    return NextResponse.json(
+      { rows: [], hasMore: false, status: before === null ? [] : null },
+      { headers: { "Cache-Control": "no-store" } },
+    );
+  }
   const [page, status] = await Promise.all([
     entityActivityPage(type, id, before),
     before === null ? entityStatusEvents(type, id) : Promise.resolve(null),
@@ -45,7 +62,7 @@ export async function GET(request: NextRequest) {
     // Named only when the event is about SOMETHING ELSE (an upload, a rule,
     // an angle) — "Updated creative · <this creative>" says nothing new.
     about:
-      r.entityType === (type === "budget_month" ? "budget" : type) && (r.entityId === id || type === "budget_month")
+      r.entityType === AUDIT_ENTITY_OF[type] && (r.entityId === id || type === "budget_month")
         ? null
         : r.entityLabel,
     actor: r.actor ? { name: r.actor.name || r.actor.email, avatarUrl: r.actor.avatarUrl } : null,

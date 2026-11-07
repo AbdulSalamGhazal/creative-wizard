@@ -25,6 +25,7 @@ import { COMMENT_EVENT_TYPES, categoryForType } from "@/lib/notifications";
 import {
   anchorParticipants,
   anchorBelongsToAccount,
+  mentionsRefusedByAnchor,
   getComment,
   resolveAnchorPath,
   insertMentions,
@@ -84,6 +85,12 @@ function errMsg(err: unknown): string {
 
 const BODY_SNAPSHOT = 200;
 
+/** "Rana can't open Price Structure." — the one refusal a PS mention gets. */
+function cantOpenMessage(names: readonly string[]): string {
+  const who = names.length === 1 ? names[0]! : `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`;
+  return `${who} can’t open Price Structure, so they can’t be mentioned here.`;
+}
+
 export async function createComment(input: unknown): Promise<CommentActionResult> {
   try {
     const user = await requireAuth();
@@ -115,6 +122,8 @@ export async function createComment(input: unknown): Promise<CommentActionResult
       if (outsiders.length > 0) {
         return { ok: false, error: "You can only mention people with access to this brand." };
       }
+      const refused = await mentionsRefusedByAnchor(anchorType, anchorId, mentionUserIds);
+      if (refused.length > 0) return { ok: false, error: cantOpenMessage(refused) };
       mentioned = [...new Set(mentionUserIds)];
     }
 
@@ -252,6 +261,12 @@ export async function updateComment(input: unknown): Promise<CommentActionResult
           error: "You can only mention people with access to this brand.",
         };
       }
+      const refused = await mentionsRefusedByAnchor(
+        existing.anchorType as CommentAnchorType,
+        existing.anchorId,
+        nextMentions,
+      );
+      if (refused.length > 0) return { ok: false, error: cantOpenMessage(refused) };
     }
     const anchor = await anchorBelongsToAccount(
       existing.anchorType as CommentAnchorType,

@@ -36,6 +36,7 @@ export const ANCHOR_TYPE_LABEL: Record<CommentAnchorType, string> = {
   creative: "Creatives",
   campaign: "Campaigns",
   budget_month: "Budget",
+  ps_version: "Price versions",
   view: "Old page comments",
 };
 
@@ -49,6 +50,7 @@ export const ANCHOR_FALLBACK_LABEL: Record<CommentAnchorType, string> = {
   creative: "Deleted creative",
   campaign: "Deleted campaign",
   budget_month: "Budget month",
+  ps_version: "Deleted price version",
   view: "Retired page",
 };
 

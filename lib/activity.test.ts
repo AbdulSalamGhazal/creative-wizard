@@ -111,6 +111,10 @@ describe("viewAnchorRefused — a refused page's THREAD is refused too", () => {
     expect(viewAnchorRefused("view", "/admin/users", (p) => p === "users.manage")).toBe(false);
     expect(viewAnchorRefused("view", "/admin/users", () => true)).toBe(false);
     expect(viewAnchorRefused("view", "/uploads", () => false)).toBe(false);
+    // A Price Structure version: any one of the module's three grants opens it.
+    expect(viewAnchorRefused("ps_version", "v1", () => false)).toBe(true);
+    expect(viewAnchorRefused("ps_version", "v1", (p) => p === "price_structure.view")).toBe(false);
+    expect(viewAnchorRefused("ps_version", "v1", (p) => p === "price_structure.edit")).toBe(false);
   });
 
   it("never applies to an entity anchor", () => {

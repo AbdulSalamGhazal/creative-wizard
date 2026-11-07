@@ -1,7 +1,7 @@
 import { cache } from "react";
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { psUserState, psVersions } from "@/db/schema";
+import { auditEvents, psUserState, psVersions } from "@/db/schema";
 import { getActiveAccountId } from "@/lib/tenant";
 import { versionDataSchema } from "@/price-structure/schema";
 import type { VersionData } from "@/price-structure/engine/types";
@@ -234,4 +234,35 @@ export async function versionNames(acct: string, ids: readonly string[]): Promis
     .from(psVersions)
     .where(and(eq(psVersions.accountId, acct), inArray(psVersions.id, [...ids])));
   return new Map(rows.map((r) => [r.id, r.name]));
+}
+
+/**
+ * The sections one person's edit lines on one version already name since
+ * `since` — their current SITTING (2026-11-07). A save that adds nothing new
+ * writes no history line (`newEditSections`). Read through the audit's
+ * `(entity_type, entity_id)` index; never inside a transaction.
+ */
+export async function sittingEditSections(
+  acct: string,
+  versionId: string,
+  userId: string,
+  since: Date,
+): Promise<string[]> {
+  const rows = await db
+    .select({ meta: auditEvents.meta })
+    .from(auditEvents)
+    .where(
+      and(
+        eq(auditEvents.entityType, "price_structure"),
+        eq(auditEvents.entityId, versionId),
+        eq(auditEvents.accountId, acct),
+        eq(auditEvents.action, "price_structure.version_edit"),
+        eq(auditEvents.actorUserId, userId),
+        gte(auditEvents.at, since),
+      ),
+    );
+  return rows.flatMap((r) => {
+    const sections = (r.meta as { sections?: unknown } | null)?.sections;
+    return Array.isArray(sections) ? sections.filter((x): x is string => typeof x === "string") : [];
+  });
 }

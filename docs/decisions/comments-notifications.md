@@ -12,7 +12,11 @@
   Only an entity with its OWN page takes comments — today a creative
   (`/library/<name>`), a campaign (`/campaigns/<name>`) and a budget month
   (`/budget`). **An entity gets Comments and Activity only once it has its own
-  page**: angles and landing pages have neither until they do. The routes are
+  page**: angles and landing pages have neither until they do. A Price
+  Structure VERSION is one (`ps_version`, every page of the module, keyed by
+  `?v=`; 2026-11-07) — its thread and Activity are for the module's members
+  only (`viewAnchorRefused`), and a mention of someone without a grant is
+  refused (`mentionsRefusedByAnchor`). The routes are
   `isEntityRoute` (lib/comments.ts) — a new entity page joins there and renders
   `<CommentAnchor>`. `createCommentSchema` and `listCommentsSchema` accept
   `LIVE_ANCHOR_TYPES` only; `view` stays in `COMMENT_ANCHOR_TYPES` for the old
@@ -36,7 +40,8 @@
   derived from `AUDIT_ACTIONS`) is the list: a creative — its own edits
   (`creative.*`) and the exclusions on its records (`exclusion.*`, manual and
   by rule); a campaign — `campaign.*` and `exclusion.*`; a budget month — its
-  plan (`budget.update`). Uploads, rollbacks, cleanups, the other side's
+  plan (`budget.update`); a Price Structure version — created, imported,
+  edited (one line per person per section per sitting), deleted. Uploads, rollbacks, cleanups, the other side's
   delete and an angle renamed on the Angles page are LINKED
   (`audit_event_entities` records every touch) but not shown. Plus two
   DERIVED lines per platform for a creative or campaign — went live / stopped

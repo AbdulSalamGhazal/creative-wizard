@@ -38,7 +38,22 @@ component folder; three grants (view · edit · versions).
   $n` is the only write path for a document; a refused save is merged
   three-way by section (`components/price-structure/merge.ts`) and only an
   edit the server ALSO changed takes the server copy — never silently.
-  Autosaves are not audited; creating, importing and deleting a version are.
+  Creating, importing and deleting a version are audited; an autosave is
+  audited as `price_structure.version_edit` ONE line per person per SECTION
+  per sitting (2026-11-07, `price-structure/edit-sections.ts`: name · notes ·
+  settings · products · targets · plans · actuals; a sitting is 30 minutes) —
+  a save that changes only sections this person's sitting already names
+  writes nothing, so the history reads "edited products, targets", never a
+  line per keystroke.
+- **A version is a comment + Activity ENTITY (2026-11-07, user decision)** —
+  anchor type `ps_version`, on EVERY page of the module (Overview, Plan,
+  Products, Targets; not the Versions list), registered by the
+  `VersionProvider` for the open `?v=`, so switching version switches the
+  thread and the history; a copied version starts with an empty thread. Its
+  thread and Activity are the module's members' only (any of the three
+  grants, `viewAnchorRefused`), and mentioning someone without a grant is
+  refused out loud. Comments, the rail and Activity are HOST infrastructure,
+  like auth and the design system.
 - **The open version is this tab's `?v=`.** A bare URL opens the user's last
   version for the brand (`ps_user_state`), then the most recently opened one;
   a brand with none gets a Blank "Main" (user decision, 2026-11-05 — the
@@ -46,7 +61,8 @@ component folder; three grants (view · edit · versions).
   module carry `?v=` like Budget's `?month=` (`CARRIED_PARAMS`).
 - **The module imports nothing from other modules' code or tables**; from the
   host it uses auth/permissions, tenancy, the design system, `lib/format`,
-  the shared `readSheetRows` action and the CSV download helper.
+  the shared `readSheetRows` action, the CSV download helper, and the
+  comments/Activity infrastructure (`CommentAnchor`, the audit).
 - **Three grants, and the SERVER decides per action** (2026-11-06):
   `price_structure.view` opens every page read-only; `price_structure.edit`
   changes the open version's document; `price_structure.versions` creates,

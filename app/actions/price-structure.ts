@@ -10,6 +10,7 @@ import {
   getVersion,
   insertVersion,
   pollVersions as pollVersionRows,
+  sittingEditSections,
   touchVersionOpened,
   updateVersionIfRevision,
   type VersionRow,
@@ -28,6 +29,7 @@ import { IMPORT_ERROR, importDocument } from "@/price-structure/engine/export-im
 import { blankVersionData, sampleVersionData } from "@/price-structure/engine/sample";
 import type { VersionData } from "@/price-structure/engine/types";
 import { SAVE_CONFLICT_MESSAGE, VERSION_GONE_MESSAGE } from "@/price-structure/messages";
+import { EDIT_SITTING_MS, changedSections, newEditSections } from "@/price-structure/edit-sections";
 
 /**
  * Price Structure versions — the server actions (brief §7). Every one needs
@@ -55,22 +57,55 @@ export async function saveVersion(input: unknown): Promise<SaveVersionResult> {
     }
     const acct = await getActiveAccountId();
     const { id, revision, name, notes, data } = parsed.data;
-    // A member without the full set may still save — as long as what they
-    // changed is theirs to change: the document needs `edit`, the name and
-    // notes need `versions`. Compared against the live row, read first.
-    if (!access.edit || !access.versions) {
-      const live = await getVersion(acct, id);
-      if (!live) return { ok: false, error: VERSION_GONE_MESSAGE, gone: true };
-      if (!access.edit && JSON.stringify(live.data) !== JSON.stringify(data)) return { ok: false, error: EDIT_REFUSED };
-      if (!access.versions && (live.name !== name || live.notes !== notes)) return { ok: false, error: VERSIONS_REFUSED };
-    }
+    // The live row, read first: a member without the full set may still save
+    // as long as what they changed is theirs to change (the document needs
+    // `edit`, the name and notes need `versions`), and the history names the
+    // sections this save changed.
+    const before = await getVersion(acct, id);
+    if (!before) return { ok: false, error: VERSION_GONE_MESSAGE, gone: true };
+    if (!access.edit && JSON.stringify(before.data) !== JSON.stringify(data)) return { ok: false, error: EDIT_REFUSED };
+    if (!access.versions && (before.name !== name || before.notes !== notes)) return { ok: false, error: VERSIONS_REFUSED };
     const saved = await updateVersionIfRevision(acct, id, revision, { name, notes, data }, me.id);
-    if (saved) return { ok: true, revision: saved.revision, updatedAt: saved.updatedAt };
+    if (saved) {
+      await recordEdit(acct, me.id, { id, name }, changedSections(before, { name, notes, data }));
+      return { ok: true, revision: saved.revision, updatedAt: saved.updatedAt };
+    }
     const live = await getVersion(acct, id);
     if (!live) return { ok: false, error: VERSION_GONE_MESSAGE, gone: true };
     return { ok: false, error: SAVE_CONFLICT_MESSAGE, conflict: live };
   } catch (err) {
     return { ok: false, error: actionError(err, "ps.saveVersion") };
+  }
+}
+
+/**
+ * The version's history line for an autosave (2026-11-07): ONE per person per
+ * section per sitting — a save that changes only sections this person's
+ * sitting already names writes nothing. Best-effort, like every audit write:
+ * a failure here never fails the save that already landed.
+ */
+async function recordEdit(
+  acct: string,
+  userId: string,
+  version: { id: string; name: string },
+  changed: ReturnType<typeof changedSections>,
+): Promise<void> {
+  if (changed.length === 0) return;
+  try {
+    const since = new Date(Date.now() - EDIT_SITTING_MS);
+    const fresh = newEditSections(changed, await sittingEditSections(acct, version.id, userId, since));
+    if (fresh.length === 0) return;
+    await logAudit({
+      action: AUDIT_ACTIONS.PS_VERSION_EDIT,
+      entityType: "price_structure",
+      entityId: version.id,
+      entityLabel: version.name,
+      actorUserId: userId,
+      accountId: acct,
+      meta: { sections: fresh },
+    });
+  } catch (err) {
+    console.error("ps.recordEdit", err);
   }
 }
 

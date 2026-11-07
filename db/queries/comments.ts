@@ -7,6 +7,7 @@ import {
   commentReactions,
   comments,
   creatives,
+  psVersions,
   users,
 } from "@/db/schema";
 import { getActiveAccountId } from "@/lib/tenant";
@@ -18,7 +19,8 @@ import {
   type CommentAnchorType,
   type CommentReactionTally,
 } from "@/lib/comments";
-import { auth } from "@/lib/auth";
+import { auth, can, type SessionUser } from "@/lib/auth";
+import { viewAnchorRefused } from "@/lib/page-gates";
 
 /** `db` or an open transaction — writers always pass their own `tx`. */
 type Exec = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
@@ -319,6 +321,15 @@ export async function resolveAnchorPath(
     const path = anchorPathFor("budget_month", anchorId, null);
     return path ? { path, label: monthAnchorLabel(anchorId) } : null;
   }
+  if (anchorType === "ps_version") {
+    const [row] = await exec
+      .select({ name: psVersions.name })
+      .from(psVersions)
+      .where(and(eq(psVersions.id, anchorId), eq(psVersions.accountId, accountId)))
+      .limit(1);
+    const path = row ? anchorPathFor("ps_version", anchorId, row.name) : null;
+    return row && path ? { path, label: row.name } : null;
+  }
   if (anchorType === "creative") {
     const [row] = await exec
       .select({ name: creatives.name })
@@ -345,6 +356,30 @@ export async function anchorBelongsToAccount(
 ): Promise<{ ok: true; label: string } | { ok: false }> {
   const resolved = await resolveAnchorPath(anchorType, anchorId, accountId);
   return resolved ? { ok: true, label: resolved.label } : { ok: false };
+}
+
+/**
+ * Of `userIds`, the NAMES of those the anchor's page would refuse (2026-11-07):
+ * mentioning someone who can't open a Price Structure version would notify
+ * them about a thread they can't read — refused out loud, like a non-member.
+ * Empty for every anchor that refuses nobody (one query only when it might).
+ */
+export async function mentionsRefusedByAnchor(
+  anchorType: CommentAnchorType,
+  anchorId: string,
+  userIds: readonly string[],
+): Promise<string[]> {
+  if (anchorType !== "ps_version" || userIds.length === 0) return [];
+  const rows = await db
+    .select({ name: users.name, role: users.role, permissions: users.permissions })
+    .from(users)
+    .where(inArray(users.id, [...new Set(userIds)]));
+  return rows
+    .filter((u) => {
+      const holder = { role: u.role as SessionUser["role"], permissions: u.permissions };
+      return viewAnchorRefused(anchorType, anchorId, (p) => can(holder, p));
+    })
+    .map((u) => u.name);
 }
 
 /** Insert a comment's mention rows. One statement, or none. */

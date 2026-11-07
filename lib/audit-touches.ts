@@ -53,7 +53,12 @@ export function touchRows(touches: AuditTouches | null | undefined): AuditTouchR
 
 /** Union of several touch sets (later duplicates are dropped by `touchRows`). */
 export function mergeTouches(...sets: Array<AuditTouches | null | undefined>): AuditTouches {
-  const out: Record<AuditTouchEntity, string[]> = { creative: [], campaign: [], budget_month: [] };
+  const out: Record<AuditTouchEntity, string[]> = {
+    creative: [],
+    campaign: [],
+    budget_month: [],
+    ps_version: [],
+  };
   for (const set of sets) {
     if (!set) continue;
     for (const t of auditTouchEntityEnum) out[t].push(...(set[t] ?? []));
@@ -130,6 +135,9 @@ export function selfTouches(input: {
   if (!id) return {};
   if (input.entityType === "creative") return { creative: [id] };
   if (input.entityType === "campaign") return { campaign: [id] };
+  // A Price Structure version (2026-11-07) — every price_structure.* event is
+  // about the version it names.
+  if (input.entityType === "price_structure") return { ps_version: [id] };
   if (input.entityType === "budget" && input.action === "budget.update") {
     const m = toBudgetMonth(id);
     return m ? { budget_month: [m] } : {};
