@@ -17,7 +17,7 @@ import { defaultDateRange } from "@/lib/date-presets";
 
 export const dynamic = "force-dynamic";
 
-export const metadata = { title: "Reconciliation" };
+export const metadata = { title: "Store · Reconciliation" };
 
 function pick(v: string | string[] | undefined): string | undefined {
   return Array.isArray(v) ? v[0] : v;

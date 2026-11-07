@@ -27,7 +27,7 @@ import { resolveFilterPrefs } from "@/db/queries/user-prefs";
 
 export const dynamic = "force-dynamic";
 
-export const metadata = { title: "Pacing" };
+export const metadata = { title: "Budget · Pacing" };
 
 const GROUP_BYS: GroupBy[] = ["day", "week", "month"];
 

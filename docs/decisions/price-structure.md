@@ -103,7 +103,7 @@ component folder; three grants (view · edit · versions).
   client provider so edits and the autosave timer survive a page switch; the
   document is stored whole; realtime is the bell's polling pattern (10 s
   while visible + focus); view toggles live in `localStorage` in one file;
-  the tab title is `{Page} · {Version}`; two editable grids (sales mix,
+  the tab title is `Price structure · {Page} · {Version}` (R-100, 2026-11: a page with an eyebrow qualifies its tab title); two editable grids (sales mix,
   period orders) are hand-rolled editors (D22), every read-only table is a
   `DataTable`; `Switch` was added to `components/ui` and `UnitInput` /
   `useFieldFlow` were lifted out of the Budget module into `components/ui/

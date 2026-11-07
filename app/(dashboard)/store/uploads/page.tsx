@@ -28,7 +28,7 @@ import { StoreCleanupTool } from "@/components/store/store-cleanup-tool";
 
 export const dynamic = "force-dynamic";
 
-export const metadata = { title: "Upload orders" };
+export const metadata = { title: "Store · Upload orders" };
 
 /**
  * Order uploads — the store upload HISTORY (batches: file, when, by, counts,

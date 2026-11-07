@@ -4,7 +4,7 @@ import { PageShell } from "@/components/layout/page-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { StoreUploadPanel } from "@/components/store/store-upload-panel";
 
-export const metadata = { title: "New order upload" };
+export const metadata = { title: "Store · New order upload" };
 
 /**
  * The store upload flow (dropzone → validate → error report / summary →

@@ -14,7 +14,7 @@ import { AudienceBoard } from "@/components/budget/audience-board";
 
 export const dynamic = "force-dynamic";
 
-export const metadata = { title: "Audience" };
+export const metadata = { title: "Budget · Audience" };
 
 /**
  * Budget Audience — how big each funnel audience is, per stage per platform,

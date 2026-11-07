@@ -14,7 +14,7 @@ type SearchParams = Promise<{ v?: string }>;
 export async function generateMetadata({ searchParams }: { searchParams: SearchParams }) {
   const { v } = await searchParams;
   const name = await versionNameFor(v);
-  return { title: name ? `Products & offers · ${name}` : "Products & offers" };
+  return { title: name ? `Price structure · Products & offers · ${name}` : "Price structure · Products & offers" };
 }
 
 /** `/price-structure/products/:productId?/:offerId?` — the selection lives in the path. */

@@ -18,7 +18,7 @@ import { StoreUtmsView } from "@/components/store/utms/store-utms-view";
 
 export const dynamic = "force-dynamic";
 
-export const metadata = { title: "UTMs" };
+export const metadata = { title: "Store · UTMs" };
 
 type SearchParams = Record<string, string | string[] | undefined>;
 const pick = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);

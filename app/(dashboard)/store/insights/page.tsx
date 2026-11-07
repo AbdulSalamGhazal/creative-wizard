@@ -16,7 +16,7 @@ import { StoreInsightsView } from "@/components/store/store-insights-view";
 
 export const dynamic = "force-dynamic";
 
-export const metadata = { title: "Insights" };
+export const metadata = { title: "Store · Insights" };
 
 type SearchParams = Record<string, string | string[] | undefined>;
 const pick = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);

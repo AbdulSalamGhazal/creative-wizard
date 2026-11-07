@@ -18,7 +18,7 @@ import { CommentAnchor } from "@/components/comments/comment-anchor-context";
 
 export const dynamic = "force-dynamic";
 
-export const metadata = { title: "Overview" };
+export const metadata = { title: "Budget · Overview" };
 
 /**
  * Budget Overview — the month at a glance (rebuilt 2026-10): three hero cards

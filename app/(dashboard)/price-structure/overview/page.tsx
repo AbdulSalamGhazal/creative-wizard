@@ -13,7 +13,7 @@ type SearchParams = Promise<{ v?: string }>;
 export async function generateMetadata({ searchParams }: { searchParams: SearchParams }) {
   const { v } = await searchParams;
   const name = await versionNameFor(v);
-  return { title: name ? `Overview · ${name}` : "Overview" };
+  return { title: name ? `Price structure · Overview · ${name}` : "Price structure · Overview" };
 }
 
 export default async function Page() {

@@ -16,7 +16,7 @@ import { BudgetPlanEditor } from "@/components/budget/budget-plan-editor";
 
 export const dynamic = "force-dynamic";
 
-export const metadata = { title: "Plan" };
+export const metadata = { title: "Budget · Plan" };
 
 /**
  * Budget Plan — the month's editor and nothing else: USD allocations per
