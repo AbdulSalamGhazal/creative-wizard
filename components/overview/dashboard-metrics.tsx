@@ -8,6 +8,7 @@ import {
   type MetricBreakdownRow,
 } from "@/db/queries/performance";
 import { MetricCard, type BreakdownBar } from "@/components/overview/metric-card";
+import { MetricTileButton } from "@/components/overview/metric-tile-button";
 import { computeDelta, deltaVsLabel } from "@/lib/period";
 import { PLATFORM_COLOR, PLATFORM_LABEL, swatchColor } from "@/lib/palette";
 import { int, intCompact, roas, usd, usd0, usdCompact } from "@/lib/format";
@@ -96,55 +97,75 @@ export async function DashboardMetrics({
     });
   };
 
+  // A breakdown is a comparison: with ONE platform (or campaign) contributing
+  // it only repeats the headline in a rounder format, so it shows from two
+  // (R-120). None at all still says "No data in this range."
+  const breakdown = (bars: BreakdownBar[]) => ({
+    bars,
+    hideBreakdown: bars.length === 1,
+  });
+
   return (
     <div className="space-y-3">
+      {/* The tiles are the chart's metric selector (R-070): pressing one
+          plots it in "Performance over time" below. */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-        <MetricCard
-          label="Spend"
-          value={usd0(k.spend)}
-          icon={DollarSign}
-          delta={d?.spend}
-          deltaVs={kd ? vs(usd0(kd.previous.spend)) : undefined}
-          bars={shareBars((r) => r.spend, usdCompact)}
-          empty={empty}
-        />
-        <MetricCard
-          label="Conversions"
-          value={int(k.conversions)}
-          icon={Target}
-          delta={d?.conversions}
-          deltaVs={kd ? vs(int(kd.previous.conversions)) : undefined}
-          bars={shareBars((r) => r.conversions, intCompact)}
-          empty={empty}
-        />
-        <MetricCard
-          label="Revenue"
-          value={usd0(k.conversionValue)}
-          icon={Banknote}
-          delta={revenueDelta}
-          deltaVs={kd ? vs(usd0(kd.previous.conversionValue)) : undefined}
-          bars={shareBars((r) => r.conversionValue, usdCompact)}
-          empty={empty}
-        />
-        <MetricCard
-          label="CPA"
-          value={usd(k.cpa)}
-          icon={Receipt}
-          delta={d?.cpa}
-          deltaInverted
-          deltaVs={kd ? vs(usd(kd.previous.cpa)) : undefined}
-          bars={valueBars((r) => r.cpa, usd)}
-          empty={empty}
-        />
-        <MetricCard
-          label="ROAS"
-          value={roas(k.roas)}
-          icon={TrendingUp}
-          delta={d?.roas}
-          deltaVs={kd ? vs(roas(kd.previous.roas)) : undefined}
-          bars={valueBars((r) => r.roas, (v) => roas(v))}
-          empty={empty}
-        />
+        <MetricTileButton metric="spend" label="Spend">
+          <MetricCard
+            label="Spend"
+            value={usd0(k.spend)}
+            icon={DollarSign}
+            delta={d?.spend}
+            deltaVs={kd ? vs(usd0(kd.previous.spend)) : undefined}
+            {...breakdown(shareBars((r) => r.spend, usdCompact))}
+            empty={empty}
+          />
+        </MetricTileButton>
+        <MetricTileButton metric="conversions" label="Conversions">
+          <MetricCard
+            label="Conversions"
+            value={int(k.conversions)}
+            icon={Target}
+            delta={d?.conversions}
+            deltaVs={kd ? vs(int(kd.previous.conversions)) : undefined}
+            {...breakdown(shareBars((r) => r.conversions, intCompact))}
+            empty={empty}
+          />
+        </MetricTileButton>
+        <MetricTileButton metric="revenue" label="Revenue">
+          <MetricCard
+            label="Revenue"
+            value={usd0(k.conversionValue)}
+            icon={Banknote}
+            delta={revenueDelta}
+            deltaVs={kd ? vs(usd0(kd.previous.conversionValue)) : undefined}
+            {...breakdown(shareBars((r) => r.conversionValue, usdCompact))}
+            empty={empty}
+          />
+        </MetricTileButton>
+        <MetricTileButton metric="cpa" label="CPA">
+          <MetricCard
+            label="CPA"
+            value={usd(k.cpa)}
+            icon={Receipt}
+            delta={d?.cpa}
+            deltaInverted
+            deltaVs={kd ? vs(usd(kd.previous.cpa)) : undefined}
+            {...breakdown(valueBars((r) => r.cpa, usd))}
+            empty={empty}
+          />
+        </MetricTileButton>
+        <MetricTileButton metric="roas" label="ROAS">
+          <MetricCard
+            label="ROAS"
+            value={roas(k.roas)}
+            icon={TrendingUp}
+            delta={d?.roas}
+            deltaVs={kd ? vs(roas(kd.previous.roas)) : undefined}
+            {...breakdown(valueBars((r) => r.roas, (v) => roas(v)))}
+            empty={empty}
+          />
+        </MetricTileButton>
       </div>
       {isCampaign && moreCount > 0 && (
         <p className="text-[11px] text-ink-3">

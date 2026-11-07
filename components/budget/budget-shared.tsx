@@ -12,7 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { displayValueFontSize } from "@/components/overview/metric-card";
+import { MetricCard } from "@/components/overview/metric-card";
 import { longDate, sar, sar0, signedPct, usd, usd0 } from "@/lib/format";
 import { PLATFORM_LABEL } from "@/lib/palette";
 import { cn } from "@/lib/utils";
@@ -759,24 +759,20 @@ export function Hero({
   context?: ReactNode;
   children?: ReactNode;
 }) {
+  // The house KPI tile (R-010) — Budget's hero card is MetricCard with its
+  // context line as the caption and the bar + verdict as children. A card with
+  // nothing left to say under its number says nothing (MetricCard drops an
+  // empty caption).
   return (
-    <section className="@container min-w-0 rounded-lg border border-line bg-surface px-4 py-3">
-      <div className="flex items-baseline justify-between gap-2">
-        <span className="text-label text-ink-3">{label}</span>
-        {aside}
-      </div>
-      <div
-        className="mt-1.5 whitespace-nowrap font-display leading-none tabular-nums text-ink"
-        style={{ fontSize: displayValueFontSize(value, "2.2rem") }}
-      >
-        {value}
-      </div>
-      {/* A card with nothing left to say under its number says nothing. */}
-      {context !== null && context !== undefined && context !== "" && (
-        <p className="mt-1 text-xs text-ink-3">{context}</p>
-      )}
+    <MetricCard
+      label={label}
+      value={value}
+      aside={aside}
+      caption={context}
+      hideBreakdown
+    >
       {children}
-    </section>
+    </MetricCard>
   );
 }
 

@@ -21,6 +21,7 @@ import type { MetricOverTimeRow } from "@/db/queries/performance";
 import { CHART_CURSOR, ChartTooltip, CHART_STROKE } from "@/components/charts/chart-tooltip";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useChartView } from "@/components/charts/use-chart-view";
+import { DASHBOARD_CHART_PREFIX, type DashboardMetricKey } from "@/lib/dashboard-metric";
 
 export interface OverTimeKey {
   key: string;
@@ -44,7 +45,7 @@ interface Props {
   fillTo?: string;
 }
 
-type MetricKey = "spend" | "revenue" | "conversions" | "cpa" | "roas";
+type MetricKey = DashboardMetricKey;
 
 interface MetricDef {
   value: MetricKey;
@@ -126,9 +127,12 @@ export function MetricOverTimeChart({
   fillFrom,
   fillTo,
 }: Props) {
-  // Metric / Smooth / Group survive Back and a shared link (R-102).
+  // Metric / Smooth / Group survive Back and a shared link (R-102). The
+  // metric param is ALSO what the Dashboard's KPI tiles write (R-070): one
+  // `?otm=` is the single source of truth; the picker only shows in
+  // fullscreen, where the tiles are out of sight.
   const { metric, setMetric, smooth, setSmooth, group, setGroup } = useChartView<MetricKey>(
-    "ot",
+    DASHBOARD_CHART_PREFIX,
     METRIC_KEYS,
     "spend",
   );
@@ -260,13 +264,15 @@ export function MetricOverTimeChart({
       {({ inFull, toggleExpand }) => (
         <div className={inFull ? "flex flex-col h-full" : undefined}>
           <ChartHeader
-            title="Performance over time"
+            title={`${def.label} over time`}
             picker={
-              <MetricPicker
-                options={METRICS.map((m) => ({ value: m.value, label: m.label }))}
-                value={metric}
-                onChange={setMetric}
-              />
+              inFull ? (
+                <MetricPicker
+                  options={METRICS.map((m) => ({ value: m.value, label: m.label }))}
+                  value={metric}
+                  onChange={setMetric}
+                />
+              ) : undefined
             }
             controls={
               <>

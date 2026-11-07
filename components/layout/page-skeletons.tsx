@@ -1,4 +1,5 @@
 import { Skeleton } from "@/components/ui/skeleton";
+import { metricCardFrame } from "@/components/overview/metric-card";
 
 /**
  * Shared skeleton building blocks for per-route `loading.tsx` files. They
@@ -72,21 +73,22 @@ export function HeaderSkeleton({
 }
 
 /** A row of KPI tiles. Defaults to the 2 / sm:3 / lg:5 gap-3 grid; pass `cols`
- *  to mirror a different breakpoint set (funnel = 7, campaign detail = 4). */
+ *  to mirror a different breakpoint set (funnel = 7, campaign detail = 4).
+ *  Each tile is drawn in the real tile's own frame (`metricCardFrame`, R-110)
+ *  so the swap is a fill-in, not a corner/border jump. */
 export function KpiRowSkeleton({
   count = 5,
   cols = "grid-cols-2 sm:grid-cols-3 lg:grid-cols-5",
+  variant = "card",
 }: {
   count?: number;
   cols?: string;
+  variant?: "card" | "quiet";
 }) {
   return (
     <div className={`grid ${cols} gap-3`}>
       {Array.from({ length: count }).map((_, i) => (
-        <div
-          key={i}
-          className="rounded-lg border border-line bg-surface p-4 space-y-3"
-        >
+        <div key={i} className={metricCardFrame(variant)}>
           <Skeleton className="h-3 w-20" />
           <Skeleton className="h-9 w-24" />
           <Skeleton className="h-2 w-28" />

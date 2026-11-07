@@ -1,6 +1,7 @@
 import type { ComponentType, ReactNode } from "react";
 import { DeltaBadge } from "@/components/kpi/delta-badge";
 import type { Delta } from "@/lib/period";
+import { cn } from "@/lib/utils";
 
 export interface BreakdownBar {
   key: string;
@@ -32,27 +33,59 @@ export function displayValueFontSize(value: string, max = "2.6rem"): string {
   return `min(${max}, 100cqi / ${ems.toFixed(2)})`;
 }
 
+/** The tile frame, shared with its skeletons so a stream-in never jumps. */
+export function metricCardFrame(
+  variant: "card" | "quiet" = "card",
+  size: "md" | "sm" = "md",
+): string {
+  return cn(
+    // Radius scale (R-089): a tile is lg, a tile nested in a card is md.
+    "@container min-w-0 flex flex-col",
+    variant === "quiet" ? "rounded-md bg-surface-2/60" : "rounded-lg border border-line bg-surface",
+    size === "sm" ? "p-3 gap-2.5" : "p-4 gap-3.5",
+  );
+}
+
 /**
- * One Dashboard metric: a large headline figure with an icon, and a compact
- * per-dimension breakdown below it (labeled bars). Presentational only — all
- * metric math + bar fractions are computed by the caller.
+ * The app's ONE KPI / stat tile (R-010): a label, a big headline figure and
+ * whatever the metric adds below it. Every "label + big number" surface uses
+ * it — the Dashboard and Store tiles, Budget's hero cards (via `Hero`), the
+ * Funnel rate tiles, Trends' stat tiles and the upload summary — so a tile
+ * looks the same on every page. Presentational only — all metric math + bar
+ * fractions are computed by the caller.
+ *
+ * - `variant="quiet"` is the borderless `surface-2` fill for a tile nested
+ *   INSIDE a card (the Dashboard's Funnel rates).
+ * - `size="sm"` is the inline stat (tighter padding, smaller figure).
+ * - The label is always `text-label text-ink-3`; the value is always sized
+ *   through `displayValueFontSize`, so it never leaves the tile at 375px.
  */
 export function MetricCard({
   label,
   value,
   icon: Icon,
+  dot,
   bars = [],
   delta,
   deltaInverted = false,
   deltaVs,
+  aside,
+  caption,
   emptyText = "No data in this range.",
   footer,
   hideBreakdown = false,
   empty = false,
+  variant = "card",
+  size = "md",
+  valueTitle,
+  children,
 }: {
   label: string;
   value: string;
-  icon: ComponentType<{ className?: string }>;
+  /** The label's icon. Omit for a plain label (or pass `dot`). */
+  icon?: ComponentType<{ className?: string }>;
+  /** A colour marker before the label instead of an icon (the funnel rates). */
+  dot?: string;
   bars?: BreakdownBar[];
   /** Period-over-period change vs the previous equal window. */
   delta?: Delta;
@@ -60,6 +93,10 @@ export function MetricCard({
   deltaInverted?: boolean;
   /** The delta's baseline for its title / sr-only text (`deltaVsLabel`). */
   deltaVs?: string;
+  /** Anything else for the header's right side (an order count, "planned"). */
+  aside?: ReactNode;
+  /** One context line right under the figure ("of $12,000 + $600 reserve"). */
+  caption?: ReactNode;
   /** Subline under the headline when there are no bars (string or rich node —
    *  Budget stacks a plan line + a projection line here). */
   emptyText?: ReactNode;
@@ -76,9 +113,18 @@ export function MetricCard({
    * or any % change next to an empty "—" value reads as an error, not signal.
    */
   empty?: boolean;
+  /** `card` (bordered, default) or `quiet` (borderless fill, nested in a card). */
+  variant?: "card" | "quiet";
+  /** `md` (default) or `sm` (the inline stat: tighter padding, smaller figure). */
+  size?: "md" | "sm";
+  /** Hover text for the figure (e.g. the exact value behind a rounded one). */
+  valueTitle?: string;
+  /** Rich content under the figure — Budget's pace bar + verdict, a sparkline. */
+  children?: ReactNode;
 }) {
+  const hasCaption = caption !== null && caption !== undefined && caption !== "";
   return (
-    <div className="@container min-w-0 rounded-lg border border-line bg-surface p-4 flex flex-col gap-3.5">
+    <div className={metricCardFrame(variant, size)}>
       {/* Headline */}
       <div>
         {/* In a phone's two-column grid the header is ~124px, and
@@ -88,19 +134,36 @@ export function MetricCard({
             row stay level; a wider one keeps them side by side. */}
         <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 @max-[12rem]:flex-col @max-[12rem]:items-start">
           <div className="flex min-w-0 max-w-full items-center gap-1.5 text-label text-ink-3">
-            <Icon className="h-3.5 w-3.5 shrink-0" />
+            {dot ? (
+              <span
+                aria-hidden
+                className="h-2 w-2 rounded-full shrink-0"
+                style={{ background: dot }}
+              />
+            ) : Icon ? (
+              <Icon className="h-3.5 w-3.5 shrink-0" />
+            ) : null}
             <span className="truncate" title={label}>{label}</span>
           </div>
+          {aside}
           {delta && !empty ? (
             <DeltaBadge delta={delta} inverted={deltaInverted} vs={deltaVs} />
           ) : null}
         </div>
         <div
-          className="font-display leading-none tabular-nums text-ink mt-2 whitespace-nowrap"
-          style={{ fontSize: displayValueFontSize(value) }}
+          className={cn(
+            "font-display leading-none tabular-nums text-ink whitespace-nowrap",
+            size === "sm" ? "mt-1.5" : "mt-2",
+          )}
+          style={{
+            fontSize: displayValueFontSize(value, size === "sm" ? "1.6rem" : "2.6rem"),
+          }}
+          title={valueTitle}
         >
           {value}
         </div>
+        {hasCaption && <p className="mt-1 text-xs text-ink-3">{caption}</p>}
+        {children}
       </div>
 
       {/* Breakdown */}

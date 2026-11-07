@@ -17,6 +17,7 @@ import { dashboardFiltersSchema } from "@/validators/filters";
 import { TYPE_COLOR, TYPE_LABEL, TYPE_ORDER, PLATFORMS_WITH_CREATIVES } from "@/lib/palette";
 import { pct, roas, usd } from "@/lib/format";
 import { EmptyState } from "@/components/ui/empty-state";
+import { MetricCard } from "@/components/overview/metric-card";
 import { pickFirst } from "@/lib/url";
 
 export const dynamic = "force-dynamic";
@@ -108,20 +109,18 @@ export default async function TrendsByTypePage({
           const spend = r?.spend ?? 0;
           const share = totalSpend > 0 ? spend / totalSpend : 0;
           return (
-            <div key={type} className="rounded-lg border border-line bg-surface p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <span
-                  className="w-2.5 h-2.5 rounded-sm"
-                  style={{ background: TYPE_COLOR[type] }}
-                />
-                <span className="text-sm text-ink-2">{TYPE_LABEL[type]}</span>
-                <span className="ml-auto text-[11px] text-ink-3 tabular-nums">
+            <MetricCard
+              key={type}
+              label={TYPE_LABEL[type]}
+              value={usd(spend)}
+              dot={TYPE_COLOR[type]}
+              aside={
+                <span className="text-[11px] text-ink-3 tabular-nums">
                   {pct(share)} of spend
                 </span>
-              </div>
-              <div className="font-display text-2xl text-ink tabular-nums leading-none">
-                {usd(spend)}
-              </div>
+              }
+              hideBreakdown
+            >
               <div className="mt-2 flex items-center gap-4 text-[11px] text-ink-3">
                 <span>
                   ROAS{" "}
@@ -144,7 +143,7 @@ export default async function TrendsByTypePage({
                   style={{ width: `${share * 100}%`, background: TYPE_COLOR[type] }}
                 />
               </div>
-            </div>
+            </MetricCard>
           );
         })}
       </div>

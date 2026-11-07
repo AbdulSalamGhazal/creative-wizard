@@ -2,6 +2,7 @@
 
 import { CheckCircle2, Info } from "lucide-react";
 import { int } from "@/lib/format";
+import { MetricCard } from "@/components/overview/metric-card";
 import type { ValidationError } from "@/csv/errors";
 import { Chip } from "@/components/ui/chip";
 
@@ -54,7 +55,7 @@ export function SummaryCard({
         </div>
       )}
 
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-4 px-4 py-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 px-4 py-4">
         <Stat label="Rows" value={int(summary.rows)} />
         <Stat label="Creatives" value={int(summary.creatives)} />
         <Stat
@@ -113,15 +114,7 @@ export function SummaryCard({
   );
 }
 
+/** The house tile (R-010), inline size, quiet inside this tinted panel. */
 function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <div className="text-eyebrow text-ink-3 mb-1">
-        {label}
-      </div>
-      <div className="font-display text-2xl tabular-nums text-ink leading-none">
-        {value}
-      </div>
-    </div>
-  );
+  return <MetricCard size="sm" variant="quiet" label={label} value={value} hideBreakdown />;
 }

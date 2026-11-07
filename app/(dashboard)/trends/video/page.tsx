@@ -16,6 +16,7 @@ import { VideoRetention } from "@/components/trends/video-retention";
 import { VideoScatter } from "@/components/trends/video-scatter";
 import { dashboardFiltersSchema } from "@/validators/filters";
 import { pct } from "@/lib/format";
+import { MetricCard } from "@/components/overview/metric-card";
 import { pickFirst } from "@/lib/url";
 import { PLATFORMS_WITH_CREATIVES } from "@/lib/palette";
 import { AdDataGate } from "@/components/ui/no-ad-data-state";
@@ -100,13 +101,15 @@ export default async function TrendsVideoPage({
       />
 
       {videoCount > 0 && (
-        <div className="flex items-center gap-6 text-sm">
-          <Stat label="Median hook" value={pct(medianHookRate)} />
-          <Stat label="Median hold (50%)" value={pct(medianHoldRate)} />
-          <Stat label="Median complete" value={pct(medianCompleteRate)} />
-          <div className="text-ink-3 text-xs">
-            across {videoCount} video creative{videoCount === 1 ? "" : "s"}
+        <div className="space-y-1.5">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <MetricCard size="sm" label="Median hook" value={pct(medianHookRate)} hideBreakdown />
+            <MetricCard size="sm" label="Median hold (50%)" value={pct(medianHoldRate)} hideBreakdown />
+            <MetricCard size="sm" label="Median complete" value={pct(medianCompleteRate)} hideBreakdown />
           </div>
+          <p className="text-ink-3 text-xs">
+            across {videoCount} video creative{videoCount === 1 ? "" : "s"}
+          </p>
         </div>
       )}
 
@@ -126,14 +129,5 @@ export default async function TrendsVideoPage({
         />
       </AdDataGate>
     </PageShell>
-  );
-}
-
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <span className="text-ink-3 text-label">{label}</span>
-      <div className="font-display text-2xl tabular-nums text-ink leading-none mt-1">{value}</div>
-    </div>
   );
 }

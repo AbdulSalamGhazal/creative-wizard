@@ -1,5 +1,5 @@
 import { Sparkline } from "@/components/charts/sparkline";
-import { DeltaBadge } from "@/components/kpi/delta-badge";
+import { MetricCard } from "@/components/overview/metric-card";
 import { pct, usd } from "@/lib/format";
 import { FUNNEL_METRIC_COLOR } from "@/lib/palette";
 import type { FunnelOverview, FunnelDailyPoint } from "@/db/queries/funnel";
@@ -65,37 +65,33 @@ export function FunnelRateTiles({
   };
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
+    // 7-up only from xl: at lg each tile got ~97px and a 32px "$12.34" ran
+    // into its neighbour (R-017). The tile is the house MetricCard (R-010), so
+    // the value shrinks to fit and a narrow header stacks the delta.
+    <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-7 gap-3">
       {RATES.map((r) => {
         const value = r.key === "cpm" ? usd(c.cpm) : pct(c[r.key]);
-        const delta = overview.deltas[r.key];
         return (
-          <div
+          <MetricCard
             key={r.key}
-            className="rounded-md bg-surface-2/60 px-4 py-3.5 flex flex-col gap-2.5"
+            label={r.label}
+            value={value}
+            dot={r.color}
+            delta={overview.deltas[r.key]}
+            deltaInverted={r.inverted}
+            hideBreakdown
           >
-            <div className="flex items-center justify-between gap-1.5">
-              <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold tracking-wide text-ink-2 truncate">
-                <span
-                  className="h-2.5 w-2.5 rounded-full shrink-0"
-                  style={{ background: r.color }}
-                />
-                {r.label}
-              </span>
-              <DeltaBadge delta={delta} inverted={r.inverted} />
+            <div className="mt-2.5">
+              <Sparkline
+                values={series(r.key)}
+                color={r.color}
+                width={200}
+                height={34}
+                baseline="data"
+                responsive
+              />
             </div>
-            <span className="font-display text-[2rem] leading-[0.95] tabular-nums text-ink">
-              {value}
-            </span>
-            <Sparkline
-              values={series(r.key)}
-              color={r.color}
-              width={200}
-              height={34}
-              baseline="data"
-              responsive
-            />
-          </div>
+          </MetricCard>
         );
       })}
     </div>
