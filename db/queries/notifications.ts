@@ -1,7 +1,8 @@
 import { and, desc, eq, ilike, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { notificationRoutes, notifications, userAccounts, users } from "@/db/schema";
-import { auth } from "@/lib/auth";
+import { auth, can, type SessionUser } from "@/lib/auth";
+import { viewAnchorRefused } from "@/lib/page-gates";
 import { getActiveAccountId } from "@/lib/tenant";
 import {
   BELL_RECENT_LIMIT,
@@ -108,7 +109,13 @@ async function toCurrentMembers(tx: Exec, rows: NewNotification[]): Promise<NewN
   const userIds = [...new Set(rows.map((r) => r.recipientUserId))];
   const accountIds = [...new Set(rows.map((r) => r.accountId))];
   const members = await tx
-    .select({ userId: users.id, allAccounts: users.allAccounts, accountId: userAccounts.accountId })
+    .select({
+      userId: users.id,
+      allAccounts: users.allAccounts,
+      accountId: userAccounts.accountId,
+      role: users.role,
+      permissions: users.permissions,
+    })
     .from(users)
     .leftJoin(
       userAccounts,
@@ -121,9 +128,25 @@ async function toCurrentMembers(tx: Exec, rows: NewNotification[]): Promise<NewN
   const of = new Set(
     members.filter((m) => m.accountId !== null).map((m) => `${m.userId}\u0001${m.accountId}`),
   );
-  return rows.filter(
-    (r) => everywhere.has(r.recipientUserId) || of.has(`${r.recipientUserId}\u0001${r.accountId}`),
+  // …and only someone the thing's page would let IN (2026-11-07): a comment
+  // notification is stamped with its anchor, and a Price Structure version's
+  // thread is for the module's members alone — a reply, a follow-up or a
+  // reaction must not reach someone whose grant was removed since.
+  const holder = new Map(
+    members.map((m) => [m.userId, { role: m.role as SessionUser["role"], permissions: m.permissions }]),
   );
+  return rows.filter((r) => {
+    if (!(everywhere.has(r.recipientUserId) || of.has(`${r.recipientUserId}\u0001${r.accountId}`))) {
+      return false;
+    }
+    const who = holder.get(r.recipientUserId);
+    return !(
+      who &&
+      r.entityType &&
+      r.entityId &&
+      viewAnchorRefused(r.entityType, r.entityId, (p) => can(who, p))
+    );
+  });
 }
 
 /**

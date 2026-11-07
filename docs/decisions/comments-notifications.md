@@ -55,7 +55,9 @@
   (`auditLabel` + `metaSummary`, `lib/audit-summary.ts`): the labels live
   beside the audit writer, which no client bundle may import. The open panel
   refetches on `ACTION_SETTLED_EVENT` (fired by `safeAction` after any
-  successful call), so an edit on the page shows at once. The creative page's
+  successful call) once the writes SETTLE (2 s after the last — Price
+  Structure autosaves every 500 ms while someone types), so an edit on the
+  page shows without a request per keystroke. The creative page's
   own "Activity" section was removed — one home for the history.
 - **"All comments" is the brand feed's name (2026-11-07)** — it was
   "Activity" until each entity got an Activity of its own. The route stays
@@ -83,7 +85,11 @@
   Routes and thread participation outlive membership, so `createNotifications`
   — the one insert every producer funnels through — drops a recipient who is
   neither all-brands nor in `user_accounts` for the row's brand, read on the
-  caller's `tx` (a grant earlier in the same transaction counts).
+  caller's `tx` (a grant earlier in the same transaction counts). **And only
+  someone the thread's page lets in (2026-11-07):** a comment notification is
+  stamped with its anchor, so the same read drops a recipient
+  `viewAnchorRefused` refuses — a Price Structure version's replies,
+  follow-ups and reactions never reach a member without a grant.
 - Every read and write is self-scoped: `recipient_user_id` = the session user
   AND `account_id` = the active brand. An id alone never identifies a row.
 - **Silent by default** — no routes for an event notifies nobody, and the actor

@@ -39,6 +39,9 @@ interface Loaded {
   hasMore: boolean;
 }
 
+/** How long the panel waits after the LAST write before it refetches. */
+const ACTIVITY_REFETCH_DELAY_MS = 2000;
+
 /** What a quiet history will hold, per kind of thing (ENTITY_ACTIVITY_ACTIONS). */
 const EMPTY_HINT: Record<string, string> = {
   creative: "Edits and exclusions show here.",
@@ -106,12 +109,21 @@ export function EntityActivityBody({
   // A write anywhere on the page (a priority change, an exclusion) may be
   // the next line here: refetch the first page, quietly — what is on screen
   // stays until the answer arrives. Its audit row commits before the action
-  // returns, so one refetch is enough.
+  // returns, so one refetch is enough —
+  // SETTLED, not every write: Price Structure autosaves every 500 ms while
+  // someone types, so one refetch waits for the writes to stop.
   useEffect(() => {
     if (!anchorKey) return;
-    const onWrite = () => void load();
+    let timer: number | undefined;
+    const onWrite = () => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => void load(), ACTIVITY_REFETCH_DELAY_MS);
+    };
     window.addEventListener(ACTION_SETTLED_EVENT, onWrite);
-    return () => window.removeEventListener(ACTION_SETTLED_EVENT, onWrite);
+    return () => {
+      window.clearTimeout(timer);
+      window.removeEventListener(ACTION_SETTLED_EVENT, onWrite);
+    };
   }, [anchorKey, load]);
 
   const loadMore = async () => {
