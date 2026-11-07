@@ -2,8 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { LogoMark } from "@/components/layout/logo-mark";
-import { BrandWordmark } from "@/components/layout/brand-wordmark";
+import { AuthBrandHeader } from "@/components/auth/auth-brand-header";
 import { Button } from "@/components/ui/button";
 import { FormError } from "@/components/ui/form-error";
 import { Input } from "@/components/ui/input";
@@ -46,15 +45,7 @@ export function SignInForm({ nextPath }: { nextPath: string }) {
 
   return (
     <div className="w-full max-w-sm space-y-6">
-      <div className="text-center space-y-2">
-        <LogoMark className="h-16 w-auto mx-auto" />
-        <div>
-          <BrandWordmark className="text-4xl" />
-          <div className="text-label text-ink-3 mt-2">
-            Sign in to continue
-          </div>
-        </div>
-      </div>
+      <AuthBrandHeader kicker="Sign in to continue" />
 
       <form
         onSubmit={submit}

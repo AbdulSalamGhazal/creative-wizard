@@ -61,7 +61,7 @@ export function ConsentForm({
   }
 
   return (
-    <div className={`w-full max-w-md ${panelClass()}`}>
+    <div className={`w-full ${panelClass()}`}>
       <div className="flex items-start gap-3">
         <span className="mt-0.5 rounded-md border border-line bg-surface-2 p-2 text-ink-2">
           <ShieldCheck className="h-4 w-4" />

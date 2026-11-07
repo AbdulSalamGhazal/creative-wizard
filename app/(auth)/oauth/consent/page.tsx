@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { AUTHORIZE_PATH } from "@/lib/oauth";
 import { readAuthorizeParams, resolveAuthorizeRequest } from "@/lib/oauth-authorize";
 import { ConsentForm } from "@/components/account/oauth-consent-form";
+import { AuthBrandHeader } from "@/components/auth/auth-brand-header";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Connect an app" };
@@ -42,7 +43,9 @@ export default async function OauthConsentPage({
 
   if (check.kind !== "ok") {
     return (
-      <div className="w-full max-w-md rounded-lg border border-neg/30 bg-neg/5 p-5">
+      <div className="w-full max-w-sm space-y-6">
+      <AuthBrandHeader />
+      <div className="w-full rounded-lg border border-neg/30 bg-neg/5 p-4">
         <h1 className="text-sm font-medium text-ink">This request can’t be approved</h1>
         <p className="mt-2 text-xs text-ink-2">
           {check.kind === "page_error" ? check.detail : check.description}
@@ -52,16 +55,22 @@ export default async function OauthConsentPage({
           connecting.
         </p>
       </div>
+      </div>
     );
   }
 
+  // The sign-in page's brand block and width (R-109): an unbranded card is
+  // exactly the moment a person needs to recognise whose app is asking.
   return (
-    <ConsentForm
-      query={query.toString()}
-      clientName={check.client.clientName}
-      userEmail={me.email}
-      userName={me.name}
-      redirectUri={params.redirectUri}
-    />
+    <div className="w-full max-w-sm space-y-6">
+      <AuthBrandHeader />
+      <ConsentForm
+        query={query.toString()}
+        clientName={check.client.clientName}
+        userEmail={me.email}
+        userName={me.name}
+        redirectUri={params.redirectUri}
+      />
+    </div>
   );
 }
