@@ -1,4 +1,7 @@
+import Link from "next/link";
 import { int } from "@/lib/format";
+import { parseAuditBefore } from "@/validators/audit";
+import { Button } from "@/components/ui/button";
 import { requirePermission } from "@/lib/auth";
 import { AUDIT_GATE } from "@/lib/page-gates";
 import { listAuditEvents, auditCategoryCounts } from "@/db/queries/audit";
@@ -48,20 +51,33 @@ const CATEGORY_OPTIONS: Array<{ value: AuditEntityType | "all"; label: string }>
 ];
 
 interface Props {
-  searchParams: Promise<{ category?: string }>;
+  searchParams: Promise<{ category?: string; before?: string }>;
 }
 
 export const metadata = { title: "Audit log" };
 
+const PAGE_SIZE = 200;
+
+function pageHref({ category, before }: { category: string; before: number | undefined }): string {
+  const q = new URLSearchParams();
+  if (category !== "all") q.set("category", category);
+  if (before !== undefined) q.set("before", String(before));
+  const qs = q.toString();
+  return qs ? `/admin/audit?${qs}` : "/admin/audit";
+}
+
 export default async function AuditPage({ searchParams }: Props) {
   await requirePermission(AUDIT_GATE);
-  const { category } = await searchParams;
+  const { category, before: rawBefore } = await searchParams;
+  // "Load older" pages by cursor (R-117): events strictly before this id.
+  const before = parseAuditBefore(rawBefore);
 
   const selected = CATEGORY_OPTIONS.find((c) => c.value === category)?.value ?? "all";
   const [rows, counts] = await Promise.all([
     listAuditEvents({
       category: selected === "all" ? undefined : selected,
-      limit: 200,
+      beforeId: before,
+      limit: PAGE_SIZE,
     }),
     auditCategoryCounts(),
   ]);
@@ -75,8 +91,7 @@ export default async function AuditPage({ searchParams }: Props) {
         title="Audit log"
         subtitle={
           <>
-            {int(total)} event{total === 1 ? "" : "s"} · newest
-            first.
+            {int(total)} event{total === 1 ? "" : "s"}
           </>
         }
       />
@@ -92,10 +107,21 @@ export default async function AuditPage({ searchParams }: Props) {
 
       <AuditFeed rows={rows} filtered={selected !== "all"} />
 
-      {rows.length === 200 && (
-        <p className="text-ink-3 text-xs text-center">
-          Showing the most recent 200 events. Older entries remain in the DB.
-        </p>
+      {(rows.length === PAGE_SIZE || before !== undefined) && (
+        <div className="flex flex-wrap items-center justify-center gap-2">
+          {before !== undefined && (
+            <Button asChild variant="outline" size="sm">
+              <Link href={pageHref({ category: selected, before: undefined })}>Newest</Link>
+            </Button>
+          )}
+          {rows.length === PAGE_SIZE && (
+            <Button asChild variant="outline" size="sm">
+              <Link href={pageHref({ category: selected, before: rows[rows.length - 1]!.id })}>
+                Load older
+              </Link>
+            </Button>
+          )}
+        </div>
       )}
     </PageShell>
   );
