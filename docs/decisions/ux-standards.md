@@ -75,6 +75,12 @@
   had to read past to reach the numbers. Applied app-wide in 2026-10 (D25):
   every multi-sentence page subtitle went — kept, as `PageHeader`'s ⓘ, only
   where it stated a standing rule.
+- **The design protocol is part of the bar (2026-11-07).** The standards the
+  user approved in the UI/UX audit (Chip, MetricCard, Panel, Callout, Field,
+  the radius and spacing scale, on-fill text, container-aware grids, the page
+  gutter, in-shell refusal, first-use states, ⌘K at every width) live in
+  ui-system.md under "The design protocol". The UX review states compliance
+  with it as its own line, and a deviation is either fixed or raised.
 - **Walk the journey before you report it.** The composed-surface rig proves a
   unit; the WALK proves the path between units. Both are required, and the
   walk is where seam bugs live.

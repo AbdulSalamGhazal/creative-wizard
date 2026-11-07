@@ -134,6 +134,134 @@
   lexically by `app/actions/action-calls.test.ts`: every reference to an
   imported action in a client file sits inside `safeAction(…)`.
 
+### The design protocol (user-approved 2026-11-07, UI/UX audit)
+
+Every line below was approved row by row in the 2026-11 UI/UX audit (the
+R-ids). They bind every new surface and every edit to an old one. A rule
+pinned by a test names it; `components/ui/style-guards.test.ts` (Agent 1's
+guards) and `components/keyboard-access.test.ts` fail the suite on a
+regression. **Not adopted** (held for discussion, so NOT rules): a `KpiGrid`
+auto-fit wrapper, `text-2xs`/`text-3xs` scale tokens, a `ToggleChip`, a
+DataTable min-width derived from visible columns, eyebrows on every Ads page,
+and as-you-type name validation.
+
+**Colour, type, shape**
+- **Tokens by their utility only:** `bg-brand-soft`, `bg-brand-glow`,
+  `bg-brand`, `text-primary-foreground`. Never `[var(--…)]` when a utility
+  exists (R-090, guard).
+- **Text on a solid status or series fill uses an on-fill token:**
+  `text-on-fill` (neg, series/product fills), `text-on-fill-strong` (the pale
+  pos/warn fills), `text-on-fill-muted` (the ink-3 "N/A" fill). Never a
+  literal hex or `text-white` on a fill. Each pair is ≥4.5:1 in all four
+  themes (R-006).
+- **One meaning per hue:** platform hues mean platforms. A breakdown INSIDE
+  one platform (the Budget plan's objectives) uses shades of that platform's
+  hue, never another platform's colour (R-064, budget.md).
+- **Tabular figures are `tabular-nums`.** There is no `.num` class (R-091,
+  guard).
+- **Micro-labels are `text-label` (headers, captions, tile labels) or
+  `text-eyebrow` (page kicker) only**, never a hand-rolled `uppercase
+  tracking-*`. `cn()` treats both as sizes, so a text colour after them no
+  longer erases them (R-051, guard).
+- **Card and chart titles are `text-sm font-medium text-ink`** (the
+  `CardTitle` default). `text-label text-ink-3` is only for a group heading
+  above a grid of cards (R-052).
+- **Informational text at 12px or smaller is `text-ink-2`.** `ink-3` is for
+  decoration or duplicated text only, and never on `surface-3` (R-038, guard).
+- **Radius scale:** `rounded-sm` for chips, swatches and checkboxes;
+  `rounded-md` for inputs, buttons, menus, callouts and nested tiles;
+  `rounded-lg` for cards, tiles, tables and dialogs; `rounded-full` for
+  avatars, dots and count badges. Inner ≤ outer. No bare `rounded`, no
+  `rounded-xl`, no `rounded-[Npx]` (R-089, R-119, guard).
+- **Spacing:** 24px between page sections, 16px between cards and as a card
+  grid's gap, 12px inside a tile row (R-092).
+- **A page h1 is `text-2xl sm:text-3xl lg:text-4xl`.** A long entity title
+  passes `clampTitle` (two lines and a `title`) (R-030).
+
+**Primitives (use them; extend, never fork)**
+- **A tag is `<Chip>`** (components/ui/chip.tsx): `rounded-sm`, md 20px with
+  11px text, sm 16px with 10px text, sentence case, never `uppercase`.
+  `Badge` is only for sentence-length header chips. Entity status stays
+  `StatusDot`; every period delta is `DeltaBadge`, which carries its baseline
+  (`vs`, from `deltaVsLabel`) as a title and sr-only text (R-005, R-050).
+- **One KPI tile: `MetricCard`.** Every "label + big number" goes through it:
+  `variant="quiet"` nested in a card, `size="sm"` for inline stats, a `figure`
+  slot for a composed value. Skeletons use `metricCardFrame`. A per-platform
+  breakdown renders only when ≥2 parts contribute (R-010, R-110, R-120).
+- **One card frame: `Panel` / `panelClass`** (components/ui/panel.tsx), p-4
+  for a card body and p-3 for nested or sunken, never p-5. **A card is a
+  leaf:** never wrap a DataTable frame, a ChartShell or MetricCards in another
+  bordered container (R-034, R-075).
+- **Notices are `<Callout>`** (neg / warn / info); delete sections are
+  `<DangerZone>` (components/ui/callout.tsx) (R-106).
+- **Forms:** one `Field` (components/ui/field.tsx; `size="sm"` in dense
+  grids), and a form's inline failure is `FormError` (`role="alert"`),
+  referenced by the input's `aria-describedby` with `aria-invalid`. Toggles
+  are the shared `Switch` (R-053, R-032, R-114).
+- **Dialogs:** `DialogContent` scrolls inside `100dvh`, `DialogFooter` is
+  sticky, and every destructive confirm opens with `ToneDialogTitle`. Every
+  modal surface is the house Dialog, never a `role="dialog"` div (R-025,
+  R-107, R-020).
+- **A disabled control explains itself through `DisabledReason`**, never a
+  `title` alone (R-007).
+- **Pagination is `Pager`** (R-096). **An upload's validation result is the
+  one grouped `ValidationReport`** (components/upload/validation-report.tsx)
+  for ads AND store uploads, with a CSV export of the errors (R-012, R-061).
+- **SegmentedControl is a radio group** with one tab stop and
+  arrow/Home/End keys (R-024).
+- **Hover reveals use `REVEAL_ON_HOVER`** (lib/utils): hover, focus-within,
+  focus-visible, and always visible under `hover:none` (R-002, guard).
+
+**Layout**
+- **One page gutter: `--gutter`** (16px below sm, 24px from sm). Full-bleed
+  bars use `mx-[calc(var(--gutter)*-1)]`, never a literal `-mx-6`/`px-6`
+  pair (R-037).
+- **Grids on pages that can host the comment dock key to the page column,
+  not the viewport.** `<main>` is `@container/main`; use `@…:` container
+  steps. A split editor names its own container (R-009, R-019, R-014).
+- **A `loading.tsx` renders the page's own `PageShell width`** (R-057).
+- **Charts:** plot height through `plotClass(inFull, "lg" | "md")` (lg for a
+  primary over-time chart, md in cards), line weight through `CHART_STROKE`,
+  every chart root has `accessibilityLayer`, and `ChartShell` requires a
+  `summary` (its accessible name). A chart's metric, Smooth and Group live in
+  shallow URL params through `useChartView(prefix)`; the Dashboard's tiles
+  and chart share the `ot` prefix (R-022, R-023, R-101, R-102, R-070).
+- **Toasts never cover the docked comment panel** (R-086).
+
+**Page anatomy and copy**
+- **A tabbed page keeps its own name as the h1** (R-113). **Header first,
+  then the FilterShell bar**; FilterStrip pages keep PageShell's
+  `filterStrip` slot (R-043).
+- **A header never restates a control's state on desktop:** no range,
+  platform, Excluded or sort recap beside the bar that shows it (R-049,
+  R-044, R-063).
+- **A tab title is "Section · Label"** on a page with an eyebrow (Budget,
+  Store, Price Structure) (R-100).
+- **A unit is printed once:** a table whose header says "(SAR)" prints bare
+  amounts (`sarBare`) (R-111).
+- **`SectionCard`'s `subtitle` is one fact; an explanation goes in its
+  `info` ⓘ** (R-058).
+- **Names render `dir="auto"`** (R-040).
+
+**Navigation, states, touch**
+- **⌘K opens at every width** (a Search icon below md) and lists pages,
+  creatives, campaigns and the user's saved views (R-001, R-027).
+- **Both navs show "you are here" the same way:** `surface-2` plus a 2px
+  `bg-brand` bar; `bg-brand-soft` means only "filter applied". Hub items are
+  headings in the mobile nav; collapsed-rail tooltips use
+  `qualifiedNavLabel` (R-035, R-042, R-088).
+- **An entity name links to its page** (an `href` on a table's identity
+  column; row click alone is not enough) (R-008, R-015).
+- **A gated page refuses in the shell with `AccessRefused` via
+  `refusable()`**, never by throwing or with a 404; `notFound()` renders
+  inside the shell (R-011, R-047).
+- **First use is designed:** analytics pages wrap their first table in
+  `AdDataGate` ("No ad data yet" → Upload ads); Library and Store orders
+  have their own first-use states (R-003, R-018, R-059).
+- **Every client fetch shows loading, empty, and error with Retry** (R-095).
+- **Compact controls grow their hit area on touch** with an invisible
+  `::after` (8px each side), never by changing their look (R-036).
+
 ## History and rationale
 
 *Moved verbatim from CLAUDE.md (2026-10). Line references are to the file
@@ -458,7 +586,9 @@ as it stood before the restructure.*
   shows — pointer or focus on the toggle/trigger, ⌘/Ctrl going down — so a
   first open is as instant as before. ⌘K skips its idle preload on a touch
   phone (`(max-width: 767px) and (pointer: coarse)`): there is no trigger
-  below `md` and no ⌘ key, so the palette can't open there (W3, 2026-10). The panel's loading frame has the
+  below `md` and no ⌘ key, so the palette can't open there (W3, 2026-10;
+  superseded 2026-11-07 by R-001: a Search icon now opens it below `md`,
+  and it preloads on that icon's pointer-down). The panel's loading frame has the
   body's shape and a working X; ⌘K draws nothing until ready.
 
 ### Two pages stream their sections (2026-10, D11)

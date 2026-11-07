@@ -87,7 +87,7 @@ Do not introduce a new dependency without a one-line justification in the PR des
 
 - The dashboard must feel polished. Every page has tailored skeletons. Empty states are designed-out, not blank.
 - Use shadcn primitives. Don't reinvent components that exist.
-- Every new route sets a `metadata.title` (matching its sidebar/h1 label); detail routes use `generateMetadata` over a `cache()`-deduped query so the tab title and the page share one fetch. The root layout's `%s · Wizard` template adds the suffix — don't repeat it, and never add a `metadata.icons` key (the tab icon is the `app/icon.png` file convention).
+- Every new route sets a `metadata.title` (matching its sidebar/h1 label; a page under an eyebrow section — Budget, Store, Price Structure — is "Section · Label", R-100); detail routes use `generateMetadata` over a `cache()`-deduped query so the tab title and the page share one fetch. The root layout's `%s · Wizard` template adds the suffix — don't repeat it, and never add a `metadata.icons` key (the tab icon is the `app/icon.png` file convention).
 - **ONE render per action (2026-10).** An action that revalidates already
   re-renders the caller's page in its response: a caller that stays never
   `router.refresh()`es after it; a caller that navigates away (create, delete,
@@ -105,6 +105,19 @@ Do not introduce a new dependency without a one-line justification in the PR des
 - Tabular figures (`font-variant-numeric: tabular-nums`) on every number in tables.
 - USD formatting: `Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' })`.
 - Dates: ISO format in tables, friendlier formats in chart tooltips and headers.
+- **The design protocol (user-approved 2026-11-07, UI/UX audit) binds every
+  UI change** — the full list is in `docs/decisions/ui-system.md` under "The
+  design protocol". Its sharpest lines: a tag is `Chip`, a KPI tile is
+  `MetricCard`, a card frame is `Panel`/`panelClass` and is a leaf (no frame
+  around a table, chart or tiles), a notice is `Callout`, a form field is
+  `Field` + `FormError`, a disabled control explains itself through
+  `DisabledReason`; text on a solid fill uses the `on-fill` tokens; radius is
+  sm/md/lg/full only; small informational text is `ink-2`; `tabular-nums`
+  (no `.num`); one `--gutter`; grids on dock-hosting pages key to
+  `@container/main`; a gated page refuses in the shell (`AccessRefused`);
+  ⌘K opens at every width. `components/ui/style-guards.test.ts` and
+  `components/keyboard-access.test.ts` pin the mechanical half — fix the
+  code, never the guard.
 - **Show, don't label (2026-10-19, user rule).** When a sign, a colour or a
   position already says it, the word is noise: a pacing verdict is
   "−$1,844 (−61%)" in the behind colour, never "▼ behind $1,844"; a section's
@@ -520,6 +533,8 @@ this map is still a rule you broke.
 
 - Use the shared primitives; extend, never fork.
 - Every route: `PageShell`, a tailored `loading.tsx`, a `metadata.title`, 375px.
+- The design protocol (2026-11-07): Chip · MetricCard · Panel · Callout · Field —
+  extend them; the style guards pin tokens, radius, ink and tabular figures.
 - Any route/search-param change goes through `useNavTransition` — a shallow
   presentation param (sort, column toggle) is history-API only, no render.
 - One render per action; every action call through `safeAction`.
