@@ -45,7 +45,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { PlatformDot } from "@/components/ui/platform-dot";
-import { ALL_PLATFORMS, PLATFORM_COLOR, PLATFORM_LABEL, seriesColor } from "@/lib/palette";
+import { ALL_PLATFORMS, PLATFORM_COLOR, PLATFORM_LABEL } from "@/lib/palette";
 import { fxRate, pct1, plural, roas as fmtRoas, sar, usd } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import {
@@ -105,6 +105,8 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Callout } from "@/components/ui/callout";
 
 const WEIGHT_STEP = 0.5;
+/** An objective's share of its platform colour, in BUDGET_OBJECTIVES order. */
+const OBJECTIVE_SHADE = [100, 60, 35, 20] as const;
 const NOTE_MAX = 200;
 
 const numeric = (raw: string) => raw.replace(/[^0-9.]/g, "");
@@ -562,7 +564,12 @@ export function BudgetPlanEditor({
             amount,
             objectives: BUDGET_OBJECTIVES.flatMap((objective, i) => {
               const row = mine.find((a) => a.objective === objective);
-              return row ? [{ objective, amount: row.plannedSpend, color: seriesColor(i) }] : [];
+              // Objectives are SHADES of the card's own platform colour (R-064):
+              // generic series hues collided with the other platforms' identity
+              // colours (Instagram's bar drew Facebook blue). Fixed per objective.
+              const shade = OBJECTIVE_SHADE[i] ?? 20;
+              const color = `color-mix(in srgb, ${PLATFORM_COLOR[platform]} ${shade}%, transparent)`;
+              return row ? [{ objective, amount: row.plannedSpend, color }] : [];
             }),
           },
         ];

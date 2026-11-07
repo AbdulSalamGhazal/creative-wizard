@@ -177,7 +177,9 @@ as it stood before the restructure.*
       amount · % of total) and an aria-label saying the split in words;
       read-only PLATFORM CARDS in the editor's own 2×2 grid and geometry (so
       "Edit plan" turns the same cards into inputs) — dot + name, amount and %
-      of total, a mini stacked bar of the objectives (`seriesColor` tokens),
+      of total, a mini stacked bar of the objectives (shades of the platform's OWN
+      colour, 100/60/35/20% in objective order — never series hues, which
+      collided with the other platforms' identity colours; UI audit R-064),
       one row per planned objective (name · amount · % of the platform);
       unplanned platforms are not shown; a daily month's cards show the
       derived monthly totals. The plan curve panel COLLAPSES to one line —
