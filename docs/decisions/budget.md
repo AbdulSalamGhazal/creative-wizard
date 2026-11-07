@@ -176,7 +176,10 @@ as it stood before the restructure.*
       colour but dropping its inline label, a wrapping legend (dot · name ·
       amount · % of total) and an aria-label saying the split in words;
       read-only PLATFORM CARDS in the editor's own 2×2 grid and geometry (so
-      "Edit plan" turns the same cards into inputs) — dot + name, amount and %
+      "Edit plan" turns the same cards into inputs — and while that draft
+      differs from the loaded plan, or carries a revision note, the editor
+      mounts `UnsavedChangesGuard`, so a sidebar click or tab close asks
+      before dropping it; R-013, 2026-11) — dot + name, amount and %
       of total, a mini stacked bar of the objectives (shades of the platform's OWN
       colour, 100/60/35/20% in objective order — never series hues, which
       collided with the other platforms' identity colours; UI audit R-064),

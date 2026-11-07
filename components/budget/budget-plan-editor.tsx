@@ -103,6 +103,7 @@ import { BudgetPlanRevisions } from "@/components/budget/budget-plan-revisions";
 import { BudgetPlanUpload, downloadPlanSheet } from "@/components/budget/budget-plan-upload";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Callout } from "@/components/ui/callout";
+import { UnsavedChangesGuard } from "@/components/ui/unsaved-changes-guard";
 import { panelClass } from "@/components/ui/panel";
 
 const WEIGHT_STEP = 0.5;
@@ -132,6 +133,11 @@ interface Draft {
   platformShares: Record<string, string>;
   /** `platform|objective` → share of THAT platform's amount. */
   objectiveShares: Record<string, string>;
+}
+
+/** A draft + day weights as one comparable string (the dirty check). */
+function draftKey(draft: Draft, weights: Record<number, number>): string {
+  return JSON.stringify([draft, weights]);
 }
 
 const emptyDraft: Draft = {
@@ -217,6 +223,9 @@ export function BudgetPlanEditor({
   const [draft, setDraft] = useState<Draft>(emptyDraft);
   const [weightsDraft, setWeightsDraft] = useState<Record<number, number>>({});
   const [note, setNote] = useState("");
+  /** The draft as it was loaded, to tell an untouched edit from a changed one
+   *  (UnsavedChangesGuard, R-013). */
+  const [baseline, setBaseline] = useState<string | null>(null);
   /** The share cell being typed in — raw text, so a keystroke isn't reformatted
    *  out from under the caret by the recomputed value. */
   const [shareEdit, setShareEdit] = useState<{ key: string; raw: string } | null>(null);
@@ -265,7 +274,7 @@ export function BudgetPlanEditor({
    */
   const startEditing = () => {
     const stored = sharesFromStoredPlan(data.allocations, data.reserveSpendUsd);
-    setDraft({
+    const nextDraft: Draft = {
       total: stored.total > 0 ? String(stored.total) : "",
       reserveShare: stored.reserveShare > 0 ? String(stored.reserveShare) : "",
       revenue: data.plannedRevenueSar === null ? "" : String(data.plannedRevenueSar),
@@ -275,25 +284,27 @@ export function BudgetPlanEditor({
       objectiveShares: Object.fromEntries(
         Object.entries(stored.objectiveShares).map(([k, share]) => [k, String(share)]),
       ),
-    });
+    };
+    setDraft(nextDraft);
     // A stored weight below the editor's floor (a legacy row, or one written
     // before the bounds tightened) would fail save validation with a raw zod
     // message. Clamp it into range as the draft loads — what you see is what
     // saves.
-    setWeightsDraft(
-      Object.fromEntries(
-        Object.entries(data.dayWeightOverrides).map(([day, w]) => [
-          Number(day),
-          Math.min(WEIGHT_MAX, Math.max(WEIGHT_MIN, w)),
-        ]),
-      ),
+    const nextWeights = Object.fromEntries(
+      Object.entries(data.dayWeightOverrides).map(([day, w]) => [
+        Number(day),
+        Math.min(WEIGHT_MAX, Math.max(WEIGHT_MIN, w)),
+      ]),
     );
+    setWeightsDraft(nextWeights);
+    setBaseline(draftKey(nextDraft, nextWeights));
     setNote("");
     setShareEdit(null);
     setSelectedDay(null);
     setEditing(true);
   };
   const stopEditing = () => {
+    setBaseline(null);
     setEditing(false);
     setDraft(emptyDraft);
     setWeightsDraft({});
@@ -841,8 +852,19 @@ export function BudgetPlanEditor({
     </div>
   );
 
+  // An explicit-Save editor mounts the guard (ui-system.md, R-013): a sidebar
+  // click, a Budget tab or a tab close mid-edit no longer drops the plan.
+  const dirty =
+    editing &&
+    (note.trim() !== "" || (baseline !== null && draftKey(draft, weightsDraft) !== baseline));
+
   return (
     <div className="space-y-4" ref={formRef}>
+      <UnsavedChangesGuard
+        dirty={dirty}
+        onDiscard={stopEditing}
+        description="Your edits to this month's plan have not been saved."
+      />
       <BudgetMonthBar month={month} today={today} locked={editing}>
         {isDaily && (
           <span

@@ -4,6 +4,7 @@ import { useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
+import { UnsavedChangesGuard } from "@/components/ui/unsaved-changes-guard";
 import { FormError } from "@/components/ui/form-error";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -154,8 +155,20 @@ function DefaultEditor({ rules }: { rules: RatingRules }) {
     { rating: "na", when: `Spend < ${Number.isFinite(nums.ms) ? usd(nums.ms) : "—"} (or no data)` },
   ];
 
+  // An explicit Save: leaving with typed thresholds asks first (R-013).
+  const discard = () => {
+    setMinSpend(String(rules.minSpend));
+    setGoodRoas(String(rules.goodRoas));
+    setDecentRoas(String(rules.decentRoas));
+  };
+
   return (
     <div className="space-y-3">
+      <UnsavedChangesGuard
+        dirty={dirty && !isPending}
+        onDiscard={discard}
+        description="Your changes to the default rate rules have not been saved."
+      />
       <div className="text-label text-ink-3">Default (blended + un-overridden platforms)</div>
       <ThresholdInputs
         idPrefix="default"
