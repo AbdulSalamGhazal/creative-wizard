@@ -315,7 +315,7 @@ export function FilterStrip({
       </div>
 
       {/* Mobile / tablet: collapse into a single Filters Sheet */}
-      <div className="flex lg:hidden items-center gap-2 px-6 h-12">
+      <div className="flex lg:hidden items-center gap-2 px-[var(--gutter)] h-12">
         <FilterSheet activeCount={activeCount} onClear={clearAll} clearable={filtersActive}>
           {dimensionControls(true)}
           <ExcludedToggle on={includeExcluded} onToggle={toggleExcluded} fullWidth />

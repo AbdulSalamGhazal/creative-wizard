@@ -355,6 +355,20 @@ body {
   --font-ui: var(--ff-jakarta);
 }
 
+/* The page gutter (R-037): ONE value that <main>, the top bar and every
+   full-bleed bar (FilterShell, PageShell's strip, their skeletons) agree on.
+   16px on a phone — 48px of a 375px screen was gutter before any card
+   padded itself — and 24px from sm. Use `px-[var(--gutter)]` and
+   `mx-[calc(var(--gutter)*-1)]`; never a literal px-6 / -mx-6 pair again. */
+:root {
+  --gutter: 1rem;
+}
+@media (min-width: 40rem) {
+  :root {
+    --gutter: 1.5rem;
+  }
+}
+
 /* Keyboard focus — ONE ring for every control that doesn't draw its own.
    The shadcn primitives swap the outline for a `ring` (and set
    `outline-none`), so this only reaches the bare <button>/<a> chips — the

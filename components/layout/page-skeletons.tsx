@@ -11,13 +11,13 @@ import { panelClass } from "@/components/ui/panel";
 
 /** Full-bleed sticky FilterStrip placeholder (dashboard / funnel / trends). */
 export function FilterStripSkeleton() {
-  return <div className="-mx-6 -mt-6 mb-2 h-12 border-b border-line" />;
+  return <div className="mx-[calc(var(--gutter)*-1)] -mt-6 mb-2 h-12 border-b border-line" />;
 }
 
 /** In-flow sticky filter-bar placeholder (summary / campaigns / library). */
 export function FilterBarSkeleton() {
   return (
-    <div className="-mx-6 px-6 py-3 border-b border-line">
+    <div className="mx-[calc(var(--gutter)*-1)] px-[var(--gutter)] py-3 border-b border-line">
       <div className="flex items-center gap-2 flex-wrap">
         {Array.from({ length: 5 }).map((_, i) => (
           <Skeleton key={i} className="h-8 w-28 rounded-md" />

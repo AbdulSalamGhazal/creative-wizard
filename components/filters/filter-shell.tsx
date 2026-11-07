@@ -112,8 +112,8 @@ export function FilterShell({
     // sticky — wrapped to three or four rows it covered a third of an 812px
     // screen — and the chips row is one sideways-scrolling line. Secondary
     // view/table controls fold into a ⋯ menu (`PhoneOverflow`). From sm up the
-    // bar is unchanged.
-    <div className="relative z-10 -mx-6 space-y-2 border-b border-line bg-background/95 px-6 py-3 backdrop-blur sm:sticky sm:top-14">
+    // bar is unchanged. Full-bleed through the page gutter token (R-037).
+    <div className="relative z-10 mx-[calc(var(--gutter)*-1)] space-y-2 border-b border-line bg-background/95 px-[var(--gutter)] py-3 backdrop-blur sm:sticky sm:top-14">
       <div className="flex flex-wrap items-center gap-2">
         {tier1?.({ fullWidth: false })}
         {/* ZERO-DEF PAGES (Store orders, Pacing, Reconciliation): the same bar
@@ -133,7 +133,7 @@ export function FilterShell({
 
       {chips.length > 0 && (
         // Phone: one sideways-scrolling line (`relative` keeps it a scroll box).
-        <div className="relative -mx-6 flex flex-nowrap items-center gap-1.5 overflow-x-auto px-6 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">
+        <div className="relative mx-[calc(var(--gutter)*-1)] flex flex-nowrap items-center gap-1.5 overflow-x-auto px-[var(--gutter)] sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">
           {chips.map((chip) => (
             <span
               key={chip.key}

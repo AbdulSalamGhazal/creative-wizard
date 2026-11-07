@@ -31,7 +31,7 @@ export function TopBar({
 }: Props) {
   return (
     <header className="border-b border-line sticky top-0 z-20 bg-background">
-      <div className="flex items-center justify-between px-6 h-14">
+      <div className="flex items-center justify-between px-[var(--gutter)] h-14">
         {/* `min-w-0`: this group yields first when the bar is tight, so the
             brand name truncates rather than the row overflowing (at 375px the
             fixed elements leave ~52px for the name). */}

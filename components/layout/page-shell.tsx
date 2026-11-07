@@ -18,7 +18,8 @@ interface PageShellProps {
   width?: keyof typeof WIDTHS;
   /**
    * A full-bleed sticky FilterStrip rendered flush to the top edge, above the
-   * header. The shell owns the `-mx-6 -mt-6` full-bleed treatment (and the
+   * header. The shell owns the full-bleed treatment — a negative `--gutter`
+   * margin (R-037) and `-mt-6` — (and the
    * Suspense boundary FilterStrip needs for `useSearchParams`) so pages stop
    * hand-rolling it.
    */
@@ -36,10 +37,10 @@ export function PageShell({ children, width = "full", filterStrip }: PageShellPr
       {filterStrip != null && (
         <Suspense
           fallback={
-            <div className="-mx-6 px-6 h-12 border-b border-line bg-background/95 backdrop-blur" />
+            <div className="mx-[calc(var(--gutter)*-1)] px-[var(--gutter)] h-12 border-b border-line bg-background/95 backdrop-blur" />
           }
         >
-          <div className="-mx-6 -mt-6 mb-2">{filterStrip}</div>
+          <div className="mx-[calc(var(--gutter)*-1)] -mt-6 mb-2">{filterStrip}</div>
         </Suspense>
       )}
       {children}

@@ -86,7 +86,7 @@ export default async function DashboardLayout({
                *  overflow-x container rather than pushing the whole page to
                *  scroll horizontally. */}
               <div className="flex-1 min-w-0 flex flex-col">
-                <main className="@container/main flex-1 px-6 py-6">{children}</main>
+                <main className="@container/main flex-1 px-[var(--gutter)] py-6">{children}</main>
               </div>
               {/* The docked comment panel. A sibling of the page column, so
                 opening it SQUEEZES the page (which is flex-1 min-w-0) instead
