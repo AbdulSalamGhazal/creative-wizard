@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { Check, Edit3, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { FormError } from "@/components/ui/form-error";
 import { Textarea } from "@/components/ui/textarea";
 import { updateCreativeNotes } from "@/app/actions/creative";
 import { safeAction } from "@/lib/action-failure";
@@ -96,8 +97,11 @@ export function NotesPanel({
         onChange={(e) => setValue(e.target.value)}
         className="min-h-[160px]"
         autoFocus
+        aria-label="Notes"
+        aria-invalid={error ? true : undefined}
+        aria-describedby={error ? "notes-error" : undefined}
       />
-      {error && <p className="text-[11px] text-neg">{error}</p>}
+      <FormError id="notes-error" className="text-[11px]">{error}</FormError>
       <div className="flex items-center justify-end gap-2">
         <Button variant="ghost" type="button" onClick={cancel} disabled={isPending}>
           <X className="w-3 h-3" />

@@ -4,6 +4,7 @@ import { useEffect, useId, useState, type ReactNode } from "react";
 import { Input } from "@/components/ui/input";
 import { UnitInput } from "@/components/ui/unit-input";
 import { cn } from "@/lib/utils";
+import { Field as SharedField } from "@/components/ui/field";
 
 /**
  * The module's form atoms. Every number field commits on each keystroke
@@ -11,6 +12,7 @@ import { cn } from "@/lib/utils";
  * typed, so "12." is not snapped to "12" under their cursor; a value changed
  * elsewhere (another tab) replaces the text once the field loses focus.
  */
+/** The shared form field (R-053) at its dense size — the module's grids. */
 export function Field({
   label,
   hint,
@@ -29,13 +31,16 @@ export function Field({
   inline?: boolean;
 }) {
   return (
-    <div className={cn(inline ? "flex items-center justify-between gap-3" : "space-y-1", className)}>
-      <label htmlFor={htmlFor} className="block text-xs text-ink-2">
-        {label}
-      </label>
+    <SharedField
+      size="sm"
+      label={label}
+      hint={hint}
+      htmlFor={htmlFor}
+      inline={inline}
+      className={className}
+    >
       {children}
-      {hint && <p className="text-[11px] text-ink-3">{hint}</p>}
-    </div>
+    </SharedField>
   );
 }
 

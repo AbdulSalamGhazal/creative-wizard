@@ -5,7 +5,7 @@ import { ExternalLink, Lock, Pencil, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Field } from "@/components/ui/field";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
@@ -382,9 +382,11 @@ function LandingPageDialog({
             label="Product"
             htmlFor="lp-product"
             tip={
-              productLocked
-                ? `Used by ${plural(initial?.records ?? 0, "record")}, so the product is locked — those records were accepted as this product's.`
-                : "Uploads refuse an ad whose creative belongs to another product, so this page compares with its own product's page on Trends → LPs."
+              <InfoTip label="About the product">
+                {productLocked
+                  ? `Used by ${plural(initial?.records ?? 0, "record")}, so the product is locked — those records were accepted as this product's.`
+                  : "Uploads refuse an ad whose creative belongs to another product, so this page compares with its own product's page on Trends → LPs."}
+              </InfoTip>
             }
           >
             <Select
@@ -427,9 +429,11 @@ function LandingPageDialog({
             label="Code"
             htmlFor="lp-code"
             tip={
-              locked
-                ? `Used by ${plural(initial?.records ?? 0, "record")}, so the code is locked — the ads on the platforms carry it.`
-                : undefined
+              locked ? (
+                <InfoTip label="About the code">
+                  {`Used by ${plural(initial?.records ?? 0, "record")}, so the code is locked — the ads on the platforms carry it.`}
+                </InfoTip>
+              ) : undefined
             }
           >
             <div className="relative">
@@ -513,27 +517,5 @@ function LandingPageDialog({
         </form>
       </DialogContent>
     </Dialog>
-  );
-}
-
-function Field({
-  label,
-  htmlFor,
-  tip,
-  children,
-}: {
-  label: string;
-  htmlFor: string;
-  tip?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="space-y-1.5">
-      <div className="flex items-center gap-1.5">
-        <Label htmlFor={htmlFor}>{label}</Label>
-        {tip && <InfoTip label={`About the ${label.toLowerCase()}`}>{tip}</InfoTip>}
-      </div>
-      {children}
-    </div>
   );
 }

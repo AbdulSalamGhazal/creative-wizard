@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useId, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   CalendarDays,
@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Field } from "@/components/ui/field";
 import {
   Select,
   SelectContent,
@@ -121,6 +122,7 @@ export function CreativeDetailHeader({
   // Read-only viewers see the same layout with every control disabled and no
   // Save bar (the server rejects a patch regardless — this is just UX).
   const locked = isPending || !canEdit;
+  const fid = useId();
 
   // Saved baseline (updated on successful save) + live drafts. Status is NOT
   // part of this editor — it's derived, with per-platform termination as the
@@ -289,16 +291,13 @@ export function CreativeDetailHeader({
         {/* Editable meta */}
         <div className="space-y-4 min-w-0">
           {/* Product */}
-          <div className="space-y-1.5">
-            <label className="text-eyebrow text-ink-3">
-              Product
-            </label>
+          <Field label="Product" htmlFor={`${fid}-product`}>
             <Select
               value={productId}
               onValueChange={setProductId}
               disabled={locked}
             >
-              <SelectTrigger className="h-8 text-xs w-full max-w-xs">
+              <SelectTrigger id={`${fid}-product`} className="h-8 text-xs w-full max-w-xs">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -309,17 +308,17 @@ export function CreativeDetailHeader({
                 ))}
               </SelectContent>
             </Select>
-          </div>
+          </Field>
 
           {/* Name + read-only dynamic status */}
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between gap-3">
-              <label className="text-eyebrow text-ink-3">
-                Creative name
-              </label>
-              <StatusBadge status={status.general} />
-            </div>
+          <Field
+            label="Creative name"
+            htmlFor={`${fid}-name`}
+            aside={<StatusBadge status={status.general} />}
+            error={nameTrimmed === "" ? "Name can\u2019t be empty." : null}
+          >
             <input
+              id={`${fid}-name`}
               value={name}
               onChange={(e) => setName(e.target.value)}
               disabled={locked}
@@ -331,23 +330,17 @@ export function CreativeDetailHeader({
                 "disabled:opacity-60",
               )}
             />
-            {nameTrimmed === "" && (
-              <p className="text-[11px] text-neg">Name can&apos;t be empty.</p>
-            )}
-          </div>
+          </Field>
 
           {/* Type */}
           <div className="max-w-xl">
-            <div className="space-y-1.5">
-              <label className="text-eyebrow text-ink-3">
-                Type
-              </label>
+            <Field label="Type" htmlFor={`${fid}-type`}>
               <Select
                 value={type}
                 onValueChange={(v) => setType(v as Type)}
                 disabled={locked}
               >
-                <SelectTrigger className="h-8 text-xs w-full sm:w-1/2">
+                <SelectTrigger id={`${fid}-type`} className="h-8 text-xs w-full sm:w-1/2">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -364,7 +357,7 @@ export function CreativeDetailHeader({
                   })}
                 </SelectContent>
               </Select>
-            </div>
+            </Field>
           </div>
 
           {/* Per-platform status + termination lever */}
@@ -375,10 +368,7 @@ export function CreativeDetailHeader({
           />
 
           {/* Publish date */}
-          <div className="space-y-1.5">
-            <label className="text-eyebrow text-ink-3">
-              Publish date
-            </label>
+          <Field label="Publish date">
             <div className="flex items-center gap-1.5">
               <Popover open={dateOpen} onOpenChange={setDateOpen}>
                 <PopoverTrigger asChild>
@@ -422,48 +412,39 @@ export function CreativeDetailHeader({
                 </button>
               )}
             </div>
-          </div>
+          </Field>
 
           {/* Priority — the team's manual importance judgment (1–3, 3 =
            *  highest). NULL = unrated. Distinct from the computed "Rate". */}
-          <div className="space-y-1.5">
-            <label className="text-eyebrow text-ink-3">
-              Priority
-            </label>
+          <Field label="Priority">
             <PriorityControl
               value={priority}
               onChange={setPriority}
               disabled={locked}
               readOnly={!canEdit}
             />
-          </div>
+          </Field>
 
           {/* Stage — the team's MANUAL declaration of where this creative
            *  sits in the funnel. Never derived from the campaign objective it
            *  runs under or from where it spends; a mismatch is information. */}
-          <div className="space-y-1.5">
-            <label className="text-eyebrow text-ink-3">
-              Stage
-            </label>
+          <Field label="Stage">
             <StagePicker
               value={stages}
               onChange={setStages}
               disabled={locked}
             />
-          </div>
+          </Field>
 
           {/* Angles */}
-          <div className="space-y-1.5">
-            <label className="text-eyebrow text-ink-3">
-              Angles
-            </label>
+          <Field label="Angles">
             <AngleMultiSelect
               value={angles}
               onChange={setAngles}
               allAngles={allAngles}
               disabled={locked}
             />
-          </div>
+          </Field>
         </div>
       </div>
     </div>
@@ -546,10 +527,7 @@ function PlatformStatusSection({
   const [open, setOpen] = useState(false);
 
   return (
-    <div className="space-y-1.5">
-      <label className="text-eyebrow text-ink-3">
-        Platform status
-      </label>
+    <Field label="Platform status">
       {/* All 5 platforms in one row, compact chips. */}
       <div className="flex flex-wrap gap-2">
         {ALL_PLATFORMS.map((p) => {
@@ -590,7 +568,7 @@ function PlatformStatusSection({
           />
         </>
       )}
-    </div>
+    </Field>
   );
 }
 

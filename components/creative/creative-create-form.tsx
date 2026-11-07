@@ -6,7 +6,7 @@ import { useId, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Field } from "@/components/ui/field";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
@@ -262,39 +262,5 @@ export function CreativeCreateForm({ products, allAngles }: Props) {
         </Button>
       </div>
     </form>
-  );
-}
-
-function Field({
-  label,
-  htmlFor,
-  hint,
-  error,
-  children,
-}: {
-  label: string;
-  /** The control's id. Without one (a picker of several buttons) the label
-   *  names the field as a group instead. */
-  htmlFor?: string;
-  hint?: string;
-  error?: string;
-  children: React.ReactNode;
-}) {
-  const labelId = useId();
-  return (
-    <div
-      className="space-y-1.5"
-      {...(htmlFor ? {} : { role: "group", "aria-labelledby": labelId })}
-    >
-      <Label id={labelId} htmlFor={htmlFor}>
-        {label}
-      </Label>
-      {children}
-      {(hint || error) && (
-        <p className={error ? "text-[11px] text-neg" : "text-[11px] text-ink-3"}>
-          {error ?? hint}
-        </p>
-      )}
-    </div>
   );
 }

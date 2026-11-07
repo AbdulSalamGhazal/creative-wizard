@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useId, useState, useTransition } from "react";
 import { Plus } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { FormError } from "@/components/ui/form-error";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -32,6 +33,7 @@ export function MappingAddForm({
   const [field, setField] = useState<Field>("creative_name");
   const [headerName, setHeaderName] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const errorId = useId();
   const [isPending, startTransition] = useTransition();
 
   const submit = (e: React.FormEvent<HTMLFormElement>) => {
@@ -85,14 +87,16 @@ export function MappingAddForm({
         onChange={(e) => setHeaderName(e.target.value)}
         placeholder='Header from your CSV, e.g. "Amount spent (USD)"'
         maxLength={255}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={error ? errorId : undefined}
       />
       <Button type="submit" disabled={isPending || !headerName.trim()}>
         <Plus className="w-4 h-4" />
         Add
       </Button>
-      {error && (
-        <p className="md:col-span-3 text-[11px] text-neg">{error}</p>
-      )}
+      <FormError id={errorId} className="md:col-span-3 text-[11px]">
+        {error}
+      </FormError>
     </form>
   );
 }

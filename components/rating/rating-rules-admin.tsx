@@ -3,6 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
+import { FormError } from "@/components/ui/form-error";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import {
@@ -172,7 +173,7 @@ function DefaultEditor({ rules }: { rules: RatingRules }) {
           ))}
         </ul>
       </div>
-      {error && <p className="text-xs text-neg">{error}</p>}
+      <FormError>{error}</FormError>
       <div className="flex items-center gap-3">
         <Button onClick={save} disabled={!!error || !dirty || isPending}>
           {isPending ? "Saving…" : "Save default"}
@@ -267,7 +268,7 @@ function PlatformOverrideEditor({
             minSpend={minSpend} goodRoas={goodRoas} decentRoas={decentRoas}
             setMinSpend={setMinSpend} setGoodRoas={setGoodRoas} setDecentRoas={setDecentRoas}
           />
-          {error && <p className="text-[11px] text-neg">{error}</p>}
+          <FormError className="text-[11px]">{error}</FormError>
           <div className="flex items-center gap-2">
             <Button size="sm" onClick={save} disabled={!!error || isPending}>
               {isPending ? "Saving…" : override ? "Save override" : "Create override"}

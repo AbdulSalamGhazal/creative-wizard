@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useId, useState, useTransition } from "react";
 import { Plus } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { FormError } from "@/components/ui/form-error";
 import { Input } from "@/components/ui/input";
 import { createProduct } from "@/app/actions/product";
 import { safeAction } from "@/lib/action-failure";
@@ -12,6 +13,7 @@ import { toastActionFailure } from "@/lib/action-toast";
 export function ProductCreateForm() {
   const [name, setName] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const errorId = useId();
   const [isPending, startTransition] = useTransition();
 
   const submit = (e: React.FormEvent<HTMLFormElement>) => {
@@ -40,8 +42,10 @@ export function ProductCreateForm() {
           placeholder="New product name"
           maxLength={255}
           required
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error ? errorId : undefined}
         />
-        {error && <p className="mt-1 text-[11px] text-neg">{error}</p>}
+        <FormError id={errorId} className="mt-1 text-[11px]">{error}</FormError>
       </div>
       <Button type="submit" disabled={isPending || !name.trim()}>
         <Plus className="w-4 h-4" />

@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Field } from "@/components/ui/field";
 import {
   Select,
   SelectContent,
@@ -224,29 +224,5 @@ export function CampaignEditDialog({
         </form>
       </DialogContent>
     </Dialog>
-  );
-}
-
-function Field({
-  label,
-  htmlFor,
-  tip,
-  children,
-}: {
-  label: string;
-  /** The control's id, so the label names it and a tap on it focuses it. */
-  htmlFor: string;
-  /** An ⓘ beside the label — the reason a control is locked, say. */
-  tip?: React.ReactNode;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="space-y-1.5">
-      <div className="flex items-center gap-1.5">
-        <Label htmlFor={htmlFor}>{label}</Label>
-        {tip}
-      </div>
-      {children}
-    </div>
   );
 }

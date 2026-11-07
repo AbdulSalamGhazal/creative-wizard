@@ -5,6 +5,7 @@ import { useState, useTransition } from "react";
 import { LogoMark } from "@/components/layout/logo-mark";
 import { BrandWordmark } from "@/components/layout/brand-wordmark";
 import { Button } from "@/components/ui/button";
+import { FormError } from "@/components/ui/form-error";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { signIn } from "@/app/actions/session";
@@ -69,6 +70,8 @@ export function SignInForm({ nextPath }: { nextPath: string }) {
             autoComplete="email"
             autoFocus
             required
+            aria-invalid={error ? true : undefined}
+            aria-describedby={error ? "signin-error" : undefined}
           />
         </div>
         <div className="space-y-1.5">
@@ -81,9 +84,11 @@ export function SignInForm({ nextPath }: { nextPath: string }) {
             placeholder="••••••••"
             autoComplete="current-password"
             required
+            aria-invalid={error ? true : undefined}
+            aria-describedby={error ? "signin-error" : undefined}
           />
         </div>
-        {error && <p className="text-xs text-neg">{error}</p>}
+        <FormError id="signin-error">{error}</FormError>
         <Button
           type="submit"
           className="w-full"
