@@ -14,7 +14,7 @@ import {
   YAxis,
 } from "recharts";
 import type { TooltipProps } from "recharts";
-import { ChartHeader, ChartShell, ExpandButton } from "@/components/charts/chart-shell";
+import { ChartHeader, ChartShell, ExpandButton, plotClass } from "@/components/charts/chart-shell";
 import { CHART_CURSOR, ChartTooltip } from "@/components/charts/chart-tooltip";
 import { MetricPicker } from "@/components/charts/metric-picker";
 import { SeriesLegend } from "@/components/charts/series-legend";
@@ -1595,7 +1595,7 @@ export function BudgetPacing({
                 </>
               }
             />
-            <div className={inFull ? "flex-1 min-h-0" : "h-64"}>
+            <div className={plotClass(inFull, "lg")}>
               <ResponsiveContainer width="100%" height="100%">
                 <ComposedChart data={chartData} margin={{ top: 12, right: 12, left: 0, bottom: 0 }}>
                   <CartesianGrid stroke="var(--line)" strokeDasharray="3 3" vertical={false} />

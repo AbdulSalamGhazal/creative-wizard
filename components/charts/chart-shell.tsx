@@ -65,6 +65,17 @@ export function ChartShell({
 }
 
 /**
+ * The plot area's height — one ladder for every chart (R-023, 2026-11), so the
+ * same chart role is the same height on every page and shorter on a phone:
+ * `lg` for a page's primary over-time chart, `md` for a secondary card. In
+ * the fullscreen overlay the plot fills the frame.
+ */
+export const CHART_PLOT = { md: "h-56 sm:h-64", lg: "h-64 sm:h-80" } as const;
+export function plotClass(inFull: boolean, size: keyof typeof CHART_PLOT = "lg"): string {
+  return inFull ? "flex-1 min-h-0" : CHART_PLOT[size];
+}
+
+/**
  * The canonical line-chart header row: Title → MetricPicker → right-aligned
  * control cluster (Group → Smooth → Expand, whichever the chart has). Do not
  * hand-roll a chart header — every ChartShell chart uses this so titles read

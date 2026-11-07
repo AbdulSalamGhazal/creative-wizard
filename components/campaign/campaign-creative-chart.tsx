@@ -14,7 +14,7 @@ import { intCompact, pct, pct1, roas, usd, usdCompact, monthDay } from "@/lib/fo
 import { seriesColor } from "@/lib/palette";
 import { MetricPicker } from "@/components/charts/metric-picker";
 import { SeriesLegend } from "@/components/charts/series-legend";
-import { ChartHeader, ChartShell, ExpandButton, SmoothToggle, GroupToggle } from "@/components/charts/chart-shell";
+import { ChartHeader, ChartShell, ExpandButton, SmoothToggle, GroupToggle, plotClass } from "@/components/charts/chart-shell";
 import { useChartFit, ChartFitToggle } from "@/components/charts/chart-fit";
 import { smoothColumns } from "@/lib/chart-smooth";
 import { fillDailyGaps, fillGroupSeries } from "@/lib/time-series";
@@ -321,7 +321,7 @@ export function CampaignCreativeChart({
       {({ inFull, toggleExpand }) => (
         <>
           {header(inFull, toggleExpand)}
-          <div className={(inFull ? "flex-1 min-h-0" : "h-80") + " relative"}>
+          <div className={plotClass(inFull, "lg") + " relative"}>
             {data.length === 0 ? empty : chart}
             {data.length > 0 && <ChartFitToggle fit={fit} />}
           </div>

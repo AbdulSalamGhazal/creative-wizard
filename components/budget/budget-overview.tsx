@@ -18,7 +18,7 @@ import {
 import type { TooltipProps } from "recharts";
 import { Button } from "@/components/ui/button";
 import { PlatformDot } from "@/components/ui/platform-dot";
-import { ChartHeader, ChartShell, ExpandButton } from "@/components/charts/chart-shell";
+import { ChartHeader, ChartShell, ExpandButton, plotClass } from "@/components/charts/chart-shell";
 import { CHART_CURSOR, ChartTooltip } from "@/components/charts/chart-tooltip";
 import { MetricPicker } from "@/components/charts/metric-picker";
 import { SeriesLegend } from "@/components/charts/series-legend";
@@ -774,7 +774,7 @@ function MonthChart({
               </>
             }
           />
-          <div className={inFull ? "min-h-0 flex-1" : "h-56 sm:h-64"}>
+          <div className={plotClass(inFull, "md")}>
             <ResponsiveContainer width="100%" height="100%">
               <ComposedChart data={chartData} margin={{ top: 12, right: 12, left: 0, bottom: 0 }}>
                 <CartesianGrid stroke="var(--line)" strokeDasharray="3 3" vertical={false} />

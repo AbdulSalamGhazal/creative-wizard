@@ -19,8 +19,7 @@ import {
   ChartShell,
   ExpandButton,
   SmoothToggle,
-  GroupToggle,
-} from "@/components/charts/chart-shell";
+  GroupToggle, plotClass } from "@/components/charts/chart-shell";
 import { smoothColumns } from "@/lib/chart-smooth";
 import { fillDailyGaps, fillGroupSeries } from "@/lib/time-series";
 import { useChartFit, ChartFitToggle } from "@/components/charts/chart-fit";
@@ -250,11 +249,11 @@ export function CreativePerfLineChart({
 
           {data.length === 0 ? (
             <EmptyState
-              className={(inFull ? "flex-1 min-h-0" : "h-72") + " flex flex-col items-center justify-center py-0"}
+              className={plotClass(inFull, "lg") + " flex flex-col items-center justify-center py-0"}
               title="No performance records for this creative."
             />
           ) : (
-            <div className={(inFull ? "flex-1 min-h-0" : "h-72") + " relative"}>
+            <div className={plotClass(inFull, "lg") + " relative"}>
               <ChartFitToggle fit={fit} />
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={data} margin={{ top: 12, right: 12, left: 0, bottom: 0 }}>

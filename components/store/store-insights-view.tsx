@@ -13,7 +13,7 @@ import {
 } from "recharts";
 import type { TooltipProps } from "recharts";
 import { Coins, Download, Receipt, ShoppingBag, TrendingUp } from "lucide-react";
-import { ChartHeader, ChartShell, ExpandButton } from "@/components/charts/chart-shell";
+import { ChartHeader, ChartShell, ExpandButton, plotClass } from "@/components/charts/chart-shell";
 import { CHART_CURSOR, ChartTooltip } from "@/components/charts/chart-tooltip";
 import { SeriesLegend } from "@/components/charts/series-legend";
 import { MetricPicker } from "@/components/charts/metric-picker";
@@ -492,7 +492,7 @@ export function StoreInsightsView({
                 </>
               }
             />
-            <div className={inFull ? "min-h-0 flex-1" : "h-64"}>
+            <div className={plotClass(inFull, "md")}>
               {empty ? (
                 <div className="flex h-full items-center justify-center text-sm text-ink-3">
                   No orders in this range.

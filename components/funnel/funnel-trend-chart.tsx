@@ -13,7 +13,7 @@ import {
 import { pct, pct1, monthDay } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { SeriesLegend } from "@/components/charts/series-legend";
-import { ChartHeader, ChartShell, ExpandButton, SmoothToggle } from "@/components/charts/chart-shell";
+import { ChartHeader, ChartShell, ExpandButton, SmoothToggle, plotClass } from "@/components/charts/chart-shell";
 import { smoothColumns } from "@/lib/chart-smooth";
 import { FUNNEL_METRIC_COLOR } from "@/lib/palette";
 import type { FunnelDailyPoint } from "@/db/queries/funnel";
@@ -198,7 +198,7 @@ export function FunnelTrendChart({
       {({ inFull, toggleExpand }) => (
         <>
           {header(inFull, toggleExpand)}
-          <div className={inFull ? "flex-1 min-h-0" : "h-80"}>
+          <div className={plotClass(inFull, "lg")}>
             {data.length === 0 ? emptyState : chart}
           </div>
         </>

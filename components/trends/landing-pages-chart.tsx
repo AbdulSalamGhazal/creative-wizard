@@ -10,7 +10,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { ChartHeader, ChartShell, ExpandButton } from "@/components/charts/chart-shell";
+import { ChartHeader, ChartShell, ExpandButton, plotClass } from "@/components/charts/chart-shell";
 import { CHART_CURSOR, ChartTooltip } from "@/components/charts/chart-tooltip";
 import { MetricPicker } from "@/components/charts/metric-picker";
 import { SeriesLegend } from "@/components/charts/series-legend";
@@ -190,13 +190,13 @@ export function LandingPagesChart({
           />
           {data.length === 0 ? (
             <EmptyState
-              className={(inFull ? "min-h-0 flex-1" : "h-64") + " flex flex-col items-center justify-center py-0"}
+              className={plotClass(inFull, "lg") + " flex flex-col items-center justify-center py-0"}
               title="No performance in this window."
               kind="filtered"
               buttons={false}
             />
           ) : (
-            <div className={(inFull ? "min-h-0 flex-1" : "h-64") + " relative"}>
+            <div className={plotClass(inFull, "lg") + " relative"}>
               <ChartFitToggle fit={fit} />
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={data} margin={{ top: 12, right: 12, left: 0, bottom: 0 }}>

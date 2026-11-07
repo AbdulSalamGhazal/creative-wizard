@@ -12,7 +12,7 @@ import {
 } from "recharts";
 import { MetricPicker } from "@/components/charts/metric-picker";
 import { SeriesLegend } from "@/components/charts/series-legend";
-import { ChartHeader, ChartShell, ExpandButton, SmoothToggle, GroupToggle } from "@/components/charts/chart-shell";
+import { ChartHeader, ChartShell, ExpandButton, SmoothToggle, GroupToggle, plotClass } from "@/components/charts/chart-shell";
 import { smoothColumns } from "@/lib/chart-smooth";
 import { fillDailyGaps, fillGroupSeries } from "@/lib/time-series";
 import { int, intCompact, monthDay, roas, usd, usdCompact } from "@/lib/format";
@@ -279,13 +279,13 @@ export function MetricOverTimeChart({
 
           {display.length === 0 ? (
             <EmptyState
-              className={(inFull ? "flex-1 min-h-0" : "h-64") + " flex flex-col items-center justify-center py-0"}
+              className={plotClass(inFull, "lg") + " flex flex-col items-center justify-center py-0"}
               title="No data in this range."
               kind="filtered"
               buttons={false}
             />
           ) : (
-            <div className={(inFull ? "flex-1 min-h-0" : "h-64") + " relative"}>
+            <div className={plotClass(inFull, "lg") + " relative"}>
               <ChartFitToggle fit={fit} />
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={display} margin={{ top: 12, right: 12, left: 0, bottom: 0 }}>

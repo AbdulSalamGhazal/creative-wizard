@@ -18,8 +18,7 @@ import {
   ChartHeader,
   ChartShell,
   ExpandButton,
-  SmoothToggle,
-} from "@/components/charts/chart-shell";
+  SmoothToggle, plotClass } from "@/components/charts/chart-shell";
 import { smoothColumns } from "@/lib/chart-smooth";
 import { COMPARE_METRIC_LABEL } from "@/validators/compare";
 // EXEMPT from fillDailyGaps: this chart aligns sides by day-INDEX since each
@@ -203,12 +202,12 @@ export function CompareChart({
 
           {data.length === 0 ? (
             <EmptyState
-              className={(inFull ? "flex-1 min-h-0" : "h-72") + " flex flex-col items-center justify-center py-0"}
+              className={plotClass(inFull, "lg") + " flex flex-col items-center justify-center py-0"}
               title="No data in this range."
               kind="range"
             />
           ) : (
-            <div className={(inFull ? "flex-1 min-h-0" : "h-72") + " relative"}>
+            <div className={plotClass(inFull, "lg") + " relative"}>
               <ChartFitToggle fit={fit} />
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart
