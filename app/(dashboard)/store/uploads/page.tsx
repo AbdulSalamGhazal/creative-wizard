@@ -66,7 +66,7 @@ export default async function StoreUploadsPage({
       <PageShell>
         <PageHeader
           eyebrow="Store"
-          title="Order fields"
+          title="Upload orders"
         />
         <PageTabs tabs={tabs} active={activeTab} />
         <OrderFieldsTab />

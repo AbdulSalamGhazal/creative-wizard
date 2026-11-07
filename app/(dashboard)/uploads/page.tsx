@@ -63,7 +63,7 @@ export default async function UploadsPage({
       <PageShell>
         <PageHeader
           eyebrow="Ads"
-          title="CSV mapping"
+          title="Upload ads"
           info="Header matching is case-insensitive and whitespace-trimmed."
         />
         <PageTabs tabs={tabs} active={activeTab} />
