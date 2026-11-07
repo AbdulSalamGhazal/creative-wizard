@@ -54,7 +54,7 @@ export function SalesMix({
   return (
     <SectionCard
       title="Sales mix"
-      subtitle="Share of orders per product, then each offer's share within its product."
+      info="Share of orders per product, then each offer's share within its product."
       actions={
         readOnly ? undefined : (
         <>

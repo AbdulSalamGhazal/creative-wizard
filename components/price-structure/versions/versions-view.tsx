@@ -262,7 +262,7 @@ export function VersionsView() {
           )}
         </SectionCard>
         {manage && (
-        <SectionCard title="Start a new version" subtitle="Creates the version and opens it in this tab. Everything you've done so far stays saved in the current one." contentClassName="space-y-3">
+        <SectionCard title="Start a new version" info="Creates the version and opens it in this tab. Everything you've done so far stays saved in the current one." contentClassName="space-y-3">
           <Field label="Name" htmlFor={ids.newName}>
             <TextField id={ids.newName} value={newName} onChange={setNewName} placeholder="e.g. Ramadan pricing" />
           </Field>
@@ -316,7 +316,7 @@ export function VersionsView() {
         </SectionCard>
         )}
       </div>
-      <SectionCard title="All versions" subtitle="Each version is summarised with its own settings and active plan." contentClassName="px-0">
+      <SectionCard title="All versions" info="Each version is summarised with its own settings and active plan." contentClassName="px-0">
         <DataTable<VersionRow> columns={columns} rows={versions} rowKey={(r) => r.id} minWidthClass="min-w-[1000px]" {...cols.tableProps} />
       </SectionCard>
       <Dialog open={toDelete !== null} onOpenChange={(o) => !o && busy === null && (setToDelete(null), setTyped(""))}>

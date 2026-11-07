@@ -110,7 +110,7 @@ export async function MappingsAdmin() {
       })}
 
       <p className="text-[11px] text-ink-3">
-        Header matching is case-insensitive and whitespace-trimmed. Adding a
+        Adding a
         new candidate is non-destructive — existing uploads aren&apos;t
         affected, only future ones. Removing the last candidate for a required
         field will make every upload for that platform fail until you add one.

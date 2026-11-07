@@ -28,7 +28,7 @@ export function TargetsEditor() {
   return (
     <SectionCard
       title="Your targets"
-      subtitle="Turn a target off to leave it out of the status column on the other pages."
+      info="Turn a target off to leave it out of the status column on the other pages."
       actions={
         access.edit ? (
           <Button type="button" size="sm" className="h-8 text-xs" onClick={add}>

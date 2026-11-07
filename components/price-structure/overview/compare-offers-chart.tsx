@@ -56,7 +56,7 @@ export function CompareOffersChart({
   return (
     <SectionCard
       title="Compare offers"
-      subtitle={meta.description}
+      info={meta.description}
       actions={<MetricSelect value={metric} onChange={onMetric} monthly={monthly} ariaLabel="Compare offers by" />}
     >
       <div style={{ height: Math.max(120, data.length * 26 + 36) }} role="img" aria-label={`${meta.label} per offer`}>

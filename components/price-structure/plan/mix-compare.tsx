@@ -34,7 +34,8 @@ export function MixCompare({ planLines, actualLines, planName, periodName, group
   return (
     <SectionCard
       title="Mix: plan vs actual"
-      subtitle="Share of orders. A shift toward low-ROAS offers lowers the ROAS you can expect."
+      subtitle="Share of orders"
+      info="A shift toward low-ROAS offers lowers the ROAS you can expect."
       actions={
         <SegmentedControl<MixGroup>
           ariaLabel="Group mix by"

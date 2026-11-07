@@ -92,7 +92,7 @@ function CheckOffers({ rows, targets }: { rows: readonly OfferRow[]; targets: re
           {distance && rows.length > 0 && (
             <SectionCard
               title="Distance to target"
-              subtitle="The bar is the offer's value. The tick marks are A and B. The colours behind the bar show the zones: miss, between A and B, and past B."
+              info="The bar is the offer's value. The tick marks are A and B. The colours behind the bar show the zones: miss, between A and B, and past B."
               actions={
                 enabled.length > 1 ? (
                   <Select value={distance.id} onValueChange={setDistanceId}>
@@ -167,7 +167,7 @@ function TargetMatrix({ rows, targets }: { rows: readonly OfferRow[]; targets: r
   const hideable = columns.filter((c) => !c.pinned).map((c) => c.key);
   const cols = useTableColumns({ tableKey: TABLE_KEYS.PS_TARGET_MATRIX, hideable, defaults: hideable });
   return (
-    <SectionCard title="Every offer against every target" subtitle="Click a row to edit that offer." contentClassName="px-0">
+    <SectionCard title="Every offer against every target" info="Click a row to edit that offer." contentClassName="px-0">
       <DataTable<OfferRow>
         columns={columns}
         rows={[...rows]}

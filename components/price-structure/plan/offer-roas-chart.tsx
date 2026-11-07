@@ -24,7 +24,7 @@ export function OfferRoasChart({ lines, total }: { lines: readonly Line[]; total
     value: Number.isFinite(l.r.platformRoas) ? l.r.platformRoas : null,
   }));
   return (
-    <SectionCard title="Each offer's ROAS vs the blend" subtitle="Offers below the line pull the account ROAS down. Each offer counts by its share of ad spend.">
+    <SectionCard title="Each offer's ROAS vs the blend" info="Offers below the line pull the account ROAS down. Each offer counts by its share of ad spend.">
       {data.length === 0 ? (
         <EmptyState title="No orders planned: set orders per day and a mix." size="sm" />
       ) : (

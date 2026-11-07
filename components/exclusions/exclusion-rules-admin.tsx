@@ -321,9 +321,9 @@ export function ExclusionRulesAdmin({
       )}
 
       <p className="text-xs text-ink-3">
-        Rules are account-global: pausing or deleting one changes the numbers
+        Rules are brand-wide: pausing or deleting one changes the numbers
         for everyone. A record excluded by a rule can only be restored through
-        the rule — the per-record Re-include stays disabled for it.
+        the rule — its row names the rule instead of offering Re-include.
       </p>
 
       {/* Preview-then-confirm dialog (shared by all four mutations) */}

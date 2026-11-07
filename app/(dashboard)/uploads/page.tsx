@@ -132,7 +132,7 @@ export default async function UploadsPage({
         // sentence under the table.
         rollbackInfo={
           canRollback || canCleanup
-            ? `Roll back any batch within ${ROLLBACK_WINDOW_HOURS} h of upload. Beyond that window, use the cleanup tool below or contact an operator.`
+            ? `Roll back any batch within ${ROLLBACK_WINDOW_HOURS} h of upload. Beyond that window, ${canCleanup ? "use the cleanup tool below." : "an admin can remove its records with the cleanup tool."}`
             : undefined
         }
         rows={rows.map((r) => ({

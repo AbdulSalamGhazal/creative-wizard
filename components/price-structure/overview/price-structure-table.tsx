@@ -168,6 +168,7 @@ export function PriceStructureTable({
           Price structure
           <InfoTip label="Column definitions">
             <ul className="space-y-1">
+              <li>Click a row to edit that offer.</li>
               <li><b>List price</b>: list price of the units in the order.</li>
               <li><b>CML</b>: Clean Money Left — net revenue − COGS − marketing.</li>
               <li><b>Platform ROAS</b>: what the ad platform shows.</li>
@@ -176,11 +177,6 @@ export function PriceStructureTable({
             </ul>
           </InfoTip>
         </span>
-      }
-      subtitle={
-        roasTarget
-          ? `Click a row to edit that offer. ROAS for A / B is the platform ROAS each offer needs for ${targetA} / ${targetB}.`
-          : "Click a row to edit that offer."
       }
       actions={
         <>

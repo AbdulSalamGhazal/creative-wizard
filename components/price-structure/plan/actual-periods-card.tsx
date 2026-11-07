@@ -96,7 +96,7 @@ export function ActualPeriodsCard({
   return (
     <SectionCard
       title="Actual periods"
-      subtitle="Download the template, fill in orders per offer and the period's ad spend, then upload it. You can also enter numbers by hand."
+      info="Download the template, fill in orders per offer and the period's ad spend, then upload it. You can also enter numbers by hand."
       actions={
         <>
           <Button type="button" size="sm" variant="outline" className="h-8 text-xs" onClick={download} disabled={products.length === 0}>

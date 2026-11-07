@@ -92,7 +92,7 @@ export function ActualView({ data, period, plan, onChangePeriod }: { data: Versi
       <div className="grid gap-4 @5xl/main:grid-cols-2">
         <CostShares
           title="Cost shares: actual vs baked-in"
-          subtitle="COGS follows what you sold. Marketing compares real ad spend with what the baked-in CPAs allow."
+          info="COGS follows what you sold. Marketing compares real ad spend with what the baked-in CPAs allow."
           columns={[...(hasSpend ? [{ label: "Actual", blend: actual, mult: days }] : []), { label: "At baked-in ROAS", blend: baked, mult: days }]}
           sarLabel={`SAR, ${period.name}`}
         />
@@ -100,7 +100,7 @@ export function ActualView({ data, period, plan, onChangePeriod }: { data: Versi
           <RiyalBars rows={[...(hasSpend ? [riyal("Actual", actual)] : []), riyal("At baked-in ROAS", baked)]} mode="pct" />
         </SectionCard>
       </div>
-      <RoasLadder title="ROAS ladder" subtitle="Where actual ROAS landed against the levels for the mix you sold." marks={marks} targetA={target ? roasA : null} />
+      <RoasLadder title="ROAS ladder" info="Where actual ROAS landed against the levels for the mix you sold." marks={marks} targetA={target ? roasA : null} />
       <MixCompare planLines={planLs} actualLines={lines} planName={plan.name} periodName={period.name} group={group} onGroup={setGroup} />
       <fieldset disabled={!edit} className="min-w-0">
         <PeriodOrdersTable period={period} products={data.products} lines={lines} baked={baked} onChange={onChangePeriod} />

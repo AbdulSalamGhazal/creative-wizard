@@ -18,7 +18,7 @@ interface Column {
  * column per blend. Plan mode shows one blend; the Actual page shows
  * "Actual" beside "At baked-in ROAS".
  */
-export function CostShares({ title = "Cost shares", subtitle, columns, sarLabel }: { title?: string; subtitle: string; columns: readonly Column[]; sarLabel: string }) {
+export function CostShares({ title = "Cost shares", subtitle, info, columns, sarLabel }: { title?: string; subtitle?: string; info?: string; columns: readonly Column[]; sarLabel: string }) {
   const rows = [
     { key: "net", label: "Net revenue", color: null, pct: () => 1, sar: (b: Blend) => b.netRevenue },
     { key: "cogs", label: "COGS", color: PART_COLOR.cogs, pct: (b: Blend) => b.cogsPct, sar: (b: Blend) => b.cogs },
@@ -30,7 +30,7 @@ export function CostShares({ title = "Cost shares", subtitle, columns, sarLabel 
   ];
   const gridCols = `minmax(0,1fr) ${columns.map(() => "auto auto").join(" ")}`;
   return (
-    <SectionCard title={title} subtitle={subtitle} contentClassName="overflow-x-auto">
+    <SectionCard title={title} subtitle={subtitle} info={info} contentClassName="overflow-x-auto">
       {/* Two blends are five columns: on a phone the grid scrolls inside the card. */}
       <div className={columns.length > 1 ? "min-w-[30rem]" : "min-w-[18rem]"}>
       <div className="grid gap-x-4 gap-y-1.5 text-xs" style={{ gridTemplateColumns: gridCols }} role="table">

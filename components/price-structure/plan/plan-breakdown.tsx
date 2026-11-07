@@ -70,7 +70,7 @@ export function PlanBreakdown({ lines, total, products, settings, mult, perLabel
   const cols = useTableColumns({ tableKey: TABLE_KEYS.PS_PLAN_BREAKDOWN, hideable, defaults: hideable });
 
   return (
-    <SectionCard title={`Plan breakdown ${perLabel}`} subtitle="Revenue is what customers pay incl. VAT. CML counts delivered orders only." contentClassName="px-0">
+    <SectionCard title={`Plan breakdown ${perLabel}`} info="Revenue is what customers pay incl. VAT. CML counts delivered orders only." contentClassName="px-0">
       <DataTable<Row>
         columns={columns}
         rows={rows}

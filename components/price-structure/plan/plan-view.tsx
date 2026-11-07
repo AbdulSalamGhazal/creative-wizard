@@ -219,12 +219,12 @@ export function PlanView() {
         <MetricCard label={`CML ${per}`} value={`${money0(b.profit * mult)} SAR`} icon={Coins} hideBreakdown footer={`CML ${pct2(b.margin)} of net revenue`} />
       </div>
       <div className="grid gap-4 @5xl/main:grid-cols-2">
-        <CostShares subtitle="The plan's blended cost structure, as a share of net revenue (ex VAT, delivered orders)." columns={[{ label: "Plan", blend: b, mult }]} sarLabel={`SAR ${per}`} />
+        <CostShares info="The plan's blended cost structure, as a share of net revenue (ex VAT, delivered orders)." columns={[{ label: "Plan", blend: b, mult }]} sarLabel={`SAR ${per}`} />
         <RiyalCard rows={riyalRows} />
       </div>
       <RoasLadder
         title="ROAS ladder"
-        subtitle="The whole-account ROAS that matters for this mix. Hit the baked-in ROAS and every offer is on its planned CPA."
+        info="The whole-account ROAS that matters for this mix. Hit the baked-in ROAS and every offer is on its planned CPA."
         actions={<RoasTargetPicker />}
         marks={marks}
         targetA={target ? roasA : null}
@@ -241,7 +241,7 @@ function RiyalCard({ rows }: { rows: RiyalRow[] }) {
   return (
     <SectionCard
       title="Where each riyal goes"
-      subtitle="The whole plan, then each product with orders."
+      info="The whole plan, then each product with orders."
       actions={
         <SegmentedControl<"pct" | "sar">
           ariaLabel="Riyal bars unit"

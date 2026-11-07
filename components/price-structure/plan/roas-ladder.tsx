@@ -29,7 +29,7 @@ const CHAR_W = 6.2;
  * Labels alternate above and below the track and climb to extra rows when
  * they would overlap. Marks that are infinite or ≤ 0 are listed underneath.
  */
-export function RoasLadder({ title, subtitle, actions, marks, targetA }: { title: string; subtitle: string; actions?: React.ReactNode; marks: readonly LadderMark[]; targetA: number | null }) {
+export function RoasLadder({ title, subtitle, info, actions, marks, targetA }: { title: string; subtitle?: string; info?: string; actions?: React.ReactNode; marks: readonly LadderMark[]; targetA: number | null }) {
   const ref = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(600);
   useLayoutEffect(() => {
@@ -73,7 +73,7 @@ export function RoasLadder({ title, subtitle, actions, marks, targetA }: { title
   const aX = targetA !== null && Number.isFinite(targetA) && targetA > 0 ? axisPosition(axis, targetA) * width : 0;
 
   return (
-    <SectionCard title={title} subtitle={subtitle} actions={actions}>
+    <SectionCard title={title} subtitle={subtitle} info={info} actions={actions}>
       <div ref={ref} className="relative w-full" style={{ height }} role="img" aria-label={marks.map((m) => `${m.label} ${roasX(m.value)}`).join(", ")}>
         {/* The track */}
         <div className="absolute left-0 right-0 h-2 rounded-full bg-surface-2" style={{ top: trackTop }}>

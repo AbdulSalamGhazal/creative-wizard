@@ -186,7 +186,8 @@ function LeverTable({ data, rows, target, lever, aText, bText }: { data: Version
   return (
     <SectionCard
       title={`${lm.label} needed for each offer`}
-      subtitle={`To reach ${meta.label.toLowerCase()} of ${aText} (A) and ${bText} (B), changing only this lever. "Extra discount" is how much more you could give on top of today's offer.`}
+      subtitle={`To reach ${meta.label.toLowerCase()} of ${aText} (A) and ${bText} (B)`}
+      info={`Each value changes only this lever. "Extra discount" is how much more you could give on top of today's offer.`}
       contentClassName="px-0"
     >
       <DataTable<LeverRow> columns={columns} rows={items} rowKey={(r) => r.key} minWidthClass="min-w-[760px]" {...cols.tableProps} />
@@ -231,7 +232,8 @@ function OfferTable({ data, row, target, aText, bText }: { data: VersionData; ro
           What it takes: {row.product.name} · {row.offer.name}
         </span>
       }
-      subtitle={`${meta.label} is ${now} now. Each line changes one lever on its own. Any one of them is enough to reach the target.`}
+      subtitle={`${meta.label} is ${now} now`}
+      info="Each line changes one lever on its own. Any one of them is enough to reach the target."
       contentClassName="px-0"
     >
       <DataTable<OfferLeverRow> columns={columns} rows={items} rowKey={(r) => r.key} minWidthClass="min-w-[640px]" {...cols.tableProps} />

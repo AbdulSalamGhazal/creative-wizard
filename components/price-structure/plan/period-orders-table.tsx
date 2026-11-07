@@ -20,7 +20,7 @@ export function PeriodOrdersTable({ period, products, lines, baked, onChange }: 
   const row = "grid grid-cols-[minmax(0,1fr)_6rem_5rem_4.5rem_5.5rem] items-center gap-2 px-2 py-1 text-xs";
   const setOrders = (key: string, n: number) => onChange((p) => ({ ...p, orders: { ...p.orders, [key]: n } }));
   return (
-    <SectionCard title="Orders in this period" subtitle="Placed orders per offer, for the whole period." contentClassName="px-0">
+    <SectionCard title="Orders in this period" info="Placed orders per offer, for the whole period." contentClassName="px-0">
       <div className="overflow-x-auto">
         <div className="min-w-[520px]">
           <div className={cn(row, "border-y border-line bg-surface-2/40 text-label text-ink-3")}>

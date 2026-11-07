@@ -84,6 +84,11 @@ component folder; three grants (view · edit · versions).
   "$12,500", "12,5") and the warnings. The template is UTF-8 with BOM, CRLF.
 - **Count metrics stay counts**: orders per month, orders in a period, units,
   days are integers at the field (`integer` NumberField) and in the schema.
+- **A card's subtitle is ONE fact; a sentence is its ⓘ** (R-058, 2026-11):
+  `SectionCard`'s `subtitle` says a unit or a scope ("SAR per delivered
+  order", "{period}, whole period"); how to read the card is its `info` —
+  an InfoTip beside the title — like every other page (ux-standards, Show,
+  don't label). The module records no exception.
 
 ## History and rationale
 
