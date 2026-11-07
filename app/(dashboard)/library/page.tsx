@@ -74,7 +74,9 @@ export default async function CreativesPage({
   if (activeTab !== "creatives") {
     return (
       <PageShell>
-        <LibraryHeader canCreate={can(user, "creative.create")} />
+        {/* The header's actions create CREATIVES — they belong to the
+            Creatives tab only; each other tab offers its own create (R-074). */}
+        <LibraryHeader canCreate={false} />
         <PageTabs tabs={tabs} active={activeTab} />
         {activeTab === "products" && <ProductsAdmin />}
         {activeTab === "landing-pages" && (
@@ -202,23 +204,16 @@ export default async function CreativesPage({
       {/* The status facet sits with the list it describes — same placement in
           both views — and follows every filter change because its counts come
           from the listing's own rows. */}
-      <CreativeStatusSummary breakdown={listResult.breakdown} />
+      <CreativeStatusSummary breakdown={listResult.breakdown} shown={listResult.totalMatching} />
 
       {parsed.view === "table" ? (
         <CreativeTable
           rows={listResult.rows}
-          total={listResult.totalMatching}
           listCtx={listCtx}
           firstUse={firstUse}
         />
       ) : (
-        <div className="space-y-2">
-          <p className="text-xs text-ink-3 tabular-nums">
-            Showing {listResult.rows.length} of {listResult.totalMatching}{" "}
-            creatives
-          </p>
-          <CreativeGrid rows={listResult.rows} listCtx={listCtx} firstUse={firstUse} />
-        </div>
+        <CreativeGrid rows={listResult.rows} listCtx={listCtx} firstUse={firstUse} />
       )}
     </PageShell>
   );

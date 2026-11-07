@@ -29,8 +29,13 @@ const csv = (v: string | null): string[] =>
  */
 export function CreativeStatusSummary({
   breakdown,
+  shown,
 }: {
   breakdown: CreativeStatusBreakdown;
+  /** How many the list actually shows. The strip is a facet that ignores the
+   *  status filter, so with a status chip active the list is smaller — the
+   *  strip then says "{shown} of {total}" (R-073: the ONE count of the list). */
+  shown?: number;
 }) {
   const { total, general } = breakdown;
   const pathname = usePathname();
@@ -47,7 +52,9 @@ export function CreativeStatusSummary({
 
   return (
     <div className="flex flex-wrap items-center gap-1.5">
-      <span className="tabular-nums mr-0.5 text-sm text-ink-3">{total} creatives</span>
+      <span className="tabular-nums mr-0.5 text-sm text-ink-3">
+        {shown !== undefined && shown !== total ? `${shown} of ${total}` : total} creatives
+      </span>
       {CREATIVE_STATUSES.map((s) => {
         const active = curStatuses.length === 1 && curStatuses[0] === s;
         return (

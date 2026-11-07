@@ -100,13 +100,10 @@ const DEFAULT_HIDDEN = [
 
 export function CreativeTable({
   rows: serverRows,
-  total,
   listCtx: serverListCtx,
   firstUse,
 }: {
   rows: CreativeListRow[];
-  /** Total matching across the filter (for the "Showing N of M" count). */
-  total?: number;
   listCtx?: string;
   /** The brand has no creatives at all: the first-use state (R-018). */
   firstUse?: React.ReactNode;
@@ -293,11 +290,8 @@ export function CreativeTable({
 
   return (
     <div className="space-y-2">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="tabular-nums text-xs text-ink-3">
-          Showing {rows.length}
-          {total !== undefined ? ` of ${total}` : ""} creatives
-        </p>
+      {/* The count lives in the status strip above (R-073). */}
+      <div className="flex flex-wrap items-center justify-end gap-2">
         <div className="flex items-center gap-2">
           <DownloadCsvButton
             csvContent={csvContent}
