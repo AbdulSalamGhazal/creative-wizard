@@ -138,10 +138,10 @@ export function OfferEditor({
         )}
       </div>
 
-      <div className="mt-3 grid gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
+      <div className="mt-3 grid gap-4 @4xl/editor:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
         {/* ── Inputs ─────────────────────────────────────────────────────── */}
-        <div className="grid gap-3 sm:grid-cols-2">
-          <Field label="Offer type" htmlFor={ids.type} className="sm:col-span-2">
+        <div className="grid gap-3 @md/editor:grid-cols-2">
+          <Field label="Offer type" htmlFor={ids.type} className="@md/editor:col-span-2">
             <Select value={m.kind} onValueChange={(v) => setKind(v as MechanicKind)}>
               <SelectTrigger id={ids.type} size="sm" className="h-8 w-full text-xs">
                 <SelectValue />
@@ -193,7 +193,7 @@ export function OfferEditor({
               <Field label="Get">
                 <NumberField value={m.get} integer min={1} ariaLabel="Get" onChange={(v) => setMechanic((x) => ({ ...(x as typeof m), get: v }))} />
               </Field>
-              <Field label="Off the extra units %" className="sm:col-span-2">
+              <Field label="Off the extra units %" className="@md/editor:col-span-2">
                 <NumberField value={m.pct} pct unit="%" min={0} max={100} ariaLabel="Off the extra units %" onChange={(v) => setMechanic((x) => ({ ...(x as typeof m), pct: v }))} />
               </Field>
             </>
@@ -214,7 +214,7 @@ export function OfferEditor({
           <Field label="Orders / month" hint="Placed orders, optional" htmlFor={ids.orders}>
             <NumberField id={ids.orders} value={offer.ordersPerMonth} integer min={0} onChange={(v) => set("ordersPerMonth", v)} />
           </Field>
-          <div className="space-y-1 sm:col-span-2">
+          <div className="space-y-1 @md/editor:col-span-2">
             <div className="flex items-center justify-between gap-2">
               <span className="text-xs text-ink-2">Ad cost input</span>
               <SegmentedControl<AdMode>
@@ -237,7 +237,7 @@ export function OfferEditor({
               </Field>
             )}
           </div>
-          <div className="space-y-1 sm:col-span-2">
+          <div className="space-y-1 @md/editor:col-span-2">
             <div className="flex items-center justify-between gap-2">
               <label htmlFor={ids.own} className="text-xs text-ink-2">
                 Own delivery rate for this offer
@@ -264,14 +264,14 @@ export function OfferEditor({
             )}
           </div>
           {offer.notes && (
-            <p className="rounded-md border border-line bg-surface px-2 py-1.5 text-[11px] text-ink-2 sm:col-span-2" dir="auto">
+            <p className="rounded-md border border-line bg-surface px-2 py-1.5 text-[11px] text-ink-2 @md/editor:col-span-2" dir="auto">
               {offer.notes}
             </p>
           )}
         </div>
 
         {/* ── Results ────────────────────────────────────────────────────── */}
-        <dl className="grid grid-cols-2 gap-x-4 gap-y-2.5 self-start rounded-md border border-line bg-surface p-3 text-xs 2xl:grid-cols-3">
+        <dl className="grid grid-cols-2 gap-x-4 gap-y-2.5 self-start rounded-md border border-line bg-surface p-3 text-xs @6xl/editor:grid-cols-3">
           <Result label="Customer pays" title="What the customer pays for the order, incl. VAT, after all discounts."><Num value={r.paidGross} kind="money2" /></Result>
           <Result label="Net revenue" title="Customer pays minus VAT."><Num value={r.netRevenue} kind="money2" /></Result>
           <Result label="CML" title="Clean Money Left: net revenue − COGS − marketing − undelivered cost."><Num value={r.profit} kind="money2" /></Result>

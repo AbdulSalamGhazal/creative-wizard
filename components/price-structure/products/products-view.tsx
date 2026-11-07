@@ -185,7 +185,10 @@ export function ProductsView({ productId, offerId }: { productId: string | null;
             onAdd={access.edit ? addProduct : null}
           />
           {/* A viewer sees every field, disabled: the whole column is one fieldset. */}
-          <fieldset disabled={!access.edit} className="min-w-0 space-y-4">
+          {/* The editor column is a size container (R-019): its grids key to ITS
+              width, not the viewport's — the product list beside it (and the
+              comment dock) take room the viewport breakpoints never saw. */}
+          <fieldset disabled={!access.edit} className="@container/editor min-w-0 space-y-4">
             {product && settings && (
               <>
                 <ProductCard

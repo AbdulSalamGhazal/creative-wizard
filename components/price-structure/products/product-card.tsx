@@ -54,8 +54,8 @@ export function ProductCard({
         )
       }
     >
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Field label="Name" htmlFor={ids.name} className="sm:col-span-2">
+      <div className="grid gap-3 @md/editor:grid-cols-2 @2xl/editor:grid-cols-4">
+        <Field label="Name" htmlFor={ids.name} className="@md/editor:col-span-2">
           <TextField id={ids.name} value={product.name} onChange={(v) => set("name", v)} placeholder="Product name" />
         </Field>
         <Field label="Unit cost" hint="What one unit costs you" htmlFor={ids.cost}>
@@ -68,10 +68,10 @@ export function ProductCard({
         >
           <NumberField id={ids.price} value={product.price} unit="SAR" min={0} onChange={(v) => set("price", v)} />
         </Field>
-        <Field label="SKU / code" hint="Optional" htmlFor={ids.sku} className="sm:col-span-2">
+        <Field label="SKU / code" hint="Optional" htmlFor={ids.sku} className="@md/editor:col-span-2">
           <TextField id={ids.sku} value={product.sku} onChange={(v) => set("sku", v)} dir="ltr" />
         </Field>
-        <div className="space-y-1 sm:col-span-2">
+        <div className="space-y-1 @md/editor:col-span-2">
           <span className="block text-xs text-ink-2">Colour</span>
           <div role="radiogroup" aria-label="Product colour" className="flex flex-wrap gap-1.5">
             {PRODUCT_SLOTS.map((slot) => {
