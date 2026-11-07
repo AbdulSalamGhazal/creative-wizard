@@ -77,8 +77,7 @@ export function NotificationRoutesAdmin({
   return (
     <div className="space-y-4">
       <div>
-        <h2 className="text-sm font-medium text-ink">Notification routing</h2>
-        <p className="mt-1 max-w-prose text-xs text-ink-3">
+        <p className="max-w-prose text-xs text-ink-3">
           Pick who hears about each event in this brand. Routing is per brand, and
           the person who caused an event is never notified about it.{" "}
           <span className="text-ink-2">Events with no recipients notify nobody.</span>

@@ -41,8 +41,7 @@ export function RatingRulesAdmin({ config }: { config: RatingConfig }) {
   return (
     <div className="space-y-6 max-w-2xl">
       <div>
-        <h2 className="text-sm font-medium text-ink">Rate rules</h2>
-        <p className="text-xs text-ink-2 mt-1">
+        <p className="text-xs text-ink-2">
           Drives the <span className="text-ink">Rate</span> column on Ads.
           The default applies to the blended total and any platform without its
           own override below.

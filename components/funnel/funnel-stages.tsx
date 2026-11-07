@@ -71,7 +71,7 @@ export function FunnelStages({
   return (
     <div className="rounded-lg border border-line bg-surface p-4">
       <div className="flex items-baseline justify-between gap-3 mb-4">
-        <h3 className="text-sm font-medium text-ink">Funnel</h3>
+        <h3 className="text-sm font-medium text-ink">Volume by stage</h3>
         <div className="flex items-center gap-3">
           <span className="text-[11px] text-ink-3 tabular-nums">
             {intCompact(totals.impressions)} → {int(totals.conversions)} ·{" "}

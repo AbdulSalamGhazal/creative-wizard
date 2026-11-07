@@ -282,7 +282,8 @@ as it stood before the restructure.*
 - **Notifications (2026-09, phase 1 — the spine). Five invariants, all
   deliberate.** Per-user in-app notifications: a top-bar bell, `/notifications`
   (no sidebar entry — the bell is the way in), and routing configured on
-  Configuration → Notifications. Migration **0043** (additive: `notifications`
+  Configuration → Notification routing (the tab's key stays `notifications`,
+  so `?tab=notifications` links keep working; renamed 2026-11, UI audit R-093). Migration **0043** (additive: `notifications`
   + `notification_routes`).
   1. **Producers write INSIDE the transaction of the thing they describe.**
      `notifyRoutes(tx, accountId, eventType, {...})` takes the caller's `tx`, so

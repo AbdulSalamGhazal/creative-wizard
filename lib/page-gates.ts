@@ -58,7 +58,7 @@ export const CONFIGURATION_TABS = [
   { key: "status", label: "Status", perm: "config.brands" },
   { key: "brands", label: "Brands", perm: "config.brands" },
   { key: "exclusions", label: "Exclusions", perm: "record.exclude" },
-  { key: "notifications", label: "Notifications", perm: "notify.manage" },
+  { key: "notifications", label: "Notification routing", perm: "notify.manage" },
 ] as const satisfies readonly GatedTab[];
 
 // ── Upload ads (/uploads) — the history is readable by every member; what
