@@ -54,6 +54,27 @@ type CreativeType = (typeof creativeTypeEnum)[number];
 
 const num = (v: unknown): number => (v === null || v === undefined ? 0 : Number(v));
 
+/** One campaign as the ⌘K palette lists it (R-027). */
+export interface PaletteCampaign {
+  name: string;
+  platform: (typeof platformEnum)[number];
+}
+
+/**
+ * The active brand's campaigns by name — the palette's "Campaigns" group
+ * (R-027). Reads the registry (`campaigns_account_name_idx` covers the filter
+ * and the sort), never the performance table.
+ */
+export async function listPaletteCampaigns(limit = 500): Promise<PaletteCampaign[]> {
+  const acct = await getActiveAccountId();
+  return db
+    .select({ name: campaigns.name, platform: campaigns.platform })
+    .from(campaigns)
+    .where(eq(campaigns.accountId, acct))
+    .orderBy(asc(campaigns.name))
+    .limit(limit);
+}
+
 export interface Range {
   from?: string;
   to?: string;

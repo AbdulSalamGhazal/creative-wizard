@@ -29,6 +29,7 @@ import { defaultDateRange, presetLabel } from "@/lib/date-presets";
 import { resolvePreferredRange, resolveIncludeExcluded } from "@/db/queries/user-prefs";
 import { safeDecodeURIComponent, pickFirst } from "@/lib/url";
 import { ExcludedParamToggle } from "@/components/filters/excluded-param-toggle";
+import { CompareLink } from "@/components/compare/compare-link";
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -190,6 +191,8 @@ export default async function CreativeDetailPage({
           {/* Wraps: at 375px the toggle + date (322px) ran 29px past the
               card's inner edge. */}
           <div className="flex flex-wrap items-center gap-2">
+            {/* Into Compare with this creative as side A (R-045). */}
+            <CompareLink side={{ creatives: creative.id }} from={eff.from} to={eff.to} />
             <ExcludedParamToggle on={inc} />
             <AnalyticsDateFilter
               from={from ?? null}

@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import {
   isActive,
   navSections,
+  qualifiedNavLabel,
   type NavItem,
 } from "@/components/layout/nav-items";
 import {
@@ -67,12 +68,16 @@ export function Sidebar({ granted }: { granted: string[] }) {
       )}
     >
       <nav className="w-full space-y-5">
-        {sections.map((section) => (
+        {sections.map((section, si) => (
           <div key={section.key} className="space-y-0.5">
-            {!collapsed && (
+            {!collapsed ? (
               <div className="px-3 mb-1 text-eyebrow text-ink-3">
                 {section.label}
               </div>
+            ) : (
+              // The rail has no eyebrows: a 1px rule says where one section
+              // ends and the next begins (R-088).
+              si > 0 && <div className="mx-2 mb-2 border-t border-line" aria-hidden />
             )}
             {section.items.map((item) =>
               item.children ? (
@@ -81,6 +86,7 @@ export function Sidebar({ granted }: { granted: string[] }) {
                   item={item}
                   pathname={pathname}
                   collapsed={collapsed}
+                  railTitle={qualifiedNavLabel(section, item.label)}
                 />
               ) : (
                 <NavLink
@@ -89,6 +95,9 @@ export function Sidebar({ granted }: { granted: string[] }) {
                   link={linkProps(item)}
                   active={isActive(pathname, item.href, item.exact)}
                   collapsed={collapsed}
+                  // Section-qualified in the rail: two "Overview"s and two
+                  // "Plan"s were indistinguishable by tooltip (R-088).
+                  railTitle={qualifiedNavLabel(section, item.label)}
                 />
               ),
             )}
@@ -125,18 +134,23 @@ function NavLink({
   link,
   active,
   collapsed,
+  railTitle,
 }: {
   item: NavItem;
   link: NavLinkProps;
   active: boolean;
   collapsed: boolean;
+  /** The tooltip in the collapsed rail — section-qualified where needed. */
+  railTitle: string;
 }) {
   const Icon = item.icon;
   return (
     <Link
       href={link.href}
       onClick={link.onClick}
-      title={collapsed ? item.label : undefined}
+      title={collapsed ? railTitle : undefined}
+      aria-label={collapsed ? railTitle : undefined}
+      aria-current={active ? "page" : undefined}
       className={cn(
         "relative flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors",
         collapsed && "justify-center",
@@ -161,10 +175,12 @@ function NavGroup({
   item,
   pathname,
   collapsed,
+  railTitle,
 }: {
   item: NavItem;
   pathname: string;
   collapsed: boolean;
+  railTitle: string;
 }) {
   const Icon = item.icon;
   const children = item.children ?? [];
@@ -182,7 +198,8 @@ function NavGroup({
     return (
       <Link
         href={item.href}
-        title={item.label}
+        title={railTitle}
+        aria-label={railTitle}
         className={cn(
           "relative flex items-center justify-center px-3 py-2 rounded-md text-sm transition-colors",
           anyActive

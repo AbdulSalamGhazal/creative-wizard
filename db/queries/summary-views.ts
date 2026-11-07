@@ -92,3 +92,31 @@ export async function getSummaryView(id: string) {
     .limit(1);
   return row ?? null;
 }
+
+/** One saved view as the ⌘K palette lists it (R-027). */
+export interface SavedViewOption {
+  id: string;
+  name: string;
+  /** The page key the view belongs to ("summary" · "creatives" · "campaigns"). */
+  page: string;
+  query: string;
+}
+
+/**
+ * Every saved view the caller owns in the active brand, across pages — the
+ * palette's "Saved views" group (R-027). Views are private, so this is the
+ * owner's own list, like `listSummaryViews` but for every page at once.
+ */
+export async function listSavedViewOptions(ownerUserId: string): Promise<SavedViewOption[]> {
+  const acct = await getActiveAccountId();
+  return db
+    .select({
+      id: summaryViews.id,
+      name: summaryViews.name,
+      page: summaryViews.page,
+      query: summaryViews.query,
+    })
+    .from(summaryViews)
+    .where(and(eq(summaryViews.accountId, acct), eq(summaryViews.ownerUserId, ownerUserId)))
+    .orderBy(asc(summaryViews.name));
+}

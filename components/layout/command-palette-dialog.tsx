@@ -3,16 +3,25 @@
 import { useMemo } from "react";
 import { useRouter } from "next/navigation";
 import {
+  Bell,
+  Bookmark,
   Hash,
   History,
   Link2,
   Images,
+  MessagesSquare,
   Package,
+  Plug,
   Plus,
   Settings,
   Star,
   Upload,
 } from "lucide-react";
+import { ALL_COMMENTS_TITLE } from "@/lib/activity";
+import { PLATFORM_LABEL } from "@/lib/palette";
+import { PlatformDot } from "@/components/ui/platform-dot";
+import { SAVED_VIEW_PAGE_LABEL, SAVED_VIEW_PATH, savedViewHref } from "@/lib/saved-view-href";
+import type { PaletteLists } from "@/components/layout/command-palette";
 import {
   CommandDialog,
   CommandEmpty,
@@ -22,7 +31,7 @@ import {
   CommandList,
   CommandSeparator,
 } from "@/components/ui/command";
-import { navSections } from "@/components/layout/nav-items";
+import { navSections, qualifiedNavLabel } from "@/components/layout/nav-items";
 import { useNavTransition } from "@/lib/nav-progress";
 import type { Permission } from "@/lib/permissions";
 import {
@@ -34,7 +43,6 @@ import {
   type Gate,
   type GatedTab,
 } from "@/lib/page-gates";
-import type { CreativeOption } from "@/db/queries/creatives";
 
 /** Palette entries for a page's GATED tabs (an open tab is the page itself,
  *  which the nav already lists); only tabs given an icon are offered. */
@@ -81,6 +89,11 @@ const EXTRA_PAGES: Array<{
   ...tabEntries("/admin/catalog", "Configuration", CONFIGURATION_TABS, { rating: Star }),
   // Versions has no sidebar entry (the page header's picker leads there).
   { href: "/price-structure/versions", label: "Price structure · Versions", icon: History, perm: PRICE_STRUCTURE_GATE },
+  // The user-level pages the bell footer and the avatar menu lead to — open to
+  // every member and otherwise unreachable by search (R-001 / A3-20).
+  { href: "/notifications", label: "Notifications", icon: Bell },
+  { href: "/activity", label: ALL_COMMENTS_TITLE, icon: MessagesSquare },
+  { href: "/account/api", label: "API access", icon: Plug },
 ];
 
 /**
@@ -107,11 +120,9 @@ function usePages(granted: string[]) {
         }
         out.push({
           href: item.href,
-          // Section-qualify where the bare label would be ambiguous on its own.
-          label:
-            section.key === "ads" || item.label === section.label
-              ? item.label
-              : `${section.label} · ${item.label}`,
+          // Section-qualify where the bare label would be ambiguous on its own
+          // — the same rule as the collapsed rail's tooltips.
+          label: qualifiedNavLabel(section, item.label),
           icon: item.icon,
         });
       }
@@ -136,21 +147,26 @@ function usePages(granted: string[]) {
 export function CommandPaletteDialog({
   open,
   onOpenChange,
-  creatives,
-  creativesFailed,
-  onRetryCreatives,
+  lists,
+  listsFailed,
+  onRetryLists,
   granted,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** This brand's creatives, or null while the first load is on its way (D13). */
-  creatives: CreativeOption[] | null;
+  /** This brand's creatives, campaigns and the viewer's saved views, or null
+   *  while the first load is on its way (D13). */
+  lists: PaletteLists | null;
   /** The first load failed and there is nothing cached to show. */
-  creativesFailed: boolean;
-  onRetryCreatives: () => void;
+  listsFailed: boolean;
+  onRetryLists: () => void;
   /** The viewer's permission keys — the page list is filtered by them. */
   granted: string[];
 }) {
+  const creatives = lists?.creatives ?? null;
+  const campaigns = lists?.campaigns ?? [];
+  // A view whose page this build doesn't know is skipped, never mis-linked.
+  const views = (lists?.views ?? []).filter((v) => v.page in SAVED_VIEW_PATH);
   const router = useRouter();
   const [, startNav] = useNavTransition();
   const PAGES = usePages(granted);
@@ -164,7 +180,7 @@ export function CommandPaletteDialog({
 
   return (
     <CommandDialog open={open} onOpenChange={onOpenChange}>
-      <CommandInput placeholder="Type a creative name or jump to a page…" />
+      <CommandInput placeholder="Jump to a page, creative or campaign…" />
       <CommandList>
         <CommandEmpty>No matches.</CommandEmpty>
         <CommandGroup heading="Pages">
@@ -183,13 +199,13 @@ export function CommandPaletteDialog({
             panel's wording for the same two states. */}
         {creatives === null && (
           <div className="px-3 py-2 text-xs text-ink-3" aria-live="polite">
-            {creativesFailed ? (
+            {listsFailed ? (
               <>
                 Couldn&rsquo;t load creatives{" "}
                 <span aria-hidden>·</span>{" "}
                 <button
                   type="button"
-                  onClick={onRetryCreatives}
+                  onClick={onRetryLists}
                   className="rounded-sm text-brand hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50"
                 >
                   Retry
@@ -215,6 +231,48 @@ export function CommandPaletteDialog({
                   <Images className="w-3.5 h-3.5" />
                   <span className="font-mono text-xs">{c.name}</span>
                   <span className="ml-auto text-[11px] text-ink-3">{c.productName}</span>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </>
+        )}
+        {/* Campaigns and saved views (R-027) ride the same first-open fetch. */}
+        {campaigns.length > 0 && (
+          <>
+            <CommandSeparator />
+            <CommandGroup heading="Campaigns">
+              {campaigns.map((c) => (
+                <CommandItem
+                  key={c.name}
+                  // "campaign" in the value so typing the noun narrows to them.
+                  value={`campaign ${c.name} ${PLATFORM_LABEL[c.platform]}`}
+                  onSelect={() => go(`/campaigns/${encodeURIComponent(c.name)}`)}
+                >
+                  <PlatformDot platform={c.platform} size="sm" />
+                  <span className="min-w-0 truncate text-xs">{c.name}</span>
+                  <span className="ml-auto shrink-0 text-[11px] text-ink-3">
+                    {PLATFORM_LABEL[c.platform]}
+                  </span>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </>
+        )}
+        {views.length > 0 && (
+          <>
+            <CommandSeparator />
+            <CommandGroup heading="Saved views">
+              {views.map((v) => (
+                <CommandItem
+                  key={v.id}
+                  value={`view ${v.name} ${SAVED_VIEW_PAGE_LABEL[v.page]}`}
+                  onSelect={() => go(savedViewHref(SAVED_VIEW_PATH[v.page]!, v.query, v.id))}
+                >
+                  <Bookmark className="w-3.5 h-3.5" />
+                  <span className="min-w-0 truncate text-xs">{v.name}</span>
+                  <span className="ml-auto shrink-0 text-[11px] text-ink-3">
+                    {SAVED_VIEW_PAGE_LABEL[v.page]}
+                  </span>
                 </CommandItem>
               ))}
             </CommandGroup>

@@ -35,7 +35,7 @@ export function TopBar({
         {/* `min-w-0`: this group yields first when the bar is tight, so the
             brand name truncates rather than the row overflowing (at 375px the
             fixed elements leave ~52px for the name). */}
-        <div className="flex min-w-0 items-center gap-2.5">
+        <div className="flex min-w-0 items-center gap-2 sm:gap-2.5">
           {/* Suspense: MobileNav reads useSearchParams (Budget month links). */}
           <Suspense
             fallback={
@@ -50,7 +50,8 @@ export function TopBar({
           >
             <MobileNav granted={granted} />
           </Suspense>
-          <LogoMark className="h-10 w-auto shrink-0" />
+          {/* h-9 on a phone: 7px of logo buys the brand name room (R-060). */}
+          <LogoMark className="h-9 w-auto shrink-0 sm:h-10" />
           {/* Below sm the logo mark carries the brand on its own — the
               wordmark is the first thing to go when the bar gets tight. */}
           <BrandWordmark className="hidden sm:inline-block text-2xl leading-none" />
@@ -59,7 +60,7 @@ export function TopBar({
         {/* Search · comments · notifications · account. The screenshot and
             theme controls moved INTO the account menu, which is what makes
             this row fit a phone. */}
-        <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+        <div className="flex shrink-0 items-center gap-1.5 sm:gap-3">
           <CommandPalette accountId={activeAccountId} granted={granted} />
           {/* Comments + Activity on an entity's page — HERE only below lg; on
               a desktop they live in the rail at the page's right edge

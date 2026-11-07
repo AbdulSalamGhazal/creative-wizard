@@ -11,7 +11,13 @@ import {
 } from "react";
 import dynamic from "next/dynamic";
 import { usePathname, useSearchParams } from "next/navigation";
-import { Activity, MessageSquare, X } from "lucide-react";
+import { Activity, Check, MessageSquare, X } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -243,6 +249,10 @@ export function PanelToggles({
       open && mode === face ? "border-line bg-surface-2 text-ink" : "border-transparent",
       orientation === "horizontal" && !(open && mode === face) && "border-line",
     );
+  // In the phone top bar the two buttons squeezed the brand switcher to
+  // "Ur…" (R-060): below sm they fold into ONE menu; from sm up, unchanged.
+  const fold = orientation === "horizontal";
+  const active = open ? mode : null;
   return (
     <div
       className={cn(
@@ -251,6 +261,41 @@ export function PanelToggles({
         className,
       )}
     >
+      {fold && (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              onPointerDown={preloadCommentPanel}
+              onFocus={preloadCommentPanel}
+              aria-label="Comments and activity"
+              title="Comments and activity"
+              className={cn(
+                "relative inline-flex h-8 w-8 items-center justify-center rounded-md border border-line text-ink-2 transition-colors hover:bg-surface-2 hover:text-ink sm:hidden",
+                active && "bg-surface-2 text-ink",
+              )}
+            >
+              {active === "activity" ? (
+                <Activity className="h-4 w-4" />
+              ) : (
+                <MessageSquare className="h-4 w-4" />
+              )}
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-44">
+            <DropdownMenuItem onSelect={() => toggleMode("comments")}>
+              <MessageSquare className="h-3.5 w-3.5" />
+              <span className="flex-1">Comments</span>
+              {active === "comments" && <Check className="h-3.5 w-3.5 text-brand" />}
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => toggleMode("activity")}>
+              <Activity className="h-3.5 w-3.5" />
+              <span className="flex-1">Activity</span>
+              {active === "activity" && <Check className="h-3.5 w-3.5 text-brand" />}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
       <button
         type="button"
         onClick={() => toggleMode("comments")}
@@ -259,7 +304,7 @@ export function PanelToggles({
         aria-pressed={open && mode === "comments"}
         aria-label="Comments"
         title="Comments"
-        className={button("comments")}
+        className={cn(button("comments"), fold && "max-sm:hidden")}
       >
         <MessageSquare className="h-4 w-4" />
       </button>
@@ -271,7 +316,7 @@ export function PanelToggles({
         aria-pressed={open && mode === "activity"}
         aria-label="Activity"
         title="Activity"
-        className={button("activity")}
+        className={cn(button("activity"), fold && "max-sm:hidden")}
       >
         <Activity className="h-4 w-4" />
       </button>

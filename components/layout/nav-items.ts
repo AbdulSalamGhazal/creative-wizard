@@ -162,15 +162,6 @@ export const NAV_ITEMS: NavItem[] = [
 
   // ── Store ────────────────────────────────────────────────────────────────
   {
-    // The upload surface (history + new). Prefix-matches /store/uploads/new so
-    // the "Upload orders" item stays highlighted on the new-upload page.
-    href: "/store/uploads",
-    label: "Upload orders",
-    icon: FileUp,
-    group: "store",
-    perms: [...NAV_ROUTE_GATES["/store/uploads"]],
-  },
-  {
     // The orders table — open to any brand member, like the ads data pages.
     href: "/store/orders",
     label: "Orders",
@@ -202,6 +193,17 @@ export const NAV_ITEMS: NavItem[] = [
     label: "Reconciliation",
     icon: Scale,
     group: "store",
+  },
+  {
+    // The upload surface (history + new). LAST in the section, like "Upload
+    // ads" in Ads — read pages first, the ingest tool last (R-094,
+    // 2026-11-07). Prefix-matches /store/uploads/new so the item stays
+    // highlighted on the new-upload page.
+    href: "/store/uploads",
+    label: "Upload orders",
+    icon: FileUp,
+    group: "store",
+    perms: [...NAV_ROUTE_GATES["/store/uploads"]],
   },
 
   // ── Admin ────────────────────────────────────────────────────────────────
@@ -256,6 +258,21 @@ export function navSections(
     label: s.label,
     items: items.filter((i) => i.group === s.key),
   })).filter((s) => s.items.length > 0);
+}
+
+/**
+ * An item's label where it must stand ALONE — the ⌘K palette's page list and
+ * the collapsed rail's tooltip (R-088): section-qualified ("Budget ·
+ * Overview", "Price structure · Plan") except in Ads, the default section, or
+ * where the item already IS the section's name. One rule for both.
+ */
+export function qualifiedNavLabel(
+  section: { key: NavSectionKey; label: string },
+  itemLabel: string,
+): string {
+  return section.key === "ads" || itemLabel === section.label
+    ? itemLabel
+    : `${section.label} · ${itemLabel}`;
 }
 
 /** Whether a nav href matches the current pathname (exact for "/", prefix else). */

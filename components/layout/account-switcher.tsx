@@ -64,11 +64,15 @@ export function AccountSwitcher({ accounts, activeId }: Props) {
           // room: the brand NAME truncates instead of the bar overflowing.
           className="flex min-w-0 items-center gap-1.5 rounded-md border border-line px-2 py-1 text-xs font-medium text-ink-2 hover:text-ink hover:bg-surface-2 transition"
         >
-          <span className="max-w-[140px] truncate">{active.name}</span>
+          {/* A floor under the name (R-060): the brand is the most
+              consequential context in the app, so a crowded phone bar may
+              truncate it but never to "Ur…". The chevron is the first to go
+              below sm — the bordered pill already reads as a control. */}
+          <span className="min-w-[2.75rem] max-w-[140px] truncate">{active.name}</span>
           {pending ? (
             <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
           ) : (
-            <ChevronsUpDown className="w-3.5 h-3.5 shrink-0 opacity-60" />
+            <ChevronsUpDown className="hidden w-3.5 h-3.5 shrink-0 opacity-60 sm:block" />
           )}
         </button>
       </DropdownMenuTrigger>
