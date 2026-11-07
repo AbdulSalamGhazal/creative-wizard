@@ -17,6 +17,7 @@ import { safeAction } from "@/lib/action-failure";
 import { toastActionFailure } from "@/lib/action-toast";
 import type { StoreOrderRow } from "@/db/queries/store";
 import type { StoreField } from "@/store/fields";
+import { EmptyState } from "@/components/ui/empty-state";
 
 const CORE_SORT = new Set(["order_id", "order_date", "total_amount"]);
 
@@ -32,6 +33,7 @@ export function StoreOrdersTable({
   sort,
   dir,
   canUpload,
+  firstUse = false,
   columnPref,
 }: {
   rows: StoreOrderRow[];
@@ -43,6 +45,8 @@ export function StoreOrdersTable({
   sort: SortKey;
   dir: "asc" | "desc";
   canUpload: boolean;
+  /** The brand has no orders at all — the first-use state (R-059). */
+  firstUse?: boolean;
   /** Remembered columns for this user in this brand, resolved server-side. */
   columnPref?: TableColumnPref;
 }) {
@@ -252,21 +256,29 @@ export function StoreOrdersTable({
         showTotals={rows.length > 0}
         minWidthClass="min-w-[720px]"
         empty={
-          <div className="flex flex-col items-center gap-2 py-14 text-center">
-            <ShoppingBag className="h-6 w-6 text-ink-3" />
-            <p className="text-sm text-ink-2">
-              {total === 0 ? "No orders yet" : "No orders match your filters"}
-            </p>
-            {total === 0 && canUpload && (
-              <p className="text-xs text-ink-3">
-                Upload your first Salla export from{" "}
-                <Link href="/store/uploads/new" className="text-ink-2 underline hover:text-ink">
-                  Store → Upload orders
-                </Link>
-                .
-              </p>
-            )}
-          </div>
+          // The ONE EmptyState (R-059): first use offers the upload as the
+          // house action button; otherwise the range or search hid them.
+          firstUse ? (
+            <EmptyState
+              size="lg"
+              icon={<ShoppingBag className="h-5 w-5" />}
+              title="No orders yet"
+              hint={
+                canUpload
+                  ? "Upload a Salla export to see orders."
+                  : "Ask an admin to upload orders."
+              }
+              action={
+                canUpload ? (
+                  <Button asChild size="sm">
+                    <Link href="/store/uploads/new">Upload orders</Link>
+                  </Button>
+                ) : undefined
+              }
+            />
+          ) : (
+            <EmptyState size="lg" title="No orders match these filters." kind="filtered" />
+          )
         }
       />
 

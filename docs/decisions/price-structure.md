@@ -68,7 +68,10 @@ component folder; three grants (view · edit · versions).
   changes the open version's document; `price_structure.versions` creates,
   copies, imports, renames and deletes versions. Edit and versions each imply
   view (`lib/price-structure-access.ts`); none is in the editor preset. The
-  layout and every page need any grant; `saveVersion` compares the request
+  layout and every page need any grant (a member with none sees
+  `AccessRefused`, R-011 — tenancy-auth.md; the layout reads the versions
+  INSIDE its Suspense so entering the module shows its own skeleton, not the
+  Dashboard's, R-076); `saveVersion` compares the request
   with the live row and refuses a document change without `edit` or a
   name/notes change without `versions`; create / delete need `versions`;
   bootstrap, open and poll need any grant. The client only mirrors this — a

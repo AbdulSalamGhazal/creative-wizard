@@ -51,6 +51,7 @@ import {
   type UtmSourceRow,
 } from "@/lib/store-utms";
 import type { UtmSourceDay } from "@/db/queries/store-utms";
+import { EmptyState } from "@/components/ui/empty-state";
 
 type GroupBy = "day" | "week" | "month";
 
@@ -480,7 +481,8 @@ export function UtmSourcesSection({
           dir="desc"
           showTotals
           minWidthClass="min-w-[760px]"
-          empty={<p className="text-sm text-ink-3">No orders in this range.</p>}
+          // The ONE EmptyState (R-059); the page root carries the buttons.
+          empty={<EmptyState title="No orders in this range." kind="range" buttons={false} />}
         />
         {foldedRow && (
           <p className="text-xs text-ink-3">

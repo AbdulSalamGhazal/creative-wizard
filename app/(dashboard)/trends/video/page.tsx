@@ -18,6 +18,7 @@ import { dashboardFiltersSchema } from "@/validators/filters";
 import { pct } from "@/lib/format";
 import { pickFirst } from "@/lib/url";
 import { PLATFORMS_WITH_CREATIVES } from "@/lib/palette";
+import { AdDataGate } from "@/components/ui/no-ad-data-state";
 
 export const dynamic = "force-dynamic";
 
@@ -116,12 +117,14 @@ export default async function TrendsVideoPage({
       <VideoScatter rows={rows} />
 
       {/* Per-video funnel table */}
-      <VideoDiagnosticsTable
-        rows={rows}
-        medianHookRate={medianHookRate}
-        medianHoldRate={medianHoldRate}
-        medianCompleteRate={medianCompleteRate}
-      />
+      <AdDataGate>
+        <VideoDiagnosticsTable
+          rows={rows}
+          medianHookRate={medianHookRate}
+          medianHoldRate={medianHoldRate}
+          medianCompleteRate={medianCompleteRate}
+        />
+      </AdDataGate>
     </PageShell>
   );
 }

@@ -1,7 +1,7 @@
 import { auth, can } from "@/lib/auth";
 import { PageShell } from "@/components/layout/page-shell";
 import { PageHeader } from "@/components/layout/page-header";
-import { listStoreOrders, listStoreFields } from "@/db/queries/store";
+import { brandHasStoreOrders, listStoreOrders, listStoreFields } from "@/db/queries/store";
 import { storeOrdersFiltersSchema } from "@/validators/store";
 import { resolvePreferredRange } from "@/db/queries/user-prefs";
 import { defaultDateRange } from "@/lib/date-presets";
@@ -56,6 +56,9 @@ export default async function StoreOrdersPage({
     // where this used to be a localStorage set per browser.
     resolveTablePrefs([TABLE_KEYS.STORE_ORDERS]),
   ]);
+  // First use vs "the range/search hid them" (R-059) — asked only when the
+  // listing is empty.
+  const firstUse = orders.total === 0 && !(await brandHasStoreOrders());
 
   return (
     <PageShell>
@@ -82,6 +85,7 @@ export default async function StoreOrdersPage({
           sort={f.sort}
           dir={f.dir}
           canUpload={canUpload}
+          firstUse={firstUse}
           columnPref={tablePrefs[TABLE_KEYS.STORE_ORDERS]}
         />
       </div>

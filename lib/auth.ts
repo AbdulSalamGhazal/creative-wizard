@@ -189,3 +189,23 @@ export async function requirePermission(perm: Permission): Promise<SessionUser> 
   }
   return user;
 }
+
+const REFUSAL_PREFIX = "Missing permission: ";
+
+/**
+ * A gate check as a PAGE runs it (R-011, 2026-11-07): the same
+ * `requirePermission` / `requirePriceStructureAccess` the actions use, but a
+ * permission refusal comes back as null so the page renders `AccessRefused`
+ * instead of throwing into the error boundary's "Something went wrong" and a
+ * Try again that can never succeed. Anything else — the sign-in redirect, a
+ * database error — still throws. Actions keep the bare call: a thrown refusal
+ * is their failure channel.
+ */
+export async function refusable<T>(check: () => Promise<T>): Promise<T | null> {
+  try {
+    return await check();
+  } catch (e) {
+    if (e instanceof Error && e.message.startsWith(REFUSAL_PREFIX)) return null;
+    throw e;
+  }
+}

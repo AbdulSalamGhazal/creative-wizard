@@ -1,4 +1,6 @@
-import { requirePriceStructureAccess } from "@/lib/price-structure-access";
+import { requirePriceStructureAccess, VIEW_PERM } from "@/lib/price-structure-access";
+import { refusable } from "@/lib/auth";
+import { AccessRefused } from "@/components/layout/access-refused";
 import { versionNameFor } from "@/db/queries/price-structure";
 import { PageShell } from "@/components/layout/page-shell";
 import { ProductsView } from "@/components/price-structure/products/products-view";
@@ -17,7 +19,9 @@ export async function generateMetadata({ searchParams }: { searchParams: SearchP
 
 /** `/price-structure/products/:productId?/:offerId?` — the selection lives in the path. */
 export default async function Page({ params }: { params: Params }) {
-  await requirePriceStructureAccess();
+  if (!(await refusable(() => requirePriceStructureAccess()))) {
+    return <AccessRefused page="Price structure" perm={VIEW_PERM} />;
+  }
   const { path = [] } = await params;
   return (
     <PageShell>

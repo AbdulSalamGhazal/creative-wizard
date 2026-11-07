@@ -1,4 +1,5 @@
-import { requirePermission } from "@/lib/auth";
+import { refusable, requirePermission } from "@/lib/auth";
+import { AccessRefused } from "@/components/layout/access-refused";
 import { TEAM_GATE } from "@/lib/page-gates";
 import { listAllAccounts } from "@/lib/tenant";
 import { listTeamWithMemberships, managerScope } from "@/db/queries/team";
@@ -27,7 +28,8 @@ interface Props {
  * same guard the actions enforce decides what each row and drawer hides.
  */
 export default async function TeamAdminPage({ searchParams }: Props) {
-  const me = await requirePermission(TEAM_GATE);
+  const me = await refusable(() => requirePermission(TEAM_GATE));
+  if (!me) return <AccessRefused page="Team" perm={TEAM_GATE} />;
   const { member } = await searchParams;
 
   const [team, brands, scope] = await Promise.all([

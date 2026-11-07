@@ -38,6 +38,7 @@ import { toastActionFailure } from "@/lib/action-toast";
 import { useMinuteTick } from "@/lib/use-minute-tick";
 import { NotificationAvatar } from "@/components/notifications/notification-avatar";
 import { ALL_COMMENTS_TITLE } from "@/lib/activity";
+import { Button } from "@/components/ui/button";
 
 interface FeedItem {
   id: string;
@@ -119,6 +120,8 @@ export function NotificationBell({
   const [count, setCount] = useState(0);
   const [items, setItems] = useState<FeedItem[]>([]);
   const [loaded, setLoaded] = useState(false);
+  /** The last load failed and nothing has loaded since (R-095). */
+  const [failed, setFailed] = useState(false);
   /** Unread ids LISTED when this popover opened — they look new until it closes. */
   const [seenNow, setSeenNow] = useState<ReadonlySet<string>>(() => new Set());
   /** Unread the popover did NOT list when it opened (beyond the cap). */
@@ -206,15 +209,23 @@ export function NotificationBell({
   const load = useCallback(async () => {
     try {
       const res = await fetch("/api/notifications", { cache: "no-store" });
-      if (!res.ok) return; // a 401 mid-session: the next navigation redirects
+      // A 401 mid-session: the next navigation redirects. Any non-OK answer
+      // marks the list failed, so the popover never says "Loading…" forever.
+      if (!res.ok) {
+        setFailed(true);
+        return;
+      }
       const data = (await res.json()) as { count: number; items: FeedItem[] };
       const next = data.items ?? [];
       setCount(data.count ?? 0);
       setItems(next);
       setLoaded(true);
+      setFailed(false);
       announce(next);
     } catch {
-      /* offline or navigating away — the next tick tries again */
+      // Offline or navigating away — the next tick tries again; meanwhile
+      // the popover offers a Retry instead of an endless "Loading…" (R-095).
+      setFailed(true);
     }
   }, [announce]);
 
@@ -361,9 +372,20 @@ export function NotificationBell({
         </div>
 
         {items.length === 0 ? (
-          <p className="px-3 py-8 text-center text-xs text-ink-3">
-            {loaded ? "Nothing yet." : "Loading…"}
-          </p>
+          !loaded && failed ? (
+            <div className="px-3 py-8 text-center text-xs text-ink-3" aria-live="polite">
+              Couldn&rsquo;t load notifications
+              <div className="mt-2">
+                <Button type="button" variant="ghost" size="xs" onClick={() => void load()}>
+                  Retry
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <p className="px-3 py-8 text-center text-xs text-ink-3">
+              {loaded ? "Nothing yet." : "Loading…"}
+            </p>
+          )
         ) : (
           <ul className="max-h-[min(24rem,60vh)] divide-y divide-line overflow-y-auto">
             {items.map((item) => {

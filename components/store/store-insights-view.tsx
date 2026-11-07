@@ -53,6 +53,7 @@ import {
 } from "@/lib/store-insights";
 import type { StoreInsightsDay } from "@/db/queries/store-insights";
 import type { BreakdownValue } from "@/lib/store-insights";
+import { EmptyState } from "@/components/ui/empty-state";
 
 type GroupBy = "day" | "week" | "month";
 
@@ -639,12 +640,18 @@ export function StoreInsightsView({
               dir="desc"
               showTotals={!empty}
               minWidthClass="min-w-[720px]"
+              // The ONE EmptyState (R-059); the page-level state carries the
+              // buttons, so this one shows the hint only.
               empty={
-                <p className="text-sm text-ink-3">
-                  {empty
-                    ? "No orders in this range — try a wider date range."
-                    : `No ${dimensionNoun(dimension.label)} values in this range.`}
-                </p>
+                <EmptyState
+                  title={
+                    empty
+                      ? "No orders in this range."
+                      : `No ${dimensionNoun(dimension.label)} values in this range.`
+                  }
+                  kind="range"
+                  buttons={false}
+                />
               }
             />
             {foldedRow && (

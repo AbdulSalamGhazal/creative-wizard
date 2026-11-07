@@ -33,6 +33,7 @@ import { SummaryTable } from "@/components/summary/summary-table";
 import { PageShell } from "@/components/layout/page-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { pickFirst } from "@/lib/url";
+import { AdDataGate } from "@/components/ui/no-ad-data-state";
 
 export const dynamic = "force-dynamic";
 
@@ -224,16 +225,19 @@ export default async function SummaryPage({
         defaultTo={range.to}
       />
 
-      <SummaryTable
-        rows={rows}
-        platforms={selectedPlatforms}
-        hiddenIdentity={new Set(columns.identity)}
-        hiddenMetrics={new Set(columns.metrics)}
-        columnOrder={columnState.order}
-        ratingConfig={ratingConfig}
-        showRate={!columns.rate}
-        showBlended={!columns.blended}
-      />
+      {/* A brand with no records at all gets the first-use state (R-003). */}
+      <AdDataGate>
+        <SummaryTable
+          rows={rows}
+          platforms={selectedPlatforms}
+          hiddenIdentity={new Set(columns.identity)}
+          hiddenMetrics={new Set(columns.metrics)}
+          columnOrder={columnState.order}
+          ratingConfig={ratingConfig}
+          showRate={!columns.rate}
+          showBlended={!columns.blended}
+        />
+      </AdDataGate>
     </PageShell>
   );
 }

@@ -19,6 +19,7 @@ import { dashboardFiltersSchema } from "@/validators/filters";
 import { periodCaption } from "@/lib/period";
 import { pickFirst } from "@/lib/url";
 import { PLATFORMS_WITH_CREATIVES } from "@/lib/palette";
+import { AdDataGate } from "@/components/ui/no-ad-data-state";
 
 export const dynamic = "force-dynamic";
 
@@ -117,7 +118,9 @@ export default async function TrendsByAnglePage({
       <AnglePlatformCompare rows={platformRows} />
 
       {/* Full rollup — sortable, with a column selector */}
-      <AngleRollupTable rows={rows} />
+      <AdDataGate>
+        <AngleRollupTable rows={rows} />
+      </AdDataGate>
     </PageShell>
   );
 }

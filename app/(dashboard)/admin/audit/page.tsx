@@ -2,7 +2,8 @@ import Link from "next/link";
 import { int } from "@/lib/format";
 import { parseAuditBefore } from "@/validators/audit";
 import { Button } from "@/components/ui/button";
-import { requirePermission } from "@/lib/auth";
+import { refusable, requirePermission } from "@/lib/auth";
+import { AccessRefused } from "@/components/layout/access-refused";
 import { AUDIT_GATE } from "@/lib/page-gates";
 import { listAuditEvents, auditCategoryCounts } from "@/db/queries/audit";
 import type { AuditEntityType } from "@/lib/audit";
@@ -67,7 +68,9 @@ function pageHref({ category, before }: { category: string; before: number | und
 }
 
 export default async function AuditPage({ searchParams }: Props) {
-  await requirePermission(AUDIT_GATE);
+  if (!(await refusable(() => requirePermission(AUDIT_GATE)))) {
+    return <AccessRefused page="Audit log" perm={AUDIT_GATE} />;
+  }
   const { category, before: rawBefore } = await searchParams;
   // "Load older" pages by cursor (R-117): events strictly before this id.
   const before = parseAuditBefore(rawBefore);

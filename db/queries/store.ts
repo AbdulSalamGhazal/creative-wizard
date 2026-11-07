@@ -94,6 +94,21 @@ function orderConds(acct: string, f: StoreOrdersFilters): SQL[] {
   return c;
 }
 
+/**
+ * Does the active brand have ANY order? (R-059) An empty Orders table is
+ * "No orders yet" + the upload only when the answer is no; otherwise the
+ * range or search hid them. One probe on an `account_id`-leading index.
+ */
+export async function brandHasStoreOrders(): Promise<boolean> {
+  const acct = await getActiveAccountId();
+  const [row] = await db
+    .select({ id: storeOrders.id })
+    .from(storeOrders)
+    .where(eq(storeOrders.accountId, acct))
+    .limit(1);
+  return row !== undefined;
+}
+
 export async function listStoreOrders(
   f: StoreOrdersFilters,
 ): Promise<StoreOrdersResult> {

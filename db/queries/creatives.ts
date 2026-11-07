@@ -498,6 +498,22 @@ export interface CreativeOption {
 }
 
 /**
+ * Does the active brand have ANY creative? (R-018) The Library's first-use
+ * question: an empty listing with no creatives behind it is "No creatives
+ * yet" with the ways to add one — never "No creatives match these filters".
+ * One probe on an `account_id`-leading index.
+ */
+export const brandHasCreatives = cache(async (): Promise<boolean> => {
+  const acct = await getActiveAccountId();
+  const [row] = await db
+    .select({ id: creatives.id })
+    .from(creatives)
+    .where(eq(creatives.accountId, acct))
+    .limit(1);
+  return row !== undefined;
+});
+
+/**
  * Every creative of the active brand as a picker option (id, name, product),
  * by name — the ONE creative-options read (W3-8: the ⌘K list, the cleanup
  * tool's and the exclusion rules' pickers each used to write it inline).

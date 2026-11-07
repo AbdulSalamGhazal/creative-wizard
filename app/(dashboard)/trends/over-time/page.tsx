@@ -28,6 +28,7 @@ import { PLATFORM_LABEL, ALL_PLATFORMS } from "@/lib/palette";
 import { cn } from "@/lib/utils";
 import { usd, roas } from "@/lib/format";
 import { pickFirst } from "@/lib/url";
+import { AdDataGate } from "@/components/ui/no-ad-data-state";
 
 export const dynamic = "force-dynamic";
 
@@ -235,7 +236,9 @@ export default async function TrendsOverTimePage({
         )}
       </div>
 
-      <ChangeRadar rows={rows} />
+      <AdDataGate>
+        <ChangeRadar rows={rows} />
+      </AdDataGate>
     </PageShell>
   );
 }

@@ -1,4 +1,6 @@
-import { requirePriceStructureAccess } from "@/lib/price-structure-access";
+import { requirePriceStructureAccess, VIEW_PERM } from "@/lib/price-structure-access";
+import { refusable } from "@/lib/auth";
+import { AccessRefused } from "@/components/layout/access-refused";
 import { versionNameFor } from "@/db/queries/price-structure";
 import { PageShell } from "@/components/layout/page-shell";
 import { OverviewView } from "@/components/price-structure/overview/overview-view";
@@ -15,7 +17,9 @@ export async function generateMetadata({ searchParams }: { searchParams: SearchP
 }
 
 export default async function Page() {
-  await requirePriceStructureAccess();
+  if (!(await refusable(() => requirePriceStructureAccess()))) {
+    return <AccessRefused page="Price structure" perm={VIEW_PERM} />;
+  }
   return (
     <PageShell>
       <OverviewView />

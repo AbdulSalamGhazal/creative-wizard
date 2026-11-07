@@ -1,4 +1,4 @@
-import { notFound, redirect } from "next/navigation";
+import { redirect } from "next/navigation";
 import { auth, can } from "@/lib/auth";
 import { CONFIGURATION_TABS, passes } from "@/lib/page-gates";
 import { PageTabs } from "@/components/layout/page-tabs";
@@ -15,6 +15,7 @@ import { brandMembers, routeRecipients } from "@/db/queries/notifications";
 import { listExclusionRules } from "@/db/queries/exclusion-rules";
 import { listCampaignOptions } from "@/db/queries/campaign";
 import { listCreativeOptions } from "@/db/queries/creatives";
+import { AccessRefused } from "@/components/layout/access-refused";
 
 export const dynamic = "force-dynamic";
 
@@ -53,7 +54,10 @@ export default async function CatalogAdminPage({ searchParams }: Props) {
   const tabs = CONFIGURATION_TABS.filter(
     (t) => user && passes(t.perm, (p) => can(user, p)),
   );
-  if (tabs.length === 0) notFound();
+  // No tab this member may configure: say so, in the shell (R-011) — a 404
+  // told them the page doesn't exist. Any one of several grants opens it, so
+  // the hint names none.
+  if (tabs.length === 0) return <AccessRefused page="Configuration" />;
 
   const { tab } = await searchParams;
   // A tab that moved: send the caller to its new home rather than silently

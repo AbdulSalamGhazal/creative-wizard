@@ -14,6 +14,7 @@ import {
 } from "@/validators/canvas";
 import { CanvasFilterBar } from "@/components/canvas/canvas-filter-bar";
 import { CanvasView } from "@/components/canvas/canvas-view";
+import { AdDataGate } from "@/components/ui/no-ad-data-state";
 
 export const dynamic = "force-dynamic";
 
@@ -94,7 +95,9 @@ export default async function CanvasPage({
         effectiveStatuses={statuses}
         includeExcludedDefault={includeExcluded}
       />
-      <CanvasView graph={graph} rangeLabel={presetLabel(range.from, range.to)} />
+      <AdDataGate>
+        <CanvasView graph={graph} rangeLabel={presetLabel(range.from, range.to)} />
+      </AdDataGate>
     </PageShell>
   );
 }

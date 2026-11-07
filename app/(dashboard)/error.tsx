@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { looksLikeDbError } from "@/lib/error-copy";
 
 /**
  * Dashboard route error boundary. Catches unexpected render/data errors in any
@@ -39,9 +40,8 @@ export default function DashboardError({
 
   // A reachability/connection failure (e.g. the database being briefly down)
   // gets calmer, recoverable copy than a genuine bug.
-  const looksLikeDb = /connect|timeout|econnrefused|database|terminat|pool/i.test(
-    error?.message ?? "",
-  );
+  // One heuristic with the global boundary (lib/error-copy, R-039).
+  const looksLikeDb = looksLikeDbError(error?.message);
 
   return (
     <div className="min-h-[60vh] flex items-center justify-center px-6">

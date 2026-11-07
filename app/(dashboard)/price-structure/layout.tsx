@@ -1,9 +1,15 @@
 import { Suspense } from "react";
 import { getActiveAccountId } from "@/lib/tenant";
-import { requirePriceStructureAccess } from "@/lib/price-structure-access";
+import {
+  requirePriceStructureAccess,
+  VIEW_PERM,
+  type PriceStructureAccess,
+} from "@/lib/price-structure-access";
+import { refusable } from "@/lib/auth";
+import { AccessRefused } from "@/components/layout/access-refused";
 import { getLastVersionId, listVersions } from "@/db/queries/price-structure";
 import { VersionProvider } from "@/components/price-structure/version-provider";
-import { HeaderSkeleton } from "@/components/layout/page-skeletons";
+import { HeaderSkeleton, KpiRowSkeleton } from "@/components/layout/page-skeletons";
 
 export const dynamic = "force-dynamic";
 
@@ -21,21 +27,47 @@ export const dynamic = "force-dynamic";
  * `access`, which hides or disables the controls — the actions are the gate.
  */
 export default async function PriceStructureLayout({ children }: { children: React.ReactNode }) {
-  const { user: me, access } = await requirePriceStructureAccess();
-  const acct = await getActiveAccountId();
-  const [rows, lastOpenedId] = await Promise.all([listVersions(acct), getLastVersionId(me.id, acct)]);
+  // A member without any of the three grants is told so, in the app shell
+  // (R-011) — not thrown into the error boundary.
+  const allowed = await refusable(() => requirePriceStructureAccess());
+  if (!allowed) return <AccessRefused page="Price structure" perm={VIEW_PERM} />;
+  const { user: me, access } = allowed;
   return (
-    // The provider reads `?v=` with useSearchParams.
+    // The provider reads `?v=` with useSearchParams. The versions read happens
+    // INSIDE this boundary (R-076): when the layout awaited it, the nearest
+    // boundary was the DASHBOARD's loading.tsx, so entering the module flashed
+    // a filter strip and KPI tiles it doesn't have. Now the layout returns at
+    // once and the module's own shape (the Overview, its landing page) shows.
     <Suspense
       fallback={
         <div className="space-y-6">
           <HeaderSkeleton eyebrow right />
+          <KpiRowSkeleton count={6} cols="grid-cols-2 sm:grid-cols-3 lg:grid-cols-6" />
         </div>
       }
     >
-      <VersionProvider initialRows={rows} lastOpenedId={lastOpenedId} access={access}>
+      <VersionsLoaded userId={me.id} access={access}>
         {children}
-      </VersionProvider>
+      </VersionsLoaded>
     </Suspense>
+  );
+}
+
+/** The brand's versions + the user's last-opened one, then the provider. */
+async function VersionsLoaded({
+  userId,
+  access,
+  children,
+}: {
+  userId: string;
+  access: PriceStructureAccess;
+  children: React.ReactNode;
+}) {
+  const acct = await getActiveAccountId();
+  const [rows, lastOpenedId] = await Promise.all([listVersions(acct), getLastVersionId(userId, acct)]);
+  return (
+    <VersionProvider initialRows={rows} lastOpenedId={lastOpenedId} access={access}>
+      {children}
+    </VersionProvider>
   );
 }

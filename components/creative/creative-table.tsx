@@ -102,11 +102,14 @@ export function CreativeTable({
   rows: serverRows,
   total,
   listCtx: serverListCtx,
+  firstUse,
 }: {
   rows: CreativeListRow[];
   /** Total matching across the filter (for the "Showing N of M" count). */
   total?: number;
   listCtx?: string;
+  /** The brand has no creatives at all: the first-use state (R-018). */
+  firstUse?: React.ReactNode;
 }) {
   const router = useRouter();
   const [, startNav] = useNavTransition();
@@ -313,7 +316,11 @@ export function CreativeTable({
         onSort={onSort}
         onRowClick={(r) => startNav(() => router.push(detailHref(r)))}
         minWidthClass="min-w-[900px]"
-        empty={<EmptyState size="lg" title="No creatives match these filters." kind="filters" />}
+        empty={
+          firstUse ?? (
+            <EmptyState size="lg" title="No creatives match these filters." kind="filters" />
+          )
+        }
       />
     </div>
   );

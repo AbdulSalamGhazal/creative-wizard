@@ -101,6 +101,23 @@ export const platformSpendFreshness = cache(
 );
 
 /**
+ * Does the active brand have ANY performance record at all? (R-003, 2026-11-07)
+ * The analytics pages' first-use question: a brand with none is told the data
+ * comes from an ads upload instead of "try a wider date range", which loops.
+ * One indexed probe (`account_id` leads the record indexes), once per request.
+ * Deliberately ignores Excluded and every filter — it asks about the brand.
+ */
+export const brandHasAdData = cache(async (): Promise<boolean> => {
+  const acct = await getActiveAccountId();
+  const [row] = await db
+    .select({ id: performanceRecords.id })
+    .from(performanceRecords)
+    .where(eq(performanceRecords.accountId, acct))
+    .limit(1);
+  return row !== undefined;
+});
+
+/**
  * The three status datasets for the active brand, once per request.
  *
  * NEVER add another direct status scan alongside this — derive from it. (The

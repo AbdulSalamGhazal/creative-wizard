@@ -25,6 +25,7 @@ import { CampaignFunnelTable } from "@/components/funnel/campaign-funnel-table";
 import { dashboardFiltersSchema } from "@/validators/filters";
 import { pickFirst } from "@/lib/url";
 import { PLATFORMS_WITH_CREATIVES } from "@/lib/palette";
+import { AdDataGate } from "@/components/ui/no-ad-data-state";
 
 export const dynamic = "force-dynamic";
 
@@ -152,7 +153,9 @@ export default async function FunnelPage({
         <h2 className="text-label text-ink-3">
           By campaign · {campaigns.length} campaign{campaigns.length === 1 ? "" : "s"}
         </h2>
-        <CampaignFunnelTable rows={campaigns} from={from} to={to} />
+        <AdDataGate>
+          <CampaignFunnelTable rows={campaigns} from={from} to={to} />
+        </AdDataGate>
       </div>
     </PageShell>
   );

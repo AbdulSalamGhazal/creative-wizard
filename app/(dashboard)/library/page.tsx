@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { listCreatives, listAllAngles } from "@/db/queries/creatives";
+import { brandHasCreatives, listCreatives, listAllAngles } from "@/db/queries/creatives";
 import { listAngles } from "@/db/queries/angles";
 import { ProductsAdmin } from "@/components/product/products-admin";
 import { AnglesTable } from "@/components/angle/angles-table";
@@ -23,6 +23,7 @@ import { CreativeStatusSummary } from "@/components/creative/creative-status-sum
 import { resolveFilterPrefs, resolveIncludeExcluded } from "@/db/queries/user-prefs";
 import { VIEW_MARKER_PARAM } from "@/validators/user-prefs";
 import { pickFirst } from "@/lib/url";
+import { LibraryFirstUse } from "@/components/creative/library-first-use";
 
 export const dynamic = "force-dynamic";
 
@@ -176,6 +177,14 @@ export default async function CreativesPage({
   }
   const listCtx = ctxParams.toString();
 
+  // An empty listing over a brand with NO creatives is first use (R-018), not
+  // "no match" — asked only when the listing is empty, so it costs nothing on
+  // a normal visit.
+  const firstUse =
+    listResult.totalMatching === 0 && !(await brandHasCreatives()) ? (
+      <LibraryFirstUse canCreate={can(user, "creative.create")} />
+    ) : undefined;
+
   return (
     <PageShell>
       <LibraryHeader canCreate={can(user, "creative.create")} />
@@ -200,6 +209,7 @@ export default async function CreativesPage({
           rows={listResult.rows}
           total={listResult.totalMatching}
           listCtx={listCtx}
+          firstUse={firstUse}
         />
       ) : (
         <div className="space-y-2">
@@ -207,7 +217,7 @@ export default async function CreativesPage({
             Showing {listResult.rows.length} of {listResult.totalMatching}{" "}
             creatives
           </p>
-          <CreativeGrid rows={listResult.rows} listCtx={listCtx} />
+          <CreativeGrid rows={listResult.rows} listCtx={listCtx} firstUse={firstUse} />
         </div>
       )}
     </PageShell>

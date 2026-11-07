@@ -8,9 +8,12 @@ import { EmptyState } from "@/components/ui/empty-state";
 export function CreativeGrid({
   rows: serverRows,
   listCtx: serverListCtx,
+  firstUse,
 }: {
   rows: CreativeListRow[];
   listCtx?: string;
+  /** The brand has no creatives at all: the first-use state (R-018). */
+  firstUse?: React.ReactNode;
 }) {
   // The URL's order, re-applied here so a shallow sort (D12) re-orders the
   // cards without a server render.
@@ -18,7 +21,7 @@ export function CreativeGrid({
   if (rows.length === 0) {
     return (
       // The table view's twin, word for word (C-20: they disagreed).
-      <EmptyState size="lg" title="No creatives match these filters." kind="filters" />
+      firstUse ?? <EmptyState size="lg" title="No creatives match these filters." kind="filters" />
     );
   }
   return (

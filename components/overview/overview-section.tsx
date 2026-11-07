@@ -51,6 +51,7 @@ import {
   type RatingRow,
 } from "@/components/charts/rating-mix-bars";
 import { PLATFORM_COLOR, PLATFORM_LABEL, swatchColor } from "@/lib/palette";
+import { AdDataGate } from "@/components/ui/no-ad-data-state";
 
 
 const CAMPAIGN_LINE_LIMIT = 6;
@@ -325,7 +326,9 @@ export async function OverviewSection({
           COLUMNS control is in the table's header row, like every table) */}
       <Card>
         <CardContent>
-          <TopCreativesTable rows={topRows} from={rangeFrom} to={rangeTo} />
+          <AdDataGate>
+            <TopCreativesTable rows={topRows} from={rangeFrom} to={rangeTo} />
+          </AdDataGate>
         </CardContent>
       </Card>
     </section>

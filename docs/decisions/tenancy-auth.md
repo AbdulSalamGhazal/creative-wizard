@@ -25,6 +25,13 @@
   pre-empts before any tenant query runs.
 - Permissions DERIVE from `PERMISSION_GROUPS`; every mutating action or route
   calls `requirePermission`. **UI gating is UX-only** — the server is the gate.
+- **A gated PAGE refuses in words, not with a crash (R-011, 2026-11-07).** It
+  runs the same check through `refusable(() => requirePermission(…))` (or
+  `requirePriceStructureAccess()`), and a refusal renders `AccessRefused`
+  (components/layout/access-refused.tsx) inside the app shell: "You don't
+  have access to «Team»", the permission to ask for in the Team page's own
+  words, and "Go to Dashboard". Configuration refuses the same way (it used
+  to 404). Actions keep the bare throw — the failure toast is their channel.
 - **Below admin, "Manage users & access" works WITHIN the manager's own
   access (D1, 2026-10-23).** ONE guard — `teamGuard` in `lib/team-guard.ts`
   — runs on every Team write: invite, access (role + permissions), brands,

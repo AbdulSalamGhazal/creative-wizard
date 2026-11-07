@@ -22,6 +22,7 @@ import {
   type CompareSide,
 } from "@/validators/compare";
 import { pickFirst } from "@/lib/url";
+import { AdDataGate } from "@/components/ui/no-ad-data-state";
 
 export const dynamic = "force-dynamic";
 
@@ -180,13 +181,15 @@ export default async function ComparePage({
           </h2>
         </CardHeader>
         <CardContent>
-          <CompareTotalsTable
-            sides={parsed.sides.map((s, i) => ({
-              label: s.label,
-              selection: sideSummary(s),
-              totals: totals[i]!,
-            }))}
-          />
+          <AdDataGate>
+            <CompareTotalsTable
+              sides={parsed.sides.map((s, i) => ({
+                label: s.label,
+                selection: sideSummary(s),
+                totals: totals[i]!,
+              }))}
+            />
+          </AdDataGate>
         </CardContent>
       </Card>
     </PageShell>

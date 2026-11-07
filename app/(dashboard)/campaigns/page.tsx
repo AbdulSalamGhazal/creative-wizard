@@ -38,6 +38,7 @@ import { PageHeader } from "@/components/layout/page-header";
 import { FilterBarSkeleton } from "@/components/layout/page-skeletons";
 import { pickFirst } from "@/lib/url";
 import { defaultDateRange } from "@/lib/date-presets";
+import { AdDataGate } from "@/components/ui/no-ad-data-state";
 
 export const dynamic = "force-dynamic";
 
@@ -167,13 +168,15 @@ export default async function CampaignsPage({
         />
       </Suspense>
 
-      <PortfolioTable
-        rows={campaigns}
-        sort={parsed.sort}
-        dir={parsed.dir}
-        hidden={columns.hidden}
-        order={columns.order}
-      />
+      <AdDataGate>
+        <PortfolioTable
+          rows={campaigns}
+          sort={parsed.sort}
+          dir={parsed.dir}
+          hidden={columns.hidden}
+          order={columns.order}
+        />
+      </AdDataGate>
     </PageShell>
   );
 }
