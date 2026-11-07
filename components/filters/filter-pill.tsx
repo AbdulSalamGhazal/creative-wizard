@@ -143,7 +143,10 @@ export function ExcludedToggle({
   );
 }
 
-/** Shared search input — one width (w-64) and focus style across every bar. */
+/**
+ * Shared search input — one width and focus style across every bar: its own
+ * full line on a phone (it can't share a 327px row anyway), 256px from sm up.
+ */
 export function FilterSearch({
   value,
   onChange,
@@ -156,7 +159,7 @@ export function FilterSearch({
   fullWidth?: boolean;
 }) {
   return (
-    <div className={cn("relative", fullWidth && "w-full")}>
+    <div className={cn("relative", fullWidth ? "w-full" : "w-full sm:w-auto")}>
       <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-ink-3 pointer-events-none" />
       <input
         type="search"
@@ -166,7 +169,7 @@ export function FilterSearch({
         className={cn(
           "h-8 pl-8 pr-3 rounded-md border border-line bg-surface text-xs text-ink",
           "placeholder:text-ink-3 outline-none focus:border-brand",
-          fullWidth ? "w-full" : "w-64",
+          fullWidth ? "w-full" : "w-full sm:w-64",
         )}
       />
     </div>

@@ -236,3 +236,25 @@ export function decodePreferredRange(
   const preset = DATE_PRESETS.find((p) => p.key === raw);
   return preset?.range(today) ?? null;
 }
+
+/**
+ * The same-length window one step back (`-1`) or forward (`1`) — the date
+ * picker's ‹ › (R-087): "Last 7 days" → the 7 days before them, the period a
+ * KPI delta compares against. Null when there is no such step: a step forward
+ * that would end after `today` (no data lives there), or a range starting at
+ * the Lifetime floor (there is nothing before it).
+ */
+export function stepRange(
+  range: DateRangeValue,
+  dir: -1 | 1,
+  today: string,
+): DateRangeValue | null {
+  if (!explicitRange(range.from, range.to)) return null;
+  if (dir === -1 && range.from <= LIFETIME_FLOOR) return null;
+  const from = new Date(`${range.from}T00:00:00Z`).getTime();
+  const to = new Date(`${range.to}T00:00:00Z`).getTime();
+  const days = Math.round((to - from) / 86_400_000) + 1;
+  const next = { from: shiftIso(range.from, dir * days), to: shiftIso(range.to, dir * days) };
+  if (next.to > today) return null;
+  return next;
+}

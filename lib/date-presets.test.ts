@@ -5,7 +5,37 @@ import {
   encodePreferredRange,
   LIFETIME_FLOOR,
   shiftIso,
+  stepRange,
 } from "@/lib/date-presets";
+
+describe("stepRange (the picker's ‹ ›)", () => {
+  const today = "2026-06-10";
+  it("steps back by the range's own length", () => {
+    expect(stepRange({ from: "2026-06-03", to: "2026-06-09" }, -1, today)).toEqual({
+      from: "2026-05-27",
+      to: "2026-06-02",
+    });
+  });
+  it("steps forward when the window still ends by today", () => {
+    expect(stepRange({ from: "2026-05-27", to: "2026-06-02" }, 1, today)).toEqual({
+      from: "2026-06-03",
+      to: "2026-06-09",
+    });
+  });
+  it("refuses a step forward past today", () => {
+    expect(stepRange({ from: "2026-06-03", to: "2026-06-09" }, 1, today)).toBeNull();
+  });
+  it("refuses to step back from the Lifetime floor, and refuses a bad range", () => {
+    expect(stepRange({ from: LIFETIME_FLOOR, to: today }, -1, today)).toBeNull();
+    expect(stepRange({ from: "2026-06-09", to: "2026-06-03" }, -1, today)).toBeNull();
+  });
+  it("a one-day range steps one day", () => {
+    expect(stepRange({ from: "2026-06-09", to: "2026-06-09" }, -1, today)).toEqual({
+      from: "2026-06-08",
+      to: "2026-06-08",
+    });
+  });
+});
 
 // Fixed "today" so preset math is deterministic. "Last N days" end YESTERDAY.
 const TODAY = "2026-06-10";

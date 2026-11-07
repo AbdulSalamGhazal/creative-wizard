@@ -69,7 +69,8 @@ export function FilterShell({
 }: {
   filters: readonly FilterDef[];
   /**
-   * Tier 1, rendered inline in the bar at every width (it wraps on a phone).
+   * Tier 1, rendered inline in the bar (it wraps on a phone; secondary view
+   * controls fold into ⋯ there through `PhoneOverflow`, R-004).
    * `fullWidth` is kept for the controls that take it and is always false now
    * that there is no stacked sheet.
    */
@@ -107,7 +108,12 @@ export function FilterShell({
   ]);
 
   return (
-    <div className="sticky top-14 z-10 -mx-6 space-y-2 border-b border-line bg-background/95 px-6 py-3 backdrop-blur">
+    // PHONE (below sm, user-approved 2026-11-07, audit R-004): the bar is NOT
+    // sticky — wrapped to three or four rows it covered a third of an 812px
+    // screen — and the chips row is one sideways-scrolling line. Secondary
+    // view/table controls fold into a ⋯ menu (`PhoneOverflow`). From sm up the
+    // bar is unchanged.
+    <div className="relative z-10 -mx-6 space-y-2 border-b border-line bg-background/95 px-6 py-3 backdrop-blur sm:sticky sm:top-14">
       <div className="flex flex-wrap items-center gap-2">
         {tier1?.({ fullWidth: false })}
         {/* ZERO-DEF PAGES (Store orders, Pacing, Reconciliation): the same bar
@@ -126,11 +132,12 @@ export function FilterShell({
       {notes}
 
       {chips.length > 0 && (
-        <div className="flex flex-wrap items-center gap-1.5">
+        // Phone: one sideways-scrolling line (`relative` keeps it a scroll box).
+        <div className="relative -mx-6 flex flex-nowrap items-center gap-1.5 overflow-x-auto px-6 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">
           {chips.map((chip) => (
             <span
               key={chip.key}
-              className="inline-flex h-6 max-w-[16rem] items-center gap-1 rounded-md border border-brand/40 bg-brand-soft pl-2 pr-1 text-[11px] text-ink"
+              className="inline-flex h-6 max-w-[16rem] shrink-0 items-center gap-1 rounded-md border border-brand/40 bg-brand-soft pl-2 pr-1 text-[11px] text-ink"
             >
               <span className="truncate" title={chip.label}>
                 {chip.label}
@@ -149,7 +156,7 @@ export function FilterShell({
           <button
             type="button"
             onClick={clear}
-            className="inline-flex h-6 items-center gap-1 rounded-md px-2 text-[11px] text-ink-3 transition-colors hover:bg-surface-2 hover:text-ink"
+            className="inline-flex h-6 shrink-0 items-center gap-1 whitespace-nowrap rounded-md px-2 text-[11px] text-ink-3 transition-colors hover:bg-surface-2 hover:text-ink"
           >
             <X className="h-3 w-3" />
             Clear filters
@@ -336,7 +343,7 @@ const FilterListRow = function FilterListRow({
       ref={ref}
       onClick={drills ? onDrill : undefined}
       aria-haspopup={drills ? "dialog" : "listbox"}
-      className="flex w-full items-center gap-3 border-b border-line px-4 py-3 text-left transition-colors last:border-b-0 hover:bg-surface-2 focus-visible:bg-surface-2 focus-visible:outline-none"
+      className="flex w-full items-center gap-3 border-b border-line px-4 py-3 text-left transition-colors last:border-b-0 hover:bg-surface-2 focus-visible:bg-surface-2 focus-visible:-outline-offset-2"
     >
       {reserveIcon && (
         // Muted and fixed-width: the icon is a landmark for the row, not a

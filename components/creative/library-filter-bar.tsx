@@ -7,7 +7,7 @@ import {
   Table as TableIcon,
 } from "lucide-react";
 import { ALL_PLATFORMS, TYPE_OPTIONS } from "@/lib/palette";
-import { useEffect, useRef, useState } from "react";
+import { useDebouncedSearchParam } from "@/components/filters/use-debounced-search-param";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { FilterSearch } from "@/components/filters/filter-pill";
 import { FilterShell } from "@/components/filters/filter-shell";
+import { PhoneOverflow } from "@/components/filters/phone-overflow";
 import { PlatformsPill } from "@/components/filters/platforms-pill";
 import { useFilterParams } from "@/components/filters/use-filter-params";
 import type { FilterDef } from "@/components/filters/filter-model";
@@ -130,36 +131,13 @@ export function LibraryFilterBar({
   const viewParam = (searchParams.get("view") ?? "table") as CreativeView;
   const view = creativeViewValues.includes(viewParam) ? viewParam : "table";
 
-  // Local search input state so typing feels instant; we push to URL on debounce.
-  // The input is the source of truth while typing — we only adopt a `q` change
-  // we DIDN'T originate (Clear, back/forward), tracking our own debounced writes
-  // so a late-landing navigation can't reset the field and eat typed characters.
-  const urlQ = searchParams.get("q") ?? "";
-  const [qInput, setQInput] = useState(urlQ);
-  const pendingQPushes = useRef<Set<string>>(new Set());
-  useEffect(() => {
-    if (pendingQPushes.current.has(urlQ)) {
-      pendingQPushes.current.delete(urlQ);
-      return;
-    }
-    pendingQPushes.current.clear();
-    setQInput(urlQ);
-  }, [urlQ]);
-
-  // Debounce search input → URL. Compare the TRIMMED value so a trailing space
-  // doesn't loop a no-op write; record the push so the URL echo is ignored.
-  useEffect(() => {
-    const trimmed = qInput.trim();
-    if (trimmed === urlQ) return;
-    const id = setTimeout(() => {
-      pendingQPushes.current.add(trimmed);
-      update((next) => {
-        if (trimmed) next.set("q", trimmed);
-        else next.delete("q");
-      });
-    }, 250);
-    return () => clearTimeout(id);
-  }, [qInput, urlQ, update]);
+  // Debounced `?q=` (the shared hook: instant typing, echo-guarded writes).
+  const [qInput, setQInput] = useDebouncedSearchParam(searchParams.get("q") ?? "", (trimmed) =>
+    update((next) => {
+      if (trimmed) next.set("q", trimmed);
+      else next.delete("q");
+    }),
+  );
 
   /** The shell hands back the WHOLE next value of a multi filter. */
   const writeMulti = (key: string, values: readonly string[]) =>
@@ -328,8 +306,11 @@ export function LibraryFilterBar({
       toolbar={({ fullWidth }) => (
         <>
           {/* TABLE + data-scope controls — never filters, so Clear skips them. */}
-          {sortControl(fullWidth)}
-          {viewToggle}
+          {/* Phone: Sort and the grid/table switch fold into ⋯ (R-004). */}
+          <PhoneOverflow>
+            {sortControl(fullWidth)}
+            {viewToggle}
+          </PhoneOverflow>
           <ExcludedParamToggle on={includeExcluded} fullWidth={fullWidth} />
         </>
       )}

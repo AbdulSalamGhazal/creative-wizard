@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useDebouncedSearchParam } from "@/components/filters/use-debounced-search-param";
 import { DateRangePicker } from "@/components/filters/date-range-picker";
 import type { DateRangeValue } from "@/lib/date-presets";
 import { FilterSearch } from "@/components/filters/filter-pill";
@@ -27,8 +27,7 @@ export function StoreFilterBar({
   resolvedRange: DateRangeValue;
   q: string;
 }) {
-  const { update } = useFilterParams();
-  const [qLocal, setQLocal] = useState(q);
+  const { update, searchParams } = useFilterParams();
 
   /** Any filter change → back to page 1. */
   const write = (mutate: (p: URLSearchParams) => void) =>
@@ -37,23 +36,15 @@ export function StoreFilterBar({
       next.delete("page");
     });
 
-  // Debounce the search box (250ms) before writing `?q=`.
-  const first = useRef(true);
-  useEffect(() => {
-    if (first.current) {
-      first.current = false;
-      return;
-    }
-    const t = setTimeout(() => {
-      write((p) => {
-        const v = qLocal.trim();
-        if (v) p.set("q", v);
-        else p.delete("q");
-      });
-    }, 250);
-    return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [qLocal]);
+  // Debounced `?q=` (250ms) — the shared hook, so a late navigation can't eat
+  // typed characters and Back/Forward re-reads the URL. Before the first
+  // render the server's parsed `q` stands in for the URL.
+  const [qLocal, setQLocal] = useDebouncedSearchParam(searchParams.get("q") ?? q, (v) =>
+    write((p) => {
+      if (v) p.set("q", v);
+      else p.delete("q");
+    }),
+  );
 
   return (
     <FilterShell

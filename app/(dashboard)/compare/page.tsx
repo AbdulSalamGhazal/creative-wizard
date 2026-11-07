@@ -15,7 +15,7 @@ import { CompareChart } from "@/components/charts/compare-chart";
 import { CompareTotalsTable } from "@/components/compare/compare-totals-table";
 import { PageShell } from "@/components/layout/page-shell";
 import { PageHeader } from "@/components/layout/page-header";
-import { resolveIncludeExcluded } from "@/db/queries/user-prefs";
+import { resolveIncludeExcluded, resolvePreferredRange } from "@/db/queries/user-prefs";
 import {
   compareFiltersSchema,
   sideIsEmpty,
@@ -88,9 +88,16 @@ export default async function ComparePage({
     pickFirst(params.includeExcluded),
   );
 
-  // Each side runs over its own window when set, else the shared one (the
-  // validator guarantees the shared from/to are always concrete).
-  const sharedRange = { from: parsed.from, to: parsed.to };
+  // Each side runs over its own window when set, else the shared one — which
+  // resolves like every other range page (R-067): URL → the user's saved
+  // range → last 7 days. RAW params, never the validator's defaulted output,
+  // or the saved range could never apply.
+  const urlFrom = pickFirst(params.from) ?? null;
+  const urlTo = pickFirst(params.to) ?? null;
+  const sharedRange = await resolvePreferredRange(urlFrom, urlTo, {
+    from: parsed.from,
+    to: parsed.to,
+  });
   const effRange = (s: CompareSide) =>
     s.from && s.to ? { from: s.from, to: s.to } : sharedRange;
   const sideFilters = parsed.sides.map((s) =>
@@ -142,8 +149,9 @@ export default async function ComparePage({
       <CompareControls
         dimensions={dimensions}
         sides={parsed.sides}
-        from={parsed.from ?? null}
-        to={parsed.to ?? null}
+        from={urlFrom}
+        to={urlTo}
+        range={sharedRange}
         includeExcluded={includeExcluded}
       />
 

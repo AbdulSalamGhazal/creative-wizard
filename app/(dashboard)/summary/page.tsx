@@ -196,19 +196,6 @@ export default async function SummaryPage({
 
   return (
     <PageShell>
-      <SummaryFilterBar
-        resolvedFilters={pref}
-          includeExcludedDefault={includeExcluded}
-        products={products}
-        angles={angles}
-        effectivePlatforms={selectedPlatforms}
-        views={views}
-        currentUserId={user.id}
-        isAdmin={user.role === "admin"}
-        defaultFrom={range.from}
-        defaultTo={range.to}
-      />
-
       <PageHeader
         title="Ads"
         subtitle={
@@ -220,6 +207,21 @@ export default async function SummaryPage({
             {platformsLabel}
           </>
         }
+      />
+
+      {/* Header first, then the bar — the order every FilterShell page uses
+          (R-043). */}
+      <SummaryFilterBar
+        resolvedFilters={pref}
+        includeExcludedDefault={includeExcluded}
+        products={products}
+        angles={angles}
+        effectivePlatforms={selectedPlatforms}
+        views={views}
+        currentUserId={user.id}
+        isAdmin={user.role === "admin"}
+        defaultFrom={range.from}
+        defaultTo={range.to}
       />
 
       <SummaryTable

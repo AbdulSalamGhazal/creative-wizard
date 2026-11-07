@@ -25,6 +25,7 @@ import { useTableColumns } from "@/components/ui/use-table-columns";
 import { TABLE_KEYS } from "@/lib/table-columns";
 import { PlatformsPill } from "@/components/filters/platforms-pill";
 import { FilterShell } from "@/components/filters/filter-shell";
+import { DesktopOnly, PhoneMoreMenu } from "@/components/filters/phone-overflow";
 import type { FilterDef } from "@/components/filters/filter-model";
 import { useFilterParams } from "@/components/filters/use-filter-params";
 import { DateRangePicker } from "@/components/filters/date-range-picker";
@@ -1430,6 +1431,20 @@ export function BudgetPacing({
   const allPlatformsOnly =
     "All-platforms only — revenue isn't attributed to platforms";
 
+  const splitControl = (
+    <SegmentedControl<PacingSplit>
+      ariaLabel="Split by"
+      value={split}
+      onChange={(v) => setParams({ split: v === "none" ? null : v })}
+      options={[
+        { value: "none", label: "None" },
+        { value: "platform", label: "Platform" },
+        { value: "objective", label: "Objective" },
+      ]}
+    />
+  );
+  const currencyControl = <CurrencyToggle currency={currency} onChange={pickCurrency} />;
+
   return (
     <div className="space-y-4">
       {/* Controls — deliberately wrapping: on a phone they stack into rows
@@ -1475,20 +1490,16 @@ export function BudgetPacing({
             />
 
             {/* Split by: none · platform · objective. A VIEW control, not a
-                filter (Clear never touches it), remembered per user. */}
-            <SegmentedControl<PacingSplit>
-              ariaLabel="Split by"
-              value={split}
-              onChange={(v) => setParams({ split: v === "none" ? null : v })}
-              options={[
-                { value: "none", label: "None" },
-                { value: "platform", label: "Platform" },
-                { value: "objective", label: "Objective" },
-              ]}
-            />
+                filter (Clear never touches it), remembered per user. On a
+                phone it folds into ⋯ with the currency switch (R-004). */}
+            <DesktopOnly>{splitControl}</DesktopOnly>
+            <PhoneMoreMenu>
+              {splitControl}
+              {currencyControl}
+            </PhoneMoreMenu>
           </>
         )}
-        toolbar={() => <CurrencyToggle currency={currency} onChange={pickCurrency} />}
+        toolbar={() => <DesktopOnly>{currencyControl}</DesktopOnly>}
         notes={
           <>
             {metricLocked && (

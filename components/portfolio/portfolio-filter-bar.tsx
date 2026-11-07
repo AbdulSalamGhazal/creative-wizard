@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo } from "react";
+import { useDebouncedSearchParam } from "@/components/filters/use-debounced-search-param";
 import { DateRangePicker } from "@/components/filters/date-range-picker";
 import { ExcludedToggle, FilterSearch } from "@/components/filters/filter-pill";
 import { FilterShell } from "@/components/filters/filter-shell";
@@ -72,31 +73,16 @@ export function PortfolioFilterBar({
   );
   const qParam = searchParams.get("q") ?? "";
 
-  // Debounced campaign search. The input is the source of truth while typing;
-  // we only adopt a `q` change we DIDN'T originate (Clear, back/forward) so a
-  // late-landing navigation can't reset the field and eat typed characters.
-  const [qLocal, setQLocal] = useState(qParam);
-  const pendingQPushes = useRef<Set<string>>(new Set());
-  useEffect(() => {
-    if (pendingQPushes.current.has(qParam)) {
-      pendingQPushes.current.delete(qParam);
-      return;
-    }
-    pendingQPushes.current.clear();
-    setQLocal(qParam);
-  }, [qParam]);
-  useEffect(() => {
-    const trimmed = qLocal.trim();
-    if (trimmed === qParam) return;
-    const t = setTimeout(() => {
-      pendingQPushes.current.add(trimmed);
+  // Debounced campaign search — the shared hook (echo-guarded writes).
+  const [qLocal, setQLocal] = useDebouncedSearchParam(
+    qParam,
+    (trimmed) =>
       update((next) => {
         if (trimmed) next.set("q", trimmed);
         else next.delete("q");
-      });
-    }, 300);
-    return () => clearTimeout(t);
-  }, [qLocal, qParam, update]);
+      }),
+    300,
+  );
 
   const setRange = (f: string | null, t: string | null) => {
     update((next) => {

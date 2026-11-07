@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useDebouncedSearchParam } from "@/components/filters/use-debounced-search-param";
 import { useFilterParams } from "@/components/filters/use-filter-params";
 import { DropdownMenuCheckboxItem } from "@/components/ui/dropdown-menu";
 import { PlatformsPill } from "@/components/filters/platforms-pill";
@@ -144,43 +145,15 @@ export function SummaryFilterBar({
     if (parsedStatus?.scope) setStatusScope(parsedStatus.scope);
   }, [parsedStatus?.scope]);
 
-  const urlQ = searchParams.get("q") ?? "";
-  const [qInput, setQInput] = useState(urlQ);
-  // The search input is the source of truth while the user types; the URL `q` is
-  // just a debounced side effect. We must NOT mirror the URL back into the input
-  // for our own writes — a navigation that lands a few keystrokes late would
-  // otherwise reset the field and eat the characters typed since. So we track
-  // the values we've pushed and only adopt a `q` change that we DIDN'T originate
-  // (Clear, a saved view, browser back/forward).
-  const pendingQPushes = useRef<Set<string>>(new Set());
-  useEffect(() => {
-    if (pendingQPushes.current.has(urlQ)) {
-      // Our own debounced write echoing back — consume it, keep the (possibly
-      // newer) text the user has typed in the meantime.
-      pendingQPushes.current.delete(urlQ);
-      return;
-    }
-    // Genuine external change → adopt it and drop any of our now-stale writes.
-    pendingQPushes.current.clear();
-    setQInput(urlQ);
-  }, [urlQ]);
-
-  // Debounce search → URL. Compare the TRIMMED input against the URL so a
-  // trailing space the user just typed doesn't loop a no-op write.
-  useEffect(() => {
-    const trimmed = qInput.trim();
-    if (trimmed === urlQ) return;
-    const id = setTimeout(() => {
-      // Record the value before navigating so the URL echo above is recognised
-      // as ours and doesn't clobber the input.
-      pendingQPushes.current.add(trimmed);
-      update((next) => {
-        if (trimmed) next.set("q", trimmed);
-        else next.delete("q");
-      });
-    }, 250);
-    return () => clearTimeout(id);
-  }, [qInput, urlQ, update]);
+  // Debounced `?q=` (the shared hook: instant typing, echo-guarded writes —
+  // a late-landing navigation can't eat typed characters, and Clear, a saved
+  // view or Back/Forward is adopted).
+  const [qInput, setQInput] = useDebouncedSearchParam(searchParams.get("q") ?? "", (trimmed) =>
+    update((next) => {
+      if (trimmed) next.set("q", trimmed);
+      else next.delete("q");
+    }),
+  );
 
   /**
    * Platform toggle with hard cap. Selecting a 4th platform when 3 are
@@ -406,7 +379,6 @@ export function SummaryFilterBar({
       tier1={({ fullWidth }) => (
         <>
           <ViewsControl views={views} currentUserId={currentUserId} isAdmin={isAdmin} />
-                        <span className="h-5 w-px bg-line" aria-hidden />
               <FilterSearch
                 value={qInput}
                 onChange={setQInput}

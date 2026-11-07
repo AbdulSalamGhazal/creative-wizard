@@ -39,6 +39,31 @@
   the four keys its queries APPLY (`applies`); only those are resolved and
   remembered, so a remembered Type never shows as active on a page that
   ignores it.
+- **ONE phone treatment of a FilterShell bar (user-approved 2026-11-07,
+  audit R-004).** Below `sm` (640px): the bar is NOT sticky (wrapped to three
+  or four rows it covered a third of an 812px screen and hid the table's own
+  sticky header); the chips row is ONE sideways-scrolling line; the search box
+  takes its own full line (`w-full sm:w-64`, R-104); and the SECONDARY tier-1 /
+  toolbar controls — view and table controls such as Library's Sort and
+  grid/table switch, Pacing's Split and Currency — fold into one ⋯ menu
+  (`components/filters/phone-overflow.tsx`: `PhoneOverflow`, or `DesktopOnly`
+  in each slot + ONE `PhoneMoreMenu` when they sit in two slots, so a phone
+  never shows two ⋯). Filters, Views, Search, Date, Platforms and the
+  Excluded toggle stay inline. From `sm` up the bar is unchanged. This
+  replaces "tier 1 renders inline at every width" ON THE PHONE ONLY.
+- **A search box's debounced `?q=` is ONE hook** —
+  `useDebouncedSearchParam` (components/filters, R-056): instant typing, our
+  own writes echo-guarded so a late navigation can't eat characters, and an
+  external change (Clear, a saved view, Back/Forward) adopted. Ads, Library,
+  Campaigns and Store orders use it; never hand-roll another.
+- **Compare's shared window resolves like every range page** (R-067,
+  2026-11-07): URL → saved range → last 7 days, and a pick is remembered.
+  Its per-side windows are tool ranges (`pageRange={false}`), never saved.
+- **The date picker's ‹ › step the same-length window** (R-087): back or
+  forward by the range's own length (`stepRange`, lib/date-presets), in the
+  popover header, never on the strip. No step forward past today, none back
+  from the Lifetime floor; a step is a custom range and is remembered like
+  any pick.
 - A VIEW SWITCH is not a filter, and the Excluded toggle is a data-scope
   switch, not a filter. Neither is ever a `FilterDef`.
 - **Every range and every main filter resolves SERVER-side**
@@ -230,7 +255,10 @@ as it stood before the restructure.*
       since 2026-10-19).
     - **Tier 1 renders inline at every width** (it wraps on a phone) now that
       there is no sheet to fold into — the `fullWidth` ctx is kept for the
-      controls that take it and is always false. `FilterSheet` survives only
+      controls that take it and is always false. **Superseded on the phone
+      by the R-004 rule (user-approved 2026-11-07, invariants above):** below
+      `sm` the bar is not sticky, the chips row scrolls sideways, and the
+      secondary view/table controls fold into one ⋯ menu. `FilterSheet` survives only
       for `FilterStrip` (the shared Dashboard/Trends strip, which is not a
       shell consumer).
     - **ROW ICONS (2026-09): one map, keyed by the URL PARAM**

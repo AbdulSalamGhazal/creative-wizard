@@ -31,9 +31,15 @@ interface Props {
   includeExcluded: boolean;
   dimensions: CompareDimensionRow[];
   sides: CompareSide[];
-  /** Shared (default) window — applies to sides without their own. */
+  /** The shared window as the URL states it (null = not in the URL). */
   from: string | null;
   to: string | null;
+  /**
+   * The shared window the page RAN — URL → saved range → last 7 days, the same
+   * resolution as every other range page (R-067). Applies to sides without
+   * their own window.
+   */
+  range: { from: string; to: string };
 }
 
 function uniq<T>(xs: T[]): T[] {
@@ -43,7 +49,7 @@ function toggle(arr: string[], v: string): string[] {
   return arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v];
 }
 
-export function CompareControls({ dimensions, sides, from, to, includeExcluded }: Props) {
+export function CompareControls({ dimensions, sides, from, to, range, includeExcluded }: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -84,12 +90,12 @@ export function CompareControls({ dimensions, sides, from, to, includeExcluded }
       );
     });
 
-  const sharedRange = from && to ? { from, to } : undefined;
+  const sharedRange = range;
 
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-2 flex-wrap">
-        <DateRangePicker from={from} to={to} onChange={setRange} />
+        <DateRangePicker from={from} to={to} onChange={setRange} remember fallback={range} />
         <ExcludedParamToggle on={includeExcluded} />
         <span className="text-[11px] text-ink-3">
           Shared window — sides without their own window follow it.

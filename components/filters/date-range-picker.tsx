@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useSyncExternalStore } from "react";
 import type { DateRange } from "react-day-picker";
-import { CalendarDays, Check, ChevronDown } from "lucide-react";
+import { CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 import {
   Popover,
   PopoverContent,
@@ -19,6 +19,7 @@ import {
   localDateToIso,
   presetLabel,
   resolveDefaultRange,
+  stepRange,
   todayIso,
   type DateRangeValue,
 } from "@/lib/date-presets";
@@ -151,6 +152,16 @@ export function DateRangePicker({
     setOpen(false);
   };
 
+  const today = todayIso();
+  const stepBack = stepRange(eff, -1, today);
+  const stepForward = stepRange(eff, 1, today);
+  const step = (next: DateRangeValue) => {
+    persist(encodePreferredRange(null, next.from, next.to));
+    setPending({ from: isoToLocalDate(next.from), to: isoToLocalDate(next.to) });
+    setAnchor(null);
+    onChange(next.from, next.to);
+  };
+
   return (
     <Popover
       open={open}
@@ -190,6 +201,16 @@ export function DateRangePicker({
         collisionPadding={8}
         className="p-0 w-auto max-w-[calc(100vw-1rem)]"
       >
+        {/* ‹ › step the SAME-length window back/forward (R-087) — "Last 7
+            days" → the 7 days before them in one click. The popover stays
+            open so a user can keep stepping; the header shows the result. */}
+        <div className="flex items-center gap-1 border-b border-line px-1 py-1">
+          <StepButton dir={-1} target={stepBack} onStep={step} />
+          <span className="min-w-0 flex-1 truncate text-center text-xs tabular-nums text-ink">
+            {label}
+          </span>
+          <StepButton dir={1} target={stepForward} onStep={step} />
+        </div>
         <div className="flex flex-col sm:flex-row">
           {/* Quick ranges */}
           <div className="w-full sm:w-40 p-1 border-b sm:border-b-0 sm:border-r border-line shrink-0">
@@ -235,5 +256,35 @@ export function DateRangePicker({
         </div>
       </PopoverContent>
     </Popover>
+  );
+}
+
+/** ‹ or › in the picker header; disabled (with its reason) when no step exists. */
+function StepButton({
+  dir,
+  target,
+  onStep,
+}: {
+  dir: -1 | 1;
+  target: DateRangeValue | null;
+  onStep: (next: DateRangeValue) => void;
+}) {
+  const Icon = dir === -1 ? ChevronLeft : ChevronRight;
+  const label = target
+    ? `${dir === -1 ? "Previous" : "Next"} period: ${target.from} → ${target.to}`
+    : dir === -1
+      ? "No earlier period"
+      : "No later period — it would end after today";
+  return (
+    <button
+      type="button"
+      disabled={!target}
+      onClick={() => target && onStep(target)}
+      aria-label={label}
+      title={label}
+      className="inline-flex size-7 shrink-0 items-center justify-center rounded-md text-ink-2 transition-colors hover:bg-surface-2 hover:text-ink disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
+    >
+      <Icon className="h-4 w-4" />
+    </button>
   );
 }
