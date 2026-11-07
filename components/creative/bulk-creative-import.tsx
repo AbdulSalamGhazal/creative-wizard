@@ -16,6 +16,9 @@ import { actionSettled } from "@/lib/router-queue";
 import { toastActionFailure } from "@/lib/action-toast";
 import { useNavTransition } from "@/lib/nav-progress";
 import { plural } from "@/lib/format";
+import { DownloadCsvButton } from "@/components/ui/download-csv-button";
+import { rowsToCsv, todayStamp } from "@/lib/csv-export";
+import { cn } from "@/lib/utils";
 
 interface Props {
   /** Existing product names — shown as a hint and used in the CSV template. */
@@ -26,6 +29,7 @@ export function BulkCreativeImport({ products }: Props) {
   const router = useRouter();
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<BulkPreview | null>(null);
+  const [onlyFlagged, setOnlyFlagged] = useState(false);
   const [isPending, startTransition] = useTransition();
   // Navigations show the progress bar (W3-6).
   const [, startNav] = useNavTransition();
@@ -74,6 +78,14 @@ export function BulkCreativeImport({ products }: Props) {
       startNav(() => router.push("/library"));
     });
   };
+
+  // Flagged rows first (stable by row number), and only them while the
+  // "with errors" count is pressed (R-122).
+  const shownRows = preview?.ok
+    ? [...preview.rows]
+        .filter((r) => !(onlyFlagged && preview.errorCount > 0) || !r.ok)
+        .sort((a, b) => Number(a.ok) - Number(b.ok) || a.rowNumber - b.rowNumber)
+    : [];
 
   const downloadTemplate = () => {
     const sampleProduct = products[0] ?? "Your Product";
@@ -133,7 +145,20 @@ export function BulkCreativeImport({ products }: Props) {
             {preview.errorCount > 0 && (
               <>
                 {" · "}
-                <span className="text-neg">{preview.errorCount} with errors</span>
+                {/* The count IS the filter (R-122): with 200 rows and 3 bad
+                    ones, it takes the user straight to the three. */}
+                <button
+                  type="button"
+                  aria-pressed={onlyFlagged}
+                  onClick={() => setOnlyFlagged((v) => !v)}
+                  title={onlyFlagged ? "Show every row" : "Show only the rows with errors"}
+                  className={cn(
+                    "rounded-sm px-1 -mx-1 text-neg underline-offset-2 hover:underline",
+                    onlyFlagged && "bg-neg/10 underline",
+                  )}
+                >
+                  {preview.errorCount} with errors
+                </button>
               </>
             )}
           </span>
@@ -164,7 +189,7 @@ export function BulkCreativeImport({ products }: Props) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">
-                {preview.rows.map((r) => (
+                {shownRows.map((r) => (
                   <tr key={r.rowNumber} className={r.ok ? "" : "bg-neg/[0.04]"}>
                     <td className="px-3 py-2 text-ink-3">{r.rowNumber}</td>
                     <td className="px-3 py-2">
@@ -193,6 +218,23 @@ export function BulkCreativeImport({ products }: Props) {
               </tbody>
             </table>
           </div>
+
+          {!preview.allValid && (
+            <DownloadCsvButton
+              csvContent={rowsToCsv(
+                preview.rows.filter((r) => !r.ok),
+                [
+                  { key: "row", label: "row", value: (r) => r.rowNumber },
+                  { key: "name", label: "name", value: (r) => r.name },
+                  { key: "product", label: "product", value: (r) => r.productName },
+                  { key: "type", label: "type", value: (r) => r.type },
+                  { key: "issue", label: "issue", value: (r) => r.errors.join(" ") },
+                ],
+              )}
+              filename={`flagged-creatives-${todayStamp()}.csv`}
+              label="Download flagged rows"
+            />
+          )}
 
           {preview.allValid ? (
             <Button type="button" onClick={create} disabled={isPending}>

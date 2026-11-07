@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 import { Dropzone } from "@/components/upload/dropzone";
 import { useCan } from "@/components/auth/permissions-context";
 import { int, plural } from "@/lib/format";
-import { StoreErrorReport } from "@/components/store/store-error-report";
+import { ValidationReport } from "@/components/upload/validation-report";
 import {
   validateStoreUpload,
   commitStoreUpload,
@@ -168,7 +168,8 @@ export function StoreUploadPanel({
       )}
 
       {stage.s === "invalid" && (
-        <StoreErrorReport
+        <ValidationReport
+          filename="order-upload-errors"
           errors={stage.report.errors}
           warnings={stage.report.warnings}
         />

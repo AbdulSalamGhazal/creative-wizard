@@ -263,7 +263,7 @@ Every error carries a stable code, a severity, a template, and an example. Codes
 | W004  | WARNING  | {n} fractional values in `'{field}'` were rounded to the nearest whole number — {Label} is stored as a whole count.                                        | "2 fractional values in `'conversions'` were rounded to the nearest whole number — Conversions is stored as a whole count. Google's data-driven attribution reports conversions fractionally." |
 | W003  | WARNING  | This workbook has {n} sheets — only the first one ("{sheet}") was read.                                    | "This workbook has 3 sheets — only the first one (“Summary”) was read."                                        |
 
-The error report rendered to the user is a virtualized list (scrollable, copy-pasteable, exportable as CSV) so that files with hundreds of errors remain reviewable.
+The error report rendered to the user is GROUPED BY PROBLEM (2026-11, R-012): one line per (severity, code, value) — "Creative … is not registered · 38 rows (3, 7, 12 … +35)" — with each row's own message behind a disclosure, the code shown muted, and every entry exportable as CSV ("Download errors"). Distinct problems are few even when rows are many, so a file with hundreds of errors stays reviewable without list virtualization. The ads and Store order uploads share the one report (`components/upload/validation-report.tsx`, grouping in `lib/validation-report.ts`); the ads report links each unregistered creative / campaign / landing page to the page that registers it.
 
 ---
 
@@ -336,7 +336,7 @@ Same template as 9.1 — pending sample.
 ## 10. Performance Budget
 
 - Files up to 4 MB / ~20,000 rows complete the full pipeline (stages 1–5) in **under 10 seconds**.
-- The error report UI renders even for files with thousands of errors via list virtualization.
+- The error report UI renders even for files with thousands of errors: it groups them by problem (see §7), so the list holds distinct problems, not rows.
 - Database duplicate-checking (stage 5) uses a single indexed query per file, not per row.
 
 ---
