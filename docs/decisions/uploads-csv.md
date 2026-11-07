@@ -8,6 +8,12 @@
 
 ## Invariants
 
+- **The confirm step carries the cross-check figures** (R-082, 2026-11): the
+  pre-commit summary shows Spend, Conversions, Revenue and Campaigns beside
+  Rows / Creatives / Date range, summed from the validated rows by
+  `csv/upload-totals.ts` (post-W004 rounding, so they equal what commits; an
+  unreported field is a dash, not 0) — a wrong export is caught before it
+  lands, not on the Dashboard after.
 - **A row number is the row's place in the FILE** (W1-13, 2026-10-23):
   `csv/parse.ts` numbers every line or sheet row first and drops blank ones
   after, so an error below a blank line cites the right row. XLSX date cells

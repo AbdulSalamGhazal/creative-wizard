@@ -1,7 +1,8 @@
 "use client";
 
 import { CheckCircle2, Info } from "lucide-react";
-import { int } from "@/lib/format";
+import { int, usd } from "@/lib/format";
+import type { UploadTotals } from "@/csv/upload-totals";
 import { MetricCard } from "@/components/overview/metric-card";
 import type { ValidationError } from "@/csv/errors";
 import { Chip } from "@/components/ui/chip";
@@ -12,6 +13,8 @@ interface Summary {
   /** Rows per ` @code` landing page; absent/empty when every row is main-page. */
   landingPages?: { code: string; rows: number }[];
   dateRange: { from: string; to: string } | null;
+  /** Absent on a summary from before R-082 (an open tab). */
+  totals?: UploadTotals;
   upsert?: true;
   newRows?: number;
   updatedRows?: number;
@@ -55,9 +58,19 @@ export function SummaryCard({
         </div>
       )}
 
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 px-4 py-4">
+      {/* The figures a buyer checks against Ads Manager before importing
+          (R-082) sit with the shape of the file. */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 px-4 py-4">
         <Stat label="Rows" value={int(summary.rows)} />
         <Stat label="Creatives" value={int(summary.creatives)} />
+        {summary.totals && (
+          <>
+            <Stat label="Campaigns" value={int(summary.totals.campaigns)} />
+            <Stat label="Spend" value={usd(summary.totals.spend)} />
+            <Stat label="Conversions" value={int(summary.totals.conversions)} />
+            <Stat label="Revenue" value={usd(summary.totals.revenue)} />
+          </>
+        )}
         <Stat
           label="Date range"
           value={

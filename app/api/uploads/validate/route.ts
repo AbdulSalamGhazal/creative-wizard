@@ -15,6 +15,7 @@ import {
 } from "@/db/schema";
 import { FILE_TOO_LARGE_MESSAGE, MAX_FILE_BYTES } from "@/csv/parse";
 import { runPipeline, type ExistingRecord, type ParsedRow } from "@/csv/pipeline";
+import { uploadTotals, type UploadTotals } from "@/csv/upload-totals";
 import { campaignPlatformCollisions } from "@/csv/cross-platform";
 import { resolveAdapter } from "@/db/queries/platforms";
 import { getActiveAccountId } from "@/lib/tenant";
@@ -300,6 +301,8 @@ export async function POST(request: NextRequest) {
       dates.length > 0
         ? { from: dates[0]!, to: dates[dates.length - 1]! }
         : null,
+    // What a buyer cross-checks against Ads Manager before importing (R-082).
+    totals: uploadTotals(result.rows),
     ...(upsert ? { upsert: true as const, newRows, updatedRows } : {}),
   };
 
@@ -353,6 +356,8 @@ export interface ValidationPayload {
     /** Rows per landing-page code (no `@`); empty when every row is main-page. */
     landingPages: { code: string; rows: number }[];
     dateRange: { from: string; to: string } | null;
+    /** Spend / conversions / revenue / campaigns of the validated rows. */
+    totals: UploadTotals;
     /** Present only for upsert validations. */
     upsert?: true;
     newRows?: number;
