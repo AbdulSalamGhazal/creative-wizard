@@ -385,6 +385,15 @@ body {
   letter-spacing: 0.14em;
 }
 
+/* Toasts clear the docked comment panel (R-086, 2026-11). At >= 1280px the
+   panel docks as a 380px column beside the 3rem rail, its composer at the
+   bottom right — exactly where Sonner's bottom-right stack landed, so an Undo
+   toast covered Send for 8s. While the dock is in the page the stack sits to
+   its left (dock + rail + 1rem). */
+body:has([data-comment-dock]) [data-sonner-toaster][data-x-position="right"] {
+  right: calc(380px + 3rem + 1rem);
+}
+
 /* The notification bell's arrival nudge — ONE brief shake when the unread
    count goes UP, never a persistent animation (a permanently animated icon
    stops being a signal within a day). Behind `prefers-reduced-motion`: with

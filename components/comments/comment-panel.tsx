@@ -413,6 +413,8 @@ export function CommentDock({
     return (
       <aside
         aria-label={mode === "activity" ? "Activity" : "Comments"}
+        // globals.css moves the toast stack left of the dock while it is open.
+        data-comment-dock=""
         // Sticky under the 3.5rem top bar with its OWN scroll, so the panel
         // stays put while the page scrolls beside it.
         className="sticky top-14 flex h-[calc(100vh-3.5rem)] w-[380px] shrink-0 flex-col self-start border-l border-line bg-surface"
