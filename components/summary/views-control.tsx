@@ -10,7 +10,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { cn } from "@/lib/utils";
+import { cn, REVEAL_ON_HOVER } from "@/lib/utils";
 import {
   createSummaryView,
   deleteSummaryView,
@@ -277,7 +277,7 @@ export function ViewsControl({
                       "shrink-0 transition-colors",
                       v.isDefault
                         ? "text-brand"
-                        : "text-ink-3 hover:text-ink opacity-0 group-hover:opacity-100",
+                        : ["text-ink-3 hover:text-ink", REVEAL_ON_HOVER],
                     )}
                     title={
                       v.isDefault
@@ -298,7 +298,7 @@ export function ViewsControl({
                       type="button"
                       onClick={() => remove(v)}
                       disabled={isPending}
-                      className="shrink-0 text-ink-3 hover:text-neg transition-colors opacity-0 group-hover:opacity-100"
+                      className={cn("shrink-0 text-ink-3 hover:text-neg", REVEAL_ON_HOVER)}
                       aria-label={`Delete ${v.name}`}
                     >
                       <Trash2 className="w-3.5 h-3.5" />

@@ -14,3 +14,13 @@ const twMerge = extendTailwindMerge({
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
+
+/**
+ * THE recipe for an affordance that appears on hover (R-002, 2026-11-07; the
+ * comment row's, written once): visible on hover of its `group`, while
+ * anything in that group has keyboard focus, when it is itself focused, and
+ * ALWAYS where there is no hover (a phone or tablet) — ux-standards
+ * "Discoverability". Put it on the control (or its wrapper) inside a `group`.
+ */
+export const REVEAL_ON_HOVER =
+  "opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100";

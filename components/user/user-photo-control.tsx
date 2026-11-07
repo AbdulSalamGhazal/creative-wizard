@@ -110,9 +110,19 @@ export function UserPhotoControl({
             {!busy && (
               <span
                 aria-hidden
-                className="absolute inset-0 flex items-center justify-center rounded-full bg-black/45 opacity-0 transition-opacity group-hover/photo:opacity-100 group-focus-visible/photo:opacity-100 [@media(hover:none)]:opacity-0"
+                className="absolute inset-0 flex items-center justify-center rounded-full bg-black/45 opacity-0 transition-opacity group-hover/photo:opacity-100 group-focus-visible/photo:opacity-100 [@media(hover:none)]:hidden"
               >
                 <Camera className="h-3.5 w-3.5 text-white" />
+              </span>
+            )}
+            {/* No hover on a touch screen: a small camera badge in the corner
+                stays, so the avatar still reads as a control (R-002). */}
+            {!busy && (
+              <span
+                aria-hidden
+                className="absolute -bottom-0.5 -right-0.5 hidden h-4 w-4 items-center justify-center rounded-full border border-line bg-surface text-ink-2 [@media(hover:none)]:flex"
+              >
+                <Camera className="h-2.5 w-2.5" />
               </span>
             )}
             {busy && (

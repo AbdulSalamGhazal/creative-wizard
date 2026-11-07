@@ -3,7 +3,7 @@
 import { useCallback, useRef, useState } from "react";
 import { ImagePlus, Loader2, Trash2, Upload } from "lucide-react";
 import { toast } from "sonner";
-import { cn } from "@/lib/utils";
+import { cn, REVEAL_ON_HOVER } from "@/lib/utils";
 
 const MAX_DIM = 1000; // longest edge after downscale
 const WEBP_QUALITY = 0.85;
@@ -125,7 +125,14 @@ export function ThumbnailUpload({ value, onChange, disabled }: Props) {
             </div>
           )}
           {!uploading && !disabled && (
-            <div className="absolute inset-0 flex items-end justify-end gap-1.5 bg-gradient-to-t from-black/50 to-transparent p-2 opacity-0 transition-opacity group-hover:opacity-100">
+            // Replace / Remove: on hover, on keyboard focus, and always on a
+            // touch screen (R-002).
+            <div
+              className={cn(
+                "absolute inset-0 flex items-end justify-end gap-1.5 bg-gradient-to-t from-black/50 to-transparent p-2",
+                REVEAL_ON_HOVER,
+              )}
+            >
               <button
                 type="button"
                 onClick={() => inputRef.current?.click()}

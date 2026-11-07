@@ -7,7 +7,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { cn } from "@/lib/utils";
+import { cn, REVEAL_ON_HOVER } from "@/lib/utils";
 
 /**
  * The ONE columns control, living on `DataTable` itself (2026-10).
@@ -210,7 +210,9 @@ export function TableColumnsControl({
                           hiding an affordance from the keyboard is hiding it. */}
                       <span
                         className={cn(
-                          "flex items-center opacity-0 transition-opacity focus-within:opacity-100 group-focus-within:opacity-100 group-hover:opacity-100",
+                          "flex items-center focus-within:opacity-100",
+                          // Hover, keyboard focus, and always on touch (R-002).
+                          REVEAL_ON_HOVER,
                           !canMove && "hidden",
                         )}
                       >
