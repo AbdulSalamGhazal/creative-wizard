@@ -78,8 +78,9 @@ export async function runCleanup(input: unknown): Promise<CleanupResult> {
     }
 
     let deleted: number;
+    let touches: Awaited<ReturnType<typeof deleteRecords>>["touches"];
     try {
-      deleted = await deleteRecords(f, expectedRows);
+      ({ deleted, touches } = await deleteRecords(f, expectedRows));
     } catch (err) {
       if (err instanceof CleanupScopeChangedError) return { ok: false, error: err.message };
       throw err;
@@ -114,6 +115,7 @@ export async function runCleanup(input: unknown): Promise<CleanupResult> {
           campaigns: f.campaigns,
         },
       },
+      touches,
     });
 
     return { ok: true, deleted };

@@ -108,7 +108,6 @@ function ActionIcon({ action }: { action: AuditAction }) {
     "creative.create": Images,
     "creative.update": Images,
     "creative.notes_update": Images,
-    "creative.bulk_status": Images,
     "exclusion.exclude": Trash2,
     "exclusion.include": GitBranch,
     "upload.commit": Upload,
@@ -176,7 +175,9 @@ function metaSummary(row: AuditFeedRow): string | null {
     const s = parts.filter(Boolean) as string[];
     return s.length ? s.join(" · ") : null;
   };
-  switch (row.action) {
+  // A string, not the AuditAction union: retired actions (LEGACY_AUDIT_LABELS)
+  // still describe their old rows.
+  switch (row.action as string) {
     case "creative.create": {
       const type = m.type as string | undefined;
       const angles = (m.angles as string[] | undefined) ?? [];

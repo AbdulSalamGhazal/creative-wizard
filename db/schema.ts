@@ -22,6 +22,7 @@ import { sql } from "drizzle-orm";
 import { BUDGET_OBJECTIVES, PLAN_MODES } from "@/lib/budget";
 import { FUNNEL_STAGES } from "@/lib/audience";
 import {
+  auditTouchEntityEnum,
   campaignObjectiveEnum,
   creativeTypeEnum,
   exclusionRuleKindEnum,
@@ -36,6 +37,7 @@ import {
 // imports them from lib/enums: importing ANYTHING from this module ships the
 // whole schema to the browser.
 export {
+  auditTouchEntityEnum,
   campaignObjectiveEnum,
   creativeTypeEnum,
   exclusionRuleKindEnum,
@@ -917,6 +919,45 @@ export const auditEvents = pgTable(
     signinFailedIpIdx: index("audit_signin_failed_ip_idx")
       .on(t.entityLabel, sql`(${t.meta} ->> 'ip')`, t.at)
       .where(sql`${t.action} = 'auth.signin_failed'`),
+  }),
+);
+
+/**
+ * What each audit event TOUCHED (2026-11) — the link from the brand's audit
+ * trail to the per-entity Activity history of a creative, a campaign or a
+ * budget month. One row per (event, entity); an event touching 40 creatives
+ * writes 40 rows. Written ONLY by `writeAudit` (lib/audit.ts), in the same
+ * transaction as its audit row; the writer resolves what it touched INSIDE its
+ * own transaction, before any delete, so a rollback or a delete still names
+ * what it removed.
+ *
+ * `entity_id` is text, not a FK: a creative or campaign is a uuid that may
+ * since have been deleted (its history must outlive it), a budget month is
+ * `YYYY-MM`. The read index leads with the account and the entity and pages
+ * by event id DESC — the history panel's exact shape.
+ */
+export const auditEventEntities = pgTable(
+  "audit_event_entities",
+  {
+    auditEventId: bigint("audit_event_id", { mode: "number" })
+      .notNull()
+      .references(() => auditEvents.id, { onDelete: "cascade" }),
+    accountId: accountId(),
+    entityType: varchar("entity_type", { length: 16, enum: auditTouchEntityEnum }).notNull(),
+    entityId: text("entity_id").notNull(),
+  },
+  (t) => ({
+    eventEntityUq: uniqueIndex("audit_event_entities_uq").on(
+      t.auditEventId,
+      t.entityType,
+      t.entityId,
+    ),
+    entityReadIdx: index("audit_event_entities_entity_idx").on(
+      t.accountId,
+      t.entityType,
+      t.entityId,
+      t.auditEventId.desc(),
+    ),
   }),
 );
 

@@ -21,6 +21,7 @@ import {
   type PerformanceMetricUpdate,
 } from "@/db/queries/performance";
 import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
+import { touchesFromRecords } from "@/lib/audit-touches";
 import { stampAgainstActiveRules } from "@/db/queries/exclusion-rules";
 import { notifyRoutes } from "@/db/queries/notifications";
 import { PLATFORM_LABEL } from "@/lib/palette";
@@ -485,6 +486,17 @@ export async function POST(request: NextRequest) {
       dateRange: payload.summary?.dateRange ?? null,
       creatives: payload.summary?.creatives ?? null,
     },
+    // Every row this commit wrote — inserted and updated alike — names its
+    // creative, campaign and month (a record's identity can't change on an
+    // upsert, so the payload's names ARE the stored ones).
+    touches: touchesFromRecords(
+      [...insertRows, ...updateRows.map((u) => u.row)].map((r) => ({
+        creativeId: idByName.get(r.creativeName)!,
+        campaignId: campaignIdByName.get(r.campaignName)!,
+        date: r.date,
+      })),
+      { months: true },
+    ),
   });
 
   return NextResponse.json(result);

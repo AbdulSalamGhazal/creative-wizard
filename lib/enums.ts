@@ -40,3 +40,11 @@ export type StoreFieldType = (typeof storeFieldTypeEnum)[number];
 
 /** Campaign objectives — `CAMPAIGN_OBJECTIVES` (lib/campaign) is the root. */
 export const campaignObjectiveEnum = CAMPAIGN_OBJECTIVES;
+
+/**
+ * What an audit event can be LINKED to (`audit_event_entities.entity_type`,
+ * 2026-11): the three things that carry a per-entity Activity history. A
+ * creative or campaign is named by its uuid, a budget month by `YYYY-MM`.
+ */
+export const auditTouchEntityEnum = ["creative", "campaign", "budget_month"] as const;
+export type AuditTouchEntity = (typeof auditTouchEntityEnum)[number];

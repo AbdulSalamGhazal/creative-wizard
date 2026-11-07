@@ -19,6 +19,7 @@ import {
   sourceLinkSchema,
 } from "@/validators/creative";
 import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
+import { addedValues, sameMembers, touchesFromRecords } from "@/lib/audit-touches";
 import { deleteRulesTargeting } from "@/db/queries/exclusion-rules";
 import { getActiveAccountId } from "@/lib/tenant";
 import { addToVocabulary } from "@/db/queries/angles";
@@ -432,7 +433,18 @@ export async function patchCreative(
     if (data.stages !== undefined) set.stages = data.stages;
     const hasScalarChange = Object.keys(set).length > 1; // more than updatedAt
 
-    const vocabularyAdded = await db.transaction(async (tx) => {
+    const { vocabularyAdded, anglesBefore } = await db.transaction(async (tx) => {
+      // The set being replaced, read before the wipe — the audit names the
+      // angles added and removed, not just the new count.
+      const anglesBefore =
+        data.angles === undefined
+          ? []
+          : (
+              await tx
+                .select({ angle: creativeAngles.angle })
+                .from(creativeAngles)
+                .where(eq(creativeAngles.creativeId, data.id))
+            ).map((r) => r.angle);
       if (hasScalarChange) {
         await tx
           .update(creatives)
@@ -456,7 +468,7 @@ export async function patchCreative(
           });
         }
       }
-      return added;
+      return { vocabularyAdded: added, anglesBefore };
     });
 
     const newName = data.name ?? oldRow.name;
@@ -496,6 +508,11 @@ export async function patchCreative(
     if (data.priority !== undefined && oldRow.priority !== data.priority) {
       changes.priority = { from: oldRow.priority, to: data.priority };
     }
+    if (data.stages !== undefined && !sameMembers(oldRow.stages, data.stages)) {
+      changes.stages = { from: oldRow.stages, to: data.stages };
+    }
+    const anglesAdded = data.angles === undefined ? [] : addedValues(anglesBefore, data.angles);
+    const anglesRemoved = data.angles === undefined ? [] : addedValues(data.angles, anglesBefore);
 
     await logAudit({
       action: AUDIT_ACTIONS.CREATIVE_UPDATE,
@@ -506,6 +523,8 @@ export async function patchCreative(
       meta: {
         changes,
         ...(data.angles !== undefined ? { anglesCount: data.angles.length } : {}),
+        ...(anglesAdded.length > 0 ? { anglesAdded } : {}),
+        ...(anglesRemoved.length > 0 ? { anglesRemoved } : {}),
         ...(vocabularyAdded.length > 0 ? { vocabularyAdded } : {}),
         inline: true,
       },
@@ -555,15 +574,22 @@ export async function deleteCreative(
         .from(performanceRecords)
         .where(eq(performanceRecords.creativeId, creativeId));
       const n = countRows[0]?.value ?? 0;
-      await tx
+      // RETURNING names the campaigns that lost records and the months whose
+      // actuals moved — the audit's links, captured as the rows go.
+      const removed = await tx
         .delete(performanceRecords)
-        .where(eq(performanceRecords.creativeId, creativeId));
+        .where(eq(performanceRecords.creativeId, creativeId))
+        .returning({
+          creativeId: performanceRecords.creativeId,
+          campaignId: performanceRecords.campaignId,
+          date: performanceRecords.date,
+        });
       // Exclusion rules targeting this creative go with it (their flagged rows
       // were just deleted, so nothing references the rule anymore).
       await deleteRulesTargeting(tx, acct, { creativeId });
       // creative_angles cascade on this delete.
       await tx.delete(creatives).where(eq(creatives.id, creativeId));
-      return n;
+      return { n, touches: touchesFromRecords(removed, { months: true }) };
     });
 
     // NO revalidatePath (W2-1): the caller navigates to /library, and that
@@ -576,10 +602,11 @@ export async function deleteCreative(
       entityId: target.id,
       entityLabel: target.name,
       actorUserId: user.id,
-      meta: { recordsDeleted },
+      meta: { recordsDeleted: recordsDeleted.n },
+      touches: recordsDeleted.touches,
     });
 
-    return { ok: true, recordsDeleted };
+    return { ok: true, recordsDeleted: recordsDeleted.n };
   } catch (err) {
     return {
       ok: false,

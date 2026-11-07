@@ -105,10 +105,11 @@ export async function renameAngle(
       .from(creatives)
       .where(eq(creatives.accountId, acct));
 
-    await db.transaction(async (tx) => {
+    const holders = await db.transaction(async (tx) => {
       await tx.update(angles).set({ name: next }).where(eq(angles.id, id));
-      // Cascade to assignments — but ONLY for this account's creatives.
-      await tx
+      // Cascade to assignments — but ONLY for this account's creatives. The
+      // RETURNING names the creatives holding the angle (the audit's links).
+      return tx
         .update(creativeAngles)
         .set({ angle: next })
         .where(
@@ -116,7 +117,8 @@ export async function renameAngle(
             eq(creativeAngles.angle, angle.name),
             inArray(creativeAngles.creativeId, acctCreatives),
           ),
-        );
+        )
+        .returning({ creativeId: creativeAngles.creativeId });
     });
 
     revalidate();
@@ -126,7 +128,8 @@ export async function renameAngle(
       entityId: id,
       entityLabel: next,
       actorUserId: user.id,
-      meta: { from: angle.name, to: next },
+      meta: { from: angle.name, to: next, creatives: holders.length },
+      touches: { creative: holders.map((h) => h.creativeId) },
     });
     return { ok: true };
   } catch (err) {
@@ -163,7 +166,7 @@ export async function deleteAngle(id: string): Promise<AngleMutationResult> {
         )
         .returning({ creativeId: creativeAngles.creativeId });
       await tx.delete(angles).where(eq(angles.id, id));
-      return r.length;
+      return r.map((h) => h.creativeId);
     });
 
     revalidate();
@@ -173,7 +176,8 @@ export async function deleteAngle(id: string): Promise<AngleMutationResult> {
       entityId: id,
       entityLabel: angle.name,
       actorUserId: user.id,
-      meta: { removedFromCreatives: removed },
+      meta: { removedFromCreatives: removed.length },
+      touches: { creative: removed },
     });
     return { ok: true };
   } catch (err) {

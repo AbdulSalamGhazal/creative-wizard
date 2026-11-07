@@ -10,6 +10,7 @@ import { getActiveAccountId } from "@/lib/tenant";
 import { actionError } from "@/lib/action-error";
 import { notifyRoutes } from "@/db/queries/notifications";
 import { plural } from "@/lib/format";
+import { touchesFromRecords } from "@/lib/audit-touches";
 import { ROLLBACK_WINDOW_HOURS, withinRollbackWindow } from "@/lib/upload-batches";
 
 
@@ -91,7 +92,12 @@ export async function rollbackBatch(batchId: string): Promise<RollbackResult> {
             eq(performanceRecords.uploadBatchId, batchId),
           ),
         )
-        .returning({ id: performanceRecords.id });
+        .returning({
+          id: performanceRecords.id,
+          creativeId: performanceRecords.creativeId,
+          campaignId: performanceRecords.campaignId,
+          date: performanceRecords.date,
+        });
 
       // Same transaction as the delete: if the rollback fails, nobody is told
       // it happened.
@@ -102,7 +108,12 @@ export async function rollbackBatch(batchId: string): Promise<RollbackResult> {
         actorUserId: user.id,
         entity: { type: "upload", id: batchId },
       });
-      return rows.length;
+      // What the rollback touched, named by the DELETE itself — once it
+      // commits, nothing is left to resolve it from.
+      return {
+        removed: rows.length,
+        touches: touchesFromRecords(rows, { months: true }),
+      };
     });
     if (deleted === null) return { ok: false, error: "Batch is not active." };
 
@@ -122,12 +133,13 @@ export async function rollbackBatch(batchId: string): Promise<RollbackResult> {
       actorUserId: user.id,
       meta: {
         platform: batch.platform,
-        rowsDeleted: deleted,
+        rowsDeleted: deleted.removed,
         uploadedAt: batch.uploadedAt,
       },
+      touches: deleted.touches,
     });
 
-    return { ok: true, removed: deleted };
+    return { ok: true, removed: deleted.removed };
   } catch (err) {
     return { ok: false, error: actionError(err, "rollback") };
   }

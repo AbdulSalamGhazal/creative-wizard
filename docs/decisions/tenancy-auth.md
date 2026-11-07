@@ -55,6 +55,21 @@
   password change ends the others and re-issues the current cookie; an
   admin reset ends all of the target's. Middleware stays DB-free — never
   move this check there.
+- **Every audit write names what it touched (2026-11).** An event that
+  affects creatives, campaigns or budget months passes them through
+  `writeAudit({ touches })` / `logAudit({ touches })` (lib/audit.ts), which
+  writes the `audit_event_entities` links on the SAME executor as the audit
+  row (one transaction) — the per-entity Activity history reads nothing
+  else. The writer resolves the ids INSIDE its own transaction and BEFORE any
+  delete — a `DELETE … RETURNING creative_id, campaign_id, date`, a
+  `TouchCollector` fed by the exclusion engine — never by re-reading after
+  the rows are gone. An event ON a creative / campaign / budget month
+  (`budget.update` with a month) links itself (`selfTouches`); `touches`
+  carries the other side. Paths that insert or delete records also touch the
+  records' MONTHS (Budget's actuals move); exclusions never do (Budget
+  ignores them by design). Links are brand-stamped with the event's account.
+  Pinned by `tests/db/audit-touches.test.ts` (every writer, pool size 1) and
+  `lib/audit-touches.test.ts`.
 - **An event with no session passes its brand explicitly.** `logAudit`
   resolves the ACTIVE brand, which throws `NO_BRAND_ACCESS` for a visitor who
   isn't signed in — and the audit swallows its own errors, so the row simply
@@ -376,3 +391,28 @@ What was built, and the judgment calls inside it:
 Decided alone because the brief said to; each line above is the kind of
 choice the user could look at and want otherwise, and the report named
 them.
+
+### Audit events that couldn't find their entities (2026-11)
+
+The per-entity Activity history (a creative's, a campaign's, a budget
+month's) needed every action that affected the entity, wherever it was done.
+The audit trail had them, but not addressably: `upload.commit` stored counts,
+`upload.rollback` hard-deleted the records it described, `upload.bulk_delete`
+stored filters, the exclusion-rule events stored no targets (a deleted rule
+lost even its own), `angle.*` stored a count, and the bulk import stored
+names. `audit_event_entities` (migration 0068) is the link, written by
+`writeAudit` beside its event; every writer now resolves what it touched
+inside its transaction, before its deletes. Alongside: `exclusion.rule_delete`
+stores the rule's target, `campaign.update` the old platform,
+`creative.update` the stages' from→to and the angle names added and removed,
+`exclusion.exclude/include` the record's campaign. The never-written
+`creative.bulk_status` action left the catalog (its old rows keep their label
+through `LEGACY_AUDIT_LABELS`).
+
+**The backfill (migration 0069) recovers only what the stored rows still
+say:** events on a creative/campaign link themselves, `budget.update` its
+month, `exclusion.exclude/include` `meta.creativeId`, `upload.commit` the
+batch's SURVIVING records. Old rollbacks, cleanups, rule sweeps and deletes,
+the other side of creative/campaign deletes, angle renames/deletes and bulk
+creates are UNRECOVERABLE — they stored no ids — and stay in the brand-wide
+audit feed only. Idempotent (`ON CONFLICT DO NOTHING`).

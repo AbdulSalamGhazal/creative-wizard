@@ -9,6 +9,7 @@ import {
 } from "@/db/schema";
 import { getActiveAccountId } from "@/lib/tenant";
 import type { ExclusionRuleTarget } from "@/lib/exclusion-rules";
+import type { TouchCollector } from "@/lib/audit-touches";
 
 /**
  * DB side of the exclusion-rules engine. Rules MATERIALIZE into
@@ -74,6 +75,8 @@ export async function applyRule(
   rule: ExclusionRuleTarget & { id: string },
   acct: string,
   extraConds: SQL[] = [],
+  /** Feeds the audit's `touches` with the rows flipped (2026-11). */
+  collect?: TouchCollector,
 ): Promise<number> {
   const flipped = await exec
     .update(performanceRecords)
@@ -89,7 +92,12 @@ export async function applyRule(
         ...extraConds,
       ),
     )
-    .returning({ id: performanceRecords.id });
+    .returning({
+      id: performanceRecords.id,
+      creativeId: performanceRecords.creativeId,
+      campaignId: performanceRecords.campaignId,
+    });
+  collect?.add(flipped);
   return flipped.length;
 }
 
@@ -102,6 +110,7 @@ export async function unapplyRule(
   exec: Exec,
   ruleId: string,
   acct: string,
+  collect?: TouchCollector,
 ): Promise<number> {
   const restored = await exec
     .update(performanceRecords)
@@ -120,7 +129,12 @@ export async function unapplyRule(
         eq(performanceRecords.excludedSource, "rule"),
       ),
     )
-    .returning({ id: performanceRecords.id });
+    .returning({
+      id: performanceRecords.id,
+      creativeId: performanceRecords.creativeId,
+      campaignId: performanceRecords.campaignId,
+    });
+  collect?.add(restored);
   return restored.length;
 }
 
@@ -267,6 +281,7 @@ export async function releaseStaleObjectiveStamps(
   acct: string,
   campaignId: string,
   newObjective: string,
+  collect?: TouchCollector,
 ): Promise<number> {
   const released = await exec
     .update(performanceRecords)
@@ -288,7 +303,12 @@ export async function releaseStaleObjectiveStamps(
         )`,
       ),
     )
-    .returning({ id: performanceRecords.id });
+    .returning({
+      id: performanceRecords.id,
+      creativeId: performanceRecords.creativeId,
+      campaignId: performanceRecords.campaignId,
+    });
+  collect?.add(released);
   return released.length;
 }
 
@@ -299,11 +319,15 @@ export async function releaseStaleObjectiveStamps(
  * re-stamped by the surviving rule instead of silently returning to totals).
  * Returns the number of rows re-stamped.
  */
-export async function resweepActiveRules(exec: Exec, accountId: string): Promise<number> {
+export async function resweepActiveRules(
+  exec: Exec,
+  accountId: string,
+  collect?: TouchCollector,
+): Promise<number> {
   const rules = await activeRulesFor(exec, accountId);
   let total = 0;
   for (const rule of rules) {
-    total += await applyRule(exec, rule, accountId);
+    total += await applyRule(exec, rule, accountId, [], collect);
   }
   return total;
 }

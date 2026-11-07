@@ -477,6 +477,20 @@
       "when": 1793975243740,
       "tag": "0067_user_lifecycle",
       "breakpoints": true
+    },
+    {
+      "idx": 68,
+      "version": "7",
+      "when": 1794047699956,
+      "tag": "0068_audit_event_entities",
+      "breakpoints": true
+    },
+    {
+      "idx": 69,
+      "version": "7",
+      "when": 1794047930587,
+      "tag": "0069_backfill_audit_event_entities",
+      "breakpoints": true
     }
   ]
 }

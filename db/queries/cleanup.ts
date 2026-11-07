@@ -8,6 +8,7 @@ import {
 } from "@/db/schema";
 import { getActiveAccountId } from "@/lib/tenant";
 import { CleanupScopeChangedError } from "@/lib/cleanup-guard";
+import { touchesFromRecords, type AuditTouches } from "@/lib/audit-touches";
 
 type Platform = (typeof platformEnum)[number];
 
@@ -152,14 +153,19 @@ export async function previewCleanup(f: CleanupMatch): Promise<CleanupPreview> {
 
 /**
  * Hard-delete every performance_record matching the selection. Returns the
- * number of rows removed. Refuses to run with no filter (returns 0) as a
- * last-resort guard against deleting everything.
+ * number of rows removed and what they belonged to (the audit's `touches`,
+ * named by the DELETE itself — afterwards nothing is left to resolve it
+ * from). Refuses to run with no filter (returns 0) as a last-resort guard
+ * against deleting everything.
  *
  * NOTE: this is a sanctioned second exit path for performance_records
  * (admin-only, audited at the action layer) in addition to batch rollback.
  */
-export async function deleteRecords(f: CleanupMatch, expectedRows?: number): Promise<number> {
-  if (!hasAnyFilter(f)) return 0;
+export async function deleteRecords(
+  f: CleanupMatch,
+  expectedRows?: number,
+): Promise<{ deleted: number; touches: AuditTouches }> {
+  if (!hasAnyFilter(f)) return { deleted: 0, touches: {} };
   // Resolved BEFORE the transaction: the conditions read the campaigns table
   // and the active brand, and the pool is one connection in production.
   const conds = await buildConditions(f, await getActiveAccountId());
@@ -167,11 +173,19 @@ export async function deleteRecords(f: CleanupMatch, expectedRows?: number): Pro
     const deleted = await tx
       .delete(performanceRecords)
       .where(and(...conds))
-      .returning({ id: performanceRecords.id });
+      .returning({
+        id: performanceRecords.id,
+        creativeId: performanceRecords.creativeId,
+        campaignId: performanceRecords.campaignId,
+        date: performanceRecords.date,
+      });
     // Exactly what was previewed, or nothing (W1-7).
     if (expectedRows !== undefined && deleted.length !== expectedRows) {
       throw new CleanupScopeChangedError(deleted.length, expectedRows);
     }
-    return deleted.length;
+    return {
+      deleted: deleted.length,
+      touches: touchesFromRecords(deleted, { months: true }),
+    };
   });
 }

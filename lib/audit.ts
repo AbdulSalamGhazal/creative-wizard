@@ -1,6 +1,12 @@
 import { db } from "@/lib/db";
-import { auditEvents } from "@/db/schema";
+import { auditEventEntities, auditEvents } from "@/db/schema";
 import { getActiveAccountId } from "@/lib/tenant";
+import {
+  mergeTouches,
+  selfTouches,
+  touchRows,
+  type AuditTouches,
+} from "@/lib/audit-touches";
 
 /**
  * Append-only audit trail.
@@ -22,7 +28,6 @@ export const AUDIT_ACTIONS = {
   CREATIVE_UPDATE: "creative.update",
   CREATIVE_NOTES_UPDATE: "creative.notes_update",
   CREATIVE_SOURCE_UPDATE: "creative.source_update",
-  CREATIVE_STATUS_BULK: "creative.bulk_status",
   CREATIVE_DELETE: "creative.delete",
 
   // Campaigns
@@ -180,30 +185,79 @@ export interface AuditEventInput {
    * mid-flow brand switch can't mis-file the commit/rollback audit.
    */
   accountId?: string;
+  /**
+   * The creatives, campaigns and budget months this event TOUCHED, for their
+   * per-entity Activity history (`audit_event_entities`, 2026-11). The writer
+   * resolves them INSIDE its own transaction, BEFORE any delete — a rollback
+   * names the records' creatives as it removes them, not after. Deduped; an
+   * event on a creative/campaign/budget month links ITSELF automatically
+   * (`selfTouches`), so this carries only the OTHER side.
+   */
+  touches?: AuditTouches;
+}
+
+/** db or a transaction handle. */
+type AuditExec = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+/**
+ * Write one audit row and its entity links on ONE executor. Throws — the
+ * caller decides whether an audit failure matters. `accountId` is required
+ * here: inside a transaction, resolving the active brand would be a query on
+ * `db`, which deadlocks at production pool size.
+ */
+export async function writeAudit(
+  exec: AuditExec,
+  input: AuditEventInput & { accountId: string },
+): Promise<number> {
+  const [row] = await exec
+    .insert(auditEvents)
+    .values({
+      accountId: input.accountId,
+      action: input.action,
+      entityType: input.entityType,
+      entityId: input.entityId ?? null,
+      entityLabel: input.entityLabel ?? null,
+      actorUserId: input.actorUserId ?? null,
+      meta: input.meta ?? null,
+    })
+    .returning({ id: auditEvents.id });
+  if (!row) throw new Error("audit insert returned no row");
+  const links = auditLinks(input);
+  if (links.length > 0) {
+    await exec
+      .insert(auditEventEntities)
+      .values(
+        links.map((l) => ({
+          auditEventId: row.id,
+          accountId: input.accountId,
+          entityType: l.entityType,
+          entityId: l.entityId,
+        })),
+      )
+      .onConflictDoNothing();
+  }
+  return row.id;
+}
+
+/** Every entity an event links to: itself, plus what its writer touched. */
+export function auditLinks(input: AuditEventInput) {
+  return touchRows(mergeTouches(selfTouches(input), input.touches));
 }
 
 /**
  * Fire-and-forget audit write. Never throws.
  *
  * Returns the new row id when the insert succeeded, or null if it failed.
- * Callers don't usually care — the return is there for tests.
+ * Callers don't usually care — the return is there for tests. The row and
+ * its entity links land together (one transaction when there are links), so
+ * a history never shows half an event.
  */
 export async function logAudit(input: AuditEventInput): Promise<number | null> {
   try {
     const accountId = input.accountId ?? (await getActiveAccountId());
-    const [row] = await db
-      .insert(auditEvents)
-      .values({
-        accountId,
-        action: input.action,
-        entityType: input.entityType,
-        entityId: input.entityId ?? null,
-        entityLabel: input.entityLabel ?? null,
-        actorUserId: input.actorUserId ?? null,
-        meta: input.meta ?? null,
-      })
-      .returning({ id: auditEvents.id });
-    return row?.id ?? null;
+    const full = { ...input, accountId };
+    if (auditLinks(full).length === 0) return await writeAudit(db, full);
+    return await db.transaction((tx) => writeAudit(tx, full));
   } catch (err) {
     console.warn("logAudit failed (suppressed):", err);
     return null;
@@ -222,6 +276,9 @@ export const LEGACY_AUDIT_LABELS: Record<string, string> = {
   "tag.create": "Created tag",
   "tag.rename": "Renamed tag",
   "tag.delete": "Deleted tag",
+  // Retired 2026-06 (bb54732): bulk status went with the stored status — the
+  // writer was removed and nothing has written it since. Old rows keep it.
+  "creative.bulk_status": "Bulk status change",
 };
 
 export const AUDIT_LABELS: Record<AuditAction, string> = {
@@ -230,7 +287,6 @@ export const AUDIT_LABELS: Record<AuditAction, string> = {
   "creative.update": "Updated creative",
   "creative.notes_update": "Edited notes",
   "creative.source_update": "Edited source link",
-  "creative.bulk_status": "Bulk status change",
   "creative.delete": "Deleted creative",
   "campaign.create": "Registered campaign",
   "campaign.update": "Edited campaign",

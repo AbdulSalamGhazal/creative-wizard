@@ -11,6 +11,7 @@ import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
 import { getActiveAccountId } from "@/lib/tenant";
 import { ruleDescriptor } from "@/lib/exclusion-rules";
 import { actionError } from "@/lib/action-error";
+import { touchesFromRecords } from "@/lib/audit-touches";
 import { ruleExcludingRecord } from "@/db/queries/exclusion-rules";
 
 const idSchema = z.coerce.number().int().positive();
@@ -72,6 +73,7 @@ export async function excludeRecord(
       )
       .returning({
         creativeId: performanceRecords.creativeId,
+        campaignId: performanceRecords.campaignId,
         date: performanceRecords.date,
         platform: performanceRecords.platform,
       });
@@ -89,10 +91,13 @@ export async function excludeRecord(
       actorUserId: user.id,
       meta: {
         creativeId: updated.creativeId,
+        campaignId: updated.campaignId,
         date: updated.date,
         platform: updated.platform,
         reason: parsed.reason,
       },
+      // Exclusions don't move Budget's actuals — no month (lib/audit-touches).
+      touches: touchesFromRecords([updated], { months: false }),
     });
     return { ok: true };
   } catch (err) {
@@ -149,6 +154,7 @@ export async function includeRecord(recordId: number): Promise<ActionResult> {
       )
       .returning({
         creativeId: performanceRecords.creativeId,
+        campaignId: performanceRecords.campaignId,
         date: performanceRecords.date,
         platform: performanceRecords.platform,
       });
@@ -166,9 +172,11 @@ export async function includeRecord(recordId: number): Promise<ActionResult> {
       actorUserId: user.id,
       meta: {
         creativeId: updated.creativeId,
+        campaignId: updated.campaignId,
         date: updated.date,
         platform: updated.platform,
       },
+      touches: touchesFromRecords([updated], { months: false }),
     });
     return { ok: true };
   } catch (err) {

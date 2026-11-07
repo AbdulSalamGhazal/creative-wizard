@@ -8,6 +8,7 @@ import { requirePermission } from "@/lib/auth";
 import { campaigns, performanceRecords } from "@/db/schema";
 import { buildCampaignName, CAMPAIGN_PLATFORM_LOCKED } from "@/lib/campaign";
 import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
+import { TouchCollector, touchesFromRecords } from "@/lib/audit-touches";
 import {
   deleteRulesTargeting,
   releaseStaleObjectiveStamps,
@@ -171,6 +172,8 @@ export async function updateCampaign(input: unknown): Promise<CampaignMutationRe
     const objectiveChanged = objective !== current.objective;
     let exclusionsReleased = 0;
     let exclusionsRestamped = 0;
+    // The records the re-sweep moved — their creatives are touched too.
+    const touched = new TouchCollector();
 
     const locked = await db.transaction(async (tx) => {
       // Checked inside the transaction, against the same snapshot as the write.
@@ -190,8 +193,8 @@ export async function updateCampaign(input: unknown): Promise<CampaignMutationRe
         .where(and(eq(campaigns.id, id), eq(campaigns.accountId, acct)));
 
       if (objectiveChanged) {
-        exclusionsReleased = await releaseStaleObjectiveStamps(tx, acct, id, objective);
-        exclusionsRestamped = await resweepActiveRules(tx, acct);
+        exclusionsReleased = await releaseStaleObjectiveStamps(tx, acct, id, objective, touched);
+        exclusionsRestamped = await resweepActiveRules(tx, acct, touched);
       }
       return false;
     });
@@ -226,10 +229,14 @@ export async function updateCampaign(input: unknown): Promise<CampaignMutationRe
         objective,
         renamedFrom: name !== current.name ? current.name : undefined,
         objectiveChangedFrom: objectiveChanged ? current.objective : undefined,
+        platformChangedFrom: platformChanged ? current.platform : undefined,
         // Exclusion rows re-derived by this edit (omitted when nothing moved).
         exclusionsReleased: exclusionsReleased || undefined,
         exclusionsRestamped: exclusionsRestamped || undefined,
       },
+      // The campaign links itself; a re-sweep can also move OTHER campaigns'
+      // rows (any active rule re-stamps), so only its creatives are passed.
+      touches: { creative: touched.touches().creative },
     });
     return { ok: true, name };
   } catch (err) {
@@ -275,14 +282,21 @@ export async function deleteCampaign(
       const n = countRows[0]?.value ?? 0;
       // Records first (no cascade on performance_records.campaign_id), then the
       // campaign row itself. Creatives/upload_batches are left untouched.
-      await tx
+      // RETURNING names the creatives that lost records and the months whose
+      // actuals moved — the audit's links, captured as the rows go.
+      const removed = await tx
         .delete(performanceRecords)
-        .where(eq(performanceRecords.campaignId, campaignId));
+        .where(eq(performanceRecords.campaignId, campaignId))
+        .returning({
+          creativeId: performanceRecords.creativeId,
+          campaignId: performanceRecords.campaignId,
+          date: performanceRecords.date,
+        });
       // Exclusion rules targeting this campaign go with it (their flagged rows
       // were just deleted, so nothing references the rule anymore).
       await deleteRulesTargeting(tx, acct, { campaignId });
       await tx.delete(campaigns).where(eq(campaigns.id, campaignId));
-      return n;
+      return { n, touches: touchesFromRecords(removed, { months: true }) };
     });
 
     // NO revalidatePath (W2-1): the caller navigates to /campaigns, and that
@@ -295,10 +309,11 @@ export async function deleteCampaign(
       entityId: target.id,
       entityLabel: target.name,
       actorUserId: user.id,
-      meta: { recordsDeleted },
+      meta: { recordsDeleted: recordsDeleted.n },
+      touches: recordsDeleted.touches,
     });
 
-    return { ok: true, recordsDeleted };
+    return { ok: true, recordsDeleted: recordsDeleted.n };
   } catch (err) {
     return { ok: false, error: actionError(err, "campaign") };
   }

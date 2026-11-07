@@ -27,6 +27,7 @@ import {
   type RuleImpactPreview,
 } from "@/db/queries/exclusion-rules";
 import { actionError, isUniqueViolation } from "@/lib/action-error";
+import { TouchCollector, mergeTouches, type AuditTouches } from "@/lib/audit-touches";
 
 /**
  * Exclusion-rule mutations. Reuses `record.exclude` (a rule is bulk exclusion),
@@ -119,6 +120,9 @@ export async function createExclusionRule(input: unknown): Promise<RuleMutationR
     const resolved = await resolveTargetLabel(target, acct);
     if (!resolved.ok) return { ok: false, error: resolved.error };
 
+    // The records the sweep flips, collected inside the transaction — their
+    // creatives and campaigns are what this rule touched (the audit's links).
+    const touched = new TouchCollector();
     const { ruleId, affected } = await db.transaction(async (tx) => {
       const [rule] = await tx
         .insert(exclusionRules)
@@ -133,7 +137,7 @@ export async function createExclusionRule(input: unknown): Promise<RuleMutationR
           createdByUserId: user.id,
         })
         .returning({ id: exclusionRules.id });
-      const flipped = await applyRule(tx, { ...target, id: rule!.id }, acct);
+      const flipped = await applyRule(tx, { ...target, id: rule!.id }, acct, [], touched);
       // Same transaction as the rule and its first sweep.
       await notifyRoutes(tx, acct, "exclusion.rule_created", {
         title: `Exclusion rule added: ${ruleTitleDescriptor(target, resolved.label)}`,
@@ -153,6 +157,7 @@ export async function createExclusionRule(input: unknown): Promise<RuleMutationR
       entityLabel: ruleDescriptor(target, resolved.label),
       actorUserId: user.id,
       meta: { ...target, note: note || null, excluded: affected },
+      touches: mergeTouches(targetTouches(target), touched.touches()),
     });
     return { ok: true, affected };
   } catch (err) {
@@ -184,15 +189,16 @@ export async function toggleExclusionRule(input: unknown): Promise<RuleMutationR
     const resolved = await resolveTargetLabel(rule, acct);
     const descriptor = ruleDescriptor(rule, resolved.ok ? resolved.label : null);
 
+    const touched = new TouchCollector();
     const affected = await db.transaction(async (tx) => {
       await tx
         .update(exclusionRules)
         .set({ active })
         .where(and(eq(exclusionRules.accountId, acct), eq(exclusionRules.id, id)));
-      if (active) return applyRule(tx, rule, acct);
-      const restored = await unapplyRule(tx, id, acct);
+      if (active) return applyRule(tx, rule, acct, [], touched);
+      const restored = await unapplyRule(tx, id, acct, touched);
       // Rows also covered by another active rule get re-stamped, not released.
-      const restamped = await resweepActiveRules(tx, acct);
+      const restamped = await resweepActiveRules(tx, acct, touched);
       const released = restored - restamped;
       // Only DEACTIVATION is an event: switching a rule back on is the
       // ordinary state, switching it off silently changes every aggregate.
@@ -217,6 +223,7 @@ export async function toggleExclusionRule(input: unknown): Promise<RuleMutationR
       entityLabel: descriptor,
       actorUserId: user.id,
       meta: { active, affected },
+      touches: mergeTouches(targetTouches(rule), touched.touches()),
     });
     return { ok: true, affected };
   } catch (err) {
@@ -233,13 +240,16 @@ export async function deleteExclusionRule(input: unknown): Promise<RuleMutationR
     const rule = await getRule(parsed.data);
     if (!rule) return { ok: false, error: "Rule not found." };
 
+    // Collected BEFORE the rule row goes: the un-apply names the records it
+    // releases, so the deletion still says which creatives it changed.
+    const touched = new TouchCollector();
     const affected = await db.transaction(async (tx) => {
-      const restored = await unapplyRule(tx, rule.id, acct);
+      const restored = await unapplyRule(tx, rule.id, acct, touched);
       await tx
         .delete(exclusionRules)
         .where(and(eq(exclusionRules.accountId, acct), eq(exclusionRules.id, rule.id)));
       // Rows also covered by another active rule get re-stamped, not released.
-      const restamped = await resweepActiveRules(tx, acct);
+      const restamped = await resweepActiveRules(tx, acct, touched);
       return restored - restamped;
     });
 
@@ -251,7 +261,15 @@ export async function deleteExclusionRule(input: unknown): Promise<RuleMutationR
       entityId: rule.id,
       entityLabel: ruleDescriptor(rule, resolved.ok ? resolved.label : null),
       actorUserId: user.id,
-      meta: { restored: affected },
+      // The rule's TARGET, which the deleted row no longer holds (2026-11).
+      meta: {
+        restored: affected,
+        kind: rule.kind,
+        objective: rule.objective,
+        campaignId: rule.campaignId,
+        creativeId: rule.creativeId,
+      },
+      touches: mergeTouches(targetTouches(rule), touched.touches()),
     });
     return { ok: true, affected };
   } catch (err) {
@@ -273,6 +291,17 @@ export async function previewExclusionRuleRemoval(
   } catch (err) {
     return { ok: false, error: errMsg(err) };
   }
+}
+
+/**
+ * A creative or campaign rule is ABOUT its target, even when no record moved
+ * (a rule on a creative with no data yet) — so the target is always linked.
+ */
+function targetTouches(t: ExclusionRuleTarget): AuditTouches {
+  return {
+    creative: t.kind === "creative" && t.creativeId ? [t.creativeId] : [],
+    campaign: t.kind === "campaign" && t.campaignId ? [t.campaignId] : [],
+  };
 }
 
 /** Rules change aggregates on every analytics page — bump the whole layout. */

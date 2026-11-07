@@ -504,6 +504,7 @@ this map is still a rule you broke.
 - Every tenant read injects `account_id`; every write stamps it.
 - Membership says WHERE, permissions say WHAT; the server is the gate.
 - Re-validate a caller-supplied FK against the active account before writing.
+- Every audit write names what it touched via `writeAudit({ touches })` — resolved inside the tx, before deletes.
 - Below admin, `users.manage` works within the manager's own access — one guard, `teamGuard`.
 - Three member states from two stamps, ONE reader (`memberStatus`); removal is a
   tombstone that frees the email and never rewrites history; the last ACTIVE

@@ -381,7 +381,8 @@ export async function commitBulkCreatives(
     }
     if (normalized.length === 0) return { ok: false, error: "Nothing to create." };
 
-    await db.transaction(async (tx) => {
+    const createdIds = await db.transaction(async (tx) => {
+      const ids: string[] = [];
       for (const r of normalized) {
         const [inserted] = await tx
           .insert(creatives)
@@ -400,6 +401,7 @@ export async function commitBulkCreatives(
           })
           .returning({ id: creatives.id });
         if (!inserted) throw new Error(`Failed to insert "${r.name}".`);
+        ids.push(inserted.id);
         if (r.angles.length > 0) {
           await tx
             .insert(creativeAngles)
@@ -414,6 +416,7 @@ export async function commitBulkCreatives(
         names: normalized.flatMap((r) => r.angles),
         createdByUserId: user.id,
       });
+      return ids;
     });
 
     // NO revalidatePath (W2-1): the caller navigates to /library, and that
@@ -427,6 +430,8 @@ export async function commitBulkCreatives(
       entityLabel: `${normalized.length} creative${normalized.length === 1 ? "" : "s"} created`,
       actorUserId: user.id,
       meta: { count: normalized.length, names: normalized.map((r) => r.name).slice(0, 50) },
+      // Every new creative by id — `names` stops at 50, the links don't.
+      touches: { creative: createdIds },
     });
 
     return { ok: true, created: normalized.length };
