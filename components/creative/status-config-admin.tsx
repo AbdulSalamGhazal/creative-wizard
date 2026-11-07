@@ -8,13 +8,6 @@ import { setStatusWindow } from "@/app/actions/account";
 import { safeAction } from "@/lib/action-failure";
 import { toastActionFailure } from "@/lib/action-toast";
 import { cn } from "@/lib/utils";
-import { Chip } from "@/components/ui/chip";
-
-interface BrandWindow {
-  id: string;
-  name: string;
-  statusWindowHours: number;
-}
 
 const PRESETS = [
   { hours: 24, label: "24 h", desc: "Spent on the most recent data day only" },
@@ -23,26 +16,38 @@ const PRESETS = [
 ];
 
 /**
- * Status window config.
- *
- * A creative counts as "Active" on a platform if it spent within this many
- * hours of THAT platform's own latest data day. Since data is daily-grain
- * (one row per creative × platform × campaign × date), the window rounds to
- * whole days: 24 h = the latest day only, 48 h = the last 2 days, etc.
- *
- * Configured per brand — different brands can have different thresholds.
+ * The status window's standing rule, for the column header's ⓘ (R-068: the
+ * two-paragraph explainer card became this).
  */
-export function StatusConfigAdmin({ brands }: { brands: BrandWindow[] }) {
-  const [pending, startTransition] = useTransition();
-  const [customValues, setCustomValues] = useState<Record<string, string>>({});
+export const STATUS_WINDOW_INFO =
+  "A creative is Active on a platform when it has spent within this window of that platform's latest data day. Uploads are daily-grain, so the window rounds to whole days — 24 h is the latest day only. Each brand has its own window; a change applies on the next page load.";
 
-  const save = (id: string, hours: number) => {
+/**
+ * One brand's ACTIVE WINDOW, as a cell of the Brands table (R-068 — a single
+ * per-brand number no longer takes a tab of its own): the three presets and a
+ * custom hours field. The highlighted preset IS the current value (no
+ * "{n}h window" pill beside it); a custom value shows in the field's
+ * placeholder.
+ */
+export function StatusWindowControl({
+  brandId,
+  hours: current,
+}: {
+  brandId: string;
+  hours: number;
+}) {
+  const [pending, startTransition] = useTransition();
+  const [customRaw, setCustomRaw] = useState("");
+  const customHours = customRaw ? Math.round(Number(customRaw)) : null;
+  const isPreset = PRESETS.some((p) => p.hours === current);
+
+  const save = (hours: number) => {
     if (!Number.isFinite(hours) || hours < 1 || hours > 720) {
       toast.error("Window must be 1–720 hours");
       return;
     }
     startTransition(async () => {
-      const res = await safeAction(() => setStatusWindow({ id, hours }));
+      const res = await safeAction(() => setStatusWindow({ id: brandId, hours }));
       if (!res.ok) {
         toastActionFailure(res, "Couldn't update");
         return;
@@ -53,114 +58,67 @@ export function StatusConfigAdmin({ brands }: { brands: BrandWindow[] }) {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="rounded-lg border border-line bg-surface/60 px-5 py-4 text-sm text-ink-2 space-y-1.5 max-w-2xl">
-        <p>
-          A creative is <strong className="text-ink">Active</strong> on a platform when it
-          has spent within this window of the latest data day on that platform.
-          Because uploads are per-platform and daily-grain, the window rounds to
-          whole days — 24 h = the latest day only.
-        </p>
-        <p className="text-ink-3 text-xs">
-          Each brand can have its own window. Changes take effect immediately on
-          the next page load.
-        </p>
-      </div>
-
-      <div className="space-y-6 max-w-2xl">
-        {brands.map((b) => {
-          const current = b.statusWindowHours;
-          const customRaw = customValues[b.id] ?? "";
-          const customHours = customRaw ? Math.round(Number(customRaw)) : null;
-
-          return (
-            <div key={b.id} className="space-y-3">
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-medium text-ink">{b.name}</span>
-                <Chip className="tabular-nums">{current}h window</Chip>
-              </div>
-
-              {/* Preset buttons */}
-              <div className="flex flex-wrap gap-2">
-                {PRESETS.map((p) => {
-                  const active = current === p.hours && !customRaw;
-                  return (
-                    <button
-                      key={p.hours}
-                      type="button"
-                      disabled={pending}
-                      onClick={() => {
-                        setCustomValues((v) => ({ ...v, [b.id]: "" }));
-                        if (current !== p.hours) save(b.id, p.hours);
-                      }}
-                      title={p.desc}
-                      className={cn(
-                        "rounded-md border px-3 py-1.5 text-sm transition-colors",
-                        active
-                          ? "border-brand bg-brand/10 text-brand font-medium"
-                          : "border-line bg-surface text-ink-2 hover:text-ink hover:border-line-2",
-                      )}
-                    >
-                      {p.label}
-                    </button>
-                  );
-                })}
-
-                {/* Custom hours */}
-                <div className="flex items-center gap-1.5">
-                  <Input
-                    type="number"
-                    min={1}
-                    max={720}
-                    placeholder="Custom"
-                    value={customRaw}
-                    onChange={(e) =>
-                      setCustomValues((v) => ({ ...v, [b.id]: e.target.value }))
-                    }
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && customHours !== null) {
-                        save(b.id, customHours);
-                        setCustomValues((v) => ({ ...v, [b.id]: "" }));
-                      }
-                    }}
-                    className="h-8 w-24 text-sm"
-                  />
-                  <span className="text-xs text-ink-3">h</span>
-                  {customHours !== null && customHours !== current && (
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="ghost"
-                      disabled={pending}
-                      onClick={() => {
-                        save(b.id, customHours);
-                        setCustomValues((v) => ({ ...v, [b.id]: "" }));
-                      }}
-                      className="h-8 text-xs"
-                    >
-                      Apply
-                    </Button>
-                  )}
-                </div>
-              </div>
-
-              {/* Description of the active preset */}
-              {(() => {
-                const preset = PRESETS.find((p) => p.hours === current);
-                return preset ? (
-                  <p className="text-xs text-ink-3">{preset.desc}</p>
-                ) : (
-                  <p className="text-xs text-ink-3">
-                    Custom: {current}h — active if spent in the last{" "}
-                    {Math.ceil(current / 24)} data day
-                    {Math.ceil(current / 24) !== 1 ? "s" : ""} on each platform.
-                  </p>
-                );
-              })()}
-            </div>
-          );
-        })}
-      </div>
+    <div className="flex flex-wrap items-center gap-1.5">
+      {PRESETS.map((p) => {
+        const active = current === p.hours && !customRaw;
+        return (
+          <button
+            key={p.hours}
+            type="button"
+            disabled={pending}
+            aria-pressed={active}
+            onClick={() => {
+              setCustomRaw("");
+              if (current !== p.hours) save(p.hours);
+            }}
+            title={p.desc}
+            className={cn(
+              "rounded-md border px-2.5 py-1 text-xs transition-colors whitespace-nowrap",
+              active
+                ? "border-brand bg-brand/10 text-brand font-medium"
+                : "border-line bg-surface text-ink-2 hover:text-ink hover:border-line-2",
+            )}
+          >
+            {p.label}
+          </button>
+        );
+      })}
+      <Input
+        type="number"
+        min={1}
+        max={720}
+        aria-label="Custom window in hours"
+        placeholder={isPreset ? "Custom" : `${current}`}
+        title={isPreset ? undefined : `Custom: ${current} h — the last ${Math.ceil(current / 24)} data day(s) on each platform`}
+        value={customRaw}
+        onChange={(e) => setCustomRaw(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && customHours !== null) {
+            save(customHours);
+            setCustomRaw("");
+          }
+        }}
+        className={cn(
+          "h-7 w-20 text-xs",
+          !isPreset && !customRaw && "border-brand placeholder:text-brand",
+        )}
+      />
+      <span className="text-xs text-ink-3">h</span>
+      {customHours !== null && customHours !== current && (
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          disabled={pending}
+          onClick={() => {
+            save(customHours);
+            setCustomRaw("");
+          }}
+          className="h-7 text-xs"
+        >
+          Apply
+        </Button>
+      )}
     </div>
   );
 }

@@ -14,12 +14,18 @@ import { safeAction } from "@/lib/action-failure";
 import { toastActionFailure } from "@/lib/action-toast";
 import { Chip } from "@/components/ui/chip";
 import { panelClass } from "@/components/ui/panel";
+import { InfoTip } from "@/components/ui/info-tip";
+import {
+  STATUS_WINDOW_INFO,
+  StatusWindowControl,
+} from "@/components/creative/status-config-admin";
 
 interface AccountRow {
   id: string;
   name: string;
   slug: string;
-  statusWindowHours: number; // kept on type for the Status tab; not shown here
+  /** The brand's Active window — its own column (R-068; the Status tab folded in). */
+  statusWindowHours: number;
 }
 
 /**
@@ -137,6 +143,12 @@ export function AccountsAdmin({
             <tr className="text-left text-label text-ink-2 border-b border-line bg-surface-2/40">
               <th className="font-medium px-3 py-2.5">Brand</th>
               <th className="font-medium px-3 py-2.5">Slug</th>
+              <th className="font-medium px-3 py-2.5">
+                <span className="inline-flex items-center gap-1.5">
+                  Active window
+                  <InfoTip label="About the active window">{STATUS_WINDOW_INFO}</InfoTip>
+                </span>
+              </th>
               <th className="font-medium px-3 py-2.5 text-right"></th>
             </tr>
           </thead>
@@ -173,6 +185,9 @@ export function AccountsAdmin({
                     )}
                   </td>
                   <td className="px-3 py-2 text-ink-3">{r.slug}</td>
+                  <td className="px-3 py-2">
+                    <StatusWindowControl brandId={r.id} hours={r.statusWindowHours} />
+                  </td>
                   <td className="px-3 py-2 text-right whitespace-nowrap">
                     {editing ? (
                       <span className="inline-flex items-center gap-1">

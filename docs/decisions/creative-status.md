@@ -55,7 +55,9 @@ as it stood before the restructure.*
   platform ▸ else `pause` ▸ else `terminated` (terminated everywhere it ran) ▸
   else `new`. The window is per-brand `accounts.status_window_hours` (default 24;
   daily-grain data rounds up to whole days, so 24h = the latest day only),
-  editable in the Brands admin via `setStatusWindow`. Terminate/reactivate =
+  editable in the Brands admin via `setStatusWindow` — an "Active window"
+  column of Configuration → Brands since R-068 (2026-11); the old Status tab
+  redirects there. Terminate/reactivate =
   `setCreativeTermination` (per creative×platform; since 2026-10 ONE call
   carries every platform the dialog changed — one transaction, one render,
   one audit row per platform). Render with

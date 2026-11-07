@@ -55,7 +55,6 @@ export const LIBRARY_TABS = [
 // ── Configuration (/admin/catalog) — nothing but its tabs: with none, 404. ──
 export const CONFIGURATION_TABS = [
   { key: "rating", label: "Rate rules", perm: "config.rating" },
-  { key: "status", label: "Status", perm: "config.brands" },
   { key: "brands", label: "Brands", perm: "config.brands" },
   { key: "exclusions", label: "Exclusions", perm: "record.exclude" },
   { key: "notifications", label: "Notification routing", perm: "notify.manage" },

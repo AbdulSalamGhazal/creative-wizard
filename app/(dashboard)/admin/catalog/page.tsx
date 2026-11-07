@@ -6,7 +6,6 @@ import { getRatingConfig } from "@/db/queries/rating";
 import { getActiveAccountId, listAccounts } from "@/lib/tenant";
 import { RatingRulesAdmin } from "@/components/rating/rating-rules-admin";
 import { AccountsAdmin } from "@/components/account/accounts-admin";
-import { StatusConfigAdmin } from "@/components/creative/status-config-admin";
 import { PageShell } from "@/components/layout/page-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { ExclusionRulesAdmin } from "@/components/exclusions/exclusion-rules-admin";
@@ -47,6 +46,7 @@ const MOVED_TABS: Record<string, string> = {
   platforms: "/uploads?tab=mapping", // merged into CSV mapping
   mapping: "/uploads?tab=mapping",
   store_fields: "/store/uploads?tab=fields",
+  status: "/admin/catalog?tab=brands", // the Active window is a Brands column (R-068)
 };
 export default async function CatalogAdminPage({ searchParams }: Props) {
   const user = await auth();
@@ -83,9 +83,6 @@ export default async function CatalogAdminPage({ searchParams }: Props) {
       />
 
       {active === "rating" && <RatingRulesAdmin config={await getRatingConfig()} />}
-      {active === "status" && (
-        <StatusConfigAdmin brands={await listAccounts()} />
-      )}
       {active === "brands" && (
         <AccountsAdmin
           accounts={await listAccounts()}
