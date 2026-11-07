@@ -196,7 +196,7 @@ export function PlanView() {
         onDelete={() => deletePlan(plan.id)}
         readOnly={!access.edit}
       />
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6">
+      <div className="grid grid-cols-2 gap-3 @3xl/main:grid-cols-3 @6xl/main:grid-cols-6">
         <MetricCard label="Baked-in ROAS" value={roas2(b.platformRoas)} icon={Gauge} hideBreakdown footer={`Accountant ROAS ${roas2(b.accountantRoas)}`} />
         <MetricCard
           label="ROAS for A / B"
@@ -218,7 +218,7 @@ export function PlanView() {
         <MetricCard label={`Revenue ${per}`} value={`${money0(b.gross * mult)} SAR`} icon={Receipt} hideBreakdown footer={`Incl. VAT · net ${money0(b.netRevenue * mult)}`} />
         <MetricCard label={`CML ${per}`} value={`${money0(b.profit * mult)} SAR`} icon={Coins} hideBreakdown footer={`CML ${pct2(b.margin)} of net revenue`} />
       </div>
-      <div className="grid gap-4 xl:grid-cols-2">
+      <div className="grid gap-4 @5xl/main:grid-cols-2">
         <CostShares subtitle="The plan's blended cost structure, as a share of net revenue (ex VAT, delivered orders)." columns={[{ label: "Plan", blend: b, mult }]} sarLabel={`SAR ${per}`} />
         <RiyalCard rows={riyalRows} />
       </div>

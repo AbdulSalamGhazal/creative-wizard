@@ -5,9 +5,9 @@ export default function Loading() {
   return (
     <div className="space-y-6">
       <HeaderSkeleton eyebrow right />
-      <KpiRowSkeleton count={6} cols="grid-cols-2 sm:grid-cols-3 lg:grid-cols-6" />
+      <KpiRowSkeleton count={6} cols="grid-cols-2 @3xl/main:grid-cols-3 @6xl/main:grid-cols-6" />
       <TableSkeleton rows={10} wide />
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid gap-4 @5xl/main:grid-cols-2">
         <ChartCardSkeleton />
         <ChartCardSkeleton />
       </div>

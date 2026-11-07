@@ -12,7 +12,7 @@ export default function CampaignDetailLoading() {
       </div>
 
       {/* 4 KPI tiles */}
-      <KpiRowSkeleton count={4} cols="grid-cols-2 sm:grid-cols-3 lg:grid-cols-4" />
+      <KpiRowSkeleton count={4} cols="grid-cols-2 @xl/main:grid-cols-3 @3xl/main:grid-cols-4" />
 
       {/* Creative performance chart + table */}
       <Skeleton className="h-72 w-full rounded-lg" />

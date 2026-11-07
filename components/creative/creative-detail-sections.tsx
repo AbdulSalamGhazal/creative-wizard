@@ -124,7 +124,7 @@ export async function CreativeAnalyticsBody({
 
   return (
     <>
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 @xl/main:grid-cols-3 @4xl/main:grid-cols-5 gap-3">
         <MetricCard label="Spend" value={usd0(k.spend)} icon={DollarSign} delta={d.spend} deltaVs={vs(usd0(p.spend))} hideBreakdown />
         <MetricCard label="Conversions" value={int(k.conversions)} icon={Target} delta={d.conversions} deltaVs={vs(int(p.conversions))} hideBreakdown />
         <MetricCard label="Revenue" value={usd0(k.conversionValue)} icon={Banknote} delta={revenueDelta} deltaVs={vs(usd0(p.conversionValue))} hideBreakdown />

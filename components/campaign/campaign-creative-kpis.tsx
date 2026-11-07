@@ -82,7 +82,7 @@ export function CampaignCreativeKpis({
   const empty = t.spend == null;
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+    <div className="grid grid-cols-2 @xl/main:grid-cols-3 @3xl/main:grid-cols-4 gap-3">
       <MetricCard
         label="Spend"
         value={usd(t.spend)}

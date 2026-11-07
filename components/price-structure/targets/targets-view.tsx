@@ -67,7 +67,7 @@ function CheckOffers({ rows, targets }: { rows: readonly OfferRow[]; targets: re
         <EmptyState title="No active targets: add a target or turn one on." size="sm" />
       ) : (
         <>
-          <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-3 grid-cols-1 @xl/main:grid-cols-2 @3xl/main:grid-cols-3">
             {enabled.map((t) => {
               const counts: Record<Status, number> = { b: 0, a: 0, miss: 0 };
               for (const r of rows) counts[statusAgainst(r.r, t)] += 1;

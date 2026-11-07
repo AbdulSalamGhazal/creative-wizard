@@ -206,7 +206,7 @@ export function ProductsView({ productId, offerId }: { productId: string | null;
                   readOnly={!access.edit}
                 />
                 {offer && (
-                  <div className="grid gap-4 xl:grid-cols-2">
+                  <div className="grid gap-4 @5xl/main:grid-cols-2">
                     <OfferWaterfall product={product} offer={offer} data={version.data} />
                     <HowCalculated product={product} offer={offer} data={version.data} />
                   </div>

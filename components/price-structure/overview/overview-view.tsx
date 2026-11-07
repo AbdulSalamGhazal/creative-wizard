@@ -62,7 +62,7 @@ export function OverviewView() {
   }));
 
   // Two abreast on a phone or a tablet (the labels are long), four or six on a desktop.
-  const tiles = `grid gap-3 grid-cols-2 ${monthly ? "lg:grid-cols-3 xl:grid-cols-6" : "xl:grid-cols-4"}`;
+  const tiles = `grid gap-3 grid-cols-2 ${monthly ? "@3xl/main:grid-cols-3 @6xl/main:grid-cols-6" : "@5xl/main:grid-cols-4"}`;
 
   return (
     <>
@@ -140,7 +140,7 @@ export function OverviewView() {
             )}
           </div>
           <PriceStructureTable evaluated={evaluated} grouping={grouping} costView={costView} onCostView={setCostView} chartMetric={chartMetric} />
-          <div className="grid gap-4 xl:grid-cols-2">
+          <div className="grid gap-4 @5xl/main:grid-cols-2">
             <SectionCard title="Where each riyal goes" subtitle={costView === "pct" ? "Share of net revenue per offer" : "SAR per delivered order"}>
               <RiyalBars rows={grouping === "ranked" ? rankRows(riyalRows, evaluated, chartMetric) : riyalRows} mode={costView} />
             </SectionCard>

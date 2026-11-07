@@ -52,7 +52,7 @@ function TileSkeleton() {
 export function AnalyticsBodySkeleton() {
   return (
     <>
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 @xl/main:grid-cols-3 @4xl/main:grid-cols-5 gap-3">
         {Array.from({ length: 5 }).map((_, i) => (
           <TileSkeleton key={i} />
         ))}

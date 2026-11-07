@@ -70,7 +70,7 @@ export function ActualView({ data, period, plan, onChangePeriod }: { data: Versi
           {baked.orders === 0 ? "Enter the period's orders per offer below to compare ROAS." : "Enter the period's ad spend to compare ROAS."}
         </p>
       )}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6">
+      <div className="grid grid-cols-2 gap-3 @3xl/main:grid-cols-3 @6xl/main:grid-cols-6">
         <MetricCard label="Actual ROAS" value={hasSpend ? roas2(actual.platformRoas) : "—"} icon={Gauge} hideBreakdown footer={period.metaRoas ? `Meta reported ${roas2(period.metaRoas)}` : hasSpend ? `Accountant view ${roas2(actual.accountantRoas)}` : undefined} />
         <MetricCard label="Baked-in ROAS (this mix)" value={roas2(baked.platformRoas)} icon={Scale} hideBreakdown footer={`Plan mix needed ${roas2(planB.platformRoas)}`} />
         <MetricCard
@@ -89,7 +89,7 @@ export function ActualView({ data, period, plan, onChangePeriod }: { data: Versi
         <MetricCard label="Blended CPA" value={hasSpend ? usd2(actual.cpaUsd) : "—"} icon={Coins} hideBreakdown footer={`Baked-in ${usd2(baked.cpaUsd)}`} />
         <MetricCard label="CML" value={hasSpend ? `${money0(T(actual.profit))} SAR` : "—"} icon={Percent} hideBreakdown footer={`At baked-in ROAS ${money0(T(baked.profit))}`} />
       </div>
-      <div className="grid gap-4 xl:grid-cols-2">
+      <div className="grid gap-4 @5xl/main:grid-cols-2">
         <CostShares
           title="Cost shares: actual vs baked-in"
           subtitle="COGS follows what you sold. Marketing compares real ad spend with what the baked-in CPAs allow."

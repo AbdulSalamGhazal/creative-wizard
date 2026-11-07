@@ -248,7 +248,7 @@ export function BudgetOverview({
       </div>
 
       {/* ── The three hero cards ──────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 @2xl/main:grid-cols-3">
         <SpendCard
           t={t}
           reserve={data.reserveSpendUsd}

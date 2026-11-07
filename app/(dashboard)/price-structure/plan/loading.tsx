@@ -7,8 +7,8 @@ export default function Loading() {
     <div className="space-y-6">
       <HeaderSkeleton eyebrow right />
       <Skeleton className="h-24 w-full rounded-lg" />
-      <KpiRowSkeleton count={6} cols="grid-cols-2 sm:grid-cols-3 lg:grid-cols-6" />
-      <div className="grid gap-4 lg:grid-cols-2">
+      <KpiRowSkeleton count={6} cols="grid-cols-2 @3xl/main:grid-cols-3 @6xl/main:grid-cols-6" />
+      <div className="grid gap-4 @5xl/main:grid-cols-2">
         <TableSkeleton rows={5} />
         <ChartCardSkeleton height="h-40" />
       </div>

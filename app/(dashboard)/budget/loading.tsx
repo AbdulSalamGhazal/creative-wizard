@@ -16,7 +16,7 @@ export default function Loading() {
           </div>
           <Skeleton className="h-3 w-64 rounded-sm" />
         </div>
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 @2xl/main:grid-cols-3">
           {[0, 1, 2].map((i) => (
             <div key={i} className="space-y-3 rounded-lg border border-line bg-surface px-4 py-3">
               <Skeleton className="h-3 w-16" />
