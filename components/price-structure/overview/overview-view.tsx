@@ -6,7 +6,6 @@ import { useSearchParams } from "next/navigation";
 import { Coins, Package, Percent, Target as TargetIcon, TrendingDown, TrendingUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
-import { SegmentedControl } from "@/components/ui/segmented-control";
 import { MetricCard } from "@/components/overview/metric-card";
 import { evaluateAll, statusCounts } from "@/price-structure/engine/all-offers";
 import { isMetricKey, METRICS, metricValue, rankCompare } from "@/price-structure/engine/metrics";
@@ -79,17 +78,6 @@ export function OverviewView() {
         />
       ) : (
         <>
-          <div className="flex justify-end">
-            <SegmentedControl<Grouping>
-              ariaLabel="Table order"
-              value={grouping}
-              onChange={setGrouping}
-              options={[
-                { value: "grouped", label: "Group by product" },
-                { value: "ranked", label: `Rank by ${METRICS[chartMetric].short}` },
-              ]}
-            />
-          </div>
           <div className={tiles}>
             <MetricCard label="Offers analysed" value={String(rows.length)} icon={Package} hideBreakdown footer={`${productCount} product${productCount === 1 ? "" : "s"}`} />
             <MetricCard
@@ -139,7 +127,14 @@ export function OverviewView() {
               </>
             )}
           </div>
-          <PriceStructureTable evaluated={evaluated} grouping={grouping} costView={costView} onCostView={setCostView} chartMetric={chartMetric} />
+          <PriceStructureTable
+            evaluated={evaluated}
+            grouping={grouping}
+            onGrouping={setGrouping}
+            costView={costView}
+            onCostView={setCostView}
+            chartMetric={chartMetric}
+          />
           <div className="grid gap-4 @5xl/main:grid-cols-2">
             <SectionCard title="Where each riyal goes" subtitle={costView === "pct" ? "Share of net revenue per offer" : "SAR per delivered order"}>
               <RiyalBars rows={grouping === "ranked" ? rankRows(riyalRows, evaluated, chartMetric) : riyalRows} mode={costView} />

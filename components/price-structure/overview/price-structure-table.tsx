@@ -11,7 +11,7 @@ import { useNavTransition } from "@/lib/nav-progress";
 import { cn } from "@/lib/utils";
 import type { Evaluated, OfferRow } from "@/price-structure/engine/all-offers";
 import { mechanicText } from "@/price-structure/engine/mechanics";
-import { metricValue, rankCompare } from "@/price-structure/engine/metrics";
+import { METRICS, metricValue, rankCompare } from "@/price-structure/engine/metrics";
 import type { MetricKey, Product } from "@/price-structure/engine/types";
 import { money0, targetText } from "@/price-structure/format";
 import { Num } from "../num";
@@ -41,12 +41,16 @@ function offerHref(r: Row, v: string | null): string {
 export function PriceStructureTable({
   evaluated,
   grouping,
+  onGrouping,
   costView,
   onCostView,
   chartMetric,
 }: {
   evaluated: Evaluated;
   grouping: "grouped" | "ranked";
+  /** The table's order (R-077: the control sits in the table's own header,
+   *  beside what it changes — it also orders the riyal bars below). */
+  onGrouping: (g: "grouped" | "ranked") => void;
   costView: CostView;
   onCostView: (v: CostView) => void;
   chartMetric: MetricKey;
@@ -180,6 +184,15 @@ export function PriceStructureTable({
       }
       actions={
         <>
+          <SegmentedControl<"grouped" | "ranked">
+            ariaLabel="Table order"
+            value={grouping}
+            onChange={onGrouping}
+            options={[
+              { value: "grouped", label: "Group by product" },
+              { value: "ranked", label: `Rank by ${METRICS[chartMetric].short}` },
+            ]}
+          />
           <RoasTargetPicker />
           <SegmentedControl<CostView>
             ariaLabel="Cost columns"
