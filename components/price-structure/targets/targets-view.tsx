@@ -135,7 +135,7 @@ function TargetMatrix({ rows, targets }: { rows: readonly OfferRow[]; targets: r
             <span className="mt-1 size-2 shrink-0 rounded-full" style={{ background: productColor(r.product.colorSlot) }} aria-hidden />
             <span className="min-w-0">
               <span className="block truncate text-ink" dir="auto">{r.offer.name}</span>
-              <span className="block truncate text-[10px] text-ink-3" dir="auto">{r.product.name}</span>
+              <span className="block truncate text-[10px] text-ink-2" dir="auto">{r.product.name}</span>
             </span>
           </span>
         ),

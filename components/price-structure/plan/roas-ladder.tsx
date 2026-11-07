@@ -81,7 +81,7 @@ export function RoasLadder({ title, subtitle, actions, marks, targetA }: { title
         </div>
         {/* Axis ticks */}
         {axis.ticks.map((t) => (
-          <span key={t} className="absolute -translate-x-1/2 text-[10px] text-ink-3 tabular-nums" style={{ left: axisPosition(axis, t) * width, top: trackTop + 12 + below * ROW_H }}>
+          <span key={t} className="absolute -translate-x-1/2 text-[10px] text-ink-2 tabular-nums" style={{ left: axisPosition(axis, t) * width, top: trackTop + 12 + below * ROW_H }}>
             {roasX(t)}
           </span>
         ))}

@@ -163,7 +163,7 @@ const CampaignNodeView = memo(function CampaignNodeView({
           <Chip className="min-w-0 shrink">
             <span className="truncate">{n.objective}</span>
           </Chip>
-          <span className="shrink-0 text-[10px] text-ink-3">
+          <span className="shrink-0 text-[10px] text-ink-2">
             {CAMPAIGN_STATUS_LABEL[n.status]}
           </span>
           <span
@@ -221,7 +221,7 @@ const CreativeNodeView = memo(function CreativeNodeView({
             </span>
           </div>
           <div className="mt-1.5 flex items-center gap-1.5">
-            <span className="shrink-0 text-[10px] text-ink-3">{STATUS_LABEL[n.status]}</span>
+            <span className="shrink-0 text-[10px] text-ink-2">{STATUS_LABEL[n.status]}</span>
             <PriorityStars value={n.priority} className="origin-left scale-90" />
             <span className="ml-auto shrink-0 text-xs tabular-nums text-ink">
               {n.spend > 0 ? usdCompact(n.spend) : "idle"}
@@ -569,7 +569,7 @@ function Flow({
                   Active, but no spend in this range.
                 </p>
               )}
-              <p className="mt-1 text-[10px] text-ink-3">Double-click to open</p>
+              <p className="mt-1 text-[10px] text-ink-2">Double-click to open</p>
             </>
           ),
         });
@@ -592,7 +592,7 @@ function Flow({
                 {roas(n.spend > 0 ? n.revenue / n.spend : null)}
               </dd>
             </dl>
-            <p className="mt-1 text-[10px] text-ink-3">Double-click to open</p>
+            <p className="mt-1 text-[10px] text-ink-2">Double-click to open</p>
           </>
         ),
       });
@@ -828,7 +828,7 @@ function Legend({ view }: { view: CanvasViewMode }) {
           </li>
         ))}
       </ul>
-      <p className="mt-1 text-[10px] text-ink-3">
+      <p className="mt-1 text-[10px] text-ink-2">
         Campaigns: {CAMPAIGN_STATUS_LABEL.active} / {CAMPAIGN_STATUS_LABEL.inactive}, same
         colors. “3/5” = creatives currently spending there.
       </p>

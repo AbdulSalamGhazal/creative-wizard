@@ -311,7 +311,7 @@ export function CampaignRecordsTable({
       )}
 
       {truncated && mode === "raw" && (
-        <p className="text-[10px] text-ink-3">
+        <p className="text-[10px] text-ink-2">
           Showing the first 2,000 records. Switch to “By day” for the full window, or narrow the
           date range.
         </p>

@@ -71,4 +71,16 @@ describe("design-system spellings", () => {
     const rogue = offenders((b) => /(^|\s)uppercase(\s|$)/.test(b) && /(^|\s)text-\[\d+px\]/.test(b));
     expect(rogue, "use text-label / text-eyebrow").toEqual([]);
   });
+
+  it("informational small text is ink-2, never ink-3 (R-038)", () => {
+    // ink-3 measures 2.9–3.8:1 on Midnight / Frost / Paper surfaces — below
+    // 4.5:1 for small text. It stays for decoration (icons, separators,
+    // placeholders); 9–10px text and anything on surface-3 take ink-2.
+    const rogue = offenders(
+      (b) =>
+        /(^|\s)text-ink-3(\s|$)/.test(b) &&
+        /(^|\s)(text-\[(9|10)px\]|bg-surface-3)(\s|$)/.test(b),
+    );
+    expect(rogue, "use text-ink-2 for small informational text").toEqual([]);
+  });
 });

@@ -153,7 +153,7 @@ export function VersionsView() {
                 <span className="truncate font-medium text-ink" dir="auto">{r.name}</span>
                 {current && <span className="shrink-0 rounded-sm border border-brand/50 px-1 text-[10px] text-brand">This tab</span>}
               </span>
-              <span className="block truncate text-[10px] text-ink-3" dir="auto">{r.notes || `Created ${DAY.format(new Date(r.createdAt))}`}</span>
+              <span className="block truncate text-[10px] text-ink-2" dir="auto">{r.notes || `Created ${DAY.format(new Date(r.createdAt))}`}</span>
             </span>
           );
         },

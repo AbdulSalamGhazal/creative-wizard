@@ -274,7 +274,7 @@ export function CreativeDetailHeader({
             disabled={locked}
           />
           {canEdit && (
-            <p className="text-[10px] text-ink-3 px-0.5">
+            <p className="text-[10px] text-ink-2 px-0.5">
               Click or drag to {thumbnailUrl ? "replace" : "add"} a thumbnail.
             </p>
           )}

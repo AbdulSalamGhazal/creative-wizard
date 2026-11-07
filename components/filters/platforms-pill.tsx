@@ -100,7 +100,7 @@ export function PlatformsPill({
             );
           })}
           {capped && (
-            <div className="px-2 py-1.5 text-[10px] text-ink-3">
+            <div className="px-2 py-1.5 text-[10px] text-ink-2">
               Deselect a platform to add another.
             </div>
           )}

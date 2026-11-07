@@ -99,7 +99,7 @@ export function MetricBlockHeader({
                 <span className="flex-1">{COMPARE_METRIC_LABEL[m]}</span>
                 {isCurrent && <Check className="w-3.5 h-3.5 text-brand" />}
                 {usedElsewhere && (
-                  <span className="text-[10px] text-ink-3">shown</span>
+                  <span className="text-[10px] text-ink-2">shown</span>
                 )}
               </DropdownMenuItem>
             );

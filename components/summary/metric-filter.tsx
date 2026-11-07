@@ -277,7 +277,7 @@ export function MetricFilterControl({ platforms }: Props) {
               Add
             </button>
           </div>
-          <p className="text-[10px] text-ink-3">
+          <p className="text-[10px] text-ink-2">
             {draftUnit === "pct"
               ? "Percentages are entered as shown — e.g. 2 means 2%."
               : draftUnit === "x"

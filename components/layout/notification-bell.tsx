@@ -404,7 +404,7 @@ export function NotificationBell({
                       <time
                         dateTime={item.createdAt}
                         title={dateTimeLabel(item.createdAt)}
-                        className="mt-0.5 block text-[10px] text-ink-3"
+                        className="mt-0.5 block text-[10px] text-ink-2"
                       >
                         {relativeTime(item.createdAt)}
                       </time>

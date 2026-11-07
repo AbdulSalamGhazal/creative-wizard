@@ -175,7 +175,7 @@ export function StatusFlowGrid({
                   {labelFor(sc.key)}
                 </span>
                 {sc.data.untouchedNew > 0 ? (
-                  <span className="flex items-center gap-1.5 text-[10px] text-ink-3 mt-0.5 mb-1">
+                  <span className="flex items-center gap-1.5 text-[10px] text-ink-2 mt-0.5 mb-1">
                     <span
                       className="h-1.5 w-1.5 rounded-full shrink-0"
                       style={{ background: STATUS_DOT.new }}

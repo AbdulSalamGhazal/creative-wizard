@@ -28,7 +28,7 @@ export function DeltaBadge({
 }) {
   if (delta.mode === "absent") {
     return (
-      <span className={`text-[10px] text-ink-3 ${className}`} aria-hidden>
+      <span className={`text-[10px] text-ink-2 ${className}`} aria-hidden>
         —
       </span>
     );

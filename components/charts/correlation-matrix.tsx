@@ -168,7 +168,7 @@ export function CorrelationMatrix({ rows }: { rows: CreativeMetricRow[] }) {
                 {/* Rows (left labels mirror the column pickers) */}
                 {selected.map((rowKey, i) => (
                   <Fragment key={`r-${rowKey}`}>
-                    <div className="flex items-center justify-end pr-1.5 text-[10px] font-semibold text-ink-3">
+                    <div className="flex items-center justify-end pr-1.5 text-[10px] font-semibold text-ink-2">
                       {LABEL[rowKey]}
                     </div>
                     {selected.map((colKey, j) => {
@@ -218,7 +218,7 @@ export function CorrelationMatrix({ rows }: { rows: CreativeMetricRow[] }) {
             </div>
 
             {/* Legend */}
-            <div className="flex items-center justify-between gap-2 text-[10px] text-ink-3">
+            <div className="flex items-center justify-between gap-2 text-[10px] text-ink-2">
               <span className="inline-flex items-center gap-1">
                 <span
                   className="h-2.5 w-2.5 rounded-sm"

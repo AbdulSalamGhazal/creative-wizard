@@ -62,7 +62,7 @@ export function AngleScatter({ rows }: { rows: AngleRollupRow[] }) {
       <div className="flex items-center justify-between flex-wrap gap-3 mb-3">
         <div>
           <h3 className="text-sm font-medium text-ink">Spend vs {y.label}</h3>
-          <p className="text-[10px] text-ink-3">
+          <p className="text-[10px] text-ink-2">
             Each dot is an angle · bubble = creatives · click to open the Library
           </p>
         </div>
@@ -126,7 +126,7 @@ export function AngleScatter({ rows }: { rows: AngleRollupRow[] }) {
                       <Row label="Creatives" value={int(p.creatives)} />
                       <Row label="CPA" value={p.cpa === null ? "—" : usd(p.cpa)} />
                       <Row label="ROAS" value={roas(p.roas)} />
-                      <div className="mt-1 text-[10px] text-ink-3">Click to open Library</div>
+                      <div className="mt-1 text-[10px] text-ink-2">Click to open Library</div>
                     </ChartTooltip>
                   );
                 }}

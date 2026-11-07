@@ -114,7 +114,7 @@ export function CreativeCard({
             <Chip key={t}>{t}</Chip>
           ))}
           {overflow > 0 && (
-            <span className="text-[10px] text-ink-3">+{overflow} more</span>
+            <span className="text-[10px] text-ink-2">+{overflow} more</span>
           )}
         </div>
       </div>

@@ -258,7 +258,7 @@ export function InviteMemberDialog({
                       <SelectItem key={r} value={r}>
                         <span className="flex flex-col">
                           <span>{PRESET_LABEL[r]}</span>
-                          <span className="text-[10px] text-ink-3">{PRESET_DESCRIPTION[r]}</span>
+                          <span className="text-[10px] text-ink-2">{PRESET_DESCRIPTION[r]}</span>
                         </span>
                       </SelectItem>
                     ))}

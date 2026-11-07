@@ -40,7 +40,7 @@ export function BulletRows({ rows, target }: { rows: readonly OfferRow[]; target
     <div className="space-y-1.5">
       <div className="flex items-center gap-2.5">
         <div className="w-28 shrink-0 sm:w-48" />
-        <div className="relative h-4 flex-1 text-[10px] text-ink-3 tabular-nums">
+        <div className="relative h-4 flex-1 text-[10px] text-ink-2 tabular-nums">
           {/* A phone's track is too short for every tick: show every other one. */}
           {axis.ticks.map((t, i) => (
             <span key={t} className={cn("absolute -translate-x-1/2", i % 2 === 1 && "max-sm:hidden")} style={{ left: `${pos(t)}%` }}>

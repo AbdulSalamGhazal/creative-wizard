@@ -168,13 +168,13 @@ export function AuditFeed({ rows, compact = false, filtered = false }: Props) {
             />
             <div className="leading-tight">
               <div className="text-xs text-ink">{row.actor.name || row.actor.email}</div>
-              <div className="text-[10px] text-ink-3 font-mono">{row.actor.email}</div>
+              <div className="text-[10px] text-ink-2 font-mono">{row.actor.email}</div>
             </div>
           </div>
         ) : (
           <div className="flex items-center gap-2 shrink-0">
             <div
-              className="w-6 h-6 rounded-full border border-dashed border-line text-[10px] flex items-center justify-center text-ink-3"
+              className="w-6 h-6 rounded-full border border-dashed border-line text-[10px] flex items-center justify-center text-ink-2"
               aria-hidden
               title="System / anonymous event"
             >

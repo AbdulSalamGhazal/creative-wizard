@@ -1988,7 +1988,7 @@ function DayCurveEditor({
         {/* Calendar */}
         <div className="grid grid-cols-7 gap-1 sm:w-[19rem] sm:shrink-0">
           {["S", "M", "T", "W", "T", "F", "S"].map((d, i) => (
-            <div key={`${d}${i}`} className="text-center text-[10px] text-ink-3">
+            <div key={`${d}${i}`} className="text-center text-[10px] text-ink-2">
               {d}
             </div>
           ))}
@@ -2019,7 +2019,7 @@ function DayCurveEditor({
                 )}
               >
                 <span>{day}</span>
-                {overridden && <span className="text-[9px] leading-none text-ink-3">×{w}</span>}
+                {overridden && <span className="text-[9px] leading-none text-ink-2">×{w}</span>}
               </button>
             );
           })}

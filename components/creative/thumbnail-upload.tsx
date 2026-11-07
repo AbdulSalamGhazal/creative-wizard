@@ -176,7 +176,7 @@ export function ThumbnailUpload({ value, onChange, disabled }: Props) {
           <span className="text-xs text-ink-2">
             {uploading ? "Uploading…" : "Click or drag an image"}
           </span>
-          <span className="text-[10px] text-ink-3">
+          <span className="text-[10px] text-ink-2">
             PNG, JPG, WebP — auto-resized
           </span>
         </button>

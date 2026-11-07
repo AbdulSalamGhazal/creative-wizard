@@ -154,7 +154,7 @@ export function TableColumnsControl({
                       <span className="min-w-0 flex-1 truncate text-ink-2">
                         {item.label}
                       </span>
-                      <span className="text-[10px] text-ink-3">pinned</span>
+                      <span className="text-[10px] text-ink-2">pinned</span>
                     </>
                   ) : (
                     <>

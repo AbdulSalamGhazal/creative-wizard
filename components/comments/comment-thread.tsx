@@ -267,23 +267,23 @@ export function CommentThread({
                 {comment.authorName ?? "Former member"}
               </bdi>
               {pending ? (
-                <span className="shrink-0 text-[10px] text-ink-3">Sending…</span>
+                <span className="shrink-0 text-[10px] text-ink-2">Sending…</span>
               ) : (
                 <time
                   dateTime={created}
                   title={dateTimeLabel(comment.createdAt)}
-                  className="shrink-0 text-[10px] text-ink-3"
+                  className="shrink-0 text-[10px] text-ink-2"
                 >
                   {relativeTime(comment.createdAt)}
                 </time>
               )}
               {comment.editedAt && !deleted && (
-                <span className="shrink-0 text-[10px] text-ink-3">· edited</span>
+                <span className="shrink-0 text-[10px] text-ink-2">· edited</span>
               )}
               {differs && (
                 <span
                   title="Click this comment to see the filters and range it was written under"
-                  className="inline-flex shrink-0 items-center gap-1 rounded-full border border-line px-1.5 py-0.5 text-[10px] text-ink-3"
+                  className="inline-flex shrink-0 items-center gap-1 rounded-full border border-line px-1.5 py-0.5 text-[10px] text-ink-2"
                 >
                   <Eye className="h-3 w-3" aria-hidden />
                   <span className="sr-only">Has its own view — </span>

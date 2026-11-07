@@ -48,7 +48,7 @@ export function Sparkline({
   if (values.length === 0 && (compare === undefined || compare.length === 0)) {
     return (
       <span
-        className="inline-block max-w-full text-[10px] text-ink-3"
+        className="inline-block max-w-full text-[10px] text-ink-2"
         // A responsive line stretches to its parent, so its "no data" dash
         // must too — a fixed 200px dash pushed a 375px Funnel page wide.
         style={{ width: responsive ? "100%" : width, height, lineHeight: `${height}px` }}

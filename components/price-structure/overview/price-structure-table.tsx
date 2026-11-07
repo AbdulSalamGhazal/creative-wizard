@@ -103,9 +103,9 @@ export function PriceStructureTable({
               {offer.name}
             </span>
             {grouping === "ranked" ? (
-              <span className="block truncate text-[10px] text-ink-3" dir="auto">{product.name}</span>
+              <span className="block truncate text-[10px] text-ink-2" dir="auto">{product.name}</span>
             ) : (
-              text !== offer.name && <span className="block truncate text-[10px] text-ink-3">{text}</span>
+              text !== offer.name && <span className="block truncate text-[10px] text-ink-2">{text}</span>
             )}
           </span>
         </span>

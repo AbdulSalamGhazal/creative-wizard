@@ -455,7 +455,7 @@ export function CommentComposer({
                       {/* The name in its own direction; the email is Latin. */}
                       <span dir="auto" className="truncate">{m.name}</span>
                       {m.email && (
-                        <span dir="ltr" className="truncate text-[10px] text-ink-3">
+                        <span dir="ltr" className="truncate text-[10px] text-ink-2">
                           {m.email}
                         </span>
                       )}

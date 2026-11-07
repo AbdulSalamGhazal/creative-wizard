@@ -63,7 +63,7 @@ export function TargetsEditor() {
                       ))}
                     </SelectContent>
                   </Select>
-                  <p className="mt-1 text-[10px] text-ink-3">
+                  <p className="mt-1 text-[10px] text-ink-2">
                     {meta.higherIsBetter ? "Higher is better: pass when value ≥ target" : "Lower is better: pass when value ≤ target"}
                   </p>
                 </div>

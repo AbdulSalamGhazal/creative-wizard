@@ -66,7 +66,7 @@ export function StagePicker({
             className={chip(on)}
           >
             {stage}
-            <span className="text-[10px] text-ink-3">{STAGE_SHORT[stage]}</span>
+            <span className="text-[10px] text-ink-2">{STAGE_SHORT[stage]}</span>
           </button>
         );
       })}

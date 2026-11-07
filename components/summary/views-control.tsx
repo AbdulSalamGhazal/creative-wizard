@@ -262,7 +262,7 @@ export function ViewsControl({
                         )}
                       </span>
                       {v.ownerName && (
-                        <span className="truncate text-[10px] text-ink-3">
+                        <span className="truncate text-[10px] text-ink-2">
                           {v.ownerName}
                         </span>
                       )}
@@ -312,7 +312,7 @@ export function ViewsControl({
 
         {/* Save current configuration */}
         <div className="pt-2 border-t border-line space-y-1.5">
-          <div className="px-1 text-[10px] text-ink-3">
+          <div className="px-1 text-[10px] text-ink-2">
             Save the current filters, columns, and sort as a new view.
           </div>
           <div className="flex items-center gap-1.5">

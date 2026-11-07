@@ -506,12 +506,12 @@ function OptionList({
               />
             )}
             <span className="min-w-0 flex-1 truncate text-ink-2">{o.label}</span>
-            {o.hint && <span className="shrink-0 text-[10px] text-ink-3">{o.hint}</span>}
+            {o.hint && <span className="shrink-0 text-[10px] text-ink-2">{o.hint}</span>}
           </label>
         );
       })}
       {def.type === "multi" && def.note && (
-        <p className="px-2 py-1 text-[10px] text-ink-3">{def.note}</p>
+        <p className="px-2 py-1 text-[10px] text-ink-2">{def.note}</p>
       )}
     </>
   );

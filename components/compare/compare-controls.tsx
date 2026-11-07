@@ -231,7 +231,7 @@ function SideCard({
               Use shared
             </button>
           ) : (
-            <span className="text-[10px] text-ink-3">shared</span>
+            <span className="text-[10px] text-ink-2">shared</span>
           )}
         </div>
       </div>
@@ -345,7 +345,7 @@ function MultiSelect({
                           <span className="truncate">{o.label}</span>
                         </span>
                         {o.sub && (
-                          <span className="block truncate text-[10px] text-ink-3 pl-3.5">
+                          <span className="block truncate text-[10px] text-ink-2 pl-3.5">
                             {o.sub}
                           </span>
                         )}

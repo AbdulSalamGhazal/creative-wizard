@@ -227,7 +227,7 @@ export function LandingPagesTable({
                 <span className={cn("min-w-0 truncate", r.productId === null && "text-ink-2")}>
                   {productLabel(r.productName)}
                 </span>
-                <span className="shrink-0 text-[10px] text-ink-3">{plural(r.pages, "page")}</span>
+                <span className="shrink-0 text-[10px] text-ink-2">{plural(r.pages, "page")}</span>
               </button>
             );
           }

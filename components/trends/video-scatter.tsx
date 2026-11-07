@@ -71,7 +71,7 @@ export function VideoScatter({ rows }: { rows: VideoDiagnosticRow[] }) {
       <div className="flex items-start justify-between flex-wrap gap-3 mb-3">
         <div>
           <h3 className="text-sm font-medium text-ink">Diagnostic scatter</h3>
-          <p className="text-[10px] text-ink-3">Each dot is a video · bubble = spend · click to open</p>
+          <p className="text-[10px] text-ink-2">Each dot is a video · bubble = spend · click to open</p>
         </div>
         <div className="flex items-center gap-1.5 text-xs">
           <Pick label="Y" value={yKey} onChange={setYKey} />
@@ -106,7 +106,7 @@ export function VideoScatter({ rows }: { rows: VideoDiagnosticRow[] }) {
                       <Row label={x.label} value={x.fmt(p.xv)} />
                       <Row label={y.label} value={y.fmt(p.yv)} />
                       <Row label="Spend" value={usd(p.spend)} />
-                      <div className="mt-1 text-[10px] text-ink-3">Click to open creative</div>
+                      <div className="mt-1 text-[10px] text-ink-2">Click to open creative</div>
                     </ChartTooltip>
                   );
                 }}

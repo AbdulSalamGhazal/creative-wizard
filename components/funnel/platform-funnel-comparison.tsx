@@ -195,7 +195,7 @@ export function PlatformFunnelComparison({
             />
             <PlatformDot platform={r.platform} />
             <span>{PLATFORM_LABEL[r.platform]}</span>
-            <span className="text-[10px] text-ink-3">{plural(r.campaigns, "campaign")}</span>
+            <span className="text-[10px] text-ink-2">{plural(r.campaigns, "campaign")}</span>
           </button>
         );
       },

@@ -176,7 +176,7 @@ export function MemberAccessEditor({
                   <SelectItem key={p} value={p} className="text-xs">
                     <span className="flex flex-col">
                       <span>{PRESET_LABEL[p]}</span>
-                      <span className="text-[10px] text-ink-3">{PRESET_DESCRIPTION[p]}</span>
+                      <span className="text-[10px] text-ink-2">{PRESET_DESCRIPTION[p]}</span>
                     </span>
                   </SelectItem>
                 ))}

@@ -389,7 +389,7 @@ export function NotificationCenter({
 
       {/* Pager */}
       {total > pageSize && (
-        <div className="flex items-center justify-between gap-3 px-1 text-xs text-ink-3">
+        <div className="flex items-center justify-between gap-3 px-1 text-xs text-ink-2">
           <span className="tabular-nums">
             {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, total)} of {int(total)}
           </span>

@@ -72,7 +72,7 @@ export function EmptyState({
       )}
       <p className="text-sm text-ink-2">{title}</p>
       {shownHint && (
-        <div className="mx-auto mt-1 max-w-md text-xs leading-relaxed text-ink-3">{shownHint}</div>
+        <div className="mx-auto mt-1 max-w-md text-xs leading-relaxed text-ink-2">{shownHint}</div>
       )}
       {((kind && buttons) || action) && (
         <div className="mt-4 flex flex-wrap items-center justify-center gap-2 empty:hidden">

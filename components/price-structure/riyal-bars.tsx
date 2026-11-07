@@ -38,7 +38,7 @@ export function RiyalBars({ rows, mode, className }: { rows: readonly RiyalRow[]
                   {row.label}
                 </span>
               </span>
-              {row.sublabel && <span className="block truncate text-[10px] text-ink-3">{row.sublabel}</span>}
+              {row.sublabel && <span className="block truncate text-[10px] text-ink-2">{row.sublabel}</span>}
             </div>
             <div className={cn("flex h-6 flex-1 overflow-hidden rounded-md bg-surface-2", row.emphasis && "h-7")} role="img" aria-label={ariaOf(row)}>
               {PARTS.map((part) => {

@@ -129,7 +129,7 @@ export function AnglePlatformCompare({ rows }: { rows: AnglePlatformRow[] }) {
       <div className="flex items-start justify-between flex-wrap gap-3 mb-4">
         <div>
           <h3 className="text-sm font-medium text-ink">Platform comparison</h3>
-          <p className="text-[10px] text-ink-3">
+          <p className="text-[10px] text-ink-2">
             Top {TOP_N} angles within each platform · bars min–max scaled per
             platform · pick one or more metrics to stack rows
           </p>
@@ -181,7 +181,7 @@ function MetricRow({
       <div className="flex items-baseline gap-2 mb-2">
         <span className="text-xs font-medium text-ink">{metric.label}</span>
         {metric.lower && (
-          <span className="text-[10px] text-ink-3">lower is better</span>
+          <span className="text-[10px] text-ink-2">lower is better</span>
         )}
       </div>
 
