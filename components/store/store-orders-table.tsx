@@ -3,12 +3,13 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { ChevronLeft, ChevronRight, Download, ShoppingBag } from "lucide-react";
+import { Download, ShoppingBag } from "lucide-react";
 import { toast } from "sonner";
 import { DataTable, type DataColumn } from "@/components/ui/data-table";
 import { useTableColumns } from "@/components/ui/use-table-columns";
 import { TABLE_KEYS, type TableColumnPref } from "@/lib/table-columns";
 import { Button } from "@/components/ui/button";
+import { Pager } from "@/components/ui/pager";
 import { isoDate, int, num, sarBare } from "@/lib/format";
 import { downloadCsv, todayStamp } from "@/lib/csv-export";
 import { useNavTransition } from "@/lib/nav-progress";
@@ -231,7 +232,6 @@ export function StoreOrdersTable({
     next.set("page", String(p));
     startNav(() => router.replace(`${pathname}?${next.toString()}`, { scroll: false }));
   };
-  const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
   const liveClientSort = multiPage ? null : clientSort;
   const activeSort = liveClientSort?.key ?? sort;
@@ -282,40 +282,7 @@ export function StoreOrdersTable({
         }
       />
 
-      {/* Pager */}
-      {total > pageSize && (
-        <div className="flex items-center justify-between gap-3 px-1 text-xs text-ink-2">
-          <span className="tabular-nums">
-            {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, total)} of{" "}
-            {int(total)}
-          </span>
-          <div className="flex items-center gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="xs"
-              disabled={page <= 1}
-              onClick={() => goToPage(page - 1)}
-            >
-              <ChevronLeft className="h-3.5 w-3.5" />
-              Prev
-            </Button>
-            <span className="tabular-nums">
-              Page {page} / {totalPages}
-            </span>
-            <Button
-              type="button"
-              variant="outline"
-              size="xs"
-              disabled={page >= totalPages}
-              onClick={() => goToPage(page + 1)}
-            >
-              Next
-              <ChevronRight className="h-3.5 w-3.5" />
-            </Button>
-          </div>
-        </div>
-      )}
+      <Pager page={page} total={total} pageSize={pageSize} onPage={(p) => goToPage(p)} />
     </div>
   );
 }

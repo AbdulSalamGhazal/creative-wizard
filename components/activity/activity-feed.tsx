@@ -3,15 +3,15 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronLeft, ChevronRight, CornerDownRight, Search } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { CornerDownRight, Search } from "lucide-react";
+import { Pager } from "@/components/ui/pager";
 import { Input } from "@/components/ui/input";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { EmptyState } from "@/components/ui/empty-state";
 import { UserAvatar } from "@/components/user/user-avatar";
 import { CommentBody } from "@/components/comments/comment-body";
 import { anchorIcon } from "@/components/filters/filter-icons";
-import { dateTimeLabel, int, relativeTime } from "@/lib/format";
+import { dateTimeLabel, relativeTime } from "@/lib/format";
 import { useNavTransition } from "@/lib/nav-progress";
 import { useMinuteTick } from "@/lib/use-minute-tick";
 import { cn } from "@/lib/utils";
@@ -110,7 +110,6 @@ export function ActivityFeed({
     [rows, today],
   );
 
-  const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const empty = params.comment
     ? { title: "That comment is gone", hint: "It was deleted after the link was made." }
     : isActivityFiltered(params)
@@ -207,39 +206,7 @@ export function ActivityFeed({
         </div>
       )}
 
-      {/* Pager */}
-      {total > pageSize && (
-        <div className="flex items-center justify-between gap-3 px-1 text-xs text-ink-3">
-          <span className="tabular-nums">
-            {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, total)} of {int(total)}
-          </span>
-          <div className="flex items-center gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="xs"
-              disabled={page <= 1}
-              onClick={() => navigate({ page: page - 1 })}
-            >
-              <ChevronLeft className="h-3.5 w-3.5" />
-              Prev
-            </Button>
-            <span className="tabular-nums">
-              Page {page} / {totalPages}
-            </span>
-            <Button
-              type="button"
-              variant="outline"
-              size="xs"
-              disabled={page >= totalPages}
-              onClick={() => navigate({ page: page + 1 })}
-            >
-              Next
-              <ChevronRight className="h-3.5 w-3.5" />
-            </Button>
-          </div>
-        </div>
-      )}
+      <Pager page={page} total={total} pageSize={pageSize} onPage={(p) => navigate({ page: p })} />
     </div>
   );
 }

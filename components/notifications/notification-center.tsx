@@ -6,12 +6,12 @@ import {
   Archive,
   ArchiveRestore,
   Check,
-  ChevronLeft,
   ChevronRight,
   Search,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Pager } from "@/components/ui/pager";
 import { Input } from "@/components/ui/input";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { dateTimeLabel, int, relativeTime } from "@/lib/format";
@@ -160,7 +160,6 @@ export function NotificationCenter({
   /** Day groups, with consecutive same-anchor runs collapsed. Pure helper. */
   const days = useMemo(() => groupNotifications(rows, today), [rows, today]);
 
-  const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const emptyCopy =
     tab === "unread"
       ? { title: "You're all caught up", body: "Nothing unread in this brand." }
@@ -387,39 +386,7 @@ export function NotificationCenter({
         </div>
       )}
 
-      {/* Pager */}
-      {total > pageSize && (
-        <div className="flex items-center justify-between gap-3 px-1 text-xs text-ink-2">
-          <span className="tabular-nums">
-            {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, total)} of {int(total)}
-          </span>
-          <div className="flex items-center gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="xs"
-              disabled={page <= 1}
-              onClick={() => setParams({ page: String(page - 1) })}
-            >
-              <ChevronLeft className="h-3.5 w-3.5" />
-              Prev
-            </Button>
-            <span className="tabular-nums">
-              Page {page} / {totalPages}
-            </span>
-            <Button
-              type="button"
-              variant="outline"
-              size="xs"
-              disabled={page >= totalPages}
-              onClick={() => setParams({ page: String(page + 1) })}
-            >
-              Next
-              <ChevronRight className="h-3.5 w-3.5" />
-            </Button>
-          </div>
-        </div>
-      )}
+      <Pager page={page} total={total} pageSize={pageSize} onPage={(p) => setParams({ page: String(p) })} />
     </div>
   );
 }
