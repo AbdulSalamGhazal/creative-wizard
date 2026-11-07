@@ -1,8 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { int, pct, pct1, signedPct, intCompact } from "@/lib/format";
+import { int, pct, intCompact } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { computeDelta } from "@/lib/period";
+import { DeltaBadge } from "@/components/kpi/delta-badge";
+import { InfoTip } from "@/components/ui/info-tip";
 import { FUNNEL_METRIC_COLOR } from "@/lib/palette";
 import type { FunnelTotals } from "@/db/queries/funnel";
 
@@ -71,7 +74,15 @@ export function FunnelStages({
   return (
     <div className="rounded-lg border border-line bg-surface p-4">
       <div className="flex items-baseline justify-between gap-3 mb-4">
-        <h3 className="text-sm font-medium text-ink">Volume by stage</h3>
+        <div className="flex items-center gap-1.5">
+          <h3 className="text-sm font-medium text-ink">Volume by stage</h3>
+          {compare && (
+            <InfoTip label="How the comparison is drawn">
+              Shaded bar + dashed line = previous period. Deltas compare the current
+              window to the one before it.
+            </InfoTip>
+          )}
+        </div>
         <div className="flex items-center gap-3">
           <span className="text-[11px] text-ink-3 tabular-nums">
             {intCompact(totals.impressions)} → {int(totals.conversions)} ·{" "}
@@ -98,7 +109,6 @@ export function FunnelStages({
           const count = counts[i] ?? 0;
           const cmp = cmpCounts[i] ?? 0;
           const stepRate = s.stepKey ? totals[s.stepKey] : null;
-          const cmpStepRate = s.stepKey ? compareTotals[s.stepKey] : null;
           const curW = widthOf(count);
           const cmpW = widthOf(cmp);
           return (
@@ -106,7 +116,7 @@ export function FunnelStages({
               <div className="flex items-baseline justify-between gap-2 mb-1">
                 <span className="text-xs text-ink-2">{s.label}</span>
                 <span className="flex items-baseline gap-2">
-                  {compare && <CountDelta cur={count} cmp={cmp} />}
+                  {compare && <DeltaBadge delta={computeDelta(count, cmp)} />}
                   <span className="text-xs text-ink tabular-nums">
                     {int(count)}
                   </span>
@@ -135,51 +145,13 @@ export function FunnelStages({
                   )}
                 </div>
                 <span className="w-24 shrink-0 text-right text-[11px] text-ink-3 tabular-nums">
-                  {stepRate !== null ? (
-                    <>
-                      ↓ {pct(stepRate)}
-                      {compare && <RateDelta cur={stepRate} cmp={cmpStepRate} />}
-                    </>
-                  ) : (
-                    ""
-                  )}
+                  {stepRate !== null ? <>↓ {pct(stepRate)}</> : ""}
                 </span>
               </div>
             </div>
           );
         })}
       </div>
-
-      {compare && (
-        <p className="mt-3 text-[10px] text-ink-3">
-          Shaded bar + dashed line = previous period. Deltas compare the current
-          window to the one before it.
-        </p>
-      )}
     </div>
-  );
-}
-
-function CountDelta({ cur, cmp }: { cur: number; cmp: number }) {
-  if (cmp <= 0)
-    return <span className="text-[10px] text-ink-3 tabular-nums">new</span>;
-  const d = (cur - cmp) / cmp;
-  const up = d >= 0;
-  return (
-    <span className={cn("text-[10px] tabular-nums", up ? "text-pos" : "text-neg")}>
-      {signedPct(d, 0)}
-    </span>
-  );
-}
-
-function RateDelta({ cur, cmp }: { cur: number | null; cmp: number | null }) {
-  if (cur === null || cmp === null || cmp === 0) return null;
-  const d = (cur - cmp) / cmp;
-  const up = d >= 0;
-  return (
-    <span className={cn("ml-1 text-[10px]", up ? "text-pos" : "text-neg")}>
-      {up ? "▲" : "▼"}
-      {pct1(Math.abs(d), 0)}
-    </span>
   );
 }
