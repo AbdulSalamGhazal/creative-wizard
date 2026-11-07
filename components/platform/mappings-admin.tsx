@@ -10,6 +10,7 @@ import {
 } from "@/csv/platforms/types";
 import { PlatformsAdmin } from "@/components/platform/platforms-admin";
 import { panelClass } from "@/components/ui/panel";
+import { MappingPlatformSwitch } from "@/components/platform/mapping-platform-switch";
 
 /**
  * The CSV-mapping surface: per-platform readiness up top (the former separate
@@ -20,14 +21,16 @@ import { panelClass } from "@/components/ui/panel";
 export async function MappingsAdmin() {
   const rows = await listAllMappings();
 
-  return (
-    <div className="space-y-6">
-      <PlatformsAdmin />
-
-      {ALL_PLATFORMS.map((platform) => {
+  // One platform at a time (R-081): every panel renders here, the switch
+  // shows one. The tab is capped at the admin lane (max-w-4xl) like the
+  // Store's config tabs.
+  const panels = ALL_PLATFORMS.map((platform) => {
         const platformRows = rows.filter((r) => r.platform === platform);
         const byField = groupByField(platformRows);
-        return (
+        return {
+          platform,
+          label: PLATFORM_LABEL[platform],
+          node: (
           <section key={platform} className="space-y-3">
             <div className="flex items-center gap-2">
               <PlatformDot platform={platform} />
@@ -106,8 +109,15 @@ export async function MappingsAdmin() {
               </table>
             </div>
           </section>
-        );
-      })}
+          ),
+        };
+      });
+
+  return (
+    <div className="space-y-8">
+      <PlatformsAdmin />
+
+      <MappingPlatformSwitch panels={panels} />
 
       <p className="text-[11px] text-ink-3">
         Adding a

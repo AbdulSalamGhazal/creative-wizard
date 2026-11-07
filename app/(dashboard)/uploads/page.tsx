@@ -67,7 +67,9 @@ export default async function UploadsPage({
           info="Header matching is case-insensitive and whitespace-trimmed."
         />
         <PageTabs tabs={tabs} active={activeTab} />
-        <MappingsAdmin />
+        <div className="max-w-4xl">
+          <MappingsAdmin />
+        </div>
       </PageShell>
     );
   }
