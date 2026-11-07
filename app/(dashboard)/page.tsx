@@ -112,8 +112,7 @@ export default async function DashboardPage({
             variant="outline"
             className="h-auto max-w-full whitespace-normal rounded-md text-left text-ink-3"
           >
-            {from} → {to} · {platformsBadge} ·{" "}
-            {includeExcluded ? "excluded shown" : "excluded hidden"}
+            {from} → {to} · {platformsBadge}
           </Badge>
         }
       />
