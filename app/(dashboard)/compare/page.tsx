@@ -1,4 +1,3 @@
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import {
   kpis,
   compareDimensions,
@@ -172,26 +171,24 @@ export default async function ComparePage({
       <AddMetricBlock metrics={parsed.metrics} />
 
       {/* Side totals */}
-      <Card>
-        <CardHeader>
-          <h2 className="text-sm font-medium text-ink">
-            {sameWindow
-              ? "Totals in window"
-              : "Totals — each side over its own window"}
-          </h2>
-        </CardHeader>
-        <CardContent>
-          <AdDataGate>
-            <CompareTotalsTable
-              sides={parsed.sides.map((s, i) => ({
-                label: s.label,
-                selection: sideSummary(s),
-                totals: totals[i]!,
-              }))}
-            />
-          </AdDataGate>
-        </CardContent>
-      </Card>
+      {/* A heading above the table, no Card around it (R-075): the table's
+          own frame is the card, as everywhere else. */}
+      <section className="space-y-2">
+        <h2 className="text-sm font-medium text-ink">
+          {sameWindow
+            ? "Totals in window"
+            : "Totals — each side over its own window"}
+        </h2>
+        <AdDataGate>
+          <CompareTotalsTable
+            sides={parsed.sides.map((s, i) => ({
+              label: s.label,
+              selection: sideSummary(s),
+              totals: totals[i]!,
+            }))}
+          />
+        </AdDataGate>
+      </section>
     </PageShell>
   );
 }

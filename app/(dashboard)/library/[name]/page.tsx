@@ -25,7 +25,7 @@ import { AnalyticsDateFilter } from "@/components/creative/analytics-date-filter
 import { NotesPanel } from "@/components/creative/notes-panel";
 import { CommentAnchor } from "@/components/comments/comment-anchor-context";
 import { PageShell } from "@/components/layout/page-shell";
-import { defaultDateRange, presetLabel } from "@/lib/date-presets";
+import { defaultDateRange } from "@/lib/date-presets";
 import { resolvePreferredRange, resolveIncludeExcluded } from "@/db/queries/user-prefs";
 import { safeDecodeURIComponent, pickFirst } from "@/lib/url";
 import { ExcludedParamToggle } from "@/components/filters/excluded-param-toggle";
@@ -94,7 +94,6 @@ export default async function CreativeDetailPage({
   // `from`/`to` stay raw (null when unset) for the picker; `range` is resolved.
   const eff = await resolvePreferredRange(from, to, defaultDateRange());
   const range = { from: eff.from, to: eff.to };
-  const rangeLabel = presetLabel(eff.from, eff.to);
   // Effective Excluded state for the analytics aggregates (records table below
   // always shows every row, badge included — this only governs aggregates).
   const inc = await resolveIncludeExcluded(pickFirst(sp.includeExcluded));
@@ -179,17 +178,16 @@ export default async function CreativeDetailPage({
         <NotesPanel creativeId={creative.id} initialNotes={creative.notes} />
       </section>
 
-      {/* ─────────── Analytics (body streamed) ─────────── */}
-      <section className="space-y-6 rounded-lg border border-line bg-surface/40 p-4 md:p-6">
-        <div className="flex items-end justify-between gap-3 flex-wrap border-b border-line pb-4">
-          <div>
-            <h2 className="text-label text-ink-3">Analytics</h2>
-            <p className="text-[11px] text-ink-3 tabular-nums mt-0.5">
-              {rangeLabel} · across platforms
-            </p>
-          </div>
-          {/* Wraps: at 375px the toggle + date (322px) ran 29px past the
-              card's inner edge. */}
+      {/* ─────────── Analytics (body streamed) ───────────
+          No frame of its own (R-075): its KPI tiles, charts and tables are
+          cards already, and a panel around them cost a phone 16-24px a side.
+          The header row is the grouping — the campaign page's section heading
+          style (R-048), the controls on its right; the picker is the range's
+          one display (R-044). */}
+      <section className="space-y-6">
+        <div className="flex items-center justify-between gap-3 flex-wrap border-b border-line pb-3">
+          <h2 className="text-label text-ink-3">Analytics</h2>
+          {/* Wraps: at 375px the toggle + date (322px) ran past the edge. */}
           <div className="flex flex-wrap items-center gap-2">
             {/* Into Compare with this creative as side A (R-045). */}
             <CompareLink side={{ creatives: creative.id }} from={eff.from} to={eff.to} />

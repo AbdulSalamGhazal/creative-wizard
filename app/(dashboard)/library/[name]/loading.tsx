@@ -28,9 +28,9 @@ export default function CreativeDetailLoading() {
       </div>
 
       {/* Analytics card: the title row, then the streamed body's skeleton */}
-      <div className="rounded-lg border border-line bg-surface/40 p-4 md:p-6 space-y-6">
-        <div className="flex items-end justify-between gap-3 border-b border-line pb-4">
-          <Skeleton className="h-6 w-28" />
+      <div className="space-y-6">
+        <div className="flex items-center justify-between gap-3 border-b border-line pb-3">
+          <Skeleton className="h-3 w-20" />
           <Skeleton className="h-8 w-48 rounded-md" />
         </div>
         <AnalyticsBodySkeleton />

@@ -323,14 +323,12 @@ export async function OverviewSection({
       </div>
 
       {/* Top creatives (title + ranking metric live in its own toolbar; the
-          COLUMNS control is in the table's header row, like every table) */}
-      <Card>
-        <CardContent>
-          <AdDataGate>
-            <TopCreativesTable rows={topRows} from={rangeFrom} to={rangeTo} />
-          </AdDataGate>
-        </CardContent>
-      </Card>
+          COLUMNS control is in the table's header row, like every table).
+          On the page, not in a Card: the table's own frame is the card
+          (R-075 — a frame in a frame cost a phone 32px of table). */}
+      <AdDataGate>
+        <TopCreativesTable rows={topRows} from={rangeFrom} to={rangeTo} />
+      </AdDataGate>
     </section>
   );
 }
