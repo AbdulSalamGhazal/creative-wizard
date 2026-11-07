@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Sparkles } from "lucide-react";
@@ -71,6 +71,25 @@ export function CanvasView({
   graph: CanvasGraph;
   rangeLabel: string;
 }) {
+  // The canvas frame's distance from the top of the document, so it can fill
+  // exactly the viewport below the header and the (wrapping) filter bars.
+  const frameRef = useRef<HTMLDivElement>(null);
+  const [frameTop, setFrameTop] = useState<number | null>(null);
+  useEffect(() => {
+    const el = frameRef.current;
+    if (!el) return;
+    const measure = () =>
+      setFrameTop(Math.round(el.getBoundingClientRect().top + window.scrollY));
+    measure();
+    const ro = new ResizeObserver(measure);
+    if (el.parentElement) ro.observe(el.parentElement);
+    window.addEventListener("resize", measure);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", measure);
+    };
+  }, []);
+
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -202,7 +221,15 @@ export function CanvasView({
         </p>
       )}
 
-      <div className="h-[calc(100vh-17rem)] min-h-[420px] overflow-hidden rounded-lg border border-line bg-background">
+      {/* Fills the viewport below whatever sits above it (R-066): the bars
+          wrap to 2-3 rows on a phone, so a fixed 17rem guess overshot and
+          the page scrolled with the canvas half off-screen. `dvh` excludes
+          iOS Safari's collapsing URL bar; the floor is lower on a phone. */}
+      <div
+        ref={frameRef}
+        className="h-[calc(100dvh-17rem)] min-h-[320px] sm:min-h-[420px] overflow-hidden rounded-lg border border-line bg-background"
+        style={frameTop === null ? undefined : { height: `calc(100dvh - ${frameTop}px - 1.5rem)` }}
+      >
         <CanvasFlow
           graph={graph}
           view={view}
