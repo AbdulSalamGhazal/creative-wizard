@@ -625,7 +625,11 @@ as it stood before the restructure.*
     table that was the Tracker's table transposed — and no chart. It is now,
     top to bottom: the month bar with the Tracker's own coverage line ("Day N
     of M · data through D", laggards named — `CoverageLine` /
-    `CoverageLaggards` in budget-shared, shared with the Tracker's header);
+    `CoverageLaggards` in budget-shared, shared with the Tracker's header;
+    since R-118, 2026-11, it adds "· store through D" when the store's day
+    differs and is the page's ONLY coverage statement — the footer
+    `HorizonNote` is gone from a planned month, its standing rule "later days
+    aren't zero" now in the header ⓘ);
     three HERO CARDS (Spend · Revenue · ROAS) each with a big number, a
     context line, ONE bullet bar — the Tracker's `PaceBar`, lifted into
     budget-shared and extended with a projection extension, a dashed reserve

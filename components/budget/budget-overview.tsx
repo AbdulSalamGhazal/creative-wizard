@@ -244,7 +244,16 @@ export function BudgetOverview({
         </BudgetMonthBar>
         {/* What every comparison below counted through — the same words, from
             the same rows, as the Tracker's header. */}
-        <CoverageLine t={t} className="text-xs text-ink-2" />
+        <CoverageLine t={t} className="text-xs text-ink-2">
+          {/* The store's day too, when it differs — the ONE coverage line on
+              the page (R-118: the footer note said it again, in long dates). */}
+          {storeHorizon && storeHorizon !== t.coverage?.through && (
+            <span className="text-ink-3">
+              {" · store through "}
+              <span className="tabular-nums">{storeHorizon}</span>
+            </span>
+          )}
+        </CoverageLine>
         <CoverageLaggards coverage={t.coverage} />
       </div>
 
@@ -299,8 +308,6 @@ export function BudgetOverview({
 
       {/* ── The pace board ────────────────────────────────────────────────── */}
       <PaceBoard t={t} month={month} fmt={fmtWhole} coverage={coverage} go={go} />
-
-      <HorizonNote horizon={horizon} storeHorizon={storeHorizon} />
     </div>
   );
 }

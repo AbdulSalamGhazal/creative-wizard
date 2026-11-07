@@ -69,7 +69,7 @@ export default async function BudgetOverviewPage({
       <PageHeader
         eyebrow="Budget"
         title="Overview"
-        info="Actuals are raw totals (exclusions don't apply here)."
+        info="Actuals are raw totals (exclusions don't apply here). Days after the data line aren't zero, just not uploaded yet."
       />
       <BudgetOverview
         month={month}
