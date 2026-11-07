@@ -179,7 +179,7 @@ export default async function CreativeDetailPage({
       </section>
 
       {/* ─────────── Analytics (body streamed) ─────────── */}
-      <section className="space-y-8 rounded-lg border border-line bg-surface/40 p-4 md:p-6">
+      <section className="space-y-6 rounded-lg border border-line bg-surface/40 p-4 md:p-6">
         <div className="flex items-end justify-between gap-3 flex-wrap border-b border-line pb-4">
           <div>
             <h2 className="font-display text-xl tracking-tight">Analytics</h2>

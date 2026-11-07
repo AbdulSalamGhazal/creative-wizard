@@ -53,7 +53,7 @@ export function StatusConfigAdmin({ brands }: { brands: BrandWindow[] }) {
   };
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <div className="rounded-lg border border-line bg-surface/60 px-5 py-4 text-sm text-ink-2 space-y-1.5 max-w-2xl">
         <p>
           A creative is <strong className="text-ink">Active</strong> on a platform when it

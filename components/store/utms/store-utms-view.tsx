@@ -121,7 +121,7 @@ export function StoreUtmsView({
   const topRows = useMemo(() => breakdown.slice(0, TOP_SOURCE_SERIES), [breakdown]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* A ZERO-DEF bar: the range is the only filter; the Excluded toggle is
           a data-scope switch for the ads side (accuracy), not a filter. */}
       <FilterShell

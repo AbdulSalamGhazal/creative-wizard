@@ -200,7 +200,7 @@ async function OrderFieldsTab() {
   const values = await distinctStoreSourceValues(STORE_SOURCE_FIELD_KEY);
   const channelValues = await distinctStoreChannelValues();
   return (
-    <div className="space-y-10">
+    <div className="space-y-6">
       <StoreFieldsAdmin fields={fields} />
       <StoreSourceMappingAdmin
         mappings={mappings}

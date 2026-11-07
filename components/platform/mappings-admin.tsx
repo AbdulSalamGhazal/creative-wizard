@@ -20,7 +20,7 @@ export async function MappingsAdmin() {
   const rows = await listAllMappings();
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <PlatformsAdmin />
 
       {ALL_PLATFORMS.map((platform) => {
