@@ -259,7 +259,7 @@ export function BudgetPlanUpload({
       <Dialog open={open} onOpenChange={(o) => !isPending && setOpen(o)}>
         {/* The preview can be tall — the dialog scrolls rather than growing
             past a phone's viewport. */}
-        <DialogContent className="max-h-[calc(100dvh-2rem)] gap-3 overflow-y-auto sm:max-w-2xl">
+        <DialogContent className="gap-3 sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>Upload {monthLabel(month)}&rsquo;s plan, day by day</DialogTitle>
             <DialogDescription>
