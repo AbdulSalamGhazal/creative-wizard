@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field } from "@/components/ui/field";
+import { panelClass } from "@/components/ui/panel";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
@@ -118,7 +119,7 @@ export function CreativeCreateForm({ products, allAngles }: Props) {
   }
 
   return (
-    <form onSubmit={submit} className="space-y-5">
+    <form onSubmit={submit} className={`${panelClass()} space-y-4`}>
       <Field
         label="Name"
         htmlFor={`${fid}-name`}

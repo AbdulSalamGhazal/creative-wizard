@@ -4,7 +4,7 @@ export default function NewCreativeLoading() {
   return (
     <div className="mx-auto max-w-2xl space-y-6">
       <HeaderSkeleton back />
-      <FormSkeleton fields={8} />
+      <FormSkeleton fields={8} card />
     </div>
   );
 }
