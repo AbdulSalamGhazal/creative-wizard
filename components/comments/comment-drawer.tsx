@@ -104,7 +104,7 @@ export function CommentPanelBody({
   // compared EFFECTIVE-to-effective with a comment's (lib/effective-view).
   const resolvedView = useResolvedView();
   const [, startNav] = useNavTransition();
-  const { highlightId, setHighlightId, deepLinkId, setDeepLinkId, setCount } = usePanel();
+  const { highlightId, setHighlightId, deepLinkId, setDeepLinkId } = usePanel();
   const [rows, setRows] = useState<CommentRow[] | null>(null);
   /** The thread failed to load — say so and offer Retry, never "Loading…" forever. */
   const [loadFailed, setLoadFailed] = useState(false);
@@ -139,7 +139,6 @@ export function CommentPanelBody({
       const stored = new Set(hydrated.map((c) => c.id));
       setPending((list) => settleSentPosts(list, stored));
       setLoadFailed(false);
-      setCount(hydrated.filter((c) => c.deletedAt === null).length);
       return true;
     } catch {
       // Keep whatever is on screen — sent posts included — and say so.
@@ -147,7 +146,7 @@ export function CommentPanelBody({
       return false;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [anchorKey, setCount]);
+  }, [anchorKey]);
 
   // A new page is a new conversation; the panel itself stays open. The
   // HIGHLIGHT goes with the old one: it points at a comment id that does not

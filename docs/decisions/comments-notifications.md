@@ -23,26 +23,32 @@
   link to one — like a link to a comment whose creative or campaign is gone —
   lands on `/activity?comment=<id>`, that comment on its own.
 - **THE RAIL (2026-11-07).** On an entity's page, a thin column at the right
-  edge holds two buttons — Comments (count badge) and Activity (the entity's
-  history) — and each toggles its face of the ONE panel (`PanelToggles`,
+  edge holds two buttons — Comments and Activity (the entity's history), with
+  NO count badge (user decision, 2026-11-07: "we don't need an indicator of
+  how many comments"; the bell no longer asks for a per-page count) — and each toggles its face of the ONE panel (`PanelToggles`,
   `mode` in `usePanel`). Below `lg` the same two buttons sit in the top bar,
   still on entity pages only. Leaving for a non-entity page CLOSES the panel
   (the path decides, so creative A → creative B keeps it open while B loads);
   a `?comment=` deep link opens it only on an entity page.
-- **An entity's ACTIVITY (2026-11-07) is its history of ACTIONS** — every
-  audit event linked to it through `audit_event_entities` (done on its page or
-  anywhere else), newest first, paged by event id, plus two DERIVED lines per
-  platform — went live / stopped — computed at read time by the status badge's
-  own rule (`statusEvents`, lib/entity-activity.ts; spend > 0, not excluded,
-  each platform against its own latest day). Comments are NOT in it (they have
-  their own face). Anyone who can open the page sees it (user decision) — the
-  read is brand-scoped, no extra permission. `GET /api/entity-activity`
-  phrases each row on the SERVER (`auditLabel` + `metaSummary`,
-  `lib/audit-summary.ts`): the labels live beside the audit writer, which no
-  client bundle may import. The open panel refetches on `ACTION_SETTLED_EVENT`
-  (fired by `safeAction` after any successful call), so an edit on the page
-  shows at once. The creative page's own "Activity" section was removed — one
-  home for the history.
+- **An entity's ACTIVITY (2026-11-07) is what was done TO it** — never what
+  merely touched its data (user rule: "why would we list activity not related
+  to the entity?"). `ENTITY_ACTIVITY_ACTIONS` (db/queries/entity-activity.ts,
+  derived from `AUDIT_ACTIONS`) is the list: a creative — its own edits
+  (`creative.*`) and the exclusions on its records (`exclusion.*`, manual and
+  by rule); a campaign — `campaign.*` and `exclusion.*`; a budget month — its
+  plan (`budget.update`). Uploads, rollbacks, cleanups, the other side's
+  delete and an angle renamed on the Angles page are LINKED
+  (`audit_event_entities` records every touch) but not shown. Plus two
+  DERIVED lines per platform for a creative or campaign — went live / stopped
+  — by the status badge's own rule (`statusEvents`, lib/entity-activity.ts).
+  Comments are NOT in it (they have their own face). Anyone who can open the
+  page sees it (user decision) — the read is brand-scoped, no extra
+  permission. `GET /api/entity-activity` phrases each row on the SERVER
+  (`auditLabel` + `metaSummary`, `lib/audit-summary.ts`): the labels live
+  beside the audit writer, which no client bundle may import. The open panel
+  refetches on `ACTION_SETTLED_EVENT` (fired by `safeAction` after any
+  successful call), so an edit on the page shows at once. The creative page's
+  own "Activity" section was removed — one home for the history.
 - **"All comments" is the brand feed's name (2026-11-07)** — it was
   "Activity" until each entity got an Activity of its own. The route stays
   `/activity` so stored links keep working (`ALL_COMMENTS_TITLE`).

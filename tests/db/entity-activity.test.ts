@@ -29,12 +29,12 @@ async function audit(accountId: string, touches: { creative?: string[]; campaign
   for (let i = 0; i < n; i++) {
     await writeAudit(db, {
       accountId,
-      action: AUDIT_ACTIONS.UPLOAD_COMMIT,
-      entityType: "upload",
-      entityId: `batch-${i}`,
-      entityLabel: `upload ${i}`,
+      action: AUDIT_ACTIONS.EXCLUSION_EXCLUDE,
+      entityType: "exclusion",
+      entityId: `rec-${i}`,
+      entityLabel: `record ${i}`,
       actorUserId: ADMIN,
-      meta: { platform: "instagram", rowsImported: i },
+      meta: { platform: "instagram", date: "2026-01-01" },
       touches,
     });
   }
@@ -46,7 +46,7 @@ describe("entityActivityPage", () => {
     await audit(ACCOUNT_A, { campaign: [CAMPAIGN_1] }); // not this creative
 
     const page = await entityActivityPage("creative", CREATIVE_1, null);
-    expect(page.rows.map((r) => r.entityLabel)).toEqual(["upload 1", "upload 0"]);
+    expect(page.rows.map((r) => r.entityLabel)).toEqual(["record 1", "record 0"]);
     expect(page.rows[0]!.actor?.id).toBe(ADMIN);
     expect(page.hasMore).toBe(false);
   });
@@ -66,6 +66,49 @@ describe("entityActivityPage", () => {
     await audit(ACCOUNT_B, { creative: [CREATIVE_1] }); // a forged link in brand B
     expect((await entityActivityPage("creative", CREATIVE_B, null)).rows).toEqual([]);
     expect((await entityActivityPage("creative", CREATIVE_1, null)).rows).toEqual([]);
+  });
+});
+
+describe("only what was done TO the entity (2026-11-07)", () => {
+  it("a creative's Activity leaves out uploads and angle renames that touched it", async () => {
+    for (const action of [AUDIT_ACTIONS.UPLOAD_COMMIT, AUDIT_ACTIONS.ANGLE_RENAME, AUDIT_ACTIONS.CAMPAIGN_DELETE]) {
+      await writeAudit(db, {
+        accountId: ACCOUNT_A,
+        action,
+        entityType: "upload",
+        entityId: "x",
+        actorUserId: ADMIN,
+        touches: { creative: [CREATIVE_1] },
+      });
+    }
+    await audit(ACCOUNT_A, { creative: [CREATIVE_1] });
+    const page = await entityActivityPage("creative", CREATIVE_1, null);
+    expect(page.rows.map((r) => r.action)).toEqual(["exclusion.exclude"]);
+  });
+});
+
+describe("a budget month's Activity is its plan's history", () => {
+  it("lists plan changes, never the uploads that moved its spend", async () => {
+    await writeAudit(db, {
+      accountId: ACCOUNT_A,
+      action: AUDIT_ACTIONS.UPLOAD_COMMIT,
+      entityType: "upload",
+      entityId: "b1",
+      actorUserId: ADMIN,
+      touches: { budget_month: ["2026-11"] },
+    });
+    await writeAudit(db, {
+      accountId: ACCOUNT_A,
+      action: AUDIT_ACTIONS.BUDGET_UPDATE,
+      entityType: "budget",
+      entityId: "2026-11-01",
+      entityLabel: "Plan for November 2026",
+      actorUserId: ADMIN,
+      meta: { op: "save" },
+      touches: { budget_month: ["2026-11"] },
+    });
+    const page = await entityActivityPage("budget_month", "2026-11", null);
+    expect(page.rows.map((r) => r.action)).toEqual(["budget.update"]);
   });
 });
 
@@ -94,7 +137,7 @@ describe("GET /api/entity-activity", () => {
       rows: Array<{ label: string; about: string | null; summary: string | null }>;
       status: unknown[] | null;
     };
-    expect(body.rows[0]).toMatchObject({ label: "Committed upload", about: "upload 0" });
+    expect(body.rows[0]).toMatchObject({ label: "Excluded record", about: "record 0" });
     expect(Array.isArray(body.status)).toBe(true);
 
     const bad = await GET(new NextRequest("http://localhost/api/entity-activity?type=creative&id=nope"));

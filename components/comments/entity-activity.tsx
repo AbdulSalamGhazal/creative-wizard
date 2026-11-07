@@ -19,9 +19,9 @@ import {
 } from "@/lib/entity-activity";
 
 /**
- * The panel's ACTIVITY face (2026-11-07): the entity's history — every action
- * that touched it, on its page or anywhere else (an upload, a rollback, a
- * rule, an angle rename), newest first, each with who and when; plus the two
+ * The panel's ACTIVITY face (2026-11-07): the entity's history — what was
+ * done TO it, on its page or anywhere else (its edits, the exclusions on its
+ * records), newest first, each with who and when (ENTITY_ACTIVITY_ACTIONS); plus the two
  * things the DATA says happened, went live and stopped, per platform. Actions
  * only: comments have their own face. Anyone who can open the page sees it.
  *
@@ -193,7 +193,9 @@ export function EntityActivityBody({
           <div className="py-10 text-center">
             <p className="text-xs text-ink-2">No activity yet</p>
             <p className="mt-1 text-[11px] text-ink-3">
-              Edits, uploads and exclusions that touch this show here.
+              {anchor.type === "budget_month"
+                ? "Changes to this month’s plan show here."
+                : "Edits and exclusions show here."}
             </p>
           </div>
         ) : (

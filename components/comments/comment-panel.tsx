@@ -69,13 +69,6 @@ interface PanelState {
    */
   deepLinkId: string | null;
   setDeepLinkId: (id: string | null) => void;
-  /**
-   * Live comments on the current anchor — the toggle's badge. Set by the
-   * bell's per-navigation call (the chrome's ONE background request, W2-7)
-   * and by the thread whenever it loads.
-   */
-  count: number;
-  setCount: (count: number) => void;
 }
 
 const PanelContext = createContext<PanelState | null>(null);
@@ -105,7 +98,6 @@ export function CommentPanelProvider({ children }: { children: React.ReactNode }
   const onEntityPage = isEntityRoute(pathname);
   const [highlightId, setHighlightId] = useState<string | null>(null);
   const [deepLinkId, setDeepLinkId] = useState<string | null>(null);
-  const [count, setCount] = useState(0);
 
   // Open/closed is a per-browser convenience that survives reloads; the server
   // never needs to know. Read after mount so there's no hydration mismatch.
@@ -178,10 +170,8 @@ export function CommentPanelProvider({ children }: { children: React.ReactNode }
       setHighlightId,
       deepLinkId,
       setDeepLinkId,
-      count,
-      setCount,
     }),
-    [open, onEntityPage, setOpen, mode, toggleMode, highlightId, deepLinkId, count],
+    [open, onEntityPage, setOpen, mode, toggleMode, highlightId, deepLinkId],
   );
 
   return (
@@ -226,7 +216,8 @@ function DeepLinkOpener() {
 }
 
 /**
- * The panel's two buttons — Comments (with its count badge) and Activity
+ * The panel's two buttons — Comments and Activity (no count badge: user
+ * decision 2026-11-07, "we don't need an indicator of how many")
  * (2026-11-07). They live in the RAIL beside the page on a desktop and in the
  * top bar below `lg`, and only on an entity's own page: anywhere else there is
  * nothing to comment on and no history to show. Each toggles its own face of
@@ -239,7 +230,7 @@ export function PanelToggles({
   orientation: "vertical" | "horizontal";
   className?: string;
 }) {
-  const { open, mode, toggleMode, count } = usePanel();
+  const { open, mode, toggleMode } = usePanel();
   const pathname = usePathname();
   if (!isEntityRoute(pathname)) return null;
   const button = (face: PanelMode) =>
@@ -262,16 +253,11 @@ export function PanelToggles({
         onPointerEnter={preloadCommentPanel}
         onFocus={preloadCommentPanel}
         aria-pressed={open && mode === "comments"}
-        aria-label={count > 0 ? `Comments — ${count}` : "Comments"}
+        aria-label="Comments"
         title="Comments"
         className={button("comments")}
       >
         <MessageSquare className="h-4 w-4" />
-        {count > 0 && (
-          <span className="num absolute -right-0.5 -top-0.5 min-w-4 rounded-full bg-surface-2 px-1 text-[10px] leading-4 text-ink-2 ring-1 ring-line">
-            {count > 9 ? "9+" : count}
-          </span>
-        )}
       </button>
       <button
         type="button"

@@ -1,7 +1,7 @@
-import { and, desc, eq, lt, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, lt, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { auditEventEntities, auditEvents, performanceRecords, users } from "@/db/schema";
-import type { AuditAction } from "@/lib/audit";
+import { AUDIT_ACTIONS, type AuditAction } from "@/lib/audit";
 import type { AuditFeedRow } from "@/db/queries/audit";
 import { getActiveAccountId, getActiveStatusWindowHours } from "@/lib/tenant";
 import { platformSpendFreshness } from "@/db/queries/creative-status";
@@ -13,9 +13,46 @@ import {
   type StatusEvent,
 } from "@/lib/entity-activity";
 
+const EXCLUSION_ACTIONS: readonly AuditAction[] = [
+  AUDIT_ACTIONS.EXCLUSION_EXCLUDE,
+  AUDIT_ACTIONS.EXCLUSION_INCLUDE,
+  AUDIT_ACTIONS.EXCLUSION_RULE_CREATE,
+  AUDIT_ACTIONS.EXCLUSION_RULE_TOGGLE,
+  AUDIT_ACTIONS.EXCLUSION_RULE_DELETE,
+];
+
 /**
- * One entity's Activity (2026-11-07): every audit event that TOUCHED it —
- * done on its page or anywhere else — newest first, through the
+ * WHAT BELONGS in an entity's Activity (user decision, 2026-11-07): what was
+ * done TO it — its own edits and the exclusions on its records — never what
+ * merely touched its data. An upload, a rollback, a cleanup, the OTHER side's
+ * delete, an angle renamed on the Angles page and a campaign edit that
+ * re-swept rules are all linked (`audit_event_entities` records every touch)
+ * but are not shown: "why would we list activity not related to the entity?"
+ * A budget month's is its plan's history alone. Derived from AUDIT_ACTIONS,
+ * so a renamed action can't silently fall out.
+ */
+export const ENTITY_ACTIVITY_ACTIONS: Record<EntityActivityType, readonly AuditAction[]> = {
+  creative: [
+    AUDIT_ACTIONS.CREATIVE_CREATE,
+    AUDIT_ACTIONS.CREATIVE_BULK_CREATE,
+    AUDIT_ACTIONS.CREATIVE_UPDATE,
+    AUDIT_ACTIONS.CREATIVE_NOTES_UPDATE,
+    AUDIT_ACTIONS.CREATIVE_SOURCE_UPDATE,
+    AUDIT_ACTIONS.CREATIVE_DELETE,
+    ...EXCLUSION_ACTIONS,
+  ],
+  campaign: [
+    AUDIT_ACTIONS.CAMPAIGN_CREATE,
+    AUDIT_ACTIONS.CAMPAIGN_UPDATE,
+    AUDIT_ACTIONS.CAMPAIGN_DELETE,
+    ...EXCLUSION_ACTIONS,
+  ],
+  budget_month: [AUDIT_ACTIONS.BUDGET_UPDATE],
+};
+
+/**
+ * One entity's Activity (2026-11-07): the audit events done TO it — on its
+ * page or anywhere else — newest first, through the
  * `audit_event_entities` links (read index: account, type, id, event id DESC).
  * Brand-scoped: an id from another brand simply has no links here.
  */
@@ -47,6 +84,8 @@ export async function entityActivityPage(
         eq(auditEventEntities.accountId, acct),
         eq(auditEventEntities.entityType, type),
         eq(auditEventEntities.entityId, id),
+        // Only what was done TO it (ENTITY_ACTIVITY_ACTIONS).
+        inArray(auditEvents.action, [...ENTITY_ACTIVITY_ACTIONS[type]]),
         beforeId === null ? undefined : lt(auditEventEntities.auditEventId, beforeId),
       ),
     )
