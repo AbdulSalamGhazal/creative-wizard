@@ -74,9 +74,15 @@ export function UserAvatar({
         SIZE[size],
         className,
       )}
-      style={showPhoto ? undefined : { background: name ? avatarColor(name) : "var(--surface-3)" }}
+      // The initials and their fill are ALWAYS drawn, and a photo is layered
+      // OVER them (R-115, 2026-11): a photo still loading (lazy, past
+      // hydration), one that loads with no pixels, or a transparent one shows
+      // the initials instead of an empty slot — onError alone only caught a
+      // 404 or a blocked host.
+      style={{ background: name ? avatarColor(name) : "var(--surface-3)" }}
     >
-      {showPhoto ? (
+      {initialsOf(name)}
+      {showPhoto && (
         // eslint-disable-next-line @next/next/no-img-element -- see the note above
         <img
           src={src ?? undefined}
@@ -86,10 +92,11 @@ export function UserAvatar({
           draggable={false}
           ref={checkLoaded}
           onError={() => setFailedSrc(src ?? null)}
-          className="h-full w-full object-cover"
+          onLoad={(e) => {
+            if (src && photoBroken(e.currentTarget)) setFailedSrc(src);
+          }}
+          className="absolute inset-0 h-full w-full object-cover"
         />
-      ) : (
-        initialsOf(name)
       )}
     </span>
   );
