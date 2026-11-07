@@ -121,9 +121,9 @@ export function LandingPagesTable({
               sr-only labels inside the table — without it they are positioned
               against the page and widen it at 375px. */}
           <div className="relative overflow-x-auto rounded-lg border border-line bg-surface">
-            <table className="w-full text-sm tabular-nums">
+            <table className="w-full text-xs tabular-nums">
               <thead>
-                <tr className="text-left text-label text-ink-3 border-b border-line">
+                <tr className="text-left text-label text-ink-2 border-b border-line bg-surface-2/40">
                   <th className="font-medium px-3 py-2.5">Landing page</th>
                   <th className="font-medium px-3 py-2.5">Product</th>
                   <th className="font-medium px-3 py-2.5">Code</th>

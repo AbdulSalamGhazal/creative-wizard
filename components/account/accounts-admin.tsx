@@ -131,9 +131,9 @@ export function AccountsAdmin({
       </div>
 
       <div className="overflow-x-auto rounded-lg border border-line bg-surface">
-        <table className="w-full text-sm">
+        <table className="w-full text-xs">
           <thead>
-            <tr className="text-left text-label text-ink-3 border-b border-line">
+            <tr className="text-left text-label text-ink-2 border-b border-line bg-surface-2/40">
               <th className="font-medium px-3 py-2.5">Brand</th>
               <th className="font-medium px-3 py-2.5">Slug</th>
               <th className="font-medium px-3 py-2.5 text-right"></th>

@@ -62,9 +62,9 @@ function ProductTable({
     <div>
       <h3 className="text-sm font-medium text-ink mb-2">{title}</h3>
       <div className="overflow-x-auto rounded-lg border border-line bg-surface">
-        <table className="w-full text-sm tabular-nums">
+        <table className="w-full text-xs tabular-nums">
           <thead>
-            <tr className="text-left text-label text-ink-3 border-b border-line">
+            <tr className="text-left text-label text-ink-2 border-b border-line bg-surface-2/40">
               <th className="font-medium px-3 py-2.5">Name</th>
               <th className="font-medium px-3 py-2.5">Slug</th>
               <th className="font-medium px-3 py-2.5 text-right">Creatives</th>
