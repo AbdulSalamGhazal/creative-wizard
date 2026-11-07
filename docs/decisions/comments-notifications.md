@@ -31,7 +31,10 @@
   NO count badge (user decision, 2026-11-07: "we don't need an indicator of
   how many comments"; the bell no longer asks for a per-page count) — and each toggles its face of the ONE panel (`PanelToggles`,
   `mode` in `usePanel`). Below `lg` the same two buttons sit in the top bar,
-  still on entity pages only. Leaving for a non-entity page CLOSES the panel
+  still on entity pages only. The panel DOCKS beside the page only from `xl`
+  (1280px; user decision 2026-11-07 — at 1024px the sidebar, panel and rail
+  left the page 357px); below that it opens as an overlay Sheet. Leaving for
+  a non-entity page CLOSES the panel
   (the path decides, so creative A → creative B keeps it open while B loads);
   a `?comment=` deep link opens it only on an entity page.
 - **An entity's ACTIVITY (2026-11-07) is what was done TO it** — never what

@@ -41,8 +41,12 @@ import { COMMENT_PARAM, isEntityRoute, type CommentAnchor } from "@/lib/comments
 const OPEN_KEY = "cw-comments-open";
 const MODE_KEY = "cw-panel-mode";
 
-/** Tailwind's `lg`. Below it there's no room to squeeze — see CommentDock. */
-const DOCK_QUERY = "(min-width: 1024px)";
+/**
+ * Tailwind's `xl` (2026-11-07, user decision). At `lg` (1024) the sidebar, a
+ * 380px panel and the rail left the page 357px and crushed two-column pages
+ * (Price Structure's Products); below `xl` the panel opens as an overlay.
+ */
+const DOCK_QUERY = "(min-width: 1280px)";
 
 /**
  * What the panel shows (2026-11-07): the entity's comments, or its Activity —
@@ -370,9 +374,9 @@ const EntityActivityBody = dynamic(
  * column (which is `flex-1 min-w-0`), so opening it squeezes the page rather
  * than covering it.
  *
- * BELOW `lg` it falls back to the full-width overlay Sheet: a phone has no room
- * to squeeze, and a 380px column beside a 375px page would crush the page to
- * nothing. On those widths the modal trade-off is the right one.
+ * BELOW `xl` (1280px) it falls back to the overlay Sheet: a phone has no room
+ * to squeeze, and between `lg` and `xl` the sidebar + panel + rail would leave
+ * the page ~357px. On those widths the modal trade-off is the right one.
  */
 export function CommentDock({
   currentUserId,
