@@ -555,7 +555,7 @@ export function AudienceBoard({
 
           {/* Trend */}
           <ChartShell
-            ariaLabel="Audience size over time — expanded"
+            ariaLabel="Audience size over time — expanded" summary="Audience size over time"
             legend={
               <div className="space-y-1">
                 <SeriesLegend
@@ -603,7 +603,7 @@ export function AudienceBoard({
                 />
                 <div className={inFull ? "flex-1 min-h-0" : "h-64"}>
                   <ResponsiveContainer width="100%" height="100%">
-                    <ComposedChart
+                    <ComposedChart accessibilityLayer
                       data={chartData}
                       margin={{ top: 12, right: 12, left: 0, bottom: 0 }}
                     >

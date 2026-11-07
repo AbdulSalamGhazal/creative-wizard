@@ -156,7 +156,7 @@ export function LandingPagesChart({
 
   return (
     <ChartShell
-      ariaLabel="Landing pages over time — expanded"
+      ariaLabel="Landing pages over time — expanded" summary="Landing pages over time, one line per landing page"
       legend={
         series.length > 0 ? (
           <SeriesLegend
@@ -199,7 +199,7 @@ export function LandingPagesChart({
             <div className={plotClass(inFull, "lg") + " relative"}>
               <ChartFitToggle fit={fit} />
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={data} margin={{ top: 12, right: 12, left: 0, bottom: 0 }}>
+                <LineChart accessibilityLayer data={data} margin={{ top: 12, right: 12, left: 0, bottom: 0 }}>
                   <CartesianGrid stroke="var(--line)" strokeDasharray="3 3" vertical={false} />
                   <XAxis
                     dataKey="date"

@@ -1518,7 +1518,7 @@ export function BudgetPacing({
 
       {/* Chart */}
       <ChartShell
-        ariaLabel="Budget pacing — expanded"
+        ariaLabel="Budget pacing — expanded" summary="Budget pacing: actual spend against the plan to date"
         legend={
           // ALWAYS shown. In the default view the plot is a solid line and a
           // dashed one with nothing saying which is which — the caption below
@@ -1597,7 +1597,7 @@ export function BudgetPacing({
             />
             <div className={plotClass(inFull, "lg")}>
               <ResponsiveContainer width="100%" height="100%">
-                <ComposedChart data={chartData} margin={{ top: 12, right: 12, left: 0, bottom: 0 }}>
+                <ComposedChart accessibilityLayer data={chartData} margin={{ top: 12, right: 12, left: 0, bottom: 0 }}>
                   <CartesianGrid stroke="var(--line)" strokeDasharray="3 3" vertical={false} />
                   <XAxis
                     dataKey="label"

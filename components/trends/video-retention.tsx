@@ -101,7 +101,7 @@ export function VideoRetention({
 
   return (
     <ChartShell
-      ariaLabel="Retention curve — expanded"
+      ariaLabel="Retention curve — expanded" summary="Video retention curve: share of viewers still watching at each point"
       legend={
         mode === "byVideo" && topVideos.length > 0 ? (
           <SeriesLegend
@@ -156,7 +156,7 @@ export function VideoRetention({
 
           <div className={inFull ? "flex-1 min-h-0" : "h-72"}>
             <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={data} margin={{ top: 10, right: 12, left: 0, bottom: 4 }}>
+              <ComposedChart accessibilityLayer data={data} margin={{ top: 10, right: 12, left: 0, bottom: 4 }}>
                 <CartesianGrid stroke="var(--line)" strokeDasharray="3 3" vertical={false} />
                 <XAxis dataKey="stage" tick={{ fill: "var(--ink-3)", fontSize: 11 }} stroke="var(--line-2)" />
                 <YAxis

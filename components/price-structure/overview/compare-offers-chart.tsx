@@ -61,7 +61,7 @@ export function CompareOffersChart({
     >
       <div style={{ height: Math.max(120, data.length * 26 + 36) }} role="img" aria-label={`${meta.label} per offer`}>
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={data} layout="vertical" margin={{ top: 4, right: 24, left: 0, bottom: 0 }} barCategoryGap={4}>
+          <BarChart accessibilityLayer data={data} layout="vertical" margin={{ top: 4, right: 24, left: 0, bottom: 0 }} barCategoryGap={4}>
             <CartesianGrid stroke="var(--line)" strokeDasharray="3 3" horizontal={false} />
             <XAxis type="number" tick={{ fill: "var(--ink-3)", fontSize: 10 }} stroke="var(--line-2)" tickFormatter={(v: number) => fmt(v)} />
             <YAxis

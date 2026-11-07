@@ -240,7 +240,7 @@ export function MetricOverTimeChart({
 
   return (
     <ChartShell
-      ariaLabel="Metric over time — expanded"
+      ariaLabel="Metric over time — expanded" summary={`${METRICS.find((m) => m.value === metric)?.label ?? metric} per day`}
       legend={
         keys.length > 0 ? (
           <SeriesLegend
@@ -288,7 +288,7 @@ export function MetricOverTimeChart({
             <div className={plotClass(inFull, "lg") + " relative"}>
               <ChartFitToggle fit={fit} />
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={display} margin={{ top: 12, right: 12, left: 0, bottom: 0 }}>
+                <LineChart accessibilityLayer data={display} margin={{ top: 12, right: 12, left: 0, bottom: 0 }}>
                   <CartesianGrid stroke="var(--line)" strokeDasharray="3 3" vertical={false} />
                   <XAxis
                     dataKey="date"

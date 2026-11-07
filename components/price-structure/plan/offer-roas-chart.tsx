@@ -30,7 +30,7 @@ export function OfferRoasChart({ lines, total }: { lines: readonly Line[]; total
       ) : (
         <div style={{ height: Math.max(120, data.length * 30 + 36) }} role="img" aria-label={`Platform ROAS per offer; blend ${roas2(total.platformRoas)}`}>
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={data} layout="vertical" margin={{ top: 4, right: 56, left: 0, bottom: 0 }} barCategoryGap={6}>
+            <BarChart accessibilityLayer data={data} layout="vertical" margin={{ top: 4, right: 56, left: 0, bottom: 0 }} barCategoryGap={6}>
               <CartesianGrid stroke="var(--line)" strokeDasharray="3 3" horizontal={false} />
               <XAxis type="number" tick={{ fill: "var(--ink-3)", fontSize: 10 }} stroke="var(--line-2)" tickFormatter={(v: number) => roas2(v)} />
               <YAxis type="category" dataKey="label" tick={{ fill: "var(--ink-2)", fontSize: 10 }} stroke="var(--line-2)" width={120} tickLine={false} interval={0} />

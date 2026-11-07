@@ -90,7 +90,7 @@ export function VideoScatter({ rows }: { rows: VideoDiagnosticRow[] }) {
       ) : (
         <div className="h-72">
           <ResponsiveContainer width="100%" height="100%">
-            <ScatterChart margin={{ top: 12, right: 16, left: 4, bottom: 8 }}>
+            <ScatterChart accessibilityLayer margin={{ top: 12, right: 16, left: 4, bottom: 8 }}>
               <CartesianGrid stroke="var(--line)" strokeDasharray="3 3" />
               <XAxis type="number" dataKey="x" name={x.label} tickFormatter={x.tick} tick={{ fill: "var(--ink-3)", fontSize: 11 }} stroke="var(--line-2)" />
               <YAxis type="number" dataKey="y" name={y.label} tickFormatter={y.tick} tick={{ fill: "var(--ink-3)", fontSize: 11 }} stroke="var(--line-2)" width={52} />

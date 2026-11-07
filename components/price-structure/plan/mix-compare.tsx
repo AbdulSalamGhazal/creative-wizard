@@ -49,7 +49,7 @@ export function MixCompare({ planLines, actualLines, planName, periodName, group
     >
       <div style={{ height: Math.max(140, data.length * 36 + 48) }} role="img" aria-label="Order share, plan beside actual">
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={data} layout="vertical" margin={{ top: 4, right: 24, left: 0, bottom: 0 }} barCategoryGap={8} barGap={2}>
+          <BarChart accessibilityLayer data={data} layout="vertical" margin={{ top: 4, right: 24, left: 0, bottom: 0 }} barCategoryGap={8} barGap={2}>
             <CartesianGrid stroke="var(--line)" strokeDasharray="3 3" horizontal={false} />
             <XAxis type="number" tick={{ fill: "var(--ink-3)", fontSize: 10 }} stroke="var(--line-2)" tickFormatter={(v: number) => pct1(v)} domain={[0, 1]} />
             <YAxis type="category" dataKey="label" tick={{ fill: "var(--ink-2)", fontSize: 10 }} stroke="var(--line-2)" width={140} tickLine={false} interval={0} />

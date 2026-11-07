@@ -42,7 +42,7 @@ export function ProductMixDonut({ rows }: Props) {
       {/* Donut grows to fill the card height; legend below keeps full width */}
       <div className="relative flex-1 min-h-[160px] w-full">
         <ResponsiveContainer width="100%" height="100%">
-          <PieChart>
+          <PieChart accessibilityLayer>
             <Pie
               data={data}
               dataKey="spend"

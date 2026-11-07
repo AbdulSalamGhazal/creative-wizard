@@ -171,7 +171,7 @@ export function CompareChart({
 
   return (
     <ChartShell
-      ariaLabel={`Compare ${metric} — expanded`}
+      ariaLabel={`Compare ${metric} — expanded`} summary={`${metric} per day, one line per compared item`}
       legend={
         creatives.length > 1 ? (
           <SeriesLegend
@@ -210,7 +210,7 @@ export function CompareChart({
             <div className={plotClass(inFull, "lg") + " relative"}>
               <ChartFitToggle fit={fit} />
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart
+                <LineChart accessibilityLayer
                   data={data}
                   margin={{ top: 12, right: 12, left: 0, bottom: 0 }}
                 >

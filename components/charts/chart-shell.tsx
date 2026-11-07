@@ -12,10 +12,18 @@ import { Maximize2, X } from "lucide-react";
  */
 export function ChartShell({
   ariaLabel,
+  summary,
   legend,
   children,
 }: {
   ariaLabel?: string;
+  /**
+   * What the chart shows, in words (R-022, 2026-11): the inline card's
+   * accessible name and an sr-only caption, so a screen reader hears more
+   * than an unlabelled SVG. The chart roots carry Recharts'
+   * `accessibilityLayer`, so arrow keys walk the points through the tooltip.
+   */
+  summary: string;
   /**
    * Series legends render below the plot — do not place SeriesLegend in a
    * chart's header zone. Passed here, the shell drops it under the plot in both
@@ -43,7 +51,8 @@ export function ChartShell({
 
   return (
     <>
-      <div className="rounded-lg border border-line bg-surface p-4">
+      <div role="figure" aria-label={summary} className="rounded-lg border border-line bg-surface p-4">
+        <p className="sr-only">{summary}</p>
         {children({ inFull: false, expanded, toggleExpand })}
         {legend && <div className="mt-3">{legend}</div>}
       </div>

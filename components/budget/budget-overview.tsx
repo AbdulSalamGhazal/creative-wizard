@@ -735,7 +735,7 @@ function MonthChart({
 
   return (
     <ChartShell
-      ariaLabel="Budget month — expanded"
+      ariaLabel="Budget month — expanded" summary="Budget month: actual spend per day against the plan and the projection"
       legend={
         <SeriesLegend
           items={legendItems}
@@ -776,7 +776,7 @@ function MonthChart({
           />
           <div className={plotClass(inFull, "md")}>
             <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={chartData} margin={{ top: 12, right: 12, left: 0, bottom: 0 }}>
+              <ComposedChart accessibilityLayer data={chartData} margin={{ top: 12, right: 12, left: 0, bottom: 0 }}>
                 <CartesianGrid stroke="var(--line)" strokeDasharray="3 3" vertical={false} />
                 <XAxis
                   dataKey="label"

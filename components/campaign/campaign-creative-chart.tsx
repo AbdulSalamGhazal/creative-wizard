@@ -271,7 +271,7 @@ export function CampaignCreativeChart({
 
   const chart = (
     <ResponsiveContainer width="100%" height="100%">
-      <LineChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+      <LineChart accessibilityLayer data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
         <CartesianGrid stroke="var(--line)" strokeDasharray="3 3" vertical={false} />
         <XAxis
           dataKey="date"
@@ -317,7 +317,7 @@ export function CampaignCreativeChart({
   );
 
   return (
-    <ChartShell ariaLabel="By creative over time — expanded" legend={legend}>
+    <ChartShell ariaLabel="By creative over time — expanded" summary="Campaign metric per day, one line per creative" legend={legend}>
       {({ inFull, toggleExpand }) => (
         <>
           {header(inFull, toggleExpand)}

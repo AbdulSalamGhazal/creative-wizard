@@ -84,7 +84,7 @@ export function AngleScatter({ rows }: { rows: AngleRollupRow[] }) {
       ) : (
         <div className="h-72">
           <ResponsiveContainer width="100%" height="100%">
-            <ScatterChart margin={{ top: 12, right: 16, left: 4, bottom: 8 }}>
+            <ScatterChart accessibilityLayer margin={{ top: 12, right: 16, left: 4, bottom: 8 }}>
               <CartesianGrid stroke="var(--line)" strokeDasharray="3 3" />
               <XAxis
                 type="number"

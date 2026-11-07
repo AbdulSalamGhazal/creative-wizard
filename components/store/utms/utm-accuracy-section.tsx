@@ -266,7 +266,7 @@ export function UtmAccuracySection({
         />
       ) : (
         <>
-          <ChartShell ariaLabel="Claimed conversions beside UTM orders, per platform" legend={legend}>
+          <ChartShell ariaLabel="Claimed conversions beside UTM orders, per platform" summary="Claimed conversions beside UTM orders, per platform" legend={legend}>
             {({ inFull, toggleExpand }) => (
               <div className={inFull ? "flex h-full flex-col" : undefined}>
                 <ChartHeader
@@ -278,7 +278,7 @@ export function UtmAccuracySection({
                   style={inFull ? undefined : { height: Math.max(120, rows.length * 48 + 24) }}
                 >
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart
+                    <BarChart accessibilityLayer
                       data={barData}
                       layout="vertical"
                       margin={{ top: 4, right: 16, left: 0, bottom: 0 }}
@@ -419,7 +419,7 @@ function PlatformPanel({
       </div>
       <div className="h-32">
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={points} margin={{ top: 4, right: 4, left: 0, bottom: 0 }} barGap={1}>
+          <BarChart accessibilityLayer data={points} margin={{ top: 4, right: 4, left: 0, bottom: 0 }} barGap={1}>
             <CartesianGrid stroke="var(--line)" strokeDasharray="3 3" vertical={false} />
             <XAxis
               dataKey="label"

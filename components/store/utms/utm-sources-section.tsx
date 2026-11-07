@@ -355,7 +355,7 @@ export function UtmSourcesSection({
   return (
     <section className="space-y-3">
       <ChartShell
-        ariaLabel="Orders over the range, stacked by source"
+        ariaLabel="Orders over the range, stacked by source" summary="Orders per day over the range, stacked by source"
         legend={
           <SeriesLegend
             items={present.map((b) => ({ key: b, label: utmBucketLabel(b), color: utmBucketColor(b) }))}
@@ -394,7 +394,7 @@ export function UtmSourcesSection({
             />
             <div className={inFull ? "min-h-0 flex-1" : "h-64"}>
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={points} margin={{ top: 12, right: 12, left: 0, bottom: 0 }}>
+                <BarChart accessibilityLayer data={points} margin={{ top: 12, right: 12, left: 0, bottom: 0 }}>
                   <CartesianGrid stroke="var(--line)" strokeDasharray="3 3" vertical={false} />
                   <XAxis
                     dataKey="label"

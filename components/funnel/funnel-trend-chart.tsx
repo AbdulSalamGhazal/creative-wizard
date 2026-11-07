@@ -132,7 +132,7 @@ export function FunnelTrendChart({
 
   const chart = (
     <ResponsiveContainer width="100%" height="100%">
-      <LineChart data={displayData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+      <LineChart accessibilityLayer data={displayData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
         <CartesianGrid stroke="var(--line)" strokeDasharray="3 3" vertical={false} />
         <XAxis
           dataKey="date"
@@ -194,7 +194,7 @@ export function FunnelTrendChart({
   );
 
   return (
-    <ChartShell ariaLabel="Funnel rates over time — expanded" legend={legend}>
+    <ChartShell ariaLabel="Funnel rates over time — expanded" summary="Funnel step rates per day, one line per rate" legend={legend}>
       {({ inFull, toggleExpand }) => (
         <>
           {header(inFull, toggleExpand)}

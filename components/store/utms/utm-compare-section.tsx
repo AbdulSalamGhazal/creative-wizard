@@ -361,7 +361,7 @@ export function UtmCompareSection({
         </Popover>
       </div>
 
-      <ChartShell ariaLabel="Selected sources over the range">
+      <ChartShell ariaLabel="Selected sources over the range" summary="Orders per day for the selected sources">
         {({ inFull, toggleExpand }) => (
           <div className={inFull ? "flex h-full flex-col" : undefined}>
             <ChartHeader
@@ -404,7 +404,7 @@ export function UtmCompareSection({
                 />
               ) : (
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={points} margin={{ top: 12, right: 12, left: 0, bottom: 0 }}>
+                  <LineChart accessibilityLayer data={points} margin={{ top: 12, right: 12, left: 0, bottom: 0 }}>
                     <CartesianGrid stroke="var(--line)" strokeDasharray="3 3" vertical={false} />
                     <XAxis
                       dataKey="label"

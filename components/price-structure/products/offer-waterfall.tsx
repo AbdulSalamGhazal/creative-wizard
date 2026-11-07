@@ -54,7 +54,7 @@ export function OfferWaterfall({ product, offer, data }: { product: Product; off
     <SectionCard title="From customer price to Clean Money Left" subtitle="SAR per delivered order">
       <div style={{ height: 240 }} role="img" aria-label={`Customer pays ${money2(r.paidGross)} SAR, net revenue ${money2(r.netRevenue)}, CML ${money2(r.profit)}`}>
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={steps} margin={{ top: 20, right: 8, left: 0, bottom: 0 }} barCategoryGap={8}>
+          <BarChart accessibilityLayer data={steps} margin={{ top: 20, right: 8, left: 0, bottom: 0 }} barCategoryGap={8}>
             <CartesianGrid stroke="var(--line)" strokeDasharray="3 3" vertical={false} />
             <XAxis dataKey="name" tick={{ fill: "var(--ink-3)", fontSize: 10 }} stroke="var(--line-2)" interval={0} tickLine={false} />
             <YAxis

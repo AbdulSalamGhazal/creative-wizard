@@ -452,7 +452,7 @@ export function StoreInsightsView({
 
       {/* Trend */}
       <ChartShell
-        ariaLabel="Orders and revenue over the range"
+        ariaLabel="Orders and revenue over the range" summary="Orders and revenue (SAR) per day over the range"
         legend={
           <SeriesLegend
             items={[
@@ -499,7 +499,7 @@ export function StoreInsightsView({
                 </div>
               ) : (
                 <ResponsiveContainer width="100%" height="100%">
-                  <ComposedChart
+                  <ComposedChart accessibilityLayer
                     data={points}
                     margin={{ top: 12, right: 12, left: 0, bottom: 0 }}
                   >
