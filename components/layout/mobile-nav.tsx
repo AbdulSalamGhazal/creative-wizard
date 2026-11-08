@@ -12,10 +12,12 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import {
-  TRENDS_CHILDREN,
   isActive,
   navSections,
+  sectionForPath,
 } from "@/components/layout/nav-items";
+import { useOpenSection } from "@/components/layout/use-open-section";
+import { NavSectionToggle } from "@/components/layout/nav-section-toggle";
 import {
   useNavLinkProps,
   type NavLinkProps,
@@ -50,6 +52,10 @@ export function MobileNav({ granted }: { granted: string[] }) {
   };
 
   const sections = navSections(granted);
+  // The same accordion as the desktop sidebar: one section open at a time,
+  // the current page's by default (2026-11-08).
+  const [openSection, toggleSection] = useOpenSection(sections, pathname);
+  const currentSection = sectionForPath(sections, pathname);
 
   // ONE look with the desktop sidebar (R-035/R-042): the item's icon, and
   // "you are here" is surface-2 + the 2px brand bar at the edge — never the
@@ -109,44 +115,58 @@ export function MobileNav({ granted }: { granted: string[] }) {
         <SheetHeader className="border-b border-line">
           <SheetTitle className="text-left">Navigation</SheetTitle>
         </SheetHeader>
-        <nav className="flex-1 overflow-y-auto px-3 py-3 space-y-3">
-          {sections.map((section) => (
-            <div key={section.key} className="space-y-0.5">
-              <div className="px-3 py-1 text-eyebrow text-ink-3">
-                {section.label}
-              </div>
-              {section.items.map((item) =>
-                item.children ? (
-                  // The hub is a HEADING, not a link (R-042): it pointed at
-                  // its own first child, so two adjacent entries lit up
-                  // together. Desktop shows it as a disclosure; here its six
-                  // pages are always listed under it.
-                  <div key={item.label} role="group" aria-label={item.label}>
-                    <div
-                      className={cn(
-                        "flex items-center gap-3 px-3 py-2 text-sm",
-                        TRENDS_CHILDREN.some((c) => isActive(pathname, c.href))
-                          ? "text-ink"
-                          : "text-ink-2",
-                      )}
-                    >
-                      <item.icon className="h-4 w-4 shrink-0" />
-                      {item.label}
-                    </div>
-                    {TRENDS_CHILDREN.map((c) =>
-                      link(c.href, c.label, { child: true }),
+        <nav className="flex-1 overflow-y-auto px-3 py-3 space-y-1">
+          {sections.map((section) => {
+            const listId = `mobile-nav-section-${section.key}`;
+            const open = openSection === section.key;
+            return (
+              <div key={section.key} className="space-y-0.5">
+                <NavSectionToggle
+                  label={section.label}
+                  open={open}
+                  current={currentSection === section.key}
+                  controls={listId}
+                  onToggle={() => toggleSection(section.key)}
+                  // A finger-sized row on the phone, like the links under it.
+                  className="py-2.5"
+                />
+                {open && (
+                  <div id={listId} className="space-y-0.5 pb-3">
+                    {section.items.map((item) =>
+                      item.children ? (
+                        // The hub is a HEADING, not a link (R-042): it pointed
+                        // at its own first child, so two adjacent entries lit
+                        // up together. Desktop shows it as a disclosure; here
+                        // its pages are always listed under it.
+                        <div key={item.label} role="group" aria-label={item.label}>
+                          <div
+                            className={cn(
+                              "flex items-center gap-3 px-3 py-2 text-sm",
+                              item.children.some((c) => isActive(pathname, c.href))
+                                ? "text-ink"
+                                : "text-ink-2",
+                            )}
+                          >
+                            <item.icon className="h-4 w-4 shrink-0" />
+                            {item.label}
+                          </div>
+                          {item.children.map((c) =>
+                            link(c.href, c.label, { child: true }),
+                          )}
+                        </div>
+                      ) : (
+                        link(item.href, item.label, {
+                          exact: item.exact,
+                          link: linkProps(item),
+                          icon: item.icon,
+                        })
+                      ),
                     )}
                   </div>
-                ) : (
-                  link(item.href, item.label, {
-                    exact: item.exact,
-                    link: linkProps(item),
-                    icon: item.icon,
-                  })
-                ),
-              )}
-            </div>
-          ))}
+                )}
+              </div>
+            );
+          })}
         </nav>
       </SheetContent>
     </Sheet>

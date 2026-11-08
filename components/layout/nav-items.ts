@@ -2,8 +2,7 @@ import {
   ChartPie,
   LayoutDashboard,
   Images,
-  GitCompare,
-  LineChart,
+    LineChart,
   Table2,
   Upload,
   FileUp,
@@ -33,9 +32,11 @@ import { NAV_ROUTE_GATES } from "@/lib/page-gates";
  * Sidebar (lg+) and the mobile Sheet nav (below lg) so the two can never drift.
  * Keep this data-only (no JSX) so either surface can render it.
  *
- * The nav is grouped into labeled SECTIONS (see `NAV_SECTIONS`): Ads (the
- * analytics/ads pages), Budget (the monthly plan module), Store (the Salla
- * order module), and Admin.
+ * The nav is grouped into labeled SECTIONS (see `NAV_SECTIONS`):
+ * Advertisements (the analytics/ads pages), Budget (the monthly plan module),
+ * Store (the Salla order module), Price structure, and Admin. The sections are
+ * an ACCORDION in both navs — one open at a time, the current page's section
+ * by default (`sectionForPath`, 2026-11-08).
  */
 export interface NavChild {
   href: string;
@@ -44,10 +45,12 @@ export interface NavChild {
 
 /** The sidebar sections, in display order. Each gets an eyebrow label. */
 export const NAV_SECTIONS = [
-  { key: "ads", label: "Ads" },
+  // The key stays "ads" (it is a code name, read by qualifiedNavLabel and the
+  // tests); only the visible label is the long form (2026-11-08).
+  { key: "ads", label: "Advertisements" },
   { key: "budget", label: "Budget" },
-  { key: "pricing", label: "Price structure" },
   { key: "store", label: "Store" },
+  { key: "pricing", label: "Price structure" },
   { key: "admin", label: "Admin" },
 ] as const;
 export type NavSectionKey = (typeof NAV_SECTIONS)[number]["key"];
@@ -75,7 +78,13 @@ export interface NavItem {
   perms?: Permission[];
 }
 
-export const TRENDS_CHILDREN: NavChild[] = [
+/**
+ * The Analyzers hub (was "Trends", 2026-11-08): Compare first, then the six
+ * trend pages. URLs did NOT move — `/compare` and `/trends/*` are what saved
+ * links and comment anchors point at.
+ */
+export const ANALYZERS_CHILDREN: NavChild[] = [
+  { href: "/compare", label: "Compare" },
   { href: "/trends/over-time", label: "Changes" },
   { href: "/trends/by-angle", label: "Angles" },
   { href: "/trends/by-type", label: "Types" },
@@ -86,24 +95,25 @@ export const TRENDS_CHILDREN: NavChild[] = [
 ];
 
 export const NAV_ITEMS: NavItem[] = [
-  // ── Ads ──────────────────────────────────────────────────────────────────
+  // ── Advertisements ───────────────────────────────────────────────────────
+  // Order (user, 2026-11-08): Dashboard · Library · Ads · Campaigns · Canvas ·
+  // Funnel · Analyzers · Upload ads.
   { href: "/", label: "Dashboard", icon: LayoutDashboard, group: "ads" },
   { href: "/library", label: "Library", icon: Images, group: "ads" },
   { href: "/summary", label: "Ads", icon: Table2, group: "ads" },
-  { href: "/funnel", label: "Funnel", icon: Filter, group: "ads" },
   { href: "/campaigns", label: "Campaigns", icon: Megaphone, group: "ads" },
   // The campaign↔creative graph — read-only, sits with the two things it joins.
   { href: "/canvas", label: "Canvas", icon: Workflow, group: "ads" },
-  // Trends is a hub, not a page: the href is its first child (used when the
-  // desktop rail is collapsed to icons and by the mobile nav's parent link).
+  { href: "/funnel", label: "Funnel", icon: Filter, group: "ads" },
+  // Analyzers is a hub, not a page: the href is its first child (used when the
+  // desktop rail is collapsed to icons).
   {
-    href: "/trends/over-time",
-    label: "Trends",
+    href: ANALYZERS_CHILDREN[0]!.href,
+    label: "Analyzers",
     icon: LineChart,
     group: "ads",
-    children: TRENDS_CHILDREN,
+    children: ANALYZERS_CHILDREN,
   },
-  { href: "/compare", label: "Compare", icon: GitCompare, group: "ads" },
   {
     href: "/uploads",
     label: "Upload ads",
@@ -125,40 +135,6 @@ export const NAV_ITEMS: NavItem[] = [
   // Funnel-audience sizes vs spend. Open to any brand member, like the other
   // read surfaces; recording is gated behind audience.manage on the page.
   { href: "/budget/audience", label: "Audience", icon: UsersRound, group: "budget" },
-
-  // ── Price structure ──────────────────────────────────────────────────────
-  // Offer pricing → Clean Money Left → the ROAS each offer and mix needs
-  // (2026-11). ONE permission opens the whole module, so every entry carries
-  // the same derived gate; Versions is reached from the page header's picker,
-  // not from here. Links carry the open version (`?v=`) like Budget's month.
-  {
-    href: "/price-structure/overview",
-    label: "Overview",
-    icon: Coins,
-    group: "pricing",
-    perms: [...NAV_ROUTE_GATES["/price-structure/overview"]],
-  },
-  {
-    href: "/price-structure/plan",
-    label: "Plan",
-    icon: TrendingUp,
-    group: "pricing",
-    perms: [...NAV_ROUTE_GATES["/price-structure/plan"]],
-  },
-  {
-    href: "/price-structure/products",
-    label: "Products & offers",
-    icon: Package,
-    group: "pricing",
-    perms: [...NAV_ROUTE_GATES["/price-structure/products"]],
-  },
-  {
-    href: "/price-structure/targets",
-    label: "Targets",
-    icon: Target,
-    group: "pricing",
-    perms: [...NAV_ROUTE_GATES["/price-structure/targets"]],
-  },
 
   // ── Store ────────────────────────────────────────────────────────────────
   {
@@ -204,6 +180,40 @@ export const NAV_ITEMS: NavItem[] = [
     icon: FileUp,
     group: "store",
     perms: [...NAV_ROUTE_GATES["/store/uploads"]],
+  },
+
+  // ── Price structure ──────────────────────────────────────────────────────
+  // Offer pricing → Clean Money Left → the ROAS each offer and mix needs
+  // (2026-11). ONE permission opens the whole module, so every entry carries
+  // the same derived gate; Versions is reached from the page header's picker,
+  // not from here. Links carry the open version (`?v=`) like Budget's month.
+  {
+    href: "/price-structure/overview",
+    label: "Overview",
+    icon: Coins,
+    group: "pricing",
+    perms: [...NAV_ROUTE_GATES["/price-structure/overview"]],
+  },
+  {
+    href: "/price-structure/plan",
+    label: "Plan",
+    icon: TrendingUp,
+    group: "pricing",
+    perms: [...NAV_ROUTE_GATES["/price-structure/plan"]],
+  },
+  {
+    href: "/price-structure/products",
+    label: "Products & offers",
+    icon: Package,
+    group: "pricing",
+    perms: [...NAV_ROUTE_GATES["/price-structure/products"]],
+  },
+  {
+    href: "/price-structure/targets",
+    label: "Targets",
+    icon: Target,
+    group: "pricing",
+    perms: [...NAV_ROUTE_GATES["/price-structure/targets"]],
   },
 
   // ── Admin ────────────────────────────────────────────────────────────────
@@ -273,6 +283,29 @@ export function qualifiedNavLabel(
   return section.key === "ads" || itemLabel === section.label
     ? itemLabel
     : `${section.label} · ${itemLabel}`;
+}
+
+/**
+ * The section the current page lives in — the one the accordion opens by
+ * default. Checks every item and every hub child (the hub's own href is just
+ * its first child's). `null` for a page outside the nav (Notifications, a
+ * creative's detail page under no item…), where the caller falls back to the
+ * first section.
+ */
+export function sectionForPath(
+  sections: ReadonlyArray<{ key: NavSectionKey; items: NavItem[] }>,
+  pathname: string,
+): NavSectionKey | null {
+  for (const section of sections) {
+    for (const item of section.items) {
+      if (item.children) {
+        if (item.children.some((c) => isActive(pathname, c.href))) return section.key;
+      } else if (isActive(pathname, item.href, item.exact)) {
+        return section.key;
+      }
+    }
+  }
+  return null;
 }
 
 /** Whether a nav href matches the current pathname (exact for "/", prefix else). */

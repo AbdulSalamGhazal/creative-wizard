@@ -111,7 +111,7 @@ function usePages(granted: string[]) {
     }> = [];
     for (const section of navSections(granted)) {
       for (const item of section.items) {
-        // A hub item (Trends) is not itself a page — offer its children.
+        // A hub item (Analyzers) is not itself a page — offer its children.
         if (item.children) {
           for (const c of item.children) {
             out.push({ href: c.href, label: `${item.label} · ${c.label}`, icon: item.icon });

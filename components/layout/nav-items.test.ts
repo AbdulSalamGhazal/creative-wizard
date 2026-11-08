@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { NAV_ITEMS, visibleNavItems } from "@/components/layout/nav-items";
+import {
+  NAV_ITEMS,
+  NAV_SECTIONS,
+  navSections,
+  sectionForPath,
+  visibleNavItems,
+} from "@/components/layout/nav-items";
 import { ALL_PERMISSIONS, EDITOR_PRESET } from "@/lib/permissions";
 
 const labels = (perms: Iterable<string>) =>
@@ -45,5 +51,70 @@ describe("visibleNavItems", () => {
     for (const item of NAV_ITEMS) {
       for (const p of item.perms ?? []) expect(all.has(p)).toBe(true);
     }
+  });
+});
+
+describe("the nav's order and the accordion's default section (2026-11-08)", () => {
+  it("sections read Advertisements · Budget · Store · Price structure · Admin", () => {
+    expect(NAV_SECTIONS.map((s) => s.label)).toEqual([
+      "Advertisements",
+      "Budget",
+      "Store",
+      "Price structure",
+      "Admin",
+    ]);
+  });
+
+  it("Advertisements reads Dashboard · Library · Ads · Campaigns · Canvas · Funnel · Analyzers · Upload ads", () => {
+    expect(NAV_ITEMS.filter((i) => i.group === "ads").map((i) => i.label)).toEqual([
+      "Dashboard",
+      "Library",
+      "Ads",
+      "Campaigns",
+      "Canvas",
+      "Funnel",
+      "Analyzers",
+      "Upload ads",
+    ]);
+  });
+
+  it("Analyzers holds Compare first, then the trend pages, at their old URLs", () => {
+    const hub = NAV_ITEMS.find((i) => i.label === "Analyzers")!;
+    expect(hub.children?.map((c) => c.label)).toEqual([
+      "Compare",
+      "Changes",
+      "Angles",
+      "Types",
+      "Launches",
+      "Video",
+      "LPs",
+    ]);
+    expect(hub.href).toBe("/compare");
+    for (const c of hub.children!.slice(1)) expect(c.href.startsWith("/trends/")).toBe(true);
+  });
+
+  const all = navSections(ALL_PERMISSIONS);
+  it.each([
+    ["/", "ads"],
+    ["/library/Hook%2001", "ads"],
+    ["/compare", "ads"],
+    ["/trends/by-angle", "ads"],
+    ["/budget", "budget"],
+    ["/budget/pacing", "budget"],
+    ["/store/uploads/new", "store"],
+    ["/price-structure/plan", "pricing"],
+    ["/admin/users", "admin"],
+  ])("%s opens %s", (path, key) => {
+    expect(sectionForPath(all, path)).toBe(key);
+  });
+
+  it("a page outside the nav has no section (the caller opens the first)", () => {
+    expect(sectionForPath(all, "/notifications")).toBeNull();
+    expect(sectionForPath(all, "/account")).toBeNull();
+  });
+
+  it("a section the viewer can't see is never the answer", () => {
+    // A viewer has no Admin section; /admin/users finds nothing to open.
+    expect(sectionForPath(navSections([]), "/admin/users")).toBeNull();
   });
 });

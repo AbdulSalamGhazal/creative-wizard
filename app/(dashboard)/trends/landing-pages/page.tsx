@@ -26,7 +26,7 @@ export const dynamic = "force-dynamic";
 const TRAILING_DAYS_DEFAULT = 30;
 
 type SearchParams = Record<string, string | string[] | undefined>;
-export const metadata = { title: "Trends · LPs" };
+export const metadata = { title: "Analyzers · LPs" };
 
 /**
  * Trends → LPs: ad performance by the landing page an ad sent traffic to.
@@ -101,7 +101,7 @@ export default async function TrendsLandingPagesPage({
       }
     >
       <PageHeader
-        eyebrow="Trends"
+        eyebrow="Analyzers"
         title="LPs"
         info={`Each product's own page (${PRODUCT_PAGE_LABEL}: its ads with no @code) beside the landing pages registered under it. A product with no landing page isn't listed. A page registered before pages had a product shows under "No product" until it gets one. Google is not included.`}
         rightSlot={

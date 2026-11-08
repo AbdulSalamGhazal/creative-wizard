@@ -27,7 +27,7 @@ export const dynamic = "force-dynamic";
 type SearchParams = Record<string, string | string[] | undefined>;
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
 
-export const metadata = { title: "Trends · Launches" };
+export const metadata = { title: "Analyzers · Launches" };
 
 export default async function TrendsLaunchesPage({
   searchParams,
@@ -158,7 +158,7 @@ export default async function TrendsLaunchesPage({
       }
     >
       <PageHeader
-        eyebrow="Trends"
+        eyebrow="Analyzers"
         title="Launches"
         info={
           <>

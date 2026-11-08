@@ -25,7 +25,7 @@ export const dynamic = "force-dynamic";
 const TRAILING_DAYS_DEFAULT = 30;
 
 type SearchParams = Record<string, string | string[] | undefined>;
-export const metadata = { title: "Trends · Types" };
+export const metadata = { title: "Analyzers · Types" };
 
 export default async function TrendsByTypePage({
   searchParams,
@@ -93,7 +93,7 @@ export default async function TrendsByTypePage({
       }
     >
       <PageHeader
-        eyebrow="Trends"
+        eyebrow="Analyzers"
         title="Types"
         rightSlot={
           // Phone only (R-049): the strip shows the range on desktop.

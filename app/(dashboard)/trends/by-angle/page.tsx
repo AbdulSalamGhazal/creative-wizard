@@ -26,7 +26,7 @@ export const dynamic = "force-dynamic";
 const TRAILING_DAYS_DEFAULT = 30;
 
 type SearchParams = Record<string, string | string[] | undefined>;
-export const metadata = { title: "Trends · Angles" };
+export const metadata = { title: "Analyzers · Angles" };
 
 export default async function TrendsByAnglePage({
   searchParams,
@@ -93,7 +93,7 @@ export default async function TrendsByAnglePage({
       }
     >
       <PageHeader
-        eyebrow="Trends"
+        eyebrow="Analyzers"
         title="Angles"
         info={
           <>

@@ -53,7 +53,7 @@ function entityHref(dim: ChangeDim, key: string, label: string): string {
   }
 }
 
-export const metadata = { title: "Trends · Changes" };
+export const metadata = { title: "Analyzers · Changes" };
 
 export default async function TrendsOverTimePage({
   searchParams,
@@ -174,7 +174,7 @@ export default async function TrendsOverTimePage({
       }
     >
       <PageHeader
-        eyebrow="Trends"
+        eyebrow="Analyzers"
         title="Changes"
         info="Ranked worst-first vs the prior window of equal length. Tiny spenders never trigger warnings."
         rightSlot={

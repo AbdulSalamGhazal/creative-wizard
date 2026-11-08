@@ -26,7 +26,7 @@ export const dynamic = "force-dynamic";
 const TRAILING_DAYS_DEFAULT = 30;
 
 type SearchParams = Record<string, string | string[] | undefined>;
-export const metadata = { title: "Trends · Video" };
+export const metadata = { title: "Analyzers · Video" };
 
 export default async function TrendsVideoPage({
   searchParams,
@@ -90,7 +90,7 @@ export default async function TrendsVideoPage({
       }
     >
       <PageHeader
-        eyebrow="Trends"
+        eyebrow="Analyzers"
         title="Video"
         info="Video creatives only; rates below the portfolio median are flagged amber."
         rightSlot={

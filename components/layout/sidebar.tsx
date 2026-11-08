@@ -13,12 +13,15 @@ import {
   isActive,
   navSections,
   qualifiedNavLabel,
+  sectionForPath,
   type NavItem,
 } from "@/components/layout/nav-items";
 import {
   useNavLinkProps,
   type NavLinkProps,
 } from "@/components/layout/use-nav-link";
+import { useOpenSection } from "@/components/layout/use-open-section";
+import { NavSectionToggle } from "@/components/layout/nav-section-toggle";
 
 const STORAGE_KEY = "sidebar-collapsed";
 
@@ -55,6 +58,10 @@ export function Sidebar({ granted }: { granted: string[] }) {
     });
 
   const sections = navSections(granted);
+  // The accordion: one section open at a time (2026-11-08). The collapsed
+  // icon rail ignores it — it has no headers to click, so every icon shows.
+  const [openSection, toggleSection] = useOpenSection(sections, pathname);
+  const currentSection = sectionForPath(sections, pathname);
 
   return (
     <aside
@@ -67,42 +74,59 @@ export function Sidebar({ granted }: { granted: string[] }) {
         collapsed ? "w-16 px-2" : "w-56 px-4",
       )}
     >
-      <nav className="w-full space-y-5">
-        {sections.map((section, si) => (
-          <div key={section.key} className="space-y-0.5">
-            {!collapsed ? (
-              <div className="px-3 mb-1 text-eyebrow text-ink-3">
-                {section.label}
-              </div>
-            ) : (
-              // The rail has no eyebrows: a 1px rule says where one section
-              // ends and the next begins (R-088).
-              si > 0 && <div className="mx-2 mb-2 border-t border-line" aria-hidden />
-            )}
-            {section.items.map((item) =>
-              item.children ? (
-                <NavGroup
-                  key={item.label}
-                  item={item}
-                  pathname={pathname}
-                  collapsed={collapsed}
-                  railTitle={qualifiedNavLabel(section, item.label)}
+      <nav className={cn("w-full", collapsed ? "space-y-5" : "space-y-1")}>
+        {sections.map((section, si) => {
+          const listId = `sidebar-section-${section.key}`;
+          const open = collapsed || openSection === section.key;
+          return (
+            <div key={section.key} className="space-y-0.5">
+              {!collapsed ? (
+                <NavSectionToggle
+                  label={section.label}
+                  open={open}
+                  current={currentSection === section.key}
+                  controls={listId}
+                  onToggle={() => toggleSection(section.key)}
                 />
               ) : (
-                <NavLink
-                  key={item.href}
-                  item={item}
-                  link={linkProps(item)}
-                  active={isActive(pathname, item.href, item.exact)}
-                  collapsed={collapsed}
-                  // Section-qualified in the rail: two "Overview"s and two
-                  // "Plan"s were indistinguishable by tooltip (R-088).
-                  railTitle={qualifiedNavLabel(section, item.label)}
-                />
-              ),
-            )}
-          </div>
-        ))}
+                // The rail has no eyebrows: a 1px rule says where one section
+                // ends and the next begins (R-088).
+                si > 0 && (
+                  <div className="mx-2 mb-2 border-t border-line" aria-hidden />
+                )
+              )}
+              {open && (
+                <div
+                  id={listId}
+                  className={cn("space-y-0.5", !collapsed && "pb-3")}
+                >
+                  {section.items.map((item) =>
+                    item.children ? (
+                      <NavGroup
+                        key={item.label}
+                        item={item}
+                        pathname={pathname}
+                        collapsed={collapsed}
+                        railTitle={qualifiedNavLabel(section, item.label)}
+                      />
+                    ) : (
+                      <NavLink
+                        key={item.href}
+                        item={item}
+                        link={linkProps(item)}
+                        active={isActive(pathname, item.href, item.exact)}
+                        collapsed={collapsed}
+                        // Section-qualified in the rail: two "Overview"s and two
+                        // "Plan"s were indistinguishable by tooltip (R-088).
+                        railTitle={qualifiedNavLabel(section, item.label)}
+                      />
+                    ),
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
       </nav>
       <div className="mt-auto pt-4 border-t border-line w-full">
         <button
@@ -220,7 +244,9 @@ function NavGroup({
         aria-expanded={open}
         className={cn(
           "flex items-center gap-3 px-3 py-2 rounded-md text-sm w-full transition-colors",
-          anyActive ? "text-ink" : "text-ink-2 hover:bg-surface-2 hover:text-ink",
+          anyActive
+            ? "text-ink"
+            : "text-ink-2 hover:bg-surface-2 hover:text-ink",
         )}
       >
         <Icon className="w-4 h-4 shrink-0" />

@@ -40,8 +40,9 @@
   ("Actuals are raw totals", "Counts only — no revenue comparison") is
   `PageHeader`'s `info` — an ⓘ beside the title. **A back link reads "Back to
   «Page»"** with the page's own label ("Back to Library", "Back to Upload
-  ads"); the Trends pages have none (the hub they pointed at is a redirect)
-  and carry the "Trends" eyebrow instead (D26). Campaign detail is on
+  ads"); the Analyzers pages (ex-Trends, plus Compare) have none (the hub
+  they pointed at is a redirect) and carry the "Analyzers" eyebrow instead
+  (D26). Campaign detail is on
   `PageHeader` too — no page hand-rolls its header.
 - **Copy voice (C-26/D29):** a failure reads "Couldn't …" with no full stop;
   a success toast names the thing in curly quotes with no full stop
@@ -250,6 +251,13 @@ and as-you-type name validation.
   `bg-brand` bar; `bg-brand-soft` means only "filter applied". Hub items are
   headings in the mobile nav; collapsed-rail tooltips use
   `qualifiedNavLabel` (R-035, R-042, R-088).
+- **The nav's sections are an ACCORDION (2026-11-08, user):** at most one
+  section open, in the sidebar and the mobile Sheet alike — one hook,
+  `useOpenSection`, and one header, `NavSectionToggle`. The current page's
+  section opens by default (`sectionForPath`; a page outside the nav opens
+  the first), every navigation re-opens the arrived-at page's section, and a
+  folded section holding the current page carries the 2px brand mark on its
+  header. The collapsed icon rail has no headers, so it shows every icon.
 - **An entity name links to its page** (an `href` on a table's identity
   column; row click alone is not enough) (R-008, R-015).
 - **A gated page refuses in the shell with `AccessRefused` via
@@ -418,8 +426,8 @@ as it stood before the restructure.*
     **Nav is one source:** `components/layout/nav-items.ts`
     (`NAV_ITEMS`/`isActive`/`navSections`) drives BOTH the desktop `Sidebar` and
     the mobile `MobileNav` (hamburger + Sheet, `lg:hidden`, in the TopBar). Items
-    carry a `group` (`ads`|`budget`|`store`|`admin`); `navSections()` buckets the
-    visible items into the four labeled `NAV_SECTIONS` so both navs render the same
+    carry a `group` (`ads`|`budget`|`store`|`pricing`|`admin`); `navSections()` buckets the
+    visible items into the five labeled `NAV_SECTIONS` so both navs render the same
     eyebrow-labelled sections — restructure grouping there, never per-surface.
   - **`middleware.ts`** is the real auth boundary (Edge Web-Crypto HMAC verify of
     the `ccms_session` cookie); the dashboard layout check is now belt-and-braces.
@@ -480,7 +488,15 @@ as it stood before the restructure.*
 - **2026-09 IA pass — page names, routes, and where settings live.** The
   sidebar's Ads group reads **Dashboard · Library · Ads · Funnel · Campaigns ·
   Canvas · Trends · Compare · Upload ads** (Canvas was added later in 2026-09;
-  the rest of the order is unchanged). Three renames, and only
+  the rest of the order is unchanged). **Superseded 2026-11-08 (user):** the section
+  is labelled **Advertisements** (key still `ads`) and reads **Dashboard ·
+  Library · Ads · Campaigns · Canvas · Funnel · Analyzers · Upload ads**;
+  Analyzers is the old Trends hub with **Compare first** (`/compare` and
+  `/trends/*` kept their URLs — saved links and comment anchors point there).
+  Sections read Advertisements · Budget · Store · Price structure · Admin. The
+  duplicate "Overview"/"Plan" in Budget and Price structure were KEPT on
+  purpose: with one section open at a time its header sits right above them,
+  and ⌘K, the rail and tab titles are section-qualified already. Three renames, and only
   ONE of them moved a URL:
   - **Library** — the Creatives page; the route really moved, `/creatives` →
     **`/library`** (`/creatives` and `/creatives/[name]` stay as PERMANENT
