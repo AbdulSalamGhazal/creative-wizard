@@ -23,6 +23,11 @@ import {
   Package,
   Target,
   TrendingUp,
+  MonitorPlay,
+  DollarSign,
+  Store,
+  Calculator,
+  Shield,
 } from "lucide-react";
 import type { Permission } from "@/lib/permissions";
 import { NAV_ROUTE_GATES } from "@/lib/page-gates";
@@ -43,15 +48,22 @@ export interface NavChild {
   label: string;
 }
 
-/** The sidebar sections, in display order. Each gets an eyebrow label. */
+/**
+ * The sidebar sections, in display order. Each header is its icon + label
+ * (design A, 2026-11-08): the icons are the SECTION's own and never repeat an
+ * item's — Campaigns already wears the megaphone, so Advertisements is the
+ * play-screen.
+ */
 export const NAV_SECTIONS = [
   // The key stays "ads" (it is a code name, read by qualifiedNavLabel and the
   // tests); only the visible label is the long form (2026-11-08).
-  { key: "ads", label: "Advertisements" },
-  { key: "budget", label: "Budget" },
-  { key: "store", label: "Store" },
-  { key: "pricing", label: "Price structure" },
-  { key: "admin", label: "Admin" },
+  { key: "ads", label: "Advertisements", icon: MonitorPlay },
+  { key: "budget", label: "Budget", icon: DollarSign },
+  { key: "store", label: "Store", icon: Store },
+  // The module is "Price Structure" in code and URLs; its NAME is Pricing
+  // (user, 2026-11-08) — labels, eyebrows, tab titles, the Team page.
+  { key: "pricing", label: "Pricing", icon: Calculator },
+  { key: "admin", label: "Admin", icon: Shield },
 ] as const;
 export type NavSectionKey = (typeof NAV_SECTIONS)[number]["key"];
 
@@ -261,11 +273,17 @@ export function visibleNavItems(granted: Iterable<string>): NavItem[] {
  */
 export function navSections(
   granted: Iterable<string>,
-): Array<{ key: NavSectionKey; label: string; items: NavItem[] }> {
+): Array<{
+  key: NavSectionKey;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  items: NavItem[];
+}> {
   const items = visibleNavItems(granted);
   return NAV_SECTIONS.map((s) => ({
     key: s.key,
     label: s.label,
+    icon: s.icon,
     items: items.filter((i) => i.group === s.key),
   })).filter((s) => s.items.length > 0);
 }
@@ -273,7 +291,7 @@ export function navSections(
 /**
  * An item's label where it must stand ALONE — the ⌘K palette's page list and
  * the collapsed rail's tooltip (R-088): section-qualified ("Budget ·
- * Overview", "Price structure · Plan") except in Ads, the default section, or
+ * Overview", "Pricing · Plan") except in Ads, the default section, or
  * where the item already IS the section's name. One rule for both.
  */
 export function qualifiedNavLabel(

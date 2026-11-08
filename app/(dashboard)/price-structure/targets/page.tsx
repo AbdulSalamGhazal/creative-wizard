@@ -13,12 +13,12 @@ type SearchParams = Promise<{ v?: string }>;
 export async function generateMetadata({ searchParams }: { searchParams: SearchParams }) {
   const { v } = await searchParams;
   const name = await versionNameFor(v);
-  return { title: name ? `Price structure · Targets · ${name}` : "Price structure · Targets" };
+  return { title: name ? `Pricing · Targets · ${name}` : "Pricing · Targets" };
 }
 
 export default async function Page() {
   if (!(await refusable(() => requirePriceStructureAccess()))) {
-    return <AccessRefused page="Price structure" perm={VIEW_PERM} />;
+    return <AccessRefused page="Pricing" perm={VIEW_PERM} />;
   }
   return (
     <PageShell>

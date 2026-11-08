@@ -78,14 +78,14 @@ export const PERMISSION_GROUPS = [
   },
   {
     key: "pricing",
-    label: "Price structure",
+    label: "Pricing",
     perms: [
       // Three grants (user decision, 2026-11-06): view opens every page
       // read-only; edit changes the open version's document; versions
       // manages the versions themselves. Edit and versions each imply view
       // (`lib/price-structure-access.ts`). None is in the editor preset —
       // granted explicitly on the Team page (admins bypass).
-      { key: "price_structure.view", label: "Open Price Structure (read-only)" },
+      { key: "price_structure.view", label: "Open Pricing (read-only)" },
       { key: "price_structure.edit", label: "Edit products, offers, targets, plans and settings" },
       { key: "price_structure.versions", label: "Manage versions (create, copy, import, rename, delete)" },
     ],

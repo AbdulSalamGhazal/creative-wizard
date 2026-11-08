@@ -237,7 +237,7 @@ and as-you-type name validation.
   platform, Excluded or sort recap beside the bar that shows it (R-049,
   R-044, R-063).
 - **A tab title is "Section · Label"** on a page with an eyebrow (Budget,
-  Store, Price Structure) (R-100).
+  Store, Pricing) (R-100).
 - **A unit is printed once:** a table whose header says "(SAR)" prints bare
   amounts (`sarBare`) (R-111).
 - **`SectionCard`'s `subtitle` is one fact; an explanation goes in its
@@ -258,6 +258,12 @@ and as-you-type name validation.
   the first), every navigation re-opens the arrived-at page's section, and a
   folded section holding the current page carries the 2px brand mark on its
   header. The collapsed icon rail has no headers, so it shows every icon.
+  **Header look = design A (2026-11-08, user, picked from three mockups):**
+  each header is the section's own icon + its name at item size
+  (`text-sm font-medium text-ink`), with a 1px rule between sections. The
+  icons live on `NAV_SECTIONS` and never repeat an item's: Advertisements
+  `MonitorPlay` (Campaigns has the megaphone), Budget `DollarSign`, Store
+  `Store`, Pricing `Calculator`, Admin `Shield`.
 - **An entity name links to its page** (an `href` on a table's identity
   column; row click alone is not enough) (R-008, R-015).
 - **A gated page refuses in the shell with `AccessRefused` via
@@ -493,7 +499,7 @@ as it stood before the restructure.*
   Library · Ads · Campaigns · Canvas · Funnel · Analyzers · Upload ads**;
   Analyzers is the old Trends hub with **Compare first** (`/compare` and
   `/trends/*` kept their URLs — saved links and comment anchors point there).
-  Sections read Advertisements · Budget · Store · Price structure · Admin. The
+  Sections read Advertisements · Budget · Store · Pricing · Admin (Price structure was renamed Pricing the same day). The
   duplicate "Overview"/"Plan" in Budget and Price structure were KEPT on
   purpose: with one section open at a time its header sits right above them,
   and ⌘K, the rail and tab titles are section-qualified already. Three renames, and only

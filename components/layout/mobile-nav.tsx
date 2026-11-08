@@ -116,12 +116,16 @@ export function MobileNav({ granted }: { granted: string[] }) {
           <SheetTitle className="text-left">Navigation</SheetTitle>
         </SheetHeader>
         <nav className="flex-1 overflow-y-auto px-3 py-3 space-y-1">
-          {sections.map((section) => {
+          {sections.map((section, si) => {
             const listId = `mobile-nav-section-${section.key}`;
             const open = openSection === section.key;
             return (
-              <div key={section.key} className="space-y-0.5">
+              <div
+                key={section.key}
+                className={cn("space-y-0.5", si > 0 && "border-t border-line pt-1")}
+              >
                 <NavSectionToggle
+                  icon={section.icon}
                   label={section.label}
                   open={open}
                   current={currentSection === section.key}
@@ -131,7 +135,7 @@ export function MobileNav({ granted }: { granted: string[] }) {
                   className="py-2.5"
                 />
                 {open && (
-                  <div id={listId} className="space-y-0.5 pb-3">
+                  <div id={listId} className="space-y-0.5 pb-2 pl-3">
                     {section.items.map((item) =>
                       item.children ? (
                         // The hub is a HEADING, not a link (R-042): it pointed

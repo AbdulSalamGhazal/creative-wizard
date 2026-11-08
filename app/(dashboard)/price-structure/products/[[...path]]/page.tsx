@@ -14,13 +14,13 @@ type SearchParams = Promise<{ v?: string }>;
 export async function generateMetadata({ searchParams }: { searchParams: SearchParams }) {
   const { v } = await searchParams;
   const name = await versionNameFor(v);
-  return { title: name ? `Price structure · Products & offers · ${name}` : "Price structure · Products & offers" };
+  return { title: name ? `Pricing · Products & offers · ${name}` : "Pricing · Products & offers" };
 }
 
 /** `/price-structure/products/:productId?/:offerId?` — the selection lives in the path. */
 export default async function Page({ params }: { params: Params }) {
   if (!(await refusable(() => requirePriceStructureAccess()))) {
-    return <AccessRefused page="Price structure" perm={VIEW_PERM} />;
+    return <AccessRefused page="Pricing" perm={VIEW_PERM} />;
   }
   const { path = [] } = await params;
   return (

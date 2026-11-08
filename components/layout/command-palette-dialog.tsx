@@ -88,7 +88,7 @@ const EXTRA_PAGES: Array<{
   ...tabEntries("/store/uploads", "Upload orders", UPLOAD_ORDERS_TABS, { fields: Settings }),
   ...tabEntries("/admin/catalog", "Configuration", CONFIGURATION_TABS, { rating: Star }),
   // Versions has no sidebar entry (the page header's picker leads there).
-  { href: "/price-structure/versions", label: "Price structure · Versions", icon: History, perm: PRICE_STRUCTURE_GATE },
+  { href: "/price-structure/versions", label: "Pricing · Versions", icon: History, perm: PRICE_STRUCTURE_GATE },
   // The user-level pages the bell footer and the avatar menu lead to — open to
   // every member and otherwise unreachable by search (R-001 / A3-20).
   { href: "/notifications", label: "Notifications", icon: Bell },

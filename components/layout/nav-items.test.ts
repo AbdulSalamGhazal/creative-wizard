@@ -55,12 +55,12 @@ describe("visibleNavItems", () => {
 });
 
 describe("the nav's order and the accordion's default section (2026-11-08)", () => {
-  it("sections read Advertisements · Budget · Store · Price structure · Admin", () => {
+  it("sections read Advertisements · Budget · Store · Pricing · Admin", () => {
     expect(NAV_SECTIONS.map((s) => s.label)).toEqual([
       "Advertisements",
       "Budget",
       "Store",
-      "Price structure",
+      "Pricing",
       "Admin",
     ]);
   });

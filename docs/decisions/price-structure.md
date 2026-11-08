@@ -8,6 +8,15 @@ check for a past period, and complete, separate **versions** of all of it.
 Routes under `/price-structure`; its own tables (`ps_*`), actions, engine and
 component folder; three grants (view · edit · versions).
 
+**Its NAME is Pricing (user, 2026-11-08).** Every label a person reads —
+the sidebar section, page eyebrows, tab titles ("Pricing · Plan"), the
+access refusal, the Team page's permission group, the audit filter — says
+Pricing. "Price Structure" stays the module's code name (`price-structure/`,
+`ps_*`, `price_structure.*` permission keys) and its URLs (`/price-structure/…`,
+so links and comment anchors keep resolving). The Overview's per-offer table
+is still titled "Price structure": that names the table's content, not the
+module.
+
 ## Invariants
 
 - **The engine is pure and is the contract.** `price-structure/engine/*` has

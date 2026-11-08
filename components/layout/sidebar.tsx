@@ -79,9 +79,17 @@ export function Sidebar({ granted }: { granted: string[] }) {
           const listId = `sidebar-section-${section.key}`;
           const open = collapsed || openSection === section.key;
           return (
-            <div key={section.key} className="space-y-0.5">
+            <div
+              key={section.key}
+              className={cn(
+                "space-y-0.5",
+                // Design A: a rule between sections (the rail draws its own).
+                !collapsed && si > 0 && "border-t border-line pt-1",
+              )}
+            >
               {!collapsed ? (
                 <NavSectionToggle
+                  icon={section.icon}
                   label={section.label}
                   open={open}
                   current={currentSection === section.key}
@@ -98,7 +106,7 @@ export function Sidebar({ granted }: { granted: string[] }) {
               {open && (
                 <div
                   id={listId}
-                  className={cn("space-y-0.5", !collapsed && "pb-3")}
+                  className={cn("space-y-0.5", !collapsed && "pb-2 pl-3")}
                 >
                   {section.items.map((item) =>
                     item.children ? (

@@ -175,7 +175,7 @@ export function VersionProvider({
     const res = await safeAction(() => bootstrapVersion());
     bootstrappingRef.current = false;
     if (!res.ok) {
-      toastActionFailure(res, "Couldn't open Price Structure");
+      toastActionFailure(res, "Couldn't open Pricing");
       return;
     }
     const version = res.version;

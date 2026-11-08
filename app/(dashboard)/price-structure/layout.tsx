@@ -30,7 +30,7 @@ export default async function PriceStructureLayout({ children }: { children: Rea
   // A member without any of the three grants is told so, in the app shell
   // (R-011) — not thrown into the error boundary.
   const allowed = await refusable(() => requirePriceStructureAccess());
-  if (!allowed) return <AccessRefused page="Price structure" perm={VIEW_PERM} />;
+  if (!allowed) return <AccessRefused page="Pricing" perm={VIEW_PERM} />;
   const { user: me, access } = allowed;
   return (
     // The provider reads `?v=` with useSearchParams. The versions read happens

@@ -85,10 +85,10 @@ function errMsg(err: unknown): string {
 
 const BODY_SNAPSHOT = 200;
 
-/** "Rana can't open Price Structure." — the one refusal a PS mention gets. */
+/** "Rana can't open Pricing." — the one refusal a PS mention gets. */
 function cantOpenMessage(names: readonly string[]): string {
   const who = names.length === 1 ? names[0]! : `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`;
-  return `${who} can’t open Price Structure, so they can’t be mentioned here.`;
+  return `${who} can’t open Pricing, so they can’t be mentioned here.`;
 }
 
 export async function createComment(input: unknown): Promise<CommentActionResult> {

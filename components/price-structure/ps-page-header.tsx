@@ -10,7 +10,7 @@ import { VersionBar } from "./version-bar";
  */
 export function PsPageHeader({ title, info, children }: { title: string; info?: ReactNode; children?: ReactNode }) {
   return (
-    <PageHeader eyebrow="Price structure" title={title} info={info} rightSlot={<VersionBar />}>
+    <PageHeader eyebrow="Pricing" title={title} info={info} rightSlot={<VersionBar />}>
       {children}
     </PageHeader>
   );
