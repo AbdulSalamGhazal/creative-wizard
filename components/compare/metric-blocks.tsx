@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
+import { usePathname, useRouter } from "@/lib/brand-nav";
 import { Check, ChevronDown, Plus, X } from "lucide-react";
 import {
   DropdownMenu,

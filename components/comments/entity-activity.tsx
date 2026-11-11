@@ -1,5 +1,6 @@
 "use client";
 
+import { brandFetch } from "@/lib/brand-nav";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CirclePause, CirclePlay, X } from "lucide-react";
 import { SheetTitle } from "@/components/ui/sheet";
@@ -76,7 +77,7 @@ export function EntityActivityBody({
       if (!anchor || anchor.type === "view") return null;
       const qs = new URLSearchParams({ type: anchor.type, id: anchor.id });
       if (before !== null) qs.set("before", String(before));
-      const res = await fetch(`/api/entity-activity?${qs}`, { cache: "no-store" });
+      const res = await brandFetch(`/api/entity-activity?${qs}`, { cache: "no-store" });
       if (!res.ok) throw new Error(String(res.status));
       return (await res.json()) as {
         rows: EntityActivityRow[];

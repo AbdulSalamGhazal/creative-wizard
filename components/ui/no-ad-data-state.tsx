@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "@/components/nav/link";
 import { Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";

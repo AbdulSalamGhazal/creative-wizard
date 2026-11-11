@@ -1,7 +1,7 @@
 "use client";
 
 import { useId, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/brand-nav";
 import { toast } from "sonner";
 import { Pencil } from "lucide-react";
 import {

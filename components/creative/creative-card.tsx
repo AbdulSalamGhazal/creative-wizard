@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "@/components/nav/link";
 import Image from "next/image";
 import { ArrowUpRight, Film, Image as ImageIcon, Layers } from "lucide-react";
 import type { CreativeListRow } from "@/db/queries/creatives";

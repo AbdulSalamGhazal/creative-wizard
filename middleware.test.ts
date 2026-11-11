@@ -5,6 +5,7 @@ import { NextRequest } from "next/server";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { config, middleware } from "./middleware";
 import { REQUEST_PATH_HEADER } from "@/lib/signin-redirect";
+import { BRAND_HEADER } from "@/lib/brand-path";
 
 /**
  * The auth gate's matcher, read as the regex Next compiles it to. A path the
@@ -77,11 +78,53 @@ describe("the path is handed to the page, so a layout that refuses can send you 
   };
 
   it("a verified request carries its path + query to the page — a client's own header is overwritten", async () => {
-    const req = new NextRequest("http://localhost/library?tab=products", {
+    const req = new NextRequest("http://localhost/urjwan/library?tab=products", {
       headers: { cookie: `ccms_session=${token()}`, [REQUEST_PATH_HEADER]: "//evil.example" },
     });
     const res = await middleware(req);
-    expect(res.headers.get(`x-middleware-request-${REQUEST_PATH_HEADER}`)).toBe("/library?tab=products");
+    expect(res.headers.get(`x-middleware-request-${REQUEST_PATH_HEADER}`)).toBe("/urjwan/library?tab=products");
+  });
+
+  describe("the brand is in the URL (2026-11)", () => {
+    const signed = (url: string, extra: Record<string, string> = {}, cookie = "") =>
+      new NextRequest(url, {
+        headers: { cookie: `ccms_session=${token()}${cookie}`, ...extra },
+      });
+
+    it("a branded page hands its slug to the server — a client's own header is replaced", async () => {
+      const res = await middleware(signed("http://localhost/mesbah/budget", { [BRAND_HEADER]: "urjwan" }));
+      expect(res.headers.get(`x-middleware-request-${BRAND_HEADER}`)).toBe("mesbah");
+    });
+
+    it("an old unbranded link goes to the browser's last brand, query kept", async () => {
+      const res = await middleware(signed("http://localhost/library?tab=products", {}, "; ccms_brand=mesbah"));
+      expect(res.status).toBe(307);
+      expect(new URL(res.headers.get("location")!).pathname + new URL(res.headers.get("location")!).search)
+        .toBe("/mesbah/library?tab=products");
+    });
+
+    it("…or to the `_` placeholder when there is none (or it's junk)", async () => {
+      for (const c of ["", "; ccms_brand=library", "; ccms_brand=..%2F"]) {
+        const res = await middleware(signed("http://localhost/", {}, c));
+        expect(new URL(res.headers.get("location")!).pathname).toBe("/_");
+      }
+    });
+
+    it("never re-aims a stale tab's POST at another brand", async () => {
+      const req = new NextRequest("http://localhost/library", {
+        method: "POST",
+        headers: { cookie: `ccms_session=${token()}; ccms_brand=mesbah` },
+      });
+      const res = await middleware(req);
+      expect(res.headers.get("location")).toBeNull();
+    });
+
+    it("an API call keeps the brand it names; a non-brand page loses a forged one", async () => {
+      const api = await middleware(signed("http://localhost/api/palette", { [BRAND_HEADER]: "mesbah" }));
+      expect(api.headers.get(`x-middleware-request-${BRAND_HEADER}`)).toBe("mesbah");
+      const page = await middleware(signed("http://localhost/oauth/consent", { [BRAND_HEADER]: "mesbah" }));
+      expect(page.headers.get(`x-middleware-request-${BRAND_HEADER}`)).toBeNull();
+    });
   });
 
   it("an unverified one still redirects with ?next=", async () => {

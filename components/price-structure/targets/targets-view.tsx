@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
+import { useRouter } from "@/lib/brand-nav";
 import { Target as TargetIcon } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { DataTable, type DataColumn } from "@/components/ui/data-table";

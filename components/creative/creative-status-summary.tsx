@@ -1,7 +1,8 @@
 "use client";
 
-import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
+import Link from "@/components/nav/link";
+import { useSearchParams } from "next/navigation";
+import { usePathname } from "@/lib/brand-nav";
 import {
   CREATIVE_STATUSES,
   STATUS_DOT,

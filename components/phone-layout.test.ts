@@ -17,7 +17,7 @@ describe("phone layout (375px)", () => {
   });
 
   it("a Badge carrying a sentence wraps instead of running past the frame", () => {
-    for (const page of ["app/(dashboard)/page.tsx", "app/(dashboard)/trends/over-time/page.tsx"]) {
+    for (const page of ["app/[brand]/(dashboard)/page.tsx", "app/[brand]/(dashboard)/trends/over-time/page.tsx"]) {
       expect(read(page), page).toMatch(/<Badge[\s\S]{0,80}h-auto max-w-full whitespace-normal/);
     }
   });

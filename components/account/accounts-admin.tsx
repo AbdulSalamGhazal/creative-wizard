@@ -5,11 +5,8 @@ import { Check, Pencil, Plus, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  createAccount,
-  renameAccount,
-  setActiveAccount,
-} from "@/app/actions/account";
+import { createAccount, renameAccount } from "@/app/actions/account";
+import Link from "@/components/nav/link";
 import { safeAction } from "@/lib/action-failure";
 import { toastActionFailure } from "@/lib/action-toast";
 import { Chip } from "@/components/ui/chip";
@@ -34,8 +31,8 @@ interface AccountRow {
 /**
  * Brand (account) admin. Create a new brand — it starts completely empty (no
  * creatives / products / angles / performance) — or rename an existing one. The
- * active brand is badged; switching here writes the same `ccms_account` cookie
- * as the top-bar switcher. Each brand's MARK opens its colour + logo editor
+ * active brand is badged; Switch opens this tab on that brand (the brand is in
+ * the URL, 2026-11). Each brand's MARK opens its colour + logo editor
  * (2026-11, `BrandStyleControl`). There is intentionally no delete: a brand owns data
  * and removing it is a destructive operation better done deliberately at the DB.
  */
@@ -97,17 +94,6 @@ export function AccountsAdmin({
       } finally {
         renaming.current = false;
       }
-    });
-  };
-
-  const switchTo = (row: AccountRow) => {
-    startTransition(async () => {
-      const res = await safeAction(() => setActiveAccount({ accountId: row.id }));
-      if (!res.ok) {
-        toastActionFailure(res, "Couldn't switch brand");
-        return;
-      }
-      toast.success(`Switched to ${row.name}`);
     });
   };
 
@@ -224,15 +210,15 @@ export function AccountsAdmin({
                     ) : (
                       <span className="inline-flex items-center gap-1">
                         {!isActive && (
+                          // The brand is in the URL (2026-11): Switch opens
+                          // this same tab on that brand's Brands page.
                           <Button
-                            type="button"
+                            asChild
                             variant="ghost"
                             size="xs"
-                            onClick={() => switchTo(r)}
-                            disabled={isPending}
                             className="text-ink-3 hover:text-ink"
                           >
-                            Switch
+                            <Link href={`/${r.slug}/admin/catalog?tab=brands`}>Switch</Link>
                           </Button>
                         )}
                         <Button

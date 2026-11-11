@@ -519,6 +519,10 @@ this map is still a rule you broke.
 ### Tenancy, membership and permissions
 
 - Every tenant read injects `account_id`; every write stamps it.
+- The brand is in the URL, per TAB (`/<slug>/…`, 2026-11): a brand the user
+  can't open is REFUSED, never swapped. Navigate only through the brand-aware
+  wrappers (`@/components/nav/link`, `@/lib/brand-nav`, `brandRedirect`,
+  `brandFetch`) — `app/brand-nav.test.ts` pins it.
 - Membership says WHERE, permissions say WHAT; the server is the gate.
 - Re-validate a caller-supplied FK against the active account before writing.
 - Every audit write names what it touched via `writeAudit({ touches })` — resolved inside the tx, before deletes.

@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import Link from "@/components/nav/link";
 import { useState, useTransition } from "react";
 import { Ban, RotateCcw } from "lucide-react";
 import { toast } from "sonner";

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, type MouseEvent } from "react";
-import { useRouter } from "next/navigation";
+import { currentAppPathname, useRouter } from "@/lib/brand-nav";
 import { useNavTransition } from "@/lib/nav-progress";
 import { carriesParam, navItemHref, type NavItem } from "@/components/layout/nav-items";
 
@@ -59,7 +59,7 @@ export function useNavLinkProps(
           }
           const target = navItemHref(
             item,
-            window.location.pathname,
+            currentAppPathname(),
             new URLSearchParams(window.location.search),
           );
           e.preventDefault();

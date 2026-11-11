@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
+import { usePathname, useRouter, brandFetch } from "@/lib/brand-nav";
 import { X } from "lucide-react";
 import { SheetDescription, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
@@ -129,7 +130,7 @@ export function CommentPanelBody({
   const load = useCallback(async (): Promise<boolean> => {
     if (!anchor) return false;
     try {
-      const res = await fetch(`/api/comments?${anchorParams(anchor)}`, { cache: "no-store" });
+      const res = await brandFetch(`/api/comments?${anchorParams(anchor)}`, { cache: "no-store" });
       if (!res.ok) throw new Error(`comments ${res.status}`);
       const data = (await res.json()) as { comments: WireComment[] };
       const hydrated = hydrate(data.comments ?? []);

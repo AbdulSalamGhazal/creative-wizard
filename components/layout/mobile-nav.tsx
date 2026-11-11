@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
+import Link from "@/components/nav/link";
+import { useSearchParams } from "next/navigation";
+import { usePathname } from "@/lib/brand-nav";
 import { Menu } from "lucide-react";
 import {
   Sheet,

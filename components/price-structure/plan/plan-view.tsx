@@ -6,7 +6,7 @@ import { MetricCard } from "@/components/overview/metric-card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { Button } from "@/components/ui/button";
-import Link from "next/link";
+import Link from "@/components/nav/link";
 import { useSearchParams } from "next/navigation";
 import { blend, planLines, roasFor } from "@/price-structure/engine/blend";
 import { newId } from "@/price-structure/engine/ids";

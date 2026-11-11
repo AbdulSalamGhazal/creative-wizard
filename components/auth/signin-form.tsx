@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/brand-nav";
 import { useState, useTransition } from "react";
 import { AuthBrandHeader } from "@/components/auth/auth-brand-header";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,7 @@ import { safeAction } from "@/lib/action-failure";
 import { actionSettled } from "@/lib/router-queue";
 import { toastActionFailure } from "@/lib/action-toast";
 import { safeInternalPath } from "@/lib/url";
+import { withBrand } from "@/lib/brand-path";
 import { panelClass } from "@/components/ui/panel";
 
 export function SignInForm({ nextPath }: { nextPath: string }) {
@@ -39,7 +40,7 @@ export function SignInForm({ nextPath }: { nextPath: string }) {
       // so this navigation renders the target fresh (no refresh after it) —
       // once the router is done with the action (lib/router-queue.ts).
       await actionSettled();
-      router.replace(safeInternalPath(nextPath));
+      router.replace(withBrand(res.brandSlug, safeInternalPath(nextPath)));
     });
   };
 

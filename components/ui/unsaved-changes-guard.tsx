@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/brand-nav";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,

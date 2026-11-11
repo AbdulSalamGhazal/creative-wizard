@@ -1,8 +1,8 @@
 "use client";
 
-import Link from "next/link";
+import Link from "@/components/nav/link";
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/brand-nav";
 import { CornerDownRight, Search } from "lucide-react";
 import { Pager } from "@/components/ui/pager";
 import { Input } from "@/components/ui/input";

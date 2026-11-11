@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Link from "next/link";
+import Link from "@/components/nav/link";
 import { Download, Megaphone, Percent, Scale, ShoppingBag } from "lucide-react";
 import { useTableColumns } from "@/components/ui/use-table-columns";
 import { TableColumnsControl, TableCorner } from "@/components/ui/table-columns-control";

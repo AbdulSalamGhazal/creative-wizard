@@ -91,6 +91,12 @@
   `scrollTop` — never `scrollIntoView`, which scrolls the window too.
 - A person's picture is `UserAvatar` (components/user/user-avatar.tsx) —
   photo, else initials; never a hand-rolled avatar (2026-10-20).
+- **Navigation stays in the tab's brand (2026-11).** Links come from
+  `@/components/nav/link`, `useRouter`/`usePathname` from `@/lib/brand-nav`
+  (`usePathname` returns the app path, brand stripped), a dashboard page
+  redirects with `brandRedirect`, an `/api/*` call is `brandFetch`, a history
+  write is `shallowHref`. Pinned by `app/brand-nav.test.ts` →
+  `docs/decisions/tenancy-auth.md`.
 - A BRAND's picture is `BrandMark` (components/account/brand-mark.tsx) —
   its logo on a white tile, else its initial on its colour; its colour comes
   only through `brandColor()` (lib/brand-style.ts). Never hand-roll either

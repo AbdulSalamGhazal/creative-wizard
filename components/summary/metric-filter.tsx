@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
+import { usePathname, useRouter } from "@/lib/brand-nav";
 import { useNavTransition } from "@/lib/nav-progress";
 import { Plus, SlidersHorizontal, X } from "lucide-react";
 import {

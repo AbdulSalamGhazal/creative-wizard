@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "@/components/nav/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { usdCompact } from "@/lib/format";
 import { withDateRange } from "@/lib/url";

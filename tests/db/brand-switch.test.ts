@@ -12,12 +12,14 @@ import { ACCOUNT_A, ACCOUNT_B } from "./config";
 const RESTRICTED = "11111111-1111-1111-1111-1111111111c1";
 
 const jar = new Map<string, string>();
+const reqHeaders = new Map<string, string>();
 const setCookie = vi.fn((c: { name: string; value: string }) => void jar.set(c.name, c.value));
 vi.mock("next/headers", () => ({
   cookies: vi.fn(async () => ({
     get: (name: string) => (jar.has(name) ? { name, value: jar.get(name)! } : undefined),
     set: setCookie,
   })),
+  headers: vi.fn(async () => ({ get: (name: string) => reqHeaders.get(name) ?? null })),
 }));
 vi.mock("@/lib/auth", () => ({
   auth: vi.fn(),
@@ -32,7 +34,8 @@ import { db } from "@/lib/db";
 import { eq } from "drizzle-orm";
 import { auth, requireAuth, requirePermission, type SessionUser } from "@/lib/auth";
 import { accounts, storeOrderFields, userAccounts, users } from "@/db/schema";
-import { ACCOUNT_COOKIE, getActiveAccountId, listAccounts } from "@/lib/tenant";
+import { ACCOUNT_COOKIE, BRAND_REFUSED, getActiveAccountId, listAccounts } from "@/lib/tenant";
+import { BRAND_HEADER, LAST_BRAND_COOKIE } from "@/lib/brand-path";
 import { createAccount, setActiveAccount } from "@/app/actions/account";
 import { CORE_FIELDS, SYSTEM_REQUIRED_FIELDS } from "@/store/fields";
 import { USER, resetAndSeed } from "./fixtures";
@@ -50,6 +53,7 @@ const session = (id: string, over: Partial<SessionUser>): SessionUser => ({
 beforeEach(async () => {
   await resetAndSeed();
   jar.clear();
+  reqHeaders.clear();
   setCookie.mockClear();
   await db.insert(users).values({
     id: RESTRICTED, email: "restricted@test.local", name: "Restricted", role: "editor", allAccounts: false,
@@ -134,5 +138,51 @@ describe("creating a brand (onboarding a new brand — mesbah-style bugs live he
     expect(row!.slug).toBe("account-a-2");
     // An admin needs no membership row — they already see every brand.
     expect(await db.select().from(userAccounts).where(eq(userAccounts.accountId, first.id!))).toEqual([]);
+  });
+});
+
+describe("the brand in the URL (2026-11)", () => {
+  it("the URL's brand wins over every cookie", async () => {
+    signIn(session(USER, { role: "admin" }));
+    jar.set(ACCOUNT_COOKIE, ACCOUNT_A);
+    jar.set(LAST_BRAND_COOKIE, "account-a");
+    reqHeaders.set(BRAND_HEADER, "account-b");
+    expect(await getActiveAccountId()).toBe(ACCOUNT_B);
+  });
+
+  it("a brand the user can't open is REFUSED — never swapped for one they can", async () => {
+    signIn(session(RESTRICTED, { allAccounts: false }));
+    reqHeaders.set(BRAND_HEADER, "account-b");
+    await expect(getActiveAccountId()).rejects.toThrow(BRAND_REFUSED);
+  });
+
+  it("a brand that doesn't exist reads the same", async () => {
+    signIn(session(USER, { role: "admin" }));
+    reqHeaders.set(BRAND_HEADER, "no-such-brand");
+    await expect(getActiveAccountId()).rejects.toThrow(BRAND_REFUSED);
+  });
+
+  it("no brand in the URL (or `_`): the browser's last brand, then the old id cookie", async () => {
+    signIn(session(USER, { role: "admin" }));
+    reqHeaders.set(BRAND_HEADER, "_");
+    jar.set(LAST_BRAND_COOKIE, "account-b");
+    jar.set(ACCOUNT_COOKIE, ACCOUNT_A);
+    expect(await getActiveAccountId()).toBe(ACCOUNT_B);
+  });
+
+  it("a restricted user's last-brand cookie naming a forbidden brand falls back, never through", async () => {
+    signIn(session(RESTRICTED, { allAccounts: false }));
+    jar.set(LAST_BRAND_COOKIE, "account-b");
+    expect(await getActiveAccountId()).toBe(ACCOUNT_A);
+  });
+});
+
+describe("a new brand's slug is a URL segment", () => {
+  it("never a page name", async () => {
+    signIn(session(USER, { role: "admin" }));
+    const res = await createAccount({ name: "Store" });
+    expect(res.ok).toBe(true);
+    const [row] = await db.select({ slug: accounts.slug }).from(accounts).where(eq(accounts.id, res.id!));
+    expect(row!.slug).toBe("store-2");
   });
 });

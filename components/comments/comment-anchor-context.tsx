@@ -8,7 +8,7 @@ import {
   useMemo,
   useState,
 } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname } from "@/lib/brand-nav";
 import {
   resolveCommentAnchor,
   type CommentAnchor as Anchor,

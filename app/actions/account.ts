@@ -22,6 +22,7 @@ import { sniffImageType } from "@/lib/image-sniff";
 import { avatarStore, discardImage, storeImage } from "@/lib/avatar-storage";
 import { actionError } from "@/lib/action-error";
 import { slugify } from "@/lib/url";
+import { isReservedSlug } from "@/lib/brand-path";
 
 const COOKIE_MAX_AGE = 365 * 24 * 60 * 60; // 1 year
 
@@ -83,7 +84,9 @@ export async function createAccount(input: unknown): Promise<ActionResult> {
     const base = brandSlug(parsed.data.name);
     let slug = base;
     let n = 2;
-    while (existing.has(slug)) slug = `${base}-${n++}`;
+    // A slug is the brand's URL segment (2026-11): it may never be a page
+    // name (`/store/…` would be ambiguous) or an existing brand's.
+    while (existing.has(slug) || isReservedSlug(slug)) slug = `${base}-${n++}`;
 
     // A restricted (non-all_accounts) creator would otherwise create a brand
     // they immediately can't see. Grant themselves membership in the same

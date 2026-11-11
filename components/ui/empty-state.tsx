@@ -1,7 +1,8 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
+import { usePathname, useRouter } from "@/lib/brand-nav";
 import { Button } from "@/components/ui/button";
 import { useFilterScope } from "@/lib/filter-scope";
 import { useNavTransition } from "@/lib/nav-progress";

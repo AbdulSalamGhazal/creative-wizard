@@ -193,11 +193,11 @@ describe("URL params are UNCHANGED — every param each bar writes still parses"
  */
 describe("remembered filters are wired into every page that has them", () => {
   const PREF_PAGES = [
-    "app/(dashboard)/summary/page.tsx",
-    "app/(dashboard)/library/page.tsx",
-    "app/(dashboard)/campaigns/page.tsx",
-    "app/(dashboard)/canvas/page.tsx",
-    "app/(dashboard)/budget/pacing/page.tsx",
+    "app/[brand]/(dashboard)/summary/page.tsx",
+    "app/[brand]/(dashboard)/library/page.tsx",
+    "app/[brand]/(dashboard)/campaigns/page.tsx",
+    "app/[brand]/(dashboard)/canvas/page.tsx",
+    "app/[brand]/(dashboard)/budget/pacing/page.tsx",
   ];
 
   it("each page resolves its keys server-side", () => {

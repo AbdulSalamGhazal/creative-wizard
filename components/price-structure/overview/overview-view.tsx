@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import Link from "next/link";
+import Link from "@/components/nav/link";
 import { useSearchParams } from "next/navigation";
 import { Coins, Package, Percent, Target as TargetIcon, TrendingDown, TrendingUp } from "lucide-react";
 import { Button } from "@/components/ui/button";

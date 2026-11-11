@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
+import Link from "@/components/nav/link";
+import { useRouter } from "@/lib/brand-nav";
 import { useNavTransition } from "@/lib/nav-progress";
 
 export interface PageTab {

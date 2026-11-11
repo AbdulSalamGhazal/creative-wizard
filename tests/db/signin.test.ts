@@ -121,7 +121,7 @@ describe("sign-in throttle — 5 failures per email per address per 15 minutes",
 
   it("four failures still let the right password in", async () => {
     for (let i = 0; i < 4; i++) await signIn(form(EMAIL, `wrong-${i}`));
-    expect(await signIn(form(EMAIL, PW))).toEqual({ ok: true });
+    expect(await signIn(form(EMAIL, PW))).toMatchObject({ ok: true });
     expect(jar.has(SESSION_COOKIE)).toBe(true);
   });
 
@@ -138,7 +138,7 @@ describe("sign-in throttle — 5 failures per email per address per 15 minutes",
       passwordHash: await hashPassword(PW),
     });
     for (let i = 0; i < 5; i++) await signIn(form(EMAIL, `wrong-${i}`));
-    expect(await signIn(form("bystander@test.local", PW))).toEqual({ ok: true });
+    expect(await signIn(form("bystander@test.local", PW))).toMatchObject({ ok: true });
   });
 
   it("the window slides — failures older than 15 minutes stop counting", async () => {
@@ -148,7 +148,7 @@ describe("sign-in throttle — 5 failures per email per address per 15 minutes",
       .update(auditEvents)
       .set({ at: old })
       .where(eq(auditEvents.action, AUDIT_ACTIONS.AUTH_SIGNIN_FAILED));
-    expect(await signIn(form(EMAIL, PW))).toEqual({ ok: true });
+    expect(await signIn(form(EMAIL, PW))).toMatchObject({ ok: true });
   });
 });
 
@@ -159,7 +159,7 @@ describe("the throttle counts per network address (F1)", () => {
     expect(await signInFrom(STRANGER, EMAIL, PW)).toEqual(THROTTLED);
     // …the person, from their own address, signs straight in.
     jar.clear();
-    expect(await signInFrom(HOME, EMAIL, PW)).toEqual({ ok: true });
+    expect(await signInFrom(HOME, EMAIL, PW)).toMatchObject({ ok: true });
     expect(jar.has(SESSION_COOKIE)).toBe(true);
   });
 
@@ -186,7 +186,7 @@ describe("the throttle counts per network address (F1)", () => {
     requestHeaders = { "x-real-ip": STRANGER };
     expect(await signIn(form(EMAIL, PW))).toEqual(THROTTLED);
     requestHeaders = { "x-real-ip": HOME };
-    expect(await signIn(form(EMAIL, PW))).toEqual({ ok: true });
+    expect(await signIn(form(EMAIL, PW))).toMatchObject({ ok: true });
   });
 
   it("an unknown email is throttled the same way, with the same message", async () => {
@@ -257,3 +257,12 @@ function inline({ sql: text, params }: { sql: string; params: unknown[] }): stri
     return typeof v === "number" ? String(v) : `'${String(v).replace(/'/g, "''")}'`;
   });
 }
+
+describe("sign-in lands in a brand (2026-11 — the brand is in the URL)", () => {
+  it("the browser's last brand when the person may open it, else their first", async () => {
+    jar.set("ccms_brand", "account-b");
+    expect(await signIn(form(EMAIL, PW))).toMatchObject({ ok: true, brandSlug: "account-b" });
+    jar.set("ccms_brand", "no-such-brand");
+    expect((await signIn(form(EMAIL, PW))).brandSlug).toMatch(/^account-[ab]$/);
+  });
+});

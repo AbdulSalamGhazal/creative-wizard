@@ -1,19 +1,23 @@
 import { cache } from "react";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { asc, eq, inArray } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { accounts, userAccounts } from "@/db/schema";
 import { auth, loadUserById, type SessionUser } from "@/lib/auth";
 import { resolveActiveAccountId } from "@/lib/account-access";
 import { getTenantContext, withTenantContext } from "@/lib/tenant-context";
+import { ANY_BRAND, BRAND_HEADER, LAST_BRAND_COOKIE, isBrandSlug } from "@/lib/brand-path";
 
 /**
  * Active-brand ("account") resolution + brand-membership enforcement.
  *
  * The app is multi-tenant: every tenant-scoped table carries an `account_id`,
- * and every query/write is scoped to the *active* account. The active account
- * is selected by the user via the brand switcher and stored in the
- * `ccms_account` cookie.
+ * and every query/write is scoped to the *active* account. Since 2026-11 the
+ * active account is the one the URL names — `/<slug>/…`, per TAB — which the
+ * middleware hands over in the `x-ccms-brand` header (an API call carries it
+ * via `brandFetch`). Without one (a legacy caller), the last brand this
+ * browser used (`ccms_brand` slug cookie), then the old `ccms_account` id
+ * cookie, then the first allowed brand.
  *
  * Brand membership IS enforced here (the single choke point): a user sees only
  * the brands they're a member of. `users.all_accounts = true` (default/legacy)
@@ -35,9 +39,16 @@ export const ACCOUNT_COOKIE = "ccms_account";
  *  "No brand access" screen before any query runs; this is the backstop. */
 export const NO_BRAND_ACCESS = "NO_BRAND_ACCESS";
 
+/** Thrown by `getActiveAccountId()` when the URL names a brand the user may
+ *  not see (or that doesn't exist). The dashboard layout renders the refusal
+ *  screen first; this stops an action or API call cold — it NEVER falls back
+ *  to another brand, which would write into a brand the tab doesn't show. */
+export const BRAND_REFUSED = "BRAND_REFUSED";
+
 export interface Account {
   id: string;
   name: string;
+  /** The brand's URL segment (`/<slug>/…`). Never changes after creation. */
   slug: string;
   /** "Active" status window in hours (daily-grain → rounds to days). */
   statusWindowHours: number;
@@ -123,24 +134,47 @@ export const allowedAccounts = cache(async (): Promise<Account[]> => {
 export const listAccounts = cache((): Promise<Account[]> => allowedAccounts());
 
 /**
- * The active account id for this request: the `ccms_account` cookie when it
- * names an ALLOWED brand, otherwise the user's first allowed brand (a
- * disallowed/stale cookie falls back, it is not an error). Throws
- * `NO_BRAND_ACCESS` when the user has no allowed brands — the layout guards
- * against this up-front so it never surfaces to a real page render.
+ * The brand slug the URL names for this request, if any — the middleware's
+ * header on a page or action, `brandFetch`'s on an API call. `_` (the "your
+ * last brand" placeholder) counts as none.
+ */
+export const requestedBrandSlug = cache(async (): Promise<string | null> => {
+  const h = (await headers()).get(BRAND_HEADER);
+  if (!h || h === ANY_BRAND) return null;
+  return h;
+});
+
+/**
+ * The active account id for this request. When the URL names a brand, THAT
+ * brand — and only if the user may see it (else `BRAND_REFUSED`, never a
+ * silent fallback). Otherwise the browser's last brand, then the legacy id
+ * cookie, then the first allowed brand. Throws `NO_BRAND_ACCESS` when the
+ * user has no allowed brands — the layout guards against both up-front, so
+ * they never surface to a real page render.
  */
 export const getActiveAccountId = cache(async (): Promise<string> => {
   // MCP / cookieless callers set an explicit, already-membership-validated
-  // context via `runWithTenant`; it wins over the cookie path.
+  // context via `runWithTenant`; it wins over everything.
   const override = getTenantContext();
   if (override) return override.accountId;
 
   const allowed = await listAccounts();
+  const requested = await requestedBrandSlug();
+  if (requested) {
+    const hit = allowed.find((a) => a.slug === requested);
+    if (!hit) throw new Error(allowed.length === 0 ? NO_BRAND_ACCESS : BRAND_REFUSED);
+    return hit.id;
+  }
+
   const jar = await cookies();
-  const chosen = jar.get(ACCOUNT_COOKIE)?.value;
+  const lastSlug = jar.get(LAST_BRAND_COOKIE)?.value;
+  if (isBrandSlug(lastSlug)) {
+    const hit = allowed.find((a) => a.slug === lastSlug);
+    if (hit) return hit.id;
+  }
   const id = resolveActiveAccountId(
     allowed.map((a) => a.id),
-    chosen,
+    jar.get(ACCOUNT_COOKIE)?.value,
   );
   if (id === null) throw new Error(NO_BRAND_ACCESS);
   return id;

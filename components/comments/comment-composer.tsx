@@ -1,5 +1,6 @@
 "use client";
 
+import { brandFetch } from "@/lib/brand-nav";
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { AtSign, Bold, Italic, List, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -131,7 +132,7 @@ export function CommentComposer({
     if (membersRequest.current) return membersRequest.current;
     const request = (async () => {
       try {
-        const res = await fetch("/api/brand-members", { cache: "no-store" });
+        const res = await brandFetch("/api/brand-members", { cache: "no-store" });
         if (!res.ok) throw new Error(`brand-members ${res.status}`);
         const data = (await res.json()) as { members?: ComposerMember[] };
         const list = data.members ?? [];

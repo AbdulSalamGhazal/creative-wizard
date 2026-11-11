@@ -210,7 +210,7 @@ describe("server files never import a VALUE from a client module", () => {
     // The guard is only worth having if it fails on the real bug, so this
     // reconstructs it: the page's own import line, pointed back at the client
     // table it used to come from.
-    const page = readFileSync("app/(dashboard)/campaigns/page.tsx", "utf8");
+    const page = readFileSync("app/[brand]/(dashboard)/campaigns/page.tsx", "utf8");
     expect(page).toContain(
       'import { CAMPAIGN_TABLE_COLUMNS } from "@/components/portfolio/portfolio-columns";',
     );

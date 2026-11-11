@@ -1,0 +1,220 @@
+import { brandRedirect } from "@/lib/brand-redirect";
+import { brandHasCreatives, listCreatives, listAllAngles } from "@/db/queries/creatives";
+import { listAngles } from "@/db/queries/angles";
+import { ProductsAdmin } from "@/components/product/products-admin";
+import { AnglesTable } from "@/components/angle/angles-table";
+import { LandingPagesTable } from "@/components/landing-page/landing-pages-table";
+import { listLandingPages } from "@/db/queries/landing-pages";
+import { PageTabs, type PageTab } from "@/components/layout/page-tabs";
+import { LIBRARY_TABS, passes } from "@/lib/page-gates";
+import { listProducts } from "@/db/queries/products";
+import {
+  getDefaultSummaryView,
+  listSummaryViews,
+} from "@/db/queries/summary-views";
+import { can, requireAuth } from "@/lib/auth";
+import { creativeListFiltersSchema } from "@/validators/creative";
+import { LibraryHeader } from "@/components/creative/library-header";
+import { LibraryFilterBar } from "@/components/creative/library-filter-bar";
+import { PageShell } from "@/components/layout/page-shell";
+import { CreativeGrid } from "@/components/creative/creative-grid";
+import { CreativeTable } from "@/components/creative/creative-table";
+import { CreativeStatusSummary } from "@/components/creative/creative-status-summary";
+import { resolveFilterPrefs, resolveIncludeExcluded } from "@/db/queries/user-prefs";
+import { VIEW_MARKER_PARAM } from "@/validators/user-prefs";
+import { pickFirst } from "@/lib/url";
+import { LibraryFirstUse } from "@/components/creative/library-first-use";
+
+export const dynamic = "force-dynamic";
+
+type SearchParams = Record<string, string | string[] | undefined>;
+
+export const metadata = { title: "Library" };
+
+/**
+ * The page's tab row. Products and Angles are the vocabulary-management
+ * surfaces relocated from Configuration in the 2026-09 IA pass: they describe
+ * creatives, so they now live with them instead of in a separate admin page.
+ * Landing pages (2026-10) joined them beside Products: the registry behind an
+ * ad name's ` @code` suffix (lib/landing-code.ts).
+ * Each is gated by the same permission it always was, so the tab is invisible
+ * (and its content unreachable) without it. Creatives is always present. A
+ * list of permissions means ANY of them: Landing pages is also shown,
+ * READ-ONLY, to anyone who can upload ads — E023 sends uploaders there, and a
+ * hidden registry was a dead end. Writes stay gated by `catalog.landing_pages`.
+ */
+const TABS = LIBRARY_TABS; // lib/page-gates — the palette reads the same gates
+type TabKey = (typeof TABS)[number]["key"];
+
+export default async function CreativesPage({
+  searchParams,
+}: {
+  searchParams: Promise<SearchParams>;
+}) {
+  const params = await searchParams;
+  const user = await requireAuth();
+
+  // The Creatives tab links to the BARE route on purpose: `?tab=creatives`
+  // would count as a param and suppress the default-view redirect below.
+  const tabs: PageTab[] = TABS.filter((t) => passes(t.perm, (p) => can(user, p))).map(
+    (t) => ({
+      key: t.key,
+      label: t.label,
+      href: t.key === "creatives" ? "/library" : `/library?tab=${t.key}`,
+    }),
+  );
+  const requestedTab = pickFirst(params.tab);
+  const activeTab: TabKey = tabs.some((t) => t.key === requestedTab)
+    ? (requestedTab as TabKey)
+    : "creatives";
+
+  // Products / Landing pages / Angles are self-contained admin surfaces —
+  // return before the listing's queries so switching tabs doesn't pay for the
+  // creative list.
+  if (activeTab !== "creatives") {
+    return (
+      <PageShell>
+        {/* The header's actions create CREATIVES — they belong to the
+            Creatives tab only; each other tab offers its own create (R-074). */}
+        <LibraryHeader canCreate={false} />
+        <PageTabs tabs={tabs} active={activeTab} />
+        {activeTab === "products" && <ProductsAdmin />}
+        {activeTab === "landing-pages" && (
+          <LandingPagesTable
+            rows={await listLandingPages()}
+            // Every page sells one product: the dialog's picker.
+            products={await listProducts()}
+            canManage={can(user, "catalog.landing_pages")}
+          />
+        )}
+        {activeTab === "angles" && <AnglesTable rows={await listAngles()} />}
+      </PageShell>
+    );
+  }
+
+  // Bare /creatives (no params) lands on the caller's own default view, if set.
+  if (Object.keys(params).length === 0) {
+    const def = await getDefaultSummaryView(user.id, "creatives");
+    if (def && def.query.trim().length > 0) {
+      // The marker says "a saved view owns this state" — the remembered
+      // filters below then no-op. (It is NOT `view`: here that's grid/table.)
+      return brandRedirect(`/library?${def.query}&${VIEW_MARKER_PARAM}=${def.id}`);
+    }
+  }
+
+  // The dropdown sources double as the pref resolver's vocabulary: a
+  // remembered product or angle that was since deleted is dropped, not queried.
+  const [products, allAngles] = await Promise.all([listProducts(), listAllAngles()]);
+
+  // REMEMBERED FILTERS (migration 0049): URL wins, else this user's saved value
+  // for this brand, else the page default — the date range's rule, generalized.
+  // Suppressed while a saved view is applied, or once the URL states its
+  // filters in full (`resolveFilterPrefs` checks both).
+  const pref = await resolveFilterPrefs(
+    [
+      { key: "platforms" },
+      { key: "statuses" },
+      { key: "productIds", allow: products.map((p) => p.id) },
+      { key: "types" },
+      { key: "angles", allow: allAngles },
+      { key: "priorities" },
+      { key: "stages" },
+    ],
+    (key: string) => pickFirst(params[key]),
+  );
+
+  const parsed = creativeListFiltersSchema.parse({
+    q: pickFirst(params.q),
+    productIds: pref.productIds,
+    types: pref.types,
+    statuses: pref.statuses,
+    priorities: pref.priorities,
+    stages: pref.stages,
+    platforms: pref.platforms,
+    angles: pref.angles,
+    sort: pickFirst(params.sort),
+    view: pickFirst(params.view),
+  });
+
+  // Effective Excluded state: URL param wins, else the user's saved default.
+  // Governs the 7d/30d spend columns only (the list itself isn't an aggregate).
+  const includeExcluded = await resolveIncludeExcluded(
+    pickFirst(params.includeExcluded),
+  );
+
+  const [listResult, views] = await Promise.all([
+    listCreatives({
+      q: parsed.q,
+      productIds: parsed.productIds.length > 0 ? parsed.productIds : undefined,
+      types: parsed.types.length > 0 ? parsed.types : undefined,
+      statuses: parsed.statuses.length > 0 ? parsed.statuses : undefined,
+      priorities: parsed.priorities.length > 0 ? parsed.priorities : undefined,
+      stages: parsed.stages.length > 0 ? parsed.stages : undefined,
+      platforms: parsed.platforms.length > 0 ? parsed.platforms : undefined,
+      angles: parsed.angles.length > 0 ? parsed.angles : undefined,
+      sort: parsed.sort,
+      includeExcluded,
+    }),
+    listSummaryViews(user.id, "creatives"),
+  ]);
+
+  // Carry the active filter/sort into each detail link so the detail page's
+  // prev/next pager walks this exact same sequence (and "back" returns here).
+  const ctxParams = new URLSearchParams();
+  const ctxEntries: Array<[string, string]> = [
+    ["q", parsed.q ?? ""],
+    ["productIds", parsed.productIds.join(",")],
+    ["types", parsed.types.join(",")],
+    ["statuses", parsed.statuses.join(",")],
+    ["priorities", parsed.priorities.join(",")],
+    ["stages", parsed.stages.join(",")],
+    ["platforms", parsed.platforms.join(",")],
+    ["angles", parsed.angles.join(",")],
+    ["sort", parsed.sort],
+    ["view", parsed.view],
+    ["includeExcluded", includeExcluded ? "1" : ""],
+  ];
+  for (const [key, val] of ctxEntries) {
+    if (val) ctxParams.set(key, val);
+  }
+  const listCtx = ctxParams.toString();
+
+  // An empty listing over a brand with NO creatives is first use (R-018), not
+  // "no match" — asked only when the listing is empty, so it costs nothing on
+  // a normal visit.
+  const firstUse =
+    listResult.totalMatching === 0 && !(await brandHasCreatives()) ? (
+      <LibraryFirstUse canCreate={can(user, "creative.create")} />
+    ) : undefined;
+
+  return (
+    <PageShell>
+      <LibraryHeader canCreate={can(user, "creative.create")} />
+      <PageTabs tabs={tabs} active={activeTab} />
+      <LibraryFilterBar
+        resolvedFilters={pref}
+        products={products}
+        angles={allAngles}
+        includeExcluded={includeExcluded}
+        views={views}
+        currentUserId={user.id}
+        isAdmin={user.role === "admin"}
+      />
+
+      {/* The status facet sits with the list it describes — same placement in
+          both views — and follows every filter change because its counts come
+          from the listing's own rows. */}
+      <CreativeStatusSummary breakdown={listResult.breakdown} shown={listResult.totalMatching} />
+
+      {parsed.view === "table" ? (
+        <CreativeTable
+          rows={listResult.rows}
+          listCtx={listCtx}
+          firstUse={firstUse}
+        />
+      ) : (
+        <CreativeGrid rows={listResult.rows} listCtx={listCtx} firstUse={firstUse} />
+      )}
+    </PageShell>
+  );
+}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import Link from "next/link";
+import Link from "@/components/nav/link";
 import { CircleHelp, Coins, Megaphone, ShoppingBag } from "lucide-react";
 import { MetricCard, type BreakdownBar } from "@/components/overview/metric-card";
 import { DateRangePicker } from "@/components/filters/date-range-picker";

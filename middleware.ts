@@ -1,6 +1,14 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { verifySessionTokenEdge } from "@/lib/session-edge";
 import { REQUEST_PATH_HEADER, signinHref } from "@/lib/signin-redirect";
+import {
+  ANY_BRAND,
+  BRAND_HEADER,
+  LAST_BRAND_COOKIE,
+  classifyPath,
+  isBrandSlug,
+  splitBrandPath,
+} from "@/lib/brand-path";
 
 /**
  * Auth boundary for every route except sign-in, the public health check, and
@@ -44,8 +52,31 @@ export async function middleware(req: NextRequest) {
     // Hand the page the path it serves, so a layout that still refuses this
     // session (a removed user, ended sessions) can send the person back here
     // after sign-in. Set, never appended: a client's own value is replaced.
+    const kind = classifyPath(pathname);
+
+    // THE BRAND IS IN THE URL (2026-11, lib/brand-path.ts). An unprefixed
+    // dashboard path — an old bookmark, a link from before the change, the
+    // bare domain — goes to the brand this browser was last on (`_` = the
+    // layout picks). Only a page load: a stale tab's action POST is left to
+    // fail and offer Reload, never silently re-aimed at another brand.
+    if (kind === "legacy" && (req.method === "GET" || req.method === "HEAD")) {
+      const last = req.cookies.get(LAST_BRAND_COOKIE)?.value;
+      const slug = isBrandSlug(last) ? last : ANY_BRAND;
+      const to = req.nextUrl.clone();
+      to.pathname = `/${slug}${pathname === "/" ? "" : pathname}`;
+      return NextResponse.redirect(to);
+    }
+
     const headers = new Headers(req.headers);
     headers.set(REQUEST_PATH_HEADER, pathname + search);
+    if (kind === "branded") {
+      // The URL's brand, for `getActiveAccountId()` — set, never appended,
+      // so a client can't name a different one than its address bar.
+      headers.set(BRAND_HEADER, splitBrandPath(pathname).slug!);
+    } else if (!pathname.startsWith("/api/")) {
+      // Only an API call may carry a brand of its own (`brandFetch`).
+      headers.delete(BRAND_HEADER);
+    }
     return NextResponse.next({ request: { headers } });
   }
 

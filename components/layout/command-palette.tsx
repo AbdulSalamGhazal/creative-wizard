@@ -1,5 +1,6 @@
 "use client";
 
+import { brandFetch } from "@/lib/brand-nav";
 import { useCallback, useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import { Search } from "lucide-react";
@@ -46,7 +47,7 @@ const inFlight = new Map<string, Promise<PaletteLists | null>>();
 function fetchLists(accountId: string): Promise<PaletteLists | null> {
   const running = inFlight.get(accountId);
   if (running) return running;
-  const p = fetch("/api/palette", { cache: "no-store" })
+  const p = brandFetch("/api/palette", { cache: "no-store" })
     .then(async (res) => {
       if (!res.ok) return null;
       const data = (await res.json()) as Partial<PaletteLists>;

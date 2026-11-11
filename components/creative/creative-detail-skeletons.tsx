@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "@/components/nav/link";
 import { ArrowLeft } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { panelClass } from "@/components/ui/panel";

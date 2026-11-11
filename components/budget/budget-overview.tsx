@@ -1,8 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
+import Link from "@/components/nav/link";
+import { useRouter } from "@/lib/brand-nav";
 import { ArrowRight } from "lucide-react";
 import { InfoTip } from "@/components/ui/info-tip";
 import {

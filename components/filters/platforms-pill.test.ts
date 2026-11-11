@@ -68,14 +68,14 @@ describe("FilterStrip's Clear clears tier-2 only (D19)", () => {
   });
   it("every FilterStrip page resolves its remembered filters on the server", () => {
     for (const page of [
-      "app/(dashboard)/page.tsx",
-      "app/(dashboard)/funnel/page.tsx",
-      "app/(dashboard)/trends/over-time/page.tsx",
-      "app/(dashboard)/trends/by-angle/page.tsx",
-      "app/(dashboard)/trends/by-type/page.tsx",
-      "app/(dashboard)/trends/launches/page.tsx",
-      "app/(dashboard)/trends/video/page.tsx",
-      "app/(dashboard)/trends/landing-pages/page.tsx",
+      "app/[brand]/(dashboard)/page.tsx",
+      "app/[brand]/(dashboard)/funnel/page.tsx",
+      "app/[brand]/(dashboard)/trends/over-time/page.tsx",
+      "app/[brand]/(dashboard)/trends/by-angle/page.tsx",
+      "app/[brand]/(dashboard)/trends/by-type/page.tsx",
+      "app/[brand]/(dashboard)/trends/launches/page.tsx",
+      "app/[brand]/(dashboard)/trends/video/page.tsx",
+      "app/[brand]/(dashboard)/trends/landing-pages/page.tsx",
     ]) {
       const src = readFileSync(path.join(ROOT, page), "utf8");
       expect(src, page).toContain("resolveStripFilters(");

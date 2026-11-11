@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "@/components/nav/link";
 import { ArrowLeft } from "lucide-react";
 import type { ReactNode } from "react";
 import { InfoTip } from "@/components/ui/info-tip";

@@ -10,7 +10,8 @@ import {
   useState,
 } from "react";
 import dynamic from "next/dynamic";
-import { usePathname, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
+import { usePathname } from "@/lib/brand-nav";
 import { Activity, Check, MessageSquare, X } from "lucide-react";
 import {
   DropdownMenu,

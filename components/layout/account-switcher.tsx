@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, type MouseEvent } from "react";
 import { Check, ChevronsUpDown, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -11,11 +11,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { setActiveAccount } from "@/app/actions/account";
-import { safeAction } from "@/lib/action-failure";
-import { toastActionFailure } from "@/lib/action-toast";
 import type { BrandStyle } from "@/lib/brand-style";
 import { BrandMark } from "@/components/account/brand-mark";
+import { switchTarget, type SwitchTarget } from "@/lib/brand-path";
+import { currentAppPathname, useRouter } from "@/lib/brand-nav";
+import { useNavTransition } from "@/lib/nav-progress";
+import { isPlainClick } from "@/lib/shallow-url";
 
 interface Props {
   accounts: BrandStyle[];
@@ -23,41 +24,65 @@ interface Props {
 }
 
 /**
- * Brand (account) switcher in the top bar, right of the "WIZARD"
- * title. Selecting a brand writes the `ccms_account` cookie via
- * `setActiveAccount`, whose `revalidatePath("/", "layout")` re-renders the
- * whole page under the new brand IN the action's response — ONE render (P-15,
- * 2026-10: a `router.refresh()` here used to fetch the same tree a second
- * time). Membership is checked server-side; only allowed brands are listed.
- * Each brand wears its mark (logo, else its initial on its colour — 2026-11).
+ * Brand switcher in the top bar (2026-11: the brand is in the URL, per TAB).
+ * Each brand is a real LINK to the same page under that brand's address, so
+ * switching moves only THIS tab, and ⌘/middle-click opens the other brand in
+ * a new tab beside it. On a page that only exists in the current brand (a
+ * creative's or campaign's own page) the link goes to that section's list
+ * instead, and a toast says why (`switchTarget`, lib/brand-path.ts).
+ * Membership is checked server-side; only allowed brands are listed.
  */
 export function AccountSwitcher({ accounts, activeId }: Props) {
-  const [pending, startTransition] = useTransition();
+  const router = useRouter();
+  const [pending, startNav] = useNavTransition();
   const [open, setOpen] = useState(false);
+  // Targets are read from the address bar when the menu opens — always the
+  // page as it is now, filters included.
+  const [targets, setTargets] = useState<Record<string, SwitchTarget>>({});
 
   const active = accounts.find((a) => a.id === activeId) ?? accounts[0];
   if (!active) return null;
 
-  function switchTo(id: string) {
-    if (id === activeId) return;
-    startTransition(async () => {
-      const res = await safeAction(() => setActiveAccount({ accountId: id }));
-      if (!res.ok) {
-        toastActionFailure(res, "Couldn't switch brand");
-        return;
-      }
-      const name = accounts.find((a) => a.id === id)?.name ?? "brand";
-      toast.success(`Switched to ${name}`);
-    });
+  function onOpenChange(next: boolean) {
+    if (next) {
+      const path = currentAppPathname();
+      const search = window.location.search;
+      setTargets(
+        Object.fromEntries(
+          accounts.map((a) => [
+            a.id,
+            // This tab's own brand links to the page as it is (⌘-click = a
+            // copy of this tab); every other brand to `switchTarget`.
+            a.id === activeId
+              ? { href: `${window.location.pathname}${search}`, moved: null }
+              : switchTarget(a.slug, path, search),
+          ]),
+        ),
+      );
+    }
+    setOpen(next);
+  }
+
+  function go(e: MouseEvent<HTMLAnchorElement>, brand: BrandStyle, target: SwitchTarget) {
+    if (!isPlainClick(e)) return; // new tab / window: the browser follows the href
+    e.preventDefault();
+    setOpen(false);
+    if (brand.id === activeId) return;
+    if (target.moved) {
+      toast(`Showing ${brand.name}’s ${target.moved.section}`, {
+        description: `That ${target.moved.what} is in ${active!.name}.`,
+      });
+    }
+    startNav(() => router.push(target.href));
   }
 
   return (
-    <DropdownMenu open={open} onOpenChange={setOpen}>
+    <DropdownMenu open={open} onOpenChange={onOpenChange}>
       <DropdownMenuTrigger asChild>
         <button
           type="button"
           title="Switch brand"
-          aria-label="Switch brand"
+          aria-label={`Brand: ${active.name}. Switch brand`}
           // `min-w-0` lets the trigger shrink when the top bar runs out of
           // room: the brand NAME truncates instead of the bar overflowing.
           className="flex min-w-0 items-center gap-1.5 rounded-md border border-line py-1 pl-1 pr-2 text-xs font-medium text-ink-2 hover:text-ink hover:bg-surface-2 transition"
@@ -78,27 +103,23 @@ export function AccountSwitcher({ accounts, activeId }: Props) {
       <DropdownMenuContent align="start" className="w-56 max-h-[60vh] overflow-y-auto">
         <DropdownMenuLabel>Brand</DropdownMenuLabel>
         <DropdownMenuSeparator />
-        {accounts.map((a) => (
-          <DropdownMenuItem
-            key={a.id}
-            onSelect={(e) => {
-              e.preventDefault();
-              switchTo(a.id);
-              setOpen(false);
-            }}
-            className="gap-2"
-          >
-            <Check
-              className={
-                a.id === activeId
-                  ? "w-4 h-4 shrink-0"
-                  : "w-4 h-4 shrink-0 opacity-0"
-              }
-            />
-            <BrandMark brand={a} size="sm" />
-            <span className="truncate">{a.name}</span>
-          </DropdownMenuItem>
-        ))}
+        {accounts.map((a) => {
+          const target = targets[a.id] ?? { href: `/${a.slug}`, moved: null };
+          const current = a.id === activeId;
+          return (
+            <DropdownMenuItem key={a.id} asChild className="gap-2">
+              <a
+                href={target.href}
+                aria-current={current ? "page" : undefined}
+                onClick={(e) => go(e, a, target)}
+              >
+                <Check className={current ? "w-4 h-4 shrink-0" : "w-4 h-4 shrink-0 opacity-0"} />
+                <BrandMark brand={a} size="sm" />
+                <span className="truncate">{a.name}</span>
+              </a>
+            </DropdownMenuItem>
+          );
+        })}
       </DropdownMenuContent>
     </DropdownMenu>
   );

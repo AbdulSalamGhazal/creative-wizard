@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import Link from "next/link";
+import Link from "@/components/nav/link";
 import { Check } from "lucide-react";
 import { InfoTip } from "@/components/ui/info-tip";
 import { SourceAssignmentSelect } from "@/components/store/source-assignment-select";

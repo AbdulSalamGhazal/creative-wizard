@@ -2,7 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
+import { usePathname, useRouter } from "@/lib/brand-nav";
+import { shallowHref } from "@/lib/shallow-url";
 import { Sparkles } from "lucide-react";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -100,7 +102,7 @@ export function CanvasView({
 
   // `?view=` is URL-backed so a comment's captured query string reproduces
   // the view — and validated, so a bad value is just the network. Switching
-  // is a pure re-layout of data already on the client: history.replaceState
+  // is a pure re-layout of data already on the client: a shallow replace
   // updates the URL (Next syncs useSearchParams) with NO server round-trip.
   const view = parseCanvasView(searchParams.get("view"));
   const setView = useCallback(
@@ -109,7 +111,7 @@ export function CanvasView({
       if (next === "network") params.delete("view");
       else params.set("view", next);
       const qs = params.toString();
-      window.history.replaceState(null, "", qs ? `${pathname}?${qs}` : pathname);
+      shallowHref(qs ? `${pathname}?${qs}` : pathname, "replace");
       // Keep the focus, but never yank the viewport on a switch — the new
       // view's own fit runs instead.
       setFocus((f) => (f ? { ...f, fit: "none" } : f));

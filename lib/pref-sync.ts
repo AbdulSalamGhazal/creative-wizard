@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
+import { usePathname, useRouter } from "@/lib/brand-nav";
 import { setIncludeExcludedPref, setPreferredRange } from "@/app/actions/user-prefs";
 import { safeAction } from "@/lib/action-failure";
 import { isCallFailure, toastActionFailure } from "@/lib/action-toast";

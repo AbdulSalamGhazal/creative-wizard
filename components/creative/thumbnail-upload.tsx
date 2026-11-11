@@ -1,5 +1,6 @@
 "use client";
 
+import { brandFetch } from "@/lib/brand-nav";
 import { useCallback, useRef, useState } from "react";
 import { ImagePlus, Loader2, Trash2, Upload } from "lucide-react";
 import { toast } from "sonner";
@@ -71,7 +72,7 @@ export function ThumbnailUpload({ value, onChange, disabled }: Props) {
           { type: processed.type || file.type },
         );
         fd.append("file", named);
-        const res = await fetch("/api/uploads/thumbnail", {
+        const res = await brandFetch("/api/uploads/thumbnail", {
           method: "POST",
           body: fd,
         });

@@ -52,8 +52,8 @@ describe("pages and layouts do not reach past the query layer", () => {
   });
 
   it("the walk really covers the routes", () => {
-    expect(routeFiles).toContain("app/(dashboard)/layout.tsx");
-    expect(routeFiles).toContain("app/(dashboard)/uploads/page.tsx");
+    expect(routeFiles).toContain("app/[brand]/(dashboard)/layout.tsx");
+    expect(routeFiles).toContain("app/[brand]/(dashboard)/uploads/page.tsx");
   });
 });
 

@@ -154,6 +154,35 @@
   AND membership of that brand, checked before a byte is stored, and are
   audited as `account.style_update` under THAT brand.
 
+- **The brand is in the URL, per TAB (2026-11).** Every dashboard page lives
+  under `/<slug>/…` (`app/[brand]/(dashboard)`); `lib/brand-path.ts` is the
+  one definition of what a path's first segment means. The middleware sets
+  `x-ccms-brand` from the URL (set, never appended; an `/api/*` call carries
+  its own via `brandFetch`), and `getActiveAccountId()` honours it ONLY for a
+  brand the user may open — otherwise `BRAND_REFUSED`, never a fallback to
+  another brand (that is the cross-tab write this change ended). The layout
+  renders `BrandRefused` (same words for "not yours" and "doesn't exist")
+  before any tenant query. No brand in the URL: the browser's last brand
+  (`ccms_brand`, a slug written by the PAGE so only an openable brand is
+  remembered), then the old `ccms_account` id cookie, then the first allowed
+  brand. An unbranded page URL (old bookmark, bare domain) GETs redirected to
+  the last brand, `/_` when none (the layout resolves it); a POST to one is
+  left to fail, never re-aimed. Sign-in returns the brand to land in.
+- **Navigation goes through the brand-aware wrappers** — `@/components/nav/link`
+  (never `next/link`), `useRouter`/`usePathname` from `@/lib/brand-nav`
+  (`usePathname` is the APP path, without the brand), `brandRedirect` /
+  `brandPermanentRedirect` in a dashboard page, `brandFetch` for `/api/*`,
+  `shallowHref` for history writes. `app/brand-nav.test.ts` fails the build
+  on a bare one. `revalidatePath` keeps its brand-less paths: any revalidation
+  re-renders the caller and empties the client router cache.
+- **A brand slug is a URL segment**: never a page or root name
+  (`isReservedSlug`; `createAccount` appends `-2`), and it never changes.
+- **Switching brand moves only that tab** (the switcher's items are links, so
+  ⌘-click opens the other brand beside it). It keeps the page and its filters,
+  minus another brand's `comment`/`v`; from an item's own page (a creative,
+  campaign or Pricing product) it lands on that section's list and toasts why
+  (`switchTarget`, user decision).
+
 ## History and rationale
 
 *Moved verbatim from CLAUDE.md (2026-10). Line references are to the file
@@ -165,7 +194,8 @@ as it stood before the restructure.*
 
 - **Multi-tenancy = row-level `account_id`, scoped in the query/action layer;
   brand membership IS enforced at tenant resolution (2026-07).** The app manages
-  2–5 brands from one DB; the active brand is the `ccms_account` cookie, resolved
+  2–5 brands from one DB; the active brand was the `ccms_account` cookie (since
+  2026-11 it is the URL's `/<slug>/` — see "The brand is in the URL"), resolved
   per request by the cache()-deduped `getActiveAccountId()` / `listAccounts()` /
   `getActiveAccount()` in `lib/tenant.ts` (mirrors `auth()`). **Brand membership
   gates which brands a user may see** (permissions say WHAT, membership says
@@ -447,3 +477,19 @@ A logo is FITTED into a transparent 128 px square, never cropped, because a
 wordmark would lose its ends. The upload is a server action (unlike the
 avatar's route) so it revalidates like every other brand edit — one render,
 no `router.refresh()`.
+
+### The brand moved from the cookie to the URL (2026-11)
+
+Asked for directly: "I can't open two tabs on different brands." The cookie
+was per BROWSER, so a switch in one tab silently re-aimed every other tab —
+and it was worse than inconvenient: a tab still SHOWING brand A wrote into
+brand B (the 2026-11-01 `brandChanged` pin patched only the preview-then-
+commit flows; a plain create — a product, a campaign — still crossed). The
+URL is the only thing every request carries, which is why Gmail, Vercel and
+GitHub put the account there too; a query param was rejected as too easy to
+drop. A real `[brand]` segment rather than a middleware rewrite, so the
+layout re-renders when the brand changes instead of keeping the old one's
+top bar. User decisions: a refusal screen (not a silent swap) for a brand you
+can't open; an item's page switches to its section's list WITH a toast.
+Walked: two tabs on two brands, a product created in the older tab landed in
+its own brand while the other was the browser's last.

@@ -71,26 +71,26 @@ describe("every gated nav item reads its page's gates", () => {
   });
 
   it("each page filters with the same table the nav derives from", () => {
-    expect(src("app/(dashboard)/admin/catalog/page.tsx")).toContain("CONFIGURATION_TABS");
-    expect(src("app/(dashboard)/library/page.tsx")).toContain("LIBRARY_TABS");
-    expect(src("app/(dashboard)/uploads/page.tsx")).toContain("UPLOAD_ADS_TABS");
-    expect(src("app/(dashboard)/store/uploads/page.tsx")).toContain("UPLOAD_ORDERS_TABS");
-    expect(src("app/(dashboard)/admin/users/page.tsx")).toContain("requirePermission(TEAM_GATE)");
-    expect(src("app/(dashboard)/admin/audit/page.tsx")).toContain("requirePermission(AUDIT_GATE)");
+    expect(src("app/[brand]/(dashboard)/admin/catalog/page.tsx")).toContain("CONFIGURATION_TABS");
+    expect(src("app/[brand]/(dashboard)/library/page.tsx")).toContain("LIBRARY_TABS");
+    expect(src("app/[brand]/(dashboard)/uploads/page.tsx")).toContain("UPLOAD_ADS_TABS");
+    expect(src("app/[brand]/(dashboard)/store/uploads/page.tsx")).toContain("UPLOAD_ORDERS_TABS");
+    expect(src("app/[brand]/(dashboard)/admin/users/page.tsx")).toContain("requirePermission(TEAM_GATE)");
+    expect(src("app/[brand]/(dashboard)/admin/audit/page.tsx")).toContain("requirePermission(AUDIT_GATE)");
     // The module's layout gates every page under it, and each page re-checks.
-    expect(src("app/(dashboard)/price-structure/layout.tsx")).toContain("requirePriceStructureAccess()");
+    expect(src("app/[brand]/(dashboard)/price-structure/layout.tsx")).toContain("requirePriceStructureAccess()");
     for (const route of PRICE_STRUCTURE_ROUTES) {
       const dir = route === "/price-structure/products" ? `${route}/[[...path]]` : route;
-      expect(src(`app/(dashboard)${dir}/page.tsx`), route).toContain("requirePriceStructureAccess()");
+      expect(src(`app/[brand]/(dashboard)${dir}/page.tsx`), route).toContain("requirePriceStructureAccess()");
     }
   });
 
   it("every permission an upload page checks is in its nav gate", () => {
     const checked = (rel: string) =>
       [...src(rel).matchAll(/\bcan\([^,]+,\s*"([a-z_.]+)"\)/g)].map((m) => m[1]!);
-    for (const p of checked("app/(dashboard)/uploads/page.tsx"))
+    for (const p of checked("app/[brand]/(dashboard)/uploads/page.tsx"))
       expect(NAV_ROUTE_GATES["/uploads"] as readonly string[]).toContain(p);
-    for (const p of checked("app/(dashboard)/store/uploads/page.tsx"))
+    for (const p of checked("app/[brand]/(dashboard)/store/uploads/page.tsx"))
       expect(NAV_ROUTE_GATES["/store/uploads"] as readonly string[]).toContain(p);
   });
 });

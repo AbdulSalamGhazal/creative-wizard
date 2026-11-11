@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo } from "react";
-import { usePathname, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
+import { currentAppPathname, usePathname } from "@/lib/brand-nav";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -42,7 +43,7 @@ export function ProductsView({ productId, offerId }: { productId: string | null;
   const select = useCallback(
     (pid: string, oid?: string | null) => {
       const path = `${BASE}/${pid}${oid ? `/${oid}` : ""}${v ? `?v=${v}` : ""}`;
-      if (`${window.location.pathname}${window.location.search}` !== path) shallowHref(path, "push");
+      if (`${currentAppPathname()}${window.location.search}` !== path) shallowHref(path, "push");
     },
     [v],
   );

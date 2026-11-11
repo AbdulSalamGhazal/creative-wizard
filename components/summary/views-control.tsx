@@ -2,7 +2,8 @@
 
 import { useCallback, useRef, useState } from "react";
 import { useNavTransition } from "@/lib/nav-progress";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
+import { usePathname, useRouter } from "@/lib/brand-nav";
 import { toast } from "sonner";
 import { Bookmark, Check, Plus, Star, Trash2, X } from "lucide-react";
 import {

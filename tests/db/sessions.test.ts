@@ -57,7 +57,7 @@ async function deviceCookie(email: string, password: string): Promise<string> {
   // Distinct issued-at per device, the way two real sign-ins are.
   await new Promise((r) => setTimeout(r, 5));
   const res = await signIn(form(email, password));
-  expect(res).toEqual({ ok: true });
+  expect(res).toMatchObject({ ok: true });
   return jar.get(SESSION_COOKIE)!;
 }
 

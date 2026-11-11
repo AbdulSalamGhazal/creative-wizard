@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
-import Link from "next/link";
+import Link from "@/components/nav/link";
 import { useTheme } from "next-themes";
 import {
   Bell,

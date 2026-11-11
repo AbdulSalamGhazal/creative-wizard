@@ -1,6 +1,8 @@
 "use server";
 
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
+import { LAST_BRAND_COOKIE } from "@/lib/brand-path";
+import { allowedAccountsForUser } from "@/lib/tenant";
 import { redirect } from "next/navigation";
 import { and, eq, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
@@ -14,7 +16,7 @@ import {
   PASSWORD_MIN_LENGTH,
   PASSWORD_MAX_LENGTH,
 } from "@/lib/auth-password";
-import { auth, endSessions, requireAuth } from "@/lib/auth";
+import { auth, endSessions, loadUserById, requireAuth } from "@/lib/auth";
 import { AUDIT_ACTIONS, logAudit, type AuditAction } from "@/lib/audit";
 import { actionError } from "@/lib/action-error";
 import { clientIp } from "@/lib/client-ip";
@@ -47,6 +49,10 @@ const changePasswordSchema = z
 export interface SignInResult {
   ok: boolean;
   error?: string;
+  /** Where the person lands: the brand this browser was last on, if they may
+   *  open it, else their first brand (2026-11 — the brand is in the URL).
+   *  Null when they have no brand at all. */
+  brandSlug?: string | null;
 }
 
 export interface ChangePasswordResult {
@@ -167,7 +173,13 @@ export async function signIn(formData: FormData): Promise<SignInResult> {
     actorUserId: row.id,
     meta: { email },
   });
-  return { ok: true };
+  // The brand is in the URL (2026-11): hand the form the brand to land in,
+  // so `next=/library` opens `/urjwan/library` directly.
+  const me = await loadUserById(row.id);
+  const allowed = me ? await allowedAccountsForUser(me) : [];
+  const last = (await cookies()).get(LAST_BRAND_COOKIE)?.value;
+  const brandSlug = (allowed.find((a) => a.slug === last) ?? allowed[0])?.slug ?? null;
+  return { ok: true, brandSlug };
 }
 
 /**

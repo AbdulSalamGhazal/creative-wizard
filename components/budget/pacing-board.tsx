@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import Link from "next/link";
+import Link from "@/components/nav/link";
 import { Button } from "@/components/ui/button";
 import { PlatformDot } from "@/components/ui/platform-dot";
 import { SegmentedControl } from "@/components/ui/segmented-control";

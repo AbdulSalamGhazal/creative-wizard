@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter } from "@/lib/brand-nav";
 import { Check, Eye, Loader2, RefreshCw, Settings2, TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {

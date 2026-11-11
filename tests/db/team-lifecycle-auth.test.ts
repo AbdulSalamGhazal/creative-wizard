@@ -68,14 +68,14 @@ beforeEach(async () => {
 describe("sign-in stamps last_sign_in_at", () => {
   it("null before, set after", async () => {
     expect((await member()).lastSignInAt).toBeNull();
-    expect(await signIn(form(EMAIL, PW))).toEqual({ ok: true });
+    expect(await signIn(form(EMAIL, PW))).toMatchObject({ ok: true });
     expect((await member()).lastSignInAt).not.toBeNull();
   });
 });
 
 describe("a deactivated member", () => {
   it("is told so — but only with the right password — and their open session is dead", async () => {
-    expect(await signIn(form(EMAIL, PW))).toEqual({ ok: true });
+    expect(await signIn(form(EMAIL, PW))).toMatchObject({ ok: true });
     const cookie = jar.get(SESSION_COOKIE)!;
     expect(await whoIs(cookie)).toBe(MEMBER);
 
@@ -102,13 +102,13 @@ describe("a deactivated member", () => {
 
     // Reactivated: straight back in.
     await db.update(users).set({ deactivatedAt: null }).where(eq(users.id, MEMBER));
-    expect(await signIn(form(EMAIL, PW))).toEqual({ ok: true });
+    expect(await signIn(form(EMAIL, PW))).toMatchObject({ ok: true });
   });
 });
 
 describe("a removed member", () => {
   it("reads like an unknown email, and their session is gone", async () => {
-    expect(await signIn(form(EMAIL, PW))).toEqual({ ok: true });
+    expect(await signIn(form(EMAIL, PW))).toMatchObject({ ok: true });
     const cookie = jar.get(SESSION_COOKIE)!;
     await db
       .update(users)

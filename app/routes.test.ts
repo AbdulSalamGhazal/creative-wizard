@@ -40,7 +40,7 @@ const pages = walk(path.join(ROOT, "app")).sort();
 /** A page that exists only to send you somewhere else: it redirects and
  *  renders nothing (no JSX element anywhere in the file). */
 export function isRedirectStub(src: string): boolean {
-  const redirects = /\b(?:permanentRedirect|redirect)\(/.test(src);
+  const redirects = /\b(?:permanentRedirect|redirect|brandRedirect|brandPermanentRedirect)\(/.test(src);
   const rendersJsx = /<[A-Za-z][\w.]*[\s/>]/.test(
     // Generic type arguments (`Promise<Record<…>>`) are not JSX.
     src.replace(/\b[A-Z]\w*<[^>()]*>+/g, ""),
@@ -105,10 +105,10 @@ describe("the stub detector", () => {
   });
   it("a form route that redirects only without the permission is NOT a stub", () => {
     for (const p of [
-      "app/(dashboard)/campaigns/new/page.tsx",
-      "app/(dashboard)/library/new/page.tsx",
-      "app/(dashboard)/library/bulk/page.tsx",
-      "app/(dashboard)/uploads/new/page.tsx",
+      "app/[brand]/(dashboard)/campaigns/new/page.tsx",
+      "app/[brand]/(dashboard)/library/new/page.tsx",
+      "app/[brand]/(dashboard)/library/bulk/page.tsx",
+      "app/[brand]/(dashboard)/uploads/new/page.tsx",
     ]) {
       expect(isRedirectStub(readFileSync(path.join(ROOT, p), "utf8")), p).toBe(false);
     }

@@ -1,8 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Link from "next/link";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import Link from "@/components/nav/link";
+import { useSearchParams } from "next/navigation";
+import { usePathname, useRouter } from "@/lib/brand-nav";
 import { Download, ShoppingBag } from "lucide-react";
 import { toast } from "sonner";
 import { DataTable, type DataColumn } from "@/components/ui/data-table";

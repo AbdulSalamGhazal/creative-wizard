@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
-import { usePathname, useRouter } from "next/navigation";
-import Link from "next/link";
+import { usePathname, useRouter, brandFetch } from "@/lib/brand-nav";
+import Link from "@/components/nav/link";
 import { toast } from "sonner";
 import { Bell } from "lucide-react";
 import {
@@ -208,7 +208,7 @@ export function NotificationBell({
   // decision: no "how many comments" indicator), so it asks for the feed only.
   const load = useCallback(async () => {
     try {
-      const res = await fetch("/api/notifications", { cache: "no-store" });
+      const res = await brandFetch("/api/notifications", { cache: "no-store" });
       // A 401 mid-session: the next navigation redirects. Any non-OK answer
       // marks the list failed, so the popover never says "Loading…" forever.
       if (!res.ok) {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useRef, useState } from "react";
-import Link from "next/link";
+import Link from "@/components/nav/link";
 import { useSearchParams } from "next/navigation";
 import { isPlainClick, shallowHref, shallowParams } from "@/lib/shallow-url";
 import { resolveSummarySort, sortSummaryRows } from "@/lib/summary-sort";

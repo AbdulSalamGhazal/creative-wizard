@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Link from "next/link";
+import Link from "@/components/nav/link";
 import { useSearchParams } from "next/navigation";
 import { withDateRange } from "@/lib/url";
 import { DataTable, type DataColumn } from "@/components/ui/data-table";

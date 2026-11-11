@@ -1,3 +1,5 @@
+import { splitBrandPath, withBrand } from "@/lib/brand-path";
+
 /**
  * SHALLOW URL writes (D12, 2026-10): change the address bar WITHOUT a server
  * render. Next 15 syncs the native `history.pushState` / `replaceState` into
@@ -14,7 +16,9 @@
  */
 export function shallowHref(href: string, mode: "push" | "replace"): void {
   const url = new URL(href, window.location.href);
-  const next = `${url.pathname}${url.search}${url.hash}`;
+  // An app path (`/price-structure/…`) stays in THIS tab's brand (2026-11).
+  const path = withBrand(splitBrandPath(window.location.pathname).slug, url.pathname);
+  const next = `${path}${url.search}${url.hash}`;
   if (mode === "push") window.history.pushState(null, "", next);
   else window.history.replaceState(null, "", next);
 }

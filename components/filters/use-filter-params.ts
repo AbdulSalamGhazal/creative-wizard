@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
+import { usePathname, useRouter } from "@/lib/brand-nav";
 import { useNavTransition } from "@/lib/nav-progress";
 import { queueFilterPrefs } from "@/lib/filter-prefs";
 import { FILTERS_EXPLICIT_PARAM, type FilterPrefEntry } from "@/validators/user-prefs";

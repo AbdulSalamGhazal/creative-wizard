@@ -1,7 +1,7 @@
 "use client";
 
-import Link from "next/link";
-import { useRouter } from "next/navigation";
+import Link from "@/components/nav/link";
+import { useRouter, brandFetch } from "@/lib/brand-nav";
 import { useState } from "react";
 import { Check, Loader2, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -84,7 +84,7 @@ export function UploadForm() {
 
     let res: Response;
     try {
-      res = await fetch("/api/uploads/validate", {
+      res = await brandFetch("/api/uploads/validate", {
         method: "POST",
         body: form,
       });
@@ -152,7 +152,7 @@ export function UploadForm() {
 
     let res: Response;
     try {
-      res = await fetch("/api/uploads/commit", {
+      res = await brandFetch("/api/uploads/commit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ token }),

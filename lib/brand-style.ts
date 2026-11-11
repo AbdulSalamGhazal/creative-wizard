@@ -61,6 +61,8 @@ export function brandInitial(name: string | null | undefined): string {
 /** The brand fields every brand-styled surface needs. */
 export interface BrandStyle {
   id: string;
+  /** The brand's URL segment (`/<slug>/…`). */
+  slug: string;
   name: string;
   color: string | null;
   logoUrl: string | null;

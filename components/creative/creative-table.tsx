@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/brand-nav";
 import { DataTable, type DataColumn } from "@/components/ui/data-table";
 import { DownloadCsvButton } from "@/components/ui/download-csv-button";
 import { useTableColumns } from "@/components/ui/use-table-columns";
