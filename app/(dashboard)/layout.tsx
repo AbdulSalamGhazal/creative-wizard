@@ -17,8 +17,27 @@ import { NoBrandAccess } from "@/components/layout/no-brand-access";
 import { getToastScope, resolveTablePrefs } from "@/db/queries/user-prefs";
 import { TABLE_KEY_LIST } from "@/lib/table-columns";
 import { TablePrefsProvider } from "@/components/ui/table-prefs-context";
-import { getActiveAccountId, listAccounts } from "@/lib/tenant";
+import type { Metadata } from "next";
+import { getActiveAccount, getActiveAccountId, listAccounts } from "@/lib/tenant";
 import { REQUEST_PATH_HEADER, signinHref } from "@/lib/signin-redirect";
+
+/**
+ * The brand leads every tab title (2026-11): "Mesbah · Library · Wizard", so a
+ * row of tabs open on different brands reads at a glance even when narrow.
+ * The template REPLACES the root's `%s · Wizard` for every page below, which
+ * is why the suffix is repeated here. No brand (signed out, no access) → the
+ * root's template stands.
+ */
+export async function generateMetadata(): Promise<Metadata> {
+  try {
+    const user = await auth();
+    if (!user || (await listAccounts()).length === 0) return {};
+    const brand = await getActiveAccount();
+    return { title: { template: `${brand.name} · %s · Wizard`, default: `${brand.name} · Wizard` } };
+  } catch {
+    return {};
+  }
+}
 
 export default async function DashboardLayout({
   children,
@@ -66,7 +85,12 @@ export default async function DashboardLayout({
             <NavProgressBar />
             <TopBar
               user={user}
-              accounts={accounts.map((a) => ({ id: a.id, name: a.name }))}
+              accounts={accounts.map((a) => ({
+                id: a.id,
+                name: a.name,
+                color: a.color,
+                logoUrl: a.logoUrl,
+              }))}
               activeAccountId={acct}
               granted={granted}
               toastScope={toastScope}

@@ -145,6 +145,7 @@ export const AUDIT_ACTIONS = {
   ACCOUNT_CREATE: "account.create",
   ACCOUNT_RENAME: "account.rename",
   ACCOUNT_WINDOW_UPDATE: "account.window_update",
+  ACCOUNT_STYLE_UPDATE: "account.style_update",
 } as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[keyof typeof AUDIT_ACTIONS];
@@ -358,6 +359,7 @@ export const AUDIT_LABELS: Record<AuditAction, string> = {
   "account.create": "Created brand",
   "account.rename": "Renamed brand",
   "account.window_update": "Changed status window",
+  "account.style_update": "Restyled brand",
 };
 
 /** Human label for an audit action, including retired (renamed) ones. */

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { avatarStore, isOwnAvatarUrl } from "@/lib/avatar-storage";
+import { avatarStore, isOwnAvatarUrl, isOwnImageUrl } from "@/lib/avatar-storage";
 
 describe("where profile photos may live", () => {
   it("only our own stores' URLs are ever written or deleted", () => {
@@ -18,5 +18,17 @@ describe("where profile photos may live", () => {
     expect(avatarStore({ BLOB_READ_WRITE_TOKEN: "t", NODE_ENV: "development" })).toBe("blob");
     expect(avatarStore({ NODE_ENV: "development" })).toBe("dev");
     expect(avatarStore({ NODE_ENV: "production" })).toBeNull();
+  });
+});
+
+describe("brand logos have their own folder", () => {
+  it("a logo URL is not an avatar URL, and the other way round", () => {
+    const logo = "https://abc123.public.blob.vercel-storage.com/brand-logos/b-1.webp";
+    const avatar = "https://abc123.public.blob.vercel-storage.com/avatars/u-1.webp";
+    expect(isOwnImageUrl(logo, "brand-logos")).toBe(true);
+    expect(isOwnImageUrl(avatar, "brand-logos")).toBe(false);
+    expect(isOwnAvatarUrl(logo)).toBe(false);
+    expect(isOwnImageUrl("/dev-uploads/brand-logos/b-1.webp", "brand-logos")).toBe(true);
+    expect(isOwnImageUrl("/dev-uploads/brand-logos/../avatars/x.webp", "brand-logos")).toBe(false);
   });
 });

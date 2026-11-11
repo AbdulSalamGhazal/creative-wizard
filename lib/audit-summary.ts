@@ -308,6 +308,12 @@ export function metaSummary(row: AuditSummaryInput): string | null {
       const to = m.to as string | undefined;
       return to ? `${from ?? "—"} → ${to}` : null;
     }
+    case "account.style_update": {
+      if (m.logo === "added") return "logo added";
+      if (m.logo === "removed") return "logo removed";
+      const to = m.toColor as string | undefined;
+      return to ? `colour ${(m.fromColor as string | null | undefined) ?? "—"} → ${to}` : null;
+    }
     case "account.window_update": {
       const from = m.fromHours as number | null | undefined;
       const to = m.toHours as number | undefined;

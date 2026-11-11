@@ -15,6 +15,7 @@ import { toastActionFailure } from "@/lib/action-toast";
 import { Chip } from "@/components/ui/chip";
 import { panelClass } from "@/components/ui/panel";
 import { InfoTip } from "@/components/ui/info-tip";
+import { BrandStyleControl } from "@/components/account/brand-style-control";
 import {
   STATUS_WINDOW_INFO,
   StatusWindowControl,
@@ -24,6 +25,8 @@ interface AccountRow {
   id: string;
   name: string;
   slug: string;
+  color: string | null;
+  logoUrl: string | null;
   /** The brand's Active window — its own column (R-068; the Status tab folded in). */
   statusWindowHours: number;
 }
@@ -32,7 +35,8 @@ interface AccountRow {
  * Brand (account) admin. Create a new brand — it starts completely empty (no
  * creatives / products / angles / performance) — or rename an existing one. The
  * active brand is badged; switching here writes the same `ccms_account` cookie
- * as the top-bar switcher. There is intentionally no delete: a brand owns data
+ * as the top-bar switcher. Each brand's MARK opens its colour + logo editor
+ * (2026-11, `BrandStyleControl`). There is intentionally no delete: a brand owns data
  * and removing it is a destructive operation better done deliberately at the DB.
  */
 export function AccountsAdmin({
@@ -159,6 +163,8 @@ export function AccountsAdmin({
               return (
                 <tr key={r.id} className="hover:bg-surface-2/60 transition-colors">
                   <td className="px-3 py-2">
+                    <span className="flex items-center gap-2.5">
+                    <BrandStyleControl brand={r} />
                     {editing ? (
                       <Input
                         value={editValue}
@@ -183,6 +189,7 @@ export function AccountsAdmin({
                         )}
                       </span>
                     )}
+                    </span>
                   </td>
                   <td className="px-3 py-2 text-ink-3">{r.slug}</td>
                   <td className="px-3 py-2">

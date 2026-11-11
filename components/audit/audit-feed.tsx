@@ -2,6 +2,7 @@ import Link from "next/link";
 import {
   Building2,
   Clock,
+  Palette,
   GitBranch,
   Images,
   Layers3,
@@ -112,6 +113,7 @@ function ActionIcon({ action }: { action: AuditAction }) {
     "account.create": Building2,
     "account.rename": Building2,
     "account.window_update": Clock,
+    "account.style_update": Palette,
   };
   const Icon = map[action] ?? ListFilter;
   return <Icon className="w-3.5 h-3.5" />;

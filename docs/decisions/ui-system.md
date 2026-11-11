@@ -91,6 +91,12 @@
   `scrollTop` — never `scrollIntoView`, which scrolls the window too.
 - A person's picture is `UserAvatar` (components/user/user-avatar.tsx) —
   photo, else initials; never a hand-rolled avatar (2026-10-20).
+- A BRAND's picture is `BrandMark` (components/account/brand-mark.tsx) —
+  its logo on a white tile, else its initial on its colour; its colour comes
+  only through `brandColor()` (lib/brand-style.ts). Never hand-roll either
+  (2026-11). The active brand also paints a 2 px accent along the top bar's
+  top edge — OVERLAID (absolute), so the bar stays h-14 and everything that
+  sticks at `top-14` still lines up.
 - **ONE render per action (W2-1, 2026-10).** A server action that calls
   `revalidatePath`/`revalidateTag` (or writes a cookie) re-renders the
   CALLER's page and ships the tree in its response — any path, Next 15 does

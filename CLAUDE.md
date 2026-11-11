@@ -36,7 +36,7 @@ If a rule here conflicts with one of those documents, the documents win — flag
   under `app/(dashboard)/price-structure/` — the app's ONE nested layout,
   which holds the client version provider. Tables `ps_versions`,
   `ps_user_state`. → `docs/decisions/price-structure.md`
-- Vercel hosting. Vercel KV is NOT used (upload-validation sessions live in Postgres). **Vercel Blob IS used** for creative thumbnails: uploaded via `POST /api/uploads/thumbnail` (requires `creative.edit`; client downscales→WebP first), stored public, and the returned URL is saved to `creatives.thumbnail_url`. **Profile photos** (2026-10-20) use the same store via `POST /api/uploads/avatar` (yours: signed in; anyone's: `users.manage`) → `users.avatar_url`; with no token in LOCAL dev they fall back to gitignored `public/dev-uploads/avatars/`. Requires `BLOB_READ_WRITE_TOKEN` (auto-added when a Blob store is connected to the project); the blob host is allow-listed in `next.config.ts` `images.remotePatterns`.
+- Vercel hosting. Vercel KV is NOT used (upload-validation sessions live in Postgres). **Vercel Blob IS used** for creative thumbnails: uploaded via `POST /api/uploads/thumbnail` (requires `creative.edit`; client downscales→WebP first), stored public, and the returned URL is saved to `creatives.thumbnail_url`. **Profile photos** (2026-10-20) use the same store via `POST /api/uploads/avatar` (yours: signed in; anyone's: `users.manage`) → `users.avatar_url`; with no token in LOCAL dev they fall back to gitignored `public/dev-uploads/avatars/`. **Brand logos** (2026-11) use the same store under `brand-logos/` via the `uploadBrandLogo` server action (`config.brands` + membership; the browser fits the image into a 128 px WebP first) → `accounts.logo_url`. Requires `BLOB_READ_WRITE_TOKEN` (auto-added when a Blob store is connected to the project); the blob host is allow-listed in `next.config.ts` `images.remotePatterns`.
 
 Do not introduce a new dependency without a one-line justification in the PR description.
 
@@ -87,7 +87,7 @@ Do not introduce a new dependency without a one-line justification in the PR des
 
 - The dashboard must feel polished. Every page has tailored skeletons. Empty states are designed-out, not blank.
 - Use shadcn primitives. Don't reinvent components that exist.
-- Every new route sets a `metadata.title` (matching its sidebar/h1 label; a page under an eyebrow section — Budget, Store, Pricing (the Price Structure module's name) — is "Section · Label", R-100); detail routes use `generateMetadata` over a `cache()`-deduped query so the tab title and the page share one fetch. The root layout's `%s · Wizard` template adds the suffix — don't repeat it, and never add a `metadata.icons` key (the tab icon is the `app/icon.png` file convention).
+- Every new route sets a `metadata.title` (matching its sidebar/h1 label; a page under an eyebrow section — Budget, Store, Pricing (the Price Structure module's name) — is "Section · Label", R-100); detail routes use `generateMetadata` over a `cache()`-deduped query so the tab title and the page share one fetch. The dashboard layout's `<Brand> · %s · Wizard` template (2026-11; the root's `%s · Wizard` outside it) adds the brand prefix and the suffix — don't repeat either, and never add a `metadata.icons` key (the tab icon is the `app/icon.png` file convention).
 - **ONE render per action (2026-10).** An action that revalidates already
   re-renders the caller's page in its response: a caller that stays never
   `router.refresh()`es after it; a caller that navigates away (create, delete,

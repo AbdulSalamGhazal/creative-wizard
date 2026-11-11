@@ -41,6 +41,10 @@ export interface Account {
   slug: string;
   /** "Active" status window in hours (daily-grain → rounds to days). */
   statusWindowHours: number;
+  /** The brand's swatch key (`brandColorEnum`), null = derived default. */
+  color: string | null;
+  /** The brand's uploaded logo, null = none (its initial on its colour). */
+  logoUrl: string | null;
 }
 
 /**
@@ -55,6 +59,8 @@ export const listAllAccounts = cache(async (): Promise<Account[]> => {
       name: accounts.name,
       slug: accounts.slug,
       statusWindowHours: accounts.statusWindowHours,
+      color: accounts.color,
+      logoUrl: accounts.logoUrl,
     })
     .from(accounts)
     .orderBy(asc(accounts.createdAt));
@@ -94,6 +100,8 @@ export async function allowedAccountsForUser(
       name: accounts.name,
       slug: accounts.slug,
       statusWindowHours: accounts.statusWindowHours,
+      color: accounts.color,
+      logoUrl: accounts.logoUrl,
     })
     .from(accounts)
     .where(inArray(accounts.id, memberAccountIds))

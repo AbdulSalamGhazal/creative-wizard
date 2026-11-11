@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { brandColorEnum } from "@/lib/enums";
 
 export const setActiveAccountSchema = z.object({
   accountId: z.string().uuid(),
@@ -22,3 +23,12 @@ export const setStatusWindowSchema = z.object({
     .min(1, "At least 1 hour")
     .max(720, "At most 720 hours (30 days)"),
 });
+
+/** A brand's swatch (Configuration → Brands, 2026-11). */
+export const setBrandColorSchema = z.object({
+  id: z.string().uuid(),
+  color: z.enum(brandColorEnum),
+});
+
+/** Which brand's logo to remove; also the upload route's `accountId` field. */
+export const brandTargetSchema = z.object({ id: z.string().uuid() });

@@ -10,10 +10,11 @@ import { AccountSwitcher } from "@/components/layout/account-switcher";
 import { MobileNav } from "@/components/layout/mobile-nav";
 import { LogoMark } from "@/components/layout/logo-mark";
 import { BrandWordmark } from "@/components/layout/brand-wordmark";
+import { brandColor, type BrandStyle } from "@/lib/brand-style";
 
 interface Props {
   user: SessionUser;
-  accounts: Array<{ id: string; name: string }>;
+  accounts: BrandStyle[];
   activeAccountId: string;
   /** The user's effective permission keys — drives which nav items appear. */
   granted: string[];
@@ -29,8 +30,22 @@ export function TopBar({
   granted,
   toastScope,
 }: Props) {
+  const active = accounts.find((a) => a.id === activeAccountId) ?? accounts[0];
   return (
     <header className="border-b border-line sticky top-0 z-20 bg-background">
+      {/* The brand's accent (2026-11): a 2 px strip of its colour along the
+          top edge, so which brand this tab is on reads before any word.
+          OVERLAID (absolute — the sticky header is its containing block), so
+          the bar stays exactly h-14: the sidebar, filter strips and comment
+          dock all stick at top-14. */}
+      {active && (
+        <div
+          aria-hidden
+          data-brand-accent
+          className="pointer-events-none absolute inset-x-0 top-0 h-0.5"
+          style={{ background: brandColor(active) }}
+        />
+      )}
       <div className="flex items-center justify-between px-[var(--gutter)] h-14">
         {/* `min-w-0`: this group yields first when the bar is tight, so the
             brand name truncates rather than the row overflowing (at 375px the

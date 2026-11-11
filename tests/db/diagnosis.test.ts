@@ -33,6 +33,8 @@ const brand = (id: string, name: string) => ({
   name,
   slug: name.toLowerCase().replace(/\s+/g, "-"),
   statusWindowHours: 24,
+  color: null,
+  logoUrl: null,
 });
 const BRAND_A = brand(ACCOUNT_A, "Account A");
 const CAMPAIGN_A = "Camp One ➤ Broad (IG)";

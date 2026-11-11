@@ -23,6 +23,7 @@ import { BUDGET_OBJECTIVES, PLAN_MODES } from "@/lib/budget";
 import { FUNNEL_STAGES } from "@/lib/audience";
 import {
   auditTouchEntityEnum,
+  brandColorEnum,
   campaignObjectiveEnum,
   creativeTypeEnum,
   exclusionRuleKindEnum,
@@ -38,6 +39,7 @@ import {
 // whole schema to the browser.
 export {
   auditTouchEntityEnum,
+  brandColorEnum,
   campaignObjectiveEnum,
   creativeTypeEnum,
   exclusionRuleKindEnum,
@@ -333,6 +335,17 @@ export const accounts = pgTable("accounts", {
   usdToSarRate: numeric("usd_to_sar_rate", { precision: 8, scale: 4 })
     .notNull()
     .default("3.77"),
+  /**
+   * The brand's identity colour — a `brandColorEnum` swatch key (2026-11).
+   * NULL = never chosen; the UI derives a stable default from the id.
+   */
+  color: varchar("color", { length: 16, enum: brandColorEnum }),
+  /**
+   * The brand's logo — a square WebP WE stored (Vercel Blob `brand-logos/`,
+   * or `public/dev-uploads/brand-logos/` in local dev). NULL = none; the UI
+   * shows the brand's initial on its colour. One writer: `writeBrandLogo`.
+   */
+  logoUrl: varchar("logo_url", { length: 500 }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

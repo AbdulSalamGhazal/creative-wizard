@@ -14,14 +14,11 @@ import {
 import { setActiveAccount } from "@/app/actions/account";
 import { safeAction } from "@/lib/action-failure";
 import { toastActionFailure } from "@/lib/action-toast";
-
-interface Account {
-  id: string;
-  name: string;
-}
+import type { BrandStyle } from "@/lib/brand-style";
+import { BrandMark } from "@/components/account/brand-mark";
 
 interface Props {
-  accounts: Account[];
+  accounts: BrandStyle[];
   activeId: string;
 }
 
@@ -32,6 +29,7 @@ interface Props {
  * whole page under the new brand IN the action's response — ONE render (P-15,
  * 2026-10: a `router.refresh()` here used to fetch the same tree a second
  * time). Membership is checked server-side; only allowed brands are listed.
+ * Each brand wears its mark (logo, else its initial on its colour — 2026-11).
  */
 export function AccountSwitcher({ accounts, activeId }: Props) {
   const [pending, startTransition] = useTransition();
@@ -62,8 +60,9 @@ export function AccountSwitcher({ accounts, activeId }: Props) {
           aria-label="Switch brand"
           // `min-w-0` lets the trigger shrink when the top bar runs out of
           // room: the brand NAME truncates instead of the bar overflowing.
-          className="flex min-w-0 items-center gap-1.5 rounded-md border border-line px-2 py-1 text-xs font-medium text-ink-2 hover:text-ink hover:bg-surface-2 transition"
+          className="flex min-w-0 items-center gap-1.5 rounded-md border border-line py-1 pl-1 pr-2 text-xs font-medium text-ink-2 hover:text-ink hover:bg-surface-2 transition"
         >
+          <BrandMark brand={active} size="md" />
           {/* A floor under the name (R-060): the brand is the most
               consequential context in the app, so a crowded phone bar may
               truncate it but never to "Ur…". The chevron is the first to go
@@ -96,6 +95,7 @@ export function AccountSwitcher({ accounts, activeId }: Props) {
                   : "w-4 h-4 shrink-0 opacity-0"
               }
             />
+            <BrandMark brand={a} size="sm" />
             <span className="truncate">{a.name}</span>
           </DropdownMenuItem>
         ))}

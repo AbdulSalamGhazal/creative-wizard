@@ -48,3 +48,24 @@ export const campaignObjectiveEnum = CAMPAIGN_OBJECTIVES;
  */
 export const auditTouchEntityEnum = ["creative", "campaign", "budget_month", "ps_version"] as const;
 export type AuditTouchEntity = (typeof auditTouchEntityEnum)[number];
+
+/**
+ * A brand's identity colour (`accounts.color`, 2026-11): a fixed set of
+ * swatches, each a chart-series token so it re-tunes per theme. Chosen clear
+ * of the pacing verdict hues (ahead blue, behind amber) and of red. NULL in
+ * the column = not chosen yet → `brandColorKey()` derives one from the id.
+ * Labels and tokens: `BRAND_COLORS` in lib/brand-style.ts.
+ */
+export const brandColorEnum = [
+  "pink",
+  "violet",
+  "green",
+  "teal",
+  "cyan",
+  "indigo",
+  "fuchsia",
+  "orange",
+  "lime",
+  "purple",
+] as const;
+export type BrandColorKey = (typeof brandColorEnum)[number];

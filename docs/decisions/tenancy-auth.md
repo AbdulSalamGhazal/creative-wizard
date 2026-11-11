@@ -144,6 +144,16 @@
   "last active" — a 30-day cookie never touches it — and the Team page says
   which. "Never signed in" is the pending state of an invite.
 
+- **A brand's look — colour + logo (2026-11).** `accounts.color` is a
+  `brandColorEnum` swatch key (lib/enums; ten chart-series tokens, never the
+  ahead blue, behind amber or red — `lib/brand-style.test.ts`); NULL means
+  "never chosen" and `brandColorKey()` derives a STABLE default from the id
+  (a rename never repaints). `accounts.logo_url` holds only a logo WE stored
+  under `brand-logos/` (`isOwnImageUrl`), one writer `writeBrandLogo`, which
+  discards the replaced file and audits. Both writes need `config.brands`
+  AND membership of that brand, checked before a byte is stored, and are
+  audited as `account.style_update` under THAT brand.
+
 ## History and rationale
 
 *Moved verbatim from CLAUDE.md (2026-10). Line references are to the file
@@ -423,3 +433,17 @@ batch's SURVIVING records. Old rollbacks, cleanups, rule sweeps and deletes,
 the other side of creative/campaign deletes, angle renames/deletes and bulk
 creates are UNRECOVERABLE — they stored no ids — and stay in the brand-wide
 audit feed only. Idempotent (`ON CONFLICT DO NOTHING`).
+
+### Brands you can tell apart at a glance (2026-11)
+
+The user asked for a colour and an icon per brand so a brand is known at a
+glance, alongside moving the active brand from the browser-wide cookie to
+the tab. Choices (user-confirmed): an UPLOADED logo with the brand's initial
+on its colour as the fallback; a fixed set of swatches rather than a free
+picker, so no brand can read as a pacing verdict or be unreadable in a
+theme; shown in the switcher, the Brands list, a 2 px top-bar accent and as
+the tab title's prefix (not the tab icon — the `app/icon.png` rule stands).
+A logo is FITTED into a transparent 128 px square, never cropped, because a
+wordmark would lose its ends. The upload is a server action (unlike the
+avatar's route) so it revalidates like every other brand edit — one render,
+no `router.refresh()`.
