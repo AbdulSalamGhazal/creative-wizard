@@ -35,6 +35,30 @@ import { getRatingConfig } from "@/db/queries/rating";
 import { funnelOverview } from "@/db/queries/funnel";
 import { platformHorizons, dataHorizon } from "@/db/queries/series-bounds";
 import { campaignDiagnosisInput } from "@/db/queries/diagnosis";
+import { budgetPacingSeries, getBudgetMonth } from "@/db/queries/budget";
+import { storeDataHorizon } from "@/db/queries/series-bounds";
+import { storeInsightsBreakdown, storeInsightsDaily } from "@/db/queries/store-insights";
+import { reconciliationByPlatform, reconciliationOverview } from "@/db/queries/reconciliation";
+import { landingPageRollup } from "@/db/queries/landing-page-performance";
+import { angleRollup, typeRollup } from "@/db/queries/trends";
+import { listAllProductOptions, listProducts } from "@/db/queries/products";
+import {
+  REVENUE_COVERAGE_KEY,
+  buildTrackerRows,
+  latestCoverage,
+  makeCoverageDay,
+  monthEndIso,
+  monthRoasActuals,
+  monthStartIso,
+  pacingVerdict,
+  roasFigures,
+  type TrackerBar,
+} from "@/lib/budget";
+import { resolveBudgetMonth } from "@/validators/budget";
+import { CHANNEL_LENS, PLATFORM_LENS } from "@/lib/store-insights";
+import { reconDelta, reconDeltaPct, reconMatchRate, sumPlatformDays } from "@/lib/reconciliation";
+import { STORE_SOURCE_FIELD_KEY } from "@/store/fields";
+import { UNATTRIBUTED } from "@/store/sources";
 import { serializeDiagnosis } from "@/lib/diagnosis";
 import {
   currentActor,
@@ -638,6 +662,392 @@ export function registerMcpTools(server: McpServer): void {
           brand,
           rangeEcho(input.window.from, input.window.to),
           bundle as unknown as Record<string, unknown>,
+          excludedEcho(args.include_excluded),
+        );
+      }),
+  );
+
+  // 12 ─ list_products -------------------------------------------------------
+  server.registerTool(
+    "list_products",
+    {
+      description:
+        "The brand's products with their ids — the values the `productIds` filter of the other tools takes. Archived products are left out unless include_archived is true (their past records still exist).",
+      inputSchema: {
+        brand: brandField,
+        include_archived: z
+          .boolean()
+          .optional()
+          .default(false)
+          .describe("Also list archived products."),
+      },
+    },
+    async (args) =>
+      withBrand(args.brand, async (brand) => {
+        const products = args.include_archived
+          ? await listAllProductOptions()
+          : await listProducts();
+        return ok(brand, null, { products });
+      }),
+  );
+
+  // 13 ─ get_budget ----------------------------------------------------------
+  server.registerTool(
+    "get_budget",
+    {
+      description:
+        "One month of Budget, exactly as the Budget Overview reads it: the plan against actual ad spend — the brand total, each platform and each planned objective bucket — with pacing, the month-end projection, the reserve (planned, used, remaining), the store-revenue target against actual revenue, orders, and ROAS (actual, target, projected). SPEND IS USD; REVENUE IS SAR (the store's currency); ROAS converts spend at the month's stored USD→SAR rate (`usd_to_sar_rate`). Pacing compares each platform through the days ITS data covers (not the calendar): `plan_to_date` is what the plan expected through that coverage and `deviation` = (actual − plan_to_date) ÷ plan_to_date (positive = ahead/overspending, negative = behind). Budget actuals are RAW totals — exclusions never apply here, by design. Revenue has no per-platform split in Budget. Viewing a month with no plan returns has_plan: false with the actuals only.",
+      inputSchema: {
+        brand: brandField,
+        month: z
+          .string()
+          .regex(/^\d{4}-(0[1-9]|1[0-2])$/)
+          .optional()
+          .describe("Month as YYYY-MM. Defaults to the current month (KSA)."),
+      },
+    },
+    async (args) =>
+      withBrand(args.brand, async (brand) => {
+        const today = todayIso();
+        const month = resolveBudgetMonth(args.month, today);
+        const [data, platformCoverage, storeHorizon, series] = await Promise.all([
+          getBudgetMonth(month),
+          platformHorizons(),
+          storeDataHorizon(),
+          budgetPacingSeries(monthStartIso(month), monthEndIso(month)),
+        ]);
+        // The same composition the Overview page runs — nothing re-derived here.
+        const coverage = { ...platformCoverage, [REVENUE_COVERAGE_KEY]: storeHorizon };
+        const t = buildTrackerRows(data, month, today, coverage);
+        const coverageDay = makeCoverageDay(month, today, coverage);
+        const roasActuals = monthRoasActuals({
+          month,
+          platformKeys: t.platforms.map((p) => p.key),
+          coverageDay,
+          spend: series.spend,
+          days: series.days,
+        });
+        const roas = roasFigures({
+          actualRevenueSar: roasActuals.revenueSar,
+          actualSpendUsd: roasActuals.spendUsd,
+          plannedRevenueSar: t.revenue.target,
+          plannedSpendUsd: t.total.plan,
+          targetRoas: data.planMode === "daily" ? data.targetRoas : null,
+          projectedRevenueSar: t.projectedRevenue,
+          projectedSpendUsd: t.projectedSpend,
+          rate: data.usdToSarRate,
+        });
+        const bar = (b: TrackerBar) => ({
+          plan: r2(b.plan),
+          plan_to_date: r2(b.planToDate),
+          actual: r2(b.actual),
+          delta: r2(b.delta),
+          deviation: b.deviation,
+          verdict: pacingVerdict(b.deviation),
+        });
+        return ok(
+          brand,
+          rangeEcho(monthStartIso(month), monthEndIso(month)),
+          {
+            month,
+            today,
+            plan_mode: data.planMode,
+            has_plan: t.hasPlan,
+            usd_to_sar_rate: data.usdToSarRate,
+            day_of_month: t.elapsedDays,
+            days_in_month: t.totalDays,
+            ads_data_through: latestCoverage(platformCoverage),
+            ads_data_through_per_platform: platformCoverage,
+            store_data_through: storeHorizon,
+            spend_usd: {
+              ...bar(t.total),
+              projected_month_end: r2(t.projectedSpend),
+              projected_pct_of_plan: t.projectedPctOfPlan,
+            },
+            platforms_usd: t.platforms.map((p) => ({
+              platform: p.key,
+              ...bar(p),
+              buckets: p.buckets.map((b) => ({ objective: b.label, ...bar(b) })),
+              unplanned: r2(p.unplanned),
+              unplanned_buckets: p.unplannedBuckets.map((u) => ({
+                objective: u.label,
+                actual: r2(u.actual),
+              })),
+            })),
+            unplanned_total_usd: r2(t.unplannedTotal),
+            reserve_usd: {
+              planned: r2(t.reserve),
+              used: r2(t.reserveUsed),
+              remaining: r2(t.reserveRemaining),
+            },
+            revenue_sar: {
+              target: r2(t.revenue.target),
+              ...bar(t.revenue),
+              projected_month_end: r2(t.projectedRevenue),
+            },
+            orders: data.actualOrders,
+            roas: {
+              actual: r2(roas.actual),
+              target: r2(roas.target),
+              projected: r2(roas.projected),
+              deviation: roas.deviation,
+              // Revenue and spend both cut at this day of the month.
+              through_day: roasActuals.throughDay,
+            },
+          },
+        );
+      }),
+  );
+
+  // 14 ─ get_store -----------------------------------------------------------
+  server.registerTool(
+    "get_store",
+    {
+      description:
+        "The Store module for a range (defaults to the app's last 30 days): store orders and revenue — MONEY IS SAR here, never USD — per day and in total, split by the ad platform the order's UTM source maps to and by sales channel (website / application), plus Reconciliation: store orders against the conversions each ad platform CLAIMS, as COUNTS ONLY (Reconciliation never compares revenue). `delta` = claimed − store orders (positive = the platform over-claims); `delta_pct` and `match_rate` use store orders as the base and are null when the store recorded none. Orders whose source maps to no platform are `unattributed`. A brand that has never uploaded store orders returns zeros — call get_data_freshness / see `store_data_through` before reading a gap as a real zero.",
+      inputSchema: {
+        brand: brandField,
+        from: fromField,
+        to: toField,
+        include_excluded: z
+          .boolean()
+          .optional()
+          .default(false)
+          .describe("Count ad records marked excluded-from-aggregates on the CLAIMED side of Reconciliation. Store orders are never excluded."),
+      },
+    },
+    async (args) =>
+      withBrand(args.brand, async (brand) => {
+        const range = defaultRange(args.from, args.to);
+        const [daily, byPlatform, byChannel, overview, recon, storeHorizon] =
+          await Promise.all([
+            storeInsightsDaily(range.from, range.to),
+            storeInsightsBreakdown(PLATFORM_LENS, range.from, range.to),
+            storeInsightsBreakdown(CHANNEL_LENS, range.from, range.to),
+            reconciliationOverview(range.from, range.to, args.include_excluded),
+            reconciliationByPlatform(
+              STORE_SOURCE_FIELD_KEY,
+              range.from,
+              range.to,
+              args.include_excluded,
+            ),
+            storeDataHorizon(),
+          ]);
+        let orders = 0;
+        let revenue = 0;
+        for (const d of daily) {
+          orders += d.orders;
+          revenue += d.revenue;
+        }
+        const sums = sumPlatformDays(recon.rows, platformEnum);
+        const claimedTotal = overview.reduce((a, r) => a + r.platformConv, 0);
+        const bucketName = (v: string | null) =>
+          v === null || v === UNATTRIBUTED ? "unattributed" : v;
+        return ok(
+          brand,
+          rangeEcho(range.from, range.to),
+          {
+            store_data_through: storeHorizon,
+            totals_sar: {
+              orders,
+              revenue: r2(revenue),
+              aov: orders > 0 ? r2(revenue / orders) : null,
+            },
+            by_platform: byPlatform.rows.map((b) => ({
+              platform: bucketName(b.value),
+              orders: b.orders,
+              revenue_sar: r2(b.revenue),
+            })),
+            by_channel: byChannel.rows.map((b) => ({
+              channel: b.value ?? "unmapped",
+              orders: b.orders,
+              revenue_sar: r2(b.revenue),
+            })),
+            daily_sar: daily.map((d) => ({
+              date: d.day,
+              orders: d.orders,
+              revenue: r2(d.revenue),
+            })),
+            reconciliation: {
+              store_orders: sums.storeOrders,
+              claimed_conversions: claimedTotal,
+              delta: reconDelta(sums.storeOrders, claimedTotal),
+              delta_pct: reconDeltaPct(sums.storeOrders, claimedTotal),
+              match_rate: reconMatchRate(sums.storeOrders, claimedTotal),
+              unattributed_orders: sums.unattributed,
+              unmapped_source_values: recon.unmappedValues,
+              by_platform: platformEnum.map((p) => {
+                const store = sums.store[p] ?? 0;
+                const claimed = sums.claimed[p] ?? 0;
+                return {
+                  platform: p,
+                  store_orders: store,
+                  claimed_conversions: claimed,
+                  delta: reconDelta(store, claimed),
+                  delta_pct: reconDeltaPct(store, claimed),
+                  match_rate: reconMatchRate(store, claimed),
+                };
+              }),
+              daily: overview.map((r) => ({
+                date: r.day,
+                store_orders: r.storeOrders,
+                claimed_conversions: r.platformConv,
+              })),
+            },
+          },
+          excludedEcho(args.include_excluded),
+        );
+      }),
+  );
+
+  // 15 ─ get_landing_pages ---------------------------------------------------
+  server.registerTool(
+    "get_landing_pages",
+    {
+      description: `Ad performance per landing page for a range (defaults to the app's last 30 days). An ad name ending in " @code" sends traffic to that registered landing page; a row with landing_page null is the PRODUCT's own page (no code). Each row is one (product, landing page), optionally split by platform. ${CONVENTIONS}`,
+      inputSchema: {
+        brand: brandField,
+        from: fromField,
+        to: toField,
+        platforms: platformsField,
+        productIds: productIdsField,
+        by_platform: z
+          .boolean()
+          .optional()
+          .default(false)
+          .describe("Split every landing page's row by platform."),
+        include_excluded: includeExcludedField,
+      },
+    },
+    async (args) =>
+      withBrand(args.brand, async (brand) => {
+        const range = defaultRange(args.from, args.to);
+        const all = await landingPageRollup(
+          {
+            from: range.from,
+            to: range.to,
+            platforms: args.platforms,
+            productIds: args.productIds,
+            includeExcluded: args.include_excluded,
+          },
+          { byPlatform: args.by_platform },
+        );
+        const { rows, truncated } = capRows(all);
+        return ok(
+          brand,
+          rangeEcho(range.from, range.to),
+          {
+            truncated,
+            landing_pages: rows.map((r) => ({
+              product: r.productName,
+              landing_page: r.landingPageId === null ? null : { name: r.name, code: r.code, url: r.url },
+              platform: r.platform,
+              creatives: r.creatives,
+              spend: r2(r.spend),
+              impressions: r.impressions,
+              clicks: r.clicks,
+              landing_page_views: r.landingPageViews,
+              conversions: r.conversions,
+              revenue: r2(r.conversionValue),
+              ctr: r.ctr,
+              cpc: r2(r.cpc),
+              cpm: r2(r.cpm),
+              cpa: r2(r.cpa),
+              roas: r2(r.roas),
+              cvr: r.cvr,
+            })),
+          },
+          excludedEcho(args.include_excluded),
+        );
+      }),
+  );
+
+  // 16 ─ get_trends ----------------------------------------------------------
+  server.registerTool(
+    "get_trends",
+    {
+      description: `What is working, by CONCEPT: performance rolled up by angle (each with the same metrics for the prior equal-length window, for "vs previous") and by creative type (video / image / slides, optionally per platform), for a range (defaults to the app's last 30 days). A creative carrying several angles counts under each of them, so angle rows do not sum to the brand total. ${CONVENTIONS}`,
+      inputSchema: {
+        brand: brandField,
+        from: fromField,
+        to: toField,
+        platforms: platformsField,
+        productIds: productIdsField,
+        types_by_platform: z
+          .boolean()
+          .optional()
+          .default(false)
+          .describe("Split the creative-type rollup by platform."),
+        include_excluded: includeExcludedField,
+      },
+    },
+    async (args) =>
+      withBrand(args.brand, async (brand) => {
+        const range = defaultRange(args.from, args.to);
+        const f = {
+          from: range.from,
+          to: range.to,
+          platforms: args.platforms,
+          productIds: args.productIds,
+          includeExcluded: args.include_excluded,
+        };
+        const [angles, types] = await Promise.all([
+          angleRollup(f),
+          typeRollup(f, { byPlatform: args.types_by_platform }),
+        ]);
+        const metrics = (m: {
+          creatives: number;
+          spend: number;
+          impressions: number;
+          clicks: number;
+          conversions: number;
+          revenue: number;
+          ctr: number | null;
+          cvr: number | null;
+          cpa: number | null;
+          cpm: number | null;
+          cpc: number | null;
+          roas: number | null;
+        }) => ({
+          creatives: m.creatives,
+          spend: r2(m.spend),
+          impressions: m.impressions,
+          clicks: m.clicks,
+          conversions: m.conversions,
+          revenue: r2(m.revenue),
+          ctr: m.ctr,
+          cvr: m.cvr,
+          cpa: r2(m.cpa),
+          cpm: r2(m.cpm),
+          cpc: r2(m.cpc),
+          roas: r2(m.roas),
+        });
+        const capped = capRows(angles);
+        return ok(
+          brand,
+          rangeEcho(range.from, range.to),
+          {
+            truncated: capped.truncated,
+            by_angle: capped.rows.map((a) => ({
+              angle: a.angle,
+              ...metrics(a),
+              landing_page_views: a.landingPageViews,
+              prev: a.prev ? metrics(a.prev) : null,
+            })),
+            by_type: types.map((t) => ({
+              type: t.type,
+              platform: t.platform,
+              creatives: t.creatives,
+              spend: r2(t.spend),
+              impressions: t.impressions,
+              clicks: t.clicks,
+              ctr: t.ctr,
+              cpc: r2(t.cpc),
+              cpa: r2(t.cpa),
+              roas: r2(t.roas),
+              cvr: t.cvr,
+            })),
+          },
           excludedEcho(args.include_excluded),
         );
       }),

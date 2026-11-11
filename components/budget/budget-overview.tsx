@@ -46,6 +46,7 @@ import {
   monthEndIso,
   monthKey,
   monthLabel,
+  monthRoasActuals,
   monthStartIso,
   planSeriesSourceOf,
   roasFigures,
@@ -160,38 +161,27 @@ export function BudgetOverview({
   // the laggards line says who trails it), revenue at the store's.
   const spendThroughDay = Math.max(0, ...ALL_PLATFORMS.map((p) => coverageDay(p)));
   const revenueThroughDay = coverageDay(REVENUE_COVERAGE_KEY);
-  // ROAS needs BOTH sides through the same day: the EARLIEST of the store's
-  // and every reporting platform's (W1-3, 2026-10-23). Revenue can't be cut
-  // per platform, so a lagging side cuts the whole ratio — dividing revenue
-  // through one day by spend through another read a month exactly at target
-  // as "−32%" whenever the store upload lagged (audit B-04).
-  const roasThroughDay = useMemo(() => {
-    const reporting = t.platforms.map((p) => coverageDay(p.key)).filter((d) => d > 0);
-    return reporting.length === 0 ? 0 : Math.min(revenueThroughDay, ...reporting);
-  }, [t, coverageDay, revenueThroughDay]);
-  const roasActuals = useMemo(() => {
-    let spend = 0;
-    let revenue = 0;
-    for (const r of series.spend) {
-      if (monthKey(r.date) === month && Number(r.date.slice(8, 10)) <= roasThroughDay) {
-        spend += r.spend;
-      }
-    }
-    for (const d of series.days) {
-      if (monthKey(d.date) === month && Number(d.date.slice(8, 10)) <= roasThroughDay) {
-        revenue += d.revenueSar;
-      }
-    }
-    return { spend, revenue };
-  }, [series, month, roasThroughDay]);
+  // ROAS needs BOTH sides through the same day — one helper, shared with
+  // the MCP's get_budget (see `monthRoasActuals`).
+  const roasActuals = useMemo(
+    () =>
+      monthRoasActuals({
+        month,
+        platformKeys: t.platforms.map((p) => p.key),
+        coverageDay,
+        spend: series.spend,
+        days: series.days,
+      }),
+    [t, coverageDay, series, month],
+  );
 
   const hasRate = validateRate(rate);
   const roas = useMemo(
     () =>
       roasFigures({
         // Both sides through the same day — the chart's ROAS line ends here too.
-        actualRevenueSar: roasActuals.revenue,
-        actualSpendUsd: roasActuals.spend,
+        actualRevenueSar: roasActuals.revenueSar,
+        actualSpendUsd: roasActuals.spendUsd,
         plannedRevenueSar: t.revenue.target,
         plannedSpendUsd: t.total.plan,
         // A daily month stores its target ROAS; a curve month derives it.
@@ -298,7 +288,7 @@ export function BudgetOverview({
         projectedRoas={roas.projected}
         spendThroughDay={spendThroughDay}
         revenueThroughDay={revenueThroughDay}
-        roasThroughDay={roasThroughDay}
+        roasThroughDay={roasActuals.throughDay}
         currency={currency}
         rate={rate}
         hasRate={hasRate}

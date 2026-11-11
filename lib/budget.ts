@@ -1501,6 +1501,38 @@ export function roasFigures(input: {
   return { actual, target, projected, deviation };
 }
 
+/**
+ * The ROAS card's ACTUAL sides, both through ONE day: the EARLIEST of the
+ * store's coverage and every reporting platform's (W1-3, 2026-10-23). Revenue
+ * can't be cut per platform, so a lagging side cuts the whole ratio — dividing
+ * revenue through one day by spend through another read a month exactly at
+ * target as "−32%" whenever the store upload lagged (audit B-04). Shared by
+ * the Overview's card and the MCP's `get_budget` so the two can't disagree.
+ */
+export function monthRoasActuals(input: {
+  month: string;
+  /** Platforms on the board (`buildTrackerRows(...).platforms`). */
+  platformKeys: readonly string[];
+  coverageDay: (key: string) => number;
+  spend: ReadonlyArray<{ date: string; spend: number }>;
+  days: ReadonlyArray<{ date: string; revenueSar: number }>;
+}): { throughDay: number; spendUsd: number; revenueSar: number } {
+  const reporting = input.platformKeys
+    .map((p) => input.coverageDay(p))
+    .filter((d) => d > 0);
+  const throughDay =
+    reporting.length === 0
+      ? 0
+      : Math.min(input.coverageDay(REVENUE_COVERAGE_KEY), ...reporting);
+  const inside = (date: string) =>
+    monthKey(date) === input.month && Number(date.slice(8, 10)) <= throughDay;
+  let spendUsd = 0;
+  let revenueSar = 0;
+  for (const r of input.spend) if (inside(r.date)) spendUsd += r.spend;
+  for (const d of input.days) if (inside(d.date)) revenueSar += d.revenueSar;
+  return { throughDay, spendUsd, revenueSar };
+}
+
 // ── Tracker (2026-09) ────────────────────────────────────────────────────────
 // The zero-configuration daily pace board: for every row that has a plan, how
 // far through it we are against where the curve says we should be. Pure, so

@@ -88,6 +88,7 @@ import {
   cumulativeRoas,
   monthChartPoints,
   roasFigures,
+  monthRoasActuals,
   monthEndIso,
   type PlanDayCell,
   type PlanSeriesSource,
@@ -2800,5 +2801,40 @@ describe("ROAS cuts both sides at the same day (W3, 2026-10)", () => {
       planSpend: new Map(days.map((d) => [d, 100])),
     });
     expect(sides).toEqual({ unknown: true, revenue: 0, spend: 0, planRevenue: 5250, planSpend: 700 });
+  });
+});
+
+describe("monthRoasActuals", () => {
+  const spend = [
+    { date: "2026-11-01", spend: 100 },
+    { date: "2026-11-02", spend: 100 },
+    { date: "2026-11-03", spend: 100 },
+    { date: "2026-10-31", spend: 999 },
+  ];
+  const days = [
+    { date: "2026-11-01", revenueSar: 1000 },
+    { date: "2026-11-02", revenueSar: 1000 },
+    { date: "2026-11-03", revenueSar: 1000 },
+  ];
+  it("cuts both sides at the EARLIEST of the store's and each platform's coverage", () => {
+    const cov: Record<string, number> = { meta: 3, tiktok: 3, [REVENUE_COVERAGE_KEY]: 2 };
+    const r = monthRoasActuals({
+      month: "2026-11",
+      platformKeys: ["meta", "tiktok"],
+      coverageDay: (k) => cov[k] ?? 0,
+      spend,
+      days,
+    });
+    expect(r).toEqual({ throughDay: 2, spendUsd: 200, revenueSar: 2000 });
+  });
+  it("is zero through day 0 when no platform reports", () => {
+    const r = monthRoasActuals({
+      month: "2026-11",
+      platformKeys: ["meta"],
+      coverageDay: () => 0,
+      spend,
+      days,
+    });
+    expect(r).toEqual({ throughDay: 0, spendUsd: 0, revenueSar: 0 });
   });
 });

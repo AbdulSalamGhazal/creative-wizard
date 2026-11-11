@@ -164,6 +164,16 @@ Do not introduce a new dependency without a one-line justification in the PR des
   - **The test is one question: could the user see this and object?** If yes,
     it is requirement-shaping, however small it looks from inside the code.
     Being unsure is itself an answer — ask.
+- **Every feature asks: should the MCP read this? (2026-11-11, user rule.)**
+  The user's own Claude reads the app through the MCP, and it went five weeks
+  blind to Budget, Store, landing pages and Trends because no step asked.
+  A feature that adds or changes data a user would ask their AI about either
+  extends a READ-ONLY tool in `lib/mcp/tools.ts` in the same commit series, or
+  records why not. Mechanically: every `db/queries/*` module is listed in
+  `lib/mcp/coverage.ts` (`tools` or `no` + why) and `lib/mcp/coverage.test.ts`
+  fails on a module that isn't. A "no" the user could object to is
+  requirement-shaping — ask. The feature report carries the line **MCP:
+  <tools added/extended> | not relevant — <why>**.
 - **Every feature report ends with a UX REVIEW.** Walk the checklist in
   `docs/decisions/ux-standards.md` and state each line pass / fail / n-a —
   honestly, which means a fail is either FIXED before reporting or raised as a
@@ -467,6 +477,7 @@ this map is still a rule you broke.
 ### MCP, OAuth and AI diagnosis
 
 - The MCP server is strictly READ-ONLY — never add a mutating tool.
+- Every `db/queries` module is decided in `lib/mcp/coverage.ts` — a tool reads it, or why not (test-pinned).
 - Diagnosis assembles and instructs: nothing calls an AI, holds a key, or writes.
 - OAuth's non-negotiables are test-pinned; don't relax one to make a client work.
 

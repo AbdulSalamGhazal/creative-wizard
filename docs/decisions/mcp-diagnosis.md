@@ -40,6 +40,22 @@
   between 00:00 and 03:00 KSA the model was handed a day the app hadn't
   reached, and never the app's default window.
 
+- **The MCP keeps up with the app (2026-11-11, user rule).** Every
+  `db/queries/*` module is decided in `lib/mcp/coverage.ts`: `tools` (which
+  tools read it) or `no` + why. `lib/mcp/coverage.test.ts` fails on an
+  undecided module, a stale entry, or a tool name that isn't registered. A
+  feature that adds data a user would ask their AI about extends the MCP in
+  the same commit series, or says why not in its report.
+- **Tools reuse the page's composition, never re-derive it.** `get_budget`
+  runs `buildTrackerRows` + `monthRoasActuals` + `roasFigures` exactly as the
+  Budget Overview does; `get_store` uses the Reconciliation helpers
+  (`sumPlatformDays`, `reconDelta*`). When a page computes something in a
+  component, lift it into the pure module first (as `monthRoasActuals` was),
+  then call it from both.
+- **Currency is stated per field when a tool mixes them.** Ads money is USD;
+  Store money is SAR (`get_store`, and `revenue_sar` in `get_budget`). Field
+  names carry the unit (`spend_usd`, `revenue_sar`) so the model can't add them.
+
 ## History and rationale
 
 *Moved verbatim from CLAUDE.md (2026-10). Line references are to the file
@@ -115,3 +131,18 @@ as it stood before the restructure.*
 <!-- was CLAUDE.md L122–122 -->
 
 - **OAuth 2.1 (2026-10, migration 0051) — connecting is a BROWSER SIGN-IN; keys still work.** The app is also the authorization server for its own MCP endpoint (`lib/oauth.ts` + `/api/oauth/*` + `/.well-known/*`): a 401 carries `WWW-Authenticate: …resource_metadata`, the client registers itself (RFC 7591), the user approves on `/oauth/consent`, and the code becomes an opaque access + refresh pair. **DUAL AUTH is the state**: personal `cwz_` tokens are unchanged and are the only path for `http://localhost` callbacks (mcp-remote, Claude Desktop), since registration is https-only; retiring them is a later decision. **No JWT and no new dependency** — opaque tokens stored as SHA-256, so Revoke is instant. Non-negotiables, all test-pinned: EXACT https redirect_uri matching with an error PAGE (never a redirect) when the client can't be verified; PKCE S256 required; single-use 10-minute codes consumed by ONE atomic `UPDATE … WHERE consumed_at IS NULL RETURNING`; a replayed code revokes the family it issued; refresh tokens rotate and reuse revokes the family; `family_id` is the grant lineage everything acts on; permissive CORS ONLY on register/token/discovery (never authorize — it reads the session cookie); `/api/oauth` + `/.well-known` leave the middleware gate, and the authorize route does its own session bounce to /signin. The issuer is ONE value (`canonicalOrigin`, `APP_ORIGIN` in prod). An access token resolves to its USER, and brand scoping follows that user exactly as a personal token does.
+
+### Catching up after five weeks (2026-11-11)
+
+<!-- new -->
+
+- **The gap and its cause.** The user reported "the MCP isn't reading the
+  latest updates". The data was current (every platform through the day
+  before); the TOOLS were not — the last one was added 2026-10-03, and
+  Budget, the Store module, landing pages, Trends and Pricing all shipped
+  afterwards with no tool. No rule, checklist or test asked a feature session
+  whether the MCP should read its data, so nobody decided either way. Fix:
+  the coverage register + test above, and a Workflow rule in CLAUDE.md.
+- **Added, all read-only:** `list_products`, `get_budget`, `get_store`,
+  `get_landing_pages`, `get_trends`. **Declined by the user:** Pricing (Price
+  Structure) — costs and margins stay off the MCP.
