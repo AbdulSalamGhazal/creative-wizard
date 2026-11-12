@@ -242,6 +242,25 @@ as it stood before the restructure.*
   the page entirely — nothing to compare — and the Products filter is the
   product a row counts under, so a filtered group arrives whole.
 
+### A landing page's own page (2026-11-12)
+
+- **The ask:** "a landing page detail page, just like the creative" — its
+  results, by platform, campaign and creative. Decided with the user before
+  building: `/landing-pages/<code>` (the code is unique per brand and locked
+  once records use it), reached from the page name on Library → Landing pages
+  and from each registered page's row on Trends → LPs (carrying the range).
+  The body is the creative page's (five tiles with deltas, the chart by
+  platform, the Campaigns / Platforms table) plus a **Creatives** table (the
+  campaign page's, under its own columns key), scoped by the new
+  `KpiFilters.landingPageIds` (record-level, `perf_landing_page_idx`, so every
+  shared aggregate takes it with no join). ALL platforms, google included, as
+  on the creative page — Trends → LPs drops google only because it compares
+  platforms. An **Edit** button reuses the registry's dialog for a holder of
+  `catalog.landing_pages`; Comments and Activity follow the page
+  (`landing_page` anchor — comments-notifications.md). No Compare link:
+  Compare sides don't take landing pages. The MCP reads it through
+  `get_landing_pages` with `code`.
+
 ### Landing pages — the independent review's fixes (2026-10-20)
 
 - The feature was clarified, built, migrated and shipped from ONE session;

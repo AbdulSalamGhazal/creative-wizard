@@ -31,6 +31,7 @@ export const BRANDED_SEGMENTS: ReadonlySet<string> = new Set([
   "creatives",
   "funnel",
   "go",
+  "landing-pages",
   "library",
   "notifications",
   "price-structure",
@@ -147,6 +148,13 @@ const DETAIL_ROUTES: { re: RegExp; list: string; what: string; section: string }
   { re: /^\/library\/(?!new$|bulk$)[^/]+$/, list: "/library", what: "creative", section: "Library" },
   { re: /^\/creatives\/[^/]+$/, list: "/library", what: "creative", section: "Library" },
   { re: /^\/campaigns\/(?!new$)[^/]+$/, list: "/campaigns", what: "campaign", section: "Campaigns" },
+  // A landing page's own page (2026-11-12) → the registry it is listed in.
+  {
+    re: /^\/landing-pages\/[^/]+$/,
+    list: "/library?tab=landing-pages",
+    what: "landing page",
+    section: "Landing pages",
+  },
   {
     re: /^\/price-structure\/products\/.+$/,
     list: "/price-structure/products",

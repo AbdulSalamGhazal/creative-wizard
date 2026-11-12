@@ -10,9 +10,12 @@
 
 - **Comments live on ENTITIES, never on pages (2026-11-07, user decision).**
   Only an entity with its OWN page takes comments — today a creative
-  (`/library/<name>`), a campaign (`/campaigns/<name>`) and a budget month
-  (`/budget`). **An entity gets Comments and Activity only once it has its own
-  page**: angles and landing pages have neither until they do. A Price
+  (`/library/<name>`), a campaign (`/campaigns/<name>`), a budget month
+  (`/budget`) and a landing page (`landing_page`, `/landing-pages/<code>`,
+  2026-11-12 — addressed by its CODE, which `anchorPathFor` receives as the
+  `name`; its Activity is its own create / edit / delete plus went-live /
+  stopped from its records). **An entity gets Comments and Activity only once
+  it has its own page**: angles have neither until they do. A Price
   Structure VERSION is one (`ps_version`, every page of the module, keyed by
   `?v=`; 2026-11-07) — its thread and Activity are for the module's members
   only (`viewAnchorRefused`), and a mention of someone without a grant is

@@ -15,6 +15,7 @@ const AUDIT_ENTITY_OF = {
   campaign: "campaign",
   budget_month: "budget",
   ps_version: "price_structure",
+  landing_page: "landing_page",
 } as const;
 
 /**

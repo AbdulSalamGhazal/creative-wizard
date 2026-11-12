@@ -276,6 +276,7 @@ describe("the registry", () => {
         "campaigns",
         "compare-totals",
         "funnel-campaigns",
+        "landing-page-creatives",
         "creative-campaigns",
         "creative-records-detail",
         "library",

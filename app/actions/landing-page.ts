@@ -111,9 +111,12 @@ async function recordsUsing(ex: Executor, acct: string, id: string): Promise<num
   return Number(row?.n ?? 0);
 }
 
-function refresh() {
+/** The registry, plus the landing page's own detail page when one is named
+ *  (an edit made there re-renders it in the action's response). */
+function refresh(code?: string) {
   try {
     revalidatePath("/library");
+    if (code) revalidatePath(`/landing-pages/${encodeURIComponent(code)}`);
   } catch (err) {
     console.warn("revalidatePath after landing page change failed:", err);
   }
@@ -250,7 +253,7 @@ export async function updateLandingPage(
     const { changed } = outcome;
     if (changed.length === 0) return { ok: true };
 
-    refresh();
+    refresh(data.code);
     await logAudit({
       action: AUDIT_ACTIONS.LANDING_PAGE_UPDATE,
       entityType: "landing_page",

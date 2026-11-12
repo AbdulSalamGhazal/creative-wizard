@@ -90,6 +90,11 @@ export const TABLE_KEYS = {
   /** Trends → LPs, the per-landing-page table (both row modes share it). */
   TRENDS_LANDING_PAGES: "trends-landing-pages",
 
+  // ── 2026-11-12 ─────────────────────────────────────────────────────────
+  /** Landing page detail → the creatives that sent traffic to it (the
+   *  campaign page's creatives table, its own remembered columns). */
+  LANDING_PAGE_CREATIVES: "landing-page-creatives",
+
   // ── Price Structure (2026-11) ──────────────────────────────────────────
   /** Price structure → Overview, the per-offer table. */
   PS_OVERVIEW: "ps-overview",

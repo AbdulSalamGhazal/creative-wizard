@@ -54,6 +54,11 @@ export const ENTITY_ACTIVITY_ACTIONS: Record<EntityActivityType, readonly AuditA
     AUDIT_ACTIONS.PS_VERSION_EDIT,
     AUDIT_ACTIONS.PS_VERSION_DELETE,
   ],
+  landing_page: [
+    AUDIT_ACTIONS.LANDING_PAGE_CREATE,
+    AUDIT_ACTIONS.LANDING_PAGE_UPDATE,
+    AUDIT_ACTIONS.LANDING_PAGE_DELETE,
+  ],
 };
 
 /**
@@ -122,7 +127,7 @@ export async function entityActivityPage(
 }
 
 /**
- * "Went live" / "stopped" per platform for a creative or campaign — derived,
+ * "Went live" / "stopped" per platform for a creative, campaign or landing page — derived,
  * never stored, by the status badge's own rule (`statusEvents`). One bounded
  * scan of the entity's spend days (spend > 0, not excluded — the same inputs
  * as `brandStatusInputs`) plus the cached per-platform freshness. A budget
@@ -149,7 +154,9 @@ export async function entityStatusEvents(
         eq(performanceRecords.accountId, acct),
         type === "creative"
           ? eq(performanceRecords.creativeId, id)
-          : eq(performanceRecords.campaignId, id),
+          : type === "landing_page"
+            ? eq(performanceRecords.landingPageId, id)
+            : eq(performanceRecords.campaignId, id),
         eq(performanceRecords.excludedFromAggregates, false),
         sql`${performanceRecords.spend} > 0`,
       ),

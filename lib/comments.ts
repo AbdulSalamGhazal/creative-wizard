@@ -22,6 +22,7 @@ export const COMMENT_ANCHOR_TYPES = [
   "campaign",
   "budget_month",
   "ps_version",
+  "landing_page",
   "view",
 ] as const;
 
@@ -34,7 +35,13 @@ export type CommentAnchorType = (typeof COMMENT_ANCHOR_TYPES)[number];
  * stays in `COMMENT_ANCHOR_TYPES` only because old rows carry it; nothing new
  * is ever written with it.
  */
-export const LIVE_ANCHOR_TYPES = ["creative", "campaign", "budget_month", "ps_version"] as const;
+export const LIVE_ANCHOR_TYPES = [
+  "creative",
+  "campaign",
+  "budget_month",
+  "ps_version",
+  "landing_page",
+] as const;
 export type LiveAnchorType = (typeof LIVE_ANCHOR_TYPES)[number];
 
 /**
@@ -101,6 +108,9 @@ export function anchorPathFor(
   if (type === "view") return null;
   if (type === "budget_month") return `/budget?month=${id}`;
   if (type === "ps_version") return name === null ? null : `/price-structure/overview?v=${encodeURIComponent(id)}`;
+  // A landing page is addressed by its CODE (unique per brand, locked once
+  // records use it) — the caller passes the code as `name`.
+  if (type === "landing_page") return name === null ? null : `/landing-pages/${encodeURIComponent(name)}`;
   if (name === null) return null;
   return type === "creative"
     ? `/library/${encodeURIComponent(name)}`
@@ -342,6 +352,7 @@ export function collapseReplies<T extends { id: string }>(
 const ENTITY_ROUTE_PATTERNS: ReadonlyArray<RegExp> = [
   /^\/library\/(?!new$|bulk$)[^/]+$/,
   /^\/campaigns\/(?!new$)[^/]+$/,
+  /^\/landing-pages\/[^/]+$/,
   /^\/budget$/,
   // A Price Structure VERSION (the open one is `?v=`) — every page of the
   // module shows it, so the thread follows across them. Not the Versions

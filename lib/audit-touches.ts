@@ -58,6 +58,7 @@ export function mergeTouches(...sets: Array<AuditTouches | null | undefined>): A
     campaign: [],
     budget_month: [],
     ps_version: [],
+    landing_page: [],
   };
   for (const set of sets) {
     if (!set) continue;
@@ -138,6 +139,8 @@ export function selfTouches(input: {
   // A Price Structure version (2026-11-07) — every price_structure.* event is
   // about the version it names.
   if (input.entityType === "price_structure") return { ps_version: [id] };
+  // A landing page's own create / edit / delete (2026-11-12, its detail page).
+  if (input.entityType === "landing_page") return { landing_page: [id] };
   if (input.entityType === "budget" && input.action === "budget.update") {
     const m = toBudgetMonth(id);
     return m ? { budget_month: [m] } : {};

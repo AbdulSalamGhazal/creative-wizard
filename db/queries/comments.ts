@@ -7,6 +7,7 @@ import {
   commentReactions,
   comments,
   creatives,
+  landingPages,
   psVersions,
   users,
 } from "@/db/schema";
@@ -328,6 +329,16 @@ export async function resolveAnchorPath(
       .where(and(eq(psVersions.id, anchorId), eq(psVersions.accountId, accountId)))
       .limit(1);
     const path = row ? anchorPathFor("ps_version", anchorId, row.name) : null;
+    return row && path ? { path, label: row.name } : null;
+  }
+  if (anchorType === "landing_page") {
+    // Addressed by its CODE, labelled by its name.
+    const [row] = await exec
+      .select({ name: landingPages.name, code: landingPages.code })
+      .from(landingPages)
+      .where(and(eq(landingPages.id, anchorId), eq(landingPages.accountId, accountId)))
+      .limit(1);
+    const path = row ? anchorPathFor("landing_page", anchorId, row.code) : null;
     return row && path ? { path, label: row.name } : null;
   }
   if (anchorType === "creative") {

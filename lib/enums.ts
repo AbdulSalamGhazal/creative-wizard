@@ -46,7 +46,13 @@ export const campaignObjectiveEnum = CAMPAIGN_OBJECTIVES;
  * 2026-11): the three things that carry a per-entity Activity history. A
  * creative or campaign is named by its uuid, a budget month by `YYYY-MM`.
  */
-export const auditTouchEntityEnum = ["creative", "campaign", "budget_month", "ps_version"] as const;
+export const auditTouchEntityEnum = [
+  "creative",
+  "campaign",
+  "budget_month",
+  "ps_version",
+  "landing_page",
+] as const;
 export type AuditTouchEntity = (typeof auditTouchEntityEnum)[number];
 
 /**

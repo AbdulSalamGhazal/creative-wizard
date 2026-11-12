@@ -40,6 +40,7 @@ import { storeDataHorizon } from "@/db/queries/series-bounds";
 import { storeInsightsBreakdown, storeInsightsDaily } from "@/db/queries/store-insights";
 import { reconciliationByPlatform, reconciliationOverview } from "@/db/queries/reconciliation";
 import { landingPageRollup } from "@/db/queries/landing-page-performance";
+import { getLandingPageByCode, landingPageCreatives } from "@/db/queries/landing-pages";
 import { angleRollup, typeRollup } from "@/db/queries/trends";
 import { listAllProductOptions, listProducts } from "@/db/queries/products";
 import {
@@ -904,7 +905,7 @@ export function registerMcpTools(server: McpServer): void {
   server.registerTool(
     "get_landing_pages",
     {
-      description: `Ad performance per landing page for a range (defaults to the app's last 30 days). An ad name ending in " @code" sends traffic to that registered landing page; a row with landing_page null is the PRODUCT's own page (no code). Each row is one (product, landing page), optionally split by platform. ${CONVENTIONS}`,
+      description: `Ad performance per landing page for a range (defaults to the app's last 30 days). An ad name ending in " @code" sends traffic to that registered landing page; a row with landing_page null is the PRODUCT's own page (no code). Each row is one (product, landing page), optionally split by platform. Pass \`code\` for ONE landing page in depth instead — what its detail page shows: totals, by platform, by campaign and by creative (all platforms, google included). ${CONVENTIONS}`,
       inputSchema: {
         brand: brandField,
         from: fromField,
@@ -916,12 +917,94 @@ export function registerMcpTools(server: McpServer): void {
           .optional()
           .default(false)
           .describe("Split every landing page's row by platform."),
+        code: z
+          .string()
+          .optional()
+          .describe('One landing page\'s code (with or without the "@") — returns that page in depth instead of the list.'),
         include_excluded: includeExcludedField,
       },
     },
     async (args) =>
       withBrand(args.brand, async (brand) => {
         const range = defaultRange(args.from, args.to);
+        if (args.code !== undefined) {
+          const code = args.code.trim().replace(/^@/, "");
+          const page = await getLandingPageByCode(code);
+          if (!page) throw new McpToolError(`No landing page with code "@${code}".`);
+          const scope: KpiFilters = {
+            landingPageIds: [page.id],
+            from: range.from,
+            to: range.to,
+            includeExcluded: args.include_excluded,
+          };
+          const [totals, byPlatform, byCampaign, creativeRows] = await Promise.all([
+            kpis(scope),
+            platformMix(scope),
+            campaignMix(scope),
+            landingPageCreatives(page.id, range, args.include_excluded ?? false),
+          ]);
+          const capped = capRows(creativeRows);
+          return ok(
+            brand,
+            rangeEcho(range.from, range.to),
+            {
+              landing_page: {
+                name: page.name,
+                code: page.code,
+                url: page.url,
+                description: page.description,
+                product: page.productName,
+              },
+              totals: {
+                spend: r2(totals.spend),
+                impressions: totals.impressions,
+                clicks: totals.clicks,
+                landing_page_views: totals.landingPageViews,
+                conversions: totals.conversions,
+                revenue: r2(totals.conversionValue),
+                ctr: totals.ctr,
+                cpm: r2(totals.cpm),
+                cpa: r2(totals.cpa),
+                roas: r2(totals.roas),
+                cvr: totals.cvr,
+              },
+              by_platform: byPlatform.map((m) => ({
+                platform: m.platform,
+                spend: r2(m.spend),
+                conversions: m.conversions,
+                revenue: r2(m.conversionValue),
+                cpa: r2(m.cpa),
+                roas: r2(m.roas),
+                ctr: m.ctr,
+                cvr: m.cvr,
+              })),
+              by_campaign: byCampaign.map((m) => ({
+                campaign: m.campaign,
+                platform: m.platform,
+                spend: r2(m.spend),
+                conversions: m.conversions,
+                revenue: r2(m.conversionValue),
+                cpa: r2(m.cpa),
+                roas: r2(m.roas),
+                ctr: m.ctr,
+              })),
+              truncated: capped.truncated,
+              by_creative: capped.rows.map((c) => ({
+                creative: c.name,
+                product: c.productName,
+                status: c.status,
+                spend: r2(c.spend),
+                conversions: c.conversions,
+                revenue: r2(c.conversionValue),
+                cpa: r2(c.cpa),
+                roas: r2(c.roas),
+                ctr: c.ctr,
+                cvr: c.cvr,
+              })),
+            },
+            excludedEcho(args.include_excluded),
+          );
+        }
         const all = await landingPageRollup(
           {
             from: range.from,

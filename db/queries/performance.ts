@@ -74,6 +74,9 @@ export interface KpiFilters {
   statuses?: FrozenStatus[];
   angles?: string[];
   creativeIds?: string[];
+  /** Registered landing pages to include (records whose ad name carried the
+   *  page's ` @code`) — the landing page detail page's scope. */
+  landingPageIds?: string[];
   /** Combined "Campaign ➤ Adset" values to include (used by Compare sides). */
   campaignNames?: string[];
   includeExcluded?: boolean;
@@ -189,6 +192,10 @@ async function buildBaseConditions(filters: KpiFilters): Promise<{
   }
   if (filters.creativeIds && filters.creativeIds.length > 0) {
     conditions.push(inArray(performanceRecords.creativeId, filters.creativeIds));
+  }
+  // Rides `perf_landing_page_idx`. Record-level, so no join and no fan-out.
+  if (filters.landingPageIds && filters.landingPageIds.length > 0) {
+    conditions.push(inArray(performanceRecords.landingPageId, filters.landingPageIds));
   }
   if (filters.campaignNames && filters.campaignNames.length > 0) {
     const campIds = await db
@@ -1271,6 +1278,9 @@ export async function angleMix(filters: KpiFilters): Promise<AngleMixRow[]> {
   }
   if (filters.creativeIds && filters.creativeIds.length > 0) {
     conditions.push(inArray(performanceRecords.creativeId, filters.creativeIds));
+  }
+  if (filters.landingPageIds && filters.landingPageIds.length > 0) {
+    conditions.push(inArray(performanceRecords.landingPageId, filters.landingPageIds));
   }
   if (filters.productIds && filters.productIds.length > 0) {
     conditions.push(inArray(creatives.productId, filters.productIds));

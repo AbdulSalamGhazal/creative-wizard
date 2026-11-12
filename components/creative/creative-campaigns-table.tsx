@@ -25,6 +25,8 @@ interface Props {
   campaigns: CampaignMixRow[];
   /** One row per platform (same metrics aggregated). */
   platforms: PlatformMixRow[];
+  /** What the page is about, for the empty state ("this landing page"). */
+  subject?: string;
 }
 
 type Totals = FunnelTotalsResult;
@@ -192,7 +194,7 @@ const DEFAULT_HIDDEN = ["impressions", "clicks", "landingPageViews"];
  * the campaign detail; totals are weighted from sums and identical in both
  * modes. Sort/mode are local (a detail table, per CLAUDE.md).
  */
-export function CreativeCampaignsTable({ campaigns, platforms }: Props) {
+export function CreativeCampaignsTable({ campaigns, platforms, subject = "creative" }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [, startNav] = useNavTransition();
@@ -307,7 +309,7 @@ export function CreativeCampaignsTable({ campaigns, platforms }: Props) {
   });
 
   const empty = (
-    <EmptyState title="No campaign activity for this creative." kind="range" />
+    <EmptyState title={`No campaign activity for this ${subject}.`} kind="range" />
   );
 
   if (platforms.length === 0) return empty;

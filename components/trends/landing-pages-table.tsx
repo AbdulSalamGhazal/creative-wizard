@@ -1,6 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import Link from "@/components/nav/link";
+import { withDateRange } from "@/lib/url";
 import { ChevronRight, ExternalLink } from "lucide-react";
 import { DataTable, compareSortValues, type DataColumn } from "@/components/ui/data-table";
 import { useTableColumns } from "@/components/ui/use-table-columns";
@@ -139,6 +142,7 @@ export function LandingPagesTable({
     defaults: COLUMN_KEYS,
     defaultHidden: DEFAULT_HIDDEN,
   });
+  const searchParams = useSearchParams();
   // Products are OPEN by default — the comparison is the point — so the
   // state is the ones a person closed.
   const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
@@ -248,9 +252,21 @@ export function LandingPagesTable({
                 </>
               )}
               {/* `min-w-0` lets the name shrink inside the capped cell so `truncate` bites. */}
-              <span className={p.code ? "min-w-0 truncate text-ink" : "min-w-0 truncate text-ink-2"}>
-                {landingPageLabel(p.name)}
-              </span>
+              {p.code ? (
+                // A registered page opens its own page, in this range.
+                <Link
+                  href={withDateRange(
+                    `/landing-pages/${encodeURIComponent(p.code)}`,
+                    searchParams.get("from"),
+                    searchParams.get("to"),
+                  )}
+                  className="min-w-0 truncate text-ink hover:underline underline-offset-2"
+                >
+                  {landingPageLabel(p.name)}
+                </Link>
+              ) : (
+                <span className="min-w-0 truncate text-ink-2">{landingPageLabel(p.name)}</span>
+              )}
               {p.code && <span className="shrink-0 text-[11px] text-ink-3">@{p.code}</span>}
             </span>
           );
@@ -301,7 +317,7 @@ export function LandingPagesTable({
         }),
       ),
     ],
-    [collapsed, totals],
+    [collapsed, totals, searchParams],
   );
 
   return (

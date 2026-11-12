@@ -49,6 +49,7 @@ const EMPTY_HINT: Record<string, string> = {
   campaign: "Edits and exclusions show here.",
   budget_month: "Changes to this month’s plan show here.",
   ps_version: "Edits to this version show here.",
+  landing_page: "Edits to this landing page show here.",
 };
 
 const platformLabel = (p: string): string =>

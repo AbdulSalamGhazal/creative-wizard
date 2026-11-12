@@ -39,6 +39,8 @@ interface Props {
    */
   fillFrom?: string;
   fillTo?: string;
+  /** What the page is about, for the empty state ("this landing page"). */
+  subject?: string;
 }
 
 type MetricKey =
@@ -115,6 +117,7 @@ export function CreativePerfLineChart({
   title = "Performance over time",
   fillFrom,
   fillTo,
+  subject = "creative",
 }: Props) {
   const [metricKey, setMetricKey] = useState<MetricKey>("spend");
   const [smooth, setSmooth] = useState(false);
@@ -250,7 +253,7 @@ export function CreativePerfLineChart({
           {data.length === 0 ? (
             <EmptyState
               className={plotClass(inFull, "lg") + " flex flex-col items-center justify-center py-0"}
-              title="No performance records for this creative."
+              title={`No performance records for this ${subject}.`}
             />
           ) : (
             <div className={plotClass(inFull, "lg") + " relative"}>

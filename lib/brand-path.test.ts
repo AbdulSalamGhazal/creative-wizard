@@ -97,6 +97,10 @@ describe("where switching brand lands", () => {
       href: "/mesbah/campaigns",
       moved: { what: "campaign" },
     });
+    expect(switchTarget("mesbah", "/landing-pages/ramadan", "?from=2026-01-01")).toEqual({
+      href: "/mesbah/library?tab=landing-pages",
+      moved: { what: "landing page", section: "Landing pages" },
+    });
     expect(switchTarget("mesbah", "/price-structure/products/p1/o1", "?v=x").href).toBe(
       "/mesbah/price-structure/products",
     );

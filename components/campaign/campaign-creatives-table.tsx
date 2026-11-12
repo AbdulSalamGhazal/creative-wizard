@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { useRouter } from "@/lib/brand-nav";
 import { DataTable, type DataColumn } from "@/components/ui/data-table";
 import { useTableColumns } from "@/components/ui/use-table-columns";
-import { TABLE_KEYS } from "@/lib/table-columns";
+import { TABLE_KEYS, type TableKey } from "@/lib/table-columns";
 import { withDateRange } from "@/lib/url";
 import { seriesColor, TYPE_LABEL } from "@/lib/palette";
 import { int, pct, roas, usd } from "@/lib/format";
@@ -54,8 +54,22 @@ type SortVal = string | number | null;
 
 export function CampaignCreativesTable({
   creatives,
+  tableKey = TABLE_KEYS.CAMPAIGN_CREATIVES,
+  seriesDots = true,
+  emptyTitle = "No creatives ran in this window.",
+  emptyButtons = true,
 }: {
   creatives: CampaignCreativeRow[];
+  /** Whose remembered columns — the landing page detail page reuses this
+   *  table under its own key (2026-11-12). */
+  tableKey?: TableKey;
+  /** The chart-series dot before each name. Only where a chart draws one line
+   *  per creative (the campaign page); off where the chart is by platform. */
+  seriesDots?: boolean;
+  /** The empty state's line, and whether it offers the range buttons — off
+   *  when another table on the page already offers them (EmptyState rule). */
+  emptyTitle?: string;
+  emptyButtons?: boolean;
 }) {
   const router = useRouter();
   const [, startNav] = useNavTransition();
@@ -116,10 +130,12 @@ export function CampaignCreativesTable({
         ),
       render: (r) => (
         <span className="flex items-center gap-2 min-w-0">
-          <span
-            className="w-2 h-2 rounded-full shrink-0"
-            style={{ background: colorById.get(r.creativeId) }}
-          />
+          {seriesDots && (
+            <span
+              className="w-2 h-2 rounded-full shrink-0"
+              style={{ background: colorById.get(r.creativeId) }}
+            />
+          )}
           {/* Phone-only cap: a pinned cell wider than the frame stops pinning. */}
           <span
             className="max-w-[11rem] truncate font-mono text-xs sm:max-w-none"
@@ -215,7 +231,7 @@ export function CampaignCreativesTable({
   // The columns control, from the live config — one key for this table.
   const columnKeys = columns.filter((c) => !c.pinned).map((c) => c.key);
   const cols = useTableColumns({
-    tableKey: TABLE_KEYS.CAMPAIGN_CREATIVES,
+    tableKey,
     hideable: columnKeys,
     defaults: columnKeys,
     defaultHidden: DEFAULT_HIDDEN,
@@ -223,7 +239,7 @@ export function CampaignCreativesTable({
 
   if (creatives.length === 0) {
     return (
-      <EmptyState size="sm" title="No creatives ran in this window." kind="range" />
+      <EmptyState size="sm" title={emptyTitle} kind="range" buttons={emptyButtons} />
     );
   }
 

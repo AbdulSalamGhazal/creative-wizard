@@ -60,10 +60,8 @@ export const MCP_COVERAGE: Record<string, McpCoverage> = {
     mcp: "no",
     why: "Order rows, field config, batches and the cleanup writers — row-level PII and upload plumbing; get_store reads the aggregates.",
   },
-  "landing-pages": {
-    mcp: "no",
-    why: "The registry list; get_landing_pages already returns each page's name, code and URL with its performance.",
-  },
+  // One page in depth (2026-11-12, its detail page): get_landing_pages `code`.
+  "landing-pages": { mcp: "tools", tools: ["get_landing_pages"] },
   angles: {
     mcp: "no",
     why: "The angle vocabulary and its writer; get_trends and list_creatives return the angles in use.",

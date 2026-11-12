@@ -105,6 +105,8 @@ export const ANCHOR_ICONS: Readonly<Record<CommentAnchorType, NavIcon>> = {
   campaign: navIcon("/campaigns"),
   budget_month: navIcon("/budget"),
   ps_version: navIcon("/price-structure/overview"),
+  // Landing pages live in the Library (its Landing pages tab).
+  landing_page: navIcon("/library"),
   view: LayoutDashboard,
 };
 

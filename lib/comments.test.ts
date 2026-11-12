@@ -147,6 +147,7 @@ describe("an entity gets comments only on its own page (2026-11-07)", () => {
     expect(isEntityRoute(`/library/${encodeURIComponent("Hero v2 / UGC")}`)).toBe(true);
     expect(isEntityRoute("/campaigns/Camp-One")).toBe(true);
     expect(isEntityRoute("/budget")).toBe(true);
+    expect(isEntityRoute("/landing-pages/ramadan")).toBe(true);
     // A Price Structure version, on every page of the module (2026-11-07).
     for (const page of ["", "/overview", "/plan", "/products", "/targets"]) {
       expect(isEntityRoute(`/price-structure${page}`)).toBe(true);
@@ -167,6 +168,8 @@ describe("an entity gets comments only on its own page (2026-11-07)", () => {
       "/activity",
       "/library/Ad-One/extra",
       "/price-structure/versions",
+      "/landing-pages",
+      "/landing-pages/ramadan/extra",
     ]) {
       expect(isEntityRoute(path)).toBe(false);
     }
@@ -204,6 +207,9 @@ describe("anchorPathFor — the one place an anchor becomes a path", () => {
       `/campaigns/${encodeURIComponent("Camp One ➤ Broad (IG)")}`,
     );
     expect(anchorPathFor("budget_month", "2026-10", null)).toBe("/budget?month=2026-10");
+    // A landing page is addressed by its CODE, passed as the name.
+    expect(anchorPathFor("landing_page", "id", "lp-2")).toBe("/landing-pages/lp-2");
+    expect(anchorPathFor("landing_page", "id", null)).toBeNull();
     // An old page comment leads nowhere — it is read in "All comments".
     expect(anchorPathFor("view", "/summary", null)).toBeNull();
   });
