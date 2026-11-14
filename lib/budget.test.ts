@@ -1,14 +1,12 @@
+import { buildRangeModel } from "@/lib/budget-range";
 import { describe, expect, it } from "vitest";
 import {
-  REVENUE_COVERAGE_KEY,
-  buildTrackerRows,
   coverageDayInMonth,
   filterTrackerPlatforms,
   rowProjection,
   sortTrackerPlatforms,
   trackerCounts,
   type BudgetObjective,
-  type TrackerInput,
   curveFraction,
   curveExpected,
   projectedMonthEnd,
@@ -88,11 +86,7 @@ import {
   sharesFromStoredPlan,
   sendRemainderToReserve,
   distributePlatformsEvenly,
-  cumulativeSums,
-  cumulativeRoas,
-  monthChartPoints,
   roasFigures,
-  monthRoasActuals,
   monthEndIso,
   type PlanDayCell,
   type PlanSeriesSource,
@@ -1294,6 +1288,80 @@ const CURVE_MODE = {
   usdToSarRate: 3.75,
 };
 
+/**
+ * A month's fixture: the plan, and each combo's month-to-date spend. The
+ * month-only builder these tests were written against is gone (2026-11-14 —
+ * `buildRangeModel` is the one path); `buildTrackerRows` below is a TEST
+ * adapter that spreads each combo's total evenly over its platform's covered
+ * days and returns the REAL board's rows, so the view derivations are still
+ * exercised on what the pages draw.
+ */
+interface TrackerInput {
+  allocations: Array<{ platform: string; objective: string; plannedSpend: number }>;
+  actualSpendByCombo: Array<{ platform: string; objective: string; actualSpend: number }>;
+  plannedRevenueSar: number | null;
+  reserveSpendUsd: number;
+  dayWeightOverrides: Record<number, number>;
+  actualRevenueSar: number;
+  planMode: "curve" | "daily";
+  planDays: never[];
+  targetRoas: number | null;
+  usdToSarRate: number;
+}
+
+function buildTrackerRows(
+  input: TrackerInput,
+  month: string,
+  today: string,
+  coverage?: Record<string, string | null>,
+) {
+  const from = monthStartIso(month);
+  const to = monthEndIso(month);
+  const names = [
+    ...new Set([...input.allocations, ...input.actualSpendByCombo].map((x) => x.platform)),
+  ];
+  const cov = coverage ?? Object.fromEntries(names.map((p) => [p, today]));
+  const spend = input.actualSpendByCombo.flatMap((c) => {
+    const through = cov[c.platform];
+    if (!through) return [];
+    const days = isoDaysBetween(from, through);
+    return days.map((date) => ({
+      date,
+      platform: c.platform,
+      objective: c.objective as BudgetObjective,
+      spend: c.actualSpend / days.length,
+      purchases: null,
+      purchaseValue: null,
+    }));
+  });
+  const model = buildRangeModel({
+    from,
+    to,
+    series: { spend, days: [] },
+    plans: [
+      {
+        month,
+        allocations: input.allocations.map((a) => ({
+          ...a,
+          objective: a.objective as BudgetObjective,
+        })),
+        plannedRevenueSar: input.plannedRevenueSar,
+        reserveSpendUsd: input.reserveSpendUsd,
+        dayWeights: input.dayWeightOverrides,
+        planMode: input.planMode,
+        planDays: input.planDays,
+        targetRoas: input.targetRoas,
+      },
+    ],
+    rate: input.usdToSarRate,
+    platforms: [],
+    coverage: cov,
+    storeHorizon: null,
+    today,
+  });
+  return { platforms: model.board.platforms, model };
+}
+
 function trackerInput(over: Partial<TrackerInput> = {}): TrackerInput {
   return {
     allocations: [
@@ -1317,256 +1385,6 @@ function trackerInput(over: Partial<TrackerInput> = {}): TrackerInput {
     ...over,
   };
 }
-
-describe("buildTrackerRows", () => {
-  const day10 = "2026-09-10";
-
-  it("bars carry the full-month plan, the actual, and the curve's mark", () => {
-    const t = buildTrackerRows(trackerInput(), TRACKER_MONTH, day10);
-    expect(t.elapsedDays).toBe(10);
-    expect(t.totalDays).toBe(30);
-    expect(t.curveElapsed).toBeCloseTo(1 / 3, 9);
-
-    // Brand total: 36,000 planned, 12,000 spent, 12,000 expected → on track.
-    expect(t.total.plan).toBe(36000);
-    expect(t.total.actual).toBe(12000);
-    expect(t.total.planToDate).toBeCloseTo(12000, 6);
-    expect(t.total.delta).toBeCloseTo(0, 6);
-    expect(t.total.deviation).toBeCloseTo(0, 9);
-  });
-
-  it("mixed ahead/behind: each bucket is judged against its OWN curve slice", () => {
-    const t = buildTrackerRows(trackerInput(), TRACKER_MONTH, day10);
-    const ig = t.platforms.find((p) => p.key === "instagram")!;
-    const awareness = ig.buckets.find((b) => b.label === "Awareness")!;
-    const retargeting = ig.buckets.find((b) => b.label === "Retargeting")!;
-
-    expect(awareness.planToDate).toBeCloseTo(6000, 6);
-    expect(awareness.delta).toBeCloseTo(-2000, 6); // behind
-    expect(awareness.deviation).toBeCloseTo(-1 / 3, 9);
-
-    expect(retargeting.planToDate).toBeCloseTo(4000, 6);
-    expect(retargeting.delta).toBeCloseTo(2000, 6); // ahead
-    expect(retargeting.deviation).toBeCloseTo(0.5, 9);
-
-    // …and the platform itself nets out to on-track (10,000 of 10,000).
-    expect(ig.plan).toBe(30000);
-    expect(ig.actual).toBe(10000);
-    expect(ig.deviation).toBeCloseTo(0, 9);
-  });
-
-  it("buckets come in FUNNEL order, and only the planned ones get a bar", () => {
-    const t = buildTrackerRows(
-      trackerInput({
-        allocations: [
-          { platform: "instagram", objective: "Retargeting", plannedSpend: 1000 },
-          { platform: "instagram", objective: "Awareness", plannedSpend: 1000 },
-          { platform: "instagram", objective: "Activation", plannedSpend: 1000 },
-        ],
-        actualSpendByCombo: [],
-      }),
-      TRACKER_MONTH,
-      day10,
-    );
-    expect(t.platforms[0]!.buckets.map((b) => b.label)).toEqual([
-      "Awareness",
-      "Activation",
-      "Retargeting",
-    ]);
-  });
-
-  it("spend in an UNPLANNED bucket is an amount, not a bar — drift, not a reserve draw", () => {
-    const t = buildTrackerRows(
-      trackerInput({
-        actualSpendByCombo: [
-          { platform: "instagram", objective: "Awareness", actualSpend: 4000 },
-          // No plan for Other → no track to bar against.
-          { platform: "instagram", objective: "Other", actualSpend: 1500 },
-        ],
-      }),
-      TRACKER_MONTH,
-      day10,
-    );
-    const ig = t.platforms.find((p) => p.key === "instagram")!;
-    expect(ig.buckets.some((b) => b.label === "Other")).toBe(false);
-    expect(ig.unplanned).toBe(1500);
-    expect(ig.unplannedBuckets).toEqual([
-      { key: "instagram|Other", label: "Other", actual: 1500 },
-    ]);
-    // It still counts in the platform's and the brand's actual…
-    expect(ig.actual).toBe(5500);
-    expect(t.unplannedTotal).toBe(1500);
-    // …but Instagram is UNDER its 30,000 plan, so this is objective DRIFT, not
-    // a reserve draw (2026-10-17 rule): the reserve is untouched.
-    expect(t.reserveUsed).toBe(0);
-    expect(t.reserveRemaining).toBe(4000);
-  });
-
-  it("the reserve never goes negative — overspend past it just reads 0 left", () => {
-    const t = buildTrackerRows(
-      trackerInput({
-        reserveSpendUsd: 1000,
-        actualSpendByCombo: [
-          { platform: "tiktok", objective: "Other", actualSpend: 9000 },
-        ],
-      }),
-      TRACKER_MONTH,
-      day10,
-    );
-    expect(t.unplannedTotal).toBe(9000);
-    // TikTok planned 6,000 and spent 9,000 → 3,000 drawn, more than the reserve.
-    expect(t.reserveUsed).toBe(3000);
-    expect(t.reserveRemaining).toBe(0);
-  });
-
-  it("cards are ordered by planned total, and a dead platform isn't shown", () => {
-    const t = buildTrackerRows(trackerInput(), TRACKER_MONTH, day10);
-    expect(t.platforms.map((p) => p.key)).toEqual(["instagram", "tiktok"]);
-    expect(t.platforms.some((p) => p.key === "snapchat")).toBe(false);
-  });
-
-  it("a PAST month: the tick sits at 100% and there is no projection", () => {
-    const t = buildTrackerRows(trackerInput(), TRACKER_MONTH, "2026-10-05");
-    expect(t.isPastMonth).toBe(true);
-    expect(t.elapsedDays).toBe(30);
-    expect(t.curveElapsed).toBe(1);
-    // Plan-to-date IS the plan — the month is over, so it's final vs plan.
-    expect(t.total.planToDate).toBeCloseTo(t.total.plan, 6);
-    expect(t.projectedSpend).toBeNull();
-    expect(t.projectedPctOfPlan).toBeNull();
-  });
-
-  it("a FUTURE month: the tick sits at 0, nothing is expected, no projection", () => {
-    const t = buildTrackerRows(trackerInput(), TRACKER_MONTH, "2026-08-20");
-    expect(t.isFutureMonth).toBe(true);
-    expect(t.elapsedDays).toBe(0);
-    expect(t.curveElapsed).toBe(0);
-    expect(t.total.planToDate).toBe(0);
-    // Nothing expected yet → no verdict at all, NOT a 100%-behind warning.
-    expect(t.total.deviation).toBeNull();
-    expect(t.projectedSpend).toBeNull();
-  });
-
-  it("projects the month end from the elapsed curve fraction", () => {
-    const t = buildTrackerRows(trackerInput(), TRACKER_MONTH, day10);
-    // 12,000 spent through a third of the curve → 36,000 by month end.
-    expect(t.projectedSpend).toBeCloseTo(36000, 6);
-    expect(t.projectedPctOfPlan).toBeCloseTo(1, 9);
-  });
-
-  it("the projection follows the CURVE, not the calendar", () => {
-    // Front-load day 1..10 so a tenth of the days is half the plan.
-    const overrides: Record<number, number> = {};
-    for (let d = 1; d <= 10; d++) overrides[d] = 2;
-    const t = buildTrackerRows(
-      trackerInput({ dayWeightOverrides: overrides }),
-      TRACKER_MONTH,
-      day10,
-    );
-    // Weights: 10 days × 2 + 20 days × 1 = 40; elapsed 20/40 = half.
-    expect(t.curveElapsed).toBeCloseTo(0.5, 9);
-    expect(t.total.planToDate).toBeCloseTo(18000, 6);
-    expect(t.projectedSpend).toBeCloseTo(24000, 6); // 12,000 ÷ 0.5
-  });
-
-  it("revenue gets the same curve treatment, in SAR", () => {
-    const t = buildTrackerRows(trackerInput(), TRACKER_MONTH, day10);
-    expect(t.revenue.target).toBe(300000);
-    expect(t.revenue.planToDate).toBeCloseTo(100000, 6);
-    expect(t.revenue.actual).toBe(90000);
-    expect(t.revenue.deviation).toBeCloseTo(-0.1, 9);
-  });
-
-  it("no revenue target → a null target (the bar isn't rendered), never a zero one", () => {
-    const t = buildTrackerRows(
-      trackerInput({ plannedRevenueSar: null }),
-      TRACKER_MONTH,
-      day10,
-    );
-    expect(t.revenue.target).toBeNull();
-    expect(t.revenue.deviation).toBeNull();
-  });
-
-  it("an UNPLANNED month reports hasPlan false — the page hints, it doesn't board", () => {
-    const empty = buildTrackerRows(
-      {
-        allocations: [],
-        actualSpendByCombo: [],
-        plannedRevenueSar: null,
-        reserveSpendUsd: 0,
-        dayWeightOverrides: {},
-        actualRevenueSar: 0,
-        ...CURVE_MODE,
-      },
-      TRACKER_MONTH,
-      day10,
-    );
-    expect(empty.hasPlan).toBe(false);
-    expect(empty.platforms).toEqual([]);
-    expect(empty.total.deviation).toBeNull();
-    // A reserve alone still counts as a plan for the month.
-    expect(
-      buildTrackerRows(
-        {
-          allocations: [],
-          actualSpendByCombo: [],
-          plannedRevenueSar: null,
-          reserveSpendUsd: 500,
-          dayWeightOverrides: {},
-          actualRevenueSar: 0,
-          ...CURVE_MODE,
-        },
-        TRACKER_MONTH,
-        day10,
-      ).hasPlan,
-    ).toBe(true);
-  });
-
-  it("spend with NO plan at all still shows the platform (unplanned only)", () => {
-    const t = buildTrackerRows(
-      {
-        allocations: [],
-        actualSpendByCombo: [
-          { platform: "google", objective: "Other", actualSpend: 700 },
-        ],
-        plannedRevenueSar: null,
-        reserveSpendUsd: 0,
-        dayWeightOverrides: {},
-        actualRevenueSar: 0,
-        ...CURVE_MODE,
-      },
-      TRACKER_MONTH,
-      day10,
-    );
-    expect(t.platforms).toHaveLength(1);
-    expect(t.platforms[0]!.plan).toBe(0);
-    expect(t.platforms[0]!.unplanned).toBe(700);
-    expect(t.platforms[0]!.buckets).toEqual([]);
-    expect(t.platforms[0]!.deviation).toBeNull(); // nothing expected → no verdict
-    // A platform with NO plan at all draws the reserve for everything it spends.
-    expect(t.reserveUsed).toBe(700);
-  });
-
-  it("projects revenue at month end through the STORE's coverage, current month only", () => {
-    // 90,000 SAR through a third of the curve → 270,000 by month end.
-    const t = buildTrackerRows(trackerInput(), TRACKER_MONTH, day10, {
-      instagram: day10,
-      tiktok: day10,
-      [REVENUE_COVERAGE_KEY]: day10,
-    });
-    expect(t.projectedRevenue).toBeCloseTo(270000, 6);
-    // The store lagging two days changes the divisor, not the actual.
-    const lag = buildTrackerRows(trackerInput(), TRACKER_MONTH, day10, {
-      instagram: day10,
-      tiktok: day10,
-      [REVENUE_COVERAGE_KEY]: "2026-09-08",
-    });
-    expect(lag.projectedRevenue).toBeCloseTo(90000 / (8 / 30), 6);
-    // Past and future months project nothing.
-    expect(buildTrackerRows(trackerInput(), TRACKER_MONTH, "2026-10-05").projectedRevenue).toBeNull();
-    expect(buildTrackerRows(trackerInput(), TRACKER_MONTH, "2026-08-20").projectedRevenue).toBeNull();
-  });
-});
 
 // ── The reserve: the platform-level rule (2026-10-17) ───────────────────────
 
@@ -1646,98 +1464,6 @@ describe("reserveUsed — spend beyond a platform's plan, never bucket drift", (
 });
 
 // ── The Overview chart (2026-10) ────────────────────────────────────────────
-
-describe("the Overview chart series", () => {
-  it("monthEndIso names the month's last day", () => {
-    expect(monthEndIso("2026-09")).toBe("2026-09-30");
-    expect(monthEndIso("2026-02")).toBe("2026-02-28");
-    expect(monthEndIso("2028-02")).toBe("2028-02-29");
-    expect(monthEndIso("2026-10-17")).toBe("2026-10-31");
-  });
-
-  it("cumulativeSums runs the totals forward", () => {
-    expect(cumulativeSums([1, 2, 3, 0, 4])).toEqual([1, 3, 6, 6, 10]);
-    expect(cumulativeSums([])).toEqual([]);
-  });
-
-  it("cumulativeRoas is revenue-to-date over spend-to-date, null before any spend", () => {
-    const roas = cumulativeRoas([0, 750, 1500], [0, 100, 200], 3.75);
-    expect(roas[0]).toBeNull();
-    expect(roas[1]).toBeCloseTo(2, 9);
-    expect(roas[2]).toBeCloseTo(2, 9);
-  });
-
-  it("the actual line stops at coverage; the projection ends on the card's number", () => {
-    const points = monthChartPoints({
-      totalDays: 5,
-      actualCumulative: [10, 20, 30, 0, 0],
-      throughDay: 3,
-      planCumulative: [8, 16, 24, 32, 40],
-      projected: 50,
-    });
-    expect(points.map((p) => p.day)).toEqual([1, 2, 3, 4, 5]);
-    expect(points.map((p) => p.actual)).toEqual([10, 20, 30, null, null]);
-    expect(points.map((p) => p.plan)).toEqual([8, 16, 24, 32, 40]);
-    // From the last actual point (day 3 = 30) straight to 50 on day 5.
-    expect(points.map((p) => p.projection)).toEqual([null, null, 30, 40, 50]);
-  });
-
-  it("no projection on a finished month, before any data, or without one to draw", () => {
-    const done = monthChartPoints({
-      totalDays: 3,
-      actualCumulative: [1, 2, 3],
-      throughDay: 3,
-      planCumulative: null,
-      projected: 9,
-    });
-    expect(done.every((p) => p.projection === null)).toBe(true);
-    expect(done.every((p) => p.plan === null)).toBe(true);
-    expect(done.map((p) => p.actual)).toEqual([1, 2, 3]);
-
-    const nothing = monthChartPoints({
-      totalDays: 3,
-      actualCumulative: [1, 2, 3],
-      throughDay: 0,
-      planCumulative: [1, 2, 3],
-      projected: 9,
-    });
-    expect(nothing.every((p) => p.actual === null && p.projection === null)).toBe(true);
-
-    const none = monthChartPoints({
-      totalDays: 3,
-      actualCumulative: [1, 2, 3],
-      throughDay: 2,
-      planCumulative: [1, 2, 3],
-      projected: null,
-    });
-    expect(none.every((p) => p.projection === null)).toBe(true);
-    expect(none.map((p) => p.actual)).toEqual([1, 2, null]);
-  });
-
-  it("a ratio with no reading at coverage (ROAS before spend) projects nothing", () => {
-    const points = monthChartPoints({
-      totalDays: 4,
-      actualCumulative: [null, null, null, null],
-      throughDay: 2,
-      planCumulative: [2, 2, 2, 2],
-      projected: 2.5,
-    });
-    expect(points.every((p) => p.projection === null)).toBe(true);
-    expect(points.map((p) => p.actual)).toEqual([null, null, null, null]);
-  });
-
-  it("clamps a coverage day outside the month", () => {
-    const over = monthChartPoints({
-      totalDays: 3,
-      actualCumulative: [1, 2, 3],
-      throughDay: 9,
-      planCumulative: null,
-      projected: 5,
-    });
-    expect(over.map((p) => p.actual)).toEqual([1, 2, 3]);
-    expect(over.every((p) => p.projection === null)).toBe(true);
-  });
-});
 
 // ── The ROAS card (2026-10) ─────────────────────────────────────────────────
 
@@ -1985,46 +1711,6 @@ describe("the revenue ⇄ ROAS dual entry", () => {
   });
 });
 
-describe("buildTrackerRows on a DAILY month", () => {
-  it("bars tick at the cells' own plan-to-date, not a curve's", () => {
-    const t = buildTrackerRows(
-      {
-        allocations: [
-          { platform: "instagram", objective: "Awareness", plannedSpend: 1000 },
-          { platform: "tiktok", objective: "Awareness", plannedSpend: 500 },
-        ],
-        actualSpendByCombo: [{ platform: "instagram", objective: "Awareness", actualSpend: 900 }],
-        plannedRevenueSar: null,
-        reserveSpendUsd: 0,
-        dayWeightOverrides: {},
-        actualRevenueSar: 0,
-        planMode: "daily",
-        // Instagram front-loads: 900 of its 1000 on day 1. TikTok all on day 30.
-        planDays: [
-          { day: 1, platform: "instagram", objective: "Awareness", plannedSpend: 900 },
-          { day: 20, platform: "instagram", objective: "Awareness", plannedSpend: 100 },
-          { day: 30, platform: "tiktok", objective: "Awareness", plannedSpend: 500 },
-        ],
-        targetRoas: 2,
-        usdToSarRate: 3.75,
-      },
-      "2026-09",
-      "2026-09-10",
-    );
-    const ig = t.platforms.find((p) => p.key === "instagram")!;
-    expect(ig.planToDate).toBe(900);
-    expect(ig.deviation).toBe(0); // exactly on its own plan
-    const tt = t.platforms.find((p) => p.key === "tiktok")!;
-    expect(tt.planToDate).toBe(0); // nothing expected yet — never "100% behind"
-    expect(tt.deviation).toBeNull();
-    expect(t.total.planToDate).toBe(900);
-    expect(t.curveElapsed).toBeCloseTo(900 / 1500, 12);
-    // Revenue follows the cells through the ROAS.
-    expect(t.revenue.target).toBe(revenueFromRoas(2, 1500, 3.75));
-    expect(t.revenue.planToDate).toBeCloseTo(900 * 2 * 3.75, 9);
-  });
-});
-
 // ── Pacing anchors to DATA COVERAGE, not the calendar (2026-10) ──────────────
 // The user-reported bug: the tick, the deviations and the projection counted
 // TODAY as fully elapsed while actuals stop at the last upload, so a brand
@@ -2056,257 +1742,6 @@ describe("coverageDayInMonth", () => {
 
   it("clamps data that runs past the month (clock skew) to the month", () => {
     expect(coverageDayInMonth(month, "2026-10-04", today)).toBe(30);
-  });
-});
-
-describe("the morning case — an on-plan upload reads as ON PLAN", () => {
-  // THE REPORTED BUG. It is the 11th; last night's upload covers the 10th.
-  // The brand has spent exactly the plan's first ten days.
-  const month = "2026-09";
-  const morning = "2026-09-11";
-  const input = (): TrackerInput => ({
-    allocations: [{ platform: "instagram", objective: "Awareness", plannedSpend: 30000 }],
-    actualSpendByCombo: [
-      // A linear 30-day curve: ten days = 10,000, to the dollar.
-      { platform: "instagram", objective: "Awareness", actualSpend: 10000 },
-    ],
-    plannedRevenueSar: null,
-    reserveSpendUsd: 0,
-    dayWeightOverrides: {},
-    actualRevenueSar: 0,
-    planMode: "curve",
-    planDays: [],
-    targetRoas: null,
-    usdToSarRate: 3.75,
-  });
-
-  it("the CALENDAR anchor invents a day of debt (the bug)", () => {
-    const t = buildTrackerRows(input(), month, morning);
-    // Day 11 of 30 expects 11,000 — against 10,000 actually reported.
-    expect(t.total.planToDate).toBeCloseTo(11000, 6);
-    expect(t.total.deviation).toBeLessThan(-0.08);
-  });
-
-  it("the COVERAGE anchor reads it as on plan — deviation 0", () => {
-    const t = buildTrackerRows(input(), month, morning, {
-      instagram: "2026-09-10",
-    });
-    expect(t.total.planToDate).toBeCloseTo(10000, 6);
-    expect(t.total.delta).toBeCloseTo(0, 6);
-    expect(t.total.deviation).toBeCloseTo(0, 9);
-    // The header says what it counted through.
-    expect(t.coverage?.through).toBe("2026-09-10");
-    // …and the calendar position is still the calendar's.
-    expect(t.elapsedDays).toBe(11);
-  });
-
-  it("projects the month's full plan, not a shortfall", () => {
-    const t = buildTrackerRows(input(), month, morning, {
-      instagram: "2026-09-10",
-    });
-    expect(t.projectedSpend).toBeCloseTo(30000, 6);
-    expect(t.projectedPctOfPlan).toBeCloseTo(1, 9);
-  });
-});
-
-describe("pacing with platforms at DIFFERENT coverage", () => {
-  const month = "2026-09";
-  const today = "2026-09-21";
-  const input = (): TrackerInput => ({
-    allocations: [
-      { platform: "instagram", objective: "Awareness", plannedSpend: 30000 },
-      { platform: "tiktok", objective: "Awareness", plannedSpend: 30000 },
-      { platform: "snapchat", objective: "Awareness", plannedSpend: 30000 },
-    ],
-    actualSpendByCombo: [
-      { platform: "instagram", objective: "Awareness", actualSpend: 20000 },
-      // TikTok's exports lag a week; it has spent to ITS last covered day.
-      { platform: "tiktok", objective: "Awareness", actualSpend: 13000 },
-      // Snapchat has uploaded nothing at all this month.
-    ],
-    plannedRevenueSar: null,
-    reserveSpendUsd: 0,
-    dayWeightOverrides: {},
-    actualRevenueSar: 0,
-    planMode: "curve",
-    planDays: [],
-    targetRoas: null,
-    usdToSarRate: 3.75,
-  });
-  const coverage = {
-    instagram: "2026-09-20",
-    tiktok: "2026-09-13",
-    snapchat: null,
-  };
-
-  it("anchors each platform back to its OWN coverage", () => {
-    const t = buildTrackerRows(input(), month, today, coverage);
-    const ig = t.platforms.find((p) => p.key === "instagram")!;
-    const tt = t.platforms.find((p) => p.key === "tiktok")!;
-    expect(ig.planToDate).toBeCloseTo(20000, 6); // 20 of 30 days
-    expect(ig.deviation).toBeCloseTo(0, 9);
-    expect(tt.planToDate).toBeCloseTo(13000, 6); // 13 of 30 days
-    expect(tt.deviation).toBeCloseTo(0, 9);
-  });
-
-  it("a platform with NO data expects nothing — never '100% behind'", () => {
-    const t = buildTrackerRows(input(), month, today, coverage);
-    const snap = t.platforms.find((p) => p.key === "snapchat")!;
-    expect(snap.planToDate).toBe(0);
-    expect(snap.deviation).toBeNull();
-    expect(pacingTone(snap.deviation).direction).toBe("muted");
-  });
-
-  it("the brand total is the SUM of the rows, not a second calculation", () => {
-    const t = buildTrackerRows(input(), month, today, coverage);
-    const sum = t.platforms.reduce((s, p) => s + p.planToDate, 0);
-    expect(t.total.planToDate).toBeCloseTo(sum, 6);
-    expect(t.total.planToDate).toBeCloseTo(33000, 6); // 20k + 13k + 0
-    expect(t.total.deviation).toBeCloseTo(0, 9);
-  });
-
-  it("names only PLANNED platforms — an unplanned one has nothing to lag", () => {
-    const withUnplanned = {
-      ...input(),
-      actualSpendByCombo: [
-        ...input().actualSpendByCombo,
-        { platform: "facebook", objective: "Other", actualSpend: 500 },
-      ],
-    };
-    const t = buildTrackerRows(withUnplanned, month, today, coverage);
-    expect(t.platforms.some((p) => p.key === "facebook")).toBe(true);
-    expect(t.coverage?.laggards.map((l) => l.platform)).not.toContain("facebook");
-  });
-
-  it("names the laggards, and only those more than a day behind", () => {
-    const t = buildTrackerRows(input(), month, today, coverage);
-    expect(t.coverage?.through).toBe("2026-09-20");
-    expect(t.coverage?.laggards.map((l) => l.platform).sort()).toEqual([
-      "snapchat",
-      "tiktok",
-    ]);
-    // A one-day spread is the normal shape of an upload morning — not a note.
-    const tight = buildTrackerRows(input(), month, today, {
-      instagram: "2026-09-20",
-      tiktok: "2026-09-19",
-      snapchat: "2026-09-20",
-    });
-    expect(tight.coverage?.laggards).toEqual([]);
-  });
-
-  it("projects off the covered share, so a lagging upload isn't a shortfall", () => {
-    const t = buildTrackerRows(input(), month, today, coverage);
-    // 33,000 reported against 33,000 expected → the plan's own 90,000.
-    expect(t.projectedSpend).toBeCloseTo(90000, 4);
-  });
-});
-
-describe("coverage on a DAILY month", () => {
-  it("sums the cells through each platform's covered day", () => {
-    const t = buildTrackerRows(
-      {
-        allocations: [
-          { platform: "instagram", objective: "Awareness", plannedSpend: 1000 },
-          { platform: "tiktok", objective: "Awareness", plannedSpend: 500 },
-        ],
-        actualSpendByCombo: [
-          { platform: "instagram", objective: "Awareness", actualSpend: 900 },
-          { platform: "tiktok", objective: "Awareness", actualSpend: 500 },
-        ],
-        plannedRevenueSar: null,
-        reserveSpendUsd: 0,
-        dayWeightOverrides: {},
-        actualRevenueSar: 0,
-        planMode: "daily",
-        planDays: [
-          { day: 1, platform: "instagram", objective: "Awareness", plannedSpend: 900 },
-          { day: 20, platform: "instagram", objective: "Awareness", plannedSpend: 100 },
-          { day: 5, platform: "tiktok", objective: "Awareness", plannedSpend: 500 },
-        ],
-        targetRoas: null,
-        usdToSarRate: 3.75,
-      },
-      "2026-09",
-      "2026-09-25",
-      // Instagram's data covers day 10 (so its day-20 cell isn't due yet);
-      // TikTok's covers day 6, past its single day-5 cell.
-      { instagram: "2026-09-10", tiktok: "2026-09-06" },
-    );
-    const ig = t.platforms.find((p) => p.key === "instagram")!;
-    const tt = t.platforms.find((p) => p.key === "tiktok")!;
-    expect(ig.planToDate).toBe(900);
-    expect(ig.deviation).toBe(0);
-    expect(tt.planToDate).toBe(500);
-    expect(tt.deviation).toBe(0);
-    expect(t.total.planToDate).toBe(1400);
-  });
-});
-
-describe("a PAST month is unchanged by coverage (regression pin)", () => {
-  const august = "2026-08";
-  const today = "2026-09-11";
-  const input = (): TrackerInput => ({
-    allocations: [
-      { platform: "instagram", objective: "Awareness", plannedSpend: 31000 },
-      { platform: "tiktok", objective: "Awareness", plannedSpend: 31000 },
-    ],
-    actualSpendByCombo: [
-      { platform: "instagram", objective: "Awareness", actualSpend: 30000 },
-    ],
-    plannedRevenueSar: 100000,
-    reserveSpendUsd: 1000,
-    dayWeightOverrides: {},
-    actualRevenueSar: 90000,
-    planMode: "curve",
-    planDays: [],
-    targetRoas: null,
-    usdToSarRate: 3.75,
-  });
-
-  it("reads exactly as it did before coverage existed", () => {
-    const before = buildTrackerRows(input(), august, today);
-    const after = buildTrackerRows(input(), august, today, {
-      // Even with data that stopped mid-August, or none at all.
-      instagram: "2026-08-12",
-      tiktok: null,
-    });
-    expect(after.total.planToDate).toBeCloseTo(before.total.planToDate, 6);
-    expect(after.total.deviation).toBeCloseTo(before.total.deviation!, 9);
-    expect(after.projectedSpend).toBe(before.projectedSpend); // null: it's final
-    expect(after.revenue.planToDate).toBeCloseTo(before.revenue.planToDate, 6);
-    for (const p of after.platforms) {
-      const was = before.platforms.find((x) => x.key === p.key)!;
-      expect(p.planToDate).toBeCloseTo(was.planToDate, 6);
-      expect(p.deviation).toBe(was.deviation);
-    }
-  });
-});
-
-describe("revenue paces against the STORE's own coverage", () => {
-  it("uses the store horizon, not the ads one (separate pipelines)", () => {
-    const t = buildTrackerRows(
-      {
-        allocations: [{ platform: "instagram", objective: "Awareness", plannedSpend: 30000 }],
-        actualSpendByCombo: [
-          { platform: "instagram", objective: "Awareness", actualSpend: 10000 },
-        ],
-        plannedRevenueSar: 300000,
-        reserveSpendUsd: 0,
-        dayWeightOverrides: {},
-        actualRevenueSar: 50000,
-        planMode: "curve",
-        planDays: [],
-        targetRoas: null,
-        usdToSarRate: 3.75,
-      },
-      "2026-09",
-      "2026-09-21",
-      { instagram: "2026-09-10", [REVENUE_COVERAGE_KEY]: "2026-09-05" },
-    );
-    // Ads: ten covered days of a linear 30-day curve. Store: five.
-    expect(t.total.planToDate).toBeCloseTo(10000, 6);
-    expect(t.revenue.planToDate).toBeCloseTo(50000, 6);
-    expect(t.revenue.deviation).toBeCloseTo(0, 9);
   });
 });
 
@@ -2416,7 +1851,7 @@ describe("the view derivations", () => {
     expect(other.map((p) => p.key).sort()).toEqual(["google", "instagram"]);
     const ig = other.find((p) => p.key === "instagram")!;
     expect(ig.buckets).toEqual([]);
-    expect(ig.unplannedBuckets).toEqual([{ key: "instagram|Other", label: "Other", actual: 900 }]);
+    expect(ig.unplannedBuckets).toEqual([{ key: "p:instagram|Other", label: "Other", actual: 900 }]);
     expect(ig.unplanned).toBe(900);
     // Two unplanned buckets, one asked for → the sum is recomputed.
     const activation = filterTrackerPlatforms(t.platforms, { buckets: ["Activation"] });
@@ -2444,7 +1879,7 @@ describe("the view derivations", () => {
       "Awareness",
     ]);
     // Filtering is a reading aid: the month's own numbers are untouched.
-    expect(t.total.planToDate).toBeCloseTo(30000, 6);
+    expect(t.model.card.spend.bar.planToDate).toBeCloseTo(30000, 6);
   });
 
   it("orders by plan size by default, and by |deviation| on request", () => {
@@ -2507,7 +1942,7 @@ describe("the view derivations", () => {
     const byPlatform = t.platforms.reduce((s, p) => s + p.actual, 0);
     expect(byObjective).toBeCloseTo(byPlatform, 6);
     expect(byObjective).toBeCloseTo(12900, 6);
-    expect(groups.reduce((s, g) => s + g.plan, 0)).toBe(t.total.plan);
+    expect(groups.reduce((s, g) => s + g.plan, 0)).toBe(t.model.card.spend.bar.plan);
   });
 
   it("a row's projection divides by its OWN covered share", () => {
@@ -2563,26 +1998,6 @@ describe("buildRangeBoard", () => {
       coverage,
       today: through,
     });
-
-  it("for a single-month range its platform rows equal buildTrackerRows' — same series, same coverage", () => {
-    const t = buildTrackerRows(input, TRACKER_MONTH, through, coverage);
-    const b = board();
-    expect(b.platforms.map((p) => p.key)).toEqual(t.platforms.map((p) => p.key));
-    for (const row of b.platforms) {
-      const tracker = t.platforms.find((p) => p.key === row.key)!;
-      expect(row.plan).toBeCloseTo(tracker.plan, 2);
-      expect(row.actual).toBeCloseTo(tracker.actual, 2);
-      expect(row.planToDate).toBeCloseTo(tracker.planToDate, 2);
-      expect(row.deviation!).toBeCloseTo(tracker.deviation!, 6);
-      expect(row.projection!).toBeCloseTo(rowProjection(tracker)!, 2);
-      expect(row.buckets.map((x) => x.label)).toEqual(tracker.buckets.map((x) => x.label));
-      row.buckets.forEach((x, i) => {
-        expect(x.plan).toBeCloseTo(tracker.buckets[i]!.plan, 2);
-        expect(x.actual).toBeCloseTo(tracker.buckets[i]!.actual, 2);
-        expect(x.planToDate).toBeCloseTo(tracker.buckets[i]!.planToDate, 2);
-      });
-    }
-  });
 
   it("needs per day = what is left ÷ the days after coverage; the sparkline stops at coverage", () => {
     const ig = board().platforms.find((p) => p.key === "instagram")!;
@@ -2805,41 +2220,6 @@ describe("ROAS cuts both sides at the same day (W3, 2026-10)", () => {
       planSpend: new Map(days.map((d) => [d, 100])),
     });
     expect(sides).toEqual({ unknown: true, revenue: 0, spend: 0, planRevenue: 5250, planSpend: 700 });
-  });
-});
-
-describe("monthRoasActuals", () => {
-  const spend = [
-    { date: "2026-11-01", spend: 100 },
-    { date: "2026-11-02", spend: 100 },
-    { date: "2026-11-03", spend: 100 },
-    { date: "2026-10-31", spend: 999 },
-  ];
-  const days = [
-    { date: "2026-11-01", revenueSar: 1000 },
-    { date: "2026-11-02", revenueSar: 1000 },
-    { date: "2026-11-03", revenueSar: 1000 },
-  ];
-  it("cuts both sides at the EARLIEST of the store's and each platform's coverage", () => {
-    const cov: Record<string, number> = { meta: 3, tiktok: 3, [REVENUE_COVERAGE_KEY]: 2 };
-    const r = monthRoasActuals({
-      month: "2026-11",
-      platformKeys: ["meta", "tiktok"],
-      coverageDay: (k) => cov[k] ?? 0,
-      spend,
-      days,
-    });
-    expect(r).toEqual({ throughDay: 2, spendUsd: 200, revenueSar: 2000 });
-  });
-  it("is zero through day 0 when no platform reports", () => {
-    const r = monthRoasActuals({
-      month: "2026-11",
-      platformKeys: ["meta"],
-      coverageDay: () => 0,
-      spend,
-      days,
-    });
-    expect(r).toEqual({ throughDay: 0, spendUsd: 0, revenueSar: 0 });
   });
 });
 

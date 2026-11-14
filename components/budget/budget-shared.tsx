@@ -1,11 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { usePathname, useRouter } from "@/lib/brand-nav";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DisabledReason } from "@/components/ui/disabled-reason";
-import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -21,7 +20,6 @@ import {
   MUTED_TONE,
   isStrongTone,
   monthKey,
-  monthLabel,
   nextMonthKey,
   paceReadsOnTrack,
   pacingTone,
@@ -30,10 +28,8 @@ import {
   prevMonthKey,
   spendInDisplayCurrency,
   variancePct,
-  type CoverageSummary,
   type PacingTone,
   type TrackerBar,
-  type TrackerData,
 } from "@/lib/budget";
 import { useNavTransition } from "@/lib/nav-progress";
 import { SegmentedControl } from "@/components/ui/segmented-control";
@@ -663,79 +659,6 @@ export function ReserveVerdict({
     );
   }
   return <span className="tabular-nums text-xs text-ink-3">{fmt(reserve - used)} left</span>;
-}
-
-// ── What the comparisons counted through (2026-10) ──────────────────────────
-// The Tracker's header and the Overview's month bar name the SAME anchor in
-// the same words, from the same `buildTrackerRows` output — so the two pages
-// can never disagree about which day the month was judged through.
-
-/**
- * "Day N of M · data through D" (or "Not started — <Month> is ahead of us").
- * `children` is the page's own addition on the same line (the Tracker's
- * "plan expects P% spent"); the wrapper's text size comes from `className`.
- */
-export function CoverageLine({
-  t,
-  children,
-  className,
-}: {
-  t: Pick<TrackerData, "month" | "elapsedDays" | "totalDays" | "coverage" | "isFutureMonth">;
-  children?: React.ReactNode;
-  className?: string;
-}) {
-  return (
-    <p className={cn("text-sm text-ink", className)}>
-      {t.isFutureMonth ? (
-        <>Not started — {monthLabel(t.month)} is ahead of us</>
-      ) : (
-        <>
-          Day <span className="tabular-nums">{t.elapsedDays}</span> of{" "}
-          <span className="tabular-nums">{t.totalDays}</span>
-          {/* What the comparisons actually counted through — the last
-              uploaded day, not today. */}
-          {t.coverage?.through && (
-            <span className="text-ink-3">
-              {" · data through "}
-              <span className="tabular-nums">{t.coverage.through}</span>
-            </span>
-          )}
-          {children}
-        </>
-      )}
-    </p>
-  );
-}
-
-/** "TikTok data ends 2026-09-13 · Google data hasn't arrived" — or "". */
-export function laggardWords(laggards: CoverageSummary["laggards"]): string {
-  return laggards
-    .map(
-      (l) =>
-        `${platformLabel(l.platform)} data ${l.date ? `ends ${l.date}` : "hasn’t arrived"}`,
-    )
-    .join(" · ");
-}
-
-/**
- * One platform's data lagging the rest changes what its row is compared
- * against, so the page says which one rather than leaving a quietly different
- * yardstick unexplained. Renders nothing when nobody lags.
- */
-export function CoverageLaggards({
-  coverage,
-  className,
-}: {
-  coverage: CoverageSummary | null;
-  className?: string;
-}) {
-  if (!coverage || coverage.laggards.length === 0) return null;
-  return (
-    <p className={cn("text-[11px] text-ink-3", className)}>
-      {laggardWords(coverage.laggards)}
-      {" — paced against what each one covers"}
-    </p>
-  );
 }
 
 // ── The hero card (lifted from the Overview, 2026-10) ────────────────────────

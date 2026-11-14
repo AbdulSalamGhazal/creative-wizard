@@ -1,9 +1,9 @@
-import { ChartCardSkeleton, HeaderSkeleton } from "@/components/layout/page-skeletons";
+import { HeaderSkeleton } from "@/components/layout/page-skeletons";
 import { Skeleton } from "@/components/ui/skeleton";
 import { panelClass } from "@/components/ui/panel";
 
-/** Mirrors the Overview's real order: the month bar (steppers left, controls
- *  right) and its coverage line → the three hero cards → the cumulative chart
+/** Mirrors Today's real order: the month bar (steppers left, controls right)
+ *  and its coverage line → the three hero cards → the last-reported-day tiles
  *  → the pace board's rows. */
 export default function Loading() {
   return (
@@ -28,7 +28,17 @@ export default function Loading() {
             </div>
           ))}
         </div>
-        <ChartCardSkeleton height="h-56 sm:h-64" />
+        <div className="space-y-2">
+          <Skeleton className="h-4 w-32" />
+          <div className="grid grid-cols-2 gap-2 @2xl/main:grid-cols-3 @4xl/main:grid-cols-5">
+            {[0, 1, 2, 3].map((i) => (
+              <div key={i} className={panelClass({ padding: "sm" })}>
+                <Skeleton className="h-3 w-20" />
+                <Skeleton className="mt-2 h-5 w-24" />
+              </div>
+            ))}
+          </div>
+        </div>
         <div className={panelClass({ padding: "none" })}>
           <div className="border-b border-line px-4 py-2.5">
             <Skeleton className="h-4 w-24" />

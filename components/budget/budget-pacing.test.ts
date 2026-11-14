@@ -37,7 +37,7 @@ vi.mock("@/components/ui/download-csv-button", async () => {
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { BudgetPacing, type GroupBy } from "@/components/budget/budget-pacing";
-import { BudgetOverview } from "@/components/budget/budget-overview";
+import { BudgetToday } from "@/components/budget/budget-today";
 import { PacingBoard } from "@/components/budget/pacing-board";
 import { formatSpend } from "@/components/budget/budget-shared";
 import { ALL_PLATFORMS } from "@/lib/palette";
@@ -47,11 +47,10 @@ import {
   buildRangeBoard,
   buildSpendPerDay,
   isoDaysBetween,
-  REVENUE_COVERAGE_KEY,
   spendInDisplayCurrency,
   trackerCounts,
 } from "@/lib/budget";
-import type { BudgetMonthData, BudgetPacingSeries, MonthPlanRow } from "@/db/queries/budget";
+import type { BudgetPacingSeries, MonthPlanRow } from "@/db/queries/budget";
 
 const TODAY = "2026-10-23";
 const RATE = 3.75;
@@ -216,47 +215,76 @@ describe("Pacing — a partial last Week/Month is judged on the days it covers (
   });
 });
 
-describe("Overview — ROAS divides two sides through the SAME day (B-04)", () => {
-  it("a month exactly at target with a lagging store upload reads 2.00×, not 1.36× (−32%)", () => {
-    const data: BudgetMonthData = {
-      monthIso: "2026-10-01",
-      allocations: [{ id: "a", platform: "instagram", objective: "Awareness", plannedSpend: 3100 }],
-      plannedRevenueSar: 23_250,
-      reserveSpendUsd: 0,
-      dayWeightOverrides: {},
-      actualSpendByCombo: [{ platform: "instagram", objective: "Awareness", actualSpend: 2200 }],
-      actualRevenueSar: 750 * 15,
-      actualOrders: 15,
-      usdToSarRate: RATE,
-      planMode: "curve",
-      planDays: [],
-      targetRoas: null,
-    };
-    const series: BudgetPacingSeries = {
-      spend: onPlan("instagram", "2026-10-22"),
-      days: isoDaysBetween("2026-10-01", "2026-10-31").map((date) => ({
-        date,
-        revenueSar: date <= "2026-10-15" ? 750 : 0,
-        orders: date <= "2026-10-15" ? 1 : 0,
-      })),
-    };
-    const html = renderToStaticMarkup(
-      createElement(BudgetOverview, {
+describe("Today — ROAS divides two sides through the SAME day (B-04)", () => {
+  const series: BudgetPacingSeries = {
+    spend: onPlan("instagram", "2026-10-22"),
+    days: isoDaysBetween("2026-10-01", "2026-10-31").map((date) => ({
+      date,
+      revenueSar: date <= "2026-10-15" ? 750 : 0,
+      orders: date <= "2026-10-15" ? 1 : 0,
+    })),
+  };
+  const today = (over: Partial<MonthPlanRow> = {}, rows = series) =>
+    renderToStaticMarkup(
+      createElement(BudgetToday, {
         month: "2026-10",
         today: TODAY,
-        data,
-        series,
-        horizon: "2026-10-22",
+        series: rows,
+        plans: [plan(["instagram"], { plannedRevenueSar: 23_250, ...over })],
+        rate: RATE,
         storeHorizon: "2026-10-15",
-        coverage: { instagram: "2026-10-22", [REVENUE_COVERAGE_KEY]: "2026-10-15" },
+        coverage: { instagram: "2026-10-22" },
         seedMonth: null,
         canManage: false,
+        view: { board: "bars", rank: "plan", group: "platform" },
       }),
     );
-    const t = text(html);
+
+  it("a month exactly at target with a lagging store upload reads 2.00×, not 1.36× (−32%)", () => {
+    const t = text(today());
     const card = t.slice(t.indexOf("ROAS"), t.indexOf("ROAS") + 120);
     expect(card).toContain("ROAS 2.00×");
     expect(card).not.toContain("1.36");
+  });
+
+  it("draws the three cards, the last reported day and the ONE pace board", () => {
+    const html = today();
+    const t = text(html);
+    expect(t).toContain("Day 22 of 31");
+    expect(t).toContain("Last reported day");
+    expect(html).toContain("Instagram, Oct 22: $100 spent of $100 planned");
+    expect(t).toContain("Pace board");
+    // On plan: nothing wants a decision, so the list isn't drawn.
+    expect(t).not.toContain("Needs attention");
+  });
+
+  it("a platform far over pace leads Needs attention, with what the reserve can't cover", () => {
+    const hot = { ...series, spend: series.spend.map((r) => ({ ...r, spend: 180 })) };
+    const t = text(today({ reserveSpendUsd: 1000 }, hot));
+    expect(t).toContain("Needs attention");
+    // 180 × 31 = 5,580 against 3,100: draws 2,480 of the 1,000 reserve.
+    expect(t).toContain("this pace draws $2,480 of $1,000");
+    expect(t).toContain("$1,480 over at month end");
+    expect(t).toContain("running $180/day");
+  });
+
+  it("a month with no plan says what happened and how to plan it", () => {
+    const html = renderToStaticMarkup(
+      createElement(BudgetToday, {
+        month: "2026-10",
+        today: TODAY,
+        series,
+        plans: [plan([])],
+        rate: RATE,
+        storeHorizon: "2026-10-15",
+        coverage: { instagram: "2026-10-22" },
+        seedMonth: null,
+        canManage: true,
+        view: { board: "bars", rank: "plan", group: "platform" },
+      }),
+    );
+    expect(text(html)).toContain("No plan for this month yet.");
+    expect(text(html)).toContain("spent");
   });
 });
 

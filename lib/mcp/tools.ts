@@ -35,7 +35,9 @@ import { getRatingConfig } from "@/db/queries/rating";
 import { funnelOverview } from "@/db/queries/funnel";
 import { platformHorizons, dataHorizon } from "@/db/queries/series-bounds";
 import { campaignDiagnosisInput } from "@/db/queries/diagnosis";
-import { budgetPacingSeries, getBudgetMonth } from "@/db/queries/budget";
+import { budgetPacingSeries, budgetPlansForMonths, getUsdToSarRate } from "@/db/queries/budget";
+import { buildRangeModel } from "@/lib/budget-range";
+import { buildAttention } from "@/lib/budget-attention";
 import { storeDataHorizon } from "@/db/queries/series-bounds";
 import { storeInsightsBreakdown, storeInsightsDaily } from "@/db/queries/store-insights";
 import { reconciliationByPlatform, reconciliationOverview } from "@/db/queries/reconciliation";
@@ -44,18 +46,13 @@ import { getLandingPageByCode, landingPageCreatives } from "@/db/queries/landing
 import { angleRollup, typeRollup } from "@/db/queries/trends";
 import { listAllProductOptions, listProducts } from "@/db/queries/products";
 import {
-  REVENUE_COVERAGE_KEY,
-  buildTrackerRows,
-  buildRangeBoard,
-  buildResultsPerDay,
-  buildSpendPerDay,
+  daysInMonth,
+  elapsedDaysInMonth,
+  pacingDeviation,
   latestCoverage,
-  makeCoverageDay,
   monthEndIso,
-  monthRoasActuals,
   monthStartIso,
   pacingVerdict,
-  roasFigures,
   type TrackerBar,
 } from "@/lib/budget";
 import { resolveBudgetMonth } from "@/validators/budget";
@@ -700,7 +697,7 @@ export function registerMcpTools(server: McpServer): void {
     "get_budget",
     {
       description:
-        "One month of Budget, exactly as the Budget Overview reads it: the plan against actual ad spend — the brand total, each platform and each planned objective bucket — with pacing, the month-end projection, the reserve (planned, used, remaining), the store-revenue target against actual revenue, orders, and ROAS (actual, target, projected). SPEND IS USD; REVENUE IS SAR (the store's currency); ROAS converts spend at the month's stored USD→SAR rate (`usd_to_sar_rate`). Pacing compares each platform through the days ITS data covers (not the calendar): `plan_to_date` is what the plan expected through that coverage and `deviation` = (actual − plan_to_date) ÷ plan_to_date (positive = ahead/overspending, negative = behind). Budget actuals are RAW totals — exclusions never apply here, by design. Revenue has no per-platform split in Budget. Each platform also carries `results` — PLATFORM-REPORTED purchases, purchase value (USD), ROAS (value ÷ spend) and CPA (spend ÷ purchases), over the same raw records and the same covered days as its `actual` spend; null = the platform doesn't report that field (never 0). These are the platforms' own claims, never compared with store revenue and with no target. Viewing a month with no plan returns has_plan: false with the actuals only.",
+        "One month of Budget, exactly as Budget → Today reads it: the plan against actual ad spend — the brand total, each platform and each planned objective bucket — with pacing, the month-end projection, the reserve (planned, used, remaining), the store-revenue target against actual revenue, orders, and ROAS (actual, target, projected). SPEND IS USD; REVENUE IS SAR (the store's currency); ROAS converts spend at the month's stored USD→SAR rate (`usd_to_sar_rate`). Pacing compares each platform through the days ITS data covers (not the calendar): `plan_to_date` is what the plan expected through that coverage and `deviation` = (actual − plan_to_date) ÷ plan_to_date (positive = ahead/overspending, negative = behind). Budget actuals are RAW totals — exclusions never apply here, by design. Revenue has no per-platform split in Budget. Each platform also carries `results` — PLATFORM-REPORTED purchases, purchase value (USD), ROAS (value ÷ spend) and CPA (spend ÷ purchases), over the same raw records and the same covered days as its `actual` spend; null = the platform doesn't report that field (never 0). These are the platforms' own claims, never compared with store revenue and with no target. Each platform row also says where its pace lands (`projected_month_end`) and what each remaining day must spend to land on plan (`needed_per_day`). `needs_attention` lists what wants a decision this month. Viewing a month with no plan returns has_plan: false with the actuals only.",
       inputSchema: {
         brand: brandField,
         month: z
@@ -714,56 +711,34 @@ export function registerMcpTools(server: McpServer): void {
       withBrand(args.brand, async (brand) => {
         const today = todayIso();
         const month = resolveBudgetMonth(args.month, today);
-        const [data, platformCoverage, storeHorizon, series] = await Promise.all([
-          getBudgetMonth(month),
+        const from = monthStartIso(month);
+        const to = monthEndIso(month);
+        const [plans, rate, platformCoverage, storeHorizon, series] = await Promise.all([
+          budgetPlansForMonths([month]),
+          getUsdToSarRate(),
           platformHorizons(),
           storeDataHorizon(),
-          budgetPacingSeries(monthStartIso(month), monthEndIso(month)),
+          budgetPacingSeries(from, to),
         ]);
-        // The same composition the Overview page runs — nothing re-derived here.
-        const coverage = { ...platformCoverage, [REVENUE_COVERAGE_KEY]: storeHorizon };
-        const t = buildTrackerRows(data, month, today, coverage);
-        const coverageDay = makeCoverageDay(month, today, coverage);
-        const roasActuals = monthRoasActuals({
-          month,
-          platformKeys: t.platforms.map((p) => p.key),
-          coverageDay,
-          spend: series.spend,
-          days: series.days,
-        });
-        const roas = roasFigures({
-          actualRevenueSar: roasActuals.revenueSar,
-          actualSpendUsd: roasActuals.spendUsd,
-          plannedRevenueSar: t.revenue.target,
-          plannedSpendUsd: t.total.plan,
-          targetRoas: data.planMode === "daily" ? data.targetRoas : null,
-          projectedRevenueSar: t.projectedRevenue,
-          projectedSpendUsd: t.projectedSpend,
-          rate: data.usdToSarRate,
-        });
-        // Platform-reported results, cut at each platform's own covered day —
-        // the Pacing board's math for this month (plan is irrelevant here).
-        const everyPlatform = () => true;
-        const resultsBoard = buildRangeBoard({
-          from: monthStartIso(month),
-          to: monthEndIso(month),
-          spendPerDay: buildSpendPerDay(series.spend, everyPlatform),
-          planSpendPerDay: new Map(),
-          resultsPerDay: buildResultsPerDay(series.spend, everyPlatform),
-          platforms: t.platforms.map((p) => p.key),
+        // THE model Budget → Today draws (lib/budget-range.ts) — nothing is
+        // re-derived here, so this tool and the page cannot disagree.
+        const model = buildRangeModel({
+          from,
+          to,
+          series,
+          plans,
+          rate,
+          platforms: [],
           coverage: platformCoverage,
+          storeHorizon,
           today,
         });
-        const resultsOf = (platform: string) => {
-          const r = resultsBoard.platforms.find((p) => p.key === platform)?.results;
-          return {
-            source: "platform-reported" as const,
-            purchases: r?.purchases ?? null,
-            purchase_value_usd: r?.purchaseValue ?? null,
-            roas: r?.roas == null ? null : r2(r.roas),
-            cpa_usd: r?.cpa ?? null,
-          };
-        };
+        const plan = model.monthPlan;
+        const hasPlan = !!plan && (plan.allocations.length > 0 || plan.reserveSpendUsd > 0);
+        const { spend, revenue, roas } = model.card;
+        const reservePlanned = plan?.reserveSpendUsd ?? 0;
+        const reserveUsedUsd = model.reserve.kind === "month" ? model.reserve.used : 0;
+        const dayOfMonth = (iso: string | null) => (iso ? Number(iso.slice(8, 10)) : 0);
         const bar = (b: TrackerBar) => ({
           plan: r2(b.plan),
           plan_to_date: r2(b.planToDate),
@@ -772,58 +747,76 @@ export function registerMcpTools(server: McpServer): void {
           deviation: b.deviation,
           verdict: pacingVerdict(b.deviation),
         });
-        return ok(
-          brand,
-          rangeEcho(monthStartIso(month), monthEndIso(month)),
-          {
-            month,
-            today,
-            plan_mode: data.planMode,
-            has_plan: t.hasPlan,
-            usd_to_sar_rate: data.usdToSarRate,
-            day_of_month: t.elapsedDays,
-            days_in_month: t.totalDays,
-            ads_data_through: latestCoverage(platformCoverage),
-            ads_data_through_per_platform: platformCoverage,
-            store_data_through: storeHorizon,
-            spend_usd: {
-              ...bar(t.total),
-              projected_month_end: r2(t.projectedSpend),
-              projected_pct_of_plan: t.projectedPctOfPlan,
-            },
-            platforms_usd: t.platforms.map((p) => ({
-              platform: p.key,
-              ...bar(p),
-              buckets: p.buckets.map((b) => ({ objective: b.label, ...bar(b) })),
-              unplanned: r2(p.unplanned),
-              unplanned_buckets: p.unplannedBuckets.map((u) => ({
-                objective: u.label,
-                actual: r2(u.actual),
-              })),
-              results: resultsOf(p.key),
-            })),
-            unplanned_total_usd: r2(t.unplannedTotal),
-            reserve_usd: {
-              planned: r2(t.reserve),
-              used: r2(t.reserveUsed),
-              remaining: r2(t.reserveRemaining),
-            },
-            revenue_sar: {
-              target: r2(t.revenue.target),
-              ...bar(t.revenue),
-              projected_month_end: r2(t.projectedRevenue),
-            },
-            orders: data.actualOrders,
-            roas: {
-              actual: r2(roas.actual),
-              target: r2(roas.target),
-              projected: r2(roas.projected),
-              deviation: roas.deviation,
-              // Revenue and spend both cut at this day of the month.
-              through_day: roasActuals.throughDay,
-            },
+        return ok(brand, rangeEcho(from, to), {
+          month,
+          today,
+          plan_mode: plan?.planMode ?? "curve",
+          has_plan: hasPlan,
+          usd_to_sar_rate: rate,
+          day_of_month: elapsedDaysInMonth(month, today),
+          days_in_month: daysInMonth(month),
+          ads_data_through: latestCoverage(platformCoverage),
+          ads_data_through_per_platform: platformCoverage,
+          store_data_through: storeHorizon,
+          spend_usd: {
+            ...bar(spend.bar),
+            projected_month_end: r2(spend.projected),
+            projected_pct_of_plan:
+              spend.projected !== null && spend.bar.plan > 0
+                ? spend.projected / spend.bar.plan
+                : null,
           },
-        );
+          platforms_usd: model.board.platforms.map((p) => ({
+            platform: p.key,
+            ...bar(p),
+            // Through this platform's own last covered day.
+            data_through: p.lastData,
+            projected_month_end: r2(p.projection),
+            needed_per_day: r2(p.neededPerDay),
+            buckets: p.buckets.map((b) => ({ objective: b.label, ...bar(b) })),
+            unplanned: r2(p.unplanned),
+            unplanned_buckets: p.unplannedBuckets.map((u) => ({
+              objective: u.label,
+              actual: r2(u.actual),
+            })),
+            results: {
+              source: "platform-reported" as const,
+              purchases: p.results.purchases,
+              purchase_value_usd: p.results.purchaseValue,
+              roas: r2(p.results.roas),
+              cpa_usd: p.results.cpa,
+            },
+          })),
+          unplanned_total_usd: r2(model.board.platforms.reduce((sum, p) => sum + p.unplanned, 0)),
+          reserve_usd: {
+            planned: r2(reservePlanned),
+            used: r2(reserveUsedUsd),
+            remaining: r2(Math.max(0, reservePlanned - reserveUsedUsd)),
+          },
+          revenue_sar: {
+            target: r2(revenue.bar.plan),
+            ...bar(revenue.bar),
+            projected_month_end: r2(revenue.projected),
+          },
+          orders: series.days.reduce((sum, d) => sum + d.orders, 0),
+          roas: {
+            actual: r2(roas.actual),
+            target: r2(roas.target),
+            projected: r2(roas.projected),
+            deviation:
+              roas.actual !== null && roas.target !== null
+                ? pacingDeviation(roas.actual, roas.target)
+                : null,
+            // Revenue and spend both cut at this day of the month.
+            through_day: dayOfMonth(roas.through),
+          },
+          // What Today's "Needs attention" list shows, as data: platforms
+          // more than 15% off pace (with the run-rate over REPORTED days and
+          // what each remaining day needs), a projected reserve overshoot at
+          // month end, spend with no plan, and stale uploads. Empty for a
+          // month that is over or hasn't started.
+          needs_attention: buildAttention(model, platformCoverage),
+        });
       }),
   );
 
