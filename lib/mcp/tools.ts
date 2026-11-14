@@ -35,7 +35,14 @@ import { getRatingConfig } from "@/db/queries/rating";
 import { funnelOverview } from "@/db/queries/funnel";
 import { platformHorizons, dataHorizon } from "@/db/queries/series-bounds";
 import { campaignDiagnosisInput } from "@/db/queries/diagnosis";
-import { budgetPacingSeries, budgetPlansForMonths, getUsdToSarRate } from "@/db/queries/budget";
+import {
+  budgetPacingSeries,
+  budgetPlansForMonths,
+  getUsdToSarRate,
+  listPlanRevisionLog,
+  planRevisionStats,
+} from "@/db/queries/budget";
+import { buildMonthReview } from "@/lib/budget-review";
 import { buildRangeModel } from "@/lib/budget-range";
 import { buildAttention } from "@/lib/budget-attention";
 import { storeDataHorizon } from "@/db/queries/series-bounds";
@@ -51,6 +58,8 @@ import {
   pacingDeviation,
   latestCoverage,
   monthEndIso,
+  monthKey,
+  prevMonthKey,
   monthStartIso,
   pacingVerdict,
   type TrackerBar,
@@ -816,6 +825,92 @@ export function registerMcpTools(server: McpServer): void {
           // month end, spend with no plan, and stale uploads. Empty for a
           // month that is over or hasn't started.
           needs_attention: buildAttention(model, platformCoverage, today),
+        });
+      }),
+  );
+
+  // 13b ─ get_budget_review --------------------------------------------------
+  server.registerTool(
+    "get_budget_review",
+    {
+      description:
+        "Budget months compared, exactly as Budget → Review reads them: for each of the last N months (default 12, ending with the current one) the actual ad spend against the plan the month ENDED with (`plan_usd`) AND the first plan saved for it (`first_plan_usd`) — a plan revised late always matches what was spent, so the gap between `vs_plan` and `vs_first_plan` is how far the plan was moved to meet reality. Also store revenue against its target (SAR), store ROAS against target, the reserve planned and used, and how many times the plan was saved. Deviations are (actual − base) ÷ base; only CLOSED months (`state: \"final\"`) are judged — the running month carries `pace_to_date` instead. `summary` aggregates the closed months; `plan_changes` is the newest plan revisions (who, when, note, planned total). SPEND IS USD, REVENUE IS SAR; actuals are RAW (exclusions never apply in Budget).",
+      inputSchema: {
+        brand: brandField,
+        months: z
+          .number()
+          .int()
+          .min(1)
+          .max(24)
+          .optional()
+          .describe("How many months to look back over, ending with the current month. Default 12."),
+      },
+    },
+    async (args) =>
+      withBrand(args.brand, async (brand) => {
+        const today = todayIso();
+        const months: string[] = [];
+        let cursor = monthKey(today);
+        for (let i = 0; i < (args.months ?? 12); i++) {
+          months.unshift(cursor);
+          cursor = prevMonthKey(cursor);
+        }
+        const from = monthStartIso(months[0]!);
+        const to = monthEndIso(months.at(-1)!);
+        const [series, plans, rate, coverage, storeHorizon, stats, log] = await Promise.all([
+          budgetPacingSeries(from, to),
+          budgetPlansForMonths(months),
+          getUsdToSarRate(),
+          platformHorizons(),
+          storeDataHorizon(),
+          planRevisionStats(months),
+          listPlanRevisionLog(months, 20),
+        ]);
+        const { rows, summary } = buildMonthReview({
+          months,
+          series,
+          plans,
+          stats,
+          rate,
+          coverage,
+          storeHorizon,
+          today,
+        });
+        return ok(brand, rangeEcho(from, to), {
+          usd_to_sar_rate: rate,
+          summary: {
+            closed_months_with_plan: summary.closed,
+            months_within_15pct_of_plan: summary.onPlan,
+            spend_vs_plan: summary.vsPlan,
+            spend_vs_first_plan: summary.vsFirst,
+            revenue_vs_target: summary.vsRevenue,
+          },
+          months: rows.map((r) => ({
+            month: r.month,
+            state: r.state,
+            has_plan: r.hasPlan,
+            spend_usd: r2(r.actual),
+            plan_usd: r2(r.plan),
+            first_plan_usd: r2(r.firstPlan),
+            vs_plan: r.vsPlan,
+            vs_first_plan: r.vsFirst,
+            pace_to_date: r.paceToDate,
+            revenue_sar: r2(r.revenue),
+            revenue_target_sar: r2(r.revenueTarget),
+            revenue_vs_target: r.vsRevenue,
+            roas: r2(r.roas),
+            roas_target: r2(r.roasTarget),
+            reserve_usd: { planned: r2(r.reserve), used: r2(r.reserveUsed) },
+            plan_saves: r.revisions,
+          })),
+          plan_changes: log.map((r) => ({
+            month: r.month,
+            saved_at: r.createdAt,
+            saved_by: r.savedBy,
+            note: r.note,
+            planned_total_usd: r.readable ? r2(r.plannedTotal + r.reserveSpendUsd) : null,
+            mode: r.mode,
+          })),
         });
       }),
   );

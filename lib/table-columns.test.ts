@@ -271,6 +271,7 @@ describe("the registry", () => {
         "budget-daily",
         "budget-pacing",
         "budget-results",
+        "budget-review",
         "budget-tracker",
         "campaign-creatives",
         "campaign-records",

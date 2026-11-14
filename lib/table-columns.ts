@@ -65,6 +65,8 @@ export const TABLE_KEYS = {
   BUDGET_DAILY: "budget-daily",
   /** Budget → Analysis, the results lens (by platform · objective · product). */
   BUDGET_RESULTS: "budget-results",
+  /** Budget → Review, months compared. */
+  BUDGET_REVIEW: "budget-review",
 
   // ── Phase 3 (2026-10): the hand-rolled tables, as they migrate ────────
   /** Trends → Launches, the launch-fatigue table. */

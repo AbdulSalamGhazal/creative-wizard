@@ -934,6 +934,141 @@ export async function listPlanRevisionSummaries(
   }));
 }
 
+/** A revision in the cross-month log: its summary plus the month it belongs to. */
+export type PlanRevisionLogRow = PlanRevisionSummary & { month: string };
+
+function revisionSummary(r: {
+  id: string;
+  createdAt: Date;
+  note: string | null;
+  snapshot: unknown;
+  name: string | null;
+  email: string | null;
+}): PlanRevisionSummary {
+  const parsed = storedSnapshotSchema.safeParse(r.snapshot);
+  const snap = parsed.success ? parsed.data : null;
+  return {
+    id: r.id,
+    createdAt: r.createdAt.toISOString(),
+    note: r.note,
+    savedBy: r.name ?? r.email ?? "Unknown",
+    allocationCount: snap?.allocations.length ?? 0,
+    plannedTotal: snap?.allocations.reduce((s, a) => s + a.plannedSpend, 0) ?? 0,
+    plannedRevenueSar: snap?.plannedRevenueSar ?? null,
+    reserveSpendUsd: snap?.reserveSpendUsd ?? 0,
+    weightOverrides: snap ? Object.keys(snap.dayWeights).length : 0,
+    mode: snap?.mode ?? "curve",
+    dayCells: snap?.days.length ?? 0,
+    readable: snap !== null,
+  };
+}
+
+/**
+ * WHO CHANGED WHAT, across months (Budget → Review, 2026-11-14): the newest
+ * plan revisions over a set of months, as summaries — never a snapshot (the
+ * D14 rule; a daily-mode one is large). Bounded: this is a recent log, the
+ * Plan page's drawer is where one month's history is opened and restored.
+ */
+export async function listPlanRevisionLog(
+  months: string[],
+  limit = 40,
+): Promise<PlanRevisionLogRow[]> {
+  if (months.length === 0) return [];
+  const acct = await getActiveAccountId();
+  const rows = await db
+    .select({
+      id: budgetPlanRevisions.id,
+      month: budgetPlanRevisions.month,
+      createdAt: budgetPlanRevisions.createdAt,
+      note: budgetPlanRevisions.note,
+      snapshot: budgetPlanRevisions.snapshot,
+      name: users.name,
+      email: users.email,
+    })
+    .from(budgetPlanRevisions)
+    .leftJoin(users, eq(users.id, budgetPlanRevisions.savedBy))
+    .where(
+      and(
+        eq(budgetPlanRevisions.accountId, acct),
+        inArray(budgetPlanRevisions.month, months.map(monthStartIso)),
+      ),
+    )
+    .orderBy(desc(budgetPlanRevisions.createdAt))
+    .limit(limit);
+  return rows.map((r) => ({ ...revisionSummary(r), month: r.month.slice(0, 7) }));
+}
+
+export interface MonthRevisionStats {
+  /** YYYY-MM */
+  month: string;
+  /** How many times the month's plan was saved. */
+  count: number;
+  /**
+   * The FIRST plan on record for the month — the earliest revision that
+   * carries allocations — or null when none does (a month planned before
+   * revisions existed, or never planned).
+   */
+  first: { plannedTotal: number; plannedRevenueSar: number | null; createdAt: string } | null;
+}
+
+/**
+ * Per month: how often its plan changed, and what it FIRST said — the
+ * baseline Review's plan accuracy needs (a month revised on its last day
+ * scores perfectly against its final plan). TWO queries whatever the number
+ * of months: the counts, and each month's earliest revisions (the first few,
+ * so a leading "before deletion" or empty snapshot doesn't hide the plan).
+ */
+export async function planRevisionStats(months: string[]): Promise<MonthRevisionStats[]> {
+  if (months.length === 0) return [];
+  const acct = await getActiveAccountId();
+  const scope = and(
+    eq(budgetPlanRevisions.accountId, acct),
+    inArray(budgetPlanRevisions.month, months.map(monthStartIso)),
+  );
+  const counts = await db
+    .select({ month: budgetPlanRevisions.month, count: sql<number>`count(*)::int` })
+    .from(budgetPlanRevisions)
+    .where(scope)
+    .groupBy(budgetPlanRevisions.month);
+  // The earliest three per month, ranked in SQL so the read stays small.
+  const ranked = db
+    .select({
+      month: budgetPlanRevisions.month,
+      createdAt: budgetPlanRevisions.createdAt,
+      snapshot: budgetPlanRevisions.snapshot,
+      rank: sql<number>`row_number() over (partition by ${budgetPlanRevisions.month} order by ${budgetPlanRevisions.createdAt} asc)`.as(
+        "rank",
+      ),
+    })
+    .from(budgetPlanRevisions)
+    .where(scope)
+    .as("ranked");
+  const earliest = await db
+    .select()
+    .from(ranked)
+    .where(lte(ranked.rank, 3))
+    .orderBy(asc(ranked.month), asc(ranked.rank));
+
+  const first = new Map<string, MonthRevisionStats["first"]>();
+  for (const r of earliest) {
+    const month = r.month.slice(0, 7);
+    if (first.has(month)) continue;
+    const parsed = storedSnapshotSchema.safeParse(r.snapshot);
+    if (!parsed.success || parsed.data.allocations.length === 0) continue;
+    first.set(month, {
+      plannedTotal: parsed.data.allocations.reduce((s, a) => s + a.plannedSpend, 0),
+      plannedRevenueSar: parsed.data.plannedRevenueSar ?? null,
+      createdAt: r.createdAt.toISOString(),
+    });
+  }
+  const countByMonth = new Map(counts.map((c) => [c.month.slice(0, 7), Number(c.count)]));
+  return months.map((month) => ({
+    month,
+    count: countByMonth.get(month) ?? 0,
+    first: first.get(month) ?? null,
+  }));
+}
+
 export interface PlanRevisionDetail {
   id: string;
   /** YYYY-MM — the month the revision belongs to, NOT the caller's guess. */

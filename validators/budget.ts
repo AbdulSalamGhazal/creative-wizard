@@ -361,6 +361,13 @@ export type PacingSplit = (typeof PACING_SPLITS)[number];
 export const PACING_SHAPES = ["cumulative", "period", "deviation"] as const;
 export type PacingShape = (typeof PACING_SHAPES)[number];
 
+/** Budget → Review's two views of the months (remembered as `reviewview`). */
+export const REVIEW_VIEWS = ["scorecard", "table"] as const;
+export type ReviewView = (typeof REVIEW_VIEWS)[number];
+/** How many months Review looks back over. */
+export const REVIEW_SPANS = ["6", "12", "24"] as const;
+export type ReviewSpan = (typeof REVIEW_SPANS)[number];
+
 /** Analysis's two lenses: is the money going out on plan, and what did it buy. */
 export const ANALYSIS_LENSES = ["pacing", "results"] as const;
 export type AnalysisLens = (typeof ANALYSIS_LENSES)[number];

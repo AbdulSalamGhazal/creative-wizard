@@ -38,6 +38,8 @@ import {
   getBudgetMonth,
   listPlanRevisionSummaries,
   listPlanRevisions,
+  listPlanRevisionLog,
+  planRevisionStats,
   plannedMonths,
 } from "@/db/queries/budget";
 import { buildPlanSeries, planSeriesSourceOf } from "@/lib/budget";
@@ -117,6 +119,36 @@ describe("plan revisions — written on every write", () => {
     expect(feb[0]!.plannedTotal).toBeCloseTo(1500, 4);
     // January keeps only its own save.
     expect(await listPlanRevisions(MONTH)).toHaveLength(1);
+  });
+
+  it("the cross-month log and the per-month stats: counts, the FIRST plan, no snapshots, tenant-scoped", async () => {
+    await saveBudgetMonth({ ...PLAN_A, note: "first" }); // January: 1,500
+    await saveBudgetMonth(PLAN_B); // January again: 800
+    await copyBudgetFromMonth({ month: "2026-02", from: MONTH }); // February: 800
+
+    const stats = await planRevisionStats(["2026-01", "2026-02", "2026-03"]);
+    expect(stats.map((s) => [s.month, s.count])).toEqual([
+      ["2026-01", 2],
+      ["2026-02", 1],
+      ["2026-03", 0],
+    ]);
+    // The baseline is what January FIRST said, not what it ended as.
+    expect(stats[0]!.first?.plannedTotal).toBeCloseTo(1500, 4);
+    expect(stats[0]!.first?.plannedRevenueSar).toBe(25_000);
+    expect(stats[1]!.first?.plannedTotal).toBeCloseTo(800, 4);
+    expect(stats[2]!.first).toBeNull();
+
+    const log = await listPlanRevisionLog(["2026-01", "2026-02"]);
+    expect(log.map((r) => r.month)).toEqual(["2026-02", "2026-01", "2026-01"]); // newest first
+    expect(log[2]).toMatchObject({ note: "first", savedBy: "Harness", readable: true });
+    expect(log[2]!.plannedTotal).toBeCloseTo(1500, 4);
+    expect("snapshot" in log[0]!).toBe(false);
+    // A month outside the window is not listed.
+    expect(await listPlanRevisionLog(["2026-02"])).toHaveLength(1);
+
+    setAccount(ACCOUNT_B);
+    expect(await listPlanRevisionLog(["2026-01", "2026-02"])).toEqual([]);
+    expect((await planRevisionStats(["2026-01"]))[0]).toMatchObject({ count: 0, first: null });
   });
 
   it("refuses to copy a month onto itself", async () => {

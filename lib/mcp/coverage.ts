@@ -37,7 +37,7 @@ export const MCP_COVERAGE: Record<string, McpCoverage> = {
   "series-bounds": { mcp: "tools", tools: ["get_data_freshness", "get_budget", "get_store"] },
   diagnosis: { mcp: "tools", tools: ["diagnose_campaign"] },
   products: { mcp: "tools", tools: ["list_products"] },
-  budget: { mcp: "tools", tools: ["get_budget"] },
+  budget: { mcp: "tools", tools: ["get_budget", "get_budget_review"] },
   "store-insights": { mcp: "tools", tools: ["get_store"] },
   reconciliation: { mcp: "tools", tools: ["get_store"] },
   "landing-page-performance": { mcp: "tools", tools: ["get_landing_pages"] },
