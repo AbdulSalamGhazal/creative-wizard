@@ -12,6 +12,7 @@ import {
   Megaphone,
   Scale,
   Wallet,
+  CalendarDays,
   NotebookPen,
   Gauge,
   Users,
@@ -139,6 +140,8 @@ export const NAV_ITEMS: NavItem[] = [
   // index route, so it matches exactly — otherwise it would stay lit on every
   // sibling page. (Today replaced the Overview, 2026-11-14.)
   { href: "/budget", label: "Today", icon: Wallet, group: "budget", exact: true },
+  // Day pacing: any day against that day's plan (2026-11-14).
+  { href: "/budget/days", label: "Daily", icon: CalendarDays, group: "budget" },
   { href: "/budget/plan", label: "Plan", icon: NotebookPen, group: "budget" },
   // Pacing carries the board the Tracker used to be (merged 2026-10-19);
   // /budget/tracker redirects here.

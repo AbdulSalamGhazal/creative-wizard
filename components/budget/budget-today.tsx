@@ -362,7 +362,7 @@ function attentionRow(
             )}
           </>
         ),
-        href: `/budget/daily?month=${month}&platforms=${item.platform}`,
+        href: `/budget/days?month=${month}&platforms=${item.platform}`,
         action: "Days",
       };
     }
@@ -444,8 +444,8 @@ function LastDay({
               key={t.key}
               href={
                 t.date
-                  ? `/budget/daily?month=${month}&day=${t.date}`
-                  : `/budget/daily?month=${month}`
+                  ? `/budget/days?month=${month}&day=${t.date}`
+                  : `/budget/days?month=${month}`
               }
               aria-label={
                 t.date

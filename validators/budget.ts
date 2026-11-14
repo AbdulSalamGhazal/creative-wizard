@@ -345,6 +345,10 @@ export type PacingRank = (typeof PACING_RANKS)[number];
 export const PACING_GROUPS = ["platform", "objective"] as const;
 export type PacingGroup = (typeof PACING_GROUPS)[number];
 
+/** Budget → Daily's three views of the same day cells (remembered as `dayview`). */
+export const DAILY_VIEWS = ["calendar", "bars", "table"] as const;
+export type DailyView = (typeof DAILY_VIEWS)[number];
+
 /** How the chart series and the period table blocks are split: not at all,
  *  per platform, or per objective bucket. A platform split LOCKS the metric
  *  to Spend — revenue has no platform attribution anywhere in Budget. */

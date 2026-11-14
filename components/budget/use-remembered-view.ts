@@ -15,9 +15,11 @@ import { queueFilterPrefs, setPersistedKeys } from "@/lib/filter-prefs";
 export function useRememberedViews<K extends string>(
   initial: Record<K, string>,
   defaults: Record<K, string>,
+  /** Other keys this page remembers through `queueFilterPrefs` itself. */
+  alsoPersist: readonly string[] = [],
 ): [Record<K, string>, (key: K, value: string) => void] {
   const [views, setViews] = useState(initial);
-  const keys = Object.keys(defaults).join(",");
+  const keys = [...Object.keys(defaults), ...alsoPersist].join(",");
   useEffect(() => {
     setPersistedKeys(keys.split(","));
   }, [keys]);
