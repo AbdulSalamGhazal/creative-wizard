@@ -5,14 +5,12 @@ import { BUDGET_OBJECTIVES, type BudgetObjective } from "@/lib/budget";
  * `BUDGET_OBJECTIVES` minus the "Other" catch-all: a thing has a position in
  * the funnel or it isn't part of one.
  *
- * Hoisted out of `lib/audience.ts` (which now re-exports these) so the creative
- * side can use the same vocabulary without importing the audience module's
- * carry-forward machinery. Never re-list the values anywhere.
+ * Never re-list the values anywhere.
  *
  * Two DIFFERENT axes share these names, deliberately:
  *   - `creatives.stages` — the team's MANUAL declaration of where a creative
  *     sits in the funnel (this module's `STAGE_*` helpers).
- *   - `budget_allocations.objective` / audience snapshots — the budget bucket.
+ *   - `budget_allocations.objective` — the budget bucket.
  * A creative declared Retargeting can spend inside an Awareness campaign; that
  * mismatch is information, not an error.
  */
@@ -30,7 +28,7 @@ export const FUNNEL_STAGES: readonly [FunnelStage, ...FunnelStage[]] = [
 /**
  * "No clear stage" — an EXPLICIT declaration, and a CREATIVE-SIDE value only
  * (2026-09). It is deliberately NOT in `FUNNEL_STAGES`: that list is the funnel
- * itself, and it also feeds the Audience matrix and the Budget-bucket mapping,
+ * itself, and it also feeds the Budget-bucket mapping,
  * where an "N/A" row would be nonsense.
  *
  * THREE STATES, not two:
@@ -44,8 +42,8 @@ export const FUNNEL_STAGES: readonly [FunnelStage, ...FunnelStage[]] = [
 export const NA_STAGE = "N/A" as const;
 export type NaStage = typeof NA_STAGE;
 
-/** What a CREATIVE may declare — the funnel, plus N/A. Never the audience or
- *  budget axes: those stay on `FUNNEL_STAGES`. */
+/** What a CREATIVE may declare — the funnel, plus N/A. Never the
+ *  budget axis: that stays on `FUNNEL_STAGES`. */
 export const CREATIVE_STAGE_OPTIONS: readonly [FunnelStage | NaStage, ...(FunnelStage | NaStage)[]] =
   [...FUNNEL_STAGES, NA_STAGE];
 export type CreativeStage = FunnelStage | NaStage;

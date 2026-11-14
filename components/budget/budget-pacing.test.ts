@@ -302,41 +302,6 @@ describe("Pacing board — the Table CSV writes the display currency (B-17)", ()
   });
 });
 
-describe("Audience — a pair's spend is known through ITS platform's day (W1-2)", () => {
-  it("a lagging platform's unreported days don't enter pressure as $0", async () => {
-    const { AudienceBoard } = await import("@/components/budget/audience-board");
-    const seed = (platform: "instagram" | "tiktok") => ({
-      id: platform,
-      platform,
-      stage: "Awareness" as const,
-      date: "2026-09-30",
-      size: 100_000,
-    });
-    const html = renderToStaticMarkup(
-      createElement(AudienceBoard, {
-        from: "2026-10-01",
-        to: "2026-10-31",
-        today: TODAY,
-        audience: { inRange: [], seed: [seed("instagram"), seed("tiktok")] },
-        latest: [seed("instagram"), seed("tiktok")],
-        recent: [],
-        spend: [...onPlan("instagram", LAGGING.instagram), ...onPlan("tiktok", LAGGING.tiktok)],
-        coverage: LAGGING,
-        canManage: false,
-      }),
-    );
-    const csv = [...html.matchAll(/<pre data-file="([^"]+)">([\s\S]*?)<\/pre>/g)].find((m) =>
-      m[1]!.startsWith("audience-"),
-    )![2]!;
-    const row = (platform: string) =>
-      csv.split("\n").find((l) => l.startsWith("Awareness") && l.includes(`,${platform},`))!;
-    // TikTok: $1,500 over the 15 days it reported × 100k → $1.00 per 1k a day.
-    // Before: 15 days of spend over 22 days of audience → $0.68.
-    expect(row("TikTok")).toContain(",1500.00,1.00,");
-    expect(row("Instagram")).toContain(",2200.00,1.00,");
-  });
-});
-
 describe("Pacing — a past month's aria anchor names the REAL last day of data (W3)", () => {
   it("September is final (anchored to the 30th), but its data stops on the 25th — and says so", () => {
     const sept = isoDaysBetween("2026-09-01", "2026-09-25").map((date) => ({

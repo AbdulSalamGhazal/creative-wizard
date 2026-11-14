@@ -261,8 +261,7 @@ export function BudgetPlanEditor({
   const series = useMemo(() => buildPlanSeries(planSeriesSourceOf(data, month)), [data, month]);
   const [rateDraft, setRateDraft] = useState<string | null>(null);
 
-  // Phone + keyboard flow for every numeric field in the cascade (shared with
-  // the Audience record grid — see useFieldFlow).
+  // Phone + keyboard flow for every numeric field in the cascade (useFieldFlow).
   const { formRef, fieldProps } = useFieldFlow();
   const totalRef = useRef<HTMLInputElement>(null);
 

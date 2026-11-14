@@ -1,9 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { BUDGET_OBJECTIVES } from "@/lib/budget";
-import {
-  FUNNEL_STAGES as AUDIENCE_STAGES,
-  stageLabel as audienceStageLabel,
-} from "@/lib/audience";
 import { readFileSync } from "node:fs";
 import {
   CREATIVE_STAGE_OPTIONS,
@@ -30,11 +26,6 @@ describe("one stage vocabulary, derived not re-listed", () => {
     expect(FUNNEL_STAGES).toEqual(["Awareness", "Activation", "Retargeting"]);
     expect(stageRank("Awareness")).toBeLessThan(stageRank("Activation"));
     expect(stageRank("Activation")).toBeLessThan(stageRank("Retargeting"));
-  });
-
-  it("lib/audience re-exports the SAME list (no second copy)", () => {
-    expect(AUDIENCE_STAGES).toBe(FUNNEL_STAGES);
-    expect(audienceStageLabel("Awareness")).toBe(stageLabel("Awareness"));
   });
 
   it("labels each stage with both names, and knows its shorthand", () => {
@@ -185,21 +176,18 @@ describe("N/A is creative-side only — the funnel axis must never see it", () =
     expect((FUNNEL_STAGES as readonly string[]).includes(NA_STAGE)).toBe(false);
     // Still the budget axis minus "Other" — the derivation is untouched.
     expect([...FUNNEL_STAGES]).toEqual(BUDGET_OBJECTIVES.filter((o) => o !== "Other"));
-    // …and the audience module re-exports that same list.
-    expect([...AUDIENCE_STAGES]).toEqual([...FUNNEL_STAGES]);
-    expect((AUDIENCE_STAGES as readonly string[]).includes(NA_STAGE)).toBe(false);
   });
 
   it("CREATIVE_STAGE_OPTIONS is the funnel plus N/A, in that order", () => {
     expect([...CREATIVE_STAGE_OPTIONS]).toEqual([...FUNNEL_STAGES, NA_STAGE]);
     expect(isCreativeStage(NA_STAGE)).toBe(true);
-    expect(isFunnelStage(NA_STAGE)).toBe(false); // the guard the audience board uses
+    expect(isFunnelStage(NA_STAGE)).toBe(false); // the funnel-axis guard
   });
 
-  it("neither lib/audience.ts nor lib/budget.ts CONSUMES the creative vocabulary", () => {
+  it("lib/budget.ts never CONSUMES the creative vocabulary", () => {
     // A source-level guard: the leak this separation exists to prevent would
     // arrive as an import, and a type test can't see one that isn't there.
-    for (const file of ["lib/audience.ts", "lib/budget.ts"]) {
+    for (const file of ["lib/budget.ts"]) {
       const src = readFileSync(file, "utf8");
       expect(src).not.toContain("CREATIVE_STAGE_OPTIONS");
       expect(src).not.toContain("NA_STAGE");
@@ -207,8 +195,8 @@ describe("N/A is creative-side only — the funnel axis must never see it", () =
     }
   });
 
-  it("the audience side's labels are unchanged by N/A existing", () => {
-    expect(audienceStageLabel("Awareness")).toBe("Awareness · TOF");
+  it("the funnel labels are unchanged by N/A existing", () => {
+    expect(stageLabel("Awareness")).toBe("Awareness · TOF");
     expect(STAGE_SHORT.Awareness).toBe("TOF");
     // N/A IS its own short form — there is no three-letter word for "no stage".
     expect(STAGE_SHORT[NA_STAGE]).toBe(NA_STAGE);

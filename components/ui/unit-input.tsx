@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 
 /**
  * Phone + keyboard flow for a form full of numeric fields (the Plan editor's
- * cascade, the Audience record grid).
+ * cascade).
  *
  * One ref goes on the form container; every field spreads `fieldProps`. Enter
  * walks to the next `[data-budget-field]` in DOM order — which both callers

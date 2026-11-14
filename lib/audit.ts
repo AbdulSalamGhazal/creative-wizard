@@ -114,11 +114,6 @@ export const AUDIT_ACTIONS = {
   // Budget module
   BUDGET_UPDATE: "budget.update",
 
-  // Funnel-audience snapshots (Budget → Audience)
-  AUDIENCE_RECORD: "audience.record",
-  AUDIENCE_UPDATE: "audience.update",
-  AUDIENCE_DELETE: "audience.delete",
-
   // Comments (notifications phase 2). CREATION is not audited — the comment
   // is its own visible record; edits and deletes remove evidence, so they are.
   COMMENT_UPDATE: "comment.update",
@@ -284,6 +279,11 @@ export const LEGACY_AUDIT_LABELS: Record<string, string> = {
   // Retired 2026-06 (bb54732): bulk status went with the stored status — the
   // writer was removed and nothing has written it since. Old rows keep it.
   "creative.bulk_status": "Bulk status change",
+  // Retired 2026-11-14: the Audience page was deleted with its table. Old
+  // rows keep their wording; nothing writes these any more.
+  "audience.record": "Recorded audience sizes",
+  "audience.update": "Corrected an audience size",
+  "audience.delete": "Deleted an audience snapshot",
 };
 
 export const AUDIT_LABELS: Record<AuditAction, string> = {
@@ -345,9 +345,6 @@ export const AUDIT_LABELS: Record<AuditAction, string> = {
   "angle.delete": "Deleted angle",
   "rating.update": "Updated rate rules",
   "budget.update": "Updated budget plan",
-  "audience.record": "Recorded audience sizes",
-  "audience.update": "Corrected an audience size",
-  "audience.delete": "Deleted an audience snapshot",
   "comment.update": "Edited a comment",
   "comment.delete": "Deleted a comment",
   "comment.restore": "Restored a comment",

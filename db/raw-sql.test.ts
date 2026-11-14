@@ -31,8 +31,6 @@ const SANCTIONED_FILES: Record<string, string> = {
     "THE fragment library: every derived-metric expression in the app is defined here exactly once, which is the whole reason the aggregation rule holds",
   "lib/oauth.ts":
     "the single-use authorization code is consumed by ONE atomic `UPDATE … WHERE consumed_at IS NULL RETURNING` — a non-negotiable that cannot be expressed through the query builder",
-  "app/actions/audience.ts":
-    "`sql`excluded.size`` inside an upsert's `onConflictDoUpdate` — drizzle's way of naming the EXCLUDED pseudo-table; the write belongs in an action, which is where writes live",
   "app/actions/session.ts":
     "`LOWER(email)` for the case-insensitive sign-in lookup — auth is deliberately colocated with the session action rather than split across a query module nobody else would use",
   "app/api/health/route.ts":

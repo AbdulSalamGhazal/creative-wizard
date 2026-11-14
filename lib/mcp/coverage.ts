@@ -48,10 +48,6 @@ export const MCP_COVERAGE: Record<string, McpCoverage> = {
     mcp: "no",
     why: "User decision 2026-11-11: costs and margins are sensitive; the user's Claude does not read Pricing.",
   },
-  audience: {
-    mcp: "no",
-    why: "Funnel-audience snapshots are hand-entered planning inputs, not performance; not requested for the MCP.",
-  },
   "store-utms": {
     mcp: "no",
     why: "UTM hygiene is a cleanup surface; get_store already carries the platform split the UTMs map to.",

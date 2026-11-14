@@ -15,7 +15,6 @@ import {
   NotebookPen,
   Gauge,
   Users,
-  UsersRound,
   ScrollText,
   Tags,
   Workflow,
@@ -144,9 +143,6 @@ export const NAV_ITEMS: NavItem[] = [
   // Pacing carries the board the Tracker used to be (merged 2026-10-19);
   // /budget/tracker redirects here.
   { href: "/budget/pacing", label: "Pacing", icon: Gauge, group: "budget" },
-  // Funnel-audience sizes vs spend. Open to any brand member, like the other
-  // read surfaces; recording is gated behind audience.manage on the page.
-  { href: "/budget/audience", label: "Audience", icon: UsersRound, group: "budget" },
 
   // ── Store ────────────────────────────────────────────────────────────────
   {

@@ -268,7 +268,6 @@ describe("the registry", () => {
     expect([...TABLE_KEY_LIST].sort()).toEqual(
       [
         "ads-summary",
-        "budget-audience",
         "budget-pacing",
         "budget-tracker",
         "campaign-creatives",

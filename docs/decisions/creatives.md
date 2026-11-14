@@ -124,11 +124,11 @@ as it stood before the restructure.*
     rest and vice versa) and `stagesSchema` REJECTS the combination, so a
     hand-rolled request can't store the contradiction; bulk import says the
     same thing per row. The vocabulary split is the guard: `FUNNEL_STAGES`
-    stays EXACTLY the three (it feeds the Audience matrix and the
+    stays EXACTLY the three (it feeds the
     Budget-bucket mapping, where "N/A" would be nonsense) and the new
     `CREATIVE_STAGE_OPTIONS = [...FUNNEL_STAGES, NA_STAGE]` is what the
     creative side uses. **Never widen `FUNNEL_STAGES`**; a test pins its
-    length and asserts `lib/audience.ts` / `lib/budget.ts` never import the
+    length and asserts `lib/budget.ts` never imports the
     creative vocabulary.
   - **NEVER auto-derived.** Not from the campaign objective a creative happens
     to run under, not from where it spends. It is the team saying where the
@@ -140,8 +140,8 @@ as it stood before the restructure.*
   - **One vocabulary, `lib/funnel-stages.ts`** (`FUNNEL_STAGES` /
     `CREATIVE_STAGE_OPTIONS` / `STAGE_SHORT` / `stageLabel` / `sortStages` /
     `compareStages`), derived from
-    `BUDGET_OBJECTIVES` minus "Other" and RE-EXPORTED by `lib/audience.ts` —
-    hoisted there so the creative and audience sides share one definition.
+    `BUDGET_OBJECTIVES` minus "Other" — the app's one definition of the
+    stages (`lib/audience.ts`, which re-exported it, was removed 2026-11-14).
     Never re-list the stage names (not in SQL either: the Library and Summary
     stage sorts run in JS through `compareStages` rather than encoding the
     funnel order in an ORDER BY).

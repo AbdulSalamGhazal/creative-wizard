@@ -435,7 +435,7 @@ outranked it outright (on `/store/orders` at 375×560 it was the header row
 that covered the bar). Pages whose table never reaches the bar (the frame is
 capped at `max-h-[70vh]`) hid it, which is why it surfaced on a long page.
 Fix: `isolate` on DataTable's frame wrapper (and its empty-state wrapper),
-the two grouped twins, and Budget Audience's matrix and its dialog grid — one
-word each, with a guard test. Raising the bar instead was rejected: the
+the two grouped twins, and Budget Audience's matrix and its dialog grid (the
+Audience page was removed 2026-11-14) — one word each, with a guard test. Raising the bar instead was rejected: the
 corner's z-40 would still beat it, and the top bar (z-20) would then need
 raising too.

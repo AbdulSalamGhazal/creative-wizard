@@ -158,8 +158,7 @@ as it stood before the restructure.*
     again. **NEVER hand-roll a filter bar.** Every filter-bearing page is on it
     (phase 2, 2026-09): **Ads · Library · Campaigns · Canvas · Store orders ·
     Store Insights · Reconciliation · Budget Pacing** — joined in 2026-10 (D27)
-    by **Budget Audience** (zero defs: the range in tier 1, Recent / Record
-    sizes in the toolbar) and the **Audit log** (one `single` def keyed
+    by the **Audit log** (one `single` def keyed
     `category`, its options carrying their event counts, not remembered). (`FilterStrip` — the shared
     Dashboard/Trends strip — is a different thing: one bar shared BY many
     pages, not a page's own.)
@@ -216,7 +215,7 @@ as it stood before the restructure.*
       toggle — Columns moved into the table's own header corner in 2026-10,
       `docs/decisions/tables-columns.md`), stays visible house-wide, and Clear
       never touches it.
-    - **ZERO-DEF PAGES** (Store orders · Reconciliation · Audience; Pacing was one until
+    - **ZERO-DEF PAGES** (Store orders · Reconciliation; Pacing was one until
       the Tracker's `buckets` / `offpace` moved onto it, 2026-10-19): a page with
       no tier-2 filters renders the SAME bar with no Filters button and no
       chips row — consistency without a dead control. With nothing to collapse,
@@ -402,6 +401,7 @@ as it stood before the restructure.*
   the Audit log a row of plain `<Link>` chips (no progress bar, a second way
   to filter a page). Both are on `FilterShell` and write through
   `useFilterParams`. Audience keeps its per-platform coverage horizon (W1-2).
+  (The Audience page was removed 2026-11-14.)
   The Audit log's `?category=` param is unchanged, so every link into it still
   works; its empty state says "No activity in this category." and offers the
   bar's own Clear.

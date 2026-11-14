@@ -48,10 +48,10 @@ Do not introduce a new dependency without a one-line justification in the PR des
 - Each route's page renders one composed view; data fetching lives in `db/queries/*`, not inline in pages.
 - All inputs (route handler bodies, form data, URL params used as filters) are validated through Zod schemas in `validators/`.
 - Raw `sql` templates live in the QUERY LAYER (`db/queries/*`) and in
-  `lib/metrics.ts`, the fragment library — plus six named sites that each
+  `lib/metrics.ts`, the fragment library — plus five named sites that each
   carry their reason in `db/raw-sql.test.ts` (schema defaults, the seed,
-  OAuth's atomic single-use `UPDATE`, the audience upsert's `excluded.*`, the
-  sign-in `LOWER(email)`, the health probe's `select 1`). **No component, page
+  OAuth's atomic single-use `UPDATE`, the sign-in `LOWER(email)`, the health
+  probe's `select 1`). **No component, page
   or validator may use raw SQL** — that is the half that matters, because a
   query written outside the layer skips the account scoping the layer applies
   for everybody. (The old rule named one file while sixteen used `sql`; a rule

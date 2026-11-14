@@ -61,8 +61,6 @@ export const TABLE_KEYS = {
    *  page it replaced, 2026-10-19) — stored, so renaming it would orphan
    *  every remembered column choice. */
   BUDGET_TRACKER: "budget-tracker",
-  /** Budget → Audience, the pair board. */
-  BUDGET_AUDIENCE: "budget-audience",
 
   // ── Phase 3 (2026-10): the hand-rolled tables, as they migrate ────────
   /** Trends → Launches, the launch-fatigue table. */

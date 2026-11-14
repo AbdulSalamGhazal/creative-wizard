@@ -43,8 +43,8 @@
   (`platformHorizons` → `makeCoverageDay`). A total is the SUM of its rows'
   expectations, not a second calculation over the whole plan.
   **Every surface, every number** (2026-10-23, W1-2…W1-4): Overview's cards
-  and board, Pacing's range card, chart (incl. Deviation), period table and
-  board, and Audience pressure anchor EACH platform to its OWN day — a range
+  and board, and Pacing's range card, chart (incl. Deviation), period table
+  and board anchor EACH platform to its OWN day — a range
   through `coveredThrough` (the month rule as a date: a month before today's
   is over and final) and `expectedPlanPerDay` (each platform's plan through
   its own day, totals re-summed from those). A pacing verdict compares
@@ -88,9 +88,6 @@
   — the same `buildTrackerRows` output regrouped, never a second derivation.
 - Budget's objective axis is `BUDGET_OBJECTIVES` (buckets), applied at every
   layer and never re-listed.
-- Audience snapshots: carry forward as a STEP, never interpolate; before the
-  first measurement the size is UNKNOWN, never 0; pressure counts only days
-  with a known audience.
 - **Spend vs results is PLATFORM-REPORTED (2026-11-14, user decision).** The
   Pacing board's Results figures (ROAS · CPA · purchases, every platform and
   bucket row, plus three table columns) and the "Where the money works" panel
@@ -116,6 +113,8 @@ as it stood before the restructure.*
 
 <!-- was CLAUDE.md L426–442 -->
 
+*Retired 2026-11-14 (user decision): the Audience page, its table and `audience.manage` were deleted; this section is history only.*
+
 - **Sparse audience snapshots: carry forward, never interpolate (2026-09).**
   `audience_snapshots` holds only the days somebody actually MEASURED an
   audience, so every reader in `lib/audience.ts` follows four rules that are
@@ -140,7 +139,8 @@ as it stood before the restructure.*
 
 - **Budget module (2026-09, v2) — raw actuals BY DECISION.** Its own sidebar
   section of 4 pages (`/budget` Overview · `/budget/plan` · `/budget/pacing` ·
-  `/budget/audience`; `/budget/tracker` redirects to Pacing since 2026-10-19);
+  `/budget/audience` — the Audience page was removed 2026-11-14, leaving three;
+  `/budget/tracker` redirects to Pacing since 2026-10-19);
   Overview and Plan share `?month=` (nav links preserve it), Pacing takes a date
   range. The old **Daily** and **History** pages MERGED into Pacing and are
   permanent redirects to it (History asks for the last 12 months grouped by
@@ -737,6 +737,8 @@ as it stood before the restructure.*
     rounds to 0% reads "on track" (`paceReadsOnTrack` / `pctReadsZero`, the
     one judgment the Verdict and `PacingDevCell` share).
   - **Funnel audience (`/budget/audience`, 2026-09, migration 0042 additive).**
+    *Retired 2026-11-14 (user decision): the Audience page, its table and
+    `audience.manage` were deleted; this entry is history only.*
     Hand-measured audience sizes per funnel stage × platform, versus spend.
     **Stages DERIVE from `BUDGET_OBJECTIVES` minus "Other"** (`FUNNEL_STAGES` in
     `lib/audience.ts`) — Awareness/TOF · Activation/MOF · Retargeting/BOF; never
@@ -804,3 +806,15 @@ draw); `buildResultShares` takes both shares over REPORTING platforms only.
 raw, like the spend, so they can differ from the Ads dashboards' default
 view, which hides excluded rows; the board's ⓘ says so.
 
+### Audience removed (2026-11-14)
+
+By user decision the Budget **Audience** feature was deleted outright: the
+`/budget/audience` page, `components/budget/audience-*.tsx`,
+`app/actions/audience.ts`, `db/queries/audience.ts`, `validators/audience.ts`,
+`lib/audience.ts`, and the `audience.manage` permission. The
+`audience_snapshots` table was dropped by migration **0072** WITHOUT a backup —
+the user's choice; the hand-measured sizes are gone. The old audit actions
+`audience.record` / `audience.update` / `audience.delete` remain as LEGACY
+labels in `lib/audit.ts` so old audit rows still render. `FUNNEL_STAGES` lives
+in `lib/funnel-stages.ts` (it always did; `lib/audience.ts` only re-exported
+it). Budget is three pages: Overview · Plan · Pacing.
