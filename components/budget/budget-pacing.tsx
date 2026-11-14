@@ -44,40 +44,27 @@ import {
   MUTED_TONE,
   PACING_WARN_THRESHOLD,
   TOTAL_SERIES_KEY,
-  buildPlanSeries,
-  buildPlanSpendPerDay,
-  buildRangeBoard,
-  buildSpendPerDay,
-  buildResultsPerDay,
-  coveredThrough,
   dayBucketsInRange,
-  expectedPlanPerDay,
   filterTrackerPlatforms,
   isStrongTone,
   isoDaysBetween,
-  latestCoverage,
   monthBucketsInRange,
   pacingDeviation,
   pacingTone,
   pacingVerdict,
   platformSeriesKey,
-  reserveUsed,
-  lastDataIn,
   roasPeriodSides,
-  roasThroughOf,
   roasThroughRate,
-  round2,
   sortTrackerPlatforms,
   spendInDisplayCurrency,
-  stitchPlanByDay,
   trackerCounts,
   weekBucketsInRange,
   type PacingTone,
-  type PlanSeries,
   type PlatformCoverage,
   type RangeBucket,
   type TrackerBar,
 } from "@/lib/budget";
+import { buildRangeModel, type RangeCardData } from "@/lib/budget-range";
 import type { PacingShape, PacingSplit, PacingViewInput } from "@/validators/budget";
 import { ResultShares } from "@/components/budget/result-shares";
 import { PacingBoard } from "@/components/budget/pacing-board";
@@ -94,7 +81,6 @@ import {
   platformLabel,
   toneText,
   useBudgetCurrency,
-  type HeroState,
 } from "@/components/budget/budget-shared";
 
 export type GroupBy = "day" | "week" | "month";
@@ -114,37 +100,6 @@ function deviationFill(code: string | number | null | undefined, seriesColor: st
   return code === 1 ? PACING_COLOR.ahead : code === -1 ? PACING_COLOR.behind : seriesColor;
 }
 
-interface RangeSide {
-  state: HeroState;
-  /** The last covered day inside the range (null = none yet). */
-  through: string | null;
-  /** The day the data REALLY reaches (≤ `through`; earlier in a month that is over). */
-  lastData: string | null;
-  bar: TrackerBar;
-  projected: number | null;
-  /**
-   * Months in the range with actuals but NO plan on this side, and what was
-   * spent (or earned) in them through coverage. A range like Apr–Sep with one
-   * planned month has a plan to show but no pace to judge: the whole range's
-   * actual against one month's expectation would read "+3206%", and a
-   * projection over it is noise — so the card says this instead.
-   */
-  unplanned: { months: number; amount: number };
-}
-
-interface RangeCardData {
-  spend: RangeSide;
-  revenue: RangeSide;
-  roas: {
-    state: HeroState;
-    through: string | null;
-    lastData: string | null;
-    actual: number | null;
-    /** The on-plan ROAS to date (over the whole range before it starts). */
-    target: number | null;
-    projected: number | null;
-  };
-}
 
 /**
  * The ROAS card's bar: a ratio against a target, so plan = tick = the target
@@ -577,23 +532,27 @@ export function BudgetPacing({
   const activeShape: PacingShape =
     activeMetric === "roas" && shape === "deviation" ? "cumulative" : shape;
 
-  // ── Actual per day, scoped by the platform filter ──────────────────────────
-  const inScope = (platform: string) =>
-    platforms.length === 0 || platforms.includes(platform);
-
-  /**
-   * The platforms a platform split draws: in scope, and with a plan or any
-   * spend somewhere in the range — a platform with neither has nothing to
-   * show, and five empty blocks would be the "super detailed" the page must
-   * not be. Always in `ALL_PLATFORMS` order.
-   */
-  const platformKeys = useMemo(() => {
-    const seen = new Set<string>();
-    for (const r of series.spend) seen.add(r.platform);
-    for (const p of plans) for (const a of p.allocations) seen.add(a.platform);
-    return ALL_PLATFORMS.filter((p) => inScope(p) && seen.has(p));
+  // THE RANGE MODEL — every per-day map, each platform's covered day, the
+  // board, the cards and the reserve, built once in `lib/budget-range.ts`
+  // (the same model Today, Daily and the MCP read).
+  const model = useMemo(
+    () => buildRangeModel({ from, to, series, plans, rate, platforms, coverage, storeHorizon, today }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [series.spend, plans, platforms.join(",")]);
+    [from, to, series, plans, rate, platforms.join(","), coverage, storeHorizon, today],
+  );
+  const {
+    platformKeys,
+    spendPerDay,
+    revenuePerDay,
+    planSpendPerDay,
+    planRevenuePerDay,
+    throughByPlatform,
+    spendThrough,
+    revenueThrough,
+    roasThrough,
+    horizon,
+    expectedPerDay,
+  } = model;
 
   // ── Series ─────────────────────────────────────────────────────────────────
   const seriesDefs: SeriesDef[] = useMemo(() => {
@@ -630,61 +589,17 @@ export function BudgetPacing({
       return next;
     });
 
-  // Keyed by total · objective · platform · platform × objective — the chart,
-  // the period table and the board sum from this ONE map.
-  const spendPerDay = useMemo(
-    () => buildSpendPerDay(series.spend, inScope),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [series.spend, platforms.join(",")],
-  );
-  // Platform-reported results on the same rows, same scope (the board's
-  // Results figures and "Where the money works").
-  const resultsPerDay = useMemo(
-    () => buildResultsPerDay(series.spend, inScope),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [series.spend, platforms.join(",")],
-  );
 
-  const revenuePerDay = useMemo(() => {
-    const out = new Map<string, number>();
-    for (const d of series.days) out.set(d.date, d.revenueSar);
-    return out;
-  }, [series.days]);
 
   // ── Plan per day, stitched across every month the range touches ────────────
   // Each month contributes its SERIES — a curve month its curve-expanded
   // allocations, a daily month its cells verbatim — so a range spanning both
   // kinds of month compares honestly. Nothing here expands a curve itself.
-  const monthSeries: PlanSeries[] = useMemo(
-    () =>
-      plans.map((p) =>
-        buildPlanSeries({
-          month: p.month,
-          planMode: p.planMode,
-          allocations: p.allocations,
-          plannedRevenueSar: p.plannedRevenueSar,
-          dayWeights: p.dayWeights,
-          planDays: p.planDays,
-          targetRoas: p.targetRoas,
-          usdToSarRate: rate,
-        }),
-      ),
-    [plans, rate],
-  );
 
   // The plan under the same keys, every slice stitched through the series'
   // own machinery (never a curve expanded here); the platform filter scopes
   // the plan too, so the comparison stays honest.
-  const planSpendPerDay = useMemo(
-    () => buildPlanSpendPerDay(monthSeries, platformKeys, inScope),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [monthSeries, platformKeys, platforms.join(",")],
-  );
 
-  const planRevenuePerDay = useMemo(
-    () => stitchPlanByDay(monthSeries, (m) => m.revenueDays()),
-    [monthSeries],
-  );
 
   // ── Coverage: each platform through ITS OWN last covered day ──────────────
   // "Pacing compares against DATA COVERAGE": every verdict on this page —
@@ -693,19 +608,7 @@ export function BudgetPacing({
   // total is the SUM of those expectations. (Before 2026-10-23 the card, the
   // chart and the table cut at the LATEST platform's day, so one lagging
   // upload made on-plan spend read behind — audit B-03.)
-  const throughByPlatform = useMemo(
-    () =>
-      new Map<string, string | null>(
-        platformKeys.map((p) => [p, coveredThrough(coverage[p], from, to, today)]),
-      ),
-    [platformKeys, coverage, from, to, today],
-  );
   /** The spend side's "data through": the latest any in-scope platform covers. */
-  const spendThrough = useMemo(
-    () => latestCoverage(Object.fromEntries(throughByPlatform)),
-    [throughByPlatform],
-  );
-  const revenueThrough = coveredThrough(storeHorizon, from, to, today);
   /**
    * ROAS needs BOTH sides through the same day. Revenue can't be cut per
    * platform (no attribution), so the day is the EARLIEST of the store's and
@@ -714,28 +617,11 @@ export function BudgetPacing({
    * the period table (W3, 2026-10: the table and chart cut each side at its
    * own day).
    */
-  const roasThrough = useMemo(
-    () => roasThroughOf(revenueThrough, platformKeys.map((p) => throughByPlatform.get(p) ?? null)),
-    [platformKeys, throughByPlatform, revenueThrough],
-  );
   /** What the footnote prints: the in-scope platforms' raw last upload. */
-  const horizon = useMemo(
-    () =>
-      latestCoverage(
-        Object.fromEntries(ALL_PLATFORMS.filter(inScope).map((p) => [p, coverage[p]])),
-      ),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [coverage, platforms.join(",")],
-  );
   /** A series' own covered day: a platform's, else the spend side's. */
   const throughOfKey = (key: string): string | null =>
     key.startsWith("p:") ? (throughByPlatform.get(key.slice(2)) ?? null) : spendThrough;
 
-  const expectedPerDay = useMemo(
-    () =>
-      expectedPlanPerDay(planSpendPerDay, platformKeys, (p) => throughByPlatform.get(p) ?? null),
-    [planSpendPerDay, platformKeys, throughByPlatform],
-  );
 
   // ── Buckets ────────────────────────────────────────────────────────────────
   const buckets = useMemo(() => {
@@ -1239,20 +1125,7 @@ export function BudgetPacing({
   // ── The board ──────────────────────────────────────────────────────────────
   // The Tracker's rows for the RANGE, from the same per-day maps as above —
   // each platform through its own covered day, a past month final.
-  const boardData = useMemo(
-    () =>
-      buildRangeBoard({
-        from,
-        to,
-        spendPerDay,
-        planSpendPerDay,
-        resultsPerDay,
-        platforms: platformKeys,
-        coverage,
-        today,
-      }),
-    [from, to, spendPerDay, planSpendPerDay, resultsPerDay, platformKeys, coverage, today],
-  );
+  const boardData = model.board;
 
   // ── The range card ─────────────────────────────────────────────────────────
   // The Overview's hero card for the RANGE. Spend is the BOARD's own rows
@@ -1262,145 +1135,7 @@ export function BudgetPacing({
   // platform's day, so a lagging upload read as "behind" — audit B-03).
   // Revenue paces against the store's own covered day. Never a second
   // computation over the plan.
-  const rangeCard = useMemo(() => {
-    const sumThrough = (map: Map<string, number> | undefined, through: string | null) => {
-      if (!map || !through) return 0;
-      let total = 0;
-      for (const iso of isoDaysBetween(from, through)) total += map.get(iso) ?? 0;
-      return total;
-    };
-    const stateOf = (through: string | null): HeroState =>
-      through === null ? "future" : through >= to ? "final" : "live";
-    const bar = (key: string, label: string, plan: number, actual: number, expected: number): TrackerBar => ({
-      key,
-      label,
-      plan,
-      actual,
-      planToDate: expected,
-      delta: round2(actual - expected),
-      deviation: pacingDeviation(actual, expected),
-    });
-    // actual ÷ (expected ÷ plan): the module's coverage-fraction projection,
-    // only while the range is still running.
-    const project = (plan: number, actual: number, expected: number, state: HeroState) =>
-      state === "live" && plan > 0 && expected > 0 ? round2((actual * plan) / expected) : null;
-
-    // Months that have actuals through coverage but no plan on a side —
-    // the one case where "actual vs the range's plan" has no honest verdict.
-    const unplannedIn = (
-      actualMap: Map<string, number> | undefined,
-      through: string | null,
-      planned: (month: string) => boolean,
-    ) => {
-      const byMonth = new Map<string, number>();
-      if (actualMap && through) {
-        for (const iso of isoDaysBetween(from, through)) {
-          const v = actualMap.get(iso) ?? 0;
-          if (v > 0) byMonth.set(iso.slice(0, 7), (byMonth.get(iso.slice(0, 7)) ?? 0) + v);
-        }
-      }
-      let months = 0;
-      let amount = 0;
-      for (const [month, v] of byMonth) {
-        if (planned(month)) continue;
-        months += 1;
-        amount += v;
-      }
-      return { months, amount: round2(amount) };
-    };
-    const spendPlanned = (month: string) =>
-      plans.some((p) => p.month === month && p.allocations.length > 0);
-    const revenuePlanned = (month: string) =>
-      plans.some(
-        (p) => p.month === month && (p.plannedRevenueSar !== null || p.targetRoas !== null),
-      );
-
-    // The board's rows, summed. The range hasn't started while NO platform
-    // has a covered day in it; it is FINAL only once every planned platform
-    // is covered to its end (a past month always is). A planned platform
-    // with no data yet expects nothing — the row has no verdict, and neither
-    // does a total that sums to nothing expected.
-    const boardRows = boardData.platforms;
-    const judged = boardRows.some((p) => p.plan > 0)
-      ? boardRows.filter((p) => p.plan > 0)
-      : boardRows;
-    const spendPlan = round2(boardRows.reduce((a, p) => a + p.plan, 0));
-    const spendActual = round2(boardRows.reduce((a, p) => a + p.actual, 0));
-    const spendExpected = round2(boardRows.reduce((a, p) => a + p.planToDate, 0));
-    const spendState: HeroState =
-      spendThrough === null
-        ? "future"
-        : judged.length > 0 && judged.every((p) => p.through !== null && p.through >= to)
-          ? "final"
-          : "live";
-    const spendUnplanned = unplannedIn(spendPerDay.get(TOTAL_KEY), spendThrough, spendPlanned);
-    const spend = {
-      state: spendState,
-      through: spendThrough,
-      lastData: lastDataIn(horizon, spendThrough),
-      bar: bar("spend", "Spend", spendPlan, spendActual, spendExpected),
-      projected:
-        spendUnplanned.months > 0
-          ? null
-          : project(spendPlan, spendActual, spendExpected, spendState),
-      unplanned: spendUnplanned,
-    };
-
-    const revenuePlan = lastRow?.planRevenueCum ?? 0;
-    const revenueActual = lastKnownRevenue?.revenueCum ?? 0;
-    const revenueExpected = sumThrough(planRevenuePerDay, revenueThrough);
-    const revenueState = stateOf(revenueThrough);
-    const revenueUnplanned = unplannedIn(revenuePerDay, revenueThrough, revenuePlanned);
-    const revenue = {
-      state: revenueState,
-      through: revenueThrough,
-      lastData: lastDataIn(storeHorizon, revenueThrough),
-      bar: bar("revenue", "Revenue", revenuePlan, revenueActual, revenueExpected),
-      projected:
-        revenueUnplanned.months > 0
-          ? null
-          : project(revenuePlan, revenueActual, revenueExpected, revenueState),
-      unplanned: revenueUnplanned,
-    };
-
-    // ROAS needs BOTH sides through the same day. Revenue can't be cut per
-    // platform (no attribution), so the day is the EARLIEST of the store's and
-    // every reporting platform's — a lagging platform's unreported days never
-    // enter the spend side as $0.
-    // `roasThrough` — the one cut the chart and the table use too.
-    const roasState = stateOf(roasThrough);
-    const roasActual = roasOf(
-      sumThrough(revenuePerDay, roasThrough),
-      sumThrough(spendPerDay.get(TOTAL_KEY), roasThrough),
-    );
-    // The on-plan ROAS to date — the ROAS metric's own definition.
-    const roasTarget = roasOf(
-      sumThrough(planRevenuePerDay, roasThrough),
-      sumThrough(planSpendPerDay.get(TOTAL_KEY), roasThrough),
-    );
-    // Over the whole range, for a range that hasn't started.
-    const roasRangeTarget = roasOf(revenuePlan, spendPlan);
-    const roasProjected =
-      roasState === "live" && spend.projected !== null && revenue.projected !== null
-        ? roasOf(revenue.projected, spend.projected)
-        : null;
-    return {
-      spend,
-      revenue,
-      roas: {
-        state: roasState,
-        through: roasThrough,
-        lastData: lastDataIn(
-          roasThroughOf(storeHorizon, platformKeys.map((p) => coverage[p] ?? null)),
-          roasThrough,
-        ),
-        actual: roasActual,
-        target: roasTarget ?? roasRangeTarget,
-        projected: roasProjected,
-      },
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rows, plans, boardData, planSpendPerDay, planRevenuePerDay, spendPerDay, revenuePerDay, spendThrough, revenueThrough, roasThrough, horizon, storeHorizon, platformKeys, coverage, from, to, rate]);
+  const rangeCard = model.card;
 
   // The view's own rows: filtered, then ordered. The triage counts ignore the
   // off-pace toggle — otherwise the chip you clicked to get here would read 0.
@@ -1421,19 +1156,7 @@ export function BudgetPacing({
   );
   // The reserve is a MONTH's figure (the platform-level rule, `reserveUsed`):
   // read when the range sits inside one planned month, a dash otherwise.
-  const singleMonth = from.slice(0, 7) === to.slice(0, 7) ? from.slice(0, 7) : null;
-  const monthPlan = singleMonth ? plans.find((p) => p.month === singleMonth) : undefined;
-  const boardReserve =
-    monthPlan && monthPlan.allocations.length > 0
-      ? {
-          kind: "month" as const,
-          used: reserveUsed(
-            monthPlan.allocations,
-            boardData.platforms.map((p) => ({ platform: p.key, actualSpend: p.actual })),
-          ),
-          reserve: monthPlan.reserveSpendUsd,
-        }
-      : { kind: "none" as const };
+  const boardReserve = model.reserve;
   // READINGS on the board are whole dollars; the period table keeps its cents.
   const fmtWhole = (usdAmount: number) => formatSpend(usdAmount, currency, rate, { whole: true });
 
@@ -1847,7 +1570,7 @@ export function BudgetPacing({
         fmtCents={fmtSpend}
         toDisplay={toDisplay}
         currency={currency}
-        planMonth={singleMonth}
+        planMonth={model.singleMonth}
         canManage={canManage}
       />
 
