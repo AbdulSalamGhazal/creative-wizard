@@ -127,8 +127,8 @@ as it stood before the restructure.*
     never lists its columns twice — pinned column first as a LOCKED row, and
     reordering is never drag-only (up/down buttons, Alt+↑/↓, Space to toggle).
     **Named exemptions:** none left since 2026-10-19 (Tracker's bars view
-    until the Tracker merged into Pacing — Pacing's board is rows, not a
-    DataTable, and its table view carries the control; the Budget plan editor
+    until the Tracker merged into Pacing — now Budget Analysis; the pace board
+    is rows, not a DataTable, and its table view carries the control; the Budget plan editor
     until its view-mode table went in 2026-10); the grouped-header twins (Ads summary, Reconciliation's Platforms)
     are phase 2, not exemptions.
   - **IT LIVES IN THE HEADER ROW AND COSTS ZERO VERTICAL PIXELS (2026-10,
@@ -439,3 +439,14 @@ the two grouped twins, and Budget Audience's matrix and its dialog grid (the
 Audience page was removed 2026-11-14) — one word each, with a guard test. Raising the bar instead was rejected: the
 corner's z-40 would still beat it, and the top bar (z-20) would then need
 raising too.
+
+### Budget's table keys after the restructure (2026-11-14)
+
+Budget became Today · Daily · Analysis · Review · Plan. Three STORED keys are
+new: `budget-daily` (Daily's Table view), `budget-results` (Analysis's Results
+lens) and `budget-review` (Review's Table view). Two keep their old names
+because they are stored — renaming either would orphan every remembered
+column choice: `budget-pacing` (Analysis's Periods table) and
+`budget-tracker` (the pace board's Table view, on Today and Analysis alike —
+one component, one key, so a column choice carries between the two pages).
+`budget-audience` went with the Audience page.

@@ -175,7 +175,7 @@ interface BucketRow {
  * em-dash and a line that stops, never a zero.
  *
  * 2026-10: the page answers "where and when did we drift" as well as "did we
- * follow the curve" — a RANGE CARD (the Overview's hero card for the range,
+ * follow the curve" — a RANGE CARD (Today's hero card for the range,
  * fed by the table's own totals), a three-way SPLIT (none · platform ·
  * objective; a platform split locks the metric to Spend like the platform
  * filter does) and a third chart SHAPE, Deviation (per-period actual − plan
@@ -232,7 +232,7 @@ export function BudgetPacing({
   rate: number;
   /**
    * Today (business TZ). A month before today's is over, so it reads as
-   * covered to its end (`coveredThrough`) — the Overview's past-month rule.
+   * covered to its end (`coveredThrough`) — Today's past-month rule.
    */
   today: string;
   storeHorizon: string | null;
@@ -962,7 +962,7 @@ export function BudgetPacing({
   const boardData = model.board;
 
   // ── The range card ─────────────────────────────────────────────────────────
-  // The Overview's hero card for the RANGE. Spend is the BOARD's own rows
+  // Today's hero card for the RANGE. Spend is the BOARD's own rows
   // summed — actual, plan, and an expectation that is the SUM of the rows'
   // expectations, each platform through its own covered day (the house rule;
   // until 2026-10-23 the card expected the whole plan through the LATEST

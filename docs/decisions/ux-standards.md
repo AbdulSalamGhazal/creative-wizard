@@ -126,7 +126,8 @@ the state, not by reading the code.
 
 Manual un-exclude REFUSES a rule-excluded row — and says "Excluded by rule
 «…»" with the place to go and change it, instead of failing silently or
-succeeding wrongly. The Tracker's "behind" chip applies the off-pace filter AND
+succeeding wrongly. The Tracker's "behind" chip (the pace board's, on Budget
+Today and Analysis since 2026-11-14) applies the off-pace filter AND
 the counts deliberately ignore that filter, so the chip you clicked can take
 you back out.
 

@@ -514,7 +514,7 @@ as it stood before the restructure.*
   Sections read Advertisements · Budget · Store · Pricing · Admin (Price structure was renamed Pricing the same day). The
   duplicate "Overview"/"Plan" in Budget and Price structure were KEPT on
   purpose: with one section open at a time its header sits right above them,
-  and ⌘K, the rail and tab titles are section-qualified already. Three renames, and only
+  and ⌘K, the rail and tab titles are section-qualified already. (Budget's Overview became Today on 2026-11-14; only "Plan" is still shared.) Three renames, and only
   ONE of them moved a URL:
   - **Library** — the Creatives page; the route really moved, `/creatives` →
     **`/library`** (`/creatives` and `/creatives/[name]` stay as PERMANENT

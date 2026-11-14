@@ -227,7 +227,7 @@ export function BudgetMonthBar({
 }
 
 /**
- * The shared "data through …" note (Overview + Pacing). Ads and store uploads
+ * The shared "data through …" note (Today + Pacing). Ads and store uploads
  * arrive separately, so pass `storeHorizon` wherever BOTH sides are shown
  * (Daily) — the two dates are genuinely different and a single date would
  * misdescribe one of them.
@@ -306,7 +306,7 @@ export function platformLabel(platform: string): string {
   return PLATFORM_LABEL[platform as keyof typeof PLATFORM_LABEL] ?? platform;
 }
 
-/** Anchor id for a platform's group on the Plan page (Overview cards link here). */
+/** Anchor id for a platform's group on the Plan page (Today cards link here). */
 export function platformAnchorId(platform: string): string {
   return `platform-${platform}`;
 }
@@ -398,7 +398,7 @@ export function PlanDayBars({
 }
 
 // ── The pace bar and its words (lifted from the Tracker, 2026-10) ───────────
-// The Overview's pace board and hero cards draw the SAME bar the Tracker does,
+// Today's pace board and hero cards draw the SAME bar the Tracker does,
 // so the three pieces live here and both pages import them — extend, never
 // fork. The hero cards needed three things the Tracker's rows never did (a
 // projection extension, a reserve tail, a ratio scale), so those are optional
@@ -416,7 +416,7 @@ function pctOfScale(value: number, scale: number): number {
  * should be today. Warn-tinted by |deviation| through the shared threshold —
  * ahead and behind are both deviations, never good/bad green/red.
  *
- * Optional, for the Overview's hero cards: `projection` draws a paler
+ * Optional, for Today's hero cards: `projection` draws a paler
  * extension from the fill's end to the month-end projection; `reserve` adds a
  * dashed tail after the plan's end (the reserve carved out beyond the
  * allocated plan — the fill may run into it); `scale` replaces the cumulative
@@ -662,7 +662,7 @@ export function ReserveVerdict({
 }
 
 // ── The hero card (lifted from the Overview, 2026-10) ────────────────────────
-// The Overview's three hero cards and the Pacing page's range card are ONE
+// Today's three hero cards and the Pacing page's range card are ONE
 // card: a label row, the big number, its context line, a PaceBar and a verdict
 // line. It lives here so the two pages cannot drift.
 

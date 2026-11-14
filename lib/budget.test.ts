@@ -22,7 +22,6 @@ import {
   pacingDeviation,
   buildPlanSpendPerDay,
   buildRangeBoard,
-  buildResultShares,
   buildResultsPerDay,
   combineResults,
   resultFigures,
@@ -2295,19 +2294,5 @@ describe("spend vs results — platform-reported, through each row's own coverag
     expect(c.roas).toBeCloseTo(3, 6);
     expect(c.cpa).toBeCloseTo(18.75, 2);
     expect(row("instagram").resultsByObjective.Awareness?.results.purchases).toBe(40);
-  });
-
-  it("shares are taken over REPORTING platforms only, on both sides", () => {
-    const shares = buildResultShares(board.platforms);
-    const ig = shares.find((s) => s.platform === "instagram")!;
-    const tt = shares.find((s) => s.platform === "tiktok")!;
-    const fb = shares.find((s) => s.platform === "facebook")!;
-    // Spend base 1000 + 500 (facebook excluded); purchase base 40 + 40.
-    expect(ig.spendShare).toBeCloseTo(2 / 3, 6);
-    expect(ig.purchaseShare).toBeCloseTo(0.5, 6);
-    expect(ig.gapPts).toBeCloseTo(-16.667, 2);
-    expect(tt.gapPts).toBeCloseTo(16.667, 2);
-    expect(fb).toEqual({ platform: "facebook", spend: 1000, spendShare: null, purchaseShare: null, gapPts: null });
-    expect((ig.spendShare ?? 0) + (tt.spendShare ?? 0)).toBeCloseTo(1, 9);
   });
 });

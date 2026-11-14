@@ -8,6 +8,19 @@
 
 ## Invariants
 
+- **Budget is five pages (2026-11-14): Today `/budget` · Daily `/budget/days` ·
+  Analysis `/budget/analysis` · Review `/budget/review` · Plan `/budget/plan`.**
+  `/budget/pacing` and `/budget/tracker` permanently redirect to Analysis,
+  `/budget/daily` to Daily, `/budget/history` to Review. Where the history
+  below says Overview, Tracker or Pacing, read Today and Analysis.
+- **ONE math path: `buildRangeModel` (`lib/budget-range.ts`).** Everything a
+  Budget page derives from a range of actuals and the plans it touches — the
+  per-day maps, each platform's covered day, the board (`buildRangeBoard`),
+  the three cards (`RangeCardData`), the reserve — is built once there and
+  read by Today (a month), Daily (a month, per day), Analysis (any range),
+  Review (each month its own model) and the MCP. A page never carries a second
+  derivation of a number another page shows; a new figure goes INTO the model
+  (or a pure module that reads it), never into a component's render.
 - Actual spend applies **NO exclusion filtering** anywhere in Budget — raw
   `performance_records` totals. Budget figures may therefore differ from the
   dashboards; never "fix" this.
@@ -15,8 +28,9 @@
   attribution anywhere in Budget** — a platform filter locks the metric to
   Spend and the UI says why. Every platform ticked is NO filter
   (`coversAllPlatforms`, W3 2026-10): the shared pill reads "All" then, so
-  Pacing used to lock Revenue/ROAS behind "All-platforms only" while saying
-  All; ticking the last one back now writes no param at all.
+  Analysis (Pacing, at the time) used to lock Revenue/ROAS behind
+  "All-platforms only" while saying All; ticking the last one back now writes
+  no param at all.
 - The USD↔SAR toggle is display-only, but **ROAS is always computed through
   `accounts.usd_to_sar_rate`** (default 3.77).
 - **Every plan-to-date number goes through `buildPlanSeries`.** Never expand a
@@ -32,7 +46,9 @@
   `loadPlanRevision` (read-only, account-scoped, no permission beyond being
   signed in) for the picked one, kept for the visit, with a same-shape
   skeleton while it loads and "Couldn't load this revision · Retry" if it
-  fails. The page used to ship all 50 snapshots to view one.
+  fails. The page used to ship all 50 snapshots to view one. Review's
+  cross-month "Plan changes" log follows the same rule
+  (`listPlanRevisionLog`: summaries only, bounded, never a snapshot).
 - The revision drawer's "Vs the current plan" compares the MODE, the day
   cells and the target ROAS too — a daily → curve restore is never
   "Identical" — and a reserve-only month IS a plan (W1-13, 2026-10-23).
@@ -42,16 +58,17 @@
 - **Pacing compares against DATA COVERAGE, never the calendar**
   (`platformHorizons` → `makeCoverageDay`). A total is the SUM of its rows'
   expectations, not a second calculation over the whole plan.
-  **Every surface, every number** (2026-10-23, W1-2…W1-4): Overview's cards
-  and board, and Pacing's range card, chart (incl. Deviation), period table
-  and board anchor EACH platform to its OWN day — a range
+  **Every surface, every number** (2026-10-23, W1-2…W1-4): Today's cards
+  and board, and Analysis's range card, chart (incl. Deviation), waterfall,
+  small multiples, period table and board anchor EACH platform to its OWN
+  day — a range
   through `coveredThrough` (the month rule as a date: a month before today's
   is over and final) and `expectedPlanPerDay` (each platform's plan through
   its own day, totals re-summed from those). A pacing verdict compares
   actual with THAT; a full period's plan is a display figure only. ROAS cuts
   both sides at the EARLIEST of the store's and every reporting platform's
   day — revenue has no platform attribution, so it can't be cut per
-  platform. ONE rule (`roasThroughOf`) for Pacing's card, chart AND period
+  platform. ONE rule (`roasThroughOf`) for the range card, chart AND period
   table (`roasPeriodSides`, W3 2026-10: a partly covered last period used to
   divide revenue through the store's day by spend through the ads' day).
   The aria anchor names the REAL last data day (`lastDataIn`): a month that
@@ -77,20 +94,78 @@
   decides only STRONG vs FAINT tint of that colour (faint = the same token at
   reduced opacity, never a new hex). One helper, `pacingTone`, returns
   direction + strength, and every consumer — Verdict, PaceBar, PacingDevCell,
-  the Pacing deviation bars, the Tracker's chips, the reserve rows — reads
-  it; the tokens reach code only through `lib/palette.ts` and the
+  Analysis's deviation bars, the board's chips, the reserve rows, Daily's day
+  cells — reads it; the tokens reach code only through `lib/palette.ts` and the
   `text-/bg-ahead|behind` utilities (2026-10-19, user decision).
-- **The Overview is three hero cards, one chart and the pace board** — every
-  number on it is `buildTrackerRows` (the Tracker's rows) or the plan series;
-  it never carries a second math path. ROAS has equal billing with spend and
-  revenue.
-- **The allocation check lives on the Tracker's table view (`group=objective`)**
-  — the same `buildTrackerRows` output regrouped, never a second derivation.
+- **Today is three hero cards, Needs attention, the last-reported-day tiles,
+  the ONE pace board and Move money** — every number on it is the month's
+  `buildRangeModel`; it never carries a second math path. The cards are the
+  shared `RangeCard` (`components/budget/range-card.tsx`, the one Analysis
+  shows for a range); the board is `PacingBoard`, the same component Analysis
+  renders — there is no second board. ROAS has equal billing with spend and
+  revenue. A "last reported day" tile prints each platform's REAL last
+  uploaded date, never "yesterday". Today keeps the `budget_month` comment
+  anchor.
+- **Needs attention is DERIVED, never estimated** (`buildAttention`,
+  `lib/budget-attention.ts`). Every figure is the board's own row — deviation,
+  projection, needed per day; the only arithmetic added is a run-rate over the
+  days the platform has REPORTED (never the calendar) and the projected
+  reserve draw, which is the `reserveUsed` rule applied to the rows'
+  projections. Four kinds, in this order: a projected reserve overshoot,
+  stated as the AMOUNT at month end (user decision — no run-out date);
+  platforms at least `PACING_WARN_THRESHOLD` off pace, largest dollar gap
+  first; spend
+  on a platform the plan gives nothing; planned platforms more than
+  `STALE_AFTER_DAYS` (2) behind the freshest upload. Empty for a final month
+  (Review's subject) and for one that has not begun. It is DATA — the page and
+  the MCP phrase each item, so the rule and its wording cannot drift.
+- **Daily judges a day ONLY on the platforms that have UPLOADED it**
+  (`buildDayGrid` / `buildDayDetail`, `lib/budget-daily.ts`, read off the
+  model's per-day maps — nothing is queried or expanded there). The clock is
+  the RAW last uploaded day per platform, NOT the month-level "a finished
+  month is final" rule: a platform that hasn't uploaded a day contributes
+  neither its plan nor a $0 to it, and a day nobody uploaded is "not
+  reported" — never zero, never −100%, in a finished month too. Cells are
+  tinted through `pacingTone` only (direction × strong/faint) with the
+  magnitude printed — never a gradient.
+- **Review judges CLOSED months only, against TWO baselines** (user decision;
+  `buildMonthReview`, `lib/budget-review.ts`): the FINAL plan (what the month
+  ended up planned as) and the FIRST plan on record (`planRevisionStats`: the
+  earliest revision that carries allocations; null when none does). A month
+  revised on its last day scores perfectly against its final plan — the gap
+  between the two is how far the plan was moved to meet reality, so neither
+  baseline may be dropped. "Closed" is by the CALENDAR; the running month is
+  shown to date with its pace and no accuracy. Each month is its own range
+  model, so a month on Review says what Today said about it. Revenue and ROAS
+  there are the STORE's, against target.
+- **Move money posts the MOVE, never the plan** (`moveBudgetMoney`): the
+  server re-reads the stored plan, applies it (`applyPlanMove`,
+  `lib/budget-move.ts`) and saves through `saveBudgetMonth` — so
+  `replaceBudgetMonth` stays the one writer, the revision lands in the same
+  transaction, and a stale tab cannot overwrite a colleague's edit. A
+  transfer, never a re-plan: the total and every other line are untouched,
+  and money leaves and arrives in proportion to the platform's objective
+  buckets (`splitByWeights`, cents-exact). Refused on a day-by-day month. The
+  preview (`previewMove`) is the board's own `neededPerDay`, before and after
+  — not a new estimate.
+- **The allocation check is the board's Table view (`group=objective`)**, on
+  Today and on Analysis — the same `buildRangeBoard` rows regrouped, never a
+  second derivation.
+- **Today, Daily and Review have no `FilterShell`; their view controls are
+  remembered without URL params** (`useRememberedViews`, through
+  `queueFilterPrefs`): Today's `board` / `rank` / `group` (Analysis's keys, so
+  a choice carries between the two), Daily's `dayview` (+ its platform
+  filter), Review's `reviewview`. The shareable state stays in the URL:
+  `?month=` (Today, Daily), `?day=` (Daily), `?months=` 6 | 12 | 24 (Review).
+  Analysis has a `FilterShell` and declares its keys there, `lens` and `by`
+  included.
 - Budget's objective axis is `BUDGET_OBJECTIVES` (buckets), applied at every
   layer and never re-listed.
 - **Spend vs results is PLATFORM-REPORTED (2026-11-14, user decision).** The
-  Pacing board's Results figures (ROAS · CPA · purchases, every platform and
-  bucket row, plus three table columns) and the "Where the money works" panel
+  board's Results figures (ROAS · CPA · purchases, every platform and
+  bucket row, plus three table columns) and Analysis's Results lens (the
+  bubble chart, the "Where the money works" share panel and its table —
+  `buildResultRows`, `lib/budget-results.ts`)
   read `conversions` / `conversion_value` off the SAME scan and the SAME raw
   rows as the spend (`budgetPacingSeries` — still two scans, still no
   exclusion filter), summed through each row's OWN `through`, so CPA's two
@@ -101,8 +176,16 @@
   dashboards' ROAS convention). **Never compared with store revenue** (the
   2026-08 Reconciliation decision stands), **no per-platform targets and no
   verdict colour in v1** — the share gap is signed, in neutral ink, because
-  ahead blue / behind amber mean PACING here. The Overview is unchanged; the
-  store's ROAS stays the brand headline on the range card.
+  ahead blue / behind amber mean PACING here. The store's ROAS stays the
+  brand headline on the range card.
+- **The product cut has NO plan, and its scan is CONDITIONAL.** Budgets are
+  planned by platform × objective, so the Results lens carries no pacing
+  figure on any dimension (platform · objective · product).
+  `budgetProductSeries(from, to)` is one raw scan grouped platform × product,
+  fetched ONLY when `lens=results` and `by=product` — the default view stays
+  at the two scans every other view needs — and the DB suite pins it to foot
+  to the pacing scan's spend. Never add a product plan, and never fetch the
+  product scan unconditionally.
 
 ## History and rationale
 
@@ -818,3 +901,105 @@ the user's choice; the hand-measured sizes are gone. The old audit actions
 labels in `lib/audit.ts` so old audit rows still render. `FUNNEL_STAGES` lives
 in `lib/funnel-stages.ts` (it always did; `lib/audience.ts` only re-exported
 it). Budget is three pages: Overview · Plan · Pacing.
+
+### The restructure: Today · Daily · Analysis · Review · Plan (2026-11-14)
+
+**The decision.** The user asked for Budget to be rebuilt completely around
+the two people who use it: the specialist who spends the money every day, and
+the manager who evaluates how it was spent. As many pages as that needs.
+Decided in one batch: Audience goes, with its table and no backup (the
+section above); in scope are a needs-attention list, months compared, a
+preview on Move money, and a product dimension; plan accuracy is judged
+against BOTH baselines — the final plan and the first plan on record; the
+reserve alert states the AMOUNT the pace lands past the reserve at month end,
+not a run-out date; and the whole series is built locally and shipped once.
+The sidebar now reads **Today · Daily · Analysis · Review · Plan**. Three
+pages became five, and "Budget is three pages: Overview · Plan · Pacing"
+above was true for one commit.
+
+**One math path first.** Before any page moved, the month-only math and the
+range math were merged: `lib/budget-range.ts` `buildRangeModel` builds the
+per-day maps, each platform's covered day, the board (`buildRangeBoard`), the
+three cards (`RangeCardData`) and the reserve once, and every page and the
+MCP read it. DELETED with it: `buildTrackerRows`, `monthChartPoints`,
+`cumulativeSums`, `cumulativeRoas`, `monthRoasActuals`, `coverageSummary`,
+the Overview component (`budget-overview.tsx`) and its second `PaceBoard`.
+(`lib/budget.test.ts` keeps a test-local `buildTrackerRows` shim over the
+model so the old month fixtures still pin the same numbers.) The shared hero
+card moved to `components/budget/range-card.tsx` (`RangeCard`).
+
+**Today (`/budget`, `budget-today.tsx`)** replaced the Overview: the three
+cards for the month, **Needs attention** (`lib/budget-attention.ts`), a
+"Last reported day" tile per platform, the one pace board (`PacingBoard`) and
+**Move money**. It keeps the `budget_month` comment anchor. A month that has
+begun with no upload in it still gets its stale lines; a started month with
+no data says so rather than reading as zero.
+
+**Daily (`/budget/days`, `budget-daily.tsx`, `lib/budget-daily.ts`)** is day
+pacing — Calendar | Bars | Table (`dayview`), `?month=` and `?day=` in the
+URL. Its first cut judged a day by the month-level coverage rule, so the last
+two days of a finished month nobody had uploaded read −100%; the follow-up
+commit made day cells read the RAW upload day ("not reported", never zero).
+Table key `budget-daily`.
+
+**Analysis (`/budget/analysis`)** is the Pacing page with a second lens,
+remembered as `lens`. **Pacing**: the range card, the chart, the new
+`charts/variance-waterfall.tsx` (expected through coverage → each platform's
+over/under → actual), the new `charts/platform-multiples.tsx` (one small
+chart per platform), the periods table and the pace board. **Results**
+(`results-lens.tsx`): `charts/results-bubble.tsx` (spend against
+platform-reported ROAS, sized by purchases), the share panel
+(`result-shares.tsx`, now generic over rows) and a table — cut `by` platform
+| objective | product (`buildResultRows`, which replaced the platform-only
+`buildResultShares`). "Where the money works" moved from under the board to
+this lens. The product cut is
+`budgetProductSeries`, one more raw scan, fetched only when it is on screen.
+Table key `budget-results`; the periods table keeps `budget-pacing` and the
+board's table keeps the Tracker's `budget-tracker` (stored keys — renaming
+either would orphan remembered column choices).
+
+**Review (`/budget/review`, `budget-review.tsx`, `lib/budget-review.ts`)**:
+months compared over 6, 12 or 24 months (`?months=`), Scorecard | Table
+(`reviewview`). Per month: spend against the final AND the first plan, store
+revenue and ROAS against target, the reserve used, how many times the plan
+was saved; plus a "Plan changes" log across months (`listPlanRevisionLog` —
+summaries only, the D14 rule). Only closed months are judged. Table key
+`budget-review`.
+
+**Move money from Today** (`lib/budget-move.ts`, `move-money-sheet.tsx`,
+`moveBudgetMoney`): the page posts the move, the server applies it to the
+stored plan and saves through `saveBudgetMonth`; the default note is "Moved
+$X from <source> to <platform>". The sheet shows each affected platform's
+needed-per-day before and after, from the board's own figure.
+
+**Redirects.** `/budget/pacing` → `/budget/analysis` and `/budget/tracker` →
+`/budget/analysis` (params carried verbatim; the Tracker's `?month=` still
+becomes `from`/`to`); `/budget/daily` → `/budget/days`; `/budget/history` →
+`/budget/review`. All permanent. `revalidateBudget` now revalidates
+`/budget`, `/budget/plan`, `/budget/days`, `/budget/analysis` and
+`/budget/review`.
+
+**MCP.** `get_budget` reads `buildRangeModel` (the same keys, plus
+per-platform `data_through`, `projected_month_end`, `needed_per_day`, and
+`needs_attention`); `get_budget_review` is new and read-only;
+`lib/mcp/coverage.ts` lists both under `budget`.
+
+**Judgment calls.**
+- Day cells use the five `pacingTone` tones (ahead/behind × strong/faint, on
+  track muted) with the magnitude printed — not a gradient. The direction
+  colours are a decision; a heat scale would have been a second palette.
+- The Daily path is `/budget/days`, not `/budget/daily`: that address was a
+  PERMANENT redirect to Pacing for a year, and browsers cache those — a page
+  served there would be unreachable for anyone who had ever followed the old
+  link.
+- Today, Daily and Review have no `FilterShell`, so their view controls are
+  remembered without URL params (`use-remembered-view.ts`, through
+  `queueFilterPrefs`) rather than growing a filter bar to host one toggle.
+- The Analysis component file is still `components/budget/budget-pacing.tsx`
+  (and its test `budget-pacing.test.ts`): a rename would have been churn
+  across the rendered tests for no user-visible gain.
+- A revenue projection with no revenue target stays null, as it does on the
+  range card — Today does not invent one.
+
+**Not done.** The Plan editor's own Move-money dialog (inside edit mode) did
+NOT gain the preview — only Today's sheet has it.

@@ -173,7 +173,7 @@ const RESERVE_KEY = "reserve";
  *
  * View mode is a VISUAL read of the plan (2026-10): the targets strip, a
  * composition bar of the total (platforms in their colours, the reserve as a
- * dashed outline — the Overview hero bar's grammar), read-only platform cards
+ * dashed outline — Today hero bar's grammar), read-only platform cards
  * in the editor's own grid, and the plan curve collapsed to one line while
  * every day is equal.
  *
@@ -341,7 +341,7 @@ export function BudgetPlanEditor({
   /**
    * Revenue target ÷ (ALLOCATED spend × rate): the reserve is not expected to
    * be spent, so the ROAS the plan implies is over what is — exactly how the
-   * Overview's `roasFigures` derives its target, so the two pages agree.
+   * Today's `roasFigures` derives its target, so the two pages agree.
    */
   const draftRevenue = parse(draft.revenue);
   const impliedRoas =
@@ -749,7 +749,7 @@ export function BudgetPlanEditor({
     }
   };
 
-  // A reserve-only month IS planned — the Overview and the delete check both
+  // A reserve-only month IS planned — Today and the delete check both
   // count it; this used to show it as "No plan" with Delete disabled (W1-13).
   const hasPlan =
     data.allocations.length > 0 ||
@@ -1752,7 +1752,7 @@ const LABEL_MIN_SHARE = 6;
 /**
  * One horizontal stacked bar of the TOTAL: the planned platforms in
  * `ALL_PLATFORMS` order, each in its platform colour, then the reserve LAST as
- * a dashed outline rather than a fill — the Overview hero bar's grammar, so
+ * a dashed outline rather than a fill — Today hero bar's grammar, so
  * the two pages read alike (the reserve is money held back, not a track).
  * Below it, a legend row that wraps on a phone. The bar says the split in
  * words for a screen reader.

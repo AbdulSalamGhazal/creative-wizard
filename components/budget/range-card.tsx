@@ -30,7 +30,7 @@ function roasBar(target: number, actual: number | null): TrackerBar {
 }
 
 /**
- * The Overview's hero card, for a date range: the big number is the range's
+ * Today's hero card, for a date range: the big number is the range's
  * actual, the context says what was planned for the range, ONE PaceBar
  * (track = the range's plan, fill = actual, tick = expected through coverage,
  * pale extension = projection) and the verdict line. A fully covered range

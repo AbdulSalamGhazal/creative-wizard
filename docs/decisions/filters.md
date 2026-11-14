@@ -45,7 +45,7 @@
   sticky header); the chips row is ONE sideways-scrolling line; the search box
   takes its own full line (`w-full sm:w-64`, R-104); and the SECONDARY tier-1 /
   toolbar controls — view and table controls such as Library's Sort and
-  grid/table switch, Pacing's Split and Currency — fold into one ⋯ menu
+  grid/table switch, Budget Analysis's Split and Currency — fold into one ⋯ menu
   (`components/filters/phone-overflow.tsx`: `PhoneOverflow`, or `DesktopOnly`
   in each slot + ONE `PhoneMoreMenu` when they sit in two slots, so a phone
   never shows two ⋯). Filters, Views, Search, Date, Platforms and the
@@ -157,7 +157,7 @@ as it stood before the restructure.*
     table — bar, panel, mobile sheet and chips — so no two pages can drift
     again. **NEVER hand-roll a filter bar.** Every filter-bearing page is on it
     (phase 2, 2026-09): **Ads · Library · Campaigns · Canvas · Store orders ·
-    Store Insights · Reconciliation · Budget Pacing** — joined in 2026-10 (D27)
+    Store Insights · Reconciliation · Budget Analysis** (Pacing until 2026-11-14) — joined in 2026-10 (D27)
     by the **Audit log** (one `single` def keyed
     `category`, its options carrying their event counts, not remembered). (`FilterStrip` — the shared
     Dashboard/Trends strip — is a different thing: one bar shared BY many
@@ -215,13 +215,14 @@ as it stood before the restructure.*
       toggle — Columns moved into the table's own header corner in 2026-10,
       `docs/decisions/tables-columns.md`), stays visible house-wide, and Clear
       never touches it.
-    - **ZERO-DEF PAGES** (Store orders · Reconciliation; Pacing was one until
-      the Tracker's `buckets` / `offpace` moved onto it, 2026-10-19): a page with
+    - **ZERO-DEF PAGES** (Store orders · Reconciliation; Budget Analysis —
+      Pacing then — was one until the Tracker's `buckets` / `offpace` moved
+      onto it, 2026-10-19): a page with
       no tier-2 filters renders the SAME bar with no Filters button and no
       chips row — consistency without a dead control. With nothing to collapse,
       tier 1 simply wraps at every width instead of folding into the sheet.
     - **A VIEW SWITCH IS NOT A FILTER.** Reconciliation's mode toggle (user
-      decision, 9c47d17), Pacing's group-by and objective breakdown, Library's
+      decision, 9c47d17), Budget Analysis's lens, group-by and objective breakdown, Library's
       Views control: page-owned tier-1 slots, never defs — so Clear leaves them
       alone and they stay visible.
     - **`active` overrides "something is selected"** for a filter whose DEFAULT
@@ -250,8 +251,8 @@ as it stood before the restructure.*
       status), toolbar Excluded. Canvas: tier 1 date · platforms,
       3 defs (status · product · stage), toolbar Excluded — the canvas
       toolbar (node search, view switcher) is NOT the filter bar and is
-      untouched. Store orders / Reconciliation: zero defs (Pacing has two
-      since 2026-10-19).
+      untouched. Store orders / Reconciliation: zero defs (Budget Analysis has
+      two since 2026-10-19).
     - **Tier 1 renders inline at every width** (it wraps on a phone) now that
       there is no sheet to fold into — the `fullWidth` ctx is kept for the
       controls that take it and is always false. **Superseded on the phone
@@ -291,6 +292,18 @@ as it stood before the restructure.*
         mechanisms on `users`). A page declares nothing: `FilterShell` derives
         the list from its own defs (`persistedFilterKeys`) and hands it to the
         writer as an ALLOW list.
+      - **Remembered VIEW keys ride the same store.** A shell page adds them
+        through `persistKeys` — Budget Analysis: `split`, `shape`, `board`,
+        `rank`, `group`, and since 2026-11-14 `lens` and `by`. **A page with
+        NO `FilterShell`** (Budget Today · Daily · Review, 2026-11-14) uses
+        `useRememberedViews` (`components/budget/use-remembered-view.ts`):
+        the server resolves the saved value, a change flips local state with
+        no navigation and no URL param, and is written through
+        `queueFilterPrefs`; the default DELETES the row, like every
+        remembered control. Its keys: Today's `board` / `rank` / `group`
+        (Analysis's keys, so the choice carries), Daily's `dayview` (plus the
+        `platforms` filter), Review's `reviewview`. Don't grow a filter bar
+        to host one view toggle, and don't hand-roll a second writer.
       - **Storage:** `user_filter_prefs` — one row per (user, brand, key), the
         param's parts as `text[]`. A CLEARED filter DELETES its row; that is
         what stops a filter resurrecting itself. No audit rows (preference
@@ -405,3 +418,14 @@ as it stood before the restructure.*
   The Audit log's `?category=` param is unchanged, so every link into it still
   works; its empty state says "No activity in this category." and offers the
   bar's own Clear.
+
+### Budget restructure (2026-11-14)
+
+- Budget Pacing became **Analysis** (`/budget/analysis`) — still the one Budget
+  page on `FilterShell`, with the same two defs (`buckets`, `offpace`); its
+  remembered view keys gained `lens` (pacing | results) and `by` (platform |
+  objective | product). Today, Daily and Review carry no filter bar, so their
+  view controls (`board` / `rank` / `group`, `dayview`, `reviewview`) are
+  remembered through `useRememberedViews` rather than `persistKeys`. Daily's
+  Platforms control is the shared pill, remembered under the shared
+  `platforms` key. Where the history above says Pacing, read Analysis.

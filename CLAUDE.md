@@ -381,21 +381,23 @@ this map is still a rule you broke.
 
 ### Budget
 
+- Five pages: Today · Daily · Analysis · Review · Plan. ONE math path —
+  `buildRangeModel` (`lib/budget-range.ts`) — feeds every page and the MCP.
 - Actual spend applies NO exclusion filtering — raw totals, by decision.
 - Every plan-to-date number goes through `buildPlanSeries`.
 - Pacing compares against DATA COVERAGE, never the calendar.
-- `replaceBudgetMonth` is the ONE plan writer; revisions are written in its transaction.
+- `replaceBudgetMonth` is the ONE plan writer; revisions are written in its
+  transaction. Move money posts the MOVE and saves through it.
 - Revenue has no platform attribution anywhere in Budget.
 - Reserve USED = Σ platforms max(0, actual − plan) — platform overshoot, never bucket drift.
-- Verdicts are coloured by DIRECTION — ahead `--ahead` (blue), behind `--behind` (the warn
-  amber), on track muted; |deviation| vs `PACING_WARN_THRESHOLD` decides strong vs faint.
-  Never green/red. One helper, `pacingTone`; tokens only through `lib/palette.ts`.
-- Tracker merged into Pacing (2026-10-19); the board is range-based, one math path with the chart.
-- Results on Pacing are PLATFORM-REPORTED, raw, cut at each row's own day, ratios via
-  `resultFigures`/`combineResults`; never compared with store revenue, no targets in v1.
-- The plan gate judges "100%" at the one decimal the inputs show (`SHARE_EPSILON`
-  0.05 on the exact sum) — a split every counter reads as 100.0% saves, and a
-  complete split normalises onto the typed total. Gate and counter never disagree.
+- Verdicts are coloured by DIRECTION (ahead blue, behind amber, never green/red)
+  through ONE helper, `pacingTone`; tokens only through `lib/palette.ts`.
+- Needs attention (`buildAttention`) reads the board's rows — no new estimate.
+- Daily judges a day ONLY on the platforms that uploaded it: "not reported", never zero.
+- Results are PLATFORM-REPORTED, raw, via `resultFigures`/`combineResults`; never
+  compared with store revenue, no targets. The product cut has no plan.
+- Review judges CLOSED months only, against the FIRST plan AND the final plan.
+- The plan gate judges "100%" at the one decimal the inputs show (`SHARE_EPSILON`).
 
 → **`docs/decisions/budget.md`**
 

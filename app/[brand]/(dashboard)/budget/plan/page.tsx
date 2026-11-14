@@ -22,7 +22,7 @@ export const metadata = { title: "Budget · Plan" };
  * Budget Plan — the month's editor and nothing else: USD allocations per
  * platform → objective, the SAR revenue target, the reserve budget, and the
  * day-weight plan curve. It is a PURE PLANNING surface — no actuals, no pacing
- * (those live on Overview). Viewing is open to any brand member; every edit
+ * (those live on Today). Viewing is open to any brand member; every edit
  * needs budget.manage, is audited under budget.update, and leaves a plan
  * revision that can be inspected and restored.
  */

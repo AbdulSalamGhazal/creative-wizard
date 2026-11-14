@@ -47,12 +47,14 @@
   feature that adds data a user would ask their AI about extends the MCP in
   the same commit series, or says why not in its report.
 - **Tools reuse the page's composition, never re-derive it.** `get_budget`
-  runs `buildTrackerRows` + `monthRoasActuals` + `roasFigures` exactly as the
-  Budget Overview does, and its per-platform `results` (platform-reported,
-  2026-11-14) through `buildRangeBoard` exactly as the Pacing board does; `get_store` uses the Reconciliation helpers
+  reads `buildRangeModel` (`lib/budget-range.ts`) exactly as Budget → Today
+  does — the cards, the board's rows (with their platform-reported `results`),
+  the reserve — and its `needs_attention` is `buildAttention`, the list Today
+  shows; `get_budget_review` runs `buildMonthReview` exactly as Budget →
+  Review does; `get_store` uses the Reconciliation helpers
   (`sumPlatformDays`, `reconDelta*`). When a page computes something in a
-  component, lift it into the pure module first (as `monthRoasActuals` was),
-  then call it from both.
+  component, lift it into the pure module first (as the Budget range model
+  was, 2026-11-14), then call it from both.
 - **Currency is stated per field when a tool mixes them.** Ads money is USD;
   Store money is SAR (`get_store`, and `revenue_sar` in `get_budget`). Field
   names carry the unit (`spend_usd`, `revenue_sar`) so the model can't add them.
@@ -147,3 +149,18 @@ as it stood before the restructure.*
 - **Added, all read-only:** `list_products`, `get_budget`, `get_store`,
   `get_landing_pages`, `get_trends`. **Declined by the user:** Pricing (Price
   Structure) — costs and margins stay off the MCP.
+- **Budget restructure (2026-11-14).** Budget became Today · Daily · Analysis
+  · Review · Plan on one math path, and the MCP followed in the same commit
+  series. `get_budget` now reads `buildRangeModel` — the keys it already
+  returned are unchanged, and each platform row gained `data_through` (its
+  real last data day), `projected_month_end` and `needed_per_day`, plus a
+  top-level `needs_attention` (`buildAttention`: reserve overshoot at month
+  end, platforms off pace, unplanned spend, stale uploads — as data, the
+  model phrases it). **New, read-only: `get_budget_review`** — the last N
+  months (1–24, default 12) as Review reads them: actual spend against the
+  plan the month ended with AND the first plan on record, store revenue and
+  ROAS against target, the reserve, the plan-save count, a `summary` over the
+  closed months and `plan_changes` (the newest 20 revision summaries). Only
+  closed months are judged; the running month carries `pace_to_date`.
+  `lib/mcp/coverage.ts` lists both tools under `budget`. Daily's per-day
+  cells and Analysis's product cut have no tool of their own.

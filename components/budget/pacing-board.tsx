@@ -46,10 +46,10 @@ import { panelClass } from "@/components/ui/panel";
 /**
  * The Pacing BOARD (2026-10-19, user decision — the Tracker merged into
  * Pacing): one row per platform in scope for the RANGE, biggest plan first,
- * each with its stage rows beneath, in the Overview's grid grammar — label ·
+ * each with its stage rows beneath, in Today's grid grammar — label ·
  * bar · sparkline · figures, every bar starting at one x and every figure
  * right-aligned in one fixed column at both levels. Richer than the
- * Overview's board by two readings: the range's daily actual against its
+ * Today's board by two readings: the range's daily actual against its
  * daily plan (the sparkline), and what each remaining day needs to land on
  * the plan. Every number is `buildRangeBoard`'s — the same per-day maps the
  * chart and the period table are summed from; nothing here re-derives pacing.

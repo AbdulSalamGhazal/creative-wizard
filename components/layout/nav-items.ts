@@ -77,7 +77,7 @@ export interface NavItem {
   children?: NavChild[];
   /**
    * Highlight only on an exact pathname match (no prefix matching). Needed for
-   * an index item whose siblings live under it (e.g. Budget's Overview at
+   * an index item whose siblings live under it (e.g. Budget's Today at
    * `/budget` next to `/budget/plan`).
    */
   exact?: boolean;
@@ -339,7 +339,7 @@ const UUID_PARAM = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12
 
 /**
  * The sections whose links carry a URL param while the user is inside them:
- * Budget keeps `?month=` across Overview / Plan / Pacing, Price structure keeps
+ * Budget keeps `?month=` across its pages, Price structure keeps
  * the open version `?v=` across its four pages (each browser tab has its own
  * version open — brief §7). A value that fails the shape is dropped.
  */
@@ -358,7 +358,7 @@ export function carriesParam(group: NavSectionKey): boolean {
 /**
  * The href a nav item should link to given where the user is. Budget items
  * carry the current `?month=` while the user is inside the Budget section, so
- * switching between Overview / Plan / Pacing never loses the month; Price
+ * switching between Budget's pages never loses the month; Price
  * structure items carry `?v=` the same way. Everything else links plain.
  */
 export function navItemHref(

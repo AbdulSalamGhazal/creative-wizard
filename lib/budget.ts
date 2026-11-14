@@ -199,7 +199,7 @@ export function coverageDayInMonth(
 /**
  * The anchor, as a function of platform: how many days of `month` this
  * platform's comparison may count through. Built once per render and shared by
- * every pacing surface (Tracker — both views — and Overview) so the rule
+ * every pacing surface (Tracker — both views — and Today) so the rule
  * lives in ONE place. No coverage read → the calendar, i.e. the old behaviour.
  */
 export function makeCoverageDay(
@@ -590,7 +590,7 @@ export function monthDayIncrements(
 // ── The unified plan series (2026-09) ────────────────────────────────────────
 // THE load-bearing abstraction for plan-to-date. A month is planned in one of
 // two modes (`PLAN_MODES`), and every consumer of "what should have happened by
-// day d" — Tracker (both groupings), Pacing, Overview's cards, chart and pace
+// day d" — Tracker (both groupings), Pacing, Today's cards, chart and pace
 // board, and any future alert evaluator — reads it through `buildPlanSeries`,
 // never by expanding a curve itself. Curve months reproduce the pre-modes math
 // bit for bit (pinned); daily months read their cells verbatim.
@@ -678,7 +678,7 @@ export function roasFromRevenue(
  * platform × bucket, rounded to the cent, zero combos dropped, in
  * `ALL_PLATFORMS` × `BUDGET_OBJECTIVES` order. The one plan writer stores
  * exactly this whenever it writes a daily month, which is what keeps every
- * monthly-total consumer (copy, revision summaries, Overview's cards) working
+ * monthly-total consumer (copy, revision summaries, Today's cards) working
  * without knowing modes exist.
  */
 export function allocationsFromDays(
@@ -1342,14 +1342,6 @@ export function reserveUsed(
   return round2(used);
 }
 
-// ── The Overview chart: one month, cumulative (2026-10) ─────────────────────
-// Day-grain running totals for a single month, where the actual line STOPS at
-// the side's data coverage (a later day is unknown, never zero), the plan is
-// the series' own per-day values summed, and the projection is a straight line
-// from the last known point to the month-end projection — the SAME number the
-// hero card prints, so the chart and the card can never disagree.
-
-/** Running totals of per-day values (index 0 = day 1). */
 // ── The ROAS card (2026-10) ─────────────────────────────────────────────────
 
 export interface RoasFigures {
@@ -1462,7 +1454,7 @@ function makeBar(
 }
 
 // ── Tracker views (2026-10) ─────────────────────────────────────────────────
-// The bars and the table read the SAME `buildTrackerRows` output — there is no
+// The bars and the table read the SAME `buildRangeBoard` output — there is no
 // second math path — so everything a view needs beyond those rows is a pure
 // derivation here, where it can be tested.
 
@@ -1514,7 +1506,7 @@ export interface TrackerViewFilters {
 
 /**
  * Narrow the CARDS/ROWS a view shows. The header's brand total is deliberately
- * NOT recomputed: it is the month's verdict, the same number Overview reports,
+ * NOT recomputed: it is the month's verdict, the same number Today reports,
  * and a filter is a reading aid rather than a different month. The page says
  * when a filter is hiding something.
  *
@@ -1655,7 +1647,7 @@ export function rowProjection(bar: Pick<TrackerBar, "plan" | "actual" | "planToD
 // and reads the SAME per-day maps the chart and the period table are summed
 // from — one math path. Plan over the whole range, actual and expected through
 // the platform's OWN coverage, the deviation through `pacingDeviation`, the
-// projection while the range still runs, and two readings the Overview's
+// projection while the range still runs, and two readings Today's
 // board does not have: a daily sparkline and what each remaining day needs.
 
 /** The per-day maps' TOTAL key. */
@@ -1816,7 +1808,7 @@ export function clipThrough(coverage: string | null | undefined, from: string, t
 
 /**
  * One anchor's last COVERED day inside the range — `coverageDayInMonth`'s rule
- * as a date, so a range reads exactly like the Overview reads a month (W1-2,
+ * as a date, so a range reads exactly like Today reads a month (W1-2,
  * 2026-10-23):
  *
  *  · a month BEFORE today's is over: it counts as covered to its end whatever
@@ -2056,8 +2048,7 @@ export interface RangeBoard {
  * ITS coverage (never the calendar); a bucket with a plan is a bar, one with
  * spend and no plan is unplanned money (objective drift on a planned platform,
  * a reserve draw only when the platform overshoots — `reserveUsed`'s rule).
- * For a single-month range the platform rows equal `buildTrackerRows`' for
- * that month: same series, same coverage (pinned in lib/budget.test.ts).
+ * A single-month range is what Today draws: same series, same coverage.
  */
 export function buildRangeBoard(input: RangeBoardInput): RangeBoard {
   const { from, to, spendPerDay, planSpendPerDay, coverage, resultsPerDay } = input;
@@ -2207,42 +2198,4 @@ export function combineResults(
     roas: resultFigures(spendWithValue, null, value).roas,
     cpa: resultFigures(spendWithPurchases, purchases, null).cpa,
   };
-}
-
-export interface ResultShareRow {
-  platform: string;
-  spend: number;
-  /** null when the platform doesn't report purchases — it gets no share. */
-  spendShare: number | null;
-  purchaseShare: number | null;
-  /** purchaseShare − spendShare, in percentage POINTS (positive = more purchases than its spend share). */
-  gapPts: number | null;
-}
-
-/**
- * "Where the money works": each platform's share of spend against its share
- * of PLATFORM-REPORTED purchases. Both shares are taken over the platforms
- * that report purchases ONLY — a ratio touching an unreported field excludes
- * that platform from BOTH sides (google-platforms rule). Platforms keep the
- * board's order; one with no spend in the range is left out.
- */
-export function buildResultShares(platforms: readonly RangePlatform[]): ResultShareRow[] {
-  const spent = platforms.filter((p) => p.actual > 0);
-  const reporting = spent.filter((p) => p.results.purchases !== null);
-  const spendBase = reporting.reduce((s, p) => s + p.actual, 0);
-  const purchaseBase = reporting.reduce((s, p) => s + (p.results.purchases ?? 0), 0);
-  return spent.map((p) => {
-    if (p.results.purchases === null || spendBase <= 0) {
-      return { platform: p.key, spend: p.actual, spendShare: null, purchaseShare: null, gapPts: null };
-    }
-    const spendShare = p.actual / spendBase;
-    const purchaseShare = purchaseBase > 0 ? p.results.purchases / purchaseBase : null;
-    return {
-      platform: p.key,
-      spend: p.actual,
-      spendShare,
-      purchaseShare,
-      gapPts: purchaseShare === null ? null : (purchaseShare - spendShare) * 100,
-    };
-  });
 }

@@ -4,11 +4,7 @@ import { PageHeader } from "@/components/layout/page-header";
 import { todayIso } from "@/lib/date-presets";
 import {
   BUDGET_OBJECTIVES,
-  monthEndIso,
-  monthKey,
-  monthStartIso,
   monthsInRange,
-  prevMonthKey,
 } from "@/lib/budget";
 import { ALL_PLATFORMS } from "@/lib/palette";
 import {
@@ -39,16 +35,15 @@ export const metadata = { title: "Budget · Analysis" };
 const GROUP_BYS: GroupBy[] = ["day", "week", "month"];
 
 /**
- * Budget Pacing — plan vs actual over any date range, grouped by day, calendar
- * week or month, optionally filtered to a platform subset and broken down by
- * Budget's objective buckets — and, since the Tracker merged in (2026-10-19),
- * the BOARD: every platform's pace for the range with its stages.
+ * Budget → Analysis (the Pacing page until 2026-11-14) — any date range, two
+ * lenses. PACING: plan vs actual grouped by day, calendar week or month,
+ * optionally filtered to a platform subset and split by Budget's objective
+ * buckets, the expected-to-actual waterfall, one small chart per platform and
+ * the BOARD. RESULTS: what the platforms report the spend bought, by
+ * platform, objective or product.
  *
  * The range is URL-backed so a view is shareable. Three fallbacks, in order:
- * an explicit from/to; the `?month=` the Budget nav links carry; else the
- * current month. `granularity=monthly` is the retired History link's shape —
- * it lands on the last twelve months grouped by month, which is what that page
- * used to show.
+ * an explicit from/to; a `?month=`; else the current month.
  */
 export default async function BudgetAnalysisPage({
   searchParams,
@@ -58,7 +53,6 @@ export default async function BudgetAnalysisPage({
     to?: string;
     month?: string;
     groupBy?: string;
-    granularity?: string;
     platforms?: string;
     split?: string;
     shape?: string;
@@ -74,21 +68,11 @@ export default async function BudgetAnalysisPage({
   const sp = await searchParams;
   const today = todayIso();
 
-  const legacyHistory = sp.granularity === "monthly" && !sp.from && !sp.to;
-  let { from, to } = resolveBudgetRange(sp, today);
-  if (legacyHistory) {
-    // The old History page: twelve months back through the end of this one.
-    let month = monthKey(today);
-    for (let i = 0; i < 11; i++) month = prevMonthKey(month);
-    from = monthStartIso(month);
-    to = monthEndIso(monthKey(today));
-  }
+  const { from, to } = resolveBudgetRange(sp, today);
 
   const groupBy: GroupBy = (GROUP_BYS as string[]).includes(sp.groupBy ?? "")
     ? (sp.groupBy as GroupBy)
-    : legacyHistory
-      ? "month"
-      : "day";
+    : "day";
 
   // REMEMBERED FILTERS (migration 0049): the platform picker is the only filter
   // on this page, and it is remembered per user per brand — URL wins, else the

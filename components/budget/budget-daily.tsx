@@ -290,7 +290,7 @@ function Calendar({
               aria-pressed={selected}
               aria-label={words(c)}
               className={cn(
-                "flex min-h-14 flex-col items-start justify-between rounded-md px-1.5 py-1 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand sm:min-h-16 sm:px-2",
+                "flex min-h-14 flex-col items-start justify-between overflow-hidden rounded-md px-1 py-1 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand sm:min-h-16 sm:px-2",
                 c.state === "judged" && toneCell(tone),
                 c.state === "no_plan" && "bg-surface-2",
                 c.state === "not_reported" && "border border-dashed border-line-strong",
@@ -299,7 +299,7 @@ function Calendar({
               )}
             >
               <span className="text-xs tabular-nums text-ink-2">{Number(c.date.slice(8))}</span>
-              <span className="w-full truncate text-xs tabular-nums">
+              <span className="w-full whitespace-nowrap text-xs tracking-tighter tabular-nums sm:tracking-normal">
                 {c.state === "judged" ? (
                   <span className={toneText(tone, "text-ink-2")}>{signedPct(c.deviation, 0)}</span>
                 ) : c.state === "no_plan" ? (
