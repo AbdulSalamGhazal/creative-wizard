@@ -5,8 +5,7 @@ import { PlatformDot } from "@/components/ui/platform-dot";
 import { InfoTip } from "@/components/ui/info-tip";
 import { Callout } from "@/components/ui/callout";
 import { panelClass } from "@/components/ui/panel";
-import { platformLabel } from "@/components/budget/budget-shared";
-import { buildResultShares, type RangePlatform } from "@/lib/budget";
+import type { ResultRow } from "@/lib/budget-results";
 import { seriesColor } from "@/lib/palette";
 import { pct1 } from "@/lib/format";
 
@@ -14,16 +13,16 @@ import { pct1 } from "@/lib/format";
 const PURCHASE_COLOR = seriesColor(11);
 
 /**
- * "Where the money works" (2026-11-14, user decision): each platform's share
- * of the range's spend against its share of PLATFORM-REPORTED purchases, so
- * a platform that takes more of the money than it brings back reads at a
- * glance. Figures only: no target and no verdict colour (ahead blue and
- * behind amber mean PACING in Budget, and would mislead here). Every number
- * is `buildResultShares` over the board's own rows — the same days and raw
- * records the board's spend covers.
+ * "Where the money works" (2026-11-14, user decision): each row's share of
+ * the range's spend against its share of PLATFORM-REPORTED purchases — a
+ * platform, an objective or a product, whichever the results lens is cut by —
+ * so one that takes more of the money than it brings back reads at a glance.
+ * Figures only: no target and no verdict colour (ahead blue and behind amber
+ * mean PACING in Budget, and would mislead here). Every number is
+ * `buildResultRows` — the same days and raw records the board's spend covers.
  */
-export function ResultShares({ rows }: { rows: readonly RangePlatform[] }) {
-  const shares = useMemo(() => buildResultShares(rows), [rows]);
+export function ResultShares({ rows, noun }: { rows: readonly ResultRow[]; noun: string }) {
+  const shares = useMemo(() => [...rows], [rows]);
   if (shares.length === 0) return null; // nothing spent — the board says so
 
   const reporting = shares.filter((s) => s.spendShare !== null);
@@ -42,8 +41,8 @@ export function ResultShares({ rows }: { rows: readonly RangePlatform[] }) {
             Where the money works
           </h2>
           <InfoTip label="About this comparison">
-            Each platform&apos;s share of the spend against its share of the purchases the
-            platforms report, over the platforms that report purchases. A platform above
+            Each {noun}&apos;s share of the spend against its share of the purchases the
+            platforms report, counting only spend that reports purchases. A {noun} above
             its spend share brings back more than its cut of the money. Platform-reported,
             over the same days and raw records as the board.
           </InfoTip>
@@ -62,12 +61,12 @@ export function ResultShares({ rows }: { rows: readonly RangePlatform[] }) {
 
       {reporting.length === 0 ? (
         <div className="p-3">
-          <Callout tone="info">No platform in this range reports purchases.</Callout>
+          <Callout tone="info">No {noun} in this range reports purchases.</Callout>
         </div>
       ) : (
         <ul className="divide-y divide-line">
           {shares.map((s) => {
-            const name = platformLabel(s.platform);
+            const name = s.label;
             const words =
               s.spendShare === null
                 ? `${name}: doesn't report purchases`
@@ -78,7 +77,7 @@ export function ResultShares({ rows }: { rows: readonly RangePlatform[] }) {
                 : `${s.gapPts > 0.05 ? "+" : s.gapPts < -0.05 ? "−" : ""}${Math.abs(s.gapPts).toFixed(1)} pt`;
             return (
               <li
-                key={s.platform}
+                key={s.key}
                 className="grid grid-cols-[minmax(0,1fr)_4.5rem] items-center gap-x-4 gap-y-1.5 px-4 py-2.5 sm:grid-cols-[minmax(7rem,9rem)_minmax(0,1fr)_4.5rem]"
                 title={words}
               >
@@ -87,7 +86,7 @@ export function ResultShares({ rows }: { rows: readonly RangePlatform[] }) {
                   aria-hidden
                   className="inline-flex min-w-0 items-center gap-2 text-sm font-medium text-ink-2"
                 >
-                  <PlatformDot platform={s.platform} size="sm" />
+                  {s.platform && <PlatformDot platform={s.platform} size="sm" />}
                   <span className="truncate">{name}</span>
                 </span>
                 <span

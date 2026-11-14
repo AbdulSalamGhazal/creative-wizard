@@ -64,11 +64,14 @@ import {
   type RangeBucket,
 } from "@/lib/budget";
 import { buildRangeModel } from "@/lib/budget-range";
-import type { PacingShape, PacingSplit, PacingViewInput } from "@/validators/budget";
+import type { AnalysisLens, PacingShape, PacingSplit, PacingViewInput } from "@/validators/budget";
 import { RangeCard, rangeTitle } from "@/components/budget/range-card";
-import { ResultShares } from "@/components/budget/result-shares";
+import { ResultsLens } from "@/components/budget/results-lens";
+import { VarianceWaterfall } from "@/components/budget/charts/variance-waterfall";
+import { PlatformMultiples } from "@/components/budget/charts/platform-multiples";
+import { buildResultRows } from "@/lib/budget-results";
 import { PacingBoard } from "@/components/budget/pacing-board";
-import type { BudgetPacingSeries, MonthPlanRow } from "@/db/queries/budget";
+import type { BudgetPacingSeries, BudgetProductSpend, MonthPlanRow } from "@/db/queries/budget";
 import {
   CurrencyToggle,
   HorizonNote,
@@ -199,6 +202,7 @@ export function BudgetPacing({
   resolved,
   coverage,
   canManage,
+  products = null,
   series,
   plans,
   rate,
@@ -215,7 +219,9 @@ export function BudgetPacing({
   /** The remembered chart shape (URL → preference → "cumulative"). */
   shape: PacingShape;
   /** The board's remembered controls and tier-2 filters (URL → preference → default). */
-  view: Pick<PacingViewInput, "board" | "rank" | "group" | "buckets" | "offpace">;
+  view: Pick<PacingViewInput, "board" | "rank" | "group" | "buckets" | "offpace" | "lens" | "by">;
+  /** The product scan — fetched only when the results lens is cut by product. */
+  products?: BudgetProductSpend[] | null;
   /** What the server resolved for every remembered key — the writer's baseline (0049). */
   resolved: Record<string, string | undefined>;
   /** Latest uploaded day per platform — the board's anchor, never the calendar. */
@@ -279,6 +285,8 @@ export function BudgetPacing({
       if (view.board !== "bars") params.set("board", view.board);
       if (view.rank !== "plan") params.set("rank", view.rank);
       if (view.group !== "platform") params.set("group", view.group);
+      if (view.lens !== "pacing") params.set("lens", view.lens);
+      if (view.by !== "platform") params.set("by", view.by);
       for (const [key, value] of Object.entries(next)) {
         if (value === null || value === "") params.delete(key);
         else params.set(key, value);
@@ -983,6 +991,20 @@ export function BudgetPacing({
   // The reserve is a MONTH's figure (the platform-level rule, `reserveUsed`):
   // read when the range sits inside one planned month, a dash otherwise.
   const boardReserve = model.reserve;
+  // The results lens's rows — the board's own rows regrouped, or the product
+  // scan folded across the platforms in scope.
+  const resultRows = useMemo(
+    () =>
+      buildResultRows({
+        dimension: view.by,
+        board: boardData,
+        products,
+        inScope: (p) => platforms.length === 0 || platforms.includes(p),
+        platformLabel,
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [view.by, boardData, products, platforms.join(",")],
+  );
   // READINGS on the board are whole dollars; the period table keeps its cents.
   const fmtWhole = (usdAmount: number) => formatSpend(usdAmount, currency, rate, { whole: true });
 
@@ -1017,7 +1039,7 @@ export function BudgetPacing({
         // The view controls — the chart's two and the board's three — are
         // remembered per user per brand (0049): declared here so the shell's
         // writer treats them as preferences, never as filters Clear can reach.
-        persistKeys={["split", "shape", "board", "rank", "group"]}
+        persistKeys={["split", "shape", "board", "rank", "group", "lens", "by"]}
         tier1={({ fullWidth }) => (
           <>
             {/* Lifetime is hidden: an unbounded range has no plan to pace
@@ -1037,23 +1059,38 @@ export function BudgetPacing({
               fullWidth={fullWidth}
             />
 
-            <SegmentedControl<GroupBy>
-              ariaLabel="Group by"
-              value={groupBy}
-              onChange={(g) => setParams({ groupBy: g })}
+            {/* The page's two lenses: is the money going out on plan, and
+                what did it buy. A VIEW control, remembered per user. */}
+            <SegmentedControl<AnalysisLens>
+              ariaLabel="Lens"
+              value={view.lens}
+              onChange={(v) => writeOne("lens", v, "pacing")}
               options={[
-                { value: "day", label: "Day" },
-                { value: "week", label: "Week" },
-                { value: "month", label: "Month" },
+                { value: "pacing", label: "Pacing" },
+                { value: "results", label: "Results" },
               ]}
             />
+
+            {/* Periods and the split shape the PACING chart and table only. */}
+            {view.lens === "pacing" && (
+              <SegmentedControl<GroupBy>
+                ariaLabel="Group by"
+                value={groupBy}
+                onChange={(g) => setParams({ groupBy: g })}
+                options={[
+                  { value: "day", label: "Day" },
+                  { value: "week", label: "Week" },
+                  { value: "month", label: "Month" },
+                ]}
+              />
+            )}
 
             {/* Split by: none · platform · objective. A VIEW control, not a
                 filter (Clear never touches it), remembered per user. On a
                 phone it folds into ⋯ with the currency switch (R-004). */}
-            <DesktopOnly>{splitControl}</DesktopOnly>
+            {view.lens === "pacing" && <DesktopOnly>{splitControl}</DesktopOnly>}
             <PhoneMoreMenu>
-              {splitControl}
+              {view.lens === "pacing" && splitControl}
               {currencyControl}
             </PhoneMoreMenu>
           </>
@@ -1077,6 +1114,24 @@ export function BudgetPacing({
         }
       />
 
+      {view.lens === "results" && (
+        <ResultsLens
+          rows={resultRows}
+          by={view.by}
+          onBy={(v) => writeOne("by", v, "platform")}
+          title={rangeTitle(from, to)}
+          fmt={fmtWhole}
+          fmtCents={fmtSpend}
+          toDisplay={toDisplay}
+          compact={(usdAmount) =>
+            currency === "SAR" ? sarCompact(toDisplay(usdAmount)) : usdCompact(usdAmount)
+          }
+          csvName={`budget-results-${from}-to-${to}-${currency.toLowerCase()}`}
+        />
+      )}
+
+      {view.lens === "pacing" && (
+      <>
       {/* The range card — the month's hero card, for this range */}
       <RangeCard
         metric={activeMetric}
@@ -1355,6 +1410,20 @@ export function BudgetPacing({
         )}
       </ChartShell>
 
+      {/* Who made the difference, and each platform's own shape (2026-11-14).
+          Spend only, so they follow the platform filter like the board. */}
+      <VarianceWaterfall
+        rows={boardData.platforms}
+        title={rangeTitle(from, to)}
+        label={platformLabel}
+        toDisplay={toDisplay}
+        fmt={fmtWhole}
+        compact={(usdAmount) =>
+          currency === "SAR" ? sarCompact(toDisplay(usdAmount)) : usdCompact(usdAmount)
+        }
+      />
+      <PlatformMultiples rows={boardData.platforms} label={platformLabel} fmt={fmtWhole} />
+
       {/* The per-period table — data, with its cents — under the chart and
           closed by default; the board below is the page's reading. */}
       <CollapsibleSection
@@ -1400,7 +1469,8 @@ export function BudgetPacing({
         canManage={canManage}
       />
 
-      <ResultShares rows={boardData.platforms} />
+      </>
+      )}
 
       <HorizonNote horizon={horizon} storeHorizon={storeHorizon} />
     </div>

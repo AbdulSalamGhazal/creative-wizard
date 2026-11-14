@@ -63,6 +63,8 @@ export const TABLE_KEYS = {
   BUDGET_TRACKER: "budget-tracker",
   /** Budget → Daily, the day-by-day table view. */
   BUDGET_DAILY: "budget-daily",
+  /** Budget → Analysis, the results lens (by platform · objective · product). */
+  BUDGET_RESULTS: "budget-results",
 
   // ── Phase 3 (2026-10): the hand-rolled tables, as they migrate ────────
   /** Trends → Launches, the launch-fatigue table. */

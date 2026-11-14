@@ -9,7 +9,9 @@ import {
   budgetPlanRevisions,
   budgetTargets,
   campaigns,
+  creatives,
   performanceRecords,
+  products,
   storeOrders,
   users,
 } from "@/db/schema";
@@ -623,6 +625,68 @@ export async function budgetPacingSeries(
   }
 
   return { spend: [...byKey.values()], days };
+}
+
+export interface BudgetProductSpend {
+  platform: string;
+  productId: string;
+  productName: string;
+  spend: number;
+  /** Platform-reported; NULL = the platform doesn't report it (never 0). */
+  purchases: number | null;
+  purchaseValue: number | null;
+}
+
+/**
+ * Spend and platform-reported results per platform × PRODUCT over a range —
+ * Analysis's product dimension (2026-11-14). The product is the creative's
+ * (`creatives.product_id` is NOT NULL), so the inner joins drop nothing and
+ * the rows foot to `budgetPacingSeries`' spend exactly (pinned in the DB
+ * suite).
+ *
+ * RAW, like every Budget actual: no exclusion filter. Results keep NULL ≠ 0.
+ * ONE scan, on the same `(account_id, date)` index as the pacing scan, and
+ * fetched only when the page is showing products. Grouped by platform so a
+ * caller can scope to the platform filter and keep the "a part that doesn't
+ * report a field leaves both sides of the ratio" rule per platform; no
+ * per-day grain is needed — a platform has no rows after its last upload, so
+ * each one is already cut at its own covered day.
+ *
+ * There is NO plan on this axis: budgets are planned by platform × objective.
+ */
+export async function budgetProductSeries(
+  from: string,
+  to: string,
+): Promise<BudgetProductSpend[]> {
+  const acct = await getActiveAccountId();
+  const rows = await db
+    .select({
+      platform: performanceRecords.platform,
+      productId: creatives.productId,
+      productName: products.name,
+      spend: sql<string>`COALESCE(SUM(${performanceRecords.spend}), 0)`,
+      purchases: sql<string | null>`${sumConversions}`,
+      purchaseValue: sql<string | null>`${sumConversionValue}`,
+    })
+    .from(performanceRecords)
+    .innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId))
+    .innerJoin(products, eq(products.id, creatives.productId))
+    .where(
+      and(
+        eq(performanceRecords.accountId, acct),
+        gte(performanceRecords.date, from),
+        lte(performanceRecords.date, to),
+      ),
+    )
+    .groupBy(performanceRecords.platform, creatives.productId, products.name);
+  return rows.map((r) => ({
+    platform: r.platform,
+    productId: r.productId,
+    productName: r.productName,
+    spend: Number(r.spend),
+    purchases: r.purchases === null ? null : Number(r.purchases),
+    purchaseValue: r.purchaseValue === null ? null : Number(r.purchaseValue),
+  }));
 }
 
 export interface MonthPlanRow {

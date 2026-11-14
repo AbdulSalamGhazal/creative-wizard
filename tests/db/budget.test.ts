@@ -20,6 +20,7 @@ import {
   copyBudgetMonth,
   budgetPacingSeries,
   budgetPlansForMonths,
+  budgetProductSeries,
 } from "@/db/queries/budget";
 import { writeStoreBatch } from "@/db/queries/store";
 import { resetAndSeed } from "./fixtures";
@@ -252,6 +253,38 @@ describe("budget v2 — day weights, reserve, daily series, history", () => {
     expect(fb.length).toBeGreaterThan(0);
     expect(fb.every((r) => r.purchases === null && r.purchaseValue === null)).toBe(true);
     expect(fb.reduce((s, r) => s + r.spend, 0)).toBeCloseTo(200, 2); // spend untouched
+  });
+
+  it("the product scan foots to the pacing scan: RAW, tenant-scoped, NULL ≠ 0", async () => {
+    const [products, pacing] = await Promise.all([
+      budgetProductSeries(M_START, M_END),
+      budgetPacingSeries(M_START, M_END),
+    ]);
+    expect(products.length).toBeGreaterThan(0);
+    // Every creative has a product, so the inner joins drop nothing: the two
+    // scans see the same rows (the excluded one included).
+    const total = (rows: ReadonlyArray<{ spend: number }>) => rows.reduce((s, r) => s + r.spend, 0);
+    expect(total(products)).toBeCloseTo(total(pacing.spend), 2);
+    expect(total(products)).toBeCloseTo(await rawMonthSpendTotal(MONTH), 2);
+    const purchases = (rows: ReadonlyArray<{ purchases: number | null }>) =>
+      rows.reduce((s, r) => s + (r.purchases ?? 0), 0);
+    expect(purchases(products)).toBe(purchases(pacing.spend));
+    expect(products.every((r) => r.productName.length > 0)).toBe(true);
+
+    // A platform that never reported the fields reads NULL per product too.
+    await db
+      .update(performanceRecords)
+      .set({ conversions: null, conversionValue: null })
+      .where(and(eq(performanceRecords.accountId, ACCOUNT_A), eq(performanceRecords.platform, "facebook")));
+    const after = await budgetProductSeries(M_START, M_END);
+    const fb = after.filter((r) => r.platform === "facebook");
+    expect(fb.length).toBeGreaterThan(0);
+    expect(fb.every((r) => r.purchases === null && r.purchaseValue === null)).toBe(true);
+
+    // Another brand's records never enter.
+    vi.mocked(getActiveAccountId).mockResolvedValueOnce(ACCOUNT_B);
+    const other = await budgetProductSeries(M_START, M_END);
+    expect(total(other)).not.toBeCloseTo(total(products), 2);
   });
 
   it("campaign objectives are folded onto Budget's buckets before they leave the query", async () => {

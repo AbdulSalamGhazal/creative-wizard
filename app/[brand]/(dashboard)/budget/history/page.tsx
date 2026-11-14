@@ -20,5 +20,5 @@ export default async function BudgetHistoryRedirect({
   }
   qs.set("granularity", "monthly");
   qs.set("groupBy", "month");
-  return brandPermanentRedirect(`/budget/pacing?${qs.toString()}`);
+  return brandPermanentRedirect(`/budget/analysis?${qs.toString()}`);
 }

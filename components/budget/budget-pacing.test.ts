@@ -9,7 +9,7 @@ import { describe, expect, it, vi } from "vitest";
  */
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: () => {}, replace: () => {}, refresh: () => {}, prefetch: () => {} }),
-  usePathname: () => "/budget/pacing",
+  usePathname: () => "/budget/analysis",
   useSearchParams: () => new URLSearchParams(),
 }));
 vi.mock("@/app/actions/user-prefs", () => ({
@@ -50,7 +50,7 @@ import {
   spendInDisplayCurrency,
   trackerCounts,
 } from "@/lib/budget";
-import type { BudgetPacingSeries, MonthPlanRow } from "@/db/queries/budget";
+import type { BudgetPacingSeries, BudgetProductSpend, MonthPlanRow } from "@/db/queries/budget";
 
 const TODAY = "2026-10-23";
 const RATE = 3.75;
@@ -93,6 +93,9 @@ function pacing(props: {
   platforms?: string[];
   groupBy?: GroupBy;
   storeHorizon?: string | null;
+  lens?: "pacing" | "results";
+  by?: "platform" | "objective" | "product";
+  products?: BudgetProductSpend[] | null;
 }) {
   return renderToStaticMarkup(
     createElement(BudgetPacing, {
@@ -102,7 +105,16 @@ function pacing(props: {
       platforms: props.platforms ?? [],
       split: "none",
       shape: "cumulative",
-      view: { board: "bars", rank: "plan", group: "platform", buckets: [], offpace: false },
+      view: {
+        board: "bars",
+        rank: "plan",
+        group: "platform",
+        buckets: [],
+        offpace: false,
+        lens: props.lens ?? "pacing",
+        by: props.by ?? "platform",
+      },
+      products: props.products ?? null,
       resolved: {},
       coverage: props.coverage,
       canManage: false,
@@ -130,9 +142,31 @@ describe("Pacing — spend vs results (platform-reported, 2026-11-14)", () => {
     expect(html).toContain("Instagram, platform-reported: ROAS 3.00×, $25.00 per purchase, 88 purchases");
     // TikTok's later rows don't exist; its 15 days are its own.
     expect(html).toContain("TikTok, platform-reported: ROAS 3.00×, $25.00 per purchase, 60 purchases");
+    // The pacing lens keeps to pacing: the shares live on the results lens.
+    expect(html).not.toContain("Where the money works");
+    expect(html).toContain("Expected to actual, by platform");
+  });
+
+  it("the results lens: shares, the bubble chart and the table — by platform, objective or product", () => {
+    const args = { coverage: LAGGING, series: laggingSeries, plans: [plan(["instagram", "tiktok"])] };
+    const html = pacing({ ...args, lens: "results" });
     expect(html).toContain("Where the money works");
     // Shares over the two reporting platforms: 2200 / 3700 of spend, 88 / 148 purchases.
     expect(html).toContain("Instagram: 59.5% of spend, 59.5% of purchases");
+    expect(html).toContain("Spend against ROAS");
+    // The pacing surfaces are gone on this lens.
+    expect(html).not.toContain("Pace board");
+    const byProduct = pacing({
+      ...args,
+      lens: "results",
+      by: "product",
+      products: [
+        { platform: "instagram", productId: "p1", productName: "Oud", spend: 2200, purchases: 88, purchaseValue: 6600 },
+        { platform: "tiktok", productId: "p2", productName: "Musk", spend: 1500, purchases: 60, purchaseValue: 4500 },
+      ],
+    });
+    expect(byProduct).toContain("Oud: 59.5% of spend, 59.5% of purchases");
+    expect(text(byProduct)).toContain("Musk");
   });
 
   it("a platform that doesn't report purchases reads a dash, never zero", () => {
@@ -143,8 +177,15 @@ describe("Pacing — spend vs results (platform-reported, 2026-11-14)", () => {
       plans: [plan(["instagram"])],
     });
     expect(html).toContain("Instagram: the platform reports no purchases");
-    expect(html).toContain("No platform in this range reports purchases.");
     expect(html).not.toContain("0 purchases");
+    const results = pacing({
+      coverage: { instagram: LAGGING.instagram },
+      series: { spend: rows, days: noRevenue },
+      plans: [plan(["instagram"])],
+      lens: "results",
+    });
+    expect(results).toContain("No platform in this range reports purchases.");
+    expect(results).not.toContain("0 purchases");
   });
 });
 

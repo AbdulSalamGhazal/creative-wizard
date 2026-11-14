@@ -3,8 +3,8 @@ import { monthEndIso, monthStartIso } from "@/lib/budget";
 import { MONTH_KEY } from "@/validators/budget";
 
 /**
- * The Tracker merged into Pacing (2026-10-19, user decision): its board is
- * Pacing's board, for any range. A permanent redirect keeps bookmarks working:
+ * The Tracker merged into Pacing (2026-10-19, user decision), and Pacing
+ * became Analysis (2026-11-14): its board is that page's board, for any range. A permanent redirect keeps bookmarks working:
  * `?month=` becomes that month's from/to (no month → Pacing's default, the
  * current month); every other param (`platforms`, `board`, `rank`, `group`,
  * `buckets`, `offpace`) carries across verbatim — Pacing reads the same keys.
@@ -25,5 +25,5 @@ export default async function BudgetTrackerRedirect({
   if (month) qs.set("from", monthStartIso(month));
   if (month) qs.set("to", monthEndIso(month));
   const query = qs.toString();
-  return brandPermanentRedirect(query ? `/budget/pacing?${query}` : "/budget/pacing");
+  return brandPermanentRedirect(query ? `/budget/analysis?${query}` : "/budget/analysis");
 }

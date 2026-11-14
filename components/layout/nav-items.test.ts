@@ -100,7 +100,7 @@ describe("the nav's order and the accordion's default section (2026-11-08)", () 
     ["/compare", "ads"],
     ["/trends/by-angle", "ads"],
     ["/budget", "budget"],
-    ["/budget/pacing", "budget"],
+    ["/budget/analysis", "budget"],
     ["/store/uploads/new", "store"],
     ["/price-structure/plan", "pricing"],
     ["/admin/users", "admin"],

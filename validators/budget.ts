@@ -12,6 +12,7 @@ import {
   monthStartIso,
   type PlanMode,
 } from "@/lib/budget";
+import { RESULT_DIMENSIONS } from "@/lib/budget-results";
 
 /**
  * Budget module input schemas. Spend is USD, revenue SAR (see lib/budget.ts for
@@ -360,7 +361,16 @@ export type PacingSplit = (typeof PACING_SPLITS)[number];
 export const PACING_SHAPES = ["cumulative", "period", "deviation"] as const;
 export type PacingShape = (typeof PACING_SHAPES)[number];
 
+/** Analysis's two lenses: is the money going out on plan, and what did it buy. */
+export const ANALYSIS_LENSES = ["pacing", "results"] as const;
+export type AnalysisLens = (typeof ANALYSIS_LENSES)[number];
+
+/** The results lens's cut (`lib/budget-results.ts` owns the list). */
+export const RESULT_BYS = RESULT_DIMENSIONS;
+
 export const pacingViewSchema = z.object({
+  lens: z.enum(ANALYSIS_LENSES).catch("pacing"),
+  by: z.enum(RESULT_BYS).catch("platform"),
   split: z.enum(PACING_SPLITS).catch("none"),
   shape: z.enum(PACING_SHAPES).catch("cumulative"),
   /** The board's tier-2 bucket slice. */
