@@ -17,10 +17,11 @@ import type { RangeModel } from "@/lib/budget-range";
  * the plan gave that day against what was spent on it. Read off the range
  * model's per-day maps; nothing is queried or expanded here.
  *
- * A day is judged ONLY on the platforms that have reported it. The day's
- * expectation is `expectedPerDay` — each platform's plan through its own
- * covered day — so a platform that hasn't uploaded Nov 12 yet contributes
- * neither its plan nor a $0 to Nov 12 (`reporting` says how many did).
+ * A day is judged ONLY on the platforms that have UPLOADED it — the raw last
+ * uploaded day, not the month-level "a finished month is final" rule: a
+ * platform that hasn't uploaded Nov 12 contributes neither its plan nor a $0
+ * to Nov 12 (`reporting` says how many did), and the last two days of a
+ * finished month nobody uploaded read "not reported", never −100%.
  *
  * In a CURVE month the day's plan is the curve's share of the month — nobody
  * typed it; in a day-by-day month it is the cell the sheet carried.
@@ -65,16 +66,20 @@ function resultsAt(model: RangeModel, key: string, date: string, spend: number):
   );
 }
 
+/** Has this platform uploaded this day? The RAW coverage, never the month rule. */
+function reportedOn(model: RangeModel, platform: string, date: string): boolean {
+  const last = model.coverage[platform] ?? null;
+  return last !== null && last >= date;
+}
+
 const NO_RESULTS: ResultFigures = { purchases: null, purchaseValue: null, roas: null, cpa: null };
 
 /** One cell per day of the model's range. */
 export function buildDayGrid(model: RangeModel, today: string): DayCell[] {
   const keys = model.platformKeys;
   return isoDaysBetween(model.from, model.to).map((date) => {
-    const reporting = keys.filter((p) => {
-      const through = model.throughByPlatform.get(p) ?? null;
-      return through !== null && through >= date;
-    }).length;
+    const reporters = keys.filter((p) => reportedOn(model, p, date));
+    const reporting = reporters.length;
     const base = { date, reporting, platforms: keys.length };
     if (reporting === 0) {
       return {
@@ -87,7 +92,12 @@ export function buildDayGrid(model: RangeModel, today: string): DayCell[] {
         results: NO_RESULTS,
       };
     }
-    const plan = round2(at(model.expectedPerDay, TOTAL_SERIES_KEY, date) ?? 0);
+    const plan = round2(
+      reporters.reduce(
+        (sum, p) => sum + (at(model.planSpendPerDay, platformSeriesKey(p), date) ?? 0),
+        0,
+      ),
+    );
     // The actual of the platforms that reported the day — a laggard's
     // not-yet-uploaded day is absent from the map, never a zero in the sum.
     const actual = round2(at(model.spendPerDay, TOTAL_SERIES_KEY, date) ?? 0);
@@ -158,8 +168,7 @@ export function buildDayDetail(model: RangeModel, date: string, today: string): 
 
   const platforms: DayPlatform[] = model.platformKeys.map((p) => {
     const key = platformSeriesKey(p);
-    const through = model.throughByPlatform.get(p) ?? null;
-    const reported = through !== null && through >= date;
+    const reported = reportedOn(model, p, date);
     const plan = at(model.planSpendPerDay, key, date) ?? 0;
     const actual = reported ? (at(model.spendPerDay, key, date) ?? 0) : 0;
     const buckets = BUDGET_OBJECTIVES.flatMap((objective) => {
@@ -181,7 +190,11 @@ export function buildDayDetail(model: RangeModel, date: string, today: string): 
   let expectedToDate = 0;
   for (const iso of isoDaysBetween(model.from, date)) {
     actualToDate += at(model.spendPerDay, TOTAL_SERIES_KEY, iso) ?? 0;
-    expectedToDate += at(model.expectedPerDay, TOTAL_SERIES_KEY, iso) ?? 0;
+    for (const p of model.platformKeys) {
+      if (reportedOn(model, p, iso)) {
+        expectedToDate += at(model.planSpendPerDay, platformSeriesKey(p), iso) ?? 0;
+      }
+    }
   }
   return {
     date,

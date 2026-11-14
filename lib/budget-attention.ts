@@ -75,8 +75,11 @@ function daysBetween(a: string, b: string): number {
 export function buildAttention(
   model: RangeModel,
   coverage: PlatformCoverage,
+  today: string,
 ): AttentionItem[] {
-  if (model.card.spend.state !== "live") return [];
+  // Final months are Review's; a month that hasn't begun has nothing yet. A
+  // month that HAS begun with no upload in it still gets its stale lines.
+  if (model.card.spend.state === "final" || today < model.from) return [];
   const rows = model.board.platforms;
   const items: AttentionItem[] = [];
 
@@ -129,8 +132,10 @@ export function buildAttention(
     }
   }
 
-  // 4 · Planned platforms whose data trails the freshest upload.
-  const freshest = model.horizon;
+  // 4 · Planned platforms whose data trails the freshest upload — or, when
+  // nothing at all has arrived for a month already running, today.
+  const noneThisMonth = model.spendThrough === null;
+  const freshest = noneThisMonth ? today : model.horizon;
   for (const r of rows) {
     if (r.plan <= 0) continue;
     const date = coverage[r.key] ?? null;

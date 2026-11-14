@@ -94,7 +94,7 @@ export function BudgetToday({
       buildRangeModel({ from, to, series, plans, rate, platforms: [], coverage, storeHorizon, today }),
     [from, to, series, plans, rate, coverage, storeHorizon, today],
   );
-  const attention = useMemo(() => buildAttention(model, coverage), [model, coverage]);
+  const attention = useMemo(() => buildAttention(model, coverage, today), [model, coverage, today]);
 
   const [views, setView] = useRememberedViews(view, VIEW_DEFAULTS);
   const [offPace, setOffPace] = useState(false);
@@ -148,7 +148,7 @@ export function BudgetToday({
     <div className="space-y-4">
       <div className="space-y-1">
         {bar}
-        <CoverageWords model={model} storeHorizon={storeHorizon} title={title} />
+        <CoverageWords model={model} storeHorizon={storeHorizon} title={title} started={today >= from} />
       </div>
 
       <div className="grid grid-cols-1 gap-3 @2xl/main:grid-cols-3">
@@ -193,14 +193,31 @@ function CoverageWords({
   model,
   storeHorizon,
   title,
+  started,
 }: {
   model: RangeModel;
   storeHorizon: string | null;
   title: string;
+  /** The month has begun (today is on or after its first day). */
+  started: boolean;
 }) {
   const { state, through, lastData } = model.card.spend;
   if (state === "future") {
-    return <p className="text-xs text-ink-2">Not started — {title} is ahead of us</p>;
+    // "Future" means no covered day yet — which is also a month that has
+    // begun but has no upload in it. Say which.
+    return started ? (
+      <p className="text-xs text-ink-2">
+        No data for {title} yet
+        {model.horizon && (
+          <span className="text-ink-3">
+            {" · last upload "}
+            <span className="tabular-nums">{monthDay(model.horizon)}</span>
+          </span>
+        )}
+      </p>
+    ) : (
+      <p className="text-xs text-ink-2">Not started — {title} is ahead of us</p>
+    );
   }
   const total = isoDaysBetween(model.from, model.to).length;
   const day = through ? isoDaysBetween(model.from, through).length : 0;

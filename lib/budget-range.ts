@@ -113,6 +113,8 @@ export interface RangeModel {
   roasThrough: string | null;
   /** What a footnote prints: the in-scope platforms' raw last upload. */
   horizon: string | null;
+  /** The raw last uploaded day per platform, as given. */
+  coverage: PlatformCoverage;
   board: RangeBoard;
   card: RangeCardData;
   reserve: RangeReserve;
@@ -350,6 +352,7 @@ export function buildRangeModel(input: RangeModelInput): RangeModel {
     revenueThrough,
     roasThrough,
     horizon,
+    coverage,
     board,
     card,
     reserve,

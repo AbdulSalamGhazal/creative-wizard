@@ -54,7 +54,7 @@ function attention(args: {
     storeHorizon: null,
     today: args.today ?? TODAY,
   });
-  return buildAttention(model, args.coverage);
+  return buildAttention(model, args.coverage, args.today ?? TODAY);
 }
 
 describe("buildAttention", () => {

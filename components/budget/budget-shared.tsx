@@ -110,7 +110,7 @@ const MONTH_NAMES = [
 
 /**
  * The month bar every Budget page shares: ‹ › steppers, the month name, a year
- * dropdown, and a "Today" shortcut off the current month. Navigates by
+ * dropdown, and a "This month" shortcut off the current month. Navigates by
  * replacing `?month=` on the CURRENT pathname, so each page keeps its own
  * route. `children` is the page's right-side control cluster.
  */
@@ -217,7 +217,7 @@ export function BudgetMonthBar({
             disabled={locked}
             title={lockedTitle}
           >
-            Today
+            This month
           </Button>
         )}
       </div>

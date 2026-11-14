@@ -96,6 +96,30 @@ describe("buildDayGrid — one day against that day's plan", () => {
   });
 });
 
+describe("a FINISHED month's unreported days", () => {
+  it("the days after the last upload read not reported, never −100%", () => {
+    const later = buildRangeModel({
+      from: FROM,
+      to: TO,
+      series: { spend: spend("instagram", "2026-10-29", () => 100), days: [] },
+      plans: [plan(["instagram"])],
+      rate: 3.75,
+      platforms: [],
+      coverage: { instagram: "2026-10-29" },
+      storeHorizon: null,
+      today: "2026-11-14",
+    });
+    const cells = buildDayGrid(later, "2026-11-14");
+    expect(cells.find((c) => c.date === "2026-10-29")).toMatchObject({ state: "judged", delta: 0 });
+    expect(cells.find((c) => c.date === "2026-10-30")).toMatchObject({
+      state: "not_reported",
+      actual: null,
+    });
+    // The month-level rule still calls the month final — only the day view differs.
+    expect(later.card.spend.state).toBe("final");
+  });
+});
+
 describe("buildDayDetail — the day, platform by platform", () => {
   it("names each platform's plan, spend and deviation, with its buckets", () => {
     const d = buildDayDetail(model, "2026-10-10", TODAY);

@@ -815,7 +815,7 @@ export function registerMcpTools(server: McpServer): void {
           // what each remaining day needs), a projected reserve overshoot at
           // month end, spend with no plan, and stale uploads. Empty for a
           // month that is over or hasn't started.
-          needs_attention: buildAttention(model, platformCoverage),
+          needs_attention: buildAttention(model, platformCoverage, today),
         });
       }),
   );
