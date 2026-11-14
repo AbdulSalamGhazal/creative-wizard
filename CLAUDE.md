@@ -384,15 +384,14 @@ this map is still a rule you broke.
 - Five pages: Today · Daily · Analysis · Review · Plan. ONE math path —
   `buildRangeModel` (`lib/budget-range.ts`) — feeds every page and the MCP.
 - Actual spend applies NO exclusion filtering — raw totals, by decision.
-- Every plan-to-date number goes through `buildPlanSeries`.
-- Pacing compares against DATA COVERAGE, never the calendar.
+- Every plan-to-date number goes through `buildPlanSeries`; pacing compares
+  against DATA COVERAGE, never the calendar. Needs attention adds no new estimate.
 - `replaceBudgetMonth` is the ONE plan writer; revisions are written in its
   transaction. Move money posts the MOVE and saves through it.
 - Revenue has no platform attribution anywhere in Budget.
 - Reserve USED = Σ platforms max(0, actual − plan) — platform overshoot, never bucket drift.
 - Verdicts are coloured by DIRECTION (ahead blue, behind amber, never green/red)
   through ONE helper, `pacingTone`; tokens only through `lib/palette.ts`.
-- Needs attention (`buildAttention`) reads the board's rows — no new estimate.
 - Daily judges a day ONLY on the platforms that uploaded it: "not reported", never zero.
 - Results are PLATFORM-REPORTED, raw, via `resultFigures`/`combineResults`; never
   compared with store revenue, no targets. The product cut has no plan.
