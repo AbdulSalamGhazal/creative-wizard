@@ -1,4 +1,5 @@
 import { auth, can } from "@/lib/auth";
+import { getActiveAccountId } from "@/lib/tenant";
 import { PageShell } from "@/components/layout/page-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { todayIso } from "@/lib/date-presets";
@@ -73,6 +74,9 @@ export default async function BudgetTodayPage({
     auth(),
   ]);
   const canManage = user ? can(user, "budget.manage") : false;
+  // Pinned to the brand this page rendered under: a brand switched in
+  // another tab must not receive a move made from this one.
+  const brand = await getActiveAccountId();
   const seedMonth = months.find((m) => m < month) ?? null;
 
   return (
@@ -96,6 +100,7 @@ export default async function BudgetTodayPage({
         seedMonth={seedMonth}
         canManage={canManage}
         view={{ board: view.board, rank: view.rank, group: view.group }}
+        brand={brand}
       />
     </PageShell>
   );

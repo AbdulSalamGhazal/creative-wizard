@@ -37,6 +37,7 @@ import {
 } from "@/components/budget/budget-shared";
 import { RangeCard } from "@/components/budget/range-card";
 import { PacingBoard } from "@/components/budget/pacing-board";
+import { MoveMoneySheet } from "@/components/budget/move-money-sheet";
 import { useRememberedViews } from "@/components/budget/use-remembered-view";
 
 const VIEW_DEFAULTS = { board: "bars", rank: "plan", group: "platform" };
@@ -63,7 +64,7 @@ export function BudgetToday({
   seedMonth,
   canManage,
   view,
-  moveMoney,
+  brand,
 }: {
   month: string; // YYYY-MM
   today: string;
@@ -80,8 +81,8 @@ export function BudgetToday({
   canManage: boolean;
   /** The board's remembered controls (URL-less: saved per user per brand). */
   view: { board: BoardMode; rank: PacingRank; group: PacingGroup };
-  /** The Move money control — the page passes it so this file stays read-only. */
-  moveMoney?: (model: RangeModel) => React.ReactNode;
+  /** The brand this page rendered under — a save from here is pinned to it. */
+  brand: string;
 }) {
   const [currency, pickCurrency] = useBudgetCurrency();
   const fmtSpend = (usd: number) => formatSpend(usd, currency, rate);
@@ -115,7 +116,19 @@ export function BudgetToday({
   const bar = (
     <BudgetMonthBar month={month} today={today}>
       <CurrencyToggle currency={currency} onChange={pickCurrency} />
-      {hasPlan && moveMoney?.(model)}
+      {hasPlan && canManage && (
+        <MoveMoneySheet
+          model={model}
+          month={month}
+          brand={brand}
+          fmt={fmtWhole}
+          disabledReason={
+            plan?.planMode === "daily"
+              ? "This month is planned day by day — upload a new sheet to move money"
+              : undefined
+          }
+        />
+      )}
       {canManage && hasPlan && (
         <Link
           href={planHref}

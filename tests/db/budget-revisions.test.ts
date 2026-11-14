@@ -29,6 +29,7 @@ import {
   convertPlanToCurve,
   copyBudgetFromMonth,
   loadPlanRevision,
+  moveBudgetMoney,
   restorePlanRevision,
   saveBudgetMonth,
 } from "@/app/actions/budget";
@@ -149,6 +150,52 @@ describe("plan revisions — written on every write", () => {
     setAccount(ACCOUNT_B);
     expect(await listPlanRevisionLog(["2026-01", "2026-02"])).toEqual([]);
     expect((await planRevisionStats(["2026-01"]))[0]).toMatchObject({ count: 0, first: null });
+  });
+
+  it("a MOVE from Today applies to the STORED plan, keeps the total, and records a revision", async () => {
+    await saveBudgetMonth(PLAN_A); // instagram 1,000 · facebook 500 · reserve 250
+    const res = await moveBudgetMoney({
+      month: MONTH,
+      from: { kind: "platform", platform: "instagram" },
+      to: "facebook",
+      amount: 300,
+    });
+    expect(res.ok).toBe(true);
+    const after = await getBudgetMonth(MONTH);
+    const planned = (platform: string) =>
+      after.allocations.filter((a) => a.platform === platform).reduce((s, a) => s + a.plannedSpend, 0);
+    expect(planned("instagram")).toBeCloseTo(700, 4);
+    expect(planned("facebook")).toBeCloseTo(800, 4);
+    // Everything the move didn't name is untouched.
+    expect(after.reserveSpendUsd).toBeCloseTo(250, 4);
+    expect(after.plannedRevenueSar).toBe(25_000);
+    expect(after.dayWeightOverrides).toEqual({ 15: 2 });
+
+    const revisions = await listPlanRevisions(MONTH);
+    expect(revisions).toHaveLength(2);
+    expect(revisions[0]!.note).toBe("Moved $300.00 from Instagram to Facebook");
+
+    // From the reserve, with the user's own note.
+    const fromReserve = await moveBudgetMoney({
+      month: MONTH,
+      from: { kind: "reserve" },
+      to: "instagram",
+      amount: 250,
+      note: "top up",
+    });
+    expect(fromReserve.ok).toBe(true);
+    expect((await getBudgetMonth(MONTH)).reserveSpendUsd).toBe(0);
+    expect((await listPlanRevisions(MONTH))[0]!.note).toBe("top up");
+
+    // More than is there is refused, and nothing is written.
+    const tooMuch = await moveBudgetMoney({
+      month: MONTH,
+      from: { kind: "reserve" },
+      to: "instagram",
+      amount: 1,
+    });
+    expect(tooMuch).toMatchObject({ ok: false, error: "That is more than the reserve holds." });
+    expect(await listPlanRevisions(MONTH)).toHaveLength(3);
   });
 
   it("refuses to copy a month onto itself", async () => {

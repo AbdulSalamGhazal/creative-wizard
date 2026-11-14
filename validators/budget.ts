@@ -124,6 +124,24 @@ export const planSchema = z.object({
 export const planNoteSchema = z.string().trim().max(200).optional();
 
 /**
+ * A MOVE of planned money, posted from Today (`lib/budget-move.ts`): a source
+ * (a platform or the reserve), a target platform and an amount. The server
+ * applies it to the STORED plan — the page never sends the plan itself.
+ */
+export const movePlanMoneySchema = z.object({
+  month: z.string().regex(MONTH_KEY),
+  from: z.union([
+    z.object({ kind: z.literal("reserve") }),
+    z.object({ kind: z.literal("platform"), platform: z.enum(platformEnum) }),
+  ]),
+  to: z.enum(platformEnum),
+  amount: z.number().positive().finite(),
+  note: planNoteSchema,
+  /** The brand the page rendered under; the save refuses a moved one. */
+  brand: z.string().optional(),
+});
+
+/**
  * Where a save came from. The CSV upload is NOT a second writer — it goes
  * through `saveBudgetMonth` like the editor does, so it gets the same
  * `planSchema` validation, the same revision snapshot and the same audit row.

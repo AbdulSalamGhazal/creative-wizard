@@ -278,6 +278,7 @@ describe("Today — ROAS divides two sides through the SAME day (B-04)", () => {
         seedMonth: null,
         canManage: false,
         view: { board: "bars", rank: "plan", group: "platform" },
+        brand: "brand-a",
       }),
     );
 
@@ -322,6 +323,7 @@ describe("Today — ROAS divides two sides through the SAME day (B-04)", () => {
         seedMonth: null,
         canManage: true,
         view: { board: "bars", rank: "plan", group: "platform" },
+        brand: "brand-a",
       }),
     );
     expect(text(html)).toContain("No plan for this month yet.");

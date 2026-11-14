@@ -13,6 +13,7 @@ import {
   monthLabel,
   monthStartIso,
   revenueFromRoas,
+  toBudgetObjective,
   validateRate,
   validateWeight,
 } from "@/lib/budget";
@@ -20,6 +21,7 @@ import {
   type BudgetPlanSnapshot,
   convertPlanSchema,
   copyPlanSchema,
+  movePlanMoneySchema,
   planInputToSnapshot,
   planSchema,
   restoreRevisionSchema,
@@ -38,6 +40,8 @@ import {
   type BudgetPlanInput,
 } from "@/db/queries/budget";
 import { actionError } from "@/lib/action-error";
+import { applyPlanMove } from "@/lib/budget-move";
+import { PLATFORM_LABEL } from "@/lib/palette";
 import { notifyRoutes } from "@/db/queries/notifications";
 import { usd } from "@/lib/format";
 
@@ -446,6 +450,69 @@ export async function loadPlanRevision(
     const revision = await getPlanRevision(parsed.data.revisionId);
     if (!revision) return { ok: false, error: "That revision no longer exists, or can't be read." };
     return { ok: true, snapshot: revision.snapshot };
+  } catch (err) {
+    return { ok: false, error: actionError(err, "budget") };
+  }
+}
+
+/**
+ * MOVE MONEY from Today (2026-11-14): shift part of a month's plan from one
+ * platform — or the reserve — to another. The page posts the MOVE; this reads
+ * the STORED plan, applies it (`applyPlanMove`), and hands the result to
+ * `saveBudgetMonth`, so it is validated, written by the one writer with its
+ * revision in the same transaction, notified, audited and revalidated exactly
+ * like an editor save. A stale tab therefore can't overwrite a colleague's
+ * edit: only the move itself is its own.
+ *
+ * A day-by-day month is refused: its dollars live in the sheet's cells.
+ */
+export async function moveBudgetMoney(input: unknown): Promise<BudgetActionResult> {
+  try {
+    await requirePermission("budget.manage");
+    const parsed = movePlanMoneySchema.safeParse(input);
+    if (!parsed.success) return { ok: false, error: "Enter an amount to move." };
+    const { month, from, to, amount, note, brand } = parsed.data;
+    const acct = await getActiveAccountId();
+    const moved = brandChanged(brand, acct);
+    if (moved) return moved;
+
+    const current = await getBudgetMonth(month);
+    if (current.planMode === "daily") {
+      return {
+        ok: false,
+        error: "This month is planned day by day — upload a new sheet to move money.",
+      };
+    }
+    const result = applyPlanMove(
+      {
+        allocations: current.allocations.map((a) => ({
+          platform: a.platform,
+          objective: toBudgetObjective(a.objective),
+          plannedSpend: a.plannedSpend,
+        })),
+        reserveSpendUsd: current.reserveSpendUsd,
+      },
+      { from, to, amount },
+    );
+    if (!result.ok) return { ok: false, error: result.error };
+
+    const source = from.kind === "reserve" ? "the reserve" : PLATFORM_LABEL[from.platform];
+    return saveBudgetMonth({
+      month,
+      brand,
+      allocations: result.allocations.map((a) => ({
+        platform: a.platform,
+        objective: a.objective,
+        plannedSpend: a.plannedSpend,
+      })),
+      plannedRevenueSar: current.plannedRevenueSar,
+      reserveSpendUsd: result.reserveSpendUsd,
+      dayWeights: Object.entries(current.dayWeightOverrides).map(([day, weight]) => ({
+        day: Number(day),
+        weight,
+      })),
+      note: note ?? `Moved ${usd(amount)} from ${source} to ${PLATFORM_LABEL[to]}`,
+    });
   } catch (err) {
     return { ok: false, error: actionError(err, "budget") };
   }
