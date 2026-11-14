@@ -226,6 +226,34 @@ describe("budget v2 — day weights, reserve, daily series, history", () => {
     expect(sum).toBeCloseTo(await rawMonthSpendTotal(MONTH), 2);
   });
 
+  it("results ride the spend rows: platform-reported purchases and value, RAW, NULL ≠ 0", async () => {
+    const sumFor = (rows: Awaited<ReturnType<typeof budgetPacingSeries>>["spend"], platform: string) => {
+      let purchases: number | null = null;
+      let value: number | null = null;
+      for (const r of rows) {
+        if (r.platform !== platform) continue;
+        if (r.purchases !== null) purchases = (purchases ?? 0) + r.purchases;
+        if (r.purchaseValue !== null) value = (value ?? 0) + r.purchaseValue;
+      }
+      return { purchases, value };
+    };
+    const { spend } = await budgetPacingSeries(M_START, M_END);
+    // Instagram: 10 + 10 + 100 — the EXCLUDED row counts, exactly as its spend does.
+    expect(sumFor(spend, "instagram")).toEqual({ purchases: 120, value: 10999 });
+    expect(sumFor(spend, "facebook")).toEqual({ purchases: 20, value: 1000 });
+
+    // A platform that never reported the fields reads NULL, never 0.
+    await db
+      .update(performanceRecords)
+      .set({ conversions: null, conversionValue: null })
+      .where(and(eq(performanceRecords.accountId, ACCOUNT_A), eq(performanceRecords.platform, "facebook")));
+    const after = await budgetPacingSeries(M_START, M_END);
+    const fb = after.spend.filter((r) => r.platform === "facebook");
+    expect(fb.length).toBeGreaterThan(0);
+    expect(fb.every((r) => r.purchases === null && r.purchaseValue === null)).toBe(true);
+    expect(fb.reduce((s, r) => s + r.spend, 0)).toBeCloseTo(200, 2); // spend untouched
+  });
+
   it("campaign objectives are folded onto Budget's buckets before they leave the query", async () => {
     // Every fixture campaign is "Sales" — a campaign objective with no budget
     // bucket of its own, so Budget sees it as "Other".

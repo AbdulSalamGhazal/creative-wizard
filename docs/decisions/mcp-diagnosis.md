@@ -48,7 +48,8 @@
   the same commit series, or says why not in its report.
 - **Tools reuse the page's composition, never re-derive it.** `get_budget`
   runs `buildTrackerRows` + `monthRoasActuals` + `roasFigures` exactly as the
-  Budget Overview does; `get_store` uses the Reconciliation helpers
+  Budget Overview does, and its per-platform `results` (platform-reported,
+  2026-11-14) through `buildRangeBoard` exactly as the Pacing board does; `get_store` uses the Reconciliation helpers
   (`sumPlatformDays`, `reconDelta*`). When a page computes something in a
   component, lift it into the pure module first (as `monthRoasActuals` was),
   then call it from both.

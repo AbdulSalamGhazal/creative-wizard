@@ -9,10 +9,12 @@ import { DataTable, type DataColumn } from "@/components/ui/data-table";
 import { useTableColumns } from "@/components/ui/use-table-columns";
 import { TABLE_KEYS } from "@/lib/table-columns";
 import { Sparkline } from "@/components/charts/sparkline";
-import { signedPct } from "@/lib/format";
+import { int, roas as fmtRoas, signedPct } from "@/lib/format";
+import { InfoTip } from "@/components/ui/info-tip";
 import { cn } from "@/lib/utils";
 import {
   MUTED_TONE,
+  combineResults,
   daysLeftAfter,
   groupTrackerByObjective,
   monthLabel,
@@ -22,6 +24,7 @@ import {
   round2,
   type RangeBar,
   type RangePlatform,
+  type ResultFigures,
   type TrackerBar,
   type TrackerCounts,
 } from "@/lib/budget";
@@ -73,6 +76,7 @@ export function PacingBoard({
   onBehind,
   reserve,
   fmt,
+  fmtCents,
   toDisplay,
   currency,
   planMonth,
@@ -102,6 +106,8 @@ export function PacingBoard({
   reserve: { kind: "month"; used: number; reserve: number } | { kind: "none" };
   /** Whole dollars — a reading, never a fact (the shared `whole` formatter). */
   fmt: (v: number) => string;
+  /** To the cent, in the display currency — a cost per purchase is a fact. */
+  fmtCents: (v: number) => string;
   /**
    * A USD amount in the DISPLAY currency, as a number — what the table's CSV
    * writes, so a file named `…-sar.csv` holds SAR (audit B-17).
@@ -114,13 +120,22 @@ export function PacingBoard({
 }) {
   const hidden = totalRows - rows.length;
   const grid =
-    "grid gap-x-4 gap-y-1 sm:grid-cols-[minmax(7rem,9rem)_minmax(0,1fr)_6.5rem_11rem] sm:items-center";
+    "grid gap-x-4 gap-y-1 sm:grid-cols-[minmax(7rem,9rem)_minmax(0,1fr)_6.5rem_11rem] sm:items-center lg:grid-cols-[minmax(7rem,9rem)_minmax(0,1fr)_6.5rem_11rem_8.5rem]";
 
   return (
     <section className={panelClass({ padding: "none" })}>
       <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-line px-4 py-2.5">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-          <h2 className="text-sm font-medium text-ink">Pace board</h2>
+          <span className="inline-flex items-center gap-1">
+            <h2 className="text-sm font-medium text-ink">Pace board</h2>
+            <InfoTip label="About the results figures">
+              ROAS · cost per purchase · purchases are what each platform reports
+              for its own ads, over the same days and the same raw records as the
+              spend (exclusions don&apos;t apply here, as with all Budget spend). The
+              store&apos;s ROAS is on the range card. A dash means the platform
+              doesn&apos;t report that figure.
+            </InfoTip>
+          </span>
           {totalRows > 0 && (
             <SummaryStrip counts={counts} offPace={offPace} onBehind={onBehind} />
           )}
@@ -188,6 +203,7 @@ export function PacingBoard({
             from={from}
             to={to}
             fmt={fmt}
+            fmtCents={fmtCents}
             toDisplay={toDisplay}
             currency={currency}
           />
@@ -239,7 +255,10 @@ export function PacingBoard({
                       <Needed row={p} from={from} to={to} fmt={fmt} />
                     </>
                   )}
+                  <Results results={p.results} spend={p.actual} fmtCents={fmtCents} name={platformLabel(p.key)} className="mt-0.5 lg:hidden" />
                 </div>
+                <Results results={p.results} spend={p.actual} fmtCents={fmtCents} name={platformLabel(p.key)} className="hidden text-right lg:block" />
+                <Results results={p.results} spend={p.actual} fmtCents={fmtCents} name={platformLabel(p.key)} className="sm:hidden" />
               </div>
               {p.buckets.length > 0 && (
                 <ul className="mt-1.5 space-y-1.5">
@@ -272,7 +291,10 @@ export function PacingBoard({
                         <Verdict bar={b} fmt={fmt} small />
                         <Amounts bar={b} fmt={fmt} className="mt-0.5" />
                         <Needed row={b} from={from} to={to} fmt={fmt} small />
+                        <Results results={b.results} spend={b.actual} fmtCents={fmtCents} name={`${platformLabel(p.key)} ${b.label}`} small className="mt-0.5 lg:hidden" />
                       </div>
+                      <Results results={b.results} spend={b.actual} fmtCents={fmtCents} name={`${platformLabel(p.key)} ${b.label}`} small className="hidden text-right lg:block" />
+                      <Results results={b.results} spend={b.actual} fmtCents={fmtCents} name={`${platformLabel(p.key)} ${b.label}`} small className="pl-5 sm:hidden" />
                     </li>
                   ))}
                 </ul>
@@ -354,6 +376,7 @@ export function PacingBoard({
                   <span className="tabular-nums text-xs text-ink-3">—</span>
                 )}
               </div>
+              <div className="hidden lg:block" />
             </div>
           </li>
         </ul>
@@ -438,6 +461,51 @@ function Needed({
 }
 
 /**
+ * Platform-reported results: "3.08× · $29.65" over "380 purchases". Neutral
+ * ink — there is no target, so there is no verdict. A field the platform
+ * doesn't report is a dash (NULL ≠ 0); the words live in the aria-label.
+ */
+function Results({
+  results,
+  spend,
+  fmtCents,
+  name,
+  small = false,
+  className,
+}: {
+  results: ResultFigures;
+  /** The row's spend over the same days — no spend, nothing to show results for. */
+  spend: number;
+  fmtCents: (v: number) => string;
+  name: string;
+  small?: boolean;
+  className?: string;
+}) {
+  const { purchases, roas, cpa } = results;
+  // Keep the grid cell, draw nothing: a row that spent nothing has no results.
+  if (spend <= 0) return <div className={className} />;
+  const none = purchases === null && roas === null && cpa === null;
+  const words = none
+    ? `${name}: the platform reports no purchases`
+    : `${name}, platform-reported: ROAS ${fmtRoas(roas)}, ${
+        cpa === null ? "no cost per purchase" : `${fmtCents(cpa)} per purchase`
+      }, ${purchases === null ? "purchases not reported" : `${int(purchases)} purchases`}`;
+  return (
+    <div className={cn("tabular-nums", className)} title={words}>
+      <span className="sr-only">{words}</span>
+      <p aria-hidden className={cn(none ? "text-ink-2" : "text-ink", small ? "text-[11px]" : "text-xs")}>
+        {none ? "—" : `${fmtRoas(roas)} · ${cpa === null ? "—" : fmtCents(cpa)}`}
+      </p>
+      {!none && (
+        <p aria-hidden className={cn("text-ink-2", small ? "text-[10px]" : "text-[11px]")}>
+          {purchases === null ? "—" : `${int(purchases)} purchase${purchases === 1 ? "" : "s"}`}
+        </p>
+      )}
+    </div>
+  );
+}
+
+/**
  * The triage strip: how many bucket rows are ahead, on track and behind. Three
  * counts, not a chart — the question is "is there anything to look at", and a
  * number answers it faster than a shape. The behind chip is the one shortcut:
@@ -508,6 +576,8 @@ interface BoardTableRow {
   through: string | null;
   /** An objective-grouped line with no plan row for this combo. */
   unplanned: boolean;
+  /** Platform-reported results for exactly this row's spend. */
+  results: ResultFigures;
 }
 
 /** platform → its bucket bars. */
@@ -524,6 +594,7 @@ function rowsByPlatform(platforms: readonly RangePlatform[]): BoardTableRow[] {
       through: p.through,
       // A platform with spend and no plan at all reads "—", never a $0 plan.
       unplanned: p.plan <= 0 && p.actual > 0,
+      results: p.results,
     });
     for (const b of p.buckets) {
       out.push({
@@ -535,6 +606,7 @@ function rowsByPlatform(platforms: readonly RangePlatform[]): BoardTableRow[] {
         bar: b,
         through: b.through,
         unplanned: false,
+        results: b.results,
       });
     }
   }
@@ -556,6 +628,9 @@ function rowsByObjective(platforms: readonly RangePlatform[]): BoardTableRow[] {
   // rule included (`coveredThrough`), so the table and the bars agree.
   const throughBy = new Map(platforms.map((p) => [p.key, p.through]));
   const throughOf = (platform: string) => throughBy.get(platform) ?? null;
+  const byPlatform = new Map(platforms.map((p) => [p.key, p]));
+  const comboOf = (platform: string, objective: string) =>
+    byPlatform.get(platform)?.resultsByObjective[objective as keyof RangePlatform["resultsByObjective"]];
   groupTrackerByObjective(platforms).forEach((g, i) => {
     const order = String(i).padStart(2, "0");
     const latest = g.rows.reduce<string | null>((acc, r) => {
@@ -572,6 +647,13 @@ function rowsByObjective(platforms: readonly RangePlatform[]): BoardTableRow[] {
       through: latest,
       // An objective nobody planned for reads "—" like its rows, not a $0 plan.
       unplanned: g.rows.every((r) => r.unplanned),
+      // Its platforms' combos summed, then divided — never a mean of ROAS.
+      results: combineResults(
+        g.rows.flatMap((r) => {
+          const c = comboOf(r.platform, g.key);
+          return c ? [c] : [];
+        }),
+      ),
     });
     for (const r of g.rows) {
       out.push({
@@ -583,6 +665,9 @@ function rowsByObjective(platforms: readonly RangePlatform[]): BoardTableRow[] {
         bar: r,
         through: throughOf(r.platform),
         unplanned: r.unplanned,
+        results:
+          comboOf(r.platform, g.key)?.results ??
+          { purchases: null, purchaseValue: null, roas: null, cpa: null },
       });
     }
   });
@@ -609,6 +694,7 @@ function BoardTable({
   from,
   to,
   fmt,
+  fmtCents,
   toDisplay,
   currency,
 }: {
@@ -617,6 +703,7 @@ function BoardTable({
   from: string;
   to: string;
   fmt: (v: number) => string;
+  fmtCents: (v: number) => string;
   toDisplay: (usd: number) => number;
   currency: string;
 }) {
@@ -643,6 +730,8 @@ function BoardTable({
       r.unplanned ? null : neededPerDay(r.bar, r.through, from, to);
     /** A money cell for the CSV: the display currency, to the cent. */
     const money = (usd: number | null) => (usd === null ? null : round2(toDisplay(usd)));
+    // The footer's results: the subtotals' components summed, then divided.
+    const totalResults = combineResults(totals.map((r) => ({ spend: r.bar.actual, results: r.results })));
     return [
       {
         key: "item",
@@ -764,6 +853,43 @@ function BoardTable({
           return <span className="tabular-nums text-ink-3">{n === null ? "—" : fmt(n)}</span>;
         },
       },
+      // Platform-reported results (2026-11-14): figures, no verdict.
+      {
+        key: "roas",
+        label: "ROAS (platform)",
+        align: "right",
+        sortable: true,
+        sortValue: (r) => r.results.roas,
+        csv: (r) => (r.results.roas === null ? null : Math.round(r.results.roas * 100) / 100),
+        render: (r) => <span className="tabular-nums">{fmtRoas(r.results.roas)}</span>,
+        total: () => <span className="tabular-nums">{fmtRoas(totalResults.roas)}</span>,
+      },
+      {
+        key: "cpa",
+        label: "CPA (platform)",
+        align: "right",
+        sortable: true,
+        sortValue: (r) => r.results.cpa,
+        csv: (r) => money(r.results.cpa),
+        render: (r) => (
+          <span className="tabular-nums">{r.results.cpa === null ? "—" : fmtCents(r.results.cpa)}</span>
+        ),
+        total: () => (
+          <span className="tabular-nums">
+            {totalResults.cpa === null ? "—" : fmtCents(totalResults.cpa)}
+          </span>
+        ),
+      },
+      {
+        key: "purchases",
+        label: "Purchases (platform)",
+        align: "right",
+        sortable: true,
+        sortValue: (r) => r.results.purchases,
+        csv: (r) => r.results.purchases,
+        render: (r) => <span className="tabular-nums">{int(r.results.purchases)}</span>,
+        total: () => <span className="tabular-nums">{int(totalResults.purchases)}</span>,
+      },
     ];
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rows, group, currency, from, to, toDisplay]);
@@ -788,7 +914,7 @@ function BoardTable({
       sort={group === "objective" ? "item" : "deviation"}
       dir={group === "objective" ? "asc" : "desc"}
       showTotals={rows.length > 0}
-      minWidthClass="min-w-[860px]"
+      minWidthClass="min-w-[1180px]"
       rowClassName={(r) =>
         cn(
           r.kind === "subtotal" && "bg-surface-2/40",

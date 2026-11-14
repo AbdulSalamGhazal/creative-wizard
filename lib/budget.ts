@@ -1909,6 +1909,78 @@ export function buildSpendPerDay(
   return out;
 }
 
+// ── Spend vs results (2026-11-14, user decision) ───────────────────────────
+// PLATFORM-REPORTED purchases and purchase value, on the very rows the spend
+// comes from (RAW, like Budget spend), summed through each row's OWN coverage
+// so CPA's two sides cover the same days. Figures only — no target, no
+// verdict, and never compared with the store's revenue (Reconciliation's
+// 2026-08 decision). NULL ≠ 0: a key that never reported a field has NO entry
+// in that field's map, so "not reported" and "reported zero" stay distinct.
+
+export interface ResultsPerDay {
+  purchases: PerDayMaps;
+  value: PerDayMaps;
+}
+
+/** Purchases and purchase value per day, under `buildSpendPerDay`'s keys. */
+export function buildResultsPerDay(
+  rows: ReadonlyArray<{
+    date: string;
+    platform: string;
+    objective: string;
+    purchases: number | null;
+    purchaseValue: number | null;
+  }>,
+  inScope: (platform: string) => boolean,
+): ResultsPerDay {
+  const purchases: PerDayMaps = new Map();
+  const value: PerDayMaps = new Map();
+  const add = (maps: PerDayMaps, key: string, date: string, v: number) => {
+    let days = maps.get(key);
+    if (!days) maps.set(key, (days = new Map()));
+    days.set(date, (days.get(date) ?? 0) + v);
+  };
+  for (const r of rows) {
+    if (!inScope(r.platform)) continue;
+    const keys = [
+      TOTAL_SERIES_KEY,
+      r.objective,
+      platformSeriesKey(r.platform),
+      comboSeriesKey(r.platform, r.objective),
+    ];
+    for (const key of keys) {
+      if (r.purchases !== null) add(purchases, key, r.date, r.purchases);
+      if (r.purchaseValue !== null) add(value, key, r.date, r.purchaseValue);
+    }
+  }
+  return { purchases, value };
+}
+
+export interface ResultFigures {
+  /** Platform-reported purchases (null = the platform doesn't report them). */
+  purchases: number | null;
+  /** Platform-reported purchase value, USD (null = not reported). */
+  purchaseValue: number | null;
+  /** purchase value ÷ spend — null on no spend or an unreported value. */
+  roas: number | null;
+  /** spend ÷ purchases — null on zero purchases or unreported purchases. */
+  cpa: number | null;
+}
+
+/** The ONE place a results ratio is formed — component sums, never a mean. */
+export function resultFigures(
+  spend: number,
+  purchases: number | null,
+  purchaseValue: number | null,
+): ResultFigures {
+  return {
+    purchases,
+    purchaseValue: purchaseValue === null ? null : round2(purchaseValue),
+    roas: purchaseValue === null || spend <= 0 ? null : purchaseValue / spend,
+    cpa: purchases === null || purchases <= 0 ? null : round2(spend / purchases),
+  };
+}
+
 /**
  * Planned spend per day, stitched across every month the range touches, under
  * the same keys — each slice through the series' own machinery (a curve month
@@ -2158,10 +2230,17 @@ export interface RangeBar extends TrackerBar {
    * its deviation, projection and needed/day.
    */
   unplannedMonths: { months: number; amount: number };
+  /** Platform-reported results through `through` — the same days as `actual`. */
+  results: ResultFigures;
 }
 
 export interface RangePlatform extends TrackerPlatform, RangeBar {
   buckets: RangeBar[];
+  /**
+   * Every bucket's spend and results — planned AND unplanned (drift) — so the
+   * table's objective grouping can read a combo the bars never draw.
+   */
+  resultsByObjective: Partial<Record<BudgetObjective, { spend: number; results: ResultFigures }>>;
 }
 
 export interface RangeBoardInput {
@@ -2169,6 +2248,8 @@ export interface RangeBoardInput {
   to: string;
   spendPerDay: PerDayMaps;
   planSpendPerDay: PerDayMaps;
+  /** Platform-reported results per day (`buildResultsPerDay`); absent = none shown. */
+  resultsPerDay?: ResultsPerDay;
   /** The platforms in scope with a plan or spend somewhere in the range. */
   platforms: readonly string[];
   /** Latest uploaded day per platform (absent = no data). */
@@ -2192,8 +2273,25 @@ export interface RangeBoard {
  * that month: same series, same coverage (pinned in lib/budget.test.ts).
  */
 export function buildRangeBoard(input: RangeBoardInput): RangeBoard {
-  const { from, to, spendPerDay, planSpendPerDay, coverage } = input;
+  const { from, to, spendPerDay, planSpendPerDay, coverage, resultsPerDay } = input;
   const days = isoDaysBetween(from, to);
+  // A field this key never reported stays null; otherwise it sums through the
+  // row's own coverage, exactly as its spend does.
+  const reportedSum = (maps: PerDayMaps | undefined, key: string, last: string | null) => {
+    const map = maps?.get(key);
+    if (!map || last === null) return null;
+    let total = 0;
+    let any = false;
+    for (const d of days) {
+      if (d > last) break;
+      const v = map.get(d);
+      if (v !== undefined) {
+        total += v;
+        any = true;
+      }
+    }
+    return any ? total : null;
+  };
   const sum = (map: Map<string, number> | undefined, last: string | null) => {
     if (!map || last === null) return 0;
     let total = 0;
@@ -2212,6 +2310,8 @@ export function buildRangeBoard(input: RangeBoardInput): RangeBoard {
     actualMap: Map<string, number> | undefined,
     through: string | null,
     lastData: string | null,
+    /** The per-day maps' key for this row (`platformSeriesKey` / `comboSeriesKey`). */
+    resultsKey: string,
   ): RangeBar => {
     const plan = round2(sum(planMap, to));
     const actual = round2(sum(actualMap, through));
@@ -2253,6 +2353,11 @@ export function buildRangeBoard(input: RangeBoardInput): RangeBoard {
       neededPerDay: judged ? neededPerDay(base, through, from, to) : null,
       daily: { plan: series(planMap, to), actual: series(actualMap, through) },
       unplannedMonths,
+      results: resultFigures(
+        actual,
+        reportedSum(resultsPerDay?.purchases, resultsKey, through),
+        reportedSum(resultsPerDay?.value, resultsKey, through),
+      ),
     };
   };
 
@@ -2261,10 +2366,12 @@ export function buildRangeBoard(input: RangeBoardInput): RangeBoard {
     const lastData = lastDataIn(coverage[platform], through);
     const buckets: RangeBar[] = [];
     const unplannedBuckets: TrackerPlatform["unplannedBuckets"] = [];
+    const resultsByObjective: RangePlatform["resultsByObjective"] = {};
     let unplanned = 0;
     for (const objective of BUDGET_OBJECTIVES) {
       const key = comboSeriesKey(platform, objective);
-      const b = bar(key, objective, planSpendPerDay.get(key), spendPerDay.get(key), through, lastData);
+      const b = bar(key, objective, planSpendPerDay.get(key), spendPerDay.get(key), through, lastData, key);
+      if (b.plan > 0 || b.actual > 0) resultsByObjective[objective] = { spend: b.actual, results: b.results };
       if (b.plan > 0) buckets.push(b);
       else if (b.actual > 0) {
         unplanned += b.actual;
@@ -2273,14 +2380,84 @@ export function buildRangeBoard(input: RangeBoardInput): RangeBoard {
     }
     const key = platformSeriesKey(platform);
     return {
-      ...bar(platform, platform, planSpendPerDay.get(key), spendPerDay.get(key), through, lastData),
+      ...bar(platform, platform, planSpendPerDay.get(key), spendPerDay.get(key), through, lastData, key),
       buckets,
       unplanned: round2(unplanned),
       unplannedBuckets,
+      resultsByObjective,
     };
   });
   platforms.sort((a, b) => b.plan - a.plan || b.actual - a.actual);
   return { platforms, days };
+}
+
+/**
+ * Several rows' results as ONE row's — sums of the components, then the
+ * ratios (never a mean of ROAS). A field stays null only if NO part reported
+ * it, and each ratio's SPEND side counts only the parts that report its field
+ * (a ratio touching an unreported field excludes that part from BOTH sides).
+ */
+export function combineResults(
+  parts: ReadonlyArray<{ spend: number; results: ResultFigures }>,
+): ResultFigures {
+  let purchases: number | null = null;
+  let value: number | null = null;
+  let spendWithPurchases = 0;
+  let spendWithValue = 0;
+  for (const p of parts) {
+    if (p.results.purchases !== null) {
+      purchases = (purchases ?? 0) + p.results.purchases;
+      spendWithPurchases += p.spend;
+    }
+    if (p.results.purchaseValue !== null) {
+      value = (value ?? 0) + p.results.purchaseValue;
+      spendWithValue += p.spend;
+    }
+  }
+  return {
+    purchases,
+    purchaseValue: value === null ? null : round2(value),
+    roas: resultFigures(spendWithValue, null, value).roas,
+    cpa: resultFigures(spendWithPurchases, purchases, null).cpa,
+  };
+}
+
+export interface ResultShareRow {
+  platform: string;
+  spend: number;
+  /** null when the platform doesn't report purchases — it gets no share. */
+  spendShare: number | null;
+  purchaseShare: number | null;
+  /** purchaseShare − spendShare, in percentage POINTS (positive = more purchases than its spend share). */
+  gapPts: number | null;
+}
+
+/**
+ * "Where the money works": each platform's share of spend against its share
+ * of PLATFORM-REPORTED purchases. Both shares are taken over the platforms
+ * that report purchases ONLY — a ratio touching an unreported field excludes
+ * that platform from BOTH sides (google-platforms rule). Platforms keep the
+ * board's order; one with no spend in the range is left out.
+ */
+export function buildResultShares(platforms: readonly RangePlatform[]): ResultShareRow[] {
+  const spent = platforms.filter((p) => p.actual > 0);
+  const reporting = spent.filter((p) => p.results.purchases !== null);
+  const spendBase = reporting.reduce((s, p) => s + p.actual, 0);
+  const purchaseBase = reporting.reduce((s, p) => s + (p.results.purchases ?? 0), 0);
+  return spent.map((p) => {
+    if (p.results.purchases === null || spendBase <= 0) {
+      return { platform: p.key, spend: p.actual, spendShare: null, purchaseShare: null, gapPts: null };
+    }
+    const spendShare = p.actual / spendBase;
+    const purchaseShare = purchaseBase > 0 ? p.results.purchases / purchaseBase : null;
+    return {
+      platform: p.key,
+      spend: p.actual,
+      spendShare,
+      purchaseShare,
+      gapPts: purchaseShare === null ? null : (purchaseShare - spendShare) * 100,
+    };
+  });
 }
 
 export function buildTrackerRows(

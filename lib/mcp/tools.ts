@@ -46,6 +46,9 @@ import { listAllProductOptions, listProducts } from "@/db/queries/products";
 import {
   REVENUE_COVERAGE_KEY,
   buildTrackerRows,
+  buildRangeBoard,
+  buildResultsPerDay,
+  buildSpendPerDay,
   latestCoverage,
   makeCoverageDay,
   monthEndIso,
@@ -697,7 +700,7 @@ export function registerMcpTools(server: McpServer): void {
     "get_budget",
     {
       description:
-        "One month of Budget, exactly as the Budget Overview reads it: the plan against actual ad spend — the brand total, each platform and each planned objective bucket — with pacing, the month-end projection, the reserve (planned, used, remaining), the store-revenue target against actual revenue, orders, and ROAS (actual, target, projected). SPEND IS USD; REVENUE IS SAR (the store's currency); ROAS converts spend at the month's stored USD→SAR rate (`usd_to_sar_rate`). Pacing compares each platform through the days ITS data covers (not the calendar): `plan_to_date` is what the plan expected through that coverage and `deviation` = (actual − plan_to_date) ÷ plan_to_date (positive = ahead/overspending, negative = behind). Budget actuals are RAW totals — exclusions never apply here, by design. Revenue has no per-platform split in Budget. Viewing a month with no plan returns has_plan: false with the actuals only.",
+        "One month of Budget, exactly as the Budget Overview reads it: the plan against actual ad spend — the brand total, each platform and each planned objective bucket — with pacing, the month-end projection, the reserve (planned, used, remaining), the store-revenue target against actual revenue, orders, and ROAS (actual, target, projected). SPEND IS USD; REVENUE IS SAR (the store's currency); ROAS converts spend at the month's stored USD→SAR rate (`usd_to_sar_rate`). Pacing compares each platform through the days ITS data covers (not the calendar): `plan_to_date` is what the plan expected through that coverage and `deviation` = (actual − plan_to_date) ÷ plan_to_date (positive = ahead/overspending, negative = behind). Budget actuals are RAW totals — exclusions never apply here, by design. Revenue has no per-platform split in Budget. Each platform also carries `results` — PLATFORM-REPORTED purchases, purchase value (USD), ROAS (value ÷ spend) and CPA (spend ÷ purchases), over the same raw records and the same covered days as its `actual` spend; null = the platform doesn't report that field (never 0). These are the platforms' own claims, never compared with store revenue and with no target. Viewing a month with no plan returns has_plan: false with the actuals only.",
       inputSchema: {
         brand: brandField,
         month: z
@@ -738,6 +741,29 @@ export function registerMcpTools(server: McpServer): void {
           projectedSpendUsd: t.projectedSpend,
           rate: data.usdToSarRate,
         });
+        // Platform-reported results, cut at each platform's own covered day —
+        // the Pacing board's math for this month (plan is irrelevant here).
+        const everyPlatform = () => true;
+        const resultsBoard = buildRangeBoard({
+          from: monthStartIso(month),
+          to: monthEndIso(month),
+          spendPerDay: buildSpendPerDay(series.spend, everyPlatform),
+          planSpendPerDay: new Map(),
+          resultsPerDay: buildResultsPerDay(series.spend, everyPlatform),
+          platforms: t.platforms.map((p) => p.key),
+          coverage: platformCoverage,
+          today,
+        });
+        const resultsOf = (platform: string) => {
+          const r = resultsBoard.platforms.find((p) => p.key === platform)?.results;
+          return {
+            source: "platform-reported" as const,
+            purchases: r?.purchases ?? null,
+            purchase_value_usd: r?.purchaseValue ?? null,
+            roas: r?.roas == null ? null : r2(r.roas),
+            cpa_usd: r?.cpa ?? null,
+          };
+        };
         const bar = (b: TrackerBar) => ({
           plan: r2(b.plan),
           plan_to_date: r2(b.planToDate),
@@ -774,6 +800,7 @@ export function registerMcpTools(server: McpServer): void {
                 objective: u.label,
                 actual: r2(u.actual),
               })),
+              results: resultsOf(p.key),
             })),
             unplanned_total_usd: r2(t.unplannedTotal),
             reserve_usd: {

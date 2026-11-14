@@ -48,6 +48,7 @@ import {
   buildPlanSpendPerDay,
   buildRangeBoard,
   buildSpendPerDay,
+  buildResultsPerDay,
   coveredThrough,
   dayBucketsInRange,
   expectedPlanPerDay,
@@ -78,6 +79,7 @@ import {
   type TrackerBar,
 } from "@/lib/budget";
 import type { PacingShape, PacingSplit, PacingViewInput } from "@/validators/budget";
+import { ResultShares } from "@/components/budget/result-shares";
 import { PacingBoard } from "@/components/budget/pacing-board";
 import type { BudgetPacingSeries, MonthPlanRow } from "@/db/queries/budget";
 import {
@@ -632,6 +634,13 @@ export function BudgetPacing({
   // the period table and the board sum from this ONE map.
   const spendPerDay = useMemo(
     () => buildSpendPerDay(series.spend, inScope),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [series.spend, platforms.join(",")],
+  );
+  // Platform-reported results on the same rows, same scope (the board's
+  // Results figures and "Where the money works").
+  const resultsPerDay = useMemo(
+    () => buildResultsPerDay(series.spend, inScope),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [series.spend, platforms.join(",")],
   );
@@ -1237,11 +1246,12 @@ export function BudgetPacing({
         to,
         spendPerDay,
         planSpendPerDay,
+        resultsPerDay,
         platforms: platformKeys,
         coverage,
         today,
       }),
-    [from, to, spendPerDay, planSpendPerDay, platformKeys, coverage, today],
+    [from, to, spendPerDay, planSpendPerDay, resultsPerDay, platformKeys, coverage, today],
   );
 
   // ── The range card ─────────────────────────────────────────────────────────
@@ -1834,11 +1844,14 @@ export function BudgetPacing({
         onBehind={() => writeFlag("offpace", !view.offpace)}
         reserve={boardReserve}
         fmt={fmtWhole}
+        fmtCents={fmtSpend}
         toDisplay={toDisplay}
         currency={currency}
         planMonth={singleMonth}
         canManage={canManage}
       />
+
+      <ResultShares rows={boardData.platforms} />
 
       <HorizonNote horizon={horizon} storeHorizon={storeHorizon} />
     </div>

@@ -91,6 +91,21 @@
 - Audience snapshots: carry forward as a STEP, never interpolate; before the
   first measurement the size is UNKNOWN, never 0; pressure counts only days
   with a known audience.
+- **Spend vs results is PLATFORM-REPORTED (2026-11-14, user decision).** The
+  Pacing board's Results figures (ROAS · CPA · purchases, every platform and
+  bucket row, plus three table columns) and the "Where the money works" panel
+  read `conversions` / `conversion_value` off the SAME scan and the SAME raw
+  rows as the spend (`budgetPacingSeries` — still two scans, still no
+  exclusion filter), summed through each row's OWN `through`, so CPA's two
+  sides cover the same days. Ratios come from component sums through ONE
+  helper (`resultFigures`, `combineResults` for a regroup or a total), and a
+  part that doesn't report a field leaves BOTH sides of that ratio. NULL ≠ 0:
+  an unreported field is a dash, never zero. Conversion value is USD (the
+  dashboards' ROAS convention). **Never compared with store revenue** (the
+  2026-08 Reconciliation decision stands), **no per-platform targets and no
+  verdict colour in v1** — the share gap is signed, in neutral ink, because
+  ahead blue / behind amber mean PACING here. The Overview is unchanged; the
+  store's ROAS stays the brand headline on the range card.
 
 ## History and rationale
 
@@ -769,4 +784,23 @@ the old code) and unit tests in `lib/budget.test.ts`.
 Not changed: the period table's and chart's ROAS ROWS (cumulative revenue
 over cumulative spend per bucket) still divide each side through its own
 day on a partially covered last row — flagged, not decided.
+
+### Spend vs results (2026-11-14)
+
+The user's review of Budget as a marketing manager's tool found it answered
+"are we spending the plan?" thoroughly and "is the money paying off?" not at
+all: Snapchat read +78% over pace with nothing on the page about what that
+spend bought. Decided in one batch, all recommendations: the source is what
+the platforms report (store UTM orders and a side-by-side were offered and
+declined, as was a revenue comparison, which Reconciliation scoped out in
+2026-08); the figures are ROAS · CPA · purchases; they sit on the Pacing
+board and its table, plus a new share-of-spend vs share-of-purchases panel;
+no per-platform targets yet. `buildResultsPerDay` (same keys as
+`buildSpendPerDay`, a key that never reported a field has no entry) feeds
+`buildRangeBoard`, whose rows gained `results` and `resultsByObjective` (the
+latter so the objective-grouped table reads drift combos the bars never
+draw); `buildResultShares` takes both shares over REPORTING platforms only.
+`get_budget` gained per-platform `results` from the same math. Results are
+raw, like the spend, so they can differ from the Ads dashboards' default
+view, which hides excluded rows; the board's ⓘ says so.
 

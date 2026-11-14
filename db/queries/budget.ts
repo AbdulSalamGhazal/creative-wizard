@@ -14,6 +14,7 @@ import {
   users,
 } from "@/db/schema";
 import { getActiveAccountId } from "@/lib/tenant";
+import { sumConversions, sumConversionValue } from "@/lib/metrics";
 import {
   storedSnapshotSchema,
   type BudgetPlanSnapshot,
@@ -503,6 +504,21 @@ export interface BudgetPacingDaySpend {
   /** Budget's own bucket (see `toBudgetObjective`), not the raw campaign value. */
   objective: BudgetObjective;
   spend: number;
+  /**
+   * PLATFORM-REPORTED purchases and purchase value (USD, the dashboards' ROAS
+   * convention) on the same rows the spend comes from — RAW, like the spend.
+   * `null` = the platform never reported the field for this group, which is
+   * not the same as reporting zero (the google-platforms NULL ≠ 0 rule).
+   */
+  purchases: number | null;
+  purchaseValue: number | null;
+}
+
+/** NULL-preserving sum: an unreported side never turns a reported one into null. */
+function addReported(a: number | null, b: number | null): number | null {
+  if (a === null) return b;
+  if (b === null) return a;
+  return a + b;
 }
 
 export interface BudgetPacingDayTotals {
@@ -542,6 +558,9 @@ export async function budgetPacingSeries(
         platform: performanceRecords.platform,
         objective: campaigns.objective,
         spend: sql<string>`COALESCE(SUM(${performanceRecords.spend}), 0)`,
+        // No COALESCE: an all-NULL group must stay NULL (unreported ≠ 0).
+        purchases: sql<string | null>`${sumConversions}`,
+        purchaseValue: sql<string | null>`${sumConversionValue}`,
       })
       .from(performanceRecords)
       .innerJoin(campaigns, eq(campaigns.id, performanceRecords.campaignId))
@@ -576,14 +595,21 @@ export async function budgetPacingSeries(
   for (const r of spendRows) {
     const objective = toBudgetObjective(r.objective);
     const key = `${r.date}|${budgetComboKey(r.platform, objective)}`;
+    const purchases = r.purchases === null ? null : Number(r.purchases);
+    const purchaseValue = r.purchaseValue === null ? null : Number(r.purchaseValue);
     const existing = byKey.get(key);
-    if (existing) existing.spend += Number(r.spend);
-    else
+    if (existing) {
+      existing.spend += Number(r.spend);
+      existing.purchases = addReported(existing.purchases, purchases);
+      existing.purchaseValue = addReported(existing.purchaseValue, purchaseValue);
+    } else
       byKey.set(key, {
         date: r.date,
         platform: r.platform,
         objective,
         spend: Number(r.spend),
+        purchases,
+        purchaseValue,
       });
   }
 

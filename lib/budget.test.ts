@@ -24,6 +24,10 @@ import {
   pacingDeviation,
   buildPlanSpendPerDay,
   buildRangeBoard,
+  buildResultShares,
+  buildResultsPerDay,
+  combineResults,
+  resultFigures,
   buildSpendPerDay,
   clipThrough,
   comboSeriesKey,
@@ -2836,5 +2840,94 @@ describe("monthRoasActuals", () => {
       days,
     });
     expect(r).toEqual({ throughDay: 0, spendUsd: 0, revenueSar: 0 });
+  });
+});
+
+describe("spend vs results — platform-reported, through each row's own coverage", () => {
+  const from = "2026-09-01";
+  const to = "2026-09-30";
+  const today = "2026-09-10";
+  // TikTok's upload lags: its data covers the 5th, though rows exist later.
+  const coverage = { instagram: "2026-09-10", tiktok: "2026-09-05", facebook: "2026-09-10" };
+  const rows = (
+    platform: string,
+    purchases: number | null,
+    purchaseValue: number | null,
+  ) =>
+    isoDaysBetween(from, today).map((date) => ({
+      date,
+      platform,
+      objective: "Awareness",
+      spend: 100,
+      purchases,
+      purchaseValue,
+    }));
+  const all = [...rows("instagram", 4, 300), ...rows("tiktok", 8, 300), ...rows("facebook", null, null)];
+  const every = () => true;
+  const board = buildRangeBoard({
+    from,
+    to,
+    spendPerDay: buildSpendPerDay(all, every),
+    planSpendPerDay: new Map(),
+    resultsPerDay: buildResultsPerDay(all, every),
+    platforms: ["instagram", "tiktok", "facebook"],
+    coverage,
+    today,
+  });
+  const row = (p: string) => board.platforms.find((x) => x.key === p)!;
+
+  it("weights ROAS and CPA from component sums over the row's covered days", () => {
+    expect(row("instagram").actual).toBeCloseTo(1000, 2);
+    expect(row("instagram").results).toEqual({ purchases: 40, purchaseValue: 3000, roas: 3, cpa: 25 });
+  });
+
+  it("cuts results at the SAME day as the spend — a lagging platform's later rows don't count", () => {
+    const t = row("tiktok");
+    expect(t.actual).toBeCloseTo(500, 2); // 1st–5th only
+    expect(t.results.purchases).toBe(40);
+    expect(t.results.cpa).toBeCloseTo(12.5, 2);
+    expect(t.results.roas).toBeCloseTo(3, 6);
+  });
+
+  it("a platform that never reports results reads null, never zero", () => {
+    expect(row("facebook").results).toEqual({ purchases: null, purchaseValue: null, roas: null, cpa: null });
+  });
+
+  it("no results input means no figures (the Overview and older callers)", () => {
+    const bare = buildRangeBoard({
+      from, to, spendPerDay: buildSpendPerDay(all, every), planSpendPerDay: new Map(),
+      platforms: ["instagram"], coverage, today,
+    });
+    expect(bare.platforms[0]!.results.purchases).toBeNull();
+  });
+
+  it("resultFigures: reported zero purchases has no CPA; no spend has no ROAS", () => {
+    expect(resultFigures(500, 0, 0)).toEqual({ purchases: 0, purchaseValue: 0, roas: 0, cpa: null });
+    expect(resultFigures(0, 3, 90).roas).toBeNull();
+  });
+
+  it("combineResults sums components, then divides — a non-reporting part is out of BOTH sides", () => {
+    const parts = board.platforms.map((p) => ({ spend: p.actual, results: p.results }));
+    const c = combineResults(parts);
+    expect(c.purchases).toBe(80);
+    expect(c.purchaseValue).toBeCloseTo(4500, 2);
+    // Facebook reports nothing, so its 1000 is left out: 4500 / 1500, 1500 / 80.
+    expect(c.roas).toBeCloseTo(3, 6);
+    expect(c.cpa).toBeCloseTo(18.75, 2);
+    expect(row("instagram").resultsByObjective.Awareness?.results.purchases).toBe(40);
+  });
+
+  it("shares are taken over REPORTING platforms only, on both sides", () => {
+    const shares = buildResultShares(board.platforms);
+    const ig = shares.find((s) => s.platform === "instagram")!;
+    const tt = shares.find((s) => s.platform === "tiktok")!;
+    const fb = shares.find((s) => s.platform === "facebook")!;
+    // Spend base 1000 + 500 (facebook excluded); purchase base 40 + 40.
+    expect(ig.spendShare).toBeCloseTo(2 / 3, 6);
+    expect(ig.purchaseShare).toBeCloseTo(0.5, 6);
+    expect(ig.gapPts).toBeCloseTo(-16.667, 2);
+    expect(tt.gapPts).toBeCloseTo(16.667, 2);
+    expect(fb).toEqual({ platform: "facebook", spend: 1000, spendShare: null, purchaseShare: null, gapPts: null });
+    expect((ig.spendShare ?? 0) + (tt.spendShare ?? 0)).toBeCloseTo(1, 9);
   });
 });

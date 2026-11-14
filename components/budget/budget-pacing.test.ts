@@ -79,6 +79,9 @@ const onPlan = (platform: string, through: string) =>
     platform,
     objective: "Awareness" as const,
     spend: 100,
+    // Platform-reported results: 4 purchases worth $300 a day → 3.00× · $25.00.
+    purchases: 4 as number | null,
+    purchaseValue: 300 as number | null,
   }));
 const noRevenue = isoDaysBetween("2026-10-01", "2026-10-31").map((date) => ({ date, revenueSar: 0, orders: 0 }));
 
@@ -120,6 +123,31 @@ const laggingSeries: BudgetPacingSeries = {
   spend: [...onPlan("instagram", LAGGING.instagram), ...onPlan("tiktok", LAGGING.tiktok)],
   days: noRevenue,
 };
+
+describe("Pacing — spend vs results (platform-reported, 2026-11-14)", () => {
+  it("each row carries ROAS · CPA · purchases through ITS OWN day, and the shares panel renders", () => {
+    const html = pacing({ coverage: LAGGING, series: laggingSeries, plans: [plan(["instagram", "tiktok"])] });
+    // Instagram through the 22nd: 22 days × 4 purchases, $300 / $100 a day.
+    expect(html).toContain("Instagram, platform-reported: ROAS 3.00×, $25.00 per purchase, 88 purchases");
+    // TikTok's later rows don't exist; its 15 days are its own.
+    expect(html).toContain("TikTok, platform-reported: ROAS 3.00×, $25.00 per purchase, 60 purchases");
+    expect(html).toContain("Where the money works");
+    // Shares over the two reporting platforms: 2200 / 3700 of spend, 88 / 148 purchases.
+    expect(html).toContain("Instagram: 59.5% of spend, 59.5% of purchases");
+  });
+
+  it("a platform that doesn't report purchases reads a dash, never zero", () => {
+    const rows = onPlan("instagram", LAGGING.instagram).map((r) => ({ ...r, purchases: null, purchaseValue: null }));
+    const html = pacing({
+      coverage: { instagram: LAGGING.instagram },
+      series: { spend: rows, days: noRevenue },
+      plans: [plan(["instagram"])],
+    });
+    expect(html).toContain("Instagram: the platform reports no purchases");
+    expect(html).toContain("No platform in this range reports purchases.");
+    expect(html).not.toContain("0 purchases");
+  });
+});
 
 describe("Pacing — the range card anchors each platform to its own day (B-03)", () => {
   it("on-plan spend with one lagging upload reads on track, as the board and the Overview do", () => {
@@ -261,6 +289,7 @@ describe("Pacing board — the Table CSV writes the display currency (B-17)", ()
         onBoard: () => {}, onRank: () => {}, onGroup: () => {}, onBehind: () => {},
         reserve: { kind: "none" },
         fmt: (usd: number) => formatSpend(usd, "SAR", RATE, { whole: true }),
+        fmtCents: (usd: number) => formatSpend(usd, "SAR", RATE),
         toDisplay: (usd: number) => spendInDisplayCurrency(usd, "SAR", RATE),
         currency: "SAR", planMonth: "2026-09", canManage: false,
       }),
@@ -315,6 +344,8 @@ describe("Pacing — a past month's aria anchor names the REAL last day of data 
       platform: "instagram",
       objective: "Awareness" as const,
       spend: 100,
+      purchases: null,
+      purchaseValue: null,
     }));
     const html = pacing({
       from: "2026-09-01",
