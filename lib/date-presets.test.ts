@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  DATE_PRESETS,
   decodePreferredRange,
   explicitRange,
   encodePreferredRange,
@@ -123,5 +124,22 @@ describe("explicitRange — a URL range is used only when both ends are REAL dat
 
   it("guards a stored custom range the same way", () => {
     expect(decodePreferredRange("custom:2026-02-30..2026-03-05", TODAY)).toBeNull();
+  });
+});
+
+describe("the Today preset (2026-11-18)", () => {
+  it("is the single day, first in the list, and round-trips as a saved preference", () => {
+    expect(DATE_PRESETS[0]!.key).toBe("today");
+    expect(DATE_PRESETS[0]!.range("2026-11-18")).toEqual({ from: "2026-11-18", to: "2026-11-18" });
+    expect(decodePreferredRange("today", "2026-11-18")).toEqual({
+      from: "2026-11-18",
+      to: "2026-11-18",
+    });
+    expect(encodePreferredRange("today", "2026-11-18", "2026-11-18")).toBe("today");
+  });
+
+  it("leaves the rolling presets and the default ending yesterday", () => {
+    const seven = DATE_PRESETS.find((p) => p.key === "7")!.range("2026-11-18");
+    expect(seven).toEqual({ from: "2026-11-11", to: "2026-11-17" });
   });
 });

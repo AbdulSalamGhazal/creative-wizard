@@ -64,6 +64,11 @@
   popover header, never on the strip. No step forward past today, none back
   from the Lifetime floor; a step is a custom range and is remembered like
   any pick.
+- **"Today" is a preset on every date picker** (2026-11-18, user decision —
+  store orders arrive live from Salla). It is the single day; the rolling
+  "Last N days" presets and every page's default range still END YESTERDAY.
+  One entry in `DATE_PRESETS`, so every picker and the saved preference get
+  it; ad data for today is partial and the pages say nothing special about it.
 - A VIEW SWITCH is not a filter, and the Excluded toggle is a data-scope
   switch, not a filter. Neither is ever a `FilterDef`.
 - **Every range and every main filter resolves SERVER-side**

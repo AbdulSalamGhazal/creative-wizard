@@ -121,10 +121,14 @@ export interface DatePreset {
 /**
  * The canonical preset list, in display order. "Last N days" ranges END
  * YESTERDAY (today is excluded — its data is still partial), so "Last 3 days"
- * on Jun 4 is Jun 1–3. "This month"/"This quarter" are to-date and do include
+ * on Jun 4 is Jun 1–3. "Today", "This month" and "This quarter" do include
  * today. Custom range is the calendar, not a preset entry.
  */
 export const DATE_PRESETS: DatePreset[] = [
+  // Today alone (2026-11-18, user decision): store orders now arrive live
+  // from Salla, so today is a day worth opening. The rolling "Last N days"
+  // presets and the default range still end yesterday.
+  { key: "today", label: "Today", range: (t) => ({ from: t, to: t }) },
   { key: "yesterday", label: "Yesterday", range: (t) => ({ from: shiftIso(t, -1), to: shiftIso(t, -1) }) },
   { key: "3", label: "Last 3 days", range: (t) => ({ from: shiftIso(t, -3), to: shiftIso(t, -1) }) },
   { key: "5", label: "Last 5 days", range: (t) => ({ from: shiftIso(t, -5), to: shiftIso(t, -1) }) },
