@@ -2,6 +2,8 @@
 
 import { requireAuth } from "@/lib/auth";
 import { storeOrdersForExport, listStoreFields } from "@/db/queries/store";
+import { storeConnectionStatus } from "@/db/queries/store-connector";
+import { ORDER_SOURCE_COLUMN_KEY, orderSourceLabel } from "@/store/order-status";
 import { storeOrdersFiltersSchema } from "@/validators/store";
 import { rowsToCsv, type CsvColumn } from "@/lib/csv-export";
 import type { StoreOrderRow } from "@/db/queries/store";
@@ -26,9 +28,10 @@ export async function exportStoreOrders(
     await requireAuth(); // brand scoping happens in the queries
     const f = storeOrdersFiltersSchema.parse(input ?? {});
     const range = await resolvePreferredRange(f.from, f.to, defaultDateRange());
-    const [fields, { rows, truncated }] = await Promise.all([
+    const [fields, { rows, truncated }, connection] = await Promise.all([
       listStoreFields(),
       storeOrdersForExport({ from: range.from, to: range.to, q: f.q, sort: f.sort, dir: f.dir }),
+      storeConnectionStatus(),
     ]);
 
     const custom = fields.filter((fl) => !fl.core);
@@ -44,6 +47,16 @@ export async function exportStoreOrders(
           return v === undefined || v === null ? "" : String(v);
         },
       })),
+      // Same rule as the table: only a brand linked to Salla has the column.
+      ...(connection
+        ? [
+            {
+              key: ORDER_SOURCE_COLUMN_KEY,
+              label: "Source",
+              value: (r: StoreOrderRow) => orderSourceLabel(r.fromFeed),
+            },
+          ]
+        : []),
     ];
 
     return { ok: true, csv: rowsToCsv(rows, columns), truncated };

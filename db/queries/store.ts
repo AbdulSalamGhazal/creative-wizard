@@ -9,6 +9,10 @@ import {
 import { getActiveAccountId } from "@/lib/tenant";
 import { isCoreKey, isSystemRequiredKey, type StoreField, type StoreFieldType } from "@/store/fields";
 import { CleanupScopeChangedError } from "@/lib/cleanup-guard";
+import { CONNECTOR_OWNED_KEYS } from "@/lib/connector/map-order";
+
+/** Attribute keys an upload may not change on an order the Salla feed holds. */
+const FEED_OWNED: ReadonlySet<string> = new Set(CONNECTOR_OWNED_KEYS);
 
 /**
  * Store module queries — account-scoped (tenant §4.1) reads for the Store page
@@ -55,6 +59,8 @@ export interface StoreOrderRow {
   orderDate: string;
   totalAmount: number;
   attributes: Record<string, unknown>;
+  /** The Salla feed holds this order (false = it came from an upload only). */
+  fromFeed: boolean;
 }
 
 export interface StoreOrdersFilters {
@@ -132,6 +138,7 @@ export async function listStoreOrders(
         orderDate: storeOrders.orderDate,
         totalAmount: storeOrders.totalAmount,
         attributes: storeOrders.attributes,
+      connectorUpdatedAt: storeOrders.connectorUpdatedAt,
       })
       .from(storeOrders)
       .where(and(...conds))
@@ -155,6 +162,7 @@ export async function listStoreOrders(
       orderDate: r.orderDate,
       totalAmount: Number(r.totalAmount),
       attributes: (r.attributes ?? {}) as Record<string, unknown>,
+      fromFeed: r.connectorUpdatedAt !== null,
     })),
     total: agg?.n ?? 0,
     sumTotal: Number(agg?.sum ?? 0),
@@ -184,6 +192,7 @@ export async function storeOrdersForExport(
       orderDate: storeOrders.orderDate,
       totalAmount: storeOrders.totalAmount,
       attributes: storeOrders.attributes,
+      connectorUpdatedAt: storeOrders.connectorUpdatedAt,
     })
     .from(storeOrders)
     .where(and(...conds))
@@ -197,6 +206,7 @@ export async function storeOrdersForExport(
       orderDate: r.orderDate,
       totalAmount: Number(r.totalAmount),
       attributes: (r.attributes ?? {}) as Record<string, unknown>,
+      fromFeed: r.connectorUpdatedAt !== null,
     })),
     truncated,
   };
@@ -413,36 +423,42 @@ export async function writeStoreBatch(opts: {
     const present = opts.presentFieldKeys;
     for (let i = 0; i < opts.updates.length; i += CHUNK) {
       const chunk = opts.updates.slice(i, i + CHUNK);
-      const tuples = chunk.map((r) => {
-        // Keys the file HAS a column for but left blank on this row → clear.
-        const cleared = present ? present.filter((k) => !(k in r.attributes)) : [];
+      const literal = (keys: string[]) =>
         // Bound as ONE text[] literal, not as a JS array: drizzle expands an
         // array in a raw sql template into `($1,$2)` — a row expression, which
         // is a syntax error here (and `()` when nothing is cleared).
-        const clearedLiteral = `{${cleared
-          .map((k) => `"${k.replace(/(["\\])/g, "\\$1")}"`)
-          .join(",")}}`;
-        return sql`(${r.orderId}::text, ${r.orderDate}::date, ${r.totalAmount}::numeric, ${clearedLiteral}::text[], ${JSON.stringify(r.attributes)}::jsonb)`;
+        `{${keys.map((k) => `"${k.replace(/(["\\])/g, "\\$1")}"`).join(",")}}`;
+      const tuples = chunk.map((r) => {
+        // Keys the file HAS a column for but left blank on this row → clear.
+        const cleared = present ? present.filter((k) => !(k in r.attributes)) : [];
+        // The same list for an order the feed holds: its own keys are not the
+        // file's to clear.
+        const clearedHeld = cleared.filter((k) => !FEED_OWNED.has(k));
+        return sql`(${r.orderId}::text, ${r.orderDate}::date, ${r.totalAmount}::numeric, ${literal(cleared)}::text[], ${literal(clearedHeld)}::text[], ${JSON.stringify(r.attributes)}::jsonb)`;
       });
+      // THE SALLA FEED WINS (2026-11): a row the connector has written
+      // (`connector_updated_at` set) keeps its date, total and feed-owned
+      // attributes; the file only patches the other keys. Decided on the
+      // STORED row, not on what validation saw, so an order the webhook
+      // delivered between preview and commit is still protected.
       await tx.execute(sql`
         UPDATE store_orders AS o SET
-          order_date = v.order_date,
-          total_amount = v.total_amount,
-          attributes = ${
+          order_date = CASE WHEN o.connector_updated_at IS NULL THEN v.order_date ELSE o.order_date END,
+          total_amount = CASE WHEN o.connector_updated_at IS NULL THEN v.total_amount ELSE o.total_amount END,
+          attributes = CASE WHEN o.connector_updated_at IS NULL THEN ${
             present
               ? // `- text[]` drops the cleared keys, `||` merges the new values
                 // in; everything else in the stored object carries through.
                 sql`COALESCE(o.attributes, '{}'::jsonb) - v.cleared || v.patch`
               : sql`v.patch`
-          },
+          } ELSE (COALESCE(o.attributes, '{}'::jsonb) - v.cleared_held) || (v.patch - ${literal([...FEED_OWNED])}::text[]) END,
           updated_at = now()
         FROM (VALUES ${sql.join(tuples, sql`, `)}) AS v(
-          order_id, order_date, total_amount, cleared, patch
+          order_id, order_date, total_amount, cleared, cleared_held, patch
         )
         WHERE o.order_id = v.order_id AND o.account_id = ${opts.accountId}
       `);
     }
-
     const result = {
       batchId: bid,
       rowsInserted: opts.inserts.length,

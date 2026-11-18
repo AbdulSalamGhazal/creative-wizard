@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNotNull } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { storeOrders, storeUploadBatches } from "@/db/schema";
@@ -20,6 +20,7 @@ import { type StoreValidationError } from "@/store/errors";
 import type { StoreField } from "@/store/fields";
 import { actionError } from "@/lib/action-error";
 import { notifyRoutes } from "@/db/queries/notifications";
+import { connectorHeldOrderIds } from "@/db/queries/store-connector";
 import { int, plural } from "@/lib/format";
 import { ROLLBACK_WINDOW_HOURS, withinRollbackWindow } from "@/lib/upload-batches";
 
@@ -44,6 +45,8 @@ export type StoreUploadReport =
         total: number;
         newCount: number;
         updatedCount: number;
+        /** Orders the Salla feed already holds — only extra columns apply. */
+        syncedCount: number;
         upsert: boolean;
         ignoredColumns: string[];
         /** Configured custom fields with no column in this file. */
@@ -125,6 +128,7 @@ async function validate(input: FileInput): Promise<
       rows: StoreParsedRow[];
       newCount: number;
       updatedCount: number;
+      syncedCount: number;
       ignoredColumns: string[];
       presentFieldKeys: string[];
       absentFieldLabels: string[];
@@ -134,12 +138,19 @@ async function validate(input: FileInput): Promise<
 > {
   const fields = await listStoreFields();
   const existing = await existingIdsForFile(input, fields);
+  // Which of those the Salla feed already holds — never an error, never
+  // overwritten (the feed wins).
+  const held =
+    existing.size > 0
+      ? await connectorHeldOrderIds(await getActiveAccountId(), [...existing])
+      : new Set<string>();
   return runStorePipeline({
     content: input.content,
     byteLength: input.byteLength,
     fileName: input.fileName,
     fields,
     existingOrderIds: existing,
+    connectorHeldIds: held,
     upsert: input.upsert,
   });
 }
@@ -171,6 +182,7 @@ export async function validateStoreUpload(
         total: res.rows.length,
         newCount: res.newCount,
         updatedCount: res.updatedCount,
+        syncedCount: res.syncedCount,
         upsert: input.upsert,
         ignoredColumns: res.ignoredColumns,
         absentFieldLabels: res.absentFieldLabels,
@@ -314,6 +326,19 @@ export async function rollbackStoreBatch(
         )
         .returning({ id: storeUploadBatches.id });
       if (!claimed) return null;
+      // An order this batch inserted that the Salla feed has since written
+      // is the feed's now: detach it instead of deleting it (the connector
+      // would not send it again until its next change).
+      await tx
+        .update(storeOrders)
+        .set({ uploadBatchId: null })
+        .where(
+          and(
+            eq(storeOrders.accountId, acct),
+            eq(storeOrders.uploadBatchId, parsed.data),
+            isNotNull(storeOrders.connectorUpdatedAt),
+          ),
+        );
       // Deletes only rows this batch INSERTED — updated rows kept their original
       // batch id, so they survive (updates aren't rollback-able, same as ads).
       const rows = await tx

@@ -38,6 +38,11 @@ import {
  * answers an /api/ path with a 401 JSON, which would end a browser sign-in flow
  * in a blank error instead of a login form. The consent screen (`/oauth/consent`)
  * is NOT excluded: it is ordinary app UI behind the normal cookie gate.
+ *
+ * `/api/webhooks` and `/api/cron` are excluded because their callers are
+ * machines with no session: the Urjwan Connector signs each batch (HMAC,
+ * verified in the route) and Vercel Cron sends a bearer secret. Each handler
+ * refuses an unauthenticated call itself.
  */
 
 const SESSION_COOKIE = "ccms_session";
@@ -98,6 +103,6 @@ export const config = {
   // this list once named `icon.svg` long after the icon became a png, so the
   // sign-in page's own logo redirected a signed-out visitor to /signin.
   matcher: [
-    "/((?!_next/static|_next/image|signin|api/health|api/mcp|api/oauth|\\.well-known|[^/]*\\.svg$|[^/]*\\.png$|[^/]*\\.ico$).*)",
+    "/((?!_next/static|_next/image|signin|api/health|api/mcp|api/oauth|api/webhooks|api/cron|\\.well-known|[^/]*\\.svg$|[^/]*\\.png$|[^/]*\\.ico$).*)",
   ],
 };

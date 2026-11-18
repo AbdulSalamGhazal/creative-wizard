@@ -301,7 +301,7 @@ PerformanceRecord
 
 ## 8. Out of Scope (v1)
 
-- Direct API integrations with ad platforms — defer to v2 once CSV workflow is validated.
+- Direct API integrations with ad platforms — defer to v2 once CSV workflow is validated. (Store orders are the exception since 2026-11: they also arrive from Salla through the Urjwan Connector — tech-spec §5c.)
 - Additional platforms beyond the initial four.
 - Mobile-optimized UI.
 - Arabic UI localization.

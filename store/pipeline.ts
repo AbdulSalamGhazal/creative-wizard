@@ -18,6 +18,13 @@ export interface StorePipelineInput {
   fields: StoreField[];
   /** order_ids already in the DB for this account (for strict-reject / upsert split). */
   existingOrderIds: Set<string>;
+  /**
+   * The subset of `existingOrderIds` the Salla connector feed already holds.
+   * THE FEED WINS on these: they are never an S051, in either mode, and the
+   * write keeps the feed's date, total, source, channel and status — the file
+   * only fills the columns the feed doesn't carry.
+   */
+  connectorHeldIds?: Set<string>;
   /** false → strict insert (existing id = row error); true → update existing, insert new. */
   upsert: boolean;
 }
@@ -31,6 +38,8 @@ export interface StoreParsedRow {
   attributes: Record<string, string | number>;
   /** upsert: true = this order exists and will be UPDATED; false = INSERT. */
   isUpdate: boolean;
+  /** The connector feed holds this order — see `connectorHeldIds`. */
+  connectorHeld?: boolean;
 }
 
 export type StorePipelineResult =
@@ -39,6 +48,8 @@ export type StorePipelineResult =
       rows: StoreParsedRow[];
       newCount: number;
       updatedCount: number;
+      /** Rows whose order the Salla feed already holds (not in `updatedCount`). */
+      syncedCount: number;
       /** File columns that no field maps to (ignored, reported as info). */
       ignoredColumns: string[];
       /**
@@ -293,10 +304,18 @@ export function runStorePipeline(input: StorePipelineInput): StorePipelineResult
   // ── Stage 5: existing ids (strict reject / upsert split) ──────────────────
   let newCount = 0;
   let updatedCount = 0;
+  let syncedCount = 0;
   for (const r of accepted) {
     if (!r.orderId) continue;
     const exists = input.existingOrderIds.has(r.orderId);
-    if (exists && !input.upsert) {
+    if (exists && input.connectorHeldIds?.has(r.orderId)) {
+      // The feed holds it: an update that only fills the extra columns,
+      // whatever the mode — an export taken after go-live always contains
+      // such orders, and refusing the file for them would end uploads.
+      r.isUpdate = true;
+      r.connectorHeld = true;
+      syncedCount++;
+    } else if (exists && !input.upsert) {
       errors.push(
         err("S051", `Row ${r.rowNumber}: order_id \`${r.orderId}\` is already imported. Enable upsert to update it.`, {
           row: r.rowNumber,
@@ -327,6 +346,7 @@ export function runStorePipeline(input: StorePipelineInput): StorePipelineResult
     rows: accepted,
     newCount,
     updatedCount,
+    syncedCount,
     ignoredColumns,
     presentFieldKeys,
     absentFieldLabels,

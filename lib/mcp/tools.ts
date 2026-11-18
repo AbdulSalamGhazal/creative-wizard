@@ -47,6 +47,7 @@ import { buildRangeModel } from "@/lib/budget-range";
 import { buildAttention } from "@/lib/budget-attention";
 import { storeDataHorizon } from "@/db/queries/series-bounds";
 import { storeInsightsBreakdown, storeInsightsDaily } from "@/db/queries/store-insights";
+import { storeConnectionStatus } from "@/db/queries/store-connector";
 import { reconciliationByPlatform, reconciliationOverview } from "@/db/queries/reconciliation";
 import { landingPageRollup } from "@/db/queries/landing-page-performance";
 import { getLandingPageByCode, landingPageCreatives } from "@/db/queries/landing-pages";
@@ -920,7 +921,7 @@ export function registerMcpTools(server: McpServer): void {
     "get_store",
     {
       description:
-        "The Store module for a range (defaults to the app's last 30 days): store orders and revenue — MONEY IS SAR here, never USD — per day and in total, split by the ad platform the order's UTM source maps to and by sales channel (website / application), plus Reconciliation: store orders against the conversions each ad platform CLAIMS, as COUNTS ONLY (Reconciliation never compares revenue). `delta` = claimed − store orders (positive = the platform over-claims); `delta_pct` and `match_rate` use store orders as the base and are null when the store recorded none. Orders whose source maps to no platform are `unattributed`. A brand that has never uploaded store orders returns zeros — call get_data_freshness / see `store_data_through` before reading a gap as a real zero.",
+        "The Store module for a range (defaults to the app's last 30 days): store orders and revenue — MONEY IS SAR here, never USD — per day and in total, split by the ad platform the order's UTM source maps to and by sales channel (website / application), plus Reconciliation: store orders against the conversions each ad platform CLAIMS, as COUNTS ONLY (Reconciliation never compares revenue). `delta` = claimed − store orders (positive = the platform over-claims); `delta_pct` and `match_rate` use store orders as the base and are null when the store recorded none. Orders whose source maps to no platform are `unattributed`. `salla_feed` says whether orders arrive automatically from Salla (`connected`) and when the last one did; a brand without it relies on manual uploads. A brand that has no store orders returns zeros — call get_data_freshness / see `store_data_through` before reading a gap as a real zero.",
       inputSchema: {
         brand: brandField,
         from: fromField,
@@ -935,7 +936,7 @@ export function registerMcpTools(server: McpServer): void {
     async (args) =>
       withBrand(args.brand, async (brand) => {
         const range = defaultRange(args.from, args.to);
-        const [daily, byPlatform, byChannel, overview, recon, storeHorizon] =
+        const [daily, byPlatform, byChannel, overview, recon, storeHorizon, connection] =
           await Promise.all([
             storeInsightsDaily(range.from, range.to),
             storeInsightsBreakdown(PLATFORM_LENS, range.from, range.to),
@@ -948,6 +949,7 @@ export function registerMcpTools(server: McpServer): void {
               args.include_excluded,
             ),
             storeDataHorizon(),
+            storeConnectionStatus(),
           ]);
         let orders = 0;
         let revenue = 0;
@@ -964,6 +966,15 @@ export function registerMcpTools(server: McpServer): void {
           rangeEcho(range.from, range.to),
           {
             store_data_through: storeHorizon,
+            salla_feed: connection
+              ? {
+                  connected: true,
+                  last_order_received_at: connection.lastEventAt,
+                  last_catch_up_at: connection.lastPullAt,
+                  catch_up_failed: connection.lastPullError !== null,
+                  orders_today: connection.ordersToday,
+                }
+              : { connected: false },
             totals_sar: {
               orders,
               revenue: r2(revenue),

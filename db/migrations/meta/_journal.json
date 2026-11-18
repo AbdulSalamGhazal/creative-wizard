@@ -512,6 +512,20 @@
       "when": 1794665672753,
       "tag": "0072_drop_audience_snapshots",
       "breakpoints": true
+    },
+    {
+      "idx": 73,
+      "version": "7",
+      "when": 1794997539105,
+      "tag": "0073_store_connector",
+      "breakpoints": true
+    },
+    {
+      "idx": 74,
+      "version": "7",
+      "when": 1794997539923,
+      "tag": "0074_store_connector_seed",
+      "breakpoints": true
     }
   ]
 }

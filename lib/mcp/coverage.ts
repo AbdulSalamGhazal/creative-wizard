@@ -40,6 +40,9 @@ export const MCP_COVERAGE: Record<string, McpCoverage> = {
   budget: { mcp: "tools", tools: ["get_budget", "get_budget_review"] },
   "store-insights": { mcp: "tools", tools: ["get_store"] },
   reconciliation: { mcp: "tools", tools: ["get_store"] },
+  // The Salla feed: get_store carries its freshness (`salla_feed`). The raw
+  // event log stays off the MCP until there is an analysis to serve from it.
+  "store-connector": { mcp: "tools", tools: ["get_store"] },
   "landing-page-performance": { mcp: "tools", tools: ["get_landing_pages"] },
   trends: { mcp: "tools", tools: ["get_trends"] },
 

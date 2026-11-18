@@ -291,7 +291,7 @@ This app is deployed and in production use. Treat `main` as shippable.
 - **Database:** Neon Postgres (eu-central-1). Two connection strings:
   - **Pooled** (host contains `-pooler`) → this is `DATABASE_URL` in Vercel. Required because `lib/db.ts` uses `max: 1` per serverless instance.
   - **Direct** (no `-pooler`) → used ONLY to run migrations.
-- **Vercel env vars:** `DATABASE_URL` (pooled), `AUTH_SECRET`, and `BLOB_READ_WRITE_TOKEN` (creative thumbnails live in Vercel Blob — see the Stack section; the token is auto-added when the Blob store is connected). Nothing else (no Google SSO vars, no KV). Local copies of all prod secrets live in gitignored `.env.production.local` — never commit it, never paste it into committed files.
+- **Vercel env vars:** `DATABASE_URL` (pooled), `AUTH_SECRET`, the Salla feed's `CONNECTOR_API_KEY` / `CONNECTOR_WEBHOOK_SECRET` / `CRON_SECRET` / `CONNECTOR_MODE` (`docs/decisions/store.md`), and `BLOB_READ_WRITE_TOKEN` (creative thumbnails live in Vercel Blob — see the Stack section; the token is auto-added when the Blob store is connected). Nothing else (no Google SSO vars, no KV). Local copies of all prod secrets live in gitignored `.env.production.local` — never commit it, never paste it into committed files.
 - **Migrations do NOT run on deploy.** When a change adds a Drizzle migration, run it manually (before/with the deploy) against the **direct** url:
   ```
   DATABASE_URL='<direct-neon-url>' npx drizzle-kit migrate
@@ -513,9 +513,8 @@ this map is still a rule you broke.
 - Currency is SAR, module-local — never convert to USD here.
 - Upsert PATCHES `attributes`; an absent column leaves the stored value alone.
 - Reconciliation is counts only — no revenue comparison, ever.
-- UTMs buckets exactly as Reconciliation; its three unknowns (no source ·
-  unmapped · other) sum to Unattributed; platform accuracy is counts only,
-  derived through `lib/reconciliation.ts`.
+- The Salla feed (webhook + nightly pull) enters ONLY through `ingestConnectorEvents`: no user, no active brand, every event kept raw, older never overwrites newer; an upload never overwrites a feed order.
+- UTMs buckets exactly as Reconciliation; its three unknowns (no source · unmapped · other) sum to Unattributed; platform accuracy is counts only, derived through `lib/reconciliation.ts`.
 
 → **`docs/decisions/store.md`**
 

@@ -206,6 +206,14 @@ export function StoreUploadPanel({
                 </span>
               </p>
             )}
+          {/* Orders the Salla feed already delivered: stated plainly, since
+              the file changes nothing the feed carries on them. */}
+          {stage.report.summary.syncedCount > 0 && (
+            <p className="mt-1.5 text-[11px] text-ink-3">
+              {int(stage.report.summary.syncedCount)} already synced from Salla
+              — only columns Salla doesn&apos;t send are applied to them.
+            </p>
+          )}
           {/* Blank UTM sources / channels are INFORMATION, not a problem —
               plenty of orders genuinely have neither. Deliberately neutral:
               plain text, no warn tint, no icon. */}

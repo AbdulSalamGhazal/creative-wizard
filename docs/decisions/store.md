@@ -99,6 +99,50 @@
   empty value = none. Each key is URI-encoded so a value with a comma
   survives; unknown keys are dropped, the list is capped at `COMPARE_MAX`.
 
+- **The Salla feed is the SECOND entry path (2026-11-18)** — the Urjwan
+  Connector pushes signed order webhooks (`POST /api/webhooks/connector`) and
+  a nightly pull catches up (`GET /api/cron/store-sync`). Both, and the
+  backfill script, end in ONE function, `ingestConnectorEvents`
+  (`lib/connector/ingest.ts`). Nothing else writes connector data.
+- **The feed has no user and no active brand.** Ingest never calls `auth()`
+  or `getActiveAccountId()`; the brand is the `store_connections` row for the
+  event's `store`, every query takes the account id explicitly and runs on
+  the ingest transaction. A store with no row is stored raw and NEVER applied.
+- **Every event is kept whole** in `store_connector_events` (dedup on
+  `event_id`; a pulled order's id is its own version). `store_orders` holds
+  only what the pages read; the raw log is what later analysis reads. Don't
+  trim the payload, and don't add personal data: the personal-data permission
+  is deliberately closed on the connector side.
+- **The ordering guard:** a connector write lands only when its `updated_at`
+  is not older than `store_orders.connector_updated_at`. An older event after
+  a newer one is logged, never applied.
+- **The feed owns three attributes** — `utm_source`, `channel`
+  (`attribution.device`), `order_status` (`status.slug`) —
+  `CONNECTOR_OWNED_KEYS`. Each connector write replaces them as a set (a null
+  removes the key) and leaves every other key alone. Date = the Riyadh day of
+  `created_at`; total = `amounts.total`.
+- **THE SALLA FEED WINS over an upload (user decision).** An order the feed
+  holds (`connector_updated_at` set) is never an S051, in either mode; the
+  upload keeps the feed's date, total and three attributes and only patches
+  the other columns — decided on the STORED row at commit. The review states
+  the count. Rollback DETACHES such a row (batch → NULL) instead of deleting it.
+- **`upload_batch_id` NULL = the feed inserted the order.** Nothing may
+  assume a batch on an order. What the user SEES is the Orders table's
+  **Source** column (Salla / Upload, offered only to a linked brand), derived
+  from `connector_updated_at` — an uploaded order the feed has since written
+  reads Salla.
+- **The feed's status field is labelled "Salla status"** (user-approved), so
+  it never shares a name with a status column a brand uploads.
+- **Every order counts, whatever its status** (user decision): cancelled and
+  refunded are a visible flag, never a filter on any Store total. A refund
+  carries no amount and the total does not drop.
+- **`CONNECTOR_MODE` is `record` unless it is literally `live`** — record logs
+  events and touches no order. A wrong or missing value fails towards
+  "nothing changed".
+- **Webhook status codes are the retry contract:** 401 only for a bad or
+  stale signature (the connector drops the batch); anything on our side is
+  5xx so it retries. Never answer a signed batch with a 4xx.
+
 ## History and rationale
 
 *Moved verbatim from CLAUDE.md (2026-10). Line references are to the file
@@ -327,3 +371,34 @@ unmapped) and had four stale `ON CONFLICT` targets repaired on the way —
 products, creatives, angles and platform field mappings had gained
 `account_id` in their unique indexes, and the perf identity its
 `landing_page_id`, after the seed was last run.
+
+### The Salla connector feed (2026-11-18)
+
+- Until now every store order arrived through a manual Salla export. The
+  Urjwan Connector (a separate system in front of Salla, run by Mohamad) now
+  pushes order events and offers a read API. The first version of its order
+  object had no UTM source — Reconciliation and UTMs would have gone blind —
+  so the build waited until the connector added an `attribution` block.
+- Decisions taken with the user before building: count every order and store
+  its status; three stores → three brands (`urjwan` → Urjwan, `misbah` →
+  Mesbah, `urjwan_brush` → Brush, seeded by migration 0074); uploads stay and
+  the feed wins on a clash; order events only (no carts, shipments, products,
+  coupons, personal data); keep every payload whole for later analysis but
+  show only Status as a new column; the connection line sits under the Orders
+  title and is absent for an unlinked brand.
+- `store_orders.upload_batch_id` had to become nullable: a batch needs a
+  file name and a signed-in uploader, and the feed has neither. Synthetic
+  batches were rejected — they would flood the upload history and make feed
+  orders deletable by a rollback.
+- Channel is `attribution.device` (`mobile` / `desktop` / `mobile-app`) as a
+  starting point: the connector says the sales channel is "source plus
+  device", and device is the part that separates the app. These are new raw
+  values, mapped once on the Order fields tab. To be confirmed against real
+  payloads in the test phase, together with `reference` = the export's order
+  number and `amounts.total` = the export's total.
+- The "delayed" state is 6 hours without an event or a failed catch-up. A
+  small store can be quiet that long overnight; tune `CONNECTION_QUIET_MS`
+  if it cries wolf.
+- Go-live order: migrations → deploy in `record` mode → Mohamad points
+  delivery at the URL → compare 10–20 orders with an export → `live` →
+  `db/connector-backfill.ts`.

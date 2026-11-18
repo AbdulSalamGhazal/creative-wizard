@@ -1434,9 +1434,18 @@ export const storeOrders = pgTable(
     orderDate: date("order_date").notNull(),
     totalAmount: numeric("total_amount", { precision: 12, scale: 2 }).notNull(),
     attributes: jsonb("attributes").notNull().default(sql`'{}'::jsonb`),
-    uploadBatchId: uuid("upload_batch_id")
-      .notNull()
-      .references(() => storeUploadBatches.id),
+    /**
+     * NULL = the order was first written by the Salla connector feed (no file,
+     * no uploader). A batch id means an upload inserted it.
+     */
+    uploadBatchId: uuid("upload_batch_id").references(() => storeUploadBatches.id),
+    /**
+     * The connector's own `updated_at` for the newest version of this order it
+     * has delivered. NULL = the connector has never written this order. Two
+     * jobs: the ORDERING GUARD (an older event never overwrites newer data)
+     * and the "the feed holds this order" marker uploads and rollback read.
+     */
+    connectorUpdatedAt: timestamp("connector_updated_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -1514,6 +1523,73 @@ export const storeSourceMappings = pgTable(
     accountRawUnique: uniqueIndex("store_source_mappings_account_raw_idx").on(
       t.accountId,
       t.rawValue,
+    ),
+  }),
+);
+
+/**
+ * Links a brand to ONE store of the Urjwan Connector (the system in front of
+ * Salla). A brand with no row here is "not connected": the feed ignores its
+ * store and the Orders page shows nothing about a connection. `pull_cursor`
+ * is the newest connector `updated_at` the catch-up pull has seen, sent back
+ * verbatim as `updated_since`.
+ */
+export const storeConnections = pgTable(
+  "store_connections",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    accountId: uuid("account_id")
+      .notNull()
+      .references(() => accounts.id),
+    /** The connector's `store` value, e.g. `urjwan`. */
+    storeKey: varchar("store_key", { length: 48 }).notNull(),
+    /** When the newest order event (webhook or pull) was RECEIVED. */
+    lastEventAt: timestamp("last_event_at", { withTimezone: true }),
+    lastPullAt: timestamp("last_pull_at", { withTimezone: true }),
+    /** NULL = the last catch-up pull succeeded (or none has run). */
+    lastPullError: text("last_pull_error"),
+    pullCursor: varchar("pull_cursor", { length: 40 }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    accountUnique: uniqueIndex("store_connections_account_idx").on(t.accountId),
+    storeKeyUnique: uniqueIndex("store_connections_store_key_idx").on(t.storeKey),
+  }),
+);
+
+/**
+ * The RAW log of everything the connector delivered — one row per event,
+ * every version of every order, payload kept whole (items, coupons, amounts,
+ * attribution…). `store_orders` holds only what the Store pages read today;
+ * this is what later analysis reads. `event_id` is the connector's own id for
+ * a webhook event and a synthesized `pull:<store>:<reference>:<updated_at>`
+ * for a pulled order, so a redelivery or a re-pull is a no-op. `account_id`
+ * is NULL for a store no brand is linked to (stored, never applied).
+ */
+export const storeConnectorEvents = pgTable(
+  "store_connector_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    eventId: varchar("event_id", { length: 200 }).notNull(),
+    accountId: uuid("account_id").references(() => accounts.id),
+    storeKey: varchar("store_key", { length: 48 }).notNull(),
+    type: varchar("type", { length: 48 }).notNull(),
+    occurredAt: timestamp("occurred_at", { withTimezone: true }),
+    /** 'webhook' | 'pull'. */
+    via: varchar("via", { length: 8 }).notNull(),
+    payload: jsonb("payload").notNull(),
+    receivedAt: timestamp("received_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    eventIdUnique: uniqueIndex("store_connector_events_event_id_idx").on(t.eventId),
+    accountReceivedIdx: index("store_connector_events_account_received_idx").on(
+      t.accountId,
+      t.receivedAt.desc(),
+    ),
+    accountOccurredIdx: index("store_connector_events_account_occurred_idx").on(
+      t.accountId,
+      t.occurredAt,
     ),
   }),
 );

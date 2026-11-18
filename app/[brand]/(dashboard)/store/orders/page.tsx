@@ -9,6 +9,8 @@ import { StoreFilterBar } from "@/components/store/store-filter-bar";
 import { StoreOrdersTable } from "@/components/store/store-orders-table";
 import { resolveTablePrefs } from "@/db/queries/user-prefs";
 import { TABLE_KEYS } from "@/lib/table-columns";
+import { storeConnectionStatus } from "@/db/queries/store-connector";
+import { StoreConnectionLine } from "@/components/store/store-connection-line";
 
 export const dynamic = "force-dynamic";
 
@@ -19,7 +21,8 @@ const pick = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v)
 
 /**
  * Orders — the all-orders table for the Store module (SAR, brand-scoped). Date
- * picker + order-id search, server pagination, totals footer, CSV export. Open
+ * picker + order-id search, server pagination, totals footer, CSV export, and
+ * — for a brand linked to a Salla store — the feed's connection line. Open
  * to any brand member (read is open, like the ads data pages). Uploading orders
  * lives on /store/uploads.
  */
@@ -49,12 +52,14 @@ export default async function StoreOrdersPage({
   // and the count header, pagination and CSV all follow what's shown.
   const range = await resolvePreferredRange(f.from, f.to, defaultDateRange());
 
-  const [fields, orders, tablePrefs] = await Promise.all([
+  const [fields, orders, tablePrefs, connection] = await Promise.all([
     listStoreFields(),
     listStoreOrders({ ...f, from: range.from, to: range.to }),
     // The viewer's remembered columns (2026-10) — per user per brand now,
     // where this used to be a localStorage set per browser.
     resolveTablePrefs([TABLE_KEYS.STORE_ORDERS]),
+    // null for a brand with no Salla store linked — then nothing is drawn.
+    storeConnectionStatus(),
   ]);
   // First use vs "the range/search hid them" (R-059) — asked only when the
   // listing is empty.
@@ -66,7 +71,9 @@ export default async function StoreOrdersPage({
         eyebrow="Store"
         title="Orders"
         info="Amounts are in SAR."
-      />
+      >
+        {connection && <StoreConnectionLine status={connection} />}
+      </PageHeader>
 
       <div className="space-y-2">
         <StoreFilterBar
@@ -86,6 +93,7 @@ export default async function StoreOrdersPage({
           dir={f.dir}
           canUpload={canUpload}
           firstUse={firstUse}
+          showSource={connection !== null}
           columnPref={tablePrefs[TABLE_KEYS.STORE_ORDERS]}
         />
       </div>

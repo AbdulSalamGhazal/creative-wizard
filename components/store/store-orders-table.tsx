@@ -20,6 +20,14 @@ import { toastActionFailure } from "@/lib/action-toast";
 import type { StoreOrderRow } from "@/db/queries/store";
 import type { StoreField } from "@/store/fields";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Chip } from "@/components/ui/chip";
+import {
+  ORDER_SOURCE_COLUMN_KEY,
+  ORDER_STATUS_FIELD_KEY,
+  orderSourceLabel,
+  orderStatusLabel,
+  orderStatusTone,
+} from "@/store/order-status";
 
 const CORE_SORT = new Set(["order_id", "order_date", "total_amount"]);
 
@@ -36,6 +44,7 @@ export function StoreOrdersTable({
   dir,
   canUpload,
   firstUse = false,
+  showSource = false,
   columnPref,
 }: {
   rows: StoreOrderRow[];
@@ -49,6 +58,8 @@ export function StoreOrdersTable({
   canUpload: boolean;
   /** The brand has no orders at all — the first-use state (R-059). */
   firstUse?: boolean;
+  /** The brand is linked to a Salla store: offer the Source column. */
+  showSource?: boolean;
   /** Remembered columns for this user in this brand, resolved server-side. */
   columnPref?: TableColumnPref;
 }) {
@@ -62,8 +73,13 @@ export function StoreOrdersTable({
   const customCols = useMemo(() => fields.filter((f) => !f.core), [fields]);
   // Hideable columns (order_id is pinned identity → always visible).
   const hideableKeys = useMemo(
-    () => ["order_date", "total_amount", ...customCols.map((c) => c.key)],
-    [customCols],
+    () => [
+      "order_date",
+      "total_amount",
+      ...customCols.map((c) => c.key),
+      ...(showSource ? [ORDER_SOURCE_COLUMN_KEY] : []),
+    ],
+    [customCols, showSource],
   );
   /**
    * Still HIDDEN-key semantics — a field added in Order fields is not in the
@@ -174,6 +190,23 @@ export function StoreOrdersTable({
             sortValue: (r) => (get(r) ? String(get(r)) : null),
           };
         }
+        if (f.key === ORDER_STATUS_FIELD_KEY) {
+          // The Salla feed's status slug: Cancelled / Refunded carry a tone,
+          // every other status is plain text.
+          return {
+            key: f.key,
+            label: f.label,
+            ...customSort,
+            render: (r) => {
+              const v = get(r);
+              if (v === undefined || v === null || v === "") return "—";
+              const label = orderStatusLabel(String(v));
+              const tone = orderStatusTone(String(v));
+              return tone ? <Chip tone={tone}>{label}</Chip> : label;
+            },
+            sortValue: (r) => (get(r) == null ? null : String(get(r))),
+          };
+        }
         return {
           key: f.key,
           label: f.label,
@@ -192,8 +225,18 @@ export function StoreOrdersTable({
         };
       }),
     ];
+    if (showSource) {
+      // Salla = the feed holds the order; Upload = it came from a file only.
+      cols.push({
+        key: ORDER_SOURCE_COLUMN_KEY,
+        label: "Source",
+        ...customSort,
+        render: (r) => orderSourceLabel(r.fromFeed),
+        sortValue: (r) => orderSourceLabel(r.fromFeed),
+      });
+    }
     return cols;
-  }, [customCols, total, sumTotal, customSort]);
+  }, [customCols, total, sumTotal, customSort, showSource]);
 
   const displayRows = useMemo(() => {
     if (!clientSort || multiPage) return rows;

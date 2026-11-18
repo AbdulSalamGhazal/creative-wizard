@@ -53,7 +53,7 @@ describe("middleware matcher", () => {
   });
 
   it("leaves the public endpoints public", () => {
-    for (const p of ["/signin", "/api/health", "/api/mcp/mcp", "/api/oauth/token", "/.well-known/oauth-authorization-server"]) {
+    for (const p of ["/signin", "/api/health", "/api/mcp/mcp", "/api/oauth/token", "/api/webhooks/connector", "/api/cron/store-sync", "/.well-known/oauth-authorization-server"]) {
       expect(isGated(p), p).toBe(false);
     }
   });
