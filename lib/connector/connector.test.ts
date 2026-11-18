@@ -118,6 +118,14 @@ describe("helpers", () => {
     expect(orderStatusTone("refunded")).toBe("warn");
     expect(orderStatusTone("restored")).toBe("warn");
     expect(orderStatusTone("delivered")).toBeNull();
+    expect(orderStatusTone("restoring")).toBe("warn");
+    expect(orderStatusTone("deleted")).toBe("neg");
     expect(orderStatusLabel("payment_pending")).toBe("Payment pending");
+    // The connector's documented slugs read as their meaning…
+    expect(orderStatusLabel("canceled")).toBe("Cancelled");
+    expect(orderStatusLabel("restored")).toBe("Refunded");
+    expect(orderStatusLabel("completed")).toBe("Ready to ship");
+    // …and one Salla adds later is still shown, humanized.
+    expect(orderStatusLabel("on_hold")).toBe("On hold");
   });
 });

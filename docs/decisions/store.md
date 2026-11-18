@@ -133,8 +133,11 @@
   reads Salla.
 - **The feed's status field is labelled "Salla status"** (user-approved), so
   it never shares a name with a status column a brand uploads.
-- **Every order counts, whatever its status** (user decision): cancelled and
-  refunded are a visible flag, never a filter on any Store total. A refund
+- **Every order counts, whatever its status** (user decision, confirmed
+  2026-11-18 for `payment_pending` — "not a placed order yet" — and `deleted`
+  too): a status is a visible flag, never a filter on any Store total.
+  Wording comes from `orderStatusLabel` (the connector's documented slugs);
+  `status.label` is each store's own Arabic text and is never shown. A refund
   carries no amount and the total does not drop.
 - **`CONNECTOR_MODE` is `record` unless it is literally `live`** — record logs
   events and touches no order. A wrong or missing value fails towards
