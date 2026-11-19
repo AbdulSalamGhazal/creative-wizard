@@ -1,10 +1,10 @@
-import { z } from "zod";
 import {
   isRegisterableRedirectUri,
   registerClient,
   type TokenEndpointAuthMethod,
 } from "@/lib/oauth";
 import { CORS_HEADERS, NO_STORE, corsPreflight, readParams } from "@/lib/oauth-http";
+import { oauthRegisterSchema } from "@/validators/oauth";
 
 /**
  * RFC 7591 dynamic client registration — how claude.ai gets a `client_id`
@@ -21,13 +21,6 @@ import { CORS_HEADERS, NO_STORE, corsPreflight, readParams } from "@/lib/oauth-h
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const schema = z.object({
-  client_name: z.string().trim().min(1).max(120).optional(),
-  redirect_uris: z.array(z.string()).min(1).max(10),
-  token_endpoint_auth_method: z.enum(["none", "client_secret_post"]).optional(),
-  grant_types: z.array(z.string()).optional(),
-  response_types: z.array(z.string()).optional(),
-});
 
 /** RFC 7591 §3.2.2 error shape — a different vocabulary from the token endpoint's. */
 function registrationError(error: string, description: string, status = 400): Response {
@@ -39,7 +32,7 @@ function registrationError(error: string, description: string, status = 400): Re
 
 export async function POST(req: Request): Promise<Response> {
   const raw = await readJsonOrForm(req);
-  const parsed = schema.safeParse(raw);
+  const parsed = oauthRegisterSchema.safeParse(raw);
   if (!parsed.success) {
     return registrationError(
       "invalid_client_metadata",

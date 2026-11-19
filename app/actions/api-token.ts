@@ -1,11 +1,11 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { z } from "zod";
 import { requireAuth } from "@/lib/auth";
 import { createApiToken, revokeApiToken } from "@/lib/api-token";
 import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
 import { actionError } from "@/lib/action-error";
+import { apiTokenCreateSchema, apiTokenRevokeSchema } from "@/validators/api-token";
 
 /**
  * Self-serve personal API tokens for the MCP server. EVERY user manages their
@@ -14,10 +14,6 @@ import { actionError } from "@/lib/action-error";
  * `create` and never stored or logged.
  */
 
-const createSchema = z.object({
-  name: z.string().trim().min(1, "Give the token a name.").max(64, "Too long."),
-});
-const revokeSchema = z.object({ tokenId: z.string().uuid() });
 
 export interface CreateTokenResult {
   ok: boolean;
@@ -32,7 +28,7 @@ export async function createApiTokenAction(
 ): Promise<CreateTokenResult> {
   try {
     const me = await requireAuth();
-    const parsed = createSchema.safeParse(input);
+    const parsed = apiTokenCreateSchema.safeParse(input);
     if (!parsed.success) {
       return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
     }
@@ -64,7 +60,7 @@ export async function revokeApiTokenAction(
 ): Promise<{ ok: boolean; error?: string }> {
   try {
     const me = await requireAuth();
-    const parsed = revokeSchema.safeParse(input);
+    const parsed = apiTokenRevokeSchema.safeParse(input);
     if (!parsed.success) return { ok: false, error: "Invalid token id" };
 
     const revoked = await revokeApiToken(parsed.data.tokenId, me.id);

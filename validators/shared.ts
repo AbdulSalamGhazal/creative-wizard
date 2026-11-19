@@ -50,3 +50,11 @@ export function csvList() {
     .catch(undefined)
     .transform((s) => (s ? s.split(",").filter(Boolean) : []));
 }
+
+/**
+ * One id from a caller, checked before it reaches a query: the server actions
+ * that take a bare id (`deleteCampaign`, `deleteCreative`, a store batch, a
+ * mapping) share this rather than writing `z.string().uuid()` inline
+ * (2026-11-19, the validators-only rule).
+ */
+export const uuidSchema = z.string().uuid();

@@ -2,7 +2,6 @@
 
 import { revalidatePath } from "next/cache";
 import { and, eq } from "drizzle-orm";
-import { z } from "zod";
 import { db } from "@/lib/db";
 import { requirePermission } from "@/lib/auth";
 import { products } from "@/db/schema";
@@ -10,6 +9,7 @@ import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
 import { getActiveAccountId } from "@/lib/tenant";
 import { actionError } from "@/lib/action-error";
 import { slugify } from "@/lib/url";
+import { productNameSchema } from "@/validators/product";
 
 export interface ProductMutationResult {
   ok: boolean;
@@ -17,16 +17,13 @@ export interface ProductMutationResult {
   fieldErrors?: Record<string, string>;
 }
 
-// Trimmed BEFORE the length check — trimming after let "   " pass min(1) and
-// insert a product with an empty name (2026-10-31).
-const nameSchema = z.string().trim().min(1).max(255);
 
 const productSlug = (name: string): string => slugify(name, "product", 255);
 
 export async function createProduct(input: unknown): Promise<ProductMutationResult> {
   try {
     const user = await requirePermission("catalog.products");
-    const parsed = nameSchema.safeParse(
+    const parsed = productNameSchema.safeParse(
       typeof input === "object" && input !== null
         ? (input as { name?: unknown }).name
         : undefined,

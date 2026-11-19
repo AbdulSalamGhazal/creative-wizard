@@ -2,11 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 import { and, eq, isNull, ne, or } from "drizzle-orm";
-import { z } from "zod";
 import { db } from "@/lib/db";
 import { requirePermission } from "@/lib/auth";
 import { creatives, performanceRecords } from "@/db/schema";
-import { excludeSchema } from "@/validators/exclusion";
+import { excludeSchema, recordIdSchema } from "@/validators/exclusion";
 import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
 import { getActiveAccountId } from "@/lib/tenant";
 import { ruleDescriptor } from "@/lib/exclusion-rules";
@@ -14,7 +13,6 @@ import { actionError } from "@/lib/action-error";
 import { touchesFromRecords } from "@/lib/audit-touches";
 import { ruleExcludingRecord } from "@/db/queries/exclusion-rules";
 
-const idSchema = z.coerce.number().int().positive();
 
 export interface ActionResult {
   ok: boolean;
@@ -31,7 +29,7 @@ export async function excludeRecord(
 ): Promise<ActionResult> {
   try {
     const user = await requirePermission("record.exclude");
-    const id = idSchema.parse(recordId);
+    const id = recordIdSchema.parse(recordId);
     const parsed = excludeSchema.parse({ reason });
     const acct = await getActiveAccountId();
 
@@ -109,7 +107,7 @@ export async function excludeRecord(
 export async function includeRecord(recordId: number): Promise<ActionResult> {
   try {
     const user = await requirePermission("record.exclude");
-    const id = idSchema.parse(recordId);
+    const id = recordIdSchema.parse(recordId);
     const acct = await getActiveAccountId();
 
     // A rule-excluded record can't be manually un-excluded — the rule would

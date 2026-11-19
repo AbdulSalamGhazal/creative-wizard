@@ -2,7 +2,6 @@
 
 import { revalidatePath } from "next/cache";
 import { eq } from "drizzle-orm";
-import { z } from "zod";
 import { db } from "@/lib/db";
 import { requirePermission } from "@/lib/auth";
 import { setSessionCookie } from "@/lib/auth-cookie";
@@ -20,12 +19,7 @@ import {
   userTablePrefs,
   users,
 } from "@/db/schema";
-import { roleEnum } from "@/lib/enums";
-import {
-  hashPassword,
-  PASSWORD_MIN_LENGTH,
-  PASSWORD_MAX_LENGTH,
-} from "@/lib/auth-password";
+import { hashPassword } from "@/lib/auth-password";
 import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
 import { isolate } from "@/lib/bidi";
 import { isPermission } from "@/lib/permissions";
@@ -43,6 +37,14 @@ import type { MemberFootprint } from "@/lib/team-member";
 import { discardAvatar } from "@/lib/avatar-storage";
 import { createNotifications } from "@/db/queries/notifications";
 import { DIRECT_EVENT_TYPES, categoryForType } from "@/lib/notifications";
+import {
+  accessSchema,
+  brandsSchema,
+  inviteSchema,
+  setPasswordSchema,
+  statusSchema,
+  userIdSchema,
+} from "@/validators/user";
 
 export interface UserMutationResult {
   ok: boolean;
@@ -50,30 +52,6 @@ export interface UserMutationResult {
   /** The created member's id (invite only) — the dialog opens their row. */
   userId?: string;
 }
-
-const userIdSchema = z.object({ userId: z.string().uuid() });
-
-const passwordSchema = z
-  .string()
-  .min(PASSWORD_MIN_LENGTH, `At least ${PASSWORD_MIN_LENGTH} characters.`)
-  .max(PASSWORD_MAX_LENGTH);
-
-const inviteSchema = z.object({
-  email: z.string().email().max(255),
-  name: z.string().min(1).max(255),
-  role: z.enum(roleEnum).default("editor"),
-  password: passwordSchema,
-  // Brand membership. `allAccounts` true (default) → every brand incl. future
-  // ones; false → only the listed brands (≥1 required, validated below).
-  allAccounts: z.boolean().default(true),
-  accountIds: z.array(z.string().uuid()).default([]),
-});
-
-const brandsSchema = z.object({
-  userId: z.string().uuid(),
-  allAccounts: z.boolean(),
-  accountIds: z.array(z.string().uuid()).default([]),
-});
 
 /**
  * Resolve the brands to grant: admins are ALWAYS all-brands; otherwise keep only
@@ -94,19 +72,6 @@ async function resolveGrant(
   if (ids.length === 0) return { error: "Select at least one brand." };
   return { allAccounts: false, accountIds: ids };
 }
-
-const setPasswordSchema = z.object({
-  userId: z.string().uuid(),
-  password: passwordSchema,
-});
-
-const accessSchema = z.object({
-  userId: z.string().uuid(),
-  role: z.enum(roleEnum),
-  // null → derive permissions from the role preset; an array → an explicit
-  // ("custom") grant. Stale/unknown keys are filtered out before saving.
-  permissions: z.array(z.string()).nullable(),
-});
 
 /**
  * Create a user with a starter password. Admin shares the password with the
@@ -478,8 +443,6 @@ export async function adminSetPassword(input: unknown): Promise<UserMutationResu
 // never the last active admin), what it changes is a stamp on `users`, and
 // every one is audited. `auth()` reads the stamps, so a deactivated or removed
 // person's cookies, MCP tokens and OAuth grants all stop at their next request.
-
-const statusSchema = userIdSchema.extend({ active: z.boolean() });
 
 /**
  * Deactivate (`active: false`) or reactivate (`active: true`) a member.

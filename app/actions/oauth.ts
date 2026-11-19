@@ -1,7 +1,6 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { z } from "zod";
 import { requireAuth } from "@/lib/auth";
 import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
 import { actionError } from "@/lib/action-error";
@@ -11,6 +10,7 @@ import {
   readAuthorizeParams,
   resolveAuthorizeRequest,
 } from "@/lib/oauth-authorize";
+import { oauthDecideSchema, oauthRevokeSchema } from "@/validators/oauth";
 
 /**
  * The consent decision, and revoking a connection afterwards.
@@ -26,13 +26,7 @@ import {
  * that carries the authorization code.
  */
 
-const decideSchema = z.object({
-  /** The authorize request's query string, exactly as the page received it. */
-  query: z.string().min(1).max(4096),
-  decision: z.enum(["allow", "deny"]),
-});
 
-const revokeSchema = z.object({ familyId: z.string().uuid() });
 
 export interface ConsentResult {
   ok: boolean;
@@ -44,7 +38,7 @@ export interface ConsentResult {
 export async function decideOauthConsent(input: unknown): Promise<ConsentResult> {
   try {
     const me = await requireAuth();
-    const parsed = decideSchema.safeParse(input);
+    const parsed = oauthDecideSchema.safeParse(input);
     if (!parsed.success) return { ok: false, error: "This request is malformed." };
 
     const url = new URL(`https://placeholder.invalid/authorize?${parsed.data.query.replace(/^\?/, "")}`);
@@ -105,7 +99,7 @@ export async function revokeOauthGrantAction(
 ): Promise<{ ok: boolean; error?: string }> {
   try {
     const me = await requireAuth();
-    const parsed = revokeSchema.safeParse(input);
+    const parsed = oauthRevokeSchema.safeParse(input);
     if (!parsed.success) return { ok: false, error: "Invalid connection id" };
 
     // Scoped to the caller — one user can never revoke another's connection.

@@ -2,16 +2,16 @@
 
 import { revalidatePath } from "next/cache";
 import { and, eq } from "drizzle-orm";
-import { z } from "zod";
 import { db } from "@/lib/db";
 import { requirePermission } from "@/lib/auth";
 import { getActiveAccountId } from "@/lib/tenant";
 import { accounts, storeOrderFields } from "@/db/schema";
-import { storeFieldTypeEnum } from "@/lib/enums";
 import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
 import { isCoreKey, isSystemRequiredKey, slugifyKey, uniqueFieldKey } from "@/store/fields";
 import { storeFieldCreationContext } from "@/db/queries/store";
 import { actionError } from "@/lib/action-error";
+import { storeFieldCreateSchema, storeFieldHeadersSchema, storeFieldUpdateSchema } from "@/validators/store";
+import { uuidSchema } from "@/validators/shared";
 
 /**
  * Admin config for store-order fields (`config.store`). CORE fields
@@ -26,21 +26,6 @@ export interface FieldMutationResult {
   error?: string;
 }
 
-const headersSchema = z.array(z.string().trim().min(1).max(255)).max(20);
-
-const createSchema = z.object({
-  label: z.string().trim().min(1, "Label is required.").max(64),
-  type: z.enum(storeFieldTypeEnum),
-  required: z.boolean().default(false),
-  headers: headersSchema.default([]),
-});
-
-const updateSchema = z.object({
-  id: z.string().uuid(),
-  label: z.string().trim().min(1).max(64).optional(),
-  required: z.boolean().optional(),
-  headers: headersSchema.optional(),
-});
 
 async function audit(userId: string, meta: Record<string, unknown>) {
   await logAudit({
@@ -54,7 +39,7 @@ async function audit(userId: string, meta: Record<string, unknown>) {
 export async function createStoreField(input: unknown): Promise<FieldMutationResult> {
   try {
     const me = await requirePermission("config.store");
-    const parsed = createSchema.safeParse(input);
+    const parsed = storeFieldCreateSchema.safeParse(input);
     if (!parsed.success) {
       return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
     }
@@ -92,7 +77,7 @@ export async function createStoreField(input: unknown): Promise<FieldMutationRes
 export async function updateStoreField(input: unknown): Promise<FieldMutationResult> {
   try {
     const me = await requirePermission("config.store");
-    const parsed = updateSchema.safeParse(input);
+    const parsed = storeFieldUpdateSchema.safeParse(input);
     if (!parsed.success) {
       return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
     }
@@ -133,7 +118,7 @@ export async function updateStoreField(input: unknown): Promise<FieldMutationRes
 export async function deleteStoreField(id: unknown): Promise<FieldMutationResult> {
   try {
     const me = await requirePermission("config.store");
-    const parsed = z.string().uuid().safeParse(id);
+    const parsed = uuidSchema.safeParse(id);
     if (!parsed.success) return { ok: false, error: "Invalid field id" };
     const acct = await getActiveAccountId();
 

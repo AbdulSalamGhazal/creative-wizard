@@ -2,10 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { and, eq } from "drizzle-orm";
-import { z } from "zod";
 import { db } from "@/lib/db";
 import { campaigns, creatives, exclusionRules } from "@/db/schema";
-import { exclusionRuleKindEnum } from "@/lib/enums";
 import { requirePermission } from "@/lib/auth";
 import { getActiveAccountId } from "@/lib/tenant";
 import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
@@ -28,33 +26,14 @@ import {
 } from "@/db/queries/exclusion-rules";
 import { actionError, isUniqueViolation } from "@/lib/action-error";
 import { TouchCollector, mergeTouches, type AuditTouches } from "@/lib/audit-touches";
+import { exclusionRuleCreateSchema, exclusionRuleTargetSchema, exclusionRuleToggleSchema } from "@/validators/exclusion";
+import { uuidSchema } from "@/validators/shared";
 
 /**
  * Exclusion-rule mutations. Reuses `record.exclude` (a rule is bulk exclusion),
  * with guardrails: every mutation is preview-then-confirm in the UI, all
  * transactional, all audited with the counts the engine ACTUALLY flipped.
  */
-
-const targetSchema = z
-  .object({
-    kind: z.enum(exclusionRuleKindEnum),
-    objective: z.enum(CAMPAIGN_OBJECTIVES).nullish(),
-    campaignId: z.string().uuid().nullish(),
-    creativeId: z.string().uuid().nullish(),
-  })
-  .transform(
-    (t): ExclusionRuleTarget => ({
-      kind: t.kind,
-      objective: t.objective ?? null,
-      campaignId: t.campaignId ?? null,
-      creativeId: t.creativeId ?? null,
-    }),
-  );
-
-const createSchema = z.object({
-  target: targetSchema,
-  note: z.string().trim().max(200).optional(),
-});
 
 export interface RulePreviewResult {
   ok: boolean;
@@ -97,7 +76,7 @@ async function resolveTargetLabel(
 export async function previewExclusionRule(input: unknown): Promise<RulePreviewResult> {
   try {
     await requirePermission("record.exclude");
-    const parsed = targetSchema.safeParse(input);
+    const parsed = exclusionRuleTargetSchema.safeParse(input);
     if (!parsed.success) return { ok: false, error: "Invalid rule target." };
     const targetErr = validateRuleTarget(parsed.data);
     if (targetErr) return { ok: false, error: targetErr };
@@ -110,7 +89,7 @@ export async function previewExclusionRule(input: unknown): Promise<RulePreviewR
 export async function createExclusionRule(input: unknown): Promise<RuleMutationResult> {
   try {
     const user = await requirePermission("record.exclude");
-    const parsed = createSchema.safeParse(input);
+    const parsed = exclusionRuleCreateSchema.safeParse(input);
     if (!parsed.success) return { ok: false, error: "Invalid rule." };
     const { target, note } = parsed.data;
     const targetErr = validateRuleTarget(target);
@@ -174,9 +153,7 @@ export async function createExclusionRule(input: unknown): Promise<RuleMutationR
 export async function toggleExclusionRule(input: unknown): Promise<RuleMutationResult> {
   try {
     const user = await requirePermission("record.exclude");
-    const parsed = z
-      .object({ id: z.string().uuid(), active: z.boolean() })
-      .safeParse(input);
+    const parsed = exclusionRuleToggleSchema.safeParse(input);
     if (!parsed.success) return { ok: false, error: "Invalid input." };
     const { id, active } = parsed.data;
     const acct = await getActiveAccountId();
@@ -234,7 +211,7 @@ export async function toggleExclusionRule(input: unknown): Promise<RuleMutationR
 export async function deleteExclusionRule(input: unknown): Promise<RuleMutationResult> {
   try {
     const user = await requirePermission("record.exclude");
-    const parsed = z.string().uuid().safeParse(input);
+    const parsed = uuidSchema.safeParse(input);
     if (!parsed.success) return { ok: false, error: "Invalid rule id." };
     const acct = await getActiveAccountId();
     const rule = await getRule(parsed.data);
@@ -283,7 +260,7 @@ export async function previewExclusionRuleRemoval(
 ): Promise<RulePreviewResult> {
   try {
     await requirePermission("record.exclude");
-    const parsed = z.string().uuid().safeParse(input);
+    const parsed = uuidSchema.safeParse(input);
     if (!parsed.success) return { ok: false, error: "Invalid rule id." };
     const rule = await getRule(parsed.data);
     if (!rule) return { ok: false, error: "Rule not found." };

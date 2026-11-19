@@ -24,7 +24,7 @@ A **multi-tenant creative-performance analytics tool** for paid social. It manag
 | Database | Postgres (Neon, eu-central-1) via **Drizzle ORM**; local dev = Docker Postgres 16 (`docker-compose.yml`) |
 | Auth | **Custom** HMAC-signed cookie sessions (`lib/auth-cookie.ts`) + bcryptjs passwords (`lib/auth-password.ts`), enforced by `middleware.ts` (Edge, Web Crypto) |
 | UI | Tailwind v4 (CSS-config, no tailwind.config file) + shadcn/ui + Recharts (shadcn charts), lucide icons, sonner toasts, next-themes |
-| Validation | Zod everywhere (`validators/` + co-located schemas in actions/routes — **open conflict:** CLAUDE.md's Code conventions say `validators/` only; flagged to the user (audit C-16, 2026-10), not resolved here) |
+| Validation | Zod everywhere, and every input schema lives in `validators/` (resolved 2026-11-19, user-approved; was audit C-16's open conflict): actions and routes import their schemas, never build them. Two exemptions — MCP tool input schemas (`lib/mcp/tools.ts`, the tool definitions themselves) and the Price Structure document schema (`price-structure/schema.ts`). Pinned by `validators/zod-location.test.ts` |
 | Files/ingest | papaparse (CSV), SheetJS `xlsx` (Excel), react-dropzone |
 | Storage | **Vercel Blob** for creative thumbnails (public access — deliberate; client downscales → WebP before upload) |
 | Hosting | Vercel (`fra1`), GitHub-integrated — **pushing `main` auto-deploys** |

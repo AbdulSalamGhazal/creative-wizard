@@ -2,7 +2,6 @@
 
 import { revalidatePath } from "next/cache";
 import { and, eq, inArray } from "drizzle-orm";
-import { z } from "zod";
 import { db } from "@/lib/db";
 import { requirePermission } from "@/lib/auth";
 import { creatives, creativeAngles, angles } from "@/db/schema";
@@ -10,14 +9,13 @@ import { getAngle } from "@/db/queries/angles";
 import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
 import { getActiveAccountId } from "@/lib/tenant";
 import { actionError } from "@/lib/action-error";
+import { angleNameSchema } from "@/validators/angle";
 
 export interface AngleMutationResult {
   ok: boolean;
   error?: string;
 }
 
-// Angle names mirror the creative_angles column: 1–64 chars, trimmed.
-const nameSchema = z.string().trim().min(1, "Name is required").max(64);
 
 function revalidate() {
   try {
@@ -31,7 +29,7 @@ function revalidate() {
 export async function createAngle(input: unknown): Promise<AngleMutationResult> {
   try {
     const user = await requirePermission("catalog.angles");
-    const parsed = nameSchema.safeParse(
+    const parsed = angleNameSchema.safeParse(
       typeof input === "object" && input !== null
         ? (input as { name?: unknown }).name
         : input,
@@ -80,7 +78,7 @@ export async function renameAngle(
 ): Promise<AngleMutationResult> {
   try {
     const user = await requirePermission("catalog.angles");
-    const parsed = nameSchema.safeParse(newName);
+    const parsed = angleNameSchema.safeParse(newName);
     if (!parsed.success) {
       return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid name" };
     }

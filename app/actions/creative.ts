@@ -2,7 +2,6 @@
 
 import { revalidatePath } from "next/cache";
 import { and, count, eq, ne } from "drizzle-orm";
-import { z } from "zod";
 import { db } from "@/lib/db";
 import { requirePermission } from "@/lib/auth";
 import {
@@ -24,6 +23,7 @@ import { deleteRulesTargeting } from "@/db/queries/exclusion-rules";
 import { getActiveAccountId } from "@/lib/tenant";
 import { addToVocabulary } from "@/db/queries/angles";
 import { actionError } from "@/lib/action-error";
+import { uuidSchema } from "@/validators/shared";
 
 export interface CreativeMutationResult {
   ok: boolean;
@@ -556,7 +556,7 @@ export async function deleteCreative(
 ): Promise<{ ok: boolean; error?: string; recordsDeleted?: number }> {
   try {
     const user = await requirePermission("creative.delete");
-    if (!z.string().uuid().safeParse(creativeId).success) {
+    if (!uuidSchema.safeParse(creativeId).success) {
       return { ok: false, error: "Invalid creative id." };
     }
     const acct = await getActiveAccountId();

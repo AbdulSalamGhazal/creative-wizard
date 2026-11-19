@@ -2,7 +2,6 @@
 
 import { revalidatePath } from "next/cache";
 import { and, count, eq, ne } from "drizzle-orm";
-import { z } from "zod";
 import { db } from "@/lib/db";
 import { requirePermission } from "@/lib/auth";
 import { campaigns, performanceRecords } from "@/db/schema";
@@ -17,6 +16,7 @@ import {
 import { getActiveAccountId } from "@/lib/tenant";
 import { createCampaignSchema, updateCampaignSchema } from "@/validators/campaign";
 import { actionError } from "@/lib/action-error";
+import { uuidSchema } from "@/validators/shared";
 
 export interface CampaignMutationResult {
   ok: boolean;
@@ -261,7 +261,7 @@ export async function deleteCampaign(
 ): Promise<{ ok: boolean; error?: string; recordsDeleted?: number }> {
   try {
     const user = await requirePermission("campaign.delete");
-    if (!z.string().uuid().safeParse(campaignId).success) {
+    if (!uuidSchema.safeParse(campaignId).success) {
       return { ok: false, error: "Invalid campaign id." };
     }
     const acct = await getActiveAccountId();

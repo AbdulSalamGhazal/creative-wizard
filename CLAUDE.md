@@ -46,7 +46,7 @@ Do not introduce a new dependency without a one-line justification in the PR des
 - Server Components by default. Add `"use client"` only when you need interactivity, browser APIs, or React hooks.
 - Files: kebab-case. Components: PascalCase. Functions and variables: camelCase. Constants: UPPER_SNAKE.
 - Each route's page renders one composed view; data fetching lives in `db/queries/*`, not inline in pages.
-- All inputs (route handler bodies, form data, URL params used as filters) are validated through Zod schemas in `validators/`.
+- All inputs (route handler bodies, form data, URL params used as filters) are validated through Zod schemas in `validators/` — and ONLY there: an action or route imports its schema, never builds one (2026-11-19; `validators/zod-location.test.ts` fails on any runtime `zod` import elsewhere). Two exemptions, each a different kind of thing: an MCP tool's input schema IS its definition (`lib/mcp/tools.ts`), and the Price Structure document schema belongs to that isolated module (`price-structure/schema.ts`).
 - Raw `sql` templates live in the QUERY LAYER (`db/queries/*`) and in
   `lib/metrics.ts`, the fragment library — plus five named sites that each
   carry their reason in `db/raw-sql.test.ts` (schema defaults, the seed,

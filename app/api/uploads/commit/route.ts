@@ -1,7 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { revalidatePath } from "next/cache";
 import { and, eq, inArray, lt } from "drizzle-orm";
-import { z } from "zod";
 import { db } from "@/lib/db";
 import { can, requirePermission } from "@/lib/auth";
 import { authFailureStatus } from "@/lib/route-auth";
@@ -26,10 +25,8 @@ import { stampAgainstActiveRules } from "@/db/queries/exclusion-rules";
 import { notifyRoutes } from "@/db/queries/notifications";
 import { PLATFORM_LABEL } from "@/lib/palette";
 import { int } from "@/lib/format";
+import { uploadCommitSchema } from "@/validators/upload";
 
-const bodySchema = z.object({
-  token: z.string().uuid(),
-});
 
 interface StoredPayload {
   summary: {
@@ -103,7 +100,7 @@ export async function POST(request: NextRequest) {
   } catch {
     return NextResponse.json({ error: "Expected JSON body" }, { status: 400 });
   }
-  const parsed = bodySchema.safeParse(body);
+  const parsed = uploadCommitSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json(
       { error: "Body must be { token: <uuid> }" },

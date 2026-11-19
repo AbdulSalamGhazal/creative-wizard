@@ -2,7 +2,6 @@
 
 import { revalidatePath } from "next/cache";
 import { and, eq, isNotNull } from "drizzle-orm";
-import { z } from "zod";
 import { db } from "@/lib/db";
 import { storeOrders, storeUploadBatches } from "@/db/schema";
 import { can, requirePermission } from "@/lib/auth";
@@ -23,6 +22,7 @@ import { notifyRoutes } from "@/db/queries/notifications";
 import { connectorHeldOrderIds } from "@/db/queries/store-connector";
 import { int, plural } from "@/lib/format";
 import { ROLLBACK_WINDOW_HOURS, withinRollbackWindow } from "@/lib/upload-batches";
+import { uuidSchema } from "@/validators/shared";
 
 /**
  * Store-order upload flow — parallel to the ads pipeline, but a self-contained
@@ -287,7 +287,7 @@ export async function rollbackStoreBatch(
 ): Promise<{ ok: boolean; error?: string; removed?: number }> {
   try {
     const me = await requirePermission("upload.rollback");
-    const parsed = z.string().uuid().safeParse(batchId);
+    const parsed = uuidSchema.safeParse(batchId);
     if (!parsed.success) return { ok: false, error: "Invalid batch id" };
     const acct = await getActiveAccountId();
 

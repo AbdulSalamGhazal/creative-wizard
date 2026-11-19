@@ -1,6 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { and, eq, inArray, ne } from "drizzle-orm";
-import { z } from "zod";
 import { db } from "@/lib/db";
 import { can, requirePermission } from "@/lib/auth";
 import { authFailureStatus } from "@/lib/route-auth";
@@ -19,10 +18,10 @@ import { uploadTotals, type UploadTotals } from "@/csv/upload-totals";
 import { campaignPlatformCollisions } from "@/csv/cross-platform";
 import { resolveAdapter } from "@/db/queries/platforms";
 import { getActiveAccountId } from "@/lib/tenant";
+import { uploadPlatformSchema } from "@/validators/upload";
 
 const VALIDATION_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
-const platformSchema = z.enum(platformEnum);
 
 /**
  * POST /api/uploads/validate
@@ -78,7 +77,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const platformResult = platformSchema.safeParse(rawPlatform);
+  const platformResult = uploadPlatformSchema.safeParse(rawPlatform);
   if (!platformResult.success) {
     return NextResponse.json(
       {

@@ -5,17 +5,12 @@ import { LAST_BRAND_COOKIE } from "@/lib/brand-path";
 import { allowedAccountsForUser } from "@/lib/tenant";
 import { redirect } from "next/navigation";
 import { and, eq, isNull, sql } from "drizzle-orm";
-import { z } from "zod";
 import { db } from "@/lib/db";
 import { users } from "@/db/schema";
 import { clearSessionCookie, setSessionCookie } from "@/lib/auth-cookie";
 import { DEACTIVATED_SIGNIN_MESSAGE } from "@/lib/team-lifecycle";
-import {
-  hashPassword,
-  verifyPassword,
-  PASSWORD_MIN_LENGTH,
-  PASSWORD_MAX_LENGTH,
-} from "@/lib/auth-password";
+import { hashPassword, verifyPassword } from "@/lib/auth-password";
+import { changePasswordSchema, signInSchema } from "@/validators/auth";
 import { auth, endSessions, loadUserById, requireAuth } from "@/lib/auth";
 import { AUDIT_ACTIONS, logAudit, type AuditAction } from "@/lib/audit";
 import { actionError } from "@/lib/action-error";
@@ -26,25 +21,6 @@ import {
   SIGNIN_THROTTLE_MAX_FAILURES,
   SIGNIN_THROTTLE_WINDOW_MS,
 } from "@/db/queries/auth";
-
-const signInSchema = z.object({
-  email: z.string().email().max(255),
-  password: z.string().min(1).max(PASSWORD_MAX_LENGTH),
-});
-
-const changePasswordSchema = z
-  .object({
-    currentPassword: z.string().min(1).max(PASSWORD_MAX_LENGTH),
-    newPassword: z
-      .string()
-      .min(PASSWORD_MIN_LENGTH, `At least ${PASSWORD_MIN_LENGTH} characters.`)
-      .max(PASSWORD_MAX_LENGTH),
-    confirmPassword: z.string(),
-  })
-  .refine((d) => d.newPassword === d.confirmPassword, {
-    message: "New passwords don't match.",
-    path: ["confirmPassword"],
-  });
 
 export interface SignInResult {
   ok: boolean;

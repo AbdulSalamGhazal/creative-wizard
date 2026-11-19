@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { platformEnum } from "@/lib/enums";
+import { platformEnum, storeFieldTypeEnum } from "@/lib/enums";
 import { SORT_DIRS, csvEnum } from "@/validators/shared";
 import { CORE_KEYS } from "@/store/fields";
 import { CHANNEL_DESTINATIONS, UNMAPPED_CHANNEL } from "@/store/channels";
@@ -102,4 +102,24 @@ export const reconciliationFiltersSchema = z.object({
 export const storeUtmsFiltersSchema = z.object({
   from: z.string().date().optional().catch(undefined),
   to: z.string().date().optional().catch(undefined),
+});
+
+/**
+ * Custom order fields (`app/actions/store-field.ts`). Moved here verbatim
+ * 2026-11-19 — the same checks and messages.
+ */
+export const storeFieldHeadersSchema = z.array(z.string().trim().min(1).max(255)).max(20);
+
+export const storeFieldCreateSchema = z.object({
+  label: z.string().trim().min(1, "Label is required.").max(64),
+  type: z.enum(storeFieldTypeEnum),
+  required: z.boolean().default(false),
+  headers: storeFieldHeadersSchema.default([]),
+});
+
+export const storeFieldUpdateSchema = z.object({
+  id: z.string().uuid(),
+  label: z.string().trim().min(1).max(64).optional(),
+  required: z.boolean().optional(),
+  headers: storeFieldHeadersSchema.optional(),
 });

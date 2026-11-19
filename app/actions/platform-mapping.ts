@@ -2,20 +2,16 @@
 
 import { revalidatePath } from "next/cache";
 import { and, eq, max } from "drizzle-orm";
-import { z } from "zod";
 import { db } from "@/lib/db";
 import { requirePermission } from "@/lib/auth";
-import { platformFieldMappings, platformEnum } from "@/db/schema";
-import { INTERNAL_FIELDS, isFieldUnavailableOn } from "@/csv/platforms/types";
+import { platformFieldMappings } from "@/db/schema";
+import { isFieldUnavailableOn } from "@/csv/platforms/types";
 import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
 import { getActiveAccountId } from "@/lib/tenant";
 import { actionError } from "@/lib/action-error";
+import { platformMappingSchema } from "@/validators/platform-mapping";
+import { uuidSchema } from "@/validators/shared";
 
-const inputSchema = z.object({
-  platform: z.enum(platformEnum),
-  internalField: z.enum(INTERNAL_FIELDS),
-  headerName: z.string().min(1).max(255),
-});
 
 export interface MutationResult {
   ok: boolean;
@@ -25,7 +21,7 @@ export interface MutationResult {
 export async function addHeaderMapping(input: unknown): Promise<MutationResult> {
   try {
     const user = await requirePermission("config.mappings");
-    const parsed = inputSchema.safeParse(input);
+    const parsed = platformMappingSchema.safeParse(input);
     if (!parsed.success) {
       return {
         ok: false,
@@ -102,7 +98,7 @@ export async function addHeaderMapping(input: unknown): Promise<MutationResult> 
 export async function removeHeaderMapping(id: string): Promise<MutationResult> {
   try {
     const me = await requirePermission("config.mappings");
-    if (!z.string().uuid().safeParse(id).success) {
+    if (!uuidSchema.safeParse(id).success) {
       return { ok: false, error: "Invalid id." };
     }
     const acct = await getActiveAccountId();
