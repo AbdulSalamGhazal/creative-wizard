@@ -187,3 +187,8 @@ unscaled winners · most shared, each with its entities and their pairings
 `canvasGraph` + `canvasInsights` (+ `inspectFor` for detail), so a definition
 lives once. `coverage.ts`: `canvas` → `tools: ["get_canvas_patterns"]`.
 Pinned by `tests/db/mcp.test.ts`.
+
+Later the same day (Canvas C7) the strip gained **launched** — creatives and
+campaigns whose first-ever real spend falls in the range — and so did the tool:
+a `launched` pattern whose items carry `first_spend_day`. Same function, no new
+tool (user decision).

@@ -38,6 +38,7 @@ import {
   type CanvasEdge,
   type CanvasFocusParam,
   type CanvasGraph,
+  earlierDay,
 } from "@/lib/canvas";
 
 type Platform = (typeof platformEnum)[number];
@@ -143,7 +144,21 @@ export async function canvasGraph(f: CanvasFilters): Promise<CanvasGraph> {
     conds.push(inArray(performanceRecords.platform, f.platforms));
   }
 
-  const [rows, creativeStatuses, campaignStatuses, freshness, windowHours, ratingConfig] = await Promise.all([
+  // LAUNCHED (C7): who had real spend BEFORE the range. Under the canvas's
+  // platform filter and Excluded toggle — the facts the canvas draws — but NOT
+  // its creative filters (product, stage): those pick creatives, and must not
+  // make an old campaign read as launched.
+  const before: SQL[] = [
+    eq(performanceRecords.accountId, acct),
+    sql`${performanceRecords.date} < ${f.from}`,
+    gt(performanceRecords.spend, "0"),
+  ];
+  if (!f.includeExcluded) before.push(eq(performanceRecords.excludedFromAggregates, false));
+  if (f.platforms && f.platforms.length > 0) {
+    before.push(inArray(performanceRecords.platform, f.platforms));
+  }
+
+  const [rows, creativeStatuses, campaignStatuses, freshness, windowHours, ratingConfig, priorCreatives, priorCampaigns] = await Promise.all([
     db
       .select({
         campaignId: campaigns.id,
@@ -161,6 +176,8 @@ export async function canvasGraph(f: CanvasFilters): Promise<CanvasGraph> {
         revenue: inRange.conversionValue,
         // The WINDOW clock's input: the pair's last REAL-spend day, unclipped.
         lastSpendDay: sql<string | null>`MAX(${performanceRecords.date}) FILTER (WHERE ${performanceRecords.spend} > 0)`,
+        // LAUNCHED's input: the pair's first real-spend day IN the range.
+        firstSpendDay: sql<string | null>`MIN(${performanceRecords.date}) FILTER (WHERE ${performanceRecords.spend} > 0 AND ${performanceRecords.date} <= ${f.to})`,
       })
       .from(performanceRecords)
       .innerJoin(campaigns, eq(campaigns.id, performanceRecords.campaignId))
@@ -175,6 +192,18 @@ export async function canvasGraph(f: CanvasFilters): Promise<CanvasGraph> {
     getActiveStatusWindowHours(),
     // The Rate lens's rules — cached per request, shared with the legend.
     getRatingConfig(),
+    db
+      .selectDistinct({ id: performanceRecords.creativeId })
+      .from(performanceRecords)
+      .where(and(...before)),
+    db
+      .selectDistinct({ id: performanceRecords.campaignId })
+      .from(performanceRecords)
+      .where(and(...before)),
+  ]);
+  const spentBefore = new Set<string>([
+    ...priorCreatives.map((r) => creativeNodeId(r.id)),
+    ...priorCampaigns.map((r) => campaignNodeId(r.id)),
   ]);
   const windowDays = hoursToWindowDays(windowHours);
 
@@ -192,12 +221,14 @@ export async function canvasGraph(f: CanvasFilters): Promise<CanvasGraph> {
     const conversions = Number(r.conversions ?? 0);
     const revenue = Number(r.revenue ?? 0);
 
+    const first = r.firstSpendDay;
     const cid = campaignNodeId(r.campaignId);
     const camp = campaignNodes.get(cid);
     if (camp) {
       camp.spend += spend;
       camp.conversions += conversions;
       camp.revenue += revenue;
+      camp.launchedOn = earlierDay(camp.launchedOn, first);
     } else {
       campaignNodes.set(cid, {
         kind: "campaign",
@@ -212,6 +243,7 @@ export async function canvasGraph(f: CanvasFilters): Promise<CanvasGraph> {
         revenue,
         liveChildren: 0, // filled from edge liveness below
         totalChildren: 0,
+        launchedOn: first, // the min over its pairs; cleared below if it spent before
       });
     }
 
@@ -221,6 +253,7 @@ export async function canvasGraph(f: CanvasFilters): Promise<CanvasGraph> {
       cre.spend += spend;
       cre.conversions += conversions;
       cre.revenue += revenue;
+      cre.launchedOn = earlierDay(cre.launchedOn, first);
     } else {
       creativeNodes.set(kid, {
         kind: "creative",
@@ -235,6 +268,7 @@ export async function canvasGraph(f: CanvasFilters): Promise<CanvasGraph> {
         spend,
         conversions,
         revenue,
+        launchedOn: first,
       });
     }
 
@@ -253,6 +287,11 @@ export async function canvasGraph(f: CanvasFilters): Promise<CanvasGraph> {
         windowDays,
       }),
     });
+  }
+
+  // A first in-range day is a LAUNCH only if nothing spent before the range.
+  for (const n of [...campaignNodes.values(), ...creativeNodes.values()]) {
+    if (spentBefore.has(n.id)) n.launchedOn = null;
   }
 
   // HEALTH, over every scanned edge — a fact about the campaign, like its
@@ -318,6 +357,7 @@ export async function canvasGraph(f: CanvasFilters): Promise<CanvasGraph> {
           spend: 0,
           conversions: 0,
           revenue: 0,
+          launchedOn: null, // no spend in the range — nothing launched
         }))
         .sort((a, b) => a.name.localeCompare(b.name));
     }

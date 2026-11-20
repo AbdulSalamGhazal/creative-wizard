@@ -1279,7 +1279,7 @@ export function registerMcpTools(server: McpServer): void {
   server.registerTool(
     "get_canvas_patterns",
     {
-      description: `The Canvas's campaign↔creative patterns for a range (defaults to the app's last 30 days), exactly as the Canvas insight strip shows them. A "pairing" is one creative inside one campaign; its Rate is the brand's Rate rule (Good / Decent / Bad by ROAS, N/A under the minimum spend; the campaign platform's override applies) over the pairing's own range spend and revenue. Patterns (absent when empty): no_live_creatives — campaigns where nothing is spending now; idle_active — active creatives with no spend in the range; losing_everywhere — creatives rated Bad in 2+ campaigns and Good/Decent in none; leans_on_one — campaigns with 2+ creatives where one took ≥70% of the spend; unscaled_winner — creatives in ONE campaign whose pairing is rated Good and still live; most_shared — the creative feeding the most campaigns. Terminated creatives are left out, as on the Canvas. ${CONVENTIONS}`,
+      description: `The Canvas's campaign↔creative patterns for a range (defaults to the app's last 30 days), exactly as the Canvas insight strip shows them. A "pairing" is one creative inside one campaign; its Rate is the brand's Rate rule (Good / Decent / Bad by ROAS, N/A under the minimum spend; the campaign platform's override applies) over the pairing's own range spend and revenue. Patterns (absent when empty): no_live_creatives — campaigns where nothing is spending now; idle_active — active creatives with no spend in the range; losing_everywhere — creatives rated Bad in 2+ campaigns and Good/Decent in none; leans_on_one — campaigns with 2+ creatives where one took ≥70% of the spend; unscaled_winner — creatives in ONE campaign whose pairing is rated Good and still live; launched — creatives and campaigns whose first-ever spend falls inside the range (first_spend_day; judged under the platforms filter and include_excluded); most_shared — the creative feeding the most campaigns. Terminated creatives are left out, as on the Canvas. ${CONVENTIONS}`,
       inputSchema: {
         brand: brandField,
         from: fromField,
@@ -1335,6 +1335,8 @@ export function registerMcpTools(server: McpServer): void {
               }
               case "unscaled-winner":
                 return [{ ...base, campaign: d.pairings[0] ? pairing(d.pairings[0]) : null }];
+              case "launched":
+                return [{ ...base, first_spend_day: n.launchedOn }];
               case "most-shared":
                 return [{ ...base, campaigns: d.pairings.map(pairing) }];
               case "no-live-creatives":

@@ -189,6 +189,17 @@ describe("MCP tools — brand scoping for a restricted user", () => {
     expect(lean.items[0].creatives_in_range).toBe(2);
     expect(lean.items[0].top_creative.name).toBe("A-Creative-2");
     expect(lean.items[0].top_share).toBe(0.83);
+
+    // LAUNCHED: Jan 1 is everyone's first spend day, so in JAN it is all a
+    // launch; from Jan 2 on, only the excluded-only A-Creative-2 (shown).
+    const launched = hidden.patterns.find((p: { key: string }) => p.key === "launched");
+    expect(
+      launched.items.find((i: { name: string }) => i.name === "A-Creative-1").first_spend_day,
+    ).toBe("2026-01-01");
+    const later = await call({ from: "2026-01-02", to: "2026-01-03", include_excluded: true });
+    const l2 = later.patterns.find((p: { key: string }) => p.key === "launched");
+    expect(l2.items.map((i: { name: string }) => i.name)).toEqual(["A-Creative-2"]);
+    expect(l2.items[0].first_spend_day).toBe("2026-01-03");
   });
 
   it("get_kpis for a brand the user lacks → error result (never Account B data)", async () => {

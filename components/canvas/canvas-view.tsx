@@ -100,6 +100,8 @@ function insightTitle(key: CanvasInsight["key"], view: CanvasViewMode): string {
       return "Rated Bad in two or more campaigns and not Good or Decent in any — pairings too small to judge don't count.";
     case "leans-on-one":
       return "One creative took 70% or more of the campaign's spend in this range, though the campaign ran others.";
+    case "launched":
+      return "First spend ever falls inside this range — creatives and campaigns.";
     case "unscaled-winner":
       return "Rated Good and still spending in a campaign, but not running in any other campaign yet.";
   }

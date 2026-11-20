@@ -357,3 +357,34 @@ describe("canvasFocusName — the name behind a link's ?focus=", () => {
     expect(await canvasFocusName({ kind: "campaign", id: CREATIVE_1 })).toBeNull();
   });
 });
+
+describe("canvasGraph — LAUNCHED: first-ever real spend inside the range (C7)", () => {
+  const node = (g: Awaited<ReturnType<typeof canvasGraph>>, id: string) =>
+    [...g.campaigns, ...g.creatives].find((n) => n.id === id);
+
+  it("a range that holds the first spend day marks creatives AND campaigns", async () => {
+    const g = await canvasGraph({ ...JAN, statuses: ALL });
+    expect(node(g, creativeNodeId(CREATIVE_1))?.launchedOn).toBe("2026-01-01");
+    expect(node(g, campaignNodeId(CAMPAIGN_1))?.launchedOn).toBe("2026-01-01");
+    expect(node(g, campaignNodeId(CAMPAIGN_2))?.launchedOn).toBe("2026-01-01");
+  });
+
+  it("anything that spent BEFORE the range is not launched", async () => {
+    const g = await canvasGraph({ from: "2026-01-02", to: "2026-01-03", statuses: ALL });
+    expect(node(g, creativeNodeId(CREATIVE_1))?.launchedOn).toBeNull();
+    expect(node(g, campaignNodeId(CAMPAIGN_1))?.launchedOn).toBeNull();
+  });
+
+  it("follows the Excluded toggle — an excluded-only creative launches when shown", async () => {
+    const g = await canvasGraph({ from: "2026-01-02", to: "2026-01-03", statuses: ALL, includeExcluded: true });
+    expect(node(g, creativeNodeId(CREATIVE_2))?.launchedOn).toBe("2026-01-03");
+    // Camp One spent Jan 1 — a new creative in it doesn't relaunch the campaign.
+    expect(node(g, campaignNodeId(CAMPAIGN_1))?.launchedOn).toBeNull();
+  });
+
+  it("is brand-scoped — another brand's history never decides it", async () => {
+    setAccount(ACCOUNT_B);
+    const g = await canvasGraph({ ...JAN, statuses: ALL });
+    expect(node(g, creativeNodeId(CREATIVE_B))?.launchedOn).toBe("2026-01-01");
+  });
+});

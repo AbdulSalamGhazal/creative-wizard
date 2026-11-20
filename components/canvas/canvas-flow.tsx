@@ -62,6 +62,7 @@ import {
   type CanvasNode,
 } from "@/lib/canvas";
 import { Chip } from "@/components/ui/chip";
+import { LaunchedTag } from "@/components/canvas/launched-tag";
 
 /**
  * The Network view: campaigns left, creatives right, an edge wherever a
@@ -165,6 +166,7 @@ const CampaignNodeView = memo(function CampaignNodeView({
           <span className="truncate text-xs font-medium text-ink" title={n.name}>
             {n.name}
           </span>
+          <LaunchedTag on={n.launchedOn} />
         </div>
         <div className="mt-1.5 flex items-center gap-1.5">
           <Chip className="min-w-0 shrink">
@@ -226,6 +228,7 @@ const CreativeNodeView = memo(function CreativeNodeView({
             <span dir="auto" className="truncate font-mono text-[11px] text-ink" title={n.name}>
               {n.name}
             </span>
+            <LaunchedTag on={n.launchedOn} />
           </div>
           <div className="mt-1.5 flex items-center gap-1.5">
             <span className="shrink-0 text-[10px] text-ink-2">{STATUS_LABEL[n.status]}</span>

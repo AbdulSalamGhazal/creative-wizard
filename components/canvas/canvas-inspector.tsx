@@ -5,11 +5,12 @@ import { MetricCard } from "@/components/overview/metric-card";
 import { PlatformDot } from "@/components/ui/platform-dot";
 import { StatusDot } from "@/components/ui/status-dot";
 import { PriorityStars } from "@/components/creative/priority-stars";
+import { LaunchedTag } from "@/components/canvas/launched-tag";
 import { PLATFORM_COLOR, RATE_COLOR } from "@/lib/palette";
 import { STATUS_DOT, STATUS_LABEL } from "@/lib/creative-status";
 import { CAMPAIGN_STATUS_DOT, CAMPAIGN_STATUS_LABEL } from "@/lib/campaign-status";
 import { RATING_META } from "@/lib/rating";
-import { int, longDate, pct1, roas, usd, usd0 } from "@/lib/format";
+import { int, longDate, monthDay, pct1, roas, usd, usd0 } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { CanvasInspection, CanvasNode } from "@/lib/canvas";
 
@@ -83,6 +84,12 @@ export function CanvasInspector({
               </span>
             ) : (
               node.priority !== null && <PriorityStars value={node.priority} />
+            )}
+            {node.launchedOn && (
+              <span className="flex items-center gap-1">
+                <LaunchedTag on={node.launchedOn} />
+                <span className="tabular-nums">{monthDay(node.launchedOn)}</span>
+              </span>
             )}
           </div>
         </div>

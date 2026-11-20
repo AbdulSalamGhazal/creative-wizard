@@ -49,6 +49,12 @@
   `?lens=` — node clicks add no Back steps. A linked node that isn't drawn is
   SAID (a notice naming it, brand-scoped `canvasFocusName`), never silently
   dropped; an id from another brand reads as unknown, never as its name.
+- **LAUNCHED = first-ever real spend inside the range**, for creatives and
+  campaigns (`launchedOn`). Judged under the canvas's platform filter and
+  Excluded toggle — the facts it draws — but NEVER its creative filters
+  (product, stage), which must not make an old campaign read as launched.
+  The tag says "Launched", never "New" (that word is the never-spent creative
+  status). The chip and the MCP's `launched` pattern are the same function.
 
 ## History and rationale
 
@@ -351,3 +357,22 @@ as it stood before the restructure.*
     pan lands, so the node sits in the visible strip above the overlay.
   - MCP: not relevant — `?focus=` is presentation state; the data it points at
     is already on `get_canvas_patterns` / `get_creative` / `get_campaign`.
+
+### Launched this range (2026-11-20)
+
+- **C7: a "Launched" tag on creatives and campaigns whose first-ever real
+  spend falls in the range**, a "N launched this range" chip that lights
+  them, the first-spend date in the inspector header, and a `launched`
+  pattern on `get_canvas_patterns` (with `first_spend_day`).
+  - **User decisions (all recommendations taken):** creatives and campaigns,
+    not pairings (an old creative newly put in a campaign is not marked) · a
+    "Launched" tag, because "New" already means never-spent · the chip · on
+    the MCP inside the existing patterns tool.
+  - **How it's computed:** the graph scan already starts at the range's first
+    day; it now also takes each pair's first real-spend day in the range, and
+    two parallel `SELECT DISTINCT` lookups (creative ids, campaign ids) find
+    who had real spend BEFORE the range — `perf_account_date_idx` covers the
+    `date < from` scan. A node's first in-range day survives only if it isn't
+    in that set. Idle creatives never launch (no spend in the range).
+  - **Placement:** informational, so the chip sits after the problem chips
+    (no live · idle · losing · leaning · winners · launched · most shared).

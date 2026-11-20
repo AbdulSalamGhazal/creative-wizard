@@ -32,6 +32,8 @@ export interface CanvasCampaignNode {
    */
   liveChildren: number;
   totalChildren: number;
+  /** LAUNCHED: its first-ever real-spend day, when that falls in the range. */
+  launchedOn: string | null;
 }
 
 export interface CanvasCreativeNode {
@@ -47,6 +49,12 @@ export interface CanvasCreativeNode {
   spend: number;
   conversions: number;
   revenue: number;
+  /**
+   * LAUNCHED: its first-ever real-spend day, when that falls in the range —
+   * null for anything that spent before it (or is idle). Judged under the
+   * canvas's platform filter and Excluded toggle, never its creative filters.
+   */
+  launchedOn: string | null;
 }
 
 export type CanvasNode = CanvasCampaignNode | CanvasCreativeNode;
@@ -144,6 +152,13 @@ export interface CanvasGraph {
     /** Active-but-idle creatives that didn't fit the node budget. */
     idleHidden: number;
   } | null;
+}
+
+/** The earlier of two ISO days (null = none). */
+export function earlierDay(a: string | null, b: string | null): string | null {
+  if (a === null) return b;
+  if (b === null) return a;
+  return a <= b ? a : b;
 }
 
 export const campaignNodeId = (id: string) => `c:${id}`;
@@ -460,6 +475,7 @@ export interface CanvasInsight {
     | "losing-everywhere"
     | "leans-on-one"
     | "unscaled-winner"
+    | "launched"
     | "most-shared";
   label: string;
   /** The nodes a click on the chip focuses. */
@@ -578,6 +594,17 @@ export function canvasInsights(graph: Pick<CanvasGraph, "campaigns" | "creatives
       key: "unscaled-winner",
       label: `${winners.length} winner${winners.length === 1 ? "" : "s"} in one campaign only`,
       focusIds: winners.map((c) => c.id),
+    });
+  }
+
+  // LAUNCHED: first-ever real spend inside the range — creatives AND
+  // campaigns (C7). Informational, so it sits after the problems.
+  const launched = [...graph.creatives, ...graph.campaigns].filter((n) => n.launchedOn !== null);
+  if (launched.length > 0) {
+    out.push({
+      key: "launched",
+      label: `${launched.length} launched this range`,
+      focusIds: launched.map((n) => n.id),
     });
   }
 

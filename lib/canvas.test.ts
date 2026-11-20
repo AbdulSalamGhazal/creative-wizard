@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildClusters,
+  earlierDay,
   canvasFocusHref,
   focusParamFor,
   parseCanvasFocus,
@@ -57,6 +58,7 @@ const camp = (id: string, spend: number, over: Partial<CanvasCampaignNode> = {})
   revenue: 0,
   liveChildren: 0,
   totalChildren: 0,
+  launchedOn: null,
   ...over,
 });
 const cre = (id: string, spend: number, over: Partial<CanvasCreativeNode> = {}): CanvasCreativeNode => ({
@@ -72,6 +74,7 @@ const cre = (id: string, spend: number, over: Partial<CanvasCreativeNode> = {}):
   spend,
   conversions: 0,
   revenue: 0,
+  launchedOn: null,
   ...over,
 });
 const edge = (source: string, target: string, spend = 1, live = true): CanvasEdge => ({
@@ -942,5 +945,30 @@ describe("?focus= — the inspected node in the link", () => {
     expect(url.searchParams.get("to")).toBe("2026-11-20");
     const camp = new URL(canvasFocusHref({ campaignId: ID }, { from: "2026-11-01", to: "2026-11-20" }), "https://x.test");
     expect(camp.searchParams.get("focus")).toBe(`c:${ID}`);
+  });
+});
+
+describe("LAUNCHED — the chip and the day helper (C7)", () => {
+  it("earlierDay keeps the earlier ISO day; null means none", () => {
+    expect(earlierDay(null, "2026-11-03")).toBe("2026-11-03");
+    expect(earlierDay("2026-11-03", null)).toBe("2026-11-03");
+    expect(earlierDay("2026-11-05", "2026-11-03")).toBe("2026-11-03");
+    expect(earlierDay(null, null)).toBeNull();
+  });
+
+  it("one chip counts launched creatives AND campaigns", () => {
+    const graph = {
+      campaigns: [camp("c:1", 100, { launchedOn: "2026-11-02" }), camp("c:2", 100)],
+      creatives: [cre("k:1", 50, { launchedOn: "2026-11-04" }), cre("k:2", 50)],
+      edges: [edge("c:1", "k:1"), edge("c:2", "k:2")],
+    };
+    const launched = canvasInsights(graph).find((i) => i.key === "launched");
+    expect(launched?.label).toBe("2 launched this range");
+    expect([...(launched?.focusIds ?? [])].sort()).toEqual(["c:1", "k:1"]);
+  });
+
+  it("nothing launched → no chip", () => {
+    const graph = { campaigns: [camp("c:1", 100)], creatives: [cre("k:1", 50)], edges: [edge("c:1", "k:1")] };
+    expect(canvasInsights(graph).some((i) => i.key === "launched")).toBe(false);
   });
 });
