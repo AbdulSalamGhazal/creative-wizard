@@ -286,6 +286,17 @@ This app is deployed and in production use. Treat `main` as shippable.
   "One feature per PR or session" in Workflow means one feature per COMMIT
   SERIES, reviewed in the session — not a GitHub PR. A brief handed to another
   session must say "lands on main the house way", never "open a PR".
+- **ONE session lands work: "Commit Master" (2026-11-20, user rule).** Only
+  the session titled **Commit Master** merges into `main` and pushes it —
+  steps 1–5 above are ITS steps. Every other session stops at a finished
+  branch: commit on your own branch or worktree, never on `main`, never
+  `git push`, then report the branch name and what it touched so the user can
+  hand it over. Commit Master rebases it on the current `main`, checks it
+  against every other session's work (the same files, and different files
+  that collide in meaning — a shared helper, the schema, a doc section, a
+  test guard), runs the gates on the combined result, and lands one session's
+  series at a time. An overlap is reported to the user, never resolved
+  silently. If you are not Commit Master and are about to touch `main`, stop.
 - **URL:** https://creative.urjwan.com (custom domain, Let's Encrypt TLS, auto-renew). The `*.vercel.app` URL also resolves but Google Safe Browsing false-flags the shared domain — always use the custom domain.
 - **Health check:** `GET /api/health` (public, no auth) → `200 {status:"ok", commit:"<short sha>"}` when the DB is reachable (`commit` is the git sha Vercel built from — the one-curl answer to "is the latest deploy live?"; null locally), `503 {status:"degraded"}` when not. Point an uptime monitor at it. The DB client (`lib/db.ts`) has `connect_timeout: 10` so an unreachable DB fails fast and surfaces the `(dashboard)/error.tsx` boundary (calmer "temporarily unavailable" copy for connection errors) instead of hanging; route errors `console.error` → visible in Vercel logs.
 - **Database:** Neon Postgres (eu-central-1). Two connection strings:
