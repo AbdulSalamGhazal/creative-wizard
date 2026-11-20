@@ -22,6 +22,7 @@ import {
   canvasInsights,
   focusParamFor,
   inspectFor,
+  isAngleHeaderId,
   parseCanvasLens,
   parseCanvasView,
   type CanvasGraph,
@@ -64,6 +65,9 @@ function subscribeWide(cb: () => void): () => void {
 const readWide = (): boolean => window.matchMedia(WIDE_QUERY).matches;
 const readWideServer = (): boolean => true;
 
+/** The insight chips that only focus campaigns — By angle draws none. */
+const CAMPAIGN_ONLY_INSIGHTS = new Set<CanvasInsight["key"]>(["no-live-creatives", "leans-on-one"]);
+
 const LENS_OPTIONS = CANVAS_LENSES.map((value) => ({
   value,
   label: CANVAS_LENS_LABEL[value],
@@ -82,6 +86,7 @@ const VIEW_OPTIONS = CANVAS_VIEWS.map((value) => ({
 function insightTitle(key: CanvasInsight["key"], view: CanvasViewMode): string {
   switch (key) {
     case "most-shared":
+      if (view === "angle") return "Lights this creative in every angle it carries.";
       return view === "campaign"
         ? "Lights every copy of this creative — one per campaign it runs in."
         : "Best seen in By campaign, where the creative appears once per campaign it runs in.";
@@ -92,7 +97,7 @@ function insightTitle(key: CanvasInsight["key"], view: CanvasViewMode): string {
           ? "Lights these campaigns' clusters — every chip inside is dashed."
           : "Focuses these campaigns — every line out of them is dashed.";
     case "idle-active":
-      return view === "campaign"
+      return view === "campaign" || view === "angle"
         ? "Lights the Idle creatives cluster."
         : "Focuses the active creatives with no spend in this range.";
     // The Rate patterns use your Rate rules (Configuration › Rate rules).
@@ -101,7 +106,9 @@ function insightTitle(key: CanvasInsight["key"], view: CanvasViewMode): string {
     case "leans-on-one":
       return "One creative took 70% or more of the campaign's spend in this range, though the campaign ran others.";
     case "launched":
-      return "First spend ever falls inside this range — creatives and campaigns.";
+      return view === "angle"
+        ? "First spend ever falls inside this range. Lights the launched creatives; launched campaigns show in the other views."
+        : "First spend ever falls inside this range — creatives and campaigns.";
     case "unscaled-winner":
       return "Rated Good and still spending in a campaign, but not running in any other campaign yet.";
   }
@@ -202,7 +209,10 @@ export function CanvasView({
       shallowHref(qs ? `${pathname}?${qs}` : pathname, "replace");
       // Keep the focus, but never yank the viewport on a switch — the new
       // view's own fit runs instead.
-      setFocus((f) => (f ? { ...f, fit: "none" } : f));
+      // An angle header's focus means nothing outside By angle — drop it.
+      setFocus((f) =>
+        !f ? f : f.ids.some(isAngleHeaderId) && next !== "angle" ? null : { ...f, fit: "none" },
+      );
     },
     [pathname, searchParams],
   );
@@ -230,7 +240,16 @@ export function CanvasView({
 
   // Computed from the SAME graph the canvas draws, so a chip can never point
   // at a node that isn't there.
-  const insights = useMemo(() => canvasInsights(graph), [graph]);
+  // By angle draws no campaigns, so the two campaign-only chips would light
+  // nothing there — they step aside in that view, and come back on a switch.
+  const allInsights = useMemo(() => canvasInsights(graph), [graph]);
+  const insights = useMemo(
+    () =>
+      view === "angle"
+        ? allInsights.filter((i) => !CAMPAIGN_ONLY_INSIGHTS.has(i.key))
+        : allInsights,
+    [allInsights, view],
+  );
 
   const open = useCallback(
     (node: CanvasNode) => {
@@ -418,7 +437,9 @@ export function CanvasView({
           ? "A solid line is spending here now, a dashed one spent in the range but has stopped;"
           : view === "campaign"
             ? "A creative appears once per campaign it ran in — a solid chip is spending there now, a dashed one has stopped;"
-            : "A campaign appears once per creative it ran — a solid chip is spending there now, a dashed one has stopped;"}{" "}
+            : view === "angle"
+              ? "A creative appears once per angle it carries — a solid chip is spending somewhere now, a dashed one has stopped;"
+              : "A campaign appears once per creative it ran — a solid chip is spending there now, a dashed one has stopped;"}{" "}
         click for details, double-click to open, Esc to clear.
       </p>
     </div>

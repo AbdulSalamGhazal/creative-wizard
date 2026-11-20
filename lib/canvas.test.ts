@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildClusters,
+  creativeRate,
   earlierDay,
   canvasFocusHref,
   focusParamFor,
@@ -75,6 +76,9 @@ const cre = (id: string, spend: number, over: Partial<CanvasCreativeNode> = {}):
   conversions: 0,
   revenue: 0,
   launchedOn: null,
+  angles: [],
+  roas: null,
+  rate: "na",
   ...over,
 });
 const edge = (source: string, target: string, spend = 1, live = true): CanvasEdge => ({
@@ -970,5 +974,77 @@ describe("LAUNCHED — the chip and the day helper (C7)", () => {
   it("nothing launched → no chip", () => {
     const graph = { campaigns: [camp("c:1", 100)], creatives: [cre("k:1", 50)], edges: [edge("c:1", "k:1")] };
     expect(canvasInsights(graph).some((i) => i.key === "launched")).toBe(false);
+  });
+});
+
+describe("BY ANGLE — clusters per angle, whole-creative chips (C8)", () => {
+  const graph = {
+    campaigns: [camp("c:1", 1000), camp("c:2", 50)],
+    creatives: [
+      cre("k:a", 600, { angles: ["evergreen", "ugc"], revenue: 3000, roas: 5, rate: "good" }),
+      cre("k:b", 300, { angles: ["evergreen"], revenue: 300, roas: 1, rate: "bad" }),
+      cre("k:c", 150, { angles: [], revenue: 0, roas: 0, rate: "na" }),
+      cre("k:idle", 0, { angles: ["ugc"] }),
+    ],
+    edges: [edge("c:1", "k:a", 550, true), edge("c:2", "k:a", 50, false), edge("c:1", "k:b", 300, false), edge("c:1", "k:c", 150, true)],
+  };
+
+  it("parses ?view=angle", () => {
+    expect(parseCanvasView("angle")).toBe("angle");
+  });
+
+  it("one cluster per angle by spend, No angle after, idle last", () => {
+    const { clusters } = buildClusters(graph, "angle");
+    expect(clusters.map((c) => (c.angle ? c.angle.name : c.kind))).toEqual(["evergreen", "ugc", null, "idle"]);
+  });
+
+  it("a creative with two angles is a chip in both", () => {
+    const { clusters } = buildClusters(graph, "angle");
+    const holding = clusters.filter((c) => c.chips.some((ch) => ch.entityId === "k:a"));
+    expect(holding.map((c) => c.angle?.name)).toEqual(["evergreen", "ugc"]);
+  });
+
+  it("headers sum their creatives; live = spending in ANY campaign now", () => {
+    const evergreen = buildClusters(graph, "angle").clusters[0]!;
+    expect(evergreen.angle).toMatchObject({ id: "a:evergreen", spend: 900, revenue: 3300, live: 1, total: 2 });
+    expect(evergreen.angle!.roas).toBeCloseTo(3300 / 900);
+  });
+
+  it("chips are WHOLE creatives — the creative's own spend and Rate, live first", () => {
+    const evergreen = buildClusters(graph, "angle").clusters[0]!;
+    expect(evergreen.chips.map((c) => [c.entityId, c.whole, c.live, c.spend, c.rate])).toEqual([
+      ["k:a", true, true, 600, "good"],
+      ["k:b", true, false, 300, "bad"],
+    ]);
+  });
+
+  it("an idle creative stays in the Idle cluster, not its angle", () => {
+    const ugc = buildClusters(graph, "angle").clusters[1]!;
+    expect(ugc.chips.map((c) => c.entityId)).toEqual(["k:a"]);
+  });
+
+  it("the chip cap keeps the top occurrences by spend and says so", () => {
+    const r = buildClusters(graph, "angle", 2);
+    expect(r.truncated).toEqual({ shownChips: 2, totalChips: 5 });
+    expect(r.clusters.flatMap((c) => c.chips.map((ch) => ch.entityId))).toEqual(["k:a", "k:a"]);
+  });
+
+  it("focusing an angle header lights its whole cluster", () => {
+    const { clusters } = buildClusters(graph, "angle");
+    const { lit } = clusterFocus(["a:evergreen"], clusters);
+    expect(lit.has("a:evergreen>k:a")).toBe(true);
+    expect(lit.has("a:evergreen>k:b")).toBe(true);
+    expect(lit.has("a:ugc>k:a")).toBe(false);
+  });
+
+  it("creativeRate — Summary's scope: one platform → its rules, else the default", () => {
+    const config = {
+      default: { minSpend: 500, goodRoas: 4, decentRoas: 2 },
+      byPlatform: { tiktok: { minSpend: 100, goodRoas: 3, decentRoas: 1.5 } },
+    };
+    expect(creativeRate({ spend: 200, revenue: 700 }, undefined, config)).toEqual({ roas: 3.5, rate: "na" });
+    expect(creativeRate({ spend: 200, revenue: 700 }, ["tiktok"], config)).toEqual({ roas: 3.5, rate: "good" });
+    expect(creativeRate({ spend: 200, revenue: 700 }, ["tiktok", "facebook"], config).rate).toBe("na");
+    expect(creativeRate({ spend: 0, revenue: 0 }, undefined, config)).toEqual({ roas: null, rate: "na" });
   });
 });

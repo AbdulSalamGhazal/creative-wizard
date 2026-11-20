@@ -55,6 +55,14 @@
   (product, stage), which must not make an old campaign read as launched.
   The tag says "Launched", never "New" (that word is the never-spent creative
   status). The chip and the MCP's `launched` pattern are the same function.
+- **BY ANGLE: clusters are angles, chips are WHOLE creatives** (`?view=angle`).
+  A creative with several angles is a chip in each, so angle headers overlap
+  and never add up to the brand total (the header's tooltip and the legend
+  say so). A chip's spend / ROAS / Rate are the creative's own over all its
+  campaigns (`creativeRate`: Summary's scope — one platform filtered → its
+  rules, else the brand default); `live` = spending in ANY campaign now. An
+  angle header (`a:<name>`, `a:` = "No angle") is not an entity: a click
+  lights its cluster and opens nothing, and it never enters `?focus=`.
 
 ## History and rationale
 
@@ -376,3 +384,25 @@ as it stood before the restructure.*
     in that set. Idle creatives never launch (no spend in the range).
   - **Placement:** informational, so the chip sits after the problem chips
     (no live · idle · losing · leaning · winners · launched · most shared).
+
+### By angle (2026-11-20)
+
+- **C8: a fourth view, "By angle".** One cluster per angle (spend desc), its
+  creatives as chips; "No angle" trails the angles, idle-active creatives keep
+  their own trailing cluster. The header shows the angle's spend, ROAS (sums
+  over its creatives) and "n/m live".
+  - **User decisions (all recommendations taken):** chips are creatives, not
+    pairings · the header shows spend · ROAS · live count, with the overlap
+    explained · a trailing "No angle" cluster · a header click lights its
+    creatives, no details panel.
+  - **Data:** the graph's creatives now carry `angles` (one query on
+    `creative_angles` for the creatives drawn — no `account_id` there, so the
+    brand-scoped scan's ids bound it) and their own `roas` / `rate`.
+  - **Judgment calls:** the two campaign-only insight chips (no live
+    creatives, leans on one) are hidden in this view — it draws no campaigns,
+    so they would light nothing; "Launched" there lights only the creatives
+    and its tooltip says so. Switching away from By angle drops an angle
+    header's focus. The chip cap (500) keeps the top creative-angle
+    occurrences by spend and says so.
+  - MCP: not relevant — `get_trends` already returns per-angle performance
+    (`angleRollup`); this view is a re-layout of the same graph.

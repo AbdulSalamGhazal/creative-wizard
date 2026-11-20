@@ -35,14 +35,18 @@ import {
 import { int, longDate, pct1, roas, usd, usd0, usdCompact } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import {
+  AngleHeaderView,
   ChipNodeView,
   ClusterFrameView,
   type ChipData,
 } from "@/components/canvas/cluster-nodes";
 import {
+  ANGLE_HEADER_HEIGHT,
+  ANGLE_HEADER_WIDTH,
   CANVAS_NODE_HEIGHT,
   CANVAS_NODE_WIDTH,
   canvasNodeSizes,
+  isAngleHeaderId,
   clusterBoxes,
   clusterColumnsFor,
   clusterFocus,
@@ -251,6 +255,7 @@ const NODE_TYPES = {
   creative: CreativeNodeView,
   chip: ChipNodeView,
   frame: ClusterFrameView,
+  angle: AngleHeaderView,
 } as unknown as NodeTypes;
 
 /** React Flow's chrome, re-pointed at the app's tokens — so the canvas, the
@@ -380,7 +385,13 @@ function Flow({
   const paneWidth = useStore((st) => st.width);
   const columns = clusterColumnsFor(paneWidth + reservedWidth);
   const clusterLayout = useMemo(
-    () => (view === "network" ? null : clusterBoxes(clusters, columns, canvasNodeSizes(graph))),
+    () => {
+      if (view === "network") return null;
+      const entitySize = canvasNodeSizes(graph);
+      return clusterBoxes(clusters, columns, (id) =>
+        isAngleHeaderId(id) ? { width: ANGLE_HEADER_WIDTH, height: ANGLE_HEADER_HEIGHT } : entitySize(id),
+      );
+    },
     [view, clusters, columns, graph],
   );
 
@@ -415,6 +426,19 @@ function Flow({
         style: { opacity: dim(frameId), transition: "opacity 120ms", pointerEvents: "none" },
       });
       const headerBox = clusterLayout.headers.get(c.id);
+      if (headerBox && c.angle) {
+        const id = clusterHeaderId(c.id);
+        out.push({
+          id,
+          type: "angle",
+          ...sized(headerBox),
+          zIndex: 1,
+          // entityId = the angle's `a:` id: a click focuses it (lighting the
+          // whole cluster), and nothing opens — an angle has no page here.
+          data: { entityId: c.angle.id, angle: c.angle },
+          style: { opacity: dim(id), transition: "opacity 120ms" },
+        });
+      }
       const header = c.headerId ? byId.get(c.headerId) : undefined;
       if (headerBox && header) {
         const id = clusterHeaderId(c.id);
@@ -636,6 +660,25 @@ function Flow({
       if (fn.type === "chip") {
         // A chip is a PAIRING: its tooltip is the edge's, not the entity's.
         const { chip, entity } = fn.data as unknown as ChipData;
+        if (chip.whole) {
+          // By angle: the WHOLE creative, across every campaign it ran in.
+          setTip({
+            ...at(e),
+            body: (
+              <>
+                <p className="max-w-[16rem] truncate text-xs font-medium text-ink">{entity.name}</p>
+                <p className="mt-0.5 text-[11px] text-ink-2">
+                  <span className="text-ink">{chip.live ? "spending now" : "stopped"}</span>
+                  {" · "}
+                  <span className="tabular-nums text-ink">{usd(chip.spend)}</span> in all campaigns
+                </p>
+                <RateLine value={chip.roas} rate={chip.rate} />
+                <p className="mt-1 text-[10px] text-ink-2">Double-click to open</p>
+              </>
+            ),
+          });
+          return;
+        }
         const edge = chip.edgeId ? graph.edges.find((x) => x.id === chip.edgeId) : undefined;
         const camp = edge ? byId.get(edge.source) : undefined;
         const share = edge && camp && camp.spend > 0 ? edge.spend / camp.spend : null;
@@ -772,7 +815,8 @@ function Flow({
         onlyRenderVisibleElements
         onNodeClick={(_, n) => {
           const id = (n as AnyNode).data.entityId;
-          if (id) onFocus({ ids: [id], fit: "none", inspect: true });
+          // An angle header lights its creatives; it has no details panel.
+          if (id) onFocus({ ids: [id], fit: "none", inspect: !isAngleHeaderId(id) });
         }}
         onNodeDoubleClick={(_, n) => {
           const entity = byId.get((n as AnyNode).data.entityId ?? "");
@@ -956,15 +1000,21 @@ function Legend({
         // The one extra line the cluster views need: there are no lines to
         // dash, so the pairing's state moves ONTO the duplicated chip.
         <>
-          <p className="mb-1 mt-2.5 text-ink-3">Chip — a pairing, not the whole {view === "campaign" ? "creative" : "campaign"}</p>
+          <p className="mb-1 mt-2.5 text-ink-3">
+            {view === "angle"
+              ? "Chip — the whole creative, across its campaigns"
+              : `Chip — a pairing, not the whole ${view === "campaign" ? "creative" : "campaign"}`}
+          </p>
           <ul className="space-y-1">
             <li className="flex items-center gap-1.5">
               <span className="h-3 w-5 shrink-0 rounded-sm border-2 bg-surface" style={{ borderColor: "var(--ink-2)" }} />
-              Solid — live here
+              {view === "angle" ? "Solid — spending now" : "Solid — live here"}
             </li>
             <li className="flex items-center gap-1.5">
               <span className="h-3 w-5 shrink-0 rounded-sm border-2 border-dashed bg-transparent" style={{ borderColor: "var(--ink-2)" }} />
-              Dashed + dimmed — paused here (the network&rsquo;s dashed line)
+              {view === "angle"
+                ? "Dashed + dimmed — stopped everywhere"
+                : <>Dashed + dimmed — paused here (the network&rsquo;s dashed line)</>}
             </li>
           </ul>
         </>
@@ -1037,7 +1087,9 @@ function Legend({
           ? lens === "rate"
             ? "Size and line weight — spend in the range."
             : "Size and line weight — spend in the range. Line color — platform."
-          : "Header size — spend in the range. A name repeats once per pairing."}
+          : view === "angle"
+            ? "A creative repeats once per angle it carries, so angle totals overlap."
+            : "Header size — spend in the range. A name repeats once per pairing."}
       </p>
     </div>
   );

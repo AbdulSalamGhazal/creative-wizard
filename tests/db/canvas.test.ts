@@ -11,7 +11,8 @@ vi.mock("@/lib/tenant", () => ({
 
 import { getActiveAccountId } from "@/lib/tenant";
 import { db } from "@/lib/db";
-import { performanceRecords, platformRatingRules, ratingRules } from "@/db/schema";
+import { eq } from "drizzle-orm";
+import { creativeAngles, performanceRecords, platformRatingRules, ratingRules } from "@/db/schema";
 import { canvasFocusName, canvasGraph } from "@/db/queries/canvas";
 import { campaignNodeId, creativeNodeId } from "@/lib/canvas";
 import { CREATIVE_STATUSES } from "@/lib/creative-status";
@@ -386,5 +387,31 @@ describe("canvasGraph — LAUNCHED: first-ever real spend inside the range (C7)"
     setAccount(ACCOUNT_B);
     const g = await canvasGraph({ ...JAN, statuses: ALL });
     expect(node(g, creativeNodeId(CREATIVE_B))?.launchedOn).toBe("2026-01-01");
+  });
+});
+
+describe("canvasGraph — angles and the creative's own Rate (C8)", () => {
+  afterAll(async () => {
+    await db.delete(creativeAngles).where(eq(creativeAngles.creativeId, CREATIVE_1));
+  });
+
+  it("each drawn creative carries its angles, sorted; none → []", async () => {
+    await db.insert(creativeAngles).values([
+      { creativeId: CREATIVE_1, angle: "ugc" },
+      { creativeId: CREATIVE_1, angle: "evergreen" },
+    ]);
+    const g = await canvasGraph({ ...JAN, statuses: ALL, includeExcluded: true });
+    const c1 = g.creatives.find((c) => c.creativeId === CREATIVE_1)!;
+    const c2 = g.creatives.find((c) => c.creativeId === CREATIVE_2)!;
+    expect(c1.angles).toEqual(["evergreen", "ugc"]);
+    expect(c2.angles).toEqual([]);
+  });
+
+  it("the creative's ROAS is over ALL its campaigns' sums", async () => {
+    const g = await canvasGraph({ ...JAN, statuses: ALL });
+    const c1 = g.creatives.find((c) => c.creativeId === CREATIVE_1)!;
+    // 100+100 IG + 200 FB = 400 spend; 500+500+1000 = 2000 revenue.
+    expect(c1.roas).toBe(5);
+    expect(c1.rate).toBe("na"); // $400 is under the default $500 minimum
   });
 });

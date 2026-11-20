@@ -55,6 +55,15 @@ export interface CanvasCreativeNode {
    * canvas's platform filter and Excluded toggle, never its creative filters.
    */
   launchedOn: string | null;
+  /** Its angles, sorted — the By angle view's clusters (C8). */
+  angles: string[];
+  /**
+   * The CREATIVE's own range ROAS and Rate (all its campaigns together) —
+   * the By angle chip's colour. Summary's rule: one platform filtered → that
+   * platform's rules, else the brand default. Idle: null / "na".
+   */
+  roas: number | null;
+  rate: Rating;
 }
 
 export type CanvasNode = CanvasCampaignNode | CanvasCreativeNode;
@@ -113,6 +122,20 @@ export function pairRate(
 ): { roas: number | null; rate: Rating } {
   const roas = input.spend > 0 ? input.revenue / input.spend : null;
   return { roas, rate: rateBlock({ spend: input.spend, roas }, rulesForScope(config, input.platform)) };
+}
+
+/**
+ * A CREATIVE's own Rate over its range sums (C8) — Summary's scope rule: one
+ * platform filtered → that platform's rules, else the brand default.
+ */
+export function creativeRate(
+  input: { spend: number; revenue: number },
+  platforms: readonly string[] | undefined,
+  config: RatingConfig,
+): { roas: number | null; rate: Rating } {
+  const roas = input.spend > 0 ? input.revenue / input.spend : null;
+  const scope = platforms && platforms.length === 1 ? platforms[0]! : "total";
+  return { roas, rate: rateBlock({ spend: input.spend, roas }, rulesForScope(config, scope)) };
 }
 
 // ── Two clocks ───────────────────────────────────────────────────────────────
@@ -635,12 +658,13 @@ export function canvasInsights(graph: Pick<CanvasGraph, "campaigns" | "creatives
 // ═════════════════════════════════════════════════════════════════════════════
 
 /** `?view=` — URL-backed so a comment's captured view reproduces it exactly. */
-export const CANVAS_VIEWS = ["network", "campaign", "creative"] as const;
+export const CANVAS_VIEWS = ["network", "campaign", "creative", "angle"] as const;
 export type CanvasViewMode = (typeof CANVAS_VIEWS)[number];
 export const CANVAS_VIEW_LABEL: Record<CanvasViewMode, string> = {
   network: "Network",
   campaign: "By campaign",
   creative: "By creative",
+  angle: "By angle",
 };
 
 /** Anything that isn't a known view is the default — never an error. */
@@ -672,15 +696,48 @@ export interface CanvasChip {
   roas: number | null;
   rate: Rating;
   lastSpendDay: string | null;
+  /**
+   * By angle (C8): the chip is the WHOLE creative, not a pairing — its spend,
+   * ROAS and Rate are the creative's own, and `live` = spending in any
+   * campaign now. Absent on pairing chips.
+   */
+  whole?: true;
 }
+
+/**
+ * An ANGLE cluster's header (C8). Not an entity: its id is `a:<angle>` (`a:`
+ * for "No angle"), which the cluster focus lights like any header. Figures
+ * are sums over its creatives — a creative with several angles counts in
+ * each, so headers don't add up to the brand total (the header says so).
+ */
+export interface CanvasAngleHeader {
+  id: string;
+  /** null = the "No angle" cluster. */
+  name: string | null;
+  spend: number;
+  revenue: number;
+  roas: number | null;
+  /** Creatives here spending in any campaign now / creatives here that spent. */
+  live: number;
+  total: number;
+}
+
+export const ANGLE_HEADER_PREFIX = "a:";
+export const angleHeaderId = (name: string | null) => `${ANGLE_HEADER_PREFIX}${name ?? ""}`;
+export const isAngleHeaderId = (id: string) => id.startsWith(ANGLE_HEADER_PREFIX);
+/** The angle header's box — fixed, not spend-scaled (an angle has no node). */
+export const ANGLE_HEADER_WIDTH = 232;
+export const ANGLE_HEADER_HEIGHT = 56;
 
 export interface CanvasCluster {
   id: string;
   /** "idle" = the trailing pseudo-cluster of creatives with no campaign here. */
-  kind: "campaign" | "creative" | "idle";
-  /** The header entity's node id; null for the idle pseudo-cluster. */
+  kind: "campaign" | "creative" | "angle" | "idle";
+  /** The header entity's node id (an angle's `a:` id); null for idle. */
   headerId: string | null;
   chips: CanvasChip[];
+  /** Set on an angle cluster: what its header shows. */
+  angle?: CanvasAngleHeader;
 }
 
 /** Rendered chips are capped like edges are — duplication multiplies them. */
@@ -727,6 +784,8 @@ export function buildClusters(
   const clusters: CanvasCluster[] = [];
   let totalChips = total;
   let shownChips = kept.length;
+
+  if (view === "angle") return angleClusters(graph, idle, maxChips);
 
   if (view === "campaign") {
     const chipsOf = new Map<string, CanvasChip[]>();
@@ -814,6 +873,101 @@ export function buildClusters(
     clusters,
     truncated: shownChips < totalChips ? { shownChips, totalChips } : null,
   };
+}
+
+/**
+ * BY ANGLE (C8): one cluster per angle (spend desc), its CREATIVES as whole
+ * chips — a creative with two angles is in both. "No angle" trails the
+ * angles; idle-active creatives keep their own trailing cluster, as By
+ * campaign. The chip cap keeps the top occurrences by spend and SAYS so.
+ */
+function angleClusters(
+  graph: Pick<CanvasGraph, "creatives" | "edges">,
+  idle: CanvasCreativeNode[],
+  maxChips: number,
+): CanvasClusters {
+  const liveIds = new Set(graph.edges.filter((e) => e.live).map((e) => e.target));
+  const spent = graph.creatives.filter((c) => c.spend > 0);
+
+  type Occ = { angle: string | null; c: CanvasCreativeNode };
+  const occ: Occ[] = [];
+  for (const c of spent) {
+    if (c.angles.length === 0) occ.push({ angle: null, c });
+    else for (const a of c.angles) occ.push({ angle: a, c });
+  }
+  const totalOcc = occ.length;
+  const kept = [...occ].sort((x, y) => y.c.spend - x.c.spend || x.c.name.localeCompare(y.c.name)).slice(0, maxChips);
+
+  const groups = new Map<string, { name: string | null; members: CanvasCreativeNode[] }>();
+  for (const { angle, c } of kept) {
+    const id = angleHeaderId(angle);
+    const g = groups.get(id) ?? { name: angle, members: [] };
+    g.members.push(c);
+    groups.set(id, g);
+  }
+
+  const clusters: CanvasCluster[] = [...groups.entries()]
+    .map(([id, g]): CanvasCluster => {
+      const spend = g.members.reduce((m, c) => m + c.spend, 0);
+      const revenue = g.members.reduce((m, c) => m + c.revenue, 0);
+      const chips: CanvasChip[] = g.members
+        .map((c) => ({
+          id: `${id}>${c.id}`,
+          entityId: c.id,
+          edgeId: null,
+          live: liveIds.has(c.id),
+          spend: c.spend,
+          roas: c.roas,
+          rate: c.rate,
+          lastSpendDay: null,
+          whole: true as const,
+        }))
+        .sort(byPairingState);
+      return {
+        id: `cl:${id}`,
+        kind: "angle",
+        headerId: id,
+        chips,
+        angle: {
+          id,
+          name: g.name,
+          spend,
+          revenue,
+          roas: spend > 0 ? revenue / spend : null,
+          live: chips.filter((ch) => ch.live).length,
+          total: chips.length,
+        },
+      };
+    })
+    .sort((a, b) => {
+      // "No angle" trails every named angle.
+      const an = a.angle!.name === null, bn = b.angle!.name === null;
+      if (an !== bn) return an ? 1 : -1;
+      return b.angle!.spend - a.angle!.spend || (a.angle!.name ?? "").localeCompare(b.angle!.name ?? "");
+    });
+
+  let shownChips = kept.length;
+  const totalChips = totalOcc + idle.length;
+  const shownIdle = idle.slice(0, Math.max(0, maxChips - kept.length));
+  shownChips += shownIdle.length;
+  if (shownIdle.length > 0) {
+    clusters.push({
+      id: "cl:idle",
+      kind: "idle",
+      headerId: null,
+      chips: shownIdle.map((c) => ({
+        id: `idle>${c.id}`,
+        entityId: c.id,
+        edgeId: null,
+        live: true,
+        spend: 0,
+        roas: null,
+        rate: "na",
+        lastSpendDay: null,
+      })),
+    });
+  }
+  return { clusters, truncated: shownChips < totalChips ? { shownChips, totalChips } : null };
 }
 
 // ── Cluster layout ───────────────────────────────────────────────────────────

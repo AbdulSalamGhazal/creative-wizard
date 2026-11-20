@@ -2,6 +2,7 @@ import { and, eq, gt, gte, inArray, or, sql, type SQL } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
   campaigns,
+  creativeAngles,
   creatives,
   performanceRecords,
   type platformEnum,
@@ -38,6 +39,7 @@ import {
   type CanvasEdge,
   type CanvasFocusParam,
   type CanvasGraph,
+  creativeRate,
   earlierDay,
 } from "@/lib/canvas";
 
@@ -269,6 +271,9 @@ export async function canvasGraph(f: CanvasFilters): Promise<CanvasGraph> {
         conversions,
         revenue,
         launchedOn: first,
+        angles: [], // filled below, for the creatives drawn
+        roas: null, // the creative's own Rate, after its totals are summed
+        rate: "na",
       });
     }
 
@@ -287,6 +292,11 @@ export async function canvasGraph(f: CanvasFilters): Promise<CanvasGraph> {
         windowDays,
       }),
     });
+  }
+
+  // The CREATIVE's own Rate (By angle's chip colour), over its summed totals.
+  for (const n of creativeNodes.values()) {
+    Object.assign(n, creativeRate(n, f.platforms, ratingConfig));
   }
 
   // A first in-range day is a LAUNCH only if nothing spent before the range.
@@ -358,6 +368,9 @@ export async function canvasGraph(f: CanvasFilters): Promise<CanvasGraph> {
           conversions: 0,
           revenue: 0,
           launchedOn: null, // no spend in the range — nothing launched
+          angles: [],
+          roas: null,
+          rate: "na" as const,
         }))
         .sort((a, b) => a.name.localeCompare(b.name));
     }
@@ -368,12 +381,31 @@ export async function canvasGraph(f: CanvasFilters): Promise<CanvasGraph> {
   const idleShown = idle.slice(0, idleRoom);
   const idleHidden = idle.length - idleShown.length;
 
+  const drawnCreatives = [
+    ...[...creativeNodes.values()].filter((n) => keptNodeIds.has(n.id)),
+    ...idleShown,
+  ];
+  // ANGLES (C8), for the creatives drawn only. `creative_angles` has no
+  // account_id: the ids come from this brand's own scan, which bounds it.
+  if (drawnCreatives.length > 0) {
+    const angleRows = await db
+      .select({ creativeId: creativeAngles.creativeId, angle: creativeAngles.angle })
+      .from(creativeAngles)
+      .where(inArray(creativeAngles.creativeId, drawnCreatives.map((c) => c.creativeId)));
+    const anglesOf = new Map<string, string[]>();
+    for (const r of angleRows) {
+      const list = anglesOf.get(r.creativeId) ?? [];
+      list.push(r.angle);
+      anglesOf.set(r.creativeId, list);
+    }
+    for (const c of drawnCreatives) {
+      c.angles = (anglesOf.get(c.creativeId) ?? []).sort((a, b) => a.localeCompare(b));
+    }
+  }
+
   return {
     campaigns: [...campaignNodes.values()].filter((n) => keptNodeIds.has(n.id)),
-    creatives: [
-      ...[...creativeNodes.values()].filter((n) => keptNodeIds.has(n.id)),
-      ...idleShown,
-    ],
+    creatives: drawnCreatives,
     edges: kept,
     truncated:
       truncated || idleHidden > 0
