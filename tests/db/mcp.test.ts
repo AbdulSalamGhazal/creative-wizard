@@ -144,6 +144,20 @@ describe("MCP tools — brand scoping for a restricted user", () => {
     expect(out.totals.spend).toBe(400);
   });
 
+  it("get_creative names each campaign's objective in its per-campaign rows", async () => {
+    const tools = loadTools();
+    const res = await runWithMcpActor(
+      { user: restricted, tokenId: "t" },
+      () => tools.get("get_creative")!({ name: "A-Creative-1", include_excluded: true }, {}),
+    );
+    const out = parse(res);
+    expect(out.byCampaign.length).toBeGreaterThan(0);
+    for (const row of out.byCampaign as Array<{ campaign: string; objective: string }>) {
+      // Every fixture campaign runs under "Sales" (tests/db/fixtures.ts).
+      expect(row.objective).toBe("Sales");
+    }
+  });
+
   it("get_kpis for a brand the user lacks → error result (never Account B data)", async () => {
     const tools = loadTools();
     const res = await runWithMcpActor(

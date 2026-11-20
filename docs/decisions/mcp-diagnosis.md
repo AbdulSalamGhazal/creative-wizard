@@ -164,3 +164,12 @@ as it stood before the restructure.*
   closed months are judged; the running month carries `pace_to_date`.
   `lib/mcp/coverage.ts` lists both tools under `budget`. Daily's per-day
   cells and Analysis's product cut have no tool of their own.
+
+### Campaign objective on every campaign row (2026-11-20)
+
+The tables sweep gave the creative page's campaigns table an Objective
+column; the user asked for the MCP to carry it too. `list_campaigns` and
+`get_campaign` already named it; `get_creative`'s `byCampaign` and
+`get_landing_pages`' `by_campaign` (one page in depth) now carry
+`objective` as well — read off `campaignMix`, which groups by the campaign,
+so no query changed. `tests/db/mcp.test.ts` pins it on `get_creative`.

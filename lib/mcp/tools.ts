@@ -312,7 +312,7 @@ export function registerMcpTools(server: McpServer): void {
   server.registerTool(
     "get_creative",
     {
-      description: `One creative in depth: fields, manual funnel stage(s), angles, per-platform status, and its per-campaign performance breakdown (all-time unless a range is given). ${CONVENTIONS} ${ANGLES_RENAME}`,
+      description: `One creative in depth: fields, manual funnel stage(s), angles, per-platform status, and its per-campaign performance breakdown, each campaign with its objective (all-time unless a range is given). ${CONVENTIONS} ${ANGLES_RENAME}`,
       inputSchema: {
         brand: brandField,
         name: z.string().describe("Exact creative name."),
@@ -351,6 +351,7 @@ export function registerMcpTools(server: McpServer): void {
           },
           byCampaign: mix.map((m) => ({
             campaign: m.campaign,
+            objective: m.objective,
             platform: m.platform,
             spend: r2(m.spend),
             conversions: m.conversions,
@@ -1031,7 +1032,7 @@ export function registerMcpTools(server: McpServer): void {
   server.registerTool(
     "get_landing_pages",
     {
-      description: `Ad performance per landing page for a range (defaults to the app's last 30 days). An ad name ending in " @code" sends traffic to that registered landing page; a row with landing_page null is the PRODUCT's own page (no code). Each row is one (product, landing page), optionally split by platform. Pass \`code\` for ONE landing page in depth instead — what its detail page shows: totals, by platform, by campaign and by creative (all platforms, google included). ${CONVENTIONS}`,
+      description: `Ad performance per landing page for a range (defaults to the app's last 30 days). An ad name ending in " @code" sends traffic to that registered landing page; a row with landing_page null is the PRODUCT's own page (no code). Each row is one (product, landing page), optionally split by platform. Pass \`code\` for ONE landing page in depth instead — what its detail page shows: totals, by platform, by campaign (with each campaign's objective) and by creative (all platforms, google included). ${CONVENTIONS}`,
       inputSchema: {
         brand: brandField,
         from: fromField,
@@ -1106,6 +1107,7 @@ export function registerMcpTools(server: McpServer): void {
               })),
               by_campaign: byCampaign.map((m) => ({
                 campaign: m.campaign,
+                objective: m.objective,
                 platform: m.platform,
                 spend: r2(m.spend),
                 conversions: m.conversions,
