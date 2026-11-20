@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import dynamic from "next/dynamic";
 import { useSearchParams } from "next/navigation";
 import { usePathname, useRouter } from "@/lib/brand-nav";
@@ -18,6 +18,7 @@ import {
   CANVAS_VIEW_LABEL,
   CANVAS_VIEWS,
   canvasInsights,
+  inspectFor,
   parseCanvasLens,
   parseCanvasView,
   type CanvasGraph,
@@ -28,6 +29,7 @@ import {
 } from "@/lib/canvas";
 import type { CanvasFocusRequest } from "@/components/canvas/canvas-flow";
 import { EmptyState } from "@/components/ui/empty-state";
+import { CanvasInspector } from "@/components/canvas/canvas-inspector";
 import type { RatingRules } from "@/lib/rating";
 
 /**
@@ -41,6 +43,22 @@ const CanvasFlow = dynamic(() => import("@/components/canvas/canvas-flow"), {
 });
 
 const NO_CLUSTERS: never[] = [];
+
+/**
+ * The inspector is a COLUMN beside the canvas from `sm` up (it takes this much
+ * width from the pane) and an overlay over the canvas's lower half below it.
+ */
+const INSPECTOR_WIDTH = 280;
+/** The phone overlay's share of the canvas height — matches `h-[55%]`. */
+const INSPECTOR_PHONE_COVER = 0.55;
+const WIDE_QUERY = "(min-width: 640px)";
+function subscribeWide(cb: () => void): () => void {
+  const mq = window.matchMedia(WIDE_QUERY);
+  mq.addEventListener("change", cb);
+  return () => mq.removeEventListener("change", cb);
+}
+const readWide = (): boolean => window.matchMedia(WIDE_QUERY).matches;
+const readWideServer = (): boolean => true;
 
 const LENS_OPTIONS = CANVAS_LENSES.map((value) => ({
   value,
@@ -168,6 +186,19 @@ export function CanvasView({
     [router, startNav],
   );
 
+  // The CLICK INSPECTOR: a single-entity focus asked for it (a node click, a
+  // search pick, a pairing row). It reads the drawn graph — no query.
+  const inspection = useMemo(
+    () => (focus?.inspect && focus.ids[0] ? inspectFor(focus.ids[0], graph) : null),
+    [focus, graph],
+  );
+  const wide = useSyncExternalStore(subscribeWide, readWide, readWideServer);
+  const inspect = useCallback(
+    (id: string) => setFocus({ ids: [id], fit: "first", inspect: true }),
+    [],
+  );
+  const closeInspector = useCallback(() => setFocus(null), []);
+
   const empty = graph.campaigns.length === 0 && graph.creatives.length === 0;
 
   if (empty) {
@@ -268,9 +299,10 @@ export function CanvasView({
           iOS Safari's collapsing URL bar; the floor is lower on a phone. */}
       <div
         ref={frameRef}
-        className="h-[calc(100dvh-17rem)] min-h-[320px] sm:min-h-[420px] overflow-hidden rounded-lg border border-line bg-background"
+        className="relative flex h-[calc(100dvh-17rem)] min-h-[320px] sm:min-h-[420px] overflow-hidden rounded-lg border border-line bg-background"
         style={frameTop === null ? undefined : { height: `calc(100dvh - ${frameTop}px - 1.5rem)` }}
       >
+        <div className="h-full min-w-0 flex-1">
         <CanvasFlow
           graph={graph}
           view={view}
@@ -280,7 +312,22 @@ export function CanvasView({
           focus={focus}
           onFocus={setFocus}
           onOpen={open}
+          reservedWidth={inspection && wide ? INSPECTOR_WIDTH : 0}
+          coveredBottom={inspection && !wide ? INSPECTOR_PHONE_COVER : 0}
         />
+        </div>
+        {inspection && (
+          <CanvasInspector
+            key={inspection.node.id}
+            inspection={inspection}
+            onInspect={inspect}
+            onOpen={open}
+            onClose={closeInspector}
+            // A column from sm up; below it, an overlay over the lower half
+            // (the canvas stays visible and clickable above it).
+            className="absolute inset-x-0 bottom-0 z-10 h-[55%] border-t border-line shadow-lg sm:static sm:z-auto sm:h-full sm:w-[280px] sm:shrink-0 sm:border-l sm:border-t-0 sm:shadow-none"
+          />
+        )}
       </div>
 
       <p className="text-[11px] text-ink-3">
@@ -291,7 +338,7 @@ export function CanvasView({
           : view === "campaign"
             ? "A creative appears once per campaign it ran in — a solid chip is spending there now, a dashed one has stopped;"
             : "A campaign appears once per creative it ran — a solid chip is spending there now, a dashed one has stopped;"}{" "}
-        click to focus, double-click to open, Esc to clear.
+        click for details, double-click to open, Esc to clear.
       </p>
     </div>
   );

@@ -86,6 +86,11 @@ export interface CanvasFocusRequest {
    * view an entity can be lit in many places), `"none"` leaves it (a click).
    */
   fit: "none" | "all" | "first";
+  /**
+   * Open the CLICK INSPECTOR for `ids[0]`: a node click and a search pick set
+   * it; an insight chip (a group focus) doesn't.
+   */
+  inspect?: boolean;
 }
 
 type PlatformKey = keyof typeof PLATFORM_COLOR;
@@ -301,6 +306,8 @@ function Flow({
   focus,
   onFocus,
   onOpen,
+  reservedWidth = 0,
+  coveredBottom = 0,
 }: {
   graph: CanvasGraph;
   view: CanvasViewMode;
@@ -314,6 +321,17 @@ function Flow({
   onFocus: (req: CanvasFocusRequest | null) => void;
   /** Double-click — the page decides where an entity's detail lives. */
   onOpen: (node: CanvasNode) => void;
+  /**
+   * Width the inspector column is taking from the pane right now (desktop).
+   * The cluster views count columns as if it weren't there, so opening the
+   * inspector never re-flows the clusters or re-fits the viewport.
+   */
+  reservedWidth?: number;
+  /**
+   * Fraction of the pane's height the inspector OVERLAY covers on a phone
+   * (0 when it's a column). Keep-in-view centres the node in what's left.
+   */
+  coveredBottom?: number;
 }) {
   const flow = useReactFlow();
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -357,7 +375,7 @@ function Flow({
   // Cluster layout: the column count follows the PANE (one on a phone), and
   // headers are the same spend-scaled size the network draws.
   const paneWidth = useStore((st) => st.width);
-  const columns = clusterColumnsFor(paneWidth);
+  const columns = clusterColumnsFor(paneWidth + reservedWidth);
   const clusterLayout = useMemo(
     () => (view === "network" ? null : clusterBoxes(clusters, columns, canvasNodeSizes(graph))),
     [view, clusters, columns, graph],
@@ -548,6 +566,34 @@ function Flow({
     });
   }, [focus, lit, flow]);
 
+  // KEEP THE INSPECTED NODE IN VIEW. Opening the inspector column narrows the
+  // pane from the right, so a node clicked near that edge would vanish behind
+  // the panel it just opened. Once the pane has its new width, pan — at the
+  // same zoom, and only if the node is actually out of view — to bring the
+  // first lit occurrence back. A search / row pick already pans ("first").
+  const paneHeight = useStore((st) => st.height);
+  useEffect(() => {
+    if (!focus?.inspect || focus.fit !== "none" || !lit?.first || paneWidth === 0) return;
+    const n = flow.getInternalNode(lit.first);
+    if (!n) return;
+    const { x: vx, y: vy, zoom } = flow.getViewport();
+    const w = n.measured.width ?? n.width ?? 0;
+    const h = n.measured.height ?? n.height ?? 0;
+    const left = n.internals.positionAbsolute.x * zoom + vx;
+    const top = n.internals.positionAbsolute.y * zoom + vy;
+    const visibleHeight = paneHeight * (1 - coveredBottom);
+    const inView =
+      left >= 0 && left + w * zoom <= paneWidth && top >= 0 && top + h * zoom <= visibleHeight;
+    if (inView) return;
+    // setCenter centres in the WHOLE pane; push the target down by half the
+    // covered strip so the node lands in the middle of the visible part.
+    void flow.setCenter(
+      n.internals.positionAbsolute.x + w / 2,
+      n.internals.positionAbsolute.y + h / 2 + (paneHeight * coveredBottom) / 2 / zoom,
+      { zoom, duration: 300 },
+    );
+  }, [focus, lit, flow, paneWidth, paneHeight, coveredBottom]);
+
   // ESC clears focus.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -684,7 +730,7 @@ function Flow({
   const jumpTo = (n: CanvasNode) => {
     setQuery("");
     // In a cluster view this lights EVERY occurrence and pans to the first.
-    onFocus({ ids: [n.id], fit: "first" });
+    onFocus({ ids: [n.id], fit: "first", inspect: true });
   };
 
   return (
@@ -706,7 +752,7 @@ function Flow({
         onlyRenderVisibleElements
         onNodeClick={(_, n) => {
           const id = (n as AnyNode).data.entityId;
-          if (id) onFocus({ ids: [id], fit: "none" });
+          if (id) onFocus({ ids: [id], fit: "none", inspect: true });
         }}
         onNodeDoubleClick={(_, n) => {
           const entity = byId.get((n as AnyNode).data.entityId ?? "");

@@ -28,6 +28,12 @@
   Summary. No new scale, no CPA lens (no CPA thresholds exist). Width, dash
   and opacity keep their meaning in both lenses; liveness stays the window
   clock. A chip's `roas`/`rate` are its edge's, copied — never re-derived.
+- **THE INSPECTOR READS THE DRAWN GRAPH.** A single click (or a search pick, or
+  a pairing row) = focus + the click inspector (`inspectFor`): no query, no
+  new number — ROAS / CPA from the node's sums, the pairing's ROAS and Rate
+  from its edge. It is NON-MODAL: a column beside the canvas from `sm` up, an
+  overlay on the lower 55% below it. Opening it never re-flows the clusters
+  (`reservedWidth`) and keeps the inspected node in view (`coveredBottom`).
 
 ## History and rationale
 
@@ -238,3 +244,40 @@ as it stood before the restructure.*
     at 1 (paused lines keep their deliberate dashed 0.45). *Not fixed, found
     in passing:* the PLATFORM lens's Facebook (2.4:1) and Snapchat (2.3:1)
     lines are under 3:1 on Frost and Paper — that predates this change.
+
+### Click inspector (2026-11-20)
+
+- **C4: the CLICK INSPECTOR.** A click used to only focus; the numbers lived in
+  a hover tooltip or on the entity's page. Now a single click (also a search
+  pick or a pairing row) opens a read-only panel: header (name, status,
+  stars / "3/5 live"), four `MetricCard` tiles (Spend · ROAS · Conversions ·
+  CPA, from the node's range sums), the pairings (live first, then spend
+  desc — the chips' order — each with live / "paused since", share of the
+  inspected node's spend, spend, and ROAS + Rate dot from the edge), "Open
+  creative/campaign →", and a line when filters hid pairings (a campaign's
+  `totalChildren` makes the count exact; a creative's list says "may be
+  partial" only when the cap bit). Pure model `inspectFor` in `lib/canvas.ts`.
+  - **User decisions (all four recommendations taken):** a non-modal column
+    beside the canvas (the house `Sheet` was declined: it is modal, so you
+    couldn't click another node with it open) · single click opens it, Esc /
+    empty click / ✕ close it with the focus, double-click still opens the
+    page, insight chips (group focus) don't open it · a pairing row inspects
+    that entity and pans to it · Spend, ROAS, Conversions, CPA.
+  - **`CanvasFocusRequest.inspect`** carries the "open the panel" intent, so
+    the panel follows the focus through view switches for free.
+  - **Two seams the walk caught:** (1) the column narrows the pane from the
+    right, so a node clicked near that edge vanished behind the panel it had
+    opened — a keep-in-view effect pans (same zoom, only when out of view) to
+    the first lit occurrence; on a phone it centres the node in the strip
+    above the overlay (`coveredBottom`). (2) In the overlay, two rows of
+    headline-size tiles pushed the pairings below the fold — one row of four
+    on a phone, 2×2 in the desktop column.
+  - **Cluster views** count their columns as if the inspector weren't there
+    (`reservedWidth`), so opening it never re-flows or re-fits the board.
+  - The hint under the canvas reads "click for details" (was "click to
+    focus"). *Found, not fixed:* at ~1000px that hint wraps to two lines and
+    the page scrolls ~45px, because the frame reserves 1.5rem below itself —
+    true before this change too.
+  - **Rig note:** the Browser pane's `preview_start` ran the dev server in the
+    MAIN checkout, not the session's worktree — it served `main`'s code. Check
+    the server's cwd (`lsof -p <pid> -d cwd`) before trusting a worktree walk.

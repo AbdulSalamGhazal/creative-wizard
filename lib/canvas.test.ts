@@ -6,6 +6,7 @@ import {
   clusterFocus,
   clusterFrameId,
   clusterHeaderId,
+  inspectFor,
   pairRate,
   parseCanvasLens,
   parseCanvasView,
@@ -725,5 +726,71 @@ describe("performance lens — a chip carries its edge's rate", () => {
     expect(clusters[0]!.chips[0]).toMatchObject({ roas: 3.1, rate: "decent" });
     const byCreative = buildClusters(graph, "creative");
     expect(byCreative.clusters[0]!.chips[0]).toMatchObject({ roas: 3.1, rate: "decent" });
+  });
+});
+
+describe("click inspector — inspectFor reads the drawn graph", () => {
+  const graph = {
+    campaigns: [
+      camp("c:A", 1000, { name: "Alpha", conversions: 20, revenue: 4000, totalChildren: 4 }),
+      camp("c:B", 300, { name: "Beta", totalChildren: 1 }),
+    ],
+    creatives: [
+      cre("k:1", 700, { name: "one", conversions: 10, revenue: 2100 }),
+      cre("k:2", 400, { name: "two", conversions: 0, revenue: 0 }),
+      cre("k:3", 200, { name: "three" }),
+      cre("k:idle", 0, { name: "idle" }),
+    ],
+    edges: [
+      edge("c:A", "k:1", 600, true),
+      edge("c:A", "k:2", 300, false), // paused here
+      edge("c:A", "k:3", 100, true),
+      edge("c:B", "k:1", 100, true),
+      edge("c:B", "k:2", 100, true),
+    ],
+    truncated: null,
+  };
+
+  it("a campaign lists its creatives — live first, then spend desc — with shares", () => {
+    const r = inspectFor("c:A", graph)!;
+    expect(r.pairings.map((p) => p.other.id)).toEqual(["k:1", "k:3", "k:2"]);
+    expect(r.pairings[0]!.share).toBeCloseTo(0.6, 10);
+    expect(r.pairings[2]!.edge.live).toBe(false);
+  });
+
+  it("a creative lists its campaigns, share of the CREATIVE's spend", () => {
+    const r = inspectFor("k:1", graph)!;
+    expect(r.pairings.map((p) => p.other.id)).toEqual(["c:A", "c:B"]);
+    expect(r.pairings.map((p) => p.share)).toEqual([600 / 700, 100 / 700]);
+    expect(r.hiddenPairings).toBe(0);
+  });
+
+  it("ROAS and CPA come from the node's sums; zero conversions → CPA null", () => {
+    const a = inspectFor("c:A", graph)!;
+    expect(a.roas).toBe(4);
+    expect(a.cpa).toBe(50);
+    const two = inspectFor("k:2", graph)!;
+    expect(two.roas).toBe(0);
+    expect(two.cpa).toBeNull();
+  });
+
+  it("a campaign SAYS how many pairings the filters hid (totalChildren − listed)", () => {
+    expect(inspectFor("c:A", graph)!.hiddenPairings).toBe(1); // 4 scanned, 3 drawn
+    expect(inspectFor("c:B", graph)!.hiddenPairings).toBe(0); // never negative
+  });
+
+  it("a creative's list is 'unknown'-partial only when the cap bit", () => {
+    const capped = { ...graph, truncated: { shownEdges: 5, totalEdges: 9, idleHidden: 0 } };
+    expect(inspectFor("k:1", capped)!.hiddenPairings).toBe("unknown");
+    const idleOnly = { ...graph, truncated: { shownEdges: 5, totalEdges: 5, idleHidden: 3 } };
+    expect(inspectFor("k:1", idleOnly)!.hiddenPairings).toBe(0);
+  });
+
+  it("an idle creative has no pairings and no ratios; an unknown id is null", () => {
+    const idle = inspectFor("k:idle", graph)!;
+    expect(idle.pairings).toEqual([]);
+    expect(idle.roas).toBeNull();
+    expect(idle.cpa).toBeNull();
+    expect(inspectFor("k:nope", graph)).toBeNull();
   });
 });

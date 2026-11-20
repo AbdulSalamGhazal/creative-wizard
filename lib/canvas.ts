@@ -780,3 +780,75 @@ export function clusterFocus(
   }
   return { lit, first };
 }
+
+// ── Click inspector ─────────────────────────────────────────────────────────
+
+/** One pairing as the inspector lists it: the node at the other end + the edge. */
+export interface InspectorPairing {
+  other: CanvasNode;
+  edge: CanvasEdge;
+  /** This pairing's spend ÷ the INSPECTED node's range spend; null if that is 0. */
+  share: number | null;
+}
+
+export interface CanvasInspection {
+  node: CanvasNode;
+  /** Live first, then spend desc — the cluster chips' order. */
+  pairings: InspectorPairing[];
+  /**
+   * Pairings the status filter or the scale cap HID. A campaign knows its true
+   * count (`totalChildren`, counted over every scanned edge), so the number is
+   * exact; a creative's list can only be partial when the cap bit, so it is
+   * `"unknown"` then and `0` otherwise.
+   */
+  hiddenPairings: number | "unknown";
+  /** Range ROAS and CPA from the node's own sums — never averages. */
+  roas: number | null;
+  cpa: number | null;
+}
+
+/**
+ * The CLICK INSPECTOR reads the graph the canvas draws: no query, no new
+ * number. Unknown id (filtered out, or a frame) → null.
+ */
+export function inspectFor(
+  entityId: string,
+  graph: Pick<CanvasGraph, "campaigns" | "creatives" | "edges" | "truncated">,
+): CanvasInspection | null {
+  const byId = new Map<string, CanvasNode>();
+  for (const n of graph.campaigns) byId.set(n.id, n);
+  for (const n of graph.creatives) byId.set(n.id, n);
+  const node = byId.get(entityId);
+  if (!node) return null;
+
+  const pairings: InspectorPairing[] = [];
+  for (const edge of graph.edges) {
+    const otherId =
+      edge.source === entityId ? edge.target : edge.target === entityId ? edge.source : null;
+    if (!otherId) continue;
+    const other = byId.get(otherId);
+    if (!other) continue;
+    pairings.push({ other, edge, share: node.spend > 0 ? edge.spend / node.spend : null });
+  }
+  pairings.sort(
+    (a, b) =>
+      (a.edge.live === b.edge.live ? 0 : a.edge.live ? -1 : 1) ||
+      b.edge.spend - a.edge.spend ||
+      a.other.name.localeCompare(b.other.name),
+  );
+
+  const hiddenPairings: number | "unknown" =
+    node.kind === "campaign"
+      ? Math.max(0, node.totalChildren - pairings.length)
+      : graph.truncated && graph.truncated.shownEdges < graph.truncated.totalEdges
+        ? "unknown"
+        : 0;
+
+  return {
+    node,
+    pairings,
+    hiddenPairings,
+    roas: node.spend > 0 ? node.revenue / node.spend : null,
+    cpa: node.conversions > 0 ? node.spend / node.conversions : null,
+  };
+}
